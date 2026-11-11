@@ -52,12 +52,12 @@ describe("AI gateway provider registry", () => {
     );
   });
 
-  it("routes Decisions only to OpenAI", () => {
+  it("routes Decisions only to OpenAI and Vercel", () => {
     expect(
       gatewayProviders.filter((provider) =>
         providerSupportsApiFormat(provider, "openai.decisions"),
       ),
-    ).toEqual(["OPENAI"]);
+    ).toEqual(["OPENAI", "VERCEL"]);
   });
 
   it("rejects xAI keys that are disabled or blocked", () => {

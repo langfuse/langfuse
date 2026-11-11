@@ -25,6 +25,7 @@ import {
 import { GatewayConnectionModelsToolbar } from "./components/GatewayConnectionModelsToolbar";
 import { ModelEnabledSwitch } from "./components/ModelEnabledSwitch";
 import type { GatewayConnectionModelRow } from "./types/gatewayConnectionModelRow";
+import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider/registry";
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
 const DEFAULT_PAGE_SIZE = 50;
 const ROW_HEIGHTS = {
@@ -162,6 +163,8 @@ export type GatewayConnectionModelsTableProps = {
   connectionName: string;
   provider: GatewayProvider;
   models: string[];
+  /** The formats of the models the provider's catalog reports them for. */
+  modelApiFormats?: Readonly<Record<string, GatewayApiFormat[]>>;
   customModels: GatewayCustomModel[];
   modelAccessStore: GatewayModelAccessStore;
   isSaving: boolean;
@@ -183,6 +186,7 @@ export const GatewayConnectionModelsTable = memo(
     connectionName,
     provider,
     models,
+    modelApiFormats,
     customModels,
     modelAccessStore,
     isSaving,
@@ -240,7 +244,11 @@ export const GatewayConnectionModelsTable = memo(
       .map((id) => ({
         id,
         custom: customModelIds.has(id),
-        apiFormats: getGatewayModelApiFormats(provider, id),
+        apiFormats: getGatewayModelApiFormats(
+          provider,
+          id,
+          modelApiFormats?.[id],
+        ),
       }));
     const sortedModels = filteredModels.toSorted((left, right) => {
       const comparison = statusSortState

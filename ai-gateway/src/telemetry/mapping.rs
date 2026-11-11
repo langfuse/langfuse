@@ -6,6 +6,7 @@ use super::context::GenerationContext;
 use crate::{
     capture::{InferenceFacts, InputOmissionReason, MAX_INPUT_CAPTURE_BYTES, RelayOutcome},
     observability::{ErrorOrigin, provider_status_reason},
+    resolution::ApiFormat,
 };
 
 const USER_ID_ATTRIBUTE: &str = "user.id";
@@ -97,7 +98,7 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
         "spanId": context.observation_id,
         // Generation capture is independent of the caller's sampling decision.
         "flags": 1,
-        "name": facts.api_format,
+        "name": facts.api_format.as_str(),
         "kind": 3,
         "startTimeUnixNano": facts.start_time_unix_ms.saturating_mul(1_000_000).to_string(),
         "endTimeUnixNano": facts.start_time_unix_ms.saturating_add(facts.duration_ms).saturating_mul(1_000_000).to_string(),
@@ -225,7 +226,7 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
     }
     metadata.insert(
         "langfuse.gateway.request.api_format".into(),
-        json!(facts.api_format),
+        json!(facts.api_format.as_str()),
     );
     // Before upstream headers, transport failures become gateway HTTP errors.
     // Once headers arrive, later stream failures cannot change the HTTP status.
@@ -367,32 +368,31 @@ fn attribute(key: &str, value: impl Into<String>) -> Value {
     json!({"key": key, "value": {"stringValue": value.into()}})
 }
 
-fn usage_projection(api_format: &str, usage: &Value) -> Option<Value> {
+fn usage_projection(api_format: ApiFormat, usage: &Value) -> Option<Value> {
     match api_format {
         // Decisions reports usage in the Responses shape.
-        "openai.responses" | "openai.decisions" => openai_usage(
+        ApiFormat::OpenAiResponses | ApiFormat::OpenAiDecisions => openai_usage(
             usage,
             ["input_tokens", "output_tokens", "total_tokens"],
             ["input_tokens_details", "output_tokens_details"],
         ),
-        "openai.chat-completions" => openai_usage(
+        ApiFormat::OpenAiChatCompletions => openai_usage(
             usage,
             ["prompt_tokens", "completion_tokens", "total_tokens"],
             ["prompt_tokens_details", "completion_tokens_details"],
         ),
-        "anthropic.messages" => usage.is_object().then(|| usage.clone()),
-        _ => None,
+        ApiFormat::AnthropicMessages => usage.is_object().then(|| usage.clone()),
     }
 }
 
 fn usage_attributes(
-    api_format: &str,
+    api_format: ApiFormat,
     metadata: &Value,
     usage: &Value,
     provider_metadata: Option<&Value>,
 ) -> Vec<Value> {
     let mut projected = usage_projection(api_format, usage);
-    if api_format == "openai.chat-completions"
+    if api_format == ApiFormat::OpenAiChatCompletions
         && metadata.get("provider").and_then(Value::as_str) == Some("xai")
     {
         projected = projected.map(xai_chat_usage);
@@ -593,7 +593,7 @@ mod tests {
 
     fn facts() -> InferenceFacts {
         let mut facts = InferenceFacts {
-            api_format: "openai.responses",
+            api_format: ApiFormat::OpenAiResponses,
             start_time_unix_ms: 1_735_689_600_000,
             duration_ms: 900,
             first_byte_ms: Some(50),
@@ -1142,7 +1142,7 @@ mod tests {
         assert!(metadata(&attrs).get("native_usage").is_none());
     }
 
-    fn projected_usage(api_format: &'static str, usage: Value) -> Option<Value> {
+    fn projected_usage(api_format: ApiFormat, usage: Value) -> Option<Value> {
         let mut facts = facts();
         facts.api_format = api_format;
         facts.inference.usage_details = Some(usage);
@@ -1287,7 +1287,7 @@ mod tests {
 
     #[test]
     fn vercel_gateway_metadata_cost_is_used_when_usage_has_none() {
-        let cost_details = |api_format: &'static str, usage: Value, gateway: Value| {
+        let cost_details = |api_format: ApiFormat, usage: Value, gateway: Value| {
             let mut facts = facts();
             facts.metadata["provider"] = json!("vercel");
             facts.api_format = api_format;
@@ -1315,7 +1315,7 @@ mod tests {
             "gatewayCost": "0.00014542", "inferenceCost": "0.00014542",
         });
         assert_eq!(
-            cost_details("openai.responses", responses_usage, system),
+            cost_details(ApiFormat::OpenAiResponses, responses_usage, system),
             Some(json!({"total": 0.000_145_42}))
         );
         let messages_usage = json!({"input_tokens": 7, "output_tokens": 13});
@@ -1326,11 +1326,15 @@ mod tests {
             })
         };
         assert_eq!(
-            cost_details("anthropic.messages", messages_usage.clone(), byok("byok")),
+            cost_details(
+                ApiFormat::AnthropicMessages,
+                messages_usage.clone(),
+                byok("byok")
+            ),
             Some(json!({"total": 0.000_017}))
         );
         assert_eq!(
-            cost_details("anthropic.messages", messages_usage, byok("other")),
+            cost_details(ApiFormat::AnthropicMessages, messages_usage, byok("other")),
             None
         );
     }
@@ -1346,17 +1350,17 @@ mod tests {
             "service_tier": "standard", "inference_geo": null
         });
         assert_eq!(
-            projected_usage("anthropic.messages", native.clone()),
+            projected_usage(ApiFormat::AnthropicMessages, native.clone()),
             Some(native)
         );
         assert_eq!(
-            projected_usage("anthropic.messages", json!({"input_tokens": 7})),
+            projected_usage(ApiFormat::AnthropicMessages, json!({"input_tokens": 7})),
             Some(json!({"input_tokens": 7}))
         );
         // The Anthropic shape never projects through the OpenAI rules.
         assert_eq!(
             projected_usage(
-                "openai.responses",
+                ApiFormat::OpenAiResponses,
                 json!({"input_tokens": 7, "output_tokens": 1, "cache_read_input_tokens": 5})
             ),
             None
@@ -1372,7 +1376,7 @@ mod tests {
             "future_usage": {"cost": 123},
         });
         assert_eq!(
-            projected_usage("openai.chat-completions", native),
+            projected_usage(ApiFormat::OpenAiChatCompletions, native),
             Some(json!({
                 "prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30,
                 "prompt_tokens_details": {"cached_tokens": 4, "audio_tokens": 0},
@@ -1382,14 +1386,14 @@ mod tests {
         // Each OpenAI contract projects only its own counter names.
         assert_eq!(
             projected_usage(
-                "openai.chat-completions",
+                ApiFormat::OpenAiChatCompletions,
                 json!({"input_tokens": 2, "output_tokens": 1, "total_tokens": 3})
             ),
             None
         );
         assert_eq!(
             projected_usage(
-                "openai.responses",
+                ApiFormat::OpenAiResponses,
                 json!({"prompt_tokens": 2, "completion_tokens": 1, "total_tokens": 3})
             ),
             None
@@ -1399,7 +1403,7 @@ mod tests {
     #[test]
     fn xai_chat_completions_usage_counts_reasoning_as_output() {
         let mut facts = facts();
-        facts.api_format = "openai.chat-completions";
+        facts.api_format = ApiFormat::OpenAiChatCompletions;
         facts.metadata["provider"] = json!("xai");
         facts.inference.usage_details = Some(json!({
             "prompt_tokens": 187, "completion_tokens": 13, "total_tokens": 342,
