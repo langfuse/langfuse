@@ -247,11 +247,7 @@ describe("userAccountRouter.signOutAllSessions", () => {
 
     await caller.userAccount.signOutAllSessions();
 
-    const sessionCallback = (await getAuthOptions()).callbacks
-      ?.session as (params: {
-      session: Session;
-      token: JWT;
-    }) => Promise<Session>;
+    const sessionCallback = await getSessionCallback();
 
     const revoked = await sessionCallback({
       session,
