@@ -131,24 +131,4 @@ impl OpenAiDecisionsCapture {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use axum::http::{HeaderValue, header::CONTENT_TYPE};
-    use serde_json::json;
-
-    #[test]
-    fn keeps_gateway_billing_in_usage_mode() {
-        let mut headers = HeaderMap::new();
-        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-        let mut capture = OpenAiDecisionsCapture::new(&headers, b"{}", IngestionMode::Usage);
-        capture.record_response(&headers);
-        let gateway = json!({"cost": "0.00004", "routing": {"modelAttempts": []}});
-        let response = json!({"answers": [], "provider_metadata": {"gateway": gateway}});
-        capture.push_bytes(response.to_string().as_bytes());
-        capture.end_body();
-        assert_eq!(
-            capture.into_facts().provider_metadata.unwrap()["gateway"],
-            gateway
-        );
-    }
-}
+mod tests;

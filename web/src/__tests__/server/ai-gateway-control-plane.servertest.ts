@@ -78,6 +78,7 @@ import {
 } from "@/src/features/ai-gateway/server/resolve/resolveService";
 import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { GatewayModelsService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
+import { GatewayModelsResponseSchema } from "@/src/features/ai-gateway/server/provider/registry";
 import { GatewayApiKeyService } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyService";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 import { getGatewaySetupRedirect } from "@/src/features/ai-gateway/server/gatewaySetupRedirect";
@@ -3654,12 +3655,12 @@ describe("AI gateway control plane", () => {
       apiFormat: "openai.responses",
     });
 
-    await expect(
-      new GatewayModelsService(prisma, null).list({
-        context,
-        apiFormat: "openai.responses",
-      }),
-    ).resolves.toEqual({
+    const listed = await new GatewayModelsService(prisma, null).list({
+      context,
+      apiFormat: "openai.responses",
+    });
+
+    expect(GatewayModelsResponseSchema.parse(listed)).toEqual({
       data: [
         {
           id: "Vercel:anthropic/claude-sonnet-5",
