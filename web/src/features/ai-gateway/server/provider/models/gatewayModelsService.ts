@@ -84,7 +84,7 @@ export class GatewayModelsService {
                 isGatewayModelAllowed(allowedModels, model.id) &&
                 modelMatchesApiFormat(model, params.apiFormat),
             )
-            .map((model) => ({
+            .map(({ apiFormats: _apiFormats, ...model }) => ({
               ...model,
               id: formatGatewayModelSlug(connection.name, model.id),
               provider: toCatalogFamily(model.provider, params.apiFormat),

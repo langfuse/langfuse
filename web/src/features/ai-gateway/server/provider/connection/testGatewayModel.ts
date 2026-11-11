@@ -32,9 +32,16 @@ export async function testGatewayModel(params: {
   extraHeaders: Record<string, string>;
   credential: string;
   model: string;
+  /** The formats the provider's catalog lists the model for. */
+  reportedFormats?: readonly GatewayApiFormat[];
 }): Promise<GatewayModelTestResult> {
   let firstFailure: GatewayModelTestResult | undefined;
-  for (const apiFormat of getTestApiFormats(params.provider, params.model)) {
+  const apiFormats = getTestApiFormats(
+    params.provider,
+    params.model,
+    params.reportedFormats,
+  );
+  for (const apiFormat of apiFormats) {
     const result = await sendTestRequest(params, apiFormat);
     if (result.success) return result;
     if (!firstFailure) firstFailure = result;
@@ -98,16 +105,18 @@ async function sendTestRequest(
 function getTestApiFormats(
   provider: GatewayProviderName,
   model: string,
+  reportedFormats: readonly GatewayApiFormat[] | undefined,
 ): GatewayApiFormat[] {
   if (provider === "ANTHROPIC") return ["anthropic.messages"];
   if (provider === "OPENAI" || provider === "XAI") {
     return ["openai.responses", "openai.chat-completions"];
   }
-  // Listed OpenRouter models serve every format through one API, and so do
-  // Vercel's language models; its decision models serve only Decisions.
-  if (provider === "OPENROUTER") return ["openai.chat-completions"];
-  if (provider === "VERCEL") {
-    return ["openai.chat-completions", "openai.decisions"];
+  // Listed OpenRouter and Vercel models serve every format through one API,
+  // except Vercel's decision models, which serve only Decisions.
+  if (provider === "OPENROUTER" || provider === "VERCEL") {
+    return reportedFormats?.includes("openai.decisions")
+      ? ["openai.decisions"]
+      : ["openai.chat-completions"];
   }
   const formats = getBedrockModelApiFormats(model);
   return BEDROCK_TEST_ORDER.filter((format) => formats.includes(format));
