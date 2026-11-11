@@ -74,8 +74,10 @@ impl OpenAiEmbeddingsCapture {
         if let Some(usage) = response.remove("usage").filter(Value::is_object) {
             self.facts.usage_details = Some(usage);
         }
+        // Vercel's Embeddings reply names it `providerMetadata`.
         if let Some(metadata) = response
             .remove("provider_metadata")
+            .or_else(|| response.remove("providerMetadata"))
             .filter(Value::is_object)
         {
             self.facts.provider_metadata = Some(metadata);
@@ -283,6 +285,7 @@ fn dimensions(item: &[u8]) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::http::{HeaderValue, header};
 
     fn scan(chunks: &[&[u8]]) -> Option<(Map<String, Value>, Option<Value>)> {
         let mut body = EmbeddingsBody::default();
@@ -328,6 +331,38 @@ mod tests {
                 .unwrap();
         assert_eq!(members["error"]["data"], json!([1, 2]));
         assert_eq!(summary, None);
+    }
+
+    #[test]
+    fn keeps_vercel_billing_reported_in_camel_case() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json"),
+        );
+        let mut capture = OpenAiEmbeddingsCapture::new(
+            &headers,
+            br#"{"model":"amazon/titan-embed-text-v2","input":"hi"}"#,
+            IngestionMode::Usage,
+        );
+        capture.record_response(&headers);
+        // A Vercel Embeddings reply, trimmed to its usage and billing.
+        let gateway = json!({
+            "routing": {"modelAttempts": [{"success": true, "providerAttempts": [
+                {"provider": "bedrock", "credentialType": "system", "success": true, "statusCode": 200},
+            ]}]},
+            "cost": "0.00000012",
+        });
+        let response = json!({
+            "object": "list",
+            "data": [{"object": "embedding", "embedding": [0.1, 0.2], "index": 0}],
+            "model": "amazon/titan-embed-text-v2",
+            "usage": {"prompt_tokens": 6, "total_tokens": 6},
+            "providerMetadata": {"gateway": gateway},
+        });
+        capture.push_bytes(response.to_string().as_bytes());
+        capture.end_body();
+        assert_eq!(capture.facts.provider_metadata.unwrap()["gateway"], gateway);
     }
 
     #[test]
