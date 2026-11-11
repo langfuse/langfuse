@@ -133,7 +133,13 @@ function getTestRequest(apiFormat: GatewayApiFormat, model: string) {
       body: {
         model,
         input: "Hi",
-        questions: [{ type: "predicate", instructions: "Is this a greeting?" }],
+        questions: [
+          {
+            type: "predicate",
+            name: "greeting",
+            instructions: "Is this a greeting?",
+          },
+        ],
       },
     };
   }

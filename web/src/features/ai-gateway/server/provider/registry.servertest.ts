@@ -277,7 +277,7 @@ describe("AI gateway provider registry", () => {
       models: ["gpt-5-mini"],
     });
     expect(redis.get).toHaveBeenCalledWith(
-      "ai-gateway:models:org-1:connection-1",
+      "ai-gateway:models:v2:org-1:connection-1",
     );
     expect(fetcher).not.toHaveBeenCalled();
     expect(prisma.gatewayAiConnection.findFirst).not.toHaveBeenCalled();
@@ -395,7 +395,7 @@ describe("AI gateway provider registry", () => {
     ]);
     await vi.waitFor(() =>
       expect(redis.setex).toHaveBeenCalledWith(
-        "ai-gateway:models:org-1:connection-1",
+        "ai-gateway:models:v2:org-1:connection-1",
         300,
         expect.stringContaining('"id":"gpt-5"'),
       ),
@@ -554,11 +554,12 @@ describe("AI gateway provider registry", () => {
       models: ["gpt-5", "codex-auto-review"],
     });
     expect(redis.get).not.toHaveBeenCalled();
-    expect(redis.del).toHaveBeenCalledWith(
+    expect(vi.mocked(redis.del).mock.calls.flat(2)).toEqual([
+      "ai-gateway:models:v2:org-1:connection-1",
       "ai-gateway:models:org-1:connection-1",
-    );
+    ]);
     expect(redis.setex).toHaveBeenCalledWith(
-      "ai-gateway:models:org-1:connection-1",
+      "ai-gateway:models:v2:org-1:connection-1",
       300,
       JSON.stringify({
         models: [
