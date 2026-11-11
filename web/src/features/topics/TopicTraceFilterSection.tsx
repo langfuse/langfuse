@@ -1,6 +1,8 @@
+import { useId, useState } from "react";
 import { type ColumnDef } from "@tanstack/react-table";
 import type { FilterState } from "@langfuse/shared";
 import { TOPICS_RULE_FILTER_HINT } from "@langfuse/shared/topics";
+import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { Table } from "@/src/components/design-system/table/Table";
 import { env } from "@/src/env.mjs";
 import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/FilterModeToggle";
@@ -65,6 +67,9 @@ export function TopicTraceFilterSection({
   description = "Topics runs on trace-level. If this project traces several agents or AI applications, filter to one so the topic maps are specific to your use case. Add a live scan for each.",
   previewDescription = "The latest traces from the last seven days that match the filters.",
 }: TopicTraceFilterSectionProps) {
+  // The count is enough to judge a filter; the rows show on request.
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const previewId = useId();
   return (
     <div className="ph-no-capture flex flex-col gap-6">
       <section className="flex flex-col gap-2">
@@ -127,23 +132,39 @@ export function TopicTraceFilterSection({
           }
           description={previewDescription}
           tooltip="Traces that are still running are included."
-          trailing={null}
+          trailing={
+            <ExpandToggle
+              expanded={previewOpen}
+              onExpandedChange={setPreviewOpen}
+              label="Show preview"
+              expandedLabel="Hide preview"
+              variant="icon"
+              iconPosition="right"
+              size="sm"
+              controls={previewId}
+            />
+          }
         />
-        <div className="flex max-h-48 min-h-0 min-w-0 flex-col overflow-hidden rounded-md border">
-          <Table
-            tableName="Topics setup matching traces"
-            rowHeight="s"
-            topBorder={false}
-            columns={matchingTraceColumns}
-            data={tableData(model.preview)}
-            onRowClick={(trace) => openTrace(projectId, trace.id)}
-            noResultsMessage={
-              model.preview.status === "invalid"
-                ? "Fix the filter to preview matching traces."
-                : "No traces in the last seven days match these filters."
-            }
-          />
-        </div>
+        {previewOpen ? (
+          <div
+            id={previewId}
+            className="flex max-h-48 min-h-0 min-w-0 flex-col overflow-hidden rounded-md border"
+          >
+            <Table
+              tableName="Topics setup matching traces"
+              rowHeight="s"
+              topBorder={false}
+              columns={matchingTraceColumns}
+              data={tableData(model.preview)}
+              onRowClick={(trace) => openTrace(projectId, trace.id)}
+              noResultsMessage={
+                model.preview.status === "invalid"
+                  ? "Fix the filter to preview matching traces."
+                  : "No traces in the last seven days match these filters."
+              }
+            />
+          </div>
+        ) : null}
       </section>
     </div>
   );
