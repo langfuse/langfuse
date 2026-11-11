@@ -41,7 +41,6 @@ import {
 } from "@/src/features/in-app-agent/server/rateLimit";
 import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/runCapacity";
 import { hasInternalAccess } from "@/src/features/feature-flags/utils";
-import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { canViewTopics } from "@/src/features/topics/topicsAccess";
 import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
 import {
@@ -468,10 +467,9 @@ export const inAppAgentRouter = createTRPCRouter({
 
   /**
    * The project this instance traces assistant turns into, where each
-   * conversation is a session. Internal surface only. `projectId` is null
-   * when the organization opted out of AI telemetry or tracing is not
-   * configured; `unavailableReason` says why the session cannot be opened,
-   * including when the user cannot read the telemetry project's sessions.
+   * conversation is a session. Internal surface only: null when the
+   * organization opted out of AI telemetry or tracing is not configured.
+   * Access to the session itself is enforced by the telemetry project.
    */
   telemetryProject: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
@@ -493,29 +491,10 @@ export const inAppAgentRouter = createTRPCRouter({
         projectId: input.projectId,
         user: ctx.session.user,
       });
-      const telemetryProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
-
-      if (!projectAvailability.aiTelemetryEnabled) {
-        return {
-          projectId: null,
-          unavailableReason: "telemetry_disabled" as const,
-        };
-      }
-      if (!telemetryProjectId) {
-        return {
-          projectId: null,
-          unavailableReason: "not_configured" as const,
-        };
-      }
       return {
-        projectId: telemetryProjectId,
-        unavailableReason: hasProjectAccess({
-          session: ctx.session,
-          projectId: telemetryProjectId,
-          scope: "sessions:read",
-        })
-          ? null
-          : ("no_access" as const),
+        projectId: projectAvailability.aiTelemetryEnabled
+          ? (env.LANGFUSE_AI_FEATURES_PROJECT_ID ?? null)
+          : null,
       };
     }),
 });

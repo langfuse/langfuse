@@ -1,5 +1,6 @@
 "use client";
 
+import { env } from "@/src/env.mjs";
 import { api } from "@/src/utils/api";
 import { InAppAgentInternalSessionMenuView } from "./InAppAgentInternalSessionMenuView";
 
@@ -14,15 +15,16 @@ export function InAppAgentInternalSessionMenu({
   projectId: string;
   conversationId: string;
 }) {
+  const linksSessions = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "HIPAA";
   const telemetryProject = api.inAppAgent.telemetryProject.useQuery(
     { projectId },
-    { meta: { silentAllErrors: true } },
+    { enabled: linksSessions, meta: { silentAllErrors: true } },
   );
 
   return (
     <InAppAgentInternalSessionMenuView
       conversationId={conversationId}
-      telemetryProject={telemetryProject}
+      telemetryProject={linksSessions ? telemetryProject : null}
     />
   );
 }

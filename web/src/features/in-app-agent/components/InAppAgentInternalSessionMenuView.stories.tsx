@@ -11,41 +11,34 @@ export const Default = meta.story({
   args: {
     conversationId: "aconv_example",
     telemetryProject: {
-      data: { projectId: "ai-features-project", unavailableReason: null },
+      data: { projectId: "ai-features-project" },
       isError: false,
       isPending: false,
     },
   },
 });
 
-export const NoTelemetryProjectAccess = meta.story({
+export const TelemetryNotRecorded = meta.story({
   args: {
     conversationId: "aconv_example",
     telemetryProject: {
-      data: {
-        projectId: "ai-features-project",
-        unavailableReason: "no_access",
-      },
+      data: { projectId: null },
       isError: false,
       isPending: false,
     },
   },
 });
 
-export const TelemetryDisabled = meta.story({
+export const HipaaRegion = meta.story({
   args: {
     conversationId: "aconv_example",
-    telemetryProject: {
-      data: { projectId: null, unavailableReason: "telemetry_disabled" },
-      isError: false,
-      isPending: false,
-    },
+    telemetryProject: null,
   },
 });
 
-export const TestCopiesLinkWithoutTelemetryProjectAccess = meta.story({
-  name: "(Test) Copies link without telemetry project access",
-  args: NoTelemetryProjectAccess.input.args,
+export const TestCopiesSessionLink = meta.story({
+  name: "(Test) Copies session link",
+  args: Default.input.args,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
@@ -53,17 +46,12 @@ export const TestCopiesLinkWithoutTelemetryProjectAccess = meta.story({
     await userEvent.click(
       canvas.getByRole("button", { name: "Internal session actions" }),
     );
-    const openSession = await body.findByRole("menuitem", {
-      name: "Open session in Langfuse",
-    });
-    await expect(openSession).toHaveAttribute("aria-disabled", "true");
     await expect(
-      within(openSession).getByText("Open session in Langfuse"),
+      await body.findByRole("link", { name: "Open session in Langfuse" }),
     ).toHaveAttribute(
-      "title",
-      "You need access to the AI telemetry project to open sessions.",
+      "href",
+      "/project/ai-features-project/sessions/aconv_example",
     );
-    await expect(body.queryByRole("link")).not.toBeInTheDocument();
 
     const copy = spyOn(navigator.clipboard, "writeText").mockResolvedValue();
     try {
@@ -78,5 +66,26 @@ export const TestCopiesLinkWithoutTelemetryProjectAccess = meta.story({
     } finally {
       copy.mockRestore();
     }
+  },
+});
+
+export const TestOffersOnlySessionIdInHipaa = meta.story({
+  name: "(Test) Offers only the session ID in HIPAA",
+  args: HipaaRegion.input.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Internal session actions" }),
+    );
+    const menu = await body.findByRole("menu", {
+      name: "Internal session actions",
+    });
+    await expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map((item) => item.textContent),
+    ).toEqual(["Copy session ID"]);
   },
 });

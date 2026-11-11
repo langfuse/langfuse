@@ -59,8 +59,8 @@ const sessionEnvironment = vi.hoisted(() => ({
 }));
 const telemetryProjectQuery = vi.hoisted(() => ({
   value: {
-    data: { projectId: "ai-features-project", unavailableReason: null } as
-      | { projectId: string | null; unavailableReason: string | null }
+    data: { projectId: "ai-features-project" } as
+      | { projectId: string | null }
       | undefined,
     isPending: false,
     isError: false,
@@ -453,7 +453,7 @@ describe("ControlledInAppAgentWindow internal session menu", () => {
     controlledAgent.value.selectedConversationId = undefined;
     controlledAgent.value.isSelectedConversationPersisted = false;
     telemetryProjectQuery.value = {
-      data: { projectId: "ai-features-project", unavailableReason: null },
+      data: { projectId: "ai-features-project" },
       isPending: false,
       isError: false,
     };

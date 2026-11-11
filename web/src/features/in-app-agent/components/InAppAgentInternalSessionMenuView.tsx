@@ -18,32 +18,18 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { type RouterOutputs } from "@/src/utils/api";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 
-type TelemetryProject = RouterOutputs["inAppAgent"]["telemetryProject"];
-
-const unavailableReasonMessages: Record<
-  NonNullable<TelemetryProject["unavailableReason"]>,
-  string
-> = {
-  telemetry_disabled: "This organization has opted out of AI telemetry.",
-  not_configured: "This instance has no AI telemetry project configured.",
-  no_access: "You need access to the AI telemetry project to open sessions.",
-};
-
-type SessionLink =
-  | { path: string; openDisabledReason: string | null }
-  | { path: null; disabledReason: string };
-
-function resolveSessionLink({
-  conversationId,
-  data,
-  isError,
-  isPending,
-}: {
-  conversationId: string;
-  data: TelemetryProject | undefined;
+type TelemetryProjectQuery = {
+  data: RouterOutputs["inAppAgent"]["telemetryProject"] | undefined;
   isError: boolean;
   isPending: boolean;
-}): SessionLink {
+};
+
+type SessionLink = { path: string } | { path: null; disabledReason: string };
+
+function resolveSessionLink(
+  conversationId: string,
+  { data, isError, isPending }: TelemetryProjectQuery,
+): SessionLink {
   if (isPending) {
     return { path: null, disabledReason: "Loading the telemetry project." };
   }
@@ -57,14 +43,11 @@ function resolveSessionLink({
     return {
       path: null,
       disabledReason:
-        unavailableReasonMessages[data.unavailableReason ?? "not_configured"],
+        "Halo telemetry is not recorded for this organization or instance.",
     };
   }
   return {
     path: `/project/${encodeURIComponent(data.projectId)}/sessions/${encodeURIComponent(conversationId)}`,
-    openDisabledReason: data.unavailableReason
-      ? unavailableReasonMessages[data.unavailableReason]
-      : null,
   };
 }
 
@@ -81,22 +64,29 @@ function disabledItem(
   };
 }
 
-function getOpenSessionItem(link: SessionLink): DropdownMenuItemDefinition {
-  const item = {
-    id: "open-session",
-    title: "Open session in Langfuse",
-    icon: ExternalLink,
+function getCopySessionIdItem(
+  conversationId: string,
+): DropdownMenuItemDefinition {
+  return {
+    type: "item",
+    id: "copy-session-id",
+    title: "Copy session ID",
+    icon: Copy,
+    onClick: () => {
+      copyTextToClipboard(conversationId)
+        .then(() => {
+          showSuccessToast({
+            operation: "in_app_agent_session_id.copy",
+            title: "Session ID copied",
+            description: conversationId,
+            duration: 2000,
+          });
+        })
+        .catch(() => undefined);
+    },
   };
-  if (link.path === null) {
-    return disabledItem(item, link.disabledReason);
-  }
-  if (link.openDisabledReason) {
-    return disabledItem(item, link.openDisabledReason);
-  }
-  return { ...item, type: "item", href: link.path, linkTarget: "_blank" };
 }
 
-/** Stays available without telemetry project access, so the link can be shared. */
 function getCopySessionLinkItem(link: SessionLink): DropdownMenuItemDefinition {
   const item = {
     id: "copy-session-link",
@@ -126,43 +116,37 @@ function getCopySessionLinkItem(link: SessionLink): DropdownMenuItemDefinition {
   };
 }
 
+function getOpenSessionItem(link: SessionLink): DropdownMenuItemDefinition {
+  const item = {
+    id: "open-session",
+    title: "Open session in Langfuse",
+    icon: ExternalLink,
+  };
+  if (link.path === null) {
+    return disabledItem(item, link.disabledReason);
+  }
+  return { ...item, type: "item", href: link.path, linkTarget: "_blank" };
+}
+
+/**
+ * `telemetryProject` is null where assistant sessions must not be linked
+ * (the HIPAA region); the menu then offers only the session ID.
+ */
 export function InAppAgentInternalSessionMenuView({
   conversationId,
   telemetryProject,
 }: {
   conversationId: string;
-  telemetryProject: {
-    data: TelemetryProject | undefined;
-    isError: boolean;
-    isPending: boolean;
-  };
+  telemetryProject: TelemetryProjectQuery | null;
 }) {
-  const sessionLink = resolveSessionLink({
-    conversationId,
-    ...telemetryProject,
-  });
-
+  const sessionLink = telemetryProject
+    ? resolveSessionLink(conversationId, telemetryProject)
+    : null;
   const items: DropdownMenuItemDefinition[] = [
-    {
-      type: "item",
-      id: "copy-session-id",
-      title: "Copy session ID",
-      icon: Copy,
-      onClick: () => {
-        copyTextToClipboard(conversationId)
-          .then(() => {
-            showSuccessToast({
-              operation: "in_app_agent_session_id.copy",
-              title: "Session ID copied",
-              description: conversationId,
-              duration: 2000,
-            });
-          })
-          .catch(() => undefined);
-      },
-    },
-    getCopySessionLinkItem(sessionLink),
-    getOpenSessionItem(sessionLink),
+    getCopySessionIdItem(conversationId),
+    ...(sessionLink
+      ? [getCopySessionLinkItem(sessionLink), getOpenSessionItem(sessionLink)]
+      : []),
   ];
 
   return (
