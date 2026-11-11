@@ -1,15 +1,15 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { FilterState } from "@langfuse/shared";
 import { DEFAULT_TOPIC_FACETS, type TopicFacet } from "@langfuse/shared/topics";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/FilterModeToggle";
 import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder";
 import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
 import { NewAnalysisDialogView } from "./NewAnalysisDialogView";
+import { TopicSliceFields } from "./TopicSliceFields";
 import { topicsFilterRegistry } from "./useTopicTraceFilter";
 
 const facets: TopicFacet[] = DEFAULT_TOPIC_FACETS.map((facet) => ({
@@ -32,50 +32,49 @@ const generations: FilterState = [
 
 /**
  * The real filter field queries observations over tRPC, which stories don't
- * provide; this stand-in renders its collapsed builder state from the same parts.
+ * provide; this stand-in renders its header rows from the same parts, without
+ * the observations table.
  */
 function FilterFieldStandIn({
   filter,
   onChange,
   matches,
+  windowControl,
 }: {
   filter: FilterState;
   onChange: (filter: FilterState) => void;
   matches: number | null;
+  windowControl: ReactNode;
 }) {
-  const [previewOpen, setPreviewOpen] = useState(false);
   return (
-    <section className="flex flex-col gap-2">
-      <SectionHeader
-        title="Filter"
-        meta={null}
-        description={null}
-        tooltip="Any tracing filter, including scores, latency, cost and negative filters. The scan clusters summarized traces with an observation matching them."
-        trailing={<FilterModeToggle mode="builder" onChange={fn()} />}
-      />
-      <ObservationFilterBuilder
-        columns={[...topicsFilterRegistry.columns]}
-        filterState={filter}
-        onChange={onChange}
-        queryOnlyColumnIds={[]}
-      />
-      <div className="flex items-center gap-3">
-        <span className="text-muted-foreground text-sm">
-          <span className="text-foreground">{matches ?? "…"}</span>{" "}
-          {matches === 1 ? "match" : "matches"}
-        </span>
-        <ExpandToggle
-          expanded={previewOpen}
-          onExpandedChange={setPreviewOpen}
-          label="Preview"
-          expandedLabel="Hide preview"
-          variant="icon"
-          iconPosition="right"
-          size="sm"
-          tone="link"
+    <div className="flex flex-col gap-6">
+      <section className="flex flex-col gap-2">
+        <SectionHeader
+          title="Filter traces"
+          meta={null}
+          description="A trace matches when one of its observations meets every filter."
+          tooltip="Any tracing filter, including scores, latency, cost and negative filters."
+          trailing={<FilterModeToggle mode="builder" onChange={fn()} />}
         />
-      </div>
-    </section>
+        <ObservationFilterBuilder
+          columns={[...topicsFilterRegistry.columns]}
+          filterState={filter}
+          onChange={onChange}
+          queryOnlyColumnIds={[]}
+        />
+      </section>
+      <SectionHeader
+        title="Matching observations"
+        meta={
+          <span className="text-muted-foreground text-sm">
+            {matches ?? "…"}
+          </span>
+        }
+        description="Observations in the scan window that match the filters."
+        tooltip="A trace is in the slice when one of its observations matches."
+        trailing={windowControl}
+      />
+    </div>
   );
 }
 
@@ -119,13 +118,18 @@ function NewScanStory({
           filter={filter}
           onChange={setFilter}
           matches={counts ? counts.matchedTraceCount : null}
+          windowControl={
+            <TopicSliceFields.Window
+              days={[7, 30]}
+              value={days}
+              onChange={setDays}
+            />
+          }
         />
       }
       facets={facets}
       facetIds={facetIds}
       onFacetIdsChange={setFacetIds}
-      days={days}
-      onDaysChange={setDays}
       preview={counts}
       canStart={Boolean(counts?.ready) && facetIds.length > 0}
       starting={starting}

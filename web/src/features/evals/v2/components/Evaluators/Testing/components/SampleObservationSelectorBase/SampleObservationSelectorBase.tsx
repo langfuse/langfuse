@@ -1,6 +1,12 @@
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
-import { useCallback, useMemo, useState, type UIEvent } from "react";
+import {
+  useCallback,
+  useMemo,
+  useState,
+  type ReactNode,
+  type UIEvent,
+} from "react";
 import {
   Database,
   FlaskConical,
@@ -16,7 +22,6 @@ import {
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
-import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/DataTableColumnVisibilityFilter";
 import {
@@ -40,8 +45,6 @@ import { default as useColumnOrder } from "@/src/features/column-visibility/hook
 import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
 import type { AbsoluteTimeRange } from "@/src/utils/date-range-utils";
-import { compactNumberFormatter } from "@/src/utils/numbers";
-import { cn } from "@/src/utils/tailwind";
 import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
 import { EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY } from "@/src/features/evals/v2/constants/evaluatorFilterExperience";
 import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/FilterModeToggle";
@@ -154,15 +157,14 @@ export type SampleObservationSelectorBaseProps = {
   getRowClassName: ((observation: SampleObservation) => string) | undefined;
   /** Defaults to "Filter observations". */
   filterTitle?: string;
-  /** Null hides the line under the filter title. */
-  filterDescription: string | null;
+  filterDescription: string;
   filterTooltip: string;
   matchingDescription: string;
   matchingTooltip: string;
   formatCount: (count: number) => string;
   mapObservedOptions: MapSampleObservedOptions;
-  /** "collapsible" shows a match count under the filter and opens the table on demand. */
-  matchingPreview?: "table" | "collapsible";
+  /** Extra controls at the right of the matching-observations header, e.g. a time window. */
+  matchingTrailing?: ReactNode;
 };
 
 export function SampleObservationSelectorBase(
@@ -189,10 +191,8 @@ export function SampleObservationSelectorBase(
     matchingTooltip,
     formatCount,
     mapObservedOptions,
-    matchingPreview = "table",
+    matchingTrailing,
   } = props;
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const collapsible = matchingPreview === "collapsible";
   const activeRegistry = registry ?? EVENTS_FIELD_REGISTRY;
   const [filterMode, setFilterMode] =
     useLocalStorage<EvaluatorFilterExperience>(
@@ -575,104 +575,78 @@ export function SampleObservationSelectorBase(
             ))}
           </div>
         ) : null}
-        {collapsible ? (
-          <div className="flex items-center gap-3">
-            <span className="text-muted-foreground text-sm">
-              <span className="text-foreground">
-                {options.approxTotalCount === null
-                  ? "…"
-                  : compactNumberFormatter(options.approxTotalCount)}
-              </span>{" "}
-              {options.approxTotalCount === 1 ? "match" : "matches"}
-            </span>
-            <ExpandToggle
-              expanded={previewOpen}
-              onExpandedChange={setPreviewOpen}
-              label="Preview"
-              expandedLabel="Hide preview"
-              variant="icon"
-              iconPosition="right"
-              size="sm"
-              tone="link"
-            />
-          </div>
-        ) : null}
       </section>
 
-      {collapsible && !previewOpen ? null : (
-        <section className="flex min-h-0 flex-col gap-2">
-          {collapsible ? null : (
-            <SectionHeader
-              title="Matching observations"
-              meta={
-                options.approxTotalCount !== null ? (
-                  <span className="text-muted-foreground shrink-0 text-sm">
-                    {formatCount(options.approxTotalCount)}
-                  </span>
-                ) : null
-              }
-              description={matchingDescription}
-              tooltip={matchingTooltip}
-              trailing={
-                <DataTableColumnVisibilityFilter
-                  tableName="evaluator-sample-observations"
-                  isV4
-                  columns={columns}
-                  columnVisibility={columnVisibility}
-                  setColumnVisibility={setColumnVisibility}
-                  columnOrder={columnOrder}
-                  setColumnOrder={setColumnOrder}
-                  triggerSize="sm"
-                />
-              }
-            />
-          )}
-          <div
-            ref={
-              selectionToReconcile !== undefined
-                ? (element) => {
-                    // Commit fresh query results through the existing selection owner without a data-sync effect.
-                    if (element) onSelect(selectionToReconcile);
-                  }
-                : undefined
+      <section className="flex min-h-0 flex-col gap-2">
+        <SectionHeader
+          title="Matching observations"
+          meta={
+            options.approxTotalCount !== null ? (
+              <span className="text-muted-foreground shrink-0 text-sm">
+                {formatCount(options.approxTotalCount)}
+              </span>
+            ) : null
+          }
+          description={matchingDescription}
+          tooltip={matchingTooltip}
+          trailing={
+            <div className="flex items-center gap-2">
+              {matchingTrailing}
+              <DataTableColumnVisibilityFilter
+                tableName="evaluator-sample-observations"
+                isV4
+                columns={columns}
+                columnVisibility={columnVisibility}
+                setColumnVisibility={setColumnVisibility}
+                columnOrder={columnOrder}
+                setColumnOrder={setColumnOrder}
+                triggerSize="sm"
+              />
+            </div>
+          }
+        />
+        <div
+          ref={
+            selectionToReconcile !== undefined
+              ? (element) => {
+                  // Commit fresh query results through the existing selection owner without a data-sync effect.
+                  if (element) onSelect(selectionToReconcile);
+                }
+              : undefined
+          }
+          className="flex h-64 min-h-0 flex-col overflow-hidden rounded-md border"
+        >
+          <DataTable
+            tableName={tableName}
+            columns={columns}
+            data={
+              observationsPending && matchingObservations.length === 0
+                ? { isLoading: true, isError: false }
+                : observationsError
+                  ? {
+                      isLoading: false,
+                      isError: true,
+                      error: observationsError.message,
+                    }
+                  : {
+                      isLoading: false,
+                      isError: false,
+                      data: matchingObservations,
+                    }
             }
-            className={cn(
-              "flex min-h-0 flex-col overflow-hidden rounded-md border",
-              collapsible ? "h-48" : "h-64",
-            )}
-          >
-            <DataTable
-              tableName={tableName}
-              columns={columns}
-              data={
-                observationsPending && matchingObservations.length === 0
-                  ? { isLoading: true, isError: false }
-                  : observationsError
-                    ? {
-                        isLoading: false,
-                        isError: true,
-                        error: observationsError.message,
-                      }
-                    : {
-                        isLoading: false,
-                        isError: false,
-                        data: matchingObservations,
-                      }
-              }
-              hidePagination
-              onScroll={handleScroll}
-              columnVisibility={columnVisibility}
-              onColumnVisibilityChange={setColumnVisibility}
-              columnOrder={columnOrder}
-              onColumnOrderChange={setColumnOrder}
-              rowHeight={rowHeight}
-              onRowClick={onOpenTrace}
-              getRowClassName={getRowClassName}
-              noResultsMessage="No observations match the current filters and time range."
-            />
-          </div>
-        </section>
-      )}
+            hidePagination
+            onScroll={handleScroll}
+            columnVisibility={columnVisibility}
+            onColumnVisibilityChange={setColumnVisibility}
+            columnOrder={columnOrder}
+            onColumnOrderChange={setColumnOrder}
+            rowHeight={rowHeight}
+            onRowClick={onOpenTrace}
+            getRowClassName={getRowClassName}
+            noResultsMessage="No observations match the current filters and time range."
+          />
+        </div>
+      </section>
     </div>
   );
 }

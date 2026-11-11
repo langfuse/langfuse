@@ -9,7 +9,6 @@ import { Input } from "@/src/components/design-system/Input/Input";
 import { TopicSliceFields } from "./TopicSliceFields";
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
 
-const windows = [7, 30] as const;
 const count = (value: number) => value.toLocaleString("en-US");
 
 /** The New scan dialog without data fetching; stories render it directly. */
@@ -20,8 +19,6 @@ export function NewAnalysisDialogView({
   facets,
   facetIds,
   onFacetIdsChange,
-  days,
-  onDaysChange,
   preview,
   canStart,
   starting,
@@ -60,13 +57,6 @@ export function NewAnalysisDialogView({
             onChange={onFacetIdsChange}
           />
           {filterField}
-          <TopicSliceFields.Section label="Window">
-            <TopicSliceFields.Window
-              days={windows}
-              value={days}
-              onChange={onDaysChange}
-            />
-          </TopicSliceFields.Section>
           <ScanSummary preview={preview} />
           {errors.map((message) => (
             <TopicsErrorMessage key={message} message={message} />
@@ -110,13 +100,11 @@ function ScanSummary({
 type NewAnalysisDialogViewProps = {
   name: string;
   onNameChange: (name: string) => void;
-  /** The tracing filter with its matching-observations preview. */
+  /** The tracing filter with its matching preview and time window. */
   filterField: ReactNode;
   facets: TopicFacet[];
   facetIds: string[];
   onFacetIdsChange: (facetIds: string[]) => void;
-  days: number;
-  onDaysChange: (days: number) => void;
   /** Counts for the current slice; null while they load. */
   preview: {
     matchedTraceCount: number;

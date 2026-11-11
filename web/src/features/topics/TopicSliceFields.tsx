@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { FilterState } from "@langfuse/shared";
 import type { TopicTimeRange } from "@langfuse/shared/topics";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
@@ -32,17 +33,20 @@ function TopicDialogSection({
   );
 }
 
-/** An analysis's tracing filter, with a preview of its matching observations. */
+/** A scan's tracing filter, with the observations it matches in the window. */
 function TopicFilterField({
   projectId,
   timeRange,
   filter,
   onChange,
+  windowControl,
 }: {
   projectId: string;
   timeRange: TopicTimeRange;
   filter: FilterState;
   onChange: (filter: FilterState) => void;
+  /** Shown at the right of the matching-observations header. */
+  windowControl: ReactNode;
 }) {
   return (
     <SampleObservationSelectorBase
@@ -67,16 +71,14 @@ function TopicFilterField({
       leadingColumns={[]}
       resolveSelection={() => undefined}
       getRowClassName={undefined}
-      filterTitle="Filter"
-      filterDescription={null}
+      filterTitle="Filter traces"
+      filterDescription="A trace matches when one of its observations meets every filter."
       filterTooltip="Any tracing filter, including scores, latency, cost and negative filters. The scan clusters summarized traces with an observation matching them."
       matchingDescription="Observations in the scan window that match the filters."
       matchingTooltip="A trace is in the slice when one of its observations matches."
-      formatCount={(count) =>
-        `(${compactNumberFormatter(count)} ${count === 1 ? "match" : "matches"})`
-      }
+      formatCount={(count) => compactNumberFormatter(count)}
       mapObservedOptions={(observed) => observed}
-      matchingPreview="collapsible"
+      matchingTrailing={windowControl}
     />
   );
 }
@@ -146,7 +148,7 @@ function TopicWindowTabs({
       value={String(value)}
       onValueChange={(next) => onChange(Number(next))}
     >
-      <Tabs.List variant="inset" size="md" aria-label="Time window">
+      <Tabs.List variant="inset" size="sm" aria-label="Time window">
         {days.map((day) => (
           <Tabs.Trigger
             key={day}

@@ -11,6 +11,8 @@ import {
 import { TopicSliceFields } from "./TopicSliceFields";
 import { NewAnalysisDialogView } from "./NewAnalysisDialogView";
 
+const windows = [7, 30] as const;
+
 /**
  * Starts a one-off clustering run over already summarized traces of a slice.
  */
@@ -67,13 +69,18 @@ export function NewAnalysisDialog({
           timeRange={range}
           filter={filter}
           onChange={setFilter}
+          windowControl={
+            <TopicSliceFields.Window
+              days={windows}
+              value={days}
+              onChange={setDays}
+            />
+          }
         />
       }
       facets={facets}
       facetIds={facetIds}
       onFacetIdsChange={setFacetIds}
-      days={days}
-      onDaysChange={setDays}
       preview={preview.data ?? null}
       canStart={ready && facetRefs.length > 0 && !preview.isFetching}
       starting={start.isPending}
