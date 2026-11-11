@@ -9,7 +9,7 @@ export function SessionRedesignBanner({
 }) {
   const capture = usePostHogClientCapture();
   return (
-    <div className="relative flex shrink-0 items-center justify-center gap-2 border-b border-orange-200/50 bg-orange-50/60 px-10 py-1 text-sm text-orange-800 dark:border-orange-900/50 dark:bg-orange-950/30 dark:text-orange-200">
+    <div className="relative flex shrink-0 flex-wrap items-center justify-center gap-x-2 gap-y-0.5 border-b border-orange-200/50 bg-orange-50/60 px-10 py-1 text-sm whitespace-nowrap text-orange-800 dark:border-orange-900/50 dark:bg-orange-950/30 dark:text-orange-200">
       <span className="text-foreground">We redesigned the session view.</span>
       <a
         href="https://langfuse.com/changelog/2026-10-13-redesigned-session-view"
