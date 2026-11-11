@@ -97,7 +97,7 @@ export function topicRuleFreshness(
   now: number,
 ) {
   if (rule.enabled === false) return "Paused · map frozen";
-  if (!rule.lastRefitAt) return "Building first topics";
+  if (!rule.lastRefitAt) return "First clustering pending";
   return `Updated ${hoursLabel(now - Date.parse(rule.lastRefitAt))} ago`;
 }
 
