@@ -2809,9 +2809,9 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
         newAuth,
       );
 
-      // The same child by version and by label resolves to different versions
+      // Create parent prompt with version-specific dependency
       const parentPromptContent =
-        "Parent with version dependency: @@@langfusePrompt:name=versioned-child|version=1@@@ and label dependency: @@@langfusePrompt:name=versioned-child|label=production@@@";
+        "Parent with version dependency: @@@langfusePrompt:name=versioned-child|version=1@@@";
 
       await makeAPICall(
         "POST",
@@ -2835,9 +2835,53 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
       expect(response.status).toBe(200);
       const responseBody = response.body as unknown as Prompt;
       expect(responseBody.prompt).toBe(
-        "Parent with version dependency: I am version 1 and label dependency: I am version 2",
+        "Parent with version dependency: I am version 1",
       );
       expect(responseBody.prompt).not.toContain("@@@langfusePrompt");
+    });
+
+    it("resolves the same child by version and by label to different versions", async () => {
+      const { auth: newAuth } = await createOrgProjectAndApiKey();
+
+      // Version 2 takes the production label from version 1
+      for (const content of ["I am version 1", "I am version 2"]) {
+        await makeAPICall(
+          "POST",
+          baseURI,
+          {
+            name: "versioned-child",
+            prompt: content,
+            type: "text",
+            labels: ["production"],
+          },
+          newAuth,
+        );
+      }
+
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "version-and-label-parent",
+          prompt:
+            "By version: @@@langfusePrompt:name=versioned-child|version=1@@@ and by label: @@@langfusePrompt:name=versioned-child|label=production@@@",
+          type: "text",
+        },
+        newAuth,
+      );
+
+      const response = await makeAPICall(
+        "GET",
+        `${baseURI}/version-and-label-parent?version=1`,
+        undefined,
+        newAuth,
+      );
+
+      expect(response.status).toBe(200);
+      const responseBody = response.body as unknown as Prompt;
+      expect(responseBody.prompt).toBe(
+        "By version: I am version 1 and by label: I am version 2",
+      );
     });
 
     it("resolves prompt dependencies in chat prompts correctly", async () => {
