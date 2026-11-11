@@ -330,7 +330,11 @@ function SidebarOrganizationSwitcher({
               isCloudPlan(plan) &&
               organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID && (
                 <span className="flex shrink-0">
-                  <Badge color="filled" size="sm" text={planLabels[plan]} />
+                  <Badge
+                    color="filled"
+                    size="sm"
+                    text={planLabels[plan].toUpperCase()}
+                  />
                 </span>
               )}
             <span className="ml-auto flex shrink-0">

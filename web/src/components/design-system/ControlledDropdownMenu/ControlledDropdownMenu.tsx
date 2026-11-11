@@ -226,7 +226,8 @@ type DropdownMenuProps = {
   /** `wide` fixes the menu at 18rem; `auto` sizes it to its content. */
   width?: "auto" | "wide";
   placement?: Placement;
-  search?: { placeholder: string };
+  /** `divided` sits under the title between dividers; `row` replaces the title. */
+  search?: { placeholder: string; style?: "divided" | "row" };
   title?: string;
   /** Compact link at the right of the header; `tooltip` is also its accessible name. */
   headerAction?: {
@@ -292,7 +293,12 @@ function DropdownMenuNode({
   onOpenChange,
   open: isOpen,
 }: React.ComponentProps<typeof ControlledDropdownMenu>) {
-  const hasHeader = Boolean(title) || internal || Boolean(headerAction);
+  const searchStyle = search?.style ?? "divided";
+  const searchReplacesTitle = Boolean(search) && searchStyle === "row";
+  const hasHeader =
+    (Boolean(title) && !searchReplacesTitle) ||
+    internal ||
+    Boolean(headerAction);
   const HeaderActionIcon = headerAction?.icon;
   const [activeIndex, setActiveIndex] = React.useState<number | null>(null);
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -538,7 +544,13 @@ function DropdownMenuNode({
                 </div>
               ) : null}
               {search ? (
-                <div className="border-border bg-popover sticky top-0 z-1 border-y">
+                <div
+                  className={cn(
+                    "border-border bg-popover sticky top-0 z-1",
+                    searchStyle === "divided" && "border-y",
+                    searchStyle === "row" && "border-b",
+                  )}
+                >
                   <SearchInput
                     ref={searchInputRef}
                     variant="borderless"

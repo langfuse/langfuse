@@ -97,7 +97,7 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
       maxHeight="calc(100dvh - 4rem)"
       search={
         projects && projects.length > SWITCHER_SEARCH_THRESHOLD
-          ? { placeholder: "Search projects..." }
+          ? { placeholder: "Search projects...", style: "row" }
           : undefined
       }
       emptyText="No project found."

@@ -78,7 +78,7 @@ const BreadcrumbComponent = ({
                     <Badge
                       color="filled"
                       size="sm"
-                      text={planLabels[organization.plan]}
+                      text={planLabels[organization.plan].toUpperCase()}
                     />
                   )}
                 <DropdownIndicator

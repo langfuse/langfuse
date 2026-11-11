@@ -105,7 +105,7 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
       maxHeight="calc(100dvh - 4rem)"
       search={
         organizations && organizations.length > SWITCHER_SEARCH_THRESHOLD
-          ? { placeholder: "Search organizations..." }
+          ? { placeholder: "Search organizations...", style: "row" }
           : undefined
       }
       emptyText="No organization found."
