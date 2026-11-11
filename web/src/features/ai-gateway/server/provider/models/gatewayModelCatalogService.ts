@@ -8,6 +8,7 @@ import {
   decryptAndParseExtraHeaders,
   logger,
   redis as defaultRedis,
+  safeMultiDel,
 } from "@langfuse/shared/src/server";
 import type { Cluster, Redis } from "ioredis";
 
@@ -198,12 +199,12 @@ export class GatewayModelCatalogService {
   async clearModelCache(organizationId: string, connectionId: string) {
     if (!this.redis) return;
     try {
-      await this.redis.del(
+      await safeMultiDel(this.redis, [
         this.modelCacheKey(organizationId, connectionId),
         ...LEGACY_MODEL_CACHE_PREFIXES.map(
           (prefix) => `${prefix}:${organizationId}:${connectionId}`,
         ),
-      );
+      ]);
     } catch {
       // Redis is optional. Credential updates still succeed when it is unavailable.
     }
