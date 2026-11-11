@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-import { useId, useState, type ReactNode } from "react";
+import { useId, useState } from "react";
 import { Plus, TriangleAlert } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
@@ -15,7 +15,6 @@ import {
   SelectValue,
   selectTriggerClassName,
 } from "@/src/components/ui/select";
-import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import {
   Popover,
   PopoverContent,
@@ -46,29 +45,6 @@ const DATA_TYPE_OPTIONS: { value: ScoreOutputDataType; label: string }[] = [
 const DEFAULT_CHOICES: ScoreOutputChoice[] = [{ label: "" }, { label: "" }];
 const DEFAULT_MIN_VALUE = "0";
 const DEFAULT_MAX_VALUE = "1";
-
-/** A section label with its helper copy tucked into a hover tooltip instead
-    of a permanent paragraph — keeps the label row compact. */
-function LabelWithTooltip({
-  htmlFor,
-  label,
-  tooltip,
-  children,
-}: {
-  htmlFor?: string;
-  label: string;
-  tooltip: ReactNode | null;
-  children: ReactNode;
-}) {
-  return (
-    <Label htmlFor={htmlFor} className="flex items-center gap-1.5">
-      {children}
-      {tooltip ? (
-        <InfoTooltip label={`About ${label}`}>{tooltip}</InfoTooltip>
-      ) : null}
-    </Label>
-  );
-}
 
 export type ScoreOutputConstraints = {
   dataTypes?: ScoreOutputDataType[];
@@ -158,16 +134,6 @@ export function ScoreOutputSection({
 
   return (
     <div className="flex flex-col gap-2">
-      <LabelWithTooltip
-        label="score output"
-        tooltip={
-          readOnly
-            ? null
-            : "Use a number for continuous judgments like helpfulness. Use a category for explicit labels like correct or incorrect. Use a boolean for binary decisions like true or false."
-        }
-      >
-        Score output
-      </LabelWithTooltip>
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span>Return</span>
         {state.dataType === ScoreDataTypeEnum.CATEGORICAL &&

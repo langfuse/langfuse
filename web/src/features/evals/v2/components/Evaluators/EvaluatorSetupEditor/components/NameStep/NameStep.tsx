@@ -7,8 +7,7 @@ import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 
 const COPY = {
   default: {
-    description:
-      "Give the evaluator a clear name (it's also used as the score name) and explain when it should be used.",
+    description: undefined,
   },
   decisionModel: {
     description:

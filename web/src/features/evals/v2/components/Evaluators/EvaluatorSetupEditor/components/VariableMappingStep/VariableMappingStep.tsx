@@ -5,8 +5,7 @@ import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 const COPY = {
   variables: {
     title: "Map variables to data",
-    description:
-      "Choose how observation fields populate each variable in your evaluation prompt. The live preview fills in real data so you can verify the mapping.",
+    description: undefined,
   },
   state: {
     title: "Build the state",

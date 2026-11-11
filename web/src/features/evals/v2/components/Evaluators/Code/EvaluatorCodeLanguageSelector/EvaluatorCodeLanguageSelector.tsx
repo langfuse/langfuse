@@ -1,11 +1,22 @@
-import { SiPython, SiTypescript } from "@langfuse/icons/si";
 import {
   EvalTemplateSourceCodeLanguageEnum,
   type EvalTemplateSourceCodeLanguage,
 } from "@langfuse/shared";
 
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
+import { SelectDropdown } from "@/src/components/design-system/SelectDropdown/SelectDropdown";
 import { sourceCodeLanguageLabel } from "@/src/features/evals/v2/fns/evaluators/sourceCodeLanguageLabel";
+
+const LANGUAGE_OPTIONS = [
+  EvalTemplateSourceCodeLanguageEnum.PYTHON,
+  EvalTemplateSourceCodeLanguageEnum.TYPESCRIPT,
+].map((value) => ({
+  value,
+  label: sourceCodeLanguageLabel(value),
+}));
+
+const triggerClassName =
+  "text-foreground hover:bg-accent focus-visible:ring-ring inline-flex items-center gap-1 rounded px-1.5 py-1 text-sm focus-visible:ring-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50";
 
 /** Selects the runtime language for a code evaluator. */
 export function EvaluatorCodeLanguageSelector({
@@ -18,30 +29,19 @@ export function EvaluatorCodeLanguageSelector({
   disabled?: boolean;
 }) {
   return (
-    <Tabs
+    <SelectDropdown
+      aria-label="Code language"
       value={value}
-      onValueChange={(language) =>
-        onValueChange(language as EvalTemplateSourceCodeLanguage)
-      }
+      options={LANGUAGE_OPTIONS}
+      onValueChange={onValueChange}
+      disabled={disabled}
     >
-      <Tabs.List variant="inset" size="md">
-        <Tabs.Trigger
-          value={EvalTemplateSourceCodeLanguageEnum.PYTHON}
-          disabled={disabled}
-        >
-          <SiPython size="base" />
-          {sourceCodeLanguageLabel(EvalTemplateSourceCodeLanguageEnum.PYTHON)}
-        </Tabs.Trigger>
-        <Tabs.Trigger
-          value={EvalTemplateSourceCodeLanguageEnum.TYPESCRIPT}
-          disabled={disabled}
-        >
-          <SiTypescript size="base" />
-          {sourceCodeLanguageLabel(
-            EvalTemplateSourceCodeLanguageEnum.TYPESCRIPT,
-          )}
-        </Tabs.Trigger>
-      </Tabs.List>
-    </Tabs>
+      {({ getTriggerProps, selectedLabel }) => (
+        <button {...getTriggerProps()} className={triggerClassName}>
+          {selectedLabel}
+          <DropdownIndicator />
+        </button>
+      )}
+    </SelectDropdown>
   );
 }

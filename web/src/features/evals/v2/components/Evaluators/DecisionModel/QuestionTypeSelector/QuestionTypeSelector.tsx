@@ -6,6 +6,7 @@ import {
   type IconComponent,
 } from "@langfuse/icons";
 
+import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { cn } from "@/src/utils/tailwind";
 
 export const QUESTION_TYPE_COPY: Record<
@@ -67,7 +68,6 @@ export function QuestionTypeSelector({
   onValueChange: (value: DecisionModelQuestionType) => void;
   disabled?: boolean;
 }) {
-  const active = QUESTION_TYPE_COPY[value];
   return (
     <div className="@container flex flex-col gap-1.5">
       <div
@@ -98,6 +98,14 @@ export function QuestionTypeSelector({
               <span className="flex items-center gap-1.5 font-bold">
                 <copy.icon size="base" />
                 {copy.label}
+                <span
+                  className="inline-flex"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <InfoTooltip label={`About ${copy.label}`}>
+                    Writes {copy.writes}. {copy.whenToUse}
+                  </InfoTooltip>
+                </span>
               </span>
               <span className="text-muted-foreground">{copy.summary}</span>
               <span className="text-muted-foreground text-xs italic">
@@ -107,9 +115,6 @@ export function QuestionTypeSelector({
           );
         })}
       </div>
-      <p className="text-muted-foreground text-xs">
-        Writes {active.writes}. {active.whenToUse}
-      </p>
     </div>
   );
 }
