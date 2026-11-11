@@ -41,6 +41,8 @@ const matchingTraceColumns: ColumnDef<TopicTracePreviewRow>[] = [
   { accessorKey: "environment", header: "Environment", size: 128 },
 ];
 
+const FILTER_TOOLTIP = `A trace matches when one of its observations meets every filter. ${TOPICS_RULE_FILTER_HINT}`;
+
 type TopicTraceFilterSectionProps = {
   projectId: string;
   filters: FilterState;
@@ -59,7 +61,8 @@ export function TopicTraceFilterSection({
   onFiltersChange,
   model,
   title = "Filter traces",
-  description = "A trace matches when one of its observations meets every filter.",
+  // Topics are clustered per scan, so each agent or app wants its own.
+  description = "Topics runs on trace-level. Tracing several agents or AI apps? Filter to one and add a live scan for each.",
   previewDescription = "The latest traces from the last seven days that match the filters.",
 }: TopicTraceFilterSectionProps) {
   return (
@@ -70,7 +73,7 @@ export function TopicTraceFilterSection({
             title={title}
             meta={null}
             description={description}
-            tooltip={TOPICS_RULE_FILTER_HINT}
+            tooltip={FILTER_TOOLTIP}
             trailing={
               <FilterModeToggle mode={model.mode} onChange={model.changeMode} />
             }
@@ -81,7 +84,7 @@ export function TopicTraceFilterSection({
               title={title}
               meta={null}
               description={null}
-              tooltip={TOPICS_RULE_FILTER_HINT}
+              tooltip={FILTER_TOOLTIP}
               trailing={null}
             />
             <FilterModeToggle mode={model.mode} onChange={model.changeMode} />

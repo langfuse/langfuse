@@ -60,7 +60,6 @@ export function NewAnalysisDialogView({
             selectedIds={facetIds}
             onChange={onFacetIdsChange}
           />
-          <TopicSliceFields.ScopeHint />
           {filterField}
           <TopicSliceFields.AutoAnalyze
             on={live}
