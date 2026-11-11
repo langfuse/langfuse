@@ -30,7 +30,7 @@ export const ProviderConnected = meta.story({
   },
 });
 
-/** Every provider, OpenRouter, xAI, Vercel and pre-release Vertex AI included. */
+/** Every provider, OpenRouter, xAI, Vercel and Vertex AI included. */
 export const WithAllProviders = meta.story({
   args: {
     providers: [
