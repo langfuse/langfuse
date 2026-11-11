@@ -30,6 +30,37 @@ type IntegrationExportFailedEmailTemplateProps = {
   projectName: string;
   settingsUrl: string;
   disabled?: boolean;
+  reason?: string;
+};
+
+const getBody = ({
+  copy,
+  projectName,
+  disabled,
+  reason,
+}: {
+  copy: IntegrationExportFailedEmailCopy;
+  projectName: string;
+  disabled: boolean;
+  reason?: string;
+}): ReactNode => {
+  if (disabled && reason) {
+    return (
+      <>
+        The {copy.inlineLabel} export for project &quot;{projectName}&quot; has
+        been disabled by an administrator.
+      </>
+    );
+  }
+  if (disabled) return copy.disabledBody(projectName);
+  return (
+    <>
+      The scheduled {copy.inlineLabel} export for project &quot;{projectName}
+      &quot; has failed after multiple attempts. It will be retried
+      automatically at the next scheduled export. If the issue persists, review
+      the integration settings to see the error details.
+    </>
+  );
 };
 
 export const IntegrationExportFailedEmailTemplate = ({
@@ -37,6 +68,7 @@ export const IntegrationExportFailedEmailTemplate = ({
   projectName,
   settingsUrl,
   disabled = false,
+  reason,
 }: IntegrationExportFailedEmailTemplateProps) => {
   const preview = disabled
     ? `${copy.subjectLabel} export disabled for project "${projectName}"`
@@ -65,18 +97,20 @@ export const IntegrationExportFailedEmailTemplate = ({
                   : `${copy.headingLabel} Export Failed`}
               </Heading>
               <Text className="text-gray-700 text-sm leading-6">
-                {disabled ? (
-                  copy.disabledBody(projectName)
-                ) : (
-                  <>
-                    The scheduled {copy.inlineLabel} export for project &quot;
-                    {projectName}&quot; has failed after multiple attempts. It
-                    will be retried automatically at the next scheduled export.
-                    If the issue persists, review the integration settings to
-                    see the error details.
-                  </>
-                )}
+                {getBody({ copy, projectName, disabled, reason })}
               </Text>
+              {disabled && reason && (
+                <>
+                  <Text className="text-gray-700 text-sm leading-6">
+                    Reason: {reason}
+                  </Text>
+                  <Text className="text-gray-700 text-sm leading-6">
+                    Once the issue is resolved, re-enable the export in the
+                    integration settings and it will pick up right where it left
+                    off.
+                  </Text>
+                </>
+              )}
             </Section>
 
             <Section className="mt-8 text-center">

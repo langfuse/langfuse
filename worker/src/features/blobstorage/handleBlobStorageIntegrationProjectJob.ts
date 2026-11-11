@@ -1261,8 +1261,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
       data: {
         runStartedAt: null,
         nextSyncAt: new Date(now.getTime() + frequencyIntervalMs),
-        lastError: null,
-        lastErrorAt: null,
         ...(isExportCaughtUp({
           lastSyncAt: blobStorageIntegration.lastSyncAt,
           runStartTime,
@@ -1271,6 +1269,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
           : {}),
       },
     });
+    await clearLastErrorAfterSuccess(projectId);
     return;
   }
 
@@ -1506,8 +1505,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
         data: {
           lastSyncAt: maxTimestamp,
           nextSyncAt,
-          lastError: null,
-          lastErrorAt: null,
           runStartedAt: null,
           ...(isExportCaughtUp({ lastSyncAt: maxTimestamp, runStartTime })
             ? { backfill: false }
@@ -1521,6 +1518,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
       return;
     }
+    await clearLastErrorAfterSuccess(projectId);
 
     // If still catching up, immediately queue the next chunk job
     if (!caughtUp) {
@@ -1562,12 +1560,14 @@ export const handleBlobStorageIntegrationProjectJob = async (
       try {
         integration = await prisma.blobStorageIntegration.update({
           where: { projectId },
-          data: {
-            lastError: BLOB_EXPORT_PART_LIMIT_ERROR_MESSAGE,
-            lastErrorAt: new Date(),
-            runStartedAt: null,
-          },
+          data: { runStartedAt: null },
         });
+        if (integration.enabled) {
+          await setLastErrorWhileEnabled(
+            projectId,
+            BLOB_EXPORT_PART_LIMIT_ERROR_MESSAGE,
+          );
+        }
       } catch (persistError) {
         if (isRecordNotFoundError(persistError)) {
           logger.info(
@@ -1660,6 +1660,32 @@ export const handleBlobStorageIntegrationProjectJob = async (
   }
 };
 
+// On a disabled integration, lastError says why it was turned off (customer
+// fault or an operator's reason). A run that ends after the disable must not
+// overwrite it, so run outcomes are only recorded while still enabled.
+async function setLastErrorWhileEnabled(
+  projectId: string,
+  lastError: string | null,
+): Promise<void> {
+  await prisma.blobStorageIntegration.updateMany({
+    where: { projectId, enabled: true },
+    data: { lastError, lastErrorAt: lastError === null ? null : new Date() },
+  });
+}
+
+// Runs after a successful run's sync state is persisted. Best-effort: a
+// failure here must not send the completed run into the error path.
+async function clearLastErrorAfterSuccess(projectId: string): Promise<void> {
+  try {
+    await setLastErrorWhileEnabled(projectId, null);
+  } catch (error) {
+    logger.warn(
+      `[BLOB INTEGRATION] Failed to clear lastError for project ${projectId} after a successful run`,
+      error,
+    );
+  }
+}
+
 // What the terminal bookkeeping for a failed run did. Each case is a situation
 // some earlier revision guarded against, named so the notification decision can
 // switch over them instead of recombining flags.
@@ -1688,12 +1714,11 @@ async function recordTerminalExportError({
   try {
     const updated = await prisma.blobStorageIntegration.update({
       where: { projectId },
-      data: {
-        lastError: errorMessage,
-        lastErrorAt: new Date(),
-        runStartedAt: null,
-      },
+      data: { runStartedAt: null },
     });
+    if (updated.enabled) {
+      await setLastErrorWhileEnabled(projectId, errorMessage);
+    }
 
     if (disableReason === undefined) {
       return { kind: "error-recorded", stillEnabled: updated.enabled };

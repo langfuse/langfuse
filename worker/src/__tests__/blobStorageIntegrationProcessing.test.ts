@@ -460,7 +460,8 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         where: { projectId },
       });
       expect(row.enabled).toBe(false);
-      expect(row.lastError).toMatch(/connection refused/i);
+      // A run that ends after the disable does not overwrite lastError.
+      expect(row.lastError).toBeNull();
       expect(row.lastFailureNotificationSentAt).toBeNull();
     });
 
@@ -479,7 +480,11 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       mockValidateBlobStorageEndpoint.mockImplementationOnce(async () => {
         await prisma.blobStorageIntegration.updateMany({
           where: { projectId },
-          data: { enabled: false },
+          data: {
+            enabled: false,
+            lastError: "Access Denied",
+            lastErrorAt: new Date(),
+          },
         });
         throw accessDeniedError();
       });
@@ -491,7 +496,6 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         where: { projectId },
       });
       expect(row.enabled).toBe(false);
-      expect(row.lastError).toMatch(/access denied/i);
       // Null proves the loser suppressed its email: the informational fallback
       // would have taken the cooldown claim and stamped this.
       expect(row.lastFailureNotificationSentAt).toBeNull();
@@ -679,8 +683,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
         where: { projectId },
       });
-      // Still terminal: the failure is recorded and the run does not retry.
-      expect(row.lastError).toBe(BLOB_EXPORT_PART_LIMIT_ERROR_MESSAGE);
+      // Still terminal (UnrecoverableError above), but a run that ends after
+      // the disable does not overwrite lastError.
+      expect(row.lastError).toBeNull();
       expect(row.enabled).toBe(false);
       // No alert: the integration is off, so the informational variant would be
       // misleading.
@@ -784,6 +789,99 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       } finally {
         getInstanceSpy.mockRestore();
       }
+    });
+  });
+
+  describe("disabled with a reason mid-run", () => {
+    const operatorReason = "Disabled by Langfuse: bucket rejects our uploads.";
+
+    const createIntegration = async (projectId: string) => {
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: projectId,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region ? region : "auto",
+          endpoint: "https://customer-bucket.s3.example.com",
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "hourly",
+          exportSource: "TRACES_OBSERVATIONS",
+          lastSyncAt: new Date(
+            Date.now() - BLOB_STORAGE_LAG_BUFFER_MS - 30 * 60 * 1000,
+          ),
+        },
+      });
+    };
+
+    const disableWithReason = (projectId: string) =>
+      prisma.blobStorageIntegration.updateMany({
+        where: { projectId },
+        data: {
+          enabled: false,
+          lastError: operatorReason,
+          lastErrorAt: new Date(),
+        },
+      });
+
+    it("keeps the reason when the in-flight run succeeds", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      await createIntegration(projectId);
+      mockValidateBlobStorageEndpoint.mockImplementationOnce(async () => {
+        await disableWithReason(projectId);
+      });
+      const getInstanceSpy = vi
+        .spyOn(StorageServiceFactory, "getInstance")
+        .mockReturnValue({
+          uploadFile: vi.fn().mockResolvedValue(undefined),
+          uploadFileBuffered: vi.fn().mockResolvedValue(undefined),
+          deleteFiles: vi.fn().mockResolvedValue(undefined),
+          listFiles: vi.fn().mockResolvedValue([]),
+        } as unknown as StorageService);
+
+      try {
+        await handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job);
+      } finally {
+        getInstanceSpy.mockRestore();
+      }
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(row.enabled).toBe(false);
+      expect(row.lastError).toBe(operatorReason);
+      expect(row.lastErrorAt).not.toBeNull();
+      expect(row.runStartedAt).toBeNull();
+    });
+
+    it("keeps the reason when the in-flight run fails", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      await createIntegration(projectId);
+      mockValidateBlobStorageEndpoint.mockImplementationOnce(async () => {
+        await disableWithReason(projectId);
+        throw new Error("connection refused");
+      });
+
+      await expect(
+        handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+          attemptsMade: 4,
+          opts: { attempts: 5 },
+        } as Job),
+      ).rejects.toThrow(/connection refused/i);
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(row.enabled).toBe(false);
+      expect(row.lastError).toBe(operatorReason);
+      expect(row.runStartedAt).toBeNull();
     });
   });
 

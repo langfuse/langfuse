@@ -244,7 +244,10 @@ export { type ProjectNotificationEvent } from "./notifications/types";
 export { ProjectNotificationWebhookQueueEventSchema } from "./notifications/types";
 export { type ProjectNotificationWebhookQueueEvent } from "./notifications/types";
 export { buildProjectNotificationSlackMessage } from "./notifications/buildProjectNotificationSlackMessage";
-export { dispatchProjectNotification } from "./notifications/dispatchProjectNotification";
+export {
+  dispatchProjectNotification,
+  type ProjectNotificationOutcome,
+} from "./notifications/dispatchProjectNotification";
 export * from "./orderByToPrisma";
 export * from "./filterToPrisma";
 export * from "./prismaFilter";

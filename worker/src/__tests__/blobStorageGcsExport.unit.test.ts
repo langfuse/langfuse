@@ -9,7 +9,7 @@ vi.mock("@langfuse/shared/src/db", () => ({
   prisma: {
     blobStorageIntegration: {
       findUnique: vi.fn(),
-      update: vi.fn().mockResolvedValue({}),
+      update: vi.fn().mockResolvedValue({ enabled: true }),
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     project: { findUnique: vi.fn().mockResolvedValue({ name: "p" }) },
@@ -136,8 +136,9 @@ describe("handleBlobStorageIntegrationProjectJob — GOOGLE_CLOUD_STORAGE", () =
     // rather than retried.
     expect(factoryCalls).toHaveLength(0);
     expect(uploadCalls).toHaveLength(0);
-    expect(prisma.blobStorageIntegration.update).toHaveBeenCalledWith(
+    expect(prisma.blobStorageIntegration.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
+        where: { projectId: "project-1", enabled: true },
         data: expect.objectContaining({
           lastError: expect.stringContaining(
             "LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS",
@@ -180,8 +181,9 @@ describe("handleBlobStorageIntegrationProjectJob — GOOGLE_CLOUD_STORAGE", () =
     // A credential fault: disabled rather than retried.
     expect(factoryCalls).toHaveLength(0);
     expect(uploadCalls).toHaveLength(0);
-    expect(prisma.blobStorageIntegration.update).toHaveBeenCalledWith(
+    expect(prisma.blobStorageIntegration.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
+        where: { projectId: "project-1", enabled: true },
         data: expect.objectContaining({
           lastError: expect.stringContaining("service account JSON key"),
         }),
