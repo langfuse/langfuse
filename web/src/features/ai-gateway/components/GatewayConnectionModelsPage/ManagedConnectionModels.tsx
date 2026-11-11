@@ -1,13 +1,11 @@
 import type { ReactNode } from "react";
-import { RefreshCw } from "@langfuse/icons";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { ModelListingDeniedAlert } from "@/src/features/ai-gateway/components/ModelListingDeniedAlert/ModelListingDeniedAlert";
 import { GatewayLoadError } from "@/src/features/ai-gateway/components/GatewayLoadError/GatewayLoadError";
 import { ConnectionModelsSkeleton } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsSkeleton/ConnectionModelsSkeleton";
 import { ConnectionModelsEditor } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsEditor";
+import { RefreshModelsButton } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/RefreshModelsButton/RefreshModelsButton";
 import { useGatewayConnectionModels } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/hooks/useGatewayConnectionModels";
 
 export type ManagedConnectionModelsProps = {
@@ -27,30 +25,12 @@ export function ManagedConnectionModels({
     organizationId,
     connectionId,
   });
-  const { connectionQuery, isRetrying, retryDiscovery } = connectionModels;
-
-  const refreshAction = (
-    <Tooltip label="Refresh models from provider">
-      {({ getTriggerProps }) => (
-        <IconButton
-          {...getTriggerProps()}
-          icon={RefreshCw}
-          label="Refresh models from provider"
-          variant="outline"
-          disabled={isRetrying || !connectionQuery.data}
-          onClick={retryDiscovery}
-        />
-      )}
-    </Tooltip>
-  );
-
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <ConnectionModelsContent
         organizationId={organizationId}
         connectionModels={connectionModels}
         filter={filter}
-        refreshAction={refreshAction}
       />
     </div>
   );
@@ -59,23 +39,23 @@ export function ManagedConnectionModels({
 type ConnectionModelsContentProps = {
   organizationId: string;
   connectionModels: ReturnType<typeof useGatewayConnectionModels>;
-  /** The filter on the left and the refresh action on the right, shown above the content until the table renders them in its toolbar. */
+  /** Shown on the left, with the refresh button on the right, above the content until the table renders them in its toolbar. */
   filter: ReactNode;
-  refreshAction: ReactNode;
 };
 
 function ConnectionModelsContent({
   organizationId,
   connectionModels,
   filter,
-  refreshAction,
 }: ConnectionModelsContentProps) {
   const { connectionQuery, modelsQuery, retryQueries } = connectionModels;
   const connection = connectionQuery.data;
   const toolbarItems = (
     <>
       {filter}
-      <div className="ml-auto">{refreshAction}</div>
+      <div className="ml-auto">
+        <RefreshModelsButton connectionModels={connectionModels} />
+      </div>
     </>
   );
   const filters = <div className="flex items-center gap-2">{toolbarItems}</div>;
@@ -127,7 +107,6 @@ function ConnectionModelsContent({
         modelApiFormats={modelsQuery.data.modelApiFormats}
         connectionModels={connectionModels}
         filters={filter}
-        refreshAction={refreshAction}
       />
     </>
   );

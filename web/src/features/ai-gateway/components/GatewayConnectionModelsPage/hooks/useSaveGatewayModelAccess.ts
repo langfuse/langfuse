@@ -43,6 +43,7 @@ export function useSaveGatewayModelAccess({
       const allowedModels = updateGatewayAllowedModels({
         allowedModels: connection.allowedModels,
         availableModels,
+        catalogComplete: !modelsResult.modelListingDenied,
         targetModels: models,
         enabled,
       });
