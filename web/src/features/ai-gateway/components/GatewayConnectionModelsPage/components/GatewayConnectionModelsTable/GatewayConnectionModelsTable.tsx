@@ -304,18 +304,12 @@ export const GatewayConnectionModelsTable = memo(
       setOrderBy(nextOrderBy);
       setPagination((current) => ({ ...current, pageIndex: 0 }));
     };
-    const handleEnableAll = () =>
-      onSetModelsEnabled({ models, enabled: true, scope: "all" });
-    const handleDisableAll = () =>
-      onSetModelsEnabled({ models, enabled: false, scope: "all" });
-
     return (
       <>
         <div className="flex min-h-0 flex-1 flex-col">
           <GatewayConnectionModelsToolbar
             columns={columns}
             filteredModelIds={filteredModelIds}
-            isSaving={isSaving}
             pageIndex={visiblePageIndex}
             pageModelIds={pageModelIds}
             pageSize={pagination.pageSize}
@@ -334,8 +328,6 @@ export const GatewayConnectionModelsTable = memo(
               </>
             }
             toolbarActions={toolbarActions}
-            onEnableAll={handleEnableAll}
-            onDisableAll={handleDisableAll}
             onSearchChange={handleSearchChange}
           />
           {/* `DataTable` draws its own top border. */}

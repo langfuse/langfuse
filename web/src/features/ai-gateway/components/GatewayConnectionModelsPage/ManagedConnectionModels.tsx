@@ -12,7 +12,7 @@ import { useGatewayConnectionModels } from "@/src/features/ai-gateway/components
 export type ManagedConnectionModelsProps = {
   organizationId: string;
   connectionId: string;
-  /** Rendered next to the search field, before the refresh action, e.g. the provider filter. */
+  /** Rendered next to the search field, e.g. the provider filter. */
   filter: ReactNode;
 };
 
@@ -28,17 +28,14 @@ export function ManagedConnectionModels({
   });
   const { connectionQuery, isRetrying, retryDiscovery } = connectionModels;
 
-  const filters = (
-    <div className="flex items-center gap-2">
-      {filter}
-      <IconButton
-        icon={RefreshCw}
-        label="Refresh models from provider"
-        variant="outline"
-        disabled={isRetrying || !connectionQuery.data}
-        onClick={retryDiscovery}
-      />
-    </div>
+  const refreshAction = (
+    <IconButton
+      icon={RefreshCw}
+      label="Refresh models from provider"
+      variant="outline"
+      disabled={isRetrying || !connectionQuery.data}
+      onClick={retryDiscovery}
+    />
   );
 
   return (
@@ -46,7 +43,8 @@ export function ManagedConnectionModels({
       <ConnectionModelsContent
         organizationId={organizationId}
         connectionModels={connectionModels}
-        filters={filters}
+        filter={filter}
+        refreshAction={refreshAction}
       />
     </div>
   );
@@ -55,17 +53,26 @@ export function ManagedConnectionModels({
 type ConnectionModelsContentProps = {
   organizationId: string;
   connectionModels: ReturnType<typeof useGatewayConnectionModels>;
-  /** Shown above the content until the table, which renders them in its toolbar, is ready. */
-  filters: ReactNode;
+  /** The filter on the left and the refresh action on the right, shown above the content until the table renders them in its toolbar. */
+  filter: ReactNode;
+  refreshAction: ReactNode;
 };
 
 function ConnectionModelsContent({
   organizationId,
   connectionModels,
-  filters,
+  filter,
+  refreshAction,
 }: ConnectionModelsContentProps) {
   const { connectionQuery, modelsQuery, retryQueries } = connectionModels;
   const connection = connectionQuery.data;
+  const toolbarItems = (
+    <>
+      {filter}
+      <div className="ml-auto">{refreshAction}</div>
+    </>
+  );
+  const filters = <div className="flex items-center gap-2">{toolbarItems}</div>;
 
   if (!connection && connectionQuery.isError) {
     return (
@@ -76,7 +83,7 @@ function ConnectionModelsContent({
     );
   }
   if (!connection || modelsQuery.isPending) {
-    return <ConnectionModelsSkeleton filters={filters} />;
+    return <ConnectionModelsSkeleton filters={toolbarItems} />;
   }
   if (modelsQuery.isError || !modelsQuery.data) {
     return (
@@ -113,7 +120,8 @@ function ConnectionModelsContent({
         models={modelsQuery.data.models}
         modelApiFormats={modelsQuery.data.modelApiFormats}
         connectionModels={connectionModels}
-        filters={filters}
+        filters={filter}
+        refreshAction={refreshAction}
       />
     </>
   );

@@ -24,7 +24,9 @@ export function ApiFormatFilter({
         }))}
         onValueChange={onChange}
         placeholder="All API formats"
-        selectedLabel={value.join(", ")}
+        selectedLabel={
+          value.length === 1 ? value[0] : `${value.length} formats selected`
+        }
         searchPlaceholder="Search API formats..."
         emptyMessage="No API formats found."
       />

@@ -1,4 +1,4 @@
-import { type ReactNode, useMemo } from "react";
+import type { ReactNode } from "react";
 
 import { Button } from "@/src/components/ui/button";
 import { AddCustomModelDialogController } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/AddCustomModelDialogController/AddCustomModelDialogController";
@@ -16,6 +16,8 @@ type ConnectionModelsEditorProps = {
   modelApiFormats?: Readonly<Record<string, GatewayApiFormat[]>>;
   connectionModels: ReturnType<typeof useGatewayConnectionModels>;
   filters: ReactNode;
+  /** Shown last, at the right end of the toolbar. */
+  refreshAction: ReactNode;
 };
 
 /**
@@ -29,6 +31,7 @@ export function ConnectionModelsEditor({
   modelApiFormats,
   connectionModels,
   filters,
+  refreshAction,
 }: ConnectionModelsEditorProps) {
   const { isSaving, removeCustomModel, setModelsEnabled } = connectionModels;
   const modelAccess = useGatewayModelAccess({
@@ -36,8 +39,8 @@ export function ConnectionModelsEditor({
     connectionId: connection.id,
     allowedModels: connection.allowedModels,
   });
-  const toolbarActions = useMemo(
-    () => (
+  const toolbarActions = (
+    <>
       <AddCustomModelDialogController
         organizationId={organizationId}
         connectionId={connection.id}
@@ -53,8 +56,8 @@ export function ConnectionModelsEditor({
           </Button>
         )}
       </AddCustomModelDialogController>
-    ),
-    [organizationId, connection.id, isSaving],
+      {refreshAction}
+    </>
   );
 
   return (
