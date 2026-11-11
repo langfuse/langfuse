@@ -299,13 +299,13 @@ export const handlePostHogIntegrationProjectJob = async (
       cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
       enabled: env.LANGFUSE_V4_CUTOFF_INTEGRATIONS,
       exemptOrgIds: env.LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS,
-      orgId: postHogIntegration.project.orgId,
+      orgId: postHogIntegration.project?.orgId,
     })
   ) {
     recordIncrement("langfuse.v4_cutoff", 1, { surface: "integrations" });
     logger.info("Langfuse v3 cutoff", {
       surface: "integrations",
-      orgId: postHogIntegration.project.orgId,
+      orgId: postHogIntegration.project?.orgId,
       projectId,
     });
     await prisma.posthogIntegration.updateMany({

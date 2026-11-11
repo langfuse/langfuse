@@ -1215,13 +1215,13 @@ export const handleBlobStorageIntegrationProjectJob = async (
       cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
       enabled: env.LANGFUSE_V4_CUTOFF_INTEGRATIONS,
       exemptOrgIds: env.LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS,
-      orgId: blobStorageIntegration.project.orgId,
+      orgId: blobStorageIntegration.project?.orgId,
     })
   ) {
     recordIncrement("langfuse.v4_cutoff", 1, { surface: "integrations" });
     logger.info("Langfuse v3 cutoff", {
       surface: "integrations",
-      orgId: blobStorageIntegration.project.orgId,
+      orgId: blobStorageIntegration.project?.orgId,
       projectId,
     });
     await prisma.blobStorageIntegration.updateMany({

@@ -10,7 +10,7 @@ export function isV4CutoffActive(params: {
 }): boolean {
   if (!params.cloudRegion) return false;
   if (params.enabled !== "true") return false;
-  if (params.orgId && params.exemptOrgIds.includes(params.orgId)) return false;
+  if (params.orgId && params.exemptOrgIds?.includes(params.orgId)) return false;
   return true;
 }
 

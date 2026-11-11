@@ -298,13 +298,13 @@ export const handleMixpanelIntegrationProjectJob = async (
       cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
       enabled: env.LANGFUSE_V4_CUTOFF_INTEGRATIONS,
       exemptOrgIds: env.LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS,
-      orgId: mixpanelIntegration.project.orgId,
+      orgId: mixpanelIntegration.project?.orgId,
     })
   ) {
     recordIncrement("langfuse.v4_cutoff", 1, { surface: "integrations" });
     logger.info("Langfuse v3 cutoff", {
       surface: "integrations",
-      orgId: mixpanelIntegration.project.orgId,
+      orgId: mixpanelIntegration.project?.orgId,
       projectId,
     });
     return;
