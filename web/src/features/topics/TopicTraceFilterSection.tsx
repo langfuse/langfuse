@@ -62,7 +62,7 @@ export function TopicTraceFilterSection({
   model,
   title = "Filter traces",
   // Topics are clustered per scan, so each agent or app wants its own.
-  description = "Topics runs on trace-level. Tracing several agents or AI apps? Filter to one and add a live scan for each.",
+  description = "Topics runs on trace-level. If this project traces several agents or AI applications, filter to one and add a live scan for each, so the topic maps are specific to your use case.",
   previewDescription = "The latest traces from the last seven days that match the filters.",
 }: TopicTraceFilterSectionProps) {
   return (

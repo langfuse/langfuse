@@ -93,8 +93,8 @@ function samplePercentFromInput(value: string) {
 }
 
 function dailyVolumeLabel(perDay: string) {
-  if (perDay === "<1") return "<1 new trace / day";
-  return `~${perDay} new ${perDay === "1" ? "trace" : "traces"} / day`;
+  if (perDay === "<1") return "Fewer than 1 new trace a day at this rate.";
+  return `About ${perDay} new ${perDay === "1" ? "trace" : "traces"} a day at this rate.`;
 }
 
 /** One row: the share of matching traces a scan analyzes, with its daily volume. */
@@ -119,7 +119,7 @@ function TopicSamplingField({
       <SectionHeader
         title="Sampling rate"
         meta={null}
-        description={null}
+        description={perDay === null ? null : dailyVolumeLabel(perDay)}
         tooltip={tooltip}
         trailing={null}
       />
@@ -149,9 +149,7 @@ function TopicSamplingField({
             }}
           />
         </div>
-        <span className="text-muted-foreground text-sm">
-          %{perDay === null ? null : ` · ${dailyVolumeLabel(perDay)}`}
-        </span>
+        <span className="text-muted-foreground text-sm">%</span>
       </div>
     </div>
   );
