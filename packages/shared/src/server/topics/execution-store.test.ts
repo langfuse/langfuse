@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createTopicExecution,
+  readTopicExecutionForDerivedRequest,
   readTopicExecutionForRequest,
   readTopicExecutionSummary,
   listTopicExecutions,
@@ -250,6 +251,18 @@ describe("Topics execution store application contract", () => {
           "changed-hash",
         ),
       ).rejects.toThrow("different Topics request");
+      expect(
+        await readTopicExecutionForDerivedRequest(
+          input.projectId,
+          request.requestId,
+        ),
+      ).toEqual(summary);
+      expect(
+        await readTopicExecutionForDerivedRequest(
+          "project-b",
+          request.requestId,
+        ),
+      ).toBeNull();
       expect(await readTopicExecutionSummary("project-b", a.id)).toBeNull();
       expect(
         await readTopicExecutionForRequest(

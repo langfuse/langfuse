@@ -31,10 +31,12 @@ const mocks = vi.hoisted(() => ({
   exists: vi.fn(),
   get: vi.fn(),
   create: vi.fn(),
+  readDerived: vi.fn(),
   userId: vi.fn(),
 }));
 vi.mock("./execution-store", () => ({
   readTopicExecutionSummary: mocks.read,
+  readTopicExecutionForDerivedRequest: mocks.readDerived,
   writeTopicExecution: mocks.write,
   createTopicExecution: mocks.create,
   readTopicExecutionUserId: mocks.userId,
@@ -466,7 +468,7 @@ describe("Topics execution queue state", () => {
 });
 
 describe("Topics setup follow-up", () => {
-  it("generates topics once all batches finish, with standard clustering", async () => {
+  it("generates topics once all batches finish and reuses a stored follow-up on replay", async () => {
     const client = new Redis({
       lazyConnect: true,
       maxRetriesPerRequest: 0,
@@ -499,7 +501,9 @@ describe("Topics setup follow-up", () => {
       Object.assign(parent, structuredClone(state));
     });
     mocks.userId.mockResolvedValue("user-1");
-    mocks.create.mockResolvedValue({ id: "update", status: "completed" });
+    const update = { id: "update", status: "completed" };
+    mocks.create.mockResolvedValue(update);
+    mocks.readDerived.mockResolvedValueOnce(null).mockResolvedValue(update);
     const local = structuredClone(parent);
     local.status = "completed";
     local.facets[0].counts.complete = 60;
@@ -513,8 +517,12 @@ describe("Topics setup follow-up", () => {
     try {
       await recordTopicProcessBatchProgress("0", batch);
       await recordTopicProcessBatchProgress("0", batch);
-      expect(mocks.create).toHaveBeenCalledTimes(2);
-      expect(mocks.create.mock.calls[0]).toEqual(mocks.create.mock.calls[1]);
+      expect(mocks.readDerived).toHaveBeenCalledTimes(2);
+      expect(mocks.readDerived).toHaveBeenLastCalledWith(
+        parent.projectId,
+        `${parent.id}-topics`,
+      );
+      expect(mocks.create).toHaveBeenCalledTimes(1);
       expect(mocks.create.mock.calls[0]).toEqual([
         expect.objectContaining({
           operation: "update",

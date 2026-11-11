@@ -6,6 +6,7 @@ import { logger } from "../logger";
 import { isTopicsEnabled } from "./config";
 import {
   createTopicExecution,
+  readTopicExecutionForDerivedRequest,
   readTopicExecutionSummary,
   readTopicExecutionUserId,
   writeTopicExecution,
@@ -379,18 +380,25 @@ async function startFollowUpTopicUpdate(execution: TopicExecutionSummary) {
     execution.id,
   );
   if (!userId) return;
-  const update = await createTopicExecution(
-    {
-      operation: "update",
-      projectId: execution.projectId,
-      requestId: `${execution.id}-topics`,
-      facets: input.facets,
-      embeddingConfig: input.embeddingConfig,
-      timeRange: input.thenUpdate.timeRange,
-    },
-    undefined,
-    userId,
-  );
+  const requestId = `${execution.id}-topics`;
+  // Reuse a stored follow-up as-is; its input may predate the current schema.
+  const update =
+    (await readTopicExecutionForDerivedRequest(
+      execution.projectId,
+      requestId,
+    )) ??
+    (await createTopicExecution(
+      {
+        operation: "update",
+        projectId: execution.projectId,
+        requestId,
+        facets: input.facets,
+        embeddingConfig: input.embeddingConfig,
+        timeRange: input.thenUpdate.timeRange,
+      },
+      undefined,
+      userId,
+    ));
   if (update.status === "queued")
     await enqueueTopicExecution(execution.projectId, update.id);
 }

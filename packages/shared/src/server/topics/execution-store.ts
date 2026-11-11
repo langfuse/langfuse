@@ -286,6 +286,19 @@ export async function readTopicExecutionForRequest(
   return summaryResult(stored);
 }
 
+/** For server-derived request IDs only: skips the request identity check. */
+export async function readTopicExecutionForDerivedRequest(
+  projectId: string,
+  requestId: string,
+): Promise<TopicExecutionSummary | null> {
+  topicIdSchema.parse(requestId);
+  const stored = await storedExecution(
+    projectId,
+    executionIdForRequest(projectId, requestId),
+  );
+  return stored ? summaryResult(stored) : null;
+}
+
 export async function readTopicExecutionSummary(
   projectId: string,
   executionId: string,
