@@ -297,7 +297,7 @@ export const MobileNavigation = meta.story({
 // Enterprise co-branding: a configured logo replaces the Langfuse mark.
 const sampleLogo = (fill: string) =>
   `data:image/svg+xml,${encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="84" height="24" viewBox="0 0 84 24"><rect width="24" height="24" rx="5" fill="${fill}"/><text x="30" y="17" font-family="Arial" font-weight="700" font-size="15" fill="${fill}">ACME</text></svg>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48"><rect width="48" height="48" rx="10" fill="${fill}"/><text x="24" y="32" text-anchor="middle" font-family="Arial" font-weight="700" font-size="24" fill="white">A</text></svg>`,
   )}`;
 
 export const CustomLogo = meta.story({

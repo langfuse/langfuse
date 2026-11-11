@@ -226,19 +226,19 @@ export function AppSidebar({
               <Link
                 href={`/organization/${organization.id}`}
                 aria-label={`${organization.name} projects`}
-                className="ph-no-capture relative z-10 -mt-px -ml-1 flex shrink-0 items-center group-data-[collapsible=icon]:mt-0 group-data-[collapsible=icon]:ml-0"
+                className="ph-no-capture relative z-10 -ml-1 flex shrink-0 items-center group-data-[collapsible=icon]:ml-0"
               >
                 {logo.lightModeHref && logo.darkModeHref ? (
                   <>
                     <img
                       src={logo.lightModeHref}
                       alt="Logo"
-                      className="max-h-6 max-w-24 group-data-[collapsible=icon]:hidden dark:hidden"
+                      className="size-6 object-contain group-data-[collapsible=icon]:hidden dark:hidden"
                     />
                     <img
                       src={logo.darkModeHref}
                       alt="Logo"
-                      className="hidden max-h-6 max-w-24 dark:block dark:group-data-[collapsible=icon]:hidden"
+                      className="hidden size-6 object-contain dark:block dark:group-data-[collapsible=icon]:hidden"
                     />
                     <span className="hidden group-data-[collapsible=icon]:block">
                       <LangfuseIcon size={24} />
