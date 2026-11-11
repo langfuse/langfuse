@@ -238,11 +238,6 @@ export const groupEventsObservationFilters = (
   return filterGroups;
 };
 
-const SCORE_GROUPS: ReadonlySet<EventFilterGroup> = new Set([
-  "observationScores",
-  "traceScores",
-]);
-
 /**
  * The row conditions of the events (non-score) filters and the free-text
  * search, each compiled through the events predicate (`undefined` without
@@ -385,8 +380,9 @@ const scoreOrderLevelOf = (
 };
 
 /**
- * The score filters as a level-agnostic WHERE filter and the raw score rows
- * pushdown for the score CTEs.
+ * The score filters of `filterGroups` (observation scores, then trace
+ * scores) as a level-agnostic WHERE filter and the raw score rows pushdown
+ * for the score CTEs.
  *
  * Legacy route: unlike {@link compileEventsRowConditions}, the score filters
  * still render as `FilterList` text, because the level-agnostic rewrite and
@@ -394,16 +390,16 @@ const scoreOrderLevelOf = (
  * moves onto the AST once they do.
  */
 const compileScoreRowConditions = ({
-  filter,
+  filterGroups,
   ordersByScore,
   includeScoreProjection,
 }: {
-  filter: FilterCondition[];
+  filterGroups: EventsObservationFilterGroups;
   ordersByScore: boolean;
   includeScoreProjection: boolean;
 }) => {
   const rawScoreFilters = createFilterFromFilterState(
-    filter.filter((leaf) => SCORE_GROUPS.has(classifyFilter(leaf))),
+    [...filterGroups.observationScores, ...filterGroups.traceScores],
     eventsTableUiColumnDefinitions,
     eventsTableCols,
   );
@@ -469,7 +465,7 @@ const buildEventsObservationRowSelectionInternal = (
   const ordersByObservationScore = scoreOrderLevel === "observation";
   const ordersByTraceScore = scoreOrderLevel === "trace";
   const { scoreFilter, scoreRowsFilter } = compileScoreRowConditions({
-    filter: filter ?? [],
+    filterGroups,
     ordersByScore: scoreOrderLevel !== undefined,
     includeScoreProjection,
   });
