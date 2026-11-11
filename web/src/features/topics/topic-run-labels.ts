@@ -5,7 +5,7 @@ import {
   type TopicOperation,
 } from "@langfuse/shared/topics";
 
-export const operationLabels: Record<TopicOperation, string> = {
+const operationLabels: Record<TopicOperation, string> = {
   process: "Analyze traces",
   update: "Regenerate topics",
 };
