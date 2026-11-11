@@ -22,8 +22,6 @@ type TopicListViewProps = {
   projectId: string;
   facet: Facet;
   peekView: DataTablePeekViewProps;
-  onGenerateTopics: () => void;
-  canGenerateTopics: boolean;
   tracePanelRef?: (element: HTMLElement | null) => void;
   useTraces: UseTopicTraces;
 };
@@ -33,8 +31,6 @@ export function TopicListView({
   projectId,
   facet,
   peekView,
-  onGenerateTopics,
-  canGenerateTopics,
   tracePanelRef,
   useTraces,
 }: TopicListViewProps) {
@@ -50,12 +46,7 @@ export function TopicListView({
   const traces = useTraces(selected ? topicQuery(selected.id) : null);
   const maxCount = Math.max(1, ...topics.map((topic) => topic.count));
   if (facet.topics.length === 0 || !selected) {
-    return (
-      <TopicsEmptyState
-        onGenerateTopics={onGenerateTopics}
-        canGenerateTopics={canGenerateTopics}
-      />
-    );
+    return <TopicsEmptyState />;
   }
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:flex-row">

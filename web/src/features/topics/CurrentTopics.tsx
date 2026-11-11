@@ -151,8 +151,6 @@ function CurrentFacet({
           mapResult={mapResult}
           tracePanelRef={tracePanelRef}
           traceFilters={traceFilters}
-          onGenerateTopics={onGenerateTopics}
-          canGenerateTopics={canGenerateTopics}
           onOpenTrace={peekNavigation.openPeek}
           peekView={peekView}
           useTraces={useFacetTopicTraces}
@@ -165,8 +163,6 @@ function CurrentFacet({
           key={facet.facetId}
           projectId={projectId}
           facet={facet}
-          onGenerateTopics={onGenerateTopics}
-          canGenerateTopics={canGenerateTopics}
           peekView={peekView}
           tracePanelRef={tracePanelRef}
           useTraces={useFacetTopicTraces}
@@ -177,8 +173,6 @@ function CurrentFacet({
         key={facet.facetId}
         projectId={projectId}
         facet={facet}
-        onGenerateTopics={onGenerateTopics}
-        canGenerateTopics={canGenerateTopics}
         peekView={peekView}
         useTraces={useFacetTopicTraces}
       />

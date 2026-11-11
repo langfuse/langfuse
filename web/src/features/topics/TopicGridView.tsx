@@ -23,16 +23,11 @@ type TopicGridViewProps = {
   onOpenTrace: (traceId: string) => void;
   peekView: DataTablePeekViewProps;
   tracePanelRef?: (element: HTMLElement | null) => void;
-  onGenerateTopics: () => void;
-  canGenerateTopics: boolean;
   useTraces: UseTopicTraces;
   showUnassigned: boolean;
 };
 
-type TopicGridContentProps = Omit<
-  TopicGridViewProps,
-  "onGenerateTopics" | "canGenerateTopics"
->;
+type TopicGridContentProps = TopicGridViewProps;
 
 function gridMessage(mapResult: TopicGridViewProps["mapResult"]) {
   if (mapResult.error) return `Grid could not load: ${mapResult.error.message}`;
@@ -45,18 +40,9 @@ function gridMessage(mapResult: TopicGridViewProps["mapResult"]) {
   return null;
 }
 
-export function TopicGridView({
-  onGenerateTopics,
-  canGenerateTopics,
-  ...props
-}: TopicGridViewProps) {
+export function TopicGridView({ ...props }: TopicGridViewProps) {
   if (orderedFacetTopics(props.facet).length === 0) {
-    return (
-      <TopicsEmptyState
-        onGenerateTopics={onGenerateTopics}
-        canGenerateTopics={canGenerateTopics}
-      />
-    );
+    return <TopicsEmptyState />;
   }
   return <TopicGridContent {...props} />;
 }
