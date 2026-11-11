@@ -7,7 +7,6 @@ const HERO_PROVIDER_ORDER: GatewayProvider[] = [
   "OPENROUTER",
   "XAI",
   "VERCEL",
-  "GOOGLE_AI_STUDIO",
 ];
 
 /** The providers the setup banner shows, in display order, with whether each is connected. */
