@@ -11,12 +11,12 @@ import type {
   TopicTimeRange,
 } from "@langfuse/shared/topics";
 import {
-  TOPICS_TRANSCRIPT_VERSION,
   getTopicClusteringSummaries,
   type TopicEmbeddingBatch,
   type TopicEmbeddingRef,
 } from "@langfuse/shared/topics/server";
 import { assembleTranscript } from "@langfuse/shared/src/server";
+import { TOPICS_TEXT_VERSION } from "./assembledTranscript";
 import {
   topicExecutionInputSchema,
   topicSourceKey,
@@ -73,7 +73,7 @@ const facet: TopicFacetVersion = {
 };
 
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
-  const { TOPICS_TRANSCRIPT_VERSION, TOPIC_EMBEDDING_EXPIRED_ERROR } =
+  const { TOPIC_EMBEDDING_EXPIRED_ERROR } =
     await importOriginal<typeof import("@langfuse/shared/topics/server")>();
   return {
     getTopicTextResponseMetadata: () => undefined,
@@ -99,7 +99,6 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
         clustering: slot("clustering", "gpt-5.6-terra"),
       };
     },
-    TOPICS_TRANSCRIPT_VERSION,
     TOPIC_EMBEDDING_EXPIRED_ERROR,
     stageTopicSummary: async (
       scope: { projectId: string; executionId: string },
@@ -438,6 +437,7 @@ function traceInput(traceId: string, input: string | null = traceId) {
         metadata: {},
       },
     ]),
+    executionIssues: [],
   };
 }
 
@@ -598,15 +598,12 @@ beforeEach(() => {
     traceInput(traceId),
   );
   state.summarize.mockImplementation(async (_facet, text: string) => {
-    // The projected transcript the trace-batch path sends.
-    const transcript = JSON.parse(text);
-    const input = transcript.threads[0].currentTurn[0].parts.find(
-      (part: { type: string }) => part.type === "text",
-    );
+    // The rendered Topics text carries the request on its own line.
+    const request = /\[user · request\] (.*)/.exec(text)![1];
     return {
       output: {
         status: "applicable",
-        summary: input!.text,
+        summary: request,
       },
       providedUsageDetails: { summary_input: 1 },
       usageDetails: { summary_input: 1 },
@@ -911,7 +908,7 @@ describe("Topics execution", () => {
   );
 
   it.each([
-    { version: TOPICS_TRANSCRIPT_VERSION, calls: 1, usageDetails: {} },
+    { version: TOPICS_TEXT_VERSION, calls: 1, usageDetails: {} },
     {
       version: "older-transcript",
       calls: 2,
@@ -938,7 +935,7 @@ describe("Topics execution", () => {
         {
           environment: "staging",
           traceName: "Updated support",
-          transcriptVersion: TOPICS_TRANSCRIPT_VERSION,
+          transcriptVersion: TOPICS_TEXT_VERSION,
           metadata: { executionId: "second" },
         },
       ]);

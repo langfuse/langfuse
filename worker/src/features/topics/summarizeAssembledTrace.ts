@@ -1,7 +1,4 @@
-import {
-  TOPICS_TRANSCRIPT_VERSION,
-  type TopicsModels,
-} from "@langfuse/shared/topics/server";
+import type { TopicsModels } from "@langfuse/shared/topics/server";
 import {
   DEFAULT_TOPIC_FACETS,
   topicProcessingConfigSchema,
@@ -160,8 +157,8 @@ async function summarizeEnabledTrace(
   }
   if (pending.length === 0) return { outcome: "unchanged", rows: [] };
 
-  const bases = pending.map(({ version }) => ({
-    ...baseTopicSummary({
+  const bases = pending.map(({ version }) =>
+    baseTopicSummary({
       projectId: input.projectId,
       traceId: input.traceId,
       sessionId: input.sessionId,
@@ -174,8 +171,7 @@ async function summarizeEnabledTrace(
       triggerType: "automatic",
       metadata: { input: "topics-text" },
     }),
-    transcriptVersion: TOPICS_TEXT_VERSION,
-  }));
+  );
   const summarized = await summarizeTraceFacets({
     models,
     facets: pending,
@@ -260,8 +256,7 @@ export async function summarizeTraceFacets(params: {
   models: TopicsModels;
   facets: TraceFacet[];
   transcript: Transcript | null;
-  /** Given for stored per-trace inputs: summarize from the rendered Topics text instead of the JSON projection. */
-  executionIssues?: ExecutionIssue[];
+  executionIssues: ExecutionIssue[];
   config: TopicProcessingConfig;
   metadata: Record<string, unknown>;
   metrics: TopicMetrics;
@@ -274,16 +269,15 @@ export async function summarizeTraceFacets(params: {
     result: TopicResult,
     source: "model" | "rule",
   ) => metrics.result("summary", result, 1, { source, facet: facetTag(facet) });
-  // The projection's content check also gates the text, whose run-facts header is never empty.
-  const assembled = prepareAssembledTopicTranscript(params.transcript);
-  if (!assembled.hasContent || !params.transcript) {
+  // The projection's content check gates the text, whose run-facts header is never empty.
+  if (
+    !prepareAssembledTopicTranscript(params.transcript).hasContent ||
+    !params.transcript
+  ) {
     for (const facet of facets) outcome(facet, "insufficient_input", "rule");
     return undefined;
   }
-  const format = params.executionIssues ? "text" : "json";
-  const text = params.executionIssues
-    ? renderStoredTopicText(params.transcript, params.executionIssues)
-    : assembled.text;
+  const text = renderStoredTopicText(params.transcript, params.executionIssues);
   // Built-in facets first, each group in listing order, so the cached prompt prefix stays stable.
   const ordered = [
     ...facets.filter((facet) => facet.builtIn),
@@ -306,7 +300,6 @@ export async function summarizeTraceFacets(params: {
         text,
         config,
         params.metadata,
-        format,
       );
       const outputs = generated.output as Record<string, FacetOutput>;
       for (const { key } of keyed) {
@@ -397,7 +390,7 @@ export function baseTopicSummary(params: {
     summary: "",
     embedding: [],
     transcriptId: ASSEMBLED_TRANSCRIPT_ID,
-    transcriptVersion: TOPICS_TRANSCRIPT_VERSION,
+    transcriptVersion: TOPICS_TEXT_VERSION,
     summaryModel: params.summaryModel,
     embeddingModel: params.embeddingModel,
     ...NO_USAGE,
