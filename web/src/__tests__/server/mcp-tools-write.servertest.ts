@@ -2725,6 +2725,66 @@ describe("MCP Write Tools", () => {
       ).rejects.toThrow();
     });
 
+    it("should remove labels listed in removeLabels and keep the others", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const promptName = `remove-labels-${nanoid()}`;
+
+      await createPromptInDb({
+        name: promptName,
+        prompt: "Test",
+        projectId,
+        version: 1,
+        labels: ["latest", "candidate", "staging"],
+      });
+
+      const result = (await handleUpdatePromptLabels(
+        {
+          name: promptName,
+          version: 1,
+          newLabels: ["production"],
+          removeLabels: ["candidate"],
+        },
+        context,
+      )) as { labels: string[] };
+
+      expect(result.labels.sort()).toEqual(
+        ["latest", "production", "staging"].sort(),
+      );
+    });
+
+    it("should reject removing a label that another prompt depends on", async () => {
+      const { context } = await createMcpTestSetup();
+      const childName = `remove-labels-child-${nanoid()}`;
+      const parentName = `remove-labels-parent-${nanoid()}`;
+
+      const child = (await handleCreateTextPrompt(
+        { name: childName, prompt: "Child", labels: ["candidate"] },
+        context,
+      )) as { version: number };
+
+      await handleCreateTextPrompt(
+        {
+          name: parentName,
+          prompt: `Parent: @@@langfusePrompt:name=${childName}|label=candidate@@@`,
+        },
+        context,
+      );
+
+      await expect(
+        handleUpdatePromptLabels(
+          {
+            name: childName,
+            version: child.version,
+            removeLabels: ["candidate"],
+          },
+          context,
+        ),
+      ).rejects.toMatchObject({
+        httpCode: 400,
+        message: expect.stringMatching(/depending on the prompt label/),
+      });
+    });
+
     it("should handle special characters in prompt name", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const promptName = `special!@#$-${nanoid()}`;
@@ -2915,7 +2975,7 @@ describe("MCP Write Tools", () => {
           name: "ForbiddenError",
           httpCode: 403,
           message:
-            "You don't have permission to add a protected label to a prompt. Please contact your project admin for assistance.\n\n Protected labels are: production",
+            "You don't have permission to add/remove a protected label to/from a prompt. Please contact your project admin for assistance.\n\n Protected labels are: production",
         });
 
         const prompt = await prisma.prompt.findFirst({
@@ -2933,6 +2993,43 @@ describe("MCP Write Tools", () => {
           labels: expect.arrayContaining([...testCase.labels]),
         });
       }
+    });
+
+    it("rejects removing production with a MEMBER in-app-agent key", async () => {
+      const setup = await createMcpTestSetup();
+      await protectPromptLabel({
+        projectId: setup.projectId,
+        label: "production",
+      });
+      const { userId } = await createUserWithOrgRole({
+        orgId: setup.orgId,
+        role: Role.MEMBER,
+      });
+      const { context } = await createInAppAgentMcpContext({
+        projectId: setup.projectId,
+        orgId: setup.orgId,
+        createdByUserId: userId,
+      });
+      const promptName = `protected-remove-${nanoid()}`;
+      await createPromptInDb({
+        name: promptName,
+        prompt: "Test",
+        projectId: setup.projectId,
+        labels: ["production"],
+        version: 1,
+      });
+
+      await expect(
+        handleUpdatePromptLabels(
+          { name: promptName, version: 1, removeLabels: ["production"] },
+          context,
+        ),
+      ).rejects.toMatchObject({ name: "ForbiddenError", httpCode: 403 });
+
+      const prompt = await prisma.prompt.findFirst({
+        where: { projectId: setup.projectId, name: promptName, version: 1 },
+      });
+      expect(prompt?.labels).toContain("production");
     });
 
     it("rejects creating a prompt with a custom protected label using a MEMBER in-app-agent key", async () => {
@@ -3008,7 +3105,7 @@ describe("MCP Write Tools", () => {
         name: "ForbiddenError",
         httpCode: 403,
         message:
-          "You don't have permission to add a protected label to a prompt. Please contact your project admin for assistance.\n\n Protected labels are: production",
+          "You don't have permission to add/remove a protected label to/from a prompt. Please contact your project admin for assistance.\n\n Protected labels are: production",
       });
     });
   });

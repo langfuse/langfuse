@@ -15,6 +15,25 @@ import { env } from "@/src/env.mjs";
 type SessionUser = NonNullable<Session["user"]>;
 type SessionProject = SessionUser["organizations"][number]["projects"][number];
 import { v4 as uuidv4 } from "uuid";
+import type * as SharedServer from "@langfuse/shared/src/server";
+import type * as MultiTenantSsoUtils from "@/src/ee/features/multi-tenant-sso/utils";
+
+const SSO_ENFORCED_DOMAIN = "sso-enforced.test";
+
+const { sendMembershipInvitationEmail } = vi.hoisted(() => ({
+  sendMembershipInvitationEmail: vi.fn(async () => {}),
+}));
+
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof SharedServer>()),
+  sendMembershipInvitationEmail,
+}));
+
+vi.mock("@/src/ee/features/multi-tenant-sso/utils", async (importOriginal) => ({
+  ...(await importOriginal<typeof MultiTenantSsoUtils>()),
+  getSsoAuthProviderIdForDomain: async (domain: string) =>
+    domain === SSO_ENFORCED_DOMAIN ? `${SSO_ENFORCED_DOMAIN}.okta` : null,
+}));
 
 async function createTestOrg(plan: Plan) {
   const orgId = uuidv4();
@@ -347,6 +366,37 @@ describe("membersRouter.create - organization member limit enforcement", () => {
       });
       expect(inviteCount).toBe(4);
     }, 25_000);
+  });
+});
+
+describe("membersRouter.create - invitation email", () => {
+  it("flags new invitees on SSO-enforced domains so the link opens sign-in", async () => {
+    const { org, caller } = await prepare("cloud:team");
+    const ssoEmail = `invite-${uuidv4().substring(0, 8)}@${SSO_ENFORCED_DOMAIN}`;
+    const otherEmail = `invite-${uuidv4().substring(0, 8)}@test.com`;
+
+    for (const email of [ssoEmail, otherEmail]) {
+      await caller.members.create({
+        orgId: org.id,
+        email,
+        orgRole: Role.MEMBER,
+      });
+    }
+
+    expect(sendMembershipInvitationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: ssoEmail,
+        userExists: false,
+        ssoEnforced: true,
+      }),
+    );
+    expect(sendMembershipInvitationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: otherEmail,
+        userExists: false,
+        ssoEnforced: false,
+      }),
+    );
   });
 });
 

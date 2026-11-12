@@ -4888,12 +4888,19 @@ paths:
                   type: array
                   items:
                     type: string
+                  nullable: true
                   description: >-
                     New labels for the prompt version. Labels are unique across
                     versions. The "latest" label is reserved and managed by
                     Langfuse.
-              required:
-                - newLabels
+                removeLabels:
+                  type: array
+                  items:
+                    type: string
+                  nullable: true
+                  description: >-
+                    Labels to remove from the prompt version. The "latest" label
+                    is reserved and managed by Langfuse.
   /api/public/v2/prompts/{promptName}:
     get:
       description: Get a prompt

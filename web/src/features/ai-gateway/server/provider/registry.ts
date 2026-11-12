@@ -19,6 +19,7 @@ export const gatewayProviders = [
   "OPENROUTER",
   "XAI",
   "VERCEL",
+  "AZURE",
   "GOOGLE_AI_STUDIO",
 ] as const;
 
@@ -37,6 +38,7 @@ const gatewayProviderIds = [
   "openrouter",
   "xai",
   "vercel",
+  "azure",
   "google_ai_studio",
 ] as const;
 export type GatewayProviderId = (typeof gatewayProviderIds)[number];
@@ -126,7 +128,10 @@ type ProviderDefinition = {
   apiFormats: readonly GatewayApiFormat[];
 };
 
-type HostedGatewayProviderName = Exclude<GatewayProviderName, "BEDROCK">;
+type HostedGatewayProviderName = Exclude<
+  GatewayProviderName,
+  "BEDROCK" | "AZURE"
+>;
 type GatewayUpstream = Pick<ProviderDefinition, "baseUrl" | "authType">;
 
 const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
@@ -217,20 +222,30 @@ export function providerSupportsApiFormat(
       apiFormat !== "openai.decisions" && apiFormat !== "openai.embeddings"
     );
   }
+  if (provider === "AZURE") return apiFormat !== "openai.decisions";
   return PROVIDER_REGISTRY[provider].apiFormats.includes(apiFormat);
 }
 
-// Bedrock serves each API format but Decisions and Embeddings natively under its
-// own path and auth header.
-// Throws if a Bedrock connection has no valid region config. OpenAI and
-// Anthropic connections may override the official base URL; OpenRouter, xAI,
-// Vercel and Google AI Studio never store one.
+// Bedrock and Azure serve each supported API format natively under its own path
+// and auth header, Bedrock on its regional runtime and Azure on the origin of
+// the resource stored as the connection's base URL.
+// Throws if a Bedrock connection has no valid region config or an Azure
+// connection has no endpoint. OpenAI and Anthropic connections may override
+// the official base URL; OpenRouter, xAI, Vercel and Google AI Studio never
+// store one.
 export function getGatewayUpstream(params: {
   provider: GatewayProviderName;
   apiFormat: GatewayApiFormat;
   config: unknown;
   baseURL: string | null;
 }): GatewayUpstream {
+  if (params.provider === "AZURE") {
+    if (!params.baseURL) throw new Error("Azure connection has no endpoint.");
+    return getPerFormatUpstream(
+      new URL(params.baseURL).origin,
+      params.apiFormat,
+    );
+  }
   if (params.provider !== "BEDROCK") {
     const { baseUrl, authType } = PROVIDER_REGISTRY[params.provider];
     return { baseUrl: params.baseURL ?? baseUrl, authType };
@@ -239,7 +254,14 @@ export function getGatewayUpstream(params: {
   const origin = bedrockRuntimeOrigin(
     GatewayBedrockConfigSchema.parse(params.config),
   );
-  if (params.apiFormat === "anthropic.messages") {
+  return getPerFormatUpstream(origin, params.apiFormat);
+}
+
+function getPerFormatUpstream(
+  origin: string,
+  apiFormat: GatewayApiFormat,
+): GatewayUpstream {
+  if (apiFormat === "anthropic.messages") {
     return { baseUrl: `${origin}/anthropic/v1`, authType: "x-api-key" };
   }
   return { baseUrl: `${origin}/openai/v1`, authType: "bearer" };

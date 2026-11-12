@@ -10,13 +10,15 @@ export type GatewayProvider =
   | "OPENROUTER"
   | "XAI"
   | "VERCEL"
+  | "AZURE"
   | "GOOGLE_AI_STUDIO";
 
 /**
- * The client-facing API a provider speaks; Bedrock, OpenRouter and Vercel serve
- * both, and xAI and Google AI Studio serve OpenAI formats from their own hosted API.
+ * The client-facing API a provider speaks; Bedrock, OpenRouter, Vercel and Azure
+ * serve both, and xAI and Google AI Studio serve OpenAI formats from their own
+ * hosted API.
  */
 export type GatewayApiFamily = Exclude<
   GatewayProvider,
-  "BEDROCK" | "OPENROUTER" | "XAI" | "VERCEL" | "GOOGLE_AI_STUDIO"
+  "BEDROCK" | "OPENROUTER" | "XAI" | "VERCEL" | "AZURE" | "GOOGLE_AI_STUDIO"
 >;

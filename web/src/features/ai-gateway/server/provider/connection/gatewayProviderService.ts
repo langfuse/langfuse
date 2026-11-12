@@ -23,12 +23,17 @@ import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { GATEWAY_CONNECTION_NAME_ERRORS } from "@/src/features/ai-gateway/constants/gatewayConnection";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
+import {
+  getAzureResource,
+  getAzureResourceEndpoint,
+} from "@/src/features/ai-gateway/fns/azureResource";
 import { isGatewayApiFamily } from "@/src/features/ai-gateway/fns/isGatewayApiFamily";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import {
   type GatewayProviderName,
   getGatewayProviderDefinition,
+  getGatewayUpstream,
 } from "@/src/features/ai-gateway/server/provider/registry";
 import {
   encodeBedrockCredential,
@@ -120,6 +125,7 @@ export class GatewayProviderService {
       provider: params.provider,
       baseURL: params.baseURL ?? null,
       extraHeaders: params.extraHeaders ?? null,
+      validateBaseURL: true,
     });
     return this.validateCredential({
       provider: params.provider,
@@ -145,6 +151,7 @@ export class GatewayProviderService {
       provider: params.provider,
       baseURL: params.baseURL ?? null,
       extraHeaders: params.extraHeaders ?? null,
+      validateBaseURL: true,
     });
     await this.assertNameAvailable({
       organizationId: params.organizationId,
@@ -323,7 +330,16 @@ export class GatewayProviderService {
         : toCanonicalBaseURL(params.existing.provider, params.baseURL);
     const isBaseURLChanged =
       baseURL !== undefined && baseURL !== params.existing.baseURL;
-    if (isBaseURLChanged && !params.hasCredential) {
+    // An Azure key belongs to the resource, so switching its project keeps it.
+    const isHostChanged =
+      isBaseURLChanged &&
+      !(
+        params.existing.provider === "AZURE" &&
+        baseURL &&
+        params.existing.baseURL &&
+        new URL(baseURL).origin === new URL(params.existing.baseURL).origin
+      );
+    if (isHostChanged && !params.hasCredential) {
       throw new InvalidRequestError(
         "A new API key is required when changing the base URL",
       );
@@ -343,7 +359,7 @@ export class GatewayProviderService {
         resolveUpdatedExtraHeaders({
           inputHeaders: params.extraHeaders,
           storedHeaders,
-          isBaseURLChanged,
+          isBaseURLChanged: isHostChanged,
         }) ?? null,
     };
     if (isEndpointChanged) {
@@ -351,7 +367,7 @@ export class GatewayProviderService {
         provider: params.existing.provider,
         ...endpoint,
         // An unchanged base URL was validated when it was saved.
-        baseURL: isBaseURLChanged ? endpoint.baseURL : null,
+        validateBaseURL: isBaseURLChanged,
       });
     }
     return { endpoint, isEndpointChanged };
@@ -419,9 +435,10 @@ export class GatewayProviderService {
     if (!connection) throw new LangfuseNotFoundError("Provider connection");
     const provider = connection.provider as GatewayProviderName;
     // Vercel's catalog says whether a model is a decision model, which serves
-    // only Decisions, so only its test route depends on the catalog.
+    // only Decisions, and Azure's which formats a deployment serves, so only
+    // their test routes depend on the catalog.
     const catalog =
-      provider === "VERCEL"
+      provider === "VERCEL" || provider === "AZURE"
         ? await this.modelCatalogService.getModelCatalog({
             organizationId: params.organizationId,
             connectionId: connection.id,
@@ -557,9 +574,13 @@ type ConnectionEndpoint = {
 };
 
 // Bedrock only reaches its regional AWS endpoints, and OpenRouter, xAI and
-// Vercel their single hosted API; compatible proxies use an OpenAI connection with a base URL.
+// Vercel their single hosted API; compatible proxies use an OpenAI connection
+// with a base URL. Azure always needs the endpoint of the customer's resource.
 async function parseConnectionEndpoint(
-  params: ConnectionEndpoint & { provider: GatewayProvider },
+  params: ConnectionEndpoint & {
+    provider: GatewayProvider;
+    validateBaseURL: boolean;
+  },
 ): Promise<ConnectionEndpoint> {
   const extraHeaders =
     params.extraHeaders && Object.keys(params.extraHeaders).length > 0
@@ -567,6 +588,7 @@ async function parseConnectionEndpoint(
       : null;
   if (
     !isGatewayApiFamily(params.provider) &&
+    params.provider !== "AZURE" &&
     (params.baseURL || extraHeaders)
   ) {
     throw new InvalidRequestError(
@@ -575,7 +597,12 @@ async function parseConnectionEndpoint(
   }
   if (extraHeaders) assertValidExtraHeaders(extraHeaders);
   const baseURL = toCanonicalBaseURL(params.provider, params.baseURL);
-  if (baseURL) {
+  if (params.provider === "AZURE" && !baseURL) {
+    throw new InvalidRequestError(
+      "Azure connections need the name of a Microsoft Foundry resource",
+    );
+  }
+  if (baseURL && params.validateBaseURL) {
     try {
       await validateLlmConnectionBaseURL(baseURL);
     } catch (error) {
@@ -591,7 +618,9 @@ async function parseConnectionEndpoint(
  * Model discovery, model tests and the gateway append route paths such as
  * `/models` verbatim, so the stored URL ends at the API version. Anthropic
  * URLs take `/v1` like LLM connections, and the gateway rejects query strings,
- * fragments and the `{model}` placeholder LLM connections allow.
+ * fragments and the `{model}` placeholder LLM connections allow. Azure stores
+ * the origin of a Foundry resource, as each API format has its own path below
+ * it.
  */
 function toCanonicalBaseURL(
   provider: GatewayProvider,
@@ -602,6 +631,15 @@ function toCanonicalBaseURL(
     throw new InvalidRequestError(
       "Invalid base URL: query strings, fragments and {model} are not supported",
     );
+  }
+  if (provider === "AZURE") {
+    const resource = getAzureResource(baseURL);
+    if (!resource) {
+      throw new InvalidRequestError(
+        "Azure connections need the name of a Microsoft Foundry resource and optionally of one of its projects",
+      );
+    }
+    return getAzureResourceEndpoint(resource);
   }
   const trimmed = baseURL.replace(/\/+$/, "");
   return provider === "ANTHROPIC" && !trimmed.endsWith("/v1")
@@ -653,32 +691,33 @@ async function validateGatewayCredential(
     return { modelListingDenied: result.modelListingDenied ?? false };
   }
 
+  // Azure lists models for any valid resource key, whichever models the
+  // resource has deployed.
+  if (params.provider === "AZURE") {
+    const { baseUrl } = getGatewayUpstream({
+      provider: "AZURE",
+      apiFormat: "openai.responses",
+      config: null,
+      baseURL: params.baseURL,
+    });
+    return checkCredentialEndpoint({
+      url: new URL(`${baseUrl}/models`),
+      credential: params.credential,
+      baseURL: params.baseURL,
+      extraHeaders: params.extraHeaders,
+    });
+  }
+
   const definition = getGatewayProviderDefinition(params.provider);
   const check = definition.credentialCheck;
   if ("path" in check) {
-    const result = await requestJson({
-      fetcher: getGatewayFetch({
-        baseURL: null,
-        extraHeaders: {},
-        logContext: "AI Gateway credential validation",
-      }),
+    return checkCredentialEndpoint({
       url: new URL(`${definition.baseUrl}${check.path}`),
-      headers: { Authorization: `Bearer ${params.credential}` },
+      credential: params.credential,
+      baseURL: null,
+      extraHeaders: null,
+      usable: check.usable,
     });
-    // Providers answer a bad key with any 4xx, so only an outage is retryable.
-    const status = result.success ? result.response.status : 503;
-    if (status === 429 || status >= 500) {
-      throw new ServiceUnavailableError(
-        "Provider connection test is unavailable, try again later",
-      );
-    }
-    if (
-      status >= 400 ||
-      (result.success && check.usable?.(result.value) === false)
-    ) {
-      throw new InvalidRequestError("Provider connection test failed");
-    }
-    return { modelListingDenied: false };
   }
 
   const adapter =
@@ -706,6 +745,40 @@ async function validateGatewayCredential(
       timeout: 10_000,
     });
   } catch {
+    throw new InvalidRequestError("Provider connection test failed");
+  }
+  return { modelListingDenied: false };
+}
+
+async function checkCredentialEndpoint(
+  params: {
+    url: URL;
+    credential: string;
+    usable?: (body: unknown) => boolean;
+  } & ConnectionEndpoint,
+): Promise<GatewayCredentialValidation> {
+  const extraHeaders = params.extraHeaders ?? {};
+  const result = await requestJson({
+    fetcher: getGatewayFetch({
+      baseURL: params.baseURL,
+      extraHeaders,
+      logContext: "AI Gateway credential validation",
+    }),
+    url: params.url,
+    headers: { ...extraHeaders, Authorization: `Bearer ${params.credential}` },
+  });
+  // Providers answer a bad key with any 4xx, so only an outage is retryable.
+  // A user-supplied endpoint that cannot be reached or fails is a bad input.
+  const status = result.success ? result.response.status : 503;
+  if (status === 429 || (status >= 500 && !params.baseURL)) {
+    throw new ServiceUnavailableError(
+      "Provider connection test is unavailable, try again later",
+    );
+  }
+  if (
+    status >= 400 ||
+    (result.success && params.usable?.(result.value) === false)
+  ) {
     throw new InvalidRequestError("Provider connection test failed");
   }
   return { modelListingDenied: false };
