@@ -8,7 +8,6 @@ import {
 import { useMediaQuery } from "react-responsive";
 import dynamic from "next/dynamic";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
-import { MAX_SKILL_FILES } from "@langfuse/shared";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import {
@@ -686,7 +685,7 @@ export function SkillEditor({
                     src={undefined}
                     variant="panel"
                     accept={undefined}
-                    maxFiles={MAX_SKILL_FILES}
+                    maxFiles={10_000}
                     maxSize={undefined}
                     minSize={undefined}
                     isDisabled={isImporting}
