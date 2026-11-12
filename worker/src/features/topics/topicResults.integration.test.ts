@@ -573,6 +573,14 @@ describe("current Topics results with several rules sharing a facet", () => {
         },
       ]),
     ).toEqual([firstOnly]);
+    // Unassigned rows add no topic id, so an empty id excludes nothing.
+    expect(
+      (
+        await list([
+          { column: "topicId", match: { operator: "none of", values: [""] } },
+        ])
+      ).sort(),
+    ).toEqual([both, firstOnly].sort());
     // A stale assignment in one map doesn't make an assigned trace awaiting.
     expect(
       await list([
