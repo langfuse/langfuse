@@ -30,23 +30,29 @@ const UpdatePromptBodySchema = z
     },
   );
 
+const UpdatePromptQuerySchema = z.object({
+  promptName: z.string(),
+  promptVersion: z.coerce.number().int().positive(),
+});
+
 export const promptVersionHandler = withMiddlewares({
   PATCH: createAuthedProjectAPIRoute({
     name: "Update Prompt",
     action: "prompts:CUD",
+    querySchema: UpdatePromptQuerySchema,
     bodySchema: UpdatePromptBodySchema,
     responseSchema: z.any(),
     allowInAppAgentKey: true,
     isAdminApiKeyAuthAllowed: false,
     rateLimitResource: "prompts",
-    fn: async ({ body, req, auth, ctx }) => {
+    fn: async ({ body, query, auth, ctx }) => {
       const { newLabels, removeLabels } = body;
-      const { promptName, promptVersion } = req.query;
+      const { promptName, promptVersion } = query;
 
       const { updatedPrompt } = await updatePromptLabelsForApi({
         context: auth.scope,
-        promptName: promptName as string,
-        promptVersion: Number(promptVersion),
+        promptName,
+        promptVersion,
         newLabels,
         removeLabels,
         ctx,
