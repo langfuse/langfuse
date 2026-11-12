@@ -1,6 +1,9 @@
 import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
-import { isInternalViewEnabled } from "@/src/features/feature-flags/utils";
+import {
+  getContextualFeatureFlags,
+  isInternalViewEnabled,
+} from "@/src/features/feature-flags/utils";
 import { isEventsDispatchAvailable } from "@/src/features/events-dispatch/isEventsDispatchAvailable";
 import { useProject } from "@/src/features/projects/hooks";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -13,11 +16,12 @@ export function canViewTopics(
   project: TopicsProject | null | undefined,
 ) {
   return (
-    isEventsDispatchAvailable(
-      session,
-      project,
-      isInternalViewEnabled(session),
-    ) &&
+    isEventsDispatchAvailable(project, {
+      internalViewEnabled: isInternalViewEnabled(session),
+      previewEnabled:
+        getContextualFeatureFlags(session?.user, { projectId: project?.id })
+          ?.langfuseTopics === true,
+    }) &&
     hasProjectAccess({ session, projectId: project.id, scope: "topics:read" })
   );
 }
