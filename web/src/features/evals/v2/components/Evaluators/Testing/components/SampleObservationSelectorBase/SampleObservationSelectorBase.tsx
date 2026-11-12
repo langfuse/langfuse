@@ -1,6 +1,12 @@
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
-import { useCallback, useMemo, useState, type UIEvent } from "react";
+import {
+  useCallback,
+  useMemo,
+  useState,
+  type ReactNode,
+  type UIEvent,
+} from "react";
 import {
   Database,
   FlaskConical,
@@ -132,6 +138,16 @@ function timeFilters(range: AbsoluteTimeRange | null): FilterState {
   ];
 }
 
+/** The loaded matches, for callers that present them without the table. */
+export type SampleObservationMatches = {
+  observations: SampleObservation[];
+  pending: boolean;
+  error: string | null;
+  hasNextPage: boolean;
+  fetchingNextPage: boolean;
+  fetchNextPage: () => void;
+};
+
 export type SampleObservationSelectorBaseProps = {
   projectId: string;
   timeRange: AbsoluteTimeRange | null;
@@ -155,6 +171,9 @@ export type SampleObservationSelectorBaseProps = {
   matchingTooltip: string;
   formatCount: (count: number) => string;
   mapObservedOptions: MapSampleObservedOptions;
+  filterTitle?: string;
+  /** Replaces the matching observations table. */
+  renderMatches?: (matches: SampleObservationMatches) => ReactNode;
 };
 
 export function SampleObservationSelectorBase(
@@ -180,6 +199,8 @@ export function SampleObservationSelectorBase(
     matchingTooltip,
     formatCount,
     mapObservedOptions,
+    filterTitle = "Filter observations",
+    renderMatches,
   } = props;
   const activeRegistry = registry ?? EVENTS_FIELD_REGISTRY;
   const [filterMode, setFilterMode] =
@@ -343,7 +364,10 @@ export function SampleObservationSelectorBase(
           },
           {
             ...sendAsPostOption,
-            enabled: observationQuery.isSuccess && observations.length > 0,
+            enabled:
+              !renderMatches &&
+              observationQuery.isSuccess &&
+              observations.length > 0,
           },
         );
       }),
@@ -392,6 +416,13 @@ export function SampleObservationSelectorBase(
   const selectionToReconcile = observationQuery.isSuccess
     ? resolveSelection(matchingObservations, selectedObservationId)
     : undefined;
+  const reconcileSelection =
+    selectionToReconcile !== undefined
+      ? (element: HTMLDivElement | null) => {
+          // Commit fresh query results through the existing selection owner without a data-sync effect.
+          if (element) onSelect(selectionToReconcile);
+        }
+      : undefined;
 
   const columns = useMemo<LangfuseColumnDef<SampleObservation>[]>(
     () => [
@@ -499,7 +530,7 @@ export function SampleObservationSelectorBase(
     <div className="flex shrink-0 flex-col gap-6">
       <section className="flex flex-col gap-2">
         <SectionHeader
-          title="Filter observations"
+          title={filterTitle}
           meta={null}
           description={filterDescription}
           tooltip={filterTooltip}
@@ -565,73 +596,81 @@ export function SampleObservationSelectorBase(
         ) : null}
       </section>
 
-      <section className="flex min-h-0 flex-col gap-2">
-        <SectionHeader
-          title="Matching observations"
-          meta={
-            options.approxTotalCount !== null ? (
-              <span className="text-muted-foreground shrink-0 text-sm">
-                {formatCount(options.approxTotalCount)}
-              </span>
-            ) : null
-          }
-          description={matchingDescription}
-          tooltip={matchingTooltip}
-          trailing={
-            <DataTableColumnVisibilityFilter
-              tableName="evaluator-sample-observations"
-              isV4
-              columns={columns}
-              columnVisibility={columnVisibility}
-              setColumnVisibility={setColumnVisibility}
-              columnOrder={columnOrder}
-              setColumnOrder={setColumnOrder}
-              triggerSize="sm"
-            />
-          }
-        />
-        <div
-          ref={
-            selectionToReconcile !== undefined
-              ? (element) => {
-                  // Commit fresh query results through the existing selection owner without a data-sync effect.
-                  if (element) onSelect(selectionToReconcile);
-                }
-              : undefined
-          }
-          className="flex h-64 min-h-0 flex-col overflow-hidden rounded-md border"
-        >
-          <DataTable
-            tableName={tableName}
-            columns={columns}
-            data={
-              observationsPending && matchingObservations.length === 0
-                ? { isLoading: true, isError: false }
-                : observationsError
-                  ? {
-                      isLoading: false,
-                      isError: true,
-                      error: observationsError.message,
-                    }
-                  : {
-                      isLoading: false,
-                      isError: false,
-                      data: matchingObservations,
-                    }
-            }
-            hidePagination
-            onScroll={handleScroll}
-            columnVisibility={columnVisibility}
-            onColumnVisibilityChange={setColumnVisibility}
-            columnOrder={columnOrder}
-            onColumnOrderChange={setColumnOrder}
-            rowHeight={rowHeight}
-            onRowClick={onOpenTrace}
-            getRowClassName={getRowClassName}
-            noResultsMessage="No observations match the current filters and time range."
-          />
+      {renderMatches ? (
+        <div ref={reconcileSelection}>
+          {renderMatches({
+            observations: matchingObservations,
+            pending: observationsPending,
+            error: observationsError?.message ?? null,
+            hasNextPage: observationQuery.hasNextPage,
+            fetchingNextPage: observationsFetching,
+            fetchNextPage: () => {
+              observationQuery.fetchNextPage().catch(() => undefined);
+            },
+          })}
         </div>
-      </section>
+      ) : (
+        <section className="flex min-h-0 flex-col gap-2">
+          <SectionHeader
+            title="Matching observations"
+            meta={
+              options.approxTotalCount !== null ? (
+                <span className="text-muted-foreground shrink-0 text-sm">
+                  {formatCount(options.approxTotalCount)}
+                </span>
+              ) : null
+            }
+            description={matchingDescription}
+            tooltip={matchingTooltip}
+            trailing={
+              <DataTableColumnVisibilityFilter
+                tableName="evaluator-sample-observations"
+                isV4
+                columns={columns}
+                columnVisibility={columnVisibility}
+                setColumnVisibility={setColumnVisibility}
+                columnOrder={columnOrder}
+                setColumnOrder={setColumnOrder}
+                triggerSize="sm"
+              />
+            }
+          />
+          <div
+            ref={reconcileSelection}
+            className="flex h-64 min-h-0 flex-col overflow-hidden rounded-md border"
+          >
+            <DataTable
+              tableName={tableName}
+              columns={columns}
+              data={
+                observationsPending && matchingObservations.length === 0
+                  ? { isLoading: true, isError: false }
+                  : observationsError
+                    ? {
+                        isLoading: false,
+                        isError: true,
+                        error: observationsError.message,
+                      }
+                    : {
+                        isLoading: false,
+                        isError: false,
+                        data: matchingObservations,
+                      }
+              }
+              hidePagination
+              onScroll={handleScroll}
+              columnVisibility={columnVisibility}
+              onColumnVisibilityChange={setColumnVisibility}
+              columnOrder={columnOrder}
+              onColumnOrderChange={setColumnOrder}
+              rowHeight={rowHeight}
+              onRowClick={onOpenTrace}
+              getRowClassName={getRowClassName}
+              noResultsMessage="No observations match the current filters and time range."
+            />
+          </div>
+        </section>
+      )}
     </div>
   );
 }

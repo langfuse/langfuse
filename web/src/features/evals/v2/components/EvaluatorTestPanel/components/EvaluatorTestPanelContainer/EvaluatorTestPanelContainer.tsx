@@ -12,6 +12,7 @@ export function EvaluatorTestPanelContainer({
   projectId,
   store,
   sampleSelector,
+  heading,
   testResult,
   testPending,
   rawResultOpen,
@@ -22,6 +23,7 @@ export function EvaluatorTestPanelContainer({
   projectId: string;
   store: EvaluatorSetupStore;
   sampleSelector: ReactNode;
+  heading?: ReactNode;
   testResult: unknown;
   testPending: boolean;
   rawResultOpen: boolean;
@@ -38,6 +40,7 @@ export function EvaluatorTestPanelContainer({
       open={open}
       onOpenChange={actions.setTestPanelOpen}
       sampleSelector={sampleSelector}
+      heading={heading}
       testSection={
         <TestSectionContainer
           projectId={projectId}

@@ -540,7 +540,19 @@ export const eventsRouter = createTRPCRouter({
           isExperimentalFeaturesEnabled:
             env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
         }) &&
-        !canUseTraceTranscriptEvals(ctx.session ?? null, input.projectId)
+        !(
+          ctx.session?.user &&
+          ctx.session.environment &&
+          canUseTraceTranscriptEvals(
+            {
+              ...ctx.session,
+              user: ctx.session.user,
+              environment: ctx.session.environment,
+              expires: ctx.session.expires ?? "",
+            },
+            input.projectId,
+          )
+        )
       ) {
         throw new TRPCError({
           code: "FORBIDDEN",

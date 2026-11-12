@@ -17,6 +17,7 @@ import {
   extractObservationVariables,
   findModel,
   generateLlmEvaluatorOutput,
+  getTraceByIdFromEventsTable,
   isAllowedDecisionModel,
   LLMAdapter,
   OPENAI_DECISION_MODEL_IDS,
@@ -87,6 +88,7 @@ export async function testEvaluatorOnTrace(params: {
   includeEvaluatorLink?: boolean;
   definition: NormalizedEvaluatorDefinition;
   traceId: string;
+  /** Any time inside the trace; the transcript is read from the trace start. */
   timestamp: Date;
 }) {
   const startedAt = Date.now();
@@ -96,10 +98,17 @@ export async function testEvaluatorOnTrace(params: {
     );
   }
   const variableMapping = resolveTestVariableMapping(params.definition);
+  const trace = await getTraceByIdFromEventsTable({
+    traceId: params.traceId,
+    projectId: params.projectId,
+    fromTimestamp: params.timestamp,
+    excludeInputOutput: true,
+    excludeMetadata: true,
+  });
   const { transcript } = await loadTraceTranscript({
     projectId: params.projectId,
     traceId: params.traceId,
-    timestamp: params.timestamp,
+    timestamp: trace?.timestamp ?? params.timestamp,
     context: "other",
   });
   if (!transcript) {

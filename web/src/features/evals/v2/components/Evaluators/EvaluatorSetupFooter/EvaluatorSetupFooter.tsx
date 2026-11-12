@@ -2,11 +2,13 @@ import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import { applyFallbackDecisionModel } from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
+import { prepareTraceTranscriptDraft } from "@/src/features/evals/v2/fns/evaluators/prepareTraceTranscriptDraft";
 import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
 import { getScoreOutputValidation } from "@/src/features/evals/v2/fns/scoreOutput/getScoreOutputValidation";
 import {
   selectHasValidModel,
+  selectSampleScope,
   type EvaluatorSetupStore,
 } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
@@ -44,7 +46,10 @@ export function EvaluatorSetupFooter({
     store,
     useShallow((state) => {
       const draft = applyFallbackDecisionModel(state, fallbackDecisionModel);
-      const { definition, mappings } = prepareEvaluatorDraft(draft);
+      const { definition, mappings } =
+        selectSampleScope(state) === "trace"
+          ? prepareTraceTranscriptDraft(draft)
+          : prepareEvaluatorDraft(draft);
       const hasCompleteMappings =
         state.type !== "LLM_AS_JUDGE" ||
         mappings.every(({ fieldState }) =>

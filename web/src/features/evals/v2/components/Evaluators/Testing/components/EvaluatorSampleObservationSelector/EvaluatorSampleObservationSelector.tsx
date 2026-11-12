@@ -17,7 +17,8 @@ const preserveObservedOptions: Parameters<
   typeof SampleObservationSelectorBase
 >[0]["mapObservedOptions"] = (observed) => observed;
 
-const resolveSelection: Parameters<
+/** Keeps the selection while it still matches, otherwise picks the first match. */
+export const resolveSelection: Parameters<
   typeof SampleObservationSelectorBase
 >[0]["resolveSelection"] = (observations, selectedObservationId) => {
   const selectedObservationMatches = observations.some(
