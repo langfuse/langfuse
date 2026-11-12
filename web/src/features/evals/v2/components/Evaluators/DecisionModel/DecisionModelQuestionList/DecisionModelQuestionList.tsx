@@ -189,12 +189,11 @@ export function DecisionModelQuestionList({
         />
       )}
 
-      <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
         <TextActionButton text="Add question" onClick={onAdd} />
-        <InfoTooltip label="About extra questions">
-          Answered together in one call; extra questions add only their own
-          tokens.
-        </InfoTooltip>
+        <span className="text-muted-foreground text-sm">
+          One call; extra questions add only their own tokens.
+        </span>
       </div>
     </div>
   );

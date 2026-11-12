@@ -36,8 +36,8 @@ import {
 } from "@/src/features/evals/v2/scoreOutputTypes";
 
 const DATA_TYPE_OPTIONS: { value: ScoreOutputDataType; label: string }[] = [
-  { value: ScoreDataTypeEnum.NUMERIC, label: "number" },
-  { value: ScoreDataTypeEnum.CATEGORICAL, label: "category" },
+  { value: ScoreDataTypeEnum.NUMERIC, label: "numeric" },
+  { value: ScoreDataTypeEnum.CATEGORICAL, label: "categorical" },
   { value: ScoreDataTypeEnum.BOOLEAN, label: "boolean" },
 ];
 
@@ -175,14 +175,17 @@ export function ScoreOutputSection({
           <SelectContent>
             {dataTypeOptions.map((option) => (
               <SelectItem key={option.value} value={option.value}>
-                {option.value === ScoreDataTypeEnum.CATEGORICAL &&
-                state.shouldAllowMultipleMatches
-                  ? "categories"
-                  : option.label}
+                {option.label}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+        <span>
+          {state.dataType === ScoreDataTypeEnum.CATEGORICAL &&
+          state.shouldAllowMultipleMatches
+            ? "scores"
+            : "score"}
+        </span>
 
         {state.dataType === ScoreDataTypeEnum.NUMERIC && (
           <>

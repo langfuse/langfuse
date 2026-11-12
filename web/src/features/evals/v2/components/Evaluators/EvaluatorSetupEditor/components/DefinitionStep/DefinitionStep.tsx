@@ -1,6 +1,7 @@
 import type { EvalTemplateType } from "@langfuse/shared";
 import type { ReactNode } from "react";
 
+import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { EvaluationTypeConfiguration } from "@/src/features/evals/v2/components/Evaluators/EvaluationTypeConfiguration/EvaluationTypeConfiguration";
 import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 
@@ -50,6 +51,15 @@ export function DefinitionStep(props: DefinitionStepProps) {
     <Stepper
       number={1}
       title="Define evaluation method"
+      titleAccessory={
+        <InfoTooltip label="About evaluation types">
+          Use custom code for deterministic checks like exact matches, regex, or
+          schema validation. Use an LLM when the check needs judgment, such as
+          rating helpfulness, tone, or answer quality. Use a decision model for
+          a fast, cheap label with calibrated probabilities when the possible
+          answers are known upfront.
+        </InfoTooltip>
+      }
       open={props.open}
       onOpenChange={props.onOpenChange}
     >

@@ -5,7 +5,9 @@ import {
 
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { SelectDropdown } from "@/src/components/design-system/SelectDropdown/SelectDropdown";
+import { selectTriggerClassName } from "@/src/components/ui/select";
 import { sourceCodeLanguageLabel } from "@/src/features/evals/v2/fns/evaluators/sourceCodeLanguageLabel";
+import { cn } from "@/src/utils/tailwind";
 
 const LANGUAGE_OPTIONS = [
   EvalTemplateSourceCodeLanguageEnum.PYTHON,
@@ -14,9 +16,6 @@ const LANGUAGE_OPTIONS = [
   value,
   label: sourceCodeLanguageLabel(value),
 }));
-
-const triggerClassName =
-  "text-foreground hover:bg-accent focus-visible:ring-ring inline-flex items-center gap-1 rounded px-1.5 py-1 text-sm focus-visible:ring-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50";
 
 /** Selects the runtime language for a code evaluator. */
 export function EvaluatorCodeLanguageSelector({
@@ -37,7 +36,10 @@ export function EvaluatorCodeLanguageSelector({
       disabled={disabled}
     >
       {({ getTriggerProps, selectedLabel }) => (
-        <button {...getTriggerProps()} className={triggerClassName}>
+        <button
+          {...getTriggerProps()}
+          className={cn(selectTriggerClassName, "w-auto")}
+        >
           {selectedLabel}
           <DropdownIndicator />
         </button>

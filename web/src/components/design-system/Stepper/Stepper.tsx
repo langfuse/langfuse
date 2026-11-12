@@ -61,6 +61,8 @@ const descriptionVariants = cva("text-muted-foreground", {
 type StepperProps = {
   number: number;
   title: string;
+  /** Sits beside the title, outside the collapse control. */
+  titleAccessory?: ReactNode;
   description?: ReactNode;
   variant?: "filled" | "outline";
   size?: "default" | "sm";
@@ -94,6 +96,7 @@ type StepperProps = {
 export function Stepper({
   number,
   title,
+  titleAccessory,
   description,
   variant = "filled",
   size = "default",
@@ -134,29 +137,30 @@ export function Stepper({
           compactBottomSpacing ? "pb-3" : "pb-8",
         )}
       >
-        {isCollapsible ? (
-          <button
-            type="button"
-            className={headerVariants({ size })}
-            aria-label={`Step ${number}: ${title}`}
-            aria-expanded={expanded}
-            onClick={toggle}
-          >
-            <ChevronDown
-              size="base"
-              color="tertiary"
-              __rawClassName={cn(
-                "translate-y-px transition-transform",
-                !expanded && "-rotate-90",
-              )}
-            />
+        <div className={headerVariants({ size })}>
+          {isCollapsible ? (
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5"
+              aria-label={`Step ${number}: ${title}`}
+              aria-expanded={expanded}
+              onClick={toggle}
+            >
+              <ChevronDown
+                size="base"
+                color="tertiary"
+                __rawClassName={cn(
+                  "translate-y-px transition-transform",
+                  !expanded && "-rotate-90",
+                )}
+              />
+              <span className={titleVariants({ size, status })}>{title}</span>
+            </button>
+          ) : (
             <span className={titleVariants({ size, status })}>{title}</span>
-          </button>
-        ) : (
-          <div className={headerVariants({ size })}>
-            <span className={titleVariants({ size, status })}>{title}</span>
-          </div>
-        )}
+          )}
+          {titleAccessory}
+        </div>
         {expanded && hasBody ? (
           <div
             className={cn(

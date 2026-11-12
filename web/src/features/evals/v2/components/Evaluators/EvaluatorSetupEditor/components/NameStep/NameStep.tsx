@@ -7,7 +7,6 @@ import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 
 export function NameStep({
   step,
-  variant,
   open,
   onOpenChange,
   name,
@@ -18,7 +17,6 @@ export function NameStep({
   descriptionAIAssistance,
 }: {
   step: number;
-  variant: "default" | "decisionModel";
   open: boolean;
   onOpenChange: (open: boolean) => void;
   name: string;
@@ -41,12 +39,10 @@ export function NameStep({
         <div className="space-y-2">
           <Label htmlFor="evaluator-name" className="flex items-center gap-1.5">
             Name
-            {variant === "default" ? (
-              <InfoTooltip label="About evaluator names">
-                The evaluator name is also used as the score name for the scores
-                it produces.
-              </InfoTooltip>
-            ) : null}
+            <InfoTooltip label="About evaluator names">
+              The evaluator name is also used as the score name for the scores
+              it produces.
+            </InfoTooltip>
           </Label>
           <AIAssistedInput
             id="evaluator-name"
