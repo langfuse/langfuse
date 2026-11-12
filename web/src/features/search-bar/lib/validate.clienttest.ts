@@ -14,6 +14,21 @@ describe("validateQuery — large value groups", () => {
     );
     expect(validateQuery(`id:(${values.join(" OR ")})`).valid).toBe(true);
   });
+
+  it("keeps URL-backed search text bounded across search scopes", () => {
+    const phrase = "x".repeat(2048);
+    for (const prefix of ["", "content:", "all:", "in:id "]) {
+      expect(validateQuery(`${prefix}${phrase}`).valid).toBe(true);
+      const result = validateQuery(`${prefix}${phrase}x`);
+      expect(result.valid).toBe(false);
+      expect(result.diagnostics).toContainEqual({
+        from: 0,
+        to: prefix.length + phrase.length + 1,
+        severity: "error",
+        message: "Search text is too long (2049 chars, max 2048)",
+      });
+    }
+  });
 });
 
 function warnings(query: string): string[] {

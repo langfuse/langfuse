@@ -140,7 +140,9 @@ copying values. Changes are a local draft until Apply; shrinking a text-search
 list to one preserves exact matching through `replaceFilterValues`.
 `QueryExpressionEditor` provides bounded full-query editing with the same
 validation context as the bar. Queries may contain up to 65,536 characters so
-large sidebar selections remain representable.
+large sidebar selections remain representable. URL-backed search phrases retain
+a separate 2,048-character limit; structured filters use the existing bounded-URL
+storage fallback.
 
 ## Data flow (one source of truth, one direction)
 
