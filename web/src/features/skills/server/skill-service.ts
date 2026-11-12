@@ -335,21 +335,6 @@ export class SkillService {
       sha256Hash: { in: hashes },
       files: { some: { projectId: params.projectId } },
     } satisfies Prisma.SkillBlobWhereInput;
-    const blobs = await this.prisma.skillBlob.findMany({
-      where,
-      select: { contentLength: true },
-    });
-    if (blobs.length !== hashes.length) {
-      throw new LangfuseNotFoundError("One or more skill files not found");
-    }
-    // Check metadata before loading text so oversized batches stay bounded.
-    if (
-      blobs.reduce((total, blob) => total + blob.contentLength, 0) > 10_000_000
-    ) {
-      throw new InvalidRequestError(
-        "Skill file contents must not exceed 10000000 UTF-8 bytes per batch. Request fewer hashes.",
-      );
-    }
     const data = await this.prisma.skillBlob.findMany({
       where,
       select: { sha256Hash: true, content: true },
