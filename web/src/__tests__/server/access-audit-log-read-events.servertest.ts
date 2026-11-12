@@ -6,8 +6,10 @@ import { createMocks } from "node-mocks-http";
 import waitForExpect from "wait-for-expect";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type * as SharedServer from "@langfuse/shared/src/server";
+import type * as ServerAuth from "@/src/server/auth";
 
 const staging = vi.hoisted(() => ({ fail: false }));
+const auth = vi.hoisted(() => ({ session: null as Session | null }));
 
 // The events tables exist only after the ClickHouse dev-tables setup, which the
 // azure and redis-cluster CI runs skip.
@@ -28,9 +30,28 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   };
 });
 
-import { Role } from "@langfuse/shared";
+vi.mock("@/src/server/auth", async (importOriginal) => ({
+  ...(await importOriginal<typeof ServerAuth>()),
+  getServerAuthSession: async () => auth.session,
+}));
+
+import {
+  BatchExportFileFormat,
+  BatchExportStatus,
+  BatchTableNames,
+  InternalServerError,
+  Role,
+} from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
+import {
+  createApiKey,
+  createBasicAuthHeader,
   createEvent,
   createEventsCh,
   createOrgProjectAndApiKey,
@@ -39,8 +60,15 @@ import {
   createTraceScore,
   createTracesCh,
   getTraceByIdFromEventsTable,
+  BatchExportQueue,
 } from "@langfuse/shared/src/server";
+import { handleGetScore } from "@/src/features/mcp/server/scores/tools/getScore";
+import type { ServerContext } from "@/src/features/mcp/types";
 import getTraceHandler from "@/src/pages/api/public/traces/[traceId]";
+import getScoresV3Handler from "@/src/pages/api/public/v3/scores";
+import getObservationsV2Handler from "@/src/pages/api/public/v2/observations";
+import downloadTraceHandler from "@/src/pages/api/traces/[traceId]/download";
+import observationIOFieldHandler from "@/src/pages/api/traces/[traceId]/observations/[observationId]/io/[field]";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
@@ -55,12 +83,17 @@ async function setupOrg(accessAuditLogEnabled: boolean) {
 
 async function accessEvents(orgId: string) {
   const rows = await prisma.auditLogStaging.findMany({
-    where: { payload: { path: ["orgId"], equals: orgId } },
+    where: {
+      AND: [
+        { payload: { path: ["orgId"], equals: orgId } },
+        { payload: { path: ["kind"], equals: "access" } },
+      ],
+    },
   });
   return rows.map((row) => row.payload as Record<string, unknown>);
 }
 
-function trpcCaller(params: {
+type SessionParams = {
   userId: string;
   orgId: string;
   projectId: string;
@@ -68,7 +101,10 @@ function trpcCaller(params: {
   supportAccess?: boolean;
   /** false signs in a user who belongs to no organization. */
   member?: boolean;
-}) {
+  projectRole?: Role;
+};
+
+function userSession(params: SessionParams): Session {
   const membership: NonNullable<Session["user"]>["organizations"][number] = {
     id: params.orgId,
     name: "Access Audit Org",
@@ -84,7 +120,7 @@ function trpcCaller(params: {
       {
         id: params.projectId,
         name: "Access Audit Project",
-        role: Role.VIEWER,
+        role: params.projectRole ?? Role.VIEWER,
         retentionDays: null,
         deletedAt: null,
         hasTraces: true,
@@ -93,7 +129,7 @@ function trpcCaller(params: {
       },
     ],
   };
-  const session: Session = {
+  return {
     expires: "1",
     user: {
       id: params.userId,
@@ -102,11 +138,16 @@ function trpcCaller(params: {
       canCreateOrganizations: true,
       organizations: params.member === false ? [] : [membership],
       featureFlags: testFeatureFlags(),
-      admin: false,
     },
     environment: {} as any,
   };
-  const ctx = createInnerTRPCContext({ session, headers: {} });
+}
+
+function trpcCaller(params: SessionParams) {
+  const ctx = createInnerTRPCContext({
+    session: userSession(params),
+    headers: {},
+  });
   return appRouter.createCaller({ ...ctx, prisma });
 }
 
@@ -137,7 +178,7 @@ async function seedEventsTrace(projectId: string) {
     const trace = await getTraceByIdFromEventsTable({ projectId, traceId });
     expect(trace?.id).toBe(traceId);
   });
-  return { traceId, observationIds: [rootId, childId] };
+  return { traceId, observationIds: [rootId, childId], startTime };
 }
 
 async function getTraceViaPublicApi(auth: string, traceId: string) {
@@ -152,6 +193,7 @@ async function getTraceViaPublicApi(auth: string, traceId: string) {
 
 afterEach(() => {
   staging.fail = false;
+  auth.session = null;
 });
 
 describe("access events on GET /api/public/traces/{traceId}", () => {
@@ -189,6 +231,156 @@ describe("access events on GET /api/public/traces/{traceId}", () => {
     const res = await getTraceViaPublicApi(auth, trace.id);
 
     expect(res._getStatusCode()).toBe(500);
+    expect(await accessEvents(orgId)).toEqual([]);
+  });
+});
+
+describe("access events on the MCP getScore tool", () => {
+  async function mcpContext(fixture: {
+    orgId: string;
+    projectId: string;
+    publicKey: string;
+  }): Promise<ServerContext> {
+    const apiKey = await prisma.apiKey.findFirstOrThrow({
+      where: { publicKey: fixture.publicKey },
+      select: { id: true },
+    });
+    return {
+      projectId: fixture.projectId,
+      orgId: fixture.orgId,
+      apiKeyId: apiKey.id,
+      accessLevel: "project",
+      publicKey: fixture.publicKey,
+      plan: "cloud:enterprise",
+      rateLimitOverrides: [],
+      accessAuditLogEnabled: true,
+      auditRequest: { ip: "203.0.113.7", userAgent: "mcp-client" },
+    };
+  }
+
+  it("records the read with the API key as actor and the score's trace", async () => {
+    const fixture = await setupOrg(true);
+    const score = createTraceScore({ project_id: fixture.projectId });
+    await createScoresCh([score]);
+    const context = await mcpContext(fixture);
+
+    await handleGetScore({ scoreId: score.id }, context);
+
+    expect(await accessEvents(fixture.orgId)).toEqual([
+      expect.objectContaining({
+        kind: "access",
+        projectId: fixture.projectId,
+        surface: "mcp",
+        route: "getScore",
+        resourceType: "score",
+        resourceId: score.id,
+        action: "read",
+        outcome: "success",
+        actor: { type: "API_KEY", apiKeyId: context.apiKeyId },
+        resourceRefs: [`score:${score.id}`, `trace:${score.trace_id}`],
+        params: JSON.stringify({ scoreId: score.id }),
+        request: { ip: "203.0.113.7", userAgent: "mcp-client" },
+      }),
+    ]);
+  });
+
+  it("records a read by an in-app agent key with the user it acts for", async () => {
+    const fixture = await setupOrg(true);
+    const user = await prisma.user.create({
+      data: { email: `${randomUUID()}@example.com`, name: "Agent User" },
+    });
+    const apiKey = await createApiKey(prisma, {
+      tenant: OrganizationId(fixture.orgId),
+      scope: ProjectId(fixture.projectId),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+      createdBy: UserId(user.id),
+      isInAppAgentKey: true,
+    });
+    const score = createTraceScore({ project_id: fixture.projectId });
+    await createScoresCh([score]);
+    const context: ServerContext = {
+      ...(await mcpContext(fixture)),
+      apiKeyId: apiKey.id,
+      publicKey: apiKey.publicKey,
+      inAppAgent: { permissions: "read" },
+    };
+
+    await handleGetScore({ scoreId: score.id }, context);
+
+    expect(await accessEvents(fixture.orgId)).toEqual([
+      expect.objectContaining({
+        surface: "mcp",
+        actor: {
+          type: "API_KEY",
+          apiKeyId: apiKey.id,
+          userId: user.id,
+          name: "Agent User",
+          email: user.email,
+        },
+      }),
+    ]);
+  });
+
+  it("fails the call when the event cannot be recorded", async () => {
+    const fixture = await setupOrg(true);
+    const score = createTraceScore({ project_id: fixture.projectId });
+    await createScoresCh([score]);
+    const context = await mcpContext(fixture);
+    staging.fail = true;
+
+    await expect(
+      handleGetScore({ scoreId: score.id }, context),
+    ).rejects.toBeInstanceOf(InternalServerError);
+    expect(await accessEvents(fixture.orgId)).toEqual([]);
+  });
+});
+
+describe("access events on GET /api/public/v3/scores", () => {
+  async function listScoresViaPublicApi(auth: string) {
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "GET",
+      headers: { authorization: auth },
+      query: { fields: "core,subject" },
+    });
+    await getScoresV3Handler(req, res);
+    return res;
+  }
+
+  it("records the list with every returned score and the trace it is attached to", async () => {
+    const { orgId, projectId, auth } = await setupOrg(true);
+    const score = createTraceScore({ project_id: projectId });
+    await createScoresCh([score]);
+
+    const res = await listScoresViaPublicApi(auth);
+
+    expect(res._getStatusCode()).toBe(200);
+    const events = await accessEvents(orgId);
+    expect(events).toEqual([
+      expect.objectContaining({
+        kind: "access",
+        projectId,
+        surface: "public-api",
+        route: "GET /api/public/v3/scores",
+        resourceType: "score",
+        action: "list",
+        outcome: "success",
+        resultCount: 1,
+        actor: { type: "API_KEY", apiKeyId: expect.any(String) },
+        resourceRefs: [`score:${score.id}`, `trace:${score.trace_id}`],
+      }),
+    ]);
+    expect(events[0]).not.toHaveProperty("resourceId");
+  });
+
+  it("fails the list when the event cannot be recorded", async () => {
+    const { orgId, projectId, auth } = await setupOrg(true);
+    await createScoresCh([createTraceScore({ project_id: projectId })]);
+    staging.fail = true;
+
+    const res = await listScoresViaPublicApi(auth);
+
+    expect(res._getStatusCode()).toBe(500);
+    expect(res._getJSONData()).not.toHaveProperty("data");
     expect(await accessEvents(orgId)).toEqual([]);
   });
 });
@@ -343,7 +535,192 @@ describe("refused tRPC reads", () => {
   });
 });
 
+describe("access events on tRPC batchExport.create", () => {
+  const exportInput = (projectId: string) => ({
+    projectId,
+    name: "trace export",
+    query: { tableName: BatchTableNames.Traces, filter: null, orderBy: null },
+    format: BatchExportFileFormat.CSV,
+  });
+
+  it("records the export with its params and destination", async () => {
+    const { orgId, projectId } = await setupOrg(true);
+    const caller = trpcCaller({
+      userId: randomUUID(),
+      orgId,
+      projectId,
+      accessAuditLogEnabled: true,
+      projectRole: Role.MEMBER,
+    });
+
+    await caller.batchExport.create(exportInput(projectId));
+
+    const exportRow = await prisma.batchExport.findFirstOrThrow({
+      where: { projectId },
+    });
+    const events = await accessEvents(orgId);
+    expect(events).toEqual([
+      expect.objectContaining({
+        surface: "trpc",
+        route: "batchExport.create",
+        resourceType: "batchExport",
+        resourceId: exportRow.id,
+        action: "export",
+        resourceRefs: [],
+      }),
+    ]);
+    expect(JSON.parse(events[0]?.params as string)).toEqual({
+      ...exportInput(projectId),
+      destination: "batch-export",
+    });
+  });
+
+  it("fails the export without queueing it when the event cannot be recorded", async () => {
+    const { orgId, projectId } = await setupOrg(true);
+    const caller = trpcCaller({
+      userId: randomUUID(),
+      orgId,
+      projectId,
+      accessAuditLogEnabled: true,
+      projectRole: Role.MEMBER,
+    });
+    const add = vi.spyOn(BatchExportQueue.getInstance()!, "add");
+    staging.fail = true;
+
+    try {
+      await expect(
+        caller.batchExport.create(exportInput(projectId)),
+      ).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+      expect(add).not.toHaveBeenCalled();
+    } finally {
+      add.mockRestore();
+    }
+    const exportRow = await prisma.batchExport.findFirstOrThrow({
+      where: { projectId },
+    });
+    expect(exportRow.status).toBe(BatchExportStatus.FAILED);
+  });
+});
+
 const maybe = eventsTableAvailable ? describe : describe.skip;
+
+maybe("access events on GET /api/public/v2/observations", () => {
+  it("records a read by an in-app agent key with the user it acts for", async () => {
+    const { orgId, projectId } = await setupOrg(true);
+    const user = await prisma.user.create({
+      data: { email: `${randomUUID()}@example.com`, name: "Agent User" },
+    });
+    const apiKey = await createApiKey(prisma, {
+      tenant: OrganizationId(orgId),
+      scope: ProjectId(projectId),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+      createdBy: UserId(user.id),
+      isInAppAgentKey: true,
+    });
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "GET",
+      headers: {
+        authorization: createBasicAuthHeader(
+          apiKey.publicKey,
+          apiKey.secretKey,
+        ),
+      },
+    });
+
+    await getObservationsV2Handler(req, res);
+
+    expect(res._getStatusCode()).toBe(200);
+    expect(await accessEvents(orgId)).toEqual([
+      expect.objectContaining({
+        route: "GET /api/public/v2/observations",
+        actor: {
+          type: "API_KEY",
+          apiKeyId: apiKey.id,
+          userId: user.id,
+          name: "Agent User",
+          email: user.email,
+        },
+      }),
+    ]);
+  });
+});
+
+maybe("access events on trace and observation downloads", () => {
+  it("records a trace download with its row count", async () => {
+    const { orgId, projectId } = await setupOrg(true);
+    const { traceId } = await seedEventsTrace(projectId);
+    auth.session = userSession({
+      userId: randomUUID(),
+      orgId,
+      projectId,
+      accessAuditLogEnabled: true,
+    });
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "GET",
+      query: { traceId, projectId },
+    });
+
+    await downloadTraceHandler(req, res);
+
+    expect(res._getStatusCode()).toBe(200);
+    const events = await accessEvents(orgId);
+    expect(events).toEqual([
+      expect.objectContaining({
+        surface: "internal-api",
+        route: "GET /api/traces/{traceId}/download",
+        resourceType: "trace",
+        resourceId: traceId,
+        action: "download",
+        resourceRefs: [`trace:${traceId}`],
+        resultCount: 2,
+      }),
+    ]);
+    expect(JSON.parse(events[0]?.params as string)).toEqual({
+      traceId,
+      projectId,
+      destination: "download",
+    });
+  });
+
+  it("records an observation IO field download before streaming it", async () => {
+    const { orgId, projectId } = await setupOrg(true);
+    const { traceId, observationIds, startTime } =
+      await seedEventsTrace(projectId);
+    const observationId = observationIds[0]!;
+    auth.session = userSession({
+      userId: randomUUID(),
+      orgId,
+      projectId,
+      accessAuditLogEnabled: true,
+    });
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "GET",
+      query: {
+        traceId,
+        observationId,
+        field: "metadata",
+        projectId,
+        startTime: new Date(startTime / 1000).toISOString(),
+      },
+    });
+
+    await observationIOFieldHandler(req, res);
+
+    expect(res._getStatusCode()).toBe(200);
+    expect(await accessEvents(orgId)).toEqual([
+      expect.objectContaining({
+        surface: "internal-api",
+        route:
+          "GET /api/traces/{traceId}/observations/{observationId}/io/{field}",
+        resourceType: "observation",
+        resourceId: observationId,
+        action: "download",
+        resourceRefs: [`observation:${observationId}`, `trace:${traceId}`],
+        resultCount: 1,
+      }),
+    ]);
+  });
+});
 
 maybe("access events on tRPC events.all", () => {
   it("records the list with every returned observation and its trace", async () => {

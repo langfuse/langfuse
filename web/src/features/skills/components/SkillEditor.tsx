@@ -8,8 +8,8 @@ import {
 import { useMediaQuery } from "react-responsive";
 import dynamic from "next/dynamic";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
-import { MAX_SKILL_FILES } from "@langfuse/shared";
 import { useStore } from "zustand";
+import { useShallow } from "zustand/react/shallow";
 import {
   Download,
   ChevronDown,
@@ -25,6 +25,7 @@ import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { SkillLinkedTraces } from "@/src/features/skills/components/SkillLinkedTraces";
+import { SkillUsage } from "@/src/features/skills/components/SkillUsage";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import Page from "@/src/components/layouts/Page";
 import { Button } from "@/src/components/ui/button";
@@ -51,7 +52,10 @@ import {
   type SkillFileExplorerState,
 } from "@/src/features/skills/components/SkillFileExplorer";
 import { importSkillFiles } from "@/src/features/skills/actions/importSkillFiles";
-import { getParentFolderPaths } from "@/src/features/skills/components/skillFileTree";
+import {
+  getParentFolderPaths,
+  parentFolder,
+} from "@/src/features/skills/components/skillFileTree";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
   createSkillDraftFile,
@@ -212,6 +216,17 @@ export function SkillEditor({
     expandedFolders: new Set(store.getState().folders),
     pendingEntry: null,
   }));
+  const handleSelectFile = (path: string) => {
+    store.getState().actions.selectFile(path);
+    setTreeState((current) => ({
+      ...current,
+      selectedFolder: parentFolder(path),
+      expandedFolders: new Set([
+        ...current.expandedFolders,
+        ...getParentFolderPaths([path]),
+      ]),
+    }));
+  };
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const showUpload = canEditFiles && isUploadOpen;
   const uploadPanelRef = useRef<HTMLElement | null>(null);
@@ -387,21 +402,28 @@ export function SkillEditor({
     : undefined;
   const usageTab = isV4 && view.kind === "version" && baseVersion !== null && (
     <Tabs.Content value="usage" layout="fill">
-      {canReadMetrics ? (
-        <SkillAnalytics
-          projectId={projectId}
-          skillId={view.skillId}
-          name={name}
-          version={baseVersion}
-          paths={Object.keys(store.getState().files).toSorted()}
-        />
-      ) : (
-        <SkillLinkedTraces
-          projectId={projectId}
-          name={name}
-          version={baseVersion}
-        />
-      )}
+      <SkillUsage
+        key={`${projectId}:${name}`}
+        projectId={projectId}
+        name={name}
+        version={baseVersion}
+      >
+        {canReadMetrics ? (
+          <SkillAnalytics
+            projectId={projectId}
+            skillId={view.skillId}
+            name={name}
+            version={baseVersion}
+            paths={Object.keys(store.getState().files).toSorted()}
+          />
+        ) : (
+          <SkillLinkedTraces
+            projectId={projectId}
+            name={name}
+            version={baseVersion}
+          />
+        )}
+      </SkillUsage>
     </Tabs.Content>
   );
 
@@ -578,7 +600,7 @@ export function SkillEditor({
         return state.kind === "discard" ? (
           <Dialog
             title="Discard draft?"
-            text="Your unsaved file changes and commit note will be lost."
+            text="Unsaved changes will be lost."
             actions={[
               {
                 label: "Discard draft",
@@ -663,7 +685,7 @@ export function SkillEditor({
                     src={undefined}
                     variant="panel"
                     accept={undefined}
-                    maxFiles={MAX_SKILL_FILES}
+                    maxFiles={10_000}
                     maxSize={undefined}
                     minSize={undefined}
                     isDisabled={isImporting}
@@ -768,6 +790,7 @@ export function SkillEditor({
                             store={store}
                             isDraft={isDraft}
                             editable={canEditFiles}
+                            onSelectFile={handleSelectFile}
                           />
                         </ResizablePanel>
                       </ResizablePanelGroup>
@@ -835,12 +858,18 @@ function SkillFileEditor({
   store,
   isDraft,
   editable,
+  onSelectFile,
 }: {
   projectId: string;
   store: SkillEditorStore;
   isDraft: boolean;
   editable: boolean;
+  onSelectFile: (path: string) => void;
 }) {
+  const filePaths = useStore(
+    store,
+    useShallow((state) => Object.keys(state.files)),
+  );
   const activePath = useStore(store, (state) => state.activePath);
   const activeFile = useStore(store, (state) => state.files[state.activePath]!);
   const updateActiveFile = useStore(
@@ -883,6 +912,7 @@ function SkillFileEditor({
       key={isDraft ? "draft" : "version"}
       path={activePath}
       content={content}
+      fileNavigation={{ paths: filePaths, onSelect: onSelectFile }}
       mode={
         isDraft
           ? { kind: "draft", editable, onChange: updateActiveFile }

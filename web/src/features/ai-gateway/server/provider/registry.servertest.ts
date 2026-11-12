@@ -1,9 +1,15 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type * as GatewayFetch from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
+import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
+import { GatewayModelsService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
+import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
 import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
 import {
+  gatewayProviders,
   getGatewayProviderDefinition,
+  getGatewayUpstream,
   providerSupportsApiFormat,
 } from "@/src/features/ai-gateway/server/provider/registry";
 import type { PrismaClient } from "@langfuse/shared/src/db";
@@ -17,6 +23,18 @@ const session = {
   orgRole: "OWNER",
 } as OrgAuthedContext["session"];
 
+vi.mock(
+  "@/src/features/ai-gateway/server/provider/getGatewayFetch",
+  async (importOriginal) => {
+    const actual = await importOriginal<typeof GatewayFetch>();
+    return { getGatewayFetch: vi.fn(actual.getGatewayFetch) };
+  },
+);
+
+afterEach(() => {
+  vi.mocked(getGatewayFetch).mockReset();
+});
+
 describe("AI gateway provider registry", () => {
   it("exposes only controlled provider URLs and explicit capabilities", () => {
     expect(getGatewayProviderDefinition("OPENAI")).toMatchObject({
@@ -26,12 +44,77 @@ describe("AI gateway provider registry", () => {
     expect(getGatewayProviderDefinition("ANTHROPIC")).toMatchObject({
       baseUrl: "https://api.anthropic.com/v1",
       authType: "x-api-key",
-      validationModel: "claude-haiku-4-5-20251001",
+      credentialCheck: { model: "claude-haiku-4-5-20251001" },
     });
     expect(providerSupportsApiFormat("OPENAI", "openai.responses")).toBe(true);
     expect(providerSupportsApiFormat("ANTHROPIC", "anthropic.messages")).toBe(
       true,
     );
+  });
+
+  it("routes Decisions only to OpenAI and Vercel", () => {
+    expect(
+      gatewayProviders.filter((provider) =>
+        providerSupportsApiFormat(provider, "openai.decisions"),
+      ),
+    ).toEqual(["OPENAI", "VERCEL"]);
+  });
+
+  it("routes Embeddings to OpenAI, aggregators and Google AI Studio", () => {
+    expect(
+      gatewayProviders.filter((provider) =>
+        providerSupportsApiFormat(provider, "openai.embeddings"),
+      ),
+    ).toEqual(["OPENAI", "OPENROUTER", "VERCEL", "GOOGLE_AI_STUDIO"]);
+  });
+
+  it("rejects xAI keys that are disabled or blocked", () => {
+    const check = getGatewayProviderDefinition("XAI").credentialCheck;
+    if (!("path" in check) || !check.usable) throw new Error("no xAI check");
+    const key = {
+      api_key_blocked: false,
+      api_key_disabled: false,
+      team_blocked: false,
+    };
+    expect(check.usable(key)).toBe(true);
+    expect(check.usable({ ...key, api_key_disabled: true })).toBe(false);
+    expect(check.usable({ ...key, api_key_blocked: true })).toBe(false);
+    expect(check.usable({ ...key, team_blocked: true })).toBe(false);
+  });
+
+  it("routes Bedrock to the regional runtime path matching the API format", () => {
+    const config = { region: "eu-central-1" };
+    expect(
+      getGatewayUpstream({
+        provider: "BEDROCK",
+        apiFormat: "anthropic.messages",
+        config,
+        baseURL: null,
+      }),
+    ).toEqual({
+      baseUrl:
+        "https://bedrock-runtime.eu-central-1.amazonaws.com/anthropic/v1",
+      authType: "x-api-key",
+    });
+    expect(
+      getGatewayUpstream({
+        provider: "BEDROCK",
+        apiFormat: "openai.chat-completions",
+        config,
+        baseURL: null,
+      }),
+    ).toEqual({
+      baseUrl: "https://bedrock-runtime.eu-central-1.amazonaws.com/openai/v1",
+      authType: "bearer",
+    });
+    expect(() =>
+      getGatewayUpstream({
+        provider: "BEDROCK",
+        apiFormat: "openai.responses",
+        config: { region: "evil.example/x" },
+        baseURL: null,
+      }),
+    ).toThrow();
   });
 
   it("validates credentials before persisting a connection", async () => {
@@ -55,10 +138,111 @@ describe("AI gateway provider registry", () => {
     expect(validator).toHaveBeenCalledWith({
       provider: "OPENAI",
       credential: "invalid",
+      config: null,
+      baseURL: null,
+      extraHeaders: null,
     });
   });
 
-  it("reads model lists from an organization and connection scoped cache", async () => {
+  it("lists Bedrock models only on the route family that serves them", async () => {
+    const bedrockModel = (id: string) => ({
+      id,
+      provider: "BEDROCK",
+      canonicalSlug: id,
+      displayName: id,
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+    const redis = {
+      get: vi
+        .fn()
+        .mockResolvedValue(
+          JSON.stringify([
+            bedrockModel("us.anthropic.claude-opus-4-8"),
+            bedrockModel("openai.gpt-5.5"),
+          ]),
+        ),
+      ttl: vi.fn().mockResolvedValue(300),
+      setex: vi.fn(),
+    } as unknown as Redis;
+    const prisma = {
+      gatewayAiConnection: {
+        findMany: vi
+          .fn()
+          .mockResolvedValue([
+            { id: "connection-1", name: "bedrock", allowedModels: null },
+          ]),
+      },
+    } as unknown as PrismaClient;
+    const service = new GatewayModelsService(prisma, redis);
+    const context = { organizationId: "org-1" } as GatewayApiKeyAuthContext;
+
+    const messages = await service.list({
+      context,
+      apiFormat: "anthropic.messages",
+    });
+    const responses = await service.list({
+      context,
+      apiFormat: "openai.responses",
+    });
+
+    expect(messages.data.map(({ id, provider }) => ({ id, provider }))).toEqual(
+      [
+        {
+          id: "bedrock:us.anthropic.claude-opus-4-8",
+          provider: "ANTHROPIC",
+        },
+      ],
+    );
+    expect(
+      responses.data.map(({ id, provider }) => ({ id, provider })),
+    ).toEqual([{ id: "bedrock:openai.gpt-5.5", provider: "OPENAI" }]);
+  });
+
+  it("lists models through the secure LLM fetch by default", async () => {
+    const globalFetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(Response.json({ data: [{ id: "gpt-5-mini" }] }));
+    const redis = {
+      get: vi.fn().mockResolvedValue(null),
+      ttl: vi.fn().mockResolvedValue(-2),
+      setex: vi.fn(),
+    } as unknown as Redis;
+    const prisma = {
+      gatewayAiConnection: {
+        findMany: vi
+          .fn()
+          .mockResolvedValue([
+            { id: "connection-1", name: "proxy", allowedModels: null },
+          ]),
+        findFirst: vi.fn().mockResolvedValue({
+          id: "connection-1",
+          organizationId: "org-1",
+          provider: "OPENAI",
+          encryptedCredential: encrypt("sk-test"),
+          baseURL: "http://169.254.169.254/v1",
+          extraHeaders: null,
+          status: "ENABLED",
+          allowedModels: null,
+          customModels: [],
+          updatedAt: new Date(0),
+        }),
+      },
+    } as unknown as PrismaClient;
+
+    try {
+      await expect(
+        new GatewayModelsService(prisma, redis).list({
+          context: { organizationId: "org-1" } as GatewayApiKeyAuthContext,
+          apiFormat: "openai.responses",
+        }),
+      ).rejects.toThrow("Gateway model discovery is temporarily unavailable");
+      expect(globalFetch).not.toHaveBeenCalled();
+    } finally {
+      globalFetch.mockRestore();
+    }
+  });
+
+  it("reads model lists from an organization and connection scoped cache and labels OpenAI embedding models", async () => {
     const fetcher = vi.fn<typeof fetch>();
     const redis = {
       get: vi.fn().mockResolvedValue(
@@ -68,6 +252,13 @@ describe("AI gateway provider registry", () => {
             provider: "OPENAI",
             canonicalSlug: "gpt-5-mini",
             displayName: "gpt-5-mini",
+            createdAt: "2026-01-01T00:00:00.000Z",
+          },
+          {
+            id: "text-embedding-3-small",
+            provider: "OPENAI",
+            canonicalSlug: "text-embedding-3-small",
+            displayName: "text-embedding-3-small",
             createdAt: "2026-01-01T00:00:00.000Z",
           },
         ]),
@@ -83,10 +274,12 @@ describe("AI gateway provider registry", () => {
           provider: "OPENAI",
           encryptedCredential: "unused",
           allowedModels: null,
+          customModels: [],
         }),
       },
     } as unknown as PrismaClient;
-    const service = new GatewayModelCatalogService(prisma, fetcher, redis);
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const service = new GatewayModelCatalogService(prisma, redis);
 
     await expect(
       service.refreshModels({
@@ -96,10 +289,11 @@ describe("AI gateway provider registry", () => {
     ).resolves.toEqual({
       connectionId: "connection-1",
       success: true,
-      models: ["gpt-5-mini"],
+      models: ["gpt-5-mini", "text-embedding-3-small"],
+      modelApiFormats: { "text-embedding-3-small": ["openai.embeddings"] },
     });
     expect(redis.get).toHaveBeenCalledWith(
-      "ai-gateway:models:org-1:connection-1",
+      "ai-gateway:models:v3:org-1:connection-1",
     );
     expect(fetcher).not.toHaveBeenCalled();
     expect(prisma.gatewayAiConnection.findFirst).not.toHaveBeenCalled();
@@ -136,13 +330,15 @@ describe("AI gateway provider registry", () => {
         encryptedCredential: encrypt("sk-old"),
         status: "ENABLED",
         allowedModels: null,
+        customModels: [],
         updatedAt: new Date(0),
       })
       .mockResolvedValueOnce(null);
     const prisma = {
       gatewayAiConnection: { findFirst },
     } as unknown as PrismaClient;
-    const service = new GatewayModelCatalogService(prisma, fetcher, redis);
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const service = new GatewayModelCatalogService(prisma, redis);
 
     await service.refreshModels({
       organizationId: "org-1",
@@ -193,10 +389,12 @@ describe("AI gateway provider registry", () => {
           encryptedCredential: encrypt("sk-test"),
           status: "ENABLED",
           allowedModels: null,
+          customModels: [],
         }),
       },
     } as unknown as PrismaClient;
-    const service = new GatewayModelCatalogService(prisma, fetcher, redis);
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const service = new GatewayModelCatalogService(prisma, redis);
     const request = {
       organizationId: "org-1",
       connectionId: "connection-1",
@@ -213,7 +411,7 @@ describe("AI gateway provider registry", () => {
     ]);
     await vi.waitFor(() =>
       expect(redis.setex).toHaveBeenCalledWith(
-        "ai-gateway:models:org-1:connection-1",
+        "ai-gateway:models:v3:org-1:connection-1",
         300,
         expect.stringContaining('"id":"gpt-5"'),
       ),
@@ -258,10 +456,12 @@ describe("AI gateway provider registry", () => {
           encryptedCredential: encrypt("sk-test"),
           status: "ENABLED",
           allowedModels: null,
+          customModels: [],
         }),
       },
     } as unknown as PrismaClient;
-    const service = new GatewayModelCatalogService(prisma, fetcher, null);
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const service = new GatewayModelCatalogService(prisma, null);
 
     await expect(
       service.getModelCatalog({
@@ -307,10 +507,12 @@ describe("AI gateway provider registry", () => {
           encryptedCredential: encrypt("sk-test"),
           status: "ENABLED",
           allowedModels: null,
+          customModels: [],
         }),
       },
     } as unknown as PrismaClient;
-    const service = new GatewayModelCatalogService(prisma, fetcher, redis);
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const service = new GatewayModelCatalogService(prisma, redis);
 
     await expect(
       service.refreshModels({
@@ -349,10 +551,12 @@ describe("AI gateway provider registry", () => {
           encryptedCredential: encrypt("sk-test"),
           status: "ENABLED",
           allowedModels: null,
+          customModels: [],
         }),
       },
     } as unknown as PrismaClient;
-    const service = new GatewayModelCatalogService(prisma, fetcher, redis);
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const service = new GatewayModelCatalogService(prisma, redis);
 
     await expect(
       service.refreshModels({
@@ -366,32 +570,36 @@ describe("AI gateway provider registry", () => {
       models: ["gpt-5", "codex-auto-review"],
     });
     expect(redis.get).not.toHaveBeenCalled();
-    expect(redis.del).toHaveBeenCalledWith(
+    expect(vi.mocked(redis.del).mock.calls.flat(2)).toEqual([
+      "ai-gateway:models:v3:org-1:connection-1",
+      "ai-gateway:models:v2:org-1:connection-1",
       "ai-gateway:models:org-1:connection-1",
-    );
+    ]);
     expect(redis.setex).toHaveBeenCalledWith(
-      "ai-gateway:models:org-1:connection-1",
+      "ai-gateway:models:v3:org-1:connection-1",
       300,
-      JSON.stringify([
-        {
-          id: "gpt-5",
-          provider: "OPENAI",
-          canonicalSlug: "gpt-5",
-          displayName: "gpt-5",
-          createdAt: "1970-01-01T00:00:10.000Z",
-        },
-        {
-          id: "codex-auto-review",
-          provider: "OPENAI",
-          canonicalSlug: "codex-auto-review",
-          displayName: "codex-auto-review",
-          createdAt: "1970-01-01T00:00:00.000Z",
-        },
-      ]),
+      JSON.stringify({
+        models: [
+          {
+            id: "gpt-5",
+            provider: "OPENAI",
+            canonicalSlug: "gpt-5",
+            displayName: "gpt-5",
+            createdAt: "1970-01-01T00:00:10.000Z",
+          },
+          {
+            id: "codex-auto-review",
+            provider: "OPENAI",
+            canonicalSlug: "codex-auto-review",
+            displayName: "codex-auto-review",
+            createdAt: "1970-01-01T00:00:00.000Z",
+          },
+        ],
+      }),
     );
   });
 
-  it("does not duplicate a custom model the provider already lists", async () => {
+  it("adds connection custom models without duplicating ones the provider already lists", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json({
         data: [
@@ -409,16 +617,20 @@ describe("AI gateway provider registry", () => {
           encryptedCredential: encrypt("sk-test"),
           status: "ENABLED",
           allowedModels: null,
+          customModels: [{ id: "gpt-5" }, { id: "ft:gpt-4o:acme::abc" }],
         }),
       },
     } as unknown as PrismaClient;
-    const service = new GatewayModelCatalogService(prisma, fetcher, null);
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const service = new GatewayModelCatalogService(prisma, null);
 
     await expect(
       service.refreshModels({
         organizationId: "org-1",
         connectionId: "connection-1",
       }),
-    ).resolves.toMatchObject({ models: ["codex-auto-review", "gpt-5"] });
+    ).resolves.toMatchObject({
+      models: ["codex-auto-review", "gpt-5", "ft:gpt-4o:acme::abc"],
+    });
   });
 });

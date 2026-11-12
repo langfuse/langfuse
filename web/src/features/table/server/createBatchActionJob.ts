@@ -8,7 +8,12 @@ import {
   type BatchActionQuery,
   type BatchActionType,
   createTraceDeleteBatchActionConfig,
+  InvalidRequestError,
 } from "@langfuse/shared";
+import {
+  isTopicFilter,
+  TOPIC_FILTERS_IN_BATCH_JOBS_MESSAGE,
+} from "@langfuse/shared/topics";
 import {
   BatchActionQueue,
   logger,
@@ -85,6 +90,10 @@ export const createBatchActionJob = async ({
   // Whether the action reads from the events table is determined at the
   // call site (useEventsTableOverride) or inferred from the user's v4 beta
   // flag; the decision is snapshotted into the query at dispatch time.
+  // Select-all jobs re-read the query in the worker, which cannot resolve topic membership yet.
+  if ((query.filter ?? []).some(isTopicFilter))
+    throw new InvalidRequestError(TOPIC_FILTERS_IN_BATCH_JOBS_MESSAGE);
+
   const queryWithSnapshot: BatchActionQuery = {
     ...query,
     useEventsTable:

@@ -22,7 +22,7 @@ import {
 } from "@/src/components/ui/tooltip";
 
 const SIDEBAR_STORAGE_KEY = "sidebar:state";
-const SIDEBAR_WIDTH = "11.5rem";
+const SIDEBAR_WIDTH = "12.75rem";
 const SIDEBAR_WIDTH_MOBILE = "12rem";
 const SIDEBAR_WIDTH_ICON = "3rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
@@ -46,6 +46,11 @@ function useSidebar() {
   }
 
   return context;
+}
+
+/** Like `useSidebar`, but returns null outside a `SidebarProvider`. */
+function useOptionalSidebar() {
+  return React.useContext(SidebarContext);
 }
 
 const SidebarProvider = React.forwardRef<
@@ -821,4 +826,5 @@ export {
   SidebarRail,
   SidebarTrigger,
   useSidebar,
+  useOptionalSidebar,
 };

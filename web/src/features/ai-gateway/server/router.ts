@@ -15,7 +15,6 @@ import {
 } from "@/src/server/api/trpc";
 import { env } from "@/src/env.mjs";
 import { canReadGatewayModels } from "@/src/features/ai-gateway/fns/canReadGatewayModels";
-import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { getProductBaseUrl } from "@/src/utils/base-url";
 import {
   GatewayConnectionStatus,
@@ -42,12 +41,19 @@ import { GatewayConfigService } from "./config/gatewayConfigService";
 import { getKeyOwnerFilter, type GatewayUsageScope } from "./gatewayUsageScope";
 import { GatewayTeamService } from "./team/gatewayTeamService";
 import { GatewayMetadataSchema } from "@/src/features/ai-gateway/server/provider/registry";
+import { GatewayBedrockConfigSchema } from "@/src/features/ai-gateway/server/provider/bedrock";
+import type { GatewayApiFamily } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
 import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
 
 const organizationInput = z.object({ orgId: z.string() });
 /** Naming rules live in `parseGatewayConnectionName` so the dialog can show them on the field. */
 const connectionNameSchema = z.string().max(1_000);
+// Same shape as LLM connections: a blank header value keeps the stored one.
+const connectionEndpointInput = {
+  baseURL: z.url().nullish(),
+  extraHeaders: z.record(z.string(), z.string()).optional(),
+};
 const pageLimitSchema = z.number().int().min(1).max(100).default(50);
 const paginatedOrganizationInput = organizationInput.extend({
   cursor: z.string().optional(),
@@ -62,6 +68,7 @@ const allowedModelsSchema = z
   .array(z.string().trim().min(1).max(500))
   .max(10_000)
   .nullable();
+const customModelSchema = z.string().trim().min(1).max(500);
 
 function requireGatewayAdmin(params: { session: Session; orgId: string }) {
   requireGatewayEnabledForOrganization(params.orgId);
@@ -169,11 +176,6 @@ export const aiGatewayRouter = createTRPCRouter({
       return new GatewayAnalyticsLabelsRepository(ctx.prisma).getLabels({
         organizationId: input.orgId,
         usageScope,
-        includePlainOrganizationKeys: hasOrganizationAccess({
-          session: ctx.session,
-          organizationId: input.orgId,
-          scope: "organization:CRUD_apiKeys",
-        }),
       });
     }),
 
@@ -204,14 +206,39 @@ export const aiGatewayRouter = createTRPCRouter({
         input.orgId,
         GatewayConnectionStatus.ENABLED,
       );
+      const families = (connection: (typeof connections)[number]) => {
+        if (
+          connection.provider === "BEDROCK" ||
+          connection.provider === "OPENROUTER" ||
+          connection.provider === "VERCEL"
+        ) {
+          return ["OPENAI", "ANTHROPIC"] satisfies GatewayApiFamily[];
+        }
+        if (
+          connection.provider === "XAI" ||
+          connection.provider === "GOOGLE_AI_STUDIO"
+        ) {
+          return ["OPENAI"] satisfies GatewayApiFamily[];
+        }
+        return [connection.provider];
+      };
       return {
         gatewayBaseUrl: getGatewayBaseUrl(
           getProductBaseUrl(),
           env.LANGFUSE_AI_GATEWAY_PUBLIC_URL,
         ),
+        // Agent clients call the OpenAI route with the Responses API, which
+        // Google AI Studio lacks; plain API calls also work over Chat Completions.
         providers: [
-          ...new Set(connections.map((connection) => connection.provider)),
+          ...new Set(
+            connections
+              .filter(
+                (connection) => connection.provider !== "GOOGLE_AI_STUDIO",
+              )
+              .flatMap(families),
+          ),
         ],
+        apiProviders: [...new Set(connections.flatMap(families))],
       };
     }),
 
@@ -316,17 +343,28 @@ export const aiGatewayRouter = createTRPCRouter({
   testConnection: protectedOrganizationProcedureWithoutTracing
     .input(
       organizationInput.extend({
+        /** The connection being edited, whose stored header values the test reuses. */
+        id: z.string().optional(),
         provider: z.enum(GatewayProvider),
         credential: z.string().min(1),
+        config: GatewayBedrockConfigSchema.optional(),
+        ...connectionEndpointInput,
       }),
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      await new GatewayProviderService(ctx.prisma).testCredential({
+      const { modelListingDenied } = await new GatewayProviderService(
+        ctx.prisma,
+      ).testCredential({
+        organizationId: input.orgId,
+        connectionId: input.id,
         provider: input.provider,
         credential: input.credential,
+        config: input.config,
+        baseURL: input.baseURL,
+        extraHeaders: input.extraHeaders,
       });
-      return { success: true };
+      return { success: true, modelListingDenied };
     }),
 
   createConnection: protectedOrganizationProcedureWithoutTracing
@@ -335,6 +373,8 @@ export const aiGatewayRouter = createTRPCRouter({
         name: connectionNameSchema,
         provider: z.enum(GatewayProvider),
         credential: z.string().min(1),
+        config: GatewayBedrockConfigSchema.optional(),
+        ...connectionEndpointInput,
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -344,6 +384,9 @@ export const aiGatewayRouter = createTRPCRouter({
         name: input.name,
         provider: input.provider,
         credential: input.credential,
+        config: input.config,
+        baseURL: input.baseURL,
+        extraHeaders: input.extraHeaders,
         session: ctx.session,
       });
       return connection;
@@ -355,6 +398,7 @@ export const aiGatewayRouter = createTRPCRouter({
         id: z.string(),
         name: connectionNameSchema.optional(),
         credential: z.string().min(1).optional(),
+        ...connectionEndpointInput,
         status: z
           .enum([
             GatewayConnectionStatus.ENABLED,
@@ -370,6 +414,8 @@ export const aiGatewayRouter = createTRPCRouter({
         id: input.id,
         name: input.name,
         credential: input.credential,
+        baseURL: input.baseURL,
+        extraHeaders: input.extraHeaders,
         status: input.status,
         session: ctx.session,
       });
@@ -405,6 +451,53 @@ export const aiGatewayRouter = createTRPCRouter({
       });
     }),
 
+  addConnectionCustomModel: protectedOrganizationProcedure
+    .input(
+      connectionInput.extend({
+        model: customModelSchema,
+        expectedUpdatedAt: z.date(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewayProviderService(ctx.prisma).addCustomModel({
+        organizationId: input.orgId,
+        id: input.id,
+        model: input.model,
+        expectedUpdatedAt: input.expectedUpdatedAt,
+        session: ctx.session,
+      });
+    }),
+
+  removeConnectionCustomModel: protectedOrganizationProcedure
+    .input(
+      connectionInput.extend({
+        model: customModelSchema,
+        expectedUpdatedAt: z.date(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewayProviderService(ctx.prisma).removeCustomModel({
+        organizationId: input.orgId,
+        id: input.id,
+        model: input.model,
+        expectedUpdatedAt: input.expectedUpdatedAt,
+        session: ctx.session,
+      });
+    }),
+
+  testConnectionModel: protectedOrganizationProcedureWithoutTracing
+    .input(connectionInput.extend({ model: customModelSchema }))
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewayProviderService(ctx.prisma).testModel({
+        organizationId: input.orgId,
+        id: input.id,
+        model: input.model,
+      });
+    }),
+
   listModelConnections: protectedOrganizationProcedure
     .input(organizationInput)
     .query(async ({ input, ctx }) => {
@@ -427,36 +520,10 @@ export const aiGatewayRouter = createTRPCRouter({
         scope: "gateway:manage",
       });
       const catalogService = new GatewayModelCatalogService(ctx.prisma);
-      const results = canManageGateway
+      // Readers see disabled models too; `listModelConnections` tells them which are enabled.
+      return canManageGateway
         ? await catalogService.refreshAllModels(input.orgId)
         : await catalogService.listAllModels(input.orgId);
-      if (canManageGateway) return results;
-
-      const readableConnections = await catalogService.listModelConnections(
-        input.orgId,
-      );
-      const allowedModelsByConnectionId = new Map(
-        readableConnections.map((connection) => [
-          connection.id,
-          connection.allowedModels,
-        ]),
-      );
-      return results.map((result) =>
-        result.success
-          ? {
-              ...result,
-              models: result.models.filter((model) => {
-                const allowedModels = allowedModelsByConnectionId.get(
-                  result.connectionId,
-                );
-                return isGatewayModelAllowed(
-                  allowedModels === undefined ? [] : allowedModels,
-                  model,
-                );
-              }),
-            }
-          : result,
-      );
     }),
 
   getConnectionModels: protectedOrganizationProcedure

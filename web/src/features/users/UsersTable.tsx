@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
@@ -381,8 +380,7 @@ export function UsersTable({
         users.data.users.map((u) => ({ id: encodeURIComponent(u.userId) })),
       );
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [users.isSuccess, users.data]);
+  }, [setDetailPageList, users.data, users.isSuccess]);
 
   const userDetailPath = (userId: string) =>
     `/project/${projectId}/users/${encodeURIComponent(userId)}`;
@@ -537,6 +535,37 @@ export function UsersTable({
     setColumnVisibility(next);
   };
 
+  const usersTableData = (() => {
+    if (users.isLoading || isViewLoading) {
+      return { isLoading: true, isError: false } as const;
+    }
+    if (users.isError) {
+      return {
+        isLoading: false,
+        isError: true,
+        error: users.error.message,
+      } as const;
+    }
+    return {
+      isLoading: false,
+      isError: false,
+      data: userRowData.rows?.map((t) => ({
+        userId: t.id,
+        environment: t.environment ?? undefined,
+        totalTraces: compactNumberFormatter(Number(t.traceCount)),
+        firstEvent: t.firstTrace?.toLocaleString() ?? "No event yet",
+        lastEvent: t.lastTrace?.toLocaleString() ?? "No event yet",
+        totalEvents: compactNumberFormatter(
+          isV4
+            ? Number(t.totalObservations ?? 0)
+            : Number(t.totalTraces ?? 0) + Number(t.totalObservations ?? 0),
+        ),
+        totalTokens: compactNumberFormatter(t.totalTokens ?? 0),
+        totalCost: usdFormatter(t.sumCalculatedTotalCost ?? 0, 2, 2),
+      })),
+    } as const;
+  })();
+
   return (
     <DataTableControlsProvider tableName={usersFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
@@ -595,47 +624,7 @@ export function UsersTable({
             <DataTable
               tableName="users"
               columns={columns}
-              data={
-                users.isLoading || isViewLoading
-                  ? { isLoading: true, isError: false }
-                  : users.isError
-                    ? {
-                        isLoading: false,
-                        isError: true,
-                        error: users.error.message,
-                      }
-                    : {
-                        isLoading: false,
-                        isError: false,
-                        data: userRowData.rows?.map((t) => {
-                          return {
-                            userId: t.id,
-                            environment: t.environment ?? undefined,
-                            totalTraces: compactNumberFormatter(
-                              Number(t.traceCount),
-                            ),
-                            firstEvent:
-                              t.firstTrace?.toLocaleString() ?? "No event yet",
-                            lastEvent:
-                              t.lastTrace?.toLocaleString() ?? "No event yet",
-                            totalEvents: compactNumberFormatter(
-                              isV4
-                                ? Number(t.totalObservations ?? 0)
-                                : Number(t.totalTraces ?? 0) +
-                                    Number(t.totalObservations ?? 0),
-                            ),
-                            totalTokens: compactNumberFormatter(
-                              t.totalTokens ?? 0,
-                            ),
-                            totalCost: usdFormatter(
-                              t.sumCalculatedTotalCost ?? 0,
-                              2,
-                              2,
-                            ),
-                          };
-                        }),
-                      }
-              }
+              data={usersTableData}
               pagination={{
                 totalCount,
                 onChange: setPaginationState,

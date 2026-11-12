@@ -39,7 +39,9 @@ describe("GatewayApiKeyRepository pagination", () => {
       data: [{ apiKey: { id: "key-3" } }, { apiKey: { id: "key-4" } }],
       totalCount: 5,
     });
-    const where = { apiKey: { orgId: "org-1", scope: "ORGANIZATION" } };
+    const where = {
+      apiKey: { orgId: "org-1", scope: { in: ["ORGANIZATION", "USER"] } },
+    };
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         orderBy: [{ apiKey: { createdAt: "asc" } }, { apiKeyId: "asc" }],

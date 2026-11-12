@@ -20,6 +20,7 @@ import {
   protectedGetSessionProcedure,
 } from "@/src/server/api/trpc";
 import {
+  InvalidRequestError,
   isoDateTime,
   type OrderByState,
   type SkillsAvailable,
@@ -46,6 +47,7 @@ import {
   EVENT_FILTER_OPTIONS_COLUMNS,
 } from "./eventsService";
 import { loadTraceTranscript } from "./loadTraceTranscript";
+import { isTopicFilter } from "@langfuse/shared/topics";
 import {
   instrumentAsync,
   getCurrentSpan,
@@ -206,6 +208,8 @@ export const eventsRouter = createTRPCRouter({
               column !== "commentContent" && column !== "commentCount",
           );
 
+      if (filter.some(isTopicFilter))
+        throw new InvalidRequestError("Topic filters are not available here.");
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: filter,
         prisma: ctx.prisma,
@@ -501,13 +505,25 @@ export const eventsRouter = createTRPCRouter({
    */
   transcriptByTraceId: auditedQuery(
     protectedGetEventsTraceProcedure.input(
-      zodSchema.object({
-        projectId: zodSchema.string(),
-        traceId: zodSchema.string(),
-        timestamp: zodSchema.date().optional(),
-        fallbackToRootIO: zodSchema.boolean().default(false),
-        filter: sessionTraceFilterSchema.optional(),
-      }),
+      zodSchema
+        .object({
+          projectId: zodSchema.string(),
+          traceId: zodSchema.string(),
+          timestamp: zodSchema.date().optional(),
+          fallbackToRootIO: zodSchema.boolean().default(false),
+        })
+        .and(
+          zodSchema.discriminatedUnion("context", [
+            zodSchema.object({
+              context: zodSchema.literal("session"),
+              filter: sessionTraceFilterSchema.optional(),
+            }),
+            zodSchema.object({
+              context: zodSchema.literal("other"),
+              filter: zodSchema.never().optional(),
+            }),
+          ]),
+        ),
     ),
     { resourceType: "trace", action: "read", idKey: "traceId" },
     async ({ input, ctx, audit }) => {
@@ -519,7 +535,6 @@ export const eventsRouter = createTRPCRouter({
         !isSessionTimelineEnabled &&
         !hasInternalAccess({
           email: ctx.session?.user?.email,
-          isAdmin: ctx.session?.user?.admin === true,
           isExperimentalFeaturesEnabled:
             env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
         })
@@ -553,11 +568,8 @@ export const eventsRouter = createTRPCRouter({
           span.setAttribute("trace_id", input.traceId);
 
           const transcript = await loadTraceTranscript({
-            projectId: input.projectId,
-            traceId: input.traceId,
+            ...input,
             timestamp,
-            fallbackToRootIO: input.fallbackToRootIO,
-            filter: input.filter,
           });
           audit.refs(
             (transcript.transcript?.threads ?? []).flatMap((thread) =>

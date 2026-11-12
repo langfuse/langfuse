@@ -13,7 +13,7 @@ export type TraceBatchStrategy = "project" | "locality";
 export type PendingTrace = {
   member: string;
   due: number;
-  estimates?: { eventUpdateCount: number; serializedEventBytes: number };
+  estimates?: { eventUpdateCount?: number; serializedEventBytes: number };
   trace: TQueueJobTypes[QueueName.TraceBatch]["payload"]["traces"][number];
 };
 
@@ -65,14 +65,25 @@ const isHeavyTrace = (entry: PendingTrace, limits: TraceBatchWeightLimits) =>
   getEventUpdates(entry) * 2 > limits.maxEventUpdates ||
   getSerializedEventBytes(entry) * 2 > limits.maxSerializedEventBytes;
 
-export type TraceExclusionReason = "event_updates" | "serialized_bytes";
+export type TraceExclusionReason =
+  | "event_updates"
+  | "serialized_bytes"
+  | "start_too_old";
+
+// Older recorded starts (e.g. SDKs sending 0) widen the trace read to a full-table scan.
+const MAX_TRACE_START_AGE_MS = 365 * 24 * 60 * 60_000;
 
 export const getTraceExclusionReason = (
-  { estimates }: PendingTrace,
+  { trace, estimates }: PendingTrace,
   limits: TraceBatchWeightLimits,
 ): TraceExclusionReason | undefined => {
+  if (trace.minStart < Date.now() - MAX_TRACE_START_AGE_MS)
+    return "start_too_old";
   if (!estimates) return undefined;
-  if (estimates.eventUpdateCount > limits.maxEventUpdates)
+  if (
+    estimates.eventUpdateCount !== undefined &&
+    estimates.eventUpdateCount > limits.maxEventUpdates
+  )
     return "event_updates";
   if (estimates.serializedEventBytes > limits.maxSerializedEventBytes)
     return "serialized_bytes";

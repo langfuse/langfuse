@@ -45,7 +45,6 @@ describe("traces trpc", () => {
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin: true,
     },
     environment: {} as any,
   };

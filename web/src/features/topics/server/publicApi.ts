@@ -22,6 +22,7 @@ import {
   type TopicTimeRange,
 } from "@langfuse/shared/topics";
 import {
+  getCurrentTopicMapRows,
   getPublishedTopicRun,
   getTopicRule,
   getTopicRuns,
@@ -332,36 +333,15 @@ async function loadPublicTopics(
       runId: topic.runId,
       traceCount: traceCounts.get(topic.id)?.count ?? 0,
     }));
-    const currentIds = new Set(current.map(({ id }) => id));
-    const retired = facet.topics
-      .filter((topic) => !currentIds.has(topic.id))
-      .map((topic) => ({
-        id: topic.id,
-        versionId: topic.versionId,
-        name: topic.name,
-        description: topic.description,
-        facet: ref,
-        ruleId,
-        runId: topic.runId,
-        traceCount: topic.count,
-      }));
-    const count = (outcome: string) =>
-      facet.rows.filter((row) => row.outcome === outcome).length;
+    const { total: _total, ...counts } = facet.counts;
     return {
       summary: {
         facet: ref,
         ruleId,
         publishedRunId: facet.map?.runId ?? null,
-        counts: {
-          assigned: count("assigned"),
-          outlier: count("outlier"),
-          awaitingMap: count("awaiting_map"),
-          notApplicable: count("not_applicable"),
-          insufficientInput: count("insufficient_input"),
-        },
+        counts,
       },
       current,
-      retired,
     };
   });
 }
@@ -490,13 +470,23 @@ function checkFilterLimits(filter: FilterState) {
   }
 }
 
-/** Published map topics per facet, for resolving topic names. */
+/** Topics of every rule's current map per facet, for resolving topic names. */
 async function publishedTopicsByFacet(projectId: string, facets: TopicFacet[]) {
-  const runs = await Promise.all(
-    facets.map((facet) => getPublishedTopicRun(projectId, facet.id)),
+  const maps = await getCurrentTopicMapRows(
+    projectId,
+    facets.map((facet) => facet.id),
+  );
+  const runs = await getTopicRuns(
+    projectId,
+    maps.map(({ run }) => run.id),
   );
   return new Map(
-    facets.map((facet, index) => [facet.id, runs[index]?.topics ?? []]),
+    facets.map((facet) => [
+      facet.id,
+      runs
+        .filter((run) => run.facetId === facet.id)
+        .flatMap((run) => run.topics),
+    ]),
   );
 }
 
@@ -817,12 +807,31 @@ async function topicNamesForAssignments(
 
 /** Lists the current assignment (assigned or outlier) per trace, facet and rule. */
 export async function listPublicTopicAssignments(params: ResultListParams) {
-  const { facets, scope, window, readerInput } = await prepareResultList(
+  const { facets, window, readerInput } = await prepareResultList(
     params,
     ASSIGNMENT_COLUMNS,
   );
   if (!readerInput) return { window, data: [], meta: resultMeta() };
-  const result = await listCurrentTopicAssignments(readerInput);
+  // Each rule assigns to its own map, so a row's rule is its map's rule, and a
+  // ruleId filter keeps only those maps.
+  const ruleFilters = (params.filter ?? []).flatMap((condition) =>
+    condition.column === "ruleId" && condition.type === "stringOptions"
+      ? [condition]
+      : [],
+  );
+  const maps = (
+    await getCurrentTopicMapRows(params.projectId, readerInput.facetIds)
+  ).filter(({ ruleId }) =>
+    ruleFilters.every(
+      ({ operator, value }) =>
+        (ruleId !== null && value.includes(ruleId)) === (operator === "any of"),
+    ),
+  );
+  const ruleByRun = new Map(maps.map(({ ruleId, run }) => [run.id, ruleId]));
+  const result = await listCurrentTopicAssignments({
+    ...readerInput,
+    publishedRunIds: [...ruleByRun.keys()],
+  });
   const names = await topicNamesForAssignments(
     params.projectId,
     [...facets.values()],
@@ -836,7 +845,7 @@ export async function listPublicTopicAssignments(params: ResultListParams) {
       facetId: row.facetId,
       facetName: facets.get(row.facetId)?.name ?? "",
       facetVersion: row.facetVersion,
-      ruleId: scope.ruleIdsFor(row.facetId)[0] ?? null,
+      ruleId: (row.runId && ruleByRun.get(row.runId)) ?? null,
       status: row.status,
       topic:
         row.topicId && row.topicVersionId
@@ -853,10 +862,7 @@ export async function listPublicTopicAssignments(params: ResultListParams) {
   };
 }
 
-/**
- * Resolves a topic of an active facet's current map, or a retired topic that
- * still has current traces in the window.
- */
+/** Resolves a topic of an active facet's current map; retired topics are not found. */
 export async function getPublicTopic(params: {
   projectId: string;
   topicId: string;
@@ -868,8 +874,6 @@ export async function getPublicTopic(params: {
   for (const facet of await loadPublicTopics(params.projectId, window)) {
     const current = facet.current.find(({ id }) => id === params.topicId);
     if (current) return { ...current, inCurrentMap: true, window };
-    const retired = facet.retired.find(({ id }) => id === params.topicId);
-    if (retired) return { ...retired, inCurrentMap: false, window };
   }
   throw new LangfuseNotFoundError("Topic not found.");
 }

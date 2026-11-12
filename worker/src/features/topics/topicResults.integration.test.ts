@@ -7,6 +7,7 @@ import {
   writeTopicSummaries,
 } from "@langfuse/shared/topics/server";
 import {
+  getTopicResultCounts,
   listCurrentTopicAssignments,
   listCurrentTopicSummaries,
   type TopicResultCondition,
@@ -14,6 +15,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { clickhouseClient } from "@langfuse/shared/src/server/clickhouse";
 import { prisma } from "@langfuse/shared/src/db";
+import { TopicsTargetObject } from "@langfuse/shared";
 
 describe("current Topics summaries and assignments", () => {
   const orgId = randomUUID();
@@ -121,10 +123,17 @@ describe("current Topics summaries and assignments", () => {
     });
     const facets = await ensureDefaultTopicFacets(projectId);
     [issues, intent] = facets.map((facet) => facet.id);
+    // The first run is published: the newest completed one.
     const runs = await Promise.all(
-      ["completed", "running"].map((status) =>
+      ["completed", "running", "completed"].map((status, index) =>
         prisma.topicClusteringRun.create({
-          data: { projectId, facetId: issues, facetVersion: 1, status },
+          data: {
+            projectId,
+            facetId: issues,
+            facetVersion: 1,
+            status,
+            createdAt: new Date(Date.UTC(2026, 9, 7 - index)),
+          },
         }),
       ),
     );
@@ -162,6 +171,18 @@ describe("current Topics summaries and assignments", () => {
       assignment(staleOld),
       assignment(outlier, { topicId: null, topicVersionId: null }),
       assignment(unpublished, { runId: runs[1].id }),
+      // Assignments of an older completed run are retired: neither listed nor counted.
+      assignment(unpublished, {
+        runId: runs[2].id,
+        topicId: "topic-retired",
+        topicVersionId: "topic-retired-v1",
+      }),
+      assignment(outlier, {
+        runId: runs[2].id,
+        topicId: "topic-retired",
+        topicVersionId: "topic-retired-v1",
+        assignedAt: "2026-10-06T00:00:00.000Z",
+      }),
     ]);
   });
 
@@ -227,7 +248,7 @@ describe("current Topics summaries and assignments", () => {
     ]);
   });
 
-  it("lists assignments of completed runs for the current summary", async () => {
+  it("lists assignments of the published run for the current summary", async () => {
     const result = await listCurrentTopicAssignments({
       ...base,
       facetIds: [issues, intent],
@@ -297,6 +318,41 @@ describe("current Topics summaries and assignments", () => {
     expect(await summaries([], { facetIds: [] })).toEqual({ rows: [] });
   });
 
+  it("lists unassigned summaries with their current assignment", async () => {
+    const result = await summaries([{ column: "assigned", match: false }], {
+      includeAssignment: true,
+    });
+    expect(
+      result.rows.map((row) => [row.traceId, row.assignment?.status]),
+    ).toEqual([
+      [traces.assigned, "not_applicable"],
+      [traces.stale, "awaiting_map"],
+      [traces.outlier, "outlier"],
+      [traces.insufficient, "insufficient_input"],
+      [traces.unpublished, "awaiting_map"],
+    ]);
+  });
+
+  it("counts traces per facet and topic in the window", async () => {
+    const [issuesCounts, intentCounts] = await getTopicResultCounts({
+      projectId,
+      window,
+      facets: [
+        { facetId: issues, version: 1, runId: publishedRunId },
+        { facetId: intent, version: 1, runId: null },
+      ],
+    });
+    expect(issuesCounts).toMatchObject({
+      total: 5,
+      usable: 4,
+      insufficientInput: 1,
+      assigned: 2,
+      outliers: 1,
+      topics: [{ topicId: "topic-refunds", count: 2 }],
+    });
+    expect(intentCounts).toMatchObject({ total: 1, notApplicable: 1 });
+  });
+
   it("returns short pages with a cursor when the candidate budget runs out", async () => {
     const awaiting: TopicResultCondition[] = [
       {
@@ -318,5 +374,176 @@ describe("current Topics summaries and assignments", () => {
     // Budgeted pages can be empty, but together they list every row exactly once.
     expect(pages.some((page) => page.length === 0)).toBe(true);
     expect(pages.flat()).toEqual(keys(await summaries(awaiting)));
+  });
+});
+
+describe("current Topics results with several rules sharing a facet", () => {
+  const orgId = randomUUID();
+  const projectId = randomUUID();
+  const window = {
+    from: new Date("2026-10-01T00:00:00.000Z"),
+    to: new Date("2026-10-08T00:00:00.000Z"),
+  };
+  const [both, firstOnly] = [`t1-${randomUUID()}`, `t2-${randomUUID()}`];
+  let facetId = "";
+  const runIds: string[] = [];
+
+  beforeAll(async () => {
+    await prisma.organization.create({
+      data: {
+        id: orgId,
+        name: "Topic rules test",
+        projects: { create: [{ id: projectId, name: "Topic rules" }] },
+      },
+    });
+    facetId = (await ensureDefaultTopicFacets(projectId))[0].id;
+    for (const [index, name] of ["Support", "Billing"].entries()) {
+      const rule = await prisma.evaluationRule.create({
+        data: {
+          projectId,
+          name,
+          targetObject: TopicsTargetObject,
+          filter: [],
+          sampling: 1,
+          delay: 0,
+          createdAt: new Date(Date.UTC(2026, 9, 1 + index)),
+          assignments: { create: [{ projectId, evaluatorId: facetId }] },
+        },
+      });
+      const run = await prisma.topicClusteringRun.create({
+        data: {
+          projectId,
+          facetId,
+          facetVersion: 1,
+          status: "completed",
+          ruleId: rule.id,
+        },
+      });
+      runIds.push(run.id);
+    }
+    const summary = (traceId: string, day: number): TopicSummary => ({
+      projectId,
+      facetId,
+      facetVersion: 1,
+      traceId,
+      sessionId: null,
+      triggerType: "manual_poc",
+      environment: "production",
+      traceName: "checkout",
+      unitStartTime: `2026-10-0${day}T12:00:00.000Z`,
+      state: "complete",
+      summary: `Summary of ${traceId}`,
+      embedding: [1, ...Array<number>(255).fill(0)],
+      transcriptId: "t",
+      transcriptVersion: "v",
+      summaryModel: "test",
+      embeddingModel: "test",
+      providedUsageDetails: {},
+      usageDetails: {},
+      providedCostDetails: {},
+      costDetails: {},
+      processedAt: `2026-10-0${day}T13:00:00.000Z`,
+      metadata: {},
+    });
+    const assign = (
+      source: TopicSummary,
+      runId: string,
+      topicId: string,
+    ): TopicAssignment => ({
+      projectId,
+      facetId,
+      facetVersion: 1,
+      traceId: source.traceId,
+      sessionId: null,
+      environment: source.environment,
+      traceName: source.traceName,
+      unitStartTime: source.unitStartTime,
+      summaryProcessedAt: source.processedAt,
+      runId,
+      topicId,
+      topicVersionId: `${topicId}-v1`,
+      distance: 0.1,
+      runnerUpDistance: 0.2,
+      origin: "initial",
+      coordinates: null,
+      assignedAt: "2026-10-07T00:00:00.000Z",
+    });
+    const [bothSummary, firstOnlySummary] = [
+      summary(both, 6),
+      summary(firstOnly, 5),
+    ];
+    await writeTopicSummaries([bothSummary, firstOnlySummary]);
+    await writeTopicAssignments([
+      assign(bothSummary, runIds[0], "topic-support"),
+      assign(bothSummary, runIds[1], "topic-billing"),
+      assign(firstOnlySummary, runIds[0], "topic-support"),
+    ]);
+  });
+
+  afterAll(async () => {
+    for (const table of ["topic_facet_summaries", "topic_assignments"])
+      await clickhouseClient().command({
+        query: `DELETE FROM ${table} WHERE project_id = {projectId:String}`,
+        query_params: { projectId },
+        clickhouse_settings: { mutations_sync: "1" },
+      });
+    await prisma.organization.deleteMany({ where: { id: orgId } });
+  });
+
+  it("lists each rule's assignment and pages them one row at a time without gaps", async () => {
+    const input = {
+      projectId,
+      window,
+      facetIds: [facetId],
+      conditions: [],
+      orderBy: "timestamp.desc" as const,
+    };
+    const rows = (result: {
+      rows: { traceId: string; topicId: string | null }[];
+    }) => result.rows.map((row) => [row.traceId, row.topicId]);
+    const all = await listCurrentTopicAssignments({ ...input, limit: 50 });
+    expect(rows(all).sort()).toEqual(
+      [
+        [both, "topic-support"],
+        [both, "topic-billing"],
+        [firstOnly, "topic-support"],
+      ].sort(),
+    );
+    const paged: (string | null)[][] = [];
+    let cursor: TopicResultCursor | undefined;
+    do {
+      const page = await listCurrentTopicAssignments({
+        ...input,
+        limit: 1,
+        cursor,
+      });
+      paged.push(...rows(page));
+      cursor = page.next;
+    } while (cursor && paged.length < 10);
+    expect(paged).toEqual(rows(all));
+  });
+
+  it("matches a summary's topic filter in any rule's map", async () => {
+    const result = await listCurrentTopicSummaries({
+      projectId,
+      window,
+      facetIds: [facetId],
+      conditions: [
+        {
+          column: "topicId",
+          match: { operator: "any of", values: ["topic-billing"] },
+        },
+      ],
+      orderBy: "timestamp.desc",
+      limit: 50,
+      includeAssignment: true,
+      truncateSummaries: false,
+    });
+    expect(result.rows).toEqual([
+      expect.objectContaining({
+        traceId: both,
+        assignment: expect.objectContaining({ topicId: "topic-billing" }),
+      }),
+    ]);
   });
 });

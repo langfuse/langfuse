@@ -11,6 +11,7 @@ import {
   CreateOrAttachFromEvaluatorFiltersSchema,
   CreateRuleSchema,
   EvaluatorRulesSchema,
+  ExperimentDatasetRulesSchema,
   ListRulesSchema,
   RuleAssignmentIdSchema,
   RuleAssignmentSchema,
@@ -105,6 +106,20 @@ export const ruleRouter = createTRPCRouter({
       return serviceForContext(ctx).listRulesForEvaluator(
         ctx.session.projectId,
         input.evaluatorId,
+      );
+    }),
+
+  listForExperimentDataset: protectedProjectProcedure
+    .input(ExperimentDatasetRulesSchema)
+    .query(({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        scope: "evaluationRule:read",
+      });
+      return serviceForContext(ctx).listRulesForExperimentDataset(
+        ctx.session.projectId,
+        input.datasetId,
       );
     }),
 

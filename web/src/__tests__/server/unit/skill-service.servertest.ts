@@ -17,6 +17,12 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   };
 });
 
+const env = vi.hoisted(() => ({
+  LANGFUSE_SKILL_MAX_BYTES: 1_000_000,
+  LANGFUSE_SKILL_MAX_FILES: 200,
+}));
+vi.mock("@/src/env.mjs", () => ({ env }));
+
 vi.mock("@/src/features/audit-logs/auditLog", () => ({
   auditLog: vi.fn(),
 }));
@@ -28,7 +34,6 @@ describe("SkillService versions", () => {
     return {
       session: {
         user: {
-          admin: false,
           organizations: [{ projects: [{ id: "project", role }] }],
         },
       } as ProjectAuthedContext["session"],
@@ -111,7 +116,7 @@ describe("SkillService versions", () => {
         findUnique: vi.fn().mockResolvedValue({ isInAppAgentKey: false }),
       },
       user: {
-        findUnique: vi.fn().mockResolvedValue({ id: "user", admin: false }),
+        findUnique: vi.fn().mockResolvedValue({ id: "user" }),
       },
       organizationMembership: {
         findFirst: vi
@@ -159,14 +164,16 @@ describe("SkillService versions", () => {
             boundResource: { orgId: "org", projectId: "project" },
           },
           policies: [
-            {
-              id: "system/LEGACY_PROJECT_API_KEY:project",
-              roleId: SystemRoleId("LEGACY_PROJECT_API_KEY"),
-              tenantId: OrganizationId("org"),
-              effect: "ALLOW",
-              actions: ["promptProtectedLabels:CUD"],
-              resources: [ProjectId("project")],
-            },
+            [
+              {
+                id: "system/LEGACY_PROJECT_API_KEY:project",
+                roleId: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+                tenantId: OrganizationId("org"),
+                effect: "ALLOW",
+                actions: ["promptProtectedLabels:CUD"],
+                resources: [ProjectId("project")],
+              },
+            ],
           ],
         } satisfies AuthorizationContext,
       },
@@ -288,7 +295,17 @@ describe("SkillService versions", () => {
     const test = setup();
     test.db.skill.findMany
       .mockResolvedValueOnce([
-        { ...test.skill, labels: ["latest"], tags: ["support"] },
+        {
+          ...test.skill,
+          labels: ["latest"],
+          tags: ["support"],
+          frontmatter: {
+            ...test.skill.frontmatter,
+            license: "MIT",
+            constructor: "breaks superjson as a property name",
+            metadata: { author: "jane" },
+          },
+        },
       ])
       .mockResolvedValueOnce([
         { labels: ["latest"] },
@@ -302,6 +319,7 @@ describe("SkillService versions", () => {
       names: ["test-skill"],
       tags: [{ value: "support", count: 1 }],
       labels: ["canary", "latest", "production", "staging"],
+      frontmatter: { license: ["MIT"], "metadata.author": ["jane"] },
     });
     expect(test.db.skill.findMany).toHaveBeenNthCalledWith(
       2,
@@ -738,6 +756,20 @@ describe("SkillService versions", () => {
       "in total",
     );
     expect(test.transaction).not.toHaveBeenCalled();
+  });
+
+  it("accepts a version above the default limit when LANGFUSE_SKILL_MAX_BYTES is raised", async () => {
+    env.LANGFUSE_SKILL_MAX_BYTES = 2_000_000;
+    try {
+      const test = setup();
+      test.params.input.files[1]!.content = "🌍".repeat(300_000);
+
+      await expect(
+        test.service.createVersion(test.params),
+      ).resolves.toMatchObject({ id: "skill" });
+    } finally {
+      env.LANGFUSE_SKILL_MAX_BYTES = 1_000_000;
+    }
   });
 
   it("only looks up latest when the default production version is missing", async () => {

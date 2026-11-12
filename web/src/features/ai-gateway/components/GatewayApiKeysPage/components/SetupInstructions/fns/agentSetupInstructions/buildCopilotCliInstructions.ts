@@ -6,11 +6,11 @@ import type {
   AgentSetupContext,
   AgentSetupInstructions,
 } from "@/src/features/ai-gateway/types/agentSetupInstructions";
-import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
+import type { GatewayApiFamily } from "@/src/features/ai-gateway/types/gatewayProvider";
 
 /** The Anthropic provider type appends `/v1/messages` itself, so its base URL omits `/v1`. */
 const COPILOT_PROVIDERS: Record<
-  GatewayProvider,
+  GatewayApiFamily,
   { path: string; env: string[] }
 > = {
   ANTHROPIC: {
@@ -29,7 +29,7 @@ const COPILOT_PROVIDERS: Record<
 export function buildCopilotCliInstructions(
   context: AgentSetupContext,
 ): AgentSetupInstructions {
-  const provider: GatewayProvider = context.providers.includes("ANTHROPIC")
+  const provider: GatewayApiFamily = context.providers.includes("ANTHROPIC")
     ? "ANTHROPIC"
     : "OPENAI";
   const { path, env } = COPILOT_PROVIDERS[provider];
@@ -43,13 +43,13 @@ export function buildCopilotCliInstructions(
     docsUrl: AGENT_SETUP_DOCS_URLS["copilot-cli"],
     warning:
       context.providers.length === 0
-        ? "Copilot CLI needs an Anthropic or OpenAI provider credential, and none is enabled yet."
+        ? "Copilot CLI needs an Anthropic or OpenAI provider connection, and none is enabled yet."
         : undefined,
     steps: [
       {
         title: "Point Copilot CLI at the gateway",
         description:
-          "Replace <model> with a model from your provider credential. If ~/.copilot/providers.json lists providers, it takes precedence over these variables.",
+          "Replace <model> with a model from your provider connection. If ~/.copilot/providers.json lists providers, it takes precedence over these variables.",
         language: "sh",
         code: [
           ...env,

@@ -17,12 +17,12 @@ const responseSchema = z.object({
 });
 
 export const openAiModelDiscoveryAdapter: ModelDiscoveryAdapter = {
-  async fetchCatalog({ credential, fetcher }) {
+  async fetchCatalog({ credential, baseURL, extraHeaders, fetcher }) {
     const definition = getGatewayProviderDefinition("OPENAI");
     const result = await requestJson({
       fetcher,
-      url: new URL(`${definition.baseUrl}${definition.modelsPath}`),
-      headers: { Authorization: `Bearer ${credential}` },
+      url: new URL(`${baseURL ?? definition.baseUrl}${definition.modelsPath}`),
+      headers: { ...extraHeaders, Authorization: `Bearer ${credential}` },
     });
     if (!result.success) return result;
 
@@ -55,8 +55,8 @@ export const openAiModelDiscoveryAdapter: ModelDiscoveryAdapter = {
   },
 };
 
-/** OpenAI keeps listing models past their shutdown date. Returns null for a missing or unparsable date. */
-function parseShutdownDate(shutdownDate: string | null | undefined) {
+/** Providers keep listing models past their shutdown date. Returns null for a missing or unparsable date. */
+export function parseShutdownDate(shutdownDate: string | null | undefined) {
   if (!shutdownDate) return null;
   const shutdownAt = Date.parse(`${shutdownDate}T00:00:00Z`);
   return Number.isNaN(shutdownAt) ? null : shutdownAt;

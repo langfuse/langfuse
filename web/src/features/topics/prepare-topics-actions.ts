@@ -1,8 +1,8 @@
 import {
   Eye,
   History,
-  Play,
-  RefreshCw,
+  Pencil,
+  Plus,
   Settings,
   type IconComponent,
 } from "@langfuse/icons";
@@ -14,7 +14,7 @@ export type AutomaticProcessingState =
   | { status: "paused"; shortLabel: string };
 
 type TopicAction = {
-  id: "automatic" | "regenerate" | "configure" | "history";
+  id: "edit" | "new-analysis" | "configure" | "history";
   label: string;
   icon: IconComponent;
   onSelect: () => void;
@@ -22,84 +22,52 @@ type TopicAction = {
   badge?: string;
 };
 
-const automaticBadge: Record<AutomaticProcessingState["status"], string> = {
-  unconfigured: "Off",
-  off: "Off",
-  on: "On",
-  paused: "Paused",
-};
-
-function processingDisabledReason(
-  state: AutomaticProcessingState,
+function newAnalysisDisabledReason(
   canWrite: boolean,
-  saving: boolean,
+  state: AutomaticProcessingState,
 ) {
-  if (state.status === "unconfigured") return "Configure Topics first.";
   if (!canWrite) return "You need permission to edit Topics.";
-  if (saving) return "Saving settings…";
+  if (state.status === "unconfigured") return "Set up Topics first.";
   return undefined;
 }
 
-/** One action policy for the inline Analyze control and both overflow-menu presentations. */
+/** One action policy for the Edit scan button and both overflow-menu presentations. */
 export function prepareTopicsActions({
   automaticProcessing,
   canWrite,
   configureAvailable,
-  regenerateAvailable,
   menuOnly,
-  onAutomaticProcessing,
   onConfigure,
-  onRegenerate,
   onHistory,
+  onNewAnalysis,
+  onEditRun,
   showUnassigned,
   onShowUnassignedChange,
 }: {
   automaticProcessing: { state: AutomaticProcessingState; saving: boolean };
   canWrite: boolean;
   configureAvailable: boolean;
-  regenerateAvailable: boolean;
   menuOnly: boolean;
-  onAutomaticProcessing: () => void;
   onConfigure: () => void;
-  onRegenerate: () => void;
   onHistory: () => void;
+  /** Starts a one-off analysis; absent where none can start. */
+  onNewAnalysis?: () => void;
+  /** Edits the selected live run; absent for past runs or without write access. */
+  onEditRun?: () => void;
   showUnassigned: boolean;
   onShowUnassignedChange: (show: boolean) => void;
 }) {
-  const { state, saving } = automaticProcessing;
-  const reason = processingDisabledReason(state, canWrite, saving);
-  const disabledReason =
-    reason && state.status === "paused"
-      ? `${state.shortLabel}. ${reason}`
-      : reason;
-  const automatic = menuOnly
-    ? null
-    : { state, disabledReason, onSelect: onAutomaticProcessing };
+  const { state } = automaticProcessing;
   const menu: TopicAction[] = [];
-  // Narrow headers hide the inline control, so the menu keeps it reachable.
-  if (automatic) {
+  // Handheld headers show only the menu, so it carries Edit scan there.
+  if (onEditRun && menuOnly)
     menu.push({
-      id: "automatic",
-      label:
-        state.status === "off" || state.status === "unconfigured"
-          ? "Analyze"
-          : "Auto-analyze",
-      icon: Play,
-      badge: automaticBadge[state.status],
-      disabledReason,
-      onSelect: onAutomaticProcessing,
+      id: "edit",
+      label: "Edit scan",
+      icon: Pencil,
+      onSelect: onEditRun,
     });
-  }
   menu.push(
-    {
-      id: "regenerate",
-      label: "Regenerate topics",
-      icon: RefreshCw,
-      disabledReason: regenerateAvailable
-        ? undefined
-        : "Configure Topics first.",
-      onSelect: onRegenerate,
-    },
     {
       id: "history",
       label: "History",
@@ -123,7 +91,27 @@ export function prepareTopicsActions({
     checked: showUnassigned,
     onCheckedChange: onShowUnassignedChange,
   } as const;
-  return { automatic, menu, display };
+  const newAnalysis = onNewAnalysis
+    ? {
+        onSelect: onNewAnalysis,
+        disabledReason: newAnalysisDisabledReason(canWrite, state),
+      }
+    : null;
+  if (newAnalysis)
+    menu.unshift({
+      id: "new-analysis",
+      label: "New scan",
+      icon: Plus,
+      disabledReason: newAnalysis.disabledReason,
+      onSelect: newAnalysis.onSelect,
+    });
+  const editRun = onEditRun && !menuOnly ? { onSelect: onEditRun } : null;
+  return {
+    editRun,
+    newScan: newAnalysis,
+    menu,
+    display,
+  };
 }
 
 export type TopicsActions = ReturnType<typeof prepareTopicsActions>;

@@ -5,6 +5,7 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import preview from "../../../.storybook/preview";
 import { MobileTopicsView } from "./MobileTopicsView";
 import { TopicsMobileControls } from "./TopicsMobileControls";
+import { staticTopicTraces, storyFacet } from "./topic-story-traces";
 
 const topics = [
   {
@@ -49,16 +50,16 @@ const rows = [
     unitStartTime: "2026-10-20T12:00:00.000Z",
   },
 ];
-const facet: ComponentProps<typeof MobileTopicsView>["facet"] = {
-  facetId: "intent",
-  name: "Intent",
-  facetVersion: 1,
-  topics,
+const facet = storyFacet(
+  {
+    facetId: "intent",
+    name: "Intent",
+    facetVersion: 1,
+    topics,
+    map: { runId: "run", topics },
+  },
   rows,
-  map: { runId: "run", topics },
-  awaitingCount: 1,
-  usableCount: rows.length,
-};
+);
 const mapResult = {
   error: null,
   data: {
@@ -76,7 +77,7 @@ const mapResult = {
 };
 
 function MobileExample(args: ComponentProps<typeof MobileTopicsView>) {
-  const [view, setView] = useState(args.view);
+  const view = args.view;
   const [facetId, setFacetId] = useState(args.facet.facetId);
   const facets = [
     args.facet,
@@ -100,8 +101,6 @@ function MobileExample(args: ComponentProps<typeof MobileTopicsView>) {
           facets={facets}
           selectedFacet={facetId}
           onSelectFacet={setFacetId}
-          view={view}
-          onSelectView={setView}
         />
       </div>
       <MobileTopicsView
@@ -137,6 +136,8 @@ const defaultArgs: ComponentProps<typeof MobileTopicsView> = {
   onOpenTrace: fn(),
   onGenerateTopics: fn(),
   canGenerateTopics: true,
+  useTraces: staticTopicTraces(rows),
+  showUnassigned: true,
 };
 
 const meta = preview.meta({
@@ -149,12 +150,11 @@ const meta = preview.meta({
 export const Default = meta.story({});
 export const AwaitingTopics = meta.story({
   args: {
-    facet: {
-      ...facet,
-      topics: [],
-      rows: rows.filter((row) => row.topicId === null),
-      map: null,
-    },
+    facet: storyFacet(
+      { ...facet, topics: [], map: null },
+      rows.filter((row) => row.topicId === null),
+    ),
+    useTraces: staticTopicTraces(rows.filter((row) => row.topicId === null)),
   },
 });
 export const BrowseAndOpenTrace = meta.story({
@@ -244,10 +244,7 @@ export const FitFilteredMap = meta.story({
     const [facet, setFacet] = useState(args.facet);
     return (
       <>
-        <Button
-          text="Refresh results"
-          onClick={() => setFacet({ ...facet, rows: [...facet.rows] })}
-        />
+        <Button text="Refresh results" onClick={() => setFacet({ ...facet })} />
         <MobileExample {...args} facet={facet} />
       </>
     );
@@ -355,6 +352,7 @@ export const PreviewTreemap = meta.story({
 export const PreviewGrid = meta.story({
   name: "(Test) Preview grid items, select traces, and clear topics",
   args: {
+    view: "grid",
     filters: [
       {
         column: "topicId",
@@ -366,14 +364,7 @@ export const PreviewGrid = meta.story({
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(
-      canvas.getByRole("combobox", { name: "Topics view" }),
-    );
-    await userEvent.click(
-      within(canvasElement.ownerDocument.body).getByRole("option", {
-        name: "Grid",
-      }),
-    );
+    await userEvent.click(canvas.getByRole("tab", { name: "Visualize" }));
     const grid = await canvas.findByRole("img", { name: /^Topic grid/ });
     const dot = grid.querySelector('[data-trace-id="access-0"]')!;
     await userEvent.click(dot);
@@ -406,6 +397,38 @@ export const PreviewGrid = meta.story({
     await expect(
       canvas.getByRole("button", { name: "Show all topics" }),
     ).toBeDisabled();
+    await expect(args.onOpenTrace).not.toHaveBeenCalled();
+  },
+});
+
+export const PickFilteredPointBeyondPage = meta.story({
+  name: "(Test) Picking a filtered point beyond the loaded page keeps the filter",
+  args: {
+    view: "grid",
+    filters: [
+      {
+        column: "topicId",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["billing"],
+      },
+    ],
+    useTraces: staticTopicTraces(rows, 1),
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("tab", { name: "Visualize" }));
+    const grid = await canvas.findByRole("img", { name: /^Topic grid/ });
+    const dot = grid.querySelector('[data-trace-id="billing-5"]')!;
+    await userEvent.click(dot);
+    await userEvent.click(dot);
+    const trace = await canvas.findByRole("button", {
+      name: "Open trace billing-5",
+    });
+    await expect(trace).toHaveAttribute("aria-current", "true");
+    await expect(
+      canvas.getByRole("heading", { name: topics[0].name }),
+    ).toBeVisible();
     await expect(args.onOpenTrace).not.toHaveBeenCalled();
   },
 });

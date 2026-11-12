@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   fireEvent,
   render,
@@ -10,7 +10,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import TopicsPage from "./TopicsPage";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { useGlobalDateRangeStore } from "@/src/features/global-time-range/globalDateRangeStore";
-import { rangeToString, type TimeRange } from "@/src/utils/date-range-utils";
+import { type TimeRange } from "@/src/utils/date-range-utils";
 import { type TopicFacet } from "@langfuse/shared/topics";
 
 const state = vi.hoisted(() => ({
@@ -24,7 +24,7 @@ const state = vi.hoisted(() => ({
   executionId: undefined as string | undefined,
   setQueryParams: vi.fn(),
   currentTopics: vi.fn(),
-  showGenerateCTA: false,
+  showGenerateCTA: true,
   hasStoredSummaries: true,
   resultsDataAvailable: true,
   mobileHeader: false,
@@ -35,13 +35,16 @@ const state = vi.hoisted(() => ({
   openConfigure: vi.fn(),
   canWrite: true,
   facets: [] as TopicFacet[],
+  facetsLoading: false,
+  workspaceMounts: 0,
   executions: [] as unknown[] | undefined,
   executionsError: null as Error | null,
   rulesPending: false,
   rulesError: null as Error | null,
   configurationFailure: null as "settings" | "readiness" | "connections" | null,
   settings: {} as Record<string, unknown>,
-  rules: [] as Array<{ facetIds: string[] }>,
+  rules: [] as Array<{ id?: string; facetIds: string[] }>,
+  maps: undefined as unknown,
   countsPending: false,
   countsFetching: false,
   summaryCountInput: vi.fn(),
@@ -116,6 +119,12 @@ vi.mock("@/src/components/table/peek/hooks/usePeekNavigation", () => ({
 vi.mock("@/src/components/table/peek/TablePeekViewTraceDetail", () => ({
   TablePeekViewTraceDetail: () => null,
 }));
+vi.mock(
+  "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled",
+  () => ({
+    useInternalFeaturesEnabled: () => false,
+  }),
+);
 vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
   useHasProjectAccess: () => state.canWrite,
 }));
@@ -170,6 +179,7 @@ vi.mock("./CurrentTopics", () => ({
     refreshAfter: number;
     timeRange: { from: Date; to: Date };
   }) => {
+    useState(() => state.workspaceMounts++);
     state.currentTopics(input);
     return {
       ...input,
@@ -195,7 +205,7 @@ vi.mock("./CurrentTopics", () => ({
       data-refresh-after={result.refreshAfter}
     >
       {state.showGenerateCTA && (
-        <button onClick={onGenerateTopics}>Generate topics</button>
+        <button onClick={onGenerateTopics}>Open topic generation</button>
       )}
     </div>
   ),
@@ -205,9 +215,9 @@ vi.mock("@/src/utils/api", () => ({
     topics: {
       facets: {
         useQuery: () => ({
-          data: state.facets,
-          isLoading: false,
-          isSuccess: true,
+          data: state.facetsLoading ? undefined : state.facets,
+          isLoading: state.facetsLoading,
+          isSuccess: !state.facetsLoading,
         }),
       },
       executions: {
@@ -291,6 +301,16 @@ vi.mock("@/src/utils/api", () => ({
         }),
       },
       traceErrors: { useQuery: () => ({}) },
+      maps: { useQuery: () => ({ data: state.maps }) },
+      ruleSetupStatus: { useQuery: () => ({ data: null }) },
+      startRuleSetup: {
+        useMutation: () => ({
+          isPending: false,
+          mutate: vi.fn(),
+          mutateAsync: vi.fn(),
+        }),
+      },
+      analysisResults: { useQuery: () => ({}) },
       retry: {
         useMutation: ({ onSuccess }: { onSuccess: () => void }) => ({
           mutate: (input: unknown) => {
@@ -329,6 +349,7 @@ vi.mock("@/src/utils/api", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  state.maps = undefined;
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-10-09T12:00:00Z"));
   vi.stubGlobal(
@@ -339,7 +360,7 @@ beforeEach(() => {
       disconnect() {}
     },
   );
-  state.showGenerateCTA = false;
+  state.showGenerateCTA = true;
   state.canViewTopics = true;
   state.resultsDataAvailable = true;
   state.mobileHeader = false;
@@ -352,6 +373,8 @@ beforeEach(() => {
   state.executionId = undefined;
   state.canWrite = true;
   state.facets = [];
+  state.facetsLoading = false;
+  state.workspaceMounts = 0;
   state.executions = [];
   state.executionsError = null;
   state.rulesPending = false;
@@ -393,151 +416,13 @@ it("shows Not found instead of the workspace when the Topics gate is closed", ()
   expect(state.currentTopics).not.toHaveBeenCalled();
 });
 
-it("keeps facet, view, and automatic processing reachable with the mobile header", () => {
+it("keeps the question picker reachable with the mobile header", () => {
   state.mobileHeader = true;
   state.resultFacets = [{ facetId: "intent", name: "Intent" }];
   state.rules = [{ facetIds: ["intent"] }];
-  const view = render(<TopicsPage />);
+  render(<TopicsPage />);
   expect(screen.getByRole("combobox", { name: "Topics facet" })).toBeTruthy();
-  expect(screen.getByRole("combobox", { name: "Topics view" })).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: /^Analyze/ }));
-  expect(state.openAutomaticProcessing).toHaveBeenCalledWith(false);
-  state.canWrite = false;
-  view.rerender(<TopicsPage />);
-  expect(
-    screen.getByRole("button", { name: /^Analyze/ }).hasAttribute("disabled"),
-  ).toBe(true);
 });
-
-it.each([
-  ["30d", 30 * 24 * 60],
-  ["5m", 5],
-  ["6h", 6 * 60],
-])(
-  "uses the shared project range %s for results and processing",
-  (token, minutes) => {
-    useGlobalDateRangeStore
-      .getState()
-      .actions.setProjectDefault("project", token);
-    render(<TopicsPage />, { wrapper: LayerProvider });
-    const { timeRange } = state.currentTopics.mock.lastCall![0];
-    expect(timeRange.to.getTime() - timeRange.from.getTime()).toBe(
-      minutes * 60_000,
-    );
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Select last 30 days" }),
-    );
-    expect(state.dateRange).toBe("30d");
-    expect(useGlobalDateRangeStore.getState().defaultsByProject.project).toBe(
-      "30d",
-    );
-  },
-);
-
-it("keeps a URL custom range fixed when an execution completes", () => {
-  const timeRange = {
-    from: new Date("2026-09-01T12:34:00Z"),
-    to: new Date("2026-09-02T15:45:00Z"),
-  };
-  state.dateRange = rangeToString(timeRange);
-  state.status = "running";
-  const view = render(<TopicsPage />, { wrapper: LayerProvider });
-  expect(state.currentTopics).toHaveBeenLastCalledWith(
-    expect.objectContaining({ timeRange }),
-  );
-
-  state.status = "completed";
-  view.rerender(<TopicsPage />);
-  expect(state.currentTopics).toHaveBeenLastCalledWith(
-    expect.objectContaining({ timeRange }),
-  );
-});
-
-it.each(["stored", "URL"])(
-  "caps an inherited one-year %s range without changing the shared selection",
-  (source) => {
-    useGlobalDateRangeStore
-      .getState()
-      .actions.setProjectDefault("project", "1y");
-    state.dateRange = source === "URL" ? "1y" : undefined;
-    render(<TopicsPage />, { wrapper: LayerProvider });
-
-    const { timeRange } = state.currentTopics.mock.lastCall![0];
-    expect(timeRange).toEqual({
-      from: new Date(Date.now() - 90 * 86_400_000),
-      to: new Date(),
-    });
-    expect(state.picker).toHaveBeenLastCalledWith({ range: "last90Days" });
-    expect(screen.getByTestId("current-topics")).toBeInTheDocument();
-    expect(screen.getByRole("status", { name: "" })).toHaveTextContent(
-      "Your selection is preserved on other pages.",
-    );
-    expect(state.setQueryParams).not.toHaveBeenCalled();
-    expect(state.dateRange).toBe(source === "URL" ? "1y" : undefined);
-    expect(useGlobalDateRangeStore.getState().defaultsByProject.project).toBe(
-      "1y",
-    );
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Select last 30 days" }),
-    );
-    expect(state.dateRange).toBe("30d");
-    expect(useGlobalDateRangeStore.getState().defaultsByProject.project).toBe(
-      "30d",
-    );
-    expect(state.picker).toHaveBeenLastCalledWith({ range: "last30Days" });
-    expect(screen.queryByRole("status", { name: "" })).not.toBeInTheDocument();
-  },
-);
-
-it("caps a custom range at its original end and preserves its URL through completion", () => {
-  const requested = {
-    from: new Date("2026-03-01T12:34:00Z"),
-    to: new Date("2026-09-02T15:45:00Z"),
-  };
-  const expected = {
-    from: new Date(requested.to.getTime() - 90 * 86_400_000),
-    to: requested.to,
-  };
-  state.dateRange = rangeToString(requested);
-  state.status = "running";
-  const view = render(<TopicsPage />, { wrapper: LayerProvider });
-  expect(state.currentTopics).toHaveBeenLastCalledWith(
-    expect.objectContaining({ timeRange: expected }),
-  );
-  expect(state.picker).toHaveBeenLastCalledWith(expected);
-  expect(screen.getByRole("status", { name: "" })).toHaveTextContent(
-    "final 90 days of your selected range",
-  );
-
-  state.status = "completed";
-  view.rerender(<TopicsPage />);
-  expect(state.currentTopics).toHaveBeenLastCalledWith(
-    expect.objectContaining({ timeRange: expected }),
-  );
-  expect(state.setQueryParams).not.toHaveBeenCalled();
-  expect(state.dateRange).toBe(rangeToString(requested));
-  expect(useGlobalDateRangeStore.getState().defaultsByProject).toEqual({});
-});
-
-it.each([
-  { range: "last90Days" },
-  {
-    from: new Date("2026-04-01T15:45:00Z"),
-    to: new Date(new Date("2026-04-01T15:45:00Z").getTime() + 90 * 86_400_000),
-  },
-] satisfies TimeRange[])(
-  "leaves an exact 90-day range unchanged: %j",
-  (timeRange) => {
-    state.dateRange = rangeToString(timeRange);
-    render(<TopicsPage />, { wrapper: LayerProvider });
-    expect(state.picker).toHaveBeenLastCalledWith(timeRange);
-    expect(screen.queryByRole("status", { name: "" })).not.toBeInTheDocument();
-    expect(state.setQueryParams).not.toHaveBeenCalled();
-    expect(screen.getByTestId("current-topics")).toBeInTheDocument();
-  },
-);
 
 it("refreshes current results through retry and completion for a selected run outside history", () => {
   state.executionId = "execution";
@@ -570,24 +455,6 @@ it("refreshes current results through retry and completion for a selected run ou
   expect(current).toHaveAttribute("data-refresh-after", completedAt);
 });
 
-it("holds relative bounds between renders and advances them after completion", () => {
-  state.status = "running";
-  const view = render(<TopicsPage />, { wrapper: LayerProvider });
-  const initialRange = state.currentTopics.mock.lastCall![0].timeRange;
-
-  vi.setSystemTime(new Date("2026-10-09T12:01:00Z"));
-  view.rerender(<TopicsPage />);
-  expect(state.currentTopics.mock.lastCall![0].timeRange).toEqual(initialRange);
-
-  state.status = "completed";
-  state.updatedAt = "2026-10-09T12:01:00Z";
-  view.rerender(<TopicsPage />);
-  expect(state.currentTopics.mock.lastCall![0].timeRange).toEqual({
-    from: new Date("2026-10-02T12:01:00Z"),
-    to: new Date("2026-10-09T12:01:00Z"),
-  });
-});
-
 const facet = (id: string, versions: number[]): TopicFacet => ({
   id,
   projectId: "project",
@@ -610,11 +477,10 @@ const execution = (status: string, operation: "process" | "update") => ({
   input: { operation },
   facets: [],
 });
-/** Opens the manual dialog from the header menu; "process" switches to its summarize tab. */
+/** Opens the manual dialog from the empty state; "process" switches to its summarize tab. */
 async function openManualDialog(operation: "process" | "update" = "update") {
-  fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   fireEvent.click(
-    await screen.findByRole("menuitem", { name: "Regenerate topics" }),
+    await screen.findByRole("button", { name: "Open topic generation" }),
   );
   if (operation === "process")
     fireEvent.mouseDown(
@@ -635,30 +501,66 @@ function withSummaries() {
   ];
 }
 
-it("shows Analyze in the header while auto-analyze is off and keeps Analyze, regenerate, history and settings in the menu", async () => {
+it.each([
+  ["no facets", () => []],
+  ["facets", () => [facet("intent", [1])]],
+])(
+  "requests results alongside facets and keeps that request when the run list loads, with %s",
+  (_, facets) => {
+    state.facets = facets();
+    state.facetsLoading = true;
+    state.executions = undefined;
+    const view = render(<TopicsPage />, { wrapper: LayerProvider });
+    expect(screen.queryByTestId("current-topics")).toBeNull();
+    expect(state.currentTopics).toHaveBeenCalled();
+    const { refreshAfter } = state.currentTopics.mock.lastCall![0];
+
+    state.facetsLoading = false;
+    state.executions = [execution("completed", "update")];
+    view.rerender(<TopicsPage />);
+    expect(screen.getByTestId("current-topics")).toBeInTheDocument();
+    expect(state.workspaceMounts).toBe(1);
+    expect(state.currentTopics).toHaveBeenLastCalledWith(
+      expect.objectContaining({ refreshAfter }),
+    );
+  },
+);
+
+it("puts New scan first in the menu with the scan actions", async () => {
   withSummaries();
   render(<TopicsPage />, { wrapper: LayerProvider });
-  fireEvent.click(screen.getByRole("button", { name: "Analyze" }));
-  expect(state.openAutomaticProcessing).toHaveBeenCalledWith(false);
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   const items = await screen.findAllByRole("menuitem");
   expect(items.map((item) => item.textContent)).toEqual([
-    "AnalyzeOff",
-    "Regenerate topics",
+    "New scan",
     "History",
     "Settings",
   ]);
 });
 
-it("shows a paused auto-analyze status with its short reason", () => {
+it("shows Edit scan as a header button for a selected live scan", async () => {
   withSummaries();
-  state.settings.blockedAt = "2026-10-09T10:00:00Z";
-  state.settings.blockMessage = "Fix the connection.";
+  state.maps = {
+    rules: [
+      {
+        id: "rule-1",
+        projectId: "project",
+        name: "All generations",
+        filter: [],
+        sampling: 1,
+        facetIds: ["intent"],
+        enabled: true,
+        updatedAt: "2026-11-01T00:00:00Z",
+        lastRefitAt: "2026-11-01T00:00:00Z",
+      },
+    ],
+    analyses: [],
+  };
   render(<TopicsPage />, { wrapper: LayerProvider });
-  const control = screen.getByRole("button", { name: "Auto-analyze: Paused" });
-  expect(control).toHaveAttribute("title", "Paused");
-  fireEvent.click(control);
-  expect(state.openAutomaticProcessing).toHaveBeenCalledWith(false);
+  expect(screen.getByRole("button", { name: "Edit scan" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
+  const items = await screen.findAllByRole("menuitem");
+  expect(items.map((item) => item.textContent)).not.toContain("Edit scan");
 });
 
 it.each([
@@ -847,6 +749,45 @@ it("regenerates the rule's facets that have summaries, at their latest version, 
   });
 });
 
+it("regenerates the shown rule's facets as a snapshot, without a rule ID", async () => {
+  withSummaries();
+  state.rules = [
+    { id: "rule-oldest", facetIds: ["outcome"] },
+    { id: "rule-shown", facetIds: ["intent"] },
+  ];
+  state.maps = {
+    rules: [
+      {
+        id: "rule-shown",
+        name: "Shown",
+        filter: [],
+        sampling: 1,
+        facetIds: ["intent"],
+        enabled: true,
+        lastRefitAt: "2026-10-09T10:00:00Z",
+      },
+    ],
+    analyses: [],
+  };
+  render(<TopicsPage />, { wrapper: LayerProvider });
+  await openManualDialog();
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Generate topics" }), {
+    button: 0,
+    ctrlKey: false,
+  });
+  const dialog = screen.getByRole("dialog", { name: "Manual processing" });
+  fireEvent.click(
+    within(dialog).getByRole("button", { name: "Generate topics" }),
+  );
+
+  await waitFor(() =>
+    expect(state.trigger).toHaveBeenCalledWith(
+      expect.objectContaining({ facets: [{ facetId: "intent", version: 2 }] }),
+    ),
+  );
+  expect(state.trigger.mock.calls[0][0]).not.toHaveProperty("ruleId");
+});
+
 it("shows a regenerate failure that settles after the dialog was closed and reopened, and retries with the same requestId", async () => {
   withSummaries();
   let fail: (error: Error) => void = () => {};
@@ -929,9 +870,7 @@ it("hands off from manual processing to Topics model configuration", async () =>
   render(<TopicsPage />, { wrapper: LayerProvider });
   await openManualDialog("process");
   const dialog = screen.getByRole("dialog", { name: "Manual processing" });
-  fireEvent.click(
-    within(dialog).getByRole("button", { name: "Configure Topics" }),
-  );
+  fireEvent.click(within(dialog).getByRole("button", { name: "Settings" }));
   expect(state.openConfigure).toHaveBeenCalledOnce();
   await waitFor(() =>
     expect(
@@ -1114,7 +1053,6 @@ it("shows the setup landing until the project's first stored summary exists", ()
   state.hasStoredSummaries = false;
   const view = render(<TopicsPage />, { wrapper: LayerProvider });
   expect(screen.getByRole("button", { name: "Set up topics" })).toBeEnabled();
-  expect(screen.queryByRole("button", { name: /^Analyze/ })).toBeNull();
   expect(screen.queryByTestId("current-topics")).toBeNull();
   state.hasStoredSummaries = true;
   view.rerender(<TopicsPage />);
@@ -1126,7 +1064,9 @@ it("opens generation directly from the empty topics panel", () => {
   withSummaries();
   state.showGenerateCTA = true;
   render(<TopicsPage />, { wrapper: LayerProvider });
-  fireEvent.click(screen.getByRole("button", { name: "Generate topics" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Open topic generation" }),
+  );
   const dialog = within(
     screen.getByRole("dialog", { name: "Manual processing" }),
   );
@@ -1135,17 +1075,4 @@ it("opens generation directly from the empty topics panel", () => {
     "true",
   );
   expect(dialog.getByRole("button", { name: "Generate topics" })).toBeEnabled();
-});
-
-it("keeps date controls reachable when a disabled results query has no data", () => {
-  state.resultsDataAvailable = false;
-  state.dateRange = rangeToString({
-    from: new Date("2026-10-10T00:00:00Z"),
-    to: new Date("2026-10-09T00:00:00Z"),
-  });
-  render(<TopicsPage />, { wrapper: LayerProvider });
-  expect(
-    screen.getByRole("button", { name: "Select last 30 days" }),
-  ).toBeVisible();
-  expect(screen.queryByText("See what your traces are about")).toBeNull();
 });

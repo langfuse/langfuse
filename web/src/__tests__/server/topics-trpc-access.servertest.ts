@@ -14,6 +14,7 @@ import {
   createTopicExecution,
   createTopicFacet,
   createTopicRun,
+  writeTopicSummaries,
   getTopicsModels,
 } from "@langfuse/shared/topics/server";
 // Only the LLM transport is faked, to see which connection a test call used.
@@ -38,7 +39,6 @@ function caller(userId: string, memberships: [string, string, Role][]) {
     expires: "1",
     user: {
       id: userId,
-      admin: false,
       featureFlags: testFeatureFlags({ langfuseTopics: true }),
       organizations: memberships.map(([orgId, projectId, role]) => ({
         id: orgId,
@@ -98,6 +98,33 @@ async function topicsProject(userId: string) {
     facetVersion: 1,
     config: {},
   });
+  const traceId = randomUUID();
+  await writeTopicSummaries([
+    {
+      projectId,
+      facetId: facet.id,
+      facetVersion: 1,
+      traceId,
+      sessionId: null,
+      triggerType: "manual_poc",
+      environment: "production",
+      traceName: "assistant",
+      unitStartTime: new Date().toISOString(),
+      state: "complete",
+      summary: "Private summary",
+      embedding: [1, 0],
+      transcriptId: "test",
+      transcriptVersion: "test",
+      summaryModel: "summary-model",
+      embeddingModel: "embedding-model",
+      providedUsageDetails: {},
+      usageDetails: {},
+      providedCostDetails: {},
+      costDetails: {},
+      processedAt: new Date().toISOString(),
+      metadata: {},
+    },
+  ]);
   const execution = await createTopicExecution(
     {
       projectId,
@@ -119,6 +146,7 @@ async function topicsProject(userId: string) {
     facetId: facet.id,
     runId: run.id,
     executionId: execution.id,
+    traceId,
   };
 }
 
@@ -202,15 +230,22 @@ describe("Topics tRPC access", () => {
       [b.orgId, b.projectId, "ADMIN"],
     ]);
     const projectId = a.projectId;
-    const timeRange = {
-      from: new Date(Date.now() - 86_400_000),
-      to: new Date(),
-    };
 
     // Positive control: the same ids resolve within their own project.
     await expect(
       admin.execution({ projectId: b.projectId, executionId: b.executionId }),
     ).resolves.toMatchObject({ id: b.executionId });
+    const ownTraces = await admin.traces({
+      projectId: b.projectId,
+      facetId: b.facetId,
+    });
+    expect(ownTraces.rows.map((row) => row.traceId)).toEqual([b.traceId]);
+    await expect(
+      admin.traces({ projectId, facetId: b.facetId }),
+    ).resolves.toMatchObject({ rows: [] });
+    expect(
+      JSON.stringify(await admin.currentResults({ projectId })),
+    ).not.toContain(b.facetId);
 
     await expect(
       admin.execution({ projectId, executionId: b.executionId }),
@@ -219,7 +254,7 @@ describe("Topics tRPC access", () => {
       admin.retry({ projectId, executionId: b.executionId }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(
-      admin.map({ projectId, runId: b.runId, timeRange }),
+      admin.map({ projectId, runId: b.runId }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(
       admin.saveFacet({

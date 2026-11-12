@@ -5,5 +5,5 @@ import { Badge } from "@/src/components/design-system/Badge/Badge";
  * doesn't compete with the title next to it.
  */
 export function TextChip({ text }: { text: string }) {
-  return <Badge color="primary" size="md" text={text} />;
+  return <Badge color="outline" size="md" text={text} />;
 }

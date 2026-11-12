@@ -63,6 +63,8 @@ import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganiz
 import { PaymentBannerView } from "@/src/features/payment-banner/PaymentBannerView";
 import { usePaymentBanner } from "@/src/features/payment-banner/PaymentBanner";
 import { useTopBannerHeight } from "@/src/features/top-banner/useTopBannerHeight";
+import { useV4MigrationTopBanner } from "@/src/features/v4-migration/hooks/useV4MigrationTopBanner";
+import { V4MigrationTopBannerView } from "@/src/features/v4-migration/V4MigrationTopBannerView";
 
 const DISMISSED_SIDEBAR_NOTIFICATIONS_KEY = "dismissed-sidebar-notifications";
 
@@ -115,6 +117,7 @@ type AuthenticatedLayoutProps = PropsWithChildren<{
  * Full authenticated layout with all features:
  * - AppSidebar with navigation
  * - Payment banner (conditional)
+ * - Legacy API shutdown banner (conditional, Langfuse Cloud)
  * - Support drawer
  * - Command menu (Cmd/Ctrl+K)
  * - Toast notifications
@@ -137,6 +140,7 @@ export function AuthenticatedLayout({
   const uiCustomization = useUiCustomization();
   const versionUpdatePrompt = useVersionUpdatePrompt();
   const paymentBanner = usePaymentBanner();
+  const v4MigrationTopBanner = useV4MigrationTopBanner();
   const topBannerRef = useTopBannerHeight();
   // Account-level entry: use the raw flag (same as account settings tabs), not
   // project-scoped force-v3 suppression.
@@ -150,7 +154,6 @@ export function AuthenticatedLayout({
   const showLegacyUiBanner = useLegacyUiBannerVisible(routerProjectId);
   const customerDataWarning = getCustomerDataWarning({
     email: user.email,
-    isAdmin: user.admin === true,
     isLangfuseCloud,
     projectId: routerProjectId ?? null,
     organizationId:
@@ -323,6 +326,9 @@ export function AuthenticatedLayout({
                   billingSettingsHref={paymentBanner.billingSettingsHref}
                   severity={paymentBanner.severity}
                 />
+              )}
+              {v4MigrationTopBanner && (
+                <V4MigrationTopBannerView {...v4MigrationTopBanner} />
               )}
               {env.NEXT_PUBLIC_PREVIEW_PR_URL && (
                 <PreviewDeploymentBanner

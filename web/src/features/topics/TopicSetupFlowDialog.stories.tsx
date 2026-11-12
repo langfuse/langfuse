@@ -1,4 +1,10 @@
 import { useState } from "react";
+import type { FilterState } from "@langfuse/shared";
+import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
+import {
+  topicsFilterRegistry,
+  useTopicTraceFilterState,
+} from "./useTopicTraceFilter";
 import { DEFAULT_TOPIC_FACETS } from "@langfuse/shared/topics";
 import { expect, fn, userEvent, within } from "storybook/test";
 
@@ -40,6 +46,17 @@ function SetupStory({
   connection?: "ready" | "none" | "viewer";
 }) {
   const [selected, setSelected] = useState(questions);
+  const [filter, setFilter] = useState<FilterState>([]);
+  // The query editor's Ask AI needs tRPC, which stories don't provide.
+  const [mode, setMode] = useState<EvaluatorFilterExperience>("builder");
+  const traceFilterState = useTopicTraceFilterState({
+    projectId: "demo-project",
+    filters: filter,
+    onFiltersChange: setFilter,
+    observed: {},
+    mode,
+    onModeChange: setMode,
+  });
   return (
     <TopicSetupFlowDialog
       advancedOpen={false}
@@ -49,7 +66,6 @@ function SetupStory({
         provider: "Amazon Bedrock",
         model: "us.anthropic.claude-sonnet-5-5",
       }}
-      projectId="demo-project"
       connectionCaption="Amazon Bedrock"
       hasConnection={connection === "ready"}
       canAddConnection={connection !== "viewer"}
@@ -77,10 +93,37 @@ function SetupStory({
       onSamplePercentChange={fn()}
       onSummaryChange={fn()}
       onWaitMinutesChange={fn()}
-      pastCount={{ status: "ready", matched: 412, days: 14, dailyTraces: 180 }}
+      pastCount={{ status: "ready", matched: 412, dailyTraces: 180 }}
       providerGroups={providerGroups}
       questions={selected}
       samplePercent={100}
+      projectId="demo-project"
+      filter={filter}
+      onFilterChange={setFilter}
+      traceFilter={{
+        ...traceFilterState,
+        mode,
+        observed: {},
+        builderColumns: [...topicsFilterRegistry.columns],
+        preview: {
+          status: "ready",
+          count: 2,
+          traces: [
+            {
+              id: "trace-support-1",
+              name: "support-agent",
+              timestamp: new Date("2026-11-08T10:00:00Z"),
+              environment: "production",
+            },
+            {
+              id: "trace-support-2",
+              name: "support-agent",
+              timestamp: new Date("2026-11-08T09:30:00Z"),
+              environment: "production",
+            },
+          ],
+        },
+      }}
       step={step}
       summary={{
         provider: "Amazon Bedrock",

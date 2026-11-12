@@ -98,7 +98,6 @@ beforeAll(async () => {
     user: {
       id: userId,
       name: "Evaluator tester",
-      admin: false,
       canCreateOrganizations: false,
       organizations: [
         {

@@ -61,7 +61,6 @@ describe("GET /api/traces/[traceId]/observations/[observationId]/io/[field]", ()
     mockGetServerAuthSession.mockResolvedValue({
       user: {
         email: "test@example.com",
-        admin: false,
         organizations: [{ projects: [{ id: projectId }] }],
       },
     });
@@ -130,7 +129,6 @@ describe("GET /api/traces/[traceId]/observations/[observationId]/io/[field]", ()
       mockGetServerAuthSession.mockResolvedValue({
         user: {
           email: "test@example.com",
-          admin: false,
           organizations: [{ projects: [{ id: projectId }] }],
         },
       });
