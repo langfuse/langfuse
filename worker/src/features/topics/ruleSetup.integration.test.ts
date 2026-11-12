@@ -35,9 +35,6 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
 vi.mock("../traceBatching/traceRuleRecording", () => ({
   seedTraceDispatch: vi.fn(),
 }));
-vi.mock("../traceBatching/traceBatchSampling", () => ({
-  isTraceDispatchEnabled: () => true,
-}));
 
 const DIMENSIONS = 64;
 

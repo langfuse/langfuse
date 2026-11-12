@@ -34,7 +34,6 @@ import type {
   TopicRun,
 } from "@langfuse/shared/topics";
 import { resolveTraceIdleMs } from "../traceBatching/traceBatchReadiness";
-import { isTraceDispatchEnabled } from "../traceBatching/traceBatchSampling";
 import { seedTraceDispatch } from "../traceBatching/traceRuleRecording";
 import { currentRuleMap, estimateFitWindow } from "./nightlyRefit";
 
@@ -195,12 +194,6 @@ async function selectAndSeed(
     })),
   );
   const open = setup.facets.filter((facet) => facet.state !== "has_map");
-  const dispatch = isTraceDispatchEnabled();
-  if (open.length && !dispatch)
-    logger.warn("Topics rule setup skips seeding without trace dispatch", {
-      projectId,
-      ruleId: rule.id,
-    });
   let seeded: string[] = [];
   for (const days of open.length ? TOPIC_SETUP_WINDOW_DAYS : []) {
     setup.days = days;
@@ -228,8 +221,6 @@ async function selectAndSeed(
       break;
     }
     const shortfall = SETUP_TRACES - fewest;
-    // Without trace dispatch nothing would pick seeds up; fit what exists.
-    if (!dispatch) continue;
     // Every unsummarized match up to the shortfall; a random sample of it beyond.
     seeded = await getTopicSetupTraceIds({
       projectId,
