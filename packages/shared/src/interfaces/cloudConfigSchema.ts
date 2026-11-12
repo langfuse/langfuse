@@ -70,6 +70,18 @@ export const CloudConfigSchema = z.object({
     })
     .nullish(),
 
+  // Self-serve enterprise trial, written when an org redeems a trial coupon.
+  // Not paid billing state: plan resolution ranks it below every paid plan and
+  // usage stays capped. `.catch(null)` keeps a malformed value from failing the
+  // whole cloudConfig in parseDbOrg.
+  enterpriseTrial: z
+    .object({
+      startedAt: z.iso.datetime(),
+      endsAt: z.iso.datetime(),
+    })
+    .nullish()
+    .catch(null),
+
   // custom rate limits for an organization
   rateLimitOverrides: CloudConfigRateLimit.optional(),
 });

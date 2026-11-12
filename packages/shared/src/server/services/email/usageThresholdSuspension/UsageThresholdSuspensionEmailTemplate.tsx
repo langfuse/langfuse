@@ -13,6 +13,12 @@ import {
   Tailwind,
   Preview,
 } from "@react-email/components";
+import {
+  type UsageThresholdPlan,
+  UsageThresholdUpgradeSection,
+  usageThresholdPlanName,
+  usageThresholdPlanPhrase,
+} from "../usageThresholdPlan";
 
 interface UsageThresholdSuspensionEmailProps {
   organizationName: string;
@@ -21,6 +27,7 @@ interface UsageThresholdSuspensionEmailProps {
   billingUrl: string;
   receiverEmail: string;
   resetDate: string; // ISO date string
+  plan?: UsageThresholdPlan;
 }
 
 export const UsageThresholdSuspensionEmailTemplate = ({
@@ -30,6 +37,7 @@ export const UsageThresholdSuspensionEmailTemplate = ({
   billingUrl,
   receiverEmail,
   resetDate,
+  plan = "free-tier",
 }: UsageThresholdSuspensionEmailProps) => {
   // Format reset date as "January 15, 2024"
   const formattedResetDate = new Date(resetDate).toLocaleDateString("en-US", {
@@ -64,8 +72,9 @@ export const UsageThresholdSuspensionEmailTemplate = ({
               </Heading>
               <Text className="text-gray-700 text-sm leading-6">
                 Your organization &quot;{organizationName}&quot; has exceeded
-                the <strong>{limit.toLocaleString()} event limit</strong> for
-                the free tier. Data ingestion has been suspended.
+                the <strong>{limit.toLocaleString()} event limit</strong> for{" "}
+                {usageThresholdPlanPhrase[plan]}. Data ingestion has been
+                suspended.
               </Text>
             </Section>
 
@@ -78,7 +87,8 @@ export const UsageThresholdSuspensionEmailTemplate = ({
                   {currentUsage.toLocaleString()}
                 </Text>
                 <Text className="text-red-600 text-xs m-0 mt-1">
-                  Free tier limit: {limit.toLocaleString()} events
+                  {usageThresholdPlanName[plan]} limit: {limit.toLocaleString()}{" "}
+                  events
                 </Text>
               </div>
             </Section>
@@ -121,31 +131,7 @@ export const UsageThresholdSuspensionEmailTemplate = ({
               </Text>
             </Section>
 
-            <Section className="mt-8">
-              <Heading className="text-black text-[18px] font-semibold">
-                Upgrade to Core at only $29/month
-              </Heading>
-              <Text className="text-gray-700 text-sm leading-6">
-                When you upgrade, you can:
-                <br />
-                • Add unlimited number of users
-                <br />
-                • Retain data for 90 days
-                <br />
-                • Access unlimited evaluators
-                <br />• Get support via Email/Chat
-              </Text>
-              <Text className="text-gray-700 text-sm leading-6 mt-4">
-                <strong>Startup Program:</strong> Eligible startups get 50% off
-                for their first year.{" "}
-                <a
-                  href="https://langfuse.com/startups"
-                  className="text-blue-600 underline"
-                >
-                  Learn more →
-                </a>
-              </Text>
-            </Section>
+            <UsageThresholdUpgradeSection plan={plan} />
 
             <Hr className="border border-solid border-[#eaeaea] my-[26px] mx-0 w-full" />
 

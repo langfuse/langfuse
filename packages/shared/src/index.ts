@@ -59,6 +59,7 @@ export * from "./utils/jsonSchemaValidation";
 export * from "./utils/chatml";
 export * from "./utils/math";
 export * from "./features/entitlements/plans";
+export * from "./features/entitlements/enterpriseTrial";
 export * from "./interfaces/rate-limits";
 export * from "./tableDefinitions/typeHelpers";
 export * from "./domain/webhooks";

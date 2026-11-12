@@ -19,6 +19,7 @@ import { useBillingInformation } from "./useBillingInformation";
 import { api } from "@/src/utils/api";
 import { OrganizationUsageBreakdown } from "@/src/features/organization-usage/components/OrganizationUsageBreakdown";
 import { MAX_EVENTS_FREE_PLAN } from "@/src/ee/features/billing/constants";
+import { ENTERPRISE_TRIAL_UNIT_LIMIT } from "@langfuse/shared";
 
 export const BillingSettings = () => {
   const router = useRouter();
@@ -90,12 +91,29 @@ export const BillingSettings = () => {
 
       <Header title="Usage & Billing" />
       <div className="space-y-6">
+        {organization?.plan === "cloud:enterprise-trial" &&
+          organization.cloudConfig?.enterpriseTrial && (
+            <Alert variant="info">
+              <Alert.Title>Enterprise trial</Alert.Title>
+              <Alert.Description>
+                {`Your enterprise trial ends on ${new Date(
+                  organization.cloudConfig.enterpriseTrial.endsAt,
+                ).toLocaleDateString("en-US", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}. Upgrade to a paid plan to keep Enterprise features and ingest without the trial limit.`}
+              </Alert.Description>
+            </Alert>
+          )}
         {usage.data !== null && (
           <BillingUsageChart
             usage={usage.data}
-            hobbyPlanLimit={
-              organization?.cloudConfig?.monthlyObservationLimit ??
-              MAX_EVENTS_FREE_PLAN
+            planLimit={
+              organization?.plan === "cloud:enterprise-trial"
+                ? ENTERPRISE_TRIAL_UNIT_LIMIT
+                : (organization?.cloudConfig?.monthlyObservationLimit ??
+                  MAX_EVENTS_FREE_PLAN)
             }
             plan={organization?.plan ?? "cloud:hobby"}
           />

@@ -11,7 +11,9 @@ import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrga
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { logger } from "@langfuse/shared/src/server";
 import { type BillingProvider } from "@langfuse/shared";
+import { env } from "@/src/env.mjs";
 import { resolveBillingService } from "./resolveBillingService";
+import { redeemEnterpriseTrial } from "./enterpriseTrial";
 import { isCloudBillingEnabled } from "../utils/isCloudBillingEnabled";
 
 const PROVIDER_LABEL: Record<BillingProvider, string> = {
@@ -426,5 +428,44 @@ export const cloudBillingRouter = createTRPCRouter({
       );
 
       return result;
+    }),
+  redeemEnterpriseTrial: protectedOrganizationProcedure
+    .input(
+      z.object({
+        orgId: z.string(),
+        code: z.string().min(1).max(256),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        organizationId: input.orgId,
+        scope: "langfuseCloudBilling:CRUD",
+        session: ctx.session,
+      });
+
+      if (!isCloudBillingEnabled()) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Enterprise trials are only available on Langfuse Cloud. This feature requires NEXT_PUBLIC_LANGFUSE_CLOUD_REGION to be configured.",
+        });
+      }
+
+      const enterpriseTrial = await redeemEnterpriseTrial({
+        orgId: input.orgId,
+        code: input.code,
+        validCodes: env.LANGFUSE_ENTERPRISE_TRIAL_COUPON_CODES,
+      });
+
+      auditLog({
+        session: ctx.session,
+        orgId: input.orgId,
+        resourceType: "organization",
+        resourceId: input.orgId,
+        action: "redeemEnterpriseTrial",
+        after: enterpriseTrial,
+      });
+
+      return enterpriseTrial;
     }),
 });
