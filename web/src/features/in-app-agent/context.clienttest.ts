@@ -21,6 +21,7 @@ describe("sanitizeInAppAgentContext", () => {
       key: "pass or fail",
       operator: "any of",
       value: ["pass"],
+      target: "baseline",
     },
   ];
   const currentUrl = "https://cloud.langfuse.com/project/project-1/traces";

@@ -1,7 +1,7 @@
 import type { AgUiContext } from "@langfuse/shared/in-app-agent";
 import { getInAppAgentProjectRoute } from "@/src/features/in-app-agent/routeContext";
 import type { ActiveTableFilterState } from "@/src/features/filters/lib/activeTableFilterState";
-import { eventsTableFilterState, type FilterState } from "@langfuse/shared";
+import { eventsTableSingleFilter, type FilterState } from "@langfuse/shared";
 import { z } from "zod";
 
 type InAppAgentContext = AgUiContext;
@@ -217,7 +217,11 @@ export function sanitizeInAppAgentContext(
 
 const tableFiltersContextSchema = z.object({
   tableName: z.string().min(1).max(MAX_CONTEXT_KEY_LENGTH),
-  filters: eventsTableFilterState,
+  filters: z.array(
+    eventsTableSingleFilter.and(
+      z.object({ target: z.string().min(1).max(512).optional() }),
+    ),
+  ),
 });
 
 function sanitizeTableFiltersContext(context: InAppAgentContext) {
