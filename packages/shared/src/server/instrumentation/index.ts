@@ -133,7 +133,7 @@ export function instrumentSync<T>(
 
 export const getCurrentSpan = () => opentelemetry.trace.getActiveSpan();
 
-/** withoutBaggage runs fn with the active context's baggage removed, so outbound requests do not propagate internal baggage entries. */
+/** withoutBaggage runs fn with the active context's baggage removed. */
 export function withoutBaggage<T>(fn: () => T): T {
   return opentelemetry.context.with(
     opentelemetry.propagation.deleteBaggage(opentelemetry.context.active()),

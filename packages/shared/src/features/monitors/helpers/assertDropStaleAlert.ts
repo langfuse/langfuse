@@ -1,7 +1,7 @@
 import { prisma } from "../../../db";
 import { type MonitorAlert } from "../types";
 
-/** assertDropStaleAlert throws a StaleAlertError when the alert's monitor was deleted or has since saved a newer alert, so an older queued alert cannot overwrite it. */
+/** assertDropStaleAlert throws a StaleAlertError when the alert's monitor was deleted or has since saved a newer alert. */
 export async function assertDropStaleAlert({
   projectId,
   alert,
