@@ -20,11 +20,6 @@ describe("deriveQueryTokens", () => {
       });
       expect(token?.summary?.values).toEqual(["alpha", "beta", "gamma"]);
       expect(token?.summary?.label).toContain(`${relation} 3 values`);
-      expect(
-        token?.summary?.groups
-          .flatMap((group) => group.parts.map((part) => part.text))
-          .join(""),
-      ).toContain("[alpha +2]");
       expect(token?.raw).toBe(draft);
       expect(
         token?.groups

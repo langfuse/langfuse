@@ -129,7 +129,7 @@ follow-up.)
 
 ## Compact value groups
 
-Validated filters with more than two values carry a compact display projection: the field, target, matching relationship, first value, and remaining count. Canonical token text and source spans remain complete. `QueryInput` treats each compact token as one editing atom; its selection and clipboard mapping use the complete expression. Invalid or incomplete filters remain ordinary editable text.
+Validated filters with more than two values project the value list into a separate collection control beside the field. The control shows the first value and remaining count; OR matching is implicit, while all-of and exclusion remain explicit. Experiment targets stay outside the value control. Canonical token text and source spans remain complete. `QueryInput` treats each compact token as one editing atom; its selection and clipboard mapping use the complete expression. Invalid or incomplete filters remain ordinary editable text.
 
 `SearchComposer` opens a chip-anchored popup with the same `CategoricalFilterSelect` used by the sidebar: checkboxes, observed values and counts, search, Only/All gestures, and array matching modes. Every selection applies immediately. The popup edits only its condition, preserving companion conditions and experiment targets, and remains open when the chip shrinks below the collapse threshold. Stored values remain available when absent from current observations. `QueryExpressionEditor` provides separate bounded full-query editing. Queries may contain up to 65,536 characters; URL-backed search phrases retain a 2,048-character limit and structured filters use the bounded-URL storage fallback.
 

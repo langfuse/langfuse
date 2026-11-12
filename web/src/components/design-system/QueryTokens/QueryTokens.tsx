@@ -1,4 +1,5 @@
 import { type ReactNode } from "react";
+import { ChevronDown } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
 import { WORD_JOINER, QUERY_LABEL_COLORS } from "./QueryTokens.constants";
 
@@ -30,12 +31,12 @@ type TokenGroup = {
 };
 
 function renderGroups(groups: readonly TokenGroup[], compact: boolean) {
+  // Compact parts share the query preview; empty titles suppress native tooltips.
   return groups.map((group, index) => (
     <span
       key={index}
       className={cn(
         compact ? "inline-flex min-w-0 items-center whitespace-pre" : undefined,
-        compact && index === 0 && "max-w-[50%] shrink-0",
         !compact && group.noWrap && "whitespace-nowrap",
       )}
     >
@@ -43,7 +44,7 @@ function renderGroups(groups: readonly TokenGroup[], compact: boolean) {
         <span
           key={partIndex}
           data-part={part.tone}
-          title={compact ? part.text : undefined}
+          title={compact ? "" : undefined}
           className={cn(
             partStyles[part.tone],
             part.color && QUERY_LABEL_COLORS[part.color],
@@ -82,8 +83,10 @@ export function QueryTokens({
     groups?: readonly TokenGroup[];
     /** A display projection; raw and offsets always describe the complete query. */
     summary?: {
+      /** Field prefix, value preview, then any trailing target groups. */
       groups: readonly TokenGroup[];
       label: string;
+      previewLabel: string;
       values: readonly string[];
     };
   }[];
@@ -112,16 +115,32 @@ export function QueryTokens({
     let tokenContent: ReactNode = token.raw;
     if (summary !== undefined) {
       tokenContent = (
-        <button
-          type="button"
-          data-query-summary
-          aria-label={`Edit ${summary.label}`}
-          aria-haspopup="dialog"
-          onClick={(event) => onActivateToken?.(token.id, event.currentTarget)}
-          className="focus-visible:ring-ring inline-flex h-full max-w-full min-w-0 items-center rounded-sm text-left focus-visible:ring-2 focus-visible:outline-none"
-        >
-          {renderGroups(summary.groups, true)}
-        </button>
+        <>
+          <span className="inline-flex max-w-[50%] min-w-0 shrink-0">
+            {renderGroups(summary.groups.slice(0, 1), true)}
+          </span>
+          <button
+            type="button"
+            data-query-summary
+            aria-label={`Edit ${summary.label}`}
+            aria-haspopup="dialog"
+            onClick={(event) =>
+              onActivateToken?.(token.id, event.currentTarget)
+            }
+            className="border-border-contrast bg-secondary focus-visible:ring-ring hover:border-foreground/40 hover:bg-accent inline-flex h-5.5 max-w-full min-w-0 cursor-pointer items-center gap-1 rounded-md border px-1.5 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none"
+          >
+            {renderGroups(summary.groups.slice(1, 2), true)}
+            <span className="bg-background/70 text-muted-foreground shrink-0 rounded-sm px-1 font-sans text-[10px] leading-4">
+              +{summary.values.length - 1}
+            </span>
+            <ChevronDown
+              size="sm"
+              __rawClassName="text-muted-foreground shrink-0"
+              aria-hidden
+            />
+          </button>
+          {renderGroups(summary.groups.slice(2), true)}
+        </>
       );
     } else if (token.groups !== undefined) {
       tokenContent = renderGroups(token.groups, false);
@@ -139,12 +158,14 @@ export function QueryTokens({
         data-deactivated={token.inactiveReason !== null || undefined}
         className={cn(
           "ph-no-capture max-w-full",
-          tokenStyles[token.kind],
-          summary !== undefined &&
-            "inline-flex h-6 items-center py-0 align-bottom",
+          summary === undefined
+            ? tokenStyles[token.kind]
+            : "inline-flex h-6 items-center gap-1 rounded-sm border border-transparent px-1.5 align-bottom",
           token.inactiveReason !== null &&
             "line-through decoration-1 opacity-50",
-          token.id === highlightedTokenId && "border-ring",
+          summary === undefined &&
+            token.id === highlightedTokenId &&
+            "border-ring",
         )}
       >
         {tokenContent}

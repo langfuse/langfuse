@@ -79,27 +79,34 @@ export function deriveQueryTokens({
     let relation = "any of";
     if (segment.negated) relation = "none of";
     else if (segment.valueOp === "and") relation = "all of";
+    const subject = token.explanation?.subject ?? segment.displayField;
     return {
       ...token,
       ...(segment.values.length > 2
         ? {
             summary: {
-              label: `${token.explanation?.subject ?? segment.displayField} ${relation} ${segment.values.length} values`,
+              label: `${subject} ${relation} ${segment.values.length} values`,
+              previewLabel: `${subject} ${relation === "any of" ? "" : `${relation} `}${segment.values.length} values`,
               values: segment.values,
               groups: [
                 fieldGroup,
                 {
                   noWrap: true,
                   parts: [
-                    { text: `${relation} [`, tone: "muted" as const },
+                    ...(relation === "any of"
+                      ? []
+                      : [
+                          {
+                            text: `${relation === "all of" ? "all" : "none"} `,
+                            tone: "muted" as const,
+                          },
+                        ]),
                     { text: segment.values[0]!, tone: "value" as const },
-                    {
-                      text: ` +${segment.values.length - 1}]`,
-                      tone: "muted" as const,
-                    },
-                    ...(!prefixTarget ? targetParts : []),
                   ],
                 },
+                ...(!prefixTarget && targetParts.length > 0
+                  ? [{ noWrap: true, parts: targetParts }]
+                  : []),
               ],
             },
           }

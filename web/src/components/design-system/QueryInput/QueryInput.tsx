@@ -1258,7 +1258,7 @@ function QueryInputEditor({
   const explainTargetId = explainTarget?.id ?? null;
   const explanation = (() => {
     if (onEditToken !== undefined && explainTarget?.summary !== undefined) {
-      return { subject: explainTarget.summary.label, predicate: "" };
+      return { subject: explainTarget.summary.previewLabel, predicate: "" };
     }
     return explainTarget?.explanation ?? null;
   })();
@@ -1332,10 +1332,11 @@ function QueryInputEditor({
     const rectsOf = (id: string | null): DOMRect[] => {
       if (root === null || id === null) return [];
       const el = root.querySelector(`[data-segment-id="${CSS.escape(id)}"]`);
+      const anchor = el?.querySelector("[data-query-summary]") ?? el;
       const bounds = root.getBoundingClientRect();
-      return el === null
+      return anchor === null
         ? []
-        : Array.from(el.getClientRects()).filter(
+        : Array.from(anchor.getClientRects()).filter(
             (rect) => rect.bottom > bounds.top && rect.top < bounds.bottom,
           );
     };
@@ -1662,11 +1663,7 @@ function QueryInputEditor({
                           {explainTarget.summary.values
                             .slice(0, 6)
                             .map((value, index) => (
-                              <li
-                                key={index}
-                                title={value}
-                                className="truncate"
-                              >
+                              <li key={index} title="" className="truncate">
                                 {value || "(empty)"}
                               </li>
                             ))}
