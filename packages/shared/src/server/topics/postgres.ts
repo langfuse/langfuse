@@ -528,52 +528,14 @@ export async function getPublishedTopicRunIds(
   );
 }
 
-/**
- * Every rule's map of the facets, as the Topics map picker shows them. The oldest
- * rule also serves setup's snapshot until its first fit; a facet no rule maps keeps
- * its serving map.
- */
+/** The current maps of `getCurrentTopicMapRows` with their topic names and ids. */
 export async function getPublishedTopicMaps(
   projectId: string,
   facetIds: string[],
 ) {
-  if (!facetIds.length) return { runIds: [], maps: [] };
-  const [rules, serving] = await Promise.all([
-    listTopicRules(projectId),
-    findServingRuns(projectId, facetIds),
-  ]);
-  const runs = await Promise.all(
-    facetIds.flatMap((facetId) => {
-      const fallback = serving.find((run) => run.facetId === facetId) ?? null;
-      const owners = rules.filter((rule) => rule.facetIds.includes(facetId));
-      if (!owners.length) return [Promise.resolve(fallback)];
-      return owners.map(async (rule) => {
-        const oldest = rule.id === rules[0]?.id;
-        const own = await prisma.topicClusteringRun.findFirst({
-          where: {
-            projectId,
-            facetId,
-            status: "completed",
-            ...(oldest
-              ? {
-                  OR: [
-                    { ruleId: rule.id },
-                    { ruleId: null, batchActionId: null },
-                  ],
-                }
-              : { ruleId: rule.id }),
-          },
-          orderBy: servingMapOrder,
-        });
-        return own ?? (oldest && !fallback?.ruleId ? fallback : null);
-      });
-    }),
+  const unique = (await getCurrentTopicMapRows(projectId, facetIds)).map(
+    ({ run }) => run,
   );
-  const unique = [
-    ...new Map(
-      runs.flatMap((run) => (run ? [[run.id, run] as const] : [])),
-    ).values(),
-  ];
   const ids = unique.flatMap((run) => run.topicVersionIds);
   // Only names and ids: these reads run on every tracing request with topics.
   const names = new Map(
