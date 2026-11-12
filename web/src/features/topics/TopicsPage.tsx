@@ -516,7 +516,16 @@ function TopicsWorkspaceContent({
               !showSetupProgress &&
               !landingRun &&
               modelSettings.automaticProcessing.state.status === "on";
-            const showOnboarding = showSetupProgress || showLanding;
+            // A later rule's setup keeps the header, so other maps stay reachable.
+            const setupInline =
+              showSetupProgress &&
+              Boolean(
+                maps.data?.rules.some(
+                  (rule) => rule.id !== setupRuleId && rule.lastRefitAt,
+                ),
+              );
+            const showOnboarding =
+              (showSetupProgress && !setupInline) || showLanding;
             const landingOnly =
               showLanding && !showSetupProgress && !setupBlockedReason;
             const hasStrip =
@@ -559,6 +568,7 @@ function TopicsWorkspaceContent({
               shownResults.data !== undefined &&
               !shownResults.error &&
               !showOnboarding &&
+              !showSetupProgress &&
               selectedRule !== undefined &&
               selectedRule.enabled !== false &&
               !selectedRule.lastRefitAt &&
@@ -757,7 +767,7 @@ function TopicsWorkspaceContent({
                       {showBuilding && selectedRule ? (
                         <TopicRuleBuildingState rule={selectedRule} />
                       ) : null}
-                      {!showOnboarding && !showBuilding && (
+                      {!showOnboarding && !showBuilding && !setupInline && (
                         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                           <CurrentTopics
                             projectId={projectId}

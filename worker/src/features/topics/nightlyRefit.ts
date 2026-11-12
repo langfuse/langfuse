@@ -320,7 +320,7 @@ async function capacityFailedWindow(
  * cohort fits the worker's capacity; only aggregate counts and byte estimates
  * are loaded. After a capacity failure, the search starts from half that window.
  */
-async function selectFitWindow(
+export async function selectFitWindow(
   projectId: string,
   facet: TopicFacetRef,
   embeddingConfig: TopicEmbeddingConfig,

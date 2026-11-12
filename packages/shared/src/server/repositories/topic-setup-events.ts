@@ -70,22 +70,18 @@ const topicSetupParams = (projectId: string, idleMs: number, now: Date) => ({
 const TOPIC_SETUP_COUNT_TIMEOUT_SECONDS = 10;
 const TOPIC_SETUP_SELECTION_TIMEOUT_SECONDS = 30;
 
-/** Unsampled finished-trace counts over 7 and 30 days for the Topics setup estimate. */
-export async function getTopicSetupTraceCounts(input: {
+/** Unsampled finished-trace count over one setup window, for the Topics setup estimate. */
+export async function getTopicSetupTraceCount(input: {
   projectId: string;
   idleMs: number;
   now: Date;
+  days: TopicSetupDays;
   matching?: TopicSetupMatching;
-}) {
-  const rows = await queryClickhouse<{
-    finished7d: string;
-    finished30d: string;
-  }>({
+}): Promise<number> {
+  const rows = await queryClickhouse<{ count: string }>({
     query: `
-      SELECT
-        countIf(last_ts >= {now: DateTime64(3)} - INTERVAL 7 DAY) AS finished7d,
-        count() AS finished30d
-      FROM (${topicSetupTracesSql(30, false, input.matching)})`,
+      SELECT count() AS count
+      FROM (${topicSetupTracesSql(input.days, false, input.matching)})`,
     params: {
       ...input.matching?.params,
       ...topicSetupParams(input.projectId, input.idleMs, input.now),
@@ -96,10 +92,7 @@ export async function getTopicSetupTraceCounts(input: {
       max_execution_time: TOPIC_SETUP_COUNT_TIMEOUT_SECONDS,
     },
   });
-  return {
-    finished7d: Number(rows[0]?.finished7d ?? 0),
-    finished30d: Number(rows[0]?.finished30d ?? 0),
-  };
+  return Number(rows[0]?.count ?? 0);
 }
 
 /**

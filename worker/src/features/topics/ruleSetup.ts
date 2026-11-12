@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   getTopicSetupTraceBounds,
@@ -16,6 +17,7 @@ import {
   getTopicRun,
   getTopicSummaryCounts,
   isTopicRuleSetupActive,
+  isTopicsProjectEnabled,
   listTopicFacets,
   readTopicRuleSetup,
   readTopicRuleSetupTraces,
@@ -29,11 +31,12 @@ import type {
   TopicEmbeddingConfig,
   TopicFacetRef,
   TopicRule,
+  TopicRun,
 } from "@langfuse/shared/topics";
 import { resolveTraceIdleMs } from "../traceBatching/traceBatchReadiness";
 import { isTraceDispatchEnabled } from "../traceBatching/traceBatchSampling";
 import { seedTraceDispatch } from "../traceBatching/traceRuleRecording";
-import { currentRuleMap } from "./nightlyRefit";
+import { currentRuleMap, selectFitWindow } from "./nightlyRefit";
 
 export const TOPIC_RULE_SETUP_TICK_MS = 15_000;
 const DAY_MS = 86_400_000;
@@ -46,7 +49,8 @@ const STANDARD_FIT_MINIMUM = 100;
 const SEED_DELAY_MS = 20_000;
 // Summaries date from a trace's first event, which can precede the window.
 const SPAN_MARGIN_MS = 5 * 60_000;
-const MAX_SETUP_MS = 60 * 60_000;
+// Fails visibly before the setup keys expire after an hour.
+const MAX_SETUP_MS = 50 * 60_000;
 // A ClickHouse timeout or a Redis blip retries on the next tick before the setup fails.
 const MAX_FAILED_TICKS = 3;
 
@@ -69,6 +73,15 @@ const setupWindow = (setup: TopicRuleSetup, days: number, to: Date) => ({
   to,
 });
 
+/** Where fits and progress counts start; earlier than the window when a seeded trace started before it. */
+const fitFrom = (setup: TopicRuleSetup, now: Date) =>
+  setup.from
+    ? new Date(setup.from)
+    : setupWindow(setup, setup.days ?? TOPIC_SETUP_WINDOW_DAYS[0], now).from;
+
+const isFinished = (status: TopicRun["status"] | null) =>
+  status === "completed" || status === "failed" || status === "skipped";
+
 /** Advances a rule's setup by one step; returns whether it is still active. */
 export async function tickTopicRuleSetup(
   projectId: string,
@@ -83,6 +96,7 @@ export async function tickTopicRuleSetup(
     if (setup.phase === "summarizing")
       await fitSettledFacets(setup, context, now);
     if (setup.phase === "fitting") await followFits(setup, now);
+    else if (setup.phase === "summarizing") await followRuns(setup);
     setup.failedTicks = 0;
     if (setup.phase !== "failed") setup.error = null;
   } catch (error) {
@@ -129,6 +143,8 @@ function recordOutcome(setup: TopicRuleSetup, now: Date) {
 }
 
 async function setupContext(setup: TopicRuleSetup): Promise<SetupContext> {
+  if (!isTopicsProjectEnabled(setup.projectId))
+    throw new SetupStopped("Topics is not enabled for this project.");
   const [rule, models] = await Promise.all([
     getTopicRule(setup.projectId, setup.ruleId),
     getEnabledTopicsModels([setup.projectId]),
@@ -179,6 +195,12 @@ async function selectAndSeed(
     })),
   );
   const open = setup.facets.filter((facet) => facet.state !== "has_map");
+  const dispatch = isTraceDispatchEnabled();
+  if (open.length && !dispatch)
+    logger.warn("Topics rule setup skips seeding without trace dispatch", {
+      projectId,
+      ruleId: rule.id,
+    });
   let seeded: string[] = [];
   for (const days of open.length ? TOPIC_SETUP_WINDOW_DAYS : []) {
     setup.days = days;
@@ -207,7 +229,7 @@ async function selectAndSeed(
     }
     const shortfall = SETUP_TRACES - fewest;
     // Without trace dispatch nothing would pick seeds up; fit what exists.
-    if (!isTraceDispatchEnabled()) continue;
+    if (!dispatch) continue;
     // Every unsummarized match up to the shortfall; a random sample of it beyond.
     seeded = await getTopicSetupTraceIds({
       projectId,
@@ -224,13 +246,38 @@ async function selectAndSeed(
   }
   for (const facet of open)
     facet.state = facet.existingCount >= ENOUGH_SUMMARIES ? "covered" : "short";
+  const windowFrom = setupWindow(
+    setup,
+    setup.days ?? TOPIC_SETUP_WINDOW_DAYS[0],
+    now,
+  ).from;
+  setup.from = windowFrom.toISOString();
   if (seeded.length) {
-    await writeTopicRuleSetupTraces(projectId, rule.id, seeded);
+    await writeTopicRuleSetupTraces(setup, seeded);
     const bounds = await getTopicSetupTraceBounds({
       projectId,
       traceIds: seeded,
-      from: setupWindow(setup, setup.days!, now).from,
+      from: windowFrom,
     });
+    setup.from = new Date(
+      Math.min(windowFrom.getTime(), ...bounds.map(({ minStart }) => minStart)),
+    ).toISOString();
+    // Seeded traces summarized before for a facet are summarized again; count them once.
+    const previous = await countTopicTraceSummaries(
+      projectId,
+      facetRefs(open),
+      embeddingConfig,
+      seeded,
+      new Date(0),
+      fitFrom(setup, now),
+    );
+    for (const facet of open)
+      facet.existingCount = Math.max(
+        0,
+        facet.existingCount -
+          (previous.find(({ facetId }) => facetId === facet.facetId)
+            ?.complete ?? 0),
+      );
     await seedTraceDispatch(projectId, bounds, [rule.id], SEED_DELAY_MS);
   }
   setup.seededCount = seeded.length;
@@ -267,7 +314,7 @@ async function fitSettledFacets(
       embeddingConfig,
       await readTopicRuleSetupTraces(setup.projectId, setup.ruleId),
       new Date(setup.startedAt),
-      setupWindow(setup, setup.days ?? TOPIC_SETUP_WINDOW_DAYS[0], now).from,
+      fitFrom(setup, now),
     );
     for (const facet of waiting) {
       const count = counts.find(({ facetId }) => facetId === facet.facetId)!;
@@ -288,7 +335,10 @@ async function fitSettledFacets(
     setup.phase = "fitting";
 }
 
-/** One pending rule-owned run, as the nightly refit creates, on the queue ahead of nightly fits. */
+/**
+ * One pending rule-owned run, as the nightly refit creates, on the queue ahead of
+ * nightly fits. Its ID derives from the setup, so a retried tick reuses it.
+ */
 async function startFit(
   setup: TopicRuleSetup,
   facet: TopicRuleSetupFacet,
@@ -297,54 +347,92 @@ async function startFit(
 ) {
   const smallSample =
     facet.existingCount + facet.completeCount < STANDARD_FIT_MINIMUM;
-  const window = setupWindow(
-    setup,
-    setup.days ?? TOPIC_SETUP_WINDOW_DAYS[0],
-    now,
-  );
-  const run = await createTopicRun({
-    projectId: setup.projectId,
-    facetId: facet.facetId,
-    facetVersion: facet.facetVersion,
-    ruleId: setup.ruleId,
-    config: {
-      embeddingModel: embeddingConfig.embeddingModel,
-      dimensions: embeddingConfig.embeddingDimensions,
-      timeRange: {
-        from: window.from.toISOString(),
-        to: window.to.toISOString(),
-      },
-      ...(smallSample ? { exploratory: true } : {}),
-      // The nightly refit then picks up seeded summaries that finish later.
-      ...(smallSample ||
-      (facet.state === "short" && facet.settledCount < setup.seededCount)
-        ? { provisional: true }
-        : {}),
-    },
-  });
-  facet.fit = smallSample ? "small_sample" : "standard";
+  const ref = { facetId: facet.facetId, version: facet.facetVersion };
+  const id = createHash("sha256")
+    .update(
+      JSON.stringify([
+        "rule-setup",
+        setup.ruleId,
+        ref,
+        embeddingConfig,
+        setup.startedAt,
+      ]),
+    )
+    .digest("hex")
+    .slice(0, 48);
+  const run = (await getTopicRun(setup.projectId, id)) ?? (await createFit());
+  facet.fit = run.config.exploratory === true ? "small_sample" : "standard";
   facet.runId = run.id;
   facet.runStatus = run.status;
-  await enqueueTopicRuleRefit(setup.projectId, run.id);
+  if (run.status === "pending")
+    await enqueueTopicRuleRefit(setup.projectId, run.id);
+
+  async function createFit() {
+    const from = fitFrom(setup, now);
+    // A standard fit stays within the clustering capacity, as nightly refits do.
+    const sized = smallSample
+      ? null
+      : await selectFitWindow(setup.projectId, ref, embeddingConfig, now);
+    const window = {
+      from: new Date(Math.max(from.getTime(), sized?.from.getTime() ?? 0)),
+      to: now,
+    };
+    return createTopicRun({
+      id,
+      projectId: setup.projectId,
+      facetId: facet.facetId,
+      facetVersion: facet.facetVersion,
+      ruleId: setup.ruleId,
+      config: {
+        embeddingModel: embeddingConfig.embeddingModel,
+        dimensions: embeddingConfig.embeddingDimensions,
+        timeRange: {
+          from: window.from.toISOString(),
+          to: window.to.toISOString(),
+        },
+        ...(smallSample ? { exploratory: true } : {}),
+        // The nightly refit then picks up seeded summaries that finish later.
+        ...(smallSample ||
+        (facet.state === "short" && facet.settledCount < setup.seededCount)
+          ? { provisional: true }
+          : {}),
+      },
+    });
+  }
 }
 
+/** Copies each fit's status; re-enqueues a pending one, whose job may have been lost. */
+async function followRuns(setup: TopicRuleSetup) {
+  const runs = new Map<string, TopicRun | null>();
+  for (const facet of setup.facets) {
+    if (!facet.runId) continue;
+    const run = await getTopicRun(setup.projectId, facet.runId);
+    runs.set(facet.runId, run);
+    facet.runStatus = run?.status ?? "failed";
+    // The job ID is the run ID, so this adds nothing while the job exists.
+    if (run?.status === "pending")
+      await enqueueTopicRuleRefit(setup.projectId, run.id);
+  }
+  return runs;
+}
+
+/**
+ * Done once every fit finished. Failed only when no fit completed and one
+ * failed; skipped fits had too few traces, which a retry cannot change.
+ */
 async function followFits(setup: TopicRuleSetup, now: Date) {
-  for (const facet of setup.facets)
-    if (facet.runId)
-      facet.runStatus =
-        (await getTopicRun(setup.projectId, facet.runId))?.status ?? "failed";
-  if (
-    setup.facets.every(
-      (facet) =>
-        !facet.runId ||
-        facet.runStatus === "completed" ||
-        facet.runStatus === "failed" ||
-        facet.runStatus === "skipped",
-    )
-  )
-    setup.phase = "done";
-  else if (now.getTime() - Date.parse(setup.startedAt) > MAX_SETUP_MS) {
+  const runs = await followRuns(setup);
+  const fits = setup.facets.filter((facet) => facet.runId);
+  if (fits.every((facet) => isFinished(facet.runStatus))) {
+    const failed = fits.find((facet) => facet.runStatus === "failed");
+    if (failed && !fits.some((facet) => facet.runStatus === "completed")) {
+      setup.phase = "failed";
+      setup.error =
+        runs.get(failed.runId!)?.error ??
+        "The first topics could not be built.";
+    } else setup.phase = "done";
+  } else if (now.getTime() - Date.parse(setup.startedAt) > MAX_SETUP_MS) {
     setup.phase = "failed";
-    setup.error = "The first topics did not finish within an hour.";
+    setup.error = "The first topics did not finish in time.";
   }
 }

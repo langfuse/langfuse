@@ -725,7 +725,7 @@ export { deriveAuditLogEventId } from "./repositories/auditLogs";
 export { convertAuditLogStagingRowToClickhouse } from "./repositories/auditLogs";
 export { type BillableEventType } from "./repositories/billable-events";
 export { getBillableUnitCountsByProjectInWindow } from "./repositories/billable-events";
-export { getTopicSetupTraceCounts } from "./repositories/topic-setup-events";
+export { getTopicSetupTraceCount } from "./repositories/topic-setup-events";
 export {
   getTopicSetupTraceBounds,
   getTopicSetupTraceIds,

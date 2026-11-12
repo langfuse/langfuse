@@ -17,11 +17,12 @@ import {
   topicMatchingTraceIdsQuery,
 } from "@langfuse/shared/topics/server";
 import {
-  getTopicSetupTraceCounts,
+  getTopicSetupTraceCount,
   getTopicSetupTraceIds,
   getTracingReadinessSettings,
   TOPIC_SETUP_WINDOW_DAYS,
 } from "@langfuse/shared/src/server";
+import { TOPIC_SETUP_BACKFILL_LIMIT } from "../topic-setup-flow";
 
 export const topicTraceSelectionSchema =
   topicTraceSelectionCriteriaSchema.safeExtend({
@@ -115,42 +116,56 @@ async function topicSetupIdleMs(projectId: string) {
   return traceIdleMs ?? SETUP_DEFAULT_IDLE_MS;
 }
 
-/** The rule filter as a 30-day trace subquery; undefined without filters, null when nothing matches. */
+/** The rule filter as a trace subquery over `days`; undefined without filters, null when nothing matches. */
 async function setupMatching(
   projectId: string,
   filter: FilterState,
   now: Date,
+  days: (typeof TOPIC_SETUP_WINDOW_DAYS)[number] = TOPIC_SETUP_WINDOW_DAYS[2],
 ) {
   if (filter.length === 0) return undefined;
   return topicMatchingTraceIdsQuery(
     {
       projectId,
       filter,
-      from: new Date(now.getTime() - TOPIC_SETUP_WINDOW_DAYS[2] * 86_400_000),
+      from: new Date(now.getTime() - days * 86_400_000),
       to: now,
     },
     defaultPrisma,
   );
 }
 
-/** Finished traces over 7 and 30 days that the first rule's filter selects. */
+/**
+ * Finished traces over 7 and 30 days that the rule's filter selects. The 30-day
+ * scan runs only below a full backfill, so busy projects read 7 days; above it,
+ * `finished30d` is a lower bound.
+ */
 export async function countTopicSetupTraces(input: {
   projectId: string;
   filter: FilterState;
   now: Date;
 }) {
-  const matching = await setupMatching(
-    input.projectId,
-    input.filter,
-    input.now,
-  );
-  if (matching === null) return { finished7d: 0, finished30d: 0 };
-  return getTopicSetupTraceCounts({
-    projectId: input.projectId,
-    idleMs: await topicSetupIdleMs(input.projectId),
-    now: input.now,
-    matching,
-  });
+  const idleMs = await topicSetupIdleMs(input.projectId);
+  const count = async (days: 7 | 30) => {
+    const matching = await setupMatching(
+      input.projectId,
+      input.filter,
+      input.now,
+      days,
+    );
+    if (matching === null) return 0;
+    return getTopicSetupTraceCount({
+      projectId: input.projectId,
+      idleMs,
+      now: input.now,
+      days,
+      matching,
+    });
+  };
+  const finished7d = await count(7);
+  const finished30d =
+    finished7d >= TOPIC_SETUP_BACKFILL_LIMIT ? finished7d : await count(30);
+  return { finished7d, finished30d };
 }
 
 /** Widens from 7 to 14 and 30 days until the limit is met. */
