@@ -574,6 +574,12 @@ export const env = createEnv({
     // HMAC secret for inbound CHB webhooks. Unset makes the endpoint 500 rather
     // than accept unverified events.
     CLICKHOUSE_BILLING_WEBHOOK_SIGNING_SECRET: z.string().optional(),
+    // GTM endpoint that receives coupon redemptions from the hidden
+    // /organization/<id>/coupon page and grants the program's credits via
+    // Salesforce. Unset makes redemption fail closed.
+    LANGFUSE_CLOUD_COUPON_REDEMPTION_URL: z.url().optional(),
+    // Bearer secret presented to LANGFUSE_CLOUD_COUPON_REDEMPTION_URL.
+    LANGFUSE_CLOUD_COUPON_REDEMPTION_SECRET: z.string().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
     LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),
@@ -1313,6 +1319,10 @@ export const env = createEnv({
       process.env.CLICKHOUSE_BILLING_AUTH0_AUDIENCE,
     CLICKHOUSE_BILLING_WEBHOOK_SIGNING_SECRET:
       process.env.CLICKHOUSE_BILLING_WEBHOOK_SIGNING_SECRET,
+    LANGFUSE_CLOUD_COUPON_REDEMPTION_URL:
+      process.env.LANGFUSE_CLOUD_COUPON_REDEMPTION_URL,
+    LANGFUSE_CLOUD_COUPON_REDEMPTION_SECRET:
+      process.env.LANGFUSE_CLOUD_COUPON_REDEMPTION_SECRET,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
     SENTRY_CSP_REPORT_URI: process.env.SENTRY_CSP_REPORT_URI,
     LANGFUSE_RATE_LIMITS_ENABLED: process.env.LANGFUSE_RATE_LIMITS_ENABLED,

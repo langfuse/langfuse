@@ -10,9 +10,18 @@ import { TRPCError } from "@trpc/server";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { logger } from "@langfuse/shared/src/server";
-import { type BillingProvider } from "@langfuse/shared";
+import {
+  type BillingProvider,
+  LangfuseNotFoundError,
+  parseDbOrg,
+  ServiceUnavailableError,
+} from "@langfuse/shared";
+import { env } from "@/src/env.mjs";
 import { resolveBillingService } from "./resolveBillingService";
 import { isCloudBillingEnabled } from "../utils/isCloudBillingEnabled";
+import { CouponCodeSchema, CouponProgramSchema } from "../utils/coupons";
+import { buildCouponRedemptionPayload } from "./coupons/couponRedemption";
+import { getCouponRedemptionSubmitter } from "./coupons/couponRedemptionSubmitter";
 
 const PROVIDER_LABEL: Record<BillingProvider, string> = {
   stripe: "Stripe",
@@ -426,5 +435,76 @@ export const cloudBillingRouter = createTRPCRouter({
       );
 
       return result;
+    }),
+  /**
+   * Forwards a coupon to the GTM coupon endpoint, which grants the program's
+   * credits to the org's ClickHouse organization. Only the program and code
+   * come from the client; the submitter email and organization ids are
+   * inferred server-side.
+   */
+  submitCouponRedemption: protectedOrganizationProcedure
+    .input(
+      z.object({
+        orgId: z.string(),
+        program: CouponProgramSchema,
+        couponCode: CouponCodeSchema,
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoEntitlement({
+        entitlement: "cloud-billing",
+        sessionUser: ctx.session.user,
+        orgId: input.orgId,
+      });
+      throwIfNoOrganizationAccess({
+        organizationId: input.orgId,
+        scope: "langfuseCloudBilling:CRUD",
+        session: ctx.session,
+      });
+
+      if (!isCloudBillingEnabled()) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Cloud billing is not available in this environment. This feature requires NEXT_PUBLIC_LANGFUSE_CLOUD_REGION to be configured.",
+        });
+      }
+
+      const org = await ctx.prisma.organization.findUnique({
+        where: { id: input.orgId },
+      });
+      if (!org) throw new LangfuseNotFoundError("Organization not found");
+
+      const payload = buildCouponRedemptionPayload({
+        org: parseDbOrg(org),
+        submitterEmail: ctx.session.user.email,
+        program: input.program,
+        couponCode: input.couponCode,
+        cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+      });
+
+      const submitter = getCouponRedemptionSubmitter();
+      if (!submitter) {
+        logger.error(
+          "submitCouponRedemption: LANGFUSE_CLOUD_COUPON_REDEMPTION_URL is not configured",
+          { orgId: input.orgId },
+        );
+        throw new ServiceUnavailableError(
+          "Coupon redemption is not available on this deployment",
+        );
+      }
+
+      await submitter.submit(payload);
+
+      auditLog({
+        session: ctx.session,
+        orgId: input.orgId,
+        resourceType: "organization",
+        resourceId: input.orgId,
+        action: "BillingService.submitCouponRedemption",
+        after: { program: input.program },
+      });
+
+      return { ok: true as const };
     }),
 });

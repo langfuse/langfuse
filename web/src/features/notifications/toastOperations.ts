@@ -13,6 +13,7 @@ export const applicationToastOperations = [
   "automation.update",
   "background_migration.retry",
   "billing_checkout.start",
+  "billing_coupon.submit",
   "billing_discount.apply",
   "billing_plan.change",
   "billing_plan.keep",
