@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { FileCode, Plug, type IconComponent } from "@langfuse/icons";
 
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -44,10 +45,6 @@ function encodeMcpCredential(publicKey: string, secretKey: string) {
   return Buffer.from(credential).toString("base64");
 }
 
-/**
- * Same layout and components as the AI gateway's created-key dialog: the
- * secret is masked until revealed and always copied in full.
- */
 export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
   const { scope, secretKey, publicKey, baseUrl, className, showMcpSection } =
     props;

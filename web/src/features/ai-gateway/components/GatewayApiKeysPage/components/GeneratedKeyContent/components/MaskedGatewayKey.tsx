@@ -31,9 +31,7 @@ export function MaskedGatewayKey({
       await copy(secretKey);
       onAfterCopy?.();
     } catch {
-      // The key is shown only once, so a denied clipboard write must leave
-      // it selectable by hand.
-      setIsRevealed(true);
+      // Stay masked; the user can reveal it.
     }
   };
 
