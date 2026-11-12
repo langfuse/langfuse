@@ -23,6 +23,11 @@ type SecureLlmFetchParams = {
   additionalSensitiveHeaders?: string[];
 };
 
+type FetchSecureLlmUrlParams = SecureLlmFetchParams & {
+  // 0 rejects the first redirect with MaxRedirectsExceededError.
+  maxRedirects?: number;
+};
+
 export function createSecureLlmFetch({
   logContext,
   additionalSensitiveHeaders,
@@ -55,7 +60,11 @@ export function createSecureLlmFetch({
 export async function fetchSecureLlmUrl(
   url: string,
   options: RequestInit,
-  { logContext, additionalSensitiveHeaders }: SecureLlmFetchParams,
+  {
+    logContext,
+    additionalSensitiveHeaders,
+    maxRedirects = MAX_LLM_REDIRECTS,
+  }: FetchSecureLlmUrlParams,
 ): Promise<Response> {
   const whitelist = llmBaseUrlWhitelistFromEnv();
   await validateLlmConnectionBaseURL(url, whitelist);
@@ -79,7 +88,7 @@ export async function fetchSecureLlmUrl(
     : optionsWithoutDispatcher;
 
   const { response } = await fetchWithSecureRedirects(url, fetchOptions, {
-    maxRedirects: MAX_LLM_REDIRECTS,
+    maxRedirects,
     additionalSensitiveHeaders,
     redirectValidation: {
       validateUrl: validateLlmConnectionBaseURL,

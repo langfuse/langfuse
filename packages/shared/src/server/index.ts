@@ -98,6 +98,17 @@ export { resolveUpdatedExtraHeaders } from "./llm/resolveUpdatedExtraHeaders";
 export * from "./llm/ai-sdk/providers/bedrock";
 export * from "./llm/ai-sdk/providers/vertex";
 export * from "./llm/ai-sdk/providers/vertexAuth";
+export { assertNotOAuth2Connection } from "./llm/oauth2/connection";
+export { assertOAuth2TokenEndpointAllowed } from "./llm/oauth2/allowlist";
+export {
+  getOAuth2DisplaySecretKey,
+  prepareOAuth2Credential,
+} from "./llm/oauth2/credential";
+export { OAuth2TokenError, findOAuth2TokenError } from "./llm/oauth2/errors";
+// Re-exported so callers without a direct "ai" dependency (e.g. worker
+// tests) can construct a real RetryError to exercise findOAuth2TokenError's
+// RetryError.lastError handling.
+export { RetryError } from "ai";
 export { type RequestInitWithDispatcher } from "./outbound-url/connection";
 export { type OutboundUrlConnectionValidationOptions } from "./outbound-url/connection";
 export { addSecureOutboundConnectionValidation } from "./outbound-url/connection";

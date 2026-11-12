@@ -2,10 +2,13 @@ import {
   createNumericEvalOutputDefinition,
   LLMAdapter,
 } from "@langfuse/shared";
+import { encrypt } from "@langfuse/shared/encryption";
 import {
+  createDecisionModelClient,
   DefaultEvalModelService,
   findModel,
   generateLlmEvaluatorOutput,
+  OPENAI_DECISION_MODEL_IDS,
   resolveConfiguredCodeEvalDispatcher,
   runCodeBasedEvaluationDispatch,
 } from "@langfuse/shared/src/server";
@@ -26,6 +29,7 @@ vi.mock("@langfuse/shared/src/server", async () => ({
   findModel: vi.fn(),
   resolveConfiguredCodeEvalDispatcher: vi.fn(),
   runCodeBasedEvaluationDispatch: vi.fn(),
+  createDecisionModelClient: vi.fn(),
 }));
 
 type ValidModelConfig = Extract<
@@ -285,5 +289,69 @@ describe("testEvaluator", () => {
         }),
       }),
     );
+  });
+
+  it("rejects a decision-model evaluator whose connection has an OAuth2 config", async () => {
+    vi.mocked(DefaultEvalModelService.fetchValidModelConfig).mockResolvedValue({
+      valid: true,
+      config: {
+        provider: "openai-decision",
+        model: OPENAI_DECISION_MODEL_IDS[0],
+        modelParams: undefined,
+        apiKey: {
+          secretKey: encrypt("plaintext-secret"),
+          extraHeaders: null,
+          baseURL: null,
+          config: {
+            oauth2: {
+              provider: "custom",
+              tokenEndpoint: "https://idp.example.com/token",
+              clientId: "client-id",
+              authMethod: "client_secret_basic",
+            },
+          },
+          adapter: LLMAdapter.OpenAI,
+        },
+      } as unknown as ValidModelConfig,
+    });
+
+    await expect(
+      testEvaluator({
+        orgId: "org-1",
+        projectId: "project-1",
+        evaluatorId: "evaluator-1",
+        observationId: "observation-1",
+        traceId: "trace-1",
+        startTime: new Date("2026-08-11T12:00:00.000Z"),
+        definition: {
+          type: "DECISION_MODEL",
+          provider: "openai-decision",
+          model: OPENAI_DECISION_MODEL_IDS[0],
+          questions: [
+            {
+              id: "readiness",
+              scoreName: "send_readiness",
+              type: "score",
+              instructions: "How ready is `answer`?",
+              levels: [{ description: "Not ready" }, { description: "Ready" }],
+            },
+          ],
+          vars: ["answer"],
+          variableMapping: [
+            {
+              templateVariable: "answer",
+              selectedColumnId: "output",
+              jsonSelector: "$.answer",
+            },
+          ],
+        },
+      }),
+    ).resolves.toMatchObject({
+      success: false,
+      error:
+        "OAuth2 connections are not supported for decision-model evaluators",
+    });
+
+    expect(createDecisionModelClient).not.toHaveBeenCalled();
   });
 });

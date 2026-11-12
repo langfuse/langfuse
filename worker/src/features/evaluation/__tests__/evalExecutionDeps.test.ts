@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { z } from "zod";
+import { encrypt } from "@langfuse/shared/encryption";
 import { createProductionEvalExecutionDeps } from "../evalExecutionDeps";
 import { EXPORT_VOLUME_METRIC } from "../../../services/exportVolumeMetric";
 
@@ -7,10 +8,12 @@ const {
   mockGenerateLlmEvaluatorOutput,
   mockRecordIncrement,
   mockIngestionQueueAdd,
+  mockCreateDecisionModelClient,
 } = vi.hoisted(() => ({
   mockGenerateLlmEvaluatorOutput: vi.fn(),
   mockRecordIncrement: vi.fn(),
   mockIngestionQueueAdd: vi.fn(),
+  mockCreateDecisionModelClient: vi.fn(),
 }));
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
@@ -23,6 +26,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     IngestionQueue: {
       getInstance: () => ({ add: mockIngestionQueueAdd }),
     },
+    createDecisionModelClient: mockCreateDecisionModelClient,
   };
 });
 
@@ -193,5 +197,55 @@ describe("createProductionEvalExecutionDeps", () => {
         skipS3List: true,
       }),
     );
+  });
+
+  describe("callDecisionModel", () => {
+    it("rejects an OAuth2 connection without constructing the decision-model client", async () => {
+      const deps = createProductionEvalExecutionDeps();
+
+      await expect(
+        deps.callDecisionModel({
+          modelConfig: {
+            ...modelConfig,
+            apiKey: {
+              ...modelConfig.apiKey,
+              config: {
+                oauth2: {
+                  provider: "custom",
+                  tokenEndpoint: "https://idp.example.com/token",
+                  clientId: "client-id",
+                  authMethod: "client_secret_basic",
+                },
+              },
+            },
+          },
+          request: { questions: {} },
+        } as any),
+      ).rejects.toThrow(
+        "OAuth2 connections are not supported for decision-model evaluators",
+      );
+      expect(mockCreateDecisionModelClient).not.toHaveBeenCalled();
+    });
+
+    it("constructs the decision-model client for a non-OAuth2 connection", async () => {
+      const mockClient = { evaluate: vi.fn().mockResolvedValue("ok") };
+      mockCreateDecisionModelClient.mockReturnValue(mockClient);
+      const deps = createProductionEvalExecutionDeps();
+
+      const request = { questions: {} };
+      const result = await deps.callDecisionModel({
+        modelConfig: {
+          ...modelConfig,
+          apiKey: { ...modelConfig.apiKey, secretKey: encrypt("secret") },
+        },
+        request,
+      } as any);
+
+      expect(mockCreateDecisionModelClient).toHaveBeenCalledWith(
+        expect.objectContaining({ adapter: "openai" }),
+      );
+      expect(mockClient.evaluate).toHaveBeenCalledWith(request);
+      expect(result).toBe("ok");
+    });
   });
 });

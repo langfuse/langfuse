@@ -18,12 +18,18 @@ export function toAnthropicBaseURL(
 export function buildAnthropicModel(params: {
   modelId: string;
   apiKey: string;
+  /** Sends `apiKey` as `Authorization: Bearer` instead of `x-api-key`. */
+  bearerAuth?: boolean;
   baseURL?: string | null;
   extraHeaders?: Record<string, string>;
   fetch: typeof fetch;
 }): LanguageModel {
   const provider = createAnthropic({
-    apiKey: params.apiKey,
+    // The SDK rejects apiKey and authToken together, and falls back to the
+    // ANTHROPIC_API_KEY env var when neither is set.
+    ...(params.bearerAuth
+      ? { authToken: params.apiKey }
+      : { apiKey: params.apiKey }),
     baseURL: toAnthropicBaseURL(params.baseURL),
     headers: params.extraHeaders,
     fetch: params.fetch,

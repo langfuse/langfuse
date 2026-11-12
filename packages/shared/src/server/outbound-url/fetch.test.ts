@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CircularRedirectError,
+  fetchWithSecureRedirects,
+  InvalidRedirectResponseError,
   MaxRedirectsExceededError,
   redactUrlCredentials,
   urlForLog,
@@ -114,5 +116,33 @@ describe("redirect error reporting", () => {
     expectSignedUrlRedacted(
       new CircularRedirectError([signedRedirectUrl, signedRedirectUrl]),
     );
+  });
+});
+
+describe("fetchWithSecureRedirects invalid redirect responses", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("throws InvalidRedirectResponseError for a redirect without Location", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(null, { status: 302 }),
+    );
+
+    const error = await fetchWithSecureRedirects(
+      "https://host.example/token?sig=secret",
+      {},
+      { maxRedirects: 0, skipValidation: true },
+    ).then(
+      () => undefined,
+      (e: unknown) => e,
+    );
+
+    expect(error).toBeInstanceOf(InvalidRedirectResponseError);
+    expect(error).toMatchObject({
+      name: "Error",
+      message:
+        "Redirect response (302) missing Location header at https://host.example/token",
+    });
   });
 });

@@ -74,7 +74,11 @@ types:
         docs: The adapter used to interface with the LLM
       displaySecretKey:
         type: string
-        docs: Masked version of the secret key for display purposes
+        docs: >
+          Masked version of the secret key for display purposes. For an OAuth2
+          connection using `private_key_jwt`, this is `kid:<kid>` taken from the
+          private JWK (`kid:none` if the JWK has no `kid`); the key itself is never
+          returned.
       baseURL:
         type: optional<string>
         docs: Custom base URL for the LLM API
@@ -89,7 +93,13 @@ types:
         docs: Keys of extra headers sent with requests (values excluded for security)
       config:
         type: optional<map<string, unknown>>
-        docs: Adapter-specific configuration. Required for Bedrock (`{"region":"us-east-1"}`), optional for OpenAI (`{"useResponsesApi":true}`), optional for VertexAI (`{"location":"us-central1"}`), not used by other adapters.
+        docs: >
+          Adapter-specific configuration. Required for Bedrock
+          (`{"region":"us-east-1"}`), optional for OpenAI (`{"useResponsesApi":true}`
+          and/or `{"oauth2":{...}}`), optional for Anthropic (`{"oauth2":{...}}`),
+          optional for VertexAI (`{"location":"us-central1"}`), not used by other
+          adapters. When set, `oauth2` is returned exactly as configured; it never
+          contains a secret.
       createdAt: datetime
       updatedAt: datetime
 
@@ -109,7 +119,12 @@ types:
         docs: The adapter used to interface with the LLM
       secretKey:
         type: string
-        docs: Secret key for the LLM API.
+        docs: >
+          Secret key for the LLM API. For an OAuth2 connection (`config.oauth2` set),
+          this is the client secret for `client_secret_basic` / `client_secret_post` /
+          `client_secret_jwt`, or a single private JWK as a JSON string (e.g.
+          `"{\"kty\":\"RSA\",\"d\":\"...\",...}"`, not a JWKS `{"keys":[...]}`) for
+          `private_key_jwt`. Never returned by GET.
       baseURL:
         type: optional<string>
         docs: Custom base URL for the LLM API
@@ -124,12 +139,41 @@ types:
         docs: Extra headers to send with requests
       config:
         type: optional<map<string, unknown>>
-        docs: >
+        docs: |
           Adapter-specific configuration. Validation rules:
+
           - **Bedrock**: Required. Must be `{"region": "<aws-region>"}` (e.g., `{"region":"us-east-1"}`)
-          - **OpenAI**: Optional. If provided, must be `{"useResponsesApi": <boolean>}` to control whether Langfuse routes calls through OpenAI's Responses API.
+          - **OpenAI**: Optional. `{"useResponsesApi": <boolean>}` controls whether Langfuse routes calls through OpenAI's Responses API, and/or `{"oauth2": {...}}` (see below).
+          - **Anthropic**: Optional. `{"oauth2": {...}}` only (see below).
           - **VertexAI**: Optional. If provided, must be `{"location": "<gcp-location>"}` (e.g., `{"location":"us-central1"}`)
           - **Other adapters**: Not supported. Omit this field or set to null.
+
+          **`oauth2` (OpenAI and Anthropic only)**: machine-to-machine client credentials auth instead of a static API key. Langfuse fetches and caches an access token from the identity provider's token endpoint and sends it as a bearer token, refreshing on expiry or a 401. All shapes share `clientId` (string) and `authMethod`, and accept an optional `assertionAlgorithm` (only with `client_secret_jwt` / `private_key_jwt`). `provider` selects the preset and its fixed token endpoint, or `custom` for any other identity provider:
+
+          - `entra` (Microsoft Entra ID) — `tenantId`, `scope`. Methods: `client_secret_post` (UI default), `client_secret_basic`, `private_key_jwt`.
+          - `okta` — `domain`, `authorizationServerId` (optional, default `default`), `scope`. Methods: `client_secret_basic` (UI default), `client_secret_post`, `client_secret_jwt`, `private_key_jwt`.
+          - `auth0` — `domain`, `audience`. Methods: `client_secret_post` (UI default), `client_secret_basic`, `private_key_jwt`.
+          - `cognito` (Amazon Cognito) — `domain`, `scope` (optional). Methods: `client_secret_basic` (UI default), `client_secret_post`.
+          - `keycloak` — `baseUrl`, `realm`, `scope` (optional). Methods: `client_secret_basic` (UI default), `client_secret_post`, `client_secret_jwt`, `private_key_jwt`.
+          - `onelogin` — `subdomain`, `scope` (optional), `resource` (optional). Methods: `client_secret_basic` (UI default), `client_secret_post`.
+          - `workos` — `domain` (AuthKit domain), `scope` (optional). Methods: `client_secret_post` only.
+          - `authentik` — `baseUrl`, `scope` (optional). Methods: `client_secret_post` only.
+          - `custom` (any other identity provider) — `tokenEndpoint`, plus optional `scope`, `audience`, `resource`, `assertionAudience` (defaults to `tokenEndpoint`), `sendClientIdWithAssertion` (default `false`). Methods: all four, default `client_secret_basic`.
+
+          The operator must add the resolved token endpoint to the `LANGFUSE_LLM_OAUTH2_ALLOWED_TOKEN_ENDPOINTS` environment variable (exact URL, comma-separated list) or the request is rejected.
+    examples:
+      - name: OAuth2ClientCredentials
+        value:
+          provider: my-genai-gateway
+          adapter: openai
+          baseURL: https://genai.example.com/v1
+          secretKey: '{"kty":"RSA","kid":"agent-x-2026","n":"...","e":"...","d":"..."}'
+          config:
+            oauth2:
+              provider: custom
+              tokenEndpoint: https://idp.example.com/as/token.oauth2
+              clientId: agent-x
+              authMethod: private_key_jwt
 
   DeleteLlmConnectionResponse:
     properties:
