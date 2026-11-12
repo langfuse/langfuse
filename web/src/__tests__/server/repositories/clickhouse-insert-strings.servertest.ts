@@ -142,11 +142,15 @@ describe("ClickHouse insert string edge cases", () => {
     });
 
     it("inserts rows from an object-mode stream when an array insert cannot be serialized", async () => {
-      // Each row serializes on its own, but the three together exceed V8's
-      // maximum string length (~512 MiB), which an array insert needs because
-      // the client joins all rows into one string.
-      const input = "x".repeat(200 * 1024 * 1024);
-      const rows = () => [0, 1, 2].map((id) => ({ id, input }));
+      // Each row serializes on its own, but together they exceed V8's maximum
+      // string length (~512 MiB), which an array insert needs because the
+      // client joins all rows into one string. Rows stay below ~90 MiB because
+      // ClickHouse 26.3 rejects a JSONEachRow row once its parsing chunk grows
+      // past 10x min_chunk_bytes_for_parallel_parsing (100 MiB by default).
+      const input = "x".repeat(80 * 1024 * 1024);
+      const rowCount = 7;
+      const rows = () =>
+        Array.from({ length: rowCount }, (_, id) => ({ id, input }));
 
       await expect(
         clickhouseClient().insert({
@@ -167,7 +171,7 @@ describe("ClickHouse insert string edge cases", () => {
         format: "JSONEachRow",
       });
       expect(await result.json()).toEqual([
-        { rows: 3, bytes: 3 * input.length },
+        { rows: rowCount, bytes: rowCount * input.length },
       ]);
     }, 120_000);
   });
