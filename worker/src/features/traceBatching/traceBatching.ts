@@ -544,7 +544,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
           reason,
           strategy,
         });
-        logger.warn("Trace batch excluded oversized trace", {
+        logger.warn("Trace batch excluded trace", {
           projectId: entry.trace.projectId,
           traceId: entry.trace.traceId,
           reason,

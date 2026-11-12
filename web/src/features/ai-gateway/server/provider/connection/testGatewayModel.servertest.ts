@@ -141,6 +141,53 @@ describe("testGatewayModel", () => {
     ]);
   });
 
+  it("tests a Vercel decision model on the Decisions route", async () => {
+    const fetcher = vi.fn<typeof fetch>(
+      async () => new Response("{}", { status: 200 }),
+    );
+
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const result = await testGatewayModel({
+      provider: "VERCEL",
+      config: {},
+      baseURL: null,
+      extraHeaders: {},
+      credential: "vck-key",
+      model: "openai/gpt-6-luna-decisions",
+      reportedFormats: ["openai.decisions"],
+    });
+
+    expect(result).toEqual({ success: true, durationMs: expect.any(Number) });
+    expect(fetcher.mock.calls.map(([url]) => String(url))).toEqual([
+      "https://ai-gateway.vercel.sh/v1/decisions",
+    ]);
+  });
+
+  it("tests an OpenAI embedding model on the Embeddings route", async () => {
+    const fetcher = vi.fn<typeof fetch>(
+      async () => new Response("{}", { status: 200 }),
+    );
+
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const result = await testGatewayModel({
+      provider: "OPENAI",
+      config: {},
+      baseURL: null,
+      extraHeaders: {},
+      credential: "openai-key",
+      model: "text-embedding-3-small",
+    });
+
+    expect(result).toEqual({ success: true, durationMs: expect.any(Number) });
+    const [url, init] = fetcher.mock.calls[0] ?? [];
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(url).toBe("https://api.openai.com/v1/embeddings");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      model: "text-embedding-3-small",
+      input: "Hi",
+    });
+  });
+
   it("sends OpenAI tests to a custom base URL without letting extra headers replace the credential", async () => {
     const fetcher = vi.fn<typeof fetch>(async () => new Response("{}"));
 

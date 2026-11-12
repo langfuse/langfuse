@@ -125,6 +125,7 @@ import {
 } from "./queues/topicsQueue";
 import { topicsEmbeddingQueueProcessor } from "./queues/topicsEmbeddingQueue";
 import { topicsAutomationQueueProcessor } from "./queues/topicsAutomationQueue";
+import { topicsSetupQueueProcessor } from "./queues/topicsSetupQueue";
 import { TopicsNightlyRefitRunner } from "./features/topics/nightlyRefit";
 
 const app = express();
@@ -533,6 +534,10 @@ if (isTopicsEnabled()) {
       { concurrency: 2 },
     );
   if (env.QUEUE_CONSUMER_TOPICS_UPDATE_QUEUE_IS_ENABLED === "true") {
+    // Setup ticks get their own queue so they never wait behind a fit.
+    WorkerManager.register(QueueName.TopicsSetup, topicsSetupQueueProcessor, {
+      concurrency: 5,
+    });
     topicsNightlyRefitRunner = new TopicsNightlyRefitRunner();
     topicsNightlyRefitRunner.start();
   }
