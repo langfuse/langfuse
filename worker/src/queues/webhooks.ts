@@ -215,12 +215,11 @@ export const executeWebhook = async (
       return;
     }
 
-    const delivered = await executeAction({
+    delivery = await executeAction({
       input,
       automation,
       skipValidation: options?.skipValidation,
     });
-    delivery = deliveredOrFailed(delivered);
 
     logger.debug(
       `Action executed successfully for action ${automation.action.id}`,
@@ -295,7 +294,7 @@ async function getStaleMonitorAlertReason({
   return undefined;
 }
 
-/** executeAction routes the job to the handler for its action type and returns whether the delivery succeeded. */
+/** executeAction routes the job to the handler for its action type and returns whether the action was delivered or failed. */
 async function executeAction({
   input,
   automation,
@@ -304,29 +303,34 @@ async function executeAction({
   input: WebhookInput;
   automation: NonNullable<Awaited<ReturnType<typeof getAutomationById>>>;
   skipValidation?: boolean;
-}): Promise<boolean> {
+}): Promise<MonitorAlertDelivery> {
+  let delivered: boolean;
   switch (automation.action.type) {
     case "WEBHOOK":
-      return executeWebhookAction({ input, automation, skipValidation });
-    case "SLACK":
-      return executeSlackAction({ input, automation });
-    case "GITHUB_DISPATCH":
-      return executeGitHubDispatchAction({
+      delivered = await executeWebhookAction({
         input,
         automation,
         skipValidation,
       });
+      break;
+    case "SLACK":
+      delivered = await executeSlackAction({ input, automation });
+      break;
+    case "GITHUB_DISPATCH":
+      delivered = await executeGitHubDispatchAction({
+        input,
+        automation,
+        skipValidation,
+      });
+      break;
     case "PAGERDUTY":
-      return executePagerDutyAction({ input, automation });
+      delivered = await executePagerDutyAction({ input, automation });
+      break;
     default:
       throw new InternalServerError(
         `Unsupported action type: ${automation.action.type}`,
       );
   }
-}
-
-/** deliveredOrFailed returns the delivered result for a sent action and the failed result otherwise. */
-function deliveredOrFailed(delivered: boolean): MonitorAlertDelivery {
   if (delivered) return { result: "delivered", reason: "none" };
   return { result: "failed", reason: "none" };
 }
