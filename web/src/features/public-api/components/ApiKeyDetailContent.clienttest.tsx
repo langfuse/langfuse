@@ -61,16 +61,6 @@ describe("ApiKeyDetailContent", () => {
     expect(container.textContent).not.toContain(SECRET_KEY);
   });
 
-  it("keeps the secret key masked when copying fails", async () => {
-    writeText.mockRejectedValueOnce(new Error("Clipboard denied"));
-    const { container } = renderContent();
-
-    fireEvent.click(screen.getByRole("button", { name: "Copy key" }));
-
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith(SECRET_KEY));
-    expect(container.textContent).not.toContain(SECRET_KEY);
-  });
-
   it("copies the .env snippet with the full secret key", async () => {
     const { container } = renderContent();
 
