@@ -66,9 +66,10 @@ export async function topicFilterConditions(
   );
   return topicFilters.flatMap((topicFilter, index) => {
     const facet = facets.find((item) => item.name === topicFilter.key);
-    const topicIds = (
-      maps.find((map) => map.facetId === facet?.id)?.topics ?? []
-    )
+    // Rules map a facet separately; a name matches in any of them.
+    const topicIds = maps
+      .filter((map) => map.facetId === facet?.id)
+      .flatMap((map) => map.topics)
       .filter((topic) => topicFilter.value.includes(topic.name))
       .map((topic) => topic.topicId);
     const negated = topicFilter.operator === "none of";

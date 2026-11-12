@@ -7,7 +7,7 @@ type TraceTopicsCellProps = {
   facet: string;
 };
 
-/** One facet's current topic; every Topics column shares one query per page. */
+/** One facet's current topics; every Topics column shares one query per page. */
 export function TraceTopicsCell({
   projectId,
   rows,
@@ -15,9 +15,11 @@ export function TraceTopicsCell({
   facet,
 }: TraceTopicsCellProps) {
   const topics = useTraceTopicsForRows(projectId, rows);
-  const topic = topics?.[traceId ?? ""]?.find(
-    (item) => item.facet === facet,
-  )?.topic;
+  // Several rules can each assign the facet a topic.
+  const topic = topics?.[traceId ?? ""]
+    ?.filter((item) => item.facet === facet)
+    .map((item) => item.topic)
+    .join(", ");
   return (
     <span className="ph-no-capture block truncate" title={topic}>
       {topic}

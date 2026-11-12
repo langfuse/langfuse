@@ -14,7 +14,11 @@ import {
   type TopicEmbeddingConfig,
 } from "../../topics";
 import { isEqual } from "lodash";
-import { getTopicDefinitions, writeTopicDefinitions } from "./clickhouse";
+import {
+  getTopicDefinitions,
+  getTopicNames,
+  writeTopicDefinitions,
+} from "./clickhouse";
 import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { TopicsTargetObject } from "../../features/evals/types";
 import { topicRuleWhere } from "./processing-gate";
@@ -379,6 +383,16 @@ async function hydrateRuns(
 ): Promise<TopicRun[]> {
   const ids = rows.flatMap((row) => row.topicVersionIds);
   if (!ids.length) return rows.map((row) => runResult(row, new Map()));
+  const definitions = new Map(
+    (await getTopicDefinitions(projectId, ids, definitionTimeRange(rows))).map(
+      (topic) => [topic.topicVersionId, topic],
+    ),
+  );
+  return rows.map((row) => runResult(row, definitions));
+}
+
+// Definitions are written when their run completes, inside the run's stored range.
+function definitionTimeRange(rows: RunRow[]) {
   const ranges = rows
     .filter((row) => row.topicVersionIds.length)
     .map((row) =>
@@ -386,15 +400,10 @@ async function hydrateRuns(
         (row.config as Record<string, unknown>).definitionTimeRange,
       ),
     );
-  const definitions = new Map(
-    (
-      await getTopicDefinitions(projectId, ids, {
-        from: new Date(Math.min(...ranges.map(({ from }) => from.getTime()))),
-        to: new Date(Math.max(...ranges.map(({ to }) => to.getTime()))),
-      })
-    ).map((topic) => [topic.topicVersionId, topic]),
-  );
-  return rows.map((row) => runResult(row, definitions));
+  return {
+    from: new Date(Math.min(...ranges.map(({ from }) => from.getTime()))),
+    to: new Date(Math.max(...ranges.map(({ to }) => to.getTime()))),
+  };
 }
 
 export async function getTopicRun(
@@ -477,17 +486,66 @@ export async function getPublishedTopicRunIds(
   return (await findServingRuns(projectId, facetIds)).map(({ id }) => id);
 }
 
-/** The facets' serving maps, chosen like the Topics page does. */
+/**
+ * Every rule's map of the facets, as the Topics map picker shows them. The oldest
+ * rule also serves setup's snapshot until its first fit; a facet no rule maps keeps
+ * its serving map.
+ */
 export async function getPublishedTopicMaps(
   projectId: string,
   facetIds: string[],
 ) {
-  const runs = facetIds.length
-    ? await findServingRuns(projectId, facetIds)
-    : [];
+  if (!facetIds.length) return { runIds: [], maps: [] };
+  const [rules, serving] = await Promise.all([
+    listTopicRules(projectId),
+    findServingRuns(projectId, facetIds),
+  ]);
+  const runs = await Promise.all(
+    facetIds.flatMap((facetId) => {
+      const fallback = serving.find((run) => run.facetId === facetId) ?? null;
+      const owners = rules.filter((rule) => rule.facetIds.includes(facetId));
+      if (!owners.length) return [Promise.resolve(fallback)];
+      return owners.map(async (rule) => {
+        const oldest = rule.id === rules[0]?.id;
+        const own = await prisma.topicClusteringRun.findFirst({
+          where: {
+            projectId,
+            facetId,
+            status: "completed",
+            ...(oldest
+              ? {
+                  OR: [
+                    { ruleId: rule.id },
+                    { ruleId: null, batchActionId: null },
+                  ],
+                }
+              : { ruleId: rule.id }),
+          },
+          orderBy: servingMapOrder,
+        });
+        return own ?? (oldest && !fallback?.ruleId ? fallback : null);
+      });
+    }),
+  );
+  const unique = [
+    ...new Map(
+      runs.flatMap((run) => (run ? [[run.id, run] as const] : [])),
+    ).values(),
+  ];
+  const ids = unique.flatMap((run) => run.topicVersionIds);
+  // Only names and ids: these reads run on every tracing request with topics.
+  const names = new Map(
+    (ids.length
+      ? await getTopicNames(projectId, ids, definitionTimeRange(unique))
+      : []
+    ).map((topic) => [topic.topicVersionId, topic]),
+  );
   return {
-    runIds: runs.map(({ id }) => id),
-    maps: await hydrateRuns(projectId, runs),
+    runIds: unique.map(({ id }) => id),
+    maps: unique.map((run) => ({
+      facetId: run.facetId,
+      topics: run.topicVersionIds.flatMap((id) => names.get(id) ?? []),
+    })),
   };
 }
 

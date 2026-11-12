@@ -187,6 +187,28 @@ export async function getTopicDefinitions(
   return definitions;
 }
 
+/** Names and ids of topic versions, without geometry or representative summaries. */
+export async function getTopicNames(
+  projectId: string,
+  topicVersionIds: string[],
+  timeRange: TopicTimeRange,
+) {
+  const names: { topicVersionId: string; topicId: string; name: string }[] = [];
+  for (const ids of chunk([...new Set(topicVersionIds)], LOOKUP_BATCH_SIZE))
+    names.push(
+      ...(await queryClickhouse<(typeof names)[number]>({
+        query: `SELECT id AS topicVersionId, stable_id AS topicId, name
+          FROM topics
+          WHERE project_id = {projectId:String} AND id IN {ids:Array(String)}
+            AND created_at >= {from:DateTime64(3)} AND created_at < {to:DateTime64(3)}
+          ORDER BY created_at DESC LIMIT 1 BY project_id, id`,
+        params: { projectId, ids, ...timeRangeParams(timeRange) },
+        tags: { route: "topics-names", projectId },
+      })),
+    );
+  return names;
+}
+
 /** RowBinary column order matches the explicit definition INSERT below. */
 function encodeTopicDefinition(row: TopicDefinition): Buffer {
   const parts: Buffer[] = [];
@@ -1291,14 +1313,14 @@ export function currentTopicTraceIdsCondition(
   };
 }
 
-// A trace's current topic: its newest assignment from the facet's serving map.
+// A trace's current topic per map: its newest assignment from each rule's published run.
 function currentTraceAssignmentsSql(scopeSql: string) {
   return `SELECT trace_id, facet_id, topic_id, topic_version_id, clustering_run_id
     FROM topic_assignments
     WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
       AND clustering_run_id IN {publishedRunIds:Array(String)}
     ORDER BY assigned_at DESC, origin DESC
-    LIMIT 1 BY facet_id, trace_id`;
+    LIMIT 1 BY facet_id, clustering_run_id, trace_id`;
 }
 
 /** Source time span of the traces' summaries, served by the latest_source_versions projection; null when none was summarized. */

@@ -953,7 +953,7 @@ describe("Topics definition persistence", () => {
     ).toEqual([]);
   });
 
-  it("resolves current topics for the column and the tracing filter from the serving map only", async () => {
+  it("resolves current topics for the column and the tracing filter from each rule's published map", async () => {
     const [current, reassigned, retired] = [
       randomUUID(),
       randomUUID(),
@@ -996,6 +996,8 @@ describe("Topics definition persistence", () => {
       assign(reassigned, "other", { assignedAt: "2026-09-03T00:00:00.000Z" }),
       // An older map's or an analysis's assignment never serves.
       assign(retired, "match", { runId: "retired" }),
+      // Another rule's map keeps its own current topic for the same trace.
+      assign(reassigned, "match", { runId: "other-rule" }),
     ]);
     const timeRange = {
       from: new Date("2026-08-31T00:00:00.000Z"),
@@ -1013,7 +1015,7 @@ describe("Topics definition persistence", () => {
         timestamp: rowStart,
       })),
       facetIds: [summary.facetId],
-      publishedRunIds: ["serving"],
+      publishedRunIds: ["serving", "other-rule"],
     });
     expect(
       topics.map(({ traceId, topicId }) => [traceId, topicId]).sort(),
@@ -1021,6 +1023,7 @@ describe("Topics definition persistence", () => {
       [
         [current, "match"],
         [reassigned, "other"],
+        [reassigned, "match"],
       ].sort(),
     );
 
@@ -1029,7 +1032,7 @@ describe("Topics definition persistence", () => {
       projectId: otherProjectId,
       facetId: summary.facetId,
       topicIds: ["match"],
-      publishedRunIds: ["serving"],
+      publishedRunIds: ["serving", "other-rule"],
       timeRange,
       negated: false,
     });
@@ -1039,6 +1042,10 @@ describe("Topics definition persistence", () => {
       query_params: { projectId: otherProjectId, ...condition.params },
       format: "JSONEachRow",
     });
-    expect(await matched.json()).toEqual([{ traceId: current }]);
+    expect(
+      ((await matched.json()) as { traceId: string }[])
+        .map(({ traceId }) => traceId)
+        .sort(),
+    ).toEqual([current, reassigned].sort());
   });
 });
