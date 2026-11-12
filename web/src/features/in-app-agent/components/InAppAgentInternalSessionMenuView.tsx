@@ -101,17 +101,9 @@ function getCopySessionLinkItem(link: SessionLink): DropdownMenuItemDefinition {
     ...item,
     type: "item",
     onClick: () => {
-      const sessionUrl = `${window.location.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}${path}`;
-      copyTextToClipboard(sessionUrl)
-        .then(() => {
-          showSuccessToast({
-            operation: "in_app_agent_session_link.copy",
-            title: "Session link copied",
-            description: sessionUrl,
-            duration: 2000,
-          });
-        })
-        .catch(() => undefined);
+      copyTextToClipboard(
+        `${window.location.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}${path}`,
+      ).catch(() => undefined);
     },
   };
 }
