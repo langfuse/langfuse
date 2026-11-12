@@ -23,7 +23,6 @@ import { type RouterOutput } from "@/src/utils/types";
 import { TagPromptPopover } from "@/src/features/tag/components/TagPromptPopover";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { promptFilterConfig } from "@/src/features/filters/config/prompts-config";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
@@ -91,8 +90,6 @@ export function PromptTable() {
     return { fromTimestamp, toTimestamp };
   }, []);
 
-  const [filterState] = useQueryFilterState([], "prompts", projectId);
-
   const [orderByState, setOrderByState] = useOrderByState({
     column: "createdAt",
     order: "DESC",
@@ -119,12 +116,55 @@ export function PromptTable() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery]);
 
+  const promptFilterOptions = api.prompts.filterOptions.useQuery(
+    { projectId },
+    {
+      trpc: { context: { skipBatch: true } },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
+  const newFilterOptions = useMemo(
+    () => ({
+      type: ["text", "chat"],
+      labels:
+        promptFilterOptions.data?.labels?.map((l) => ({
+          value: l.value,
+          count:
+            "count" in l && l.count !== undefined ? Number(l.count) : undefined,
+        })) ?? undefined,
+      tags:
+        promptFilterOptions.data?.tags?.map((t) => ({
+          value: t.value,
+          count:
+            "count" in t && t.count !== undefined ? Number(t.count) : undefined,
+        })) ?? undefined,
+      version: [],
+    }),
+    [promptFilterOptions.data],
+  );
+
+  const { viewControllersRef, onExplicitFilterStateChange } =
+    useTableViewFilterChange();
+  const queryFilter = useSidebarFilterState(
+    promptFilterConfig,
+    newFilterOptions,
+    {
+      onExplicitFilterStateChange,
+      loading: promptFilterOptions.isPending,
+      stateLocation: "urlAndSessionStorage",
+      sessionFilterContextId: projectId ?? null,
+    },
+  );
+
   const prompts = api.prompts.all.useQuery(
     {
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
       projectId,
-      filter: filterState,
+      filter: queryFilter.filterState,
       orderBy,
       pathPrefix: currentFolderPath,
       searchQuery: searchQuery || undefined,
@@ -221,66 +261,9 @@ export function PromptTable() {
     };
   }, [promptsRowData]);
 
-  const promptFilterOptions = api.prompts.filterOptions.useQuery(
-    {
-      projectId,
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-    },
-  );
   const filterOptionTags = promptFilterOptions.data?.tags ?? [];
   const allTags = filterOptionTags.map((t) => t.value);
   const totalCount = prompts.data?.totalCount ?? null;
-
-  const newFilterOptions = useMemo(
-    () => ({
-      type: ["text", "chat"],
-      labels:
-        promptFilterOptions.data?.labels?.map((l) => {
-          return {
-            value: l.value,
-            count:
-              "count" in l && l.count !== undefined
-                ? Number(l.count)
-                : undefined,
-          };
-        }) ?? undefined,
-      tags:
-        promptFilterOptions.data?.tags?.map((t) => {
-          return {
-            value: t.value,
-            count:
-              "count" in t && t.count !== undefined
-                ? Number(t.count)
-                : undefined,
-          };
-        }) ?? undefined,
-      version: [],
-    }),
-    [promptFilterOptions.data],
-  );
-
-  const { viewControllersRef, onExplicitFilterStateChange } =
-    useTableViewFilterChange();
-  const queryFilter = useSidebarFilterState(
-    promptFilterConfig,
-    newFilterOptions,
-    {
-      onExplicitFilterStateChange,
-      loading: promptFilterOptions.isPending,
-      stateLocation: "urlAndSessionStorage",
-      sessionFilterContextId: projectId ?? null,
-    },
-  );
 
   useEffect(() => {
     if (prompts.isSuccess) {
@@ -402,7 +385,7 @@ export function PromptTable() {
               page: 0,
               limit: 50,
               projectId,
-              filter: filterState,
+              filter: queryFilter.filterState,
               orderBy,
             }}
           />
