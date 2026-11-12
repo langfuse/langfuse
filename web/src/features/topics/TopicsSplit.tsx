@@ -7,6 +7,8 @@ import {
 } from "@/src/components/ui/resizable";
 
 const PANEL_IDS = ["topics", "traces"];
+/** Stacked, the trace list's header and a few rows stay visible however short the page. */
+const TRACES_MIN_HEIGHT = "15rem";
 
 /**
  * Topics beside or above the selected topic's traces. The handle is the only
@@ -41,7 +43,11 @@ export function TopicsSplit({
         {topics}
       </ResizablePanel>
       <ResizableHandle aria-label="Resize topics and traces" />
-      <ResizablePanel id="traces" minSize="25%" className="flex flex-col">
+      <ResizablePanel
+        id="traces"
+        minSize={orientation === "vertical" ? TRACES_MIN_HEIGHT : "25%"}
+        className="flex flex-col"
+      >
         {traces}
       </ResizablePanel>
     </ResizablePanelGroup>
