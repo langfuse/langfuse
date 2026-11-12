@@ -45,6 +45,7 @@ export async function processBatchedObservationEval(params: {
   const checkpoint = await prisma.batchAction.findUniqueOrThrow({
     where: { id: batchActionId, projectId },
     select: {
+      status: true,
       cursor: true,
       totalCount: true,
       processedCount: true,
@@ -52,6 +53,9 @@ export async function processBatchedObservationEval(params: {
       log: true,
     },
   });
+  // Dead-letter retries replay failed jobs; an action that ended Failed stays so.
+  if (checkpoint.status === BatchActionStatus.Failed) return;
+
   const resumeCursor = EventsStreamCursorSchema.safeParse(checkpoint.cursor);
   const isResuming = resumeCursor.success;
 

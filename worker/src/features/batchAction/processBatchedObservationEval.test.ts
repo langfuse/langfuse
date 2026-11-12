@@ -335,6 +335,24 @@ describe("processBatchedObservationEval", () => {
     });
   });
 
+  it("leaves a batch action that already failed untouched on a replay", async () => {
+    vi.mocked(prisma.batchAction.findUniqueOrThrow).mockResolvedValueOnce({
+      status: BatchActionStatus.Failed,
+    } as never);
+    const openObservationStream = vi.fn();
+
+    await processBatchedObservationEval({
+      projectId: "project-1",
+      batchActionId: "batch-action-already-failed",
+      evaluators: [],
+      rowLimit: 100,
+      openObservationStream,
+    });
+
+    expect(openObservationStream).not.toHaveBeenCalled();
+    expect(prisma.batchAction.update).not.toHaveBeenCalled();
+  });
+
   it("keeps the errors of earlier attempts when it resumes", async () => {
     const projectId = "project-1";
     const cursor = {
