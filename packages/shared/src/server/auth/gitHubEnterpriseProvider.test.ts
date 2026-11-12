@@ -1,9 +1,14 @@
-import { createServer, type Server } from "node:http";
-import { type AddressInfo } from "node:net";
-import { createRequire } from "node:module";
-import { afterEach, describe, expect, it } from "vitest";
 import type { GithubProfile } from "next-auth/providers/github";
 import type { UserinfoEndpointHandler } from "next-auth/providers/oauth";
+import {
+  createServer,
+  type RequestListener,
+  type Server,
+  type ServerResponse,
+} from "node:http";
+import { createRequire } from "node:module";
+import { type AddressInfo } from "node:net";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { GitHubEnterpriseProvider } from "./gitHubEnterpriseProvider";
 
@@ -83,7 +88,7 @@ async function requestProfile(baseUrl: string): Promise<GithubProfile> {
 }
 
 async function startFakeGitHubEnterprise(
-  emails: (res: import("node:http").ServerResponse) => void,
+  emails: (res: ServerResponse) => void,
 ) {
   return startServer((req, res) => {
     if (req.url === "/api/v3/user/emails") return emails(res);
@@ -92,11 +97,11 @@ async function startFakeGitHubEnterprise(
   });
 }
 
-async function startServer(handler: Parameters<typeof createServer>[1]) {
+async function startServer(handler: RequestListener) {
   let hits = 0;
   const server = createServer((req, res) => {
     hits++;
-    handler!(req, res);
+    handler(req, res);
   });
   servers.push(server);
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));

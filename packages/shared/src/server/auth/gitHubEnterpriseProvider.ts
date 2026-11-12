@@ -1,6 +1,7 @@
 import type { OAuthConfig, OAuthUserConfig } from "next-auth/providers/oauth";
 import type { GithubProfile, GithubEmail } from "next-auth/providers/github";
 
+/** GitHubEnterpriseProvider configures NextAuth OAuth sign-in against a GitHub Enterprise host. */
 export function GitHubEnterpriseProvider<P extends GithubProfile>(
   options: OAuthUserConfig<P> & {
     enterprise?: {
