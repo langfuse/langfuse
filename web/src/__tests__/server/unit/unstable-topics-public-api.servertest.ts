@@ -163,7 +163,12 @@ describe("unstable Topics public API", () => {
       assignment("t3", { topicId: "retired", runId: "run-1" }),
       assignment("t4", null),
     ]);
-    mocks.getTopicRuns.mockResolvedValue([oldRun]);
+    mocks.getTopicRuns.mockImplementation(async (_, ids: string[]) =>
+      [oldRun, issuesRun].filter((run) => ids.includes(run.id)),
+    );
+    mocks.getCurrentTopicMapRows.mockResolvedValue([
+      { ruleId: "rule-1", run: issuesRun },
+    ]);
     readers.getTopicResultCounts.mockImplementation(async ({ facets }) =>
       facets.map(({ facetId }: { facetId: string }) => ({
         facetId,
@@ -475,9 +480,40 @@ describe("unstable Topics public API", () => {
           },
         ],
       });
+    });
+
+    it("translates a topic name that only another rule's map has", async () => {
+      const billingRun = {
+        ...issuesRun,
+        id: "run-3",
+        topics: [definition("invoices", "Invoice disputes", "run-3")],
+      };
       mocks.getCurrentTopicMapRows.mockResolvedValue([
-        { ruleId: "rule-1", run: { id: "run-1", facetId: "issues" } },
+        { ruleId: "rule-1", run: issuesRun },
+        { ruleId: "rule-2", run: billingRun },
       ]);
+      mocks.getTopicRuns.mockResolvedValue([issuesRun, billingRun]);
+      await listPublicTopicAssignments({
+        ...listQuery,
+        filter: [
+          {
+            type: "stringOptions",
+            column: "topicName",
+            operator: "any of",
+            value: ["Invoice disputes"],
+          },
+        ],
+      });
+      expect(readers.listCurrentTopicAssignments).toHaveBeenCalledWith(
+        expect.objectContaining({
+          conditions: [
+            {
+              column: "topicId",
+              match: { operator: "any of", values: ["invoices"] },
+            },
+          ],
+        }),
+      );
     });
 
     it("reports each assignment's rule from its map and narrows a rule filter to that rule's maps", async () => {
@@ -592,6 +628,9 @@ describe("unstable Topics public API", () => {
 
     it("names an assignment's topic from the run that assigned it", async () => {
       mocks.getTopicRuns.mockResolvedValue([oldRun, issuesRun]);
+      mocks.getCurrentTopicMapRows.mockResolvedValue([
+        { ruleId: "rule-1", run: oldRun },
+      ]);
       const result = await listPublicTopicAssignments(listQuery);
       expect(result.data).toEqual([
         {

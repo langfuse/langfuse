@@ -470,13 +470,23 @@ function checkFilterLimits(filter: FilterState) {
   }
 }
 
-/** Published map topics per facet, for resolving topic names. */
+/** Topics of every rule's current map per facet, for resolving topic names. */
 async function publishedTopicsByFacet(projectId: string, facets: TopicFacet[]) {
-  const runs = await Promise.all(
-    facets.map((facet) => getPublishedTopicRun(projectId, facet.id)),
+  const maps = await getCurrentTopicMapRows(
+    projectId,
+    facets.map((facet) => facet.id),
+  );
+  const runs = await getTopicRuns(
+    projectId,
+    maps.map(({ run }) => run.id),
   );
   return new Map(
-    facets.map((facet, index) => [facet.id, runs[index]?.topics ?? []]),
+    facets.map((facet) => [
+      facet.id,
+      runs
+        .filter((run) => run.facetId === facet.id)
+        .flatMap((run) => run.topics),
+    ]),
   );
 }
 
