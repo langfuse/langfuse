@@ -13,8 +13,8 @@ export type GatewaySetupSwitchboardProps = {
   sources?: ReadonlyArray<string>;
   /** When set, no traffic flows and the hub carries this label, e.g. "Not set up". */
   idleLabel?: string;
-  /** When set, providers without a credential show this label, e.g. "+ Add", instead of an off switch. */
-  addLabel?: string;
+  /** How providers without a credential render: an off switch, or an empty dashed slot. */
+  unconnectedVariant?: "switch" | "placeholder";
   /** A dimmed placeholder row after the providers, e.g. "More soon". */
   comingSoonLabel?: string;
 };
@@ -50,7 +50,7 @@ function connectorPath(y: number) {
   return `M${HUB.x + HUB_RADIUS} ${HUB.y}C262 ${HUB.y},262 ${y},${PILL.x} ${y}`;
 }
 
-/** Short enough to leave room for the switch or the add label in a pill. */
+/** Short enough to leave room for the switch in a pill. */
 const DIAGRAM_LABELS = {
   ...providerLabels,
   BEDROCK: "Bedrock",
@@ -64,7 +64,7 @@ export function GatewaySetupSwitchboard({
   providers,
   sources = [],
   idleLabel,
-  addLabel,
+  unconnectedVariant = "switch",
   comingSoonLabel,
 }: GatewaySetupSwitchboardProps) {
   const gradientId = useId();
@@ -159,7 +159,8 @@ export function GatewaySetupSwitchboard({
         const y = rowY(index);
         const connector = connectorPath(y);
         const Icon = providerIcons[provider];
-        const showsAddLabel = addLabel !== undefined && !isConnected;
+        const isPlaceholder =
+          unconnectedVariant === "placeholder" && !isConnected;
         return (
           <g key={provider}>
             <path
@@ -194,10 +195,10 @@ export function GatewaySetupSwitchboard({
               width={PILL.width}
               height={PILL.height}
               rx={4}
-              strokeDasharray={showsAddLabel ? "3 3" : undefined}
+              strokeDasharray={isPlaceholder ? "3 3" : undefined}
               className={cn(
                 "fill-background",
-                showsAddLabel ? "stroke-muted-foreground" : "stroke-border",
+                isPlaceholder ? "stroke-muted-foreground" : "stroke-border",
               )}
             />
             <Icon
@@ -217,17 +218,7 @@ export function GatewaySetupSwitchboard({
             >
               {DIAGRAM_LABELS[provider]}
             </text>
-            {showsAddLabel ? (
-              <text
-                x={PILL.x + PILL.width - 8}
-                y={y + 3.4}
-                fontSize={9}
-                textAnchor="end"
-                className="fill-muted-foreground font-mono"
-              >
-                {addLabel}
-              </text>
-            ) : (
+            {isPlaceholder ? null : (
               <>
                 <rect
                   x={TOGGLE_X}

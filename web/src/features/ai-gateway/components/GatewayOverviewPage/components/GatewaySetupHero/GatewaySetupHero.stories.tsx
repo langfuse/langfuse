@@ -59,7 +59,7 @@ export const SwitchboardWithAllRows = meta.story({
           { provider: "XAI", isConnected: false },
           { provider: "VERCEL", isConnected: false },
         ]}
-        addLabel="Add"
+        unconnectedVariant="placeholder"
         comingSoonLabel="More soon"
       />
     </div>
