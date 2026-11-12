@@ -50,6 +50,18 @@ const run = async (
   const observationsPerTrace = params["observations-per-trace"] as number;
   const scoresPerTrace = params["scores-per-trace"] as number;
   const richPayloads = params["rich-payloads"] as boolean;
+  const traceNameBytes = (params["trace-name-bytes"] as number) ?? 0;
+
+  if (
+    !Number.isSafeInteger(traceNameBytes) ||
+    traceNameBytes < 0 ||
+    traceNameBytes > 16_384 ||
+    count * traceNameBytes > 256 * 1024 * 1024
+  ) {
+    throw new SeedError(
+      "--trace-name-bytes must be an integer between 0 and 16384; count × trace-name-bytes must not exceed 256 MiB",
+    );
+  }
 
   if (count < 1) {
     throw new SeedError(
@@ -113,6 +125,7 @@ const run = async (
     idPrefix: ctx.idPrefix,
     anchorSeconds: Math.floor(utcDayStartMs() / 1000),
     seed: ctx.seed,
+    traceNameBytes,
   };
   // Link ~10% of generations to REAL prompts — fabricated prompt ids would
   // silently break the trace-detail prompt badge. No prompts -> NULL columns.
@@ -212,6 +225,22 @@ const run = async (
       `Readback mismatch: expected at least ${count} bulk traces, found ${verified.traces}`,
     );
   }
+  if (traceNameBytes > 0) {
+    const tooShort = await countRows(
+      "traces FINAL",
+      "project_id = {projectId: String} AND id LIKE {prefix: String} AND length(name) < {nameBytes: UInt32}",
+      {
+        projectId: ctx.projectId,
+        prefix: `${escapeLike(ctx.idPrefix)}-trace-bulk-%-${idSuffix}`,
+        nameBytes: traceNameBytes,
+      },
+    );
+    if (tooShort > 0) {
+      throw new SeedError(
+        "Readback mismatch: trace names shorter than requested",
+      );
+    }
+  }
   if (verified.observations < counts.observations) {
     throw new SeedError(
       `Readback mismatch: expected ${counts.observations} bulk observations, found ${verified.observations}`,
@@ -271,6 +300,13 @@ export const manyTracesScenario: ScenarioDefinition = {
       type: "number",
       default: 2,
       description: "scores per trace",
+    },
+    {
+      flag: "trace-name-bytes",
+      type: "number",
+      default: 0,
+      description:
+        "pad trace names with synthetic ASCII for join/sort benchmarks (0 keeps normal names; max 16384, total max 256 MiB)",
     },
     {
       flag: "rich-payloads",

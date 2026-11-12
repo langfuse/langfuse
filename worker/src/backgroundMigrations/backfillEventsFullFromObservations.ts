@@ -195,10 +195,9 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
   /**
    * Enumerates active parts of `observations_pid_tid_sorting` from
    * `system.parts`, newest partition first. One todo per part keeps each
-   * INSERT bounded to a single ClickHouse part (single-digit GBs in most
-   * cases, capped well below an entire monthly partition), which is the only
-   * granularity that's safe to assume self-hoster hardware can chew through
-   * without OOM or memory-limit failures.
+   * INSERT scoped to a single ClickHouse part rather than an entire monthly
+   * partition. Part sizes vary; this is not a hard memory bound on the join
+   * or its sorting and key-set construction.
    *
    * Partition restriction (`--partitions`) is not supported here — chunks are
    * parts, not partitions, and a restricted run would silently leave the
@@ -269,8 +268,10 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
   /**
    * Builds the per-part INSERT into events_full.
    *
-   * To keep the join scan small, we bound `traces` by a `timestamp` window aligned with the observation
-   * partition's month. This may produce some observation on the month boundary that do not have full
+   * Trace sorting/deduplication is restricted to project/trace keys from the
+   * frozen source part. The key set requires another narrow scratch-table
+   * read and can itself be large. Traces are also restricted to the observation
+   * partition's month, so month-boundary observations may not have full
    * propagation. Light trace property propagation only —
    * `trace.metadata` is intentionally excluded; the observation's metadata is
    * used as-is.
@@ -280,6 +281,14 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
     params: Record<string, unknown>;
   } {
     assertSafePartition(todo.partition);
+
+    // M2 freezes this part. Its keys are a stable superset of the observations
+    // eligible after the live dataset-run exclusion, which is evaluated only
+    // on the observation side. Excluded traces can add unused join rows.
+    const partFilter = `
+      _partition_id = {partition: String}
+      AND _part = {partId: String}
+    `;
 
     // The traces subquery dedupes to the latest row per (project_id, id):
     // traces is a ReplacingMergeTree, so unmerged duplicate versions co-exist
@@ -348,25 +357,29 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
         o.updated_at,
         o.event_ts,
         o.is_deleted
-      FROM ${pidTidSortingTable()} o
+      FROM (
+        SELECT * FROM ${pidTidSortingTable()}
+        WHERE ${partFilter}
+          AND (project_id, trace_id) NOT IN (
+            SELECT project_id, trace_id FROM dataset_run_items_rmt
+          )
+      ) o
       LEFT ANY JOIN (
         SELECT project_id, id, version, release, tags, public, bookmarked, name, user_id, session_id
         FROM traces t
         WHERE t._partition_id = {partition: String}
+          AND (t.project_id, t.id) IN (
+            SELECT project_id, trace_id FROM ${pidTidSortingTable()}
+            WHERE ${partFilter}
+          )
         ORDER BY event_ts DESC
         LIMIT 1 BY project_id, id
       ) t
       ON o.project_id = t.project_id AND o.trace_id = t.id
-      WHERE o._partition_id = {partition: String}
-        AND o._part = {partId: String}
-        -- Skip observations of DRI-referenced traces: M4 owns those traces
-        -- end-to-end (every observation, enriched). Keeps ownership disjoint
-        -- with M1/M4. Relies on the same per-project co-location as the join.
-        AND (o.project_id, o.trace_id) NOT IN (
-          SELECT project_id, trace_id FROM dataset_run_items_rmt
-        )
       SETTINGS
         join_algorithm = 'full_sorting_merge',
+        -- A partial key set can silently omit trace enrichment.
+        set_overflow_mode = 'throw',
         type_json_skip_duplicated_paths = 1
     `;
 
