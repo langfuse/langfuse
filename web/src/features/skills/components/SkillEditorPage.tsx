@@ -27,6 +27,7 @@ import {
   skillDraftStorageKey,
   type SkillDraft,
 } from "@/src/features/skills/components/skillDraftStorage";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { parseSkillFrontmatterMetadata } from "@/src/features/skills/utils/parseSkillFrontmatterMetadata";
@@ -153,7 +154,7 @@ function ExistingSkillSession({
   skillName: string;
 }) {
   const draftKey = skillDraftStorageKey(projectId, skillName);
-  const [storedDraft] = useState(() =>
+  const [storedDraft, setStoredDraft] = useState(() =>
     projectId && skillName ? readSkillDraft(draftKey) : null,
   );
   const baseVersion = storedDraft?.baseVersion ?? null;
@@ -161,21 +162,51 @@ function ExistingSkillSession({
     { projectId, name: skillName, version: baseVersion ?? 0 },
     { enabled: baseVersion !== null, refetchOnWindowFocus: false },
   );
+  const headerProps: ComponentProps<typeof Page>["headerProps"] = {
+    title: skillName,
+    breadcrumb: [
+      { name: "Skills", href: `/project/${projectId}/skills` },
+      { name: "Editor" },
+    ],
+  };
 
   if (baseVersion !== null && storedDraftBase.isPending) {
     return (
-      <Page
-        headerProps={{
-          title: skillName,
-          breadcrumb: [
-            { name: "Skills", href: `/project/${projectId}/skills` },
-            { name: "Editor" },
-          ],
-        }}
-      >
+      <Page headerProps={headerProps}>
         <div className="grid gap-3 p-3">
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-[600px] w-full" />
+        </div>
+      </Page>
+    );
+  }
+
+  // Keep the stored draft untouched until it loads or is discarded, so a
+  // new draft cannot overwrite it under the same key.
+  if (
+    baseVersion !== null &&
+    storedDraftBase.isError &&
+    storedDraftBase.error.data?.code !== "NOT_FOUND"
+  ) {
+    return (
+      <Page headerProps={headerProps}>
+        <div className="grid justify-items-start gap-3 p-6 text-sm">
+          <p>Could not load your saved draft.</p>
+          <div className="flex gap-2">
+            <Button
+              text="Retry"
+              loading={storedDraftBase.isFetching}
+              onClick={() => storedDraftBase.refetch()}
+            />
+            <Button
+              text="Discard draft"
+              variant="outline"
+              onClick={() => {
+                clearSkillDraft(draftKey);
+                setStoredDraft(null);
+              }}
+            />
+          </div>
         </div>
       </Page>
     );
