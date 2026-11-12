@@ -302,6 +302,14 @@ vi.mock("@/src/utils/api", () => ({
       },
       traceErrors: { useQuery: () => ({}) },
       maps: { useQuery: () => ({ data: state.maps }) },
+      ruleSetupStatus: { useQuery: () => ({ data: null }) },
+      startRuleSetup: {
+        useMutation: () => ({
+          isPending: false,
+          mutate: vi.fn(),
+          mutateAsync: vi.fn(),
+        }),
+      },
       analysisResults: { useQuery: () => ({}) },
       retry: {
         useMutation: ({ onSuccess }: { onSuccess: () => void }) => ({
