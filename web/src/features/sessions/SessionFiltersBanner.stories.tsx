@@ -11,4 +11,4 @@ const meta = preview.meta({
   },
 });
 
-export const Default = meta.story({});
+export const Default = meta.story({ args: { onSave: fn() } });
