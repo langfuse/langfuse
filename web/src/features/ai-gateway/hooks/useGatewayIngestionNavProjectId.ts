@@ -1,12 +1,11 @@
 import { type Session } from "next-auth";
 import { useRouter } from "next/router";
 
-import { gatewayPageSlugFromPath } from "@/src/features/ai-gateway/fns/gatewayUrls/gatewayPageSlugFromPath";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import { api } from "@/src/utils/api";
 
 /**
- * The gateway's ingestion project for the sidebar link on AI Gateway pages, or
+ * The gateway's ingestion project for the sidebar link on organization pages, or
  * null. Only gateway managers can read the config, and the project must be
  * one the user can open.
  */
@@ -21,7 +20,7 @@ export function useGatewayIngestionNavProjectId(
   const isEnabled =
     organization !== null &&
     organization !== undefined &&
-    gatewayPageSlugFromPath(router.asPath) !== null &&
+    typeof router.query.organizationId === "string" &&
     access.showManagement &&
     access.isIngestionConfigured === true;
   const configQuery = api.aiGateway.getConfig.useQuery(

@@ -44,7 +44,6 @@ describe("FeaturePreviewModal", () => {
   it("locks Topics on for staff and hides it after opting out of internal view", () => {
     const session = {
       user: {
-        admin: false,
         email: "member@clickhouse.com",
         featureFlags: testFeatureFlags({
           internalFeatures: true,

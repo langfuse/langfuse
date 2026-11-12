@@ -39,7 +39,6 @@ function caller(userId: string, memberships: [string, string, Role][]) {
     expires: "1",
     user: {
       id: userId,
-      admin: false,
       featureFlags: testFeatureFlags({ langfuseTopics: true }),
       organizations: memberships.map(([orgId, projectId, role]) => ({
         id: orgId,

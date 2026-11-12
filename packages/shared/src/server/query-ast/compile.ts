@@ -22,6 +22,7 @@ import { EventsTableRoutingPlugin } from "./eventsRouting";
 import { PARAM_NAME } from "./extensions";
 import { FinalTableNode, type ClickHouseSelectQueryNode } from "./nodes";
 import { selectRelations } from "./relations";
+import { SchemaReferencePlugin } from "./schemaReferences";
 import { SoftDeleteFilterPlugin } from "./softDelete";
 import {
   TenancyInjectionPlugin,
@@ -78,6 +79,7 @@ export function compileClickhouseQuery(
  */
 export function compilerPasses(projectId: string): KyselyPlugin[] {
   return [
+    new SchemaReferencePlugin(),
     new CteNamePlugin(),
     new EventsTableRoutingPlugin(),
     new SoftDeleteFilterPlugin(),

@@ -17,7 +17,7 @@ import {
 } from "@langfuse/shared";
 
 type EvaluationRule =
-  RouterOutputs["evalsV2"]["rules"]["list"]["rules"][number];
+  RouterOutputs["evalsV2"]["rules"]["listForExperimentDataset"][number];
 
 export function getDatasetExperimentRules(
   rules: EvaluationRule[] | undefined,
@@ -73,11 +73,10 @@ export function useExperimentV2EvaluatorSelection({
       placeholderData: (previousData) => previousData,
     },
   );
-  const rules = api.evalsV2.rules.list.useQuery(
+  const rules = api.evalsV2.rules.listForExperimentDataset.useQuery(
     {
       projectId,
-      page: 1,
-      limit: 100,
+      datasetId: datasetId ?? "",
     },
     { enabled: enabled && Boolean(datasetId) },
   );
@@ -96,10 +95,7 @@ export function useExperimentV2EvaluatorSelection({
       })),
     [evaluatorOptions.data],
   );
-  const datasetRules = getDatasetExperimentRules(
-    rules.data?.rules,
-    datasetId ?? "",
-  );
+  const datasetRules = getDatasetExperimentRules(rules.data, datasetId ?? "");
   const selectedEvaluatorNames = [
     ...new Set(
       datasetRules
@@ -195,7 +191,10 @@ export function useExperimentV2EvaluatorSelection({
       });
     }
 
-    await utils.evalsV2.rules.list.invalidate();
+    await Promise.all([
+      utils.evalsV2.rules.list.invalidate(),
+      utils.evalsV2.rules.listForExperimentDataset.invalidate(),
+    ]);
   };
 
   return {

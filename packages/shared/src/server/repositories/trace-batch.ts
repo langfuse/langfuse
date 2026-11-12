@@ -9,6 +9,7 @@ export type TraceBatchEventRow = {
   trace_id: string;
   session_id: string;
   environment: string;
+  trace_name: string;
   span_id: string;
   parent_span_id: string | null;
   start_time: string;
@@ -142,6 +143,7 @@ const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
       "e.trace_id",
       "e.session_id",
       "e.environment",
+      "e.trace_name",
       "e.span_id",
       "e.parent_span_id",
       "e.start_time",
@@ -213,6 +215,8 @@ export async function* getTraceBatchEventStream(
     maxThreads?: number;
     maxBlockSize?: number;
     requestTimeoutMs?: number;
+    /** Server-side query limit; the client timeout should exceed it. */
+    maxExecutionTimeS?: number;
     experimentId?: string;
     queryId?: string;
   } = {},
@@ -242,7 +246,7 @@ export async function* getTraceBatchEventStream(
       ...(options.maxBlockSize === undefined
         ? {}
         : { max_block_size: String(options.maxBlockSize) }),
-      max_execution_time: 30,
+      max_execution_time: options.maxExecutionTimeS ?? 30,
       timeout_overflow_mode: "throw",
     },
   });
