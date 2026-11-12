@@ -1650,17 +1650,19 @@ async function refitCohort({
 
 /**
  * The map a refit continues, so its topics keep their IDs and names: the rule's
- * published map of the facet, or the serving snapshot while the rule has none.
- * A map of another facet version is not continued.
+ * published map of the facet, or the snapshot no rule owns while the rule has
+ * none. Another rule's map and another facet version are not continued.
  */
 async function continuedMap(
   projectId: string,
   ruleId: string,
   facet: TopicFacetVersion,
 ): Promise<TopicRun | null> {
-  const current =
-    (await getTopicRuleMap(projectId, ruleId, facet.facetId)) ??
-    (await getPublishedTopicRun(projectId, facet.facetId));
+  const own = await getTopicRuleMap(projectId, ruleId, facet.facetId);
+  const serving = own
+    ? null
+    : await getPublishedTopicRun(projectId, facet.facetId);
+  const current = own ?? (serving?.ruleId ? null : serving);
   return current?.facetVersion === facet.version ? current : null;
 }
 

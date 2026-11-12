@@ -62,23 +62,21 @@ function GatewayConnectionModelNameCell({
       <span className="truncate" title={modelId}>
         {modelId}
       </span>
+      {custom ? <Badge text="Custom" color="blue" size="sm" /> : null}
       <CopyModelIdButton connectionName={connectionName} modelId={modelId} />
       {custom ? (
-        <>
-          <Badge text="Custom" color="blue" size="sm" />
-          <Tooltip label="Remove custom model">
-            {({ getTriggerProps }) => (
-              <IconButton
-                {...getTriggerProps()}
-                icon={Trash2}
-                label={`Remove ${modelId}`}
-                size="xs"
-                disabled={isSaving}
-                onClick={handleRemove}
-              />
-            )}
-          </Tooltip>
-        </>
+        <Tooltip label="Remove custom model">
+          {({ getTriggerProps }) => (
+            <IconButton
+              {...getTriggerProps()}
+              icon={Trash2}
+              label={`Remove ${modelId}`}
+              size="xs"
+              disabled={isSaving}
+              onClick={handleRemove}
+            />
+          )}
+        </Tooltip>
       ) : null}
     </div>
   );

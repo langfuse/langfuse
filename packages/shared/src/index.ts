@@ -298,6 +298,7 @@ export { AGGREGATABLE_SCORE_TYPES } from "./domain/scores";
 export { type AggregatableScoreDataType } from "./domain/scores";
 export { type AggregatableScore } from "./domain/scores";
 export { LISTABLE_SCORE_TYPES } from "./domain/scores";
+export { CORRECTION_SCORES_BILLABLE_FROM } from "./domain/scores";
 export { type ListableScoreDataType } from "./domain/scores";
 export { type ListableScore } from "./domain/scores";
 export { TableViewPresetTableName } from "./domain/table-view-presets";

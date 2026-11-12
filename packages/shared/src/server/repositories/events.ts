@@ -1,4 +1,6 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+import { isTopicFilter } from "../../topics";
+import { topicFilterConditions } from "../topics/trace-filter";
 import { prisma } from "../../db";
 import {
   TupleParam,
@@ -985,7 +987,11 @@ async function getObservationsFromEventsTableInternal<T>(
 
   // Extract positionInTrace filter and build baseFilter without it
   const positionFilter = filter.find((f) => f.type === "positionInTrace");
-  const baseFilter = withoutPositionInTrace(filter);
+  const baseFilter = withoutPositionInTrace(filter).filter(
+    (f) => !isTopicFilter(f),
+  );
+  // Topic membership lives in the topics tables; it joins the query as trace_id subqueries.
+  const topicConditions = await topicFilterConditions(projectId, filter);
 
   const orderByEntries = orderByToEntries(
     [orderBy ?? null],
@@ -1003,6 +1009,8 @@ async function getObservationsFromEventsTableInternal<T>(
       orderBy,
     });
   assertNoScoreFiltersWithPosition(positionFilter, filterGroups);
+  for (const condition of topicConditions)
+    queryBuilder.whereRaw(condition.query, condition.params);
 
   if (opts.select === "count") {
     queryBuilder.selectFieldSet("count");

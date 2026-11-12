@@ -347,6 +347,7 @@ enum GatewayProvider {
   OPENROUTER       @map("openrouter")
   XAI              @map("xai")
   VERCEL           @map("vercel")
+  AZURE            @map("azure")
   GOOGLE_AI_STUDIO @map("google_ai_studio")
 }
 

@@ -44,6 +44,7 @@ import {
   updateOrgMembership,
 } from "@langfuse/shared/memberships";
 import { inviteOrganizationMember } from "@/src/features/rbac/server/inviteOrganizationMember";
+import { isSsoEnforcedForEmail } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { throwIfHigherProjectRole } from "@/src/features/rbac/server/throwIfHigherProjectRole";
 import {
   sessionOrganizationScopes,
@@ -86,7 +87,7 @@ export const membersRouter = createTRPCRouter({
       return inviteOrganizationMember({
         ctx,
         input,
-        sendInvitationEmail: ({ to, orgName, userExists }) =>
+        sendInvitationEmail: async ({ to, orgName, userExists }) =>
           sendMembershipInvitationEmail({
             inviterEmail: ctx.session.user.email!,
             inviterName: ctx.session.user.name!,
@@ -94,6 +95,7 @@ export const membersRouter = createTRPCRouter({
             orgName,
             orgId: input.orgId,
             userExists,
+            ssoEnforced: !userExists && (await isSsoEnforcedForEmail(to)),
             env: env,
           }),
       });

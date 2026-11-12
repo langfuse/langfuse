@@ -1616,47 +1616,55 @@ describe("Topics execution", () => {
     },
   );
 
-  it("fits a rule's first map from its scheduled run, continuing the setup snapshot's topics", async () => {
-    await processSelection("source", 100);
-    await updateSelection("published");
-    const published = {
-      ...[...state.runs.values()].at(-1)!,
-      batchActionId: "setup",
-    };
-    state.runs.set(published.id, published);
-    state.runs.set("refit", {
-      ...pendingRun({
-        id: "refit",
-        projectId: "project",
-        facetId: facet.facetId,
-        facetVersion: facet.version,
-        config: {
-          embeddingModel: "eu.cohere.embed-v4:0",
-          dimensions: 256,
-          timeRange: {
-            from: "2026-01-01T00:00:00.000Z",
-            to: "2026-01-08T00:00:00.000Z",
+  it.each([
+    { owner: "the setup snapshot", ruleId: null, continued: true },
+    { owner: "another rule's map", ruleId: "other-rule", continued: false },
+  ])(
+    "fits a rule's first map from its scheduled run, continuing $owner only if no rule owns it",
+    async ({ ruleId, continued }) => {
+      await processSelection("source", 100);
+      await updateSelection("published");
+      const published = {
+        ...[...state.runs.values()].at(-1)!,
+        batchActionId: ruleId ? null : "setup",
+        ruleId,
+      };
+      state.runs.set(published.id, published);
+      state.runs.set("refit", {
+        ...pendingRun({
+          id: "refit",
+          projectId: "project",
+          facetId: facet.facetId,
+          facetVersion: facet.version,
+          config: {
+            embeddingModel: "eu.cohere.embed-v4:0",
+            dimensions: 256,
+            timeRange: {
+              from: "2026-01-01T00:00:00.000Z",
+              to: "2026-01-08T00:00:00.000Z",
+            },
           },
-        },
-      }),
-      ruleId: "rule",
-    });
-    state.name.mockClear();
+        }),
+        ruleId: "rule",
+      });
+      state.name.mockClear();
 
-    await processTopicRuleRefit({ projectId: "project", runId: "refit" });
+      await processTopicRuleRefit({ projectId: "project", runId: "refit" });
 
-    const refit = state.runs.get("refit")!;
-    expect(refit).toMatchObject({ status: "completed", ruleId: "rule" });
-    expect(refit.topics.map((topic) => topic.topicId).sort()).toEqual(
-      published.topics.map((topic) => topic.topicId).sort(),
-    );
-    expect(state.name).not.toHaveBeenCalled();
-    expect(
-      [...state.assignments.values()].filter(
-        (row) => row.runId === "refit" && row.origin === "initial",
-      ),
-    ).toHaveLength(100);
-  });
+      const refit = state.runs.get("refit")!;
+      expect(refit).toMatchObject({ status: "completed", ruleId: "rule" });
+      const sameTopics = refit.topics.some((topic) =>
+        published.topics.some((other) => other.topicId === topic.topicId),
+      );
+      expect(sameTopics).toBe(continued);
+      if (continued) expect(state.name).not.toHaveBeenCalled();
+      expect(
+        [...state.assignments.values()].filter(
+          (row) => row.runId === "refit" && row.origin === "initial",
+        ),
+      ).toHaveLength(100);
+    },
+  );
 
   it("bounds assignment writes and retries publication when a batch is not visible", async () => {
     await processSelection("source", 1);
