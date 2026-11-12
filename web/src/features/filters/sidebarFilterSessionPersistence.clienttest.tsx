@@ -10,6 +10,7 @@ import { type FilterState, encodeFiltersGeneric } from "@langfuse/shared";
 import { useSidebarFilterState } from "./hooks/useSidebarFilterState";
 import { omitFilterFacets, type FilterConfig } from "./lib/filter-config";
 import { buildSidebarFilterQueryStorageKey } from "./lib/persistedSidebarFilterQuery";
+import { getActiveTableFilterState } from "./lib/activeTableFilterState";
 import { getScoreFilterConfig } from "./config/scores-config";
 import { getFacetSummary } from "./lib/facet-display";
 
@@ -462,6 +463,26 @@ describe("useSidebarFilterState session persistence", () => {
       expect(queryParamStore.has("filter")).toBe(expectUrlFilter);
     },
   );
+
+  it("publishes session-restored filters the URL does not carry", async () => {
+    sessionStorage.setItem(
+      buildSessionKey(),
+      encodeStoredState(encodedFilterA),
+    );
+
+    const { unmount } = render(<SessionPersistenceHarness />);
+
+    await waitFor(() => {
+      expect(getActiveTableFilterState()).toEqual({
+        tableName: TEST_FILTER_CONFIG.tableName,
+        filters: FILTER_A,
+      });
+    });
+    expect(queryParamStore.has("filter")).toBe(false);
+
+    unmount();
+    expect(getActiveTableFilterState()).toBeUndefined();
+  });
 
   it("writes URL and session on update and clears both on reset", async () => {
     const sessionKey = buildSessionKey();

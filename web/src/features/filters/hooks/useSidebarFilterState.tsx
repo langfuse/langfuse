@@ -29,6 +29,7 @@ import {
   type PersistedSidebarFilterQueryState,
 } from "../lib/persistedSidebarFilterQuery";
 import { normalizeFilterColumnNames } from "../lib/filter-transform";
+import { publishActiveTableFilterState } from "../lib/activeTableFilterState";
 import {
   buildEffectiveEnvironmentFilter,
   buildManagedEnvironmentPolicyConfig,
@@ -1003,6 +1004,23 @@ export function useSidebarFilterStateCore(
     storedFiltersQuery,
     setStoredFiltersQuery,
   ]);
+
+  // Publish the applied filters of URL-backed (page-level) tables to the
+  // module registry the in-app agent reads at submit time; unregister on
+  // unmount so a stale table never describes the current screen.
+  useEffect(() => {
+    if (
+      stateLocationType !== "url" &&
+      stateLocationType !== "urlAndSessionStorage"
+    ) {
+      return;
+    }
+
+    return publishActiveTableFilterState({
+      tableName: config.tableName,
+      filters: filterState,
+    });
+  }, [stateLocationType, config.tableName, filterState]);
 
   return {
     /** Effective applied filters: explicit + defaults + managed-env policy. */

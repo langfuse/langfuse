@@ -68,6 +68,7 @@ import {
   createInAppAgentScreenContext,
   createInAppAgentUserContext,
 } from "@/src/features/in-app-agent/context";
+import { getActiveTableFilterState } from "@/src/features/filters/lib/activeTableFilterState";
 import type { InAppAgentSubmitOptions } from "@/src/features/in-app-agent/quickActions";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
@@ -940,6 +941,7 @@ function InAppAiAgentProviderInner({
     () =>
       createInAppAgentScreenContext({
         currentUrl: window.location.href,
+        tableFilters: getActiveTableFilterState(),
       }).concat(
         createInAppAgentUserContext({
           userName: session.data?.user?.name,

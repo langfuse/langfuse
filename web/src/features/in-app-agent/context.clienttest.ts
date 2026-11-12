@@ -1,6 +1,66 @@
 // @vitest-environment node
 
-import { getInAppAgentScreenContextDescription } from "./context";
+import type { FilterState } from "@langfuse/shared";
+import {
+  createInAppAgentScreenContext,
+  getInAppAgentScreenContextDescription,
+  sanitizeInAppAgentContext,
+} from "./context";
+
+describe("sanitizeInAppAgentContext", () => {
+  const filters: FilterState = [
+    {
+      column: "isRootObservation",
+      type: "boolean",
+      operator: "=",
+      value: true,
+    },
+    {
+      column: "score_categories",
+      type: "categoryOptions",
+      key: "pass or fail",
+      operator: "any of",
+      value: ["pass"],
+    },
+  ];
+  const currentUrl = "https://cloud.langfuse.com/project/project-1/traces";
+  const readPage = (context: ReturnType<typeof sanitizeInAppAgentContext>) =>
+    JSON.parse(
+      context.find((item) => item.description === "current_url")?.value ??
+        "null",
+    );
+
+  it("adds the applied table filters the URL does not carry to the page", () => {
+    const context = createInAppAgentScreenContext({
+      currentUrl,
+      tableFilters: { tableName: "traces", filters },
+    });
+
+    expect(readPage(sanitizeInAppAgentContext(context, "project-1"))).toEqual({
+      pathname: "/project/project-1/traces",
+      searchParams: [],
+      hash: "",
+      appliedFilters: { table: "traces", filters },
+    });
+  });
+
+  it("drops malformed table filters and keeps the page", () => {
+    const context = [
+      { description: "current_url", value: currentUrl },
+      {
+        description: "current_table_filters",
+        value: JSON.stringify({
+          tableName: "traces",
+          filters: [{ column: "name", type: "unknown" }],
+        }),
+      },
+    ];
+
+    expect(
+      readPage(sanitizeInAppAgentContext(context, "project-1")),
+    ).not.toHaveProperty("appliedFilters");
+  });
+});
 
 describe("getInAppAgentScreenContextDescription", () => {
   it.each([

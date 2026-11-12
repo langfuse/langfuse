@@ -1,6 +1,8 @@
 import type { AgUiContext } from "@langfuse/shared/in-app-agent";
 import { getInAppAgentProjectRoute } from "@/src/features/in-app-agent/routeContext";
-import type { FilterState } from "@langfuse/shared";
+import type { ActiveTableFilterState } from "@/src/features/filters/lib/activeTableFilterState";
+import { eventsTableFilterState, type FilterState } from "@langfuse/shared";
+import { z } from "zod";
 
 type InAppAgentContext = AgUiContext;
 
@@ -26,6 +28,7 @@ export type InAppAgentScreenContextDescription =
   | { type: "datasets-list" };
 
 const CURRENT_URL_CONTEXT_DESCRIPTION = "current_url";
+const TABLE_FILTERS_CONTEXT_DESCRIPTION = "current_table_filters";
 const MAX_SCREEN_CONTEXT_SEARCH_PARAMS = 30;
 const MAX_CONTEXT_KEY_LENGTH = 80;
 const MAX_CONTEXT_VALUE_LENGTH = 500;
@@ -144,12 +147,21 @@ export function getInAppAgentScreenContextDescription(
 
 export function createInAppAgentScreenContext(params: {
   currentUrl: string;
+  tableFilters?: ActiveTableFilterState;
 }): InAppAgentContext {
   return [
     {
-      description: "current_url",
+      description: CURRENT_URL_CONTEXT_DESCRIPTION,
       value: params.currentUrl,
     },
+    ...(params.tableFilters
+      ? [
+          {
+            description: TABLE_FILTERS_CONTEXT_DESCRIPTION,
+            value: JSON.stringify(params.tableFilters),
+          },
+        ]
+      : []),
   ];
 }
 
@@ -168,26 +180,29 @@ export function sanitizeInAppAgentContext(
       currentUrlContext.value,
       projectId,
     );
-    const serializedCurrentUrl = currentUrl
-      ? JSON.stringify(currentUrl)
-      : undefined;
-    const serializedResolvedCurrentUrl =
-      currentUrl && viewFilters
-        ? JSON.stringify({
+    const appliedFilters = sanitizeTableFiltersContext(context);
+    // Most specific first; drop optional sections until the page fits.
+    const pageCandidates = currentUrl
+      ? [
+          {
             ...currentUrl,
-            savedView: { filters: viewFilters },
-          })
-        : undefined;
-    const boundedCurrentUrl =
-      serializedResolvedCurrentUrl &&
-      serializedResolvedCurrentUrl.length <= MAX_SCREEN_CONTEXT_JSON_LENGTH
-        ? serializedResolvedCurrentUrl
-        : serializedCurrentUrl;
+            ...(appliedFilters ? { appliedFilters } : {}),
+            ...(viewFilters ? { savedView: { filters: viewFilters } } : {}),
+          },
+          {
+            ...currentUrl,
+            ...(appliedFilters ? { appliedFilters } : {}),
+          },
+          currentUrl,
+        ]
+      : [];
+    const boundedCurrentUrl = pageCandidates
+      .map((page) => JSON.stringify(page))
+      .find(
+        (serialized) => serialized.length <= MAX_SCREEN_CONTEXT_JSON_LENGTH,
+      );
 
-    if (
-      boundedCurrentUrl &&
-      boundedCurrentUrl.length <= MAX_SCREEN_CONTEXT_JSON_LENGTH
-    ) {
+    if (boundedCurrentUrl) {
       sanitizedContext.push({
         description: CURRENT_URL_CONTEXT_DESCRIPTION,
         value: boundedCurrentUrl,
@@ -198,6 +213,30 @@ export function sanitizeInAppAgentContext(
   sanitizedContext.push(...sanitizeUserContext(context));
 
   return sanitizedContext;
+}
+
+const tableFiltersContextSchema = z.object({
+  tableName: z.string().min(1).max(MAX_CONTEXT_KEY_LENGTH),
+  filters: eventsTableFilterState,
+});
+
+function sanitizeTableFiltersContext(context: InAppAgentContext) {
+  const value = context.find(
+    (item) => item.description === TABLE_FILTERS_CONTEXT_DESCRIPTION,
+  )?.value;
+
+  if (!value || value.length > MAX_SCREEN_CONTEXT_JSON_LENGTH) {
+    return undefined;
+  }
+
+  try {
+    const parsed = tableFiltersContextSchema.safeParse(JSON.parse(value));
+    return parsed.success
+      ? { table: parsed.data.tableName, filters: parsed.data.filters }
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function sanitizeUserContext(context: InAppAgentContext): InAppAgentContext {
