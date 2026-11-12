@@ -2,9 +2,9 @@ import { useController, type Control } from "react-hook-form";
 
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
-import { AllowedModelsPreview } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/components/GatewayApiKeyModelsField/components/AllowedModelsPreview/AllowedModelsPreview";
-import { ModelPatternsInput } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/components/GatewayApiKeyModelsField/components/ModelPatternsInput/ModelPatternsInput";
-import type { CreateGatewayApiKeyFormValues } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/types/createGatewayApiKeyFormSchema";
+import { AllowedModelsPreview } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyModelsField/components/AllowedModelsPreview/AllowedModelsPreview";
+import { ModelPatternsInput } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyModelsField/components/ModelPatternsInput/ModelPatternsInput";
+import type { EditableGatewayApiKeyFields } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/types/editableGatewayApiKeyFieldsSchema";
 import { matchesGatewayModelPatterns } from "@/src/features/ai-gateway/fns/gatewayModelPatterns";
 import type { GatewayEnabledModels } from "@/src/features/ai-gateway/types/gatewayEnabledModels";
 
@@ -20,17 +20,23 @@ const PATTERN_HELP = [
   { type: "text", text: "." },
 ] as const;
 
-type GatewayApiKeyModelsFieldProps = {
-  control: Control<CreateGatewayApiKeyFormValues>;
+type GatewayApiKeyModelsFieldProps<
+  TFieldValues extends EditableGatewayApiKeyFields,
+> = {
+  control: Control<TFieldValues>;
   /** Undefined hides the allowed models preview. */
   enabledModels: GatewayEnabledModels | undefined;
 };
 
-export function GatewayApiKeyModelsField({
-  control,
-  enabledModels,
-}: GatewayApiKeyModelsFieldProps) {
-  const { field } = useController({ control, name: "modelPatterns" });
+export function GatewayApiKeyModelsField<
+  TFieldValues extends EditableGatewayApiKeyFields,
+>({ control, enabledModels }: GatewayApiKeyModelsFieldProps<TFieldValues>) {
+  // Control is invariant in its form values, so a form that holds more fields
+  // than these is narrowed to the slice this field edits.
+  const { field } = useController({
+    control: control as unknown as Control<EditableGatewayApiKeyFields>,
+    name: "modelPatterns",
+  });
   const patterns = field.value;
   const allowedModels = enabledModels?.models.filter((model) =>
     matchesGatewayModelPatterns(patterns, model.slug),

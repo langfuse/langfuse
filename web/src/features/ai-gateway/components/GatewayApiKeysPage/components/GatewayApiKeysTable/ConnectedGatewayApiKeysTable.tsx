@@ -9,6 +9,7 @@ import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useGatewayApiKeysTableData } from "@/src/features/ai-gateway/hooks/useGatewayApiKeysTableData";
 import { api } from "@/src/utils/api";
+import { EditGatewayApiKeyDialogController } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/EditGatewayApiKeyDialogController/EditGatewayApiKeyDialogController";
 import { GatewayApiKeysTable } from "./GatewayApiKeysTable";
 
 export function ConnectedGatewayApiKeysTable({
@@ -103,32 +104,37 @@ export function ConnectedGatewayApiKeysTable({
       }}
     >
       {({ openDialog: openRevokeDialog }) => (
-        <div className="flex h-full min-h-0 flex-col gap-4">
-          {hasNoKeys ? null : description}
-          <div className="flex min-h-0 flex-1 flex-col">
-            <GatewayApiKeysTable
-              data={
-                rows === undefined
-                  ? { status: "loading" }
-                  : { status: "success", data: rows }
-              }
-              lastUsed={lastUsed}
-              orderBy={orderBy}
-              setOrderBy={handleOrderByChange}
-              pagination={{
-                mode: "offset",
-                totalCount: apiKeysQuery.data?.totalCount ?? null,
-                state: paginationState,
-                onChange: setPaginationState,
-              }}
-              search={{
-                value: searchQuery,
-                onChange: handleSearchChange,
-              }}
-              onRevoke={openRevokeDialog}
-            />
-          </div>
-        </div>
+        <EditGatewayApiKeyDialogController organizationId={organizationId}>
+          {({ openDialog: openEditDialog }) => (
+            <div className="flex h-full min-h-0 flex-col gap-4">
+              {hasNoKeys ? null : description}
+              <div className="flex min-h-0 flex-1 flex-col">
+                <GatewayApiKeysTable
+                  data={
+                    rows === undefined
+                      ? { status: "loading" }
+                      : { status: "success", data: rows }
+                  }
+                  lastUsed={lastUsed}
+                  orderBy={orderBy}
+                  setOrderBy={handleOrderByChange}
+                  pagination={{
+                    mode: "offset",
+                    totalCount: apiKeysQuery.data?.totalCount ?? null,
+                    state: paginationState,
+                    onChange: setPaginationState,
+                  }}
+                  search={{
+                    value: searchQuery,
+                    onChange: handleSearchChange,
+                  }}
+                  onEdit={openEditDialog}
+                  onRevoke={openRevokeDialog}
+                />
+              </div>
+            </div>
+          )}
+        </EditGatewayApiKeyDialogController>
       )}
     </ConfirmationDialogController>
   );

@@ -1,7 +1,9 @@
 import type { OrderByState } from "@langfuse/shared";
-import type { Prisma, PrismaClient } from "@langfuse/shared/src/db";
+import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import { escapeSqlLikePattern } from "@langfuse/shared/src/server";
 import { orgBoundApiKeyScopes } from "@langfuse/shared/src/server/auth/apiKeys";
+
+import type { GatewayMetadata } from "@/src/features/ai-gateway/server/provider/registry";
 
 const GATEWAY_API_KEY_SELECT = {
   metadata: true,
@@ -117,6 +119,21 @@ export class GatewayApiKeyRepository {
   }) {
     return this.prisma.gatewayApiKeyAssociation.findFirst({
       where: { apiKeyId: params.apiKeyId, apiKey: gatewayApiKeyWhere(params) },
+      select: GATEWAY_API_KEY_SELECT,
+    });
+  }
+
+  updateGatewayApiKey(params: {
+    apiKeyId: string;
+    metadata: GatewayMetadata;
+    allowedModels: string[] | null;
+  }) {
+    return this.prisma.gatewayApiKeyAssociation.update({
+      where: { apiKeyId: params.apiKeyId },
+      data: {
+        metadata: params.metadata,
+        allowedModels: params.allowedModels ?? Prisma.DbNull,
+      },
       select: GATEWAY_API_KEY_SELECT,
     });
   }

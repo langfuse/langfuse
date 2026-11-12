@@ -152,6 +152,41 @@ export class GatewayApiKeyService {
   }
 
   /** With ownerUserId, another user's key is reported as not found. */
+  /** Metadata and model patterns are read per request, so the key's cached context is dropped. */
+  async update(params: {
+    organizationId: string;
+    ownerUserId?: string;
+    apiKeyId: string;
+    metadata: GatewayMetadata;
+    allowedModels: string[] | null;
+    session: OrgAuthedContext["session"];
+  }) {
+    const before = await this.repository.getGatewayApiKey(params);
+    if (!before) {
+      throw new LangfuseNotFoundError("Gateway key not found");
+    }
+    const after = await this.repository.updateGatewayApiKey(params);
+    const apiKey = await this.prisma.apiKey.findUnique({
+      where: { id: params.apiKeyId },
+      select: { fastHashedSecretKey: true },
+    });
+    if (apiKey?.fastHashedSecretKey) {
+      await invalidateGatewayResolveCacheForApiKey(apiKey.fastHashedSecretKey);
+    }
+    await auditLog(
+      {
+        session: params.session,
+        resourceType: "apiKey",
+        resourceId: params.apiKeyId,
+        action: "update",
+        before,
+        after,
+      },
+      this.prisma,
+    );
+    return after;
+  }
+
   async revoke(params: {
     organizationId: string;
     ownerUserId?: string;

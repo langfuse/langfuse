@@ -1,4 +1,4 @@
-import { Trash } from "@langfuse/icons";
+import { Pencil, Trash } from "@langfuse/icons";
 import { formatDistanceToNowStrict } from "date-fns";
 
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
@@ -52,6 +52,7 @@ type GatewayApiKeysLastUsedState =
 export function GatewayApiKeysTable({
   data,
   lastUsed,
+  onEdit,
   onRevoke,
   pagination,
   search,
@@ -60,6 +61,7 @@ export function GatewayApiKeysTable({
 }: Pick<TableProps<GatewayApiKey>, "orderBy" | "setOrderBy"> & {
   data: AsyncTableData<GatewayApiKey[]>;
   lastUsed: GatewayApiKeysLastUsedState;
+  onEdit: (apiKey: GatewayApiKey) => void;
   onRevoke: (apiKeyId: string) => void;
   pagination: PaginationBarProps;
   search: { value: string; onChange: (value: string) => void };
@@ -167,6 +169,13 @@ export function GatewayApiKeysTable({
       orderBy={orderBy}
       setOrderBy={setOrderBy}
       actions={(row) => [
+        {
+          id: "edit",
+          type: "item",
+          title: "Edit key",
+          icon: Pencil,
+          onClick: () => onEdit(row),
+        },
         {
           id: "revoke",
           type: "item",

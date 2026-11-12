@@ -7,6 +7,7 @@ import { GatewayApiKeysTable } from "./GatewayApiKeysTable";
 
 const meta = preview.meta({ component: GatewayApiKeysTable });
 
+const onEdit = fn();
 const onRevoke = fn();
 const onPageChange = fn();
 
@@ -57,6 +58,7 @@ const manyApiKeys = Array.from({ length: 30 }, (_, index) => ({
 
 const actions = {
   lastUsed: { status: "success", isTracked: true },
+  onEdit,
   onRevoke,
   pagination: {
     mode: "offset",
@@ -67,7 +69,7 @@ const actions = {
   search: { value: "", onChange: fn() },
 } satisfies Pick<
   ComponentProps<typeof GatewayApiKeysTable>,
-  "lastUsed" | "onRevoke" | "pagination" | "search"
+  "lastUsed" | "onEdit" | "onRevoke" | "pagination" | "search"
 >;
 
 const lastUsedCell = (canvas: {

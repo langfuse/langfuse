@@ -69,6 +69,11 @@ export type AiGatewayEventMap = {
     hasDescription: boolean;
     expiryPreset: GatewayApiKeyExpirationPreset;
   };
+  "ai_gateway:api_key_updated": OrganizationContext & {
+    metadataCount: number;
+    /** 0 when the key may call every enabled model. */
+    modelPatternCount: number;
+  };
   "ai_gateway:api_key_revoked": OrganizationContext;
   /** The one-time secret was copied; the key itself is never sent. */
   "ai_gateway:api_key_secret_copied": OrganizationContext;

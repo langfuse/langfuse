@@ -9,14 +9,15 @@ import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/Expand
 import { Form } from "@/src/components/design-system/Form/Form";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { GatewayApiKeyExpirationField } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/components/GatewayApiKeyExpirationField/GatewayApiKeyExpirationField";
-import { GatewayApiKeyMetadataField } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/components/GatewayApiKeyMetadataField/GatewayApiKeyMetadataField";
-import { GatewayApiKeyModelsField } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/components/GatewayApiKeyModelsField/GatewayApiKeyModelsField";
+import { GatewayApiKeyMetadataField } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyMetadataField/GatewayApiKeyMetadataField";
+import { GatewayApiKeyModelsField } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyModelsField/GatewayApiKeyModelsField";
 import type { GatewayApiKeyExpirationPreset } from "@/src/features/ai-gateway/constants/gatewayApiKeyExpirationOptions";
 import { resolveGatewayApiKeyExpiration } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/fns/resolveGatewayApiKeyExpiration";
 import {
   createGatewayApiKeyFormSchema,
   type CreateGatewayApiKeyFormValues,
 } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/types/createGatewayApiKeyFormSchema";
+import { toGatewayApiKeyMetadata } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/fns/toGatewayApiKeyMetadata";
 import type { GatewayEnabledModels } from "@/src/features/ai-gateway/types/gatewayEnabledModels";
 import type { RouterInputs } from "@/src/utils/api";
 
@@ -82,11 +83,7 @@ export function CreateGatewayApiKeyDialog({
       values.customExpiry,
     );
     if (expiresAt === undefined) return;
-    const metadata = Object.fromEntries(
-      values.metadata
-        .filter((field) => field.key.trim())
-        .map((field) => [field.key.trim(), field.value]),
-    );
+    const metadata = toGatewayApiKeyMetadata(values.metadata);
     onSubmit({
       name: values.name.trim(),
       metadata,

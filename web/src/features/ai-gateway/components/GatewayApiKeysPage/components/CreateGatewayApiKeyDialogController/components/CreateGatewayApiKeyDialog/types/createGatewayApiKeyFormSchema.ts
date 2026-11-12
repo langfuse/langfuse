@@ -1,10 +1,11 @@
 import { z } from "zod";
 
 import type { GatewayApiKeyExpirationPreset } from "@/src/features/ai-gateway/constants/gatewayApiKeyExpirationOptions";
+import { editableGatewayApiKeyFieldsSchema } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/types/editableGatewayApiKeyFieldsSchema";
 import { resolveGatewayApiKeyExpiration } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/fns/resolveGatewayApiKeyExpiration";
 
-export const createGatewayApiKeyFormSchema = z
-  .object({
+export const createGatewayApiKeyFormSchema = editableGatewayApiKeyFieldsSchema
+  .extend({
     issuedAs: z.enum(["user", "serviceAccount"]),
     name: z
       .string()
@@ -12,8 +13,6 @@ export const createGatewayApiKeyFormSchema = z
       .refine((name) => name.trim().length > 0, "Enter a name."),
     expiryPreset: z.custom<GatewayApiKeyExpirationPreset>(),
     customExpiry: z.string(),
-    metadata: z.array(z.object({ key: z.string(), value: z.string() })),
-    modelPatterns: z.array(z.string()),
   })
   .refine(
     (values) =>

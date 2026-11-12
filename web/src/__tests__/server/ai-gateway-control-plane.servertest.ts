@@ -2096,6 +2096,50 @@ describe("AI gateway control plane", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
+  it("lets members edit metadata and models of only their own keys", async () => {
+    const owner = await prepare();
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const ownerKey = await owner.caller.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Owner key",
+      metadata: {},
+    });
+    const memberKey = await member.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Member key",
+      metadata: { team: "search" },
+      allowedModels: ["openai:*"],
+    });
+    const update = {
+      orgId: owner.org.id,
+      metadata: { environment: "production" },
+      allowedModels: [" anthropic:* ", "-*opus*"],
+    };
+
+    await expect(
+      member.aiGateway.updateApiKey({ ...update, id: ownerKey.id }),
+    ).rejects.toThrow("Gateway key not found");
+    await expect(
+      member.aiGateway.updateApiKey({ ...update, id: memberKey.id }),
+    ).resolves.toMatchObject({
+      metadata: { environment: "production" },
+      allowedModels: ["anthropic:*", "-*opus*"],
+    });
+    await member.aiGateway.updateApiKey({
+      ...update,
+      id: memberKey.id,
+      allowedModels: [],
+    });
+
+    const [edited] = (
+      await member.aiGateway.listApiKeys({ orgId: owner.org.id })
+    ).data;
+    expect(edited).toMatchObject({
+      metadata: { environment: "production" },
+      allowedModels: null,
+    });
+  });
+
   it("lets only gateway managers issue service-account keys", async () => {
     const owner = await prepare();
     const member = await createCallerForOrganizationRole(owner, Role.MEMBER);

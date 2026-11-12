@@ -15,10 +15,10 @@ import {
   PopoverAnchor,
   PopoverContent,
 } from "@/src/components/ui/popover";
-import { ModelPatternSuggestionItem } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/components/GatewayApiKeyModelsField/components/ModelPatternSuggestionItem/ModelPatternSuggestionItem";
-import { ModelPatternTag } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/components/GatewayApiKeyModelsField/components/ModelPatternTag/ModelPatternTag";
-import { getGatewayModelPatternSuggestions } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/components/GatewayApiKeyModelsField/fns/getGatewayModelPatternSuggestions";
-import type { GatewayModelPatternSuggestion } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/components/GatewayApiKeyModelsField/types/gatewayModelPatternSuggestion";
+import { ModelPatternSuggestionItem } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyModelsField/components/ModelPatternSuggestionItem/ModelPatternSuggestionItem";
+import { ModelPatternTag } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyModelsField/components/ModelPatternTag/ModelPatternTag";
+import { getGatewayModelPatternSuggestions } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyModelsField/fns/getGatewayModelPatternSuggestions";
+import type { GatewayModelPatternSuggestion } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyModelsField/types/gatewayModelPatternSuggestion";
 import { addGatewayModelPatterns } from "@/src/features/ai-gateway/fns/gatewayModelPatterns";
 import type { GatewayEnabledModels } from "@/src/features/ai-gateway/types/gatewayEnabledModels";
 

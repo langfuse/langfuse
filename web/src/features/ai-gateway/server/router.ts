@@ -665,6 +665,29 @@ export const aiGatewayRouter = createTRPCRouter({
       return key;
     }),
 
+  updateApiKey: protectedOrganizationProcedure
+    .input(
+      connectionInput.extend({
+        metadata: GatewayMetadataSchema,
+        allowedModels: gatewayKeyAllowedModelsSchema,
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      const usageScope = getGatewayUsageScope({
+        session: ctx.session,
+        orgId: input.orgId,
+      });
+      return new GatewayApiKeyService(ctx.prisma, redis).update({
+        organizationId: input.orgId,
+        ownerUserId: getKeyOwnerFilter(usageScope),
+        apiKeyId: input.id,
+        metadata: input.metadata,
+        allowedModels: input.allowedModels,
+        session: ctx.session,
+      });
+    }),
+
   revokeApiKey: protectedOrganizationProcedure
     .input(connectionInput)
     .mutation(async ({ input, ctx }) => {
