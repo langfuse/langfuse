@@ -620,6 +620,20 @@ const EnvSchema = z.object({
     .nonnegative()
     .optional(),
 
+  // Optional bounds for the v4 events_full backfill INSERT. Unset values use
+  // the ClickHouse profile settings; setting them keeps text-index construction
+  // within the server memory limit on small self-hosted deployments.
+  LANGFUSE_BACKFILL_MIN_INSERT_BLOCK_SIZE_ROWS: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .optional(),
+  LANGFUSE_BACKFILL_MIN_INSERT_BLOCK_SIZE_BYTES: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .optional(),
+
   // Core data S3 upload - Langfuse Cloud
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])

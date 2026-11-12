@@ -14,6 +14,7 @@ import {
   detectTableEngine,
   runBackfillMigrationCli,
 } from "./utils/backfillBase";
+import { buildInsertBlockSizeSettings } from "./utils/insertBlockSizeSettings";
 import {
   PID_TID_SORTING_TABLE,
   buildSyncReplicaQuery,
@@ -288,6 +289,10 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
     //
     // `bookmarked` is only propagated to root spans (observations without a
     // parent); child spans always get false.
+    const insertBlockSizeSettings = buildInsertBlockSizeSettings(
+      env.LANGFUSE_BACKFILL_MIN_INSERT_BLOCK_SIZE_ROWS,
+      env.LANGFUSE_BACKFILL_MIN_INSERT_BLOCK_SIZE_BYTES,
+    );
     const query = `
       INSERT INTO events_full (
         project_id, trace_id, span_id, parent_span_id, start_time, end_time,
@@ -367,7 +372,7 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
         )
       SETTINGS
         join_algorithm = 'full_sorting_merge',
-        type_json_skip_duplicated_paths = 1
+        type_json_skip_duplicated_paths = 1${insertBlockSizeSettings}
     `;
 
     return {
