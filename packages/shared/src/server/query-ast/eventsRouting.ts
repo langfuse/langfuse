@@ -292,6 +292,15 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
     }
   }
 
+  /**
+   * Walks the innermost select's own WHERE with {@link inWhere} set, so a
+   * truncated column read there (`e.input like '%x%'`) routes the
+   * `events_truncated` relation it reads to `events_full`
+   * ({@link readColumn}); the same read in the select list is cut instead.
+   *
+   * Any other WhereNode (an aggregate's `count() FILTER (WHERE …)`) is
+   * walked without it, so its reads are cut like select-list reads.
+   */
   protected override transformWhere(
     node: WhereNode,
     queryId?: QueryId,
