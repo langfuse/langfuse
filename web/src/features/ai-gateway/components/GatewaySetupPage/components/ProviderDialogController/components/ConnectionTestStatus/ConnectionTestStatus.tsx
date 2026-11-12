@@ -54,6 +54,8 @@ export function ConnectionTestStatus({
               <Button
                 variant="text"
                 text={isOpen ? "Hide details" : "Show details"}
+                aria-expanded={isOpen}
+                aria-haspopup="dialog"
               />
             </span>
           )}

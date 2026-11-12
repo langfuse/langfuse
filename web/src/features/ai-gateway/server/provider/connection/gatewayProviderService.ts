@@ -56,7 +56,7 @@ import {
 
 /** The AWS SDK's answer is not kept by model discovery, only its category. */
 const BEDROCK_FAILURE_DESCRIPTIONS: Record<ModelDiscoveryError, string> = {
-  unauthorized: "AWS rejected the access key, secret or session token.",
+  unauthorized: "AWS rejected the Bedrock API key.",
   rate_limited: "AWS throttled the request to list models.",
   provider_error:
     "AWS returned an error while listing models. Check the region and the key's permissions.",
