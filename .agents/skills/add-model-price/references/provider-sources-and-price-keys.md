@@ -128,6 +128,16 @@ Model Availability" in `automated-audit.md` for the removal criteria.
   IDs are `anthropic.<id>` with optional region prefixes and `-v1(:0)?`.
   Anchor every pattern with `^...$` so `claude-opus-5` does not match
   `claude-opus-5-5`.
+- **Two Bedrock endpoints** — `bedrock-mantle` (the Messages API) serves the
+  bare `anthropic.<id>` form with no region prefix or `-v1:0` suffix; this is
+  how Fable 5.1, Fable 5, Opus 5.5, Opus 5, Opus 4.8, Opus 4.7, Sonnet 5.5,
+  Sonnet 5, Mythos 5, Mythos 5.1, and Haiku 5.5 are reachable on Bedrock.
+  `bedrock-runtime` (`InvokeModel`/`Converse`) serves the older
+  region-prefixed, `-v1(:0)?`-suffixed form, and is the only endpoint that
+  serves Fable 5.2 and Mythos 5.2. Every current Claude `matchPattern` should
+  accept both forms (bare `anthropic.<id>` and optional
+  `(eu\.|us\.|apac\.|au\.|jp\.|global\.)?anthropic\.<id>(-v1(:0)?)?`) unless a
+  model is confirmed absent from one endpoint.
 
 ### OpenAI
 
@@ -241,12 +251,15 @@ Model Availability" in `automated-audit.md` for the removal criteria.
   `gemini-1.5-flash-8b`, and `gemini-2.0-flash-thinking-exp-01-21` have no
   official price and no matching pricing entry. Do not add one without official
   evidence.
-- **Mythos Bedrock coverage** — Anthropic's own model pages confirm a Bedrock
-  ID (`anthropic.claude-mythos-5-1`, `anthropic.claude-mythos-5-2`) for Mythos
-  5.1 and 5.2, but the `claude-mythos-5` and `claude-mythos-5-1` `matchPattern`
-  entries only match the bare Claude API ID, unlike the Fable family's Bedrock
-  region-prefixed patterns. Confirm the intended Bedrock coverage before
-  widening those two existing patterns.
+- **Bedrock cache-read divergence (unconfirmed)** — The AWS Bedrock pricing
+  page carries a footnote that Claude Sonnet 5.5 cache-read pricing on Bedrock
+  dropped 50% from the prior rate starting October 7, 2026, but the page
+  never renders a numeric table WebFetch can extract, so the new rate is
+  unconfirmed. Langfuse's `claude-sonnet-5-5` entry prices cache reads once
+  for both the Claude API and Bedrock; if Bedrock's rate has actually
+  diverged from the Claude API rate, that one shared price may now
+  misprice Bedrock traffic. Needs a numeric source (or a different
+  extraction method) before any change.
 
 ## Scheduled Changes
 

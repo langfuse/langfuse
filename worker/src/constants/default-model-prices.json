@@ -4690,9 +4690,9 @@
   {
     "id": "33f4e272-750f-49d9-90ed-313b3c920da1",
     "modelName": "claude-mythos-5",
-    "matchPattern": "(?i)^(anthropic\/)?claude-mythos-5$",
+    "matchPattern": "(?i)^((anthropic\/)?claude-mythos-5|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-mythos-5(-v1(:0)?)?)$",
     "createdAt": "2026-06-09T00:00:00.000Z",
-    "updatedAt": "2026-06-09T00:00:00.000Z",
+    "updatedAt": "2026-11-12T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -4752,9 +4752,9 @@
   {
     "id": "0e053111-eda4-4015-8d36-88f553adabc3",
     "modelName": "claude-mythos-5-1",
-    "matchPattern": "(?i)^(anthropic\/)?claude-mythos-5-1$",
+    "matchPattern": "(?i)^((anthropic\/)?claude-mythos-5-1|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-mythos-5-1(-v1(:0)?)?)$",
     "createdAt": "2026-09-02T00:00:00.000Z",
-    "updatedAt": "2026-09-02T00:00:00.000Z",
+    "updatedAt": "2026-11-12T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
