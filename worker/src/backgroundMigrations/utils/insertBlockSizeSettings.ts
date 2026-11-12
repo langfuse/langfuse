@@ -1,6 +1,7 @@
 /**
- * SETTINGS fragment bounding the M3 INSERT block size. Unset values leave the
- * ClickHouse profile in control, and zero is a valid value that must survive.
+ * SETTINGS fragment setting minimum INSERT block thresholds for the M3 backfill.
+ * These are lower bounds, not memory caps. Unset values leave the ClickHouse
+ * profile in control, and zero is a valid value that must survive.
  * The env schema guarantees both arguments are non-negative integers, so
  * interpolating them into the query cannot inject SQL.
  */

@@ -620,9 +620,9 @@ const EnvSchema = z.object({
     .nonnegative()
     .optional(),
 
-  // Optional bounds for the v4 events_full backfill INSERT. Unset values use
-  // the ClickHouse profile settings; setting them keeps text-index construction
-  // within the server memory limit on small self-hosted deployments.
+  // Optional minimum INSERT block thresholds for the v4 events_full backfill.
+  // Unset values use the ClickHouse profile settings. Lower values can reduce
+  // accumulated blocks, but are not memory caps or guarantees against memory errors.
   LANGFUSE_BACKFILL_MIN_INSERT_BLOCK_SIZE_ROWS: z.coerce
     .number()
     .int()
