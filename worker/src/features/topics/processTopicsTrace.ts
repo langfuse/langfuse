@@ -34,7 +34,6 @@ import {
   summarizeAssembledTrace,
   type TopicsFailedStage,
 } from "./summarizeAssembledTrace";
-import { signalTopicsDiscovery } from "./topicsAutomation";
 
 const inputStorage = createTraceBatchInputStorage();
 
@@ -72,7 +71,8 @@ function projectSettings(projectId: string): Promise<ProjectSettings> {
   if (settingsCache.size >= MAX_SETTINGS_KEYS) settingsCache.clear();
   const settings = Promise.all([
     getEnabledTopicsModels([projectId]),
-    listTopicRules(projectId),
+    // A rule paused after its traces were enqueued summarizes nothing more.
+    listTopicRules(projectId, { activeOnly: true }),
     listTopicFacets(projectId),
   ]).then(([models, rules, facets]) => ({
     models: models.get(projectId),
@@ -115,7 +115,7 @@ async function readInputs(
   event: TopicsTraceEventType,
 ): Promise<TraceBatchInputData | null> {
   try {
-    return await inputStorage.get({
+    return await inputStorage.legacyGet({
       projectId: event.projectId,
       traceId: event.traceId,
       revision: event.revision,
@@ -152,9 +152,9 @@ function storeSummaries(rows: TopicSummary[]): TopicSummary[] {
 }
 
 /**
- * Assigns each complete summary to its facet's serving map, or signals discovery
- * when none exists. A failure leaves the summary stored and unassigned rather
- * than repeating the model calls.
+ * Assigns each complete summary to its facet's serving map. Without one, the
+ * summary waits for the nightly refit. A failure leaves the summary stored and
+ * unassigned rather than repeating the model calls.
  */
 async function assignSummaries(rows: TopicSummary[]): Promise<void> {
   const writer = ClickhouseWriter.getInstance();
@@ -172,10 +172,7 @@ async function assignSummaries(rows: TopicSummary[]): Promise<void> {
         facet,
         embeddingConfig,
       );
-      if (!run) {
-        await signalTopicsDiscovery({ ...row, traceId: row.traceId });
-        continue;
-      }
+      if (!run) continue;
       for (const assignment of topicAssignmentRows({
         projectId: row.projectId,
         facet,

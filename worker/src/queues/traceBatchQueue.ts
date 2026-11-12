@@ -1,9 +1,7 @@
 import { type Processor } from "bullmq";
 import pLimit from "p-limit";
 import { randomUUID } from "node:crypto";
-import { type Observation } from "@langfuse/shared";
 import {
-  convertObservation,
   createTraceBatchInputStorage,
   getCurrentSpan,
   getTraceBatchEventStream,
@@ -33,6 +31,14 @@ import {
   getDeterministicSamplingValue,
   shouldSampleEvaluation,
 } from "../features/evaluation/deterministicSampling";
+import {
+  newestEvent,
+  newestSessionId,
+  newestTraceName,
+  toTraceEventObservation,
+  traceKey,
+  type TraceEventObservation,
+} from "../features/eventsDispatch/traceEvents";
 import { recordTraceBatchTranscript } from "../features/traceBatching/traceBatchTranscript";
 import {
   isTraceBatchPipelineEnabled,
@@ -43,20 +49,11 @@ import {
 const inputStorage = createTraceBatchInputStorage();
 const JOB_MAX_AGE_MS = 2 * 60 * 60_000;
 
-type TraceBatchObservation = Observation & {
-  eventTimestamp: string;
-  sessionId: string | null;
-};
-
 type TraceOutcome =
   | { outcome: "disabled" | "queued" }
   | { outcome: "failed"; reason: string };
 
 type TopicsTraceRule = { ruleId: string; sampling: number };
-
-/** Identity of one trace within a batch; a batch spans projects. */
-const traceKey = (projectId: string, traceId: string) =>
-  JSON.stringify([projectId, traceId]);
 
 /**
  * Topics rules of one batch's projects, loaded once per project. Projects
@@ -97,31 +94,10 @@ async function loadProjectRules(projectId: string): Promise<TopicsTraceRule[]> {
   );
 }
 
-/** Orders events like manual processing: event_ts, then span ID, then environment. */
-function newestEvent(observations: TraceBatchObservation[]) {
-  return observations.reduce<TraceBatchObservation | undefined>(
-    (current, row) => {
-      if (!current) return row;
-      if (row.eventTimestamp !== current.eventTimestamp)
-        return row.eventTimestamp > current.eventTimestamp ? row : current;
-      if (row.id !== current.id) return row.id > current.id ? row : current;
-      return row.environment > current.environment ? row : current;
-    },
-    undefined,
-  );
-}
-
-/** Session of the newest event that has one; events of a trace can carry different or no sessions. */
-function newestSessionId(observations: TraceBatchObservation[]) {
-  return (
-    newestEvent(observations.filter((row) => row.sessionId))?.sessionId ?? null
-  );
-}
-
 /** Uploads one trace's inputs under its revision; the span records size and outcome. */
 async function storeTraceInputs(
   reference: TraceBatchInputReference,
-  observations: TraceBatchObservation[],
+  observations: TraceEventObservation[],
   context: TranscriptContext | null,
 ): Promise<"stored" | "too_large"> {
   return instrumentAsync({ name: "trace-batch-store-inputs" }, async (span) => {
@@ -140,7 +116,7 @@ async function storeTraceInputs(
             Math.min(...observations.map((row) => row.startTime.getTime())),
           ).toISOString(),
           environment: newestEvent(observations)!.environment,
-          traceName: observations[0].name,
+          traceName: newestTraceName(observations),
         },
       });
       span.setAttributes({
@@ -198,7 +174,7 @@ async function enqueueTopicsTraceJob(
  * with every rule that samples it. Never throws, so one trace cannot fail the batch.
  */
 async function enqueueTraceTopics(
-  observations: TraceBatchObservation[],
+  observations: TraceEventObservation[],
   context: TranscriptContext | null,
   topics: TopicsBatchProjects,
   revisions: ReadonlyMap<string, string>,
@@ -439,9 +415,8 @@ export const traceBatchQueueProcessor: Processor<
 
     // ClickHouse sockets time out when idle, so the reader never waits on
     // transcript or Topics work unless queued payloads exceed the cap.
-    // Transcripts are tokenized one trace at a time to keep at most one pending
-    // request in the tokenizer pool shared with ingestion; transcript uploads and
-    // Topics enqueues then run for up to LANGFUSE_TOPICS_TRACE_CONCURRENCY traces at once.
+    // Assemble one transcript at a time, then upload transcripts and enqueue
+    // Topics jobs for up to LANGFUSE_TOPICS_TRACE_CONCURRENCY traces at once.
     const pendingSummaries = new Set<Promise<void>>();
     const topicsLimit = pLimit(env.LANGFUSE_TOPICS_TRACE_CONCURRENCY);
     let transcribing: Promise<unknown> = Promise.resolve();
@@ -449,7 +424,7 @@ export const traceBatchQueueProcessor: Processor<
     let summaryFailed = false;
     let summaryError: unknown;
     const enqueueSummary = (
-      observations: TraceBatchObservation[],
+      observations: TraceEventObservation[],
       bytes: number,
     ) => {
       pendingSummaryBytes += bytes;
@@ -497,7 +472,7 @@ export const traceBatchQueueProcessor: Processor<
     activeReads++;
     try {
       recordTraceBatchActiveReads();
-      let traceObservations: TraceBatchObservation[] = [];
+      let traceObservations: TraceEventObservation[] = [];
       let traceBytes = 0;
       for await (const event of getTraceBatchEventStream(
         { ...batch, traces: readable },
@@ -542,23 +517,7 @@ export const traceBatchQueueProcessor: Processor<
           if (summaryFailed) break;
         }
         traceBytes += eventBytes;
-        traceObservations.push({
-          ...convertObservation({
-            ...event,
-            id: event.span_id,
-            parent_observation_id: event.parent_span_id,
-            // These required converter fields are not used by the transcript.
-            created_at: event.event_ts,
-            updated_at: event.event_ts,
-            is_deleted: 0,
-            provided_usage_details: {},
-            provided_cost_details: {},
-            usage_details: {},
-            cost_details: {},
-          }),
-          eventTimestamp: event.event_ts,
-          sessionId: event.session_id || null,
-        });
+        traceObservations.push(toTraceEventObservation(event));
       }
       // Reaching EOF completes the last trace; a failed stream must not flush it.
       if (traceObservations.length && !summaryFailed)

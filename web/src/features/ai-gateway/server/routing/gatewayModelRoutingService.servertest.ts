@@ -79,6 +79,26 @@ describe("GatewayModelRoutingService", () => {
     expect(routingService.resolve(model, connections)).toBeNull();
   });
 
+  it("routes bare embedding models to OpenAI only for Embeddings", () => {
+    expect(
+      routingService.resolve(
+        "text-embedding-3-small",
+        connections,
+        "openai.embeddings",
+      ),
+    ).toEqual({
+      connection: connections[0],
+      providerModel: "text-embedding-3-small",
+    });
+    expect(
+      routingService.resolve(
+        "text-embedding-3-small",
+        connections,
+        "openai.responses",
+      ),
+    ).toBeNull();
+  });
+
   it("returns a valid unresolved route for a missing connection", () => {
     expect(routingService.resolve("Unknown:gpt-4o", connections)).toEqual({
       connection: null,

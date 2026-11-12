@@ -50,7 +50,6 @@ const memberCaller = eventsRouter.createCaller({
       user: {
         id: "user-1",
         name: "Test User",
-        admin: false,
         canCreateOrganizations: true,
         featureFlags: testFeatureFlags({ templateFlag: false }),
         organizations: [

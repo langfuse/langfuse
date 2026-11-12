@@ -2840,6 +2840,50 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
       expect(responseBody.prompt).not.toContain("@@@langfusePrompt");
     });
 
+    it("resolves the same child by version and by label to different versions", async () => {
+      const { auth: newAuth } = await createOrgProjectAndApiKey();
+
+      // Version 2 takes the production label from version 1
+      for (const content of ["I am version 1", "I am version 2"]) {
+        await makeAPICall(
+          "POST",
+          baseURI,
+          {
+            name: "versioned-child",
+            prompt: content,
+            type: "text",
+            labels: ["production"],
+          },
+          newAuth,
+        );
+      }
+
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "version-and-label-parent",
+          prompt:
+            "By version: @@@langfusePrompt:name=versioned-child|version=1@@@ and by label: @@@langfusePrompt:name=versioned-child|label=production@@@",
+          type: "text",
+        },
+        newAuth,
+      );
+
+      const response = await makeAPICall(
+        "GET",
+        `${baseURI}/version-and-label-parent?version=1`,
+        undefined,
+        newAuth,
+      );
+
+      expect(response.status).toBe(200);
+      const responseBody = response.body as unknown as Prompt;
+      expect(responseBody.prompt).toBe(
+        "By version: I am version 1 and by label: I am version 2",
+      );
+    });
+
     it("resolves prompt dependencies in chat prompts correctly", async () => {
       const { auth: newAuth } = await createOrgProjectAndApiKey();
 
@@ -3368,7 +3412,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
           "right",
         ]);
 
-        const findFirst = vi.spyOn(prisma.prompt, "findFirst");
+        const promptFindMany = vi.spyOn(prisma.prompt, "findMany");
         const findMany = vi.spyOn(prisma.promptDependency, "findMany");
         const promptService = new PromptService(prisma, redis);
         const { resolvedPrompt } =
@@ -3376,17 +3420,20 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
             projectId,
             parentPrompt: root,
           });
-        const fetchedNames = findFirst.mock.calls.map(
-          ([args]) => args?.where?.name,
+        // One query per prompt node: siblings are fetched together.
+        const fetchedNamesPerQuery = promptFindMany.mock.calls.map(([args]) =>
+          (args?.where?.OR as { name: string }[])
+            .map((dep) => dep.name)
+            .toSorted(),
         );
         const sharedDependencyFetches = findMany.mock.calls.filter(
           ([args]) => args?.where?.parentId === shared.id,
         );
-        findFirst.mockRestore();
+        promptFindMany.mockRestore();
         findMany.mockRestore();
 
         expect(resolvedPrompt).toBe("root left shared right shared");
-        expect(fetchedNames.toSorted()).toEqual(["left", "right", "shared"]);
+        expect(fetchedNamesPerQuery).toEqual([["left", "right"], ["shared"]]);
         expect(sharedDependencyFetches).toHaveLength(1);
       });
     });

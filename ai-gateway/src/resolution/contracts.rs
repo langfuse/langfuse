@@ -13,6 +13,10 @@ pub enum ApiFormat {
     OpenAiResponses,
     #[serde(rename = "openai.chat-completions")]
     OpenAiChatCompletions,
+    #[serde(rename = "openai.decisions")]
+    OpenAiDecisions,
+    #[serde(rename = "openai.embeddings")]
+    OpenAiEmbeddings,
     #[serde(rename = "anthropic.messages")]
     AnthropicMessages,
 }
@@ -22,13 +26,18 @@ impl ApiFormat {
         match self {
             Self::OpenAiResponses => "openai.responses",
             Self::OpenAiChatCompletions => "openai.chat-completions",
+            Self::OpenAiDecisions => "openai.decisions",
+            Self::OpenAiEmbeddings => "openai.embeddings",
             Self::AnthropicMessages => "anthropic.messages",
         }
     }
 
     pub fn provider(self) -> Provider {
         match self {
-            Self::OpenAiResponses | Self::OpenAiChatCompletions => Provider::OpenAi,
+            Self::OpenAiResponses
+            | Self::OpenAiChatCompletions
+            | Self::OpenAiDecisions
+            | Self::OpenAiEmbeddings => Provider::OpenAi,
             Self::AnthropicMessages => Provider::Anthropic,
         }
     }
@@ -40,6 +49,9 @@ pub enum Provider {
     OpenAi,
     Anthropic,
     Bedrock,
+    OpenRouter,
+    Xai,
+    Vercel,
 }
 
 impl Provider {
@@ -49,19 +61,37 @@ impl Provider {
             Self::OpenAi => "openai",
             Self::Anthropic => "anthropic",
             Self::Bedrock => "bedrock",
+            Self::OpenRouter => "openrouter",
+            Self::Xai => "xai",
+            Self::Vercel => "vercel",
         }
     }
 
-    /// Bedrock serves every API format natively, each under its own path.
+    /// Vercel serves every API format. `OpenRouter` serves every format but
+    /// Decisions, each under its own path, and Bedrock neither Decisions nor
+    /// Embeddings. xAI serves only the `OpenAI` Responses and Chat Completions formats.
     fn supports(self, api_format: ApiFormat) -> bool {
         match self {
             Self::OpenAi | Self::Anthropic => api_format.provider() == self,
-            Self::Bedrock => true,
+            Self::Xai => matches!(
+                api_format,
+                ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions
+            ),
+            Self::OpenRouter => api_format != ApiFormat::OpenAiDecisions,
+            Self::Bedrock => !matches!(
+                api_format,
+                ApiFormat::OpenAiDecisions | ApiFormat::OpenAiEmbeddings
+            ),
+            Self::Vercel => true,
         }
     }
 
     /// The credential scheme follows the API format, so Bedrock takes both.
-    fn accepts(api_format: ApiFormat, credential: ProviderCredential<'_>) -> bool {
+    /// `OpenRouter` and Vercel take a Bearer key on every format, including Anthropic Messages.
+    fn accepts(self, api_format: ApiFormat, credential: ProviderCredential<'_>) -> bool {
+        if matches!(self, Self::OpenRouter | Self::Vercel) {
+            return matches!(credential, ProviderCredential::Bearer(_));
+        }
         matches!(
             (api_format.provider(), credential),
             (Self::OpenAi, ProviderCredential::Bearer(_))
@@ -71,11 +101,15 @@ impl Provider {
 
     // OpenAI and Anthropic connections may point at a compatible proxy, which Web
     // validated on save; the transport's outbound policy still decides whether the
-    // destination is reachable. Bedrock only ever targets its regional endpoints.
+    // destination is reachable. Bedrock only ever targets its regional endpoints,
+    // and OpenRouter, xAI and Vercel their single hosted API.
     fn allows_base_url(self, api_format: ApiFormat, base_url: &str) -> bool {
         match self {
             Self::OpenAi | Self::Anthropic => valid_custom_base_url(base_url),
             Self::Bedrock => bedrock::allows_runtime_base_url(api_format, base_url),
+            Self::OpenRouter => base_url == OPENROUTER_BASE_URL,
+            Self::Xai => base_url == XAI_BASE_URL,
+            Self::Vercel => base_url == VERCEL_BASE_URL,
         }
     }
 }
@@ -214,7 +248,9 @@ impl ProviderConnection {
         let official = match self.provider {
             Provider::OpenAi => OPENAI_BASE_URL,
             Provider::Anthropic => ANTHROPIC_BASE_URL,
-            Provider::Bedrock => return false,
+            Provider::Bedrock | Provider::OpenRouter | Provider::Xai | Provider::Vercel => {
+                return false;
+            }
         };
         self.base_url.trim_end_matches('/') != official
     }
@@ -254,6 +290,9 @@ fn valid_extra_header(name: &str, value: &str) -> bool {
 
 const OPENAI_BASE_URL: &str = "https://api.openai.com/v1";
 const ANTHROPIC_BASE_URL: &str = "https://api.anthropic.com/v1";
+const OPENROUTER_BASE_URL: &str = "https://openrouter.ai/api/v1";
+const XAI_BASE_URL: &str = "https://api.x.ai/v1";
+const VERCEL_BASE_URL: &str = "https://ai-gateway.vercel.sh/v1";
 
 fn valid_custom_base_url(base_url: &str) -> bool {
     url::Url::parse(base_url).is_ok_and(|url| {
@@ -476,7 +515,7 @@ pub(super) fn decode(
         || connection.api_format != expected_format
         || !provider.supports(connection.api_format)
         || !provider.allows_base_url(connection.api_format, &connection.base_url)
-        || !Provider::accepts(connection.api_format, connection.credential())
+        || !provider.accepts(connection.api_format, connection.credential())
         || !valid_token(connection.credential().secret())
         || !connection
             .extra_headers()

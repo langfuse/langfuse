@@ -1,4 +1,11 @@
-import { createQueryId, FromNode, SelectQueryNode } from "kysely";
+import {
+  AndNode,
+  createQueryId,
+  FromNode,
+  ParensNode,
+  SelectQueryNode,
+  WhereNode,
+} from "kysely";
 import { describe, expect, it } from "vitest";
 
 import { compileClickhouseQuery } from "./compile";
@@ -75,6 +82,30 @@ describe("soft-delete filtering", () => {
           .select("s.id"),
       ),
     ).toMatch(/ where s\.project_id = \{p1:String\} and e\.is_deleted = 0$/);
+  });
+
+  it("keeps a caller's top-level OR inside the filter", () => {
+    // The builder always brackets an OR, so the bare OrNode is built by hand.
+    const node = getClickhouseKysely()
+      .selectFrom("events as e")
+      .select("e.span_id")
+      .where((eb) =>
+        eb.or([eb("e.trace_id", "=", "a"), eb("e.trace_id", "=", "b")]),
+      )
+      .toOperationNode();
+    if (!SelectQueryNode.is(node) || !node.where)
+      throw new Error("not a filtered select");
+    const bareOr = node.where.where;
+    if (!ParensNode.is(bareOr)) throw new Error("expected a bracketed OR");
+    const filtered = new SoftDeleteFilterPlugin().transformQuery({
+      node: { ...node, where: WhereNode.create(bareOr.node) },
+      queryId: createQueryId(),
+    });
+
+    if (!SelectQueryNode.is(filtered) || !filtered.where)
+      throw new Error("not a filtered select");
+    const where = filtered.where.where;
+    expect(AndNode.is(where) && ParensNode.is(where.right)).toBe(true);
   });
 
   it("filters inside CTE bodies, subqueries, and UNION branches", () => {
