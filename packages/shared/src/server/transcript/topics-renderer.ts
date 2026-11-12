@@ -621,8 +621,18 @@ export function renderTranscript(
       lastAction = "assistant text";
     else lastAction = `${lastPart.message.role} message`;
   }
+  // Reasoning and tool calls are not shown to end users; only text or the root output is.
+  const repliedWithText = current.some(
+    ({ event }) =>
+      event.kind === "part" &&
+      event.message.role === "assistant" &&
+      event.part.type === "text",
+  );
   header("<end_of_run>");
   header(`last action: ${lastAction}`);
+  header(
+    `visible reply: ${repliedWithText ? "assistant text" : rootOutputLine ? "application output" : "none"}`,
+  );
   if (rootOutputLine) header("final output: application output");
   else if (outputMatchesMessage)
     header(
