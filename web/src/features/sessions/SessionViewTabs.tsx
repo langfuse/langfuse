@@ -80,6 +80,7 @@ export function SessionViewTabs({
           ...savedViews.map((view) => ({
             value: view.id,
             label: view.name,
+            noCapture: true,
             menu: {
               label: `${view.name} options`,
               items: [

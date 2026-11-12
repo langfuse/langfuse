@@ -36,6 +36,7 @@ const columns: ColumnDef<SessionViewRow>[] = [
   {
     id: "pinned",
     header: "For me",
+    sensitive: true,
     enableResizing: false,
     size: 80,
     cell: ({ row }) => {
@@ -43,7 +44,7 @@ const columns: ColumnDef<SessionViewRow>[] = [
       const { isPinned } = view;
       const pinLabel = `${isPinned ? "Unpin" : "Pin"} ${view.name}`;
       return (
-        <Tooltip label={pinLabel}>
+        <Tooltip label={isPinned ? "Unpin for me" : "Pin for me"}>
           {({ getTriggerProps }) => (
             <IconButton
               icon={isPinned ? PinOff : Pin}
@@ -61,6 +62,7 @@ const columns: ColumnDef<SessionViewRow>[] = [
   {
     accessorKey: "name",
     header: "Name",
+    sensitive: true,
     enableResizing: false,
     cell: ({ row }) => (
       <span className="block truncate" title={row.original.name}>
@@ -90,6 +92,7 @@ const columns: ColumnDef<SessionViewRow>[] = [
   {
     id: "actions",
     header: "",
+    sensitive: true,
     headerClassName: "text-right",
     cellClassName: "text-right",
     enableResizing: false,

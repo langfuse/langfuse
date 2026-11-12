@@ -768,6 +768,15 @@ const LoadedSessionEventsPage: React.FC<{
   const duplicateSessionView = api.sessionViews.create.useMutation();
   const createSessionView = api.sessionViews.create.useMutation({
     onSuccess: async ({ view }) => {
+      capture("saved_views:create", {
+        tableName: "session-detail",
+        surface: "session_view",
+        isV4: true,
+        trigger: "save",
+        filterCount: view.filters.length,
+        viewMode: view.viewMode,
+        unmatchedTraces: view.unmatchedTraces,
+      });
       await Promise.all([
         viewUtils.sessionViews.list.cancel({ projectId }),
         viewUtils.sessionViews.preferences.cancel({ projectId }),
@@ -1473,6 +1482,11 @@ const LoadedSessionEventsPage: React.FC<{
                         projectId,
                         id: state.view.id,
                       });
+                      capture("saved_views:delete", {
+                        tableName: "session-detail",
+                        surface: "session_view",
+                        isV4: true,
+                      });
                       if (sessionViewId === state.view.id) {
                         const nextViewId = isMessagesPinned
                           ? "messages"
@@ -1520,6 +1534,15 @@ const LoadedSessionEventsPage: React.FC<{
                         viewMode: state.view.viewMode,
                         unmatchedTraces: state.view.unmatchedTraces,
                       });
+                      capture("saved_views:create", {
+                        tableName: "session-detail",
+                        surface: "session_view",
+                        isV4: true,
+                        trigger: "duplicate",
+                        filterCount: result.view.filters.length,
+                        viewMode: result.view.viewMode,
+                        unmatchedTraces: result.view.unmatchedTraces,
+                      });
                       viewSelection.selectSaved(result.view);
                       await viewUtils.sessionViews.list.invalidate({
                         projectId,
@@ -1566,6 +1589,14 @@ const LoadedSessionEventsPage: React.FC<{
                         id: state.view.id,
                         name: editingViewName.trim(),
                         filters,
+                        viewMode,
+                        unmatchedTraces,
+                      });
+                      capture("saved_views:update_config", {
+                        tableName: "session-detail",
+                        surface: "session_view",
+                        isV4: true,
+                        filterCount: filters.length,
                         viewMode,
                         unmatchedTraces,
                       });
@@ -1994,7 +2025,21 @@ const LoadedSessionEventsPage: React.FC<{
                                 onUnpin: unpinSessionView,
                                 onManageViews: () =>
                                   openSessionViewDialog({ type: "manage" }),
-                                onValueChange: selectSessionView,
+                                onValueChange: (id) => {
+                                  if (id === sessionViewId) return;
+                                  capture("saved_views:view_selected", {
+                                    tableName: "session-detail",
+                                    surface: "session_view",
+                                    isV4: true,
+                                    viewKind:
+                                      id === "messages"
+                                        ? "messages"
+                                        : id === "unsaved"
+                                          ? "unsaved"
+                                          : "saved",
+                                  });
+                                  selectSessionView(id);
+                                },
                                 onCreate: () =>
                                   openViewAction({ action: "customize" }),
                               }}

@@ -176,7 +176,6 @@ export function ModernSessionFilterControls({
     capture("saved_views:update_config", {
       tableName: TableViewPresetTableName.SessionDetail,
       viewId: updateView.id,
-      name: updateView.name,
     });
 
     const viewWasApplied =

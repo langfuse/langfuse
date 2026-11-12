@@ -18,6 +18,7 @@ export function SessionDeleteViewDialog({
   return (
     <Dialog
       title={`Delete ${view.name}?`}
+      noCapture
       actions={[
         {
           label: "Delete view",

@@ -20,6 +20,7 @@ export function TabBar({
   > & {
     value: string;
     label: string;
+    noCapture?: boolean;
     menu?: {
       label: string;
       items: ComponentProps<typeof DropdownMenu>["items"];
@@ -32,14 +33,21 @@ export function TabBar({
     <div className="@container/tab-bar flex shrink-0 items-center border-b px-2">
       <div className="min-w-0 overflow-x-auto">
         <Tabs.List variant="underline" divider="none" aria-label={label}>
-          {tabs.map(({ menu, ...tab }) => (
+          {tabs.map(({ menu, noCapture, ...tab }) => (
             <div
               key={tab.value}
-              className="group/tab relative flex h-full shrink-0 items-center"
+              className={cn(
+                "group/tab relative flex h-full shrink-0 items-center",
+                noCapture && "ph-no-capture",
+              )}
             >
               <Tabs.Trigger {...tab} />
               {menu && (
-                <DropdownMenu ariaLabel={menu.label} items={menu.items}>
+                <DropdownMenu
+                  ariaLabel={menu.label}
+                  items={menu.items}
+                  noCapture={noCapture}
+                >
                   {({ getTriggerProps }) => {
                     const triggerProps = getTriggerProps();
                     return (

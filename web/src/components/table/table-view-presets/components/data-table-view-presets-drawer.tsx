@@ -349,12 +349,10 @@ function TableViewPresetsDrawerContentBody({
     },
   });
 
-  const hasPresetWriteAccess = useHasProjectAccess({
+  const hasWriteAccess = useHasProjectAccess({
     projectId,
     scope: "TableViewPresets:CUD",
   });
-  // Session presets were migrated; new writes belong to saved session views.
-  const hasWriteAccess = hasPresetWriteAccess && tableName !== "session-detail";
 
   const { setViewAsDefault, clearViewDefault, isSettingDefault } =
     useDefaultViewMutations({ tableName, projectId });
@@ -429,7 +427,6 @@ function TableViewPresetsDrawerContentBody({
   const handleCreateView = (createdView: { name: string }) => {
     capture("saved_views:create", {
       tableName,
-      name: createdView.name,
     });
 
     createMutation.mutate({
@@ -453,7 +450,6 @@ function TableViewPresetsDrawerContentBody({
     capture("saved_views:update_config", {
       tableName,
       viewId: updatedView.id,
-      name: updatedView.name,
     });
 
     // Column order/visibility are the visitor's per-table localStorage, which
@@ -497,7 +493,6 @@ function TableViewPresetsDrawerContentBody({
     capture("saved_views:update_name", {
       tableName,
       viewId: updatedView.id,
-      name: updatedView.name,
     });
 
     updateNameMutation.mutate({
@@ -920,39 +915,35 @@ function TableViewPresetsDrawerContentBody({
                                 />
                               )}
                             </DropdownMenuItem>
-                            {!isSystemView &&
-                              tableName !== "session-detail" && (
-                                <>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem asChild>
-                                    <DeleteButton
-                                      itemId={view.id}
-                                      projectId={projectId}
-                                      scope="TableViewPresets:CUD"
-                                      entityToDeleteName="view"
-                                      executeDeleteMutation={async () => {
-                                        await handleDeleteView(view.id);
-                                      }}
-                                      isDeleteMutationLoading={
-                                        deleteMutation.isPending
-                                      }
-                                      invalidateFunc={() => {
-                                        utils.TableViewPresets.invalidate();
-                                      }}
-                                      captureDeleteOpen={() =>
-                                        capture(
-                                          "saved_views:delete_form_open",
-                                          {
-                                            tableName,
-                                            viewId: view.id,
-                                          },
-                                        )
-                                      }
-                                      captureDeleteSuccess={() => {}}
-                                    />
-                                  </DropdownMenuItem>
-                                </>
-                              )}
+                            {!isSystemView && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem asChild>
+                                  <DeleteButton
+                                    itemId={view.id}
+                                    projectId={projectId}
+                                    scope="TableViewPresets:CUD"
+                                    entityToDeleteName="view"
+                                    executeDeleteMutation={async () => {
+                                      await handleDeleteView(view.id);
+                                    }}
+                                    isDeleteMutationLoading={
+                                      deleteMutation.isPending
+                                    }
+                                    invalidateFunc={() => {
+                                      utils.TableViewPresets.invalidate();
+                                    }}
+                                    captureDeleteOpen={() =>
+                                      capture("saved_views:delete_form_open", {
+                                        tableName,
+                                        viewId: view.id,
+                                      })
+                                    }
+                                    captureDeleteSuccess={() => {}}
+                                  />
+                                </DropdownMenuItem>
+                              </>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                         {!isSystemView && (
