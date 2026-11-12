@@ -22,6 +22,7 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import isEqual from "lodash/isEqual";
 import { startOfMinute } from "date-fns";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
@@ -594,7 +595,15 @@ export default function ObservationsEventsTable({
       onAppRootExplicitFilterStateChange(change);
       demoteViewOnUserFilterEdit(change, viewControllersRef.current);
       if (change.origin === "user") {
-        resetPin();
+        // A search-bar blur commits the current filters even when they did
+        // not change. That write is still origin "user", so only a real edit
+        // or an explicit clear may move the paging window.
+        if (
+          change.action === "clear" ||
+          !isEqual(change.previousFilters, change.nextFilters)
+        ) {
+          resetPin();
+        }
         if (change.action === "clear") {
           resetSearchBarDraftRef.current?.(change.nextFilters);
         }
