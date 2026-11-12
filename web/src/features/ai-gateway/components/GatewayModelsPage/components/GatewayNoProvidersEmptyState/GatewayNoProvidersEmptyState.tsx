@@ -33,11 +33,11 @@ export function GatewayNoProvidersEmptyState({
   const providerNames = formatAvailableGatewayProviderNames();
   return (
     <GatewayPlaceholder.Frame
-      title="No providers yet"
+      title="No connections yet"
       description={`Add an ${providerNames} connection so the gateway can route requests and discover models.`}
     >
       <GatewayPlaceholder.Actions>
-        <Button text="Add provider" icon={Plus} onClick={onAddProvider} />
+        <Button text="Add connection" icon={Plus} onClick={onAddProvider} />
         <Button
           variant="outline"
           text="How to set up the gateway"
