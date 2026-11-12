@@ -257,8 +257,6 @@ SELECT
   sumMap(map(if(telemetry_sdk_language = '', '-', telemetry_sdk_language), toUInt64(1))) AS count_telemetry_sdk_languages,
   sumMap(map(if(telemetry_sdk_name = '', '-', concat(telemetry_sdk_language, '-', telemetry_sdk_name, '-', telemetry_sdk_version)), toUInt64(1))) AS count_sdk_telemetry_sdks,
   sumMap(map(concat(if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name), '@', if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version)), toUInt64(1))) AS ingested_sdks,
-  -- AI gateway executions only (service_name is set by ingestion for uploads
-  -- the gateway authenticated). Projects without gateway traffic get empty maps.
   sumMapIf(map(if(ingestion_api_key = '', '-', ingestion_api_key), toUInt64(1)), service_name = 'langfuse-ai-gateway') AS gateway_count_keys,
   sumMapIf(map(toString(level), toUInt64(1)), service_name = 'langfuse-ai-gateway') AS gateway_count_levels,
   sumMapIf(map(if(provided_model_name = '', '-', provided_model_name), toUInt64(1)), service_name = 'langfuse-ai-gateway') AS gateway_count_models,
