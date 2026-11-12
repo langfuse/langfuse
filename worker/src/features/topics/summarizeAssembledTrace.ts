@@ -278,10 +278,6 @@ export async function summarizeTraceFacets(params: {
   const text = renderStoredTopicText(params.transcript, params.executionIssues);
   metrics.summaryInputCharacters("text", text.length);
   metrics.summaryInputCharacters("json", projection.text.length);
-  getCurrentSpan()?.setAttributes({
-    "langfuse.topics.summary_input_characters": text.length,
-    "langfuse.topics.summary_input_json_characters": projection.text.length,
-  });
   // Built-in facets first, each group in listing order, so the cached prompt prefix stays stable.
   const ordered = [
     ...facets.filter((facet) => facet.builtIn),
