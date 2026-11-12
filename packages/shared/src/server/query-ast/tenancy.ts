@@ -34,6 +34,16 @@ import { SelectRewriteTransformer } from "./transformer";
 const PROJECT_ID_COLUMN = "project_id";
 
 /**
+ * Join types whose ON clause drops the joined table's non-matching rows, so a
+ * project condition there scopes the table.
+ */
+const ON_SCOPABLE_JOINS: ReadonlySet<string> = new Set([
+  "InnerJoin",
+  "LeftJoin",
+  "CrossJoin",
+]);
+
+/**
  * Identity-based stamp. A copied `langfuseTenancy` property on a cloned node
  * is not enough — only trees that actually went through
  * {@link TenancyInjectionPlugin} are in this set.
@@ -155,15 +165,15 @@ function injectSelect(
 }
 
 /**
- * A RIGHT or FULL join keeps the joined table's unmatched rows, so a project
- * condition in its ON clause scopes nothing. Throws unless the WHERE scopes
- * the table instead.
+ * Any other join type (RIGHT, FULL, or one added later) may keep the joined
+ * table's unmatched rows, so a project condition in its ON clause scopes
+ * nothing. Throws unless the WHERE scopes the table instead.
  */
 function assertScopableInOn(
   join: JoinNode,
   relation: Extract<ScopedRelation, { kind: "table" }>,
 ): void {
-  if (join.joinType === "RightJoin" || join.joinType === "FullJoin") {
+  if (!ON_SCOPABLE_JOINS.has(join.joinType)) {
     throw new UnscopedRelationError(
       `${join.joinType} on tenanted table "${relation.alias ?? relation.tableName}" cannot be scoped in its ON clause: it keeps rows of other projects. Scope the table in a subquery, or filter its project_id in WHERE.`,
     );
