@@ -46,7 +46,7 @@ export function GatewayNoProvidersEmptyState({
           href={GATEWAY_SETUP_DOCS_URL}
         />
       </GatewayPlaceholder.Actions>
-      <NoProvidersDiagram addLabel="+ Add" />
+      <NoProvidersDiagram unconnectedVariant="placeholder" />
       <ul className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
         {getGatewaySetupHeroProviders(new Set()).map(({ provider }) => (
           <li key={provider}>
