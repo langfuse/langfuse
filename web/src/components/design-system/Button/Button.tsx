@@ -72,7 +72,11 @@ type ButtonProps = {
       "data-state"?: string;
     } & Pick<
       ButtonHTMLAttributes<HTMLButtonElement>,
-      "id" | "aria-controls" | "aria-expanded" | "aria-haspopup"
+      | "id"
+      | "aria-controls"
+      | "aria-expanded"
+      | "aria-haspopup"
+      | FloatingTriggerHandler
     >)
 );
 
@@ -142,6 +146,15 @@ export function Button(props: ButtonProps) {
       aria-expanded={props["aria-expanded"]}
       aria-haspopup={props["aria-haspopup"]}
       data-state={props["data-state"]}
+      onPointerDown={props.onPointerDown}
+      onPointerEnter={props.onPointerEnter}
+      onMouseDown={props.onMouseDown}
+      onMouseMove={props.onMouseMove}
+      onMouseLeave={props.onMouseLeave}
+      onKeyDown={props.onKeyDown}
+      onKeyUp={props.onKeyUp}
+      onFocus={props.onFocus}
+      onBlur={props.onBlur}
     >
       <span
         className={cn(
@@ -162,3 +175,15 @@ export function Button(props: ButtonProps) {
     </button>
   );
 }
+
+/** Handlers `FloatingController`'s `getTriggerProps()` returns, so a Button can be a popover or tooltip trigger. */
+type FloatingTriggerHandler =
+  | "onPointerDown"
+  | "onPointerEnter"
+  | "onMouseDown"
+  | "onMouseMove"
+  | "onMouseLeave"
+  | "onKeyDown"
+  | "onKeyUp"
+  | "onFocus"
+  | "onBlur";
