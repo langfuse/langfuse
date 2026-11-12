@@ -54,8 +54,7 @@ pub struct EncodedBlock {
 /// Prepared rows already contain the defaults that production-prepared rows rely on when every
 /// insertable column is listed in a Native block. Decimal values use the existing
 /// Decimal(18,12) overflow policy and truncate toward zero at twelve fractional digits.
-/// Encoding preserves the prepared row's `event_bytes`. The NAPI adapter receives that value
-/// from TypeScript after overflow handling; it does not recompute accounting in Rust.
+/// The block omits `event_bytes` so ClickHouse computes its DEFAULT from the final typed row.
 /// A block can still split when ch-core's signed String offsets would overflow; a single row that
 /// exceeds that limit remains an error.
 pub(crate) fn encode_v4_native_blocks(

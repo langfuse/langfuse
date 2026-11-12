@@ -15,9 +15,6 @@ import {
 } from "@/src/server/api/trpc";
 import { env } from "@/src/env.mjs";
 import { canReadGatewayModels } from "@/src/features/ai-gateway/fns/canReadGatewayModels";
-import { getAvailableGatewayProviders } from "@/src/features/ai-gateway/fns/getAvailableGatewayProviders";
-import { isGatewayPreReleaseEnvironment } from "@/src/features/ai-gateway/fns/isGatewayPreReleaseEnvironment";
-import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { getProductBaseUrl } from "@/src/utils/base-url";
 import {
   GatewayConnectionStatus,
@@ -25,7 +22,7 @@ import {
   GatewayProvider,
 } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
-import { ForbiddenError, orderBy } from "@langfuse/shared";
+import { orderBy } from "@langfuse/shared";
 import { query as analyticsQuery } from "@langfuse/shared/query";
 
 import {
@@ -52,6 +49,11 @@ import { GatewayProviderService } from "@/src/features/ai-gateway/server/provide
 const organizationInput = z.object({ orgId: z.string() });
 /** Naming rules live in `parseGatewayConnectionName` so the dialog can show them on the field. */
 const connectionNameSchema = z.string().max(1_000);
+// Same shape as LLM connections: a blank header value keeps the stored one.
+const connectionEndpointInput = {
+  baseURL: z.url().nullish(),
+  extraHeaders: z.record(z.string(), z.string()).optional(),
+};
 const pageLimitSchema = z.number().int().min(1).max(100).default(50);
 const paginatedOrganizationInput = organizationInput.extend({
   cursor: z.string().optional(),
@@ -75,18 +77,6 @@ function requireGatewayAdmin(params: { session: Session; orgId: string }) {
     organizationId: params.orgId,
     scope: "gateway:manage",
   });
-}
-
-function requireProviderAvailable(provider: GatewayProvider) {
-  if (!getAvailableGatewayProviders().includes(provider)) {
-    throw new ForbiddenError("This provider is not available yet.");
-  }
-}
-
-function requirePreReleaseEnvironment() {
-  if (!isGatewayPreReleaseEnvironment()) {
-    throw new ForbiddenError("Custom models are not available yet.");
-  }
 }
 
 /** Admits gateway key owners. */
@@ -216,20 +206,39 @@ export const aiGatewayRouter = createTRPCRouter({
         input.orgId,
         GatewayConnectionStatus.ENABLED,
       );
+      const families = (connection: (typeof connections)[number]) => {
+        if (
+          connection.provider === "BEDROCK" ||
+          connection.provider === "OPENROUTER" ||
+          connection.provider === "VERCEL"
+        ) {
+          return ["OPENAI", "ANTHROPIC"] satisfies GatewayApiFamily[];
+        }
+        if (
+          connection.provider === "XAI" ||
+          connection.provider === "GOOGLE_AI_STUDIO"
+        ) {
+          return ["OPENAI"] satisfies GatewayApiFamily[];
+        }
+        return [connection.provider];
+      };
       return {
         gatewayBaseUrl: getGatewayBaseUrl(
           getProductBaseUrl(),
           env.LANGFUSE_AI_GATEWAY_PUBLIC_URL,
         ),
-        // Client setups rely on implicit `claude-*`/`gpt-*` routing, which never
-        // picks Bedrock; Bedrock models need an explicit `<connection>:<model>` slug.
+        // Agent clients call the OpenAI route with the Responses API, which
+        // Google AI Studio lacks; plain API calls also work over Chat Completions.
         providers: [
           ...new Set(
-            connections.flatMap((connection): GatewayApiFamily[] =>
-              connection.provider === "BEDROCK" ? [] : [connection.provider],
-            ),
+            connections
+              .filter(
+                (connection) => connection.provider !== "GOOGLE_AI_STUDIO",
+              )
+              .flatMap(families),
           ),
         ],
+        apiProviders: [...new Set(connections.flatMap(families))],
       };
     }),
 
@@ -334,20 +343,26 @@ export const aiGatewayRouter = createTRPCRouter({
   testConnection: protectedOrganizationProcedureWithoutTracing
     .input(
       organizationInput.extend({
+        /** The connection being edited, whose stored header values the test reuses. */
+        id: z.string().optional(),
         provider: z.enum(GatewayProvider),
         credential: z.string().min(1),
         config: GatewayBedrockConfigSchema.optional(),
+        ...connectionEndpointInput,
       }),
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      requireProviderAvailable(input.provider);
       const { modelListingDenied } = await new GatewayProviderService(
         ctx.prisma,
       ).testCredential({
+        organizationId: input.orgId,
+        connectionId: input.id,
         provider: input.provider,
         credential: input.credential,
         config: input.config,
+        baseURL: input.baseURL,
+        extraHeaders: input.extraHeaders,
       });
       return { success: true, modelListingDenied };
     }),
@@ -359,17 +374,19 @@ export const aiGatewayRouter = createTRPCRouter({
         provider: z.enum(GatewayProvider),
         credential: z.string().min(1),
         config: GatewayBedrockConfigSchema.optional(),
+        ...connectionEndpointInput,
       }),
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      requireProviderAvailable(input.provider);
       const connection = await new GatewayProviderService(ctx.prisma).create({
         organizationId: input.orgId,
         name: input.name,
         provider: input.provider,
         credential: input.credential,
         config: input.config,
+        baseURL: input.baseURL,
+        extraHeaders: input.extraHeaders,
         session: ctx.session,
       });
       return connection;
@@ -381,6 +398,7 @@ export const aiGatewayRouter = createTRPCRouter({
         id: z.string(),
         name: connectionNameSchema.optional(),
         credential: z.string().min(1).optional(),
+        ...connectionEndpointInput,
         status: z
           .enum([
             GatewayConnectionStatus.ENABLED,
@@ -396,6 +414,8 @@ export const aiGatewayRouter = createTRPCRouter({
         id: input.id,
         name: input.name,
         credential: input.credential,
+        baseURL: input.baseURL,
+        extraHeaders: input.extraHeaders,
         status: input.status,
         session: ctx.session,
       });
@@ -440,7 +460,6 @@ export const aiGatewayRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      requirePreReleaseEnvironment();
       return new GatewayProviderService(ctx.prisma).addCustomModel({
         organizationId: input.orgId,
         id: input.id,
@@ -472,7 +491,6 @@ export const aiGatewayRouter = createTRPCRouter({
     .input(connectionInput.extend({ model: customModelSchema }))
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      requirePreReleaseEnvironment();
       return new GatewayProviderService(ctx.prisma).testModel({
         organizationId: input.orgId,
         id: input.id,
@@ -502,36 +520,10 @@ export const aiGatewayRouter = createTRPCRouter({
         scope: "gateway:manage",
       });
       const catalogService = new GatewayModelCatalogService(ctx.prisma);
-      const results = canManageGateway
+      // Readers see disabled models too; `listModelConnections` tells them which are enabled.
+      return canManageGateway
         ? await catalogService.refreshAllModels(input.orgId)
         : await catalogService.listAllModels(input.orgId);
-      if (canManageGateway) return results;
-
-      const readableConnections = await catalogService.listModelConnections(
-        input.orgId,
-      );
-      const allowedModelsByConnectionId = new Map(
-        readableConnections.map((connection) => [
-          connection.id,
-          connection.allowedModels,
-        ]),
-      );
-      return results.map((result) =>
-        result.success
-          ? {
-              ...result,
-              models: result.models.filter((model) => {
-                const allowedModels = allowedModelsByConnectionId.get(
-                  result.connectionId,
-                );
-                return isGatewayModelAllowed(
-                  allowedModels === undefined ? [] : allowedModels,
-                  model,
-                );
-              }),
-            }
-          : result,
-      );
     }),
 
   getConnectionModels: protectedOrganizationProcedure

@@ -1,7 +1,10 @@
 import { STATUS_CODES } from "node:http";
 
 import { getBedrockModelApiFormats } from "@/src/features/ai-gateway/fns/getBedrockModelApiFormats";
+import { isGeminiEmbeddingModel } from "@/src/features/ai-gateway/fns/isGeminiEmbeddingModel";
+import { isOpenAiEmbeddingModel } from "@/src/features/ai-gateway/fns/isOpenAiEmbeddingModel";
 import { decodeBedrockApiKey } from "@/src/features/ai-gateway/server/provider/bedrock";
+import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import {
   type GatewayApiFormat,
   type GatewayProviderName,
@@ -27,12 +30,20 @@ export type GatewayModelTestResult =
 export async function testGatewayModel(params: {
   provider: GatewayProviderName;
   config: unknown;
+  baseURL: string | null;
+  extraHeaders: Record<string, string>;
   credential: string;
   model: string;
-  fetcher?: typeof fetch;
+  /** The formats the provider's catalog lists the model for. */
+  reportedFormats?: readonly GatewayApiFormat[];
 }): Promise<GatewayModelTestResult> {
   let firstFailure: GatewayModelTestResult | undefined;
-  for (const apiFormat of getTestApiFormats(params.provider, params.model)) {
+  const apiFormats = getTestApiFormats(
+    params.provider,
+    params.model,
+    params.reportedFormats,
+  );
+  for (const apiFormat of apiFormats) {
     const result = await sendTestRequest(params, apiFormat);
     if (result.success) return result;
     if (!firstFailure) firstFailure = result;
@@ -48,6 +59,7 @@ async function sendTestRequest(
     provider: params.provider,
     apiFormat,
     config: params.config,
+    baseURL: params.baseURL,
   });
   const apiKey =
     params.provider === "BEDROCK"
@@ -55,6 +67,7 @@ async function sendTestRequest(
       : params.credential;
   const { path, body } = getTestRequest(apiFormat, params.model);
   const headers: Record<string, string> = {
+    ...params.extraHeaders,
     "content-type": "application/json",
   };
   if (authType === "bearer") headers.authorization = `Bearer ${apiKey}`;
@@ -66,7 +79,12 @@ async function sendTestRequest(
   const startedAt = Date.now();
   let response: Response;
   try {
-    response = await (params.fetcher ?? fetch)(`${baseUrl}${path}`, {
+    const fetcher = getGatewayFetch({
+      baseURL: params.baseURL,
+      extraHeaders: params.extraHeaders,
+      logContext: "AI Gateway model test",
+    });
+    response = await fetcher(`${baseUrl}${path}`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
@@ -89,10 +107,30 @@ async function sendTestRequest(
 function getTestApiFormats(
   provider: GatewayProviderName,
   model: string,
+  reportedFormats: readonly GatewayApiFormat[] | undefined,
 ): GatewayApiFormat[] {
   if (provider === "ANTHROPIC") return ["anthropic.messages"];
-  if (provider === "OPENAI") {
+  if (provider === "OPENAI" && isOpenAiEmbeddingModel(model)) {
+    return ["openai.embeddings"];
+  }
+  if (provider === "GOOGLE_AI_STUDIO") {
+    return isGeminiEmbeddingModel(model)
+      ? ["openai.embeddings"]
+      : ["openai.chat-completions"];
+  }
+  if (provider === "OPENAI" || provider === "XAI") {
     return ["openai.responses", "openai.chat-completions"];
+  }
+  // Listed OpenRouter and Vercel models serve every format through one API,
+  // except decision and embedding models, which serve only their own.
+  if (provider === "OPENROUTER" || provider === "VERCEL") {
+    if (reportedFormats?.includes("openai.decisions")) {
+      return ["openai.decisions"];
+    }
+    if (reportedFormats?.includes("openai.embeddings")) {
+      return ["openai.embeddings"];
+    }
+    return ["openai.chat-completions"];
   }
   const formats = getBedrockModelApiFormats(model);
   return BEDROCK_TEST_ORDER.filter((format) => formats.includes(format));
@@ -102,6 +140,25 @@ function getTestRequest(apiFormat: GatewayApiFormat, model: string) {
   const messages = [{ role: "user", content: "Hi" }];
   if (apiFormat === "anthropic.messages") {
     return { path: "/messages", body: { model, max_tokens: 1, messages } };
+  }
+  if (apiFormat === "openai.decisions") {
+    return {
+      path: "/decisions",
+      body: {
+        model,
+        input: "Hi",
+        questions: [
+          {
+            type: "predicate",
+            name: "greeting",
+            instructions: "Is this a greeting?",
+          },
+        ],
+      },
+    };
+  }
+  if (apiFormat === "openai.embeddings") {
+    return { path: "/embeddings", body: { model, input: "Hi" } };
   }
   if (apiFormat === "openai.chat-completions") {
     return {
@@ -115,18 +172,24 @@ function getTestRequest(apiFormat: GatewayApiFormat, model: string) {
   };
 }
 
-// OpenAI and Anthropic nest the message under `error`; Bedrock returns it at the top level.
+// OpenAI and Anthropic nest the message under `error` and Bedrock returns it at
+// the top level. xAI sends `error` as the message itself, which is only used
+// without a top-level `message`, where `error` is just a status name. Google AI
+// Studio wraps the OpenAI shape in a one-element array.
 async function readErrorMessage(response: Response) {
   const text = await response.text().catch(() => "");
   let message = text;
   try {
-    const body: unknown = JSON.parse(text);
+    const parsed: unknown = JSON.parse(text);
+    const body: unknown = Array.isArray(parsed) ? parsed[0] : parsed;
     if (body && typeof body === "object") {
       const error = "error" in body ? body.error : undefined;
       if (error && typeof error === "object" && "message" in error) {
         message = String(error.message);
       } else if ("message" in body) {
         message = String(body.message);
+      } else if (typeof error === "string" && error) {
+        message = error;
       }
     }
   } catch {

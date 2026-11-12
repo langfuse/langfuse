@@ -10,6 +10,8 @@ import {
 import type { BarChartDatum } from "@/src/components/design-system/internal/charts/BarChartCore";
 import { CARTESIAN_CHART_INSETS } from "@/src/components/design-system/internal/charts/CartesianLayout";
 import { ChartTooltip } from "@/src/components/design-system/internal/charts/ChartTooltip";
+import { useScrollGradients } from "@/src/hooks/useScrollGradients";
+import { cn } from "@/src/utils/tailwind";
 
 const MIN_ROW_PX = 14;
 const CHARACTER_WIDTH = 7;
@@ -24,6 +26,11 @@ export function HorizontalBarChart({
   valueFormatter?: (value: number) => string;
   color?: string;
 }) {
+  const {
+    register,
+    recompute,
+    bottom: hasHiddenRowsBelow,
+  } = useScrollGradients<HTMLDivElement>(true);
   const maxMagnitude = Math.max(
     ...data.map((datum) => Math.abs(datum.value ?? 0)),
     0,
@@ -90,7 +97,13 @@ export function HorizontalBarChart({
           <ChartTooltip placementStrategy="horizontal">
             {({ activeIndex, hideTooltip, getReferenceProps }) => (
               <div
-                className="size-full overflow-x-hidden overflow-y-auto"
+                ref={register}
+                onScroll={recompute}
+                className={cn(
+                  "size-full overflow-x-hidden overflow-y-auto",
+                  // Padding matches the fade, and both clear together at the end.
+                  hasHiddenRowsBelow && "scroll-fade-b scroll-pb-8",
+                )}
                 data-testid="top-list-chart"
               >
                 <svg

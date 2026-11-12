@@ -3,13 +3,33 @@ import { Readable } from "node:stream";
 import { type StorageService } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  PRODUCTION_LABEL,
+  SKILL_PRODUCTION_LABEL,
+  supportedModels,
+} from "@langfuse/shared";
+import {
   coreDataTableExports,
   mapDashboardToCoreDataRow,
   mapDashboardWidgetToCoreDataRow,
+  mapDatasetToCoreDataRow,
+  mapEvalTemplateToCoreDataRow,
   mapEvaluationRuleEvaluatorAssignmentToCoreDataRow,
   mapEvaluationRuleToCoreDataRow,
   mapEvaluatorVersionToCoreDataRow,
+  mapGatewayAiConnectionToCoreDataRow,
+  mapInAppAgentRunToCoreDataRow,
   mapJobConfigurationToCoreDataRow,
+  mapMembershipInvitationToCoreDataRow,
+  mapModelToCoreDataRow,
+  mapMonitorToCoreDataRow,
+  mapOrganizationToCoreDataRow,
+  mapProjectToCoreDataRow,
+  mapPromptProtectedLabelToCoreDataRow,
+  mapPromptToCoreDataRow,
+  mapScoreConfigToCoreDataRow,
+  mapSkillToCoreDataRow,
+  mapTopicConfigToCoreDataRow,
+  mapTriggerToCoreDataRow,
   mapUserToCoreDataRow,
   uploadTableCoreDataJsonl,
 } from "../coreDataS3ExportQueue";
@@ -214,29 +234,59 @@ describe("mapEvaluationRuleEvaluatorAssignmentToCoreDataRow", () => {
 });
 
 describe("coreDataTableExports", () => {
-  it("includes the evaluator v2 tables", async () => {
-    const delegates = [
-      prisma.project,
-      prisma.user,
-      prisma.organization,
-      prisma.organizationMembership,
-      prisma.projectMembership,
-      prisma.billingMeterBackup,
-      prisma.survey,
-      prisma.blobStorageIntegration,
-      prisma.posthogIntegration,
-      prisma.mixpanelIntegration,
-      prisma.ssoConfig,
-      prisma.verifiedDomain,
-      prisma.prompt,
-      prisma.evaluator,
-      prisma.evaluatorVersion,
-      prisma.evaluationRule,
-      prisma.evaluationRuleEvaluatorAssignment,
-      prisma.jobConfiguration,
-      prisma.dashboard,
-      prisma.dashboardWidget,
-    ];
+  const delegates = [
+    prisma.project,
+    prisma.user,
+    prisma.organization,
+    prisma.organizationMembership,
+    prisma.projectMembership,
+    prisma.billingMeterBackup,
+    prisma.survey,
+    prisma.blobStorageIntegration,
+    prisma.posthogIntegration,
+    prisma.mixpanelIntegration,
+    prisma.ssoConfig,
+    prisma.verifiedDomain,
+    prisma.prompt,
+    prisma.evaluator,
+    prisma.evaluatorVersion,
+    prisma.evaluationRule,
+    prisma.evaluationRuleEvaluatorAssignment,
+    prisma.jobConfiguration,
+    prisma.dashboard,
+    prisma.dashboardWidget,
+    prisma.apiKey,
+    prisma.llmApiKeys,
+    prisma.membershipInvitation,
+    prisma.gatewayConfig,
+    prisma.gatewayAiConnection,
+    prisma.gatewayApiKeyAssociation,
+    prisma.inAppAgentConversation,
+    prisma.inAppAgentRun,
+    prisma.skill,
+    prisma.promptProtectedLabels,
+    prisma.topicConfig,
+    prisma.topicClusteringRun,
+    prisma.batchAction,
+    prisma.annotationQueue,
+    prisma.annotationQueueAssignment,
+    prisma.scoreConfig,
+    prisma.evalTemplate,
+    prisma.monitor,
+    prisma.trigger,
+    prisma.automation,
+    prisma.action,
+    prisma.cloudSpendAlert,
+    prisma.dataset,
+    prisma.datasetRuns,
+    prisma.tableViewPreset,
+    prisma.batchExport,
+    prisma.model,
+    prisma.externalMediaStorageIntegration,
+    prisma.webCalloutEndpoint,
+  ];
+
+  const runAllExports = async () => {
     for (const delegate of delegates) {
       vi.spyOn(delegate, "findMany").mockResolvedValue([]);
     }
@@ -257,6 +307,121 @@ describe("coreDataTableExports", () => {
       ),
     );
 
+    return uploadedFiles;
+  };
+
+  const selectFor = (findMany: {
+    mock: { calls: Array<[{ select?: Record<string, unknown> }?]> };
+  }) => findMany.mock.calls[0]?.[0]?.select;
+
+  it("exports one file per settings and feature table, without secret or customer-authored columns", async () => {
+    const uploadedFiles = await runAllExports();
+
+    expect(uploadedFiles).toEqual(
+      expect.arrayContaining(
+        [
+          "apiKeys",
+          "llmApiKeys",
+          "membershipInvitations",
+          "gatewayConfigs",
+          "gatewayAiConnections",
+          "gatewayApiKeyAssociations",
+          "inAppAgentConversations",
+          "inAppAgentRuns",
+          "skills",
+          "promptProtectedLabels",
+          "topicConfigs",
+          "topicClusteringRuns",
+          "batchActions",
+          "annotationQueues",
+          "annotationQueueAssignments",
+          "scoreConfigs",
+          "evalTemplates",
+          "monitors",
+          "triggers",
+          "automations",
+          "actions",
+          "cloudSpendAlerts",
+          "datasets",
+          "datasetRuns",
+          "tableViewPresets",
+          "batchExports",
+          "models",
+          "externalMediaStorageIntegrations",
+          "webCalloutEndpoints",
+        ].map((table) => `core/${table}.jsonl`),
+      ),
+    );
+
+    const neverSelected: Array<[{ findMany: unknown }, string[]]> = [
+      [
+        prisma.apiKey,
+        [
+          "note",
+          "publicKey",
+          "hashedSecretKey",
+          "fastHashedSecretKey",
+          "displaySecretKey",
+        ],
+      ],
+      [
+        prisma.llmApiKeys,
+        [
+          "provider",
+          "secretKey",
+          "displaySecretKey",
+          "baseURL",
+          "extraHeaders",
+          "config",
+        ],
+      ],
+      [
+        prisma.gatewayAiConnection,
+        [
+          "name",
+          "encryptedCredential",
+          "displaySecret",
+          "baseURL",
+          "extraHeaders",
+          "config",
+        ],
+      ],
+      [prisma.gatewayApiKeyAssociation, ["metadata"]],
+      [prisma.action, ["config"]],
+      [prisma.trigger, ["filter"]],
+      [
+        prisma.dataset,
+        [
+          "name",
+          "metadata",
+          "remoteExperimentSecretKey",
+          "remoteExperimentRequestHeaders",
+        ],
+      ],
+      [prisma.evalTemplate, ["prompt", "provider", "sourceCode"]],
+      [
+        prisma.externalMediaStorageIntegration,
+        ["bucketName", "accessKeyId", "secretAccessKey", "endpoint"],
+      ],
+      [prisma.webCalloutEndpoint, ["name", "url", "requestHeaders"]],
+      [prisma.monitor, ["name", "filters", "metric"]],
+      [prisma.inAppAgentConversation, ["title", "providerSessionId"]],
+      [prisma.inAppAgentRun, ["request", "errorMessage", "mcpApiKeyId"]],
+      [prisma.skill, ["name", "description", "frontmatter", "commitMessage"]],
+      [prisma.tableViewPreset, ["name", "filters", "searchQuery"]],
+      [prisma.batchExport, ["name", "query", "url", "log"]],
+    ];
+    for (const [delegate, columns] of neverSelected) {
+      const select = selectFor(vi.mocked(delegate.findMany) as never);
+      for (const column of columns) {
+        expect(select).not.toHaveProperty(column);
+      }
+    }
+  });
+
+  it("includes the evaluator v2 tables", async () => {
+    const uploadedFiles = await runAllExports();
+
     expect(uploadedFiles).toEqual(
       expect.arrayContaining([
         "core/jobConfigurations.jsonl",
@@ -268,10 +433,6 @@ describe("coreDataTableExports", () => {
         "core/dashboardWidgets.jsonl",
       ]),
     );
-
-    const selectFor = (findMany: {
-      mock: { calls: Array<[{ select?: Record<string, unknown> }?]> };
-    }) => findMany.mock.calls[0]?.[0]?.select;
 
     const evaluatorVersionSelect = selectFor(
       vi.mocked(prisma.evaluatorVersion.findMany),
@@ -588,5 +749,364 @@ describe("uploadTableCoreDataJsonl", () => {
         fetchPage,
       }),
     ).rejects.toThrow("upload failed");
+  });
+});
+
+describe("mapOrganizationToCoreDataRow", () => {
+  it("flags a starter organization and never exports its metadata", () => {
+    const row = mapOrganizationToCoreDataRow({
+      id: "org-1",
+      name: "Ada's Organization",
+      metadata: { langfuseOnboarding: { starterOrganization: true } },
+    });
+
+    expect(row).toStrictEqual({
+      id: "org-1",
+      name: "Ada's Organization",
+      isStarterOrganization: true,
+      hasDefaultName: true,
+    });
+  });
+
+  it("does not flag absent or customer-written metadata", () => {
+    expect(
+      mapOrganizationToCoreDataRow({
+        id: "org-2",
+        name: "Acme",
+        metadata: null,
+      }),
+    ).toStrictEqual({
+      id: "org-2",
+      name: "Acme",
+      isStarterOrganization: false,
+      hasDefaultName: false,
+    });
+    expect(
+      mapOrganizationToCoreDataRow({
+        id: "org-3",
+        name: "My Organization",
+        metadata: { langfuseOnboarding: "starterOrganization", tier: "gold" },
+      }),
+    ).toStrictEqual({
+      id: "org-3",
+      name: "My Organization",
+      isStarterOrganization: false,
+      hasDefaultName: true,
+    });
+  });
+});
+
+describe("mapProjectToCoreDataRow", () => {
+  it("flags a custom home dashboard and the default project name", () => {
+    expect(
+      mapProjectToCoreDataRow({
+        id: "project-1",
+        name: "My Project",
+        homeDashboardId: "dashboard-1",
+      }),
+    ).toStrictEqual({
+      id: "project-1",
+      name: "My Project",
+      hasCustomHomeDashboard: true,
+      hasDefaultName: true,
+    });
+    expect(
+      mapProjectToCoreDataRow({
+        id: "project-2",
+        name: "checkout-agent",
+        homeDashboardId: null,
+      }),
+    ).toStrictEqual({
+      id: "project-2",
+      name: "checkout-agent",
+      hasCustomHomeDashboard: false,
+      hasDefaultName: false,
+    });
+  });
+});
+
+describe("label and tag counts", () => {
+  it("exports prompt labels as a count and a production flag", () => {
+    expect(
+      mapPromptToCoreDataRow({
+        id: "prompt-1",
+        labels: [PRODUCTION_LABEL, "staging"],
+      }),
+    ).toStrictEqual({
+      id: "prompt-1",
+      labelCount: 2,
+      hasProductionLabel: true,
+    });
+    expect(
+      mapPromptToCoreDataRow({ id: "prompt-2", labels: [] }),
+    ).toStrictEqual({
+      id: "prompt-2",
+      labelCount: 0,
+      hasProductionLabel: false,
+    });
+  });
+
+  it("exports skill labels and tags as counts", () => {
+    expect(
+      mapSkillToCoreDataRow({
+        id: "skill-1",
+        labels: [SKILL_PRODUCTION_LABEL, "latest"],
+        tags: ["support", "billing"],
+      }),
+    ).toStrictEqual({
+      id: "skill-1",
+      labelCount: 2,
+      hasProductionLabel: true,
+      tagCount: 2,
+    });
+  });
+
+  it("exports a protected label as a production flag only", () => {
+    expect(
+      mapPromptProtectedLabelToCoreDataRow({
+        id: "label-1",
+        label: PRODUCTION_LABEL,
+      }),
+    ).toStrictEqual({ id: "label-1", isProduction: true });
+    expect(
+      mapPromptProtectedLabelToCoreDataRow({
+        id: "label-2",
+        label: "acme-release",
+      }),
+    ).toStrictEqual({ id: "label-2", isProduction: false });
+  });
+});
+
+describe("list counts", () => {
+  it("counts gateway model lists and keeps null for an unrestricted allow list", () => {
+    expect(
+      mapGatewayAiConnectionToCoreDataRow({
+        id: "connection-1",
+        allowedModels: ["gpt-4o", "claude-sonnet"],
+        customModels: [],
+      }),
+    ).toStrictEqual({
+      id: "connection-1",
+      allowedModelCount: 2,
+      customModelCount: 0,
+    });
+    expect(
+      mapGatewayAiConnectionToCoreDataRow({
+        id: "connection-2",
+        allowedModels: null,
+        customModels: ["acme-llm"],
+      }),
+    ).toStrictEqual({
+      id: "connection-2",
+      allowedModelCount: null,
+      customModelCount: 1,
+    });
+  });
+
+  it("exports a run's finished text message count from the filtered relation count", () => {
+    expect(
+      mapInAppAgentRunToCoreDataRow({ id: "run-1", _count: { events: 2 } }),
+    ).toStrictEqual({ id: "run-1", textMessageEndCount: 2 });
+  });
+
+  it("counts score config categories, and exports null for non-categorical configs", () => {
+    expect(
+      mapScoreConfigToCoreDataRow({
+        id: "config-1",
+        categories: [
+          { label: "good", value: 1 },
+          { label: "bad", value: 0 },
+        ],
+      }),
+    ).toStrictEqual({ id: "config-1", categoryCount: 2 });
+    expect(
+      mapScoreConfigToCoreDataRow({ id: "config-2", categories: null }),
+    ).toStrictEqual({ id: "config-2", categoryCount: null });
+  });
+});
+
+describe("mapMonitorToCoreDataRow", () => {
+  it("exports BigInt durations as numbers so the row serializes", () => {
+    const row = mapMonitorToCoreDataRow({
+      id: "monitor-1",
+      windowMs: BigInt(3_600_000),
+      cadenceMs: BigInt(60_000),
+      triggerIds: ["trigger-1", "trigger-2"],
+    });
+
+    expect(row).toStrictEqual({
+      id: "monitor-1",
+      windowMs: 3_600_000,
+      cadenceMs: 60_000,
+      triggerCount: 2,
+    });
+    expect(() => JSON.stringify(row)).not.toThrow();
+  });
+});
+
+describe("mapDatasetToCoreDataRow", () => {
+  it("flags which remote experiment and schema settings are set", () => {
+    expect(
+      mapDatasetToCoreDataRow({
+        id: "dataset-1",
+        remoteExperimentUrl: "https://acme.example/run",
+        inputSchema: { type: "object" },
+        expectedOutputSchema: null,
+      }),
+    ).toStrictEqual({
+      id: "dataset-1",
+      hasRemoteExperiment: true,
+      hasInputSchema: true,
+      hasExpectedOutputSchema: false,
+    });
+    expect(
+      mapDatasetToCoreDataRow({
+        id: "dataset-2",
+        remoteExperimentUrl: null,
+        inputSchema: null,
+        expectedOutputSchema: null,
+      }),
+    ).toStrictEqual({
+      id: "dataset-2",
+      hasRemoteExperiment: false,
+      hasInputSchema: false,
+      hasExpectedOutputSchema: false,
+    });
+  });
+});
+
+describe("names on Langfuse-owned rows", () => {
+  it("keeps a managed eval template's name and drops a customer's", () => {
+    expect(
+      mapEvalTemplateToCoreDataRow({
+        id: "template-1",
+        projectId: null,
+        name: "Hallucination",
+      }),
+    ).toStrictEqual({
+      id: "template-1",
+      projectId: null,
+      name: "Hallucination",
+    });
+    expect(
+      mapEvalTemplateToCoreDataRow({
+        id: "template-2",
+        projectId: "project-1",
+        name: "acme-refund-policy",
+      }),
+    ).toStrictEqual({ id: "template-2", projectId: "project-1", name: null });
+  });
+
+  it("keeps a default model's name, drops a customer's, and counts prices and tiers", () => {
+    expect(
+      mapModelToCoreDataRow({
+        id: "model-1",
+        projectId: null,
+        modelName: "gpt-4o",
+        _count: { Price: 3, pricingTiers: 1 },
+      }),
+    ).toStrictEqual({
+      id: "model-1",
+      projectId: null,
+      modelName: "gpt-4o",
+      priceCount: 3,
+      tierCount: 1,
+    });
+    expect(
+      mapModelToCoreDataRow({
+        id: "model-2",
+        projectId: "project-1",
+        modelName: "acme-internal-llm",
+        _count: { Price: 1, pricingTiers: 1 },
+      }),
+    ).toStrictEqual({
+      id: "model-2",
+      projectId: "project-1",
+      modelName: null,
+      priceCount: 1,
+      tierCount: 1,
+    });
+  });
+});
+
+describe("mapMembershipInvitationToCoreDataRow", () => {
+  it("exports a hash of the normalized email and domain checks, never an email", () => {
+    const row = mapMembershipInvitationToCoreDataRow({
+      id: "invitation-1",
+      orgId: "org-1",
+      email: " Alice@Acme.COM ",
+      invitedByUser: { email: "bob@acme.com" },
+      organization: { verifiedDomains: [{ domain: "Acme.com" }] },
+    });
+
+    expect(row).toStrictEqual({
+      id: "invitation-1",
+      orgId: "org-1",
+      // SHA-256 of "alice@acme.com", as the warehouse computes it from users.email
+      emailHash:
+        "0a0a58273565a8f3dcf779375d9debd0f685d94dc56651a16bff3bf901c0b127",
+      sameDomainAsInviter: true,
+      domainIsVerifiedForOrg: true,
+    });
+    expect(JSON.stringify(row)).not.toContain("@");
+  });
+
+  it("returns null for the inviter check when the inviter has no email", () => {
+    const row = mapMembershipInvitationToCoreDataRow({
+      id: "invitation-2",
+      email: "carol@gmail.com",
+      invitedByUser: null,
+      organization: { verifiedDomains: [] },
+    });
+
+    expect(row).toMatchObject({
+      sameDomainAsInviter: null,
+      domainIsVerifiedForOrg: false,
+    });
+  });
+});
+
+describe("mapTriggerToCoreDataRow", () => {
+  it("keeps known event sources and actions and replaces any other string", () => {
+    expect(
+      mapTriggerToCoreDataRow({
+        id: "trigger-1",
+        eventSource: "prompt",
+        eventActions: ["created", "acme release note"],
+      }),
+    ).toStrictEqual({
+      id: "trigger-1",
+      eventSource: "prompt",
+      eventActions: ["created", "__invalid__"],
+    });
+    expect(
+      mapTriggerToCoreDataRow({
+        id: "trigger-2",
+        eventSource: "customer text",
+        eventActions: ["evaluator-blocked"],
+      }),
+    ).toStrictEqual({
+      id: "trigger-2",
+      eventSource: "__invalid__",
+      eventActions: ["evaluator-blocked"],
+    });
+  });
+});
+
+describe("mapTopicConfigToCoreDataRow", () => {
+  it("keeps supported model names and replaces a connection's custom model name", () => {
+    expect(
+      mapTopicConfigToCoreDataRow({
+        id: "config-1",
+        summaryModel: supportedModels.openai[0],
+        embeddingModel: "acme-private-embedding-deployment",
+        clusteringModel: null,
+      }),
+    ).toStrictEqual({
+      id: "config-1",
+      summaryModel: supportedModels.openai[0],
+      embeddingModel: "__invalid__",
+      clusteringModel: null,
+    });
   });
 });

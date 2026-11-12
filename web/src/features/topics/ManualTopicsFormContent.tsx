@@ -111,10 +111,9 @@ export function ManualTopicsFormContent({
     if (configurationError) return configurationError;
     if (regenerate.prerequisiteReason) return regenerate.prerequisiteReason;
     if (!settings) return "Loading Topics configuration…";
-    if (!configured)
-      return "Choose the Topics models in Configure Topics first.";
+    if (!configured) return "Choose the Topics models in Settings first.";
     if (settings.stored.blockedAt)
-      return `Topics is paused. ${settings.stored.blockMessage ?? "Fix the model connection in Configure Topics."}`;
+      return `Topics is paused. ${settings.stored.blockMessage ?? "Fix the model connection in Settings."}`;
     if (running) return "A Topics run is in progress. Wait for it to finish.";
     if (operation === "update" && regenerate.disabledReason)
       return regenerate.disabledReason;

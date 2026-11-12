@@ -2,13 +2,11 @@ import { type Session } from "next-auth";
 
 import {
   BaseError,
-  CloudConfigSchema,
   ForbiddenError,
   type RateLimitResult,
 } from "@langfuse/shared";
 import type { ApiAccessScope } from "@langfuse/shared/src/server";
 
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 
 type SessionUser = NonNullable<Session["user"]>;
@@ -27,34 +25,12 @@ type SessionUser = NonNullable<Session["user"]>;
 export function getInAppAgentApiAccessScope(
   user: SessionUser,
   projectId: string,
-  projectOrganization: {
-    id: string;
-    cloudConfig: unknown;
-  },
 ): ApiAccessScope {
   const organization = user.organizations.find((org) =>
     org.projects.some((project) => project.id === projectId),
   );
 
   if (!organization) {
-    if (user.admin === true) {
-      const cloudConfig = projectOrganization.cloudConfig
-        ? CloudConfigSchema.parse(projectOrganization.cloudConfig)
-        : undefined;
-
-      return {
-        orgId: projectOrganization.id,
-        plan: getOrganizationPlanServerSide(cloudConfig),
-        projectId,
-        accessLevel: "project",
-        rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
-        apiKeyId: "in-app-agent-session",
-        publicKey: "in-app-agent-session",
-        isIngestionSuspended: false,
-        accessAuditLogEnabled: null,
-      };
-    }
-
     throw new ForbiddenError("User is not a member of this project");
   }
 

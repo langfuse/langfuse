@@ -8,6 +8,7 @@ import {
   sql,
   type KyselyPlugin,
   type OperationNode,
+  type RawBuilder,
 } from "kysely";
 import { describe, expect, it } from "vitest";
 
@@ -16,7 +17,15 @@ import { ClickHouseQueryCompiler } from "./compiler";
 import { CteNamePlugin } from "./ctes";
 import { getClickhouseKysely } from "./dialect";
 import { QueryCompileError, UnscopedRelationError } from "./errors";
-import { arrayJoin, limitBy, mapKeys, mapValues, useFinal } from "./extensions";
+import {
+  arrayJoin,
+  limitBy,
+  mapExists,
+  mapKeys,
+  mapValues,
+  tupleArrayField,
+  useFinal,
+} from "./extensions";
 import {
   ArrayJoinNode,
   FinalTableNode,
@@ -91,7 +100,7 @@ describe("tenancy injection", () => {
     const qb = getClickhouseKysely()
       .selectFrom("events")
       .select("environment")
-      .where("project_id", "=", "proj-1");
+      .where("events.project_id", "=", "proj-1");
 
     const { sql: compiled } = compileClickhouseQuery(qb, projectId);
     const matches = compiled.match(/project_id/gi) ?? [];
@@ -255,6 +264,91 @@ describe("tenancy injection", () => {
     expect(() => stampedByProperty.compile()).toThrow(QueryCompileError);
   });
 
+  it("refuses to compile the WHERE of a select the tenancy pass did not stamp", () => {
+    const unstamped = getClickhouseKysely()
+      .selectFrom("traces as t")
+      .where("t.environment", "=", "x")
+      .toOperationNode();
+    expect(() =>
+      new ClickHouseQueryCompiler("f_").compileCondition(unstamped),
+    ).toThrow(/tenancy injection pass was not applied/);
+  });
+
+  it("keeps a caller's top-level OR inside the tenancy scope in WHERE and JOIN ON", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("traces as t")
+      .innerJoin("scores as s", (join) =>
+        join.on(sql<boolean>`s.trace_id = t.id or 1 = 1`),
+      )
+      .select("t.id")
+      .where(sql<boolean>`1 = 1 or 1 = 1`);
+
+    expect(compileClickhouseQuery(qb, projectId).sql).toMatchInlineSnapshot(
+      `"select t.id from traces as t inner join scores as s on (s.trace_id = t.id or 1 = 1) and s.project_id = {p1:String} where t.project_id = {p1:String} and (1 = 1 or 1 = 1)"`,
+    );
+  });
+
+  it("does not count a project_id conjunct as coverage when a sibling OR escapes it", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("traces as t")
+      .innerJoin("scores as s", (join) =>
+        join
+          .on("s.project_id", "=", projectId)
+          .on(sql<boolean>`s.trace_id = t.id or 1 = 1`),
+      )
+      .select("t.id")
+      .where("t.project_id", "=", projectId)
+      .where(sql<boolean>`1 = 1 or 1 = 1`);
+
+    expect(compileClickhouseQuery(qb, projectId).sql).toMatchInlineSnapshot(
+      `"select t.id from traces as t inner join scores as s on (s.project_id = {p1:String} and s.trace_id = t.id or 1 = 1) and s.project_id = {p1:String} where t.project_id = {p1:String} and (t.project_id = {p1:String} and 1 = 1 or 1 = 1)"`,
+    );
+  });
+
+  it("qualifies an injected project_id by table name on a join of unaliased tables", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("traces")
+      .innerJoin("scores", (join) =>
+        join
+          .onRef("scores.trace_id", "=", "traces.id")
+          .on("scores.project_id", "=", projectId),
+      )
+      .select("traces.id")
+      .where("traces.project_id", "=", projectId)
+      .where(sql<boolean>`1 = 1`);
+
+    expect(compileClickhouseQuery(qb, projectId).sql).toMatchInlineSnapshot(
+      `"select traces.id from traces inner join scores on scores.trace_id = traces.id and scores.project_id = {p1:String} where traces.project_id = {p1:String} and (traces.project_id = {p1:String} and 1 = 1)"`,
+    );
+  });
+
+  it("qualifies the project_id injected into an unaliased join next to a subquery", () => {
+    // ClickHouse binds a bare `project_id` to the left-most relation that has
+    // one — here the subquery `s` — so a bare injected predicate would not
+    // scope `scores`.
+    const db = getClickhouseKysely();
+    const qb = db
+      .selectFrom(db.selectFrom("traces").select(["id", "project_id"]).as("s"))
+      .innerJoin("scores", (join) => join.onRef("scores.trace_id", "=", "s.id"))
+      .select("scores.value");
+
+    expect(compileClickhouseQuery(qb, projectId).sql).toContain(
+      "on scores.trace_id = s.id and scores.project_id = {p1:String}",
+    );
+  });
+
+  it("does not count a bare project_id that a SELECT alias shadows as coverage", () => {
+    // ClickHouse resolves a bare name to a SELECT alias before a table column.
+    const qb = getClickhouseKysely()
+      .selectFrom("traces")
+      .select((eb) => ["id", eb.val(projectId).as("project_id")])
+      .where("project_id", "=", projectId);
+
+    expect(compileClickhouseQuery(qb, projectId).sql).toContain(
+      "where traces.project_id = {p1:String}",
+    );
+  });
+
   it("qualifies every project_id on a two-table JOIN", () => {
     const qb = getClickhouseKysely()
       .selectFrom("observations as o")
@@ -288,20 +382,6 @@ describe("tenancy injection", () => {
     expect(Object.values(params)).toContain("proj-1");
     const matches = compiled.match(/project_id/gi) ?? [];
     expect(matches.length).toBeGreaterThanOrEqual(2);
-  });
-
-  it("does not let one unqualified project_id cover multiple tenanted JOIN relations", () => {
-    const qb = getClickhouseKysely()
-      .selectFrom("observations as o")
-      .innerJoin("traces as t", (join) => join.onRef("o.trace_id", "=", "t.id"))
-      .select("o.environment")
-      // Unqualified, and ambiguous across two tenanted tables — must not be
-      // treated as scoping either relation.
-      .where("project_id", "=", "proj-1");
-
-    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
-    expect(compiled).toMatch(/o\.project_id/i);
-    expect(compiled).toMatch(/t\.project_id/i);
   });
 
   it("scopes an aliased relation whose alias collides with another table's physical name", () => {
@@ -424,7 +504,7 @@ describe("tenancy injection", () => {
             .select("l.id"),
         ),
       ).toBe(
-        "select l.id from (with x as (select id from traces where project_id = {p1:String}) select id from x) as l inner join (with x as (select id from traces where project_id = {p1:String}) select id from x) as r on l.id = r.id",
+        "select l.id from (with x as (select id from traces where traces.project_id = {p1:String}) select id from x) as l inner join (with x as (select id from traces where traces.project_id = {p1:String}) select id from x) as r on l.id = r.id",
       );
     });
 
@@ -581,7 +661,7 @@ describe("tenancy injection", () => {
             .select("id"),
         ),
       ).toBe(
-        "with a as (with a as (select id from traces where project_id = {p1:String}) select id from a) select id from a",
+        "with a as (with a as (select id from traces where traces.project_id = {p1:String}) select id from a) select id from a",
       );
     });
 
@@ -607,7 +687,7 @@ describe("tenancy injection", () => {
             .select("id"),
         ),
       ).toBe(
-        "with x as (select id from traces where project_id = {p1:String}), y as (select id from x where id in (with z as (select id from x) select id from z)) select id from y",
+        "with x as (select id from traces where traces.project_id = {p1:String}), y as (select id from x where id in (with z as (select id from x) select id from z)) select id from y",
       );
     });
 
@@ -656,7 +736,7 @@ describe("tenancy injection", () => {
             .select("id"),
         ),
       ).toBe(
-        "with constructor as (select id from traces where project_id = {p1:String}) select id from constructor",
+        "with constructor as (select id from traces where traces.project_id = {p1:String}) select id from constructor",
       );
     });
 
@@ -671,7 +751,7 @@ describe("tenancy injection", () => {
             .select("id"),
         ),
       ).toBe(
-        "with a as (select b.id from traces as b where b.project_id = {p1:String}), b as (select id from traces where project_id = {p1:String}) select id from a",
+        "with a as (select b.id from traces as b where b.project_id = {p1:String}), b as (select id from traces where traces.project_id = {p1:String}) select id from a",
       );
     });
 
@@ -829,6 +909,85 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
   });
 });
 
+// ClickHouse binds an unqualified column of a SELECT with several relations to
+// the left-most one that has it, without an ambiguity error.
+describe("bare columns in a SELECT with several relations", () => {
+  const db = getClickhouseKysely();
+  const tracesWithScores = () =>
+    db
+      .selectFrom("traces as t")
+      .innerJoin("scores as s", (join) =>
+        join.onRef("s.trace_id", "=", "t.id"),
+      );
+
+  it.each([
+    [
+      "an unqualified column",
+      () =>
+        tracesWithScores().select("t.id").where("timestamp", ">", new Date(0)),
+      /Column "timestamp" is unqualified/,
+    ],
+    [
+      "a select alias read inside its own expression",
+      () =>
+        tracesWithScores().select((eb) =>
+          eb.fn.max("timestamp").as("timestamp"),
+        ),
+      /Column "timestamp" is unqualified/,
+    ],
+    [
+      "an ARRAY JOIN alias read inside its own expression",
+      () =>
+        tracesWithScores()
+          .select("t.id")
+          .$call(
+            arrayJoin((eb) => ({ metadata: mapKeys(eb.ref("metadata")) })),
+          ),
+      /Column "metadata" is unqualified/,
+    ],
+    [
+      "a subcolumn of an unqualified column",
+      () => tracesWithScores().select(sql.ref("metadata.keys").as("k")),
+      /Qualifier "metadata" names no relation/,
+    ],
+    [
+      "a tuple element of an unqualified column",
+      () => tracesWithScores().select(sql.ref("metadata.1").as("k")),
+      /Qualifier "metadata" names no relation/,
+    ],
+    [
+      "an unqualified sql.id column",
+      () =>
+        tracesWithScores()
+          .select("t.id")
+          .where(sql.id("timestamp") as RawBuilder<Date>, ">", new Date(0)),
+      /Column "timestamp" is unqualified/,
+    ],
+    [
+      "an sql.id subcolumn of an unqualified column",
+      () => tracesWithScores().select(sql.id("metadata", "keys").as("k")),
+      /Qualifier "metadata" names no relation/,
+    ],
+  ])("rejects %s", (_, build, error) => {
+    expect(() => compileClickhouseQuery(build(), projectId)).toThrow(error);
+  });
+
+  it("accepts output aliases, lambda parameters and a single-relation subquery", () => {
+    const qb = tracesWithScores()
+      .select((eb) => [eb.fn.max("s.value").as("top")])
+      .where((eb) =>
+        eb.and([
+          mapExists((k) => eb(k, "=", "env"), eb.ref("s.metadata")),
+          eb("t.id", "in", db.selectFrom("observations").select("trace_id")),
+        ]),
+      )
+      .groupBy("t.id")
+      .orderBy("top", "desc");
+
+    expect(() => compileClickhouseQuery(qb, projectId)).not.toThrow();
+  });
+});
+
 describe("names the compiler writes verbatim", () => {
   const db = getClickhouseKysely();
 
@@ -920,6 +1079,22 @@ describe("names the compiler writes verbatim", () => {
           arrayJoin((eb) => ({
             "cost_key --": mapKeys(eb.ref("cost_details")),
           })),
+        ),
+    ],
+    [
+      "tuple subcolumn field",
+      db
+        .withTables<{
+          events: {
+            skills_available: Array<{ "skillName from x --": string }>;
+          };
+        }>()
+        .selectFrom("events as e")
+        .select((eb) =>
+          tupleArrayField(
+            eb.ref("e.skills_available"),
+            "skillName from x --",
+          ).as("x"),
         ),
     ],
   ])("rejects a non-plain identifier in a %s", (_kind, qb) => {

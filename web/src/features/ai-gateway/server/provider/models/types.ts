@@ -1,4 +1,7 @@
-import type { GatewayProviderName } from "@/src/features/ai-gateway/server/provider/registry";
+import type {
+  GatewayApiFormat,
+  GatewayProviderName,
+} from "@/src/features/ai-gateway/server/provider/registry";
 
 export type GatewayModelCatalogEntry = {
   id: string;
@@ -6,6 +9,8 @@ export type GatewayModelCatalogEntry = {
   canonicalSlug: string;
   displayName: string;
   createdAt: string;
+  /** The formats the provider lists the model for, when its catalog says. */
+  apiFormats?: GatewayApiFormat[];
 };
 
 export type ModelDiscoveryError =
@@ -29,6 +34,9 @@ export interface ModelDiscoveryAdapter {
   fetchCatalog(params: {
     credential: string;
     config: unknown;
+    /** A custom base URL replacing the official one; Bedrock ignores it. */
+    baseURL: string | null;
+    extraHeaders: Record<string, string>;
     fetcher: typeof fetch;
   }): Promise<ModelDiscoveryResult>;
 }
