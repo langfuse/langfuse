@@ -31,6 +31,8 @@ const HUB_RADIUS = 20;
 const FAN_END_X = HUB.x - HUB_RADIUS;
 const PILL = { x: 282, width: 150, height: 26, spacing: 36 };
 const TOGGLE_X = PILL.x + PILL.width - 28;
+/** Placeholder pills carry no switch, so they only need room for the label. */
+const PLACEHOLDER_PILL_WIDTH = 116;
 
 const FAN = Array.from({ length: 9 }, (_, index) => {
   const y = 12 + index * 22;
@@ -68,6 +70,8 @@ export function GatewaySetupSwitchboard({
   comingSoonLabel,
 }: GatewaySetupSwitchboardProps) {
   const gradientId = useId();
+  const placeholderWidth =
+    unconnectedVariant === "placeholder" ? PLACEHOLDER_PILL_WIDTH : PILL.width;
   const isIdle = idleLabel !== undefined;
   const rowCount = providers.length + (comingSoonLabel === undefined ? 0 : 1);
   // Tighter rows keep the outer pills inside the 200-high viewBox.
@@ -192,7 +196,7 @@ export function GatewaySetupSwitchboard({
             <rect
               x={PILL.x}
               y={y - PILL.height / 2}
-              width={PILL.width}
+              width={isPlaceholder ? placeholderWidth : PILL.width}
               height={PILL.height}
               rx={4}
               strokeDasharray={isPlaceholder ? "3 3" : undefined}
@@ -259,7 +263,7 @@ export function GatewaySetupSwitchboard({
           <rect
             x={PILL.x}
             y={rowY(providers.length) - PILL.height / 2}
-            width={PILL.width}
+            width={placeholderWidth}
             height={PILL.height}
             rx={4}
             strokeDasharray="3 3"

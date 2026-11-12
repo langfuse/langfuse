@@ -65,7 +65,7 @@ export const SwitchboardWithAllRows = meta.story({
     </div>
   ),
   play: async ({ canvasElement }) => {
-    const pills = [...canvasElement.querySelectorAll('rect[width="150"]')];
+    const pills = [...canvasElement.querySelectorAll('rect[rx="4"]')];
     await expect(pills).toHaveLength(7);
     for (const pill of pills) {
       const top = Number(pill.getAttribute("y"));
