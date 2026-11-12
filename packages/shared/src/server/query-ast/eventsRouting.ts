@@ -300,6 +300,13 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
    *
    * Any other WhereNode (an aggregate's `count() FILTER (WHERE …)`) is
    * walked without it, so its reads are cut like select-list reads.
+   *
+   * Known gap: HAVING and JOIN ON are not WhereNodes either, so a filter
+   * there on `input`, `output` or `metadata_values` of an `events_truncated`
+   * relation compares the 200-character events_core cut, never the full
+   * value (`having e.input = 'x'` stays on events_core; next to a WHERE
+   * that routes to events_full it renders `having leftUTF8(e.input, 200) =
+   * …`). The logical `events` relation routes such reads to events_full.
    */
   protected override transformWhere(
     node: WhereNode,
