@@ -71,6 +71,64 @@ export const OneTopicPerQuestion = meta.story({
   },
 });
 
+const overlaps = (a: Element, b: Element) => {
+  const first = a.getBoundingClientRect();
+  const second = b.getBoundingClientRect();
+  return (
+    first.left < second.right &&
+    second.left < first.right &&
+    first.top < second.bottom &&
+    second.top < first.bottom
+  );
+};
+
+/** Long rule and topic names wrap inside the card instead of covering the question. */
+export const LongTopicNames = meta.story({
+  name: "(Test) Long rule and topic names keep the question label readable",
+  args: header([
+    result("intent", "Product questions", {
+      name: "Langfuse product overview and onboarding questions",
+      index: 0,
+    }),
+    result("intent", "QA-Chatbot Topics", {
+      name: "Explain Langfuse uses with doc links and a follow-up quickstart offer",
+      index: 2,
+    }),
+    result("sentiment", "Tone", {
+      name: "Neutral, information-seeking tone without frustration or urgency",
+      index: 1,
+    }),
+  ]),
+  play: async ({ canvas }) => {
+    await userEvent.hover(
+      canvas.getAllByText(
+        "Langfuse product overview and onboarding questions +2",
+      )[0],
+    );
+    const card = within(document.body);
+    const label = await card.findByText("Intent");
+    const grid = label.parentElement!;
+    const others = [
+      card.getByText("Product questions"),
+      card.getByText("QA-Chatbot Topics"),
+      card.getByText("Langfuse product overview and onboarding questions"),
+      card.getByText(
+        "Explain Langfuse uses with doc links and a follow-up quickstart offer",
+      ),
+    ];
+    for (const other of others) {
+      await expect(overlaps(label, other)).toBe(false);
+      const { left, right } = other.getBoundingClientRect();
+      await expect(left).toBeGreaterThanOrEqual(
+        grid.getBoundingClientRect().left,
+      );
+      await expect(right).toBeLessThanOrEqual(
+        grid.getBoundingClientRect().right,
+      );
+    }
+  },
+});
+
 /** Two rules assigned the trace on Intent; rules that didn't stay out of the row. */
 export const TwoTopicsInOneQuestion = meta.story({
   name: "(Test) Two rules' topics share one question row",
