@@ -85,7 +85,11 @@ export function NewAnalysisDialog({
     },
   );
   const start = api.topics.startAnalysis.useMutation({
-    onSuccess: () => utils.topics.maps.invalidate({ projectId }),
+    onSuccess: () =>
+      Promise.all([
+        utils.topics.maps.invalidate({ projectId }),
+        utils.topics.executions.invalidate({ projectId }),
+      ]),
   });
 
   const traceCounts = api.topics.setupTraceCounts.useQuery(
