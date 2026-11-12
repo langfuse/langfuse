@@ -101,7 +101,7 @@ const LONG_CHAT_OUTPUT = [
 export const experimentIoScenario: ScenarioDefinition = {
   name: "experiment-io",
   description:
-    "One v4 experiment with three structured I/O items: chat messages, retrieval results, and a nested plan, for the Formatted/JSON display switch.",
+    "One v4 experiment with three structured I/O items: chat messages, retrieval results, and a nested plan.",
   supportsV4: true,
   flags: [
     {
