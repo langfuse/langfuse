@@ -156,6 +156,22 @@ describe("AI gateway provider registry", () => {
     });
   });
 
+  it("reports a failing Azure endpoint as a bad connection, not an outage", async () => {
+    vi.mocked(getGatewayFetch).mockReturnValue(
+      vi.fn().mockResolvedValue(new Response("", { status: 502 })),
+    );
+    const service = new GatewayProviderService({} as PrismaClient);
+
+    await expect(
+      service.testCredential({
+        organizationId: "org-1",
+        provider: "AZURE",
+        credential: "azure-key",
+        baseURL: "https://20.0.0.1",
+      }),
+    ).rejects.toThrow("Provider connection test failed");
+  });
+
   it("validates credentials before persisting a connection", async () => {
     const validator = vi
       .fn()

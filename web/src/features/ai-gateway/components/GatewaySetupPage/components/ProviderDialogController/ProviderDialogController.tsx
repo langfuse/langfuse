@@ -182,7 +182,9 @@ export function ProviderDialogController({
     if (update.isError) update.reset();
   };
 
+  /** The Azure endpoint field and advanced settings share the base URL, so switching between them drops it. */
   const updateProvider = (value: GatewayProvider) => {
+    if ((value === "AZURE") !== (provider === "AZURE")) loadEndpoint(null);
     setProvider(value);
     clearSaveError();
   };

@@ -751,8 +751,9 @@ async function checkCredentialEndpoint(
     headers: { ...extraHeaders, Authorization: `Bearer ${params.credential}` },
   });
   // Providers answer a bad key with any 4xx, so only an outage is retryable.
+  // A user-supplied endpoint that cannot be reached or fails is a bad input.
   const status = result.success ? result.response.status : 503;
-  if (status === 429 || status >= 500) {
+  if (status === 429 || (status >= 500 && !params.baseURL)) {
     throw new ServiceUnavailableError(
       "Provider connection test is unavailable, try again later",
     );
