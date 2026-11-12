@@ -37,15 +37,16 @@ export const HipaaRegion = meta.story({
 });
 
 export const TestCopiesSessionLink = meta.story({
-  name: "(Test) Copies session link",
+  name: "(Test) Copies session link and confirms on the trigger",
   args: Default.input.args,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
 
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Internal session actions" }),
-    );
+    const trigger = canvas.getByRole("button", {
+      name: "Internal session actions",
+    });
+    await userEvent.click(trigger);
     await expect(
       await body.findByRole("link", { name: "Open session in Langfuse" }),
     ).toHaveAttribute(
@@ -63,6 +64,9 @@ export const TestCopiesSessionLink = meta.story({
           `${window.location.origin}/project/ai-features-project/sessions/aconv_example`,
         );
       });
+      await expect(
+        await within(trigger).findByLabelText("Copied"),
+      ).toBeInTheDocument();
     } finally {
       copy.mockRestore();
     }

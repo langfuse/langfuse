@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Check,
   Copy,
   ExternalLink,
   type IconComponent,
@@ -14,9 +15,8 @@ import {
 } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { Button } from "@/src/components/ui/button";
 import { env } from "@/src/env.mjs";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { type RouterOutputs } from "@/src/utils/api";
-import { copyTextToClipboard } from "@/src/utils/clipboard";
 
 type TelemetryProjectQuery = {
   data: RouterOutputs["inAppAgent"]["telemetryProject"] | undefined;
@@ -25,6 +25,8 @@ type TelemetryProjectQuery = {
 };
 
 type SessionLink = { path: string } | { path: null; disabledReason: string };
+
+type CopyText = (text: string) => void;
 
 function resolveSessionLink(
   conversationId: string,
@@ -66,6 +68,7 @@ function disabledItem(
 
 function getCopySessionIdItem(
   conversationId: string,
+  copy: CopyText,
 ): DropdownMenuItemDefinition {
   return {
     type: "item",
@@ -73,21 +76,15 @@ function getCopySessionIdItem(
     title: "Copy session ID",
     icon: Copy,
     onClick: () => {
-      copyTextToClipboard(conversationId)
-        .then(() => {
-          showSuccessToast({
-            operation: "in_app_agent_session_id.copy",
-            title: "Session ID copied",
-            description: conversationId,
-            duration: 2000,
-          });
-        })
-        .catch(() => undefined);
+      copy(conversationId);
     },
   };
 }
 
-function getCopySessionLinkItem(link: SessionLink): DropdownMenuItemDefinition {
+function getCopySessionLinkItem(
+  link: SessionLink,
+  copy: CopyText,
+): DropdownMenuItemDefinition {
   const item = {
     id: "copy-session-link",
     title: "Copy session link",
@@ -101,9 +98,9 @@ function getCopySessionLinkItem(link: SessionLink): DropdownMenuItemDefinition {
     ...item,
     type: "item",
     onClick: () => {
-      copyTextToClipboard(
+      copy(
         `${window.location.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}${path}`,
-      ).catch(() => undefined);
+      );
     },
   };
 }
@@ -122,7 +119,8 @@ function getOpenSessionItem(link: SessionLink): DropdownMenuItemDefinition {
 
 /**
  * `telemetryProject` is null where assistant sessions must not be linked
- * (the HIPAA region); the menu then offers only the session ID.
+ * (the HIPAA region); the menu then offers only the session ID. Copying
+ * closes the menu, so the trigger briefly shows a checkmark instead.
  */
 export function InAppAgentInternalSessionMenuView({
   conversationId,
@@ -131,13 +129,20 @@ export function InAppAgentInternalSessionMenuView({
   conversationId: string;
   telemetryProject: TelemetryProjectQuery | null;
 }) {
+  const { copy, isCopied } = useCopyToClipboard({ successDuration: 1_500 });
+  const copyText: CopyText = (text) => {
+    copy(text).catch(() => undefined);
+  };
   const sessionLink = telemetryProject
     ? resolveSessionLink(conversationId, telemetryProject)
     : null;
   const items: DropdownMenuItemDefinition[] = [
-    getCopySessionIdItem(conversationId),
+    getCopySessionIdItem(conversationId, copyText),
     ...(sessionLink
-      ? [getCopySessionLinkItem(sessionLink), getOpenSessionItem(sessionLink)]
+      ? [
+          getCopySessionLinkItem(sessionLink, copyText),
+          getOpenSessionItem(sessionLink),
+        ]
       : []),
   ];
 
@@ -157,7 +162,11 @@ export function InAppAgentInternalSessionMenuView({
           aria-label="Internal session actions"
           {...getTriggerProps()}
         >
-          <MoreHorizontal size="base" color="default" />
+          {isCopied ? (
+            <Check size="base" color="default" aria-label="Copied" />
+          ) : (
+            <MoreHorizontal size="base" color="default" />
+          )}
         </Button>
       )}
     </DropdownMenu>
