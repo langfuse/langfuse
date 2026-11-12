@@ -42,42 +42,10 @@ export async function processBatchedObservationEval(params: {
   const limit = pLimit(CONCURRENCY_LIMIT);
   const schedulerDeps = createObservationEvalSchedulerDeps();
 
-  const checkpoint = await prisma.batchAction.findUniqueOrThrow({
-    where: { id: batchActionId, projectId },
-    select: {
-      status: true,
-      cursor: true,
-      totalCount: true,
-      processedCount: true,
-      failedCount: true,
-      log: true,
-    },
-  });
-  // Dead-letter retries replay failed jobs; an action that ended Failed stays so.
-  if (checkpoint.status === BatchActionStatus.Failed) return;
-
-  const resumeCursor = EventsStreamCursorSchema.safeParse(checkpoint.cursor);
-  const isResuming = resumeCursor.success;
-
-  await prisma.batchAction.update({
-    where: { id: batchActionId, projectId },
-    data: isResuming
-      ? { status: BatchActionStatus.Processing }
-      : {
-          status: BatchActionStatus.Processing,
-          totalCount: 0,
-          processedCount: 0,
-          failedCount: 0,
-          log: null,
-        },
-  });
-
-  let totalCount = isResuming ? (checkpoint.totalCount ?? 0) : 0;
-  let processedCount = isResuming ? (checkpoint.processedCount ?? 0) : 0;
-  let failedCount = isResuming ? (checkpoint.failedCount ?? 0) : 0;
-  // Until the final summary, `log` holds the raw error lines, so a resumed
-  // run keeps the errors of earlier attempts.
-  const errors = isResuming && checkpoint.log ? checkpoint.log.split("\n") : [];
+  const resumeState = await startOrResume({ projectId, batchActionId });
+  if (!resumeState) return;
+  const { after, errors } = resumeState;
+  let { totalCount, processedCount, failedCount } = resumeState;
 
   let buffer: ObservationStreamRecord[] = [];
 
@@ -140,7 +108,7 @@ export async function processBatchedObservationEval(params: {
   };
 
   const observationStream = await openObservationStream({
-    after: isResuming ? resumeCursor.data : undefined,
+    after,
     rowLimit: rowLimit - totalCount,
   });
 
@@ -193,9 +161,68 @@ export async function processBatchedObservationEval(params: {
       processedCount,
       failedCount,
       finalStatus,
-      resumed: isResuming,
+      resumed: after !== undefined,
     },
   );
+}
+
+/**
+ * Marks the action Processing and returns the counts to continue from: the
+ * stored checkpoint when one exists, zeros otherwise. Returns null for an
+ * action that already ended Failed, because dead-letter retries replay failed
+ * jobs and Failed must stay terminal.
+ */
+async function startOrResume(params: {
+  projectId: string;
+  batchActionId: string;
+}) {
+  const where = { id: params.batchActionId, projectId: params.projectId };
+  const checkpoint = await prisma.batchAction.findUniqueOrThrow({
+    where,
+    select: {
+      status: true,
+      cursor: true,
+      totalCount: true,
+      processedCount: true,
+      failedCount: true,
+      log: true,
+    },
+  });
+  if (checkpoint.status === BatchActionStatus.Failed) return null;
+
+  const resumeCursor = EventsStreamCursorSchema.safeParse(checkpoint.cursor);
+  if (!resumeCursor.success) {
+    await prisma.batchAction.update({
+      where,
+      data: {
+        status: BatchActionStatus.Processing,
+        totalCount: 0,
+        processedCount: 0,
+        failedCount: 0,
+        log: null,
+      },
+    });
+    return {
+      after: undefined,
+      totalCount: 0,
+      processedCount: 0,
+      failedCount: 0,
+      errors: [] as string[],
+    };
+  }
+
+  await prisma.batchAction.update({
+    where,
+    data: { status: BatchActionStatus.Processing },
+  });
+  return {
+    after: resumeCursor.data,
+    totalCount: checkpoint.totalCount ?? 0,
+    processedCount: checkpoint.processedCount ?? 0,
+    failedCount: checkpoint.failedCount ?? 0,
+    // Until the final summary, `log` holds the raw error lines.
+    errors: checkpoint.log ? checkpoint.log.split("\n") : [],
+  };
 }
 
 type ObservationStreamRecord = Record<string, unknown> & {
