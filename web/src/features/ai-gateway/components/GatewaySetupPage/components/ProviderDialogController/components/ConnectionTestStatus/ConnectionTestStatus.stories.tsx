@@ -7,7 +7,7 @@ const meta = preview.meta({
   component: ConnectionTestStatus,
   decorators: [
     (Story) => (
-      <div className="flex max-w-xl gap-2 border-t p-6">
+      <div className="flex max-w-xl flex-col-reverse border-t p-6 sm:flex-row sm:justify-end sm:space-x-2">
         <Story />
         <Button variant="secondary" text="Test again" />
         <Button text="Test and save" />

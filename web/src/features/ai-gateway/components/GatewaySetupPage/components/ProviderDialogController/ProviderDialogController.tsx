@@ -208,6 +208,8 @@ export function ProviderDialogController({
     selectedConnection: GatewayConnection | null,
     closeDialog: () => void,
   ) => {
+    /** Saving re-validates on the server, so an earlier test result no longer applies. */
+    test.reset();
     try {
       let saved;
       if (selectedConnection) {

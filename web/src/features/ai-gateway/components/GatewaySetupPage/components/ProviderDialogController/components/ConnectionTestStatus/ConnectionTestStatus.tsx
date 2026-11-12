@@ -20,14 +20,14 @@ const STATUS_DISPLAY = {
   },
 } satisfies Record<TestStatus, { label: string; text: string; dot: string }>;
 
-/** Sits first in the dialog footer and pushes the actions to the right. */
+/** Left of the dialog footer actions on wide screens, above them when they stack on narrow ones. */
 export function ConnectionTestStatus({ status }: ConnectionTestStatusProps) {
   const display = STATUS_DISPLAY[status];
   return (
     <span
       role="status"
       className={cn(
-        "flex items-center gap-2 self-center text-sm sm:mr-auto",
+        "order-last mb-2 flex items-center gap-2 self-center text-sm sm:order-none sm:mr-auto sm:mb-0",
         display.text,
       )}
     >
