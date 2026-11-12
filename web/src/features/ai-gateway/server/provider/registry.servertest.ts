@@ -60,12 +60,12 @@ describe("AI gateway provider registry", () => {
     ).toEqual(["OPENAI", "VERCEL"]);
   });
 
-  it("routes Embeddings to OpenAI, Azure and aggregators", () => {
+  it("routes Embeddings to OpenAI, Azure, aggregators and Google AI Studio", () => {
     expect(
       gatewayProviders.filter((provider) =>
         providerSupportsApiFormat(provider, "openai.embeddings"),
       ),
-    ).toEqual(["OPENAI", "OPENROUTER", "VERCEL", "AZURE"]);
+    ).toEqual(["OPENAI", "OPENROUTER", "VERCEL", "AZURE", "GOOGLE_AI_STUDIO"]);
   });
 
   it("rejects xAI keys that are disabled or blocked", () => {

@@ -3,6 +3,7 @@ import type {
   GatewayProvider,
 } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { getBedrockModelApiFormats } from "@/src/features/ai-gateway/fns/getBedrockModelApiFormats";
+import { isGeminiEmbeddingModel } from "@/src/features/ai-gateway/fns/isGeminiEmbeddingModel";
 import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider/registry";
 
 const providerFormats = {
@@ -42,6 +43,15 @@ export function getGatewayModelApiFormats(
       apiFormatLabels["openai.chat-completions"],
       apiFormatLabels["openai.embeddings"],
       apiFormatLabels["anthropic.messages"],
+    ];
+  }
+  if (provider === "GOOGLE_AI_STUDIO") {
+    return [
+      apiFormatLabels[
+        isGeminiEmbeddingModel(modelId)
+          ? "openai.embeddings"
+          : "openai.chat-completions"
+      ],
     ];
   }
   if (provider !== "BEDROCK") return [...providerFormats[provider]];

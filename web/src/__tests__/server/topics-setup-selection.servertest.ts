@@ -56,10 +56,10 @@ describe("Topics setup trace selection", () => {
 
     await expect(
       countTopicSetupTraces({ projectId, filter: [], now }),
-    ).resolves.toEqual({ finished1d: 3, finished7d: 3 });
+    ).resolves.toEqual({ finished7d: 3, finished30d: 3 });
     await expect(
       countTopicSetupTraces({ projectId, filter, now }),
-    ).resolves.toEqual({ finished1d: 2, finished7d: 2 });
+    ).resolves.toEqual({ finished7d: 2, finished30d: 2 });
     const { traceIds } = await selectTopicSetupTraces({
       projectId,
       filter,

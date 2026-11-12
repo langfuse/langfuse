@@ -7,7 +7,10 @@ import type {
 } from "../../topics";
 import { applyCommentFilters } from "../services/commentFilterService";
 import { CTEQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
-import { buildEventsObservationRowSelection } from "../queries/clickhouse-sql/events-observation-row-selection";
+import {
+  buildEventsObservationRowSelection,
+  withoutPositionInTrace,
+} from "../queries/clickhouse-sql/events-observation-row-selection";
 import { FilterList } from "../queries/clickhouse-sql/clickhouse-filter";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
@@ -63,7 +66,7 @@ async function matchingObservationsQuery(
 
   const { queryBuilder } = buildEventsObservationRowSelection({
     projectId: input.projectId,
-    filter: filterState
+    filter: withoutPositionInTrace(filterState)
       .filter((filter) => filter.column !== "traceName")
       .concat([
         {

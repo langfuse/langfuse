@@ -1,7 +1,7 @@
 import { env } from "@/src/env.mjs";
 
 type LangfuseIconProps = {
-  size?: 14 | 16 | 28 | 32 | 42;
+  size?: 14 | 16 | 24 | 28 | 32 | 42;
   /** Pass `""` when a visible heading next to the icon already names it. */
   alt?: string;
 };

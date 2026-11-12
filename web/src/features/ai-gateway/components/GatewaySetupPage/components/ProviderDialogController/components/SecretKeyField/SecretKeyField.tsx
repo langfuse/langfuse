@@ -94,6 +94,17 @@ const keyCopy = {
     ),
     placeholder: "Enter Azure API key",
   },
+  GOOGLE_AI_STUDIO: {
+    label: "Gemini API key",
+    description: (
+      <>
+        Create one under{" "}
+        <DocsLink href="https://aistudio.google.com/apikey">API keys</DocsLink>{" "}
+        in Google AI Studio.
+      </>
+    ),
+    placeholder: "Enter Gemini API key",
+  },
 } satisfies Record<
   GatewayProvider,
   { label: string; description: ReactNode; placeholder: string }

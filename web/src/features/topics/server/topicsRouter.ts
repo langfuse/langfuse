@@ -48,6 +48,9 @@ import {
   setTopicRuleEnabled,
   enqueueTopicExecution,
   getTopicExecutionQueueState,
+  getEnabledTopicsModels,
+  readTopicRuleSetup,
+  startTopicRuleSetup,
 } from "@langfuse/shared/topics/server";
 import {
   createTRPCRouter,
@@ -603,6 +606,23 @@ export const topicsRouter = createTRPCRouter({
   setupTraceNames: topicsProcedure.query(({ input }) =>
     getTopicSetupTraceNames({ projectId: input.projectId, now: new Date() }),
   ),
+  /**
+   * Builds a rule's first map: reuses summaries, seeds the shortfall, then fits.
+   * Null when the rule is paused or automatic processing is off.
+   */
+  startRuleSetup: topicsWriteProcedure
+    .input(projectInput.extend({ ruleId: topicIdSchema }))
+    .mutation(async ({ input }) => {
+      const rule = await getTopicRule(input.projectId, input.ruleId);
+      if (!rule) throw new LangfuseNotFoundError("Topic rule not found.");
+      const processing = await getEnabledTopicsModels([input.projectId]);
+      if (rule.enabled === false || !processing.has(input.projectId))
+        return null;
+      return startTopicRuleSetup(input.projectId, input.ruleId);
+    }),
+  ruleSetupStatus: topicsProcedure
+    .input(projectInput.extend({ ruleId: topicIdSchema }))
+    .query(({ input }) => readTopicRuleSetup(input.projectId, input.ruleId)),
   /** Summarizes recent finished traces, then generates topics over the same window. */
   startSetup: topicsWriteProcedure
     .input(
