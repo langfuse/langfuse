@@ -81,11 +81,11 @@ export const CATALOG: CatalogEntry[] = [
     referenceSql: `
       SELECT DISTINCT environment
       FROM traces
-      WHERE project_id = {p1:String}
+      WHERE traces.project_id = {p1:String}
       UNION ALL
       SELECT DISTINCT environment
       FROM observations
-      WHERE project_id = {p1:String}
+      WHERE observations.project_id = {p1:String}
     `,
     build: () =>
       db()
@@ -102,7 +102,7 @@ export const CATALOG: CatalogEntry[] = [
     referenceSql: `
       SELECT DISTINCT environment
       FROM scores
-      WHERE (project_id = {p1:String}) AND (data_type IN ({p2:Array(String)}))
+      WHERE (scores.project_id = {p1:String}) AND (data_type IN ({p2:Array(String)}))
     `,
     build: () =>
       db()
@@ -172,7 +172,7 @@ export const CATALOG: CatalogEntry[] = [
       WITH traces_cte AS (
         SELECT id
         FROM traces
-        WHERE project_id = {p1:String}
+        WHERE traces.project_id = {p1:String}
       )
       SELECT o.environment
       FROM observations AS o
@@ -248,7 +248,7 @@ export const CATALOG: CatalogEntry[] = [
       SELECT environment
       FROM observations
       ARRAY JOIN mapKeys(cost_details) AS cost_key, mapValues(cost_details) AS cost
-      WHERE project_id = {p1:String}
+      WHERE observations.project_id = {p1:String}
     `,
     build: () =>
       db()
@@ -370,7 +370,7 @@ export const CATALOG: CatalogEntry[] = [
     referenceSql: `
       SELECT environment
       FROM observations
-      WHERE (project_id = {p1:String}) AND has(mapKeys(cost_details), {p2:String})
+      WHERE (observations.project_id = {p1:String}) AND has(mapKeys(cost_details), {p2:String})
     `,
     build: () =>
       db()
@@ -414,11 +414,11 @@ export const CATALOG: CatalogEntry[] = [
     referenceSql: `
       SELECT DISTINCT environment
       FROM traces
-      WHERE project_id = {p1:String}
+      WHERE traces.project_id = {p1:String}
       UNION ALL
       SELECT DISTINCT environment
       FROM observations
-      WHERE project_id = {p1:String}
+      WHERE observations.project_id = {p1:String}
     `,
     build: () => environmentsVariant({ writeMode: "legacy" }),
   },

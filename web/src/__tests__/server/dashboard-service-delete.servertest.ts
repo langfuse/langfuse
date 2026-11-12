@@ -66,7 +66,6 @@ async function createOwnerCaller() {
         experimentsV4Enabled: false,
         langfuseTopics: false,
       },
-      admin: true,
     },
     environment: {
       enableExperimentalFeatures: false,

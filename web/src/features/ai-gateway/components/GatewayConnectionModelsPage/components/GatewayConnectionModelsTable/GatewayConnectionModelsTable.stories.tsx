@@ -17,6 +17,7 @@ function createModelAccess(allowedModels: string[] | null) {
 }
 
 const actions = {
+  connectionName: "openai",
   provider: "OPENAI" as const,
   isSaving: false,
   customModels: [],
@@ -60,6 +61,27 @@ export const Saving = meta.story({
   },
 });
 
+const vercelModels = {
+  ...actions,
+  connectionName: "vercel",
+  provider: "VERCEL" as const,
+  ...createModelAccess(null),
+  models: ["anthropic/claude-sonnet-5", "openai/gpt-6-luna-decisions"],
+  modelApiFormats: {
+    "anthropic/claude-sonnet-5": [
+      "openai.responses" as const,
+      "openai.chat-completions" as const,
+      "anthropic.messages" as const,
+    ],
+    "openai/gpt-6-luna-decisions": ["openai.decisions" as const],
+  },
+};
+
+export const WithSeveralApiFormats = meta.story({
+  name: "With several API formats",
+  args: vercelModels,
+});
+
 export const TogglesWhileSaving = meta.story({
   name: "(Test) Toggles while saving",
   args: {
@@ -79,5 +101,36 @@ export const TogglesWhileSaving = meta.story({
     await expect(
       canvas.getByRole("switch", { name: "Disable gpt-4o-mini" }),
     ).toBeChecked();
+  },
+});
+
+export const FiltersByApiFormats = meta.story({
+  name: "(Test) Filters by several API formats",
+  args: vercelModels,
+  play: async ({ canvasElement, userEvent }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(
+      canvas.getByRole("combobox", { name: "API formats" }),
+    );
+    await userEvent.click(
+      body.getByRole("option", { name: "OpenAI Decisions" }),
+    );
+
+    await expect(canvas.getByText("openai/gpt-6-luna-decisions")).toBeVisible();
+    await expect(
+      canvas.queryByText("anthropic/claude-sonnet-5"),
+    ).not.toBeInTheDocument();
+
+    await userEvent.click(
+      body.getByRole("option", { name: "Anthropic Messages" }),
+    );
+
+    await expect(
+      canvas.getByRole("combobox", { name: "API formats" }),
+    ).toHaveTextContent("2 formats");
+    await expect(canvas.getByText("anthropic/claude-sonnet-5")).toBeVisible();
+    await expect(canvas.getByText("openai/gpt-6-luna-decisions")).toBeVisible();
   },
 });

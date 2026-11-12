@@ -1,10 +1,10 @@
-import { useSession } from "next-auth/react";
 import { type ReactNode } from "react";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 import { api } from "@/src/utils/api";
 
 type TraceTranscriptSource = {
@@ -19,8 +19,8 @@ export function TraceTranscriptDialogController({
 }: TraceTranscriptSource & {
   children: (control: { openDialog: (() => void) | undefined }) => ReactNode;
 }) {
-  const { data: session } = useSession();
-  if (session?.user?.admin !== true) {
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  if (!internalFeaturesEnabled) {
     return children({ openDialog: undefined });
   }
 

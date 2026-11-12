@@ -16,6 +16,10 @@ import {
   AdvancedSettings,
   type ExtraHeaderRow,
 } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/AdvancedSettings/AdvancedSettings";
+import {
+  AzureResourceField,
+  type AzureResourceFieldValue,
+} from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/AzureResourceField/AzureResourceField";
 import { BedrockRegionField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/BedrockRegionField/BedrockRegionField";
 import { ConnectionNameField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ConnectionNameField/ConnectionNameField";
 import { FieldHeader } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/FieldHeader";
@@ -24,8 +28,14 @@ import { SecretKeyField } from "@/src/features/ai-gateway/components/GatewaySetu
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import { ModelListingDeniedAlert } from "@/src/features/ai-gateway/components/ModelListingDeniedAlert/ModelListingDeniedAlert";
 import { showToast } from "@/src/features/notifications/showToast";
+import {
+  getAzureResource,
+  getAzureResourceEndpoint,
+  isAzureProjectName,
+  isAzureResourceName,
+} from "@/src/features/ai-gateway/fns/azureResource";
 import { getAvailableGatewayProviders } from "@/src/features/ai-gateway/fns/getAvailableGatewayProviders";
-import { isGatewayPreReleaseEnvironment } from "@/src/features/ai-gateway/fns/isGatewayPreReleaseEnvironment";
+import { isGatewayApiFamily } from "@/src/features/ai-gateway/fns/isGatewayApiFamily";
 import { isGatewayConnectionNameError } from "@/src/features/ai-gateway/fns/isGatewayConnectionNameError";
 import { isGatewayHipaaNoticeVisible } from "@/src/features/ai-gateway/fns/isGatewayHipaaNoticeVisible";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
@@ -44,6 +54,8 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { getLiveConnectionNameError } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/fns/getLiveConnectionNameError";
 import { useExistingConnectionNames } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/hooks/useExistingConnectionNames";
 
+const EMPTY_AZURE_RESOURCE: AzureResourceFieldValue = { name: "", project: "" };
+
 export function ProviderDialogController({
   organizationId,
   connection,
@@ -57,6 +69,8 @@ export function ProviderDialogController({
   onAfterCreate?: (created: { provider: GatewayProvider }) => void;
   children: (control: {
     openAddDialog: () => void;
+    /** Opens the add dialog with this provider selected. */
+    openAddDialogFor: (provider: GatewayProvider) => void;
     openEditDialog: (connection: GatewayConnection) => void;
   }) => ReactNode;
 }) {
@@ -70,6 +84,8 @@ export function ProviderDialogController({
   const [credential, setCredential] = useState("");
   const [awsRegion, setAwsRegion] = useState("");
   const [baseURL, setBaseURL] = useState("");
+  const [azureResource, setAzureResource] =
+    useState<AzureResourceFieldValue>(EMPTY_AZURE_RESOURCE);
   const [extraHeaders, setExtraHeaders] = useState<ExtraHeaderRow[]>([]);
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
@@ -100,8 +116,8 @@ export function ProviderDialogController({
       : null;
   const isError = test.isError || (Boolean(saveError) && !serverNameError);
   const errorTitle = test.isError
-    ? "Credential validation failed"
-    : "Provider credential could not be saved";
+    ? "Connection test failed"
+    : "Connection could not be saved";
 
   /** Skips the live check after saving, as the refetched list already holds the saved name. */
   const getNameError = (selectedConnection: GatewayConnection | null) =>
@@ -122,15 +138,21 @@ export function ProviderDialogController({
   };
 
   /**
-   * Bedrock has no custom endpoint, and custom endpoints are pre-release only.
+   * Bedrock, OpenRouter, xAI and Vercel have no custom endpoint, and Azure
+   * only the endpoint of its resource and project.
    * When editing, a blank header value keeps the stored value, so those rows
    * are sent; a new connection has no stored values and drops them.
    */
   const getEndpoint = (selectedConnection: GatewayConnection | null) => {
-    if (
-      !isGatewayPreReleaseEnvironment() ||
-      (selectedConnection?.provider ?? provider) === "BEDROCK"
-    ) {
+    const selectedProvider = selectedConnection?.provider ?? provider;
+    if (selectedProvider === "AZURE") {
+      return {
+        baseURL: isValidAzureResource(azureResource)
+          ? getAzureResourceEndpoint(azureResource)
+          : null,
+      };
+    }
+    if (!isGatewayApiFamily(selectedProvider)) {
       return {};
     }
     const headers = extraHeaders.filter(
@@ -147,6 +169,12 @@ export function ProviderDialogController({
 
   const loadEndpoint = (selectedConnection: GatewayConnection | null) => {
     setBaseURL(selectedConnection?.baseURL ?? "");
+    const resource = getAzureResource(selectedConnection?.baseURL ?? "");
+    setAzureResource(
+      resource
+        ? { name: resource.name, project: resource.project ?? "" }
+        : EMPTY_AZURE_RESOURCE,
+    );
     setExtraHeaders(
       (selectedConnection?.extraHeaderKeys ?? []).map((key) => ({
         id: crypto.randomUUID(),
@@ -251,7 +279,7 @@ export function ProviderDialogController({
               ? "aiGateway.updateConnection"
               : "aiGateway.createConnection",
           },
-          title: "Provider credential saved, but its models can't be listed",
+          title: "Connection saved, but its models can't be listed",
         });
       }
 
@@ -279,15 +307,15 @@ export function ProviderDialogController({
       onBeforeClose={() => !isPending}
       renderContent={({ state: selectedConnection, closeDialog }) => {
         const nameError = getNameError(selectedConnection);
-        const isMissingRegion = getConfig(selectedConnection)?.region === "";
         const dialogProvider = selectedConnection?.provider ?? provider;
+        const isMissingRegion = getConfig(selectedConnection)?.region === "";
+        const isMissingEndpoint =
+          dialogProvider === "AZURE" && !isValidAzureResource(azureResource);
         return (
           <>
             <DialogHeader>
               <DialogTitle>
-                {selectedConnection
-                  ? "Edit provider credential"
-                  : "Add provider credential"}
+                {selectedConnection ? "Edit connection" : "Add connection"}
               </DialogTitle>
             </DialogHeader>
             <DialogBody className="gap-6">
@@ -296,8 +324,8 @@ export function ProviderDialogController({
                   <Alert.Title>HIPAA region</Alert.Title>
                   <Alert.Description>
                     Requests are forwarded to the provider you configure, using
-                    your credentials and on your instruction. Make sure you have
-                    a BAA with that provider before sending PHI.
+                    your provider connection and on your instruction. Make sure
+                    you have a BAA with that provider before sending PHI.
                   </Alert.Description>
                 </Alert>
               ) : null}
@@ -306,7 +334,7 @@ export function ProviderDialogController({
                   <FieldHeader
                     htmlFor="gateway-provider"
                     label="Provider"
-                    description="Fixed once the credential is saved."
+                    description="Fixed once the connection is saved."
                   />
                   <Input
                     id="gateway-provider"
@@ -331,7 +359,7 @@ export function ProviderDialogController({
                   <FieldHeader
                     htmlFor="gateway-bedrock-region"
                     label="AWS region"
-                    description="Fixed once the credential is saved."
+                    description="Fixed once the connection is saved."
                   />
                   <Input
                     id="gateway-bedrock-region"
@@ -343,14 +371,20 @@ export function ProviderDialogController({
               {!selectedConnection && provider === "BEDROCK" ? (
                 <BedrockRegionField value={awsRegion} onChange={setAwsRegion} />
               ) : null}
+              {dialogProvider === "AZURE" ? (
+                <AzureResourceField
+                  value={azureResource}
+                  isEditing={Boolean(selectedConnection)}
+                  onChange={setAzureResource}
+                />
+              ) : null}
               <SecretKeyField
                 provider={selectedConnection?.provider ?? provider}
                 credential={credential}
                 hasSavedKey={Boolean(selectedConnection)}
                 onCredentialChange={setCredential}
               />
-              {isGatewayPreReleaseEnvironment() &&
-              dialogProvider !== "BEDROCK" ? (
+              {isGatewayApiFamily(dialogProvider) ? (
                 <AdvancedSettings
                   provider={dialogProvider}
                   baseURL={baseURL}
@@ -374,15 +408,19 @@ export function ProviderDialogController({
                 <Alert variant="destructive">
                   <Alert.Title>{errorTitle}</Alert.Title>
                   <Alert.Description>
-                    {test.error?.message ??
-                      create.error?.message ??
-                      update.error?.message ??
-                      "The credential could not be saved or validated. Check the key and try again."}
+                    {/* Base URL validation and provider errors can echo the configured host. */}
+                    <span className="ph-no-capture">
+                      {test.error?.message ??
+                        create.error?.message ??
+                        update.error?.message ??
+                        "The connection could not be saved or tested. Check the key and try again."}
+                    </span>
                   </Alert.Description>
                 </Alert>
               ) : null}
               {test.isSuccess && !isError ? (
                 <CredentialTestSuccess
+                  provider={dialogProvider}
                   modelListingDenied={test.data.modelListingDenied}
                 />
               ) : null}
@@ -390,7 +428,12 @@ export function ProviderDialogController({
             <DialogFooter>
               <Button
                 variant="secondary"
-                disabled={!credential || isMissingRegion || isPending}
+                disabled={
+                  !credential ||
+                  isMissingRegion ||
+                  isMissingEndpoint ||
+                  isPending
+                }
                 loading={test.isPending}
                 onClick={() => testCredential(selectedConnection)}
               >
@@ -402,6 +445,7 @@ export function ProviderDialogController({
                   Boolean(nameError) ||
                   (!selectedConnection && !credential) ||
                   isMissingRegion ||
+                  isMissingEndpoint ||
                   isPending ||
                   isSaved
                 }
@@ -415,17 +459,20 @@ export function ProviderDialogController({
         );
       }}
     >
-      {({ openDialog }) =>
-        children({
-          openAddDialog: () => {
-            setProvider(connection?.provider ?? "OPENAI");
-            setNameDraft(connection?.name ?? null);
-            setCredential("");
-            setAwsRegion("");
-            loadEndpoint(connection ?? null);
-            resetMutations();
-            openDialog(connection ?? null);
-          },
+      {({ openDialog }) => {
+        const openAddDialogFor = (selectedProvider: GatewayProvider) => {
+          setProvider(selectedProvider);
+          setNameDraft(connection?.name ?? null);
+          setCredential("");
+          setAwsRegion("");
+          loadEndpoint(connection ?? null);
+          resetMutations();
+          openDialog(connection ?? null);
+        };
+        return children({
+          openAddDialog: () =>
+            openAddDialogFor(connection?.provider ?? "OPENAI"),
+          openAddDialogFor,
           openEditDialog: (selectedConnection) => {
             setProvider(selectedConnection.provider);
             setNameDraft(selectedConnection.name);
@@ -435,22 +482,32 @@ export function ProviderDialogController({
             resetMutations();
             openDialog(selectedConnection);
           },
-        })
-      }
+        });
+      }}
     </DialogController>
   );
 }
 
 function CredentialTestSuccess({
+  provider,
   modelListingDenied,
 }: {
+  provider: GatewayProvider;
   modelListingDenied: boolean;
 }) {
-  if (modelListingDenied) return <ModelListingDeniedAlert />;
+  if (modelListingDenied)
+    return <ModelListingDeniedAlert provider={provider} />;
   return (
     <Alert>
-      <Alert.Title>Provider credential is valid</Alert.Title>
+      <Alert.Title>Connection is valid</Alert.Title>
       <Alert.Description>No changes were saved.</Alert.Description>
     </Alert>
+  );
+}
+
+function isValidAzureResource({ name, project }: AzureResourceFieldValue) {
+  return (
+    isAzureResourceName(name) &&
+    (project.trim() === "" || isAzureProjectName(project))
   );
 }

@@ -287,10 +287,13 @@ function SkillsList({
     { projectId },
     { enabled: Boolean(projectId) },
   );
-  const observedOptions = filterOptions.data ?? { tags: [] };
+  const observedOptions = useMemo(
+    () => toObservedOptions(filterOptions.data, filterOptions.isPending),
+    [filterOptions.data, filterOptions.isPending],
+  );
   const queryFilter = useSidebarFilterState(
     skillsFilterConfig,
-    observedOptions,
+    observedOptions ?? { tags: [] },
     {
       stateLocation: "urlAndSessionStorage",
       sessionFilterContextId: projectId,
@@ -400,10 +403,7 @@ function SkillsList({
               registry={SKILLS_FIELD_REGISTRY}
               filterState={queryFilter.searchBarFilterState}
               setFilterState={queryFilter.setFilterState}
-              observed={toObservedOptions(
-                observedOptions,
-                filterOptions.isPending,
-              )}
+              observed={observedOptions}
               isV4={false}
               search={{
                 query: searchQuery,

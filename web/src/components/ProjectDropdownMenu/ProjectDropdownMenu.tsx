@@ -1,6 +1,6 @@
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
-import { PlusIcon, Settings } from "@langfuse/icons";
+import { House, PlusIcon, Settings } from "@langfuse/icons";
 import { type Session } from "next-auth";
 import { type ComponentProps, useMemo } from "react";
 
@@ -13,6 +13,8 @@ type ProjectDropdownMenuProps = {
   organizationId: string;
   canCreateProjects: boolean;
   getProjectPath: (projectId: string) => string;
+  /** Ticked in the list; its settings get a link under the list. */
+  currentProjectId?: string;
 } & (
   | { state: "loading" }
   | {
@@ -22,7 +24,13 @@ type ProjectDropdownMenuProps = {
 );
 
 export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
-  const { children, organizationId, canCreateProjects, getProjectPath } = props;
+  const {
+    children,
+    organizationId,
+    canCreateProjects,
+    getProjectPath,
+    currentProjectId,
+  } = props;
   const projects = props.state === "loaded" ? props.projects : null;
 
   const items = useMemo<ComponentProps<typeof DropdownMenu>["items"]>(
@@ -33,38 +41,59 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
             id: project.id,
             noCapture: true,
             title: project.name,
+            variant: "entity" as const,
+            icon: House,
+            selected: project.id === currentProjectId,
             href: getProjectPath(project.id),
-            secondaryAction: {
-              href: `/project/${project.id}/settings`,
-              ariaLabel: `Go to settings for ${project.name}`,
-              icon: Settings,
-            },
           }))
         : Array.from({ length: 3 }, (_, index) => ({
             type: "loading" as const,
             id: `loading-${index}`,
           }))),
-      ...(canCreateProjects
+      ...(currentProjectId || canCreateProjects
+        ? [{ type: "separator" as const, id: "project-actions-separator" }]
+        : []),
+      ...(currentProjectId
         ? [
-            { type: "separator" as const, id: "create-separator" },
             {
               type: "item" as const,
-              id: "create",
-              title: "New Project",
+              id: "project-settings",
+              title: "Project settings",
+              icon: Settings,
+              href: `/project/${currentProjectId}/settings`,
               searchBehavior: "always-show" as const,
-              href: createProjectRoute(organizationId),
+            },
+          ]
+        : []),
+      ...(canCreateProjects
+        ? [
+            {
+              type: "item" as const,
+              id: "new-project",
+              title: "New project",
               icon: PlusIcon,
+              href: createProjectRoute(organizationId),
+              searchBehavior: "always-show" as const,
             },
           ]
         : []),
     ],
-    [canCreateProjects, getProjectPath, organizationId, projects],
+    [
+      canCreateProjects,
+      currentProjectId,
+      getProjectPath,
+      organizationId,
+      projects,
+    ],
   );
 
   return (
     <DropdownMenu
-      title="Projects"
+      ariaLabel="Projects"
       items={items}
+      width="wide"
+      // Fits every project; scrolls only when taller than the window.
+      maxHeight="calc(100dvh - 4rem)"
       search={{ placeholder: "Search projects..." }}
       emptyText="No project found."
     >

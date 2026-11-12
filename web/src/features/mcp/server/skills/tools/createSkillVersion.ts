@@ -2,11 +2,11 @@ import { z } from "zod";
 import {
   COMMIT_MESSAGE_MAX_LENGTH,
   CreateSkillVersionBodySchema,
-  MAX_SKILL_FILES,
   SkillFilePathSchema,
   SkillVersionFileInputSchema,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { env } from "@/src/env.mjs";
 import { SkillService } from "@/src/features/skills/server/skill-service";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
@@ -20,9 +20,9 @@ const CreateSkillVersionBaseSchema = z.object({
       }),
     )
     .min(1)
-    .max(MAX_SKILL_FILES)
+    .max(env.LANGFUSE_SKILL_MAX_FILES)
     .describe(
-      "Complete set of files for this version, including a root SKILL.md with YAML name and description frontmatter. Maximum 1 MB of text in total.",
+      `Complete set of files for this version, including a root SKILL.md with YAML name and description frontmatter. Maximum ${env.LANGFUSE_SKILL_MAX_BYTES} UTF-8 bytes of text in total.`,
     ),
   commitMessage: z
     .string()
@@ -42,7 +42,10 @@ export const [createSkillVersionTool, handleCreateSkillVersion] = defineTool({
   action: "skills:CUD",
   baseSchema: CreateSkillVersionBaseSchema,
   inputSchema: CreateSkillVersionBodySchema.safeExtend({
-    files: z.array(SkillVersionFileInputSchema).min(1).max(MAX_SKILL_FILES),
+    files: z
+      .array(SkillVersionFileInputSchema)
+      .min(1)
+      .max(env.LANGFUSE_SKILL_MAX_FILES),
   }),
   handler: (input, context) =>
     runMcpTool({

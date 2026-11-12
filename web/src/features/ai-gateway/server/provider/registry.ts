@@ -7,10 +7,21 @@ import {
 export const gatewayApiFormats = [
   "openai.responses",
   "openai.chat-completions",
+  "openai.decisions",
+  "openai.embeddings",
   "anthropic.messages",
 ] as const;
 
-export const gatewayProviders = ["OPENAI", "ANTHROPIC", "BEDROCK"] as const;
+export const gatewayProviders = [
+  "OPENAI",
+  "ANTHROPIC",
+  "BEDROCK",
+  "OPENROUTER",
+  "XAI",
+  "VERCEL",
+  "AZURE",
+  "GOOGLE_AI_STUDIO",
+] as const;
 
 export type GatewayApiFormat = (typeof gatewayApiFormats)[number];
 export type GatewayProviderName = (typeof gatewayProviders)[number];
@@ -20,7 +31,16 @@ const metadataValueSchema = z.union([z.string(), z.number(), z.boolean()]);
 export const GatewayMetadataSchema = z.record(z.string(), metadataValueSchema);
 export type GatewayMetadata = z.infer<typeof GatewayMetadataSchema>;
 
-const gatewayProviderIds = ["openai", "anthropic", "bedrock"] as const;
+const gatewayProviderIds = [
+  "openai",
+  "anthropic",
+  "bedrock",
+  "openrouter",
+  "xai",
+  "vercel",
+  "azure",
+  "google_ai_studio",
+] as const;
 export type GatewayProviderId = (typeof gatewayProviderIds)[number];
 
 export const GatewayResolveResponseSchema = z
@@ -99,35 +119,96 @@ type ProviderDefinition = {
   baseUrl: string;
   modelsPath: string;
   authType: "bearer" | "x-api-key";
-  validationModel: string;
+  // How a new key is checked: a one-token call to a model, or a GET that
+  // fails only for a bad key when a model call could fail for a valid one.
+  // `usable` rejects keys the GET reports as unusable despite a 2xx.
+  credentialCheck:
+    | { model: string }
+    | { path: string; usable?: (body: unknown) => boolean };
   apiFormats: readonly GatewayApiFormat[];
 };
 
-type OfficialGatewayProviderName = Exclude<GatewayProviderName, "BEDROCK">;
+type HostedGatewayProviderName = Exclude<
+  GatewayProviderName,
+  "BEDROCK" | "AZURE"
+>;
 type GatewayUpstream = Pick<ProviderDefinition, "baseUrl" | "authType">;
 
-const PROVIDER_REGISTRY: Record<
-  OfficialGatewayProviderName,
-  ProviderDefinition
-> = {
-  OPENAI: {
-    baseUrl: "https://api.openai.com/v1",
-    modelsPath: "/models",
-    authType: "bearer",
-    validationModel: "gpt-4o-mini",
-    apiFormats: ["openai.responses", "openai.chat-completions"],
-  },
-  ANTHROPIC: {
-    baseUrl: "https://api.anthropic.com/v1",
-    modelsPath: "/models",
-    authType: "x-api-key",
-    validationModel: "claude-haiku-4-5-20251001",
-    apiFormats: ["anthropic.messages"],
-  },
-};
+const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
+  {
+    OPENAI: {
+      baseUrl: "https://api.openai.com/v1",
+      modelsPath: "/models",
+      authType: "bearer",
+      credentialCheck: { model: "gpt-4o-mini" },
+      apiFormats: [
+        "openai.responses",
+        "openai.chat-completions",
+        "openai.decisions",
+        "openai.embeddings",
+      ],
+    },
+    ANTHROPIC: {
+      baseUrl: "https://api.anthropic.com/v1",
+      modelsPath: "/models",
+      authType: "x-api-key",
+      credentialCheck: { model: "claude-haiku-4-5-20251001" },
+      apiFormats: ["anthropic.messages"],
+    },
+    // OpenRouter takes a Bearer key on every format, including Anthropic Messages.
+    // Its Decisions endpoint is an alpha with its own request shape, so it is not routed.
+    OPENROUTER: {
+      baseUrl: "https://openrouter.ai/api/v1",
+      modelsPath: "/models/user",
+      authType: "bearer",
+      // A test completion fails for valid keys whose credits, data policy or
+      // provider preferences exclude the test model.
+      credentialCheck: { path: "/key" },
+      apiFormats: [
+        "openai.responses",
+        "openai.chat-completions",
+        "openai.embeddings",
+        "anthropic.messages",
+      ],
+    },
+    // xAI's Anthropic Messages compatibility is deprecated, so only the OpenAI
+    // formats are routed.
+    XAI: {
+      baseUrl: "https://api.x.ai/v1",
+      modelsPath: "/language-models",
+      authType: "bearer",
+      // A test completion fails for valid keys without credits or whose model
+      // ACLs exclude the test model.
+      credentialCheck: { path: "/api-key", usable: isUsableXaiKey },
+      apiFormats: ["openai.responses", "openai.chat-completions"],
+    },
+    // Vercel takes a Bearer key on every format, including Anthropic Messages.
+    VERCEL: {
+      baseUrl: "https://ai-gateway.vercel.sh/v1",
+      // Annotates each model with its eligibility under the team's allowlists
+      // and routing rules.
+      modelsPath: "/models?include_availability",
+      authType: "bearer",
+      // A test completion fails for valid keys without credits or whose team
+      // allowlists exclude the test model.
+      credentialCheck: { path: "/credits" },
+      apiFormats: gatewayApiFormats,
+    },
+    // Gemini API's OpenAI-compatible endpoint, which has no Responses route:
+    // https://ai.google.dev/gemini-api/docs/openai
+    GOOGLE_AI_STUDIO: {
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+      modelsPath: "/models",
+      authType: "bearer",
+      // A test completion fails for valid keys whose project lacks access to
+      // or quota for the test model.
+      credentialCheck: { path: "/models" },
+      apiFormats: ["openai.chat-completions", "openai.embeddings"],
+    },
+  };
 
 export function getGatewayProviderDefinition(
-  provider: OfficialGatewayProviderName,
+  provider: HostedGatewayProviderName,
 ): ProviderDefinition {
   return PROVIDER_REGISTRY[provider];
 }
@@ -136,19 +217,35 @@ export function providerSupportsApiFormat(
   provider: GatewayProviderName,
   apiFormat: GatewayApiFormat,
 ): boolean {
-  if (provider === "BEDROCK") return true;
+  if (provider === "BEDROCK") {
+    return (
+      apiFormat !== "openai.decisions" && apiFormat !== "openai.embeddings"
+    );
+  }
+  if (provider === "AZURE") return apiFormat !== "openai.decisions";
   return PROVIDER_REGISTRY[provider].apiFormats.includes(apiFormat);
 }
 
-// Bedrock serves each API format natively under its own path and auth header.
-// Throws if a Bedrock connection has no valid region config. OpenAI and
-// Anthropic connections may override the official base URL.
+// Bedrock and Azure serve each supported API format natively under its own path
+// and auth header, Bedrock on its regional runtime and Azure on the origin of
+// the resource stored as the connection's base URL.
+// Throws if a Bedrock connection has no valid region config or an Azure
+// connection has no endpoint. OpenAI and Anthropic connections may override
+// the official base URL; OpenRouter, xAI, Vercel and Google AI Studio never
+// store one.
 export function getGatewayUpstream(params: {
   provider: GatewayProviderName;
   apiFormat: GatewayApiFormat;
   config: unknown;
   baseURL: string | null;
 }): GatewayUpstream {
+  if (params.provider === "AZURE") {
+    if (!params.baseURL) throw new Error("Azure connection has no endpoint.");
+    return getPerFormatUpstream(
+      new URL(params.baseURL).origin,
+      params.apiFormat,
+    );
+  }
   if (params.provider !== "BEDROCK") {
     const { baseUrl, authType } = PROVIDER_REGISTRY[params.provider];
     return { baseUrl: params.baseURL ?? baseUrl, authType };
@@ -157,8 +254,32 @@ export function getGatewayUpstream(params: {
   const origin = bedrockRuntimeOrigin(
     GatewayBedrockConfigSchema.parse(params.config),
   );
-  if (params.apiFormat === "anthropic.messages") {
+  return getPerFormatUpstream(origin, params.apiFormat);
+}
+
+function getPerFormatUpstream(
+  origin: string,
+  apiFormat: GatewayApiFormat,
+): GatewayUpstream {
+  if (apiFormat === "anthropic.messages") {
     return { baseUrl: `${origin}/anthropic/v1`, authType: "x-api-key" };
   }
   return { baseUrl: `${origin}/openai/v1`, authType: "bearer" };
+}
+
+const xaiApiKeySchema = z.object({
+  api_key_blocked: z.boolean(),
+  api_key_disabled: z.boolean(),
+  team_blocked: z.boolean(),
+});
+
+// xAI answers 200 for disabled or blocked keys and reports their state in the body.
+function isUsableXaiKey(body: unknown): boolean {
+  const key = xaiApiKeySchema.safeParse(body);
+  return (
+    key.success &&
+    !key.data.api_key_blocked &&
+    !key.data.api_key_disabled &&
+    !key.data.team_blocked
+  );
 }

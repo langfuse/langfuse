@@ -12,8 +12,7 @@ import {
 } from "@langfuse/shared/topics/server";
 import { processTopicsTrace } from "./processTopicsTrace";
 import { summarizeAssembledTrace } from "./summarizeAssembledTrace";
-import { getServingTopicRun } from "./servingRuns";
-import { signalTopicsDiscovery } from "./topicsAutomation";
+import { getRuleTopicRun } from "./servingRuns";
 import {
   pauseForRejectedConnection,
   TopicsProviderUnavailable,
@@ -26,7 +25,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
-  createTraceBatchInputStorage: () => ({ get: mocks.getInputs }),
+  createTraceBatchInputStorage: () => ({ legacyGet: mocks.getInputs }),
   recordIncrement: vi.fn(),
 }));
 vi.mock("@langfuse/shared/topics/server", () => ({
@@ -50,10 +49,11 @@ vi.mock("../../services/ClickhouseWriter", () => ({
 vi.mock("./summarizeAssembledTrace", () => ({
   summarizeAssembledTrace: vi.fn(),
 }));
-vi.mock("./servingRuns", () => ({ getServingTopicRun: vi.fn() }));
-vi.mock("./topicsAutomation", () => ({ signalTopicsDiscovery: vi.fn() }));
+vi.mock("./servingRuns", () => ({ getRuleTopicRun: vi.fn() }));
 vi.mock("./assignments", () => ({
-  topicAssignmentRows: () => [{ topicId: "billing" }],
+  topicAssignmentRows: ({ run }: { run: { id: string } }) => [
+    { topicId: "billing", runId: run.id },
+  ],
 }));
 vi.mock("./models", () => ({ TopicInputTooLarge: class extends Error {} }));
 vi.mock("./provider-error", async (importOriginal) => ({
@@ -124,21 +124,28 @@ describe("processTopicsTrace", () => {
     });
   });
 
-  it("summarizes each facet its rules select once, assigns to the serving map, and signals discovery without one", async () => {
+  it("summarizes each facet its rules select once and assigns it to the map of every matched rule that has one", async () => {
     vi.mocked(listTopicRules).mockResolvedValue([
       rule("rule", ["intent"]),
       rule("other", ["intent", "deleted-facet"]),
-      rule("unselected", ["tone"]),
+      rule("mapped", ["intent"]),
+      rule("unmatched", ["intent", "tone"]),
     ]);
     vi.mocked(summarizeAssembledTrace).mockResolvedValue({
       outcome: "summarized",
       rows: [row("intent", "complete")],
     });
-    vi.mocked(getServingTopicRun).mockResolvedValueOnce(null);
-    const twoRules = { ...event, ruleIds: ["rule", "other", "deleted-rule"] };
+    vi.mocked(getRuleTopicRun).mockImplementation(
+      async (_project, ruleId) =>
+        (ruleId === "other" ? null : { id: `${ruleId}-map` }) as never,
+    );
+    const matched = {
+      ...event,
+      ruleIds: ["rule", "other", "mapped", "deleted-rule"],
+    };
 
     await expect(
-      processTopicsTrace(twoRules, { scheduleRetry }),
+      processTopicsTrace(matched, { scheduleRetry }),
     ).resolves.toEqual({ outcome: "summarized" });
     expect(vi.mocked(summarizeAssembledTrace).mock.calls[0][0].facets).toEqual([
       expect.objectContaining({ name: "intent" }),
@@ -147,14 +154,11 @@ describe("processTopicsTrace", () => {
       "topic_facet_summaries",
       expect.anything(),
     );
-    expect(signalTopicsDiscovery).toHaveBeenCalledOnce();
-
-    vi.mocked(getServingTopicRun).mockResolvedValueOnce({ id: "run" } as never);
-    mocks.addToQueue.mockClear();
-    await processTopicsTrace(event, { scheduleRetry });
-    expect(mocks.addToQueue).toHaveBeenCalledWith("topic_assignments", {
-      assignment: { topicId: "billing" },
-    });
+    // "other" has no map yet; "unmatched" has one but the trace didn't match it.
+    const assigned = mocks.addToQueue.mock.calls
+      .filter(([table]) => table === "topic_assignments")
+      .map(([, record]) => record.assignment.runId);
+    expect(assigned).toEqual(["rule-map", "mapped-map"]);
   });
 
   it("skips the trace when its rules no longer select a facet", async () => {

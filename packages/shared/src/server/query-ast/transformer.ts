@@ -1,4 +1,5 @@
 import {
+  type FunctionNode,
   OperationNodeTransformer,
   type OperationNode,
   type QueryId,
@@ -7,9 +8,11 @@ import {
 
 import {
   ArrayJoinNode,
-  ArrayIndexNode,
-  FinalTableNode,
   LimitByNode,
+  MetadataPrefilterNode,
+  asCustomNode,
+  asOperationNode,
+  transformCustomNode,
   type ClickHouseSelectQueryNode,
 } from "./nodes";
 
@@ -19,37 +22,32 @@ import {
  * Kysely's default {@link OperationNodeTransformer.transformSelectQuery}
  * reconstructs a SelectQueryNode from known slots and drops anything else —
  * so without this override, ARRAY JOIN / LIMIT BY / the soft-delete
- * markers would vanish the moment any plugin walked the tree.
+ * markers would vanish the moment any plugin walked the tree. It also rebuilds
+ * each `CustomNode` (nodes.ts), a kind Kysely's transformer cannot dispatch.
  */
 export class ClickHouseOperationNodeTransformer extends OperationNodeTransformer {
   protected override transformNodeImpl<T extends OperationNode>(
     node: T,
     queryId?: QueryId,
   ): T {
-    if (ArrayIndexNode.is(node)) {
-      // Anti-pattern: cast through `unknown`. ArrayIndexNode is a custom kind
-      // outside Kysely's closed OperationNode union, so `transformArrayIndex`'s
-      // return type cannot be proven assignable to the generic `T` the base
-      // method is parameterized over. The `.is` guard above establishes at
-      // runtime that `T` is ArrayIndexNode here, so the cast is sound.
-      return this.transformArrayIndex(node) as unknown as T;
-    }
-    if (FinalTableNode.is(node)) {
-      return this.transformFinalTable(node) as unknown as T;
-    }
-    return super.transformNodeImpl(node, queryId);
-  }
-
-  protected transformArrayIndex(node: ArrayIndexNode): ArrayIndexNode {
-    return ArrayIndexNode.create(
-      this.transformNode(node.array),
-      this.transformNode(node.index),
-      node.metadataLookup,
+    const custom = asCustomNode(node);
+    if (!custom) return super.transformNodeImpl(node, queryId);
+    const transformed = transformCustomNode(
+      custom,
+      <C extends OperationNode>(child: C): C => this.transformNode(child),
     );
+    // A custom node rebuilds as its own kind, so it is still a `T`.
+    return asOperationNode(transformed) as T;
   }
 
-  protected transformFinalTable(node: FinalTableNode): FinalTableNode {
-    return FinalTableNode.create(this.transformNode(node.table));
+  protected override transformFunction(
+    node: FunctionNode,
+    queryId?: QueryId,
+  ): FunctionNode {
+    const transformed = super.transformFunction(node, queryId);
+    return MetadataPrefilterNode.is(node)
+      ? MetadataPrefilterNode.create(transformed, node.metadataPrefilter)
+      : transformed;
   }
 
   protected override transformSelectQuery(
