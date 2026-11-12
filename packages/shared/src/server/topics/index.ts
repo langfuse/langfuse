@@ -14,3 +14,4 @@ export * from "./setup";
 export * from "./trace-input";
 export * from "./trace-selection";
 export * from "./slices";
+export * from "./rule-setup";
