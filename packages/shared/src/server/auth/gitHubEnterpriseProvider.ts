@@ -30,13 +30,16 @@ export function GitHubEnterpriseProvider<P extends GithubProfile>(
         if (!profile.email) {
           // If the user does not have a public email, get another via the GitHub API
           // See https://docs.github.com/en/rest/users/emails#list-email-addresses-for-the-authenticated-user
-          const res = await fetch(`${apiBaseUrl}/user/emails`, {
-            headers: { Authorization: `token ${tokens.access_token}` },
-          });
+          // openid-client does not follow redirects
+          const res = await client.requestResource(
+            `${apiBaseUrl}/user/emails`,
+            tokens.access_token!,
+            { tokenType: "token" },
+          );
 
-          if (res.ok) {
-            const emails = (await res.json()) as GithubEmail[];
-            profile.email = (emails.find((e) => e.primary) ?? emails[0]).email;
+          if (res.statusCode === 200 && res.body) {
+            const emails = JSON.parse(res.body.toString()) as GithubEmail[];
+            profile.email = (emails.find((e) => e.primary) ?? emails[0])?.email;
           }
         }
 
