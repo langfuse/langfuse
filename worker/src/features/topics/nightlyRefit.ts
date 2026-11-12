@@ -382,7 +382,8 @@ async function selectFitWindow(
 /**
  * A fit window within `window` that stays inside the clustering capacity: it
  * starts at the newest summaries that fit, confirmed by one stats probe. The
- * full search runs only when the probe exceeds the limits.
+ * full search runs only when the probe exceeds the limits; null when no window
+ * fits, as for selectFitWindow.
  */
 export async function estimateFitWindow(
   projectId: string,
@@ -423,7 +424,8 @@ export async function estimateFitWindow(
   );
   return stats.count <= limits.maxRows && stats.bytes <= limits.maxBytes
     ? estimate
-    : selectFitWindow(projectId, facet, embeddingConfig, window.to, estimate);
+    : // A full search: halving a short estimate could leave no hour to search.
+      selectFitWindow(projectId, facet, embeddingConfig, window.to);
 }
 
 export class TopicsNightlyRefitRunner extends PeriodicExclusiveRunner {

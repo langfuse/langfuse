@@ -376,6 +376,21 @@ async function startFit(
           from,
           to: now,
         });
+    const embedding = {
+      embeddingModel: embeddingConfig.embeddingModel,
+      dimensions: embeddingConfig.embeddingDimensions,
+    };
+    // No window fits the capacity: skip, as the nightly refit does, which ends setup in the building state.
+    if (!smallSample && !sized)
+      return createTopicRun({
+        id,
+        projectId: setup.projectId,
+        facetId: facet.facetId,
+        facetVersion: facet.facetVersion,
+        ruleId: setup.ruleId,
+        status: "skipped",
+        config: embedding,
+      });
     const window = {
       from: new Date(Math.max(from.getTime(), sized?.from.getTime() ?? 0)),
       to: now,
@@ -397,8 +412,7 @@ async function startFit(
       facetVersion: facet.facetVersion,
       ruleId: setup.ruleId,
       config: {
-        embeddingModel: embeddingConfig.embeddingModel,
-        dimensions: embeddingConfig.embeddingDimensions,
+        ...embedding,
         timeRange: {
           from: window.from.toISOString(),
           to: window.to.toISOString(),
