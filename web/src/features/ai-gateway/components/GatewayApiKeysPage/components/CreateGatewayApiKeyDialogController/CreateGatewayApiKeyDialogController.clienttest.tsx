@@ -68,7 +68,9 @@ async function renderCreatedKeyDialog() {
   fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
     target: { value: "laptop" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "Create key" }));
+  const createButton = screen.getByRole("button", { name: "Create key" });
+  await waitFor(() => expect(createButton).toBeEnabled());
+  fireEvent.click(createButton);
   await screen.findByText("sk-lf-test-secret");
 }
 
