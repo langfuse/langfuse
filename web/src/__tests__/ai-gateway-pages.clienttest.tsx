@@ -26,12 +26,16 @@ vi.mock("next/router", () => ({ useRouter: () => ({ query: {} }) }));
 
 const getSetupStatusQuery = vi.hoisted(() => vi.fn());
 const getAnalyticsLabelsQuery = vi.hoisted(() => vi.fn());
+const listConnectionsQuery = vi.hoisted(() => vi.fn());
+const listModelConnectionsQuery = vi.hoisted(() => vi.fn());
 vi.mock("@/src/utils/api", () => ({
   api: {
     aiGateway: {
       getSetupStatus: { useQuery: getSetupStatusQuery },
       listApiKeys: { useQuery: () => ({ data: undefined }) },
       getAnalyticsLabels: { useQuery: getAnalyticsLabelsQuery },
+      listConnections: { useInfiniteQuery: listConnectionsQuery },
+      listModelConnections: { useQuery: listModelConnectionsQuery },
     },
   },
 }));
@@ -79,6 +83,8 @@ describe("useGatewayPages", () => {
       isPending: false,
     });
     getAnalyticsLabelsQuery.mockReturnValue({ data: undefined });
+    listConnectionsQuery.mockReturnValue({ data: undefined });
+    listModelConnectionsQuery.mockReturnValue({ data: undefined });
   });
 
   it("shows only Models with read access", () => {
@@ -118,6 +124,19 @@ describe("useGatewayPages", () => {
       ["models", false],
       ["api-keys", false],
     ]);
+  });
+
+  it("keeps the Models page tabs for managers whose only connection failed", () => {
+    grantScopes("gateway:manage", "gateway:read", "gateway:invoke");
+    listConnectionsQuery.mockReturnValue({
+      data: { pages: [{ data: [{ id: "conn-1", status: "ERROR" }] }] },
+    });
+    listModelConnectionsQuery.mockReturnValue({ data: [] });
+
+    const { result } = renderHook(() => useGatewayPages());
+    const models = result.current.find(({ slug }) => slug === "models");
+
+    expect(models?.tabsProps).toBeDefined();
   });
 
   it("disables Models and Gateway keys for managers until ingestion is set up", () => {

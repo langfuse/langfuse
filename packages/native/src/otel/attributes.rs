@@ -65,11 +65,10 @@ impl EventAttributes<'_> {
             .find_map(|source| self.get(*source).and_then(value_as_string))
     }
 
-    pub fn json_text(&self, sources: &[AttributeSource]) -> Option<String> {
-        sources.iter().find_map(|source| match self.get(*source)? {
-            Value::Null => None,
-            Value::String(value) => (!value.is_empty()).then(|| value.as_str().to_owned()),
-            value => Some(javascript_json_stringify(value)),
+    pub fn truthy_text(&self, sources: &[AttributeSource]) -> Option<String> {
+        sources.iter().find_map(|source| {
+            let value = self.get(*source).filter(|value| is_js_truthy(value))?;
+            Some(javascript_string(value))
         })
     }
 
@@ -202,7 +201,7 @@ fn map_value_to_json(value: Value) -> Value {
     }
 }
 
-fn is_key_value_list(values: &[Value]) -> bool {
+pub(super) fn is_key_value_list(values: &[Value]) -> bool {
     !values.is_empty()
         && values.iter().all(|value| {
             let Value::Object(object) = value else {
@@ -760,6 +759,37 @@ mod tests {
             javascript_string(&json!([1, null, {"x": 1}, [2, 3]])),
             "1,,[object Object],2,3"
         );
+    }
+
+    #[test]
+    fn truthy_text_matches_javascript_id_coercion() {
+        for (value, expected) in [
+            (json!(null), None),
+            (json!(false), None),
+            (json!(0), None),
+            (json!(""), None),
+            (json!("exp"), Some("exp")),
+            (json!([]), Some("")),
+            (json!([1, null, {"x": 1}]), Some("1,,[object Object]")),
+            (json!({"x": 1}), Some("[object Object]")),
+        ] {
+            let mut span = JsonObject::new();
+            span.insert("id".into(), value);
+            let mut cache = JsonParseCache::default();
+            let attributes = EventAttributes {
+                span: &span,
+                resource: &JsonObject::new(),
+                scope: &JsonObject::new(),
+                cache: &mut cache,
+                decode_metadata: false,
+            };
+            assert_eq!(
+                attributes
+                    .truthy_text(&[AttributeSource::Span("id")])
+                    .as_deref(),
+                expected
+            );
+        }
     }
 
     #[test]

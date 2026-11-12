@@ -103,7 +103,7 @@ export function ProviderDialogController({
   const isError = test.isError || (Boolean(saveError) && !serverNameError);
   const errorTitle = test.isError
     ? "Connection test failed"
-    : "Provider connection could not be saved";
+    : "Connection could not be saved";
 
   /** Skips the live check after saving, as the refetched list already holds the saved name. */
   const getNameError = (selectedConnection: GatewayConnection | null) =>
@@ -250,7 +250,7 @@ export function ProviderDialogController({
               ? "aiGateway.updateConnection"
               : "aiGateway.createConnection",
           },
-          title: "Provider connection saved, but its models can't be listed",
+          title: "Connection saved, but its models can't be listed",
         });
       }
 
@@ -284,9 +284,7 @@ export function ProviderDialogController({
           <>
             <DialogHeader>
               <DialogTitle>
-                {selectedConnection
-                  ? "Edit provider connection"
-                  : "Add provider connection"}
+                {selectedConnection ? "Edit connection" : "Add connection"}
               </DialogTitle>
             </DialogHeader>
             <DialogBody className="gap-6">
@@ -457,7 +455,7 @@ function CredentialTestSuccess({
     return <ModelListingDeniedAlert provider={provider} />;
   return (
     <Alert>
-      <Alert.Title>Provider connection is valid</Alert.Title>
+      <Alert.Title>Connection is valid</Alert.Title>
       <Alert.Description>No changes were saved.</Alert.Description>
     </Alert>
   );

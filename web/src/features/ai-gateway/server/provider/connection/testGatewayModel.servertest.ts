@@ -62,6 +62,36 @@ describe("testGatewayModel", () => {
     });
   });
 
+  it("surfaces Google AI Studio's error message from its array body", async () => {
+    vi.mocked(getGatewayFetch).mockReturnValue(async () =>
+      Response.json(
+        [
+          {
+            error: {
+              code: 400,
+              message: "Please pass a valid API key",
+              status: "INVALID_ARGUMENT",
+            },
+          },
+        ],
+        { status: 400 },
+      ),
+    );
+    const result = await testGatewayModel({
+      provider: "GOOGLE_AI_STUDIO",
+      config: null,
+      baseURL: null,
+      extraHeaders: {},
+      credential: "gemini-key",
+      model: "gemini-3.5-flash",
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      error: "Please pass a valid API key",
+    });
+  });
+
   it("prefers a top-level message over a status name in `error`", async () => {
     vi.mocked(getGatewayFetch).mockReturnValue(async () =>
       Response.json(
