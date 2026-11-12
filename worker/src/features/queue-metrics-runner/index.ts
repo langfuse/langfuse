@@ -33,6 +33,7 @@ const TOPICS_QUEUES = new Set([
   QueueName.TopicsUpdate,
   QueueName.TopicsEmbedding,
   QueueName.TopicsAutomation,
+  QueueName.TopicsSetup,
 ]);
 
 async function emitPendingHeadAge(
@@ -42,7 +43,7 @@ async function emitPendingHeadAge(
   // Read at most one ID per state and only its timestamp, never the job payload.
   // Retries can re-enter behind newer jobs; this is head age, not a global minimum timestamp.
   const ids = await queue.getRanges(
-    ["wait", "paused", "delayed", "active"],
+    ["wait", "prioritized", "paused", "delayed", "active"],
     0,
     0,
     true,
@@ -65,16 +66,19 @@ async function emitPendingHeadAge(
 async function collectDepth(
   queue: Queue,
 ): Promise<Record<DepthType, number> | null> {
-  // Include "paused" to match getWaitingCount() semantics (which sums waiting + paused)
+  // Include "paused" to match getWaitingCount() semantics (which sums waiting + paused);
+  // jobs added with a priority wait in "prioritized" instead.
   const counts = await queue.getJobCounts(
     "waiting",
+    "prioritized",
     "paused",
     "failed",
     "active",
     "delayed",
   );
   return {
-    waiting: (counts.waiting ?? 0) + (counts.paused ?? 0),
+    waiting:
+      (counts.waiting ?? 0) + (counts.prioritized ?? 0) + (counts.paused ?? 0),
     failed: counts.failed ?? 0,
     active: counts.active ?? 0,
     delayed: counts.delayed ?? 0,

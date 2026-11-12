@@ -342,12 +342,10 @@ const StackedExperimentCell = ({
 const StackedOutputRow = ({
   output,
   markerClass,
-  singleLine,
   chip,
 }: {
   output: string;
   markerClass: string;
-  singleLine: boolean;
   /** Rendered after the value, e.g. the expected-output verdict. */
   chip?: React.ReactNode;
 }) => {
@@ -362,7 +360,7 @@ const StackedOutputRow = ({
       <ConnectedIOTableCell
         data={output}
         followRowHeight={false}
-        singleLine={singleLine}
+        singleLine={false}
         variant="output"
       />
       {chip}
@@ -404,13 +402,12 @@ const ExpectedMatchChip = ({ matches }: { matches: boolean }) => (
 
 /**
  * Cell component that renders stacked output values for each experiment.
- * Display chooses text or JSON. Row height does not.
+ * Output renders as a JSON tree. Row height does not collapse it to one line.
  */
 const StackedOutputCell = ({
   outputs,
   allExperimentIds,
   colorExperimentIds,
-  singleLine,
   isLoading,
   expectedOutput,
   row,
@@ -419,7 +416,6 @@ const StackedOutputCell = ({
   outputs: ExperimentOutputData[];
   allExperimentIds: string[];
   colorExperimentIds?: string[];
-  singleLine: boolean;
   isLoading: boolean;
   /**
    * The item's expected output, shown as the cell's first line with a verdict on
@@ -455,7 +451,7 @@ const StackedOutputCell = ({
               isLoading={false}
               data={expectedOutput ?? null}
               followRowHeight={false}
-              singleLine={singleLine}
+              singleLine={false}
             />
           </div>
         </div>
@@ -497,14 +493,13 @@ const StackedOutputCell = ({
                 <ConnectedIOTableCell
                   isLoading
                   followRowHeight={false}
-                  singleLine={singleLine}
+                  singleLine={false}
                 />
               </div>
             ) : out?.output ? (
               <StackedOutputRow
                 output={out.output}
                 markerClass={colorStyles.markerClass}
-                singleLine={singleLine}
                 chip={
                   expectedMatch === null ? undefined : (
                     <ExpectedMatchChip matches={expectedMatch} />
@@ -535,7 +530,6 @@ const StackedOutputCell = ({
  */
 export default function ExperimentItemsTable({
   projectId,
-  ioRenderMode,
   hideControls = false,
   toolbarSettings,
 }: ExperimentItemsTableProps) {
@@ -635,7 +629,6 @@ export default function ExperimentItemsTable({
     setCustomPx,
     ...adjustableRowHeight
   } = useAdjustableRowHeight("experiment-items-compact", "s");
-  const ioSingleLine = ioRenderMode === "text";
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "startTime",
@@ -1217,9 +1210,9 @@ export default function ExperimentItemsTable({
     defaultHidden: true,
     // An empty expected output used to render as two literal quote characters.
     getCell: (value) => (ioLoading ? { type: "loading" } : value || undefined),
-    // Display chooses text or JSON. Row height does not.
+    // JSON tree. Row height does not collapse this cell to one line.
     followRowHeight: false,
-    singleLine: ioSingleLine,
+    singleLine: false,
     variant: "output",
   }) as LangfuseColumnDef<ExperimentItemsTableRow>;
 
@@ -1285,9 +1278,9 @@ export default function ExperimentItemsTable({
         size: 300,
         enableHiding: true,
         getCell: (value) => (ioLoading ? { type: "loading" } : (value ?? null)),
-        // Display chooses text or JSON. Row height does not.
+        // JSON tree. Row height does not collapse this cell to one line.
         followRowHeight: false,
-        singleLine: ioSingleLine,
+        singleLine: false,
       }),
       // The scores sit between the item's input and its outputs: the input says
       // which item this is, the score headers carry the judgement, and the outputs
@@ -1335,7 +1328,6 @@ export default function ExperimentItemsTable({
               colorExperimentIds={colorExperimentIds}
               row={row.original}
               onExperimentClick={onExperimentCellClick}
-              singleLine={ioSingleLine}
               isLoading={ioLoading}
               // Items with no expected output get no expected line and no
               // verdict, rather than a diff against nothing.
@@ -2101,7 +2093,6 @@ export default function ExperimentItemsTable({
                   }
                   useExperimentColors={hasBaseline}
                   showDiff={showComparisonDiff}
-                  singleLine={ioSingleLine}
                   rows={rows}
                   isLoading={items.status === "loading" || isViewLoading}
                   ioLoading={ioLoading}

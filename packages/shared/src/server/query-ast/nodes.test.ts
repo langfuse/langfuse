@@ -211,7 +211,7 @@ describe("tenancy injection", () => {
       );
 
     const whereRaw = getClickhouseKysely()
-      .selectFrom("events_truncated")
+      .selectFrom("traces")
       .select("environment")
       .where(sql<boolean>`id IN (SELECT id FROM traces)`);
 

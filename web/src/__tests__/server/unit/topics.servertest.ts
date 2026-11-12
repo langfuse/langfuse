@@ -267,6 +267,15 @@ describe("Topics project allowlist", () => {
     ["rules", () => outside().rules({ projectId })],
     ["runs", () => outside().executions({ projectId })],
     ["model settings", () => outside().modelSettings({ projectId })],
+    ["tracing filter options", () => outside().filterOptions({ projectId })],
+    [
+      "tracing column topics",
+      () =>
+        outside().forTraces({
+          projectId,
+          traces: [{ traceId: "trace-a", timestamp: new Date() }],
+        }),
+    ],
   ] as const;
 
   it.each(reads)("hides %s", async (_name, call) => {

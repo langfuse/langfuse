@@ -7,7 +7,7 @@ import {
   BatchActionType,
 } from "../features/batchAction/types";
 import { BatchTableNames } from "../interfaces/tableNames";
-import { EventActionSchema } from "../domain/automations";
+import { ActionTypeSchema, EventActionSchema } from "../domain/automations";
 import { SkillVersionSchema } from "../features/skills/types";
 import { PromptDomainSchema } from "../domain/prompts";
 import { ObservationAddToDatasetConfigSchema } from "../features/batchAction/addToDatasetTypes";
@@ -358,6 +358,7 @@ export const WebhookInputSchema = z.object({
   projectId: z.string(),
   automationId: z.string(),
   executionId: z.string(),
+  actionType: ActionTypeSchema.optional(), // optional for jobs enqueued before producers set it
   payload: WebhookOutboundEnvelopeSchema,
 });
 
@@ -440,6 +441,7 @@ export enum QueueName {
   TopicsUpdate = "topics-update",
   TopicsEmbedding = "topics-embedding",
   TopicsAutomation = "topics-automation",
+  TopicsSetup = "topics-setup",
   TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
   TraceDelete = "trace-delete",
@@ -489,6 +491,7 @@ export enum QueueJobs {
   TopicsRuleRefit = "topics-rule-refit",
   TopicsEmbedding = "topics-embedding",
   TopicsAutomation = "topics-automation",
+  TopicsSetup = "topics-setup",
   TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert",
   TraceDelete = "trace-delete",
@@ -655,6 +658,12 @@ export type TQueueJobTypes = {
     id: string;
     name: QueueJobs.TopicsAutomation;
     payload: z.infer<typeof TopicAutomationBatchSchema>;
+  };
+  [QueueName.TopicsSetup]: {
+    timestamp: Date;
+    id: string;
+    name: QueueJobs.TopicsSetup;
+    payload: { projectId: string; ruleId: string };
   };
   [QueueName.TraceBatch]: z.infer<typeof TraceBatchEventSchema>;
   [QueueName.TraceUpsert]: {

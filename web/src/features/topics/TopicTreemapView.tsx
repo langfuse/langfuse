@@ -71,6 +71,11 @@ export function TopicTreemapView({
         swatchColor={selected.color}
         traces={traces}
         totalCount={selected.count}
+        tracingTopic={
+          selected.id === UNASSIGNED_TOPIC_ID
+            ? undefined
+            : { facet, name: selected.name }
+        }
         peekView={peekView}
         tracePanelRef={sideBySide ? tracePanelRef : undefined}
         divider={sideBySide ? "side" : "top"}

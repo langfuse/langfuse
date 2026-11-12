@@ -14,9 +14,6 @@ const state = vi.hoisted(() => ({
   setAttribute: vi.fn(),
 }));
 
-vi.mock("@langfuse/shared/topics/server", () => ({
-  TOPICS_TRANSCRIPT_VERSION: "shared-transcript-v3",
-}));
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   isInternalEvalEnvironment: (
@@ -110,9 +107,12 @@ const usage = {
 let summaries: TopicSummary[] = [];
 // Keeps the returned rows for assertions and rethrows a partial failure, as the batch job reports it.
 const summarize = async (
-  input: Parameters<typeof summarizeAssembledTrace>[0],
+  input: Omit<Parameters<typeof summarizeAssembledTrace>[0], "executionIssues">,
 ) => {
-  const result = await summarizeAssembledTrace(input);
+  const result = await summarizeAssembledTrace({
+    ...input,
+    executionIssues: [],
+  });
   summaries = result.rows;
   if (result.failure !== undefined) throw result.failure;
   return result.outcome;
@@ -216,6 +216,16 @@ describe("summarizeAssembledTrace", () => {
       expect.any(Number),
       { stage: "trace", outcome: "success", unit: "milliseconds" },
     );
+    const submittedText = state.summarize.mock.calls[0][2] as string;
+    for (const [format, characters] of [
+      ["text", submittedText.length],
+      ["json", expect.any(Number)],
+    ] as const)
+      expect(recordDistribution).toHaveBeenCalledWith(
+        "langfuse.topics.summary_input_characters",
+        characters,
+        { format },
+      );
   });
 
   it("summarizes and embeds all pending facets in one call each and splits their usage across the rows", async () => {

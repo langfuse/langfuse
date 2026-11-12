@@ -5,9 +5,13 @@ import type { Redis } from "ioredis";
 
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
 import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
-import { __test as gatewayModelsService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
+import {
+  __test as gatewayModelsService,
+  GatewayModelsService,
+} from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
 import { anthropicModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/anthropic";
 import { bedrockModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/bedrock";
+import { googleAiStudioModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/googleAiStudio";
 import { openAiModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/openAi";
 import { openRouterModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/openRouter";
 import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
@@ -490,6 +494,93 @@ describe("AI Gateway model discovery", () => {
     });
   });
 
+  it("lists Google AI Studio's Gemini chat and embedding models under the ids requests use", async () => {
+    const fetcher = vi.fn<typeof fetch>(
+      respondWith({
+        object: "list",
+        data: [
+          {
+            id: "models/gemini-3.5-flash",
+            object: "model",
+            owned_by: "google",
+          },
+          { id: "models/gemma-4-27b-it", object: "model", owned_by: "google" },
+          { id: "models/gemini-embedding-001", object: "model" },
+          { id: "models/gemini-3.5-flash-image", object: "model" },
+          { id: "models/gemini-3.5-flash-preview-tts", object: "model" },
+          { id: "models/imagen-4.0-generate-001", object: "model" },
+          { id: "models/veo-3.1-generate-preview", object: "model" },
+        ],
+      }),
+    );
+    const result = await googleAiStudioModelDiscoveryAdapter.fetchCatalog({
+      credential: "gemini-test",
+      config: null,
+      baseURL: null,
+      extraHeaders: {},
+      fetcher,
+    });
+
+    expect(String(fetcher.mock.calls[0]?.[0])).toBe(
+      "https://generativelanguage.googleapis.com/v1beta/openai/models",
+    );
+    expect(
+      result.success &&
+        result.models.map(({ id, apiFormats }) => ({ id, apiFormats })),
+    ).toEqual([
+      { id: "gemini-3.5-flash", apiFormats: ["openai.chat-completions"] },
+      { id: "gemma-4-27b-it", apiFormats: ["openai.chat-completions"] },
+      { id: "gemini-embedding-001", apiFormats: ["openai.embeddings"] },
+    ]);
+  });
+
+  it("treats Google AI Studio's 400 for a bad key as unauthorized", async () => {
+    const result = await googleAiStudioModelDiscoveryAdapter.fetchCatalog({
+      credential: "gemini-revoked",
+      config: null,
+      baseURL: null,
+      extraHeaders: {},
+      fetcher: async () =>
+        Response.json(
+          [
+            {
+              error: {
+                code: 400,
+                message: "Please pass a valid API key",
+                status: "INVALID_ARGUMENT",
+              },
+            },
+          ],
+          { status: 400 },
+        ),
+    });
+
+    expect(result).toEqual({ success: false, error: "unauthorized" });
+  });
+
+  it("lists models of providers without Responses on OpenAI routes, which ask with Responses", async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const prisma = {
+      gatewayAiConnection: { findMany },
+    } as unknown as PrismaClient;
+    const listedProviders = async (
+      apiFormat: "openai.responses" | "anthropic.messages",
+    ) => {
+      await new GatewayModelsService(prisma, null).list({
+        context: { organizationId: "org-1" } as never,
+        apiFormat,
+      });
+      return findMany.mock.lastCall?.[0].where.provider.in;
+    };
+
+    expect(await listedProviders("openai.responses")).toContain(
+      "GOOGLE_AI_STUDIO",
+    );
+    expect(await listedProviders("anthropic.messages")).not.toContain(
+      "GOOGLE_AI_STUDIO",
+    );
+  });
+
   it("lists the Vercel language, embedding and decision models that are not deprecated or ineligible for the team", async () => {
     const model = (id: string, extra: Record<string, unknown> = {}) => ({
       id,
@@ -592,6 +683,19 @@ describe("AI Gateway path credential check", () => {
     await expect(
       testKey(async () => new Response(null, { status })),
     ).rejects.toMatchObject({ httpCode });
+  });
+
+  it("keeps the provider's answer to a rejected key", async () => {
+    const body = { error: { code: "401", message: "Access denied" } };
+    await expect(
+      testKey(async () => Response.json(body, { status: 401 })),
+    ).rejects.toMatchObject({
+      providerResponse: {
+        status: 401,
+        statusText: "Unauthorized",
+        body: JSON.stringify(body),
+      },
+    });
   });
 
   it("treats an unreachable provider as retryable", async () => {

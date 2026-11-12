@@ -11,7 +11,7 @@ import {
   hasBreakdown,
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { treemapBadgeColor } from "@/src/features/topics/topic-map-colors";
+import { traceTopicRows } from "@/src/features/topics/trace/trace-topic-rows";
 /** Trace totals, session/user links and tags, above the panels. */
 
 import { useMemo } from "react";
@@ -174,16 +174,7 @@ function LoadedTraceHeader({
             `${facet.name} ${facet.topicName ?? ""} ${facet.summary ?? ""}`,
         )
         .join(" "),
-      rows: topicFacets.map((facet) => ({
-        id: facet.facetId,
-        label: facet.name,
-        value:
-          facet.topicName ??
-          facet.outcome?.replaceAll("_", " ") ??
-          "Not analyzed yet",
-        description: facet.summary ?? undefined,
-        color: facet.topicName ? treemapBadgeColor(facet.topicIndex) : "filled",
-      })),
+      rows: traceTopicRows(topicFacets),
     });
   }
   for (const [name, scores] of Object.entries(groupScoresByName(traceScores)))

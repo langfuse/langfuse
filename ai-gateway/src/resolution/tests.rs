@@ -1095,6 +1095,135 @@ async fn xai_connections_serve_the_openai_formats_from_its_hosted_api_with_beare
     }
 }
 
+fn azure_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
+    let mut body = bedrock_success(api_format, base_url, auth);
+    body["connection"]["provider"] = json!("azure");
+    body
+}
+
+#[tokio::test]
+async fn azure_connections_reach_their_resource_on_the_path_of_their_format() {
+    const RESOURCE: &str = "https://contoso.services.ai.azure.com";
+    let openai = format!("{RESOURCE}/openai/v1");
+    let anthropic = format!("{RESOURCE}/anthropic/v1");
+    let bearer = json!({"type": "Bearer", "token": "azure-key"});
+    let x_api_key = json!({"type": "x-api-key", "header": "x-api-key", "value": "azure-key"});
+    for (api_format, base_url, auth) in [
+        (ApiFormat::OpenAiResponses, &openai, &bearer),
+        (ApiFormat::OpenAiChatCompletions, &openai, &bearer),
+        (ApiFormat::OpenAiEmbeddings, &openai, &bearer),
+        (ApiFormat::AnthropicMessages, &anthropic, &x_api_key),
+    ] {
+        let body = azure_success(api_format.as_str(), base_url, auth);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(
+                GATEWAY_KEY,
+                api_format,
+                "azure:my-deployment",
+                0,
+                NOW_TIME,
+                REQUEST_ID,
+            )
+            .await
+            .unwrap();
+        assert_eq!(context.connection().provider().as_str(), "azure");
+        assert_eq!(context.connection().base_url(), base_url.as_str());
+        assert!(context.connection().has_custom_base_url());
+    }
+
+    // Decisions, the other family's path, the wrong credential scheme, or a
+    // URL that is not a plain endpoint.
+    for (api_format, base_url, auth) in [
+        (ApiFormat::OpenAiDecisions, openai.clone(), &bearer),
+        (ApiFormat::OpenAiResponses, anthropic.clone(), &bearer),
+        (ApiFormat::AnthropicMessages, openai.clone(), &x_api_key),
+        (ApiFormat::OpenAiResponses, openai.clone(), &x_api_key),
+        (ApiFormat::AnthropicMessages, anthropic.clone(), &bearer),
+        (ApiFormat::OpenAiResponses, RESOURCE.to_owned(), &bearer),
+        (
+            ApiFormat::OpenAiResponses,
+            format!("{openai}?api-version=preview"),
+            &bearer,
+        ),
+    ] {
+        assert_invalid_context_for(
+            azure_success(api_format.as_str(), &base_url, auth),
+            api_format,
+        )
+        .await;
+    }
+}
+
+fn google_ai_studio_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
+    let mut body = bedrock_success(api_format, base_url, auth);
+    body["connection"]["provider"] = json!("google_ai_studio");
+    body
+}
+
+#[tokio::test]
+async fn google_ai_studio_connections_serve_chat_completions_and_embeddings_with_bearer_auth() {
+    const GOOGLE_AI_STUDIO: &str = "https://generativelanguage.googleapis.com/v1beta/openai";
+    let bearer = json!({"type": "Bearer", "token": "gemini-key"});
+    for api_format in [
+        ApiFormat::OpenAiChatCompletions,
+        ApiFormat::OpenAiEmbeddings,
+    ] {
+        let body = google_ai_studio_success(api_format.as_str(), GOOGLE_AI_STUDIO, &bearer);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(
+                GATEWAY_KEY,
+                api_format,
+                "gemini:gemini-3.5-flash",
+                0,
+                NOW_TIME,
+                REQUEST_ID,
+            )
+            .await
+            .unwrap();
+        assert_eq!(context.connection().provider().as_str(), "google_ai_studio");
+        assert_eq!(context.connection().base_url(), GOOGLE_AI_STUDIO);
+    }
+
+    let x_api_key = json!({"type": "x-api-key", "header": "x-api-key", "value": "gemini-key"});
+    for (api_format, base_url, auth) in [
+        (
+            ApiFormat::OpenAiChatCompletions,
+            GOOGLE_AI_STUDIO,
+            &x_api_key,
+        ),
+        (ApiFormat::OpenAiResponses, GOOGLE_AI_STUDIO, &bearer),
+        (ApiFormat::AnthropicMessages, GOOGLE_AI_STUDIO, &x_api_key),
+        (
+            ApiFormat::OpenAiChatCompletions,
+            "https://generativelanguage.googleapis.com/v1beta/openai/",
+            &bearer,
+        ),
+        (
+            ApiFormat::OpenAiChatCompletions,
+            "https://proxy.example/v1",
+            &bearer,
+        ),
+    ] {
+        assert_invalid_context_for(
+            google_ai_studio_success(api_format.as_str(), base_url, auth),
+            api_format,
+        )
+        .await;
+    }
+}
+
 fn vercel_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
     let mut body = bedrock_success(api_format, base_url, auth);
     body["connection"]["provider"] = json!("vercel");

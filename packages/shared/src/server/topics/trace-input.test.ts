@@ -23,6 +23,8 @@ const row = {
   end_time: "2026-09-15 10:00:01.250" as string | null,
   type: "GENERATION",
   name: "chat",
+  level: "DEFAULT",
+  status_message: null as string | null,
   input: JSON.stringify([
     { role: "user", content: "Please cancel my subscription." },
   ]),
@@ -116,6 +118,24 @@ describe("Topics transcript input", () => {
       }
     },
   );
+
+  it("returns the execution issues of the loaded observations", async () => {
+    const result = await loadRows(
+      { span_id: "chat" },
+      {
+        span_id: "bash",
+        type: "TOOL",
+        name: "bash",
+        level: "ERROR",
+        status_message: "exit code 1",
+        input: "",
+        output: "",
+      },
+    );
+    expect(result.executionIssues).toMatchObject([
+      { observationId: "bash", level: "ERROR", statusMessage: "exit code 1" },
+    ]);
+  });
 
   it("rejects foreign, missing, duplicate and oversized source snapshots", async () => {
     for (const scope of [{ project_id: "other" }, { trace_id: "other" }])

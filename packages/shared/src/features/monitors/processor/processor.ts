@@ -429,6 +429,7 @@ function toMonitorWebhookInputs(args: {
       projectId: args.alert.projectId,
       automationId: automation.id,
       executionId,
+      actionType: automation.actionType,
       payload: {
         id: executionId,
         timestamp: args.now,
