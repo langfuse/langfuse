@@ -1,4 +1,3 @@
-import { eventsTableIsRootObservationSql } from "../../eventsTable";
 import { filterOperators } from "../../interfaces/filters";
 import {
   FilterList,
@@ -18,6 +17,7 @@ import type {
   ColumnDefinition,
 } from "../../tableDefinitions/types";
 import { createFilterFromFilterState } from "./clickhouse-sql/factory";
+import { eventsFieldSql } from "../repositories/events-predicate-fields";
 
 export type ApiColumnMapping = {
   id: string;
@@ -205,7 +205,7 @@ export function createPublicApiObservationsColumnMapping(
       ? [
           {
             id: "isRootObservation",
-            clickhouseSelect: eventsTableIsRootObservationSql,
+            clickhouseSelect: eventsFieldSql("isRootObservation"),
             filterType: "BooleanFilter",
             clickhouseTable: tableName,
           },
@@ -381,8 +381,32 @@ export function convertApiProvidedFilterToClickhouseFilter(
   return filterList;
 }
 
+type FilterColumn = {
+  clickhouseTable: string;
+  field: string;
+  tablePrefix?: string;
+};
+
+const qualifiedField = (filter: FilterColumn) =>
+  filter.tablePrefix ? `${filter.tablePrefix}.${filter.field}` : filter.field;
+
+/**
+ * Whether an advanced filter and a simple filter target the same column, so
+ * the advanced one replaces the simple one. A column reaches a filter either
+ * as a bare field plus `tablePrefix` or already qualified (`e.start_time`);
+ * both forms name the same column. Equal bare fields match whatever their
+ * prefixes: `tablePrefix` is a query alias, not part of the column identity.
+ */
+const sameColumn = (advanced: FilterColumn, simple: FilterColumn): boolean =>
+  advanced.clickhouseTable === simple.clickhouseTable &&
+  (advanced.field === simple.field ||
+    qualifiedField(advanced) === qualifiedField(simple));
+
 /**
  * Derives a merged FilterList from simple API parameters and advanced filter JSON.
+ * Simple filters come from the endpoint's named query params (`userId`,
+ * `fromStartTime`, `environment`, ...); advanced filters from its `filter`
+ * JSON param.
  * Advanced filters take precedence over simple filters when targeting the same field.
  *
  * @param simpleFilterProps - Object containing simple query parameters (e.g., { userId: "123", name: "test" })
@@ -413,14 +437,11 @@ export function deriveFilters<T extends BaseQueryType>(
     filterParamsMapping,
   );
 
-  // tablePrefix is a query alias, not part of a physical column identity.
   simpleFilters
     .filter(
       (simpleFilter) =>
-        !filterList.some(
-          (advancedFilter) =>
-            advancedFilter.clickhouseTable === simpleFilter.clickhouseTable &&
-            advancedFilter.field === simpleFilter.field,
+        !filterList.some((advancedFilter) =>
+          sameColumn(advancedFilter, simpleFilter),
         ),
     )
     .forEach((f) => filterList.push(f));

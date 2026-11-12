@@ -520,6 +520,8 @@ dependencies = [
  "napi-build",
  "napi-derive",
  "ndarray",
+ "num-bigint",
+ "num-traits",
  "proptest",
  "rust_decimal",
  "ryu-js",

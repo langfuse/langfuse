@@ -184,6 +184,12 @@ export const eventsPredicateSource: PredicateSource = {
       "Is Experiment Item Root Span",
       "boolean",
     ),
+    // No filter UI offers these; app code sends them (eval remapping, the
+    // skill pages).
+    field("parentObservationId", "Parent Observation ID", "string"),
+    field("skillFilesLoaded", "Loaded Skill Files", "arrayOptions"),
+    field("skillNames", "Skill Names", "arrayOptions"),
+    field("skillVersions", "Skill Versions", "arrayOptions"),
   ],
   searchScopes: {
     id: ["span_id", "name", "trace_name", "user_id", "session_id", "trace_id"],

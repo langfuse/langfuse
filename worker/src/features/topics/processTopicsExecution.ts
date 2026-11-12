@@ -104,6 +104,8 @@ type FitScope = Pick<
   ruleId: string | null;
   /** Execution of a one-off snapshot; null for a continuous map. */
   batchActionId: string | null;
+  /** A setup fit on few or not yet all summaries; the next nightly refit replaces it. */
+  provisional?: boolean;
   save: (phase: string) => Promise<void>;
 };
 type AssignmentScope = Pick<FitScope, "projectId" | "embeddingConfig"> & {
@@ -544,6 +546,7 @@ async function clusterFacet(
     },
     // Keeps the analysis out of serving; see createTopicExecution.
     ...(scope.analysis ? { analysis: true } : {}),
+    ...(scope.provisional ? { provisional: true } : {}),
   };
   let run =
     attempt?.status === "pending"
@@ -1745,7 +1748,9 @@ export async function processTopicRuleRefit({
             projectId,
             embeddingConfig,
             timeRange,
-            exploratory: false,
+            // Setup stores these on the run; nightly refits never do.
+            exploratory: run.config.exploratory === true,
+            provisional: run.config.provisional === true,
             ruleId,
             batchActionId: null,
             save: async () => {},

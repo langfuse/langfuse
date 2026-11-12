@@ -776,6 +776,144 @@ export async function getTopicSummaryCounts(
   }));
 }
 
+/**
+ * Approximate distinct traces per facet with a complete summary at the facet
+ * version and embedding, for setup's reuse and capacity decisions. Unlike
+ * getTopicSummaryCounts, a re-summarized trace is not resolved to its latest
+ * result, and the rule's traces filter the scan itself, so memory stays flat.
+ */
+export async function getTopicSetupSummaryCounts(
+  projectId: string,
+  facets: TopicFacetRef[],
+  embeddingConfig: TopicEmbeddingConfig,
+  timeRange: TopicTimeRange,
+  traces?: TopicCohortTraces,
+): Promise<{ facetId: string; count: number }[]> {
+  if (!facets.length) return [];
+  const rows = await queryClickhouse<{ facetId: string; count: string }>({
+    query: `SELECT facet_id AS facetId, uniqCombined(trace_id) AS count
+      FROM topic_facet_summaries
+      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql}
+        AND trace_id != ''
+        AND (facet_id, facet_version) IN arrayZip({facetIds:Array(String)}, {facetVersions:Array(UInt32)})
+        AND processing_state = 'complete'
+        AND embedding_model = {embeddingModel:String}
+        AND length(embedding) = {embeddingDimensions:UInt32}
+        AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
+        AND environment != {publicLlmJudgeEnvironment:String}${cohortFilterSql(traces && { traces })}
+      GROUP BY facet_id`,
+    params: {
+      ...traces?.params,
+      projectId,
+      ...timeRangeParams(timeRange),
+      facetIds: facets.map(({ facetId }) => facetId),
+      facetVersions: facets.map(({ version }) => version),
+      ...embeddingConfig,
+      internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+    },
+    tags: { route: "topics-setup-summary-counts", projectId },
+  });
+  return facets.map(({ facetId }) => ({
+    facetId,
+    count: Number(rows.find((row) => row.facetId === facetId)?.count ?? 0),
+  }));
+}
+
+/**
+ * Start of the newest `limit` complete summaries of a facet in the window, by
+ * minute, and how many were found. Reads in sorting-key order, so the cost
+ * follows `limit`, not the window.
+ */
+export async function getTopicNewestSummariesStart(
+  projectId: string,
+  facet: TopicFacetRef,
+  embeddingConfig: TopicEmbeddingConfig,
+  timeRange: TopicTimeRange,
+  limit: number,
+): Promise<{ start: Date | null; count: number }> {
+  const [row] = await queryClickhouse<{ start: string; count: string }>({
+    query: `SELECT toUnixTimestamp(min(minute)) * 1000 AS start, count() AS count FROM (
+        SELECT toStartOfMinute(unit_start_time) AS minute
+        FROM topic_facet_summaries
+        WHERE project_id = {projectId:String} AND ${unitTimeFilterSql}
+          AND facet_id = {facetId:String} AND facet_version = {facetVersion:UInt32}
+          AND trace_id != '' AND processing_state = 'complete'
+          AND embedding_model = {embeddingModel:String}
+          AND length(embedding) = {embeddingDimensions:UInt32}
+          AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
+          AND environment != {publicLlmJudgeEnvironment:String}
+        ORDER BY project_id DESC, minute DESC
+        LIMIT {limit:UInt32}
+      )`,
+    params: {
+      projectId,
+      ...timeRangeParams(timeRange),
+      facetId: facet.facetId,
+      facetVersion: facet.version,
+      ...embeddingConfig,
+      internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+      limit,
+    },
+    tags: { route: "topics-newest-summaries", projectId },
+  });
+  const count = Number(row?.count ?? 0);
+  return { start: count ? new Date(Number(row.start)) : null, count };
+}
+
+/**
+ * Per facet, how many of the given traces got a final result since `since`, and
+ * how many of those are complete with the embedding.
+ */
+export async function countTopicTraceSummaries(
+  projectId: string,
+  facets: TopicFacetRef[],
+  embeddingConfig: TopicEmbeddingConfig,
+  traceIds: string[],
+  since: Date,
+  from: Date,
+): Promise<{ facetId: string; settled: number; complete: number }[]> {
+  if (!facets.length || !traceIds.length)
+    return facets.map(({ facetId }) => ({ facetId, settled: 0, complete: 0 }));
+  const rows = await queryClickhouse<{
+    facetId: string;
+    settled: string;
+    complete: string;
+  }>({
+    query: `SELECT facet_id AS facetId,
+        uniqExact(trace_id) AS settled,
+        uniqExactIf(trace_id, processing_state = 'complete'
+          AND embedding_model = {embeddingModel:String}
+          AND length(embedding) = {embeddingDimensions:UInt32}) AS complete
+      FROM topic_facet_summaries
+      WHERE project_id = {projectId:String}
+        AND unit_start_time >= {from:DateTime64(3)}
+        AND trace_id IN {traceIds:Array(String)}
+        AND (facet_id, facet_version) IN arrayZip({facetIds:Array(String)}, {facetVersions:Array(UInt32)})
+        AND processed_at >= {since:DateTime64(3)}
+      GROUP BY facet_id`,
+    params: {
+      projectId,
+      traceIds,
+      facetIds: facets.map(({ facetId }) => facetId),
+      facetVersions: facets.map(({ version }) => version),
+      from: convertDateToClickhouseDateTime(from),
+      since: convertDateToClickhouseDateTime(since),
+      ...embeddingConfig,
+    },
+    tags: { route: "topics-setup-progress", projectId },
+  });
+  return facets.map(({ facetId }) => {
+    const row = rows.find((item) => item.facetId === facetId);
+    return {
+      facetId,
+      settled: Number(row?.settled ?? 0),
+      complete: Number(row?.complete ?? 0),
+    };
+  });
+}
+
 /** writeTopicSummaries rejects the whole insert if any row fails this check. */
 export function isValidTopicSummary(row: TopicSummary): boolean {
   return (
