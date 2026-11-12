@@ -15,7 +15,7 @@ import {
   createOrgProjectAndApiKey,
   getEventsStreamForEval,
 } from "@langfuse/shared/src/server";
-import { JobExecutionStatus, Prisma, prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { processBatchedObservationEval } from "../features/batchAction/processBatchedObservationEval";
 import type { ObservationEvalRule } from "../features/evaluation/observationEval/types";
 
@@ -83,39 +83,6 @@ maybeDescribe("batch observation eval resume", () => {
       failedCount: 0,
       cursor: allRows[4].cursor,
     });
-  });
-
-  it("skips rows whose eval job already exists when the batch is retried", async () => {
-    const { projectId, eventIds } = await setupEvents();
-    const batchActionId = await createBatchAction(projectId, {});
-    const evaluators = createEvaluators(projectId);
-
-    await runBatch(projectId, batchActionId, evaluators);
-    expect(await enqueuedObservationIds()).toEqual(eventIds.toSorted());
-
-    await prisma.jobExecution.updateMany({
-      where: { projectId, jobInputObservationId: eventIds[0] },
-      data: { status: JobExecutionStatus.COMPLETED },
-    });
-    // A retry that failed before its first checkpoint replays every row.
-    await prisma.batchAction.update({
-      where: { id: batchActionId },
-      data: { cursor: Prisma.DbNull },
-    });
-    enqueueEvalJob.mockReset();
-
-    await runBatch(projectId, batchActionId, evaluators);
-
-    expect(enqueueEvalJob).not.toHaveBeenCalled();
-    const jobExecutions = await prisma.jobExecution.findMany({
-      where: { projectId },
-    });
-    expect(jobExecutions).toHaveLength(eventIds.length);
-    expect(
-      jobExecutions.find(
-        (execution) => execution.jobInputObservationId === eventIds[0],
-      )?.status,
-    ).toBe(JobExecutionStatus.COMPLETED);
   });
 });
 

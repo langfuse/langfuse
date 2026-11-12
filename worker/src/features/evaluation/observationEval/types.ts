@@ -98,13 +98,15 @@ export type ObservationEvalRule =
  */
 export interface ObservationEvalSchedulerDeps {
   /** Create a job execution record in the database */
-  upsertJobExecution: (params: JobExecutionInput) => Promise<{ id: string }>;
-
-  /**
-   * Create a job execution record unless one with the same id exists.
-   * Resolves to whether this call created it.
-   */
-  createJobExecutionIfAbsent: (params: JobExecutionInput) => Promise<boolean>;
+  upsertJobExecution: (params: {
+    id: string;
+    projectId: string;
+    jobConfigurationId: string;
+    jobInputTraceId: string;
+    jobInputObservationId: string;
+    jobTemplateId: string | null;
+    status: JobExecutionStatus;
+  }) => Promise<{ id: string }>;
 
   /** Upload observation data to S3 for later retrieval */
   uploadObservationToS3: (params: {
@@ -134,13 +136,3 @@ export interface ObservationEvalSchedulerDeps {
     batchActionId?: string;
   }) => Promise<void>;
 }
-
-type JobExecutionInput = {
-  id: string;
-  projectId: string;
-  jobConfigurationId: string;
-  jobInputTraceId: string;
-  jobInputObservationId: string;
-  jobTemplateId: string | null;
-  status: JobExecutionStatus;
-};

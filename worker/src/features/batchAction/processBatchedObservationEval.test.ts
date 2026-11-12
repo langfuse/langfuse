@@ -263,7 +263,6 @@ describe("processBatchedObservationEval", () => {
     const schedulerDeps: ObservationEvalSchedulerDeps = {
       uploadObservationToS3: vi.fn().mockResolvedValue("observation.json"),
       upsertJobExecution: vi.fn().mockResolvedValue({ id: "execution-1" }),
-      createJobExecutionIfAbsent: vi.fn().mockResolvedValue(true),
       enqueueEvalJob: vi.fn().mockRejectedValue(enqueueError),
     };
     const actualModule = await vi.importActual<
