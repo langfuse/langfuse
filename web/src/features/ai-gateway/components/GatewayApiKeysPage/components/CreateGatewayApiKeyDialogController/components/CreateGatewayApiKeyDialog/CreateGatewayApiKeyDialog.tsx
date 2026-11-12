@@ -7,7 +7,6 @@ import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/Cust
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { Form } from "@/src/components/design-system/Form/Form";
-import { Input } from "@/src/components/design-system/Input/Input";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { GatewayApiKeyExpirationField } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/components/GatewayApiKeyExpirationField/GatewayApiKeyExpirationField";
 import { GatewayApiKeyMetadataField } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/components/GatewayApiKeyMetadataField/GatewayApiKeyMetadataField";
@@ -62,6 +61,14 @@ export function CreateGatewayApiKeyDialog({
     defaultValues,
     mode: "onChange",
   });
+  const expiryPreset = useWatch({
+    control: form.control,
+    name: "expiryPreset",
+  });
+  const customExpiryError =
+    expiryPreset === "custom"
+      ? form.formState.errors.customExpiry?.message
+      : undefined;
 
   const handleValidSubmit = (values: CreateGatewayApiKeyFormValues) => {
     const expiresAt = resolveGatewayApiKeyExpiration(
@@ -96,7 +103,7 @@ export function CreateGatewayApiKeyDialog({
           loading: isSubmitting,
           disabled: !form.formState.isValid,
           // The date input is hidden while "More options" is collapsed.
-          disabledReason: form.formState.errors.customExpiry?.message,
+          disabledReason: customExpiryError,
         },
       ]}
     >
@@ -117,28 +124,15 @@ export function CreateGatewayApiKeyDialog({
             }
           >
             {({ getTriggerProps }) => (
-              <Form.Field
+              <Form.InputField
                 control={form.control}
                 name="name"
                 label="Name"
                 required
                 registerLabelTooltip={getTriggerProps}
-              >
-                {(field) => (
-                  <Input
-                    id={field.id}
-                    aria-describedby={field.inputDescribedById}
-                    maxLength={500}
-                    required
-                    placeholder="e.g. claude-local, codex-local, or backend-service"
-                    name={field.name}
-                    value={field.value}
-                    onChange={field.onChange}
-                    onBlur={field.onBlur}
-                    ref={field.ref}
-                  />
-                )}
-              </Form.Field>
+                maxLength={500}
+                placeholder="e.g. claude-local, codex-local, or backend-service"
+              />
             )}
           </CustomTooltip>
           <MoreOptions control={form.control} />
