@@ -202,7 +202,7 @@ fn map_value_to_json(value: Value) -> Value {
     }
 }
 
-fn is_key_value_list(values: &[Value]) -> bool {
+pub(super) fn is_key_value_list(values: &[Value]) -> bool {
     !values.is_empty()
         && values.iter().all(|value| {
             let Value::Object(object) = value else {
