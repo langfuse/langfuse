@@ -31,14 +31,17 @@ export function ConnectionTestStatus({
 }: ConnectionTestStatusProps) {
   const display = STATUS_DISPLAY[status];
   return (
-    <div className="order-last mb-2 flex items-baseline gap-3 self-center sm:order-none sm:mr-auto sm:mb-0">
-      <span role="status" className={cn("text-sm", display.text)}>
-        {/* Inline `align-middle` centres the dot on the x-height, not the line box, so it sits optically level with the text. */}
+    <div className="order-last mb-2 flex items-center gap-3 self-center sm:order-none sm:mr-auto sm:mb-0">
+      {/* `leading-none` shrinks the line box to the glyphs, so centring the dot on it does not depend on the font's x-height. */}
+      <span
+        role="status"
+        className={cn(
+          "flex items-center gap-2 text-sm leading-none",
+          display.text,
+        )}
+      >
         <span
-          className={cn(
-            "mr-2 inline-block size-2 rounded-full align-middle",
-            display.dot,
-          )}
+          className={cn("size-2 shrink-0 rounded-full", display.dot)}
           aria-hidden
         />
         {display.label}
