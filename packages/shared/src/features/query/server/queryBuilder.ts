@@ -1018,10 +1018,10 @@ export class QueryBuilder {
     skipObservationsFinal: boolean,
     skipScoresFinal: boolean,
     projectId: string,
-    parameters: Record<string, unknown>,
   ) {
     assertKnownRelationTables(view, relationTables);
     const relationJoins = [];
+    const joinParams: Record<string, unknown> = {};
     for (const relationTableName of relationTables) {
       const relation = view.tableRelations[relationTableName];
 
@@ -1031,7 +1031,7 @@ export class QueryBuilder {
           fromTimestamp: query.fromTimestamp,
           toTimestamp: query.toTimestamp,
         });
-        Object.assign(parameters, subquery.params);
+        Object.assign(joinParams, subquery.params);
         relationJoins.push(
           `INNER JOIN (${subquery.sql}) AS ${relationTableName} ${relation.joinConditionSql}`,
         );
@@ -1093,7 +1093,7 @@ export class QueryBuilder {
 
       relationJoins.push(joinStatement);
     }
-    return relationJoins;
+    return { relationJoins, joinParams };
   }
 
   /** The query's one pairExpand dimension, if any. */
@@ -2288,7 +2288,7 @@ export class QueryBuilder {
       appliedBucketingDimension,
     );
     if (relationTables.size > 0) {
-      const relationJoins = this.buildJoins(
+      const { relationJoins, joinParams } = this.buildJoins(
         relationTables,
         view,
         filterList,
@@ -2296,8 +2296,8 @@ export class QueryBuilder {
         skipObservationsFinal,
         skipScoresFinal,
         projectId,
-        parameters,
       );
+      Object.assign(parameters, joinParams);
       fromClause += ` ${relationJoins.join(" ")}`;
     }
 

@@ -5636,7 +5636,7 @@ describe("query builder measure-aggregation validation", () => {
           span(projectId, traceId, {
             parent_span_id: "",
             trace_name: "dual-write-trace",
-            tags: ["dual-tag"],
+            tags: [],
           }),
           span(projectId, traceId, {
             is_app_root: true,

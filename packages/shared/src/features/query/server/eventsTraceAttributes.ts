@@ -1,5 +1,7 @@
 import { compileClickhouseQuery } from "../../../server/query-ast/compile";
 import { getClickhouseKysely } from "../../../server/query-ast/dialect";
+import { typedValue } from "../../../server/query-ast/extensions";
+import { convertDateToClickhouseDateTime } from "../../../server/clickhouse/client";
 import { traceAggregationSelects } from "../../../server/repositories/events-selects";
 
 /**
@@ -17,8 +19,16 @@ export function compileEventsTraceAttributesSubquery(params: {
   fromTimestamp: string;
   toTimestamp: string;
 }) {
-  const from = new Date(params.fromTimestamp);
-  const to = new Date(params.toTimestamp);
+  // The outer score filter binds its window as DateTime64(3, 'UTC'); binding
+  // the same type keeps both windows on the same instants in any server
+  // timezone, so no in-window score loses its trace row.
+  const utc = (iso: string) =>
+    typedValue<Date>(
+      convertDateToClickhouseDateTime(new Date(iso)),
+      "DateTime64(3, 'UTC')",
+    );
+  const from = utc(params.fromTimestamp);
+  const to = utc(params.toTimestamp);
 
   return compileClickhouseQuery(
     getClickhouseKysely()
