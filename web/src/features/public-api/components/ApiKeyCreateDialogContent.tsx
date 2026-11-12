@@ -12,6 +12,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import {
   DialogBody,
+  DialogClose,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -73,9 +74,10 @@ export function ApiKeyCreateDialogContent(
     const { secretKey, publicKey, baseUrl } = props;
 
     return (
-      <DialogContent closeOnInteractionOutside>
+      // The secret key is shown only once, so a click outside must not close it.
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle>API Keys</DialogTitle>
+          <DialogTitle>API key created</DialogTitle>
         </DialogHeader>
         <DialogBody>
           <ApiKeyDetailContent
@@ -86,6 +88,11 @@ export function ApiKeyCreateDialogContent(
             showMcpSection={true}
           />
         </DialogBody>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button>Done</Button>
+          </DialogClose>
+        </DialogFooter>
       </DialogContent>
     );
   }
