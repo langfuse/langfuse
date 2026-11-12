@@ -155,6 +155,66 @@ export const TestSelectsMultipleOptions = meta.story({
   },
 });
 
+export const TestPinsSelectedOptionsOnOpen = meta.story({
+  name: "(Test) Pins Selected Options On Open",
+  args: {
+    value: ["regression"],
+    options,
+    onValueChange: fn(),
+    placeholder: "Select datasets",
+    selectedLabel: "",
+    searchPlaceholder: "Search datasets...",
+    emptyMessage: "No datasets found.",
+  },
+  render: (args) => {
+    const [value, setValue] = useState(args.value);
+
+    return (
+      <MultiSelectInput
+        {...args}
+        value={value}
+        onValueChange={(newValue) => {
+          setValue(newValue);
+          args.onValueChange(newValue);
+        }}
+      />
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const optionValues = () =>
+      body
+        .getAllByRole("option")
+        .map((option) => option.getAttribute("data-value"));
+
+    await userEvent.click(canvas.getByRole("combobox"));
+    await expect(optionValues()).toEqual([
+      "regression",
+      "evaluation",
+      "production",
+    ]);
+
+    // Toggling while open keeps rows in place so they never jump away from the pointer.
+    await userEvent.click(body.getByRole("option", { name: /Production/ }));
+    await expect(optionValues()).toEqual([
+      "regression",
+      "evaluation",
+      "production",
+    ]);
+
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(canvas.getByRole("combobox"));
+    await waitFor(() =>
+      expect(optionValues()).toEqual([
+        "production",
+        "regression",
+        "evaluation",
+      ]),
+    );
+  },
+});
+
 export const TestHidesSelectAllWhileSearching = meta.story({
   name: "(Test) Hides Select All While Searching",
   args: {
