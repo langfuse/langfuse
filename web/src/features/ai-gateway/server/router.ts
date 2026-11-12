@@ -47,6 +47,7 @@ import {
 import type { GatewayApiFamily } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
 import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
+import { ProviderCredentialRejectedError } from "@/src/features/ai-gateway/server/provider/connection/ProviderCredentialRejectedError";
 
 const organizationInput = z.object({ orgId: z.string() });
 /** Naming rules live in `parseGatewayConnectionName` so the dialog can show them on the field. */
@@ -359,18 +360,30 @@ export const aiGatewayRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      const { modelListingDenied } = await new GatewayProviderService(
-        ctx.prisma,
-      ).testCredential({
-        organizationId: input.orgId,
-        connectionId: input.id,
-        provider: input.provider,
-        credential: input.credential,
-        config: input.config,
-        baseURL: input.baseURL,
-        extraHeaders: input.extraHeaders,
-      });
-      return { success: true, modelListingDenied };
+      try {
+        const { modelListingDenied } = await new GatewayProviderService(
+          ctx.prisma,
+        ).testCredential({
+          organizationId: input.orgId,
+          connectionId: input.id,
+          provider: input.provider,
+          credential: input.credential,
+          config: input.config,
+          baseURL: input.baseURL,
+          extraHeaders: input.extraHeaders,
+        });
+        return { success: true as const, modelListingDenied };
+      } catch (error) {
+        // The admin is testing their own credential, so the provider's
+        // answer is shown to them as is.
+        if (error instanceof ProviderCredentialRejectedError) {
+          return {
+            success: false as const,
+            providerResponse: error.providerResponse,
+          };
+        }
+        throw error;
+      }
     }),
 
   createConnection: protectedOrganizationProcedureWithoutTracing

@@ -124,8 +124,9 @@ export type CompiledCondition = CompiledClickhouseQuery & {
  *   and soft-delete inject;
  * - binds take the types of the FROM relation;
  * - `requiresEventsFull` is the routing verdict: the caller reads
- *   `events_full` when it is set. A caller that wants the truncated copy
- *   reads `events_truncated`, which never sets it.
+ *   `events_full` when it is set. Over `events_truncated` it is set by the
+ *   same conditions; a caller that then reads `events_full` cuts its
+ *   selected truncated columns itself.
  *
  * Errors (`QueryCompileError`):
  * - no WHERE;

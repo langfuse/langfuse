@@ -31,7 +31,14 @@ describe("tRPC error formatting", () => {
     vi.clearAllMocks();
   });
 
-  it("ClickHouseResourceError", async () => {
+  it.each([
+    { errorType: "MEMORY_LIMIT", message: "Memory limit exceeded" },
+    {
+      errorType: "RESULT_SIZE",
+      message:
+        "Limit for result exceeded, max bytes: 10.00 MiB. (TOO_MANY_ROWS_OR_BYTES) SELECT private_column FROM private_table",
+    },
+  ])("ClickHouseResourceError $errorType", async ({ errorType, message }) => {
     const session = {
       user: {
         id: "user-1",
@@ -42,10 +49,7 @@ describe("tRPC error formatting", () => {
       clickhouse: protectedProcedureWithoutTracing
         .input(z.object({}))
         .query(() => {
-          throw new ClickHouseResourceError(
-            "MEMORY_LIMIT",
-            new Error("Memory limit exceeded"),
-          );
+          throw ClickHouseResourceError.wrapIfResourceError(new Error(message));
         }),
     });
 
@@ -68,6 +72,12 @@ describe("tRPC error formatting", () => {
     }
 
     expect(error).toBeInstanceOf(TRPCError);
+    expect(error!.code).toBe("UNPROCESSABLE_CONTENT");
+    expect(error!.message).not.toContain(message);
+    if (errorType === "RESULT_SIZE") {
+      expect(error!.message).toMatch(/result is too large/i);
+      expect(error!.message).toMatch(/date range.*filters/i);
+    }
 
     const formatted = formatter({
       shape: {
@@ -88,8 +98,8 @@ describe("tRPC error formatting", () => {
     expect(logger.warn).toHaveBeenCalledWith(
       "ClickHouse resource limit exceeded",
       expect.objectContaining({
-        errorType: "MEMORY_LIMIT",
-        message: "Memory limit exceeded",
+        errorType,
+        message,
       }),
     );
     expect(logger.error).not.toHaveBeenCalled();

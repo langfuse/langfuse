@@ -1,8 +1,10 @@
 import {
   ColumnNode,
   ExpressionWrapper,
+  IdentifierNode,
   ReferenceNode,
   TableNode,
+  ValueNode,
   expressionBuilder,
   sql,
   type ExpressionBuilder,
@@ -25,11 +27,14 @@ import {
 import {
   arrayDistinct,
   arrayExists,
+  arrayJoinElements,
   arrayLength,
   arrayMap,
   count,
   countIf,
   firstMetadataValue,
+  histogram,
+  interval,
   latestNonEmpty,
   leftUTF8,
   limitBy,
@@ -42,16 +47,28 @@ import {
   metadataSubstringPrefilter,
   metadataTokenPrefilter,
   metadataValue,
+  quantile,
   startsWith,
   templateAggregate,
+  toDate,
+  toFloat64,
+  toMonday,
+  toStartOfHour,
+  toStartOfInterval,
+  toStartOfMonth,
   tupleArrayField,
   tupleElement,
   typedValue,
   uniq,
   uniqIf,
   useFinal,
+  withFill,
 } from "./extensions";
-import { ArrayIndexNode } from "./nodes";
+import {
+  ArrayIndexNode,
+  ParametricAggregateNode,
+  asOperationNode,
+} from "./nodes";
 import type { ClickHouseDatabase } from "./schema";
 import { TenancyInjectionPlugin } from "./tenancy";
 import { defineView, fromView } from "./views";
@@ -628,7 +645,7 @@ describe("compileClickhouseCondition", () => {
 
   it.each([
     ["a truncated column on events", "events as e", true],
-    ["a truncated column on events_truncated", "events_truncated as e", false],
+    ["a truncated column on events_truncated", "events_truncated as e", true],
   ] as const)(
     "reports the routing verdict for %s",
     (_name, from, requiresEventsFull) => {
@@ -923,5 +940,150 @@ describe("startsWith", () => {
     expect(sql).toMatch(/startsWith\(e\.name, \{p\d+:String\}\)/);
     expect(sql).toContain("startsWith(e.user_id, 'const')");
     expect(Object.values(params)).toContain("caller");
+  });
+});
+
+describe("parametric aggregates", () => {
+  it("inline their parameter before the argument list", () => {
+    const { sql: compiled } = compileClickhouseQuery(
+      getClickhouseKysely()
+        .selectFrom("events as e")
+        .select((eb) => [
+          quantile(0.95, eb.ref("e.total_cost")).as("p95"),
+          histogram(25, toFloat64(eb.ref("e.total_cost"))).as("h"),
+        ]),
+      projectId,
+    );
+    expect(compiled).toContain(
+      "select quantile(0.95)(e.total_cost) as p95, histogram(25)(toFloat64(e.total_cost)) as h from events_core as e",
+    );
+  });
+
+  it("read their argument: a truncated column routes the relation to events_full", () => {
+    const { sql: compiled } = compileClickhouseQuery(
+      getClickhouseKysely()
+        .selectFrom("events as e")
+        .select((eb) => [quantile(0.5, eb.ref("e.input_length")).as("p50")]),
+      projectId,
+    );
+    expect(compiled).toContain("from events_full as e");
+  });
+
+  it("check the function name like any identifier", () => {
+    const named = new ExpressionWrapper<ClickHouseDatabase, "events", number>(
+      asOperationNode(
+        ParametricAggregateNode.create(
+          IdentifierNode.create("quantile(0.5)(1), x"),
+          [],
+          [ValueNode.createImmediate(1)],
+        ),
+      ),
+    );
+    expect(() =>
+      compileClickhouseQuery(
+        getClickhouseKysely()
+          .selectFrom("events as e")
+          .select([named.as("q")]),
+        projectId,
+      ),
+    ).toThrow(
+      'Identifier name "quantile(0.5)(1), x" is not a plain identifier',
+    );
+  });
+
+  it.each([-0.1, 1.1, Number.NaN])("quantile rejects level %s", (level) => {
+    expect(() => quantile(level, literal(1))).toThrow(QueryCompileError);
+  });
+
+  it.each([0, 1.5])("histogram rejects %s bins", (bins) => {
+    expect(() => histogram(bins, literal(1))).toThrow(QueryCompileError);
+  });
+});
+
+describe("withFill", () => {
+  const from = new Date("2026-01-01T00:00:00.000Z");
+  const to = new Date("2026-01-08T00:00:00.000Z");
+  const daily = () =>
+    getClickhouseKysely()
+      .selectFrom("events as e")
+      .select((eb) => [toDate(eb.ref("e.start_time")).as("day")])
+      .groupBy(sql.ref("day"));
+
+  it("fills the last order by item, before limit by and limit", () => {
+    const { sql: compiled } = compileClickhouseQuery(
+      daily()
+        .orderBy(sql.ref("day"), "asc")
+        .$call(
+          withFill({
+            from: toDate(from),
+            to: toDate(to),
+            step: interval(1, "day"),
+          }),
+        )
+        .$call(limitBy({ count: 1, columns: () => [sql.ref("day")] }))
+        .limit(10),
+      projectId,
+    );
+    expect(compiled).toMatch(
+      /order by day asc with fill from toDate\(\{p\d+:DateTime64\(3\)\}\) to toDate\(\{p\d+:DateTime64\(3\)\}\) step toIntervalDay\(1\) limit 1 by day limit \{p\d+:Int64\}$/,
+    );
+  });
+
+  it("reads its bounds: a truncated column routes the relation to events_full", () => {
+    const eb = expressionBuilder<{ e: ClickHouseDatabase["events"] }, "e">();
+    const { sql: compiled } = compileClickhouseQuery(
+      daily()
+        .orderBy(sql.ref("day"), "asc")
+        .$call(
+          withFill({
+            from: eb.ref("e.input_length"),
+            to: toDate(to),
+            step: interval(1, "day"),
+          }),
+        ),
+      projectId,
+    );
+    expect(compiled).toContain("from events_full as e");
+  });
+
+  it("rejects a select without order by", () => {
+    expect(() =>
+      compileClickhouseQuery(
+        daily().$call(
+          withFill({
+            from: toDate(from),
+            to: toDate(to),
+            step: interval(1, "day"),
+          }),
+        ),
+        projectId,
+      ),
+    ).toThrow("WITH FILL fills the last ORDER BY item");
+  });
+});
+
+describe("time buckets", () => {
+  it("render the bucket of a date column and inline an interval", () => {
+    const { sql: compiled } = compileClickhouseQuery(
+      getClickhouseKysely()
+        .selectFrom("events as e")
+        .select((eb) => [
+          toStartOfHour(eb.ref("e.start_time")).as("h"),
+          toMonday(eb.ref("e.start_time")).as("w"),
+          toStartOfMonth(eb.ref("e.start_time")).as("m"),
+          toStartOfInterval(eb.ref("e.start_time"), interval(5, "minute")).as(
+            "five",
+          ),
+          arrayJoinElements(eb.ref("e.tags")).as("tag"),
+        ]),
+      projectId,
+    );
+    expect(compiled).toContain(
+      "select toStartOfHour(e.start_time) as h, toMonday(e.start_time) as w, toStartOfMonth(e.start_time) as m, toStartOfInterval(e.start_time, toIntervalMinute(5)) as five, arrayJoin(e.tags) as tag from",
+    );
+  });
+
+  it.each([0, 1.5])("interval rejects count %s", (count) => {
+    expect(() => interval(count, "day")).toThrow(QueryCompileError);
   });
 });

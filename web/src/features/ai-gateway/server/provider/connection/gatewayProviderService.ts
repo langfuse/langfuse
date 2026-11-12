@@ -53,6 +53,20 @@ import { testGatewayModel } from "./testGatewayModel";
 import { GatewayModelCatalogService } from "../models/gatewayModelCatalogService";
 import { getModelDiscoveryAdapter } from "../models/modelDiscoveryRegistry";
 import { requestJson } from "../models/adapters/shared";
+import type { ModelDiscoveryError } from "../models/types";
+import {
+  getProviderAnswerFromCallError,
+  ProviderCredentialRejectedError,
+} from "./ProviderCredentialRejectedError";
+
+/** The AWS SDK's answer is not kept by model discovery, only its category. */
+const BEDROCK_FAILURE_DESCRIPTIONS: Record<ModelDiscoveryError, string> = {
+  unauthorized: "AWS rejected the Bedrock API key.",
+  rate_limited: "AWS throttled the request to list models.",
+  provider_error:
+    "AWS returned an error while listing models. Check the region and the key's permissions.",
+  timeout: "AWS did not answer in time.",
+};
 
 export class GatewayProviderService {
   private readonly repository: GatewayProviderRepository;
@@ -725,7 +739,10 @@ async function validateGatewayCredential(
       }),
     });
     if (!result.success) {
-      throw new InvalidRequestError("Provider connection test failed");
+      throw new ProviderCredentialRejectedError({
+        status: null,
+        body: BEDROCK_FAILURE_DESCRIPTIONS[result.error],
+      });
     }
     return { modelListingDenied: result.modelListingDenied ?? false };
   }
@@ -808,8 +825,10 @@ async function validateGatewayCredential(
       },
       timeout: 10_000,
     });
-  } catch {
-    throw new InvalidRequestError("Provider connection test failed");
+  } catch (error) {
+    throw new ProviderCredentialRejectedError(
+      getProviderAnswerFromCallError(error),
+    );
   }
   return { modelListingDenied: false };
 }
@@ -843,7 +862,13 @@ async function checkCredentialEndpoint(
     status >= 400 ||
     (result.success && params.usable?.(result.value) === false)
   ) {
-    throw new InvalidRequestError("Provider connection test failed");
+    throw new ProviderCredentialRejectedError({
+      status,
+      body:
+        result.success && result.value !== null
+          ? JSON.stringify(result.value)
+          : "",
+    });
   }
   return { modelListingDenied: false };
 }
