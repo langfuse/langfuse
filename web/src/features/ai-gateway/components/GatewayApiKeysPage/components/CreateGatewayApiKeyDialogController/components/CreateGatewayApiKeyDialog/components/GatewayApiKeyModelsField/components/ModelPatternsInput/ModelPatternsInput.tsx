@@ -1,11 +1,14 @@
 import { useState, type FocusEvent, type KeyboardEvent, type Ref } from "react";
-import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { Command as CommandPrimitive } from "cmdk";
 import { X } from "@langfuse/icons";
 
 import { Tag } from "@/src/components/design-system/Tag/Tag";
-import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
-import { stopScrollPropagation } from "@/src/hooks/stopScrollPropagation";
+import { Command, CommandList } from "@/src/components/ui/command";
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+} from "@/src/components/ui/popover";
 import { ModelPatternSuggestionItem } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/components/GatewayApiKeyModelsField/components/ModelPatternSuggestionItem/ModelPatternSuggestionItem";
 import { ModelPatternTag } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/components/GatewayApiKeyModelsField/components/ModelPatternTag/ModelPatternTag";
 import { getGatewayModelPatternSuggestions } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/components/GatewayApiKeyModelsField/fns/getGatewayModelPatternSuggestions";
@@ -39,7 +42,6 @@ export function ModelPatternsInput({
   onBlur,
   inputRef,
 }: ModelPatternsInputProps) {
-  const container = useLayerContainer("popover");
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const suggestions = getGatewayModelPatternSuggestions(query, enabledModels);
@@ -115,12 +117,17 @@ export function ModelPatternsInput({
   };
 
   return (
-    <CommandPrimitive label={label} shouldFilter={false} loop>
-      <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
-        <PopoverPrimitive.Anchor asChild>
+    <Command
+      label={label}
+      shouldFilter={false}
+      loop
+      className="h-auto overflow-visible rounded-none bg-transparent"
+    >
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverAnchor asChild>
           <div
             data-model-patterns-input
-            className="bg-background ring-offset-background border-input focus-within:ring-ring flex min-h-8 w-full items-center gap-1 rounded-md border py-1 pr-1 pl-1.5 text-sm focus-within:ring-2 focus-within:ring-offset-2"
+            className="ph-no-capture bg-background ring-offset-background border-input focus-within:ring-ring flex min-h-8 w-full items-center gap-1 rounded-md border py-1 pr-1 pl-1.5 text-sm focus-within:ring-2 focus-within:ring-offset-2"
           >
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
               {patterns.length === 0 ? (
@@ -161,32 +168,27 @@ export function ModelPatternsInput({
               <X size="base" aria-hidden />
             </button>
           </div>
-        </PopoverPrimitive.Anchor>
-        <PopoverPrimitive.Portal container={container}>
-          <PopoverPrimitive.Content
-            align="start"
-            sideOffset={4}
-            onOpenAutoFocus={keepInputFocused}
-            onCloseAutoFocus={keepInputFocused}
-            onMouseDown={keepInputFocused}
-            onInteractOutside={keepOpenOnInputInteraction}
-            onWheel={stopScrollPropagation()}
-            onTouchMove={stopScrollPropagation()}
-            className="bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2 w-(--radix-popover-trigger-width) overflow-hidden rounded-md border shadow-md outline-hidden"
-          >
-            <CommandPrimitive.List className="max-h-96 overflow-auto p-1.5">
-              {suggestions.map((suggestion) => (
-                <ModelPatternSuggestionItem
-                  key={`${suggestion.kind}:${suggestion.pattern}`}
-                  suggestion={suggestion}
-                  checked={isChecked(suggestion)}
-                  onSelect={handleSelect}
-                />
-              ))}
-            </CommandPrimitive.List>
-          </PopoverPrimitive.Content>
-        </PopoverPrimitive.Portal>
-      </PopoverPrimitive.Root>
-    </CommandPrimitive>
+        </PopoverAnchor>
+        <PopoverContent
+          align="start"
+          onOpenAutoFocus={keepInputFocused}
+          onCloseAutoFocus={keepInputFocused}
+          onMouseDown={keepInputFocused}
+          onInteractOutside={keepOpenOnInputInteraction}
+          className="w-(--radix-popover-trigger-width) min-w-0 overflow-hidden p-0"
+        >
+          <CommandList className="ph-no-capture max-h-96 p-1.5">
+            {suggestions.map((suggestion) => (
+              <ModelPatternSuggestionItem
+                key={`${suggestion.kind}:${suggestion.pattern}`}
+                suggestion={suggestion}
+                checked={isChecked(suggestion)}
+                onSelect={handleSelect}
+              />
+            ))}
+          </CommandList>
+        </PopoverContent>
+      </Popover>
+    </Command>
   );
 }

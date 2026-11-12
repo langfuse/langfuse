@@ -35,8 +35,12 @@ export const CachedResolveContext = z.object({
   userName: z.string().nullable().default(null),
   userEmail: z.string().nullable().default(null),
   keyMetadata: GatewayMetadataSchema,
-  /** Model patterns of the key; null allows every model the admin enabled. */
-  keyAllowedModels: z.array(z.string()).nullable().default(null),
+  /**
+   * Model patterns of the key; null allows every model the admin enabled.
+   * Required, so entries cached before patterns existed are refetched instead
+   * of allowing every model.
+   */
+  keyAllowedModels: z.array(z.string()).nullable(),
   ingestionProjectId: z.string().nullable(),
   ingestionMode: z.enum(["NONE", "USAGE", "FULL"]).nullable(),
   plan: z.custom<Plan>((value) => plans.includes(value as Plan)),

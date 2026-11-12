@@ -2,26 +2,27 @@ const EXCLUDE_PREFIX = "-";
 
 /**
  * Whether a gateway key's model patterns allow a `connection:model` slug.
- * `*` matches any characters; a leading `-` excludes. Without include
- * patterns, every model not excluded is allowed. Null allows every model.
+ * `*` matches any characters; a leading `-` excludes. Matching ignores case.
+ * Without include patterns, every model not excluded is allowed. Null allows
+ * every model.
  */
 export function matchesGatewayModelPatterns(
   patterns: readonly string[] | null,
   modelSlug: string,
 ) {
   if (patterns === null) return true;
-  const includes = patterns.filter(
+  const slug = modelSlug.toLowerCase();
+  const lowerCasePatterns = patterns.map((pattern) => pattern.toLowerCase());
+  const includes = lowerCasePatterns.filter(
     (pattern) => !pattern.startsWith(EXCLUDE_PREFIX),
   );
-  const excludes = patterns
+  const excludes = lowerCasePatterns
     .filter((pattern) => pattern.startsWith(EXCLUDE_PREFIX))
     .map((pattern) => pattern.slice(EXCLUDE_PREFIX.length));
   const isIncluded =
     includes.length === 0 ||
-    includes.some((pattern) => matchesGlob(pattern, modelSlug));
-  return (
-    isIncluded && !excludes.some((pattern) => matchesGlob(pattern, modelSlug))
-  );
+    includes.some((pattern) => matchesGlob(pattern, slug));
+  return isIncluded && !excludes.some((pattern) => matchesGlob(pattern, slug));
 }
 
 function matchesGlob(pattern: string, value: string) {

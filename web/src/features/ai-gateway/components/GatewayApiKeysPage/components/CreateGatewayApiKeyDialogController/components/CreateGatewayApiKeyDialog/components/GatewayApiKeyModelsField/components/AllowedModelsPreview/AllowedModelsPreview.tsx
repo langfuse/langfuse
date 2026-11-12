@@ -26,7 +26,7 @@ export function AllowedModelsPreview({ models }: AllowedModelsPreviewProps) {
           No enabled models match these patterns.
         </p>
       ) : (
-        <ul className="flex flex-wrap items-center gap-1">
+        <ul className="ph-no-capture flex flex-wrap items-center gap-1">
           {models.slice(0, visibleCount).map((model) => (
             <li key={model.slug}>
               <Badge text={model.model} title={model.slug} color="filled" />

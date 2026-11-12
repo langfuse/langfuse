@@ -14,7 +14,7 @@ export function GatewayApiKeyModelsCell({
   }
 
   return (
-    <span className="flex min-w-0 items-center gap-1">
+    <span className="ph-no-capture flex min-w-0 items-center gap-1">
       <Badge color="filled" size="md" text={first} />
       {rest.length > 0 ? (
         <Badge

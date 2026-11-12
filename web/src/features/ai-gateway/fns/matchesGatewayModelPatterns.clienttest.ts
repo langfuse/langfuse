@@ -28,4 +28,8 @@ describe("matchesGatewayModelPatterns", () => {
       models.filter((model) => !model.includes("opus")),
     );
   });
+
+  it("ignores case, like the pattern suggestions", () => {
+    expect(allowed(["*GPT-5*", "-OpenAI:*Mini"])).toEqual(["openai:gpt-5"]);
+  });
 });

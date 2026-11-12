@@ -114,6 +114,7 @@ export function GatewayApiKeysTable({
       accessorFn: (row) => parseGatewayAllowedModels(row.allowedModels),
       id: "allowedModels",
       header: "Models",
+      sensitive: true,
       hideBelowMd: true,
       enableResizing: false,
       loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
