@@ -27,10 +27,12 @@ export function ConnectedGatewayApiKeysTable({
     limit: "pageSize",
   });
   const [searchQuery, setSearchQuery] = useState("");
+  const [restrictedModelsOnly, setRestrictedModelsOnly] = useState(false);
   const [orderBy, setOrderBy] = useOrderByState();
   const { apiKeysQuery, rows, lastUsed } = useGatewayApiKeysTableData({
     organizationId,
     searchQuery,
+    restrictedModelsOnly,
     orderBy,
     pageIndex: paginationState.pageIndex,
     pageSize: paginationState.pageSize,
@@ -40,10 +42,17 @@ export function ConnectedGatewayApiKeysTable({
   const revoke = api.aiGateway.revokeApiKey.useMutation();
 
   const hasNoKeys =
-    searchQuery.trim().length === 0 && apiKeysQuery.data?.totalCount === 0;
+    searchQuery.trim().length === 0 &&
+    !restrictedModelsOnly &&
+    apiKeysQuery.data?.totalCount === 0;
 
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
+    setPaginationState({ ...paginationState, pageIndex: 0 });
+  };
+
+  const handleRestrictedModelsOnlyChange = (value: boolean) => {
+    setRestrictedModelsOnly(value);
     setPaginationState({ ...paginationState, pageIndex: 0 });
   };
 
@@ -124,6 +133,10 @@ export function ConnectedGatewayApiKeysTable({
               search={{
                 value: searchQuery,
                 onChange: handleSearchChange,
+              }}
+              modelsFilter={{
+                restrictedModelsOnly,
+                onChange: handleRestrictedModelsOnlyChange,
               }}
               onRevoke={openRevokeDialog}
             />

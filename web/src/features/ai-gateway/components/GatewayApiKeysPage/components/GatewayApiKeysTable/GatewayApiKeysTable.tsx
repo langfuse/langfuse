@@ -18,9 +18,13 @@ import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
 import { GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS } from "@/src/features/ai-gateway/constants/gatewayApiKeyLastUsed";
 import { GatewayApiKeysEmptyState } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/components/GatewayApiKeysEmptyState/GatewayApiKeysEmptyState";
+import { GatewayApiKeyModelsCell } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/components/GatewayApiKeyModelsCell/GatewayApiKeyModelsCell";
+import { GatewayApiKeysModelsFilter } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/components/GatewayApiKeysModelsFilter/GatewayApiKeysModelsFilter";
+import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
 
 type GatewayApiKey = {
   metadata: unknown;
+  allowedModels: unknown;
   apiKey: {
     id: string;
     publicKey: string;
@@ -52,6 +56,7 @@ export function GatewayApiKeysTable({
   onRevoke,
   pagination,
   search,
+  modelsFilter,
   orderBy,
   setOrderBy,
 }: Pick<TableProps<GatewayApiKey>, "orderBy" | "setOrderBy"> & {
@@ -60,8 +65,13 @@ export function GatewayApiKeysTable({
   onRevoke: (apiKeyId: string) => void;
   pagination: PaginationBarProps;
   search: { value: string; onChange: (value: string) => void };
+  modelsFilter: {
+    restrictedModelsOnly: boolean;
+    onChange: (restrictedModelsOnly: boolean) => void;
+  };
 }) {
-  const hasSearch = search.value.trim().length > 0;
+  const hasSearch =
+    search.value.trim().length > 0 || modelsFilter.restrictedModelsOnly;
   /** An out-of-range page is also empty; it keeps the table so its pagination can page back. */
   const hasNoKeys = !hasSearch && pagination.totalCount === 0;
   const columns: LangfuseColumnDef<GatewayApiKey>[] = [
@@ -106,6 +116,17 @@ export function GatewayApiKeysTable({
       emptyValue: "No expiration",
       getPrefix: (expiresAt) =>
         isApiKeyExpired(expiresAt) ? "Expired on " : null,
+    }),
+    createTableColumn<GatewayApiKey, string[]>({
+      accessorFn: (row) => parseGatewayAllowedModels(row.allowedModels),
+      id: "allowedModels",
+      header: "Models",
+      hideBelowMd: true,
+      enableResizing: false,
+      loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
+      renderCell: (patterns) => (
+        <GatewayApiKeyModelsCell patterns={patterns ?? null} />
+      ),
     }),
     createTableColumn<GatewayApiKey, Date>({
       accessorFn: (row) => row.lastUsedAt,
@@ -167,9 +188,17 @@ export function GatewayApiKeysTable({
           ? undefined
           : { ...search, placeholder: "Search by name or user" }
       }
+      toolbarContent={
+        hasNoKeys ? undefined : (
+          <GatewayApiKeysModelsFilter
+            restrictedModelsOnly={modelsFilter.restrictedModelsOnly}
+            onChange={modelsFilter.onChange}
+          />
+        )
+      }
       noResultsMessage={
         hasSearch
-          ? "No gateway keys match the current search."
+          ? "No gateway keys match the current filters."
           : "No gateway keys created."
       }
       emptyState={hasNoKeys ? <GatewayApiKeysEmptyState /> : undefined}

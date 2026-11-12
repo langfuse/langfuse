@@ -22,6 +22,14 @@ vi.mock("@/src/features/rbac/utils/checkOrganizationAccess", () => ({
   useHasOrganizationAccess: () => false,
 }));
 
+vi.mock("@/src/features/ai-gateway/hooks/useGatewaySettingsAccess", () => ({
+  useGatewaySettingsAccess: () => ({ showModels: false }),
+}));
+
+vi.mock("@/src/features/ai-gateway/hooks/useGatewayEnabledModels", () => ({
+  useGatewayEnabledModels: () => undefined,
+}));
+
 vi.mock(
   "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/GeneratedKeyContent",
   () => ({

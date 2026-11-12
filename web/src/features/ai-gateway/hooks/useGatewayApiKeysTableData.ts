@@ -12,12 +12,14 @@ import { api } from "@/src/utils/api";
 export function useGatewayApiKeysTableData({
   organizationId,
   searchQuery,
+  restrictedModelsOnly,
   orderBy,
   pageIndex,
   pageSize,
 }: {
   organizationId: string;
   searchQuery: string;
+  restrictedModelsOnly: boolean;
   orderBy: OrderByState;
   pageIndex: number;
   pageSize: number;
@@ -26,6 +28,7 @@ export function useGatewayApiKeysTableData({
     {
       orgId: organizationId,
       searchQuery,
+      restrictedModelsOnly,
       orderBy,
       page: pageIndex,
       limit: pageSize,

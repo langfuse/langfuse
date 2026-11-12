@@ -5,11 +5,40 @@ import preview from "@/.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { CreateGatewayApiKeyDialog } from "./CreateGatewayApiKeyDialog";
 
+const enabledModels = [
+  ...[
+    "gpt-5",
+    "gpt-5-mini",
+    "gpt-5-nano",
+    "gpt-4.1",
+    "gpt-4.1-mini",
+    "gpt-4.1-nano",
+    "gpt-4o",
+    "gpt-4o-mini",
+    "o3",
+    "o3-mini",
+    "o4-mini",
+    "o3-deep-research-preview",
+  ].map((model) => ({
+    slug: `openai:${model}`,
+    model,
+    provider: "OPENAI" as const,
+  })),
+  ...["claude-opus-4-1", "claude-sonnet-4-5", "claude-haiku-4-5"].map(
+    (model) => ({
+      slug: `anthropic:${model}`,
+      model,
+      provider: "ANTHROPIC" as const,
+    }),
+  ),
+];
+
 const meta = preview.meta({
   component: CreateGatewayApiKeyDialog,
   parameters: { layout: "fullscreen" },
   args: {
     canIssueServiceAccountKeys: true,
+    enabledModels,
     errorMessage: null,
     isSubmitting: false,
     onSubmit: fn(),
@@ -32,6 +61,10 @@ export const Default = meta.story({});
 
 export const UserOnly = meta.story({
   args: { canIssueServiceAccountKeys: false },
+});
+
+export const WithoutModelsPreview = meta.story({
+  args: { enabledModels: undefined },
 });
 
 export const WithError = meta.story({
@@ -81,6 +114,10 @@ export const SubmitsResolvedOptions = meta.story({
       "growth",
     );
     await userEvent.click(screen.getByRole("button", { name: "Add metadata" }));
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Models" }),
+      "openai:*, -*mini*{Enter}",
+    );
     await userEvent.click(
       screen.getByRole("button", { name: "Fewer options" }),
     );
@@ -92,10 +129,38 @@ export const SubmitsResolvedOptions = meta.story({
         name: "laptop",
         metadata: { team: "growth" },
         metadataCount: 1,
+        allowedModels: ["openai:*", "-*mini*"],
         expiresAt: expect.any(Date),
         expiryPreset: "1w",
         issuedAs: "user",
       }),
     );
+  },
+});
+
+export const AllowedModelsPreview = meta.story({
+  name: "(Test) Allowed models follow the model patterns",
+  play: async () => {
+    await userEvent.click(
+      await screen.findByRole("button", { name: "More options" }),
+    );
+    const modelsInput = screen.getByRole("textbox", { name: "Models" });
+
+    expect(screen.getByText("All enabled models")).toBeVisible();
+    expect(screen.getByRole("button", { name: "View 7 more" })).toBeVisible();
+
+    await userEvent.type(modelsInput, "openai:*{Enter}-*preview*{Enter}");
+    await userEvent.click(screen.getByRole("button", { name: "View 3 more" }));
+
+    expect(screen.getByText("o4-mini")).toBeVisible();
+    expect(screen.queryByText("o3-deep-research-preview")).toBeNull();
+    expect(screen.queryByText("claude-sonnet-4-5")).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "View less" }));
+    await userEvent.type(modelsInput, "{Backspace}{Backspace}nothing:*{Enter}");
+
+    expect(
+      screen.getByText("No enabled models match these patterns."),
+    ).toBeVisible();
   },
 });

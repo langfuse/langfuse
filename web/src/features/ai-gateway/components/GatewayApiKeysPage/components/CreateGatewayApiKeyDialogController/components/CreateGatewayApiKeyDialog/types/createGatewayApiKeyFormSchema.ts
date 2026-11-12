@@ -13,6 +13,7 @@ export const createGatewayApiKeyFormSchema = z
     expiryPreset: z.custom<GatewayApiKeyExpirationPreset>(),
     customExpiry: z.string(),
     metadata: z.array(z.object({ key: z.string(), value: z.string() })),
+    modelPatterns: z.array(z.string()),
   })
   .refine(
     (values) =>

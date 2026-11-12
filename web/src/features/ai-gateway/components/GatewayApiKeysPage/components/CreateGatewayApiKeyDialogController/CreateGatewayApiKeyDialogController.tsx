@@ -3,7 +3,7 @@ import { useSession } from "next-auth/react";
 
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { CreateGatewayApiKeyDialog } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/CreateGatewayApiKeyDialog";
+import { ConnectedCreateGatewayApiKeyDialog } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/ConnectedCreateGatewayApiKeyDialog/ConnectedCreateGatewayApiKeyDialog";
 import { GeneratedKeyContent } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/GeneratedKeyContent";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
@@ -38,7 +38,7 @@ export function CreateGatewayApiKeyDialogController({
   const reset = () => setGeneratedSecretKey(null);
 
   const submit: ComponentProps<
-    typeof CreateGatewayApiKeyDialog
+    typeof ConnectedCreateGatewayApiKeyDialog
   >["onSubmit"] = async ({ expiryPreset, metadataCount, ...input }) => {
     try {
       const created = await create.mutateAsync({
@@ -86,7 +86,8 @@ export function CreateGatewayApiKeyDialogController({
             />
           </Dialog>
         ) : (
-          <CreateGatewayApiKeyDialog
+          <ConnectedCreateGatewayApiKeyDialog
+            organizationId={organizationId}
             canIssueServiceAccountKeys={canIssueServiceAccountKeys}
             errorMessage={
               create.isError
