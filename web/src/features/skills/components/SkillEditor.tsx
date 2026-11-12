@@ -601,7 +601,7 @@ export function SkillEditor({
         return state.kind === "discard" ? (
           <Dialog
             title="Discard draft?"
-            text="Your unsaved file changes and commit note will be lost."
+            text="Unsaved changes will be lost."
             actions={[
               {
                 label: "Discard draft",
