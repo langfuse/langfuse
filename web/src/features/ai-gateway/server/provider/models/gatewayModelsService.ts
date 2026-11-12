@@ -5,6 +5,7 @@ import type { Cluster, Redis } from "ioredis";
 import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
 import { formatGatewayModelSlug } from "@/src/features/ai-gateway/fns/formatGatewayModelSlug";
 import { getBedrockModelApiFormats } from "@/src/features/ai-gateway/fns/getBedrockModelApiFormats";
+import { isGatewayApiFamily } from "@/src/features/ai-gateway/fns/isGatewayApiFamily";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
@@ -83,7 +84,7 @@ export class GatewayModelsService {
                 isGatewayModelAllowed(allowedModels, model.id) &&
                 modelMatchesApiFormat(model, params.apiFormat),
             )
-            .map((model) => ({
+            .map(({ apiFormats: _apiFormats, ...model }) => ({
               ...model,
               id: formatGatewayModelSlug(connection.name, model.id),
               provider: toCatalogFamily(model.provider, params.apiFormat),
@@ -98,21 +99,23 @@ function modelMatchesApiFormat(
   model: GatewayModelCatalogEntry,
   apiFormat: GatewayApiFormat,
 ) {
-  if (model.provider !== "BEDROCK") return true;
-  const formats = getBedrockModelApiFormats(model.id);
+  const formats =
+    model.apiFormats ??
+    (model.provider === "BEDROCK" ? getBedrockModelApiFormats(model.id) : null);
+  if (!formats) return true;
   if (apiFormat === "anthropic.messages") return formats.includes(apiFormat);
   // The gateway asks for OpenAI models with `openai.responses` on every OpenAI
   // route, so a model serving only Chat Completions must still be listed.
   return formats.some((format) => format !== "anthropic.messages");
 }
 
-// The gateway renders and validates entries by API family, so Bedrock models
-// are reported as the family whose route serves them.
+// The gateway renders and validates entries by API family, so Bedrock,
+// OpenRouter, xAI and Vercel models are reported as the family whose route serves them.
 function toCatalogFamily(
   provider: GatewayModelCatalogEntry["provider"],
   apiFormat: GatewayApiFormat,
 ) {
-  if (provider !== "BEDROCK") return provider;
+  if (isGatewayApiFamily(provider)) return provider;
   return apiFormat === "anthropic.messages" ? "ANTHROPIC" : "OPENAI";
 }
 

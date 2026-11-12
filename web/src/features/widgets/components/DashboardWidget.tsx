@@ -63,7 +63,7 @@ import type { ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 import { CopyWidgetDialog } from "@/src/features/widgets/components/CopyWidgetDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 export interface WidgetPlacement {
   id: string;
@@ -638,13 +638,6 @@ export function DashboardWidget({
           <span className="truncate" title={widget.data.name}>
             {widget.data.name}
           </span>
-          {dashboardOwner === "PROJECT" && widget.data.owner === "LANGFUSE" && (
-            <Badge
-              color="filled"
-              text="Langfuse"
-              title="Maintained by Langfuse — editing creates your own copy"
-            />
-          )}
         </span>
         <div className="flex space-x-2">
           {!readOnly && (hasCUDAccess || isLockedEditable) && (
@@ -670,19 +663,31 @@ export function DashboardWidget({
                   <PencilIcon size="base" />
                 </button>
               ) : widget.data.owner === "LANGFUSE" ? (
-                <button
-                  onClick={() => {
-                    capture("dashboard:widget_copy_first_open", {
-                      widget_id: placement.widgetId,
-                      dashboard_id: dashboardId,
-                    });
-                    setIsCopyDialogOpen(true);
-                  }}
-                  className="text-muted-foreground hover:text-foreground hidden group-hover:block"
-                  aria-label="Edit widget"
+                <Tooltip
+                  label={
+                    "This widget is managed by Langfuse.\nCreate a copy to edit."
+                  }
+                  placement="bottom-end"
+                  hoverableContent={false}
                 >
-                  <PencilIcon size="base" />
-                </button>
+                  {({ getTriggerProps }) => (
+                    <button
+                      {...getTriggerProps({
+                        onClick: () => {
+                          capture("dashboard:widget_copy_first_open", {
+                            widget_id: placement.widgetId,
+                            dashboard_id: dashboardId,
+                          });
+                          setIsCopyDialogOpen(true);
+                        },
+                      })}
+                      className="text-muted-foreground hover:text-foreground hidden group-hover:block"
+                      aria-label="Edit widget"
+                    >
+                      <PencilIcon size="base" />
+                    </button>
+                  )}
+                </Tooltip>
               ) : null}
             </>
           )}

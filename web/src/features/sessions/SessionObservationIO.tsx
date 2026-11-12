@@ -187,6 +187,9 @@ export const SessionObservationIO = ({
     onOpenInTraceView(observation.id);
   };
 
+  // Synthetic session row `t-${traceId}` is the trace itself: null-obs
+  // CORRECTIONs are trace-scoped, not observation-scoped.
+  const isSyntheticTraceRow = observation.id === `t-${traceId}`;
   const ioPreview = (
     <IOPreview
       input={observation.input ?? undefined}
@@ -198,12 +201,11 @@ export const SessionObservationIO = ({
       media={observationMedia.data}
       projectId={projectId}
       traceId={traceId}
-      observationId={
-        observation.id === `t-${traceId}` ? undefined : observation.id
-      }
+      observationId={isSyntheticTraceRow ? undefined : observation.id}
       environment={environment}
       showCorrections={showCorrections}
-      outputCorrection={outputCorrection}
+      outputCorrection={isSyntheticTraceRow ? undefined : outputCorrection}
+      traceOutputCorrection={isSyntheticTraceRow ? outputCorrection : undefined}
       contentMode={contentMode}
       showSystemPrompt={showSystemPrompt}
       currentView={currentView}

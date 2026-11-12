@@ -6,12 +6,22 @@ import { useStore } from "zustand";
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { DataTable } from "@/src/components/table/data-table";
 import type { CustomHeights } from "@/src/components/table/data-table-row-height-switch";
 import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import type { GatewayCustomModel } from "@/src/features/ai-gateway/fns/parseGatewayCustomModels";
+import { createGatewayRoutesTableColumn } from "@/src/features/ai-gateway/fns/createGatewayRoutesTableColumn";
+import { filterGatewayModelsByApiFormat } from "@/src/features/ai-gateway/fns/filterGatewayModelsByApiFormat";
+import {
+  type ApiFormat,
+  getGatewayModelApiFormats,
+} from "@/src/features/ai-gateway/fns/getGatewayModelApiFormats";
+import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
+import { ApiFormatFilter } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ApiFormatFilter/ApiFormatFilter";
+import { CopyModelIdButton } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/CopyModelIdButton/CopyModelIdButton";
 import { isGatewayModelEnabled } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/fns/isGatewayModelEnabled";
 import type { GatewayModelAccessStore } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/types/gatewayModelAccessStore";
 import {
@@ -21,6 +31,7 @@ import {
 import { GatewayConnectionModelsToolbar } from "./components/GatewayConnectionModelsToolbar";
 import { ModelEnabledSwitch } from "./components/ModelEnabledSwitch";
 import type { GatewayConnectionModelRow } from "./types/gatewayConnectionModelRow";
+import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider/registry";
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
 const DEFAULT_PAGE_SIZE = 50;
 const ROW_HEIGHTS = {
@@ -30,11 +41,13 @@ const ROW_HEIGHTS = {
 } satisfies CustomHeights;
 
 function GatewayConnectionModelNameCell({
+  connectionName,
   modelId,
   custom,
   isSaving,
   onRemove,
 }: {
+  connectionName: string;
   modelId: string;
   custom: boolean;
   isSaving: boolean;
@@ -49,16 +62,22 @@ function GatewayConnectionModelNameCell({
       <span className="truncate" title={modelId}>
         {modelId}
       </span>
+      <CopyModelIdButton connectionName={connectionName} modelId={modelId} />
       {custom ? (
         <>
           <Badge text="Custom" color="blue" size="sm" />
-          <IconButton
-            icon={Trash2}
-            label={`Remove ${modelId}`}
-            size="xs"
-            disabled={isSaving}
-            onClick={handleRemove}
-          />
+          <Tooltip label="Remove custom model">
+            {({ getTriggerProps }) => (
+              <IconButton
+                {...getTriggerProps()}
+                icon={Trash2}
+                label={`Remove ${modelId}`}
+                size="xs"
+                disabled={isSaving}
+                onClick={handleRemove}
+              />
+            )}
+          </Tooltip>
         </>
       ) : null}
     </div>
@@ -84,12 +103,14 @@ function GatewayConnectionModelEnabledCell({
 }
 
 function createGatewayConnectionModelsColumns({
+  connectionName,
   isSaving,
   modelAccessStore,
   selectActionColumn,
   toggleModel,
   removeCustomModel,
 }: {
+  connectionName: string;
   isSaving: boolean;
   modelAccessStore: GatewayModelAccessStore;
   selectActionColumn: LangfuseColumnDef<GatewayConnectionModelRow>;
@@ -108,20 +129,26 @@ function createGatewayConnectionModelsColumns({
       accessorKey: "id",
       id: "name",
       header: "Model",
-      size: 240,
+      size: 360,
       minSize: 180,
-      isFlexWidth: true,
       enableSorting: true,
       headerClassName: "pl-2",
       cellClassName: "pl-2",
       cell: ({ row }) => (
         <GatewayConnectionModelNameCell
+          connectionName={connectionName}
           modelId={row.original.id}
           custom={row.original.custom}
           isSaving={isSaving}
           onRemove={removeCustomModel}
         />
       ),
+    },
+    {
+      ...createGatewayRoutesTableColumn<GatewayConnectionModelRow>({
+        size: 200,
+      }),
+      isFlexWidth: true,
     },
     {
       accessorKey: "id",
@@ -144,11 +171,17 @@ function createGatewayConnectionModelsColumns({
 }
 
 export type GatewayConnectionModelsTableProps = {
+  connectionName: string;
+  provider: GatewayProvider;
   models: string[];
+  /** The formats of the models the provider's catalog reports them for. */
+  modelApiFormats?: Readonly<Record<string, GatewayApiFormat[]>>;
   customModels: GatewayCustomModel[];
   modelAccessStore: GatewayModelAccessStore;
   isSaving: boolean;
   /** Extra toolbar actions, e.g. the trigger for adding a custom model. */
+  /** Rendered next to the search field, e.g. the provider filter. */
+  filters?: ReactNode;
   toolbarActions?: ReactNode;
   onToggleModel: (model: string, enabled: boolean) => void;
   onRemoveCustomModel: (model: string) => void;
@@ -161,16 +194,23 @@ export type GatewayConnectionModelsTableProps = {
  */
 export const GatewayConnectionModelsTable = memo(
   function GatewayConnectionModelsTable({
+    connectionName,
+    provider,
     models,
+    modelApiFormats,
     customModels,
     modelAccessStore,
     isSaving,
+    filters,
     toolbarActions,
     onToggleModel,
     onRemoveCustomModel,
     onSetModelsEnabled,
   }: GatewayConnectionModelsTableProps) {
     const [search, setSearch] = useState("");
+    const [selectedApiFormats, setSelectedApiFormats] = useState<ApiFormat[]>(
+      [],
+    );
     const [pagination, setPagination] = useState<PaginationState>({
       pageIndex: 0,
       pageSize: DEFAULT_PAGE_SIZE,
@@ -191,6 +231,7 @@ export const GatewayConnectionModelsTable = memo(
     const columns = useMemo(
       () =>
         createGatewayConnectionModelsColumns({
+          connectionName,
           isSaving,
           modelAccessStore,
           selectActionColumn,
@@ -198,6 +239,7 @@ export const GatewayConnectionModelsTable = memo(
           removeCustomModel: onRemoveCustomModel,
         }),
       [
+        connectionName,
         isSaving,
         modelAccessStore,
         selectActionColumn,
@@ -211,9 +253,21 @@ export const GatewayConnectionModelsTable = memo(
     );
     const normalizedSearch = search.trim().toLowerCase();
     const customModelIds = new Set(customModels.map(({ id }) => id));
-    const filteredModels = models
-      .filter((model) => model.toLowerCase().includes(normalizedSearch))
-      .map((id) => ({ id, custom: customModelIds.has(id) }));
+    const apiFormatFilter = filterGatewayModelsByApiFormat(
+      models.map((id) => ({
+        id,
+        custom: customModelIds.has(id),
+        apiFormats: getGatewayModelApiFormats(
+          provider,
+          id,
+          modelApiFormats?.[id],
+        ),
+      })),
+      selectedApiFormats,
+    );
+    const filteredModels = apiFormatFilter.models.filter((model) =>
+      model.id.toLowerCase().includes(normalizedSearch),
+    );
     const sortedModels = filteredModels.toSorted((left, right) => {
       const comparison = statusSortState
         ? Number(isGatewayModelEnabled(statusSortState, left.id)) -
@@ -238,6 +292,11 @@ export const GatewayConnectionModelsTable = memo(
       setPagination((current) => ({ ...current, pageIndex: 0 }));
       selectionStore.getState().actions.clearSelection();
     };
+    const handleApiFormatsChange = (value: ApiFormat[]) => {
+      setSelectedApiFormats(value);
+      setPagination((current) => ({ ...current, pageIndex: 0 }));
+      selectionStore.getState().actions.clearSelection();
+    };
     const handlePaginationChange: OnChangeFn<PaginationState> = (updater) => {
       const currentState = {
         ...pagination,
@@ -251,29 +310,34 @@ export const GatewayConnectionModelsTable = memo(
       setOrderBy(nextOrderBy);
       setPagination((current) => ({ ...current, pageIndex: 0 }));
     };
-    const handleEnableAll = () =>
-      onSetModelsEnabled({ models, enabled: true, scope: "all" });
-    const handleDisableAll = () =>
-      onSetModelsEnabled({ models, enabled: false, scope: "all" });
-
     return (
       <>
         <div className="flex min-h-0 flex-1 flex-col">
           <GatewayConnectionModelsToolbar
             columns={columns}
             filteredModelIds={filteredModelIds}
-            isSaving={isSaving}
             pageIndex={visiblePageIndex}
             pageModelIds={pageModelIds}
             pageSize={pagination.pageSize}
             search={search}
             selectionStore={selectionStore}
+            filters={
+              <>
+                {filters}
+                {apiFormatFilter.available.length > 1 ? (
+                  <ApiFormatFilter
+                    formats={apiFormatFilter.available}
+                    value={apiFormatFilter.active}
+                    onChange={handleApiFormatsChange}
+                  />
+                ) : null}
+              </>
+            }
             toolbarActions={toolbarActions}
-            onEnableAll={handleEnableAll}
-            onDisableAll={handleDisableAll}
             onSearchChange={handleSearchChange}
           />
-          <div className="flex min-h-0 flex-col overflow-hidden rounded-md border">
+          {/* `DataTable` draws its own top border. */}
+          <div className="flex min-h-0 flex-col overflow-hidden rounded-b-md border-x border-b">
             <DataTable
               tableName="gateway-connection-models"
               columns={columns}
@@ -292,7 +356,7 @@ export const GatewayConnectionModelsTable = memo(
               customRowHeights={ROW_HEIGHTS}
               orderBy={orderBy}
               setOrderBy={handleOrderByChange}
-              noResultsMessage="No models match the current search."
+              noResultsMessage="No models match the current filters."
             />
           </div>
         </div>

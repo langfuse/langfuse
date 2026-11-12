@@ -348,7 +348,10 @@ export const QuestionStatusesExplainThemselves = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.queryByRole("alert")).toBeNull();
-    await expect(canvas.queryByText("Estimated processing cost")).toBeNull();
+    await expect(canvas.getByText("Not tracked")).toBeVisible();
+    await expect(
+      canvas.getByText("Topic naming costs aren’t tracked yet."),
+    ).toBeVisible();
     await expect(canvas.getByText("Done with issues")).toBeVisible();
     await expect(
       canvas.getByText("1,193 in topics · 47 didn’t fit a topic"),

@@ -69,11 +69,11 @@ export const Statuses = meta.story({
       />
       <Stepper
         number={2}
-        title="Add a provider credential"
+        title="Add a provider connection"
         size="sm"
         isCollapsible={false}
       >
-        <div className="rounded-md border p-3 text-sm">Add credential</div>
+        <div className="rounded-md border p-3 text-sm">Add connection</div>
       </Stepper>
       <Stepper
         number={3}

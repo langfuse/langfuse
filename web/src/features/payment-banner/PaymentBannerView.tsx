@@ -36,8 +36,8 @@ export type PaymentBannerViewProps = VariantProps<
  * Full-width strip warning that a subscription payment could not be collected.
  * Icon, then the message as one paragraph flow with the title as a bold inline
  * span, then the action — so narrow widths reflow the whole sentence instead of
- * squeezing a title column (LFE-14490). Below `sm` the action drops to its own
- * row so the message keeps the full width instead of wrapping beside it.
+ * squeezing a title column. Below `sm` the action drops to its own row so the
+ * message keeps the full width instead of wrapping beside it.
  */
 export function PaymentBannerView({
   organizationName,

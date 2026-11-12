@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { Readable } from "stream";
 import { pipeline } from "stream/promises";
 import {
@@ -22,8 +23,10 @@ import {
   type RequestPolicyFactory,
 } from "@azure/storage-blob";
 import { Storage, Bucket, GetSignedUrlConfig } from "@google-cloud/storage";
+import { JWT } from "google-auth-library";
 import { logger } from "../logger";
 import { env } from "../../env";
+import { GCPServiceAccountKeySchema } from "../../interfaces/customLLMProviderConfigSchemas";
 import { normalizeBlobStorageRegion } from "../../utils/stringChecks";
 import { backOff } from "exponential-backoff";
 import { ServiceUnavailableError } from "../../errors/ServiceUnavailableError";
@@ -47,6 +50,32 @@ import {
 } from "../outbound-url/connection";
 
 import { isS3SlowDownError } from "./s3ThrottleError";
+
+const GOOGLE_CLOUD_STORAGE_AUTH_SCOPES = [
+  "https://www.googleapis.com/auth/iam",
+  "https://www.googleapis.com/auth/cloud-platform",
+  "https://www.googleapis.com/auth/devstorage.full_control",
+];
+
+/**
+ * Build a Storage `authClient` from a service-account JSON string or file path.
+ * Parses and validates the key before constructing the JWT so unexpected
+ * credential types are rejected at initialization.
+ */
+function createGoogleCloudStorageAuthClient(googleCloudCredentials: string) {
+  const trimmed = googleCloudCredentials.trim();
+  const raw = trimmed.startsWith("{")
+    ? JSON.parse(trimmed)
+    : JSON.parse(readFileSync(trimmed, "utf8"));
+  const key = GCPServiceAccountKeySchema.parse(raw);
+
+  return new JWT({
+    email: key.client_email,
+    key: key.private_key,
+    projectId: key.project_id,
+    scopes: GOOGLE_CLOUD_STORAGE_AUTH_SCOPES,
+  });
+}
 
 export interface S3SseConfig {
   serverSideEncryption?: string;
@@ -350,11 +379,29 @@ export interface StorageService {
 // exactly one request instead of duplicating the number.
 export const S3_DELETE_OBJECTS_CHUNK_SIZE = 900;
 
+/**
+ * Access keys, or (S3 only) a credentials provider for IAM role auth. Omitted
+ * means the deployment's default credentials, e.g. the AWS default chain.
+ * Azure reads the keys as account name and account key.
+ */
+export type StorageCredentials =
+  | { type: "keys"; accessKeyId: string; secretAccessKey: string }
+  | { type: "role"; provider: NonNullable<S3ClientConfig["credentials"]> };
+
+/** Access keys when both are set, else undefined (default credentials). */
+export function storageKeys(
+  accessKeyId: string | undefined,
+  secretAccessKey: string | undefined,
+): StorageCredentials | undefined {
+  return accessKeyId !== undefined && secretAccessKey !== undefined
+    ? { type: "keys", accessKeyId, secretAccessKey }
+    : undefined;
+}
+
 export class StorageServiceFactory {
   /**
    * Get an instance of the StorageService
-   * @param params.accessKeyId - Access key ID
-   * @param params.secretAccessKey - Secret access key
+   * @param params.credentials - Access keys or IAM role credentials; see StorageCredentials
    * @param params.bucketName - Bucket name to store files
    * @param params.endpoint - Endpoint - Endpoint to an S3 compatible API (or Azure Blob Storage)
    * @param params.externalEndpoint - External endpoint to replace the internal endpoint in the signed URL.
@@ -370,12 +417,9 @@ export class StorageServiceFactory {
    * @param params.maxAttempts - Maximum AWS SDK attempts for each S3 operation.
    * @param params.connectionValidation - Optional connection-time DNS/IP validation for user-controlled endpoints.
    * @param params.s3RequestTimeoutMs - Optional S3 HTTP request deadline; timeout rejects the request.
-   * @param params.credentials - S3 only. Credentials provider that takes precedence over the access keys and never falls back to the default chain.
    */
   public static getInstance(params: {
-    accessKeyId: string | undefined;
-    secretAccessKey: string | undefined;
-    credentials?: S3ClientConfig["credentials"];
+    credentials: StorageCredentials | undefined;
     bucketName: string;
     endpoint: string | undefined;
     externalEndpoint?: string | undefined;
@@ -439,8 +483,7 @@ class AzureBlobStorageService implements StorageService {
   private externalEndpoint: string | undefined;
 
   constructor(params: {
-    accessKeyId: string | undefined;
-    secretAccessKey: string | undefined;
+    credentials: StorageCredentials | undefined;
     bucketName: string;
     endpoint: string | undefined;
     externalEndpoint?: string | undefined;
@@ -448,7 +491,11 @@ class AzureBlobStorageService implements StorageService {
     forcePathStyle: boolean;
     connectionValidation?: OutboundUrlConnectionValidationOptions;
   }) {
-    const { accessKeyId, secretAccessKey, endpoint, externalEndpoint } = params;
+    const { credentials, endpoint, externalEndpoint } = params;
+    const { accessKeyId, secretAccessKey } =
+      credentials?.type === "keys"
+        ? credentials
+        : { accessKeyId: undefined, secretAccessKey: undefined };
     if (!accessKeyId || !secretAccessKey || !endpoint) {
       throw new Error(
         `Endpoint, account and account key must be configured to use Azure Blob Storage`,
@@ -786,9 +833,7 @@ class S3StorageService implements StorageService {
   private logSlowDownAsWarning: boolean;
 
   constructor(params: {
-    accessKeyId: string | undefined;
-    secretAccessKey: string | undefined;
-    credentials?: S3ClientConfig["credentials"];
+    credentials: StorageCredentials | undefined;
     bucketName: string;
     endpoint: string | undefined;
     externalEndpoint?: string | undefined;
@@ -801,16 +846,14 @@ class S3StorageService implements StorageService {
     connectionValidation?: OutboundUrlConnectionValidationOptions;
     s3RequestTimeoutMs?: number;
   }) {
-    // Use the credentials provider, else the access keys, else the default chain
-    const { accessKeyId, secretAccessKey } = params;
+    // Undefined uses the default chain; a role provider never falls back to it
     const credentials =
-      params.credentials ??
-      (accessKeyId !== undefined && secretAccessKey !== undefined
-        ? {
-            accessKeyId,
-            secretAccessKey,
-          }
-        : undefined);
+      params.credentials?.type === "role"
+        ? params.credentials.provider
+        : params.credentials && {
+            accessKeyId: params.credentials.accessKeyId,
+            secretAccessKey: params.credentials.secretAccessKey,
+          };
 
     const requestHandler = createS3RequestHandler(
       params.connectionValidation,
@@ -1203,29 +1246,24 @@ class GoogleCloudStorageService implements StorageService {
   private bucket: Bucket;
 
   constructor(params: { bucketName: string; googleCloudCredentials?: string }) {
-    // Initialize Google Cloud Storage client
     if (params.googleCloudCredentials) {
       try {
-        // Check if the credentials are a JSON string or a path to a file
-        if (params.googleCloudCredentials.trim().startsWith("{")) {
-          // It's a JSON string
-          this.storage = new Storage({
-            universeDomain: env.GOOGLE_CLOUD_UNIVERSE_DOMAIN,
-            credentials: JSON.parse(params.googleCloudCredentials),
-          });
-        } else {
-          // It's a path to a credentials file
-          this.storage = new Storage({
-            universeDomain: env.GOOGLE_CLOUD_UNIVERSE_DOMAIN,
-            keyFilename: params.googleCloudCredentials,
-          });
-        }
+        this.storage = new Storage({
+          universeDomain: env.GOOGLE_CLOUD_UNIVERSE_DOMAIN,
+          // Cast: Storage types authClient against its nested google-auth-library@11;
+          // shared keeps @10 for @ai-sdk/google-vertex. Runtime accepts this JWT.
+          authClient: createGoogleCloudStorageAuthClient(
+            params.googleCloudCredentials,
+          ) as unknown as NonNullable<
+            ConstructorParameters<typeof Storage>[0]
+          >["authClient"],
+        });
       } catch (err) {
         logger.error("Failed to parse Google Cloud Storage credentials", err);
         throw new Error("Failed to initialize Google Cloud Storage");
       }
     } else {
-      // Use default authentication (environment variables or instance metadata)
+      // Application Default Credentials (environment variables or instance metadata)
       this.storage = new Storage({
         universeDomain: env.GOOGLE_CLOUD_UNIVERSE_DOMAIN,
       });

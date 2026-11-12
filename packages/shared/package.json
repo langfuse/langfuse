@@ -115,6 +115,10 @@
       "import": "./dist/src/server/ee/storageRoleAuth/storageRoleCredentials.js",
       "require": "./dist/src/server/ee/storageRoleAuth/storageRoleCredentials.js"
     },
+    "./src/server/ee/storageRoleAuth/blobStorageRoleCredentials": {
+      "import": "./dist/src/server/ee/storageRoleAuth/blobStorageRoleCredentials.js",
+      "require": "./dist/src/server/ee/storageRoleAuth/blobStorageRoleCredentials.js"
+    },
     "./src/server/ee/storageRoleAuth/storageSessionPolicy": {
       "import": "./dist/src/server/ee/storageRoleAuth/storageSessionPolicy.js",
       "require": "./dist/src/server/ee/storageRoleAuth/storageSessionPolicy.js"
@@ -134,6 +138,10 @@
     "./rbac/server": {
       "import": "./dist/src/features/rbac/server.js",
       "require": "./dist/src/features/rbac/server.js"
+    },
+    "./memberships": {
+      "import": "./dist/src/features/memberships/index.js",
+      "require": "./dist/src/features/memberships/index.js"
     },
     "./query/server": {
       "import": "./dist/src/features/query/server/index.js",
@@ -239,8 +247,8 @@
     "seed": "dotenv -e ../../.env -- tsx scripts/seeder/seed-postgres.ts"
   },
   "dependencies": {
-    "@ag-ui/client": "^0.0.52",
-    "@ag-ui/core": "^0.0.52",
+    "@ag-ui/client": "catalog:",
+    "@ag-ui/core": "catalog:",
     "@ai-sdk/amazon-bedrock": "^5.0.115",
     "@ai-sdk/anthropic": "^4.0.79",
     "@ai-sdk/azure": "^4.0.101",
@@ -259,7 +267,7 @@
     "@aws-sdk/s3-request-presigner": "catalog:",
     "@azure/storage-blob": "^12.26.0",
     "@clickhouse/client": "1.23.1",
-    "@google-cloud/storage": "^7.19.0",
+    "@google-cloud/storage": "^8.4.0",
     "@opentelemetry/api": ">=1.0.0 <1.10.0",
     "@opentelemetry/otlp-transformer": "^0.220.0",
     "@opentelemetry/resources": "^2.9.0",
@@ -289,12 +297,12 @@
     "lodash": "^4.18.1",
     "lossless-json": "^4.1.1",
     "lru-cache": "^11.2.7",
-    "nodemailer": "^10.1.7",
+    "nodemailer": "^10.4.1",
     "oci-common": "^2.140.0",
     "oci-objectstorage": "^2.140.0",
     "safe-regex2": "^5.0.0",
     "slackify-markdown": "^5.0.0",
-    "undici": "^7.30.1",
+    "undici": "^7.30.2",
     "uuid": "^14.0.2",
     "winston": "^3.15.0",
     "zod": "^4.6.6"

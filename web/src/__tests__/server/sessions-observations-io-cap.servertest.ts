@@ -84,7 +84,6 @@ maybe("sessions observations bounded I/O (events)", () => {
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin: true,
     },
     environment: {} as any,
   };

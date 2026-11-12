@@ -34,6 +34,10 @@ tasks:
   "rust:test":
     concurrencyGroup: langfuse-rust
 catalog:
+  # Keep the AG-UI protocol packages aligned across web, worker, and shared.
+  "@ag-ui/client": 1.0.4
+  "@ag-ui/core": 1.0.4
+  "@ag-ui/mastra": 2.0.2
   "@aws-sdk/client-cloudwatch": 3.1074.0
   "@aws-sdk/client-eventbridge": 3.1074.0
   "@aws-sdk/client-iam": 3.1074.0
@@ -51,6 +55,16 @@ catalog:
   typescript: npm:@typescript/typescript6@^6.0.2
 # 5 day delay for new dep upgrades to reduce supply chain attack risk
 minimumReleaseAge: 7200
+minimumReleaseAgeExclude:
+  # CVE-2026-125755: recipient address parsing fix.
+  - nodemailer@10.4.1
+  # Security fix for CVE-2026-116592 and related redirect/cache advisories.
+  - undici@7.30.2
+  # Coordinated protocol upgrade accompanying the Mastra security fix.
+  - "@ag-ui/client@1.0.4"
+  - "@ag-ui/core@1.0.4"
+  - "@ag-ui/encoder@1.0.4"
+  - "@ag-ui/proto@1.0.4"
 # Drop exceptions for versions no longer in the lockfile during writable installs.
 minimumReleaseAgeExcludePrune: true
 # Reject recent releases whose publishing trust is weaker than earlier versions.
@@ -101,17 +115,17 @@ allowBuilds:
 overrides:
   # Storybook's compatible Vite adapter pins an older Next.js env prerelease.
   # Keep its env loader aligned with the app until the adapter updates its pin.
-  "vite-plugin-storybook-nextjs@3.3.2>@next/env": 16.4.2
+  "vite-plugin-storybook-nextjs@3.3.2>@next/env": 16.4.5
   # React Email requires html-to-text ^9, which pulls in vulnerable deepmerge
   # (CVE-2026-93753). Version 10.0.1 replaces it with patched deepmerge-ts.
   "@react-email/render>html-to-text": 10.0.1
   # The root Mastra adapter does not load CopilotKit. Only its unused
   # `@ag-ui/mastra/copilotkit` subpath requires this peer.
-  "@ag-ui/mastra@1.1.1>@copilotkit/runtime": "-"
+  "@ag-ui/mastra@2.0.2>@copilotkit/runtime": "-"
   # The adapter only drives local agents and never requires the remote-agent
   # client at runtime (its types import MastraClient). Auto-installing this peer
   # added @mastra/client-js, which pins a second, older @mastra/core (~60MB).
-  "@ag-ui/mastra@1.1.1>@mastra/client-js": "-"
+  "@ag-ui/mastra@2.0.2>@mastra/client-js": "-"
   # The generated client loads its query engine from .prisma/client and never
   # requires the CLI. Resolving this optional peer made `pnpm deploy --prod`
   # ship the Prisma CLI and its engines in the worker image.
@@ -121,15 +135,19 @@ overrides:
   esbuild: "0.28.1"
   # Keep both installed majors on their security-patched releases.
   "undici@6": 6.29.1
-  "undici@7": 7.30.1
+  "undici@7": 7.30.2
   zod: 4.6.6
   nanoid: 3.3.18
   tar-fs: ^2.1.2
   rollup@^4.0.0: ^4.22.4
   "@types/node-fetch": ^2.6.13
   "@types/react-dom": 19.2.3
-  fast-xml-builder: 1.1.7
-  glob: ^10.5.0
+  # CVE-2026-118773: an aborted glob walk keeps reading directories. The
+  # advisory's patched range is >=14.0.2, and 13.x has no release in it.
+  # @sentry/nextjs 11.11 declares glob ^14.0.3. Storybook's docgen plugin
+  # still declares ^13; 0.9.x drops glob but rejects TypeScript 7.0, which
+  # this repo uses. Its only call is globSync with absolute/cwd/ignore/nodir.
+  "@joshwooding/vite-plugin-react-docgen-typescript>glob": 14.0.3
   qs: 6.17.0
   path-to-regexp@0.1.12: 0.1.13
   # ReDoS only affects the 8.x line (CVE-2026-4926/-4923, >=8.0.0 <8.4.0).
@@ -148,10 +166,6 @@ overrides:
   # CVE-2026-104844: quadratic flat-selector parsing, fixed in 6.1.5.
   # @tailwindcss/typography pins exactly 6.0.10, including at its latest release.
   "@tailwindcss/typography>postcss-selector-parser": 6.1.5
-  # @ag-ui/mastra imports parsePartialJson from @ai-sdk/ui-utils, whose module
-  # evaluation needs exports (validatorSymbol) that only exist in its own
-  # provider-utils 2.x line — exempt it from the blanket 4.0.33 lift above.
-  "@ai-sdk/ui-utils>@ai-sdk/provider-utils": 2.2.8
   # Hono's dependents allow these security fixes: XSS in 4.13.7 and
   # double decoding in 4.13.11 (GHSA-5r4p-p66f-jhc7).
   hono: 4.13.11
@@ -170,11 +184,17 @@ overrides:
   # both pin handlebars to exactly 4.7.9, including at their latest releases,
   # so only an override moves it to the patched version.
   handlebars: 4.7.10
+  # CVE-2026-118764 (glob-part amplification) is fixed only in minimatch 11.
+  # eslint, @eslint/config-array, and @typescript-eslint/typescript-estree
+  # still declare ^10 at their latest releases, which resolves to 10.2.6.
+  # Those packages only call Minimatch#match / minimatch(). 3.x and 9.x stay
+  # put: glob 10 and eslint-plugin-react depend on the older APIs.
+  "minimatch@10": 11.0.1
   # next-auth 4.24.x caps its optional nodemailer peer at ^7 but contains no
   # nodemailer imports (we pass a custom sendVerificationRequest); without this
   # pnpm auto-installs a second, unused nodemailer@7 instance for web.
   # Remove once next-auth allows nodemailer ^10.
-  "next-auth>nodemailer": "^10.1.7"
+  "next-auth>nodemailer": "^10.4.1"
 patchedDependencies:
   # focusFirst crashes on null item refs (items unmounting while entry focus
   # runs), e.g. opening a row-actions dropdown while a table re-renders.

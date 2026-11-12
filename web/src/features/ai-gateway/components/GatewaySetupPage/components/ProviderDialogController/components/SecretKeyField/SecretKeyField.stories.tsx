@@ -23,6 +23,33 @@ export const Bedrock = meta.story({
   },
 });
 
+export const OpenRouter = meta.story({
+  args: {
+    provider: "OPENROUTER",
+    credential: "",
+    hasSavedKey: false,
+    onCredentialChange: fn(),
+  },
+});
+
+export const Xai = meta.story({
+  args: {
+    provider: "XAI",
+    credential: "",
+    hasSavedKey: false,
+    onCredentialChange: fn(),
+  },
+});
+
+export const Vercel = meta.story({
+  args: {
+    provider: "VERCEL",
+    credential: "",
+    hasSavedKey: false,
+    onCredentialChange: fn(),
+  },
+});
+
 export const KeepSavedKey = meta.story({
   args: {
     provider: "ANTHROPIC",

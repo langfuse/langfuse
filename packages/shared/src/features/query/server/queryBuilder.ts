@@ -121,6 +121,36 @@ type AppliedBucketingDimension =
       dimension: AppliedDimensionType;
     };
 
+const MINUTE_MS = 60_000;
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
+
+/** WITH FILL step per granularity; approxMs never exceeds the real step, so bucket estimates err high. */
+const WITH_FILL_STEPS: Record<
+  Exclude<z.infer<typeof granularities>, "auto">,
+  { sql: string; approxMs: number }
+> = {
+  minute: { sql: "INTERVAL 1 MINUTE", approxMs: MINUTE_MS },
+  hour: { sql: "INTERVAL 1 HOUR", approxMs: HOUR_MS },
+  day: { sql: "INTERVAL 1 DAY", approxMs: DAY_MS },
+  week: { sql: "INTERVAL 1 WEEK", approxMs: 7 * DAY_MS },
+  month: { sql: "INTERVAL 1 MONTH", approxMs: 28 * DAY_MS },
+  "5m": { sql: "INTERVAL 5 MINUTE", approxMs: 5 * MINUTE_MS },
+  "10m": { sql: "INTERVAL 10 MINUTE", approxMs: 10 * MINUTE_MS },
+  "15m": { sql: "INTERVAL 15 MINUTE", approxMs: 15 * MINUTE_MS },
+  "30m": { sql: "INTERVAL 30 MINUTE", approxMs: 30 * MINUTE_MS },
+  "1h": { sql: "INTERVAL 1 HOUR", approxMs: HOUR_MS },
+  "2h": { sql: "INTERVAL 2 HOUR", approxMs: 2 * HOUR_MS },
+  "4h": { sql: "INTERVAL 4 HOUR", approxMs: 4 * HOUR_MS },
+  "1d": { sql: "INTERVAL 1 DAY", approxMs: DAY_MS },
+  "2d": { sql: "INTERVAL 2 DAY", approxMs: 2 * DAY_MS },
+  "1w": { sql: "INTERVAL 7 DAY", approxMs: 7 * DAY_MS },
+};
+
+/** Latest fill bound whose TO + one step stays below the DateTime maximum (2106-02-07T06:28:15Z). */
+const MAX_WITH_FILL_TO_MS = Date.UTC(2106, 0, 1);
+const MAX_WITH_FILL_BUCKETS = 50_000;
+
 export class QueryBuilder {
   private chartConfig?: { bins?: number; row_limit?: number };
   private version: ViewVersion;
@@ -816,7 +846,13 @@ export class QueryBuilder {
         !(relation.name === "scores" && skipScoresFinal);
       const alias =
         relation.name !== relationTableName ? ` AS ${relationTableName}` : "";
-      let joinStatement = `INNER JOIN ${relation.name}${alias}${shouldUseFinal ? " FINAL" : ""} ${relation.joinConditionSql}`;
+      // Without FINAL, drop tombstone rows. Unmerged older live versions of a
+      // deleted score still join; skip-dedup projects never rewrite scores.
+      const deletedScoresPredicate =
+        relation.name === "scores" && !shouldUseFinal
+          ? ` AND ${relationTableName}.is_deleted = 0`
+          : "";
+      const joinStatement = `INNER JOIN ${relation.name}${alias}${shouldUseFinal ? " FINAL" : ""} ${relation.joinConditionSql}${deletedScoresPredicate}`;
 
       // Create time dimension mapping for the relation table
       const relationTimeDimensionMapping = {
@@ -1217,66 +1253,25 @@ export class QueryBuilder {
       return ""; // Skip WITH FILL if ORDER BY is specified
     }
 
-    // Calculate appropriate STEP for WITH FILL based on granularity
-    let step: string;
-    switch (appliedBucketingDimension.granularity) {
-      case "minute":
-        step = "INTERVAL 1 MINUTE";
-        break;
-      case "hour":
-        step = "INTERVAL 1 HOUR";
-        break;
-      case "day":
-        step = "INTERVAL 1 DAY";
-        break;
-      case "week":
-        step = "INTERVAL 1 WEEK";
-        break;
-      case "month":
-        step = "INTERVAL 1 MONTH";
-        break;
-      case "5m":
-        step = "INTERVAL 5 MINUTE";
-        break;
-      case "10m":
-        step = "INTERVAL 10 MINUTE";
-        break;
-      case "15m":
-        step = "INTERVAL 15 MINUTE";
-        break;
-      case "30m":
-        step = "INTERVAL 30 MINUTE";
-        break;
-      case "1h":
-        step = "INTERVAL 1 HOUR";
-        break;
-      case "2h":
-        step = "INTERVAL 2 HOUR";
-        break;
-      case "4h":
-        step = "INTERVAL 4 HOUR";
-        break;
-      case "1d":
-        step = "INTERVAL 1 DAY";
-        break;
-      case "2d":
-        step = "INTERVAL 2 DAY";
-        break;
-      case "1w":
-        step = "INTERVAL 7 DAY";
-        break;
-      default:
-        step = "INTERVAL 1 DAY"; // Default to day if granularity is unknown
+    const fromDate = new Date(fromTimestamp);
+    const toDate = new Date(toTimestamp);
+    const { granularity } = appliedBucketingDimension;
+    const { sql: step, approxMs: stepMs } =
+      granularity === "auto"
+        ? WITH_FILL_STEPS.day
+        : WITH_FILL_STEPS[granularity];
+
+    // Fill bounds are bucketed to 32-bit DateTime; if a step overflows it, the fill never ends.
+    if (
+      fromDate.getTime() < 0 ||
+      toDate.getTime() > MAX_WITH_FILL_TO_MS ||
+      (toDate.getTime() - fromDate.getTime()) / stepMs > MAX_WITH_FILL_BUCKETS
+    ) {
+      return "";
     }
 
-    const fillFromDateParam = bindUtcDateTimeParam(
-      "fillFromDate",
-      new Date(fromTimestamp),
-    );
-    const fillToDateParam = bindUtcDateTimeParam(
-      "fillToDate",
-      new Date(toTimestamp),
-    );
+    const fillFromDateParam = bindUtcDateTimeParam("fillFromDate", fromDate);
+    const fillToDateParam = bindUtcDateTimeParam("fillToDate", toDate);
     parameters["fillFromDate"] = fillFromDateParam.value;
     parameters["fillToDate"] = fillToDateParam.value;
 

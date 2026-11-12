@@ -3560,8 +3560,9 @@ paths:
         Multiple filtering options are available via query parameters or the
         structured `filter` parameter.
 
-        When using the `filter` parameter, it takes precedence over individual
-        query parameter filters.
+        A condition in the `filter` parameter replaces the query parameter for
+        the same field. Query parameters for other fields still apply. A
+        `startTime` condition replaces both `fromStartTime` and `toStartTime`.
       operationId: observations_getMany
       tags:
         - Observations
@@ -3732,9 +3733,11 @@ paths:
         - name: filter
           in: query
           description: >-
-            JSON string containing an array of filter conditions. When provided,
-            this takes precedence over query parameter filters (userId, name,
-            type, level, environment, fromStartTime, ...).
+            JSON string containing an array of filter conditions. A condition on
+            the same field as a query parameter filter (userId, name, type,
+            level, environment, fromStartTime, ...) replaces that parameter.
+            Query parameters for other fields still apply. A `startTime`
+            condition replaces both `fromStartTime` and `toStartTime`.
 
 
             ## Filter Structure
@@ -3745,21 +3748,19 @@ paths:
 
             [
               {
-                "type": string,           // Required. One of: "datetime", "string", "number", "stringOptions", "categoryOptions", "arrayOptions", "stringObject", "numberObject", "boolean", "null"
+                "type": string,           // Required. One of: "datetime", "string", "number", "stringOptions", "arrayOptions", "stringObject", "boolean", "null"
                 "column": string,         // Required. Column to filter on (see available columns below)
                 "operator": string,       // Required. Operator based on type:
                                           // - datetime: ">", "<", ">=", "<="
-                                          // - string: "=", "contains", "does not contain", "starts with", "ends with", "matches"
-                                          // - stringOptions: "any of", "none of"
-                                          // - categoryOptions: "any of", "none of"
+                                          // - string: "=", "contains", "does not contain", "starts with", "ends with", "is not empty", "matches" (input/output only)
+                                          // - stringOptions: "any of", "none of" (works on any string column except input/output)
                                           // - arrayOptions: "any of", "none of", "all of"
                                           // - number: "=", ">", "<", ">=", "<="
                                           // - stringObject: "=", "contains", "does not contain", "starts with", "ends with", "matches", "is set", "is not set"
-                                          // - numberObject: "=", ">", "<", ">=", "<="
                                           // - boolean: "=", "<>"
                                           // - null: "is null", "is not null"
-                "value": any,             // Required (except for null type). Value to compare against. Type depends on filter type
-                "key": string             // Required only for stringObject, numberObject, and categoryOptions types when filtering on nested fields like metadata
+                "value": any,             // Required. Type depends on filter type: ISO 8601 string for datetime, JSON number for number (not a numeric string), array of strings for stringOptions/arrayOptions, boolean for boolean, and "" (empty string) for null
+                "key": string             // Required only for stringObject (the metadata key to filter on)
               }
             ]
 
@@ -3855,9 +3856,12 @@ paths:
             - `output` (string) - Observation output. Supports accelerated
             indexed literal search with the `matches` operator.
 
-            - `metadata` (stringObject/numberObject/categoryOptions) - Metadata
-            key-value pairs. Use `key` parameter to filter on specific metadata
-            keys.
+            - `metadata` (stringObject) - Metadata key-value pairs. Use the
+            `key` parameter to filter on a specific metadata key. Metadata
+            values are stored as strings, so match numbers and booleans by their
+            string form with `=` (for example `"value": "true"` or `"value":
+            "42"`); numeric comparisons such as `>` are not supported on
+            metadata.
 
 
             The `matches` operator is only supported for `input`, `output`, and
@@ -8513,6 +8517,23 @@ components:
         - S3_COMPATIBLE
         - AZURE_BLOB_STORAGE
         - GOOGLE_CLOUD_STORAGE
+    BlobStorageIntegrationAuthType:
+      title: BlobStorageIntegrationAuthType
+      type: string
+      enum:
+        - ACCESS_KEYS
+        - ROLE_ARN
+      description: >-
+        How Langfuse authenticates to the bucket.
+
+        - `ACCESS_KEYS`: stored access key ID and secret access key.
+
+        - `ROLE_ARN`: Langfuse assumes an IAM role in your AWS account (Amazon
+        S3 only). Langfuse's cross-account role (`crossAccountRoleArn`) assumes
+        your role with the integration's `externalId`, using a session limited
+        to writing under the configured prefix. Requires an Enterprise plan and
+        a deployment that configures a cross-account role; `crossAccountRoleArn`
+        is not null when both apply.
     BlobStorageIntegrationFileType:
       title: BlobStorageIntegrationFileType
       type: string
@@ -8652,10 +8673,39 @@ components:
             letters, numbers, or hyphens, and cannot start or end with a hyphen.
             Examples: us-east-1, europe-west1, eastus, auto. Not used by
             GOOGLE_CLOUD_STORAGE; pass auto.
+        authType:
+          $ref: '#/components/schemas/BlobStorageIntegrationAuthType'
+          nullable: true
+          description: >-
+            Authentication method. `ROLE_ARN` requires type `S3`, a concrete AWS
+            region (not `auto`), and `roleArn`; `accessKeyId` and
+            `secretAccessKey` must then be omitted, and `endpoint` and
+            `forcePathStyle` are ignored. When omitted, `ROLE_ARN` applies to
+            type `S3` if the request sends `roleArn` or the integration already
+            uses `ROLE_ARN`, unless the request sends `accessKeyId` or
+            `secretAccessKey`; otherwise `ACCESS_KEYS` applies.
+
+
+            The external ID is generated on the first save that uses `ROLE_ARN`
+            and stays the same afterwards. That save stores the integration with
+            `enabled: false`, because the trust policy cannot reference the new
+            ID yet. Add the trust policy for `crossAccountRoleArn` with the
+            returned `externalId` to your role, then update the integration with
+            `enabled: true`.
+        roleArn:
+          type: string
+          nullable: true
+          description: >-
+            ARN of the IAM role in your AWS account that Langfuse assumes when
+            `authType` is `ROLE_ARN`, e.g.
+            `arn:aws:iam::123456789012:role/langfuse-export`. When omitted on
+            update, the stored role ARN is kept.
         accessKeyId:
           type: string
           nullable: true
-          description: Access key ID for authentication. Not used for GOOGLE_CLOUD_STORAGE.
+          description: >-
+            Access key ID for authentication. Not used for GOOGLE_CLOUD_STORAGE
+            or when `authType` is `ROLE_ARN`.
         secretAccessKey:
           type: string
           nullable: true
@@ -8774,9 +8824,31 @@ components:
           nullable: true
         region:
           type: string
+        authType:
+          $ref: '#/components/schemas/BlobStorageIntegrationAuthType'
         accessKeyId:
           type: string
           nullable: true
+        roleArn:
+          type: string
+          nullable: true
+          description: >-
+            IAM role Langfuse assumes. May be set while `authType` is
+            `ACCESS_KEYS` if the integration used `ROLE_ARN` before.
+        externalId:
+          type: string
+          nullable: true
+          description: >-
+            External ID Langfuse passes when assuming `roleArn`. Require it in
+            the role's trust policy with an `sts:ExternalId` condition. Null
+            until the integration first uses `ROLE_ARN`.
+        crossAccountRoleArn:
+          type: string
+          nullable: true
+          description: >-
+            Langfuse role that must be trusted by `roleArn`. Null when the
+            deployment does not support IAM role auth or the organization is not
+            on an Enterprise plan.
         prefix:
           type: string
         exportFrequency:
@@ -8834,7 +8906,11 @@ components:
         - bucketName
         - endpoint
         - region
+        - authType
         - accessKeyId
+        - roleArn
+        - externalId
+        - crossAccountRoleArn
         - prefix
         - exportFrequency
         - enabled
@@ -10937,13 +11013,11 @@ components:
         value:
           type: string
           const: ''
-          description: >-
-            Required empty-string placeholder used by the runtime filter
-            contract.
+          nullable: true
+          description: Optional. Defaults to an empty string.
       required:
         - column
         - operator
-        - value
     PromptVariableMappingInput:
       title: PromptVariableMappingInput
       type: object
@@ -15005,7 +15079,7 @@ components:
 
         | `boolean` | boolean | `=`, `<>` |
 
-        | `null` | `""` | `is null`, `is not null` |
+        | `null` | omit, or `""` | `is null`, `is not null` |
 
         | `stringOptions` | list of strings | `any of`, `none of` |
 

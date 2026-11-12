@@ -119,9 +119,12 @@ export function CreateGatewayApiKeyDialogController({
         expiryPreset,
       });
       setGeneratedSecretKey(created.secretKey);
-      await utils.aiGateway.listApiKeys.invalidate({
-        orgId: organizationId,
-      });
+      await Promise.all([
+        utils.aiGateway.listApiKeys.invalidate({ orgId: organizationId }),
+        utils.aiGateway.getAnalyticsLabels.invalidate({
+          orgId: organizationId,
+        }),
+      ]);
     } catch (error) {
       reportNonTrpcError(error, "ai-gateway-api-keys");
     }
