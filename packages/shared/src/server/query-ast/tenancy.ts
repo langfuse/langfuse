@@ -129,14 +129,13 @@ function injectSelect(
     if (!isTenantedTable(relation)) {
       return join;
     }
-    const onExpr = join.on?.on;
-    if (
-      predicateCovers(onExpr, relation, projectId) ||
-      predicateCovers(where?.where, relation, projectId)
-    ) {
+    if (predicateCovers(where?.where, relation, projectId)) {
       return join;
     }
     assertScopableInOn(join, relation);
+    if (predicateCovers(join.on?.on, relation, projectId)) {
+      return join;
+    }
     // `on <caller on> and <alias>.project_id = {projectId}`
     const predicate = projectIdPredicate(relation, projectId);
     if (!join.on) {

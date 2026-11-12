@@ -337,9 +337,10 @@ describe("tenancy injection", () => {
     );
   });
 
-  it("rejects a RIGHT or FULL join it could scope only in ON", () => {
+  it("rejects a RIGHT or FULL join scoped only in ON", () => {
     // The joined table's unmatched rows survive the join, and nothing outside
-    // the ON clause filters them: the FROM is a subquery.
+    // the ON clause filters them: the FROM is a subquery. A caller-written ON
+    // scope is rejected like an injected one.
     const db = getClickhouseKysely();
     const from = () =>
       db.selectFrom("traces").select(["id", "project_id"]).as("s");
@@ -356,6 +357,17 @@ describe("tenancy injection", () => {
       UnscopedRelationError,
     );
     expect(() => compileClickhouseQuery(full, projectId)).toThrow(
+      UnscopedRelationError,
+    );
+    const scopedInOn = db
+      .selectFrom(from())
+      .rightJoin("events as e", (join) =>
+        join
+          .onRef("e.trace_id", "=", "s.id")
+          .on("e.project_id", "=", projectId),
+      )
+      .select("e.span_id");
+    expect(() => compileClickhouseQuery(scopedInOn, projectId)).toThrow(
       UnscopedRelationError,
     );
   });
