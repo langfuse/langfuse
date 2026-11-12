@@ -37,7 +37,11 @@ const withTarget = (filter: FilterStateCondition) =>
     ? { target: filter.target }
     : {};
 
-const conditionFromFilter = (
+/**
+ * One `FilterState` condition as a predicate condition, field for field: a
+ * metadata `contains ""` stays `contains ""`.
+ */
+export const conditionFromFilter = (
   filter: FilterStateCondition,
 ): PredicateCondition => {
   const base = { kind: "condition" as const, ...withTarget(filter) };

@@ -263,7 +263,39 @@ function lowerCondition(
   eb: EventsExpressionBuilder,
   condition: PredicateCondition,
 ): Condition[] {
-  const { lowering } = resolveCondition(condition);
+  return lowerFieldCondition(
+    eb,
+    resolveCondition(condition).lowering,
+    condition,
+  );
+}
+
+/**
+ * `condition` as conjuncts over `e`, comparing the value `lowering` gives;
+ * `condition.field.id` is not looked up. For a host whose fields have their
+ * own lowerings (the dashboard observations view), which checks that a
+ * field takes the condition's type and operator. A type the lowering's value
+ * kind does not take throws `QueryCompileError`, as do the condition types no
+ * lowering takes (`categoryOptions`, `booleanObject`, `positionInTrace`, …).
+ */
+export const lowerEventsFieldCondition = scopedToEvents(
+  (
+    eb,
+    lowering: EventsFieldLowering,
+    condition: PredicateCondition,
+  ): Condition[] => lowerFieldCondition(eb, lowering, condition),
+);
+
+/**
+ * The conjuncts of {@link lowerEventsFieldCondition}: a metadata lowering
+ * takes the metadata conditions, any other lowering dispatches on
+ * `condition.type`.
+ */
+function lowerFieldCondition(
+  eb: EventsExpressionBuilder,
+  lowering: EventsFieldLowering,
+  condition: PredicateCondition,
+): Condition[] {
   if (lowering.kind === "metadata") {
     return lowerMetadataCondition(eb, condition);
   }
@@ -376,6 +408,12 @@ function textLowering(
   throw loweringKindError(condition);
 }
 
+/**
+ * `condition` on a string field. An empty value under `=`, `contains`,
+ * `starts with` or `ends with` matches empty-or-NULL on an
+ * `emptyEqualsNull` field. Indexed columns add an ngram or text-token
+ * prefilter. `matches` throws unless the field is text-indexed.
+ */
 function lowerString(
   eb: EventsExpressionBuilder,
   lowering: TextLowering,
@@ -493,7 +531,7 @@ function lowerStringOptions(
 
 function lowerArrayOptions(
   eb: EventsExpressionBuilder,
-  array: Expression<string[]>,
+  array: Expression<Array<string | null>>,
   { op, value: values }: ConditionOf<"arrayOptions">,
 ): Condition {
   const list = typedValue<string[]>(values, STRING_ARRAY);

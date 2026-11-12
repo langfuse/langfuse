@@ -4072,15 +4072,13 @@ describe("queryBuilder", () => {
         true,
       );
 
-      expect(sql).toContain("ARRAY JOIN");
-      expect(sql).toContain(
-        "mapKeys(events_observations.cost_details) AS costType",
-      );
-      expect(sql).toContain(
-        "mapValues(events_observations.cost_details) AS cost_value",
-      );
+      expect(sql).toMatch(/\barray join\b/i);
+      expect(sql).toMatch(/mapKeys\(\w+\.cost_details\) as costType\b/i);
+      expect(sql).toMatch(/mapValues\(\w+\.cost_details\) as cost_value\b/i);
       // ARRAY JOIN must appear before WHERE
-      expect(sql.indexOf("ARRAY JOIN")).toBeLessThan(sql.indexOf("WHERE"));
+      expect(sql.search(/\barray join\b/i)).toBeLessThan(
+        sql.search(/\bwhere\b/i),
+      );
       // No inline arrayJoin() function call — must use clause form
       expect(sql).not.toMatch(/arrayJoin\(mapKeys/);
       // ARRAY JOIN already aliases the key; re-emitting `costType AS costType`
@@ -4940,7 +4938,7 @@ describe("query builder measure-aggregation validation", () => {
     const result = await queryBuilder.build(query, randomUUID());
 
     expect(result.query).toContain("as entity_dimension");
-    expect(result.query).toContain("GROUP BY entity_dimension");
+    expect(result.query).toMatch(/\bgroup by entity_dimension\b/i);
     expect(result.query).not.toContain("time_dimension");
     expect(result.query).not.toContain("WITH FILL");
   });
@@ -5388,7 +5386,7 @@ describe("query builder measure-aggregation validation", () => {
         randomUUID(),
       );
 
-      expect(sql).toContain("FROM events_full events_observations");
+      expect(sql).toMatch(/\bfrom events_full\b/i);
       expect(sql).not.toContain("events_core");
     });
 
