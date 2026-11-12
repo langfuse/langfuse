@@ -84,7 +84,7 @@ export function topicTracesHref(
     const { to } = topic.facet.window;
     const from = Math.max(
       topic.facet.window.from.getTime(),
-      to.getTime() - TOPICS_MAX_TIME_RANGE_MS + 60_000,
+      to.getTime() - TOPICS_MAX_TIME_RANGE_MS + 1,
     );
     const dateRange = rangeToString({ from: new Date(from), to });
     return `/project/${projectId}/traces?filter=${encodeURIComponent(filter)}&dateRange=${encodeURIComponent(dateRange)}`;

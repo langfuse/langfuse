@@ -228,6 +228,6 @@ describe("Open in Tracing", () => {
       .split("-")
       .map(Number);
     expect(until).toBe(to.getTime());
-    expect(until + 1 - from).toBeLessThanOrEqual(TOPICS_MAX_TIME_RANGE_MS);
+    expect(until + 1 - from).toBe(TOPICS_MAX_TIME_RANGE_MS);
   });
 });
