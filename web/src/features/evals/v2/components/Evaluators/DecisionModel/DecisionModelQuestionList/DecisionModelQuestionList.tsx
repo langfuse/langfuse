@@ -191,7 +191,7 @@ export function DecisionModelQuestionList({
 
       <div className="flex flex-wrap items-center gap-1.5">
         <TextActionButton text="Add question" onClick={onAdd} />
-        <span className="text-muted-foreground text-sm">
+        <span className="text-muted-foreground inline-flex h-6 items-center text-xs leading-none">
           One call; extra questions add only their own tokens.
         </span>
       </div>
