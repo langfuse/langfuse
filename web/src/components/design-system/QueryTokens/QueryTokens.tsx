@@ -88,7 +88,7 @@ export function QueryTokens({
     };
   }[];
   highlightedTokenId?: string | null;
-  onActivateToken?: (id: string) => void;
+  onActivateToken?: (id: string, anchor: HTMLButtonElement) => void;
 }) {
   const content: ReactNode[] = [];
   let cursor = 0;
@@ -117,8 +117,8 @@ export function QueryTokens({
           data-query-summary
           aria-label={`Edit ${summary.label}`}
           aria-haspopup="dialog"
-          onClick={() => onActivateToken?.(token.id)}
-          className="focus-visible:ring-ring inline-flex max-w-full min-w-0 items-center rounded-sm text-left align-baseline focus-visible:ring-2 focus-visible:outline-none"
+          onClick={(event) => onActivateToken?.(token.id, event.currentTarget)}
+          className="focus-visible:ring-ring inline-flex h-full max-w-full min-w-0 items-center rounded-sm text-left focus-visible:ring-2 focus-visible:outline-none"
         >
           {renderGroups(summary.groups, true)}
         </button>
@@ -140,7 +140,8 @@ export function QueryTokens({
         className={cn(
           "ph-no-capture max-w-full",
           tokenStyles[token.kind],
-          summary !== undefined && "inline-block py-0 align-baseline",
+          summary !== undefined &&
+            "inline-flex h-6 items-center py-0 align-bottom",
           token.inactiveReason !== null &&
             "line-through decoration-1 opacity-50",
           token.id === highlightedTokenId && "border-ring",

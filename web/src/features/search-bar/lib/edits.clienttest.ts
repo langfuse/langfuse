@@ -6,7 +6,7 @@ import { removeToken } from "./edits";
 import { astToFilterState } from "./adapter";
 import { EVENTS_FIELD_REGISTRY } from "./fields";
 import { parse } from "./langQ";
-import { replaceFilterValues } from "./fns/replaceFilterValues";
+import { applyTokenFacetAction, createTokenFacetState } from "./fns/tokenFacet";
 
 function spanOf(text: string, token: string) {
   const from = text.indexOf(token);
@@ -14,17 +14,94 @@ function spanOf(text: string, token: string) {
 }
 
 describe("removeToken — semantic preservation", () => {
+  it("preserves an explicit ID list when its last unchecked known value is reselected", () => {
+    const query = "id:(first-id OR second-id OR third-id)";
+    const state = createTokenFacetState(
+      query,
+      { from: 0, to: query.length },
+      EVENTS_FIELD_REGISTRY,
+    )!;
+    const unchecked = applyTokenFacetAction(
+      state,
+      [],
+      { kind: "selection", values: ["first-id", "second-id"] },
+      EVENTS_FIELD_REGISTRY,
+    );
+    const rechecked = applyTokenFacetAction(
+      unchecked,
+      [],
+      { kind: "selection", values: ["first-id", "second-id", "third-id"] },
+      EVENTS_FIELD_REGISTRY,
+    );
+    expect(astToFilterState(parse(rechecked.query).ast).filters).toEqual([
+      {
+        type: "stringOptions",
+        column: "id",
+        operator: "any of",
+        value: ["first-id", "second-id", "third-id"],
+      },
+    ]);
+  });
+
+  it("edits only the clicked exclusion while keeping companion filters", () => {
+    const expression = "-name:(old-a OR old-b OR old-c)";
+    const query = `name:(keep-a OR keep-b OR keep-c) ${expression} tags:production`;
+    const state = createTokenFacetState(
+      query,
+      spanOf(query, expression),
+      EVENTS_FIELD_REGISTRY,
+    )!;
+    const next = applyTokenFacetAction(
+      state,
+      ["available"],
+      { kind: "selection", values: ["available", "old-a"] },
+      EVENTS_FIELD_REGISTRY,
+    );
+    const lowered = astToFilterState(parse(next.query).ast);
+    expect(lowered.errors).toEqual([]);
+    expect(lowered.filters).toEqual([
+      {
+        type: "stringOptions",
+        column: "name",
+        operator: "any of",
+        value: ["keep-a", "keep-b", "keep-c"],
+      },
+      {
+        type: "stringOptions",
+        column: "name",
+        operator: "none of",
+        value: ["old-b", "old-c"],
+      },
+      {
+        type: "arrayOptions",
+        column: "traceTags",
+        operator: "any of",
+        value: ["production"],
+      },
+    ]);
+  });
+
   it("keeps exact set matching when a value group shrinks to one", () => {
     for (const [prefix, operator] of [
       ["", "any of"],
       ["-", "none of"],
     ] as const) {
-      const query = replaceFilterValues(
-        `${prefix}name:(alpha OR beta OR gamma)`,
-        ["alpha"],
+      const query = `${prefix}name:(alpha OR beta OR gamma)`;
+      const state = createTokenFacetState(
+        query,
+        { from: 0, to: query.length },
+        EVENTS_FIELD_REGISTRY,
+      )!;
+      const next = applyTokenFacetAction(
+        state,
+        [],
+        {
+          kind: "selection",
+          values: prefix === "-" ? ["beta", "gamma"] : ["alpha"],
+        },
         EVENTS_FIELD_REGISTRY,
       );
-      const lowered = astToFilterState(parse(query!).ast);
+      const lowered = astToFilterState(parse(next.query).ast);
       expect(lowered.errors).toEqual([]);
       expect(lowered.filters).toEqual([
         { type: "stringOptions", column: "name", operator, value: ["alpha"] },

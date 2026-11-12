@@ -32,13 +32,6 @@ const meta = preview.meta({
   args: { initialDraft: "", observed: undefined },
 });
 
-export const LongValueLists = meta.story({
-  tags: ["!test"],
-  args: {
-    initialDraft: `userId:(${Array.from({ length: 100 }, (_, i) => `${i.toString(16).padStart(8, "0")}-aaaa-4bbb-8ccc-dddddddddddd`).join(" OR ")}) AND tags:(important AND review AND retry) AND -name:(request-a OR request-b OR request-c) `,
-  },
-});
-
 export const TestQueryTextPreservation = meta.story({
   name: "(Test) Quoted fields and whitespace preserve query text",
   args: {
@@ -187,14 +180,13 @@ export const TestCompactGroupEditing = meta.story({
       name: "Edit filter values",
     });
     await userEvent.click(
-      within(dialog).getByRole("button", { name: "Remove value request-b" }),
+      within(dialog).getByRole("checkbox", { name: "request-b" }),
     );
     await userEvent.click(
-      within(dialog).getByRole("button", { name: "Remove value request-c" }),
+      within(dialog).getByRole("checkbox", { name: "request-c" }),
     );
-    await userEvent.click(
-      within(dialog).getByRole("button", { name: /^Apply$/ }),
-    );
+    await expect(dialog).toBeVisible();
+    await userEvent.keyboard("{Escape}");
     await waitFor(() =>
       expect(body.queryByRole("dialog")).not.toBeInTheDocument(),
     );
@@ -205,7 +197,7 @@ export const TestCompactGroupEditing = meta.story({
       canvas.queryByRole("button", { name: /Edit.*values/ }),
     ).not.toBeInTheDocument();
     await userEvent.click(input);
-    await userEvent.keyboard("{Meta>}z{/Meta}");
+    await userEvent.keyboard("{Meta>}zz{/Meta}");
     await expect(
       canvas.getByRole("button", { name: /Edit.*3 values/ }),
     ).toBeInTheDocument();

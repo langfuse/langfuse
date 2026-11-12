@@ -392,7 +392,7 @@ function QueryInputEditor({
   areEquivalent: (left: string, right: string) => boolean;
   controller: ReturnType<typeof useQueryInputController>;
   completions: QueryCompletionPlan | null;
-  onEditToken?: (token: QueryToken) => void;
+  onEditToken?: (token: QueryToken, anchor: HTMLButtonElement) => void;
   onExpand?: () => void;
 }) {
   const id = React.useId();
@@ -1513,7 +1513,7 @@ function QueryInputEditor({
                   onActivateToken={
                     onEditToken === undefined
                       ? undefined
-                      : (id) => {
+                      : (id, anchor) => {
                           const token = segments.find(
                             (segment) => segment.id === id,
                           );
@@ -1521,7 +1521,7 @@ function QueryInputEditor({
                           hasInteractedRef.current = true;
                           setAutocompleteOpen(false);
                           setHoveredTokenId(null);
-                          onEditToken(token);
+                          onEditToken(token, anchor);
                         }
                   }
                 />

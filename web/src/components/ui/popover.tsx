@@ -73,6 +73,13 @@ PopoverContent.displayName = PopoverPrimitive.Content.displayName;
  * Use the supplied Trigger to preserve Radix behavior.
  */
 type PopoverControllerProps = {
+  ariaLabel?: string;
+  onCloseAutoFocus?: React.ComponentProps<
+    typeof PopoverContent
+  >["onCloseAutoFocus"];
+  onEscapeKeyDown?: React.ComponentProps<
+    typeof PopoverContent
+  >["onEscapeKeyDown"];
   align: React.ComponentProps<typeof PopoverContent>["align"];
   children: (control: {
     disabled: boolean;
@@ -91,6 +98,9 @@ type PopoverControllerProps = {
 };
 
 const PopoverController = ({
+  ariaLabel,
+  onCloseAutoFocus,
+  onEscapeKeyDown,
   align,
   children,
   contentClassName,
@@ -118,6 +128,9 @@ const PopoverController = ({
         Trigger: PopoverTrigger,
       })}
       <PopoverContent
+        aria-label={ariaLabel}
+        onCloseAutoFocus={onCloseAutoFocus}
+        onEscapeKeyDown={onEscapeKeyDown}
         align={align}
         className={contentClassName}
         portalContainer={portalContainer}
