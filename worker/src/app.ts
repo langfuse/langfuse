@@ -195,7 +195,7 @@ if (env.QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED === "true") {
   const traceUpsertShardNames = TraceUpsertQueue.getShardNames();
   traceUpsertShardNames.forEach((shardName) => {
     WorkerManager.register(
-      shardName as QueueName,
+      shardName as QueueName.TraceUpsert,
       evalJobTraceCreatorQueueProcessor,
       {
         concurrency: env.LANGFUSE_TRACE_UPSERT_WORKER_CONCURRENCY,

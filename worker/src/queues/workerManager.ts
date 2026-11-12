@@ -6,6 +6,7 @@ import {
   createBullMQWorkerOptionsWithRedis,
   logger,
   QueueName,
+  type TQueueJobTypes,
   recordDistribution,
   recordIncrement,
   traceException,
@@ -162,9 +163,9 @@ export class WorkerManager {
     return Object.keys(WorkerManager.workers);
   }
 
-  public static register(
-    queueName: QueueName,
-    processor: Processor,
+  public static register<Q extends QueueName>(
+    queueName: Q,
+    processor: Processor<JobData<Q>>,
     additionalOptions: Partial<WorkerOptions> = {},
   ): void {
     if (WorkerManager.workers[queueName]) {
@@ -265,3 +266,8 @@ export class WorkerManager {
     });
   }
 }
+
+/** JobData is the data a queue's jobs carry; cron-only queues send an empty object. */
+type JobData<Q extends QueueName> = Q extends keyof TQueueJobTypes
+  ? TQueueJobTypes[Q]
+  : Record<string, never>;
