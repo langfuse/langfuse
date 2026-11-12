@@ -49,6 +49,7 @@ export async function processBatchedObservationEval(params: {
       totalCount: true,
       processedCount: true,
       failedCount: true,
+      log: true,
     },
   });
   const resumeCursor = EventsStreamCursorSchema.safeParse(checkpoint.cursor);
@@ -70,7 +71,9 @@ export async function processBatchedObservationEval(params: {
   let totalCount = isResuming ? (checkpoint.totalCount ?? 0) : 0;
   let processedCount = isResuming ? (checkpoint.processedCount ?? 0) : 0;
   let failedCount = isResuming ? (checkpoint.failedCount ?? 0) : 0;
-  const errors: string[] = [];
+  // Until the final summary, `log` holds the raw error lines, so a resumed
+  // run keeps the errors of earlier attempts.
+  const errors = isResuming && checkpoint.log ? checkpoint.log.split("\n") : [];
 
   let buffer: ObservationStreamRecord[] = [];
 
@@ -126,6 +129,7 @@ export async function processBatchedObservationEval(params: {
         totalCount,
         processedCount,
         failedCount,
+        log: errors.length > 0 ? errors.join("\n") : null,
         cursor: batch[batch.length - 1].cursor,
       },
     });

@@ -35,6 +35,9 @@ export const getEventsStreamForEval = async (props: {
     (async function* () {
       let cursor = after;
       let remaining = rowLimit;
+      // `LIMIT 1 BY span_id` only dedupes within a page. A span stored with
+      // several start times would otherwise reappear in a later page.
+      const yieldedSpanIds = new Set<string>();
 
       while (remaining > 0) {
         const limit = Math.min(pageSize, remaining);
@@ -49,6 +52,10 @@ export const getEventsStreamForEval = async (props: {
           cursor = { startTime: cursor_start_time, spanId: row.id };
           pageRowCount++;
 
+          if (yieldedSpanIds.has(row.id)) continue;
+          yieldedSpanIds.add(row.id);
+          remaining--;
+
           yield {
             ...eventRow,
             span_id: row.id,
@@ -58,7 +65,6 @@ export const getEventsStreamForEval = async (props: {
           };
         }
 
-        remaining -= pageRowCount;
         if (pageRowCount < limit) return;
       }
     })(),

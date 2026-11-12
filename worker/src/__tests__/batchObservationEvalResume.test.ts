@@ -84,6 +84,43 @@ maybeDescribe("batch observation eval resume", () => {
       cursor: allRows[4].cursor,
     });
   });
+
+  it("emits a span stored with several start times once across pages", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const startTime = minuteAgoPlusMicros();
+    const spanId = randomUUID();
+    const otherSpanId = randomUUID();
+    await createEventsCh([
+      ...[2, 1].map((offset) =>
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: projectId,
+          trace_id: randomUUID(),
+          start_time: startTime(offset),
+        }),
+      ),
+      createEvent({
+        id: otherSpanId,
+        span_id: otherSpanId,
+        project_id: projectId,
+        trace_id: randomUUID(),
+        start_time: startTime(0),
+      }),
+    ]);
+
+    const rows = await collectRows(
+      await getEventsStreamForEval({
+        projectId,
+        cutoffCreatedAt: new Date(Date.now() + 60_000),
+        filter: [],
+        rowLimit: 2,
+        pageSize: 1,
+      }),
+    );
+
+    expect(rows.map((row) => row.id)).toEqual([spanId, otherSpanId]);
+  });
 });
 
 /**
@@ -93,7 +130,7 @@ maybeDescribe("batch observation eval resume", () => {
  */
 async function setupEvents() {
   const { projectId } = await createOrgProjectAndApiKey();
-  const baseMicros = (Date.now() - 60_000) * 1000;
+  const startTime = minuteAgoPlusMicros();
   const events = [0, 1, 2, 3, 3].map((offset) => {
     const id = randomUUID();
     return createEvent({
@@ -101,16 +138,16 @@ async function setupEvents() {
       span_id: id,
       project_id: projectId,
       trace_id: randomUUID(),
-      start_time: baseMicros + offset,
+      start_time: startTime(offset),
     });
   });
   await createEventsCh(events);
 
   const eventIds = events
-    .toSorted((a, b) =>
-      a.start_time === b.start_time
-        ? compareStrings(b.span_id, a.span_id)
-        : Number(b.start_time) - Number(a.start_time),
+    .toSorted(
+      (a, b) =>
+        compareStrings(b.start_time, a.start_time) ||
+        compareStrings(b.span_id, a.span_id),
     )
     .map((event) => event.span_id);
 
@@ -191,6 +228,18 @@ async function enqueuedObservationIds() {
   return jobExecutions
     .map((execution) => execution.jobInputObservationId)
     .toSorted();
+}
+
+/**
+ * Returns ClickHouse DateTime64(6) strings a minute in the past, `micros`
+ * (0-9) apart. Numeric inputs to `createEvent` are truncated to milliseconds.
+ */
+function minuteAgoPlusMicros() {
+  const millis = new Date(Date.now() - 60_000)
+    .toISOString()
+    .replace("T", " ")
+    .replace("Z", "");
+  return (micros: number) => `${millis}00${micros}`;
 }
 
 // ClickHouse orders strings by bytes, not by locale.

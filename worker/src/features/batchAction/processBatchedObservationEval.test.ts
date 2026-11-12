@@ -334,4 +334,61 @@ describe("processBatchedObservationEval", () => {
       }),
     });
   });
+
+  it("keeps the errors of earlier attempts when it resumes", async () => {
+    const projectId = "project-1";
+    const cursor = {
+      startTime: "2026-01-01 00:00:00.000000",
+      spanId: "obs-earlier",
+    };
+    vi.mocked(prisma.batchAction.findUniqueOrThrow).mockResolvedValueOnce({
+      cursor,
+      totalCount: 1,
+      processedCount: 0,
+      failedCount: 1,
+      log: "Row 1: earlier failure",
+    } as never);
+    vi.mocked(scheduleObservationEvals).mockRejectedValueOnce(
+      new Error("later failure"),
+    );
+
+    await processBatchedObservationEval({
+      projectId,
+      batchActionId: "batch-action-resumed",
+      evaluators: [],
+      rowLimit: 100,
+      openObservationStream: async () =>
+        (async function* () {
+          yield {
+            span_id: "obs-later",
+            trace_id: "trace-1",
+            project_id: projectId,
+            parent_span_id: null,
+            type: "GENERATION",
+            name: "test",
+            usage_details: {},
+            cost_details: {},
+            provided_usage_details: {},
+            provided_cost_details: {},
+            tags: [],
+            input: "input",
+            output: "output",
+            metadata: {},
+            cursor: { ...cursor, spanId: "obs-later" },
+          };
+        })(),
+    });
+
+    expect(prisma.batchAction.update).toHaveBeenLastCalledWith({
+      where: { id: "batch-action-resumed", projectId },
+      data: expect.objectContaining({
+        status: BatchActionStatus.Failed,
+        totalCount: 2,
+        failedCount: 2,
+        log: expect.stringMatching(
+          /Row 1: earlier failure\nRow 2: later failure/,
+        ),
+      }),
+    });
+  });
 });
