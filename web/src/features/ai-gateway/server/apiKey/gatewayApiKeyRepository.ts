@@ -1,10 +1,11 @@
 import type { OrderByState } from "@langfuse/shared";
-import type { Prisma, PrismaClient } from "@langfuse/shared/src/db";
+import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import { escapeSqlLikePattern } from "@langfuse/shared/src/server";
 import { orgBoundApiKeyScopes } from "@langfuse/shared/src/server/auth/apiKeys";
 
 const GATEWAY_API_KEY_SELECT = {
   metadata: true,
+  allowedModels: true,
   apiKey: {
     select: {
       id: true,
@@ -27,6 +28,7 @@ export class GatewayApiKeyRepository {
     organizationId: string;
     ownerUserId?: string;
     searchQuery?: string;
+    restrictedModelsOnly?: boolean;
     orderBy?: OrderByState;
     page: number;
     limit: number;
@@ -36,6 +38,9 @@ export class GatewayApiKeyRepository {
         ...gatewayApiKeyWhere(params),
         ...(params.searchQuery && gatewayApiKeySearch(params.searchQuery)),
       },
+      ...(params.restrictedModelsOnly && {
+        allowedModels: { not: Prisma.DbNull },
+      }),
     };
     const findPage = this.prisma.gatewayApiKeyAssociation.findMany({
       where,

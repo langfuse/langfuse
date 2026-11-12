@@ -253,6 +253,7 @@ export class GatewayProviderService {
         organizationId: params.organizationId,
         id: params.id,
         name,
+        previousName: existing.name,
         status: params.credential ? "ENABLED" : params.status,
         encryptedCredential: params.credential
           ? encrypt(toStoredCredential(existing.provider, params.credential))

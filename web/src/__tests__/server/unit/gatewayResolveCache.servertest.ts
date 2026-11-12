@@ -21,6 +21,7 @@ const context: CachedResolveContext = {
   userName: "Alice",
   userEmail: "alice@example.com",
   keyMetadata: {},
+  keyAllowedModels: null,
   ingestionProjectId: null,
   ingestionMode: null,
   plan: "cloud:hobby",
@@ -140,6 +141,7 @@ describe("GatewayResolveCache", () => {
       apiKeyName: null,
       userName: null,
       userEmail: null,
+      keyAllowedModels: null,
     });
   });
 

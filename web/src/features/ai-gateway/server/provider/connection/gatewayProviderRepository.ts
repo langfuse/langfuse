@@ -6,6 +6,7 @@ import {
 } from "@langfuse/shared/src/db";
 
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
+import { renameGatewayModelPatternsConnection } from "@/src/features/ai-gateway/fns/renameGatewayModelPatternsConnection";
 import {
   type GatewayCustomModel,
   parseGatewayCustomModels,
@@ -160,14 +161,25 @@ export class GatewayProviderRepository {
     extraHeaders?: string | null;
     extraHeaderKeys?: string[];
     status?: GatewayConnectionStatus;
+    /** Set with `name` to carry key model patterns over to the new name. */
+    previousName?: string;
   }) {
-    const { organizationId, id, ...data } = params;
-    const connection = await this.prisma.gatewayAiConnection.update({
-      where: { id, organizationId },
-      data,
-      select: safeConnectionSelect,
+    const { organizationId, id, previousName, ...data } = params;
+    return this.prisma.$transaction(async (tx) => {
+      const connection = await tx.gatewayAiConnection.update({
+        where: { id, organizationId },
+        data,
+        select: safeConnectionSelect,
+      });
+      if (data.name !== undefined && previousName !== undefined) {
+        await renameConnectionInGatewayKeyModelPatterns(tx, {
+          organizationId,
+          previousName,
+          name: data.name,
+        });
+      }
+      return toSafeConnection(connection);
     });
-    return toSafeConnection(connection);
   }
 
   async updateAllowedModels(params: {
@@ -232,5 +244,34 @@ export class GatewayProviderRepository {
       select: { id: true },
     });
     return connection !== null;
+  }
+}
+
+/** Key model patterns name connections, so a rename would otherwise silently drop access. */
+async function renameConnectionInGatewayKeyModelPatterns(
+  tx: Prisma.TransactionClient,
+  params: { organizationId: string; previousName: string; name: string },
+) {
+  const associations = await tx.gatewayApiKeyAssociation.findMany({
+    where: {
+      allowedModels: { not: Prisma.DbNull },
+      apiKey: { orgId: params.organizationId },
+    },
+    select: { apiKeyId: true, allowedModels: true },
+  });
+  for (const association of associations) {
+    const patterns = parseGatewayAllowedModels(association.allowedModels) ?? [];
+    const renamed = renameGatewayModelPatternsConnection(
+      patterns,
+      params.previousName,
+      params.name,
+    );
+    if (renamed.every((pattern, index) => pattern === patterns[index])) {
+      continue;
+    }
+    await tx.gatewayApiKeyAssociation.update({
+      where: { apiKeyId: association.apiKeyId },
+      data: { allowedModels: renamed },
+    });
   }
 }
