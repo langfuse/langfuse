@@ -3,6 +3,28 @@ import { deriveQueryTokens } from "./deriveQueryTokens";
 import { EVENTS_FIELD_REGISTRY } from "../fields";
 
 describe("deriveQueryTokens", () => {
+  it("keeps an excessively complex query in one editable error region", () => {
+    const draft = "bad:1 ".repeat(10000).trim();
+    const tokens = deriveQueryTokens({
+      draft,
+      scoreTypes: undefined,
+      registry: EVENTS_FIELD_REGISTRY,
+      showDiagnostics: true,
+      fieldReason: undefined,
+      freeTextReason: undefined,
+    });
+    expect(tokens).toEqual([
+      expect.objectContaining({
+        raw: draft,
+        from: 0,
+        to: draft.length,
+        editable: true,
+        kind: "invalid",
+        error: "Query has too many terms (max 1024)",
+      }),
+    ]);
+  });
+
   it.each([
     { draft: "name:(alpha OR beta OR gamma)", relation: "any of" },
     { draft: "-name:(alpha OR beta OR gamma)", relation: "none of" },
@@ -28,6 +50,24 @@ describe("deriveQueryTokens", () => {
       ).toBe(draft);
     },
   );
+
+  it("describes a value group under NOT as an exclusion while keeping its source", () => {
+    const draft = "NOT (name:(alpha OR beta OR gamma))";
+    const tokens = deriveQueryTokens({
+      draft,
+      scoreTypes: undefined,
+      registry: EVENTS_FIELD_REGISTRY,
+      showDiagnostics: false,
+      fieldReason: undefined,
+      freeTextReason: undefined,
+    });
+    const group = tokens.find((token) => token.summary !== undefined);
+    expect(group?.summary?.label).toBe("Name none of 3 values");
+    expect(group?.raw).toBe(draft.slice(group?.from, group?.to));
+    expect(group?.summary?.groups[1]?.parts).toEqual([
+      { text: "alpha", tone: "value" },
+    ]);
+  });
 
   it.each([
     'metadata."foo:bar":*x*',

@@ -395,7 +395,7 @@ function QueryInputEditor({
   completions: QueryCompletionPlan | null;
   onEditToken?: (token: QueryToken, anchor: HTMLButtonElement) => void;
   tokenEditor?: { from: number; popupId: string };
-  onExpand?: () => void;
+  onExpand?: (trigger: HTMLButtonElement) => void;
 }) {
   const id = React.useId();
   const listboxId = `${id}-suggestions`;
@@ -420,6 +420,7 @@ function QueryInputEditor({
   const [tooltipDismissed, setTooltipDismissed] = React.useState(false);
   const rootRef = React.useRef<HTMLDivElement>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const tooltipRef = React.useRef<HTMLDivElement>(null);
   // Selection to restore after the next reprojection of a controlled edit.
   const pendingSelectionRef = React.useRef<LogicalRange | null>(null);
   // Bumped after IME composition so token spans remount instead of keeping
@@ -889,6 +890,8 @@ function QueryInputEditor({
     return null;
   })();
   const explainTargetId = explainTarget?.id ?? null;
+  const collectionPreview =
+    onEditToken !== undefined && explainTarget?.summary !== undefined;
   const explanation = (() => {
     if (onEditToken !== undefined && explainTarget?.summary !== undefined) {
       return { subject: explainTarget.summary.previewLabel, predicate: "" };
@@ -1421,6 +1424,8 @@ function QueryInputEditor({
     aboveTop: number;
   } | null>(null);
   const removeTargetIdActual = removeTarget?.id ?? null;
+  const compactRemoveTarget =
+    onEditToken !== undefined && removeTarget?.summary !== undefined;
   const measurePositions = React.useCallback(() => {
     const root = rootRef.current;
     const container = containerRef.current;
@@ -1443,7 +1448,8 @@ function QueryInputEditor({
     } else {
       const containerRect = container.getBoundingClientRect();
       setRemovePosition({
-        left: lastRect.right - containerRect.left - 10,
+        left:
+          lastRect.right - containerRect.left - (compactRemoveTarget ? 6 : 10),
         top: lastRect.top - containerRect.top - 12,
       });
     }
@@ -1464,7 +1470,7 @@ function QueryInputEditor({
             aboveTop: tooltipRect.top,
           },
     );
-  }, [removeTargetIdActual, tooltipTargetId]);
+  }, [compactRemoveTarget, removeTargetIdActual, tooltipTargetId]);
 
   // Re-measure when a target or the draft text changes.
   React.useLayoutEffect(() => {
@@ -1484,6 +1490,94 @@ function QueryInputEditor({
     return () => observer.disconnect();
   }, [measurePositions, removeTargetIdActual, tooltipTargetId]);
 
+  // Include the visual gap in the collection preview's hover area so the
+  // pointer can travel from the token into the portaled content.
+  const tokenTooltip =
+    tooltipPosition === null ? null : (
+      <div
+        ref={tooltipRef}
+        onMouseLeave={
+          collectionPreview
+            ? (event) => {
+                if (
+                  event.relatedTarget instanceof Node &&
+                  containerRef.current?.contains(event.relatedTarget)
+                )
+                  return;
+                setHoveredTokenId(null);
+              }
+            : undefined
+        }
+        style={
+          plan !== null
+            ? {
+                left: tooltipPosition.left,
+                top: tooltipPosition.aboveTop,
+                transform: collectionPreview
+                  ? "translateY(-100%)"
+                  : "translateY(calc(-100% - 6px))",
+              }
+            : {
+                left: tooltipPosition.left,
+                top: tooltipPosition.belowTop - (collectionPreview ? 6 : 0),
+              }
+        }
+        className={cn(
+          "fixed max-w-[min(360px,calc(100vw-32px))]",
+          collectionPreview
+            ? ["pointer-events-auto", plan !== null ? "pb-1.5" : "pt-1.5"]
+            : "pointer-events-none",
+        )}
+      >
+        <div
+          role="tooltip"
+          data-testid="search-bar-token-tooltip"
+          className={cn(
+            "ph-no-capture bg-popover rounded-md border",
+            "px-2 py-1 font-sans text-xs leading-snug shadow-md",
+            errorTarget !== null
+              ? "border-destructive/40 text-destructive"
+              : "border-border text-popover-foreground",
+          )}
+        >
+          {errorTarget !== null ? (
+            errorTarget.error
+          ) : (
+            <>
+              <span className="font-bold">{explanation?.subject}</span>
+              {/* A boolean token's phrase IS the whole explanation — no
+                      predicate, so no dangling space before the period. */}
+              {explanation?.predicate !== "" && <> {explanation?.predicate}</>}
+              {onEditToken !== undefined &&
+                explainTarget?.summary !== undefined && (
+                  <div className="mt-1 border-t pt-1">
+                    <ul className="flex flex-col gap-1 font-mono">
+                      {explainTarget.summary.values
+                        .slice(0, 6)
+                        .map((value, index) => (
+                          <li key={index} title="" className="truncate">
+                            {value || "(empty)"}
+                          </li>
+                        ))}
+                    </ul>
+                    <span className="text-muted-foreground mt-1 block">
+                      {explainTarget.summary.values.length > 6 &&
+                        `${explainTarget.summary.values.length - 6} more values. `}
+                      Click to edit
+                    </span>
+                  </div>
+                )}
+              {explainDeactivatedReason !== null && (
+                <span className="text-muted-foreground block pt-0.5">
+                  {notAppliedNote(explainDeactivatedReason)}
+                </span>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    );
+
   return (
     <div
       ref={containerRef}
@@ -1501,7 +1595,15 @@ function QueryInputEditor({
         <div
           data-testid="search-bar-surface"
           data-composer-text={draft}
-          onMouseLeave={() => setHoveredTokenId(null)}
+          onMouseLeave={(event) => {
+            if (
+              collectionPreview &&
+              event.relatedTarget instanceof Node &&
+              tooltipRef.current?.contains(event.relatedTarget)
+            )
+              return;
+            setHoveredTokenId(null);
+          }}
         >
           {draft.length === 0 && (
             <div
@@ -1531,11 +1633,11 @@ function QueryInputEditor({
                 label="Expand query"
                 size="sm"
                 onMouseDown={(event) => event.preventDefault()}
-                onClick={() => {
+                onClick={(event) => {
                   hasInteractedRef.current = true;
                   setAutocompleteOpen(false);
                   setHoveredTokenId(null);
-                  onExpand();
+                  onExpand(event.currentTarget);
                 }}
               />
             </div>
@@ -1718,77 +1820,22 @@ function QueryInputEditor({
         </QueryInputSuggestions>
       )}
 
-      {/* Per-token tooltip — the error diagnostic, or the token's plain-language
-          explanation. The "tooltip" <Layer> renders it on a body-level container
-          so it escapes the page header's overflow:hidden clip and z-50 stacking
-          context when it flips above the bar — an in-flow z-index can't win
-          against either. `fixed` + viewport anchors. pointer-events-none so
-          moving onto it doesn't change the hovered token (which would flicker it
-          away). */}
       {(errorTarget !== null || explanation !== null) &&
-        tooltipPosition !== null && (
+        tokenTooltip !== null && (
           <Layer name="tooltip">
-            <div
-              role="tooltip"
-              data-testid="search-bar-token-tooltip"
-              style={
-                plan !== null
-                  ? {
-                      left: tooltipPosition.left,
-                      top: tooltipPosition.aboveTop,
-                      transform: "translateY(calc(-100% - 6px))",
-                    }
-                  : {
-                      left: tooltipPosition.left,
-                      top: tooltipPosition.belowTop,
-                    }
-              }
-              className={cn(
-                "ph-no-capture pointer-events-none fixed max-w-[min(360px,calc(100vw-32px))]",
-                "bg-popover rounded-md border",
-                "px-2 py-1 font-sans text-xs leading-snug shadow-md",
-                errorTarget !== null
-                  ? "border-destructive/40 text-destructive"
-                  : "border-border text-popover-foreground",
-              )}
-            >
-              {errorTarget !== null ? (
-                errorTarget.error
-              ) : (
-                <>
-                  <span className="font-bold">{explanation?.subject}</span>
-                  {/* A boolean token's phrase IS the whole explanation — no
-                      predicate, so no dangling space before the period. */}
-                  {explanation?.predicate !== "" && (
-                    <> {explanation?.predicate}</>
-                  )}
-                  {onEditToken !== undefined &&
-                    explainTarget?.summary !== undefined && (
-                      <div className="mt-1 border-t pt-1">
-                        <ul className="flex flex-col gap-1 font-mono">
-                          {explainTarget.summary.values
-                            .slice(0, 6)
-                            .map((value, index) => (
-                              <li key={index} title="" className="truncate">
-                                {value || "(empty)"}
-                              </li>
-                            ))}
-                        </ul>
-                        <span className="text-muted-foreground mt-1 block">
-                          {explainTarget.summary.values.length > 6 &&
-                            `${explainTarget.summary.values.length - 6} more values. `}
-                          Click to edit
-                        </span>
-                      </div>
-                    )}
-                  {explainDeactivatedReason !== null && (
-                    <span className="text-muted-foreground block pt-0.5">
-                      {notAppliedNote(explainDeactivatedReason)}
-                    </span>
-                  )}
-                </>
-              )}
-            </div>
+            {collectionPreview ? (
+              <DismissableLayer
+                asChild
+                onEscapeKeyDown={(event) => {
+                  event.preventDefault();
+                  setTooltipDismissed(true);
+                }}
+              >
+                {tokenTooltip}
+              </DismissableLayer>
+            ) : (
+              tokenTooltip
+            )}
           </Layer>
         )}
     </div>

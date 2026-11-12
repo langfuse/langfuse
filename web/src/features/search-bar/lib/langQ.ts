@@ -53,6 +53,7 @@ export type LexToken =
   | { type: "term"; raw: string; span: Span };
 
 type Token = LexToken;
+const MAX_QUERY_TOKENS = 1024;
 
 /**
  * The raw token stream for `input` (diagnostics discarded). The composer's
@@ -61,7 +62,12 @@ type Token = LexToken;
  */
 export function lexTokens(input: string): LexToken[] {
   const throwaway: Diagnostic[] = [];
-  return lex(input, throwaway);
+  const tokens = lex(input, throwaway);
+  // A query rejected for complexity stays one editable error region instead
+  // of mounting thousands of invalid tokens in the editor.
+  return tokens.length > MAX_QUERY_TOKENS
+    ? [{ type: "term", raw: input, span: { from: 0, to: input.length } }]
+    : tokens;
 }
 
 // \s covers Unicode space separators (NBSP & friends) — pastes from
@@ -609,24 +615,40 @@ function parseGroupedValues(
 
 // ---- parser ----
 
+const MAX_NESTING_DEPTH = 128;
+
 export function parse(
   input: string,
   registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): ParseResult {
   const diagnostics: Diagnostic[] = [];
   const tokens = lex(input, diagnostics);
+  if (tokens.length > MAX_QUERY_TOKENS)
+    return {
+      ast: null,
+      valid: false,
+      diagnostics: [
+        {
+          from: 0,
+          to: input.length,
+          severity: "error",
+          message: `Query has too many terms (max ${MAX_QUERY_TOKENS})`,
+        },
+      ],
+    };
   let pos = 0;
+  let nestingError: Diagnostic | undefined;
 
   const peek = (): Token | null => tokens[pos] ?? null;
   const next = (): Token | null => tokens[pos++] ?? null;
 
-  function parseOr(): ASTNode | null {
-    let left = parseAnd();
+  function parseOr(depth = 0): ASTNode | null {
+    let left = parseAnd(depth);
     while (true) {
       const t = peek();
       if (t?.type === "term" && isKeyword(t.raw) === "or") {
         next();
-        const right = parseAnd();
+        const right = parseAnd(depth);
         if (right === null) {
           diagnostics.push({
             from: t.span.from,
@@ -657,7 +679,7 @@ export function parse(
     }
   }
 
-  function parseAnd(): ASTNode | null {
+  function parseAnd(depth: number): ASTNode | null {
     const children: ASTNode[] = [];
     while (true) {
       const t = peek();
@@ -696,7 +718,7 @@ export function parse(
           continue;
         }
       }
-      const node = parseUnary();
+      const node = parseUnary(depth);
       const suffix = peek();
       if (
         registry.targeting &&
@@ -743,9 +765,18 @@ export function parse(
     return { kind: "and", children };
   }
 
-  function parseUnary(): ASTNode | null {
+  function parseUnary(depth: number): ASTNode | null {
     const t = peek();
     if (t === null) return null;
+    if (depth > MAX_NESTING_DEPTH) {
+      nestingError = {
+        ...t.span,
+        severity: "error",
+        message: `Query nesting is too deep (max ${MAX_NESTING_DEPTH} levels)`,
+      };
+      pos = tokens.length;
+      return null;
+    }
 
     if (t.type === "rparen") {
       next();
@@ -760,7 +791,7 @@ export function parse(
 
     if (t.type === "lparen") {
       next();
-      const inner = parseOr();
+      const inner = parseOr(depth + 1);
       const close = peek();
       let closedTo: number | null = null;
       if (close?.type === "rparen") {
@@ -794,7 +825,7 @@ export function parse(
     const kw = isKeyword(t.raw);
     if (kw === "not") {
       next();
-      const child = parseUnary();
+      const child = parseUnary(depth + 1);
       if (child === null) {
         diagnostics.push({
           from: t.span.from,
@@ -868,6 +899,9 @@ export function parse(
       else ast = { kind: "and", children: [ast, more] };
     }
   }
+
+  if (nestingError !== undefined)
+    return { ast: null, diagnostics: [nestingError], valid: false };
 
   // Tolerant recovery can flag the same span from more than one path (e.g. an
   // unclosed "(" caught by both the lexer and parseTermNode). Drop exact

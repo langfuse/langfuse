@@ -34,6 +34,39 @@ function strip(node: ASTNode | null): unknown {
 }
 
 describe("langQ parser", () => {
+  it("bounds diagnostic work for a large number of separate terms", () => {
+    const input = "bad:1 ".repeat(10000).trim();
+    const result = validateQuery(input);
+    expect(result.ast).toBeNull();
+    expect(result.valid).toBe(false);
+    expect(result.diagnostics).toEqual([
+      {
+        from: 0,
+        to: input.length,
+        severity: "error",
+        message: "Query has too many terms (max 1024)",
+      },
+    ]);
+  });
+
+  it("rejects excessive expression nesting without overflowing the stack", () => {
+    for (const input of [
+      `${"(".repeat(300)}level:ERROR${")".repeat(300)}`,
+      `${"NOT ".repeat(300)}level:ERROR`,
+      `${"NOT (".repeat(300)}level:ERROR${")".repeat(300)}`,
+    ]) {
+      const result = validateQuery(input);
+      expect(result.valid).toBe(false);
+      expect(result.ast).toBeNull();
+      expect(result.diagnostics).toEqual([
+        expect.objectContaining({
+          severity: "error",
+          message: "Query nesting is too deep (max 128 levels)",
+        }),
+      ]);
+    }
+  });
+
   it("resolves aliases to canonical field ids", () => {
     const r = parse("env:prod apiKey:pk-lf-test");
     expect(r.valid).toBe(true);

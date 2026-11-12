@@ -42,6 +42,7 @@ import { QueryExpressionEditor } from "./QueryExpressionEditor";
 type QueryEditorState = { originalDraft: string; initialValue: string };
 type ValuePickerState = {
   state: TokenFacetState;
+  tokenFrom: number | null;
   virtualRef: React.RefObject<{ getBoundingClientRect: () => DOMRect }>;
 };
 
@@ -107,6 +108,7 @@ export function SearchComposer({
 
   const controller = useQueryInputController();
   const valuePickerId = React.useId();
+  const queryEditorTriggerRef = React.useRef<HTMLButtonElement | null>(null);
   const [valuePicker, setValuePicker] = React.useState<ValuePickerState | null>(
     null,
   );
@@ -186,6 +188,12 @@ export function SearchComposer({
             scoreTypes={scoreTypes}
             onApply={apply}
             onClose={closeDialog}
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              const trigger = queryEditorTriggerRef.current;
+              if (trigger?.isConnected) trigger.focus();
+              controller.setAutocompleteOpen(false);
+            }}
           />
         );
       }}
@@ -264,7 +272,16 @@ export function SearchComposer({
                         ? null
                         : nextState.span.from;
                   setValuePicker((current) =>
-                    current === null ? null : { ...current, state: nextState },
+                    current === null
+                      ? null
+                      : {
+                          ...current,
+                          state: nextState,
+                          tokenFrom:
+                            nextState.expression === null
+                              ? null
+                              : nextState.span.from,
+                        },
                   );
                   return true;
                 }}
@@ -314,9 +331,9 @@ export function SearchComposer({
                 tokenEditor={
                   isOpen &&
                   valuePicker !== null &&
-                  valuePicker.state.expression !== null
+                  valuePicker.tokenFrom !== null
                     ? {
-                        from: valuePicker.state.span.from,
+                        from: valuePicker.tokenFrom,
                         popupId: valuePickerId,
                       }
                     : undefined
@@ -344,6 +361,7 @@ export function SearchComposer({
                   const topOffset = rect.top - base.top;
                   setValuePicker({
                     state: initialState,
+                    tokenFrom: token.from,
                     virtualRef: {
                       current: {
                         getBoundingClientRect: () => {
@@ -375,12 +393,13 @@ export function SearchComposer({
                   controller.setAutocompleteOpen(false);
                   openPopover();
                 }}
-                onExpand={() =>
+                onExpand={(trigger) => {
+                  queryEditorTriggerRef.current = trigger;
                   openDialog({
                     originalDraft: store.getState().draft,
                     initialValue: store.getState().draft,
-                  })
-                }
+                  });
+                }}
               />
             </>
           )}

@@ -11,12 +11,14 @@ export function QueryExpressionEditor({
   scoreTypes,
   onApply,
   onClose,
+  onCloseAutoFocus,
 }: {
   initialValue: string;
   registry: FieldRegistry;
   scoreTypes: ScoreTypeContext | undefined;
   onApply: (value: string) => boolean;
   onClose: () => void;
+  onCloseAutoFocus?: React.ComponentProps<typeof Dialog>["onCloseAutoFocus"];
 }) {
   const [value, setValue] = React.useState(initialValue);
   const [stale, setStale] = React.useState(false);
@@ -29,6 +31,7 @@ export function QueryExpressionEditor({
     <Dialog
       title="Edit query"
       size="lg"
+      onCloseAutoFocus={onCloseAutoFocus}
       actions={[
         {
           label: "Apply",

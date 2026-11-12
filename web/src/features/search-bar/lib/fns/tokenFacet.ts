@@ -16,6 +16,8 @@ export type TokenFacetState = {
   span: Span;
   expression: string | null;
   template: FilterNode;
+  /** Singleton array expressions do not encode their any-of/all-of preference. */
+  operator: CheckboxOperator;
 };
 
 export type TokenFacetAction =
@@ -24,16 +26,68 @@ export type TokenFacetAction =
   | { kind: "operator"; operator: CheckboxOperator }
   | { kind: "clear" };
 
+function selectedCondition(
+  node: ASTNode,
+  selected: Span,
+): { filter: FilterNode; span: Span; negated: boolean } | null {
+  if (node.kind === "and" || node.kind === "or") {
+    for (const child of node.children) {
+      const found = selectedCondition(child, selected);
+      if (found !== null) return found;
+    }
+    return null;
+  }
+
+  const extents: Span[] = [];
+  let child: ASTNode = node;
+  let negated = false;
+  while (child.kind === "not") {
+    if (child.span) extents.push(child.span);
+    if (child.parenSpan) extents.push(child.parenSpan);
+    negated = !negated;
+    child = child.child;
+  }
+  if (
+    child.kind !== "filter" ||
+    child.span === undefined ||
+    child.span.from < selected.from ||
+    child.span.to > selected.to
+  )
+    return null;
+  extents.push(child.span);
+  if (child.parenSpan) extents.push(child.parenSpan);
+  return {
+    filter: child,
+    negated,
+    span: {
+      from: Math.min(...extents.map((extent) => extent.from)),
+      to: Math.max(...extents.map((extent) => extent.to)),
+    },
+  };
+}
+
 export function createTokenFacetState(
   query: string,
   span: Span,
   registry: FieldRegistry,
 ): TokenFacetState | null {
-  const expression = query.slice(span.from, span.to);
-  const { ast, valid } = parse(expression, registry);
-  const filter = ast?.kind === "not" ? ast.child : ast;
-  if (!valid || filter?.kind !== "filter") return null;
-  return { query, span, expression, template: filter };
+  const { ast } = parse(query, registry);
+  if (ast === null) return null;
+  const condition = selectedCondition(ast, span);
+  if (condition === null) return null;
+  const expression = query.slice(condition.span.from, condition.span.to);
+  if (!parse(expression, registry).valid) return null;
+  const { filter, negated } = condition;
+  let operator: CheckboxOperator = "any of";
+  if (negated) operator = "none of";
+  else if (filter.valueOp === "and") operator = "all of";
+  return {
+    query,
+    span: condition.span,
+    expression,
+    template: filter,
+    operator,
+  };
 }
 
 function currentFilter(
@@ -42,13 +96,12 @@ function currentFilter(
 ): FilterState {
   if (state.expression === null) return [];
   const { ast } = parse(state.expression, registry);
-  const filter = ast?.kind === "not" ? ast.child : ast;
+  let filter = ast;
+  while (filter?.kind === "not") filter = filter.child;
   if (filter?.kind !== "filter") return [];
   const ref = registry.resolveField(filter.key);
   const array = ref?.type === "field" && ref.field.syncMode === "arrayOption";
-  let operator: CheckboxOperator = "any of";
-  if (ast?.kind === "not") operator = "none of";
-  else if (filter.valueOp === "and") operator = "all of";
+  const operator = state.operator;
   if (array)
     return [
       {
@@ -201,12 +254,14 @@ export function applyTokenFacetAction(
       ...state,
       query: prefix + expression,
       expression,
+      operator: nextFilter.operator,
       span: { from: prefix.length, to: prefix.length + expression.length },
     };
   }
   return {
     ...state,
     expression,
+    operator: nextFilter.operator,
     query:
       state.query.slice(0, state.span.from) +
       expression +

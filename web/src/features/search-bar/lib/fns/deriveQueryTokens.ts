@@ -77,7 +77,8 @@ export function deriveQueryTokens({
       ],
     };
     let relation = "any of";
-    if (segment.negated) relation = "none of";
+    if (segment.negated !== (segment.inheritedNegation ?? false))
+      relation = "none of";
     else if (segment.valueOp === "and") relation = "all of";
     const subject = token.explanation?.subject ?? segment.displayField;
     return {
@@ -93,7 +94,7 @@ export function deriveQueryTokens({
                 {
                   noWrap: true,
                   parts: [
-                    ...(relation === "any of"
+                    ...(relation === "any of" || segment.inheritedNegation
                       ? []
                       : [
                           {

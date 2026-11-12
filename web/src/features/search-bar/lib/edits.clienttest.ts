@@ -14,6 +14,80 @@ function spanOf(text: string, token: string) {
 }
 
 describe("removeToken — semantic preservation", () => {
+  it("applies Only to the complete negated condition in keyword and dash forms", () => {
+    const token = "name:(alpha OR beta OR gamma)";
+    for (const expression of [
+      `-${token}`,
+      `NOT ${token}`,
+      `NOT (${token})`,
+      `NOT NOT -${token}`,
+    ]) {
+      const query = `level:ERROR ${expression} env:dev`;
+      const initial = createTokenFacetState(
+        query,
+        spanOf(query, token),
+        EVENTS_FIELD_REGISTRY,
+      )!;
+      const next = applyTokenFacetAction(
+        initial,
+        [],
+        { kind: "only", value: "beta" },
+        EVENTS_FIELD_REGISTRY,
+      );
+      const parsed = parse(next.query);
+      expect(parsed.valid).toBe(true);
+      expect(astToFilterState(parsed.ast).filters).toEqual([
+        {
+          type: "stringOptions",
+          column: "level",
+          operator: "any of",
+          value: ["ERROR"],
+        },
+        {
+          type: "stringOptions",
+          column: "name",
+          operator: "any of",
+          value: ["beta"],
+        },
+        {
+          type: "stringOptions",
+          column: "environment",
+          operator: "any of",
+          value: ["dev"],
+        },
+      ]);
+    }
+  });
+
+  it("keeps all-of mode when an array group shrinks to one value and grows again", () => {
+    const query = "tags:(alpha AND beta AND gamma)";
+    const initial = createTokenFacetState(
+      query,
+      { from: 0, to: query.length },
+      EVENTS_FIELD_REGISTRY,
+    )!;
+    const singleton = applyTokenFacetAction(
+      initial,
+      [],
+      { kind: "selection", values: ["alpha"] },
+      EVENTS_FIELD_REGISTRY,
+    );
+    const expanded = applyTokenFacetAction(
+      singleton,
+      [],
+      { kind: "selection", values: ["alpha", "beta"] },
+      EVENTS_FIELD_REGISTRY,
+    );
+    expect(astToFilterState(parse(expanded.query).ast).filters).toEqual([
+      {
+        type: "arrayOptions",
+        column: "traceTags",
+        operator: "all of",
+        value: ["alpha", "beta"],
+      },
+    ]);
+  });
+
   it("preserves an explicit ID list when its last unchecked known value is reselected", () => {
     const query = "id:(first-id OR second-id OR third-id)";
     const state = createTokenFacetState(

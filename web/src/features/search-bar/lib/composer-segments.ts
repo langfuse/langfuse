@@ -30,6 +30,8 @@ export type FilterSegment = {
   op: CompareOp;
   valueOp?: "or" | "and";
   negated: boolean;
+  /** A separate NOT operator applies to this leaf without belonging to its raw text. */
+  inheritedNegation?: boolean;
   editable: true;
 };
 
@@ -67,7 +69,13 @@ function segmentId(
 // ---- AST leaf collection ----
 
 type Leaf =
-  | { span: Span; kind: "filter"; node: FilterNode; negated: boolean }
+  | {
+      span: Span;
+      kind: "filter";
+      node: FilterNode;
+      negated: boolean;
+      inheritedNegation: boolean;
+    }
   | { span: Span; kind: "text"; node: TextNode };
 
 function collectLeaves(
@@ -75,11 +83,18 @@ function collectLeaves(
   text: string,
   out: Leaf[],
   registry: FieldRegistry,
+  inheritedNegation = false,
 ): void {
   switch (node.kind) {
     case "filter":
       if (node.span)
-        out.push({ span: node.span, kind: "filter", node, negated: false });
+        out.push({
+          span: node.span,
+          kind: "filter",
+          node,
+          negated: false,
+          inheritedNegation,
+        });
       return;
     case "text":
       if (node.span) out.push({ span: node.span, kind: "text", node });
@@ -98,14 +113,16 @@ function collectLeaves(
           kind: "filter",
           node: node.child,
           negated: true,
+          inheritedNegation,
         });
         return;
       }
-      collectLeaves(node.child, text, out, registry);
+      collectLeaves(node.child, text, out, registry, !inheritedNegation);
       return;
     case "and":
     case "or":
-      for (const c of node.children) collectLeaves(c, text, out, registry);
+      for (const c of node.children)
+        collectLeaves(c, text, out, registry, inheritedNegation);
       return;
   }
 }
@@ -230,6 +247,7 @@ export function deriveComposerSegments(
         op: node.op,
         valueOp: node.valueOp,
         negated: leaf.negated,
+        ...(leaf.inheritedNegation ? { inheritedNegation: true } : {}),
         editable: true,
         ...(node.target?.span
           ? {

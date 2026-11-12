@@ -256,6 +256,17 @@ export const TestCompactGroupEditing = meta.story({
       }),
     );
     await expect(clipboard.getData("text/plain")).toBe(args.initialDraft);
+    const expand = canvas.getByRole("button", { name: "Expand query" });
+    await userEvent.click(expand);
+    await body.findByRole("dialog", { name: "Edit query" });
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(expand).toHaveFocus());
+    await userEvent.click(expand);
+    const queryDialog = await body.findByRole("dialog", { name: "Edit query" });
+    await userEvent.click(
+      within(queryDialog).getByRole("button", { name: "Apply" }),
+    );
+    await waitFor(() => expect(expand).toHaveFocus());
     await userEvent.click(
       canvas.getByRole("button", { name: /Edit.*3 values/ }),
     );

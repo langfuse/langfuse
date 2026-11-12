@@ -522,3 +522,61 @@ export const TestPreviewEscapeInDialog = TestControlledSelection.extend({
     );
   },
 });
+
+export const TestCollectionPreviewHover = TestPreviewEscapeInDialog.extend({
+  name: "(Test) Collection preview stays hoverable and dismisses before its dialog",
+  args: {
+    value: "status:(open OR pending OR closed)",
+    onEditToken: fn(),
+    tokens: previewTokens.map((token) => ({
+      ...token,
+      raw: "status:(open OR pending OR closed)",
+      to: "status:(open OR pending OR closed)".length,
+      explanation: { subject: "Status", predicate: "is open" },
+      summary: {
+        label: "Status any of 3 values",
+        previewLabel: "Status 3 values",
+        values: ["open", "pending", "closed"],
+        groups: [
+          {
+            noWrap: true,
+            parts: [
+              { text: "status", tone: "field" },
+              { text: ":", tone: "muted" },
+            ],
+          },
+          { noWrap: true, parts: [{ text: "open", tone: "value" }] },
+        ],
+      },
+    })),
+  },
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(
+      within(canvasElement).getByRole("button", { name: "Open dialog" }),
+    );
+    const dialog = await body.findByRole("dialog", { name: "Query dialog" });
+    const outside = within(dialog).getByRole("button", { name: "Close" });
+    outside.focus();
+    await userEvent.hover(
+      within(dialog).getByRole("button", {
+        name: "Edit Status any of 3 values",
+      }),
+    );
+    const tooltip = await body.findByTestId("search-bar-token-tooltip");
+    await userEvent.hover(tooltip);
+    await expect(tooltip).toBeVisible();
+    await expect(outside).toHaveFocus();
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(
+        body.queryByTestId("search-bar-token-tooltip"),
+      ).not.toBeInTheDocument(),
+    );
+    await expect(dialog).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(body.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+  },
+});
