@@ -100,3 +100,21 @@ it("moves between the listed queue items and disables the ends", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Navigate up" }));
   expect(router.push).toHaveBeenCalledWith(itemPath("item-b"));
 });
+
+it("does not leave an open dialog on J or K", async () => {
+  router.push.mockClear();
+  renderNav("item-b");
+  await screen.findByRole("button", { name: "Navigate down" });
+
+  const dialog = document.createElement("div");
+  dialog.setAttribute("role", "dialog");
+  document.body.appendChild(dialog);
+
+  fireEvent.keyDown(window, { key: "j" });
+  fireEvent.keyDown(window, { key: "k" });
+  expect(router.push).not.toHaveBeenCalled();
+
+  dialog.remove();
+  fireEvent.keyDown(window, { key: "j" });
+  expect(router.push).toHaveBeenCalledWith(itemPath("item-c"));
+});
