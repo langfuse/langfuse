@@ -55,13 +55,6 @@ export function canUseEventsDispatch(
   );
 }
 
-/** Resolves the project like the rest of the app. */
-export function useCanUseEventsDispatch(projectId: string) {
-  const session = useSession().data;
-  const { project } = useProject(projectId);
-  return canUseEventsDispatch(session, project);
-}
-
 /** Deployment allowlist for the project, resolved on the server as `topicsEnabled`. */
 function isEventsDispatchEnabledForProject(
   project: TopicsProject | null | undefined,
