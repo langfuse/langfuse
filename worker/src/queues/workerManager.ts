@@ -216,7 +216,7 @@ export class WorkerManager {
     // Add error handling
     worker.on("failed", (job: Job<JobData<Q>> | undefined, err: Error) => {
       const reason = classifyJobFailure(err);
-      const tags = { ...(job ? metricTags(job.data) : {}), ...shardTag };
+      const tags = { ...jobMetricTags(metricTags, job), ...shardTag };
       logRetryableJobFailure({
         message: `Queue job ${job?.name} with id ${job?.id} in ${queueName} failed`,
         error: err,
@@ -270,6 +270,15 @@ export class WorkerManager {
       });
     });
   }
+}
+
+/** jobMetricTags derives a job's metric tags, or none when BullMQ reports a failure without the job. */
+function jobMetricTags<Q extends QueueName>(
+  metricTags: MetricTags<Q>,
+  job: Job<JobData<Q>> | undefined,
+): Record<string, string> {
+  if (!job) return {};
+  return metricTags(job.data);
 }
 
 /** JobData is the data a queue's jobs carry; cron-only queues send an empty object. */
