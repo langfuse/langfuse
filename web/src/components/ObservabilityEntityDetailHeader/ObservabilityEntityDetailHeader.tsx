@@ -706,7 +706,10 @@ function MetricContent({ metric }: { metric: HeaderMetric }) {
                         className="flex min-w-0 items-center gap-2"
                       >
                         {value.caption && (
-                          <span className="text-muted-foreground truncate text-xs">
+                          <span
+                            className="text-muted-foreground truncate text-xs"
+                            title={value.caption}
+                          >
                             {value.caption}
                           </span>
                         )}

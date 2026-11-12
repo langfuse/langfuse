@@ -50,8 +50,9 @@ const meta = preview.meta({
   component: ObservabilityEntityDetailHeader,
 });
 
-/** One rule map per question: one topic or status per row. */
+/** One rule map per question: one topic or status per row, as before. */
 export const OneTopicPerQuestion = meta.story({
+  name: "(Test) A single topic per question shows no rule caption",
   args: header([
     result("intent", "All traces", {
       name: "Troubleshoot Webhook Failures",
@@ -63,6 +64,10 @@ export const OneTopicPerQuestion = meta.story({
     await userEvent.hover(
       canvas.getAllByText("Troubleshoot Webhook Failures")[0],
     );
+    const card = within(document.body);
+    await expect(await card.findByText(intent)).toBeInTheDocument();
+    await expect(card.getByText("outlier")).toBeInTheDocument();
+    await expect(card.queryByText("All traces")).toBeNull();
   },
 });
 
