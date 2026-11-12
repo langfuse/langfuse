@@ -7,7 +7,7 @@ import {
   BatchActionType,
 } from "../features/batchAction/types";
 import { BatchTableNames } from "../interfaces/tableNames";
-import { EventActionSchema } from "../domain/automations";
+import { ActionTypeSchema, EventActionSchema } from "../domain/automations";
 import { SkillVersionSchema } from "../features/skills/types";
 import { PromptDomainSchema } from "../domain/prompts";
 import { ObservationAddToDatasetConfigSchema } from "../features/batchAction/addToDatasetTypes";
@@ -358,6 +358,7 @@ export const WebhookInputSchema = z.object({
   projectId: z.string(),
   automationId: z.string(),
   executionId: z.string(),
+  actionType: ActionTypeSchema.optional(), // optional for jobs enqueued before producers set it
   payload: WebhookOutboundEnvelopeSchema,
 });
 
