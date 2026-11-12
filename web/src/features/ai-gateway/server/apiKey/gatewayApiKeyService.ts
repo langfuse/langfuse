@@ -49,7 +49,6 @@ export class GatewayApiKeyService {
     organizationId: string;
     ownerUserId?: string;
     searchQuery?: string;
-    restrictedModelsOnly?: boolean;
     orderBy?: OrderByState;
     page: number;
     limit: number;

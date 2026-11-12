@@ -65,10 +65,9 @@ const actions = {
     onChange: onPageChange,
   },
   search: { value: "", onChange: fn() },
-  modelsFilter: { restrictedModelsOnly: false, onChange: fn() },
 } satisfies Pick<
   ComponentProps<typeof GatewayApiKeysTable>,
-  "lastUsed" | "onRevoke" | "pagination" | "search" | "modelsFilter"
+  "lastUsed" | "onRevoke" | "pagination" | "search"
 >;
 
 const lastUsedCell = (canvas: {

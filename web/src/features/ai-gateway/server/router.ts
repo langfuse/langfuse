@@ -570,7 +570,6 @@ export const aiGatewayRouter = createTRPCRouter({
     .input(
       offsetPaginatedOrganizationInput.extend({
         searchQuery: z.string().trim().optional(),
-        restrictedModelsOnly: z.boolean().optional(),
         orderBy: orderBy.optional(),
       }),
     )
@@ -584,7 +583,6 @@ export const aiGatewayRouter = createTRPCRouter({
         organizationId: input.orgId,
         ownerUserId: getKeyOwnerFilter(usageScope),
         searchQuery: input.searchQuery,
-        restrictedModelsOnly: input.restrictedModelsOnly,
         orderBy: input.orderBy,
         page: input.page,
         limit: input.limit,
