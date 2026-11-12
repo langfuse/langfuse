@@ -1,9 +1,7 @@
 import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
-import {
-  getContextualFeatureFlags,
-  isInternalViewEnabled,
-} from "@/src/features/feature-flags/utils";
+import { isInternalViewEnabled } from "@/src/features/feature-flags/utils";
+import { isEventsDispatchAvailable } from "@/src/features/events-dispatch/isEventsDispatchAvailable";
 import { useProject } from "@/src/features/projects/hooks";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
@@ -15,22 +13,12 @@ export function canViewTopics(
   project: TopicsProject | null | undefined,
 ) {
   return (
-    isTopicsPreviewAvailable(session, project) &&
+    isEventsDispatchAvailable(
+      session,
+      project,
+      isInternalViewEnabled(session),
+    ) &&
     hasProjectAccess({ session, projectId: project.id, scope: "topics:read" })
-  );
-}
-
-/** Project gate, internal view or the Topics preview, shared by every gate built on them. */
-function isTopicsPreviewAvailable(
-  session: Session | null,
-  project: TopicsProject | null | undefined,
-): project is TopicsProject {
-  return (
-    !!project &&
-    isEventsDispatchEnabledForProject(project) &&
-    (isInternalViewEnabled(session) ||
-      getContextualFeatureFlags(session?.user, { projectId: project.id })
-        ?.langfuseTopics === true)
   );
 }
 
@@ -39,33 +27,4 @@ export function useCanViewTopics(projectId: string) {
   const session = useSession().data;
   const { project } = useProject(projectId);
   return canViewTopics(session, project);
-}
-
-/**
- * Events-dispatch gate: the same allowlist and Topics preview as canViewTopics,
- * with evals read access instead of topics:read.
- */
-export function canUseEventsDispatch(
-  session: Session | null,
-  project: TopicsProject | null | undefined,
-) {
-  return (
-    isTopicsPreviewAvailable(session, project) &&
-    hasEvalsReadAccess(session, project.id)
-  );
-}
-
-/** Deployment allowlist for the project, resolved on the server as `topicsEnabled`. */
-function isEventsDispatchEnabledForProject(
-  project: TopicsProject | null | undefined,
-) {
-  return project?.topicsEnabled === true;
-}
-
-/** Same access as the Evaluators navigation: either evals read scope. */
-function hasEvalsReadAccess(session: Session | null, projectId: string) {
-  return (
-    hasProjectAccess({ session, projectId, scope: "evaluator:read" }) ||
-    hasProjectAccess({ session, projectId, scope: "evaluationRule:read" })
-  );
 }
