@@ -45,21 +45,23 @@ describe("sanitizeInAppAgentContext", () => {
     });
   });
 
-  it("drops malformed table filters and keeps the page", () => {
-    const context = [
-      { description: "current_url", value: currentUrl },
+  it("marks oversized applied filters as truncated instead of dropping them", () => {
+    const oversizedFilters: FilterState = [
       {
-        description: "current_table_filters",
-        value: JSON.stringify({
-          tableName: "traces",
-          filters: [{ column: "name", type: "unknown" }],
-        }),
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: Array.from({ length: 400 }, (_, i) => `checkout-step-${i}`),
       },
     ];
+    const context = createInAppAgentScreenContext({
+      currentUrl,
+      tableFilters: { tableName: "traces", filters: oversizedFilters },
+    });
 
     expect(
-      readPage(sanitizeInAppAgentContext(context, "project-1")),
-    ).not.toHaveProperty("appliedFilters");
+      readPage(sanitizeInAppAgentContext(context, "project-1")).appliedFilters,
+    ).toEqual({ table: "traces", filterCount: 1, truncated: true });
   });
 });
 

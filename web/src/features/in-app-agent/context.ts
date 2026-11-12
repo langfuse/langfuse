@@ -35,6 +35,8 @@ const MAX_CONTEXT_VALUE_LENGTH = 500;
 const MAX_SCREEN_CONTEXT_PATH_LENGTH = 500;
 const MAX_SCREEN_CONTEXT_HASH_LENGTH = 200;
 const MAX_SCREEN_CONTEXT_JSON_LENGTH = 4_000;
+// Accepts states too large for the URL; only their summary reaches the page.
+const MAX_TABLE_FILTERS_CONTEXT_LENGTH = 64_000;
 const USER_CONTEXT_DESCRIPTIONS = new Set([
   "user_name",
   "current_timezone",
@@ -181,18 +183,23 @@ export function sanitizeInAppAgentContext(
       projectId,
     );
     const appliedFilters = sanitizeTableFiltersContext(context);
+    const savedView = viewFilters ? { filters: viewFilters } : undefined;
+    // Filters too large to send still tell the agent that the table is
+    // filtered, so it never describes a filtered table as unfiltered.
+    const appliedFiltersSummary = appliedFilters
+      ? {
+          table: appliedFilters.table,
+          filterCount: appliedFilters.filters.length,
+          truncated: true,
+        }
+      : undefined;
     // Most specific first; drop optional sections until the page fits.
     const pageCandidates = currentUrl
       ? [
-          {
-            ...currentUrl,
-            ...(appliedFilters ? { appliedFilters } : {}),
-            ...(viewFilters ? { savedView: { filters: viewFilters } } : {}),
-          },
-          {
-            ...currentUrl,
-            ...(appliedFilters ? { appliedFilters } : {}),
-          },
+          { ...currentUrl, appliedFilters, savedView },
+          { ...currentUrl, appliedFilters },
+          { ...currentUrl, appliedFilters: appliedFiltersSummary, savedView },
+          { ...currentUrl, appliedFilters: appliedFiltersSummary },
           currentUrl,
         ]
       : [];
@@ -229,7 +236,7 @@ function sanitizeTableFiltersContext(context: InAppAgentContext) {
     (item) => item.description === TABLE_FILTERS_CONTEXT_DESCRIPTION,
   )?.value;
 
-  if (!value || value.length > MAX_SCREEN_CONTEXT_JSON_LENGTH) {
+  if (!value || value.length > MAX_TABLE_FILTERS_CONTEXT_LENGTH) {
     return undefined;
   }
 
