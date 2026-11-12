@@ -5,6 +5,13 @@ import preview from "../../../../.storybook/preview";
 import { WidgetForm } from "./WidgetForm";
 import { toDefaultValues, type WidgetFormValues } from "./widgetFormSchema";
 
+const emptyFilterData = {
+  columns: [],
+  columnsWithCustomSelect: [],
+  stringObjectValueOptions: undefined,
+  onStringObjectKeyChange: undefined,
+};
+
 function WidgetFormFixture({ invalidQuery }: { invalidQuery: boolean }) {
   const form = useForm<WidgetFormValues>({
     defaultValues: toDefaultValues(
@@ -53,12 +60,8 @@ function WidgetFormFixture({ invalidQuery }: { invalidQuery: boolean }) {
         }}
         setDateRangeAndOption={() => {}}
         selectedOption="last7Days"
-        filterData={{
-          columns: [],
-          columnsWithCustomSelect: [],
-          stringObjectValueOptions: undefined,
-          onStringObjectKeyChange: undefined,
-        }}
+        filterData={emptyFilterData}
+        formulaFilterData={emptyFilterData}
       />
     </div>
   );

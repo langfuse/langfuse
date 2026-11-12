@@ -1,6 +1,6 @@
 import startCase from "lodash/startCase";
 import { type z } from "zod";
-import { type FilterState } from "@langfuse/shared";
+import { type FilterState, type WidgetFormula } from "@langfuse/shared";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import {
   getViewDeclaration,
@@ -27,6 +27,8 @@ export type WidgetChartConfig = {
     column: string;
     order: "ASC" | "DESC";
   };
+  /** Only honoured on time series and NUMBER charts. */
+  formula?: WidgetFormula;
 };
 
 type PivotSortMetric = {
