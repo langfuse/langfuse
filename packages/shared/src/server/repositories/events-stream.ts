@@ -11,6 +11,8 @@ import { queryClickhouse, queryClickhouseStream } from "./clickhouse";
 // Each page is its own query, so a slow consumer only has to finish one page
 // within the query timeout, not the whole stream.
 const EVAL_STREAM_PAGE_SIZE = 5_000;
+// Keeps UUID-sized span ids under ClickHouse's default 128 KiB per field.
+const SPAN_ID_PARAM_CHUNK_SIZE = 2_000;
 
 /**
  * Lightweight event stream for batch observation evaluation.
@@ -83,37 +85,42 @@ async function* streamResolvedSpanPages(
   eventFilters: FilterCondition[],
   pageSize: number,
 ) {
-  const spanIds = await resolveEvalSpanIds(props);
+  const spans = await resolveEvalSpans(props);
+  const chunkSize = Math.min(pageSize, SPAN_ID_PARAM_CHUNK_SIZE);
 
-  for (let i = 0; i < spanIds.length; i += pageSize) {
-    const pageSpanIds = spanIds.slice(i, i + pageSize);
+  for (let i = 0; i < spans.length; i += chunkSize) {
+    const chunk = spans.slice(i, i + chunkSize);
     yield* streamEvalPage({
       ...props,
       filter: eventFilters,
       after: undefined,
-      spanIds: pageSpanIds,
-      rowLimit: pageSpanIds.length,
+      spanPage: {
+        ids: chunk.map((span) => span.id),
+        // Spans come newest first; the range lets ClickHouse prune parts.
+        startTimeFrom: chunk[chunk.length - 1].start_time,
+        startTimeTo: chunk[0].start_time,
+      },
+      rowLimit: chunk.length,
     });
   }
 }
 
-async function resolveEvalSpanIds(props: EvalStreamProps) {
+async function resolveEvalSpans(props: EvalStreamProps) {
   const { queryBuilder } = buildEventsStreamQuery({
     ...props,
     filter: props.filter ?? [],
   });
   const { query, params } = orderBehind(queryBuilder, props.after)
-    .selectRaw("e.span_id AS id")
+    .selectRaw("e.span_id AS id", "toString(e.start_time) AS start_time")
     .buildWithParams();
 
-  const rows = await queryClickhouse<{ id: string }>({
+  return queryClickhouse<{ id: string; start_time: string }>({
     query,
     params,
     clickhouseConfigs: { request_timeout: 180_000 },
     tags: { projectId: props.projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
-  return rows.map((row) => row.id);
 }
 
 /** Keeps the rows behind `after`, in stream order. */
@@ -135,7 +142,11 @@ function orderBehind(
   ]);
 }
 
-function streamEvalPage(props: EvalStreamProps & { spanIds?: string[] }) {
+function streamEvalPage(
+  props: EvalStreamProps & {
+    spanPage?: { ids: string[]; startTimeFrom: string; startTimeTo: string };
+  },
+) {
   const {
     projectId,
     cutoffCreatedAt,
@@ -144,7 +155,7 @@ function streamEvalPage(props: EvalStreamProps & { spanIds?: string[] }) {
     searchType,
     rowLimit,
     after,
-    spanIds,
+    spanPage,
   } = props;
 
   const { queryBuilder } = buildEventsStreamQuery({
@@ -155,10 +166,15 @@ function streamEvalPage(props: EvalStreamProps & { spanIds?: string[] }) {
     searchType,
     rowLimit,
   });
-  if (spanIds) {
-    queryBuilder.whereRaw("e.span_id IN {spanIds: Array(String)}", {
-      spanIds,
-    });
+  if (spanPage) {
+    queryBuilder.whereRaw(
+      "e.span_id IN {spanIds: Array(String)} AND e.start_time >= {pageStartTimeFrom: DateTime64(6)} AND e.start_time <= {pageStartTimeTo: DateTime64(6)}",
+      {
+        spanIds: spanPage.ids,
+        pageStartTimeFrom: spanPage.startTimeFrom,
+        pageStartTimeTo: spanPage.startTimeTo,
+      },
+    );
   }
   const { query, params: queryParams } = orderBehind(queryBuilder, after)
     .selectFieldSet("eval")
