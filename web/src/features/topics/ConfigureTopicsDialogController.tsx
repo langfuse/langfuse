@@ -282,9 +282,18 @@ function ConfigureTopicsSettings({
 function TopicsDangerZoneController({ projectId }: { projectId: string }) {
   const utils = api.useUtils();
   const rules = api.topics.rules.useQuery({ projectId });
-  const onSuccess = () => utils.topics.invalidate();
-  const deleteRule = api.topics.deleteRule.useMutation({ onSuccess });
-  const reset = api.topics.resetData.useMutation({ onSuccess });
+  // Queries of a deleted rule would fail until the page selects another map, so skip them.
+  const refetchWithout = (ruleIds: string[]) =>
+    utils.topics.invalidate(undefined, {
+      predicate: ({ queryKey }) =>
+        !ruleIds.some((id) => JSON.stringify(queryKey).includes(id)),
+    });
+  const deleteRule = api.topics.deleteRule.useMutation({
+    onSuccess: (_, { id }) => refetchWithout([id]),
+  });
+  const reset = api.topics.resetData.useMutation({
+    onSuccess: () => refetchWithout((rules.data ?? []).map((rule) => rule.id)),
+  });
   return (
     <TopicsDangerZone
       rules={rules.data ?? []}

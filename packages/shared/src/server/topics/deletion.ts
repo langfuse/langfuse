@@ -10,6 +10,7 @@ import { invalidateProjectEvalConfigCaches } from "../evalJobConfigCache";
 import { isTopicsEnabled } from "./config";
 import { TOPICS_ACTION } from "./execution-store";
 import { listTopicRules } from "./postgres";
+import { markTopicSummariesDeleted } from "./clickhouse";
 import { topicRuleWhere } from "./processing-gate";
 
 // Jobs enqueued before the delete keep writing for up to a minute (per-pod rule and map caches).
@@ -108,5 +109,6 @@ export async function resetTopicsData(projectId: string): Promise<TopicRule[]> {
   ]);
   await invalidateProjectEvalConfigCaches(projectId);
   await enqueueTopicRowsDelete(queue, { projectId });
+  await markTopicSummariesDeleted(projectId);
   return rules;
 }

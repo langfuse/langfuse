@@ -671,6 +671,19 @@ export async function hasTopicEmbeddings(projectId: string): Promise<boolean> {
 const hasSummariesCacheKey = (projectId: string) =>
   `langfuse:topics:has-summaries:${projectId}`;
 
+/** A reset shows the empty state at once; the queued delete clears this after removing the rows. */
+export async function markTopicSummariesDeleted(projectId: string) {
+  try {
+    await redis?.set(hasSummariesCacheKey(projectId), "0", "EX", 30);
+  } catch (error) {
+    traceException(error);
+    logger.warn("Failed to cache Topics summary readiness", {
+      projectId,
+      error,
+    });
+  }
+}
+
 /** Project onboarding readiness, cached for 30 minutes when ready and 30 seconds when empty. */
 export async function hasStoredTopicSummaries(
   projectId: string,

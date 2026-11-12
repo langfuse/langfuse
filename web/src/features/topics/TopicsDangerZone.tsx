@@ -1,4 +1,5 @@
 import { Button } from "@/src/components/design-system/Button/Button";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
 type TopicsDangerZoneProps = {
@@ -22,9 +23,12 @@ export function TopicsDangerZone({
   return (
     <section className="border-destructive/40 flex min-w-0 flex-col gap-3 rounded-lg border p-4">
       <div className="flex flex-col gap-1">
-        <h3 className="text-destructive text-sm font-bold">Danger zone</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-destructive text-sm font-bold">Danger zone</h3>
+          <FeatureReleaseStatus status="internal" />
+        </div>
         <p className="text-muted-foreground text-sm">
-          Internal only. Deletes cannot be undone.
+          Deletes cannot be undone.
         </p>
       </div>
       <ConfirmationDialogController<{ id: string; name: string }>
