@@ -60,6 +60,7 @@ describe("Topics transcript renderer", () => {
         "</this_run>",
         "<end_of_run>",
         "last action: assistant text",
+        "visible reply: assistant text",
         "final output: assistant",
         "</end_of_run>",
       ].join("\n"),
@@ -205,7 +206,7 @@ describe("Topics transcript renderer", () => {
       text.indexOf("<end_of_run>"),
     );
     expect(text).toContain(
-      "last action: assistant text\nfinal output: application output",
+      "last action: assistant text\nvisible reply: assistant text\nfinal output: application output",
     );
   });
 
@@ -415,7 +416,7 @@ describe("Topics transcript renderer", () => {
     expect(
       renderTranscript(pending, [root, generation], topicsTranscriptConfig)
         .text,
-    ).toContain("last action: assistant tool call");
+    ).toContain("last action: assistant tool call\nvisible reply: none");
   });
 
   it("marks the request after supplied context without repeating trace input", () => {
