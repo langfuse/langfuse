@@ -44,10 +44,20 @@ export const MoreOptionsExpanded = meta.story({
     await userEvent.click(
       await screen.findByRole("button", { name: "More options" }),
     );
-    await userEvent.click(screen.getByRole("button", { name: "Custom" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Custom" }));
     await userEvent.click(screen.getByRole("button", { name: "Add metadata" }));
 
+    expect(
+      screen.getByRole("tab", { name: "Custom", selected: true }),
+    ).toBeVisible();
     expect(screen.getByLabelText("Custom expiration date")).toBeVisible();
+
+    await userEvent.type(
+      screen.getByLabelText("Custom expiration date"),
+      "2020-01-01",
+    );
+
+    expect(await screen.findByText("Choose a future date.")).toBeVisible();
     expect(screen.getByRole("textbox", { name: "Metadata key" })).toBeVisible();
   },
 });
@@ -60,7 +70,7 @@ export const SubmitsResolvedOptions = meta.story({
       " laptop ",
     );
     await userEvent.click(screen.getByRole("button", { name: "More options" }));
-    await userEvent.click(screen.getByRole("button", { name: "1 week" }));
+    await userEvent.click(screen.getByRole("tab", { name: "1 week" }));
     await userEvent.click(screen.getByRole("button", { name: "Add metadata" }));
     await userEvent.type(
       screen.getByRole("textbox", { name: "Metadata key" }),
@@ -74,10 +84,6 @@ export const SubmitsResolvedOptions = meta.story({
     await userEvent.click(
       screen.getByRole("button", { name: "Fewer options" }),
     );
-
-    expect(
-      screen.getByText("Expires in 1 week, 1 metadata field"),
-    ).toBeVisible();
 
     await userEvent.click(screen.getByRole("button", { name: "Create key" }));
 

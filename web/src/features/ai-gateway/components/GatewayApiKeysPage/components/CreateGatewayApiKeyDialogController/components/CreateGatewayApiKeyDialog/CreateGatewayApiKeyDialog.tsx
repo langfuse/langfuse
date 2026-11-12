@@ -12,7 +12,6 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { GatewayApiKeyExpirationField } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/components/GatewayApiKeyExpirationField/GatewayApiKeyExpirationField";
 import { GatewayApiKeyMetadataField } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/components/GatewayApiKeyMetadataField/GatewayApiKeyMetadataField";
 import type { GatewayApiKeyExpirationPreset } from "@/src/features/ai-gateway/constants/gatewayApiKeyExpirationOptions";
-import { describeGatewayApiKeyOptions } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/fns/describeGatewayApiKeyOptions";
 import { resolveGatewayApiKeyExpiration } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/fns/resolveGatewayApiKeyExpiration";
 import {
   createGatewayApiKeyFormSchema,
@@ -96,6 +95,8 @@ export function CreateGatewayApiKeyDialog({
           form: formId,
           loading: isSubmitting,
           disabled: !form.formState.isValid,
+          // The date input is hidden while "More options" is collapsed.
+          disabledReason: form.formState.errors.customExpiry?.message,
         },
       ]}
     >
@@ -191,15 +192,10 @@ function MoreOptions({
 }) {
   const contentId = useId();
   const [isExpanded, setIsExpanded] = useState(false);
-  const [expiryPreset, metadata] = useWatch({
-    control,
-    name: ["expiryPreset", "metadata"],
-  });
-  const summary = describeGatewayApiKeyOptions({ expiryPreset, metadata });
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2">
+      <div>
         <ExpandToggle
           expanded={isExpanded}
           onExpandedChange={setIsExpanded}
@@ -210,14 +206,6 @@ function MoreOptions({
           size="sm"
           controls={contentId}
         />
-        {isExpanded ? null : (
-          <span
-            className="text-muted-foreground truncate text-sm"
-            title={summary}
-          >
-            {summary}
-          </span>
-        )}
       </div>
       {isExpanded ? (
         <div id={contentId} className="flex flex-col gap-5 pl-5">

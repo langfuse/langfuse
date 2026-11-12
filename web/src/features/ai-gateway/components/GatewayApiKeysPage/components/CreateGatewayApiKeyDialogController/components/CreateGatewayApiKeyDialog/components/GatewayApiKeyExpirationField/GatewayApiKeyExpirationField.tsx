@@ -1,13 +1,10 @@
 import { useController, type Control } from "react-hook-form";
 
-import { Button } from "@/src/components/design-system/Button/Button";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { Input } from "@/src/components/design-system/Input/Input";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { localDateInputValue } from "@/src/features/apiKey/fns/localDateInputValue";
-import {
-  gatewayApiKeyExpirationOptions,
-  type GatewayApiKeyExpirationPreset,
-} from "@/src/features/ai-gateway/constants/gatewayApiKeyExpirationOptions";
+import { gatewayApiKeyExpirationOptions } from "@/src/features/ai-gateway/constants/gatewayApiKeyExpirationOptions";
 import type { CreateGatewayApiKeyFormValues } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/types/createGatewayApiKeyFormSchema";
 
 type GatewayApiKeyExpirationFieldProps = {
@@ -21,21 +18,22 @@ export function GatewayApiKeyExpirationField({
     <Form.Field control={control} name="expiryPreset" label="Expiration">
       {(field) => (
         <div className="flex flex-col gap-2">
-          <div
-            id={field.id}
-            role="group"
-            aria-label="Expiration"
-            className="flex flex-wrap gap-2"
-          >
-            {gatewayApiKeyExpirationOptions.map((option) => (
-              <ExpirationOptionButton
-                key={option.value}
-                label={option.label}
-                value={option.value}
-                selected={field.value === option.value}
-                onSelect={field.onChange}
-              />
-            ))}
+          <div id={field.id}>
+            <Tabs
+              activationMode="manual"
+              value={field.value}
+              onValueChange={field.onChange}
+            >
+              <Tabs.List variant="inset" size="md" aria-label="Expiration">
+                {gatewayApiKeyExpirationOptions.map((option) => (
+                  <Tabs.Trigger
+                    key={option.value}
+                    value={option.value}
+                    label={option.label}
+                  />
+                ))}
+              </Tabs.List>
+            </Tabs>
           </div>
           {field.value === "custom" ? (
             <CustomExpirationInput control={control} />
@@ -43,29 +41,6 @@ export function GatewayApiKeyExpirationField({
         </div>
       )}
     </Form.Field>
-  );
-}
-
-function ExpirationOptionButton({
-  label,
-  value,
-  selected,
-  onSelect,
-}: {
-  label: string;
-  value: GatewayApiKeyExpirationPreset;
-  selected: boolean;
-  onSelect: (value: GatewayApiKeyExpirationPreset) => void;
-}) {
-  const handleClick = () => onSelect(value);
-  return (
-    <Button
-      text={label}
-      size="sm"
-      variant={selected ? "primary" : "outline"}
-      data-state={selected ? "on" : "off"}
-      onClick={handleClick}
-    />
   );
 }
 
@@ -91,8 +66,12 @@ function CustomExpirationInput({
           onBlur={field.onBlur}
           ref={field.ref}
           error={!!fieldState.error}
+          aria-invalid={!!fieldState.error}
         />
       </div>
+      {fieldState.error ? (
+        <p className="text-destructive text-sm">{fieldState.error.message}</p>
+      ) : null}
       <p className="text-muted-foreground text-sm">
         Key stops working at the end of this day.
       </p>
