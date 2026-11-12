@@ -401,29 +401,19 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
   // Batch processing
   // ============================================================================
 
-  private static readonly INSERT_CHUNK_SIZE = 200;
-
   /**
-   * Inserts enriched spans into events_full synchronously in bounded chunks.
-   * Large trace trees (which can contain hundreds of observations and hundreds of
-   * megabytes of input/output data) are chunked to prevent V8's Array.join inside
-   * @clickhouse/client from throwing RangeError: Invalid string length.
-   * If an individual chunk still encounters a string length error, it is recursively bisected.
+   * Inserts enriched spans into events_full.
+   * Attempts a single insert for the full batch to minimize round trips and avoid
+   * per-chunk async_insert flush delays.
+   * If ClickHouse client throws RangeError: Invalid string length (due to V8 string
+   * concatenation limit on massive trace payloads), the batch is recursively bisected.
+   * If an individual span alone exceeds the string limit at chunk.length === 1,
+   * its fields are safely truncated (matching ClickhouseWriter) to prevent the migration
+   * from failing.
    */
   private async insertEnrichedSpans(spans: EnrichedSpan[]): Promise<void> {
     if (spans.length === 0) return;
-
-    for (
-      let i = 0;
-      i < spans.length;
-      i += BackfillEventsFullFromDatasetRunItems.INSERT_CHUNK_SIZE
-    ) {
-      const chunk = spans.slice(
-        i,
-        i + BackfillEventsFullFromDatasetRunItems.INSERT_CHUNK_SIZE,
-      );
-      await this.insertChunkWithFallback(chunk);
-    }
+    await this.insertChunkWithFallback(spans);
   }
 
   private async insertChunkWithFallback(chunk: EnrichedSpan[]): Promise<void> {
@@ -449,15 +439,69 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
     } catch (err) {
       if (
         err instanceof RangeError &&
-        err.message.toLowerCase().includes("invalid string length") &&
-        chunk.length > 1
+        err.message.toLowerCase().includes("invalid string length")
       ) {
+        if (chunk.length > 1) {
+          logger.warn(
+            `[Backfill Events DRIs] Splitting chunk of ${chunk.length} spans due to string length error`,
+          );
+          const mid = Math.floor(chunk.length / 2);
+          await this.insertChunkWithFallback(chunk.slice(0, mid));
+          await this.insertChunkWithFallback(chunk.slice(mid));
+          return;
+        }
+
+        // Single span exceeded V8 string limit: truncate oversized fields to prevent migration crash
+        const span = chunk[0];
+        const maxFieldLength = 1024 * 1024; // 1MB
+        const truncationMessage = "[TRUNCATED: Field exceeded size limit]";
+        const truncateField = (val: string): string =>
+          val.length > maxFieldLength
+            ? val.substring(0, 500 * 1024) + truncationMessage
+            : val;
+
+        const truncateMetadata = (
+          meta: Record<string, unknown>,
+        ): Record<string, unknown> => {
+          if (!meta || typeof meta !== "object" || Array.isArray(meta))
+            return meta;
+          const res: Record<string, unknown> = {};
+          for (const [k, v] of Object.entries(meta)) {
+            if (typeof v === "string" && v.length > maxFieldLength) {
+              res[k] = v.substring(0, 500 * 1024) + truncationMessage;
+            } else {
+              res[k] = v;
+            }
+          }
+          return res;
+        };
+
+        const truncatedSpan: EnrichedSpan = {
+          ...span,
+          input: truncateField(span.input),
+          output: truncateField(span.output),
+          metadata: truncateMetadata(span.metadata),
+        };
+
         logger.warn(
-          `[Backfill Events DRIs] Splitting chunk of ${chunk.length} spans due to string length error`,
+          `[Backfill Events DRIs] Truncated oversized single span ${span.span_id} due to string length error`,
+          { traceId: span.trace_id, spanId: span.span_id },
         );
-        const mid = Math.floor(chunk.length / 2);
-        await this.insertChunkWithFallback(chunk.slice(0, mid));
-        await this.insertChunkWithFallback(chunk.slice(mid));
+
+        await clickhouseClient().insert({
+          table: "events_full",
+          format: "JSONEachRow",
+          values: convertEnrichedSpansToEventRecords([truncatedSpan], {
+            plainEventTsFromSource: true,
+          }),
+          clickhouse_settings: {
+            log_comment: buildClickHouseLogComment({
+              surface: "worker",
+              route:
+                "background-migration.backfillEventsFullFromDatasetRunItems",
+            }),
+          },
+        });
         return;
       }
       throw err;

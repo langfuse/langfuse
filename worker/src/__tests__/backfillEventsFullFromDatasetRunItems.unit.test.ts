@@ -80,22 +80,19 @@ describe("BackfillEventsFullFromDatasetRunItems ClickHouse chunking", () => {
     };
   }
 
-  it("partitions large span arrays into bounded chunks of at most 200 items", async () => {
+  it("inserts normal-sized span batches in a single ClickHouse call", async () => {
     const migration = new BackfillEventsFullFromDatasetRunItems();
     const mockSpans = Array.from({ length: 450 }, (_, i) => createMockSpan(i));
 
     await (migration as any).insertEnrichedSpans(mockSpans);
 
-    // 450 spans chunked at 200 should call clickhouseClient().insert 3 times (200, 200, 50)
-    expect(mockInsert).toHaveBeenCalledTimes(3);
-    expect(mockInsert.mock.calls[0][0].values).toHaveLength(200);
-    expect(mockInsert.mock.calls[1][0].values).toHaveLength(200);
-    expect(mockInsert.mock.calls[2][0].values).toHaveLength(50);
+    // Normal batches are sent in a single insert call without pre-chunking overhead
+    expect(mockInsert).toHaveBeenCalledTimes(1);
+    expect(mockInsert.mock.calls[0][0].values).toHaveLength(450);
   });
 
-  it("splits chunk recursively in half when ClickHouse insert throws RangeError: Invalid string length", async () => {
+  it("splits batch recursively in half when ClickHouse insert throws RangeError: Invalid string length", async () => {
     const migration = new BackfillEventsFullFromDatasetRunItems();
-    // 100 spans: first call throws RangeError, subsequent bisected calls succeed
     const mockSpans = Array.from({ length: 100 }, (_, i) => createMockSpan(i));
 
     let firstCall = true;
@@ -114,5 +111,36 @@ describe("BackfillEventsFullFromDatasetRunItems ClickHouse chunking", () => {
     expect(mockInsert.mock.calls[0][0].values).toHaveLength(100);
     expect(mockInsert.mock.calls[1][0].values).toHaveLength(50);
     expect(mockInsert.mock.calls[2][0].values).toHaveLength(50);
+  });
+
+  it("truncates oversized single span when a 1-row chunk throws RangeError: Invalid string length", async () => {
+    const migration = new BackfillEventsFullFromDatasetRunItems();
+    const hugeSpan = createMockSpan(1);
+    hugeSpan.input = "x".repeat(2 * 1024 * 1024);
+    hugeSpan.output = "y".repeat(2 * 1024 * 1024);
+
+    let firstCall = true;
+    mockInsert.mockImplementation(async () => {
+      if (firstCall) {
+        firstCall = false;
+        throw new RangeError("Invalid string length");
+      }
+      return Promise.resolve();
+    });
+
+    await (migration as any).insertEnrichedSpans([hugeSpan]);
+
+    // 1st call fails with RangeError, 2nd call retries with truncated span
+    expect(mockInsert).toHaveBeenCalledTimes(2);
+    const retryCallValues = mockInsert.mock.calls[1][0].values;
+    expect(retryCallValues).toHaveLength(1);
+    expect(retryCallValues[0].input).toContain(
+      "[TRUNCATED: Field exceeded size limit]",
+    );
+    expect(retryCallValues[0].input.length).toBeLessThan(1024 * 1024);
+    expect(retryCallValues[0].output).toContain(
+      "[TRUNCATED: Field exceeded size limit]",
+    );
+    expect(retryCallValues[0].output.length).toBeLessThan(1024 * 1024);
   });
 });
