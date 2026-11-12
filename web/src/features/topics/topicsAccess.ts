@@ -16,7 +16,7 @@ export function canViewTopics(
 ) {
   return (
     !!project &&
-    isTopicsEnabledForProject(project) &&
+    isEventsDispatchEnabledForProject(project) &&
     (isInternalViewEnabled(session) ||
       getContextualFeatureFlags(session?.user, { projectId: project.id })
         ?.langfuseTopics === true) &&
@@ -31,7 +31,42 @@ export function useCanViewTopics(projectId: string) {
   return canViewTopics(session, project);
 }
 
-/** Project gate: Topics is enabled for the project (deployment allowlist, resolved on the server). */
-function isTopicsEnabledForProject(project: TopicsProject | null | undefined) {
+/**
+ * Events-dispatch gate: the deployment allowlist, internal view or the Topics
+ * preview, and evals read access. The preview flag is `langfuseTopics`.
+ */
+export function canUseEventsDispatch(
+  session: Session | null,
+  project: TopicsProject | null | undefined,
+) {
+  return (
+    !!project &&
+    isEventsDispatchEnabledForProject(project) &&
+    (isInternalViewEnabled(session) ||
+      getContextualFeatureFlags(session?.user, { projectId: project.id })
+        ?.langfuseTopics === true) &&
+    hasEvalsReadAccess(session, project.id)
+  );
+}
+
+/** Resolves the project like the rest of the app. */
+export function useCanUseEventsDispatch(projectId: string) {
+  const session = useSession().data;
+  const { project } = useProject(projectId);
+  return canUseEventsDispatch(session, project);
+}
+
+/** Deployment allowlist for the project, resolved on the server as `topicsEnabled`. */
+function isEventsDispatchEnabledForProject(
+  project: TopicsProject | null | undefined,
+) {
   return project?.topicsEnabled === true;
+}
+
+/** Same access as the Evaluators navigation: either evals read scope. */
+function hasEvalsReadAccess(session: Session | null, projectId: string) {
+  return (
+    hasProjectAccess({ session, projectId, scope: "evaluator:read" }) ||
+    hasProjectAccess({ session, projectId, scope: "evaluationRule:read" })
+  );
 }

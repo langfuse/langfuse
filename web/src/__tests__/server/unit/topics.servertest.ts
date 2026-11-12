@@ -1,5 +1,9 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
-import { canViewTopics } from "@/src/features/topics/topicsAccess";
+import {
+  canUseEventsDispatch,
+  canViewTopics,
+  useCanUseEventsDispatch,
+} from "@/src/features/topics/topicsAccess";
 import { TOPICS_BACKFILL_TRACE_LIMIT } from "@/src/features/topics/backfill-limit";
 import type { Session } from "next-auth";
 import type * as topicsServer from "@langfuse/shared/topics/server";
@@ -387,6 +391,78 @@ describe("Topics visibility gate", () => {
     expect(canViewTopics(session(user), { id: projectId, topicsEnabled })).toBe(
       expected,
     );
+  });
+});
+
+describe("events dispatch gate", () => {
+  const session = ({
+    langfuseTopics = true,
+    email,
+    internalFeatures = true,
+    role = "VIEWER",
+  }: {
+    langfuseTopics?: boolean;
+    email?: string;
+    internalFeatures?: boolean;
+    role?: string | null;
+  }) =>
+    ({
+      expires: "1",
+      user: {
+        id: "user-a",
+        email,
+        featureFlags: testFeatureFlags({ langfuseTopics, internalFeatures }),
+        organizations: role
+          ? [{ id: "org-a", role, projects: [{ id: projectId, role }] }]
+          : [],
+      },
+    }) as unknown as Session;
+
+  // Same three checks as Topics visibility, with evals read access instead of topics:read.
+  it.each([
+    ["a viewer on an allowlisted project", {}, true, true],
+    ["a project outside the allowlist", {}, false, false],
+    ["the feature preview turned off", { langfuseTopics: false }, true, false],
+    [
+      "ClickHouse staff in internal view",
+      { email: "member@clickhouse.com", langfuseTopics: false },
+      true,
+      true,
+    ],
+    [
+      "staff opting out of internal view",
+      {
+        email: "member@clickhouse.com",
+        internalFeatures: false,
+        langfuseTopics: false,
+      },
+      true,
+      false,
+    ],
+    [
+      "an explicit grant after opting out of internal view",
+      { email: "member@clickhouse.com", internalFeatures: false },
+      true,
+      true,
+    ],
+    ["a role without evals access", { role: "NONE" }, true, false],
+    [
+      "internal view without project membership",
+      { email: "member@clickhouse.com", langfuseTopics: false, role: null },
+      true,
+      false,
+    ],
+    [
+      "internal view on a non-allowlisted project",
+      { email: "member@clickhouse.com" },
+      false,
+      false,
+    ],
+  ] as const)("%s", (_case, user, topicsEnabled, expected) => {
+    expect(useCanUseEventsDispatch).toBeTypeOf("function");
+    expect(
+      canUseEventsDispatch(session(user), { id: projectId, topicsEnabled }),
+    ).toBe(expected);
   });
 });
 
