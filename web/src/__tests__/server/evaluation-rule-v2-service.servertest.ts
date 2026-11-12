@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { EvalTargetObject } from "@langfuse/shared";
+import { EvalTargetObject, TopicsTargetObject } from "@langfuse/shared";
 import type * as SharedServer from "@langfuse/shared/src/server";
 import { prisma, type Prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
@@ -544,6 +544,60 @@ describe("RuleService", () => {
       await expect(
         prisma.evaluationRule.count({ where: { projectId } }),
       ).resolves.toBe(0);
+    });
+  });
+
+  describe("createTraceTranscriptRule", () => {
+    it("stores a threads-mapped trace rule that rule reads do not return", async () => {
+      const service = createService();
+      const variableMapping = [
+        {
+          templateVariable: "output",
+          selectedColumnId: "threads",
+          jsonSelector: "$[0].currentTurn",
+        },
+      ];
+
+      const rule = await service.createTraceTranscriptRule(
+        {
+          projectId,
+          name: "Support conversations",
+          targetObject: TopicsTargetObject,
+          filter: [
+            {
+              type: "string",
+              column: "traceName",
+              operator: "=",
+              value: "support-chat",
+            },
+          ],
+          sampling: 1,
+          enabled: true,
+          evaluatorAssignments: [
+            { evaluatorId: defaultEvaluatorId, variableMapping },
+          ],
+        },
+        null,
+      );
+
+      await expect(
+        prisma.evaluationRule.findUniqueOrThrow({
+          where: { id: rule.id },
+          select: {
+            targetObject: true,
+            assignments: { select: { variableMapping: true } },
+          },
+        }),
+      ).resolves.toEqual({
+        targetObject: TopicsTargetObject,
+        assignments: [{ variableMapping }],
+      });
+      await expect(
+        service.list({ projectId, page: 1, limit: 50 }),
+      ).resolves.toEqual({ rules: [], totalItems: 0 });
+      await expect(service.get(projectId, rule.id)).rejects.toThrow(
+        "Evaluation rule not found",
+      );
     });
   });
 

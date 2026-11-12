@@ -7,6 +7,7 @@ import {
   coerceLegacyEmptyMetadataFilters,
   EvalTargetObject,
   EvalTemplateType,
+  TopicsTargetObject,
   type FilterState,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
@@ -19,6 +20,7 @@ import {
 } from "@langfuse/shared/src/server";
 import type {
   CreateRuleInput,
+  CreateTraceTranscriptRuleInput,
   ListRulesInput,
   RuleAssignmentInput,
   RuleSelectionInput,
@@ -32,8 +34,14 @@ export type RulePrisma = PrismaClient | Prisma.TransactionClient;
 
 const MAX_REUSABLE_FILTER_CANDIDATES = 20;
 
+/**
+ * Topics rules and trace transcript rules stay out of the rule list, the
+ * public API and MCP; trace transcript rules are only written by
+ * `createTraceTranscriptRule`.
+ */
 const visibleRuleWhere = {
   assignments: { none: { evaluator: { type: EvalTemplateType.FACET } } },
+  targetObject: { not: TopicsTargetObject },
 } satisfies Prisma.EvaluationRuleWhereInput;
 
 const latestVersion = {
@@ -380,7 +388,7 @@ export async function findActiveRuleWithMatchingFilterAndSampling(params: {
 
 export function createRule(params: {
   prisma: RulePrisma;
-  input: CreateRuleInput;
+  input: CreateRuleInput | CreateTraceTranscriptRuleInput;
   createdByUserId: string | null;
 }) {
   return params.prisma.evaluationRule.create({

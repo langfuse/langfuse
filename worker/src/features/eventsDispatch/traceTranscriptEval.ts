@@ -1,4 +1,4 @@
-import { EvalTemplateType, extractValueFromObject } from "@langfuse/shared";
+import { TRACE_TRANSCRIPT_EVAL_TYPES } from "@langfuse/shared";
 import { prisma, JobExecutionStatus } from "@langfuse/shared/src/db";
 import {
   LLMAsJudgeExecutionQueue,
@@ -10,14 +10,6 @@ import {
 } from "@langfuse/shared/src/server";
 
 export const TRACE_TRANSCRIPT_EVAL_CONSUMER = "trace-transcript-eval";
-
-/**
- * Judge and decision-model assignments. Code evaluators are not scheduled here.
- */
-export const TRACE_TRANSCRIPT_EVAL_TYPES = [
-  EvalTemplateType.LLM_AS_JUDGE,
-  EvalTemplateType.DECISION_MODEL,
-] as const;
 
 type TraceTranscriptEvalAssignment = {
   id: string;
@@ -52,49 +44,6 @@ function traceTranscriptEvalExecutionId(params: {
       params.revision,
     ]),
   );
-}
-
-type TranscriptEvalVariableMapping = {
-  templateVariable: string;
-  selectedColumnId: string;
-  jsonSelector?: string | null;
-};
-
-/**
- * Judge and decision-model jobs read the transcript through a threads binding.
- * A mapping that is empty or names any other column is not executable.
- */
-export function extractTranscriptEvalVariables(
-  threads: unknown,
-  variableMapping: readonly TranscriptEvalVariableMapping[],
-):
-  | { ok: true; variables: { var: string; value: unknown }[] }
-  | { ok: false; error: string } {
-  if (variableMapping.length === 0) {
-    return {
-      ok: false,
-      error: "Transcript evaluation requires a threads variable.",
-    };
-  }
-  if (
-    variableMapping.some((mapping) => mapping.selectedColumnId !== "threads")
-  ) {
-    return {
-      ok: false,
-      error: "Transcript evaluation only reads the threads column.",
-    };
-  }
-  return {
-    ok: true,
-    variables: variableMapping.map((mapping) => ({
-      var: mapping.templateVariable,
-      value: extractValueFromObject(
-        { threads },
-        "threads",
-        mapping.jsonSelector ?? undefined,
-      ).value,
-    })),
-  };
 }
 
 function buildTraceTranscriptEvalJob(params: {

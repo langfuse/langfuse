@@ -1,5 +1,8 @@
 import {
+  extractTranscriptEvalVariables,
   getCodeEvalVariableMapping,
+  InvalidRequestError,
+  isTraceTranscriptEvalType,
   observationVariableMappingList,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -25,6 +28,7 @@ import {
   type ExtractedVariable,
 } from "@langfuse/shared/src/server";
 import { getObservationForEvalById } from "@/src/features/evals/server/getObservationForEvalById";
+import { loadTraceTranscript } from "@/src/features/events/server/loadTraceTranscript";
 import type { NormalizedEvaluatorDefinition } from "./evaluatorTypes";
 import {
   assertCompleteEvaluatorVariableMapping,
@@ -50,30 +54,9 @@ export async function testEvaluator(params: {
     startTime: params.startTime,
     shouldReadFromObservationsTable: params.shouldReadFromObservationsTable,
   });
-  let variableMapping;
-  if (params.definition.type === "CODE") {
-    variableMapping = getCodeEvalVariableMapping();
-  } else if (params.definition.type === "DECISION_MODEL") {
-    assertCompleteEvaluatorVariableMapping({
-      promptVariables: params.definition.vars,
-      variableMapping: params.definition.variableMapping,
-    });
-    variableMapping = observationVariableMappingList.parse(
-      params.definition.variableMapping,
-    );
-  } else {
-    const llmVariableMapping = params.definition.variableMapping ?? [];
-    assertCompleteEvaluatorVariableMapping({
-      promptVariables: extractEvaluatorPromptVariables(
-        params.definition.promptMessages,
-      ),
-      variableMapping: llmVariableMapping,
-    });
-    variableMapping = observationVariableMappingList.parse(llmVariableMapping);
-  }
   const variables = extractObservationVariables({
     observation,
-    variableMapping,
+    variableMapping: resolveTestVariableMapping(params.definition),
   });
   const executionData = buildEvalExecutionData({
     type: "TEST",
@@ -91,6 +74,79 @@ export async function testEvaluator(params: {
   });
 
   return { ...result, durationMs: Date.now() - startedAt };
+}
+
+/**
+ * Runs the evaluator on a trace transcript the way a trace transcript rule
+ * would: every variable reads the `threads` of the assembled transcript.
+ */
+export async function testEvaluatorOnTrace(params: {
+  orgId: string;
+  projectId: string;
+  evaluatorId: string;
+  includeEvaluatorLink?: boolean;
+  definition: NormalizedEvaluatorDefinition;
+  traceId: string;
+  timestamp: Date;
+}) {
+  const startedAt = Date.now();
+  if (!isTraceTranscriptEvalType(params.definition.type)) {
+    throw new InvalidRequestError(
+      "Trace evaluations support LLM-as-a-judge and decision-model evaluators.",
+    );
+  }
+  const variableMapping = resolveTestVariableMapping(params.definition);
+  const { transcript } = await loadTraceTranscript({
+    projectId: params.projectId,
+    traceId: params.traceId,
+    timestamp: params.timestamp,
+    context: "other",
+  });
+  if (!transcript) {
+    return {
+      success: false as const,
+      error: "This trace has no transcript to evaluate.",
+      durationMs: Date.now() - startedAt,
+    };
+  }
+  const extracted = extractTranscriptEvalVariables(
+    transcript.threads,
+    variableMapping,
+  );
+  if (!extracted.ok) throw new InvalidRequestError(extracted.error);
+
+  const executionData = buildEvalExecutionData({
+    type: "TEST",
+    evaluatorId:
+      params.includeEvaluatorLink === false ? null : params.evaluatorId,
+    targetTraceId: params.traceId,
+    targetObservationId: null,
+  });
+  const result = await runEvaluatorTest({
+    ...params,
+    variables: extracted.variables,
+    hasExperimentContext: false,
+    ...executionData,
+  });
+
+  return { ...result, durationMs: Date.now() - startedAt };
+}
+
+function resolveTestVariableMapping(definition: NormalizedEvaluatorDefinition) {
+  if (definition.type === "CODE") return getCodeEvalVariableMapping();
+  if (definition.type === "DECISION_MODEL") {
+    assertCompleteEvaluatorVariableMapping({
+      promptVariables: definition.vars,
+      variableMapping: definition.variableMapping,
+    });
+    return observationVariableMappingList.parse(definition.variableMapping);
+  }
+  const llmVariableMapping = definition.variableMapping ?? [];
+  assertCompleteEvaluatorVariableMapping({
+    promptVariables: extractEvaluatorPromptVariables(definition.promptMessages),
+    variableMapping: llmVariableMapping,
+  });
+  return observationVariableMappingList.parse(llmVariableMapping);
 }
 
 async function runEvaluatorTest(params: {

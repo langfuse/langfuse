@@ -2,6 +2,7 @@ import {
   CODE_EVAL_TEMPLATE_VARIABLES,
   EvalTargetObject,
   EvalTemplateType,
+  TopicsTargetObject,
   ForbiddenError,
   InvalidRequestError,
   getCodeEvalVariableMapping,
@@ -64,6 +65,7 @@ const LEGACY_TARGET_OBJECTS = [
 
 const visibleRuleWhere = {
   assignments: { none: { evaluator: { type: EvalTemplateType.FACET } } },
+  targetObject: { not: TopicsTargetObject },
 } satisfies Prisma.EvaluationRuleWhereInput;
 
 async function assertNoBlockedBuiltInEvaluators(
@@ -659,6 +661,7 @@ const legacyConfigIdsQuery = (params: {
     JOIN "evaluators" e ON e."id" = a."evaluator_id"
     WHERE r."project_id" = ${params.projectId}
       AND e."type"::text <> ${EvalTemplateType.FACET}
+      AND r."target_object" <> ${TopicsTargetObject}
   ) jc
   WHERE TRUE
   ${params.targetCondition}

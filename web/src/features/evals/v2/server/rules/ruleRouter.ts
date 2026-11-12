@@ -1,6 +1,7 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfTraceTranscriptEvalsUnavailable } from "@/src/features/evals/server/traceTranscriptEvalsAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -10,6 +11,7 @@ import { RuleService } from "./ruleService";
 import {
   CreateOrAttachFromEvaluatorFiltersSchema,
   CreateRuleSchema,
+  CreateTraceTranscriptRuleSchema,
   EvaluatorRulesSchema,
   ExperimentDatasetRulesSchema,
   ListRulesSchema,
@@ -146,6 +148,24 @@ export const ruleRouter = createTRPCRouter({
         scope: "evaluationRule:CUD",
       });
       return serviceForContext(ctx).create(
+        { ...input, projectId: ctx.session.projectId },
+        ctx.session.user.id,
+      );
+    }),
+
+  createTraceTranscript: protectedProjectProcedure
+    .input(CreateTraceTranscriptRuleSchema)
+    .mutation(({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        scope: "evaluationRule:CUD",
+      });
+      throwIfTraceTranscriptEvalsUnavailable(
+        ctx.session,
+        ctx.session.projectId,
+      );
+      return serviceForContext(ctx).createTraceTranscriptRule(
         { ...input, projectId: ctx.session.projectId },
         ctx.session.user.id,
       );

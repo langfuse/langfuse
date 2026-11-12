@@ -1,11 +1,14 @@
 import {
   EvalTargetObject,
   EvalTemplateType,
+  extractTranscriptEvalVariables,
   InvalidRequestError,
+  isTraceTranscriptEvalType,
   isExperimentEvaluationRule,
   LangfuseConflictError,
   LangfuseNotFoundError,
   normalizeEvaluationRuleTarget,
+  TopicsTargetObject,
   validateEvaluatorFiltersForTarget,
   type FilterState,
   type ObservationVariableMapping,
@@ -28,6 +31,7 @@ import { resolveLangfuseAiFeatureAvailability } from "@/src/features/ai-features
 import type {
   CreateOrAttachFromEvaluatorFiltersInput,
   CreateRuleInput,
+  CreateTraceTranscriptRuleInput,
   ListRulesInput,
   RuleAssignmentInput,
   RuleSelectionInput,
@@ -280,6 +284,43 @@ export class RuleService {
             normalized.targetObject as CreateRuleInput["targetObject"],
           filter,
         },
+        createdByUserId,
+      });
+    });
+    await invalidateProjectEvalConfigCaches(input.projectId);
+    const response = toRuleResponse(rule);
+    await this.audit({
+      action: "create",
+      projectId: input.projectId,
+      ruleId: response.id,
+    });
+    return response;
+  }
+
+  /**
+   * The only writer of trace transcript rules. The rule router calls it behind
+   * the trace transcript evals gate; the public API and MCP never do.
+   */
+  async createTraceTranscriptRule(
+    input: CreateTraceTranscriptRuleInput,
+    createdByUserId: string | null,
+  ) {
+    const filter = this.validateRuleFilters(TopicsTargetObject, input.filter);
+    this.assertUniqueAssignments(input.evaluatorAssignments);
+    const rule = await this.prisma.$transaction(async (prisma) => {
+      await assertActiveRuleLimitNotExceeded({
+        prisma,
+        projectId: input.projectId,
+        additionalActiveRules: input.enabled ? 1 : 0,
+      });
+      await this.assertTraceTranscriptAssignments({
+        prisma,
+        projectId: input.projectId,
+        assignments: input.evaluatorAssignments,
+      });
+      return repository.createRule({
+        prisma,
+        input: { ...input, filter },
         createdByUserId,
       });
     });
@@ -675,7 +716,10 @@ export class RuleService {
     return rule;
   }
 
-  private validateRuleFilters(targetObject: EvalTargetObject, filter: unknown) {
+  private validateRuleFilters(
+    targetObject: EvalTargetObject | typeof TopicsTargetObject,
+    filter: unknown,
+  ) {
     const result = validateEvaluatorFiltersForTarget({
       targetObject,
       filter,
@@ -744,6 +788,48 @@ export class RuleService {
     }
   }
 
+  private async assertTraceTranscriptAssignments(params: {
+    prisma: Prisma.TransactionClient;
+    projectId: string;
+    assignments: CreateTraceTranscriptRuleInput["evaluatorAssignments"];
+  }) {
+    const evaluators = await evaluatorRepository.findEvaluatorsByIds({
+      prisma: params.prisma,
+      projectId: params.projectId,
+      evaluatorIds: params.assignments.map(({ evaluatorId }) => evaluatorId),
+    });
+    if (evaluators.length !== params.assignments.length) {
+      throw new LangfuseNotFoundError("Evaluator not found");
+    }
+    const evaluatorById = new Map(
+      evaluators.map((evaluator) => [evaluator.id, evaluator]),
+    );
+    for (const assignment of params.assignments) {
+      const evaluator = evaluatorById.get(assignment.evaluatorId)!;
+      if (!isTraceTranscriptEvalType(evaluator.type)) {
+        throw new InvalidRequestError(
+          "Trace evaluations support LLM-as-a-judge and decision-model evaluators.",
+        );
+      }
+      const latestVersion = evaluator.versions[0];
+      if (!latestVersion) {
+        throw new LangfuseNotFoundError("Evaluator version not found");
+      }
+      const extracted = extractTranscriptEvalVariables(
+        null,
+        assignment.variableMapping,
+      );
+      if (!extracted.ok) throw new InvalidRequestError(extracted.error);
+      assertCompleteEvaluatorVariableMapping({
+        promptVariables: requiredEvaluatorVariables(
+          evaluator.type,
+          latestVersion,
+        ),
+        variableMapping: assignment.variableMapping,
+      });
+    }
+  }
+
   private async prepareModernAssignments(params: {
     prisma: Prisma.TransactionClient;
     projectId: string;
@@ -786,17 +872,11 @@ export class RuleService {
       );
       const storedVariableMapping =
         assignment.variableMapping ?? prepared.initialVariableMapping;
-      const requiredVariables =
-        evaluator.type === EvalTemplateType.DECISION_MODEL
-          ? latestVersion.vars
-          : extractEvaluatorPromptVariables(
-              reconcileEvaluatorPromptMessages({
-                prompt: latestVersion.prompt,
-                promptMessages: latestVersion.promptMessages,
-              }),
-            );
       assertCompleteEvaluatorVariableMapping({
-        promptVariables: requiredVariables,
+        promptVariables: requiredEvaluatorVariables(
+          evaluator.type,
+          latestVersion,
+        ),
         variableMapping:
           storedVariableMapping ?? prepared.defaultVariableMapping,
       });
@@ -809,6 +889,24 @@ export class RuleService {
 }
 
 type StoredRule = NonNullable<Awaited<ReturnType<typeof repository.findRule>>>;
+
+type EvaluatorWithVersions = Awaited<
+  ReturnType<typeof evaluatorRepository.findEvaluatorsByIds>
+>[number];
+
+function requiredEvaluatorVariables(
+  type: EvalTemplateType,
+  latestVersion: EvaluatorWithVersions["versions"][number],
+) {
+  return type === EvalTemplateType.DECISION_MODEL
+    ? latestVersion.vars
+    : extractEvaluatorPromptVariables(
+        reconcileEvaluatorPromptMessages({
+          prompt: latestVersion.prompt,
+          promptMessages: latestVersion.promptMessages,
+        }),
+      );
+}
 
 function toRuleResponse(rule: StoredRule) {
   const { status, assignments, filter, sampling, ...rest } = rule;
