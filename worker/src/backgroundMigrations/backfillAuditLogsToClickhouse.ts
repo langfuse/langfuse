@@ -5,20 +5,20 @@
  *
  * The migration walks Postgres in (created_at, id) order and saves that cursor
  * in `background_migrations.state` after each batch, so an interrupted run
- * resumes where it stopped. Clearing `finished_at` runs it again from the
- * saved cursor; clearing `state` as well copies every row again.
+ * resumes where it stopped.
  *
- * Rows younger than the settle window are left to a later run. A row whose
- * created_at precedes the cursor can still be committing while the cursor
- * passes it, and the cursor never returns to it.
+ * It copies the rows created up to `copyUntil` and leaves later rows to
+ * staging. The first run sets `copyUntil` to the oldest change event in
+ * ClickHouse, or to its own start if there is none, plus `args.overlapMs`.
+ * Web tasks of a version that does not stage yet write unstaged rows until a
+ * rolling upgrade replaces them, and the overlap covers those rows. To copy
+ * later rows, set `state.copyUntil` to a later time and clear `finished_at`;
+ * clearing `state` copies every row again.
  *
- * The migration finishes only once it has copied the rows created up to
- * `overlapUntil`: the oldest change event in ClickHouse, or the first run if
- * there is none, plus `args.overlapMs`. Where `auditLog()` has staged events
- * for a while, that time has passed and the migration finishes when it has
- * caught up. Where staging starts with this migration, web tasks of the
- * previous version write unstaged rows until a rolling upgrade replaces them,
- * so the migration waits until such rows have settled and copies them.
+ * The migration finishes once the rows up to `copyUntil` are older than the
+ * settle window and copied, and waits until then. A row whose created_at
+ * precedes the cursor can still be committing while the cursor passes it, and
+ * the cursor never returns to it.
  *
  * `auditLog()` stages new rows for ClickHouse itself, with the actor's name
  * and email, which the Postgres row does not keep. `audit_logs` keeps the row
@@ -51,7 +51,7 @@ const CLICKHOUSE_TAGS = {
 const DEFAULT_BATCH_SIZE = 10_000;
 const DEFAULT_SETTLE_MS = 5 * 60 * 1000;
 const DEFAULT_OVERLAP_MS = 10 * 60 * 1000;
-// Bounds how long an abort waits while the migration waits for overlapUntil.
+// Bounds how long an abort waits while the migration waits for copyUntil.
 const MAX_WAIT_MS = 10 * 1000;
 const INSERT_TIMEOUT_MS = 5 * 60 * 1000;
 const LOGGED_FAILURES_MAX = 10;
@@ -74,9 +74,9 @@ const POSTGRES_AUDIT_LOG_SELECT = {
 } as const;
 
 type BackfillState = {
-  // The migration finishes once it has copied the rows created up to this
-  // time. Set on the first run.
-  overlapUntil?: string;
+  // The migration copies the rows created up to this time. Set on the first
+  // run.
+  copyUntil?: string;
   cursorCreatedAt?: string;
   cursorId?: string;
   // Rows inserted into ClickHouse.
@@ -120,29 +120,29 @@ export default class BackfillAuditLogsToClickhouse implements IBackgroundMigrati
     const { batchSize, settleMs, overlapMs } = parseArgs(args);
     const loaded = await this.loadState();
     // Read before the first batch adds older rows to ClickHouse.
-    const overlapUntilIso =
-      loaded.overlapUntil ?? (await findOverlapUntil(overlapMs));
-    let state: BackfillState = { ...loaded, overlapUntil: overlapUntilIso };
+    const copyUntilIso = loaded.copyUntil ?? (await findCopyUntil(overlapMs));
+    let state: BackfillState = { ...loaded, copyUntil: copyUntilIso };
     await this.saveState(state);
-    const overlapUntil = new Date(overlapUntilIso);
-    logger.info(`${LOG_PREFIX} starting${describeCursor(state)}`, state);
+    const copyUntil = new Date(copyUntilIso);
+    logger.info(
+      `${LOG_PREFIX} starting${describeCursor(state)}, copying rows created up to ${copyUntilIso}`,
+      state,
+    );
 
     while (!this.isAborted) {
-      const horizon = new Date(Date.now() - settleMs);
+      const settled = new Date(Date.now() - settleMs);
+      const horizon = settled < copyUntil ? settled : copyUntil;
       const rows = await fetchSettledBatch(toCursor(state), horizon, batchSize);
       if (rows.length > 0) {
         const counts = await copyBatch(rows);
         state = advanceState(state, rows[rows.length - 1], counts);
         await this.saveState(state);
-      } else if (horizon >= overlapUntil) {
-        logger.info(
-          `${LOG_PREFIX} finished in ${Date.now() - start}ms at rows created up to ${horizon.toISOString()}`,
-          state,
-        );
+      } else if (settled >= copyUntil) {
+        logger.info(`${LOG_PREFIX} finished in ${Date.now() - start}ms`, state);
         return;
       } else {
         await sleep(
-          Math.min(overlapUntil.getTime() - horizon.getTime(), MAX_WAIT_MS),
+          Math.min(copyUntil.getTime() - settled.getTime(), MAX_WAIT_MS),
         );
       }
     }
@@ -163,7 +163,12 @@ export default class BackfillAuditLogsToClickhouse implements IBackgroundMigrati
       where: { id: this.migrationId },
       select: { state: true },
     });
-    const state = migration?.state;
+    if (!migration) {
+      throw new Error(
+        `${LOG_PREFIX} no background_migrations row has the id ${this.migrationId}. Insert it with the SQL of the Prisma migration that registers this background migration.`,
+      );
+    }
+    const { state } = migration;
     return state && typeof state === "object" && !Array.isArray(state)
       ? (state as BackfillState)
       : {};
@@ -202,7 +207,7 @@ function parseArgs(args: Record<string, unknown>): {
  * The oldest change event in ClickHouse, or now if there is none, plus
  * `overlapMs`, as an ISO string.
  */
-async function findOverlapUntil(overlapMs: number): Promise<string> {
+async function findCopyUntil(overlapMs: number): Promise<string> {
   const [row] = await queryClickhouse<{ oldest: string | number | null }>({
     query: `
       SELECT toUnixTimestamp64Milli(minOrNull(timestamp)) AS oldest

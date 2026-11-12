@@ -96,19 +96,35 @@ describe("BackfillAuditLogsToClickhouse", () => {
         name: `test_backfill_audit_logs_${migrationId}`,
         script: "backfillAuditLogsToClickhouse",
         args: {},
-        // As where staging has run for a while, so the run finishes once it
-        // has caught up.
-        state: { overlapUntil: new Date(0).toISOString() },
+        // Covers the rows a test creates before it runs the migration.
+        state: { copyUntil: new Date().toISOString() },
       },
     });
   });
+
+  // Keeps the cursor, as an operator who moves copyUntil would.
+  const setCopyUntil = async (copyUntil: Date) => {
+    const { state } = await prisma.backgroundMigration.findUniqueOrThrow({
+      where: { id: migrationId },
+      select: { state: true },
+    });
+    await prisma.backgroundMigration.update({
+      where: { id: migrationId },
+      data: {
+        state: {
+          ...(state as Record<string, string | number>),
+          copyUntil: copyUntil.toISOString(),
+        },
+      },
+    });
+  };
 
   afterEach(async () => {
     await prisma.backgroundMigration.deleteMany({ where: { id: migrationId } });
     await prisma.auditLog.deleteMany({ where: { orgId } });
   });
 
-  it("copies settled rows in cursor order, maps sentinel actors to SYSTEM and resumes from the cursor", async () => {
+  it("copies rows up to copyUntil in cursor order, maps sentinel actors to SYSTEM and resumes from the cursor", async () => {
     const rows = [
       postgresRow(settledAt(0), {
         userId: "user-1",
@@ -130,16 +146,17 @@ describe("BackfillAuditLogsToClickhouse", () => {
       }),
       postgresRow(settledAt(3000), { type: "API_KEY", apiKeyId: "ADMIN_KEY" }),
     ];
-    // Inside the settle window, so the first run stops short of it.
-    const lateRow = postgresRow(new Date(), { userId: "user-3" });
+    // After copyUntil, so the first run leaves it to staging.
+    const lateRow = postgresRow(settledAt(4000), { userId: "user-3" });
     await prisma.auditLog.createMany({ data: [...rows, lateRow] });
+    await setCopyUntil(settledAt(3500));
 
     const migration = new BackfillAuditLogsToClickhouse(migrationId);
     await expect(migration.validate()).resolves.toEqual({
       valid: true,
       invalidReason: undefined,
     });
-    await migration.run({ batchSize: 2 });
+    await migration.run({ batchSize: 2, settleMs: 0 });
 
     const copied = await readClickhouseRows(orgId);
     expect(copied.map((row) => row.id)).toEqual(
@@ -185,7 +202,8 @@ describe("BackfillAuditLogsToClickhouse", () => {
     expect(cursorAt).toBeGreaterThanOrEqual(rows[3].createdAt.getTime());
     expect(cursorAt).toBeLessThan(lateRow.createdAt.getTime());
 
-    // Once the late row has settled, a second run copies only what is new.
+    // With a later copyUntil, a second run copies only what is new.
+    await setCopyUntil(new Date());
     await new BackfillAuditLogsToClickhouse(migrationId).run({
       batchSize: 2,
       settleMs: 0,
@@ -203,7 +221,10 @@ describe("BackfillAuditLogsToClickhouse", () => {
     const rows = [1, 2, 3].map(() => postgresRow(createdAt, { userId: "u" }));
     await prisma.auditLog.createMany({ data: rows });
 
-    await new BackfillAuditLogsToClickhouse(migrationId).run({ batchSize: 2 });
+    await new BackfillAuditLogsToClickhouse(migrationId).run({
+      batchSize: 2,
+      settleMs: 0,
+    });
 
     const copiedIds = (await readClickhouseRows(orgId)).map((row) => row.id);
     expect(copiedIds.sort()).toEqual(
@@ -211,17 +232,12 @@ describe("BackfillAuditLogsToClickhouse", () => {
     );
   });
 
-  it("waits until the rows created up to overlapUntil have settled before it finishes", async () => {
+  it("waits until the rows created up to copyUntil have settled before it finishes", async () => {
     // Settles only while the run waits, like a row that a web task of the
     // previous version writes during a rolling upgrade.
     const lateRow = postgresRow(new Date(Date.now() + 1000), { userId: "u" });
     await prisma.auditLog.create({ data: lateRow });
-    await prisma.backgroundMigration.update({
-      where: { id: migrationId },
-      data: {
-        state: { overlapUntil: new Date(Date.now() + 1500).toISOString() },
-      },
-    });
+    await setCopyUntil(new Date(Date.now() + 1500));
 
     await new BackfillAuditLogsToClickhouse(migrationId).run({ settleMs: 0 });
 
@@ -246,7 +262,7 @@ describe("BackfillAuditLogsToClickhouse", () => {
       AbortSignal.timeout(10_000),
     );
 
-    await new BackfillAuditLogsToClickhouse(migrationId).run({});
+    await new BackfillAuditLogsToClickhouse(migrationId).run({ settleMs: 0 });
 
     const copied = await readClickhouseRows(orgId);
     expect(copied).toEqual([
