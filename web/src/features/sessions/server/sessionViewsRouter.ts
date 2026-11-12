@@ -245,25 +245,26 @@ export const sessionViewsRouter = createTRPCRouter({
       };
     }),
   setPreferences: protectedProjectProcedure
-    .input(SessionViewPreferencesSchema.extend({ projectId: z.string() }))
+    .input(
+      SessionViewPreferencesSchema.extend({
+        projectId: z.string(),
+        unpinnedViewIds: z.array(z.string()).max(1000).default([]),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "TableViewPresets:read",
       });
-      const { projectId, pinnedViewIds } = input;
+      const { projectId, pinnedViewIds, unpinnedViewIds } = input;
       const userId = ctx.session.user.id;
       await ctx.prisma.$transaction(async (tx) => {
         await lockSessionViewPins(tx, projectId, userId);
         const candidates = await tx.sessionView.findMany({
           where: {
             projectId,
-            OR: [
-              { id: { in: pinnedViewIds } },
-              { isPinnedByDefaultForProject: true },
-              { pins: { some: { userId } } },
-            ],
+            id: { in: [...pinnedViewIds, ...unpinnedViewIds] },
           },
           select: { id: true },
         });
@@ -279,13 +280,15 @@ export const sessionViewsRouter = createTRPCRouter({
             `
           : [];
         const messagesPosition = pinnedViewIds.indexOf("messages");
-        await tx.sessionViewPinOverride.updateMany({
-          where: { projectId, userId, viewId: null },
-          data: {
-            isPinned: messagesPosition !== -1,
-            position: messagesPosition,
-          },
-        });
+        if (messagesPosition !== -1 || unpinnedViewIds.includes("messages")) {
+          await tx.sessionViewPinOverride.updateMany({
+            where: { projectId, userId, viewId: null },
+            data: {
+              isPinned: messagesPosition !== -1,
+              position: messagesPosition,
+            },
+          });
+        }
         if (views.length > 0) {
           // Keep existing rows so concurrent view deletion cannot deadlock with
           // deleting and recreating their foreign-key references.

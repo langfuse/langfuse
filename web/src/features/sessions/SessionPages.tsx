@@ -723,10 +723,13 @@ const LoadedSessionEventsPage: React.FC<{
       scope: {
         id: `session-view-preferences:${projectId}:${userSession.data?.user?.id}`,
       },
-      onMutate: async ({ projectId, ...changes }) => {
+      onMutate: async ({ projectId, pinnedViewIds }) => {
         pendingPreferenceUpdates.current += 1;
         await viewUtils.sessionViews.preferences.cancel({ projectId });
-        viewUtils.sessionViews.preferences.setData({ projectId }, changes);
+        viewUtils.sessionViews.preferences.setData(
+          { projectId },
+          { pinnedViewIds },
+        );
       },
       onSettled: () => {
         pendingPreferenceUpdates.current -= 1;
@@ -797,6 +800,7 @@ const LoadedSessionEventsPage: React.FC<{
     setSessionViewPreferences.mutate({
       projectId,
       pinnedViewIds: pinnedSessionViewIds.filter((viewId) => viewId !== id),
+      unpinnedViewIds: [id],
     });
     if (sessionViewId === id) {
       const nextViewId = [
@@ -1489,7 +1493,7 @@ const LoadedSessionEventsPage: React.FC<{
                                 view.id !== state.view.id &&
                                 pinnedSessionViewIds.includes(view.id),
                             )?.id;
-                        selectSessionView(nextViewId ?? "");
+                        viewSelection.selectIfUnchanged(nextViewId ?? "");
                       }
                       await viewUtils.sessionViews.list.invalidate({
                         projectId,

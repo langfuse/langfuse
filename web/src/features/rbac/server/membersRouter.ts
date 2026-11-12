@@ -22,6 +22,7 @@ import {
   getUserProjectRoles,
   getUserProjectRolesCount,
   escapeSqlLikePattern,
+  invalidateCachedUserApiKeys,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
@@ -319,6 +320,10 @@ export const membersRouter = createTRPCRouter({
         });
         return updatedMembership;
       });
+      await invalidateCachedUserApiKeys(ctx.prisma, {
+        orgId: input.orgId,
+        userId: membership.userId,
+      });
       await evictUserGatewayResolveCache(ctx.prisma, {
         orgId: input.orgId,
         userId: membership.userId,
@@ -540,6 +545,10 @@ export const membersRouter = createTRPCRouter({
               orgId: input.orgId,
               projectId: input.projectId,
             });
+          });
+          await invalidateCachedUserApiKeys(ctx.prisma, {
+            orgId: input.orgId,
+            userId: input.userId,
           });
 
           await auditLog({

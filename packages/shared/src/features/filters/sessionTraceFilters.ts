@@ -46,25 +46,38 @@ const legacyObservationColumns: Record<string, string> = {
 
 export const sessionTraceFilterSchema = singleFilterList
   .transform((filters) =>
-    filters.map((filter) => ({
-      ...filter,
-      column:
+    filters.map((filter) => {
+      const column =
         legacyObservationColumns[filter.column] ??
         eventsTableCols.find(
           (column: ColumnDefinition) =>
             column.name === filter.column ||
             column.aliases?.includes(filter.column),
         )?.id ??
-        filter.column,
-    })),
+        filter.column;
+      if (
+        ["name", "traceName"].includes(column) &&
+        filter.type === "stringOptions" &&
+        filter.operator === "any of" &&
+        filter.value.length === 1
+      ) {
+        return {
+          ...filter,
+          column,
+          type: "string" as const,
+          operator: "=" as const,
+          value: filter.value[0]!,
+        };
+      }
+      return { ...filter, column };
+    }),
   )
   .superRefine((filters, ctx) => {
     filters.forEach((filter, index) => {
       if (filter.column === "isRootObservation") {
         if (filter.type === "boolean" && filter.operator === "=") return;
       } else if (["name", "traceName"].includes(filter.column)) {
-        if (filter.type === "stringOptions" && filter.operator === "none of")
-          return;
+        if (filter.type === "stringOptions") return;
         if (
           filter.type === "string" &&
           ["=", "contains", "does not contain"].includes(filter.operator)

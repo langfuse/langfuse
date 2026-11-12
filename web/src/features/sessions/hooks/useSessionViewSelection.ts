@@ -188,6 +188,15 @@ export function useSessionViewSelection({
     if (state.selection.type === "none") return "";
     return assertUnreachable(state.selection);
   })();
+  const isCurrentSelection = () => {
+    const current = completionState.current;
+    return (
+      current.mounted &&
+      current.state.context === context &&
+      current.state.selection === selection &&
+      current.state.draft === state.draft
+    );
+  };
 
   const persist = useCallback(
     (selection: Selection, configuration: Configuration) => {
@@ -216,13 +225,15 @@ export function useSessionViewSelection({
       configuration: Configuration,
       retainedDraft: Configuration | null,
     ) => {
-      setState({
+      const next = {
         context,
         queryKey,
         selection,
         draft: retainedDraft,
         restored: true,
-      });
+      };
+      completionState.current.state = next;
+      setState(next);
       persist(selection, configuration);
     },
     [context, queryKey, persist],
@@ -330,6 +341,9 @@ export function useSessionViewSelection({
     draft,
     isLoading: state.selection.type === "saved" && !selectedSavedView,
     select,
+    selectIfUnchanged: (id: string) => {
+      if (isCurrentSelection()) select(id);
+    },
     customize: (configuration: Configuration) =>
       transition({ type: "draft", configuration }, configuration, null),
     filterObservationByName: (name: string, operator: "any of" | "none of") => {
@@ -364,7 +378,8 @@ export function useSessionViewSelection({
           );
         return [...(current ?? []), updated];
       });
-      transition({ type: "saved", viewId: view.id }, view, draft);
+      if (isCurrentSelection())
+        transition({ type: "saved", viewId: view.id }, view, draft);
     },
     saveDraft: (
       view: Configuration & { id: string },
@@ -406,7 +421,11 @@ export function useSessionViewSelection({
             messagesConfiguration,
             null,
           );
-      } else setState({ ...state, draft: null });
+      } else {
+        const next = { ...state, draft: null };
+        completionState.current.state = next;
+        setState(next);
+      }
     },
   };
 }

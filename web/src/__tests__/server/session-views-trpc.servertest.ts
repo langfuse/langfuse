@@ -99,6 +99,7 @@ describe("session views", () => {
     await reader.sessionViews.setPreferences({
       projectId: project.id,
       pinnedViewIds: [view.id],
+      unpinnedViewIds: ["messages"],
     });
     let pinWrite: Promise<void> | undefined;
     const deletion = prisma.$transaction(
@@ -116,6 +117,7 @@ describe("session views", () => {
           .setPreferences({
             projectId: project.id,
             pinnedViewIds: ["messages"],
+            unpinnedViewIds: [view.id],
           })
           .finally(() => {
             pinWriteFinished = true;
@@ -307,6 +309,7 @@ describe("session views", () => {
     await reader.sessionViews.setPreferences({
       projectId: project.id,
       pinnedViewIds: [first.id],
+      unpinnedViewIds: ["messages"],
     });
     await admin.sessionViews.setDefaultPin({
       isPinnedByDefaultForProject: true,
@@ -340,6 +343,7 @@ describe("session views", () => {
     await caller.sessionViews.setPreferences({
       projectId: project.id,
       pinnedViewIds: [first.id, second.id],
+      unpinnedViewIds: ["messages"],
     });
     await expect(
       caller.sessionViews.preferences({ projectId: project.id }),
@@ -354,6 +358,7 @@ describe("session views", () => {
     await caller.sessionViews.setPreferences({
       projectId: project.id,
       pinnedViewIds: [],
+      unpinnedViewIds: ["messages"],
     });
     await prisma.organizationMembership.delete({
       where: { orgId_userId: { orgId: org.id, userId: other.id } },
@@ -393,6 +398,7 @@ describe("session views", () => {
     await caller.sessionViews.setPreferences({
       projectId: project.id,
       pinnedViewIds: [],
+      unpinnedViewIds: ["messages"],
     });
     await expect(
       caller.sessionViews.preferences({ projectId: project.id }),
@@ -400,6 +406,7 @@ describe("session views", () => {
     await caller.sessionViews.setPreferences({
       projectId: project.id,
       pinnedViewIds: [],
+      unpinnedViewIds: ["messages"],
     });
     await expect(
       caller.sessionViews.preferences({ projectId: project.id }),
@@ -419,6 +426,7 @@ describe("session views", () => {
     await caller.sessionViews.setPreferences({
       projectId: project.id,
       pinnedViewIds: [],
+      unpinnedViewIds: ["messages"],
     });
     await expect(
       caller.sessionViews.preferences({ projectId: project.id }),
@@ -433,6 +441,7 @@ describe("session views", () => {
     await caller.sessionViews.setPreferences({
       projectId: project.id,
       pinnedViewIds: [view.id],
+      unpinnedViewIds: ["messages"],
     });
     await expect(
       prisma.sessionViewPinOverride.create({ data: { ...data, viewId: null } }),
@@ -515,6 +524,7 @@ describe("session views", () => {
     await reader.sessionViews.setPreferences({
       projectId: project.id,
       pinnedViewIds: ["messages", second.id],
+      unpinnedViewIds: [view.id],
     });
     await admin.sessionViews.setDefaultPin({
       projectId: project.id,
@@ -565,6 +575,7 @@ describe("session views", () => {
     await reader.sessionViews.setPreferences({
       projectId: project.id,
       pinnedViewIds: [unpinned.id],
+      unpinnedViewIds: ["messages"],
     });
     const { view: another } = await creator.sessionViews.create({
       ...input,
@@ -759,6 +770,7 @@ describe("session views", () => {
     await creator.sessionViews.setPreferences({
       projectId: project.id,
       pinnedViewIds: [view.id],
+      unpinnedViewIds: ["messages"],
     });
     await reader.sessionViews.setPreferences({
       projectId: project.id,
@@ -800,13 +812,14 @@ describe("session views", () => {
     const { project, owner, callerFor, input } = await prepare();
     const caller = callerFor(owner.id, "ADMIN");
     const { view } = await caller.sessionViews.create(input);
-    await caller.sessionViews.create({
+    const { view: remaining } = await caller.sessionViews.create({
       ...input,
       name: "Remaining",
     });
     await caller.sessionViews.setPreferences({
       projectId: project.id,
       pinnedViewIds: [view.id],
+      unpinnedViewIds: ["messages", remaining.id],
     });
 
     await caller.sessionViews.delete({ projectId: project.id, id: view.id });
@@ -844,6 +857,7 @@ describe("session views", () => {
     await caller.sessionViews.setPreferences({
       projectId: project.id,
       pinnedViewIds: [view.id],
+      unpinnedViewIds: ["messages"],
     });
     await expect(
       caller.sessionViews.preferences({ projectId: project.id }),
