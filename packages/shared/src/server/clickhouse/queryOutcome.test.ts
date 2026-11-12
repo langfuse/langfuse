@@ -421,6 +421,7 @@ describe("ClickHouse query outcome metric", () => {
       TIMEOUT: "timeout",
       MEMORY_LIMIT: "memory_limit",
       OVERCOMMIT: "overcommit",
+      RESULT_SIZE: "result_limit",
     });
   });
 

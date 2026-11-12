@@ -35,6 +35,7 @@ export type ClickHouseQueryOutcome =
   | "timeout"
   | "memory_limit"
   | "overcommit"
+  | "result_limit"
   | "error";
 
 /**
@@ -47,6 +48,7 @@ export const CLICKHOUSE_RESOURCE_ERROR_OUTCOMES = {
   TIMEOUT: "timeout",
   MEMORY_LIMIT: "memory_limit",
   OVERCOMMIT: "overcommit",
+  RESULT_SIZE: "result_limit",
 } as const satisfies Record<string, ClickHouseQueryOutcome>;
 
 /**
@@ -362,6 +364,7 @@ export const CLICKHOUSE_NETWORK_ERROR_PATTERNS = [
  */
 const LABELLED_CLICKHOUSE_ERROR_CODES: Record<string, string> = {
   "60": "unknown_table",
+  "158": "too_many_rows_or_bytes",
   "159": "timeout_exceeded",
   "202": "too_many_simultaneous_queries",
   "209": "socket_timeout",

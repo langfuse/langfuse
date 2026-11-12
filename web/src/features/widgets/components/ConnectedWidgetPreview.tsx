@@ -216,6 +216,7 @@ function useWidgetPreviewData({
   const chartLoadingState = getChartLoadingStateProps({
     isPending: queryResult.isPending,
     isError: queryResult.isError,
+    errorMessage: queryResult.error?.message,
   });
   const loadingProgress = getChartLoadingProgress({
     isPending: queryResult.isPending,
