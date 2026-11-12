@@ -136,6 +136,7 @@ function injectSelect(
     ) {
       return join;
     }
+    assertScopableInOn(join, relation);
     // `on <caller on> and <alias>.project_id = {projectId}`
     const predicate = projectIdPredicate(relation, projectId);
     if (!join.on) {
@@ -152,6 +153,22 @@ function injectSelect(
     ...(where ? { where } : {}),
     ...(joins.length ? { joins } : {}),
   };
+}
+
+/**
+ * A RIGHT or FULL join keeps the joined table's unmatched rows, so a project
+ * condition in its ON clause scopes nothing. Throws unless the WHERE scopes
+ * the table instead.
+ */
+function assertScopableInOn(
+  join: JoinNode,
+  relation: Extract<ScopedRelation, { kind: "table" }>,
+): void {
+  if (join.joinType === "RightJoin" || join.joinType === "FullJoin") {
+    throw new UnscopedRelationError(
+      `${join.joinType} on tenanted table "${relation.alias ?? relation.tableName}" cannot be scoped in its ON clause: it keeps rows of other projects. Scope the table in a subquery, or filter its project_id in WHERE.`,
+    );
+  }
 }
 
 function assertRelationAllowed(relation: ScopedRelation): void {

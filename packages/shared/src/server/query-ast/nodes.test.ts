@@ -337,6 +337,29 @@ describe("tenancy injection", () => {
     );
   });
 
+  it("rejects a RIGHT or FULL join it could scope only in ON", () => {
+    // The joined table's unmatched rows survive the join, and nothing outside
+    // the ON clause filters them: the FROM is a subquery.
+    const db = getClickhouseKysely();
+    const from = () =>
+      db.selectFrom("traces").select(["id", "project_id"]).as("s");
+    const right = db
+      .selectFrom(from())
+      .rightJoin("events as e", (join) => join.onRef("e.trace_id", "=", "s.id"))
+      .select("e.span_id");
+    const full = db
+      .selectFrom(from())
+      .fullJoin("scores", (join) => join.onRef("scores.trace_id", "=", "s.id"))
+      .select("scores.value");
+
+    expect(() => compileClickhouseQuery(right, projectId)).toThrow(
+      UnscopedRelationError,
+    );
+    expect(() => compileClickhouseQuery(full, projectId)).toThrow(
+      UnscopedRelationError,
+    );
+  });
+
   it("does not count a bare project_id that a SELECT alias shadows as coverage", () => {
     // ClickHouse resolves a bare name to a SELECT alias before a table column.
     const qb = getClickhouseKysely()
