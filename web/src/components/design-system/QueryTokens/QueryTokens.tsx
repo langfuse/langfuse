@@ -68,6 +68,8 @@ export function QueryTokens({
   tokens,
   highlightedTokenId,
   onActivateToken,
+  tokenEditor,
+  helpId,
 }: {
   value: string;
   tokens: readonly {
@@ -92,6 +94,8 @@ export function QueryTokens({
   }[];
   highlightedTokenId?: string | null;
   onActivateToken?: (id: string, anchor: HTMLButtonElement) => void;
+  tokenEditor?: { from: number; popupId: string };
+  helpId?: string;
 }) {
   const content: ReactNode[] = [];
   let cursor = 0;
@@ -122,12 +126,17 @@ export function QueryTokens({
           <button
             type="button"
             data-query-summary
-            aria-label={`Edit ${summary.label}`}
+            aria-label={`Edit ${summary.label}${token.inactiveReason === null ? "" : `. Not applied on this view: ${token.inactiveReason}`}`}
             aria-haspopup="dialog"
+            aria-expanded={tokenEditor?.from === token.from}
+            aria-controls={
+              tokenEditor?.from === token.from ? tokenEditor.popupId : undefined
+            }
+            aria-describedby={helpId}
             onClick={(event) =>
               onActivateToken?.(token.id, event.currentTarget)
             }
-            className="border-border-contrast bg-secondary focus-visible:ring-ring hover:border-foreground/40 hover:bg-accent inline-flex h-5.5 max-w-full min-w-0 cursor-pointer items-center gap-1 rounded-md border px-1.5 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            className="border-border-contrast bg-secondary focus-visible:ring-ring hover:border-foreground/40 hover:bg-accent aria-expanded:border-foreground/40 aria-expanded:bg-accent inline-flex h-5.5 max-w-full min-w-0 cursor-pointer items-center gap-1 rounded-md border px-1.5 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none"
           >
             {renderGroups(summary.groups.slice(1, 2), true)}
             <span className="bg-background/70 text-muted-foreground shrink-0 rounded-sm px-1 font-sans text-[10px] leading-4">

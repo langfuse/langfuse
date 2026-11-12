@@ -38,6 +38,8 @@ const inputControlVariants = cva(
         self: null,
         within:
           "focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
+        field:
+          "has-[[data-input-control-field]:focus]:ring-2 has-[[data-input-control-field]:focus]:ring-ring has-[[data-input-control-field]:focus]:ring-offset-2",
       },
       prefixed: {
         true: "flex min-w-0 items-center overflow-hidden focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
@@ -73,6 +75,12 @@ const inputControlVariants = cva(
         error: true,
         className:
           "focus-within:ring-destructive/40 focus-within:ring-offset-0",
+      },
+      {
+        focusTarget: "field",
+        error: true,
+        className:
+          "has-[[data-input-control-field]:focus]:ring-destructive/40 has-[[data-input-control-field]:focus]:ring-offset-0",
       },
     ],
   },

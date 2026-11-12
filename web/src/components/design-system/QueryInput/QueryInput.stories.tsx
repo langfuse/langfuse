@@ -484,7 +484,41 @@ export const TestCompletionEdit = meta.story({
     await userEvent.keyboard("{Enter}");
     await expect(args.onCommit).toHaveBeenCalledWith("status:=open ", "enter");
     await expect(input).toHaveTextContent("status:=open");
-    await userEvent.keyboard("{ControlOrMeta>}z{/ControlOrMeta}");
-    await expect(input).toHaveTextContent("status");
+    await userEvent.keyboard("{Meta>}z{/Meta}");
+    await expect(input).toHaveTextContent(/^status$/);
+  },
+});
+
+export const TestPreviewEscapeInDialog = TestControlledSelection.extend({
+  name: "(Test) Escape dismisses the token preview before its dialog",
+  args: {
+    value: "status:=open",
+    tokens: previewTokens.map((token) => ({
+      ...token,
+      explanation: { subject: "Status", predicate: "is open" },
+    })),
+  },
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(
+      within(canvasElement).getByRole("button", { name: "Open dialog" }),
+    );
+    const dialog = await body.findByRole("dialog", { name: "Query dialog" });
+    const input = within(dialog).getByRole("combobox");
+    await userEvent.click(input);
+    await userEvent.keyboard("{Escape}");
+    await userEvent.hover(within(dialog).getByTestId("search-bar-token"));
+    await body.findByTestId("search-bar-token-tooltip");
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(
+        body.queryByTestId("search-bar-token-tooltip"),
+      ).not.toBeInTheDocument(),
+    );
+    await expect(dialog).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(body.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
   },
 });

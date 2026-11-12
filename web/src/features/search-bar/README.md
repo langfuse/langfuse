@@ -133,6 +133,8 @@ Validated filters with more than two values project the value list into a separa
 
 `SearchComposer` opens a chip-anchored popup with the same `CategoricalFilterSelect` used by the sidebar: checkboxes, observed values and counts, search, Only/All gestures, and array matching modes. Every selection applies immediately. The popup edits only its condition, preserving companion conditions and experiment targets, and remains open when the chip shrinks below the collapse threshold. Stored values remain available when absent from current observations. `QueryExpressionEditor` provides separate bounded full-query editing. Queries may contain up to 65,536 characters; URL-backed search phrases retain a 2,048-character limit and structured filters use the bounded-URL storage fallback.
 
+Keyboard arrows focus value controls; Enter/Space open the picker. In the picker, Down from search enters the values and Up/Down move between visible checkboxes; Space toggles a value. Only/All actions remain reachable with Tab. Rows keep their current order while focused so selection changes cannot unmount the active control. Escape returns to the current value control, or the editor if the compact control no longer exists. `SearchComposer` owns the current picker condition so its trigger state and focus destination track edits.
+
 ## Data flow (one source of truth, one direction)
 
 The table's URL filter state — `FilterState` (the `filter` param, owned by the

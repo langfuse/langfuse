@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from "react";
+import { Fragment, useId, useRef, useState, type ReactNode } from "react";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Button as DsButton } from "@/src/components/design-system/Button/Button";
 import { Input } from "@/src/components/design-system/Input/Input";
@@ -62,6 +62,8 @@ export function CategoricalFilterSelect({
     setVisibleCount((current) => current + SHOW_MORE_INCREMENT);
   };
   const [searchQuery, setSearchQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+  const [focusedOptions, setFocusedOptions] = useState<string[] | null>(null);
   const visibleOptionValues = Array.from(
     new Set([...options, ...value.filter((option) => option.length > 0)]),
   );
@@ -97,18 +99,12 @@ export function CategoricalFilterSelect({
       ]
     : filteredOptions;
 
-  const visibleOptions = orderedOptions.slice(0, visibleCount);
+  // Selection changes must not move or unmount the focused row. Keep the
+  // current visible order while a row has focus, then resume normal pinning.
+  const visibleOptions =
+    focusedOptions ?? orderedOptions.slice(0, visibleCount);
   const canShowMore = orderedOptions.length > visibleCount;
   const canShowFewer = visibleCount > MAX_VISIBLE_OPTIONS;
-
-  // Split the visible slice so a separator can mark where the pinned rows
-  // end. When not pinning, everything renders in natural order (no divider).
-  const visiblePinnedOptions = pinApplied
-    ? visibleOptions.filter((option) => pinnedSet.has(option))
-    : [];
-  const visibleRemainingOptions = pinApplied
-    ? visibleOptions.filter((option) => !pinnedSet.has(option))
-    : visibleOptions;
 
   const renderOption = (option: string) => {
     const displayLabel = displayByValue?.get(option) ?? option;
@@ -129,13 +125,57 @@ export function CategoricalFilterSelect({
           onChange(newValues);
         }}
         onLabelClick={onOnlyChange ? () => onOnlyChange(option) : undefined}
+        onFocusChange={(focused) =>
+          setFocusedOptions(focused ? visibleOptions : null)
+        }
         totalSelected={value.length}
       />
     );
   };
 
   return (
-    <div className="ph-no-capture px-3">
+    <div
+      className="ph-no-capture px-3"
+      onKeyDown={(event) => {
+        if (
+          event.defaultPrevented ||
+          event.nativeEvent.isComposing ||
+          event.altKey ||
+          event.ctrlKey ||
+          event.metaKey ||
+          event.shiftKey ||
+          (event.key !== "ArrowDown" && event.key !== "ArrowUp") ||
+          !(event.target instanceof HTMLElement)
+        )
+          return;
+
+        const checkboxes = Array.from(
+          event.currentTarget.querySelectorAll<HTMLElement>(
+            '[role="checkbox"]:not([disabled])',
+          ),
+        );
+        if (event.target === searchRef.current) {
+          if (event.key === "ArrowDown" && checkboxes.length > 0) {
+            event.preventDefault();
+            checkboxes[0].focus();
+          }
+          return;
+        }
+
+        const index = checkboxes.indexOf(event.target);
+        if (index === -1) return;
+        event.preventDefault();
+        if (event.key === "ArrowUp" && index === 0 && searchRef.current) {
+          searchRef.current.focus();
+          return;
+        }
+        const nextIndex =
+          event.key === "ArrowDown"
+            ? Math.min(index + 1, checkboxes.length - 1)
+            : Math.max(index - 1, 0);
+        checkboxes[nextIndex]?.focus();
+      }}
+    >
       {/* Array columns support any-of, all-of, and exclusion matching. */}
       {onOperatorChange && (
         <div className="mb-2">
@@ -201,6 +241,7 @@ export function CategoricalFilterSelect({
             <div className="mb-2">
               <div className="relative">
                 <Input
+                  ref={searchRef}
                   placeholder="Filter values"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -217,21 +258,20 @@ export function CategoricalFilterSelect({
             </div>
           ) : (
             <>
-              {/* Applied-filter rows (selected, or excluded under
-                        `none of`), pinned to the top (long lists only) */}
-              {visiblePinnedOptions.map(renderOption)}
-
-              {/* Separator between the pinned rows and the rest */}
-              {visiblePinnedOptions.length > 0 &&
-                visibleRemainingOptions.length > 0 && (
-                  <div
-                    className="border-border/60 mx-3 my-1 border-t"
-                    aria-hidden
-                  />
-                )}
-
-              {/* Remaining options, capped */}
-              {visibleRemainingOptions.map(renderOption)}
+              {visibleOptions.map((option, index) => (
+                <Fragment key={option}>
+                  {pinApplied &&
+                    index > 0 &&
+                    pinnedSet.has(visibleOptions[index - 1]) &&
+                    !pinnedSet.has(option) && (
+                      <div
+                        className="border-border/60 mx-3 my-1 border-t"
+                        aria-hidden
+                      />
+                    )}
+                  {renderOption(option)}
+                </Fragment>
+              ))}
               {(canShowMore || canShowFewer) && (
                 <div className="mt-1 flex flex-col items-start gap-1 py-1 pl-2">
                   {canShowFewer && (
@@ -285,6 +325,7 @@ interface FilterValueCheckboxProps {
   checked?: boolean;
   onCheckedChange?: (checked: boolean) => void;
   onLabelClick?: () => void; // For "only this" behavior
+  onFocusChange: (focused: boolean) => void;
   totalSelected?: number;
   disabled?: boolean;
 }
@@ -299,6 +340,7 @@ function FilterValueCheckbox({
   checked = false,
   onCheckedChange,
   onLabelClick,
+  onFocusChange,
   totalSelected,
   disabled = false,
 }: FilterValueCheckboxProps) {
@@ -308,6 +350,32 @@ function FilterValueCheckbox({
   // Display placeholder for empty strings to ensure clickable area
   const displayLabel = label === "" ? "(empty)" : label;
   const displayTitle = title ?? (label === "" ? "(empty)" : label);
+  const labelContent = (
+    <>
+      {icon ? <span className="mr-2">{icon}</span> : null}
+      <span
+        className={cn(
+          "text-foreground-secondary min-w-0 truncate text-xs",
+          !suffix && "flex-1",
+          label === "" && "text-muted-foreground italic",
+        )}
+        title={displayTitle}
+      >
+        {displayLabel}
+      </span>
+      {suffix ? <span className="shrink-0 pl-1">{suffix}</span> : null}
+      {onLabelClick && !disabled && (
+        <span className="text-muted-foreground hidden shrink-0 pl-1 text-xs whitespace-nowrap group-hover/label:block group-focus-visible/label:block">
+          {labelText}
+        </span>
+      )}
+      {count !== null && count > 0 ? (
+        <span className="text-muted-foreground ml-auto w-7 shrink-0 pl-1 text-right text-xs">
+          {compactNumberFormatter(count, 0)}
+        </span>
+      ) : null}
+    </>
+  );
 
   return (
     <div
@@ -315,54 +383,50 @@ function FilterValueCheckbox({
         "relative flex items-center",
         disabled && "cursor-not-allowed opacity-50",
       )}
+      onFocus={() => onFocusChange(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget))
+          onFocusChange(false);
+      }}
     >
       {/* One hover tint for the whole row, same inset as the header box above. */}
-      <div className="hover:bg-accent flex min-w-0 flex-1 items-center rounded-md px-2 py-0.5 transition-colors">
-        <Checkbox
-          id={id}
-          aria-label={displayLabel}
-          checked={checked}
-          onCheckedChange={onCheckedChange}
-          disabled={disabled}
-          size="sm"
-        />
-
-        {/* Label area: clicking selects only this value */}
-        <div
+      <div className="hover:bg-accent flex min-h-6 min-w-0 flex-1 items-center rounded-md px-2 py-0.5 transition-colors">
+        <label
+          htmlFor={id}
           className={cn(
-            "group/label flex min-w-0 flex-1 cursor-pointer items-center self-stretch pr-1 pl-2",
-            disabled && "pointer-events-none",
+            "flex size-6 shrink-0 cursor-pointer items-center justify-center",
+            disabled && "cursor-not-allowed",
           )}
-          onClick={onLabelClick}
         >
-          {icon ? <span className="mr-2">{icon}</span> : null}
-          <span
-            className={cn(
-              "text-foreground-secondary min-w-0 truncate text-xs",
-              !suffix && "flex-1",
-              label === "" && "text-muted-foreground italic",
-            )}
-            title={displayTitle}
+          <Checkbox
+            id={id}
+            aria-label={displayLabel}
+            checked={checked}
+            onCheckedChange={onCheckedChange}
+            disabled={disabled}
+            size="sm"
+          />
+        </label>
+
+        {onLabelClick ? (
+          <button
+            type="button"
+            className="group/label focus-visible:ring-ring flex min-h-6 min-w-0 flex-1 cursor-pointer items-center self-stretch rounded-sm pr-1 pl-2 text-left focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed"
+            disabled={disabled}
+            aria-label={
+              labelText === "All"
+                ? "Select all values"
+                : `Select only ${displayLabel}`
+            }
+            onClick={onLabelClick}
           >
-            {displayLabel}
-          </span>
-          {suffix ? <span className="shrink-0 pl-1">{suffix}</span> : null}
-
-          {/* "Only" or "All" indicator when hovering label. shrink-0 +
-              whitespace-nowrap: appearing may only re-truncate the label —
-              never widen the row. */}
-          {onLabelClick && !disabled && (
-            <span className="text-muted-foreground hidden shrink-0 pl-1 text-xs whitespace-nowrap group-hover/label:block">
-              {labelText}
-            </span>
-          )}
-
-          {count !== null && count > 0 ? (
-            <span className="text-muted-foreground ml-auto w-7 shrink-0 pl-1 text-right text-xs">
-              {compactNumberFormatter(count, 0)}
-            </span>
-          ) : null}
-        </div>
+            {labelContent}
+          </button>
+        ) : (
+          <div className="flex min-w-0 flex-1 items-center self-stretch pr-1 pl-2">
+            {labelContent}
+          </div>
+        )}
       </div>
     </div>
   );

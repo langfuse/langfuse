@@ -15,7 +15,7 @@ import {
 } from "../../lib/fns/tokenFacet";
 
 export function FilterValuesPopover({
-  initialState,
+  state,
   registry,
   scoreTypes,
   observed,
@@ -23,15 +23,14 @@ export function FilterValuesPopover({
   onApply,
   onClose,
 }: {
-  initialState: TokenFacetState;
+  state: TokenFacetState;
   registry: FieldRegistry;
   scoreTypes: ScoreTypeContext | undefined;
   observed: ObservedOptions | undefined;
   erroredColumns: ReadonlySet<string> | undefined;
-  onApply: (previousQuery: string, nextQuery: string) => boolean;
+  onApply: (previousQuery: string, nextState: TokenFacetState) => boolean;
   onClose: () => void;
 }) {
-  const [state, setState] = useState(initialState);
   const [error, setError] = useState<string | null>(null);
   const ref = registry.resolveField(state.template.key);
   const { optionKey, requestable } = optionSource(ref, state.template.key);
@@ -66,14 +65,13 @@ export function FilterValuesPopover({
       );
       return;
     }
-    if (!onApply(state.query, next.query)) {
+    if (!onApply(state.query, next)) {
       setError(
         "The query changed. Close and reopen the value picker to continue.",
       );
       return;
     }
     setError(null);
-    setState(next);
   };
 
   return (

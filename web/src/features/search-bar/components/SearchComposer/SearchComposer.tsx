@@ -41,7 +41,7 @@ import { QueryExpressionEditor } from "./QueryExpressionEditor";
 
 type QueryEditorState = { originalDraft: string; initialValue: string };
 type ValuePickerState = {
-  initialState: TokenFacetState;
+  state: TokenFacetState;
   virtualRef: React.RefObject<{ getBoundingClientRect: () => DOMRect }>;
 };
 
@@ -106,10 +106,15 @@ export function SearchComposer({
   });
 
   const controller = useQueryInputController();
+  const valuePickerId = React.useId();
   const [valuePicker, setValuePicker] = React.useState<ValuePickerState | null>(
     null,
   );
-  const valuePickerFocusRef = React.useRef<HTMLElement | null>(null);
+  const valuePickerFocusRef = React.useRef<{
+    trigger: HTMLButtonElement;
+    editor: HTMLElement | null;
+    from: number | null;
+  } | null>(null);
   const restoreValuePickerFocusRef = React.useRef(false);
   const { autocompleteOpen, selectionSnapshot } = controller;
   const { start, end } = selectionSnapshot;
@@ -187,18 +192,41 @@ export function SearchComposer({
     >
       {({ openDialog }) => (
         <PopoverController
+          contentId={valuePickerId}
           ariaLabel="Edit filter values"
           align="start"
           contentClassName="w-80 max-w-[calc(100vw-24px)] p-0 py-2"
           disabled={false}
           modal={false}
+          onOpenAutoFocus={(event) => {
+            const target = document
+              .getElementById(valuePickerId)
+              ?.querySelector<HTMLElement>('input, [role="checkbox"]');
+            if (target !== null && target !== undefined) {
+              event.preventDefault();
+              target.focus();
+            }
+          }}
           onEscapeKeyDown={() => {
             restoreValuePickerFocusRef.current = true;
           }}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
             if (restoreValuePickerFocusRef.current) {
-              valuePickerFocusRef.current?.focus();
+              const focus = valuePickerFocusRef.current;
+              const currentToken = tokens.find(
+                (token) =>
+                  token.from === focus?.from && token.summary !== undefined,
+              );
+              let currentTrigger = focus?.trigger.isConnected
+                ? focus.trigger
+                : null;
+              if (currentTrigger === null && currentToken !== undefined)
+                currentTrigger =
+                  focus?.editor?.querySelector<HTMLButtonElement>(
+                    `[data-segment-id="${CSS.escape(currentToken.id)}"] [data-query-summary]`,
+                  ) ?? null;
+              (currentTrigger ?? focus?.editor)?.focus();
               controller.setAutocompleteOpen(false);
             }
             restoreValuePickerFocusRef.current = false;
@@ -209,7 +237,7 @@ export function SearchComposer({
           renderContent={({ closePopover }) =>
             valuePicker !== null ? (
               <FilterValuesPopover
-                initialState={valuePicker.initialState}
+                state={valuePicker.state}
                 registry={registry}
                 scoreTypes={scoreTypes}
                 observed={observed}
@@ -218,7 +246,7 @@ export function SearchComposer({
                   restoreValuePickerFocusRef.current = true;
                   closePopover();
                 }}
-                onApply={(previousQuery, nextQuery) => {
+                onApply={(previousQuery, nextState) => {
                   if (
                     !draftsSemanticallyEqual(
                       store.getState().draft,
@@ -228,14 +256,23 @@ export function SearchComposer({
                     )
                   )
                     return false;
-                  store.getState().actions.setDraft(nextQuery);
-                  return commit("pick") !== null;
+                  store.getState().actions.setDraft(nextState.query);
+                  if (commit("pick") === null) return false;
+                  if (valuePickerFocusRef.current !== null)
+                    valuePickerFocusRef.current.from =
+                      nextState.expression === null
+                        ? null
+                        : nextState.span.from;
+                  setValuePicker((current) =>
+                    current === null ? null : { ...current, state: nextState },
+                  );
+                  return true;
                 }}
               />
             ) : null
           }
         >
-          {({ openPopover, Anchor }) => (
+          {({ openPopover, Anchor, isOpen }) => (
             <>
               {valuePicker !== null ? (
                 <Anchor virtualRef={valuePicker.virtualRef} />
@@ -274,6 +311,16 @@ export function SearchComposer({
                 }
                 controller={controller}
                 completions={completions}
+                tokenEditor={
+                  isOpen &&
+                  valuePicker !== null &&
+                  valuePicker.state.expression !== null
+                    ? {
+                        from: valuePicker.state.span.from,
+                        popupId: valuePickerId,
+                      }
+                    : undefined
+                }
                 onEditToken={(token, anchor) => {
                   const initialState = createTokenFacetState(
                     store.getState().draft,
@@ -284,16 +331,19 @@ export function SearchComposer({
                   const rect = anchor.getBoundingClientRect();
                   const reference =
                     anchor.closest<HTMLElement>('[role="search"]') ?? anchor;
-                  valuePickerFocusRef.current =
-                    reference.querySelector<HTMLElement>(
+                  valuePickerFocusRef.current = {
+                    trigger: anchor,
+                    editor: reference.querySelector<HTMLElement>(
                       '[contenteditable="true"]',
-                    ) ?? anchor;
+                    ),
+                    from: token.from,
+                  };
                   restoreValuePickerFocusRef.current = false;
                   const base = reference.getBoundingClientRect();
                   const leftOffset = rect.left - base.left;
                   const topOffset = rect.top - base.top;
                   setValuePicker({
-                    initialState,
+                    state: initialState,
                     virtualRef: {
                       current: {
                         getBoundingClientRect: () => {
