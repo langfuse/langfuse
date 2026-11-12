@@ -1514,10 +1514,14 @@ describe("MCP Write Tools", () => {
     it("should deny setting and deleting the default model to a key without evalDefaultModel:CUD", async () => {
       const mutableEnv = env as unknown as {
         LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: "true" | "false";
+        API_AUTH_MIGRATION: typeof env.API_AUTH_MIGRATION;
       };
       const originalPreviewOptIn =
         mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+      const originalAuthMode = mutableEnv.API_AUTH_MIGRATION;
       mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
+      // Shadow and legacy modes report denials without enforcing them.
+      mutableEnv.API_AUTH_MIGRATION = "enforce";
 
       const setup = await createMcpTestSetup();
       const { projectId, orgId } = setup;
@@ -1611,6 +1615,7 @@ describe("MCP Write Tools", () => {
         await client.close();
         mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
           originalPreviewOptIn;
+        mutableEnv.API_AUTH_MIGRATION = originalAuthMode;
       }
 
       expect(llmServerRequests).toBe(requestsBefore);
