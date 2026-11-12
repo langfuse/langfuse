@@ -1,14 +1,159 @@
 import {
   createObservation,
   createObservationsCh,
+  createTrace,
+  createTracesCh,
+  FilterList,
+  generateObservationsForPublicApi,
   getObservationById,
+  getObservationsCountForPublicApi,
   getObservationsForTrace,
+  StringFilter,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 describe("Clickhouse Observations Repository Test", () => {
+  it("should page and count only matching latest observation versions", async () => {
+    const projectId = v4();
+    const otherProjectId = v4();
+    const observationId = v4();
+    const traceId = v4();
+    const userId = v4();
+    const oldUserId = v4();
+    const timestamp = Date.now();
+    const observation = {
+      id: observationId,
+      trace_id: traceId,
+      project_id: projectId,
+      start_time: timestamp,
+    };
+    const deletedObservation = {
+      ...observation,
+      id: v4(),
+      start_time: timestamp + 1,
+    };
+
+    await createTracesCh([
+      createTrace({
+        id: traceId,
+        project_id: projectId,
+        user_id: oldUserId,
+        timestamp,
+        event_ts: timestamp - 1,
+      }),
+      createTrace({
+        id: traceId,
+        project_id: projectId,
+        user_id: userId,
+        timestamp,
+        event_ts: timestamp,
+      }),
+      createTrace({
+        id: traceId,
+        project_id: projectId,
+        user_id: userId,
+        timestamp,
+        event_ts: timestamp + 2,
+      }),
+      createTrace({
+        id: traceId,
+        project_id: otherProjectId,
+        user_id: userId,
+        timestamp,
+        event_ts: timestamp + 3,
+      }),
+    ]);
+    await createObservationsCh([
+      createObservation({ ...observation, name: "old", event_ts: timestamp }),
+      createObservation({
+        ...observation,
+        name: "current",
+        output: '"latest"',
+        event_ts: timestamp + 2,
+      }),
+      createObservation({
+        ...observation,
+        name: "old",
+        event_ts: timestamp + 1,
+      }),
+      createObservation({
+        ...deletedObservation,
+        name: "current",
+        event_ts: timestamp,
+      }),
+      createObservation({
+        ...deletedObservation,
+        name: "current",
+        is_deleted: 1,
+        event_ts: timestamp + 2,
+      }),
+      createObservation({
+        ...observation,
+        project_id: otherProjectId,
+        name: "current",
+        event_ts: timestamp + 3,
+      }),
+    ]);
+
+    for (const { name, userId: filterUserId, matches } of [
+      { name: "old", userId, matches: false },
+      { name: "current", userId, matches: true },
+      { name: "current", userId: oldUserId, matches: false },
+    ]) {
+      const filter = new FilterList([
+        new StringFilter({
+          clickhouseTable: "observations",
+          tablePrefix: "o",
+          field: "name",
+          operator: "=",
+          value: name,
+        }),
+        new StringFilter({
+          clickhouseTable: "traces",
+          tablePrefix: "t",
+          field: "user_id",
+          operator: "=",
+          value: filterUserId,
+        }),
+      ]);
+      const [page, count] = await Promise.all([
+        generateObservationsForPublicApi({
+          projectId,
+          filter,
+          pagination: { limit: 1, page: 1 },
+        }),
+        getObservationsCountForPublicApi({ projectId, filter }),
+      ]);
+
+      expect
+        .soft(
+          page.map(({ id, projectId, traceId, name, output }) => ({
+            id,
+            projectId,
+            traceId,
+            name,
+            output,
+          })),
+        )
+        .toEqual(
+          matches
+            ? [
+                {
+                  id: observationId,
+                  projectId,
+                  traceId,
+                  name: "current",
+                  output: "latest",
+                },
+              ]
+            : [],
+        );
+      expect.soft(count).toBe(matches ? 1 : 0);
+    }
+  });
+
   it("should throw if no observations are found", async () => {
     await expect(
       getObservationById({

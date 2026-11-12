@@ -2122,21 +2122,24 @@ export const generateObservationsForPublicApi = async ({
   const disableObservationsFinal = await shouldSkipObservationsFinal(projectId);
 
   const query = `
-    with clickhouse_keys as (
+    WITH (
+      SELECT groupArray((id, trace_id, project_id, type, day))
+      FROM (
       SELECT DISTINCT
         id,
         trace_id,
         project_id,
         type,
-        toDate(start_time)
-      FROM observations o
-        ${traceFilter ? `LEFT JOIN __TRACE_TABLE__ t ON o.trace_id = t.id AND t.project_id = o.project_id` : ""}
+        toDate(start_time) AS day
+      FROM observations o ${disableObservationsFinal ? "" : "FINAL"}
+        ${traceFilter ? `LEFT JOIN __TRACE_TABLE__ t FINAL ON o.trace_id = t.id AND t.project_id = o.project_id` : ""}
       WHERE o.project_id = {projectId: String}
         ${traceFilter ? `AND t.project_id = {projectId: String}` : ""}
         AND ${appliedFilter.query}
       ORDER BY start_time DESC
         LIMIT {limit: Int32} OFFSET {offset: Int32}
-    )
+      )
+    ) AS page_keys
     SELECT
       id,
       trace_id,
@@ -2169,8 +2172,15 @@ export const generateObservationsForPublicApi = async ({
       updated_at,
       event_ts
     FROM observations o ${disableObservationsFinal ? "" : "FINAL"}
+    PREWHERE (o.project_id, o.type, toDate(o.start_time), o.id) IN (
+      SELECT page_key.3, page_key.4, page_key.5, page_key.1
+      FROM (SELECT arrayJoin(page_keys) AS page_key)
+    )
     WHERE o.project_id = {projectId: String}
-      AND (id, trace_id, project_id, type, toDate(start_time)) in (select * from clickhouse_keys)
+      AND (id, trace_id, project_id, type, toDate(start_time)) IN (
+        SELECT page_key.1, page_key.2, page_key.3, page_key.4, page_key.5
+        FROM (SELECT arrayJoin(page_keys) AS page_key)
+      )
     ORDER BY start_time DESC
   `;
 
@@ -2189,6 +2199,7 @@ export const generateObservationsForPublicApi = async ({
     params: input.params,
     tags: input.tags,
     preferredClickhouseService: "ReadOnly",
+    clickhouseSettings: { optimize_move_to_prewhere_if_final: 0 },
   });
   return result.map((r) => convertObservation(r));
 };
@@ -2202,11 +2213,16 @@ export const getObservationsCountForPublicApi = async ({
 }) => {
   const appliedFilter = filter.apply();
   const traceFilter = filter.find((f) => f.clickhouseTable === "traces");
+  const disableObservationsFinal = await shouldSkipObservationsFinal(projectId);
 
   const query = `
-    SELECT count() as count
-    FROM observations o
-    ${traceFilter ? `LEFT JOIN __TRACE_TABLE__ t ON o.trace_id = t.id AND t.project_id = o.project_id` : ""}
+    SELECT ${
+      traceFilter && !disableObservationsFinal
+        ? "uniqExact((o.id, o.trace_id, o.project_id, o.type, toDate(o.start_time)))"
+        : "count()"
+    } as count
+    FROM observations o ${disableObservationsFinal ? "" : "FINAL"}
+    ${traceFilter ? `LEFT JOIN __TRACE_TABLE__ t FINAL ON o.trace_id = t.id AND t.project_id = o.project_id` : ""}
     WHERE o.project_id = {projectId: String}
     ${traceFilter ? `AND t.project_id = {projectId: String}` : ""}
     AND ${appliedFilter.query}
@@ -2217,6 +2233,7 @@ export const getObservationsCountForPublicApi = async ({
     params: { ...appliedFilter.params, projectId },
     tags: { projectId },
     preferredClickhouseService: "ReadOnly",
+    clickhouseSettings: { optimize_move_to_prewhere_if_final: 0 },
   });
   return records.map((record) => Number(record.count)).shift();
 };
