@@ -1,6 +1,7 @@
 /* eslint-disable react/no-unstable-nested-components */
 import {
   type PointerEvent,
+  useContext,
   type RefObject,
   type UIEvent,
   useState,
@@ -14,10 +15,12 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { cn } from "@/src/utils/tailwind";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import {
+  type Facet,
   type FacetRow,
   type TopicTracesResult,
   topicTracesHref,
 } from "./facet-topics";
+import { FacetTraceSource } from "./useFacetTopicTraces";
 
 /** With the table's own 4px (8px on the first column), cells end up 16px from each edge. */
 const CELL = "block px-3";
@@ -59,6 +62,7 @@ export function TopicTraceList({
   swatchColor,
   traces,
   totalCount,
+  tracingTopic,
   peekView,
   tracePanelRef,
   headerRef,
@@ -76,7 +80,14 @@ export function TopicTraceList({
   const titleTooltip = useTruncatedTitle(title, "truncate");
   const descriptionTooltip = useTruncatedTitle(description ?? "", "line-clamp");
   const { isV4 } = useReadPath();
-  const tracingHref = topicTracesHref(projectId, rows, isV4);
+  // Analysis snapshots have their own topics, which the tracing filter can't match.
+  const isAnalysis = Boolean(useContext(FacetTraceSource)?.analysisId);
+  const tracingHref = topicTracesHref(
+    projectId,
+    rows,
+    isV4,
+    isAnalysis ? undefined : tracingTopic,
+  );
   const columns: LangfuseColumnDef<FacetRow>[] = [
     {
       accessorKey: "traceId",
@@ -194,6 +205,8 @@ type TopicTraceListProps = {
   traces: TopicTracesResult;
   /** Approximate count of the listed topic's traces. */
   totalCount: number;
+  /** The listed topic, so Open in Tracing can filter by it instead of trace IDs. */
+  tracingTopic?: { facet: Facet; name: string };
   peekView: DataTablePeekViewProps;
   tracePanelRef?: (element: HTMLElement | null) => void;
   /** Lets a neighbouring panel match this header's height. */
