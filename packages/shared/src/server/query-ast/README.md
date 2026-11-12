@@ -2,11 +2,7 @@
 
 Server-only half of the query-builder AST module: the Kysely-based ClickHouse compiler, validation passes, physical registry, execution context, and exec integration, behind the `@langfuse/shared/src/server` export boundary. The client-safe half (predicate AST, `FilterState` codec, semantic source registry) lives under `packages/shared/src/query-ast/`.
 
-This folder is a compile-only ClickHouse dialect on Kysely 0.28: real
-`OperationNode`s for ARRAY JOIN, LIMIT BY, FINAL, and metadata map
-subscripts; a mandatory tenancy injection pass keyed on one `projectId`;
-per-table dedup lowering from the registry;
-schema-typed selection; virtual views as WITH CTEs; catalog parity.
+This folder is a compile-only ClickHouse dialect on Kysely 0.28: real `OperationNode`s for ARRAY JOIN, LIMIT BY, FINAL, and metadata map subscripts; a mandatory tenancy injection pass keyed on one `projectId`; per-table dedup lowering from the registry; schema-typed selection; virtual views as WITH CTEs; catalog parity.
 
 Two audiences: **[Using it](#using-it)** if you are calling the compiler from a
 repository, **[Developing the dialect](#developing-the-dialect)** if you are
@@ -21,15 +17,10 @@ changing how it emits SQL.
 - `ctes.ts` — the second pass: rejects CTE and FROM/JOIN names that could
   mean two relations, so later passes read every registry name as its table.
 - `tenancy.ts` — the tenancy injection pass.
-- `schema.ts` — the physical table registry: one `defineTable` declaration per
-  relation drives the Kysely row types (`ClickHouseDatabase`), the runtime
-  column-type map (`COLUMN_DATA_TYPES`), the tenanted-table set
-  (`TENANTED_TABLES`), and the per-table dedup specs (`DEDUP_SPECS`) —
-  instead of hand-maintained tables that drift.
+- `schema.ts` — the physical table registry: one `defineTable` declaration per relation drives the Kysely row types (`ClickHouseDatabase`), the runtime column-type map (`COLUMN_DATA_TYPES`), the tenanted-table set (`TENANTED_TABLES`), and the per-table dedup specs (`DEDUP_SPECS`) — instead of hand-maintained tables that drift.
 - `compiler.ts` / `transformer.ts` / `dialect.ts` / `nodes.ts` — the dialect.
 - `extensions.ts` — the `$call` helpers (`arrayJoin`, `limitBy`, `withFill`, `useFinal`) and typed ClickHouse functions and aggregates (`argMaxIf`, `countIf`, `sumMap`, `multiIf`, `metadataValue`, `firstMetadataValue`, `arrayDistinct`, `countEqual`, `tupleArrayField`, `toNullable`, `typedNull`, `formatDateTime`, `templateAggregate`, `quantile`, `histogram`, `toStartOfInterval`, `interval`, `literal`, …) that take `eb.ref(...)` expressions. `interval(count, unit)` takes an `IntervalUnit`: `minute`, `hour`, `day`, `week` or `month`.
-- `views.ts` / `dedup.ts` — virtual views as CTEs and per-table dedup
-  lowering.
+- `views.ts` / `dedup.ts` — virtual views as CTEs and per-table dedup lowering.
 - `fixtures/catalog.ts` — test-only catalog of builder queries exercising the
   dialect's expressivity.
 - `catalog.golden.test.ts` — catalog SQL baselines.
@@ -97,9 +88,7 @@ must carry the `.golden.test.ts` suffix to run there.
   columns instead. A positive integer after a qualifier (`x.1`) is tuple
   element access and compiles as is. `collate` is not supported.
 - **Qualify every column of a SELECT that reads several relations.** ClickHouse binds an unqualified column there to the left-most relation that has it, without an ambiguity error. So when a SELECT has more than one FROM item or JOIN (subqueries and CTE reads count; ARRAY JOIN does not), a bare name must be an output alias of that SELECT (ARRAY JOIN aliases included) or a lambda parameter; anything else throws `QueryCompileError`. An alias read inside its own expression reads the relations, so `max(timestamp) AS timestamp` throws too. Each SELECT is checked on its own relations: a single-relation subquery may use bare names.
-- **Do not filter `is_deleted` on the events tables.** Deletions are
-  lightweight `DELETE`s, which ClickHouse hides from every read; nothing
-  writes `is_deleted = 1`.
+- **Do not filter `is_deleted` on the events tables.** Deletions are lightweight `DELETE`s, which ClickHouse hides from every read; nothing writes `is_deleted = 1`.
 - **Dedup is declared per table and must be an existing production idiom.**
   `events_core` and `events_full` are `none` (immutable at read time — no
   LIMIT BY, no FINAL).

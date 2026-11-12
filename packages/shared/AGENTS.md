@@ -59,20 +59,7 @@
   trace at the next pair or successful EOF; time buckets must not precede trace ID.
 - Code evaluator dispatcher/error contract: `src/server/evals/codeEvalDispatcherTypes.ts`. Keep provider mappings, user-visible messages, and worker terminal-outcome classification aligned when adding an error code.
 - Dashboard/monitor query feature (data model + server-only builder/executor): `src/features/query/*`
-- Query-builder AST (server half, WIP): `src/server/query-ast/*` — the Kysely
-  ClickHouse dialect (ARRAY JOIN / LIMIT BY / FINAL / metadata subscript nodes,
-  single-project tenancy injection, per-table dedup lowering, virtual views,
-  catalog parity). Compile only through
-  `compileClickhouseQuery` in `src/server/query-ast/compile.ts`. SQL
-  correctness is proven by a golden-SQL harness
-  (`src/server/repositories/goldenHarness.ts`, capturing at the
-  `src/server/repositories/clickhouse.ts` exec seam and normalizing via
-  `clickhouse format`); each migrated call site keeps its `*.golden.test.ts`
-  baseline next to the call site (e.g.
-  `src/server/repositories/environments.golden.test.ts`,
-  `src/server/repositories/events.golden.test.ts`,
-  `src/server/repositories/scores.golden.test.ts`,
-  `src/server/queries/clickhouse-sql/event-filter-options.golden.test.ts`).
+- Query-builder AST (server half, WIP): `src/server/query-ast/*` — the Kysely ClickHouse dialect (ARRAY JOIN / LIMIT BY / FINAL / metadata subscript nodes, single-project tenancy injection, per-table dedup lowering, virtual views, catalog parity). Compile only through `compileClickhouseQuery` in `src/server/query-ast/compile.ts`. SQL correctness is proven by a golden-SQL harness (`src/server/repositories/goldenHarness.ts`, capturing at the `src/server/repositories/clickhouse.ts` exec seam and normalizing via `clickhouse format`); each migrated call site keeps its `*.golden.test.ts` baseline next to the call site (e.g. `src/server/repositories/environments.golden.test.ts`, `src/server/repositories/events.golden.test.ts`, `src/server/repositories/scores.golden.test.ts`, `src/server/queries/clickhouse-sql/event-filter-options.golden.test.ts`).
 - Events predicate lowering (server half of the predicate source): `src/server/repositories/events-predicate.ts` lowers a `Predicate` and its free-text `search` to Kysely conditions over `events as e` (`lowerEventsPredicate`, `lowerEventsSearch`), or to `{ sql, params, requiresEventsFull }` for the raw-SQL builders (`compileEventsPredicate`, `compileEventsSearch`). The events row-selection planner (`src/server/queries/clickhouse-sql/events-observation-row-selection.ts`) compiles its non-score filters and search through them; score filters stay `FilterList` text. Per-field expressions live in `events-predicate-fields.ts`, and `eventsTableUiColumnDefinitions` renders its column SQL from them (`eventsFieldSql`); the routing verdict (`requiresEventsFull`) comes from the routing pass via `compileClickhouseCondition`; `events-predicate.golden.test.ts` checks the condition wiring (type, operator, binds, routing, errors) against `FilterList` per field × type × operator and the search against `eventSearchCondition`. Both filter sides share the column SQL; the row-selection goldens (`events.golden.test.ts`) pin it with a planner filter per column kind (bare, quoted, expression, usage/cost-map expression, array, empty-equals-null, ingestion columns), so a field of a new kind needs a case there.
 - Query-builder predicate (client-safe half, WIP): `src/query-ast/*`, exported from the main barrel — the `Predicate` tree (`and | or | not | condition`) with its zod schema, `PredicateWithSearch` (the tree plus at most one free-text search), the `FilterState` + `searchQuery`/`searchType` codec (`fromFilterState` / `toFilterState`), `analyzePredicate` contradiction diagnostics, and the semantic source registry (`eventsPredicateSource`, kept in parity with `eventsTableCols` and the events search columns by `sources.test.ts`). No server imports here.
 - Postgres schema: `prisma/schema.prisma`
