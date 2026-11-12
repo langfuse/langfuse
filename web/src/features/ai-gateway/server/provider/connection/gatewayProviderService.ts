@@ -426,9 +426,10 @@ export class GatewayProviderService {
     if (!connection) throw new LangfuseNotFoundError("Provider connection");
     const provider = connection.provider as GatewayProviderName;
     // Vercel's catalog says whether a model is a decision model, which serves
-    // only Decisions, so only its test route depends on the catalog.
+    // only Decisions, and Azure's which formats a deployment serves, so only
+    // their test routes depend on the catalog.
     const catalog =
-      provider === "VERCEL"
+      provider === "VERCEL" || provider === "AZURE"
         ? await this.modelCatalogService.getModelCatalog({
             organizationId: params.organizationId,
             connectionId: connection.id,

@@ -76,6 +76,8 @@ export function GatewaySetupSwitchboard({
     PILL.spacing,
     (VIEWBOX_HEIGHT - PILL.height - 2) / Math.max(rowCount - 1, 1),
   );
+  // Pills shrink with the rows so neighbours keep a gap.
+  const pillHeight = Math.min(PILL.height, spacing - 2);
   const rowY = (index: number) =>
     HUB.y + (index - (rowCount - 1) / 2) * spacing;
 
@@ -191,9 +193,9 @@ export function GatewaySetupSwitchboard({
             ) : null}
             <rect
               x={PILL.x}
-              y={y - PILL.height / 2}
+              y={y - pillHeight / 2}
               width={PILL.width}
-              height={PILL.height}
+              height={pillHeight}
               rx={4}
               strokeDasharray={showsAddLabel ? "3 3" : undefined}
               className={cn(
@@ -268,9 +270,9 @@ export function GatewaySetupSwitchboard({
           />
           <rect
             x={PILL.x}
-            y={rowY(providers.length) - PILL.height / 2}
+            y={rowY(providers.length) - pillHeight / 2}
             width={PILL.width}
-            height={PILL.height}
+            height={pillHeight}
             rx={4}
             strokeDasharray="3 3"
             className="fill-background stroke-border"
