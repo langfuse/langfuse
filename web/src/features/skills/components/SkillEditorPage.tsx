@@ -17,6 +17,12 @@ import {
   type SkillEditorInitialValue,
   type SkillEditorStore,
 } from "@/src/features/skills/components/skillEditorStore";
+import {
+  createSkillDraft,
+  restoreSkillDraft,
+  skillDraftStorageKey,
+  type SkillDraft,
+} from "@/src/features/skills/components/skillDraftStorage";
 import { parseSkillFrontmatterMetadata } from "@/src/features/skills/utils/parseSkillFrontmatterMetadata";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
@@ -34,9 +40,13 @@ export function NewSkillPage() {
     { projectId: projectId ?? "" },
     { enabled: Boolean(projectId), refetchOnWindowFocus: false },
   );
-  const [store] = useState(() =>
-    createSkillEditorStore(NEW_SKILL_INITIAL_VALUE),
-  );
+  const [draft] = useState(() => {
+    const key = skillDraftStorageKey(projectId ?? "", null);
+    return (
+      restoreSkillDraft(key) ?? createSkillDraft(key, NEW_SKILL_INITIAL_VALUE)
+    );
+  });
+  const store = draft.store;
   const skillMarkdown = useStore(
     store,
     (state) => state.files["SKILL.md"]?.content ?? "",
@@ -65,6 +75,7 @@ export function NewSkillPage() {
       view={{
         kind: "draft",
         onDiscard: async () => {
+          draft.discard();
           await router.push(`/project/${projectId}/skills`);
         },
       }}
@@ -74,6 +85,7 @@ export function NewSkillPage() {
         tags: filterOptions.data?.tags.map((tag) => tag.value) ?? [],
       }}
       onCreated={async (created) => {
+        draft.discard();
         await Promise.all([
           utils.skills.all.invalidate(),
           utils.skills.filterOptions.invalidate(),
@@ -108,7 +120,11 @@ function ExistingSkillSession({
   skillName: string;
 }) {
   const router = useRouter();
-  const [draftStore, setDraftStore] = useState<SkillEditorStore | null>(null);
+  const draftKey = skillDraftStorageKey(projectId, skillName);
+  const [draft, setDraft] = useState<SkillDraft | null>(() =>
+    projectId && skillName ? restoreSkillDraft(draftKey) : null,
+  );
+  const draftStore = draft?.store ?? null;
   const isDraft = draftStore !== null && router.query.draft === "true";
   const requestedVersion =
     typeof router.query.version === "string"
@@ -199,21 +215,21 @@ function ExistingSkillSession({
       })),
     });
     async function selectDraft() {
-      const draft = draftStore ?? createSkillEditorStore(initialValue);
-      const baseVersion = draft.getState().baseVersion;
-      if (draftStore && baseVersion !== null) {
+      const selected = draft ?? createSkillDraft(draftKey, initialValue);
+      const baseVersion = selected.store.getState().baseVersion;
+      if (draft && baseVersion !== null) {
         try {
           const saved = await utils.skills.byName.fetch({
             projectId,
             name: skillName,
             version: baseVersion,
           });
-          draft
+          selected.store
             .getState()
             .actions.syncLabels(
               saved.labels.filter((label) => label !== SKILL_LATEST_LABEL),
             );
-          draft.getState().actions.syncTags(saved.tags);
+          selected.store.getState().actions.syncTags(saved.tags);
         } catch (error) {
           showErrorToast(
             "Could not resume draft",
@@ -223,13 +239,13 @@ function ExistingSkillSession({
           return;
         }
       }
-      setDraftStore(draft);
+      setDraft(selected);
       await router.push({
         pathname: router.pathname,
         query: {
           projectId,
           skillName,
-          version: draft.getState().baseVersion,
+          version: selected.store.getState().baseVersion,
           draft: "true",
         },
       });
@@ -247,7 +263,8 @@ function ExistingSkillSession({
                 kind: "draft",
                 onDiscard: async () => {
                   const baseVersion = draftStore!.getState().baseVersion;
-                  setDraftStore(null);
+                  draft?.discard();
+                  setDraft(null);
                   await router.push({
                     pathname: router.pathname,
                     query: { projectId, skillName, version: baseVersion },
@@ -320,7 +337,8 @@ function ExistingSkillSession({
               version: created.version,
             },
           });
-          setDraftStore(null);
+          draft?.discard();
+          setDraft(null);
         }}
       />
     );

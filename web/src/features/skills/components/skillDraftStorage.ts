@@ -1,0 +1,135 @@
+import { z } from "zod";
+import {
+  createSkillEditorStore,
+  type SkillEditorInitialValue,
+  type SkillEditorStore,
+} from "./skillEditorStore";
+
+/**
+ * Keeps an unsaved skill draft in sessionStorage so it survives reloads in
+ * the same tab. One draft per skill and project; `null` is the new-skill draft.
+ * Only drafts with changes are written, and writes are debounced because the
+ * editor updates the store on every keystroke.
+ */
+
+const SAVE_DEBOUNCE_MS = 300;
+
+const SkillDraftFileSchema = z.object({
+  path: z.string(),
+  content: z.string().optional(),
+  currentSha: z.string().nullable(),
+  sourceSha: z.string().nullable(),
+  sourceContentLength: z.number().nullable(),
+});
+
+const StoredSkillDraftSchema = z.object({
+  schemaVersion: z.literal(1),
+  name: z.string(),
+  baseVersion: z.number().int().nullable(),
+  files: z.array(SkillDraftFileSchema).min(1),
+  deletedFiles: z.array(SkillDraftFileSchema),
+  folders: z.array(z.string()),
+  activePath: z.string(),
+  labels: z.array(z.string()),
+  tags: z.array(z.string()),
+  commitMessage: z.string(),
+});
+
+type StoredSkillDraft = z.infer<typeof StoredSkillDraftSchema>;
+
+export type SkillDraft = {
+  store: SkillEditorStore;
+  /** Stops saving and removes the stored draft. */
+  discard: () => void;
+};
+
+export function skillDraftStorageKey(
+  projectId: string,
+  skillName: string | null,
+) {
+  return `langfuse:skill-draft:${projectId}:${skillName === null ? "new" : `skill:${skillName}`}`;
+}
+
+/** Restores the stored draft for `key`, or returns null when there is none. */
+export function restoreSkillDraft(key: string): SkillDraft | null {
+  const stored = readStoredDraft(key);
+  if (!stored) return null;
+  const { deletedFiles, folders, activePath, commitMessage, ...initialValue } =
+    stored;
+  return persistSkillDraft(
+    key,
+    createSkillEditorStore(initialValue, {
+      deletedFiles,
+      folders,
+      activePath,
+      commitMessage,
+    }),
+  );
+}
+
+export function createSkillDraft(
+  key: string,
+  initialValue: SkillEditorInitialValue,
+): SkillDraft {
+  return persistSkillDraft(key, createSkillEditorStore(initialValue));
+}
+
+function persistSkillDraft(key: string, store: SkillEditorStore): SkillDraft {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const save = () => {
+    timeout = undefined;
+    const state = store.getState();
+    if (!state.dirty) return;
+    const draft: StoredSkillDraft = {
+      schemaVersion: 1,
+      name: state.name,
+      baseVersion: state.baseVersion,
+      files: Object.values(state.files),
+      deletedFiles: Object.values(state.deletedFiles),
+      folders: state.folders,
+      activePath: state.activePath,
+      labels: state.labels,
+      tags: state.tags,
+      commitMessage: state.commitMessage,
+    };
+    try {
+      window.sessionStorage.setItem(key, JSON.stringify(draft));
+    } catch {
+      // Storage can be full or unavailable; the draft stays in memory.
+    }
+  };
+  const unsubscribe = store.subscribe(() => {
+    clearTimeout(timeout);
+    timeout = setTimeout(save, SAVE_DEBOUNCE_MS);
+  });
+  return {
+    store,
+    discard: () => {
+      unsubscribe();
+      clearTimeout(timeout);
+      removeStoredDraft(key);
+    },
+  };
+}
+
+function readStoredDraft(key: string): StoredSkillDraft | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    if (raw === null) return null;
+    const parsed = StoredSkillDraftSchema.safeParse(JSON.parse(raw));
+    if (parsed.success) return parsed.data;
+  } catch {
+    // Unreadable storage or malformed JSON is treated like a missing draft.
+  }
+  removeStoredDraft(key);
+  return null;
+}
+
+function removeStoredDraft(key: string) {
+  try {
+    window.sessionStorage.removeItem(key);
+  } catch {
+    // Storage can be unavailable in hardened/private browser contexts.
+  }
+}
