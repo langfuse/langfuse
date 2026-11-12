@@ -685,6 +685,19 @@ describe("AI Gateway path credential check", () => {
     ).rejects.toMatchObject({ httpCode });
   });
 
+  it("keeps the provider's answer to a rejected key", async () => {
+    const body = { error: { code: "401", message: "Access denied" } };
+    await expect(
+      testKey(async () => Response.json(body, { status: 401 })),
+    ).rejects.toMatchObject({
+      providerResponse: {
+        status: 401,
+        statusText: "Unauthorized",
+        body: JSON.stringify(body),
+      },
+    });
+  });
+
   it("treats an unreachable provider as retryable", async () => {
     await expect(
       testKey(async () => {

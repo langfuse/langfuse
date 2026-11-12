@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useState, type ReactNode } from "react";
+import { type MutationStatus } from "@tanstack/react-query";
 import { Info, TriangleAlert } from "@langfuse/icons";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
@@ -22,6 +23,7 @@ import {
 } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/AzureResourceField/AzureResourceField";
 import { BedrockRegionField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/BedrockRegionField/BedrockRegionField";
 import { ConnectionTestStatus } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ConnectionTestStatus/ConnectionTestStatus";
+import { type ConnectionTestFailure } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ConnectionTestStatus/components/ConnectionTestDetails/ConnectionTestDetails";
 import { ConnectionNameField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ConnectionNameField/ConnectionNameField";
 import { FieldHeader } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/FieldHeader";
 import { ProviderSelect } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ProviderSelect";
@@ -49,6 +51,7 @@ import {
   api,
   reportNonTrpcError,
   reportTrpcErrorWithoutToast,
+  type RouterOutputs,
 } from "@/src/utils/api";
 import type { GatewayCredentialSurface } from "@/src/features/ai-gateway/types/aiGatewayAnalytics";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -116,6 +119,7 @@ export function ProviderDialogController({
       ? saveError.message
       : null;
   const isSaveError = Boolean(saveError) && !serverNameError;
+  const testOutcome = getTestOutcome(test);
 
   /** Skips the live check after saving, as the refetched list already holds the saved name. */
   const getNameError = (selectedConnection: GatewayConnection | null) =>
@@ -413,13 +417,18 @@ export function ProviderDialogController({
                   </Alert.Description>
                 </Alert>
               ) : null}
-              {test.data?.modelListingDenied && !isSaveError ? (
+              {test.data?.success &&
+              test.data.modelListingDenied &&
+              !isSaveError ? (
                 <ModelListingDeniedAlert provider={dialogProvider} />
               ) : null}
             </DialogBody>
             <DialogFooter>
-              {test.status !== "idle" ? (
-                <ConnectionTestStatus status={test.status} />
+              {testOutcome ? (
+                <ConnectionTestStatus
+                  status={testOutcome.status}
+                  failure={testOutcome.failure}
+                />
               ) : null}
               <Button
                 variant="secondary"
@@ -489,3 +498,42 @@ function isValidAzureResource({ name, project }: AzureResourceFieldValue) {
     (project.trim() === "" || isAzureProjectName(project))
   );
 }
+
+/** A provider refusing the credential resolves the test; other failures reject it. */
+function getTestOutcome({
+  status,
+  data,
+  error,
+}: {
+  status: MutationStatus;
+  data?: TestConnectionResult;
+  error: { message: string } | null;
+}): TestOutcome | null {
+  if (status === "idle") return null;
+  if (status === "pending") return { status };
+  if (error) {
+    return {
+      status: "error",
+      failure: {
+        title: "Error",
+        status: null,
+        statusText: null,
+        body: error.message,
+      },
+    };
+  }
+  if (data && !data.success) {
+    return {
+      status: "error",
+      failure: { title: "Provider response", ...data.providerResponse },
+    };
+  }
+  return { status: "success" };
+}
+
+type TestConnectionResult = RouterOutputs["aiGateway"]["testConnection"];
+
+type TestOutcome = {
+  status: Exclude<MutationStatus, "idle">;
+  failure?: ConnectionTestFailure;
+};
