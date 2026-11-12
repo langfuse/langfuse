@@ -42,6 +42,12 @@ export const azureModelDiscoveryAdapter: ModelDiscoveryAdapter = {
 
       // A resource without a default project keeps its custom models.
       if (result.response.status === 404) return { success: true, models: [] };
+      // The documented contract is OAuth only, so a key may call deployments
+      // without being allowed to list them; the credential check rejects bad
+      // keys before this.
+      if (result.response.status === 401 || result.response.status === 403) {
+        return { success: true, models: [], modelListingDenied: true };
+      }
       const error = standardHttpError(result.response);
       if (error) return { success: false, error };
 

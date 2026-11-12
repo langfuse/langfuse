@@ -33,5 +33,8 @@ function listingHint(provider: GatewayProvider) {
       <>Allow the models endpoint in the key&apos;s ACLs in the xAI Console.</>
     );
   }
+  if (provider === "AZURE") {
+    return <>Add deployments as custom models by their deployment name.</>;
+  }
   return null;
 }

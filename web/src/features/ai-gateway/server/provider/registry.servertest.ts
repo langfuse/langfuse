@@ -630,6 +630,38 @@ describe("AI gateway provider registry", () => {
     });
   });
 
+  it("keeps Azure custom models when the key can't list deployments", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 401 }));
+    const prisma = {
+      gatewayAiConnection: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "connection-1",
+          organizationId: "org-1",
+          provider: "AZURE",
+          baseURL: "https://contoso.services.ai.azure.com",
+          encryptedCredential: encrypt("azure-key"),
+          status: "ENABLED",
+          allowedModels: null,
+          customModels: [{ id: "my-deployment" }],
+        }),
+      },
+    } as unknown as PrismaClient;
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+
+    await expect(
+      new GatewayModelCatalogService(prisma, null).getModelCatalog({
+        organizationId: "org-1",
+        connectionId: "connection-1",
+      }),
+    ).resolves.toMatchObject({
+      success: true,
+      modelListingDenied: true,
+      models: [{ id: "my-deployment" }],
+    });
+  });
+
   it("treats malformed provider model responses as failures", async () => {
     const fetcher = vi
       .fn<typeof fetch>()
