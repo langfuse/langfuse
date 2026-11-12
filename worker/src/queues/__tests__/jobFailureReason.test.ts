@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { classifyJobFailure } from "../jobFailureReason";
-import { StaleMonitorAlertError } from "../../errors/StaleMonitorAlertError";
+import { StaleAlertError } from "@langfuse/shared/monitors/server";
 
 const wrapStorage = (cause: unknown) =>
   new Error("Failed to download file from S3", { cause });
@@ -34,11 +34,7 @@ describe("classifyJobFailure", () => {
       ),
       "s3_slowdown",
     ],
-    [
-      "stale monitor alert",
-      new StaleMonitorAlertError("newer_alert"),
-      "newer_alert",
-    ],
+    ["stale monitor alert", new StaleAlertError("newer_alert"), "newer_alert"],
     [
       "wrapped S3 socket reset",
       wrapStorage(

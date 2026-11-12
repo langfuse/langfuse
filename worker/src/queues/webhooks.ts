@@ -46,7 +46,7 @@ import {
 import {
   MonitorWebhookQueueEventSchema,
   buildMonitorAlertSlackMessage,
-  getStaleMonitorAlertReason,
+  assertDropStaleAlert,
 } from "@langfuse/shared/monitors/server";
 import {
   pagerDutyClient,
@@ -55,7 +55,6 @@ import {
 import { Processor, Job } from "bullmq";
 import { backOff } from "exponential-backoff";
 import { env } from "../env";
-import { StaleMonitorAlertError } from "../errors/StaleMonitorAlertError";
 import { SlackMessageBuilder } from "../features/slack/slackMessageBuilder";
 import {
   buildPagerDutyEvent,
@@ -213,7 +212,12 @@ export const executeWebhook = async (
       return;
     }
 
-    await assertCurrentMonitorAlert({ projectId, automationId, input });
+    if (input.payload.type === "monitor-alert") {
+      await assertDropStaleAlert({
+        projectId,
+        alert: MonitorWebhookQueueEventSchema.parse(input.payload).payload,
+      });
+    }
 
     // Route to appropriate handler based on action type
     if (automation.action.type === "WEBHOOK") {
@@ -249,33 +253,6 @@ export const executeWebhook = async (
     throw error;
   }
 };
-
-/** assertCurrentMonitorAlert throws a StaleMonitorAlertError so an older queued alert cannot overwrite a newer published one. */
-async function assertCurrentMonitorAlert({
-  projectId,
-  automationId,
-  input,
-}: {
-  projectId: string;
-  automationId: string;
-  input: WebhookInput;
-}): Promise<void> {
-  if (input.payload.type !== "monitor-alert") return;
-  const envelope = buildWebhookOutboundPayload(input);
-  if (envelope.type !== "monitor-alert") return;
-  const alert = envelope.payload;
-
-  const reason = await getStaleMonitorAlertReason({ projectId, alert });
-  if (!reason) return;
-
-  logger.info("Dropping stale monitor alert", {
-    projectId,
-    automationId,
-    monitorId: alert.monitorId,
-    reason,
-  });
-  throw new StaleMonitorAlertError(reason);
-}
 
 /**
  * Shared HTTP execution logic for webhook and GitHub dispatch actions

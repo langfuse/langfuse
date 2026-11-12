@@ -35,7 +35,7 @@ import { generateWebhookSecret } from "@langfuse/shared/encryption";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { executeWebhook } from "../queues/webhooks";
-import { StaleMonitorAlertError } from "../errors/StaleMonitorAlertError";
+import { StaleAlertError } from "@langfuse/shared/monitors/server";
 
 const outboundWhitelistBuilders = vi.hoisted(() => ({
   webhookWhitelistFromEnv: vi.fn(),
@@ -2454,7 +2454,7 @@ describe("Webhook Integration Tests", () => {
         executeWebhook(buildMonitorAlertInput(alertedAt), {
           skipValidation: true,
         }),
-      ).rejects.toThrow(new StaleMonitorAlertError("newer_alert"));
+      ).rejects.toThrow(new StaleAlertError("newer_alert"));
 
       expect(webhookServer.getReceivedRequests()).toHaveLength(0);
       expect(await redis!.get(failureKey)).toBeNull();
@@ -2467,7 +2467,7 @@ describe("Webhook Integration Tests", () => {
         executeWebhook(buildMonitorAlertInput(alertedAt), {
           skipValidation: true,
         }),
-      ).rejects.toThrow(new StaleMonitorAlertError("monitor_deleted"));
+      ).rejects.toThrow(new StaleAlertError("monitor_deleted"));
 
       expect(webhookServer.getReceivedRequests()).toHaveLength(0);
     });
@@ -2495,7 +2495,7 @@ describe("Webhook Integration Tests", () => {
         executeWebhook(buildMonitorAlertInput(alertedAt), {
           skipValidation: true,
         }),
-      ).rejects.toThrow(new StaleMonitorAlertError("newer_alert"));
+      ).rejects.toThrow(new StaleAlertError("newer_alert"));
 
       expect(webhookServer.getReceivedRequests()).toHaveLength(0);
     });
