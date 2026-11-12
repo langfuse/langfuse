@@ -98,9 +98,13 @@ export type HeaderMetric = {
           rows: {
             id: string;
             label: string;
-            value: string;
+            /** One badge per value; a caption names its source when there are several. */
+            values: {
+              text: string;
+              caption?: string;
+              color?: React.ComponentProps<typeof Badge>["color"];
+            }[];
             description?: string;
-            color?: React.ComponentProps<typeof Badge>["color"];
           }[];
         }
     ))
@@ -685,11 +689,31 @@ function MetricContent({ metric }: { metric: HeaderMetric }) {
                 key={row.id}
                 className="flex flex-col gap-1.5 border-b py-3 last:border-b-0"
               >
-                <div className="flex items-center justify-between gap-3">
+                <div
+                  className={cn(
+                    "flex justify-between gap-3",
+                    // A single badge keeps today's centered row.
+                    row.values.length > 1 ? "items-start" : "items-center",
+                  )}
+                >
                   <span className="text-muted-foreground text-sm">
                     {row.label}
                   </span>
-                  <Badge text={row.value} color={row.color} />
+                  <div className="flex min-w-0 flex-col items-end gap-1">
+                    {row.values.map((value) => (
+                      <span
+                        key={`${value.caption ?? ""}:${value.text}`}
+                        className="flex min-w-0 items-center gap-2"
+                      >
+                        {value.caption && (
+                          <span className="text-muted-foreground truncate text-xs">
+                            {value.caption}
+                          </span>
+                        )}
+                        <Badge text={value.text} color={value.color} />
+                      </span>
+                    ))}
+                  </div>
                 </div>
                 {row.description && (
                   <p className="text-sm text-pretty">{row.description}</p>
