@@ -276,8 +276,7 @@ async function processMatchingConfig(
   }
   const jobExecutionId = createW3CTraceId(JSON.stringify(jobIdentity));
 
-  // Create job execution
-  await schedulerDeps.upsertJobExecution({
+  const jobExecution = {
     id: jobExecutionId,
     projectId: observation.project_id,
     jobConfigurationId: matchingConfig.id,
@@ -288,7 +287,26 @@ async function processMatchingConfig(
     // ran in the execution metadata instead.
     jobTemplateId: assignment.evalTemplateId,
     status: JobExecutionStatus.PENDING,
-  });
+  };
+
+  if (batchActionId) {
+    // A retried batch action replays rows it already scheduled. The job id is
+    // scoped to the batch action, so an existing row means the eval is already
+    // queued or done; enqueueing it again would run it twice.
+    const created =
+      await schedulerDeps.createJobExecutionIfAbsent(jobExecution);
+    if (!created) {
+      logger.debug("Skipped observation eval job already scheduled", {
+        configId: matchingConfig.id,
+        observationId: observation.span_id,
+        jobExecutionId,
+        batchActionId,
+      });
+      return;
+    }
+  } else {
+    await schedulerDeps.upsertJobExecution(jobExecution);
+  }
 
   // Enqueue eval job. The evaluator identity travels with the payload so the
   // executor never has to re-derive it from ids the legacy backfill reuses.

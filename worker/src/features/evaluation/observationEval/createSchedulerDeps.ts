@@ -51,6 +51,15 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
       return { id: jobExecution.id };
     },
 
+    createJobExecutionIfAbsent: async (params) => {
+      const { count } = await prisma.jobExecution.createMany({
+        data: [{ ...params, startTime: new Date() }],
+        skipDuplicates: true,
+      });
+
+      return count === 1;
+    },
+
     uploadObservationToS3: async (params) => {
       // traceId is a directory segment; observationId is a filename stem
       // (`.json` reserved out of the budget). Both come from user-supplied

@@ -19,6 +19,9 @@ import {
 
 type MockSchedulerDeps = ObservationEvalSchedulerDeps & {
   upsertJobExecution: Mock<ObservationEvalSchedulerDeps["upsertJobExecution"]>;
+  createJobExecutionIfAbsent: Mock<
+    ObservationEvalSchedulerDeps["createJobExecutionIfAbsent"]
+  >;
   uploadObservationToS3: Mock<
     ObservationEvalSchedulerDeps["uploadObservationToS3"]
   >;
@@ -136,6 +139,9 @@ export function createMockSchedulerDeps(
     upsertJobExecution: Mock<
       ObservationEvalSchedulerDeps["upsertJobExecution"]
     >;
+    createJobExecutionIfAbsent: Mock<
+      ObservationEvalSchedulerDeps["createJobExecutionIfAbsent"]
+    >;
     uploadObservationToS3: Mock<
       ObservationEvalSchedulerDeps["uploadObservationToS3"]
     >;
@@ -148,6 +154,11 @@ export function createMockSchedulerDeps(
       vi
         .fn<ObservationEvalSchedulerDeps["upsertJobExecution"]>()
         .mockResolvedValue({ id: `job-exec-${randomUUID()}` }),
+    createJobExecutionIfAbsent:
+      overrides.createJobExecutionIfAbsent ??
+      vi
+        .fn<ObservationEvalSchedulerDeps["createJobExecutionIfAbsent"]>()
+        .mockResolvedValue(true),
     uploadObservationToS3:
       overrides.uploadObservationToS3 ??
       vi
@@ -353,6 +364,9 @@ export function createFullyMockedEvalPipeline(
     upsertJobExecution: vi
       .fn<ObservationEvalSchedulerDeps["upsertJobExecution"]>()
       .mockResolvedValue({ id: `job-exec-${randomUUID()}` }),
+    createJobExecutionIfAbsent: vi
+      .fn<ObservationEvalSchedulerDeps["createJobExecutionIfAbsent"]>()
+      .mockResolvedValue(true),
     uploadObservationToS3: vi
       .fn<ObservationEvalSchedulerDeps["uploadObservationToS3"]>()
       .mockImplementation(async (params) => {

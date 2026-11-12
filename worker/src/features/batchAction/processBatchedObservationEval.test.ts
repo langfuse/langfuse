@@ -13,6 +13,12 @@ import type {
 vi.mock("@langfuse/shared/src/db", () => ({
   prisma: {
     batchAction: {
+      findUniqueOrThrow: vi.fn().mockResolvedValue({
+        cursor: null,
+        totalCount: null,
+        processedCount: null,
+        failedCount: null,
+      }),
       update: vi.fn().mockResolvedValue(undefined),
     },
   },
@@ -73,6 +79,7 @@ describe("processBatchedObservationEval", () => {
       input: "input",
       output: "output",
       metadata: {},
+      cursor: { startTime: "2026-01-01 00:00:00.000000", spanId: "obs" },
     };
 
     const observationStream = (async function* () {
@@ -83,7 +90,8 @@ describe("processBatchedObservationEval", () => {
       projectId,
       batchActionId,
       evaluators,
-      observationStream,
+      rowLimit: 100,
+      openObservationStream: async () => observationStream,
     });
 
     expect(scheduleObservationEvals).toHaveBeenCalledTimes(1);
@@ -143,6 +151,7 @@ describe("processBatchedObservationEval", () => {
         input: "input",
         output: "output",
         metadata: {},
+        cursor: { startTime: "2026-01-01 00:00:00.000000", spanId: "obs-v2" },
       };
     })();
 
@@ -151,7 +160,8 @@ describe("processBatchedObservationEval", () => {
       batchActionId: "batch-action-v2",
       evaluators,
       evaluatorLabels: ["Quality"],
-      observationStream,
+      rowLimit: 100,
+      openObservationStream: async () => observationStream,
     });
 
     expect(scheduleObservationEvals).toHaveBeenCalledWith(
@@ -198,6 +208,7 @@ describe("processBatchedObservationEval", () => {
       input: "input",
       output: "output",
       metadata: {},
+      cursor: { startTime: "2026-01-01 00:00:00.000000", spanId: "obs" },
       tool_call_names: ["search", "calculator", "fetch"],
     };
 
@@ -216,6 +227,7 @@ describe("processBatchedObservationEval", () => {
       input: "input",
       output: "output",
       metadata: {},
+      cursor: { startTime: "2026-01-01 00:00:00.000000", spanId: "obs" },
     };
 
     const observationStream = (async function* () {
@@ -227,7 +239,8 @@ describe("processBatchedObservationEval", () => {
       projectId,
       batchActionId,
       evaluators,
-      observationStream,
+      rowLimit: 100,
+      openObservationStream: async () => observationStream,
     });
 
     expect(scheduleObservationEvals).toHaveBeenCalledTimes(2);
@@ -250,6 +263,7 @@ describe("processBatchedObservationEval", () => {
     const schedulerDeps: ObservationEvalSchedulerDeps = {
       uploadObservationToS3: vi.fn().mockResolvedValue("observation.json"),
       upsertJobExecution: vi.fn().mockResolvedValue({ id: "execution-1" }),
+      createJobExecutionIfAbsent: vi.fn().mockResolvedValue(true),
       enqueueEvalJob: vi.fn().mockRejectedValue(enqueueError),
     };
     const actualModule = await vi.importActual<
@@ -281,24 +295,30 @@ describe("processBatchedObservationEval", () => {
           blockedAt: null,
         },
       ],
-      observationStream: (async function* () {
-        yield {
-          span_id: "obs-failed-enqueue",
-          trace_id: "trace-1",
-          project_id: projectId,
-          parent_span_id: null,
-          type: "GENERATION",
-          name: "test",
-          usage_details: {},
-          cost_details: {},
-          provided_usage_details: {},
-          provided_cost_details: {},
-          tags: [],
-          input: "input",
-          output: "output",
-          metadata: {},
-        };
-      })(),
+      rowLimit: 100,
+      openObservationStream: async () =>
+        (async function* () {
+          yield {
+            span_id: "obs-failed-enqueue",
+            trace_id: "trace-1",
+            project_id: projectId,
+            parent_span_id: null,
+            type: "GENERATION",
+            name: "test",
+            usage_details: {},
+            cost_details: {},
+            provided_usage_details: {},
+            provided_cost_details: {},
+            tags: [],
+            input: "input",
+            output: "output",
+            metadata: {},
+            cursor: {
+              startTime: "2026-01-01 00:00:00.000000",
+              spanId: "obs-failed-enqueue",
+            },
+          };
+        })(),
     });
 
     expect(prisma.batchAction.update).toHaveBeenLastCalledWith({
