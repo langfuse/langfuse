@@ -30,6 +30,7 @@ import {
   Parentheses,
   Search,
   WandSparkles,
+  Maximize2,
   X,
 } from "@langfuse/icons";
 
@@ -46,6 +47,16 @@ import {
   QUERY_LABEL_COLORS,
 } from "../QueryTokens/QueryTokens.constants";
 import { QueryTokens } from "../QueryTokens/QueryTokens";
+import { IconButton } from "../IconButton/IconButton";
+import {
+  textFromRoot,
+  selectionOffsets,
+  logicalOffsetForDomPosition,
+  domPositionForLogicalOffset,
+  setSelectionRange,
+  snapOffsetAcrossAtoms,
+  expandRangeAcrossAtoms,
+} from "../internal/QueryInput/fns/queryInputDom";
 import { optionDomId } from "../internal/QueryInput/fns/optionDomId";
 export { optionDomId } from "../internal/QueryInput/fns/optionDomId";
 
@@ -82,7 +93,6 @@ const suggestionIcons = {
 // Word joiners give the DOM caret boundaries
 // between pills without changing the query text; stripped before the text
 // reaches the model or clipboard.
-const WORD_JOINER_RE = new RegExp(WORD_JOINER, "g");
 
 // Shared by the visible tooltip and its screen-reader description, so a
 // deactivated token reads the same either way.
@@ -96,10 +106,6 @@ const isHighSurrogate = (code: number) => code >= 0xd800 && code <= 0xdbff;
 const isLowSurrogate = (code: number) => code >= 0xdc00 && code <= 0xdfff;
 
 type LogicalRange = { start: number; end: number };
-
-function textFromRoot(root: HTMLElement): string {
-  return (root.textContent ?? "").replace(WORD_JOINER_RE, "");
-}
 
 // IME composition (Korean, Chinese, Japanese) inserts a text node the
 // contenteditable root does not already own. React will not remove that
@@ -115,100 +121,6 @@ function stripUnmanagedRootChildren(root: HTMLElement): boolean {
     }
   }
   return removed;
-}
-
-function rawOffsetForLogicalOffset(
-  text: string,
-  logicalOffset: number,
-): number {
-  if (logicalOffset <= 0) return 0;
-  let logical = 0;
-  for (let raw = 0; raw < text.length; raw++) {
-    if (text[raw] === WORD_JOINER) continue;
-    logical++;
-    if (logical === logicalOffset) return raw + 1;
-  }
-  return text.length;
-}
-
-function logicalOffsetForDomPosition(
-  root: HTMLElement,
-  container: Node,
-  offset: number,
-): number {
-  const probe = document.createRange();
-  probe.selectNodeContents(root);
-  probe.setEnd(container, offset);
-  return probe.toString().replace(WORD_JOINER_RE, "").length;
-}
-
-function selectionOffsets(root: HTMLElement): LogicalRange {
-  const selection = window.getSelection();
-  if (selection === null || selection.rangeCount === 0) {
-    const end = textFromRoot(root).length;
-    return { start: end, end };
-  }
-  const range = selection.getRangeAt(0);
-  if (
-    !root.contains(range.startContainer) ||
-    !root.contains(range.endContainer)
-  ) {
-    const end = textFromRoot(root).length;
-    return { start: end, end };
-  }
-  return {
-    start: logicalOffsetForDomPosition(
-      root,
-      range.startContainer,
-      range.startOffset,
-    ),
-    end: logicalOffsetForDomPosition(root, range.endContainer, range.endOffset),
-  };
-}
-
-function domPositionForLogicalOffset(
-  root: HTMLElement,
-  offset: number,
-): { node: Node; offset: number } {
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  let seen = 0;
-  let node = walker.nextNode();
-  let lastText: Text | null = null;
-  while (node !== null) {
-    const text = node.textContent ?? "";
-    const logicalLength = text.replace(WORD_JOINER_RE, "").length;
-    if (logicalLength > 0) {
-      if (offset <= seen + logicalLength) {
-        return { node, offset: rawOffsetForLogicalOffset(text, offset - seen) };
-      }
-      lastText = node as Text;
-    }
-    seen += logicalLength;
-    node = walker.nextNode();
-  }
-  if (lastText !== null) {
-    return { node: lastText, offset: lastText.textContent?.length ?? 0 };
-  }
-  return { node: root, offset: root.childNodes.length };
-}
-
-function setSelectionRange(
-  root: HTMLElement,
-  start: number,
-  end: number,
-): void {
-  const length = textFromRoot(root).length;
-  const from = Math.max(0, Math.min(start, length));
-  const to = Math.max(0, Math.min(end, length));
-  const anchor = domPositionForLogicalOffset(root, from);
-  const focus = from === to ? anchor : domPositionForLogicalOffset(root, to);
-  const selection = window.getSelection();
-  if (selection === null) return;
-  const range = document.createRange();
-  range.setStart(anchor.node, anchor.offset);
-  range.setEnd(focus.node, focus.offset);
-  selection.removeAllRanges();
-  selection.addRange(range);
 }
 
 function replaceRange(
@@ -314,6 +226,22 @@ function isPastTextEnd(root: HTMLElement, x: number, y: number): boolean {
   if (lastRect === null) return true;
   if (y > lastRect.bottom + 2) return true;
   return y >= lastRect.top - 2 && x > lastRect.right + 2;
+}
+
+function scrollCaretIntoView(root: HTMLElement) {
+  const selection = window.getSelection();
+  if (selection === null || selection.rangeCount === 0) return;
+  const range = selection.getRangeAt(0);
+  if (!root.contains(range.endContainer)) return;
+  const rects = range.getClientRects();
+  const caretRect = rects[rects.length - 1];
+  if (caretRect === undefined) return;
+  const bounds = root.getBoundingClientRect();
+  if (caretRect.bottom > bounds.bottom) {
+    root.scrollTop += caretRect.bottom - bounds.bottom;
+  } else if (caretRect.top < bounds.top) {
+    root.scrollTop -= bounds.top - caretRect.top;
+  }
 }
 
 function useLatest<T>(value: T) {
@@ -444,6 +372,8 @@ function QueryInputEditor({
   areEquivalent,
   controller,
   completions,
+  onEditToken,
+  onExpand,
   size = "default",
 }: {
   inputId?: string;
@@ -462,6 +392,8 @@ function QueryInputEditor({
   areEquivalent: (left: string, right: string) => boolean;
   controller: ReturnType<typeof useQueryInputController>;
   completions: QueryCompletionPlan | null;
+  onEditToken?: (token: QueryToken) => void;
+  onExpand?: () => void;
 }) {
   const id = React.useId();
   const listboxId = `${id}-suggestions`;
@@ -650,7 +582,8 @@ function QueryInputEditor({
     if (document.activeElement !== root) return;
     pendingSelectionRef.current = null;
     setSelectionRange(root, pending.start, pending.end);
-    setSelectionSnapshot(pending);
+    setSelectionSnapshot(selectionOffsets(root));
+    scrollCaretIntoView(root);
   }, [draft, tokensGeneration, setSelectionSnapshot]);
 
   // Mirror the native selection. Read-only: this effect never moves the
@@ -694,8 +627,10 @@ function QueryInputEditor({
       const root = rootRef.current;
       if (root === null) return;
       const offsets = selectionOffsets(root);
-      const from = Math.min(offsets.start, offsets.end);
-      const to = Math.max(offsets.start, offsets.end);
+      const { from, to } = expandRangeAcrossAtoms(root, {
+        from: offsets.start,
+        to: offsets.end,
+      });
       const current = draftRef.current;
       const next = replaceRange(current, from, to, insert);
       // Plain single-character typing at a collapsed caret coalesces into one
@@ -714,6 +649,8 @@ function QueryInputEditor({
 
   const applyTextDeletion = React.useCallback(
     (range: { from: number; to: number }) => {
+      const root = rootRef.current;
+      if (root !== null) range = expandRangeAcrossAtoms(root, range);
       if (range.from === range.to) return;
       setDraftWithSelection(
         replaceRange(draftRef.current, range.from, range.to, ""),
@@ -778,6 +715,7 @@ function QueryInputEditor({
             root,
             target.startContainer,
             target.startOffset,
+            "backward",
           );
           const to = logicalOffsetForDomPosition(
             root,
@@ -906,6 +844,11 @@ function QueryInputEditor({
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
     if (event.nativeEvent.isComposing) return;
+    if (
+      event.target instanceof Element &&
+      event.target.closest("[data-query-summary]")
+    )
+      return;
 
     if (
       (event.metaKey || event.ctrlKey) &&
@@ -958,16 +901,21 @@ function QueryInputEditor({
             )
           : collapsedBase;
       const base = event.shiftKey ? focusBase : collapsedBase;
-      const target =
+      const direction = event.key === "ArrowLeft" ? "backward" : "forward";
+      const target = snapOffsetAcrossAtoms(
+        root,
         event.key === "ArrowLeft"
           ? previousSearchWordBoundary(draft, base)
-          : nextSearchWordBoundary(draft, base);
+          : nextSearchWordBoundary(draft, base),
+        direction,
+      );
       if (event.shiftKey && selection !== null && selection.rangeCount > 0) {
         const position = domPositionForLogicalOffset(root, target);
         selection.extend(position.node, position.offset);
       } else {
         setSelectionRange(root, target, target);
       }
+      scrollCaretIntoView(root);
       return;
     }
 
@@ -1037,9 +985,15 @@ function QueryInputEditor({
       ) {
         target += 1;
       }
+      target = snapOffsetAcrossAtoms(
+        root,
+        target,
+        event.key === "ArrowLeft" ? "backward" : "forward",
+      );
       if (target === end) return; // at an edge — native no-op
       event.preventDefault();
       setSelectionRange(root, target, target);
+      scrollCaretIntoView(root);
       return;
     }
 
@@ -1109,6 +1063,16 @@ function QueryInputEditor({
   };
 
   const onCopy = (event: React.ClipboardEvent<HTMLElement>) => {
+    if (event.target instanceof Element) {
+      const source = event.target
+        .closest("[data-query-source]")
+        ?.getAttribute("data-query-source");
+      if (source !== undefined && source !== null) {
+        event.preventDefault();
+        event.clipboardData.setData("text/plain", source);
+        return;
+      }
+    }
     const root = rootRef.current;
     if (root === null) return;
     const { start, end } = selectionOffsets(root);
@@ -1121,6 +1085,13 @@ function QueryInputEditor({
   };
 
   const onCut = (event: React.ClipboardEvent<HTMLElement>) => {
+    if (
+      event.target instanceof Element &&
+      event.target.closest("[data-query-summary]")
+    ) {
+      event.preventDefault();
+      return;
+    }
     const root = rootRef.current;
     if (root === null) return;
     const { start, end } = selectionOffsets(root);
@@ -1134,6 +1105,11 @@ function QueryInputEditor({
 
   const onPaste = (event: React.ClipboardEvent<HTMLElement>) => {
     event.preventDefault();
+    if (
+      event.target instanceof Element &&
+      event.target.closest("[data-query-summary]")
+    )
+      return;
     // Collapse only line-breaking whitespace/tabs (single-line surface);
     // preserve spaces inside quoted values (e.g. pasting `name:"a  b"`).
     const clean = event.clipboardData
@@ -1142,7 +1118,12 @@ function QueryInputEditor({
     applyTextInsert(clean);
   };
 
-  const onFocus = () => {
+  const onFocus = (event: React.FocusEvent<HTMLElement>) => {
+    hasInteractedRef.current = true;
+    if (event.target !== event.currentTarget) {
+      setAutocompleteOpen(false);
+      return;
+    }
     setEditorFocused(true);
     hasInteractedRef.current = true;
     // A draft was set while the editor was blurred (an external structured
@@ -1153,13 +1134,19 @@ function QueryInputEditor({
     if (root !== null && pending !== null) {
       pendingSelectionRef.current = null;
       setSelectionRange(root, pending.start, pending.end);
-      setSelectionSnapshot(pending);
+      setSelectionSnapshot(selectionOffsets(root));
+      scrollCaretIntoView(root);
     }
     setAutocompleteOpen(true);
   };
 
-  const onBlur = () => {
+  const onBlur = (event: React.FocusEvent<HTMLElement>) => {
+    if (event.currentTarget.contains(event.relatedTarget)) {
+      setAutocompleteOpen(false);
+      return;
+    }
     setEditorFocused(false);
+    setHoveredTokenId(null);
     commit();
     setAutocompleteOpen(false);
   };
@@ -1269,14 +1256,23 @@ function QueryInputEditor({
     return null;
   })();
   const explainTargetId = explainTarget?.id ?? null;
-  const explanation = explainTarget === null ? null : explainTarget.explanation;
+  const explanation = (() => {
+    if (onEditToken !== undefined && explainTarget?.summary !== undefined) {
+      return { subject: explainTarget.summary.label, predicate: "" };
+    }
+    return explainTarget?.explanation ?? null;
+  })();
   const explainDeactivatedReason =
     explainTarget === null ? null : explainTarget.inactiveReason;
   // Keyboard/AT path: the caret token's explanation, read through the combobox's
   // description regardless of the popover — including the "not applied" note,
   // which the visible tooltip also carries.
-  const caretExplanation =
-    caretSegment === null ? null : caretSegment.explanation;
+  const caretExplanation = (() => {
+    if (onEditToken !== undefined && caretSegment?.summary !== undefined) {
+      return { subject: caretSegment.summary.label, predicate: "" };
+    }
+    return caretSegment?.explanation ?? null;
+  })();
   const caretDeactivatedReason =
     caretSegment === null ? null : caretSegment.inactiveReason;
   const caretHelp =
@@ -1333,14 +1329,19 @@ function QueryInputEditor({
   const measurePositions = React.useCallback(() => {
     const root = rootRef.current;
     const container = containerRef.current;
-    const rectsOf = (id: string | null): DOMRectList | null => {
-      if (root === null || id === null) return null;
+    const rectsOf = (id: string | null): DOMRect[] => {
+      if (root === null || id === null) return [];
       const el = root.querySelector(`[data-segment-id="${CSS.escape(id)}"]`);
-      return el === null ? null : el.getClientRects();
+      const bounds = root.getBoundingClientRect();
+      return el === null
+        ? []
+        : Array.from(el.getClientRects()).filter(
+            (rect) => rect.bottom > bounds.top && rect.top < bounds.bottom,
+          );
     };
 
     const removeRects = rectsOf(removeTargetIdActual);
-    const lastRect = removeRects?.[removeRects.length - 1] ?? null;
+    const lastRect = removeRects[removeRects.length - 1] ?? null;
     if (container === null || lastRect === null) {
       setRemovePosition(null);
     } else {
@@ -1351,12 +1352,18 @@ function QueryInputEditor({
       });
     }
 
-    const tooltipRect = rectsOf(tooltipTargetId)?.[0] ?? null;
+    const tooltipRect = rectsOf(tooltipTargetId)[0] ?? null;
     setTooltipPosition(
       tooltipRect === null
         ? null
         : {
-            left: tooltipRect.left,
+            left: Math.max(
+              8,
+              Math.min(
+                tooltipRect.left,
+                window.innerWidth - Math.min(360, window.innerWidth - 32) - 8,
+              ),
+            ),
             belowTop: tooltipRect.bottom + 6,
             aboveTop: tooltipRect.top,
           },
@@ -1414,10 +1421,27 @@ function QueryInputEditor({
                 action !== undefined && !showGlobalDiagnostics
                   ? "right-20"
                   : "right-8",
+                onExpand !== undefined && "left-10",
               )}
               title={placeholder}
             >
               {placeholder}
+            </div>
+          )}
+          {onExpand !== undefined && (
+            <div className="absolute top-1 left-2">
+              <IconButton
+                icon={Maximize2}
+                label="Expand query"
+                size="sm"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  hasInteractedRef.current = true;
+                  setAutocompleteOpen(false);
+                  setHoveredTokenId(null);
+                  onExpand();
+                }}
+              />
             </div>
           )}
           <QueryInputText>
@@ -1447,7 +1471,11 @@ function QueryInputEditor({
               autoCapitalize="none"
               inputMode="text"
               data-testid="search-bar-input"
-              className="ph-no-capture caret-[hsl(var(--foreground))] outline-none"
+              className={cn(
+                "ph-no-capture max-h-24 overflow-y-auto caret-[hsl(var(--foreground))] outline-none",
+                onExpand !== undefined && "pl-8",
+              )}
+              onScroll={measurePositions}
               onInput={(event) => {
                 if (!(event.nativeEvent as InputEvent).isComposing)
                   syncFromDom();
@@ -1466,6 +1494,14 @@ function QueryInputEditor({
               onBlur={onBlur}
               onClick={onRootClick}
               onMouseOver={onRootMouseOver}
+              onFocusCapture={(event) => {
+                const target =
+                  event.target instanceof Element
+                    ? event.target.closest("[data-query-source]")
+                    : null;
+                if (target !== null)
+                  setHoveredTokenId(target.getAttribute("data-segment-id"));
+              }}
             >
               <React.Fragment key={tokensGeneration}>
                 <QueryTokens
@@ -1473,6 +1509,20 @@ function QueryInputEditor({
                   tokens={segments}
                   highlightedTokenId={
                     explanation !== null ? explainTargetId : errorTarget?.id
+                  }
+                  onActivateToken={
+                    onEditToken === undefined
+                      ? undefined
+                      : (id) => {
+                          const token = segments.find(
+                            (segment) => segment.id === id,
+                          );
+                          if (token === undefined) return;
+                          hasInteractedRef.current = true;
+                          setAutocompleteOpen(false);
+                          setHoveredTokenId(null);
+                          onEditToken(token);
+                        }
                   }
                 />
               </React.Fragment>
@@ -1605,6 +1655,30 @@ function QueryInputEditor({
                   {explanation?.predicate !== "" && (
                     <> {explanation?.predicate}</>
                   )}
+                  {onEditToken !== undefined &&
+                    explainTarget?.summary !== undefined && (
+                      <div className="mt-1 border-t pt-1">
+                        <ul className="flex flex-col gap-1 font-mono">
+                          {explainTarget.summary.values
+                            .slice(0, 6)
+                            .map((value, index) => (
+                              <li
+                                key={index}
+                                title={value}
+                                className="truncate"
+                              >
+                                {value || "(empty)"}
+                              </li>
+                            ))}
+                        </ul>
+                        <span className="text-muted-foreground mt-1 block">
+                          {explainTarget.summary.values.length > 6 &&
+                            `${explainTarget.summary.values.length - 6} more values. `}
+                          Click to edit all{" "}
+                          {explainTarget.summary.values.length} values.
+                        </span>
+                      </div>
+                    )}
                   {explainDeactivatedReason !== null && (
                     <span className="text-muted-foreground block pt-0.5">
                       {notAppliedNote(explainDeactivatedReason)}
@@ -1816,12 +1890,13 @@ function RemoveTokenButton({
   position: { left: number; top: number };
   onRemove: (segment: QueryToken) => void;
 }) {
+  const label = `Remove ${segment.summary?.label ?? segment.raw}`;
   return (
     <button
       type="button"
       data-overlay-remove
-      aria-label={`Remove ${segment.raw}`}
-      title={`Remove ${segment.raw}`}
+      aria-label={label}
+      title={label}
       style={{ left: position.left, top: position.top }}
       className={cn(
         "absolute z-20 inline-flex h-4 w-4 items-center justify-center rounded-sm",

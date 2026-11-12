@@ -67,18 +67,45 @@ export function deriveQueryTokens({
     const numeric =
       segment.values.length > 0 &&
       segment.values.every((value) => /^-?\d+(\.\d+)?$/.test(value.trim()));
+    const fieldGroup = {
+      noWrap: true,
+      parts: [
+        { text: dash, tone: "muted" as const },
+        ...(prefixTarget ? targetParts : []),
+        { text: segment.displayField, tone: "field" as const },
+        { text: ":", tone: "muted" as const },
+      ],
+    };
+    let relation = "any of";
+    if (segment.negated) relation = "none of";
+    else if (segment.valueOp === "and") relation = "all of";
     return {
       ...token,
+      ...(segment.values.length > 2
+        ? {
+            summary: {
+              label: `${token.explanation?.subject ?? segment.displayField} ${relation} ${segment.values.length} values`,
+              values: segment.values,
+              groups: [
+                fieldGroup,
+                {
+                  noWrap: true,
+                  parts: [
+                    { text: `${relation} [`, tone: "muted" as const },
+                    { text: segment.values[0]!, tone: "value" as const },
+                    {
+                      text: ` +${segment.values.length - 1}]`,
+                      tone: "muted" as const,
+                    },
+                    ...(!prefixTarget ? targetParts : []),
+                  ],
+                },
+              ],
+            },
+          }
+        : {}),
       groups: [
-        {
-          noWrap: true,
-          parts: [
-            { text: dash, tone: "muted" as const },
-            ...(prefixTarget ? targetParts : []),
-            { text: segment.displayField, tone: "field" as const },
-            { text: ":", tone: "muted" as const },
-          ],
-        },
+        fieldGroup,
         {
           noWrap: false,
           parts: [

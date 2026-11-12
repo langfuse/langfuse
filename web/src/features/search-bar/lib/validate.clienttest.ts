@@ -5,6 +5,24 @@ import { describe, expect, it } from "vitest";
 import { parse, serialize } from "./langQ";
 import { semanticDiagnostics, validateQuery } from "./validate";
 
+describe("validateQuery — large value groups", () => {
+  it("accepts a hundred IDs while retaining a bounded query length", () => {
+    const values = Array.from(
+      { length: 100 },
+      (_, index) =>
+        `${index.toString(16).padStart(8, "0")}-aaaa-4bbb-8ccc-dddddddddddd`,
+    );
+    expect(validateQuery(`id:(${values.join(" OR ")})`).valid).toBe(true);
+    const oversized = validateQuery(`name:${"a".repeat(64 * 1024)}`);
+    expect(oversized.valid).toBe(false);
+    expect(
+      oversized.diagnostics.some((diagnostic) =>
+        diagnostic.message.startsWith("Query is too long"),
+      ),
+    ).toBe(true);
+  });
+});
+
 function warnings(query: string): string[] {
   const { ast } = parse(query);
   return semanticDiagnostics(ast, query.length)

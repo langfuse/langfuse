@@ -20,10 +20,53 @@ const partStyles = {
   target: "",
 };
 
+type TokenGroup = {
+  noWrap: boolean;
+  parts: readonly {
+    text: string;
+    tone: keyof typeof partStyles;
+    color?: keyof typeof QUERY_LABEL_COLORS;
+  }[];
+};
+
+function renderGroups(groups: readonly TokenGroup[], compact: boolean) {
+  return groups.map((group, index) => (
+    <span
+      key={index}
+      className={cn(
+        compact ? "inline-flex min-w-0 items-center whitespace-pre" : undefined,
+        compact && index === 0 && "max-w-[50%] shrink-0",
+        !compact && group.noWrap && "whitespace-nowrap",
+      )}
+    >
+      {group.parts.map((part, partIndex) => (
+        <span
+          key={partIndex}
+          data-part={part.tone}
+          title={compact ? part.text : undefined}
+          className={cn(
+            partStyles[part.tone],
+            part.color && QUERY_LABEL_COLORS[part.color],
+            compact &&
+              (part.tone === "value" || part.tone === "number") &&
+              "max-w-32 min-w-0 truncate",
+            compact &&
+              (part.tone === "field" || part.tone === "target") &&
+              "max-w-40 min-w-0 truncate",
+          )}
+        >
+          {part.text}
+        </span>
+      ))}
+    </span>
+  ));
+}
+
 export function QueryTokens({
   value,
   tokens,
   highlightedTokenId,
+  onActivateToken,
 }: {
   value: string;
   tokens: readonly {
@@ -36,16 +79,16 @@ export function QueryTokens({
     explanation: { subject: string; predicate: string } | null;
     inactiveReason: string | null;
     kind: "filter" | "freeText" | "operator" | "paren" | "invalid";
-    groups?: readonly {
-      noWrap: boolean;
-      parts: readonly {
-        text: string;
-        tone: "field" | "muted" | "value" | "number" | "target";
-        color?: keyof typeof QUERY_LABEL_COLORS;
-      }[];
-    }[];
+    groups?: readonly TokenGroup[];
+    /** A display projection; raw and offsets always describe the complete query. */
+    summary?: {
+      groups: readonly TokenGroup[];
+      label: string;
+      values: readonly string[];
+    };
   }[];
   highlightedTokenId?: string | null;
+  onActivateToken?: (id: string) => void;
 }) {
   const content: ReactNode[] = [];
   let cursor = 0;
@@ -61,10 +104,28 @@ export function QueryTokens({
         </span>
       ));
   for (const token of tokens) {
+    const summary = onActivateToken === undefined ? undefined : token.summary;
     if (token.from > cursor)
       content.push(
         ...plainText(value.slice(cursor, token.from), `gap:${cursor}`),
       );
+    let tokenContent: ReactNode = token.raw;
+    if (summary !== undefined) {
+      tokenContent = (
+        <button
+          type="button"
+          data-query-summary
+          aria-label={`Edit ${summary.label}`}
+          aria-haspopup="dialog"
+          onClick={() => onActivateToken?.(token.id)}
+          className="focus-visible:ring-ring inline-flex max-w-full min-w-0 items-center rounded-sm text-left align-baseline focus-visible:ring-2 focus-visible:outline-none"
+        >
+          {renderGroups(summary.groups, true)}
+        </button>
+      );
+    } else if (token.groups !== undefined) {
+      tokenContent = renderGroups(token.groups, false);
+    }
     // Non-positioned, short inline boxes keep Chromium's caret visible and
     // prevent Safari from sizing the caret taller than the token text.
     content.push(
@@ -73,36 +134,19 @@ export function QueryTokens({
         data-testid="search-bar-token"
         data-kind={token.kind}
         data-segment-id={token.id}
+        data-query-source={summary === undefined ? undefined : token.raw}
+        contentEditable={summary === undefined ? undefined : false}
         data-deactivated={token.inactiveReason !== null || undefined}
         className={cn(
           "ph-no-capture max-w-full",
           tokenStyles[token.kind],
+          summary !== undefined && "inline-block py-0 align-baseline",
           token.inactiveReason !== null &&
             "line-through decoration-1 opacity-50",
           token.id === highlightedTokenId && "border-ring",
         )}
       >
-        {token.groups
-          ? token.groups.map((group, index) => (
-              <span
-                key={index}
-                className={group.noWrap ? "whitespace-nowrap" : undefined}
-              >
-                {group.parts.map((part, partIndex) => (
-                  <span
-                    key={partIndex}
-                    data-part={part.tone}
-                    className={cn(
-                      partStyles[part.tone],
-                      part.color && QUERY_LABEL_COLORS[part.color],
-                    )}
-                  >
-                    {part.text}
-                  </span>
-                ))}
-              </span>
-            ))
-          : token.raw}
+        {tokenContent}
         {/* Inside the pill, the joiner keeps Safari's trailing caret before its padding. */}
         {WORD_JOINER}
       </span>,

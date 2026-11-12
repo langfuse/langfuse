@@ -30,6 +30,17 @@ import {
   SCORE_LEVEL_LABELS,
 } from "@/src/components/ScoreTag";
 import { composerPlaceholder } from "../presentation";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { FilterValuesEditor } from "./FilterValuesEditor";
+import { QueryExpressionEditor } from "./QueryExpressionEditor";
+
+type QueryEditorState = { originalDraft: string } & (
+  | { kind: "query"; initialValue: string }
+  | {
+      kind: "values";
+      token: React.ComponentProps<typeof FilterValuesEditor>["token"];
+    }
+);
 
 const completionIcons = {
   recent: "history",
@@ -140,39 +151,92 @@ export function SearchComposer({
   });
 
   return (
-    <QueryInput
-      inputId={inputId}
-      label="Search"
-      size={size}
-      value={draft}
-      diagnostics={showDiagnostics ? diagnostics : []}
-      tokens={tokens}
-      placeholder={composerPlaceholder(registry)}
-      action={
-        onActivateAi
-          ? {
-              label: "Ask AI",
-              title: "Ask AI to build or refine filters",
-              onClick: onActivateAi,
-            }
-          : undefined
-      }
-      onValueChange={(value) => store.getState().actions.setDraft(value)}
-      onCommit={(value, reason) => {
-        const state = store.getState();
-        if (value !== state.draft) state.actions.setDraft(value);
-        return commit(reason);
+    <DialogController<QueryEditorState>
+      renderDialog={({ state, closeDialog }) => {
+        const apply = (value: string) => {
+          if (
+            !draftsSemanticallyEqual(
+              store.getState().draft,
+              state.originalDraft,
+              scoreTypes,
+              registry,
+            )
+          )
+            return false;
+          store.getState().actions.setDraft(value);
+          return commit("pick") !== null;
+        };
+        return state.kind === "query" ? (
+          <QueryExpressionEditor
+            initialValue={state.initialValue}
+            registry={registry}
+            scoreTypes={scoreTypes}
+            onApply={apply}
+            onClose={closeDialog}
+          />
+        ) : (
+          <FilterValuesEditor
+            initialQuery={state.originalDraft}
+            token={state.token}
+            registry={registry}
+            scoreTypes={scoreTypes}
+            onApply={apply}
+            onClose={closeDialog}
+          />
+        );
       }}
-      onRemoveToken={(token) => {
-        store.getState().actions.removeChipSpan(token.from, token.to);
-        if (store.getState().draftValid) commit("pick");
-      }}
-      areEquivalent={(left, right) =>
-        draftsSemanticallyEqual(left, right, scoreTypes, registry)
-      }
-      controller={controller}
-      completions={completions}
-    />
+    >
+      {({ openDialog }) => (
+        <QueryInput
+          inputId={inputId}
+          label="Search"
+          size={size}
+          value={draft}
+          diagnostics={showDiagnostics ? diagnostics : []}
+          tokens={tokens}
+          placeholder={composerPlaceholder(registry)}
+          action={
+            onActivateAi
+              ? {
+                  label: "Ask AI",
+                  title: "Ask AI to build or refine filters",
+                  onClick: onActivateAi,
+                }
+              : undefined
+          }
+          onValueChange={(value) => store.getState().actions.setDraft(value)}
+          onCommit={(value, reason) => {
+            const state = store.getState();
+            if (value !== state.draft) state.actions.setDraft(value);
+            return commit(reason);
+          }}
+          onRemoveToken={(token) => {
+            store.getState().actions.removeChipSpan(token.from, token.to);
+            if (store.getState().draftValid) commit("pick");
+          }}
+          areEquivalent={(left, right) =>
+            draftsSemanticallyEqual(left, right, scoreTypes, registry)
+          }
+          controller={controller}
+          completions={completions}
+          onEditToken={(token) => {
+            if (token.summary === undefined) return;
+            openDialog({
+              kind: "values",
+              originalDraft: store.getState().draft,
+              token: { ...token, summary: token.summary },
+            });
+          }}
+          onExpand={() =>
+            openDialog({
+              kind: "query",
+              originalDraft: store.getState().draft,
+              initialValue: store.getState().draft,
+            })
+          }
+        />
+      )}
+    </DialogController>
   );
 }
 

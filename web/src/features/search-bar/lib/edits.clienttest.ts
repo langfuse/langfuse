@@ -3,6 +3,10 @@
 import { describe, expect, it } from "vitest";
 
 import { removeToken } from "./edits";
+import { astToFilterState } from "./adapter";
+import { EVENTS_FIELD_REGISTRY } from "./fields";
+import { parse } from "./langQ";
+import { replaceFilterValues } from "./fns/replaceFilterValues";
 
 function spanOf(text: string, token: string) {
   const from = text.indexOf(token);
@@ -10,6 +14,24 @@ function spanOf(text: string, token: string) {
 }
 
 describe("removeToken — semantic preservation", () => {
+  it("keeps exact set matching when a value group shrinks to one", () => {
+    for (const [prefix, operator] of [
+      ["", "any of"],
+      ["-", "none of"],
+    ] as const) {
+      const query = replaceFilterValues(
+        `${prefix}name:(alpha OR beta OR gamma)`,
+        ["alpha"],
+        EVENTS_FIELD_REGISTRY,
+      );
+      const lowered = astToFilterState(parse(query!).ast);
+      expect(lowered.errors).toEqual([]);
+      expect(lowered.filters).toEqual([
+        { type: "stringOptions", column: "name", operator, value: ["alpha"] },
+      ]);
+    }
+  });
+
   // A bare parse check is not enough: removing `level:ERROR` from
   // `NOT level:ERROR env:dev` splices to `NOT env:dev`, which parses fine but
   // re-binds the stranded NOT keyword onto env:dev and silently inverts its

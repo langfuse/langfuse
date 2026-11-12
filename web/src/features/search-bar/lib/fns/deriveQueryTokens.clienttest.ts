@@ -4,6 +4,37 @@ import { EVENTS_FIELD_REGISTRY } from "../fields";
 
 describe("deriveQueryTokens", () => {
   it.each([
+    { draft: "name:(alpha OR beta OR gamma)", relation: "any of" },
+    { draft: "-name:(alpha OR beta OR gamma)", relation: "none of" },
+    { draft: "tags:(alpha AND beta AND gamma)", relation: "all of" },
+  ])(
+    "summarizes $relation values without changing the source",
+    ({ draft, relation }) => {
+      const [token] = deriveQueryTokens({
+        draft,
+        scoreTypes: undefined,
+        registry: EVENTS_FIELD_REGISTRY,
+        showDiagnostics: true,
+        fieldReason: undefined,
+        freeTextReason: undefined,
+      });
+      expect(token?.summary?.values).toEqual(["alpha", "beta", "gamma"]);
+      expect(token?.summary?.label).toContain(`${relation} 3 values`);
+      expect(
+        token?.summary?.groups
+          .flatMap((group) => group.parts.map((part) => part.text))
+          .join(""),
+      ).toContain("[alpha +2]");
+      expect(token?.raw).toBe(draft);
+      expect(
+        token?.groups
+          ?.flatMap((group) => group.parts.map((part) => part.text))
+          .join(""),
+      ).toBe(draft);
+    },
+  );
+
+  it.each([
     'metadata."foo:bar":*x*',
     'scores."Rouge Score":>=1',
     "level:(ERROR OR WARNING) type:GENERATION",
