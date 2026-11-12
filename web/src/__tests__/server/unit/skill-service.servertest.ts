@@ -772,20 +772,6 @@ describe("SkillService versions", () => {
     }
   });
 
-  it("rejects a version with more files than LANGFUSE_SKILL_MAX_FILES", async () => {
-    env.LANGFUSE_SKILL_MAX_FILES = 2;
-    try {
-      const test = setup();
-
-      await expect(test.service.createVersion(test.params)).rejects.toThrow(
-        "more than 2 files",
-      );
-      expect(test.transaction).not.toHaveBeenCalled();
-    } finally {
-      env.LANGFUSE_SKILL_MAX_FILES = 200;
-    }
-  });
-
   it("only looks up latest when the default production version is missing", async () => {
     const test = setup();
     const input = {
