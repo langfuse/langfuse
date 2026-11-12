@@ -27,6 +27,7 @@
  */
 
 import { setTimeout as sleep } from "node:timers/promises";
+import { parseArgs as parseCliArgs } from "node:util";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   convertDateToClickhouseDateTime,
@@ -50,7 +51,7 @@ const CLICKHOUSE_TAGS = {
 
 // A batch holds its rows' before/after payloads in memory several times over:
 // in Prisma's engine, as mapped records and as the insert body.
-const DEFAULT_BATCH_SIZE = 1_000;
+const DEFAULT_BATCH_SIZE = 500;
 const DEFAULT_SETTLE_MS = 5 * 60 * 1000;
 const DEFAULT_OVERLAP_MS = 10 * 60 * 1000;
 // Bounds how long an abort waits while the migration waits for copyUntil.
@@ -131,6 +132,7 @@ export default class BackfillAuditLogsToClickhouse implements IBackgroundMigrati
       state,
     );
 
+    let isWaiting = false;
     while (!this.isAborted) {
       const settled = new Date(Date.now() - settleMs);
       const horizon = settled < copyUntil ? settled : copyUntil;
@@ -139,10 +141,21 @@ export default class BackfillAuditLogsToClickhouse implements IBackgroundMigrati
         const counts = await copyBatch(rows);
         state = advanceState(state, rows[rows.length - 1], counts);
         await this.saveState(state);
+        logger.info(
+          `${LOG_PREFIX} batch of ${rows.length} rows: ${counts.copied} copied, ${counts.skipped} skipped, ${counts.failed} failed. At ${state.cursorCreatedAt} of ${copyUntilIso}, ${state.copiedRows} rows copied so far`,
+          state,
+        );
       } else if (settled >= copyUntil) {
         logger.info(`${LOG_PREFIX} finished in ${Date.now() - start}ms`, state);
         return;
       } else {
+        if (!isWaiting) {
+          logger.info(
+            `${LOG_PREFIX} waiting until the rows created up to ${copyUntilIso} have settled`,
+            state,
+          );
+          isWaiting = true;
+        }
         await sleep(
           Math.min(copyUntil.getTime() - settled.getTime(), MAX_WAIT_MS),
         );
@@ -359,13 +372,28 @@ async function findWrittenIds(
   return new Set([...staged, ...inClickhouse].map((row) => row.id));
 }
 
+// Run from the command line, `--batch-size <rows>` (`-b`) sets args.batchSize.
 async function main() {
+  const { values } = parseCliArgs({
+    options: { "batch-size": { type: "string", short: "b" } },
+  });
+  const batchSize =
+    values["batch-size"] === undefined
+      ? undefined
+      : Number(values["batch-size"]);
+  if (
+    batchSize !== undefined &&
+    !(Number.isInteger(batchSize) && batchSize > 0)
+  ) {
+    throw new Error("--batch-size must be a positive integer");
+  }
+
   const migration = new BackfillAuditLogsToClickhouse();
   const validation = await migration.validate();
   if (!validation.valid) {
     throw new Error(validation.invalidReason);
   }
-  await migration.run({});
+  await migration.run(batchSize === undefined ? {} : { batchSize });
 }
 
 // If the script is being executed directly (not imported), run the main function
