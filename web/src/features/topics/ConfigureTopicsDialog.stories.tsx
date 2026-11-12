@@ -6,6 +6,7 @@ import {
   ConfigureTopicsDialog,
   type ConfigureTopicsDraft,
 } from "./ConfigureTopicsDialog";
+import { TopicsDangerZone } from "./TopicsDangerZone";
 
 const providerGroups: Array<[string, string[]]> = [
   [
@@ -68,6 +69,23 @@ export const Configured = meta.story({
   args: {
     draft: filledDraft,
     notice: "none",
+  },
+});
+
+export const InternalDangerZone = meta.story({
+  args: {
+    draft: filledDraft,
+    notice: "none",
+    dangerZone: (
+      <TopicsDangerZone
+        rules={[
+          { id: "rule-1", name: "All traces" },
+          { id: "rule-2", name: "Checkout traces" },
+        ]}
+        onDeleteRule={async () => {}}
+        onReset={async () => {}}
+      />
+    ),
   },
 });
 

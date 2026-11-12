@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { createHash } from "node:crypto";
-import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  ForbiddenError,
+  InvalidRequestError,
+  LangfuseNotFoundError,
+} from "@langfuse/shared";
 import {
   getTopicSetupTraceNames,
   getTracingReadinessSettings,
@@ -51,6 +55,8 @@ import {
   getEnabledTopicsModels,
   readTopicRuleSetup,
   startTopicRuleSetup,
+  deleteTopicRule,
+  resetTopicsData,
 } from "@langfuse/shared/topics/server";
 import {
   createTRPCRouter,
@@ -61,6 +67,8 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import { canViewTopics } from "@/src/features/topics/topicsAccess";
+import { hasInternalAccess } from "@/src/features/feature-flags/utils";
+import { env } from "@/src/env.mjs";
 import {
   previewTopicTraces,
   resolveTopicTraceSelection,
@@ -149,6 +157,19 @@ const topicsWriteProcedure = topicsProcedure.use(({ ctx, input, next }) => {
     projectId: input.projectId,
     scope: "topics:CUD",
   });
+  return next();
+});
+
+// Deleting rules and wiping Topics data is an internal surface for now.
+const topicsDeleteProcedure = topicsWriteProcedure.use(({ ctx, next }) => {
+  if (
+    !hasInternalAccess({
+      email: ctx.session.user.email,
+      isExperimentalFeaturesEnabled:
+        env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
+    })
+  )
+    throw new ForbiddenError("Deleting Topics data is an internal surface.");
   return next();
 });
 
@@ -501,6 +522,30 @@ export const topicsRouter = createTRPCRouter({
       });
       return rule;
     }),
+  deleteRule: topicsDeleteProcedure
+    .input(projectInput.extend({ id: topicIdSchema }))
+    .mutation(async ({ input, ctx }) => {
+      const before = await getTopicRule(input.projectId, input.id);
+      await deleteTopicRule(input.projectId, input.id);
+      await auditLog({
+        session: ctx.session,
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+        resourceId: input.id,
+        action: "delete",
+        before,
+      });
+    }),
+  resetData: topicsDeleteProcedure.mutation(async ({ input, ctx }) => {
+    const rules = await resetTopicsData(input.projectId);
+    for (const rule of rules)
+      await auditLog({
+        session: ctx.session,
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+        resourceId: rule.id,
+        action: "delete",
+        before: rule,
+      });
+  }),
   modelSettings: topicsProcedure.query(({ input }) =>
     readTopicsModelSettings(input.projectId),
   ),

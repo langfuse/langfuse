@@ -441,6 +441,7 @@ export enum QueueName {
   TopicsEmbedding = "topics-embedding",
   TopicsAutomation = "topics-automation",
   TopicsSetup = "topics-setup",
+  TopicsDelete = "topics-delete",
   TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
   TraceDelete = "trace-delete",
@@ -491,6 +492,7 @@ export enum QueueJobs {
   TopicsEmbedding = "topics-embedding",
   TopicsAutomation = "topics-automation",
   TopicsSetup = "topics-setup",
+  TopicsDelete = "topics-delete",
   TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert",
   TraceDelete = "trace-delete",
@@ -663,6 +665,13 @@ export type TQueueJobTypes = {
     id: string;
     name: QueueJobs.TopicsSetup;
     payload: { projectId: string; ruleId: string };
+  };
+  [QueueName.TopicsDelete]: {
+    timestamp: Date;
+    id: string;
+    name: QueueJobs.TopicsDelete;
+    /** Without `runIds`, every Topics row of the project is deleted. */
+    payload: { projectId: string; runIds?: string[] };
   };
   [QueueName.TraceBatch]: z.infer<typeof TraceBatchEventSchema>;
   [QueueName.TraceUpsert]: {

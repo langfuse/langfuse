@@ -5,9 +5,11 @@ import {
 import { buildClickHouseLogComment } from "../clickhouse/queryTags";
 import { OBSERVATIONS_TO_TRACE_INTERVAL_DAYS } from "../repositories/constants";
 import {
+  commandClickhouse,
   queryClickhouse,
   queryClickhouseStream,
 } from "../repositories/clickhouse";
+import { env } from "../../env";
 import type {
   TopicAssignment,
   TopicDefinition,
@@ -666,11 +668,14 @@ export async function hasTopicEmbeddings(projectId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+const hasSummariesCacheKey = (projectId: string) =>
+  `langfuse:topics:has-summaries:${projectId}`;
+
 /** Project onboarding readiness, cached for 30 minutes when ready and 30 seconds when empty. */
 export async function hasStoredTopicSummaries(
   projectId: string,
 ): Promise<boolean> {
-  const cacheKey = `langfuse:topics:has-summaries:${projectId}`;
+  const cacheKey = hasSummariesCacheKey(projectId);
   try {
     const cached = await redis?.get(cacheKey);
     if (cached === "1") return true;
@@ -1348,4 +1353,45 @@ export async function getTopicTraceUnitTimeRange(
     from: new Date(Number(row.fromMs)),
     to: new Date(Number(row.toMs) + 1),
   };
+}
+
+/**
+ * Deletes a project's Topics rows, or only the topics and assignments of the
+ * given clustering runs. Summaries are per facet and shared across rules, so
+ * only a project-wide delete removes them.
+ */
+export async function deleteTopicRows({
+  projectId,
+  runIds,
+}: {
+  projectId: string;
+  runIds?: string[];
+}): Promise<void> {
+  if (runIds && !runIds.length) return;
+  const deletes = runIds
+    ? [
+        "DELETE FROM topics WHERE project_id = {projectId: String} AND created_by_run_id IN ({runIds: Array(String)})",
+        "DELETE FROM topic_assignments WHERE project_id = {projectId: String} AND clustering_run_id IN ({runIds: Array(String)})",
+      ]
+    : ["topics", "topic_assignments", "topic_facet_summaries"].map(
+        (table) =>
+          `DELETE FROM ${table} WHERE project_id = {projectId: String}`,
+      );
+  await Promise.all(
+    deletes.map((query) =>
+      commandClickhouse({
+        query,
+        params: { projectId, runIds },
+        clickhouseConfigs: {
+          request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+        },
+        // Patch parts disable the summary projection until they are materialized.
+        clickhouseSettings: query.includes("topic_facet_summaries")
+          ? { lightweight_delete_mode: "alter_update" }
+          : undefined,
+        tags: { route: "topics-delete", projectId },
+      }),
+    ),
+  );
+  if (!runIds) await redis?.del(hasSummariesCacheKey(projectId));
 }

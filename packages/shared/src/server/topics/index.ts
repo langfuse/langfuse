@@ -4,6 +4,7 @@ export * from "./clickhouse";
 export * from "./queue";
 export * from "./embedding-queue";
 export * from "./automation-queue";
+export * from "./deletion";
 export { emitTopicStagingMetrics } from "./staging-metrics";
 export * from "./embeddings";
 export * from "./text";

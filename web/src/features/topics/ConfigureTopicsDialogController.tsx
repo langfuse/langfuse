@@ -21,6 +21,8 @@ import {
 import { type ConfigureTopicsSettingsInput } from "./TopicModelSettings";
 import { topicsSetupPayload } from "./topics-setup";
 import { resolveTopicModelSlot } from "./topic-setup-flow";
+import { TopicsDangerZone } from "./TopicsDangerZone";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 
 type Connection = RouterOutputs["llmApiKey"]["effective"]["data"][number];
 
@@ -87,6 +89,7 @@ function ConfigureTopicsSettings({
   }));
   const [saveError, setSaveError] = useState<string | null>(null);
   const test = api.topics.testModelSettings.useMutation();
+  const internal = useInternalFeaturesEnabled();
   const utils = api.useUtils();
   const turnOn = api.topics.setAutomaticProcessing.useMutation({
     onSuccess: () => utils.topics.modelSettings.invalidate({ projectId }),
@@ -264,9 +267,36 @@ function ConfigureTopicsSettings({
             }
           : undefined
       }
+      dangerZone={
+        canWrite && internal ? (
+          <TopicsDangerZoneController projectId={projectId} />
+        ) : null
+      }
       {...(paused
         ? { notice: "paused" as const, ...paused }
         : { notice: "none" as const })}
+    />
+  );
+}
+
+function TopicsDangerZoneController({ projectId }: { projectId: string }) {
+  const utils = api.useUtils();
+  const rules = api.topics.rules.useQuery({ projectId });
+  const onSuccess = () => utils.topics.invalidate();
+  const deleteRule = api.topics.deleteRule.useMutation({ onSuccess });
+  const reset = api.topics.resetData.useMutation({ onSuccess });
+  return (
+    <TopicsDangerZone
+      rules={rules.data ?? []}
+      onDeleteRule={async (id) => {
+        await deleteRule.mutateAsync({ projectId, id });
+      }}
+      onReset={async () => {
+        await reset.mutateAsync({ projectId });
+      }}
+      deletingRule={deleteRule.isPending}
+      resetting={reset.isPending}
+      error={(deleteRule.error ?? reset.error)?.message}
     />
   );
 }
