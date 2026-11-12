@@ -55,7 +55,7 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
       label: ".env",
       icon: FileCode,
       description:
-        "Add these environment variables to your application's to send traces to Langfuse.",
+        "Add these environment variables to your application to send traces to Langfuse.",
       code: getLangfuseEnvCode(baseUrl, {
         secretKey: GATEWAY_KEY_PLACEHOLDER,
         publicKey,
