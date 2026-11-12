@@ -78,6 +78,8 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
   return {
     getTopicTextResponseMetadata: () => undefined,
     isTopicsEnabled: () => true,
+    // A refit's rule selects every trace.
+    getTopicRule: async () => ({ filter: [] }),
     getTopicsModels: async () => {
       const slot = (name: string, model: string) => ({
         slot: name,
@@ -236,6 +238,22 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
             a.createdAt.localeCompare(b.createdAt),
         )
         .at(-1) ?? null,
+    // Maps written before rules belong to the rule.
+    getTopicRuleMap: async (
+      _project: string,
+      ruleId: string,
+      facetId: string,
+    ) =>
+      [...state.runs.values()]
+        .filter(
+          (run) =>
+            run.status === "completed" &&
+            run.facetId === facetId &&
+            !run.batchActionId &&
+            (run.ruleId ?? ruleId) === ruleId,
+        )
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+        .at(-1) ?? null,
     getTopicClusteringSummaries: vi.fn(
       async (
         projectId: string,
@@ -385,7 +403,10 @@ vi.mock("./numeric", async (importOriginal) => ({
   runTopicClustering: (...args: unknown[]) => state.numeric(...args),
 }));
 
-import { processTopicsExecution as processTopicsExecutionAttempt } from "./processTopicsExecution";
+import {
+  processTopicRuleRefit,
+  processTopicsExecution as processTopicsExecutionAttempt,
+} from "./processTopicsExecution";
 import { processTopicEmbeddingBatch } from "./processTopicEmbeddingBatch";
 
 function inTimeRange(
@@ -1594,6 +1615,48 @@ describe("Topics execution", () => {
       ).toHaveLength(persists ? 2 : 1);
     },
   );
+
+  it("fits a rule's first map from its scheduled run, continuing the setup snapshot's topics", async () => {
+    await processSelection("source", 100);
+    await updateSelection("published");
+    const published = {
+      ...[...state.runs.values()].at(-1)!,
+      batchActionId: "setup",
+    };
+    state.runs.set(published.id, published);
+    state.runs.set("refit", {
+      ...pendingRun({
+        id: "refit",
+        projectId: "project",
+        facetId: facet.facetId,
+        facetVersion: facet.version,
+        config: {
+          embeddingModel: "eu.cohere.embed-v4:0",
+          dimensions: 256,
+          timeRange: {
+            from: "2026-01-01T00:00:00.000Z",
+            to: "2026-01-08T00:00:00.000Z",
+          },
+        },
+      }),
+      ruleId: "rule",
+    });
+    state.name.mockClear();
+
+    await processTopicRuleRefit({ projectId: "project", runId: "refit" });
+
+    const refit = state.runs.get("refit")!;
+    expect(refit).toMatchObject({ status: "completed", ruleId: "rule" });
+    expect(refit.topics.map((topic) => topic.topicId).sort()).toEqual(
+      published.topics.map((topic) => topic.topicId).sort(),
+    );
+    expect(state.name).not.toHaveBeenCalled();
+    expect(
+      [...state.assignments.values()].filter(
+        (row) => row.runId === "refit" && row.origin === "initial",
+      ),
+    ).toHaveLength(100);
+  });
 
   it("bounds assignment writes and retries publication when a batch is not visible", async () => {
     await processSelection("source", 1);

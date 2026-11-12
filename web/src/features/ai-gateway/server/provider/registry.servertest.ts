@@ -7,6 +7,7 @@ import { GatewayModelsService } from "@/src/features/ai-gateway/server/provider/
 import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
 import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
 import {
+  gatewayProviders,
   getGatewayProviderDefinition,
   getGatewayUpstream,
   providerSupportsApiFormat,
@@ -43,12 +44,42 @@ describe("AI gateway provider registry", () => {
     expect(getGatewayProviderDefinition("ANTHROPIC")).toMatchObject({
       baseUrl: "https://api.anthropic.com/v1",
       authType: "x-api-key",
-      validationModel: "claude-haiku-4-5-20251001",
+      credentialCheck: { model: "claude-haiku-4-5-20251001" },
     });
     expect(providerSupportsApiFormat("OPENAI", "openai.responses")).toBe(true);
     expect(providerSupportsApiFormat("ANTHROPIC", "anthropic.messages")).toBe(
       true,
     );
+  });
+
+  it("routes Decisions only to OpenAI and Vercel", () => {
+    expect(
+      gatewayProviders.filter((provider) =>
+        providerSupportsApiFormat(provider, "openai.decisions"),
+      ),
+    ).toEqual(["OPENAI", "VERCEL"]);
+  });
+
+  it("routes Embeddings to OpenAI, aggregators and Google AI Studio", () => {
+    expect(
+      gatewayProviders.filter((provider) =>
+        providerSupportsApiFormat(provider, "openai.embeddings"),
+      ),
+    ).toEqual(["OPENAI", "OPENROUTER", "VERCEL", "GOOGLE_AI_STUDIO"]);
+  });
+
+  it("rejects xAI keys that are disabled or blocked", () => {
+    const check = getGatewayProviderDefinition("XAI").credentialCheck;
+    if (!("path" in check) || !check.usable) throw new Error("no xAI check");
+    const key = {
+      api_key_blocked: false,
+      api_key_disabled: false,
+      team_blocked: false,
+    };
+    expect(check.usable(key)).toBe(true);
+    expect(check.usable({ ...key, api_key_disabled: true })).toBe(false);
+    expect(check.usable({ ...key, api_key_blocked: true })).toBe(false);
+    expect(check.usable({ ...key, team_blocked: true })).toBe(false);
   });
 
   it("routes Bedrock to the regional runtime path matching the API format", () => {
@@ -211,7 +242,7 @@ describe("AI gateway provider registry", () => {
     }
   });
 
-  it("reads model lists from an organization and connection scoped cache", async () => {
+  it("reads model lists from an organization and connection scoped cache and labels OpenAI embedding models", async () => {
     const fetcher = vi.fn<typeof fetch>();
     const redis = {
       get: vi.fn().mockResolvedValue(
@@ -221,6 +252,13 @@ describe("AI gateway provider registry", () => {
             provider: "OPENAI",
             canonicalSlug: "gpt-5-mini",
             displayName: "gpt-5-mini",
+            createdAt: "2026-01-01T00:00:00.000Z",
+          },
+          {
+            id: "text-embedding-3-small",
+            provider: "OPENAI",
+            canonicalSlug: "text-embedding-3-small",
+            displayName: "text-embedding-3-small",
             createdAt: "2026-01-01T00:00:00.000Z",
           },
         ]),
@@ -251,10 +289,11 @@ describe("AI gateway provider registry", () => {
     ).resolves.toEqual({
       connectionId: "connection-1",
       success: true,
-      models: ["gpt-5-mini"],
+      models: ["gpt-5-mini", "text-embedding-3-small"],
+      modelApiFormats: { "text-embedding-3-small": ["openai.embeddings"] },
     });
     expect(redis.get).toHaveBeenCalledWith(
-      "ai-gateway:models:org-1:connection-1",
+      "ai-gateway:models:v3:org-1:connection-1",
     );
     expect(fetcher).not.toHaveBeenCalled();
     expect(prisma.gatewayAiConnection.findFirst).not.toHaveBeenCalled();
@@ -372,7 +411,7 @@ describe("AI gateway provider registry", () => {
     ]);
     await vi.waitFor(() =>
       expect(redis.setex).toHaveBeenCalledWith(
-        "ai-gateway:models:org-1:connection-1",
+        "ai-gateway:models:v3:org-1:connection-1",
         300,
         expect.stringContaining('"id":"gpt-5"'),
       ),
@@ -531,11 +570,13 @@ describe("AI gateway provider registry", () => {
       models: ["gpt-5", "codex-auto-review"],
     });
     expect(redis.get).not.toHaveBeenCalled();
-    expect(redis.del).toHaveBeenCalledWith(
+    expect(vi.mocked(redis.del).mock.calls.flat(2)).toEqual([
+      "ai-gateway:models:v3:org-1:connection-1",
+      "ai-gateway:models:v2:org-1:connection-1",
       "ai-gateway:models:org-1:connection-1",
-    );
+    ]);
     expect(redis.setex).toHaveBeenCalledWith(
-      "ai-gateway:models:org-1:connection-1",
+      "ai-gateway:models:v3:org-1:connection-1",
       300,
       JSON.stringify({
         models: [

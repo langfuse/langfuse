@@ -767,7 +767,7 @@ export const env = createEnv({
       .default(0),
 
     // Kill switch for staging audit events for the ClickHouse audit_logs table
-    // on Langfuse Cloud. The Postgres audit_logs row is written either way.
+    // (EE). The Postgres audit_logs row is written either way.
     // Read-access events have no Postgres row, so turning it off stops
     // recording them; reads still succeed.
     LANGFUSE_AUDIT_LOG_STAGING_ENABLED: z

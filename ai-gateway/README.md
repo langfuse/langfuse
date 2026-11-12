@@ -2,10 +2,10 @@
 
 A standalone Rust gateway for native provider APIs under two namespaces:
 
-| Namespace       | Endpoints                                                                             | Generation ingested                     |
-| --------------- | ------------------------------------------------------------------------------------- | --------------------------------------- |
-| `/openai/v1`    | `POST /responses`, `POST /responses/compact`, `POST /chat/completions`, `GET /models` | Responses, compact and Chat Completions |
-| `/anthropic/v1` | `POST /messages`, `POST /messages/count_tokens`, `GET /models`                        | Messages                                |
+| Namespace       | Endpoints                                                                                                                    | Generation ingested                                            |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `/openai/v1`    | `POST /responses`, `POST /responses/compact`, `POST /chat/completions`, `POST /decisions`, `POST /embeddings`, `GET /models` | Responses, compact, Chat Completions, Decisions and Embeddings |
+| `/anthropic/v1` | `POST /messages`, `POST /messages/count_tokens`, `GET /models`                                                               | Messages                                                       |
 
 Web resolves the gateway key to a trusted provider connection for the namespace's API
 format; Rust relays native JSON or SSE without rewriting provider bytes, except that a
@@ -170,8 +170,8 @@ metadata; it is not forwarded to Web or the provider. The provider's own request
 generation metadata, and its response header is still relayed unchanged.
 
 When the request will produce a Langfuse generation (`/openai/v1/responses`,
-`/openai/v1/responses/compact`, `/openai/v1/chat/completions` and
-`/anthropic/v1/messages` with inference telemetry
+`/openai/v1/responses/compact`, `/openai/v1/chat/completions`, `/openai/v1/decisions`,
+`/openai/v1/embeddings` and `/anthropic/v1/messages` with inference telemetry
 configured), the response also carries `langfuse-trace-id` and
 `langfuse-observation-id`: the uploaded generation's trace ID, after `traceparent`
 and agent turn grouping, and its OpenTelemetry span ID, which Langfuse stores as the
@@ -535,7 +535,7 @@ Every gateway fact is a metadata key under `langfuse.gateway.`, grouped by the r
 | `model.response`                   | string                                                                                                                                 | Provider: response `model`                                           | When the provider reported one                                                          |
 | `user_id_source`                   | string: `client`, `api_key_owner`, or `api_key_name`                                                                                   | Gateway                                                              | When the generation has a user ID                                                       |
 | `request.id`                       | string                                                                                                                                 | Gateway                                                              | Always; also the `langfuse-request-id` response header                                  |
-| `request.api_format`               | string: `openai.responses`, `openai.chat-completions` or `anthropic.messages`                                                          | Gateway                                                              | Always                                                                                  |
+| `request.api_format`               | string: `openai.responses`, `openai.chat-completions`, `openai.decisions`, `openai.embeddings` or `anthropic.messages`                 | Gateway                                                              | Always                                                                                  |
 | `request.body_bytes`               | integer                                                                                                                                | Gateway: the caller's uncompressed request body                      | Always                                                                                  |
 | `request.input_omitted`            | string: `size_limit`, `content_encoding`, `invalid_json`, `record_limit` or `telemetry_buffer`                                         | Gateway                                                              | Full mode, when the input is not recorded                                               |
 | `request.input_limit_bytes`        | integer                                                                                                                                | Gateway                                                              | With `input_omitted` `size_limit`                                                       |
@@ -736,8 +736,13 @@ stored under `langfuse.gateway.client.request.*` only in full mode.
 In both modes, `usage_details` preserves the provider's entire usage object,
 including nested and unknown fields. The gateway does not rename counters,
 subtract cached tokens, or synthesize totals. Missing usage stays null.
+Embeddings are the exception: only `prompt_tokens` is kept, as `input`, because Langfuse would otherwise add `total_tokens` to it and double the total.
 `api_format` identifies the payload format (`openai.responses`,
-`openai.chat-completions` or `anthropic.messages`); it is also the generation's name.
+`openai.chat-completions`, `openai.decisions`, `openai.embeddings` or `anthropic.messages`); it is also the generation's name.
+
+For OpenAI Decisions, which answers with a single JSON body, the input is the request's `input` and `questions` and the output is the response's `answers` array.
+
+OpenAI Embeddings are recorded as `embedding` observations. The input is the request's `input`; `dimensions` and `encoding_format` are model parameters and `user` is metadata. The vectors are not recorded: the output is `{"dimensions": …, "count": …}`, measured while the response streams, so `usage` after vectors larger than the capture limit is still read.
 
 For Anthropic Messages, `message_start` supplies the response ID, actual model and the
 usage baseline; `message_delta` supplies `stop_reason` and cumulative usage counters that
@@ -919,8 +924,7 @@ After extracting the model, inference sends
 `POST <base path>/api/internal/ai-gateway/v1/resolve` with
 `Authorization: Bearer <gateway key>`, the Web v1 HMAC header, and exactly
 `{"apiFormat":"<format>","model":"<model>"}`, where the format is the one the public route serves
-(`openai.chat-completions` for `/openai/v1/chat/completions`, `openai.responses` for
-the other `/openai/v1` routes). The client neither receives nor
+(`openai.chat-completions` for `/openai/v1/chat/completions`, `openai.decisions` for `/openai/v1/decisions`, `openai.embeddings` for `/openai/v1/embeddings`, `openai.responses` for the other `/openai/v1` routes). The client neither receives nor
 parses an inference request body. Reuse the resolver across requests: its connection
 pool is shared, while credentials and execution contexts stay request-local.
 
@@ -942,10 +946,10 @@ Its connection must also be a known pairing: the `provider` serves the requested
 
 The optional `extra_headers` object maps header names to string values sent with every provider request; they replace caller headers of the same name. Names that carry the credential or control the HTTP exchange (`authorization`, `x-api-key`, `host`, `content-length`, `transfer-encoding`, `connection`, `accept-encoding`, `proxy-*` and other hop-by-hop headers) make the response invalid.
 
-| Provider    | API format                                    | Official origin                | Credential                                                          |
-| ----------- | --------------------------------------------- | ------------------------------ | ------------------------------------------------------------------- |
-| `openai`    | `openai.responses`, `openai.chat-completions` | `https://api.openai.com/v1`    | `{"type":"Bearer","token":…}` → `Authorization: Bearer`             |
-| `anthropic` | `anthropic.messages`                          | `https://api.anthropic.com/v1` | `{"type":"x-api-key","header":"x-api-key","value":…}` → `x-api-key` |
+| Provider    | API format                                                                             | Official origin                | Credential                                                          |
+| ----------- | -------------------------------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------- |
+| `openai`    | `openai.responses`, `openai.chat-completions`, `openai.decisions`, `openai.embeddings` | `https://api.openai.com/v1`    | `{"type":"Bearer","token":…}` → `Authorization: Bearer`             |
+| `anthropic` | `anthropic.messages`                                                                   | `https://api.anthropic.com/v1` | `{"type":"x-api-key","header":"x-api-key","value":…}` → `x-api-key` |
 
 The connection's `name` and the attribution's `user_id`, `key_name` and `user_name` are optional in the contract, so the gateway also resolves against a Web deployment that predates them. `user_id` is the user the key is bound to and is the key's owner; it must not be blank when present. Blank `name`, `key_name` and `user_name` count as absent. They are snapshots taken at resolve time, recorded on generations as described in [Langfuse uploads](#langfuse-uploads).
 

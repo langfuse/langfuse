@@ -880,72 +880,79 @@ export async function getAuthOptions(
       },
       async session({ session, token }): Promise<Session> {
         return instrumentAsync({ name: "next-auth-session" }, async (span) => {
-          const dbUser = await prisma.user.findUnique({
-            where: {
-              email: token.email!.toLowerCase(),
-              OR: [
-                { sessionsExpiredAt: null },
-                {
-                  // Strict: a token issued in the same millisecond as revocation
-                  // is treated as revoked.
-                  sessionsExpiredAt: {
-                    lt: new Date(token.loginAt ?? 0),
-                  },
-                },
-              ],
-            },
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              image: true,
-              emailVerified: true,
-              password: true,
-              createdAt: true,
-              featureFlags: true,
-              admin: true,
-              v4BetaEnabled: true,
-              supportAccess: true,
-              organizationMemberships: {
-                // Newest first so demo project is last for the `project/~/` sentinel
-                orderBy: {
-                  createdAt: "desc",
-                },
-                include: {
-                  organization: {
-                    include: {
-                      projects: {
-                        where: {
-                          deletedAt: {
-                            equals: null,
-                          },
-                        },
-                        orderBy: {
-                          createdAt: "desc",
-                        },
+          // `sub` is the id of the user the token was issued for. Requiring it
+          // to match keeps a token from resolving to a later account that
+          // reuses the email, e.g. after the original account was deleted.
+          // A token without `sub` resolves to no user: Prisma would drop
+          // `id: undefined` from the filter and match on email alone.
+          const dbUser = !token.sub
+            ? null
+            : await prisma.user.findUnique({
+                where: {
+                  id: token.sub,
+                  email: token.email!.toLowerCase(),
+                  OR: [
+                    { sessionsExpiredAt: null },
+                    {
+                      // Strict: a token issued in the same millisecond as revocation
+                      // is treated as revoked.
+                      sessionsExpiredAt: {
+                        lt: new Date(token.loginAt ?? 0),
                       },
                     },
-                  },
-                  ProjectMemberships: {
-                    include: {
-                      project: true,
+                  ],
+                },
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  image: true,
+                  emailVerified: true,
+                  password: true,
+                  createdAt: true,
+                  featureFlags: true,
+                  v4BetaEnabled: true,
+                  supportAccess: true,
+                  organizationMemberships: {
+                    // Newest first so demo project is last for the `project/~/` sentinel
+                    orderBy: {
+                      createdAt: "desc",
                     },
-                  },
-                  groupMemberships: {
-                    select: {
-                      group: {
+                    include: {
+                      organization: {
+                        include: {
+                          projects: {
+                            where: {
+                              deletedAt: {
+                                equals: null,
+                              },
+                            },
+                            orderBy: {
+                              createdAt: "desc",
+                            },
+                          },
+                        },
+                      },
+                      ProjectMemberships: {
+                        include: {
+                          project: true,
+                        },
+                      },
+                      groupMemberships: {
                         select: {
-                          roleAssignments: {
-                            select: { projectId: true, systemRole: true },
+                          group: {
+                            select: {
+                              roleAssignments: {
+                                select: { projectId: true, systemRole: true },
+                              },
+                            },
                           },
                         },
                       },
                     },
                   },
                 },
-              },
-            },
-          });
+              });
 
           span.setAttribute("langfuse.user.id", dbUser?.id ?? "");
           // Support engineers with an unexpired ConductorOne grant see the
@@ -1023,30 +1030,25 @@ export async function getAuthOptions(
                       ? createSupportEmailHash(dbUser.email)
                       : undefined,
                     image: dbUser.image,
-                    admin: dbUser.admin,
                     v4BetaEnabled,
                     v4UpgradeUiAvailable,
                     canToggleV4:
                       v4WriteMode === "dual" && dualPreviewAvailable
                         ? isLangfuseCloud
-                          ? canToggleV4(
-                              {
-                                userCreatedAt: dbUser.createdAt,
-                                organizations:
-                                  dbUser.organizationMemberships.map(
-                                    (orgMembership) => ({
-                                      id: orgMembership.organization.id,
-                                      createdAt:
-                                        orgMembership.organization.createdAt,
-                                    }),
-                                  ),
-                                excludedOrganizationIds:
-                                  env.NEXT_PUBLIC_DEMO_ORG_ID
-                                    ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
-                                    : [],
-                              },
-                              { isLangfuseCloudAdmin: dbUser.admin },
-                            )
+                          ? canToggleV4({
+                              userCreatedAt: dbUser.createdAt,
+                              organizations: dbUser.organizationMemberships.map(
+                                (orgMembership) => ({
+                                  id: orgMembership.organization.id,
+                                  createdAt:
+                                    orgMembership.organization.createdAt,
+                                }),
+                              ),
+                              excludedOrganizationIds:
+                                env.NEXT_PUBLIC_DEMO_ORG_ID
+                                  ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
+                                  : [],
+                            })
                           : true
                         : false,
                     canCreateOrganizations: canCreateOrganizations(

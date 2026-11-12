@@ -236,6 +236,8 @@ type ListInput = {
   includeAssignment?: boolean;
   /** Candidate rows per batch and batches per page; defaults bound the work of one page. */
   scan?: { batchSize: number; maxBatches: number };
+  /** Runs whose assignments count; defaults to each facet's published run. */
+  publishedRunIds?: string[];
 };
 
 const MAX_CANDIDATE_BATCHES = 10;
@@ -383,10 +385,9 @@ async function listCurrentRows<T extends CandidateRow>(
   const batchSize =
     input.scan?.batchSize ?? Math.min(1000, Math.max(200, input.limit * 4));
   const maxBatches = input.scan?.maxBatches ?? MAX_CANDIDATE_BATCHES;
-  const publishedRunIds = await getPublishedTopicRunIds(
-    input.projectId,
-    input.facetIds,
-  );
+  const publishedRunIds =
+    input.publishedRunIds ??
+    (await getPublishedTopicRunIds(input.projectId, input.facetIds));
   const baseParams = {
     projectId: input.projectId,
     facetIds: input.facetIds,

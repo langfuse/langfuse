@@ -135,9 +135,9 @@ export function TopicTraceList({
             )}
             <span
               className="truncate font-mono text-xs"
-              title={`~${totalCount.toLocaleString()} traces`}
+              title={traceCountLabel(totalCount)}
             >
-              {`~${totalCount.toLocaleString()} traces`}
+              {traceCountLabel(totalCount)}
             </span>
           </p>
           {tracingHref && (
@@ -200,3 +200,11 @@ type TopicTraceListProps = {
   headerRef?: RefObject<HTMLDivElement | null>;
   divider?: "top" | "side";
 };
+
+const APPROXIMATE_COUNT_FROM = 1_000;
+
+/** Counts are distinct-trace estimates; only large ones read as approximate. */
+function traceCountLabel(count: number) {
+  const approximate = count >= APPROXIMATE_COUNT_FROM ? "~" : "";
+  return `${approximate}${count.toLocaleString()} traces`;
+}

@@ -44,6 +44,7 @@ import {
   hasAll,
   hasAllTokens,
   hasAny,
+  includeDeleted,
   literal,
   lower,
   metadataSubstringPrefilter,
@@ -120,23 +121,41 @@ export type CompiledEventsCondition = {
   requiresEventsFull: boolean;
 };
 
+export type CompileEventsConditionOptions = {
+  /**
+   * Leave out the soft-delete condition (`$call(includeDeleted())`), for a
+   * host query that filters `is_deleted` itself or reads deleted rows.
+   */
+  includeDeleted?: boolean;
+};
+
+/** The events select a bridge condition is compiled from. */
+const eventsConditionQuery = ({
+  includeDeleted: withDeleted = false,
+}: CompileEventsConditionOptions) =>
+  getClickhouseKysely()
+    .selectFrom("events as e")
+    .$if(withDeleted, (qb) => qb.$call(includeDeleted()));
+
 /**
  * `predicate` as SQL over events read as `e` in `projectId`, for the raw-SQL
- * builders: the project and soft-delete conditions the compiler passes
- * inject, then the `FilterList` text for a conjunction of conditions, or
- * `true` for an empty one. Never empty, so callers splice `AND ${sql}`.
+ * builders: the project and (unless `includeDeleted`) soft-delete conditions
+ * the compiler passes inject, then the `FilterList` text for a conjunction of
+ * conditions, or `true` for an empty one. Never empty, so callers splice
+ * `AND ${sql}`.
  * `requiresEventsFull` is the routing pass's verdict.
  * Placeholder names are unique per call.
  */
 export function compileEventsPredicate(
   predicate: Predicate,
   projectId: string,
+  options: CompileEventsConditionOptions = {},
 ): CompiledEventsCondition {
   const parts = lowerNode(eventsExpressionBuilder(), predicate);
   // One `where` per conjunct chains them with AND and no enclosing
   // parentheses, like `FilterList`. An empty conjunction still needs a WHERE
   // for `compileClickhouseCondition` to add the project scoping to.
-  let query = getClickhouseKysely().selectFrom("events as e");
+  let query = eventsConditionQuery(options);
   for (const part of parts.length === 0 ? [literal(true)] : parts) {
     query = query.where(part);
   }
@@ -145,18 +164,20 @@ export function compileEventsPredicate(
 
 /**
  * `search` as SQL over events read as `e` in `projectId`, for the raw-SQL
- * builders: the project and soft-delete conditions the compiler passes
- * inject, then the parenthesized disjunction `eventSearchCondition` emits
- * after its `AND`. `requiresEventsFull` is the routing pass's verdict.
+ * builders: the project and (unless `includeDeleted`) soft-delete conditions
+ * the compiler passes inject, then the parenthesized disjunction
+ * `eventSearchCondition` emits after its `AND`. `requiresEventsFull` is the
+ * routing pass's verdict.
  * Placeholder names are unique per call.
  */
 export function compileEventsSearch(
   search: PredicateSearch,
   projectId: string,
+  options: CompileEventsConditionOptions = {},
 ): CompiledEventsCondition {
-  const query = getClickhouseKysely()
-    .selectFrom("events as e")
-    .where((eb) => lowerEventsSearch(eb, search));
+  const query = eventsConditionQuery(options).where((eb) =>
+    lowerEventsSearch(eb, search),
+  );
   return compileClickhouseCondition(query, projectId, paramPrefix());
 }
 
@@ -202,6 +223,11 @@ function single(eb: EventsExpressionBuilder, parts: Condition[]): Condition {
 function resolveCondition(condition: PredicateCondition): {
   lowering: EventsFieldLowering;
 } {
+  if (condition.type === "positionInTrace") {
+    throw new QueryCompileError(
+      "positionInTrace conditions select events by their place in the trace; compile them outside the row predicate.",
+    );
+  }
   const field = resolvePredicateSourceField(
     eventsPredicateSource,
     condition.field.id,
@@ -209,11 +235,6 @@ function resolveCondition(condition: PredicateCondition): {
   if (!field) {
     throw new InvalidRequestError(
       `Column ${condition.field.id} does not match a UI / CH table mapping.`,
-    );
-  }
-  if (condition.type === "positionInTrace") {
-    throw new QueryCompileError(
-      "positionInTrace conditions select events by their place in the trace; compile them outside the row predicate.",
     );
   }
   if (

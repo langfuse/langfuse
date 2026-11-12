@@ -16,10 +16,21 @@ import {
 import {
   AnnotationQueueObjectType,
   AnnotationQueueStatus,
+  Prisma,
 } from "@langfuse/shared";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
-import { createAnnotationQueueForApi } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
+import {
+  annotationQueueItemsPageQuery,
+  createAnnotationQueueForApi,
+} from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
 import { v4 as uuidv4 } from "uuid";
+
+type PlanNode = {
+  "Node Type": string;
+  "Index Name"?: string;
+  "Scan Direction"?: string;
+  Plans?: PlanNode[];
+};
 
 const TOTAL_TEST_QUEUES = 10; // Create enough queues to test pagination
 const TOTAL_TEST_QUEUE_ITEMS = 6; // Create enough queue items to test filtering
@@ -511,6 +522,64 @@ describe("Annotation Queues API Endpoints", () => {
             item.status === AnnotationQueueStatus.PENDING,
         ),
       ).toBe(true);
+    });
+
+    it("pages identical timestamps by id and walks only the sort index for skipped rows", async () => {
+      const queue = await createQueue({ name: "Deep page queue" });
+      const createdAt = new Date("2026-01-01T00:00:00.000Z");
+      const ids = Array.from({ length: 30 }, () => uuidv4());
+      await prisma.annotationQueueItem.createMany({
+        data: ids.map((id) => ({
+          id,
+          queueId: queue.id,
+          projectId,
+          objectId: uuidv4(),
+          objectType: AnnotationQueueObjectType.TRACE,
+          createdAt,
+        })),
+      });
+      const query = annotationQueueItemsPageQuery({
+        projectId,
+        queueId: queue.id,
+        limit: 10,
+        offset: 10,
+      });
+
+      const page = await prisma.$queryRaw<{ id: string }[]>(query);
+      expect(page.map((item) => item.id)).toEqual(
+        [...ids].sort().reverse().slice(10, 20),
+      );
+
+      // Planner settings are pinned so the plan does not depend on table statistics,
+      // which are stale for a queue created moments ago.
+      const [explain] = await prisma
+        .$transaction([
+          prisma.$executeRaw`SET LOCAL enable_seqscan = off`,
+          prisma.$executeRaw`SET LOCAL enable_bitmapscan = off`,
+          prisma.$executeRaw`SET LOCAL enable_sort = off`,
+          prisma.$queryRaw<{ "QUERY PLAN": [{ Plan: PlanNode }] }[]>(
+            Prisma.sql`EXPLAIN (FORMAT JSON) ${query}`,
+          ),
+        ])
+        .then(([, , , rows]) => rows);
+      const flatten = (node: PlanNode): PlanNode[] => [
+        node,
+        ...(node.Plans ?? []).flatMap(flatten),
+      ];
+      const offsetLimit = flatten(explain["QUERY PLAN"][0].Plan).find(
+        (node) => node["Node Type"] === "Limit",
+      );
+      const nodes = offsetLimit ? flatten(offsetLimit) : [];
+
+      expect(nodes.map((node) => node["Node Type"])).not.toContain("Sort");
+      expect(nodes).toContainEqual(
+        expect.objectContaining({
+          "Node Type": "Index Only Scan",
+          "Scan Direction": "Backward",
+          "Index Name":
+            "annotation_queue_items_project_id_queue_id_created_at_id_idx",
+        }),
+      );
     });
 
     it("should return 404 for non-existent queue", async () => {

@@ -157,11 +157,11 @@ export const EvalExecutionEvent = z.object({
   evaluationRuleId: z.string().optional(),
 });
 
-// Observation-based eval execution payload shared by LLM-as-judge and code eval queues.
-export const ObservationEvalExecutionEventSchema = z.object({
+// Observation payloads may omit `type` and parse as observation jobs.
+// A transcript payload must include `type` and `transcriptS3Path`.
+const evalJobExecutionFields = {
   projectId: z.string(),
   jobExecutionId: z.string(),
-  observationS3Path: z.string(),
   executionMode: EvalExecutionMode.optional(),
   // Evaluator v2 identity, carried so the worker never has to re-derive which
   // evaluator a job belongs to from `jobConfigurationId`: the legacy backfill
@@ -175,12 +175,29 @@ export const ObservationEvalExecutionEventSchema = z.object({
   evaluationRuleId: z.string().optional(),
   // Ruleless manual batch runs have no assignment row to hold a mapping
   // override. Optional for jobs queued before this field existed; those
-  // inherit the evaluator version mapping.
+  // inherit the evaluator version mapping. Transcript jobs leave this off and
+  // read the mapping from the assignment at execution.
   variableMapping: observationVariableMappingList.optional(),
   // Manual batch runs record their batch action on the execution trace and
   // scores so a run's outputs can be found together.
   batchActionId: z.string().optional(),
-});
+};
+
+export const EvalJobExecutionEventSchema = z.union([
+  z.object({
+    type: z.literal("trace-transcript"),
+    traceId: z.string(),
+    revision: z.string(),
+    transcriptS3Path: z.string(),
+    ...evalJobExecutionFields,
+  }),
+  // Observation-based eval execution payload shared by LLM-as-judge and code eval queues.
+  z.object({
+    type: z.literal("observation").optional(),
+    observationS3Path: z.string(),
+    ...evalJobExecutionFields,
+  }),
+]);
 export const PostHogIntegrationProcessingEventSchema = z.object({
   projectId: z.string(),
 });
@@ -383,8 +400,8 @@ export type DatasetRunItemUpsertEventType = z.infer<
   typeof DatasetRunItemUpsertEventSchema
 >;
 export type EvalExecutionEventType = z.infer<typeof EvalExecutionEvent>;
-export type ObservationEvalExecutionEventType = z.infer<
-  typeof ObservationEvalExecutionEventSchema
+export type EvalJobExecutionEventType = z.infer<
+  typeof EvalJobExecutionEventSchema
 >;
 export type IngestionEventQueueType = z.infer<typeof IngestionEvent>;
 export type OtelIngestionEventQueueType = z.infer<typeof OtelIngestionEvent>;
@@ -423,6 +440,7 @@ export enum QueueName {
   TopicsUpdate = "topics-update",
   TopicsEmbedding = "topics-embedding",
   TopicsAutomation = "topics-automation",
+  TopicsSetup = "topics-setup",
   TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
   TraceDelete = "trace-delete",
@@ -469,8 +487,10 @@ export enum QueueName {
 
 export enum QueueJobs {
   Topics = "topics",
+  TopicsRuleRefit = "topics-rule-refit",
   TopicsEmbedding = "topics-embedding",
   TopicsAutomation = "topics-automation",
+  TopicsSetup = "topics-setup",
   TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert",
   TraceDelete = "trace-delete",
@@ -618,7 +638,14 @@ export type TQueueJobTypes = {
     };
     batchState?: TopicProcessBatchState;
   };
-  [QueueName.TopicsUpdate]: TQueueJobTypes[QueueName.Topics];
+  [QueueName.TopicsUpdate]:
+    | TQueueJobTypes[QueueName.Topics]
+    | {
+        timestamp: Date;
+        id: string;
+        name: QueueJobs.TopicsRuleRefit;
+        payload: { projectId: string; runId: string };
+      };
   [QueueName.TopicsEmbedding]: {
     timestamp: Date;
     id: string;
@@ -630,6 +657,12 @@ export type TQueueJobTypes = {
     id: string;
     name: QueueJobs.TopicsAutomation;
     payload: z.infer<typeof TopicAutomationBatchSchema>;
+  };
+  [QueueName.TopicsSetup]: {
+    timestamp: Date;
+    id: string;
+    name: QueueJobs.TopicsSetup;
+    payload: { projectId: string; ruleId: string };
   };
   [QueueName.TraceBatch]: z.infer<typeof TraceBatchEventSchema>;
   [QueueName.TraceUpsert]: {
@@ -686,7 +719,7 @@ export type TQueueJobTypes = {
   [QueueName.LLMAsJudgeExecution]: {
     timestamp: Date;
     id: string;
-    payload: ObservationEvalExecutionEventType;
+    payload: EvalJobExecutionEventType;
     name: QueueJobs.LLMAsJudgeExecution;
     retryBaggage?: RetryBaggage;
   };
@@ -701,7 +734,7 @@ export type TQueueJobTypes = {
   [QueueName.CodeEvalExecution]: {
     timestamp: Date;
     id: string;
-    payload: ObservationEvalExecutionEventType;
+    payload: EvalJobExecutionEventType;
     name: QueueJobs.CodeEvalExecution;
     retryBaggage?: RetryBaggage;
   };

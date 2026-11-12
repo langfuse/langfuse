@@ -8,6 +8,7 @@ import {
   InvalidRequestError,
   LangfuseConflictError,
   LangfuseNotFoundError,
+  ServiceUnavailableError,
 } from "@langfuse/shared";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import {
@@ -21,6 +22,8 @@ import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { GATEWAY_CONNECTION_NAME_ERRORS } from "@/src/features/ai-gateway/constants/gatewayConnection";
+import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
+import { isGatewayApiFamily } from "@/src/features/ai-gateway/fns/isGatewayApiFamily";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import {
@@ -39,6 +42,7 @@ import { GatewayProviderRepository } from "./gatewayProviderRepository";
 import { testGatewayModel } from "./testGatewayModel";
 import { GatewayModelCatalogService } from "../models/gatewayModelCatalogService";
 import { getModelDiscoveryAdapter } from "../models/modelDiscoveryRegistry";
+import { requestJson } from "../models/adapters/shared";
 
 export class GatewayProviderService {
   private readonly repository: GatewayProviderRepository;
@@ -60,7 +64,7 @@ export class GatewayProviderService {
 
   async get(params: { organizationId: string; id: string }) {
     const connection = await this.repository.getSafeConnection(params);
-    if (!connection) throw new LangfuseNotFoundError("Provider credential");
+    if (!connection) throw new LangfuseNotFoundError("Provider connection");
     return connection;
   }
 
@@ -96,7 +100,7 @@ export class GatewayProviderService {
         id: params.connectionId,
       });
       if (!existing || existing.provider !== params.provider) {
-        throw new LangfuseNotFoundError("Provider credential");
+        throw new LangfuseNotFoundError("Provider connection");
       }
       const { endpoint } = await this.resolveEditedEndpoint({
         organizationId: params.organizationId,
@@ -198,7 +202,7 @@ export class GatewayProviderService {
       organizationId: params.organizationId,
       id: params.id,
     });
-    if (!existing) throw new LangfuseNotFoundError("Provider credential");
+    if (!existing) throw new LangfuseNotFoundError("Provider connection");
     /** Unchanged names skip validation so pre-existing names stay editable. */
     const name =
       params.name === undefined || params.name.trim() === existing.name
@@ -217,7 +221,7 @@ export class GatewayProviderService {
       !params.credential
     ) {
       throw new InvalidRequestError(
-        "Errored provider credentials need a credential update or a successful retry",
+        "Errored provider connections need a new API key or a successful retry",
       );
     }
     const { endpoint, isEndpointChanged } = await this.resolveEditedEndpoint({
@@ -321,7 +325,7 @@ export class GatewayProviderService {
       baseURL !== undefined && baseURL !== params.existing.baseURL;
     if (isBaseURLChanged && !params.hasCredential) {
       throw new InvalidRequestError(
-        "A new credential is required when changing the base URL",
+        "A new API key is required when changing the base URL",
       );
     }
     const isEndpointChanged =
@@ -412,14 +416,27 @@ export class GatewayProviderService {
       organizationId: params.organizationId,
       id: params.id,
     });
-    if (!connection) throw new LangfuseNotFoundError("Provider credential");
+    if (!connection) throw new LangfuseNotFoundError("Provider connection");
+    const provider = connection.provider as GatewayProviderName;
+    // Vercel's catalog says whether a model is a decision model, which serves
+    // only Decisions, so only its test route depends on the catalog.
+    const catalog =
+      provider === "VERCEL"
+        ? await this.modelCatalogService.getModelCatalog({
+            organizationId: params.organizationId,
+            connectionId: connection.id,
+          })
+        : null;
     return testGatewayModel({
-      provider: connection.provider as GatewayProviderName,
+      provider,
       config: connection.config,
       baseURL: connection.baseURL,
       extraHeaders: decryptAndParseExtraHeaders(connection.extraHeaders) ?? {},
       credential: decrypt(connection.encryptedCredential),
       model: params.model,
+      reportedFormats: catalog?.success
+        ? catalog.models.find(({ id }) => id === params.model)?.apiFormats
+        : undefined,
     });
   }
 
@@ -539,7 +556,8 @@ type ConnectionEndpoint = {
   extraHeaders: Record<string, string> | null;
 };
 
-// Bedrock only reaches its regional AWS endpoints.
+// Bedrock only reaches its regional AWS endpoints, and OpenRouter, xAI and
+// Vercel their single hosted API; compatible proxies use an OpenAI connection with a base URL.
 async function parseConnectionEndpoint(
   params: ConnectionEndpoint & { provider: GatewayProvider },
 ): Promise<ConnectionEndpoint> {
@@ -547,9 +565,12 @@ async function parseConnectionEndpoint(
     params.extraHeaders && Object.keys(params.extraHeaders).length > 0
       ? params.extraHeaders
       : null;
-  if (params.provider === "BEDROCK" && (params.baseURL || extraHeaders)) {
+  if (
+    !isGatewayApiFamily(params.provider) &&
+    (params.baseURL || extraHeaders)
+  ) {
     throw new InvalidRequestError(
-      "Amazon Bedrock connections do not support a custom base URL or extra headers",
+      `${providerLabels[params.provider]} connections do not support a custom base URL or extra headers`,
     );
   }
   if (extraHeaders) assertValidExtraHeaders(extraHeaders);
@@ -627,20 +648,46 @@ async function validateGatewayCredential(
       }),
     });
     if (!result.success) {
-      throw new InvalidRequestError("Provider credential validation failed");
+      throw new InvalidRequestError("Provider connection test failed");
     }
     return { modelListingDenied: result.modelListingDenied ?? false };
   }
 
   const definition = getGatewayProviderDefinition(params.provider);
+  const check = definition.credentialCheck;
+  if ("path" in check) {
+    const result = await requestJson({
+      fetcher: getGatewayFetch({
+        baseURL: null,
+        extraHeaders: {},
+        logContext: "AI Gateway credential validation",
+      }),
+      url: new URL(`${definition.baseUrl}${check.path}`),
+      headers: { Authorization: `Bearer ${params.credential}` },
+    });
+    // Providers answer a bad key with any 4xx, so only an outage is retryable.
+    const status = result.success ? result.response.status : 503;
+    if (status === 429 || status >= 500) {
+      throw new ServiceUnavailableError(
+        "Provider connection test is unavailable, try again later",
+      );
+    }
+    if (
+      status >= 400 ||
+      (result.success && check.usable?.(result.value) === false)
+    ) {
+      throw new InvalidRequestError("Provider connection test failed");
+    }
+    return { modelListingDenied: false };
+  }
+
   const adapter =
     params.provider === "ANTHROPIC" ? LLMAdapter.Anthropic : LLMAdapter.OpenAI;
-  const model = definition.validationModel;
 
   try {
     await testModelCall({
       provider: params.provider.toLowerCase(),
-      model,
+      model: check.model,
       apiKey: {
         id: "gateway-credential-validation",
         projectId: "gateway-credential-validation",
@@ -659,7 +706,7 @@ async function validateGatewayCredential(
       timeout: 10_000,
     });
   } catch {
-    throw new InvalidRequestError("Provider credential validation failed");
+    throw new InvalidRequestError("Provider connection test failed");
   }
   return { modelListingDenied: false };
 }

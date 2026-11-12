@@ -4,4 +4,8 @@ export const providerLabels: Record<GatewayProvider, string> = {
   OPENAI: "OpenAI",
   ANTHROPIC: "Anthropic",
   BEDROCK: "Amazon Bedrock",
+  OPENROUTER: "OpenRouter",
+  XAI: "xAI",
+  VERCEL: "Vercel AI Gateway",
+  GOOGLE_AI_STUDIO: "Google AI Studio",
 };

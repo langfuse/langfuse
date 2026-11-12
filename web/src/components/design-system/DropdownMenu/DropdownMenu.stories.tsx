@@ -1,4 +1,4 @@
-import { Settings } from "@langfuse/icons";
+import { PlusIcon, Settings } from "@langfuse/icons";
 import { type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
@@ -44,6 +44,44 @@ export const Internal = meta.story({
     title: undefined,
     ariaLabel: "Session actions",
     internal: true,
+  },
+});
+
+export const WithHeaderAction = meta.story({
+  args: {
+    title: "Projects",
+    headerAction: {
+      text: "New",
+      tooltip: "New project",
+      href: "/projects/new",
+      icon: PlusIcon,
+    },
+    search: { placeholder: "Search projects..." },
+  },
+});
+
+export const TestHeaderActionKeyboard = meta.story({
+  name: "(Test) Header action keyboard navigation",
+  args: WithHeaderAction.input.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(canvas.getByRole("button", { name: "Open menu" }));
+    await expect(
+      body.getByRole("searchbox", { name: "Search projects..." }),
+    ).toHaveFocus();
+
+    await userEvent.keyboard("{ArrowDown}");
+    await userEvent.keyboard("{ArrowUp}");
+    const headerAction = body.getByRole("menuitem", { name: "New project" });
+    await waitFor(() => expect(headerAction).toHaveFocus());
+    await expect(headerAction).toHaveAttribute("href", "/projects/new");
+
+    const onNavigate = fn((event: MouseEvent) => event.preventDefault());
+    headerAction.addEventListener("click", onNavigate);
+    await userEvent.keyboard("{Enter}");
+    await expect(onNavigate).toHaveBeenCalledOnce();
+    await expect(body.queryByRole("menu", { name: "Projects" })).toBeNull();
   },
 });
 
@@ -300,6 +338,10 @@ export const TestDisabledAction = meta.story({
     const menuItem = await body.findByRole("menuitem", { name: "Edit" });
     await expect(menuItem).toHaveAttribute("aria-disabled", "true");
     await expect(menuItem).toHaveAttribute(
+      "title",
+      "You don't have permission to edit this item.",
+    );
+    await expect(within(menuItem).getByText("Edit")).toHaveAttribute(
       "title",
       "You don't have permission to edit this item.",
     );
