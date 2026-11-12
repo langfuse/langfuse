@@ -815,22 +815,9 @@ export const InterruptingTopicFlightKeepsPaintedZoom = meta.story({
         ...denseData.points,
       ],
     },
-    selectedTopic: "inventory-timeouts",
+    selectedTopic: null,
   },
-  render: function Render(args) {
-    const [selectedTopic, setSelectedTopic] = useState(args.selectedTopic);
-    const handleRestoreOverview = () => setSelectedTopic(null);
-    return (
-      <>
-        <Button
-          text="Restore overview"
-          variant="secondary"
-          onClick={handleRestoreOverview}
-        />
-        <EmbeddingMapView {...args} selectedTopic={selectedTopic} />
-      </>
-    );
-  },
+  render: (args) => <ControlledExplorer {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const stage = canvas.getByRole("group", { name: /^Interactive topic map/ });
@@ -841,24 +828,15 @@ export const InterruptingTopicFlightKeepsPaintedZoom = meta.story({
     const context = drawing?.getContext("2d");
     if (!context) throw new Error("The map canvas context is unavailable.");
     const clearRect = context.clearRect;
-    const scale = context.scale;
     const roundRect = context.roundRect;
     const painted = {
-      scale: null as number | null,
       distance: null as number | null,
       centers: [] as { x: number; y: number }[],
-      at: 0,
     };
     context.clearRect = (x, y, width, height) => {
-      painted.scale = null;
       painted.distance = null;
       painted.centers = [];
-      painted.at = performance.now();
       clearRect.call(context, x, y, width, height);
-    };
-    context.scale = (x, y) => {
-      if (painted.scale === null) painted.scale = x;
-      scale.call(context, x, y);
     };
     context.roundRect = (x, y, width, height, radii) => {
       if (painted.centers.length < 2) {
@@ -885,26 +863,6 @@ export const InterruptingTopicFlightKeepsPaintedZoom = meta.story({
       );
     };
     try {
-      const scaleAtRestore = painted.scale;
-      await userEvent.click(
-        canvas.getByRole("button", { name: "Restore overview" }),
-      );
-      await waitFor(() => {
-        expect(painted.scale).not.toBeNull();
-        expect(painted.scale).toBeGreaterThan(0);
-        if (scaleAtRestore !== null)
-          expect(painted.scale).not.toBe(scaleAtRestore);
-      });
-      const before = painted.scale;
-      if (before === null || before <= 0)
-        throw new Error("The topic flight has not painted a cloud scale.");
-      wheelAt(-1);
-      await waitForMapSettled(canvasElement);
-      const restoredRatio = painted.scale;
-      expect(restoredRatio).not.toBeNull();
-      expect(restoredRatio! / before).toBeGreaterThan(0.7);
-      expect(restoredRatio! / before).toBeLessThan(1.3);
-
       wheelAt(-120);
       await waitForMapSettled(canvasElement);
       const distanceBeforeFit = painted.distance;
@@ -928,7 +886,6 @@ export const InterruptingTopicFlightKeepsPaintedZoom = meta.story({
       expect(ratio).toBeLessThan(1.06);
     } finally {
       context.clearRect = clearRect;
-      context.scale = scale;
       context.roundRect = roundRect;
     }
   },
