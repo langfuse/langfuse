@@ -32,7 +32,6 @@ import {
   readStagedTopicSummary,
   enqueueTopicEmbeddingBatch,
   TOPIC_EMBEDDING_EXPIRED_ERROR,
-  TOPICS_TRANSCRIPT_VERSION,
   getTopicsModels,
   type TopicEmbeddingRef,
   type TopicsModels,
@@ -80,6 +79,7 @@ import {
 import { matchTopicContinuity } from "./continuity";
 import { createEventLoopYielder } from "./event-loop";
 import { TopicMetrics } from "./metrics";
+import { TOPICS_TEXT_VERSION } from "./assembledTranscript";
 import { splitTopicModelUsage } from "./summaryResult";
 import { matchedSummaries, matchRefitWindow } from "./refitFilter";
 
@@ -253,7 +253,7 @@ async function reuseSummaries(
       (row) =>
         row.summaryModel === execution.input.processingConfig.summaryModel &&
         row.transcriptId === ASSEMBLED_TRANSCRIPT_ID &&
-        row.transcriptVersion === TOPICS_TRANSCRIPT_VERSION,
+        row.transcriptVersion === TOPICS_TEXT_VERSION,
     );
     if (!reusable) continue;
     metrics.result("summary", "cached");
@@ -301,6 +301,7 @@ async function summarizePending(
     models,
     facets,
     transcript: input.transcript,
+    executionIssues: input.executionIssues,
     config: execution.input.processingConfig,
     metadata: {
       source_trace_id: traceId,
