@@ -115,7 +115,7 @@ export const SubmitsResolvedOptions = meta.story({
     );
     await userEvent.click(screen.getByRole("button", { name: "Add metadata" }));
     await userEvent.type(
-      screen.getByRole("textbox", { name: "Models" }),
+      screen.getByRole("combobox", { name: "Models" }),
       "openai:*, -*mini*{Enter}",
     );
     await userEvent.click(
@@ -144,10 +144,14 @@ export const AllowedModelsPreview = meta.story({
     await userEvent.click(
       await screen.findByRole("button", { name: "More options" }),
     );
-    const modelsInput = screen.getByRole("textbox", { name: "Models" });
+    const modelsInput = screen.getByRole("combobox", { name: "Models" });
 
     expect(screen.getByText("All enabled models")).toBeVisible();
-    expect(screen.getByRole("button", { name: "View 7 more" })).toBeVisible();
+    expect(
+      screen.getByText(
+        "Allowed models: all enabled models, including ones added later",
+      ),
+    ).toBeVisible();
 
     await userEvent.type(modelsInput, "openai:*{Enter}-*preview*{Enter}");
     await userEvent.click(screen.getByRole("button", { name: "View 3 more" }));
@@ -162,5 +166,43 @@ export const AllowedModelsPreview = meta.story({
     expect(
       screen.getByText("No enabled models match these patterns."),
     ).toBeVisible();
+  },
+});
+
+export const SuggestsModelPatterns = meta.story({
+  name: "(Test) Suggests connections, models and the typed pattern",
+  play: async () => {
+    await userEvent.click(
+      await screen.findByRole("button", { name: "More options" }),
+    );
+    const modelsInput = screen.getByRole("combobox", { name: "Models" });
+    await userEvent.click(modelsInput);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("option", { name: "All enabled models" }),
+      ).toBeVisible(),
+    );
+    expect(screen.getByRole("option", { name: "anthropic:*" })).toBeVisible();
+
+    await userEvent.type(modelsInput, "gpt-5");
+
+    expect(
+      screen.getByRole("option", { name: "openai:gpt-5-mini" }),
+    ).toBeVisible();
+    expect(screen.getByRole("option", { name: "*gpt-5*" })).toBeVisible();
+    expect(screen.queryByRole("option", { name: "anthropic:*" })).toBeNull();
+
+    await userEvent.click(
+      screen.getByRole("option", { name: "openai:gpt-5-mini" }),
+    );
+
+    expect(
+      screen.getByRole("button", { name: /remove openai:gpt-5-mini/i }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Remove All enabled models" }),
+    ).toBeNull();
+    expect(modelsInput).toHaveValue("");
   },
 });
