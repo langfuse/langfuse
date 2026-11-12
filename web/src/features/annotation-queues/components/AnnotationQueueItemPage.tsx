@@ -260,7 +260,7 @@ function AnnotationQueueRunContent({
   const [showShortcuts, setShowShortcuts] = useState(false);
 
   useEffect(() => {
-    if (isSingleItem) return; // single-item view has no queue navigation
+    if (isSingleItem) return; // process-queue shortcuts stay on the run controls
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
       if (!hasAccess) return;

@@ -1,6 +1,8 @@
+import { useRouter } from "next/router";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { AnnotationQueueItemPage } from "@/src/features/annotation-queues/components/AnnotationQueueItemPage";
+import { AnnotationQueueItemNav } from "@/src/features/annotation-queues/components/AnnotationQueueItemNav";
 import { api } from "@/src/utils/api";
 import Page from "@/src/components/layouts/Page";
 
@@ -13,6 +15,7 @@ export const AnnotationQueuesItem = ({
   projectId: string;
   itemId?: string;
 }) => {
+  const router = useRouter();
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "annotationQueues:read",
@@ -53,6 +56,14 @@ export const AnnotationQueuesItem = ({
             href: `/project/${projectId}/annotation-queues/${annotationQueueId}`,
           },
         ],
+        actionButtonsRight:
+          itemId && router.query.singleItem === "true" ? (
+            <AnnotationQueueItemNav
+              projectId={projectId}
+              queueId={annotationQueueId}
+              itemId={itemId}
+            />
+          ) : undefined,
       }}
     >
       <AnnotationQueueItemPage
