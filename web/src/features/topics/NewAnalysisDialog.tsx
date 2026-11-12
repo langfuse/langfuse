@@ -105,6 +105,10 @@ export function NewAnalysisDialog({
     : suggestTopicAnalysisLabel(filter);
   const name = editedName ?? suggestedName;
 
+  const startRuleSetup = api.topics.startRuleSetup.useMutation({
+    onSuccess: () => utils.topics.ruleSetupStatus.invalidate({ projectId }),
+  });
+
   async function submit(values: NewScanForm) {
     const label = values.name?.trim() || suggestedName;
     if (values.live) {
@@ -115,6 +119,11 @@ export function NewAnalysisDialog({
         facetIds: values.facetIds,
         sampling: values.samplingPercent / 100,
       });
+      // The rule exists either way: the error toast reports a failed start,
+      // and the page then shows the rule's building state.
+      await startRuleSetup
+        .mutateAsync({ projectId, ruleId: rule.id })
+        .catch(() => null);
       closeDialog();
       onRuleCreated(rule.id);
       return;
@@ -168,7 +177,9 @@ export function NewAnalysisDialog({
       }
       preview={preview.data ?? null}
       canStart={canStart}
-      starting={start.isPending || createRule.isPending}
+      starting={
+        start.isPending || createRule.isPending || startRuleSetup.isPending
+      }
       errors={[
         filterError && filter.length ? filterError : null,
         ...[live ? null : preview.error, start.error, createRule.error].map(

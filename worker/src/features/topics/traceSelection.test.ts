@@ -1,6 +1,11 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
-import { createEvent, createEventsCh } from "@langfuse/shared/src/server";
+import {
+  createEvent,
+  createEventsCh,
+  getTopicSetupTraceBounds,
+  getTopicSetupTraceIds,
+} from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   loadTopicTranscript,
@@ -274,5 +279,137 @@ describe("Topics trace selection", () => {
     });
     expect(Number(preview[0].matchedTraceCount)).toBe(2);
     expect(ids).toEqual([{ id: preview[0].id }]);
+  });
+});
+
+describe("Topics setup backfill selection", () => {
+  const DAY_MS = 86_400_000;
+  const summary = (
+    projectId: string,
+    traceId: string,
+    facetId: string,
+    unitStartTime: Date,
+    state: "complete" | "not_applicable",
+    embeddingModel = "embed",
+  ) => ({
+    projectId,
+    facetId,
+    facetVersion: 1,
+    traceId,
+    sessionId: null,
+    triggerType: "manual_poc" as const,
+    environment: "test",
+    traceName: "agent-turn",
+    unitStartTime: unitStartTime.toISOString(),
+    state,
+    summary: state === "complete" ? "summary" : null,
+    embedding: state === "complete" ? [1, 0] : [],
+    transcriptId: "transcript",
+    transcriptVersion: "v1",
+    summaryModel: "summary",
+    embeddingModel,
+    providedUsageDetails: {},
+    usageDetails: {},
+    providedCostDetails: {},
+    costDetails: {},
+    processedAt: new Date().toISOString(),
+    metadata: {},
+  });
+  const select = (
+    projectId: string,
+    now: Date,
+    input: { limit: number; seed?: string },
+  ) =>
+    getTopicSetupTraceIds({
+      projectId,
+      idleMs: 60_000,
+      now,
+      days: 7,
+      sampling: 1,
+      seed: "rule",
+      summarized: {
+        facets: [
+          { facetId: "intent", version: 1 },
+          { facetId: "outcome", version: 1 },
+        ],
+        embeddingConfig: { embeddingModel: "embed", embeddingDimensions: 2 },
+      },
+      ...input,
+    });
+
+  it("selects every unsummarized finished trace, and a repeatable sample beyond the limit", async () => {
+    const projectId = randomUUID();
+    const now = new Date();
+    const start = new Date(now.getTime() - 2 * 60 * 60_000);
+    const fresh = Array.from({ length: 6 }, (_, index) => `fresh-${index}`);
+    await createEventsCh(
+      [
+        ...["summarized", "one-facet", "other-embedding", ...fresh].map(
+          (traceId) => [traceId, start, start],
+        ),
+        // Still active within the idle wait, and older than the window.
+        ["active", start, new Date(now.getTime() - 10_000)],
+        ["old", new Date(now.getTime() - 8 * DAY_MS), start],
+      ].map(([traceId, startTime, eventTs]) =>
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId as string,
+          start_time: startTime as Date,
+          event_ts: eventTs as Date,
+          environment: "test",
+        }),
+      ),
+    );
+    await writeTopicSummaries([
+      summary(projectId, "summarized", "intent", start, "complete"),
+      summary(projectId, "summarized", "outcome", start, "not_applicable"),
+      summary(projectId, "one-facet", "intent", start, "complete"),
+      summary(projectId, "other-embedding", "intent", start, "complete", "old"),
+      summary(projectId, "other-embedding", "outcome", start, "complete"),
+    ]);
+
+    // Below the limit, every match: a missing facet or embedding counts as unsummarized.
+    expect((await select(projectId, now, { limit: 500 })).toSorted()).toEqual(
+      ["one-facet", "other-embedding", ...fresh].toSorted(),
+    );
+    // Beyond it, a sample of the limit's size that the same seed repeats.
+    const sample = await select(projectId, now, { limit: 3 });
+    expect(sample).toHaveLength(3);
+    expect(await select(projectId, now, { limit: 3 })).toEqual(sample);
+  });
+
+  it("reads each selected trace's whole extent and bytes for trace dispatch", async () => {
+    const projectId = randomUUID();
+    const now = new Date();
+    const windowStart = new Date(now.getTime() - 7 * DAY_MS);
+    // The first span predates the window by a day; the trace still counts as one.
+    const starts = [
+      new Date(windowStart.getTime() - DAY_MS),
+      new Date(now.getTime() - 2 * 60 * 60_000),
+    ];
+    await createEventsCh(
+      starts.map((startTime) =>
+        createEvent({
+          project_id: projectId,
+          trace_id: "long",
+          start_time: startTime,
+          event_ts: startTime,
+          environment: "test",
+        }),
+      ),
+    );
+
+    const [bounds] = await getTopicSetupTraceBounds({
+      projectId,
+      traceIds: ["long", "missing"],
+      from: windowStart,
+    });
+
+    expect(bounds).toMatchObject({
+      traceId: "long",
+      minStart: starts[0].getTime(),
+      maxStart: starts[1].getTime(),
+    });
+    expect(bounds.serializedEventBytes).toBeGreaterThan(0);
   });
 });
