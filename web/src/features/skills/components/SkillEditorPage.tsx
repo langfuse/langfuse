@@ -1,6 +1,7 @@
 /* eslint-disable @repo/component-file-structure */
 import { type ComponentProps, useMemo, useState } from "react";
 import { useRouter } from "next/router";
+import { TRPCClientError } from "@trpc/client";
 import { useStore } from "zustand";
 import Page from "@/src/components/layouts/Page";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -18,8 +19,11 @@ import {
   type SkillEditorStore,
 } from "@/src/features/skills/components/skillEditorStore";
 import {
+  clearSkillDraft,
   createSkillDraft,
+  readSkillDraft,
   restoreSkillDraft,
+  resumeSkillDraft,
   skillDraftStorageKey,
   type SkillDraft,
 } from "@/src/features/skills/components/skillDraftStorage";
@@ -136,6 +140,11 @@ export function ExistingSkillPage() {
   );
 }
 
+/**
+ * Resumes a stored draft only after loading its base version, so the draft
+ * shows that version's current labels and tags. A draft whose base version
+ * was deleted is dropped.
+ */
 function ExistingSkillSession({
   projectId,
   skillName,
@@ -143,11 +152,70 @@ function ExistingSkillSession({
   projectId: string;
   skillName: string;
 }) {
-  const router = useRouter();
   const draftKey = skillDraftStorageKey(projectId, skillName);
-  const [draft, setDraft] = useState<SkillDraft | null>(() =>
-    projectId && skillName ? restoreSkillDraft(draftKey) : null,
+  const [storedDraft] = useState(() =>
+    projectId && skillName ? readSkillDraft(draftKey) : null,
   );
+  const baseVersion = storedDraft?.baseVersion ?? null;
+  const storedDraftBase = api.skills.byName.useQuery(
+    { projectId, name: skillName, version: baseVersion ?? 0 },
+    { enabled: baseVersion !== null, refetchOnWindowFocus: false },
+  );
+
+  if (baseVersion !== null && storedDraftBase.isPending) {
+    return (
+      <Page
+        headerProps={{
+          title: skillName,
+          breadcrumb: [
+            { name: "Skills", href: `/project/${projectId}/skills` },
+            { name: "Editor" },
+          ],
+        }}
+      >
+        <div className="grid gap-3 p-3">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-[600px] w-full" />
+        </div>
+      </Page>
+    );
+  }
+
+  return (
+    <ExistingSkillEditorSession
+      projectId={projectId}
+      skillName={skillName}
+      draftKey={draftKey}
+      createInitialDraft={() => {
+        if (!storedDraft) return null;
+        if (storedDraftBase.data) {
+          return resumeSkillDraft(draftKey, storedDraft, {
+            labels: storedDraftBase.data.labels,
+            tags: storedDraftBase.data.tags,
+          });
+        }
+        if (storedDraftBase.error?.data?.code === "NOT_FOUND") {
+          clearSkillDraft(draftKey);
+        }
+        return null;
+      }}
+    />
+  );
+}
+
+function ExistingSkillEditorSession({
+  projectId,
+  skillName,
+  draftKey,
+  createInitialDraft,
+}: {
+  projectId: string;
+  skillName: string;
+  draftKey: string;
+  createInitialDraft: () => SkillDraft | null;
+}) {
+  const router = useRouter();
+  const [draft, setDraft] = useState<SkillDraft | null>(createInitialDraft);
   const draftStore = draft?.store ?? null;
   // Opening a skill without a version or draft in the URL resumes its stored
   // draft at the version it is based on.
@@ -265,6 +333,20 @@ function ExistingSkillSession({
             );
           selected.store.getState().actions.syncTags(saved.tags);
         } catch (error) {
+          if (
+            error instanceof TRPCClientError &&
+            error.data?.code === "NOT_FOUND"
+          ) {
+            draft.discard();
+            setDraft(null);
+            showErrorToast(
+              "Draft discarded",
+              `Version ${baseVersion} this draft was based on no longer exists.`,
+              classifyTrpcToastError(error, "skill_draft.resume"),
+              "WARNING",
+            );
+            return;
+          }
           showErrorToast(
             "Could not resume draft",
             error instanceof Error ? error.message : "Please try again.",
@@ -357,6 +439,7 @@ function ExistingSkillSession({
           },
         }}
         onCreated={async (created) => {
+          draft?.discard();
           await Promise.all([
             utils.skills.all.invalidate(),
             utils.skills.filterOptions.invalidate(),
@@ -371,7 +454,6 @@ function ExistingSkillSession({
               version: created.version,
             },
           });
-          draft?.discard();
           setDraft(null);
         }}
       />

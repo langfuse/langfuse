@@ -35,7 +35,7 @@ const StoredSkillDraftSchema = z.object({
   commitMessage: z.string(),
 });
 
-type StoredSkillDraft = z.infer<typeof StoredSkillDraftSchema>;
+export type StoredSkillDraft = z.infer<typeof StoredSkillDraftSchema>;
 
 export type SkillDraft = {
   store: SkillEditorStore;
@@ -52,18 +52,33 @@ export function skillDraftStorageKey(
 
 /** Restores the stored draft for `key`, or returns null when there is none. */
 export function restoreSkillDraft(key: string): SkillDraft | null {
-  const stored = readStoredDraft(key);
-  if (!stored) return null;
+  const stored = readSkillDraft(key);
+  return stored ? resumeSkillDraft(key, stored) : null;
+}
+
+/**
+ * Resumes a stored draft. Pass `metadata` with the base version's current
+ * labels and tags so the draft does not show values that changed since it
+ * was stored.
+ */
+export function resumeSkillDraft(
+  key: string,
+  stored: StoredSkillDraft,
+  metadata?: { labels: string[]; tags: string[] },
+): SkillDraft {
   const { deletedFiles, folders, activePath, commitMessage, ...initialValue } =
     stored;
   return persistSkillDraft(
     key,
-    createSkillEditorStore(initialValue, {
-      deletedFiles,
-      folders,
-      activePath,
-      commitMessage,
-    }),
+    createSkillEditorStore(
+      { ...initialValue, ...metadata },
+      {
+        deletedFiles,
+        folders,
+        activePath,
+        commitMessage,
+      },
+    ),
   );
 }
 
@@ -95,7 +110,9 @@ function persistSkillDraft(key: string, store: SkillEditorStore): SkillDraft {
     try {
       window.sessionStorage.setItem(key, JSON.stringify(draft));
     } catch {
-      // Storage can be full or unavailable; the draft stays in memory.
+      // Storage can be full or unavailable; the draft stays in memory, and an
+      // older stored copy must not be restored in its place.
+      clearSkillDraft(key);
     }
   };
   const unsubscribe = store.subscribe(() => {
@@ -107,12 +124,13 @@ function persistSkillDraft(key: string, store: SkillEditorStore): SkillDraft {
     discard: () => {
       unsubscribe();
       clearTimeout(timeout);
-      removeStoredDraft(key);
+      clearSkillDraft(key);
     },
   };
 }
 
-function readStoredDraft(key: string): StoredSkillDraft | null {
+/** Reads the stored draft for `key`; an invalid entry is removed. */
+export function readSkillDraft(key: string): StoredSkillDraft | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = window.sessionStorage.getItem(key);
@@ -122,11 +140,11 @@ function readStoredDraft(key: string): StoredSkillDraft | null {
   } catch {
     // Unreadable storage or malformed JSON is treated like a missing draft.
   }
-  removeStoredDraft(key);
+  clearSkillDraft(key);
   return null;
 }
 
-function removeStoredDraft(key: string) {
+export function clearSkillDraft(key: string) {
   try {
     window.sessionStorage.removeItem(key);
   } catch {
