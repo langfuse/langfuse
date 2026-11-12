@@ -1978,6 +1978,10 @@ const LoadedSessionEventsPage: React.FC<{
                                       openSessionViewDialog({ type: "save" });
                                     }
                                   : undefined,
+                                onEditUnsaved: () => {
+                                  selectSessionView("unsaved");
+                                  openViewAction({ action: "customize" });
+                                },
                                 onRemoveUnsaved: viewSelection.removeDraft,
                                 hasUnsavedView:
                                   sessionViewId === "unsaved" ||

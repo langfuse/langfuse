@@ -45,6 +45,7 @@ const defaultProps = {
     onManageViews: vi.fn(),
     onUnpin: vi.fn(),
     onRemoveUnsaved: vi.fn(),
+    onEditUnsaved: vi.fn(),
     onValueChange: vi.fn(),
     onCreate: vi.fn(),
     canManageViews: true,

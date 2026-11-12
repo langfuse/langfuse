@@ -14,6 +14,7 @@ const meta = preview.meta({
     onUnpin: fn(),
     onRemoveUnsaved: fn(),
     onSaveUnsaved: fn(),
+    onEditUnsaved: fn(),
     onValueChange: fn(),
     onCreate: fn(),
     onViewAction: fn(),

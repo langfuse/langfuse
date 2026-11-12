@@ -12,6 +12,7 @@ export function SessionViewTabs({
   onUnpin,
   onRemoveUnsaved,
   onSaveUnsaved,
+  onEditUnsaved,
   onValueChange,
   onCreate,
   canManageViews,
@@ -32,6 +33,7 @@ export function SessionViewTabs({
   onUnpin: (id: string) => void;
   onRemoveUnsaved: () => void;
   onSaveUnsaved?: () => void;
+  onEditUnsaved: () => void;
   onValueChange: (value: string) => void;
   onCreate: () => void;
   canManageViews: boolean;
@@ -158,6 +160,13 @@ export function SessionViewTabs({
                             },
                           ]
                         : []),
+                      {
+                        type: "item" as const,
+                        id: "edit",
+                        title: "Edit",
+                        icon: Pencil,
+                        onClick: onEditUnsaved,
+                      },
                       {
                         type: "item" as const,
                         id: "discard",
