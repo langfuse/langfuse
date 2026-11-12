@@ -19,17 +19,15 @@ import {
   type SkillEditorStore,
 } from "@/src/features/skills/components/skillEditorStore";
 import {
-  clearSkillDraft,
   createSkillDraft,
-  readSkillDraft,
   restoreSkillDraft,
-  resumeSkillDraft,
   skillDraftStorageKey,
   type SkillDraft,
 } from "@/src/features/skills/components/skillDraftStorage";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { useStoredSkillDraft } from "@/src/features/skills/hooks/useStoredSkillDraft";
 import { parseSkillFrontmatterMetadata } from "@/src/features/skills/utils/parseSkillFrontmatterMetadata";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
@@ -50,7 +48,8 @@ export function NewSkillPage() {
   const draftKey = skillDraftStorageKey(projectId ?? "", null);
   const [storedDraft] = useState(() => restoreSkillDraft(draftKey));
   const [draft, setDraft] = useState(
-    () => storedDraft ?? createSkillDraft(draftKey, NEW_SKILL_INITIAL_VALUE),
+    () =>
+      storedDraft ?? createSkillDraft(draftKey, NEW_SKILL_INITIAL_VALUE, null),
   );
   const store = draft.store;
   const skillMarkdown = useStore(
@@ -66,7 +65,7 @@ export function NewSkillPage() {
           initialState={() => true}
           onDismiss={() => {
             storedDraft.discard();
-            setDraft(createSkillDraft(draftKey, NEW_SKILL_INITIAL_VALUE));
+            setDraft(createSkillDraft(draftKey, NEW_SKILL_INITIAL_VALUE, null));
           }}
           renderDialog={({ closeDialog }) => (
             <Dialog
@@ -141,11 +140,6 @@ export function ExistingSkillPage() {
   );
 }
 
-/**
- * Resumes a stored draft only after loading its base version, so the draft
- * shows that version's current labels and tags. A draft whose base version
- * was deleted is dropped.
- */
 function ExistingSkillSession({
   projectId,
   skillName,
@@ -154,14 +148,7 @@ function ExistingSkillSession({
   skillName: string;
 }) {
   const draftKey = skillDraftStorageKey(projectId, skillName);
-  const [storedDraft, setStoredDraft] = useState(() =>
-    projectId && skillName ? readSkillDraft(draftKey) : null,
-  );
-  const baseVersion = storedDraft?.baseVersion ?? null;
-  const storedDraftBase = api.skills.byName.useQuery(
-    { projectId, name: skillName, version: baseVersion ?? 0 },
-    { enabled: baseVersion !== null, refetchOnWindowFocus: false },
-  );
+  const storedDraft = useStoredSkillDraft({ projectId, skillName, draftKey });
   const headerProps: ComponentProps<typeof Page>["headerProps"] = {
     title: skillName,
     breadcrumb: [
@@ -170,7 +157,7 @@ function ExistingSkillSession({
     ],
   };
 
-  if (baseVersion !== null && storedDraftBase.isPending) {
+  if (storedDraft.status === "loading") {
     return (
       <Page headerProps={headerProps}>
         <div className="grid gap-3 p-3">
@@ -181,13 +168,7 @@ function ExistingSkillSession({
     );
   }
 
-  // Keep the stored draft untouched until it loads or is discarded, so a
-  // new draft cannot overwrite it under the same key.
-  if (
-    baseVersion !== null &&
-    storedDraftBase.isError &&
-    storedDraftBase.error.data?.code !== "NOT_FOUND"
-  ) {
+  if (storedDraft.status === "error") {
     return (
       <Page headerProps={headerProps}>
         <div className="grid justify-items-start gap-3 p-6 text-sm">
@@ -195,16 +176,13 @@ function ExistingSkillSession({
           <div className="flex gap-2">
             <Button
               text="Retry"
-              loading={storedDraftBase.isFetching}
-              onClick={() => storedDraftBase.refetch()}
+              loading={storedDraft.isRetrying}
+              onClick={storedDraft.retry}
             />
             <Button
               text="Discard draft"
               variant="outline"
-              onClick={() => {
-                clearSkillDraft(draftKey);
-                setStoredDraft(null);
-              }}
+              onClick={storedDraft.discard}
             />
           </div>
         </div>
@@ -217,19 +195,7 @@ function ExistingSkillSession({
       projectId={projectId}
       skillName={skillName}
       draftKey={draftKey}
-      createInitialDraft={() => {
-        if (!storedDraft) return null;
-        if (storedDraftBase.data) {
-          return resumeSkillDraft(draftKey, storedDraft, {
-            labels: storedDraftBase.data.labels,
-            tags: storedDraftBase.data.tags,
-          });
-        }
-        if (storedDraftBase.error?.data?.code === "NOT_FOUND") {
-          clearSkillDraft(draftKey);
-        }
-        return null;
-      }}
+      createInitialDraft={storedDraft.createInitialDraft}
     />
   );
 }
@@ -348,15 +314,34 @@ function ExistingSkillEditorSession({
       })),
     });
     async function selectDraft() {
-      const selected = draft ?? createSkillDraft(draftKey, initialValue);
+      const selected =
+        draft ?? createSkillDraft(draftKey, initialValue, skill.data!.id);
       const baseVersion = selected.store.getState().baseVersion;
       if (draft && baseVersion !== null) {
+        const discardMissingBase = () => {
+          draft.discard();
+          setDraft(null);
+          showErrorToast(
+            "Draft discarded",
+            `Version ${baseVersion} this draft was based on no longer exists.`,
+            {
+              errorOrigin: "frontend",
+              errorCategory: "product_state",
+              operation: "skill_draft.resume",
+            },
+            "WARNING",
+          );
+        };
         try {
           const saved = await utils.skills.byName.fetch({
             projectId,
             name: skillName,
             version: baseVersion,
           });
+          if (saved.id !== draft.baseVersionId) {
+            discardMissingBase();
+            return;
+          }
           selected.store
             .getState()
             .actions.syncLabels(
@@ -368,14 +353,7 @@ function ExistingSkillEditorSession({
             error instanceof TRPCClientError &&
             error.data?.code === "NOT_FOUND"
           ) {
-            draft.discard();
-            setDraft(null);
-            showErrorToast(
-              "Draft discarded",
-              `Version ${baseVersion} this draft was based on no longer exists.`,
-              classifyTrpcToastError(error, "skill_draft.resume"),
-              "WARNING",
-            );
+            discardMissingBase();
             return;
           }
           showErrorToast(

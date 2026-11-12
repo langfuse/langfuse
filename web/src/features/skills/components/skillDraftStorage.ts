@@ -23,9 +23,11 @@ const SkillDraftFileSchema = z.object({
 });
 
 const StoredSkillDraftSchema = z.object({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   name: z.string(),
   baseVersion: z.number().int().nullable(),
+  /** Row id of the base version, so a recreated version with the same number is not mistaken for it. */
+  baseVersionId: z.string().nullable(),
   files: z.array(SkillDraftFileSchema).min(1),
   deletedFiles: z.array(SkillDraftFileSchema),
   folders: z.array(z.string()),
@@ -39,6 +41,7 @@ export type StoredSkillDraft = z.infer<typeof StoredSkillDraftSchema>;
 
 export type SkillDraft = {
   store: SkillEditorStore;
+  baseVersionId: string | null;
   /** Stops saving and removes the stored draft. */
   discard: () => void;
 };
@@ -66,10 +69,17 @@ export function resumeSkillDraft(
   stored: StoredSkillDraft,
   metadata?: { labels: string[]; tags: string[] },
 ): SkillDraft {
-  const { deletedFiles, folders, activePath, commitMessage, ...initialValue } =
-    stored;
+  const {
+    deletedFiles,
+    folders,
+    activePath,
+    commitMessage,
+    baseVersionId,
+    ...initialValue
+  } = stored;
   return persistSkillDraft(
     key,
+    baseVersionId,
     createSkillEditorStore(
       { ...initialValue, ...metadata },
       {
@@ -85,20 +95,30 @@ export function resumeSkillDraft(
 export function createSkillDraft(
   key: string,
   initialValue: SkillEditorInitialValue,
+  baseVersionId: string | null,
 ): SkillDraft {
-  return persistSkillDraft(key, createSkillEditorStore(initialValue));
+  return persistSkillDraft(
+    key,
+    baseVersionId,
+    createSkillEditorStore(initialValue),
+  );
 }
 
-function persistSkillDraft(key: string, store: SkillEditorStore): SkillDraft {
+function persistSkillDraft(
+  key: string,
+  baseVersionId: string | null,
+  store: SkillEditorStore,
+): SkillDraft {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   const save = () => {
     timeout = undefined;
     const state = store.getState();
     if (!state.dirty) return;
     const draft: StoredSkillDraft = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: state.name,
       baseVersion: state.baseVersion,
+      baseVersionId,
       files: Object.values(state.files),
       deletedFiles: Object.values(state.deletedFiles),
       folders: state.folders,
@@ -121,6 +141,7 @@ function persistSkillDraft(key: string, store: SkillEditorStore): SkillDraft {
   });
   return {
     store,
+    baseVersionId,
     discard: () => {
       unsubscribe();
       clearTimeout(timeout);
