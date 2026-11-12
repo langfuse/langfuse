@@ -6,7 +6,10 @@ import {
   removeToken,
   tidyQueryText,
 } from "@/src/features/search-bar/lib/edits";
-import { validateQuery } from "@/src/features/search-bar/lib/validate";
+import {
+  MAX_QUERY_LENGTH,
+  validateQuery,
+} from "@/src/features/search-bar/lib/validate";
 
 /** Structural copy without spans, for deep-equal comparisons. */
 function strip(node: ASTNode | null): unknown {
@@ -503,8 +506,15 @@ describe("validateQuery", () => {
   });
 
   it("caps query length", () => {
-    const long = `name:${"a".repeat(2100)}`;
-    expect(validateQuery(long).valid).toBe(false);
+    const boundary = `name:${"a".repeat(MAX_QUERY_LENGTH - "name:".length)}`;
+    expect(validateQuery(boundary).valid).toBe(true);
+    const oversized = validateQuery(`${boundary}a`);
+    expect(oversized.valid).toBe(false);
+    expect(
+      oversized.diagnostics.some((diagnostic) =>
+        diagnostic.message.startsWith("Query is too long"),
+      ),
+    ).toBe(true);
   });
 
   it("flags a bare comma in a group with a single diagnostic, not a doubled one", () => {
