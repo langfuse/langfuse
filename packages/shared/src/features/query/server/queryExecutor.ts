@@ -7,6 +7,8 @@ import { QueryBuilder } from "./queryBuilder";
 import { type QueryType, type ViewVersion } from "../types";
 import { env } from "../../../env";
 
+const MAX_QUERY_RESULT_BYTES = 10 * 1024 * 1024;
+
 export type PreparedQuery = {
   compiledQuery: string;
   parameters: Record<string, unknown>;
@@ -56,6 +58,8 @@ export async function prepareExecuteQuery(opts: {
 
   const clickhouseSettings: Record<string, string> = {
     date_time_output_format: "iso",
+    max_result_bytes: String(MAX_QUERY_RESULT_BYTES),
+    result_overflow_mode: "throw",
     ...(env.CLICKHOUSE_USE_QUERY_CONDITION_CACHE === "true"
       ? { use_query_condition_cache: "true" }
       : {}),
