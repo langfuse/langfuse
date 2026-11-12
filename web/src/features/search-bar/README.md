@@ -129,21 +129,9 @@ follow-up.)
 
 ## Compact value groups
 
-Validated filters with more than two values carry a compact display projection:
-the field, target, matching relationship, first value, and remaining count.
-Canonical token text and source spans remain complete. `QueryInput` treats each
-compact token as one editing atom; its selection and clipboard mapping use the
-complete expression. Invalid or incomplete filters remain ordinary editable text.
+Validated filters with more than two values carry a compact display projection: the field, target, matching relationship, first value, and remaining count. Canonical token text and source spans remain complete. `QueryInput` treats each compact token as one editing atom; its selection and clipboard mapping use the complete expression. Invalid or incomplete filters remain ordinary editable text.
 
-`SearchComposer` opens `FilterValuesEditor` for finding, removing, adding, and
-copying values. Changes are a local draft until Apply; shrinking a text-search
-list to one preserves exact matching through `replaceFilterValues`.
-`QueryExpressionEditor` provides bounded full-query editing with the same
-validation context as the bar. Queries may contain up to 65,536 characters so
-large sidebar selections remain representable. URL-backed search phrases retain
-a separate 2,048-character limit; structured filters use the existing bounded-URL
-storage fallback.
-
+`SearchComposer` opens `FilterValuesEditor` for finding, removing, adding, and copying values. Changes are a local draft until Apply; shrinking a text-search list to one preserves exact matching through `replaceFilterValues`. `QueryExpressionEditor` provides bounded full-query editing with the same validation context as the bar. Queries may contain up to 65,536 characters so large sidebar selections remain representable. URL-backed search phrases retain a separate 2,048-character limit; structured filters use the existing bounded-URL storage fallback.
 ## Data flow (one source of truth, one direction)
 
 The table's URL filter state — `FilterState` (the `filter` param, owned by the

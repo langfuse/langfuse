@@ -19,6 +19,27 @@ import {
   RULE_SAMPLE_FIELD_REGISTRY,
 } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 import { parseGeneratedFilters } from "@/src/features/search-bar/server/parseFilterCompletion";
+import { searchBarRouter } from "@/src/features/search-bar/server/router";
+import { MAX_QUERY_LENGTH } from "@/src/features/search-bar/lib/validate";
+import { z } from "zod";
+
+describe("generateFilter input", () => {
+  it("accepts the complete editor query budget and rejects larger context", () => {
+    const schema = searchBarRouter.generateFilter._def.inputs[0];
+    if (!(schema instanceof z.ZodObject))
+      throw new Error("Expected the generation input schema");
+    const input = {
+      projectId: "project",
+      prompt: "Refine the existing filters",
+      currentQuery: `name:${"a".repeat(MAX_QUERY_LENGTH - "name:".length)}`,
+    };
+    expect(schema.safeParse(input).success).toBe(true);
+    expect(
+      schema.safeParse({ ...input, currentQuery: `${input.currentQuery}a` })
+        .success,
+    ).toBe(false);
+  });
+});
 
 // A representative `singleFilter` for the FilterState `type` the prompt tells
 // the model to emit for this field. Used to assert the prompt's per-field

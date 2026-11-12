@@ -65,6 +65,7 @@ import {
   withFieldOptions,
   type FieldRegistry,
 } from "../lib/fields";
+import { MAX_QUERY_LENGTH } from "../lib/validate";
 
 // Caps shared with `observedScoreNamesFromOptions` (the client-side builder),
 // which sends a set as undefined instead of ever exceeding them.
@@ -105,7 +106,7 @@ const GenerateFilterInput = z.object({
   prompt: z.string().min(1).max(2048),
   registryId: z.enum(REGISTRY_IDS).default("events"),
   /** Existing bar query text, so the model refines the current filters. */
-  currentQuery: z.string().max(4096).optional(),
+  currentQuery: z.string().max(MAX_QUERY_LENGTH).optional(),
   /** Project data context (observed values, metadata keys, result count) built
    *  on the client from already-loaded filterOptions + visible rows. */
   dataContext: z.string().max(16000).optional(),

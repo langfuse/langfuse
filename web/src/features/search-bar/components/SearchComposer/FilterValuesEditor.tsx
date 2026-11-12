@@ -56,6 +56,10 @@ export function FilterValuesEditor({
   const additions = additionalValues
     .split(/\r?\n/)
     .filter((value) => value.length > 0);
+  const emptyStateMessage =
+    values.length === 0
+      ? "Applying will remove this filter."
+      : "No matching values.";
 
   if (expandedQuery !== null)
     return (
@@ -145,9 +149,7 @@ export function FilterValuesEditor({
             </ul>
             {matching.length === 0 ? (
               <p className="text-muted-foreground px-3 py-4 text-sm">
-                {values.length === 0
-                  ? "Applying will remove this filter."
-                  : "No matching values."}
+                {emptyStateMessage}
               </p>
             ) : null}
             {matching.length > visibleCount ? (
