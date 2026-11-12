@@ -101,10 +101,7 @@ export function ProviderDialogController({
     saveError && isGatewayConnectionNameError(saveError.message)
       ? saveError.message
       : null;
-  const isError = test.isError || (Boolean(saveError) && !serverNameError);
-  const errorTitle = test.isError
-    ? "Connection test failed"
-    : "Connection could not be saved";
+  const isSaveError = Boolean(saveError) && !serverNameError;
 
   /** Skips the live check after saving, as the refetched list already holds the saved name. */
   const getNameError = (selectedConnection: GatewayConnection | null) =>
@@ -369,21 +366,16 @@ export function ProviderDialogController({
                   </Alert.Description>
                 </Alert>
               ) : null}
-              {isError ? (
+              {isSaveError ? (
                 <Alert variant="destructive">
-                  <Alert.Title>{errorTitle}</Alert.Title>
+                  <Alert.Title>Connection could not be saved</Alert.Title>
                   <Alert.Description>
                     {/* Base URL validation and provider errors can echo the configured host. */}
-                    <span className="ph-no-capture">
-                      {test.error?.message ??
-                        create.error?.message ??
-                        update.error?.message ??
-                        "The connection could not be saved or tested. Check the key and try again."}
-                    </span>
+                    <span className="ph-no-capture">{saveError?.message}</span>
                   </Alert.Description>
                 </Alert>
               ) : null}
-              {test.data?.modelListingDenied && !isError ? (
+              {test.data?.modelListingDenied && !isSaveError ? (
                 <ModelListingDeniedAlert provider={dialogProvider} />
               ) : null}
             </DialogBody>

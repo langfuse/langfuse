@@ -27,11 +27,18 @@ export function ConnectionTestStatus({ status }: ConnectionTestStatusProps) {
     <span
       role="status"
       className={cn(
-        "order-last mb-2 flex items-center gap-2 self-center text-sm sm:order-none sm:mr-auto sm:mb-0",
+        "order-last mb-2 self-center text-sm sm:order-none sm:mr-auto sm:mb-0",
         display.text,
       )}
     >
-      <span className={cn("size-2 rounded-full", display.dot)} aria-hidden />
+      {/* Inline `align-middle` centres the dot on the x-height, not the line box, so it sits optically level with the text. */}
+      <span
+        className={cn(
+          "mr-2 inline-block size-2 rounded-full align-middle",
+          display.dot,
+        )}
+        aria-hidden
+      />
       {display.label}
     </span>
   );
