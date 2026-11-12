@@ -13,6 +13,7 @@ import { GatewayOverviewPage } from "@/src/features/ai-gateway/components/Gatewa
 import { buildGatewayModelsTabs } from "@/src/features/ai-gateway/components/GatewayModelsPage/fns/buildGatewayModelsTabs";
 import { useGatewayModelsPageState } from "@/src/features/ai-gateway/components/GatewayModelsPage/hooks/useGatewayModelsPageState";
 import { GATEWAY_MODELS_TABS } from "@/src/features/ai-gateway/constants/gatewayModelsTabs";
+import { gatewayConnectionsPageSize } from "@/src/features/ai-gateway/constants/gatewayConnectionsPageSize";
 import type { PageTabsProps } from "@/src/components/layouts/PageTabs";
 import {
   GATEWAY_PAGE_SLUGS,
@@ -72,14 +73,20 @@ export function useGatewayPages(): GatewayPageEntry[] {
         access.isIngestionConfigured === true,
     },
   );
+  const isModelsPageLoadable =
+    Boolean(organization) && access.showModels && !access.showNotDeployedNotice;
+  /** Managers also see connections in error, so they count as connections here too. */
+  const managerConnectionsQuery =
+    api.aiGateway.listConnections.useInfiniteQuery(
+      { orgId: organization?.id ?? "", limit: gatewayConnectionsPageSize },
+      {
+        getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+        enabled: isModelsPageLoadable && access.canManageGateway,
+      },
+    );
   const modelConnectionsQuery = api.aiGateway.listModelConnections.useQuery(
     { orgId: organization?.id ?? "" },
-    {
-      enabled:
-        Boolean(organization) &&
-        access.showModels &&
-        !access.showNotDeployedNotice,
-    },
+    { enabled: isModelsPageLoadable && !access.canManageGateway },
   );
 
   if (!organization) return [];
@@ -95,7 +102,9 @@ export function useGatewayPages(): GatewayPageEntry[] {
   const showsOverviewHeaderControls =
     !overviewSetup.isSetupOpen && !access.showNotDeployedNotice;
   /** Models only lists models of connections, so its tab waits for the first connection. */
-  const hasNoConnections = modelConnectionsQuery.data?.length === 0;
+  const hasNoConnections = access.canManageGateway
+    ? managerConnectionsQuery.data?.pages[0]?.data.length === 0
+    : modelConnectionsQuery.data?.length === 0;
   return [
     {
       title: "Overview",

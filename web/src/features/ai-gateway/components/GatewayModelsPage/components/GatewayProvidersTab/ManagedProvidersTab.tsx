@@ -45,9 +45,6 @@ export function ManagedProvidersTab({
   const invalidateConnections = () =>
     Promise.all([
       utils.aiGateway.listConnections.invalidate({ orgId: organizationId }),
-      utils.aiGateway.listModelConnections.invalidate({
-        orgId: organizationId,
-      }),
       utils.aiGateway.refreshModels.invalidate({ orgId: organizationId }),
     ]);
 
