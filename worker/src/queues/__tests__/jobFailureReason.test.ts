@@ -34,7 +34,7 @@ describe("classifyJobFailure", () => {
       ),
       "s3_slowdown",
     ],
-    ["stale monitor alert", new StaleAlertError("newer_alert"), "newer_alert"],
+    ["stale monitor alert", new StaleAlertError("stale"), "stale"],
     [
       "wrapped S3 socket reset",
       wrapStorage(

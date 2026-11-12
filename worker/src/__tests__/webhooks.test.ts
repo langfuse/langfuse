@@ -2454,7 +2454,7 @@ describe("Webhook Integration Tests", () => {
         executeWebhook(buildMonitorAlertInput(alertedAt), {
           skipValidation: true,
         }),
-      ).rejects.toThrow(new StaleAlertError("newer_alert"));
+      ).rejects.toThrow(new StaleAlertError("stale"));
 
       expect(webhookServer.getReceivedRequests()).toHaveLength(0);
       expect(await redis!.get(failureKey)).toBeNull();
@@ -2467,7 +2467,7 @@ describe("Webhook Integration Tests", () => {
         executeWebhook(buildMonitorAlertInput(alertedAt), {
           skipValidation: true,
         }),
-      ).rejects.toThrow(new StaleAlertError("monitor_deleted"));
+      ).rejects.toThrow(new StaleAlertError("deleted"));
 
       expect(webhookServer.getReceivedRequests()).toHaveLength(0);
     });
@@ -2495,7 +2495,7 @@ describe("Webhook Integration Tests", () => {
         executeWebhook(buildMonitorAlertInput(alertedAt), {
           skipValidation: true,
         }),
-      ).rejects.toThrow(new StaleAlertError("newer_alert"));
+      ).rejects.toThrow(new StaleAlertError("stale"));
 
       expect(webhookServer.getReceivedRequests()).toHaveLength(0);
     });

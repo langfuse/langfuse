@@ -1,3 +1,5 @@
+import { UnrecoverableError } from "bullmq";
+
 import { prisma } from "../../../db";
 import { type MonitorAlert } from "../types";
 
@@ -14,10 +16,9 @@ export async function assertDropStaleAlert({
 }
 
 /** StaleAlertError fails a monitor-alert job without retries because a newer alert or a deleted monitor superseded it. */
-export class StaleAlertError extends Error {
+export class StaleAlertError extends UnrecoverableError {
   constructor(readonly reason: StaleAlertReason) {
     super(`Dropped stale monitor alert: ${reason}`);
-    this.name = "UnrecoverableError"; // BullMQ skips retries for this name
   }
 }
 
@@ -33,17 +34,17 @@ async function staleAlertReason({
     where: { id: alert.monitorId },
     select: { projectId: true, alertedAt: true },
   });
-  if (!monitor || monitor.projectId !== projectId) return "monitor_deleted";
+  if (!monitor || monitor.projectId !== projectId) return "deleted";
   // The processor publishes before it saves alertedAt, so only a later alertedAt is newer.
   if (
     alert.alertedAt &&
     monitor.alertedAt &&
     monitor.alertedAt > alert.alertedAt
   ) {
-    return "newer_alert";
+    return "stale";
   }
   return undefined;
 }
 
 /** StaleAlertReason is why a queued monitor alert is dropped. */
-export type StaleAlertReason = "monitor_deleted" | "newer_alert";
+export type StaleAlertReason = "deleted" | "stale";
