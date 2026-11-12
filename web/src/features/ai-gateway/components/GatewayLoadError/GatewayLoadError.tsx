@@ -11,8 +11,8 @@ const loadErrorCopy = {
     description: "Retry to see the gateway providers.",
   },
   connection: {
-    title: "Provider credential could not be loaded",
-    description: "Retry to manage model access for this credential.",
+    title: "Provider connection could not be loaded",
+    description: "Retry to manage model access for this connection.",
   },
   models: {
     title: "Provider models could not be loaded",

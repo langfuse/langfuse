@@ -12,6 +12,7 @@ mod native_js;
 mod native_memory;
 pub(crate) mod native_schema;
 mod native_task;
+pub mod otel;
 mod otel_input;
 mod otel_media;
 mod otel_media_task;

@@ -64,6 +64,7 @@ export class GatewayApiKeyAuthenticator {
     const route = this.modelRoutingService.resolve(
       params.model,
       context.connections,
+      params.apiFormat,
     );
     if (!route) {
       throw new GatewayControlPlaneError("Invalid gateway model", 400);

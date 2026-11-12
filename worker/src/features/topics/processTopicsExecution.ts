@@ -21,6 +21,7 @@ import {
   getPublishedTopicRun,
   getTopicRule,
   getTopicRuleMap,
+  topicAnalysisCohort,
   readTopicMapAssignments,
   getTopicClusteringSummaries,
   saveTopicRun,
@@ -97,11 +98,14 @@ type FitScope = Pick<
   | "timeRange"
   | "exploratory"
   | "minimumTraceCount"
+  | "analysis"
 > & {
   /** Rule of a continuous map; null for a one-off snapshot. */
   ruleId: string | null;
   /** Execution of a one-off snapshot; null for a continuous map. */
   batchActionId: string | null;
+  /** A setup fit on few or not yet all summaries; the next nightly refit replaces it. */
+  provisional?: boolean;
   save: (phase: string) => Promise<void>;
 };
 type AssignmentScope = Pick<FitScope, "projectId" | "embeddingConfig"> & {
@@ -540,6 +544,9 @@ async function clusterFacet(
       from: scope.timeRange.from.toISOString(),
       to: scope.timeRange.to.toISOString(),
     },
+    // Keeps the analysis out of serving; see createTopicExecution.
+    ...(scope.analysis ? { analysis: true } : {}),
+    ...(scope.provisional ? { provisional: true } : {}),
   };
   let run =
     attempt?.status === "pending"
@@ -1311,12 +1318,21 @@ async function updateTopics(
             await saveProgress(metrics, execution, "processing");
             return;
           }
-          const current = await getPublishedTopicRun(
-            execution.projectId,
-            facet.facetId,
-          );
+          const { analysis } = execution.input;
+          // An analysis clusters its own filtered sample and always fits fresh.
+          const current = analysis
+            ? null
+            : await getPublishedTopicRun(execution.projectId, facet.facetId);
           const previous =
             current?.facetVersion === facet.version ? current : null;
+          const cohort = analysis
+            ? await topicAnalysisCohort({
+                projectId: execution.projectId,
+                filter: analysis.filter,
+                timeRange: execution.input.timeRange,
+                seed: analysis.seed,
+              })
+            : undefined;
           const summaries = await getTopicClusteringSummaries(
             execution.projectId,
             facet.facetId,
@@ -1327,6 +1343,7 @@ async function updateTopics(
               maxRows: env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS,
               maxBytes: env.LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES,
             },
+            cohort,
           ).catch(async (error: unknown) => {
             if (accepted?.status === "pending")
               await saveTopicRun({
@@ -1731,7 +1748,9 @@ export async function processTopicRuleRefit({
             projectId,
             embeddingConfig,
             timeRange,
-            exploratory: false,
+            // Setup stores these on the run; nightly refits never do.
+            exploratory: run.config.exploratory === true,
+            provisional: run.config.provisional === true,
             ruleId,
             batchActionId: null,
             save: async () => {},

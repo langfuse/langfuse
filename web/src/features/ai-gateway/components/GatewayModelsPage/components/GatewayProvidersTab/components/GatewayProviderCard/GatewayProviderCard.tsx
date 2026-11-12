@@ -58,7 +58,7 @@ export function GatewayProviderCard({
       <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 px-4 pb-4 text-sm">
         {credential !== undefined ? (
           <>
-            <dt className="text-muted-foreground">Credential</dt>
+            <dt className="text-muted-foreground">API key</dt>
             <dd className="ph-no-capture truncate font-mono" title={credential}>
               {credential}
             </dd>
