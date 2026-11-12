@@ -74,10 +74,9 @@ export function ApiKeyCreateDialogContent(
     const { secretKey, publicKey, baseUrl } = props;
 
     return (
-      // The secret key is shown only once, so a click outside must not close it.
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>API key created</DialogTitle>
+          <DialogTitle>API Keys</DialogTitle>
         </DialogHeader>
         <DialogBody>
           <ApiKeyDetailContent
