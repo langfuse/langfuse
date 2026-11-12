@@ -22,10 +22,7 @@ import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQue
 import { cloudSpendAlertQueueProcessor } from "./queues/cloudSpendAlertQueue";
 import { isChbConfigured } from "./ee/cloudSpendAlerts/chbApiClient";
 import { cloudFreeTierUsageThresholdQueueProcessor } from "./queues/cloudFreeTierUsageThresholdQueue";
-import {
-  monitorQueueMetricTags,
-  monitorQueueProcessor,
-} from "./queues/monitorQueue";
+import { monitorQueueProcessor } from "./queues/monitorQueue";
 import { inAppAgentRunQueueProcessor } from "./queues/inAppAgentRunQueue";
 import { WorkerManager } from "./queues/workerManager";
 import {
@@ -54,7 +51,10 @@ import {
   CodeEvalExecutionQueue,
   TopicsTraceQueue,
 } from "@langfuse/shared/src/server";
-import { monitorProcessorTtl } from "@langfuse/shared/monitors/server";
+import {
+  monitorProcessorTtl,
+  monitorQueueMetricTags,
+} from "@langfuse/shared/monitors/server";
 import { IN_APP_AGENT_RUN_MAX_DURATION_MS } from "@langfuse/shared/in-app-agent/server/tunables";
 import { env, v4WritesToEventsTable } from "./env";
 import { isInAppAgentWorkerSurfaceEnabled } from "./features/in-app-agent/enablement";

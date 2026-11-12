@@ -1,15 +1,11 @@
 import { Processor } from "bullmq";
 import { v4 } from "uuid";
 import {
-  getProjectSize,
   instrumentAsync,
-  queryWindowFromMs,
   QueueJobs,
   QueueName,
   WebhookQueue,
-  type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
-import { windowToMs } from "@langfuse/shared/monitors";
 import { MonitorProcessor } from "@langfuse/shared/monitors/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { SpanKind } from "@opentelemetry/api";
@@ -41,13 +37,3 @@ export const monitorQueueProcessor: Processor = async (job) => {
     },
   );
 };
-
-/** monitorQueueMetricTags tags monitor queue metrics with the event's project size and query window. */
-export function monitorQueueMetricTags(
-  data: TQueueJobTypes[QueueName.MonitorQueue],
-): Record<string, string> {
-  return {
-    project_size: getProjectSize(data.payload.projectId),
-    query_window: queryWindowFromMs(Number(windowToMs(data.payload.window))),
-  };
-}
