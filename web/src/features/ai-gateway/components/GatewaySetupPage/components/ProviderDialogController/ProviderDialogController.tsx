@@ -17,6 +17,7 @@ import {
   type ExtraHeaderRow,
 } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/AdvancedSettings/AdvancedSettings";
 import { BedrockRegionField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/BedrockRegionField/BedrockRegionField";
+import { ConnectionTestStatus } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ConnectionTestStatus/ConnectionTestStatus";
 import { ConnectionNameField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ConnectionNameField/ConnectionNameField";
 import { FieldHeader } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/FieldHeader";
 import { ProviderSelect } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ProviderSelect";
@@ -380,21 +381,21 @@ export function ProviderDialogController({
                   </Alert.Description>
                 </Alert>
               ) : null}
-              {test.isSuccess && !isError ? (
-                <CredentialTestSuccess
-                  provider={dialogProvider}
-                  modelListingDenied={test.data.modelListingDenied}
-                />
+              {test.data?.modelListingDenied && !isError ? (
+                <ModelListingDeniedAlert provider={dialogProvider} />
               ) : null}
             </DialogBody>
             <DialogFooter>
+              {test.status !== "idle" ? (
+                <ConnectionTestStatus status={test.status} />
+              ) : null}
               <Button
                 variant="secondary"
                 disabled={!credential || isMissingRegion || isPending}
                 loading={test.isPending}
                 onClick={() => testCredential(selectedConnection)}
               >
-                Test
+                {test.isSuccess || test.isError ? "Test again" : "Test"}
               </Button>
               <Button
                 disabled={
@@ -441,22 +442,5 @@ export function ProviderDialogController({
         });
       }}
     </DialogController>
-  );
-}
-
-function CredentialTestSuccess({
-  provider,
-  modelListingDenied,
-}: {
-  provider: GatewayProvider;
-  modelListingDenied: boolean;
-}) {
-  if (modelListingDenied)
-    return <ModelListingDeniedAlert provider={provider} />;
-  return (
-    <Alert>
-      <Alert.Title>Connection is valid</Alert.Title>
-      <Alert.Description>No changes were saved.</Alert.Description>
-    </Alert>
   );
 }
