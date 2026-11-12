@@ -34,17 +34,17 @@ async function staleAlertReason({
     where: { id: alert.monitorId },
     select: { projectId: true, alertedAt: true },
   });
-  if (!monitor || monitor.projectId !== projectId) return "deleted";
+  if (!monitor || monitor.projectId !== projectId) return "alert_deleted";
   // The processor publishes before it saves alertedAt, so only a later alertedAt is newer.
   if (
     alert.alertedAt &&
     monitor.alertedAt &&
     monitor.alertedAt > alert.alertedAt
   ) {
-    return "stale";
+    return "alert_stale";
   }
   return undefined;
 }
 
 /** StaleAlertReason is why a queued monitor alert is dropped. */
-export type StaleAlertReason = "deleted" | "stale";
+export type StaleAlertReason = "alert_deleted" | "alert_stale";
