@@ -1854,7 +1854,6 @@ exports[`golden: executeQuery v2 observations > levels > build level=two bucket=
       "param1": "golden-project",
       "param2": "2026-01-01 00:00:00.000",
       "param3": "2026-01-08 00:00:00.000",
-      "param4": 50,
     },
     "route": "unknown",
     "sql": "SELECT
@@ -1877,7 +1876,7 @@ FROM
 ) AS per_span
 GROUP BY time_dimension
 ORDER BY time_dimension ASC WITH FILL FROM toDate({param2:DateTime64(3, 'UTC')}) TO toDate({param3:DateTime64(3, 'UTC')}) STEP toIntervalDay(1)
-LIMIT {param4:Int64}",
+LIMIT 50",
   },
 ]
 `;
@@ -2437,7 +2436,6 @@ exports[`golden: executeQuery v2 observations > other clauses > build row_limit 
       "param1": "golden-project",
       "param2": "2026-01-01 00:00:00.000",
       "param3": "2026-01-08 00:00:00.000",
-      "param4": 25,
     },
     "route": "unknown",
     "sql": "SELECT
@@ -2449,7 +2447,7 @@ WHERE (e.project_id = {param1:String})
     AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
 GROUP BY name
 ORDER BY count_count DESC
-LIMIT {param4:Int64}",
+LIMIT 25",
   },
 ]
 `;

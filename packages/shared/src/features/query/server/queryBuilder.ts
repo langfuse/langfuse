@@ -39,6 +39,7 @@ import type { PredicateCondition } from "../../../query-ast/predicate";
 import { convertDateToClickhouseDateTime } from "../../../server/clickhouse/client";
 import { compileClickhouseQuery } from "../../../server/query-ast/compile";
 import { getClickhouseKysely } from "../../../server/query-ast/dialect";
+import { QueryCompileError } from "../../../server/query-ast/errors";
 import {
   anyValue,
   arrayJoin,
@@ -46,6 +47,7 @@ import {
   histogram,
   includeDeleted,
   interval,
+  literal,
   quantile,
   toDate,
   toFloat64,
@@ -269,8 +271,12 @@ function assertKnownRelationTables(
   }
 }
 
-/** The clauses after FROM … WHERE of a v2 observations select. */
-type AstSelectTail = {
+/**
+ * The clauses that follow FROM … WHERE on the outermost v2 observations
+ * select (the only select at single level, the parent of `per_span` at two
+ * levels): `group by … order by … [with fill …] [limit n]`.
+ */
+type OuterClauses = {
   groupBy: Expression<unknown>[];
   orderBy: Array<{ field: string; direction: string }>;
   fill:
@@ -1404,9 +1410,16 @@ export class QueryBuilder {
   }
 
   /**
-   * The range a time series is zero-filled over, or undefined for no fill:
-   * without a time bucket, with an explicit ORDER BY, or when the bounds
-   * would overflow the fill.
+   * The range WITH FILL adds empty time buckets over: from `fromTimestamp`
+   * to `toTimestamp`, one bucket per `granularity`.
+   *
+   * Undefined, so the query gets no WITH FILL, when:
+   * - the query has no time dimension;
+   * - the caller sets `orderBy`, which replaces the time-bucket order the
+   *   fill steps along;
+   * - a bound is outside the 32-bit DateTime range the buckets use
+   *   (`fromTimestamp` before 1970, `toTimestamp` after 2106-01-01), or
+   *   the range spans more than 50,000 buckets.
    */
   private withFillRange(
     appliedBucketingDimension: AppliedBucketingDimension,
@@ -1772,7 +1785,7 @@ export class QueryBuilder {
       pairDimension,
     );
 
-    const tail: AstSelectTail = {
+    const outerClauses: OuterClauses = {
       groupBy: [
         ...appliedDimensions.map((d) => sql.ref(this.dimensionAlias(d))),
         ...(bucket.type === "none"
@@ -1786,9 +1799,9 @@ export class QueryBuilder {
 
     if (level === "single") {
       // select <dimensions>, <bucket>, <aggregation>(<measure>) … from <source>
-      return this.compileWithTail(
+      return this.compileWithOuterClauses(
         projectId,
-        tail,
+        outerClauses,
         source.select((eb) => [
           ...appliedDimensions.map((d) =>
             this.astDimensionSelection(eb, d, "single"),
@@ -1817,22 +1830,22 @@ export class QueryBuilder {
           .map((d) => sql.ref(this.dimensionAlias(d))),
       ]);
     // select <dimensions>, <bucket>, <aggregation>(<measure>) … from (<perSpan>) as per_span
-    return this.compileWithTail(
+    return this.compileWithOuterClauses(
       projectId,
-      tail,
-      db
-        .selectFrom(perSpan.as("per_span"))
-        .select((eb) => [
-          ...appliedDimensions.map((d) =>
-            d.pairExpand
-              ? db.dynamic.ref(this.dimensionAlias(d))
-              : sql.ref(this.dimensionAlias(d)).as(this.dimensionAlias(d)),
-          ),
-          ...(bucket.type === "none"
-            ? []
-            : [db.dynamic.ref(bucket.bucketDimensionAlias)]),
-          ...this.astOuterMetrics(eb, appliedMetrics),
-        ]),
+      outerClauses,
+      db.selectFrom(perSpan.as("per_span")).select((eb) => [
+        // A bare pair-expanded key (`costType`), every other dimension
+        // aliased (`name as name`); ClickHouse accepts either spelling.
+        ...appliedDimensions.map((d) =>
+          d.pairExpand
+            ? db.dynamic.ref(this.dimensionAlias(d))
+            : sql.ref(this.dimensionAlias(d)).as(this.dimensionAlias(d)),
+        ),
+        ...(bucket.type === "none"
+          ? []
+          : [db.dynamic.ref(bucket.bucketDimensionAlias)]),
+        ...this.astOuterMetrics(eb, appliedMetrics),
+      ]),
     );
   }
 
@@ -1840,9 +1853,9 @@ export class QueryBuilder {
    * `select` with `… group by <dimensions>, <bucket> order by … [with fill …]
    * [limit n]`, compiled for `projectId`.
    */
-  private compileWithTail<DB, TB extends keyof DB, O>(
+  private compileWithOuterClauses<DB, TB extends keyof DB, O>(
     projectId: string,
-    { groupBy, orderBy, fill, rowLimit }: AstSelectTail,
+    { groupBy, orderBy, fill, rowLimit }: OuterClauses,
     select: SelectQueryBuilder<DB, TB, O>,
   ): { query: string; parameters: Record<string, unknown> } {
     let finished = groupBy.length > 0 ? select.groupBy(groupBy) : select;
@@ -1862,7 +1875,16 @@ export class QueryBuilder {
         }),
       );
     }
-    if (rowLimit) finished = finished.limit(rowLimit);
+    if (rowLimit) {
+      // `limit 25` as a literal. The query schema admits integers 1–1000;
+      // the check keeps `literal` to integers for callers that skip it.
+      if (!Number.isSafeInteger(rowLimit) || rowLimit < 0) {
+        throw new QueryCompileError(
+          `row_limit must be a non-negative integer, got ${rowLimit}.`,
+        );
+      }
+      finished = finished.limit(literal(rowLimit));
+    }
     const { sql: compiled, params } = compileClickhouseQuery(
       finished,
       projectId,
@@ -2084,7 +2106,43 @@ export class QueryBuilder {
   }
 
   /**
-   * We want to build a ClickHouse query based on the query provided and the viewDeclaration that was selected.
+   * The ClickHouse SQL and parameters of `query` for `projectId`. The v2
+   * observations view compiles through the query AST
+   * ({@link buildEventsObservations}); every other view and version is
+   * assembled as SQL text ({@link buildSqlText}).
+   *
+   * Errors: `InvalidRequestError` for a query the schema or the view rejects.
+   */
+  public async build(
+    query: QueryType,
+    projectId: string,
+    enableSingleLevelOptimization = false,
+  ): Promise<{ query: string; parameters: Record<string, unknown> }> {
+    const parseResult = queryModel.safeParse(query);
+    if (!parseResult.success) {
+      throw new InvalidRequestError(
+        `Invalid query: ${JSON.stringify(parseResult.error.issues)}`,
+      );
+    }
+    const view = this.getViewDeclaration(query.view);
+    if (view === eventsObservationsView) {
+      return this.buildEventsObservations(
+        query,
+        projectId,
+        enableSingleLevelOptimization,
+        shouldSkipScoresDedup(projectId),
+      );
+    }
+    return this.buildSqlText(
+      query,
+      view,
+      projectId,
+      enableSingleLevelOptimization,
+    );
+  }
+
+  /**
+   * `query` over `declaredView`, assembled as SQL text.
    *
    * When enableSingleLevelOptimization is false (default), the query follows a two-level pattern:
    * ```
@@ -2123,35 +2181,19 @@ export class QueryBuilder {
    * - Two-level mode: Actual aggregation from aggs config (e.g., sum, any, sumMap)
    * - Single-level mode: Stripped out, user's aggregation applied directly to raw expression
    */
-  public async build(
+  private async buildSqlText(
     query: QueryType,
+    declaredView: ViewDeclarationType,
     projectId: string,
-    enableSingleLevelOptimization = false,
+    enableSingleLevelOptimization: boolean,
   ): Promise<{ query: string; parameters: Record<string, unknown> }> {
-    // Run zod validation
-    const parseResult = queryModel.safeParse(query);
-    if (!parseResult.success) {
-      throw new InvalidRequestError(
-        `Invalid query: ${JSON.stringify(parseResult.error.issues)}`,
-      );
-    }
-
     // Initialize parameters object
     const parameters: Record<string, unknown> = {};
 
     // Check if we should skip FINAL modifier for observations (OTEL optimization)
     const skipObservationsFinal = await shouldSkipObservationsFinal(projectId);
     const skipScoresFinal = shouldSkipScoresDedup(projectId);
-    let view = this.getViewDeclaration(query.view);
-
-    if (view === eventsObservationsView) {
-      return this.buildEventsObservations(
-        query,
-        projectId,
-        enableSingleLevelOptimization,
-        skipScoresFinal,
-      );
-    }
+    let view = declaredView;
 
     // Events table never needs FINAL modifier (already deduplicated)
     if (view.name === "events-observations") {
