@@ -50,11 +50,14 @@ export function ConnectionTestStatus({
       {failure ? (
         <ConnectionTestDetails failure={failure}>
           {({ getTriggerProps, isOpen }) => (
-            <Button
-              {...getTriggerProps()}
-              variant="text"
-              text={isOpen ? "Hide details" : "Show details"}
-            />
+            <span className="inline-flex" {...getTriggerProps()}>
+              <Button
+                variant="text"
+                text={isOpen ? "Hide details" : "Show details"}
+                aria-expanded={isOpen}
+                aria-haspopup="dialog"
+              />
+            </span>
           )}
         </ConnectionTestDetails>
       ) : null}

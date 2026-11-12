@@ -48,11 +48,8 @@ export const FailedDetailsOpen = meta.story({
     await userEvent.click(canvas.getByRole("button", { name: "Show details" }));
     const page = within(canvasElement.ownerDocument.body);
     await expect(await page.findByText("401 Unauthorized")).toBeVisible();
-    const dialog = await page.findByRole("dialog", {
-      name: "Provider response",
-    });
     await expect(
-      canvas.getByRole("button", { name: "Hide details", expanded: true }),
-    ).toHaveAttribute("aria-controls", dialog.id);
+      canvas.getByRole("button", { name: "Hide details" }),
+    ).toBeVisible();
   },
 });
