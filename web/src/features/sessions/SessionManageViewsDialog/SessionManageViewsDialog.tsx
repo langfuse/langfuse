@@ -37,7 +37,7 @@ const columns: ColumnDef<SessionViewRow>[] = [
     id: "pinned",
     header: "For me",
     enableResizing: false,
-    size: 40,
+    size: 80,
     cell: ({ row }) => {
       const view = row.original;
       const { isPinned } = view;
@@ -237,7 +237,7 @@ function SessionManageViewsList({
     return "No saved views yet.";
   })();
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex min-h-[min(24rem,50dvh)] flex-col gap-2">
       <Tabs value={tab} onValueChange={setTab}>
         <Tabs.List variant="inset" size="md">
           <Tabs.Trigger value="all" label="All views" />
@@ -294,7 +294,7 @@ export function SessionManageViewsDialog({
     );
   });
   return (
-    <Dialog title="Manage views" closeLabel="Done" size="md">
+    <Dialog title="Manage views" closeLabel="Done" size="lg">
       <Dialog.Body>
         <SessionManageViewsList
           currentUserId={currentUserId}

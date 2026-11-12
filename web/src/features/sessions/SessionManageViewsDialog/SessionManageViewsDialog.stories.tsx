@@ -56,7 +56,7 @@ const meta = preview.meta({
 });
 export default meta;
 
-export const Default = meta.story({});
+export const Default = meta.story({ args: { onSetDefaultPin: fn() } });
 
 export const DefaultPinWithPersonalOptOut = meta.story({
   name: "(Test) Default pin remains visible after personal unpin",
