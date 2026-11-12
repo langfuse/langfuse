@@ -314,7 +314,8 @@ function TopicsOverviewSplit({
       </ResizablePanel>
       <ResizableHandle
         aria-label="Resize topic map and groups"
-        className="my-1 bg-transparent"
+        variant="gap"
+        className="my-1"
       />
       <ResizablePanel id="groups" minSize="20%">
         {children}
@@ -347,7 +348,8 @@ function TopicsWorkspaceSplit({
       </ResizablePanel>
       <ResizableHandle
         aria-label="Resize topic overview and traces"
-        className="mx-1 bg-transparent"
+        variant="gap"
+        className="mx-1"
       />
       <ResizablePanel id="traces" minSize="25%">
         {tracesPanel}
