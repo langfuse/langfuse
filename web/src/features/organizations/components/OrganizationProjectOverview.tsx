@@ -197,6 +197,8 @@ const OrganizationProjectTiles = ({
 };
 
 const OrganizationActionButtons = ({ orgId }: { orgId: string }) => {
+  const session = useSession();
+  const gatewayOnly = gatewayOnlyLanding(session.data, orgId) !== undefined;
   const membersViewAccess = useHasOrganizationAccess({
     organizationId: orgId,
     scope: "organizationMembers:read",
@@ -208,14 +210,6 @@ const OrganizationActionButtons = ({ orgId }: { orgId: string }) => {
 
   return (
     <>
-      <Button asChild variant="ghost">
-        <Link
-          href={`/organization/${orgId}/settings`}
-          aria-label="Organization settings"
-        >
-          <Settings size="base" color="default" />
-        </Link>
-      </Button>
       {membersViewAccess && (
         <Button asChild variant="ghost">
           <Link href={`/organization/${orgId}/settings/members`}>
@@ -223,14 +217,15 @@ const OrganizationActionButtons = ({ orgId }: { orgId: string }) => {
           </Link>
         </Button>
       )}
-      {createProjectAccess ? (
+      {createProjectAccess && (
         <Button asChild>
           <Link href={createProjectRoute(orgId)}>
             <PlusIcon size="base" __rawClassName="mr-2" aria-hidden="true" />
             New project
           </Link>
         </Button>
-      ) : (
+      )}
+      {!createProjectAccess && !gatewayOnly && (
         <Button disabled>
           <LockIcon size="base" __rawClassName="mr-2" aria-hidden="true" />
           New project

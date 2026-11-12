@@ -130,6 +130,8 @@ export * from "./utils/DatabaseReadStream";
 export * from "./utils/transforms";
 export * from "./utils/billingCycleHelpers";
 export * from "./utils/compareVersions";
+export * from "./utils/withTransaction";
+export * from "./utils/withSerializableRetry";
 export * from "./otel/utils";
 export * from "./clickhouse/client";
 export {
@@ -317,7 +319,9 @@ export { type SessionEventsField } from "./repositories/events-selects";
 export { type SessionEventsMetricsRow } from "./repositories/events-selects";
 export {
   compileEventsPredicate,
+  compileEventsSearch,
   lowerEventsPredicate,
+  lowerEventsSearch,
   type CompiledEventsCondition,
 } from "./repositories/events-predicate";
 export { buildEventsFilterOptionColumnQuery } from "./queries/clickhouse-sql/event-filter-options";
@@ -721,8 +725,13 @@ export { deriveAuditLogEventId } from "./repositories/auditLogs";
 export { convertAuditLogStagingRowToClickhouse } from "./repositories/auditLogs";
 export { type BillableEventType } from "./repositories/billable-events";
 export { getBillableUnitCountsByProjectInWindow } from "./repositories/billable-events";
-export { getTopicSetupTraceCounts } from "./repositories/topic-setup-events";
-export { getTopicSetupTraceIds } from "./repositories/topic-setup-events";
+export { getTopicSetupTraceCount } from "./repositories/topic-setup-events";
+export {
+  getTopicSetupTraceBounds,
+  getTopicSetupTraceIds,
+  TOPIC_SETUP_WINDOW_DAYS,
+} from "./repositories/topic-setup-events";
+export { getTopicSetupTraceNames } from "./repositories/topic-setup-events";
 export {
   getTopicResultCounts,
   type TopicResultCounts,

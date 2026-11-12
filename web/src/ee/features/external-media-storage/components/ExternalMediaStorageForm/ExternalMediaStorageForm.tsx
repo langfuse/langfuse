@@ -25,11 +25,15 @@ import {
   type ExternalMediaStorageFormValues,
 } from "@/src/ee/features/external-media-storage/types";
 
+const ROLE_AUTH_UPGRADE_MESSAGE =
+  "IAM role auth is not part of your plan. Upgrade to Enterprise to use it.";
+
 export function ExternalMediaStorageForm({
   formId,
   initialValues,
   secretAccessKeyDisplay,
   crossAccountRoleArn,
+  roleAuthRequiresUpgrade = false,
   externalId,
   onSubmit,
   renderActions,
@@ -37,8 +41,10 @@ export function ExternalMediaStorageForm({
   formId: string;
   initialValues: ExternalMediaStorageFormValues;
   secretAccessKeyDisplay: string | null | undefined;
-  /** Null when this deployment does not support IAM role auth. */
+  /** Null when this deployment or the organization does not offer IAM role auth. */
   crossAccountRoleArn: string | null;
+  /** The deployment offers IAM role auth, but the organization is not entitled to it. */
+  roleAuthRequiresUpgrade?: boolean;
   externalId: RevealableExternalId;
   onSubmit: (values: ExternalMediaStorageFormValues) => void;
   renderActions?: (state: { isDirty: boolean }) => ReactNode;
@@ -54,8 +60,14 @@ export function ExternalMediaStorageForm({
     control: form.control,
     name: ["roleArn", "bucketName", "prefix"],
   });
+  const usesRole = authType === "ROLE_ARN";
+  // An integration that already uses a role keeps the option visible so it can
+  // be switched to access keys. Organizations without IAM role auth see the
+  // option disabled.
   const canChooseAuthType =
-    type === "S3" && (crossAccountRoleArn !== null || authType === "ROLE_ARN");
+    type === "S3" &&
+    (crossAccountRoleArn !== null || roleAuthRequiresUpgrade || usesRole);
+  const isRoleOptionLocked = roleAuthRequiresUpgrade && !usesRole;
 
   return (
     <Form {...form}>
@@ -116,13 +128,24 @@ export function ExternalMediaStorageForm({
                         placeholder="Select an authentication method"
                         options={[
                           { value: "ACCESS_KEYS", label: "Access keys" },
-                          { value: "ROLE_ARN", label: "IAM role" },
+                          isRoleOptionLocked
+                            ? {
+                                value: "ROLE_ARN",
+                                label: "IAM role",
+                                disabled: true,
+                                disabledReason: ROLE_AUTH_UPGRADE_MESSAGE,
+                                badges: [
+                                  { text: "Enterprise", color: "outline" },
+                                ],
+                              }
+                            : { value: "ROLE_ARN", label: "IAM role" },
                         ]}
                       />
                     </FormControl>
                     <FormDescription>
-                      With an IAM role, Langfuse assumes a role in your AWS
-                      account instead of storing access keys.
+                      {isRoleOptionLocked
+                        ? ROLE_AUTH_UPGRADE_MESSAGE
+                        : "With an IAM role, Langfuse assumes a role in your AWS account instead of storing access keys."}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -205,7 +228,7 @@ export function ExternalMediaStorageForm({
               )}
             />
 
-            {authType === "ROLE_ARN" ? (
+            {usesRole ? (
               <FormField
                 control={form.control}
                 name="roleArn"
@@ -227,7 +250,7 @@ export function ExternalMediaStorageForm({
                 )}
               />
             ) : null}
-            {authType === "ROLE_ARN" && crossAccountRoleArn ? (
+            {usesRole && crossAccountRoleArn ? (
               <div className="-mt-2">
                 <RoleAuthSetupSection>
                   <RoleAuthSetupInstructions
@@ -242,7 +265,7 @@ export function ExternalMediaStorageForm({
                 </RoleAuthSetupSection>
               </div>
             ) : null}
-            {authType === "ROLE_ARN" ? null : (
+            {usesRole ? null : (
               <>
                 <FormField
                   control={form.control}

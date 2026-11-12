@@ -14,22 +14,11 @@ export const Default = meta.story({
     providers: [
       { provider: "ANTHROPIC", isConnected: true },
       { provider: "OPENAI", isConnected: true },
+      { provider: "BEDROCK", isConnected: false },
     ],
     onCreateKey: fn(),
     usageInstructionsHref: GATEWAY_FIRST_REQUEST_DOCS_URL,
     modelsHref: "/organization/org-1/ai-gateway/models",
-  },
-});
-
-/** Pre-release environments also offer Bedrock; here it has no credential. */
-export const WithBedrock = meta.story({
-  args: {
-    ...Default.input.args,
-    providers: [
-      { provider: "ANTHROPIC", isConnected: true },
-      { provider: "OPENAI", isConnected: true },
-      { provider: "BEDROCK", isConnected: false },
-    ],
   },
 });
 

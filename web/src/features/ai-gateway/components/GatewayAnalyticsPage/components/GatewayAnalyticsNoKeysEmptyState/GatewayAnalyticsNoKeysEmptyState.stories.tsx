@@ -14,17 +14,6 @@ export const Default = meta.story({
     providers: [
       { provider: "ANTHROPIC", isConnected: true },
       { provider: "OPENAI", isConnected: true },
-    ],
-  },
-});
-
-/** Pre-release environments also offer Bedrock. */
-export const WithBedrock = meta.story({
-  args: {
-    ...Default.input.args,
-    providers: [
-      { provider: "ANTHROPIC", isConnected: true },
-      { provider: "OPENAI", isConnected: true },
       { provider: "BEDROCK", isConnected: false },
     ],
   },

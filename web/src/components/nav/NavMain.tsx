@@ -11,7 +11,10 @@ import {
 } from "@/src/components/ui/sidebar";
 import Link from "next/link";
 import { type ReactNode } from "react";
-import { type RouteGroup } from "@/src/components/layouts/routes";
+import {
+  ROUTE_GROUP_BADGES,
+  type RouteGroup,
+} from "@/src/components/layouts/routes";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 export type NavMainItem = {
@@ -56,7 +59,10 @@ export function NavMain({
       {items.grouped &&
         Object.entries(items.grouped).map(([group, items]) => (
           <SidebarGroup key={group}>
-            <SidebarGroupLabel>{group}</SidebarGroupLabel>
+            <SidebarGroupLabel className="gap-2">
+              {group}
+              {ROUTE_GROUP_BADGES[group as RouteGroup]}
+            </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {items.map((item) => (

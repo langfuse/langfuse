@@ -35,12 +35,12 @@ export class DefaultEvalModelService {
   }
 
   /**
-   * Creates or updates a default evaluation model for a project
+   * Creates or updates a default evaluation model for a project. The adapter
+   * is taken from the provider's LLM connection.
    */
   public static async upsertDefaultModel(params: {
     projectId: string;
     provider: string;
-    adapter: string;
     model: string;
     modelParams?: z.infer<typeof ZodModelConfig>;
   }) {

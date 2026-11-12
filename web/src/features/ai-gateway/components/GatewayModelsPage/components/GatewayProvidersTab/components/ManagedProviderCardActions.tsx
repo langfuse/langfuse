@@ -25,19 +25,19 @@ export function ManagedProviderCardActions({
 
   return (
     <>
-      <Tooltip label="Retry validation">
+      <Tooltip label="Refresh models">
         {({ getTriggerProps }) => (
           <IconButton
             {...getTriggerProps()}
             icon={RefreshCw}
-            label={`Retry validation for ${connection.name}`}
+            label={`Refresh models for ${connection.name}`}
             size="sm"
             disabled={isRetrying}
             onClick={handleRetry}
           />
         )}
       </Tooltip>
-      <Tooltip label="Edit credential">
+      <Tooltip label="Edit connection">
         {({ getTriggerProps }) => (
           <IconButton
             {...getTriggerProps()}
@@ -48,7 +48,7 @@ export function ManagedProviderCardActions({
           />
         )}
       </Tooltip>
-      <Tooltip label="Delete credential">
+      <Tooltip label="Delete connection">
         {({ getTriggerProps }) => (
           <IconButton
             {...getTriggerProps()}

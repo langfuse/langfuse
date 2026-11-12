@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { singleFilterList } from "../interfaces/filters";
+import { TopicsTargetObject } from "../features/evals/types";
+import { validateEvaluatorFiltersForTarget } from "../features/evals/validateEvaluatorFilters";
 import { DEFAULT_TOPIC_FACETS } from "./default-facets";
 
 export { DEFAULT_TOPIC_FACETS };
@@ -86,13 +88,8 @@ export const topicRuleConfigSchema = z.object({
   filter: singleFilterList
     .refine((filters) => filters.length <= 100, "Select at most 100 filters.")
     .refine(
-      (filters) =>
-        !filters.some(
-          (item) =>
-            item.type === "positionInTrace" ||
-            item.column === "isRootObservation",
-        ),
-      "Root and position-in-trace filters are not supported for Topics selection.",
+      (filters) => !filters.some((item) => item.type === "positionInTrace"),
+      "Position-in-trace filters are not supported for Topics selection.",
     ),
 });
 export const topicTraceSelectionCriteriaSchema = topicRuleConfigSchema
@@ -123,6 +120,36 @@ export const topicRuleSettingsSchema = topicRuleConfigSchema.extend({
   sampling: z.number().min(0).max(1).default(1),
 });
 
+/** A project runs at most this many continuous Topics rules. */
+export const TOPICS_MAX_RULES = 5;
+/** Largest random cohort a one-off analysis or past-trace processing run selects. */
+export const TOPICS_SLICE_MAX_TRACES = 20_000;
+/** An analysis needs this many summarized traces before it can cluster. */
+export const TOPICS_ANALYSIS_MIN_TRACES = 100;
+/** Seeds an analysis's sample, so its preview counts the traces its run clusters. */
+export const TOPICS_ANALYSIS_SAMPLING_SEED = "topics-analysis";
+
+export const TOPICS_RULE_FILTER_HINT =
+  "Topics matches new traces at ingestion, so filters take trace, session, user, tags, metadata, observation and experiment fields with positive operators. Scores, cost, latency and 'is not' filters aren't supported.";
+/** Rules use the trace-transcript filter definition ingestion matches them against. */
+export function topicRuleFilterError(
+  filter: z.infer<typeof singleFilterList>,
+): string | null {
+  const { issues } = validateEvaluatorFiltersForTarget({
+    targetObject: TopicsTargetObject,
+    filter,
+  });
+  return issues[0]?.message ?? null;
+}
+
+/** Saved with a one-off clustering run; the cohort resolves from it at fit time. */
+export const topicAnalysisConfigSchema = z.object({
+  label: z.string().trim().min(1).max(100),
+  filter: topicRuleConfigSchema.shape.filter,
+  seed: z.string().min(1).max(128),
+});
+export type TopicAnalysisConfig = z.infer<typeof topicAnalysisConfigSchema>;
+
 export const topicsSetupSchema = topicsModelSettingsSchema.extend({
   traceIdleMs: z
     .number()
@@ -130,8 +157,10 @@ export const topicsSetupSchema = topicsModelSettingsSchema.extend({
     .multipleOf(1000, "Use whole seconds for the idle time.")
     .min(60_000, "Wait at least 60 seconds.")
     .max(3_600_000, "Wait at most 3,600 seconds."),
-  // The project's existing rule; omit only when the project has none yet.
+  // The rule whose facets (and filter) this save writes; without it, rule fields create a rule.
   ruleId: topicIdSchema.optional(),
+  /** Name of a rule this save creates; ignored when `ruleId` names one. */
+  name: z.string().trim().max(100).optional(),
   facets: z
     .array(
       z.object({
@@ -158,19 +187,28 @@ export const topicsSetupSchema = topicsModelSettingsSchema.extend({
           message: "Turn on at least one facet.",
         });
       }
-    }),
+    })
+    .optional(),
   // Enabled custom facets keep their rule assignment; they are edited elsewhere.
-  customFacetIds: z.array(topicIdSchema).default([]),
-  filter: topicRuleConfigSchema.shape.filter,
+  customFacetIds: z.array(topicIdSchema).optional(),
+  // Omitted by Configure Topics, so the rule keeps the filter chosen in setup.
+  filter: topicRuleConfigSchema.shape.filter
+    .superRefine((filter, ctx) => {
+      const error = topicRuleFilterError(filter);
+      if (error) ctx.addIssue({ code: "custom", message: error });
+    })
+    .optional(),
 });
 export type TopicsSetup = z.infer<typeof topicsSetupSchema>;
 
 /**
  * Turns automatic processing of new traces on or off. Sampling applies only to
- * automatic processing; omit it to keep the rule's stored rate.
+ * automatic processing and is written to `ruleId`; omit both to keep every
+ * rule's stored rate.
  */
 export const topicsAutomaticProcessingSchema = z.object({
   enabled: z.boolean(),
+  ruleId: topicIdSchema.optional(),
   sampling: z.number().min(0).max(1).optional(),
 });
 export type TopicsAutomaticProcessing = z.infer<
@@ -183,6 +221,8 @@ export type TopicRule = z.infer<typeof topicRuleSettingsSchema> & {
   name: string;
   facetIds: string[];
   updatedAt: string;
+  enabled?: boolean;
+  createdAt?: string;
 };
 
 export const topicFacetRefSchema = z.object({
@@ -228,6 +268,8 @@ export const topicExecutionInputSchema = z.discriminatedUnion("operation", [
       timeRange: topicTimeRangeSchema,
       exploratory: z.boolean().default(false),
       minimumTraceCount: topicMinimumTraceCountSchema.optional(),
+      // One-off clustering of a filtered slice; never serves online assignment.
+      analysis: topicAnalysisConfigSchema.optional(),
     })
     .strict(),
 ]);
@@ -385,6 +427,10 @@ export interface TopicRun {
   config: Record<string, unknown>;
   error: string | null;
   topics: TopicDefinition[];
+  /** Rule of a continuous map; null for one-off snapshots and runs written before rules. */
+  ruleId?: string | null;
+  /** Execution of a one-off snapshot; null for continuous maps. */
+  batchActionId?: string | null;
 }
 export interface TopicFacetProgress {
   facetId: string;

@@ -29,6 +29,7 @@ import { routeRules } from "./consumers";
 import {
   newestEvent,
   newestSessionId,
+  newestTraceName,
   toTraceEventObservation,
   traceEventPayloadBytes,
   traceKey,
@@ -53,6 +54,13 @@ type ReadableTrace = { trace: DispatchTrace; jobs: ConsumerJobs };
 // Backoff before the first, second and third retry; a fourth failure drops the trace.
 const RETRY_BACKOFF_MS = [5, 15, 45].map((minutes) => minutes * 60_000);
 const REDIS_BATCH_SIZE = 50;
+// ClickHouse read per job; the client socket timeout sits above the server limit so ClickHouse reports the cause.
+const READ_TIMEOUT_MS = 60_000;
+const READ_MAX_THREADS = 2;
+const READ_MAX_BLOCK_SIZE = 512;
+// Buffered rows before reading pauses, and parallel per-trace uploads and enqueues.
+const MAX_PENDING_BYTES = 100 * 1024 * 1024;
+const UPLOAD_CONCURRENCY = 20;
 
 const inputStorage = createTraceBatchInputStorage();
 
@@ -118,7 +126,10 @@ async function selectTraces(traces: DispatchTrace[]) {
   return { readable, outcomes };
 }
 
-/** Stores one trace's transcript, then enqueues each consumer's job; never throws. */
+/**
+ * Stores one trace's transcript, then enqueues each consumer's job.
+ * Enqueue failures stay on the outcome; this never throws.
+ */
 function dispatchTrace(
   { trace, jobs }: ReadableTrace,
   observations: TraceEventObservation[],
@@ -150,6 +161,9 @@ function dispatchTrace(
       const reference = { projectId, traceId, revision };
       let stored;
       try {
+        const traceTimestamp = new Date(
+          Math.min(...observations.map((row) => row.startTime.getTime())),
+        );
         const context = assembleTranscriptContext(
           orderObservations(observations),
         );
@@ -158,11 +172,9 @@ function dispatchTrace(
           executionIssues: context?.executionIssues ?? [],
           traceContext: {
             sessionId: newestSessionId(observations),
-            traceTimestamp: new Date(
-              Math.min(...observations.map((row) => row.startTime.getTime())),
-            ).toISOString(),
+            traceTimestamp: traceTimestamp.toISOString(),
             environment: latest.environment,
-            traceName: observations[0].name,
+            traceName: newestTraceName(observations),
           },
         });
       } catch (error) {
@@ -191,10 +203,14 @@ function dispatchTrace(
       const failedRuleIds: string[] = [];
       await Promise.all(
         jobs.map(({ consumer, ruleIds }) =>
-          consumer.enqueue(reference, ruleIds).catch((error) => {
-            traceException(error, span);
-            failedRuleIds.push(...ruleIds);
-          }),
+          consumer
+            .enqueue(reference, ruleIds, {
+              transcriptS3Path: stored.key,
+            })
+            .catch((error) => {
+              traceException(error, span);
+              failedRuleIds.push(...ruleIds);
+            }),
         ),
       );
       // Only failed consumers retry; the others already hold this revision's job.
@@ -205,7 +221,9 @@ function dispatchTrace(
           trace,
           retryRuleIds: failedRuleIds,
         });
-      return finish({ outcome: jobs.length > 0 ? "enqueued" : "stored" });
+      return finish({
+        outcome: jobs.length > 0 ? "enqueued" : "stored",
+      });
     },
   );
 }
@@ -257,7 +275,7 @@ async function streamTraces(
 ): Promise<TraceOutcome[]> {
   const outcomes: TraceOutcome[] = [];
   const pending = new Set<Promise<void>>();
-  const limit = pLimit(env.LANGFUSE_TOPICS_TRACE_CONCURRENCY);
+  const limit = pLimit(UPLOAD_CONCURRENCY);
   const seen = new Set<string>();
   let pendingBytes = 0;
   const start = (
@@ -297,9 +315,10 @@ async function streamTraces(
     for await (const row of getTraceBatchEventStream(
       { traces },
       {
-        maxThreads: env.LANGFUSE_TRACE_BATCH_MAX_THREADS,
-        maxBlockSize: env.LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE,
-        requestTimeoutMs: env.LANGFUSE_TRACE_BATCH_REQUEST_TIMEOUT_MS,
+        maxThreads: READ_MAX_THREADS,
+        maxBlockSize: READ_MAX_BLOCK_SIZE,
+        maxExecutionTimeS: READ_TIMEOUT_MS / 1000,
+        requestTimeoutMs: READ_TIMEOUT_MS + 10_000,
         queryId,
       },
     )) {
@@ -310,10 +329,7 @@ async function streamTraces(
         start(currentKey, current, currentBytes);
         current = [];
         currentBytes = 0;
-        while (
-          pendingBytes > env.LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES
-        )
-          await Promise.race(pending);
+        while (pendingBytes > MAX_PENDING_BYTES) await Promise.race(pending);
       }
       currentKey = key;
       const bytes = traceEventPayloadBytes(row);
@@ -336,14 +352,16 @@ async function streamTraces(
     // Started traces finish even when the read fails; a job retry deduplicates them.
     await Promise.all(pending);
   }
-  for (const key of readable.keys())
-    if (!seen.has(key)) outcomes.push({ outcome: "missing" });
+  for (const key of readable.keys()) {
+    if (seen.has(key)) continue;
+    outcomes.push({ outcome: "missing" });
+  }
   return outcomes;
 }
 
 /** Returns failed traces to the pending map with backoff; drops them after the last retry. */
 async function restoreFailedTraces(
-  failed: { trace: DispatchTrace; ruleIds: string[] }[],
+  failed: { trace: DispatchTrace; ruleIds: string[]; reason: string }[],
 ): Promise<void> {
   const results = { restored: 0, merged: 0, expired: 0, dropped: 0 };
   const shards = new Map<number, typeof failed>();
@@ -437,7 +455,13 @@ export async function processEventsDispatchJob(
   // Storage-only traces have no consumer to retry for.
   const failed = outcomes.flatMap((result) =>
     result.outcome === "failed" && result.retryRuleIds.length > 0
-      ? [{ trace: result.trace, ruleIds: result.retryRuleIds }]
+      ? [
+          {
+            trace: result.trace,
+            ruleIds: result.retryRuleIds,
+            reason: result.reason,
+          },
+        ]
       : [],
   );
   if (failed.length > 0) await restoreFailedTraces(failed);

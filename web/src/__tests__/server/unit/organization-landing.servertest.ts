@@ -27,7 +27,6 @@ const organization = (
 const session = (organizations: Organization[]) =>
   ({
     user: {
-      admin: false,
       featureFlags: testFeatureFlags(),
       organizations,
     },
@@ -55,10 +54,10 @@ it.each([
     expected: "/organization/org-a",
   },
   {
-    name: "the gateway for gateway-only members",
+    name: "the projects page for gateway-only members",
     organizations: [gatewayOnlyOrganization],
     lastProjectId: null,
-    expected: "/organization/org-gateway/ai-gateway",
+    expected: "/organization/org-gateway",
   },
   {
     name: "a usable org before a gateway-only org without the gateway",

@@ -16,7 +16,10 @@ import {
 } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 
-import { recordTrpcAccess } from "@/src/features/audit-logs/server/recordAccessEvent";
+import {
+  recordTrpcAccess,
+  type AccessRead,
+} from "@/src/features/audit-logs/server/recordAccessEvent";
 
 /** The read a tRPC query performs, recorded as an audit access event. */
 export type AccessAuditMeta = {
@@ -166,6 +169,44 @@ export const namesPossibleId = (ref: AuditLogResourceRef): boolean =>
   ResourceIdSchema.safeParse(ref.slice(ref.indexOf(":") + 1)).success;
 
 /**
+ * Collects what a resolver reports through `audit`. `toRead` turns it, with
+ * the validated input, into the access event of the read `meta` describes:
+ * the resource `idKey` names plus the reported refs.
+ */
+export function collectAccessRead(meta: AccessAuditMeta): {
+  audit: AccessAuditRecorder;
+  toRead: (route: string, input: Record<string, unknown>) => AccessRead;
+} {
+  const collected: AuditLogResourceRef[][] = [];
+  let resultCount: number | undefined;
+  return {
+    audit: {
+      refs: (refs) => {
+        collected.push(refs);
+      },
+      count: (count) => {
+        resultCount = count;
+      },
+    },
+    toRead: (route, input) => {
+      const resourceId = requestedId(meta, input);
+      return {
+        route,
+        resourceType: meta.resourceType,
+        resourceId,
+        action: meta.action,
+        resourceRefs: [
+          ...primaryRefs(meta.resourceType, resourceId),
+          ...collected.flat().filter(namesPossibleId),
+        ],
+        params: input,
+        resultCount,
+      };
+    },
+  };
+}
+
+/**
  * A query whose reads are recorded as audit access events: the resource
  * `idKey` names, plus what the resolver passes to `audit.refs`. The event is
  * recorded before the data is returned, so a failed write fails the read.
@@ -181,34 +222,16 @@ export function auditedQuery<TBuilder extends QueryBuilder, TOutput>(
 ): AuditedQueryProcedure<TBuilder, TOutput> {
   const meta: AccessAuditMeta = read;
   return builder.meta({ accessAudit: meta }).query(async (opts) => {
-    const collected: AuditLogResourceRef[][] = [];
-    let resultCount: number | undefined;
+    const { audit, toRead } = collectAccessRead(meta);
     const output = await resolver({
       ...opts,
-      audit: {
-        refs: (refs) => {
-          collected.push(refs);
-        },
-        count: (count) => {
-          resultCount = count;
-        },
-      },
-    } as QueryOptions<TBuilder> & { audit: AccessAuditRecorder });
+      audit,
+    } as QueryOptions<TBuilder> & {
+      audit: AccessAuditRecorder;
+    });
 
     const input = opts.input as { projectId: string } & Record<string, unknown>;
-    const resourceId = requestedId(meta, input);
-    await recordTrpcAccess(opts.ctx, input.projectId, {
-      route: opts.path,
-      resourceType: meta.resourceType,
-      resourceId,
-      action: meta.action,
-      resourceRefs: [
-        ...primaryRefs(meta.resourceType, resourceId),
-        ...collected.flat().filter(namesPossibleId),
-      ],
-      params: input,
-      resultCount,
-    });
+    await recordTrpcAccess(opts.ctx, input.projectId, toRead(opts.path, input));
     return output;
   }) as unknown as AuditedQueryProcedure<TBuilder, TOutput>;
 }
