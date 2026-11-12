@@ -465,11 +465,9 @@ async function listCurrentRows<T extends CandidateRow>(
         : ""
     })`;
     // A summary row resolves once: the map whose assignment matched, newest first.
-    const order = perRun
-      ? `, clustering_run_id ${direction}`
-      : source === "current"
-        ? ", matched DESC, assigned_at DESC"
-        : "";
+    let order = "";
+    if (perRun) order = `, clustering_run_id ${direction}`;
+    else if (source === "current") order = ", matched DESC, assigned_at DESC";
     const resolved = await queryClickhouse<T>({
       ...READ_OPTIONS,
       query: `WITH ${currentResultsSql(summaryConditions, [`trace_id IN ${traceIds}`])}
