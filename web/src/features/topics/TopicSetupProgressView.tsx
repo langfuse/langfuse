@@ -71,6 +71,9 @@ export function TopicSetupProgressView({
         <p className="text-muted-foreground text-sm text-pretty">
           {failed && !canRetry ? NO_RETRY_DETAIL : copy.detail}
         </p>
+        {copy.note && (
+          <p className="text-muted-foreground text-sm">{copy.note}</p>
+        )}
       </div>
       {failed ? (
         <div className="flex items-center gap-2">
@@ -142,7 +145,10 @@ function pileFill(slots: number, pileIndex: number, tick: number) {
 
 const NO_RETRY_DETAIL = "Topics could not start. Start a new scan instead.";
 
-function progressCopy(failed: boolean, waiting: boolean) {
+function progressCopy(
+  failed: boolean,
+  waiting: boolean,
+): { title: string; detail: string; note?: string } {
   if (failed)
     return {
       title: "The first analysis did not finish",
@@ -157,7 +163,8 @@ function progressCopy(failed: boolean, waiting: boolean) {
   return {
     title: "Analyzing your traces",
     detail:
-      "Usually takes 2–5 minutes. Runs in the background, so your topics will be here when you're back.",
+      "Runs in the background, so your topics will be here when you're back.",
+    note: "Usually takes 2–5 minutes.",
   };
 }
 
