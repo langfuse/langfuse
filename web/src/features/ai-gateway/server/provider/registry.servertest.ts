@@ -1,3 +1,4 @@
+import dns from "node:dns/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type * as GatewayFetch from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
@@ -133,10 +134,17 @@ describe("AI gateway provider registry", () => {
         session,
       });
 
-    await expect(create(null)).rejects.toThrow("endpoint");
-    await expect(create("https://20.0.0.1/openai/v1/")).rejects.toThrow("stop");
+    await expect(create(null)).rejects.toThrow("Foundry resource");
+    await expect(
+      create("https://contoso.openai.azure.com/openai/v1"),
+    ).rejects.toThrow("Foundry resource");
+    await expect(
+      create("https://Contoso.services.ai.azure.com/"),
+    ).rejects.toThrow("stop");
     expect(validator).toHaveBeenCalledWith(
-      expect.objectContaining({ baseURL: "https://20.0.0.1" }),
+      expect.objectContaining({
+        baseURL: "https://contoso.services.ai.azure.com",
+      }),
     );
 
     const upstream = (apiFormat: "openai.embeddings" | "anthropic.messages") =>
@@ -160,6 +168,13 @@ describe("AI gateway provider registry", () => {
     vi.mocked(getGatewayFetch).mockReturnValue(
       vi.fn().mockResolvedValue(new Response("", { status: 502 })),
     );
+    const dnsSpies = [
+      vi.spyOn(dns, "resolve4").mockResolvedValue(["20.0.0.1"]),
+      vi.spyOn(dns, "resolve6").mockRejectedValue(new Error("ENODATA")),
+      vi
+        .spyOn(dns, "lookup")
+        .mockResolvedValue([{ address: "20.0.0.1", family: 4 }] as never),
+    ];
     const service = new GatewayProviderService({} as PrismaClient);
 
     await expect(
@@ -167,9 +182,10 @@ describe("AI gateway provider registry", () => {
         organizationId: "org-1",
         provider: "AZURE",
         credential: "azure-key",
-        baseURL: "https://20.0.0.1",
+        baseURL: "https://contoso.services.ai.azure.com",
       }),
     ).rejects.toThrow("Provider connection test failed");
+    for (const spy of dnsSpies) spy.mockRestore();
   });
 
   it("validates credentials before persisting a connection", async () => {
@@ -543,6 +559,75 @@ describe("AI gateway provider registry", () => {
       ],
     });
     expect(String(fetcher.mock.calls[1]?.[0])).toContain("after_id=claude-a");
+  });
+
+  it("lists the deployments of the Azure resource's default project", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        value: [
+          {
+            name: "chat",
+            type: "ModelDeployment",
+            modelName: "gpt-5-mini",
+            modelPublisher: "OpenAI",
+            capabilities: { chat_completion: "true" },
+          },
+          {
+            name: "embed",
+            type: "ModelDeployment",
+            modelName: "text-embedding-3-small",
+            modelPublisher: "OpenAI",
+            capabilities: { embeddings: "true" },
+          },
+          {
+            name: "claude",
+            type: "ModelDeployment",
+            modelName: "claude-sonnet-4-5",
+            modelPublisher: "Anthropic",
+          },
+          { name: "agent", type: "AgentDeployment", modelName: "gpt-5" },
+        ],
+      }),
+    );
+    const prisma = {
+      gatewayAiConnection: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "connection-1",
+          organizationId: "org-1",
+          provider: "AZURE",
+          baseURL: "https://contoso.services.ai.azure.com",
+          encryptedCredential: encrypt("azure-key"),
+          status: "ENABLED",
+          allowedModels: null,
+          customModels: [],
+        }),
+      },
+    } as unknown as PrismaClient;
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+
+    await expect(
+      new GatewayModelCatalogService(prisma, null).getModelCatalog({
+        organizationId: "org-1",
+        connectionId: "connection-1",
+      }),
+    ).resolves.toMatchObject({
+      success: true,
+      models: [
+        {
+          id: "chat",
+          canonicalSlug: "gpt-5-mini",
+          apiFormats: ["openai.responses", "openai.chat-completions"],
+        },
+        { id: "embed", apiFormats: ["openai.embeddings"] },
+        { id: "claude", apiFormats: ["anthropic.messages"] },
+      ],
+    });
+    expect(String(fetcher.mock.calls[0]?.[0])).toBe(
+      "https://contoso.services.ai.azure.com/api/projects/_project/deployments?api-version=v1",
+    );
+    expect(fetcher.mock.calls[0]?.[1]?.headers).toMatchObject({
+      "api-key": "azure-key",
+    });
   });
 
   it("treats malformed provider model responses as failures", async () => {

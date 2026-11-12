@@ -16,7 +16,7 @@ import {
   AdvancedSettings,
   type ExtraHeaderRow,
 } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/AdvancedSettings/AdvancedSettings";
-import { AzureEndpointField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/AzureEndpointField/AzureEndpointField";
+import { AzureResourceField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/AzureResourceField/AzureResourceField";
 import { BedrockRegionField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/BedrockRegionField/BedrockRegionField";
 import { ConnectionNameField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ConnectionNameField/ConnectionNameField";
 import { FieldHeader } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/FieldHeader";
@@ -25,6 +25,11 @@ import { SecretKeyField } from "@/src/features/ai-gateway/components/GatewaySetu
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import { ModelListingDeniedAlert } from "@/src/features/ai-gateway/components/ModelListingDeniedAlert/ModelListingDeniedAlert";
 import { showToast } from "@/src/features/notifications/showToast";
+import {
+  getAzureResourceEndpoint,
+  getAzureResourceName,
+  isAzureResourceName,
+} from "@/src/features/ai-gateway/fns/azureResource";
 import { getAvailableGatewayProviders } from "@/src/features/ai-gateway/fns/getAvailableGatewayProviders";
 import { isGatewayApiFamily } from "@/src/features/ai-gateway/fns/isGatewayApiFamily";
 import { isGatewayConnectionNameError } from "@/src/features/ai-gateway/fns/isGatewayConnectionNameError";
@@ -73,6 +78,7 @@ export function ProviderDialogController({
   const [credential, setCredential] = useState("");
   const [awsRegion, setAwsRegion] = useState("");
   const [baseURL, setBaseURL] = useState("");
+  const [azureResource, setAzureResource] = useState("");
   const [extraHeaders, setExtraHeaders] = useState<ExtraHeaderRow[]>([]);
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
@@ -126,14 +132,18 @@ export function ProviderDialogController({
 
   /**
    * Bedrock, OpenRouter, xAI and Vercel have no custom endpoint, and Azure
-   * only its resource endpoint.
+   * only the endpoint of its resource.
    * When editing, a blank header value keeps the stored value, so those rows
    * are sent; a new connection has no stored values and drops them.
    */
   const getEndpoint = (selectedConnection: GatewayConnection | null) => {
     const selectedProvider = selectedConnection?.provider ?? provider;
     if (selectedProvider === "AZURE") {
-      return { baseURL: baseURL.trim() || null };
+      return {
+        baseURL: isAzureResourceName(azureResource)
+          ? getAzureResourceEndpoint(azureResource)
+          : null,
+      };
     }
     if (!isGatewayApiFamily(selectedProvider)) {
       return {};
@@ -152,6 +162,9 @@ export function ProviderDialogController({
 
   const loadEndpoint = (selectedConnection: GatewayConnection | null) => {
     setBaseURL(selectedConnection?.baseURL ?? "");
+    setAzureResource(
+      getAzureResourceName(selectedConnection?.baseURL ?? "") ?? "",
+    );
     setExtraHeaders(
       (selectedConnection?.extraHeaderKeys ?? []).map((key) => ({
         id: crypto.randomUUID(),
@@ -182,9 +195,7 @@ export function ProviderDialogController({
     if (update.isError) update.reset();
   };
 
-  /** The Azure endpoint field and advanced settings share the base URL, so switching between them drops it. */
   const updateProvider = (value: GatewayProvider) => {
-    if ((value === "AZURE") !== (provider === "AZURE")) loadEndpoint(null);
     setProvider(value);
     clearSaveError();
   };
@@ -288,7 +299,8 @@ export function ProviderDialogController({
         const nameError = getNameError(selectedConnection);
         const dialogProvider = selectedConnection?.provider ?? provider;
         const isMissingRegion = getConfig(selectedConnection)?.region === "";
-        const isMissingEndpoint = dialogProvider === "AZURE" && !baseURL.trim();
+        const isMissingEndpoint =
+          dialogProvider === "AZURE" && !isAzureResourceName(azureResource);
         return (
           <>
             <DialogHeader>
@@ -350,10 +362,10 @@ export function ProviderDialogController({
                 <BedrockRegionField value={awsRegion} onChange={setAwsRegion} />
               ) : null}
               {dialogProvider === "AZURE" ? (
-                <AzureEndpointField
-                  value={baseURL}
+                <AzureResourceField
+                  value={azureResource}
                   isEditing={Boolean(selectedConnection)}
-                  onChange={setBaseURL}
+                  onChange={setAzureResource}
                 />
               ) : null}
               <SecretKeyField

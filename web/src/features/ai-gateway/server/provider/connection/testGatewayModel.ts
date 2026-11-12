@@ -120,7 +120,7 @@ function getTestApiFormats(
   if (provider === "OPENAI" && isOpenAiEmbeddingModel(model)) {
     return ["openai.embeddings"];
   }
-  if (provider === "AZURE") return AZURE_TEST_ORDER;
+  if (provider === "AZURE") return [...(reportedFormats ?? AZURE_TEST_ORDER)];
   if (provider === "GOOGLE_AI_STUDIO") {
     return isGeminiEmbeddingModel(model)
       ? ["openai.embeddings"]

@@ -23,6 +23,10 @@ import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { GATEWAY_CONNECTION_NAME_ERRORS } from "@/src/features/ai-gateway/constants/gatewayConnection";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
+import {
+  getAzureResourceEndpoint,
+  getAzureResourceName,
+} from "@/src/features/ai-gateway/fns/azureResource";
 import { isGatewayApiFamily } from "@/src/features/ai-gateway/fns/isGatewayApiFamily";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
@@ -585,7 +589,7 @@ async function parseConnectionEndpoint(
   const baseURL = toCanonicalBaseURL(params.provider, params.baseURL);
   if (params.provider === "AZURE" && !baseURL) {
     throw new InvalidRequestError(
-      "Azure connections need the endpoint of the Azure resource",
+      "Azure connections need the name of a Microsoft Foundry resource",
     );
   }
   if (baseURL && params.validateBaseURL) {
@@ -600,16 +604,13 @@ async function parseConnectionEndpoint(
   return { baseURL, extraHeaders };
 }
 
-// The paths Azure documents for its OpenAI v1 and Anthropic APIs, which users
-// may paste along with the endpoint.
-const AZURE_API_PATH = /\/(openai|anthropic)(\/v1)?$/;
-
 /**
  * Model discovery, model tests and the gateway append route paths such as
  * `/models` verbatim, so the stored URL ends at the API version. Anthropic
  * URLs take `/v1` like LLM connections, and the gateway rejects query strings,
  * fragments and the `{model}` placeholder LLM connections allow. Azure stores
- * the resource endpoint, as each API format has its own path below it.
+ * the origin of a Foundry resource, as each API format has its own path below
+ * it.
  */
 function toCanonicalBaseURL(
   provider: GatewayProvider,
@@ -621,10 +622,16 @@ function toCanonicalBaseURL(
       "Invalid base URL: query strings, fragments and {model} are not supported",
     );
   }
-  const trimmed = baseURL.replace(/\/+$/, "");
   if (provider === "AZURE") {
-    return trimmed.replace(AZURE_API_PATH, "");
+    const resourceName = getAzureResourceName(baseURL);
+    if (!resourceName) {
+      throw new InvalidRequestError(
+        "Azure connections need the name of a Microsoft Foundry resource",
+      );
+    }
+    return getAzureResourceEndpoint(resourceName);
   }
+  const trimmed = baseURL.replace(/\/+$/, "");
   return provider === "ANTHROPIC" && !trimmed.endsWith("/v1")
     ? `${trimmed}/v1`
     : trimmed;
