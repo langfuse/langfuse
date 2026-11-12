@@ -1,5 +1,6 @@
 import { type MutationStatus } from "@tanstack/react-query";
 
+import { Button } from "@/src/components/design-system/Button/Button";
 import { cn } from "@/src/utils/tailwind";
 import {
   ConnectionTestDetails,
@@ -46,7 +47,18 @@ export function ConnectionTestStatus({
         />
         {display.label}
       </span>
-      {failure ? <ConnectionTestDetails failure={failure} /> : null}
+      {failure ? (
+        <ConnectionTestDetails failure={failure}>
+          {({ getTriggerProps, isOpen }) => (
+            <span className="inline-flex" {...getTriggerProps()}>
+              <Button
+                variant="text"
+                text={isOpen ? "Hide details" : "Show details"}
+              />
+            </span>
+          )}
+        </ConnectionTestDetails>
+      ) : null}
     </div>
   );
 }

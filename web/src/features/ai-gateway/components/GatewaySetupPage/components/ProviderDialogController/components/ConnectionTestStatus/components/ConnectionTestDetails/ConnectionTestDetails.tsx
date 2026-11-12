@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ComponentProps, type ReactNode } from "react";
 import { Check, Copy } from "@langfuse/icons";
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
@@ -6,8 +6,11 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { FloatingController } from "@/src/components/design-system/FloatingController/FloatingController";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 
-/** "Show details" link that opens the provider's answer to a failed test. */
-export function ConnectionTestDetails({ failure }: ConnectionTestDetailsProps) {
+/** Popover with the provider's answer to a failed test; the caller supplies the trigger. */
+export function ConnectionTestDetails({
+  failure,
+  children,
+}: ConnectionTestDetailsProps) {
   const [isOpen, setIsOpen] = useState(false);
   const { copy, isCopied } = useCopyToClipboard();
   const statusLabel = getStatusLabel(failure);
@@ -54,15 +57,7 @@ export function ConnectionTestDetails({ failure }: ConnectionTestDetailsProps) {
         </div>
       )}
     >
-      {({ getTriggerProps }) => (
-        <button
-          {...getTriggerProps()}
-          type="button"
-          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring rounded-sm text-sm underline focus-visible:ring-2 focus-visible:outline-hidden"
-        >
-          {isOpen ? "Hide details" : "Show details"}
-        </button>
-      )}
+      {({ getTriggerProps }) => children({ getTriggerProps, isOpen })}
     </FloatingController>
   );
 }
@@ -72,7 +67,14 @@ function getStatusLabel({ status, statusText }: ConnectionTestFailure) {
   return statusText ? `${status} ${statusText}` : String(status);
 }
 
-type ConnectionTestDetailsProps = { failure: ConnectionTestFailure };
+type ConnectionTestDetailsProps = {
+  failure: ConnectionTestFailure;
+  children: (controls: TriggerControls & { isOpen: boolean }) => ReactNode;
+};
+
+type TriggerControls = Parameters<
+  ComponentProps<typeof FloatingController>["children"]
+>[0];
 
 export type ConnectionTestFailure = {
   title: string;
