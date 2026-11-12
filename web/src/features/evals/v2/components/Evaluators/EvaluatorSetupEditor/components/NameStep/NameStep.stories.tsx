@@ -8,6 +8,7 @@ const meta = preview.meta({ component: NameStep });
 export const Default = meta.story({
   args: {
     step: 3,
+    variant: "default",
     open: true,
     onOpenChange: fn(),
     name: "Factual correctness",
@@ -22,6 +23,7 @@ export const Default = meta.story({
 export const SuggestingMetadata = meta.story({
   args: {
     step: 3,
+    variant: "default",
     open: true,
     onOpenChange: fn(),
     name: "",
@@ -36,6 +38,7 @@ export const SuggestingMetadata = meta.story({
 export const DecisionModel = meta.story({
   args: {
     step: 3,
+    variant: "decisionModel",
     open: true,
     onOpenChange: fn(),
     name: "Technical depth",

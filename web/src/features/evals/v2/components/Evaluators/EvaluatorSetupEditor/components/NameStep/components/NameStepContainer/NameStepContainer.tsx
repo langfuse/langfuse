@@ -28,6 +28,10 @@ export function NameStepContainer({
       const step = getEvaluatorNameStep(state.type);
       return {
         step,
+        variant:
+          state.type === "DECISION_MODEL"
+            ? ("decisionModel" as const)
+            : ("default" as const),
         open: Boolean(state.openSteps[step]),
         name: state.name,
         description: state.description,
@@ -39,6 +43,7 @@ export function NameStepContainer({
   return (
     <NameStep
       step={state.step}
+      variant={state.variant}
       open={state.open}
       onOpenChange={(open) => onStepOpenChange(state.step, open)}
       name={state.name}
