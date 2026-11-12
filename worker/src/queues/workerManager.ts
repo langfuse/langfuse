@@ -101,12 +101,12 @@ export class WorkerManager {
   private static metricWrapper<Q extends QueueName>(
     processor: Processor<JobData<Q>>,
     queueName: Q,
-    metricTags: MetricTags<Q>,
+    getTags: TagGetter<Q>,
   ): Processor<JobData<Q>> {
-    const { baseMetric, shardTag } = WorkerManager.resolveMetricInfo(queueName);
+    const { baseMetric } = WorkerManager.resolveMetricInfo(queueName);
 
     return async (job: Job<JobData<Q>>) => {
-      const tags = { ...metricTags(job.data), ...shardTag };
+      const tags = getTags(job);
       const startTime = Date.now();
       const { attempt, waitMs } = WorkerManager.computeWaitTimeMs(
         job,
@@ -183,10 +183,13 @@ export class WorkerManager {
       return;
     }
 
+    const { baseMetric, shardTag } = WorkerManager.resolveMetricInfo(queueName);
+    const getTags = newTagGetter(metricTags, shardTag);
+
     // Register worker
     const worker = new Worker(
       queueName,
-      WorkerManager.metricWrapper(processor, queueName, metricTags),
+      WorkerManager.metricWrapper(processor, queueName, getTags),
       {
         ...workerOptionsWithRedis,
         ...additionalOptions,
@@ -195,8 +198,6 @@ export class WorkerManager {
     WorkerManager.workers[queueName] = worker;
     markQueueWorkerRegistered();
     logger.info(`${queueName} executor started: ${worker.isRunning()}`);
-
-    const { baseMetric, shardTag } = WorkerManager.resolveMetricInfo(queueName);
 
     // Liveness signal for the ?failIfQueueConsumptionStuck=true health check.
     // "active" and "completed" prove this container's consumption loop is
@@ -208,15 +209,14 @@ export class WorkerManager {
       markQueueJobActivity();
       recordIncrement(baseMetric + ".rate", 1, {
         type: "completed",
-        ...jobMetricTags(metricTags, job),
-        ...shardTag,
+        ...getTags(job),
       });
     });
 
     // Add error handling
     worker.on("failed", (job: Job<JobData<Q>> | undefined, err: Error) => {
       const reason = classifyJobFailure(err);
-      const tags = { ...jobMetricTags(metricTags, job), ...shardTag };
+      const tags = getTags(job);
       logRetryableJobFailure({
         message: `Queue job ${job?.name} with id ${job?.id} in ${queueName} failed`,
         error: err,
@@ -253,7 +253,7 @@ export class WorkerManager {
       traceException(failedReason);
       recordIncrement(baseMetric + ".rate", 1, {
         type: "error",
-        ...shardTag,
+        ...getTags(),
       });
     });
     // Counts intermediate re-enqueues (LFE-10063), not just the terminal
@@ -266,19 +266,21 @@ export class WorkerManager {
       );
       recordIncrement(baseMetric + ".rate", 1, {
         type: "stalled",
-        ...shardTag,
+        ...getTags(),
       });
     });
   }
 }
 
-/** jobMetricTags derives a job's metric tags, or none when a worker event arrives without the job. */
-function jobMetricTags<Q extends QueueName>(
+/** newTagGetter returns the function that tags a queue's metrics with a job's metric tags and the queue's shard. */
+function newTagGetter<Q extends QueueName>(
   metricTags: MetricTags<Q>,
-  job: Job<JobData<Q>> | undefined,
-): Record<string, string> {
-  if (!job) return {};
-  return metricTags(job.data);
+  shardTag: { shard: string } | undefined,
+): TagGetter<Q> {
+  return (job) => {
+    if (!job) return { ...shardTag };
+    return { ...metricTags(job.data), ...shardTag };
+  };
 }
 
 /** JobData is the data a queue's jobs carry; cron-only queues send an empty object. */
@@ -295,3 +297,8 @@ type MetricTags<Q extends QueueName> = (
 type RegisterOptions<Q extends QueueName> = Partial<WorkerOptions> & {
   metricTags?: MetricTags<Q>;
 };
+
+/** TagGetter tags a queue metric for a job, or for the queue alone when the event has no job. */
+type TagGetter<Q extends QueueName> = (
+  job?: Job<JobData<Q>>,
+) => Record<string, string>;
