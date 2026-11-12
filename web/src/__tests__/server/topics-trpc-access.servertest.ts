@@ -318,7 +318,12 @@ describe("Topics tRPC access", () => {
         timeRange: { from: new Date(Date.now() - 86_400_000), to: new Date() },
         facets: [{ facetId: a.facetId, version: 1 }],
       }),
-    ).rejects.toThrow('Filter column "latency" is not supported');
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining(
+        'Filter column "latency" is not supported',
+      ),
+    });
   });
 
   it("rejects first-run setup reads and writes for a project the caller is not a member of", async () => {
