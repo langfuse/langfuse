@@ -70,25 +70,34 @@ export function topicTracesHref(
   isV4: boolean,
   topic?: { facet: Facet; name: string },
 ) {
-  if (topic && isV4) {
-    const filter = encodeFiltersGeneric([
+  return topic && isV4
+    ? topicFilterHref(projectId, topic.facet, topic.name)
+    : traceIdsHref(projectId, rows, isV4);
+}
+
+function topicFilterHref(projectId: string, facet: Facet, topicName: string) {
+  // The tracing topic filter rejects windows longer than the Topics maximum.
+  const { to } = facet.window;
+  const from = Math.max(
+    facet.window.from.getTime(),
+    to.getTime() - TOPICS_MAX_TIME_RANGE_MS + 1,
+  );
+  return tracingHref(
+    projectId,
+    encodeFiltersGeneric([
       {
         column: "topics",
         type: "categoryOptions",
-        key: topic.facet.name,
+        key: facet.name,
         operator: "any of",
-        value: [topic.name],
+        value: [topicName],
       },
-    ]);
-    // The tracing topic filter rejects windows longer than the Topics maximum.
-    const { to } = topic.facet.window;
-    const from = Math.max(
-      topic.facet.window.from.getTime(),
-      to.getTime() - TOPICS_MAX_TIME_RANGE_MS + 1,
-    );
-    const dateRange = rangeToString({ from: new Date(from), to });
-    return `/project/${projectId}/traces?filter=${encodeURIComponent(filter)}&dateRange=${encodeURIComponent(dateRange)}`;
-  }
+    ]),
+    { from: new Date(from), to },
+  );
+}
+
+function traceIdsHref(projectId: string, rows: FacetRow[], isV4: boolean) {
   if (rows.length === 0) return null;
   const filter = encodeFiltersGeneric([
     {
@@ -100,11 +109,18 @@ export function topicTracesHref(
   ]);
   if (filter.length > MAX_URL_FILTER_QUERY_LENGTH) return null;
   const times = rows.map((row) => new Date(row.unitStartTime).getTime());
-  const dateRange = rangeToString({
+  return tracingHref(projectId, filter, {
     from: new Date(Math.min(...times) - 60_000),
     to: new Date(Math.max(...times) + 60_000),
   });
-  return `/project/${projectId}/traces?filter=${encodeURIComponent(filter)}&dateRange=${encodeURIComponent(dateRange)}`;
+}
+
+function tracingHref(
+  projectId: string,
+  filter: string,
+  range: { from: Date; to: Date },
+) {
+  return `/project/${projectId}/traces?filter=${encodeURIComponent(filter)}&dateRange=${encodeURIComponent(rangeToString(range))}`;
 }
 
 export function allTopicsLabel(facetName: string) {
