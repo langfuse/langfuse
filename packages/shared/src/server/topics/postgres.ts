@@ -555,13 +555,13 @@ export async function topicRuleRunWhere(
     : { ruleId };
 }
 
-/** The rule's published map of a facet, at any facet version. */
-export async function getTopicRuleMap(
+/** The rule's published map row of a facet, without reading its topics. */
+export async function getTopicRuleMapRow(
   projectId: string,
   ruleId: string,
   facetId: string,
-): Promise<TopicRun | null> {
-  const row = await prisma.topicClusteringRun.findFirst({
+) {
+  return prisma.topicClusteringRun.findFirst({
     where: {
       projectId,
       facetId,
@@ -570,6 +570,15 @@ export async function getTopicRuleMap(
     },
     orderBy: servingMapOrder,
   });
+}
+
+/** The rule's published map of a facet, at any facet version. */
+export async function getTopicRuleMap(
+  projectId: string,
+  ruleId: string,
+  facetId: string,
+): Promise<TopicRun | null> {
+  const row = await getTopicRuleMapRow(projectId, ruleId, facetId);
   return row ? (await hydrateRuns(projectId, [row]))[0] : null;
 }
 
