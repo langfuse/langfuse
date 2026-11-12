@@ -72,14 +72,6 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   };
 });
 
-const recordMonitorAlertDeliveryLatency = vi.hoisted(() => vi.fn());
-
-vi.mock("@langfuse/shared/monitors/server", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@langfuse/shared/monitors/server")>();
-  return { ...actual, recordMonitorAlertDeliveryLatency };
-});
-
 vi.mock("exponential-backoff", async (importOriginal) => {
   const actual = await importOriginal<typeof import("exponential-backoff")>();
   return {
@@ -2465,80 +2457,7 @@ describe("Webhook Integration Tests", () => {
       expect(await redis!.get(failureKey)).toBeNull();
     });
 
-    it("emits one delivery result per alert, only once no retry remains", async () => {
-      recordMonitorAlertDeliveryLatency.mockClear();
-      const input = buildMonitorAlertInput(alertedAt);
-      const action = await prisma.action.findUniqueOrThrow({
-        where: { id: actionId },
-      });
-      await prisma.action.update({
-        where: { id: actionId },
-        data: {
-          config: {
-            ...(action.config as WebhookActionConfigWithSecrets),
-            secretKey: null,
-          },
-        },
-      });
-
-      await expect(
-        executeWebhook(input, {
-          skipValidation: true,
-          isFinalAttempt: false,
-        }),
-      ).rejects.toThrow();
-      expect(recordMonitorAlertDeliveryLatency).not.toHaveBeenCalled();
-
-      await expect(
-        executeWebhook(input, {
-          skipValidation: true,
-          isFinalAttempt: true,
-        }),
-      ).rejects.toThrow();
-      expect(recordMonitorAlertDeliveryLatency.mock.calls).toEqual([
-        [
-          expect.objectContaining({
-            projectId,
-            window: "5m",
-            alertTimestamp: input.payload.payload.timestamp,
-            actionType: "WEBHOOK",
-            result: "failed",
-            reason: "none",
-          }),
-        ],
-      ]);
-
-      recordMonitorAlertDeliveryLatency.mockClear();
-      await prisma.action.update({
-        where: { id: actionId },
-        data: { config: action.config as WebhookActionConfigWithSecrets },
-      });
-      await executeWebhook(input, {
-        skipValidation: true,
-        isFinalAttempt: false,
-      });
-      expect(recordMonitorAlertDeliveryLatency.mock.calls).toEqual([
-        [expect.objectContaining({ result: "delivered", reason: "none" })],
-      ]);
-    });
-
-    it("emits failed once when the endpoint keeps failing in-job", async () => {
-      recordMonitorAlertDeliveryLatency.mockClear();
-      await useErrorEndpoint();
-
-      await executeWebhook(buildMonitorAlertInput(alertedAt), {
-        skipValidation: true,
-        isFinalAttempt: false,
-      });
-
-      expect(webhookServer.getReceivedRequests()).toHaveLength(4);
-      expect(recordMonitorAlertDeliveryLatency.mock.calls).toEqual([
-        [expect.objectContaining({ result: "failed", reason: "none" })],
-      ]);
-    });
-
     it("drops the alert when its monitor was deleted", async () => {
-      recordMonitorAlertDeliveryLatency.mockClear();
       await prisma.monitor.delete({ where: { id: monitorId } });
 
       await executeWebhook(buildMonitorAlertInput(alertedAt), {
@@ -2546,14 +2465,6 @@ describe("Webhook Integration Tests", () => {
       });
 
       expect(webhookServer.getReceivedRequests()).toHaveLength(0);
-      expect(recordMonitorAlertDeliveryLatency.mock.calls).toEqual([
-        [
-          expect.objectContaining({
-            result: "dropped",
-            reason: "monitor_deleted",
-          }),
-        ],
-      ]);
     });
 
     it("drops the alert for every action type, not only webhooks", async () => {
