@@ -119,9 +119,12 @@ impl Provider {
         match self {
             Self::OpenAi | Self::Anthropic => valid_custom_base_url(base_url),
             Self::Azure => {
-                let path = match api_format.provider() {
-                    Self::Anthropic => AZURE_ANTHROPIC_PATH,
-                    _ => AZURE_OPENAI_PATH,
+                let path = match api_format {
+                    ApiFormat::AnthropicMessages => AZURE_ANTHROPIC_PATH,
+                    ApiFormat::OpenAiResponses
+                    | ApiFormat::OpenAiChatCompletions
+                    | ApiFormat::OpenAiDecisions
+                    | ApiFormat::OpenAiEmbeddings => AZURE_OPENAI_PATH,
                 };
                 valid_custom_base_url(base_url) && base_url.ends_with(path)
             }

@@ -20,9 +20,10 @@ function listingDescription(provider: GatewayProvider) {
   if (provider === "AZURE") {
     return (
       <>
-        Deployments are listed per Foundry project. Add the project name to the
-        connection to list them, or add deployments as custom models by their
-        deployment name.
+        Deployments are listed per Foundry project. Check that the connection
+        names the right project; without one, only a default project is listed.
+        The key may also not be allowed to list deployments. Deployments can
+        still be added as custom models by their deployment name.
       </>
     );
   }

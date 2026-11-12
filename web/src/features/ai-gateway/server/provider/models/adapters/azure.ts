@@ -14,20 +14,23 @@ const DEFAULT_PROJECT = "_project";
 const MAX_PAGES = 10;
 const UNKNOWN_CREATED_AT = new Date(0).toISOString();
 
-const responseSchema = z.object({
-  value: z.array(
-    z.object({
-      name: z.string(),
-      type: z.string(),
-      modelName: z.string(),
-      modelPublisher: z.string().optional(),
-      capabilities: z.record(z.string(), z.unknown()).optional(),
-    }),
-  ),
-  nextLink: z.string().optional(),
+const pageSchema = z.object({
+  value: z.array(z.unknown()),
+  nextLink: z.string().nullish(),
 });
 
-type Deployment = z.infer<typeof responseSchema>["value"][number];
+// Deployments of other types, or of connected resources (`connectionName`),
+// aren't served by this resource, so they are skipped rather than failing.
+const deploymentSchema = z.object({
+  name: z.string(),
+  type: z.literal("ModelDeployment"),
+  modelName: z.string(),
+  modelPublisher: z.string().nullish(),
+  capabilities: z.record(z.string(), z.unknown()).nullish(),
+  connectionName: z.string().nullish(),
+});
+
+type Deployment = z.infer<typeof deploymentSchema>;
 
 export const azureModelDiscoveryAdapter: ModelDiscoveryAdapter = {
   async fetchCatalog({ credential, baseURL, extraHeaders, fetcher }) {
@@ -36,60 +39,89 @@ export const azureModelDiscoveryAdapter: ModelDiscoveryAdapter = {
       return { success: false, error: "provider_error" };
     }
     const origin = new URL(baseURL).origin;
+    const headers = { ...extraHeaders, "api-key": credential };
     const deployments: Deployment[] = [];
     let url: URL | null = new URL(
       `${origin}/api/projects/${resource.project ?? DEFAULT_PROJECT}/deployments?api-version=v1`,
     );
-    for (let page = 0; url && page < MAX_PAGES; page++) {
-      const result = await requestJson({
-        fetcher,
-        url,
-        headers: { ...extraHeaders, "api-key": credential },
-      });
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const result = await requestJson({ fetcher, url, headers });
       if (!result.success) return result;
 
       // An unknown project, or a key that may call deployments without
       // listing them (the documented contract is OAuth only), keeps the custom
-      // models. The credential check rejects bad keys before this.
-      if ([401, 403, 404].includes(result.response.status)) {
+      // models. A key the resource rejects outright is reported as such.
+      const { status } = result.response;
+      if (status === 401 || status === 403) {
+        return (await isKeyRejected({ fetcher, origin, credential }))
+          ? { success: false, error: "unauthorized" }
+          : { success: true, models: [], modelListingDenied: true };
+      }
+      if (status === 404) {
         return { success: true, models: [], modelListingDenied: true };
       }
       const error = standardHttpError(result.response);
       if (error) return { success: false, error };
 
-      const parsed = responseSchema.safeParse(result.value);
+      const parsed = pageSchema.safeParse(result.value);
       if (!parsed.success) return { success: false, error: "provider_error" };
-      deployments.push(...parsed.data.value);
-      url = getNextPage(parsed.data.nextLink, origin);
+      for (const item of parsed.data.value) {
+        const deployment = deploymentSchema.safeParse(item);
+        if (deployment.success && !deployment.data.connectionName) {
+          deployments.push(deployment.data);
+        }
+      }
+
+      if (!parsed.data.nextLink) {
+        return { success: true, models: deployments.map(toCatalogEntry) };
+      }
+      url = new URL(parsed.data.nextLink, origin);
+      // Only the resource itself may receive the API key.
+      if (url.origin !== origin) {
+        return { success: false, error: "provider_error" };
+      }
     }
 
-    return {
-      success: true,
-      models: deployments
-        .filter(({ type }) => type === "ModelDeployment")
-        .map(({ name, modelName, modelPublisher, capabilities }) => {
-          const apiFormats = getDeploymentApiFormats(
-            modelPublisher,
-            capabilities ?? {},
-          );
-          return {
-            id: name,
-            provider: "AZURE" as const,
-            canonicalSlug: modelName,
-            displayName: name,
-            createdAt: UNKNOWN_CREATED_AT,
-            ...(apiFormats && { apiFormats }),
-          };
-        }),
-    };
+    // A truncated listing would pass for the whole catalog.
+    return { success: false, error: "provider_error" };
   },
 };
 
-/** Follows pages only on the resource itself, which holds the API key. */
-function getNextPage(nextLink: string | undefined, origin: string) {
-  if (!nextLink) return null;
-  const url = new URL(nextLink, origin);
-  return url.origin === origin ? url : null;
+/** Sends the request the credential check sends when a connection is saved. */
+async function isKeyRejected(params: {
+  fetcher: typeof fetch;
+  origin: string;
+  credential: string;
+}) {
+  const result = await requestJson({
+    fetcher: params.fetcher,
+    url: new URL(`${params.origin}/openai/v1/models`),
+    headers: { authorization: `Bearer ${params.credential}` },
+  });
+  return (
+    result.success &&
+    (result.response.status === 401 || result.response.status === 403)
+  );
+}
+
+function toCatalogEntry({
+  name,
+  modelName,
+  modelPublisher,
+  capabilities,
+}: Deployment) {
+  const apiFormats = getDeploymentApiFormats(
+    modelPublisher ?? undefined,
+    capabilities ?? {},
+  );
+  return {
+    id: name,
+    provider: "AZURE" as const,
+    canonicalSlug: modelName,
+    displayName: name,
+    createdAt: UNKNOWN_CREATED_AT,
+    ...(apiFormats && { apiFormats }),
+  };
 }
 
 /**
