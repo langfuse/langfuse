@@ -28,7 +28,6 @@ import { getObservationsForBlobStorageExport } from "./observations";
 import { getScoresForBlobStorageExport } from "./scores";
 import { getEventsForBlobStorageExport } from "./events";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-import { OBSERVATION_FIELD_GROUPS_FULL } from "../../domain/observation-field-groups";
 
 const PROJECT = "proj-1";
 const MIN = new Date("2026-01-01T00:00:00.000Z");
@@ -134,32 +133,4 @@ describe("blob-storage export window is half-open", () => {
     const window2 = capturedQuery();
     expect(window2).toContain(">= {minTimestamp");
   });
-});
-
-describe("blob-storage status compatibility", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it.each(["legacy", "events"])(
-    "exports both severity names only for the basic group on %s",
-    async (source) => {
-      for (const basic of [true, false]) {
-        vi.clearAllMocks();
-        const groups = basic
-          ? OBSERVATION_FIELD_GROUPS_FULL
-          : (["core"] as const);
-        if (source === "events")
-          getEventsForBlobStorageExport(PROJECT, MIN, MAX, [...groups]);
-        else
-          await getObservationsForBlobStorageExport(PROJECT, MIN, MAX, [
-            ...groups,
-          ]).next();
-        const query = capturedQuery();
-        expect(query.includes("level as status")).toBe(basic);
-        if (basic) {
-          expect(query).toMatch(/(?:^|[\s,.])level(?:[\s,]|$)/);
-          expect(query).toMatch(/level as status\s+FROM\b/i);
-        }
-      }
-    },
-  );
 });

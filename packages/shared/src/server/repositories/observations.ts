@@ -1733,7 +1733,6 @@ export const getTraceIdsForObservations = async (
 // (the domain-level export contract) that are not plain column reads. Every
 // other field selects the table column of the same name.
 const LEGACY_OBSERVATION_EXPORT_SQL_OVERRIDES: Record<string, string> = {
-  status: "level as status",
   latency:
     "if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time) / 1000) as latency",
   time_to_first_token:

@@ -178,7 +178,7 @@ export async function* enrichObservationStream(
     !skipEnrichment && (!fieldGroups || fieldGroups.includes("model"));
 
   for await (const row of stream) {
-    const { status, ...enriched } = row;
+    const enriched: Record<string, unknown> = { ...row };
 
     if (includeModelId) {
       const modelId = row[modelIdField] as string | null | undefined;
@@ -204,9 +204,6 @@ export async function* enrichObservationStream(
       const ttft = row.time_to_first_token as number | null;
       enriched.time_to_first_token = ttft != null ? ttft / 1000 : null;
     }
-
-    // CSV column positions follow property order, including enriched prices.
-    if ("status" in row) enriched.status = status;
 
     yield enriched;
   }

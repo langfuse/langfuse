@@ -3954,9 +3954,6 @@ const buildEventsForBlobStorageExportQuery = (
     .select(eventsRowFieldSelects(eventsFieldSetKeys(...fieldSets)))
     .$if(includeIO, (qb) => qb.select(["e.input", "e.output"]))
     .$if(metricsInSeconds, (qb) => qb.select(eventsMetricsSecondsSelects))
-    .$if(effectiveGroups.includes("basic"), (qb) =>
-      qb.select("e.level as status"),
-    )
     .where("e.start_time", ">=", minTimestamp)
     .where("e.start_time", "<", maxTimestamp)
     .$call(
