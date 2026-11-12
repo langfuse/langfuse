@@ -1,4 +1,4 @@
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { SessionManageViewsDialog } from "./SessionManageViewsDialog";
@@ -79,9 +79,21 @@ export const DefaultPinWithPersonalOptOut = meta.story({
       body.getByRole("button", { name: "Pin Shared view" }),
     );
     await expect(args.onPin).toHaveBeenCalledWith("default");
-    await userEvent.click(
-      body.getByRole("button", { name: "Remove default pin for Shared view" }),
-    );
+    const defaultPinButton = body.getByRole("button", {
+      name: "Remove default pin for Shared view",
+    });
+    await userEvent.hover(defaultPinButton);
+    await waitFor(() => {
+      const tooltip = document.getElementById(
+        defaultPinButton.getAttribute("aria-describedby") ?? "",
+      );
+      expect(tooltip).toBeVisible();
+      expect(tooltip).toHaveTextContent(
+        "Remove the default pin for this project.",
+      );
+      expect(tooltip).toHaveTextContent("Personal pin choices are kept.");
+    });
+    await userEvent.click(defaultPinButton);
     await expect(args.onSetDefaultPin).toHaveBeenCalledWith("default", false);
   },
 });

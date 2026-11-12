@@ -99,16 +99,26 @@ const columns: ColumnDef<SessionViewRow>[] = [
       return (
         <div className="flex w-full items-center justify-end gap-2">
           {view.onSetDefaultPin && (
-            <IconButton
-              icon={view.pinnedByDefault ? PinOff : Pin}
+            <Tooltip
               label={
                 view.pinnedByDefault
-                  ? `Remove default pin for ${view.name}`
-                  : `Pin ${view.name} by default`
+                  ? "Remove the default pin for this project.\nPersonal pin choices are kept."
+                  : "Pin by default for everyone in this project.\nPersonal pin choices are kept."
               }
-              onClick={view.onSetDefaultPin}
-              disabled={view.isSupported === false}
-            />
+            >
+              {({ getTriggerProps }) => (
+                <IconButton
+                  icon={view.pinnedByDefault ? PinOff : Pin}
+                  label={
+                    view.pinnedByDefault
+                      ? `Remove default pin for ${view.name}`
+                      : `Pin ${view.name} by default`
+                  }
+                  disabled={view.isSupported === false}
+                  {...getTriggerProps({ onClick: view.onSetDefaultPin })}
+                />
+              )}
+            </Tooltip>
           )}
           <IconButton
             icon={ArrowUp}
