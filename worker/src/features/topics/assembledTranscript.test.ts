@@ -203,3 +203,49 @@ it("renders a stored transcript with its execution issues as Topics text", () =>
   expect(text).toContain("[error TOOL bash] exit code 1");
   expect(text).toContain("def f():\n    return 1");
 });
+
+it("places an issue without a message at its moment across overlapping threads", () => {
+  const at = (second: number) =>
+    new Date(`2026-01-01T00:00:${String(second).padStart(2, "0")}.000Z`);
+  const message = (id: string, second: number, text: string) => ({
+    id,
+    observationId: id,
+    traceId: "trace",
+    startTime: at(second),
+    endTime: at(second),
+    role: "assistant" as const,
+    source: "output" as const,
+    parts: [{ type: "text" as const, text }],
+  });
+  const thread = (...messages: ReturnType<typeof message>[]) => ({
+    conversationHistory: [],
+    currentTurn: {
+      nestingLevel: 0,
+      observations: messages.map(({ id }) => ({ id, traceId: "trace" })),
+      messages,
+    },
+  });
+  // The orchestrator runs on past the subagent's failed step.
+  const transcript: Transcript = {
+    threads: [
+      thread(message("o1", 0, "Plan"), message("o2", 50, "Wrap up")),
+      thread(message("s1", 20, "Search"), message("s2", 40, "Retry")),
+    ],
+  };
+
+  const text = renderStoredTopicText(transcript, [
+    {
+      observationId: "span",
+      traceId: "trace",
+      type: "SPAN",
+      name: "fetch",
+      level: "ERROR",
+      statusMessage: "timeout",
+      startTime: at(30),
+    },
+  ]);
+
+  const error = text.indexOf("[error SPAN fetch] timeout");
+  expect(error).toBeGreaterThan(text.indexOf("Search"));
+  expect(error).toBeLessThan(text.indexOf("Retry"));
+});

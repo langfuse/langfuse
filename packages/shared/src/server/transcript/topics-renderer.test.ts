@@ -691,7 +691,7 @@ describe("Topics transcript renderer", () => {
     expect(withoutIdsText).toContain("[tool lookup #1 ←] Found");
   });
 
-  it("omits nested base64 media and keeps the spoken transcript of audio", () => {
+  it("scrubs payload media and opaque blobs like the JSON input and keeps audio transcripts", () => {
     const at = new Date("2026-01-01T00:00:00.000Z");
     const message = (
       role: "user" | "assistant" | "tool",
@@ -713,7 +713,11 @@ describe("Topics transcript renderer", () => {
                   toolName: "screenshot",
                   output: {
                     type: "json",
-                    value: { mimeType: "image/png", data: "iVBORw0KGgo" },
+                    value: {
+                      mimeType: "image/png",
+                      data: "iVBORw0KGgo",
+                      signature: "opaque-blob",
+                    },
                   },
                 },
               ]),

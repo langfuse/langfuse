@@ -60,12 +60,23 @@ type RenderedEvent = { event: CurrentEvent; text: string };
 const redactInlineMedia = (text: string): string =>
   text.replace(/data:[^:;,\s]+;base64,[A-Za-z0-9+/=_-]+/g, "[media omitted]");
 
-/** Bare base64 media in JSON payloads (e.g. an image tool result) is not caught by the data-URI pattern. */
-function redactNestedMedia(value: unknown, field?: string): unknown {
+/**
+ * Scrubs a JSON payload for model input: media data, nested reasoning and opaque
+ * provider blobs are replaced or dropped (the Topics JSON projection's rules).
+ */
+export function redactModelPayload(value: unknown, field?: string): unknown {
+  if (typeof value === "string") return redactInlineMedia(value);
   if (Array.isArray(value))
-    return value.map((item) => redactNestedMedia(item, field));
+    return value.map((item) => redactModelPayload(item, field));
   if (value === null || typeof value !== "object") return value;
   const record = value as Record<string, unknown>;
+  if (
+    ["reasoning", "thinking", "redacted_thinking"].includes(
+      String(record.type),
+    ) ||
+    record.thought === true
+  )
+    return "[reasoning omitted]";
   const isMedia =
     record.type === "base64" ||
     typeof record.mimeType === "string" ||
@@ -73,14 +84,28 @@ function redactNestedMedia(value: unknown, field?: string): unknown {
     field === "audio" ||
     field === "input_audio";
   return Object.fromEntries(
-    Object.entries(record).map(([key, nested]) => [
-      key,
-      key === "data" && isMedia
-        ? "[media omitted]"
-        : redactNestedMedia(nested, key),
-    ]),
+    Object.entries(record)
+      .filter(([key]) => !OPAQUE_PAYLOAD_KEYS.has(key))
+      .map(([key, nested]) => [
+        key,
+        key === "data" && isMedia
+          ? "[media omitted]"
+          : redactModelPayload(nested, key),
+      ]),
   );
 }
+
+const OPAQUE_PAYLOAD_KEYS = new Set([
+  "reasoning",
+  "reasoning_content",
+  "thinking",
+  "signature",
+  "thoughtSignature",
+  "encrypted_content",
+  "providerMetadata",
+  "toolDefinitions",
+  "tool_definitions",
+]);
 
 /**
  * Render an assembled trace for Topics without assembling it a second time.
@@ -126,7 +151,7 @@ export function renderTranscript(
   const json = (value: unknown) =>
     typeof value === "string"
       ? value
-      : (JSON.stringify(redactNestedMedia(value)) ?? "");
+      : (JSON.stringify(redactModelPayload(value)) ?? "");
   const labeled = (
     label: string,
     content: string,

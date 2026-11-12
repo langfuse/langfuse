@@ -1,5 +1,6 @@
 import { stableJsonStringify, type Observation } from "@langfuse/shared";
 import {
+  redactModelPayload,
   renderTranscript,
   topicsTranscriptConfig,
   type ExecutionIssue,
@@ -12,50 +13,6 @@ import type {
 
 const redactInlineMedia = (text: string): string =>
   text.replace(/data:[^:;,\s]+;base64,[A-Za-z0-9+/=_-]+/g, "[media omitted]");
-
-function modelData(value: unknown, field?: string): unknown {
-  if (typeof value === "string") return redactInlineMedia(value);
-  if (Array.isArray(value)) return value.map((item) => modelData(item, field));
-  if (value !== null && typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    if (
-      ["reasoning", "thinking", "redacted_thinking"].includes(
-        String(record.type),
-      ) ||
-      record.thought === true
-    )
-      return "[reasoning omitted]";
-    return Object.fromEntries(
-      Object.entries(record)
-        .filter(
-          ([key]) =>
-            ![
-              "reasoning",
-              "reasoning_content",
-              "thinking",
-              "signature",
-              "thoughtSignature",
-              "encrypted_content",
-              "providerMetadata",
-              "toolDefinitions",
-              "tool_definitions",
-            ].includes(key),
-        )
-        .map(([key, nested]) => [
-          key,
-          key === "data" &&
-          (record.type === "base64" ||
-            typeof record.mimeType === "string" ||
-            typeof record.mime_type === "string" ||
-            field === "audio" ||
-            field === "input_audio")
-            ? "[media omitted]"
-            : modelData(nested, key),
-        ]),
-    );
-  }
-  return value;
-}
 
 function modelPart(part: NormalizedMessagePart): unknown[] {
   switch (part.type) {
@@ -81,7 +38,7 @@ function modelPart(part: NormalizedMessagePart): unknown[] {
         {
           type: part.type,
           toolName: part.toolName,
-          input: modelData(part.input),
+          input: redactModelPayload(part.input),
           invalid: part.invalid,
         },
       ];
@@ -93,17 +50,25 @@ function modelPart(part: NormalizedMessagePart): unknown[] {
           output:
             part.output.type === "content"
               ? part.output.value.flatMap(modelPart)
-              : modelData(part.output.value),
+              : redactModelPayload(part.output.value),
           isError: part.isError,
         },
       ];
     case "data":
       return [
-        { type: part.type, name: part.name, value: modelData(part.value) },
+        {
+          type: part.type,
+          name: part.name,
+          value: redactModelPayload(part.value),
+        },
       ];
     case "custom":
       return [
-        { type: part.type, kind: part.kind, value: modelData(part.value) },
+        {
+          type: part.type,
+          kind: part.kind,
+          value: redactModelPayload(part.value),
+        },
       ];
   }
 }
@@ -166,9 +131,10 @@ export function renderStoredTopicText(
   const issues = new Map(
     executionIssues.map((issue) => [issue.observationId, issue]),
   );
-  const messages = transcript.threads.flatMap(
-    (thread) => thread.currentTurn.messages,
-  );
+  // Across threads by time, so an issue lands at its moment, not in an earlier-listed thread.
+  const messages = transcript.threads
+    .flatMap((thread) => thread.currentTurn.messages)
+    .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
   const ids = [
     ...new Set(
       transcript.threads.flatMap((thread) =>
