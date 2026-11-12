@@ -48,7 +48,9 @@ const CLICKHOUSE_TAGS = {
   route: "background-migration.backfillAuditLogsToClickhouse",
 };
 
-const DEFAULT_BATCH_SIZE = 10_000;
+// A batch holds its rows' before/after payloads in memory several times over:
+// in Prisma's engine, as mapped records and as the insert body.
+const DEFAULT_BATCH_SIZE = 1_000;
 const DEFAULT_SETTLE_MS = 5 * 60 * 1000;
 const DEFAULT_OVERLAP_MS = 10 * 60 * 1000;
 // Bounds how long an abort waits while the migration waits for copyUntil.
