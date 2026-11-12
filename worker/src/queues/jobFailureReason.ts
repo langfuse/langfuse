@@ -1,4 +1,7 @@
 import { isS3SlowDownError } from "@langfuse/shared/src/server";
+import { type StaleMonitorAlertReason } from "@langfuse/shared/monitors/server";
+
+import { StaleMonitorAlertError } from "../errors/StaleMonitorAlertError";
 
 const MAX_CAUSE_DEPTH = 8;
 
@@ -8,6 +11,7 @@ export type JobFailureReason =
   | "invalid_data"
   | "network"
   | "stalled"
+  | StaleMonitorAlertReason
   | "other";
 
 /**
@@ -16,6 +20,7 @@ export type JobFailureReason =
  */
 export function classifyJobFailure(err: unknown): JobFailureReason {
   if (isS3SlowDownError(err)) return "s3_slowdown";
+  if (err instanceof StaleMonitorAlertError) return err.reason;
 
   const chain = causeChain(err);
   if (chain.some(isPayloadTooLarge)) return "payload_too_large";
