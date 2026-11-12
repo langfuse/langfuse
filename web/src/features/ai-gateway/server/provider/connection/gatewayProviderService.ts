@@ -552,6 +552,14 @@ function rethrowConnectionMutationError(error: unknown): never {
   ) {
     throw new InvalidRequestError(GATEWAY_CONNECTION_NAME_ERRORS.duplicate);
   }
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2025"
+  ) {
+    throw new LangfuseConflictError(
+      "This connection was changed in the meantime. Reload it and try again.",
+    );
+  }
   throw error;
 }
 

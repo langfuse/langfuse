@@ -72,7 +72,7 @@ export function CreateGatewayApiKeyDialogController({
   return (
     <DialogController
       onBeforeClose={() => !create.isPending}
-      renderDialog={() =>
+      renderDialog={({ isOpen }) =>
         generatedSecretKey ? (
           <Dialog
             title="Gateway key created"
@@ -88,6 +88,7 @@ export function CreateGatewayApiKeyDialogController({
         ) : (
           <ConnectedCreateGatewayApiKeyDialog
             organizationId={organizationId}
+            isOpen={isOpen}
             canIssueServiceAccountKeys={canIssueServiceAccountKeys}
             errorMessage={
               create.isError

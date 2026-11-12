@@ -1,4 +1,5 @@
 import type { GatewayModelPatternSuggestion } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/components/GatewayApiKeyModelsField/types/gatewayModelPatternSuggestion";
+import { toTypedGatewayModelPattern } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/fns/toTypedGatewayModelPattern";
 import type { GatewayEnabledModel } from "@/src/features/ai-gateway/types/gatewayEnabledModel";
 
 const EXCLUDE_PREFIX = "-";
@@ -8,9 +9,9 @@ const toConnectionName = (slug: string) => slug.split(":")[0];
 
 /**
  * Without a query: "All enabled models" and one `connection:*` per connection.
- * With a query: matching connections and models, then the query as a pattern,
- * wrapped in `*` unless it already names a connection or uses a wildcard. A
- * query with a wildcard is offered first, so Enter adds it as typed.
+ * With a query: matching connections and models, then the query as a pattern
+ * (see toTypedGatewayModelPattern). A query with a wildcard is offered first,
+ * so Enter adds it as typed.
  */
 export function getGatewayModelPatternSuggestions(
   query: string,
@@ -32,14 +33,11 @@ export function getGatewayModelPatternSuggestions(
 
   const prefix = trimmed.startsWith(EXCLUDE_PREFIX) ? EXCLUDE_PREFIX : "";
   const term = trimmed.slice(prefix.length);
-  if (!term) return [];
+  const typedPattern = toTypedGatewayModelPattern(trimmed);
+  if (typedPattern === null) return [];
 
   const needle = term.toLowerCase();
   const hasWildcard = term.includes("*");
-  const typedPattern =
-    hasWildcard || term.includes(":")
-      ? `${prefix}${term}`
-      : `${prefix}*${term}*`;
   const connections = connectionNames
     .filter((name) => name.toLowerCase().includes(needle))
     .map((name) => ({

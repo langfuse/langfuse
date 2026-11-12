@@ -116,7 +116,7 @@ export const SubmitsResolvedOptions = meta.story({
     await userEvent.click(screen.getByRole("button", { name: "Add metadata" }));
     await userEvent.type(
       screen.getByRole("combobox", { name: "Models" }),
-      "openai:*, -*mini*{Enter}",
+      "openai:*, -*mini*, gpt",
     );
     await userEvent.click(
       screen.getByRole("button", { name: "Fewer options" }),
@@ -129,7 +129,7 @@ export const SubmitsResolvedOptions = meta.story({
         name: "laptop",
         metadata: { team: "growth" },
         metadataCount: 1,
-        allowedModels: ["openai:*", "-*mini*"],
+        allowedModels: ["openai:*", "-*mini*", "*gpt*"],
         expiresAt: expect.any(Date),
         expiryPreset: "1w",
         issuedAs: "user",

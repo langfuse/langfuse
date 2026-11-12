@@ -9,16 +9,19 @@ type ConnectedCreateGatewayApiKeyDialogProps = Omit<
   "enabledModels"
 > & {
   organizationId: string;
+  /** The dialog controller keeps closed content mounted, so queries also wait for this. */
+  isOpen: boolean;
 };
 
 /** Loads the enabled models for the preview only while the dialog is open, and only for members who may see them. */
 export function ConnectedCreateGatewayApiKeyDialog({
   organizationId,
+  isOpen,
   ...props
 }: ConnectedCreateGatewayApiKeyDialogProps) {
   const { showModels } = useGatewaySettingsAccess(organizationId);
   const enabledModels = useGatewayEnabledModels(organizationId, {
-    enabled: showModels,
+    enabled: showModels && isOpen,
   });
 
   return (

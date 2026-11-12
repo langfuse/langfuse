@@ -166,8 +166,13 @@ export class GatewayProviderRepository {
   }) {
     const { organizationId, id, previousName, ...data } = params;
     return this.prisma.$transaction(async (tx) => {
+      // Matching the previous name makes a concurrent rename fail with P2025 instead of leaving key patterns on a stale name.
       const connection = await tx.gatewayAiConnection.update({
-        where: { id, organizationId },
+        where: {
+          id,
+          organizationId,
+          ...(previousName !== undefined && { name: previousName }),
+        },
         data,
         select: safeConnectionSelect,
       });
