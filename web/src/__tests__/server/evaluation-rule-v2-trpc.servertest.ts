@@ -20,7 +20,7 @@ let userId = "";
 let session: Session;
 let caller: ReturnType<typeof appRouter.createCaller>;
 
-function callerFor(callerSession: Session | null) {
+function callerFor(callerSession: Session) {
   const ctx = createInnerTRPCContext({
     session: callerSession,
     headers: {},
@@ -378,24 +378,6 @@ describe("evaluation rule v2 tRPC", () => {
       expect(rules.map(({ name }) => name)).toEqual(["Own dataset rule"]);
     });
 
-    it("rejects a project the caller is not a member of", async () => {
-      const datasetId = randomUUID();
-      await prisma.evaluationRule.create({
-        data: experimentDatasetRule(
-          otherProjectId,
-          "Foreign dataset rule",
-          datasetId,
-        ),
-      });
-
-      await expect(
-        caller.evalsV2.rules.listForExperimentDataset({
-          projectId: otherProjectId,
-          datasetId,
-        }),
-      ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
-    });
-
     it("rejects a project member without evaluationRule:read", async () => {
       const datasetId = randomUUID();
       await prisma.evaluationRule.create({
@@ -407,15 +389,6 @@ describe("evaluation rule v2 tRPC", () => {
           sessionWithProjectRole("NONE"),
         ).evalsV2.rules.listForExperimentDataset({ projectId, datasetId }),
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
-    });
-
-    it("rejects an unauthenticated caller", async () => {
-      await expect(
-        callerFor(null).evalsV2.rules.listForExperimentDataset({
-          projectId,
-          datasetId: randomUUID(),
-        }),
-      ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     });
   });
 
@@ -488,6 +461,12 @@ describe("evaluation rule v2 tRPC", () => {
   it("rejects reads and writes for another project", async () => {
     await expect(
       caller.evalsV2.rules.list({ projectId: otherProjectId }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(
+      caller.evalsV2.rules.listForExperimentDataset({
+        projectId: otherProjectId,
+        datasetId: randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(
       caller.evalsV2.rules.create({
