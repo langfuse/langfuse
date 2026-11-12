@@ -283,7 +283,7 @@ async function selectAndSeed(
   setup.seededCount = seeded.length;
   for (const facet of open)
     if (facet.state === "covered")
-      await startFit(setup, facet, embeddingConfig, now);
+      await startFit(setup, facet, { rule, embeddingConfig }, now);
   setup.phase = "summarizing";
   logger.info("Started Topics rule setup", {
     projectId,
@@ -301,7 +301,7 @@ async function selectAndSeed(
 /** Fits each short facet once most seeded traces settled, its count stalled, or the deadline passed. */
 async function fitSettledFacets(
   setup: TopicRuleSetup,
-  { embeddingConfig }: SetupContext,
+  context: SetupContext,
   now: Date,
 ) {
   const waiting = setup.facets.filter(
@@ -311,7 +311,7 @@ async function fitSettledFacets(
     const counts = await countTopicTraceSummaries(
       setup.projectId,
       facetRefs(waiting),
-      embeddingConfig,
+      context.embeddingConfig,
       await readTopicRuleSetupTraces(setup.projectId, setup.ruleId),
       new Date(setup.startedAt),
       fitFrom(setup, now),
@@ -328,7 +328,7 @@ async function fitSettledFacets(
         now.getTime() - Date.parse(facet.grewAt) >= STALL_MS &&
         facet.existingCount + facet.completeCount >= STANDARD_FIT_MINIMUM;
       if (settled || stalled || now >= new Date(setup.deadlineAt))
-        await startFit(setup, facet, embeddingConfig, now);
+        await startFit(setup, facet, context, now);
     }
   }
   if (setup.facets.every((facet) => facet.state === "has_map" || facet.runId))
@@ -342,11 +342,9 @@ async function fitSettledFacets(
 async function startFit(
   setup: TopicRuleSetup,
   facet: TopicRuleSetupFacet,
-  embeddingConfig: TopicEmbeddingConfig,
+  { rule, embeddingConfig }: SetupContext,
   now: Date,
 ) {
-  const smallSample =
-    facet.existingCount + facet.completeCount < STANDARD_FIT_MINIMUM;
   const ref = { facetId: facet.facetId, version: facet.facetVersion };
   const id = createHash("sha256")
     .update(
@@ -369,6 +367,8 @@ async function startFit(
 
   async function createFit() {
     const from = fitFrom(setup, now);
+    let smallSample =
+      facet.existingCount + facet.completeCount < STANDARD_FIT_MINIMUM;
     // A standard fit stays within the clustering capacity, as nightly refits do.
     const sized = smallSample
       ? null
@@ -380,6 +380,16 @@ async function startFit(
       from: new Date(Math.max(from.getTime(), sized?.from.getTime() ?? 0)),
       to: now,
     };
+    // Capacity counts every summary, but the refit keeps only the rule's matches.
+    if (!smallSample && rule.filter.length && window.from > from)
+      smallSample =
+        (await ruleSummaryCount(
+          setup.projectId,
+          rule,
+          ref,
+          embeddingConfig,
+          window,
+        )) < STANDARD_FIT_MINIMUM;
     return createTopicRun({
       id,
       projectId: setup.projectId,
@@ -402,6 +412,29 @@ async function startFit(
       },
     });
   }
+}
+
+/** Complete summaries in the window of traces the rule's filter matches. */
+async function ruleSummaryCount(
+  projectId: string,
+  rule: TopicRule,
+  facet: TopicFacetRef,
+  embeddingConfig: TopicEmbeddingConfig,
+  window: { from: Date; to: Date },
+) {
+  const matching = await topicMatchingTraceIdsQuery(
+    { projectId, filter: rule.filter, ...window },
+    prisma,
+  );
+  if (!matching) return 0;
+  const [{ count }] = await getTopicSetupSummaryCounts(
+    projectId,
+    [facet],
+    embeddingConfig,
+    window,
+    matching,
+  );
+  return count;
 }
 
 /** Copies each fit's status; re-enqueues a pending one, whose job may have been lost. */

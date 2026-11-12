@@ -333,7 +333,7 @@ const fitLimits = () => ({
   ),
 });
 
-export async function selectFitWindow(
+async function selectFitWindow(
   projectId: string,
   facet: TopicFacetRef,
   embeddingConfig: TopicEmbeddingConfig,
