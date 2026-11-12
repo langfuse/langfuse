@@ -131,15 +131,14 @@ export const updatePromptLabelsForApi = async ({
   const addedLabels = newLabels.filter(
     (label) => !existingPrompt.labels.includes(label),
   );
-  const removedLabels = removeLabels.filter((label) =>
-    existingPrompt.labels.includes(label),
-  );
 
   await authorizeProtectedLabelMutation({
     prisma,
     context,
     ctx,
-    labelsToCheck: [...addedLabels, ...removedLabels],
+    // Check every requested removal, not only labels present in the read
+    // above: the label set can change before updatePrompt locks the row.
+    labelsToCheck: [...addedLabels, ...removeLabels],
     forbiddenErrorMessage:
       "You don't have permission to add/remove a protected label to/from a prompt. Please contact your project admin for assistance.",
   });

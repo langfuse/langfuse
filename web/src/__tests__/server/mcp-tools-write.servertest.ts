@@ -2779,7 +2779,10 @@ describe("MCP Write Tools", () => {
           },
           context,
         ),
-      ).rejects.toThrow(/depending on the prompt label/);
+      ).rejects.toMatchObject({
+        httpCode: 400,
+        message: expect.stringMatching(/depending on the prompt label/),
+      });
     });
 
     it("should handle special characters in prompt name", async () => {
@@ -2990,6 +2993,43 @@ describe("MCP Write Tools", () => {
           labels: expect.arrayContaining([...testCase.labels]),
         });
       }
+    });
+
+    it("rejects removing production with a MEMBER in-app-agent key", async () => {
+      const setup = await createMcpTestSetup();
+      await protectPromptLabel({
+        projectId: setup.projectId,
+        label: "production",
+      });
+      const { userId } = await createUserWithOrgRole({
+        orgId: setup.orgId,
+        role: Role.MEMBER,
+      });
+      const { context } = await createInAppAgentMcpContext({
+        projectId: setup.projectId,
+        orgId: setup.orgId,
+        createdByUserId: userId,
+      });
+      const promptName = `protected-remove-${nanoid()}`;
+      await createPromptInDb({
+        name: promptName,
+        prompt: "Test",
+        projectId: setup.projectId,
+        labels: ["production"],
+        version: 1,
+      });
+
+      await expect(
+        handleUpdatePromptLabels(
+          { name: promptName, version: 1, removeLabels: ["production"] },
+          context,
+        ),
+      ).rejects.toMatchObject({ name: "ForbiddenError", httpCode: 403 });
+
+      const prompt = await prisma.prompt.findFirst({
+        where: { projectId: setup.projectId, name: promptName, version: 1 },
+      });
+      expect(prompt?.labels).toContain("production");
     });
 
     it("rejects creating a prompt with a custom protected label using a MEMBER in-app-agent key", async () => {
