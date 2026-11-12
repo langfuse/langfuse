@@ -325,68 +325,72 @@ async function currentTopicRows(
     ? new Set(rules.flatMap((rule) => rule.facetIds))
     : null;
   const ruleNames = new Map(rules.map((rule) => [rule.id, rule.name]));
+  const shown = facets.filter(
+    (facet) => !enabledFacetIds || enabledFacetIds.has(facet.id),
+  );
+  const allMaps = await getCurrentTopicMapRows(
+    projectId,
+    shown.map((facet) => facet.id),
+  );
   const currentFacets = await Promise.all(
-    facets
-      .filter((facet) => !enabledFacetIds || enabledFacetIds.has(facet.id))
-      .map(async (facet) => {
-        const maps = await getCurrentTopicMapRows(projectId, [facet.id]);
-        const [runs, storedAssignments, storedSummaries] = await Promise.all([
-          getTopicRuns(
-            projectId,
-            maps.map(({ run }) => run.id),
-          ),
-          readLatestTopicAssignments(
-            projectId,
-            facet.id,
-            maps.map(({ run }) => run.id),
-            timeRange,
-            traceIds,
-          ),
-          getLatestFacetSummaries(
-            projectId,
-            facet.id,
-            undefined,
-            timeRange,
-            traceIds,
-          ),
-        ]);
-        const summaries = storedSummaries.filter((row) => row.traceId !== null);
-        // Rules sharing the facet each keep a map; a trace has a result in each.
-        return (maps.length ? maps : [null]).map((map) => {
-          const run = runs.find((item) => item.id === map?.run.id);
-          const assignmentByTrace = new Map(
-            storedAssignments
-              .filter((row) => row.runId === map?.run.id)
-              .map((row) => [row.traceId, row]),
-          );
-          const topicByVersion = new Map(
-            run?.topics.map((topic) => [topic.topicVersionId, topic]),
-          );
-          return {
-            facetId: facet.id,
-            name: facet.name,
-            runId: map?.run.id ?? null,
-            ruleName: map?.ruleId ? (ruleNames.get(map.ruleId) ?? null) : null,
-            rows: summaries.map((summary) => {
-              const { assignment, outcome } = resolveTopicResult(
-                summary,
-                assignmentByTrace.get(summary.traceId),
-              );
-              return {
-                traceId: summary.traceId,
-                summary: summary.summary,
-                outcome,
-                topicId: assignment?.topicId ?? null,
-                topicName: assignment?.topicVersionId
-                  ? (topicByVersion.get(assignment.topicVersionId)?.name ??
-                    null)
-                  : null,
-              };
-            }),
-            mapTopicIds: run?.topics.map((topic) => topic.topicId) ?? [],
-          };
-        });
-      }),
+    shown.map(async (facet) => {
+      const maps = allMaps.filter(({ run }) => run.facetId === facet.id);
+      const [runs, storedAssignments, storedSummaries] = await Promise.all([
+        getTopicRuns(
+          projectId,
+          maps.map(({ run }) => run.id),
+        ),
+        readLatestTopicAssignments(
+          projectId,
+          facet.id,
+          maps.map(({ run }) => run.id),
+          timeRange,
+          traceIds,
+        ),
+        getLatestFacetSummaries(
+          projectId,
+          facet.id,
+          undefined,
+          timeRange,
+          traceIds,
+        ),
+      ]);
+      const summaries = storedSummaries.filter((row) => row.traceId !== null);
+      // Rules sharing the facet each keep a map; a trace has a result in each.
+      return (maps.length ? maps : [null]).map((map) => {
+        const run = runs.find((item) => item.id === map?.run.id);
+        const assignmentByTrace = new Map(
+          storedAssignments
+            .filter((row) => row.runId === map?.run.id)
+            .map((row) => [row.traceId, row]),
+        );
+        const topicByVersion = new Map(
+          run?.topics.map((topic) => [topic.topicVersionId, topic]),
+        );
+        return {
+          facetId: facet.id,
+          name: facet.name,
+          runId: map?.run.id ?? null,
+          ruleName: map?.ruleId ? (ruleNames.get(map.ruleId) ?? null) : null,
+          rows: summaries.map((summary) => {
+            const { assignment, outcome } = resolveTopicResult(
+              summary,
+              assignmentByTrace.get(summary.traceId),
+            );
+            return {
+              traceId: summary.traceId,
+              summary: summary.summary,
+              outcome,
+              topicId: assignment?.topicId ?? null,
+              topicName: assignment?.topicVersionId
+                ? (topicByVersion.get(assignment.topicVersionId)?.name ?? null)
+                : null,
+            };
+          }),
+          mapTopicIds: run?.topics.map((topic) => topic.topicId) ?? [],
+        };
+      });
+    }),
   ).then((entries) => entries.flat());
   return { hasStoredSummaries, facets: currentFacets };
 }

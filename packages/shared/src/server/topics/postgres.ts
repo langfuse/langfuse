@@ -471,9 +471,10 @@ export async function getPublishedTopicRun(
 type CurrentTopicMap = { ruleId: string | null; run: RunRow };
 
 /**
- * Each rule's current map of the facets, as the worker assigns and the Topics
- * map picker shows them. The oldest rule also serves setup's snapshot until its
- * first fit; a facet no rule covers keeps its serving map.
+ * Each rule's current map of the facets, as the Topics map picker shows them.
+ * The oldest rule also shows setup's snapshot until its first fit, though online
+ * assignment writes only to rule-owned maps; a facet no rule covers keeps its
+ * serving map.
  */
 export async function getCurrentTopicMapRows(
   projectId: string,

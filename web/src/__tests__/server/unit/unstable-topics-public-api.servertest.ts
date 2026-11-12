@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   listTopicFacets: vi.fn(),
   listTopicRules: vi.fn(),
   getPublishedTopicRun: vi.fn(),
+  getCurrentTopicMapRows: vi.fn(),
   hasStoredTopicSummaries: vi.fn(),
   readLatestTopicAssignments: vi.fn(),
   getLatestFacetSummaries: vi.fn(),
@@ -474,6 +475,57 @@ describe("unstable Topics public API", () => {
           },
         ],
       });
+      mocks.getCurrentTopicMapRows.mockResolvedValue([
+        { ruleId: "rule-1", run: { id: "run-1", facetId: "issues" } },
+      ]);
+    });
+
+    it("reports each assignment's rule from its map and narrows a rule filter to that rule's maps", async () => {
+      const [support] = await mocks.listTopicRules();
+      mocks.listTopicRules.mockResolvedValue([
+        support,
+        { ...support, id: "rule-2", name: "Billing" },
+      ]);
+      mocks.getCurrentTopicMapRows.mockResolvedValue([
+        { ruleId: "rule-1", run: { id: "run-1", facetId: "issues" } },
+        { ruleId: "rule-2", run: { id: "run-2", facetId: "issues" } },
+      ]);
+      const assigned = {
+        traceId: "t1",
+        facetId: "issues",
+        facetVersion: 2,
+        timestamp,
+        status: "outlier",
+        topicId: null,
+        topicVersionId: null,
+        assignedAt: processedAt,
+      };
+      readers.listCurrentTopicAssignments.mockResolvedValue({
+        rows: [
+          { ...assigned, runId: "run-1" },
+          { ...assigned, runId: "run-2" },
+        ],
+      });
+      const all = await listPublicTopicAssignments(listQuery);
+      expect(all.data.map(({ runId, ruleId }) => [runId, ruleId])).toEqual([
+        ["run-1", "rule-1"],
+        ["run-2", "rule-2"],
+      ]);
+
+      await listPublicTopicAssignments({
+        ...listQuery,
+        filter: [
+          {
+            type: "stringOptions",
+            column: "ruleId",
+            operator: "any of",
+            value: ["rule-2"],
+          },
+        ],
+      });
+      expect(readers.listCurrentTopicAssignments).toHaveBeenLastCalledWith(
+        expect.objectContaining({ publishedRunIds: ["run-2"] }),
+      );
     });
 
     it("translates topic, rule and facet filters into the scanned facets", async () => {
