@@ -75,6 +75,7 @@ import {
   type QueryLevel,
 } from "./eventsObservationsRegistry";
 import { NULL_IF_EMPTY_RE } from "./nullIfEmptyFilter";
+import { compileEventsTraceAttributesSubquery } from "./eventsTraceAttributes";
 import {
   getCompatibleFilterTypes,
   isFilterColumnType,
@@ -1015,11 +1016,27 @@ export class QueryBuilder {
     query: QueryType,
     skipObservationsFinal: boolean,
     skipScoresFinal: boolean,
+    projectId: string,
+    parameters: Record<string, unknown>,
   ) {
     assertKnownRelationTables(view, relationTables);
     const relationJoins = [];
     for (const relationTableName of relationTables) {
       const relation = view.tableRelations[relationTableName];
+
+      if (relation.source === "eventsTraceAttributes") {
+        const subquery = compileEventsTraceAttributesSubquery({
+          projectId,
+          fromTimestamp: query.fromTimestamp,
+          toTimestamp: query.toTimestamp,
+        });
+        Object.assign(parameters, subquery.params);
+        relationJoins.push(
+          `INNER JOIN (${subquery.sql}) AS ${relationTableName} ${relation.joinConditionSql}`,
+        );
+        continue;
+      }
+
       // Conditionally add FINAL - skip for observations if flag is set, and respect per-relation useFinal
       const shouldUseFinal =
         (relation.useFinal ?? true) &&
@@ -2275,6 +2292,8 @@ export class QueryBuilder {
         query,
         skipObservationsFinal,
         skipScoresFinal,
+        projectId,
+        parameters,
       );
       fromClause += ` ${relationJoins.join(" ")}`;
     }
