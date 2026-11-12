@@ -32,6 +32,7 @@ vi.mock("@/src/utils/api", () => ({
       getSetupStatus: { useQuery: getSetupStatusQuery },
       listApiKeys: { useQuery: () => ({ data: undefined }) },
       getAnalyticsLabels: { useQuery: getAnalyticsLabelsQuery },
+      listModelConnections: { useQuery: () => ({ data: undefined }) },
     },
   },
 }));

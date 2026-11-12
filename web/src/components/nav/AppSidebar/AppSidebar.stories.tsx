@@ -337,7 +337,7 @@ const aiGatewayNavigationArgs = {
           isActive: true,
         },
         {
-          title: "Providers & Models",
+          title: "Connections & Models",
           url: "/organization/org-acme/ai-gateway/models",
           icon: Box,
           disabledReason: SETUP_REQUIRED_REASON,
@@ -363,7 +363,7 @@ export const AiGatewayNavigationDisabledReason = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
-    const models = canvas.getByRole("link", { name: "Providers & Models" });
+    const models = canvas.getByRole("link", { name: "Connections & Models" });
     await expect(models).toHaveAttribute("aria-disabled", "true");
 
     models.focus();
@@ -389,7 +389,7 @@ export const AiGatewayNavigationSetUp = meta.story({
             isActive: true,
           },
           {
-            title: "Providers & Models",
+            title: "Connections & Models",
             url: "/organization/org-acme/ai-gateway/models",
             icon: Box,
           },
