@@ -12,6 +12,7 @@ import {
   isGitHubDispatchAction,
   isPagerDutyActionConfig,
   isBaseError,
+  TriggerEventSource,
   type AutomationDomain,
   type ActionDomainWithSecrets,
   type PagerDutyActionConfigWithSecrets,
@@ -66,6 +67,17 @@ import {
 
 /** WEBHOOK_ADDRESS_ATTEMPT_TIMEOUT_MS lets a retransmitted SYN finish before Node closes the socket. */
 const WEBHOOK_ADDRESS_ATTEMPT_TIMEOUT_MS = 2_000;
+
+/** webhookEventSources maps each webhook payload type to the trigger event source that produced it. */
+const webhookEventSources: Record<
+  WebhookInput["payload"]["type"],
+  TriggerEventSource
+> = {
+  "prompt-version": TriggerEventSource.Prompt,
+  "skill-version": TriggerEventSource.Skill,
+  "monitor-alert": TriggerEventSource.Monitor,
+  "project-notification": TriggerEventSource.ProjectNotification,
+};
 
 // GitHub repository_dispatch client_payload: max 10 top-level properties and <64KB.
 // https://docs.github.com/en/rest/repos/repos#create-a-repository-dispatch-event
@@ -173,6 +185,16 @@ export const webhookProcessor: Processor = async (
     throw error;
   }
 };
+
+/** webhookQueueMetricTags tags webhook queue metrics with the job's event source and action type. */
+export function webhookQueueMetricTags(
+  data: TQueueJobTypes[QueueName.WebhookQueue],
+): Record<string, string> {
+  return {
+    event_source: webhookEventSources[data.payload.payload.type] ?? "unknown",
+    action_type: data.payload.actionType ?? "unknown",
+  };
+}
 
 // TODO: Webhook outgoing API versioning
 /** executeWebhook runs an automation job's action and records a monitor alert's terminal delivery result. */
