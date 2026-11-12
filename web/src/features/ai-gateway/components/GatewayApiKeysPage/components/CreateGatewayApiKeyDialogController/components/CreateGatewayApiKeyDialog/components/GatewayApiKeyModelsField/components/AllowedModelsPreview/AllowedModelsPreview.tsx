@@ -1,8 +1,7 @@
 import { useState } from "react";
 
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { Tag } from "@/src/components/design-system/Tag/Tag";
-import { providerIcons } from "@/src/features/ai-gateway/constants/providerIcons";
 import type { GatewayEnabledModel } from "@/src/features/ai-gateway/types/gatewayEnabledModel";
 
 const COLLAPSED_COUNT = 8;
@@ -29,8 +28,8 @@ export function AllowedModelsPreview({ models }: AllowedModelsPreviewProps) {
       ) : (
         <ul className="flex flex-wrap items-center gap-1">
           {models.slice(0, visibleCount).map((model) => (
-            <li key={model.slug} title={model.slug}>
-              <Tag text={model.model} icon={providerIcons[model.provider]} />
+            <li key={model.slug}>
+              <Badge text={model.model} title={model.slug} color="filled" />
             </li>
           ))}
           {hiddenCount > 0 ? (
