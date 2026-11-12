@@ -32,7 +32,6 @@ type NewScanForm = {
 export function NewAnalysisDialog({
   projectId,
   facets,
-  initialFilter,
   liveDisabledReason,
   onStarted,
   onRuleCreated,
@@ -40,7 +39,6 @@ export function NewAnalysisDialog({
 }: {
   projectId: string;
   facets: TopicFacet[];
-  initialFilter: FilterState;
   liveDisabledReason?: string;
   onStarted: (analysis: { executionId: string }) => void;
   onRuleCreated: (ruleId: string) => void;
@@ -50,9 +48,10 @@ export function NewAnalysisDialog({
   const form = useForm<NewScanForm>({
     defaultValues: {
       name: null,
-      filter: initialFilter,
+      filter: [],
       facetIds: facets.map(({ id }) => id),
-      live: false,
+      // Live unless the project is at its live scan limit.
+      live: !liveDisabledReason,
       samplingPercent: 100,
     },
   });
