@@ -95,15 +95,18 @@ exports[`golden: metrics v2 executeQuery > scores-categorical > filter tags 1`] 
   {
     "fn": "queryClickhouse",
     "params": {
-      "param1": [
+      "param1": "golden-project",
+      "param10": "CATEGORICAL",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-02 00:00:00.000",
+      "param6": [
         "golden-tag",
       ],
-      "param2": "golden-project",
-      "param3": "2026-01-01 00:00:00.000",
-      "param4": "2026-01-02 00:00:00.000",
-      "param5": "CATEGORICAL",
-      "param6": "2026-01-01 00:00:00.000",
-      "param7": "2026-01-02 00:00:00.000",
+      "param7": "golden-project",
+      "param8": "2026-01-01 00:00:00.000",
+      "param9": "2026-01-02 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT count(count) AS count_count
@@ -115,14 +118,47 @@ FROM
         count(1) AS count
     FROM scores AS scores_categorical
     FINAL
-    INNER JOIN events_core AS events_traces ON (scores.trace_id = events_traces.trace_id) AND (scores.project_id = events_traces.project_id) AND (events_traces.parent_span_id = '')
-    WHERE (hasAny({param1:Array(String)}, events_traces.tags) = true)
-        AND (scores.project_id = {param2:String})
-        AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
-        AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
-        AND (scores_categorical.data_type = {param5:String})
-        AND (events_traces.start_time >= {param6:DateTime64(3, 'UTC')})
-        AND (events_traces.start_time <= {param7:DateTime64(3, 'UTC')})
+    INNER JOIN
+    (
+        SELECT
+            e.trace_id AS id,
+            e.project_id AS project_id,
+            coalesce(
+                nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+                nullIf(
+                    argMaxIf(
+                        e.name,
+                        e.event_ts,
+                        (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
+                    ),
+                    ''
+                )
+            ) AS name,
+            argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
+            argMaxIf(e.release, e.event_ts, e.release != '') AS release,
+            argMaxIf(e.version, e.event_ts, e.version != '') AS version,
+            arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
+        FROM events_core AS e
+        WHERE (e.project_id = {param1:String})
+            AND (e.is_deleted = 0)
+            AND (e.start_time >= {param2:DateTime64(6)})
+            AND (e.start_time <= {param3:DateTime64(6)})
+            AND (e.trace_id IN (
+                SELECT s.trace_id
+                FROM scores AS s
+                WHERE (s.project_id = {param1:String})
+                    AND (s.timestamp >= {param4:DateTime64(3)})
+                    AND (s.timestamp <= {param5:DateTime64(3)})
+            ))
+        GROUP BY
+            e.trace_id,
+            e.project_id
+    ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
+    WHERE (hasAny({param6:Array(String)}, events_traces.tags) = true)
+        AND (scores.project_id = {param7:String})
+        AND (scores.timestamp >= {param8:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param9:DateTime64(3, 'UTC')})
+        AND (scores_categorical.data_type = {param10:String})
     GROUP BY
         scores.project_id,
         scores_categorical.id
@@ -162,13 +198,16 @@ exports[`golden: metrics v2 executeQuery > scores-categorical > filter traceName
   {
     "fn": "queryClickhouse",
     "params": {
-      "param1": "golden-trace-name",
-      "param2": "golden-project",
-      "param3": "2026-01-01 00:00:00.000",
-      "param4": "2026-01-02 00:00:00.000",
-      "param5": "CATEGORICAL",
-      "param6": "2026-01-01 00:00:00.000",
-      "param7": "2026-01-02 00:00:00.000",
+      "param1": "golden-project",
+      "param10": "CATEGORICAL",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-02 00:00:00.000",
+      "param6": "golden-trace-name",
+      "param7": "golden-project",
+      "param8": "2026-01-01 00:00:00.000",
+      "param9": "2026-01-02 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT count(count) AS count_count
@@ -180,14 +219,47 @@ FROM
         count(1) AS count
     FROM scores AS scores_categorical
     FINAL
-    INNER JOIN events_core AS events_traces ON (scores.trace_id = events_traces.trace_id) AND (scores.project_id = events_traces.project_id) AND (events_traces.parent_span_id = '')
-    WHERE (COALESCE(nullIf(events_traces.trace_name, ''), if(((events_traces.parent_span_id = '') OR (events_traces.is_app_root = true)), nullIf(events_traces.name, ''), NULL)) = {param1:String})
-        AND (scores.project_id = {param2:String})
-        AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
-        AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
-        AND (scores_categorical.data_type = {param5:String})
-        AND (events_traces.start_time >= {param6:DateTime64(3, 'UTC')})
-        AND (events_traces.start_time <= {param7:DateTime64(3, 'UTC')})
+    INNER JOIN
+    (
+        SELECT
+            e.trace_id AS id,
+            e.project_id AS project_id,
+            coalesce(
+                nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+                nullIf(
+                    argMaxIf(
+                        e.name,
+                        e.event_ts,
+                        (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
+                    ),
+                    ''
+                )
+            ) AS name,
+            argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
+            argMaxIf(e.release, e.event_ts, e.release != '') AS release,
+            argMaxIf(e.version, e.event_ts, e.version != '') AS version,
+            arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
+        FROM events_core AS e
+        WHERE (e.project_id = {param1:String})
+            AND (e.is_deleted = 0)
+            AND (e.start_time >= {param2:DateTime64(6)})
+            AND (e.start_time <= {param3:DateTime64(6)})
+            AND (e.trace_id IN (
+                SELECT s.trace_id
+                FROM scores AS s
+                WHERE (s.project_id = {param1:String})
+                    AND (s.timestamp >= {param4:DateTime64(3)})
+                    AND (s.timestamp <= {param5:DateTime64(3)})
+            ))
+        GROUP BY
+            e.trace_id,
+            e.project_id
+    ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
+    WHERE (events_traces.name = {param6:String})
+        AND (scores.project_id = {param7:String})
+        AND (scores.timestamp >= {param8:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param9:DateTime64(3, 'UTC')})
+        AND (scores_categorical.data_type = {param10:String})
     GROUP BY
         scores.project_id,
         scores_categorical.id
@@ -202,13 +274,16 @@ exports[`golden: metrics v2 executeQuery > scores-categorical > filter userId 1`
   {
     "fn": "queryClickhouse",
     "params": {
-      "param1": "golden-user",
-      "param2": "golden-project",
-      "param3": "2026-01-01 00:00:00.000",
-      "param4": "2026-01-02 00:00:00.000",
-      "param5": "CATEGORICAL",
-      "param6": "2026-01-01 00:00:00.000",
-      "param7": "2026-01-02 00:00:00.000",
+      "param1": "golden-project",
+      "param10": "CATEGORICAL",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-02 00:00:00.000",
+      "param6": "golden-user",
+      "param7": "golden-project",
+      "param8": "2026-01-01 00:00:00.000",
+      "param9": "2026-01-02 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT count(count) AS count_count
@@ -220,14 +295,47 @@ FROM
         count(1) AS count
     FROM scores AS scores_categorical
     FINAL
-    INNER JOIN events_core AS events_traces ON (scores.trace_id = events_traces.trace_id) AND (scores.project_id = events_traces.project_id) AND (events_traces.parent_span_id = '')
-    WHERE (events_traces.user_id = {param1:String})
-        AND (scores.project_id = {param2:String})
-        AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
-        AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
-        AND (scores_categorical.data_type = {param5:String})
-        AND (events_traces.start_time >= {param6:DateTime64(3, 'UTC')})
-        AND (events_traces.start_time <= {param7:DateTime64(3, 'UTC')})
+    INNER JOIN
+    (
+        SELECT
+            e.trace_id AS id,
+            e.project_id AS project_id,
+            coalesce(
+                nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+                nullIf(
+                    argMaxIf(
+                        e.name,
+                        e.event_ts,
+                        (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
+                    ),
+                    ''
+                )
+            ) AS name,
+            argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
+            argMaxIf(e.release, e.event_ts, e.release != '') AS release,
+            argMaxIf(e.version, e.event_ts, e.version != '') AS version,
+            arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
+        FROM events_core AS e
+        WHERE (e.project_id = {param1:String})
+            AND (e.is_deleted = 0)
+            AND (e.start_time >= {param2:DateTime64(6)})
+            AND (e.start_time <= {param3:DateTime64(6)})
+            AND (e.trace_id IN (
+                SELECT s.trace_id
+                FROM scores AS s
+                WHERE (s.project_id = {param1:String})
+                    AND (s.timestamp >= {param4:DateTime64(3)})
+                    AND (s.timestamp <= {param5:DateTime64(3)})
+            ))
+        GROUP BY
+            e.trace_id,
+            e.project_id
+    ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
+    WHERE (events_traces.user_id = {param6:String})
+        AND (scores.project_id = {param7:String})
+        AND (scores.timestamp >= {param8:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param9:DateTime64(3, 'UTC')})
+        AND (scores_categorical.data_type = {param10:String})
     GROUP BY
         scores.project_id,
         scores_categorical.id
@@ -339,9 +447,12 @@ exports[`golden: metrics v2 executeQuery > scores-categorical > group by tags 1`
       "param1": "golden-project",
       "param2": "2026-01-01 00:00:00.000",
       "param3": "2026-01-02 00:00:00.000",
-      "param4": "CATEGORICAL",
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-02 00:00:00.000",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-02 00:00:00.000",
+      "param6": "golden-project",
+      "param7": "2026-01-01 00:00:00.000",
+      "param8": "2026-01-02 00:00:00.000",
+      "param9": "CATEGORICAL",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -356,13 +467,46 @@ FROM
         count(1) AS count
     FROM scores AS scores_categorical
     FINAL
-    INNER JOIN events_core AS events_traces ON (scores.trace_id = events_traces.trace_id) AND (scores.project_id = events_traces.project_id) AND (events_traces.parent_span_id = '')
-    WHERE (scores.project_id = {param1:String})
-        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
-        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-        AND (scores_categorical.data_type = {param4:String})
-        AND (events_traces.start_time >= {param5:DateTime64(3, 'UTC')})
-        AND (events_traces.start_time <= {param6:DateTime64(3, 'UTC')})
+    INNER JOIN
+    (
+        SELECT
+            e.trace_id AS id,
+            e.project_id AS project_id,
+            coalesce(
+                nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+                nullIf(
+                    argMaxIf(
+                        e.name,
+                        e.event_ts,
+                        (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
+                    ),
+                    ''
+                )
+            ) AS name,
+            argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
+            argMaxIf(e.release, e.event_ts, e.release != '') AS release,
+            argMaxIf(e.version, e.event_ts, e.version != '') AS version,
+            arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
+        FROM events_core AS e
+        WHERE (e.project_id = {param1:String})
+            AND (e.is_deleted = 0)
+            AND (e.start_time >= {param2:DateTime64(6)})
+            AND (e.start_time <= {param3:DateTime64(6)})
+            AND (e.trace_id IN (
+                SELECT s.trace_id
+                FROM scores AS s
+                WHERE (s.project_id = {param1:String})
+                    AND (s.timestamp >= {param4:DateTime64(3)})
+                    AND (s.timestamp <= {param5:DateTime64(3)})
+            ))
+        GROUP BY
+            e.trace_id,
+            e.project_id
+    ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
+    WHERE (scores.project_id = {param6:String})
+        AND (scores.timestamp >= {param7:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param8:DateTime64(3, 'UTC')})
+        AND (scores_categorical.data_type = {param9:String})
     GROUP BY
         scores.project_id,
         scores_categorical.id
@@ -407,9 +551,12 @@ exports[`golden: metrics v2 executeQuery > scores-categorical > group by traceNa
       "param1": "golden-project",
       "param2": "2026-01-01 00:00:00.000",
       "param3": "2026-01-02 00:00:00.000",
-      "param4": "CATEGORICAL",
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-02 00:00:00.000",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-02 00:00:00.000",
+      "param6": "golden-project",
+      "param7": "2026-01-01 00:00:00.000",
+      "param8": "2026-01-02 00:00:00.000",
+      "param9": "CATEGORICAL",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -420,26 +567,50 @@ FROM
     SELECT
         scores.project_id,
         scores_categorical.id,
-        any(
-            COALESCE(
-                nullIf(events_traces.trace_name, ''),
-                if(
-                    ((events_traces.parent_span_id = '') OR (events_traces.is_app_root = true)),
-                    nullIf(events_traces.name, ''),
-                    NULL
-                )
-            )
-        ) AS traceName,
+        any(events_traces.name) AS traceName,
         count(1) AS count
     FROM scores AS scores_categorical
     FINAL
-    INNER JOIN events_core AS events_traces ON (scores.trace_id = events_traces.trace_id) AND (scores.project_id = events_traces.project_id) AND (events_traces.parent_span_id = '')
-    WHERE (scores.project_id = {param1:String})
-        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
-        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-        AND (scores_categorical.data_type = {param4:String})
-        AND (events_traces.start_time >= {param5:DateTime64(3, 'UTC')})
-        AND (events_traces.start_time <= {param6:DateTime64(3, 'UTC')})
+    INNER JOIN
+    (
+        SELECT
+            e.trace_id AS id,
+            e.project_id AS project_id,
+            coalesce(
+                nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+                nullIf(
+                    argMaxIf(
+                        e.name,
+                        e.event_ts,
+                        (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
+                    ),
+                    ''
+                )
+            ) AS name,
+            argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
+            argMaxIf(e.release, e.event_ts, e.release != '') AS release,
+            argMaxIf(e.version, e.event_ts, e.version != '') AS version,
+            arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
+        FROM events_core AS e
+        WHERE (e.project_id = {param1:String})
+            AND (e.is_deleted = 0)
+            AND (e.start_time >= {param2:DateTime64(6)})
+            AND (e.start_time <= {param3:DateTime64(6)})
+            AND (e.trace_id IN (
+                SELECT s.trace_id
+                FROM scores AS s
+                WHERE (s.project_id = {param1:String})
+                    AND (s.timestamp >= {param4:DateTime64(3)})
+                    AND (s.timestamp <= {param5:DateTime64(3)})
+            ))
+        GROUP BY
+            e.trace_id,
+            e.project_id
+    ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
+    WHERE (scores.project_id = {param6:String})
+        AND (scores.timestamp >= {param7:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param8:DateTime64(3, 'UTC')})
+        AND (scores_categorical.data_type = {param9:String})
     GROUP BY
         scores.project_id,
         scores_categorical.id
@@ -458,9 +629,12 @@ exports[`golden: metrics v2 executeQuery > scores-categorical > group by userId 
       "param1": "golden-project",
       "param2": "2026-01-01 00:00:00.000",
       "param3": "2026-01-02 00:00:00.000",
-      "param4": "CATEGORICAL",
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-02 00:00:00.000",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-02 00:00:00.000",
+      "param6": "golden-project",
+      "param7": "2026-01-01 00:00:00.000",
+      "param8": "2026-01-02 00:00:00.000",
+      "param9": "CATEGORICAL",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -475,13 +649,46 @@ FROM
         count(1) AS count
     FROM scores AS scores_categorical
     FINAL
-    INNER JOIN events_core AS events_traces ON (scores.trace_id = events_traces.trace_id) AND (scores.project_id = events_traces.project_id) AND (events_traces.parent_span_id = '')
-    WHERE (scores.project_id = {param1:String})
-        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
-        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-        AND (scores_categorical.data_type = {param4:String})
-        AND (events_traces.start_time >= {param5:DateTime64(3, 'UTC')})
-        AND (events_traces.start_time <= {param6:DateTime64(3, 'UTC')})
+    INNER JOIN
+    (
+        SELECT
+            e.trace_id AS id,
+            e.project_id AS project_id,
+            coalesce(
+                nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+                nullIf(
+                    argMaxIf(
+                        e.name,
+                        e.event_ts,
+                        (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
+                    ),
+                    ''
+                )
+            ) AS name,
+            argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
+            argMaxIf(e.release, e.event_ts, e.release != '') AS release,
+            argMaxIf(e.version, e.event_ts, e.version != '') AS version,
+            arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
+        FROM events_core AS e
+        WHERE (e.project_id = {param1:String})
+            AND (e.is_deleted = 0)
+            AND (e.start_time >= {param2:DateTime64(6)})
+            AND (e.start_time <= {param3:DateTime64(6)})
+            AND (e.trace_id IN (
+                SELECT s.trace_id
+                FROM scores AS s
+                WHERE (s.project_id = {param1:String})
+                    AND (s.timestamp >= {param4:DateTime64(3)})
+                    AND (s.timestamp <= {param5:DateTime64(3)})
+            ))
+        GROUP BY
+            e.trace_id,
+            e.project_id
+    ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
+    WHERE (scores.project_id = {param6:String})
+        AND (scores.timestamp >= {param7:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param8:DateTime64(3, 'UTC')})
+        AND (scores_categorical.data_type = {param9:String})
     GROUP BY
         scores.project_id,
         scores_categorical.id
@@ -596,18 +803,21 @@ exports[`golden: metrics v2 executeQuery > scores-numeric > filter tags 1`] = `
   {
     "fn": "queryClickhouse",
     "params": {
-      "param1": [
-        "golden-tag",
-      ],
-      "param2": "golden-project",
-      "param3": "2026-01-01 00:00:00.000",
-      "param4": "2026-01-02 00:00:00.000",
-      "param5": [
+      "param1": "golden-project",
+      "param10": [
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param6": "2026-01-01 00:00:00.000",
-      "param7": "2026-01-02 00:00:00.000",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-02 00:00:00.000",
+      "param6": [
+        "golden-tag",
+      ],
+      "param7": "golden-project",
+      "param8": "2026-01-01 00:00:00.000",
+      "param9": "2026-01-02 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT count(count) AS count_count
@@ -619,14 +829,47 @@ FROM
         count(1) AS count
     FROM scores AS scores_numeric
     FINAL
-    INNER JOIN events_core AS events_traces ON (scores.trace_id = events_traces.trace_id) AND (scores.project_id = events_traces.project_id) AND (events_traces.parent_span_id = '')
-    WHERE (hasAny({param1:Array(String)}, events_traces.tags) = true)
-        AND (scores.project_id = {param2:String})
-        AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
-        AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
-        AND (scores_numeric.data_type IN ({param5:Array(String)}))
-        AND (events_traces.start_time >= {param6:DateTime64(3, 'UTC')})
-        AND (events_traces.start_time <= {param7:DateTime64(3, 'UTC')})
+    INNER JOIN
+    (
+        SELECT
+            e.trace_id AS id,
+            e.project_id AS project_id,
+            coalesce(
+                nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+                nullIf(
+                    argMaxIf(
+                        e.name,
+                        e.event_ts,
+                        (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
+                    ),
+                    ''
+                )
+            ) AS name,
+            argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
+            argMaxIf(e.release, e.event_ts, e.release != '') AS release,
+            argMaxIf(e.version, e.event_ts, e.version != '') AS version,
+            arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
+        FROM events_core AS e
+        WHERE (e.project_id = {param1:String})
+            AND (e.is_deleted = 0)
+            AND (e.start_time >= {param2:DateTime64(6)})
+            AND (e.start_time <= {param3:DateTime64(6)})
+            AND (e.trace_id IN (
+                SELECT s.trace_id
+                FROM scores AS s
+                WHERE (s.project_id = {param1:String})
+                    AND (s.timestamp >= {param4:DateTime64(3)})
+                    AND (s.timestamp <= {param5:DateTime64(3)})
+            ))
+        GROUP BY
+            e.trace_id,
+            e.project_id
+    ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
+    WHERE (hasAny({param6:Array(String)}, events_traces.tags) = true)
+        AND (scores.project_id = {param7:String})
+        AND (scores.timestamp >= {param8:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param9:DateTime64(3, 'UTC')})
+        AND (scores_numeric.data_type IN ({param10:Array(String)}))
     GROUP BY
         scores.project_id,
         scores_numeric.id
@@ -669,16 +912,19 @@ exports[`golden: metrics v2 executeQuery > scores-numeric > filter traceName 1`]
   {
     "fn": "queryClickhouse",
     "params": {
-      "param1": "golden-trace-name",
-      "param2": "golden-project",
-      "param3": "2026-01-01 00:00:00.000",
-      "param4": "2026-01-02 00:00:00.000",
-      "param5": [
+      "param1": "golden-project",
+      "param10": [
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param6": "2026-01-01 00:00:00.000",
-      "param7": "2026-01-02 00:00:00.000",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-02 00:00:00.000",
+      "param6": "golden-trace-name",
+      "param7": "golden-project",
+      "param8": "2026-01-01 00:00:00.000",
+      "param9": "2026-01-02 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT count(count) AS count_count
@@ -690,14 +936,47 @@ FROM
         count(1) AS count
     FROM scores AS scores_numeric
     FINAL
-    INNER JOIN events_core AS events_traces ON (scores.trace_id = events_traces.trace_id) AND (scores.project_id = events_traces.project_id) AND (events_traces.parent_span_id = '')
-    WHERE (COALESCE(nullIf(events_traces.trace_name, ''), if(((events_traces.parent_span_id = '') OR (events_traces.is_app_root = true)), nullIf(events_traces.name, ''), NULL)) = {param1:String})
-        AND (scores.project_id = {param2:String})
-        AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
-        AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
-        AND (scores_numeric.data_type IN ({param5:Array(String)}))
-        AND (events_traces.start_time >= {param6:DateTime64(3, 'UTC')})
-        AND (events_traces.start_time <= {param7:DateTime64(3, 'UTC')})
+    INNER JOIN
+    (
+        SELECT
+            e.trace_id AS id,
+            e.project_id AS project_id,
+            coalesce(
+                nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+                nullIf(
+                    argMaxIf(
+                        e.name,
+                        e.event_ts,
+                        (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
+                    ),
+                    ''
+                )
+            ) AS name,
+            argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
+            argMaxIf(e.release, e.event_ts, e.release != '') AS release,
+            argMaxIf(e.version, e.event_ts, e.version != '') AS version,
+            arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
+        FROM events_core AS e
+        WHERE (e.project_id = {param1:String})
+            AND (e.is_deleted = 0)
+            AND (e.start_time >= {param2:DateTime64(6)})
+            AND (e.start_time <= {param3:DateTime64(6)})
+            AND (e.trace_id IN (
+                SELECT s.trace_id
+                FROM scores AS s
+                WHERE (s.project_id = {param1:String})
+                    AND (s.timestamp >= {param4:DateTime64(3)})
+                    AND (s.timestamp <= {param5:DateTime64(3)})
+            ))
+        GROUP BY
+            e.trace_id,
+            e.project_id
+    ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
+    WHERE (events_traces.name = {param6:String})
+        AND (scores.project_id = {param7:String})
+        AND (scores.timestamp >= {param8:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param9:DateTime64(3, 'UTC')})
+        AND (scores_numeric.data_type IN ({param10:Array(String)}))
     GROUP BY
         scores.project_id,
         scores_numeric.id
@@ -712,16 +991,19 @@ exports[`golden: metrics v2 executeQuery > scores-numeric > filter userId 1`] = 
   {
     "fn": "queryClickhouse",
     "params": {
-      "param1": "golden-user",
-      "param2": "golden-project",
-      "param3": "2026-01-01 00:00:00.000",
-      "param4": "2026-01-02 00:00:00.000",
-      "param5": [
+      "param1": "golden-project",
+      "param10": [
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param6": "2026-01-01 00:00:00.000",
-      "param7": "2026-01-02 00:00:00.000",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-02 00:00:00.000",
+      "param6": "golden-user",
+      "param7": "golden-project",
+      "param8": "2026-01-01 00:00:00.000",
+      "param9": "2026-01-02 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT count(count) AS count_count
@@ -733,14 +1015,47 @@ FROM
         count(1) AS count
     FROM scores AS scores_numeric
     FINAL
-    INNER JOIN events_core AS events_traces ON (scores.trace_id = events_traces.trace_id) AND (scores.project_id = events_traces.project_id) AND (events_traces.parent_span_id = '')
-    WHERE (events_traces.user_id = {param1:String})
-        AND (scores.project_id = {param2:String})
-        AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
-        AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
-        AND (scores_numeric.data_type IN ({param5:Array(String)}))
-        AND (events_traces.start_time >= {param6:DateTime64(3, 'UTC')})
-        AND (events_traces.start_time <= {param7:DateTime64(3, 'UTC')})
+    INNER JOIN
+    (
+        SELECT
+            e.trace_id AS id,
+            e.project_id AS project_id,
+            coalesce(
+                nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+                nullIf(
+                    argMaxIf(
+                        e.name,
+                        e.event_ts,
+                        (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
+                    ),
+                    ''
+                )
+            ) AS name,
+            argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
+            argMaxIf(e.release, e.event_ts, e.release != '') AS release,
+            argMaxIf(e.version, e.event_ts, e.version != '') AS version,
+            arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
+        FROM events_core AS e
+        WHERE (e.project_id = {param1:String})
+            AND (e.is_deleted = 0)
+            AND (e.start_time >= {param2:DateTime64(6)})
+            AND (e.start_time <= {param3:DateTime64(6)})
+            AND (e.trace_id IN (
+                SELECT s.trace_id
+                FROM scores AS s
+                WHERE (s.project_id = {param1:String})
+                    AND (s.timestamp >= {param4:DateTime64(3)})
+                    AND (s.timestamp <= {param5:DateTime64(3)})
+            ))
+        GROUP BY
+            e.trace_id,
+            e.project_id
+    ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
+    WHERE (events_traces.user_id = {param6:String})
+        AND (scores.project_id = {param7:String})
+        AND (scores.timestamp >= {param8:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param9:DateTime64(3, 'UTC')})
+        AND (scores_numeric.data_type IN ({param10:Array(String)}))
     GROUP BY
         scores.project_id,
         scores_numeric.id
@@ -861,12 +1176,15 @@ exports[`golden: metrics v2 executeQuery > scores-numeric > group by tags 1`] = 
       "param1": "golden-project",
       "param2": "2026-01-01 00:00:00.000",
       "param3": "2026-01-02 00:00:00.000",
-      "param4": [
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-02 00:00:00.000",
+      "param6": "golden-project",
+      "param7": "2026-01-01 00:00:00.000",
+      "param8": "2026-01-02 00:00:00.000",
+      "param9": [
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-02 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -881,13 +1199,46 @@ FROM
         count(1) AS count
     FROM scores AS scores_numeric
     FINAL
-    INNER JOIN events_core AS events_traces ON (scores.trace_id = events_traces.trace_id) AND (scores.project_id = events_traces.project_id) AND (events_traces.parent_span_id = '')
-    WHERE (scores.project_id = {param1:String})
-        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
-        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-        AND (scores_numeric.data_type IN ({param4:Array(String)}))
-        AND (events_traces.start_time >= {param5:DateTime64(3, 'UTC')})
-        AND (events_traces.start_time <= {param6:DateTime64(3, 'UTC')})
+    INNER JOIN
+    (
+        SELECT
+            e.trace_id AS id,
+            e.project_id AS project_id,
+            coalesce(
+                nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+                nullIf(
+                    argMaxIf(
+                        e.name,
+                        e.event_ts,
+                        (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
+                    ),
+                    ''
+                )
+            ) AS name,
+            argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
+            argMaxIf(e.release, e.event_ts, e.release != '') AS release,
+            argMaxIf(e.version, e.event_ts, e.version != '') AS version,
+            arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
+        FROM events_core AS e
+        WHERE (e.project_id = {param1:String})
+            AND (e.is_deleted = 0)
+            AND (e.start_time >= {param2:DateTime64(6)})
+            AND (e.start_time <= {param3:DateTime64(6)})
+            AND (e.trace_id IN (
+                SELECT s.trace_id
+                FROM scores AS s
+                WHERE (s.project_id = {param1:String})
+                    AND (s.timestamp >= {param4:DateTime64(3)})
+                    AND (s.timestamp <= {param5:DateTime64(3)})
+            ))
+        GROUP BY
+            e.trace_id,
+            e.project_id
+    ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
+    WHERE (scores.project_id = {param6:String})
+        AND (scores.timestamp >= {param7:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param8:DateTime64(3, 'UTC')})
+        AND (scores_numeric.data_type IN ({param9:Array(String)}))
     GROUP BY
         scores.project_id,
         scores_numeric.id
@@ -935,12 +1286,15 @@ exports[`golden: metrics v2 executeQuery > scores-numeric > group by traceName 1
       "param1": "golden-project",
       "param2": "2026-01-01 00:00:00.000",
       "param3": "2026-01-02 00:00:00.000",
-      "param4": [
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-02 00:00:00.000",
+      "param6": "golden-project",
+      "param7": "2026-01-01 00:00:00.000",
+      "param8": "2026-01-02 00:00:00.000",
+      "param9": [
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-02 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -951,26 +1305,50 @@ FROM
     SELECT
         scores.project_id,
         scores_numeric.id,
-        any(
-            COALESCE(
-                nullIf(events_traces.trace_name, ''),
-                if(
-                    ((events_traces.parent_span_id = '') OR (events_traces.is_app_root = true)),
-                    nullIf(events_traces.name, ''),
-                    NULL
-                )
-            )
-        ) AS traceName,
+        any(events_traces.name) AS traceName,
         count(1) AS count
     FROM scores AS scores_numeric
     FINAL
-    INNER JOIN events_core AS events_traces ON (scores.trace_id = events_traces.trace_id) AND (scores.project_id = events_traces.project_id) AND (events_traces.parent_span_id = '')
-    WHERE (scores.project_id = {param1:String})
-        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
-        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-        AND (scores_numeric.data_type IN ({param4:Array(String)}))
-        AND (events_traces.start_time >= {param5:DateTime64(3, 'UTC')})
-        AND (events_traces.start_time <= {param6:DateTime64(3, 'UTC')})
+    INNER JOIN
+    (
+        SELECT
+            e.trace_id AS id,
+            e.project_id AS project_id,
+            coalesce(
+                nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+                nullIf(
+                    argMaxIf(
+                        e.name,
+                        e.event_ts,
+                        (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
+                    ),
+                    ''
+                )
+            ) AS name,
+            argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
+            argMaxIf(e.release, e.event_ts, e.release != '') AS release,
+            argMaxIf(e.version, e.event_ts, e.version != '') AS version,
+            arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
+        FROM events_core AS e
+        WHERE (e.project_id = {param1:String})
+            AND (e.is_deleted = 0)
+            AND (e.start_time >= {param2:DateTime64(6)})
+            AND (e.start_time <= {param3:DateTime64(6)})
+            AND (e.trace_id IN (
+                SELECT s.trace_id
+                FROM scores AS s
+                WHERE (s.project_id = {param1:String})
+                    AND (s.timestamp >= {param4:DateTime64(3)})
+                    AND (s.timestamp <= {param5:DateTime64(3)})
+            ))
+        GROUP BY
+            e.trace_id,
+            e.project_id
+    ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
+    WHERE (scores.project_id = {param6:String})
+        AND (scores.timestamp >= {param7:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param8:DateTime64(3, 'UTC')})
+        AND (scores_numeric.data_type IN ({param9:Array(String)}))
     GROUP BY
         scores.project_id,
         scores_numeric.id
@@ -989,12 +1367,15 @@ exports[`golden: metrics v2 executeQuery > scores-numeric > group by userId 1`] 
       "param1": "golden-project",
       "param2": "2026-01-01 00:00:00.000",
       "param3": "2026-01-02 00:00:00.000",
-      "param4": [
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-02 00:00:00.000",
+      "param6": "golden-project",
+      "param7": "2026-01-01 00:00:00.000",
+      "param8": "2026-01-02 00:00:00.000",
+      "param9": [
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-02 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -1009,13 +1390,46 @@ FROM
         count(1) AS count
     FROM scores AS scores_numeric
     FINAL
-    INNER JOIN events_core AS events_traces ON (scores.trace_id = events_traces.trace_id) AND (scores.project_id = events_traces.project_id) AND (events_traces.parent_span_id = '')
-    WHERE (scores.project_id = {param1:String})
-        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
-        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-        AND (scores_numeric.data_type IN ({param4:Array(String)}))
-        AND (events_traces.start_time >= {param5:DateTime64(3, 'UTC')})
-        AND (events_traces.start_time <= {param6:DateTime64(3, 'UTC')})
+    INNER JOIN
+    (
+        SELECT
+            e.trace_id AS id,
+            e.project_id AS project_id,
+            coalesce(
+                nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+                nullIf(
+                    argMaxIf(
+                        e.name,
+                        e.event_ts,
+                        (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
+                    ),
+                    ''
+                )
+            ) AS name,
+            argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
+            argMaxIf(e.release, e.event_ts, e.release != '') AS release,
+            argMaxIf(e.version, e.event_ts, e.version != '') AS version,
+            arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
+        FROM events_core AS e
+        WHERE (e.project_id = {param1:String})
+            AND (e.is_deleted = 0)
+            AND (e.start_time >= {param2:DateTime64(6)})
+            AND (e.start_time <= {param3:DateTime64(6)})
+            AND (e.trace_id IN (
+                SELECT s.trace_id
+                FROM scores AS s
+                WHERE (s.project_id = {param1:String})
+                    AND (s.timestamp >= {param4:DateTime64(3)})
+                    AND (s.timestamp <= {param5:DateTime64(3)})
+            ))
+        GROUP BY
+            e.trace_id,
+            e.project_id
+    ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
+    WHERE (scores.project_id = {param6:String})
+        AND (scores.timestamp >= {param7:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param8:DateTime64(3, 'UTC')})
+        AND (scores_numeric.data_type IN ({param9:Array(String)}))
     GROUP BY
         scores.project_id,
         scores_numeric.id
