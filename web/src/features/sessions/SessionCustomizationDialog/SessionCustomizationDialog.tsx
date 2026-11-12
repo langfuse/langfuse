@@ -32,8 +32,7 @@ export function SessionCustomizationDialog({
     | { type: "customize" }
     | {
         type: "edit";
-        name: string;
-        onNameChange: (name: string) => void;
+        initialName: string;
         pending: boolean;
         disabled: boolean;
         error?: string;
@@ -41,11 +40,12 @@ export function SessionCustomizationDialog({
   initialFilters: FilterState;
   initialUnmatchedTraces: "show" | "hide";
   initialViewMode: SessionViewMode;
-  onApply: (
-    filters: FilterState,
-    unmatchedTraces: "show" | "hide",
-    viewMode: SessionViewMode,
-  ) => void;
+  onApply: (values: {
+    name: string;
+    filters: FilterState;
+    unmatchedTraces: "show" | "hide";
+    viewMode: SessionViewMode;
+  }) => void;
   preview: Pick<
     ComponentProps<typeof SessionFilterPreview>,
     "pending" | "error"
@@ -55,10 +55,12 @@ export function SessionCustomizationDialog({
   const formId = useId();
   const form = useForm({
     defaultValues: {
+      name: editing?.initialName ?? "",
       filters: initialFilters,
       unmatchedTraces: initialUnmatchedTraces,
       viewMode: initialViewMode,
     },
+    mode: "onChange",
   });
   const draft = useWatch({ control: form.control, name: "filters" });
   const filterInput = useSessionFilterInput({
@@ -99,14 +101,12 @@ export function SessionCustomizationDialog({
     filterInput.applyFilters([...filters, filter]);
   };
   const handleSubmit = (
-    values: {
-      unmatchedTraces: Parameters<typeof onApply>[1];
-      viewMode: Parameters<typeof onApply>[2];
-    },
-    confirm: (args: Parameters<typeof onApply>) => void,
+    values: Parameters<typeof onApply>[0],
+    confirm: (values: Parameters<typeof onApply>[0]) => void,
   ) => {
     const filters = filterInput.readFilters();
     if (filters === null) return;
+    const configuration = { ...values, filters };
     if (
       !preview.pending &&
       !preview.error &&
@@ -115,10 +115,10 @@ export function SessionCustomizationDialog({
         trace.observations.some((observation) => observation.matches),
       )
     ) {
-      confirm([filters, values.unmatchedTraces, values.viewMode]);
+      confirm(configuration);
       return;
     }
-    onApply(filters, values.unmatchedTraces, values.viewMode);
+    onApply(configuration);
   };
 
   return (
@@ -133,18 +133,16 @@ export function SessionCustomizationDialog({
           loading: editing?.pending,
           disabled:
             filterInput.invalid ||
-            (editing ? editing.disabled || !editing.name.trim() : false),
+            (editing ? editing.disabled || !form.formState.isValid : false),
         },
       ]}
     >
-      <ConfirmationDialogController<Parameters<typeof onApply>>
+      <ConfirmationDialogController<Parameters<typeof onApply>[0]>
         title="Apply filters with no matching observations?"
         text="These filters exclude every observation in the preview. Applying them may make it appear that session data is missing."
         confirmLabel="Apply filters anyway"
         variant="default"
-        onConfirm={([filters, nextUnmatchedTraces, nextViewMode]) =>
-          onApply(filters, nextUnmatchedTraces, nextViewMode)
-        }
+        onConfirm={onApply}
       >
         {({ openDialog }) => (
           <form
@@ -162,10 +160,10 @@ export function SessionCustomizationDialog({
                       {({ id }) => (
                         <Input
                           id={id}
-                          value={editing.name}
-                          onChange={(event) =>
-                            editing.onNameChange(event.target.value)
-                          }
+                          {...form.register("name", {
+                            setValueAs: (value: string) => value.trim(),
+                            required: true,
+                          })}
                           autoFocus
                         />
                       )}

@@ -1,4 +1,5 @@
-import { useId, useState } from "react";
+import { useId } from "react";
+import { useForm } from "react-hook-form";
 import { type TableViewPresetDomain } from "@langfuse/shared";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Form } from "@/src/components/design-system/Form/Form";
@@ -18,7 +19,10 @@ export function SessionDuplicateViewDialog({
   onSubmit: (name: string) => Promise<void>;
 }) {
   const formId = useId();
-  const [name, setName] = useState(`${view.name} (copy)`);
+  const form = useForm({
+    defaultValues: { name: `${view.name} (copy)` },
+    mode: "onChange",
+  });
   return (
     <Dialog
       title="Duplicate view"
@@ -28,7 +32,7 @@ export function SessionDuplicateViewDialog({
           type: "submit",
           form: formId,
           loading: isPending,
-          disabled: !canEdit || isPending || !name.trim(),
+          disabled: !canEdit || isPending || !form.formState.isValid,
         },
       ]}
     >
@@ -36,18 +40,19 @@ export function SessionDuplicateViewDialog({
         <form
           id={formId}
           className="flex flex-col gap-4"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            if (!canEdit || isPending || !name.trim()) return;
-            await onSubmit(name.trim());
-          }}
+          onSubmit={form.handleSubmit(async ({ name }) => {
+            if (!canEdit || isPending) return;
+            await onSubmit(name);
+          })}
         >
           <Form.Field label="View name">
             {({ id }) => (
               <Input
                 id={id}
-                value={name}
-                onChange={(event) => setName(event.target.value)}
+                {...form.register("name", {
+                  setValueAs: (value: string) => value.trim(),
+                  required: true,
+                })}
                 autoFocus
               />
             )}

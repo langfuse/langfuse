@@ -1,5 +1,4 @@
 import { expect, fn, userEvent, within } from "storybook/test";
-import { useState } from "react";
 import preview from "../../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { SessionCustomizationDialog } from "./SessionCustomizationDialog";
@@ -77,14 +76,15 @@ export const TestObservationFilters = meta.story({
     await userEvent.click(body.getByRole("radio", { name: "Hide" }));
     await expect(args.onApply).not.toHaveBeenCalled();
     await userEvent.click(body.getByRole("button", { name: "Apply changes" }));
-    await expect(args.onApply).toHaveBeenCalledWith(
-      [
+    await expect(args.onApply).toHaveBeenCalledWith({
+      name: "",
+      filters: [
         { column: "traceName", type: "string", operator: "=", value: "chat" },
         { column: "name", type: "string", operator: "=", value: "completion" },
       ],
-      "hide",
-      "conversational",
-    );
+      unmatchedTraces: "hide",
+      viewMode: "conversational",
+    });
   },
   args: {
     preview: {
@@ -153,21 +153,14 @@ export const Default = meta.story({
 
 export const EditSavedView = Default.extend({
   name: "(Test) Edit saved view",
-  render: function Render(args) {
-    const [name, setName] = useState("Saved generations");
-    return (
-      <SessionCustomizationDialog
-        {...args}
-        variant={{
-          type: "edit",
-          name,
-          onNameChange: setName,
-          pending: false,
-          disabled: false,
-          error: undefined,
-        }}
-      />
-    );
+  args: {
+    variant: {
+      type: "edit",
+      initialName: "Saved generations",
+      pending: false,
+      disabled: false,
+      error: undefined,
+    },
   },
   play: async ({ args }) => {
     const body = within(document.body);
@@ -180,14 +173,17 @@ export const EditSavedView = Default.extend({
     await expect(
       body.getByRole("button", { name: "Save changes" }),
     ).toBeDisabled();
-    await userEvent.type(input, "Renamed generations");
+    await userEvent.type(input, "  Renamed generations  ");
     await userEvent.click(body.getByRole("button", { name: "Generations" }));
     await userEvent.click(body.getByRole("button", { name: "Save changes" }));
-    await expect(args.onApply).toHaveBeenCalledWith(
-      [{ column: "type", type: "string", operator: "=", value: "GENERATION" }],
-      "show",
-      "conversational",
-    );
+    await expect(args.onApply).toHaveBeenCalledWith({
+      name: "Renamed generations",
+      filters: [
+        { column: "type", type: "string", operator: "=", value: "GENERATION" },
+      ],
+      unmatchedTraces: "show",
+      viewMode: "conversational",
+    });
   },
 });
 
@@ -228,11 +224,14 @@ export const TestInvalidDraftKeepsPreview = TestObservationFilters.extend({
       within(completion).getByText("Excluded by filters"),
     ).toBeInTheDocument();
     await userEvent.click(body.getByRole("button", { name: "Apply changes" }));
-    await expect(args.onApply).toHaveBeenCalledWith(
-      [{ column: "name", type: "string", operator: "=", value: "agent" }],
-      "show",
-      "conversational",
-    );
+    await expect(args.onApply).toHaveBeenCalledWith({
+      name: "",
+      filters: [
+        { column: "name", type: "string", operator: "=", value: "agent" },
+      ],
+      unmatchedTraces: "show",
+      viewMode: "conversational",
+    });
   },
 });
 
@@ -278,21 +277,23 @@ export const TestPreserveEnvironmentFilter = TestObservationFilters.extend({
       body.queryByText("Excluded by filters"),
     ).not.toBeInTheDocument();
     await userEvent.click(body.getByRole("button", { name: "Apply changes" }));
-    await expect(args.onApply).toHaveBeenCalledWith(
-      args.initialFilters,
-      "show",
-      "conversational",
-    );
+    await expect(args.onApply).toHaveBeenCalledWith({
+      name: "",
+      filters: args.initialFilters,
+      unmatchedTraces: "show",
+      viewMode: "conversational",
+    });
     await userEvent.click(body.getByRole("button", { name: "Generations" }));
     await userEvent.click(body.getByRole("button", { name: "Apply changes" }));
-    await expect(args.onApply).toHaveBeenLastCalledWith(
-      [
+    await expect(args.onApply).toHaveBeenLastCalledWith({
+      name: "",
+      filters: [
         ...args.initialFilters,
         { column: "type", type: "string", operator: "=", value: "GENERATION" },
       ],
-      "show",
-      "conversational",
-    );
+      unmatchedTraces: "show",
+      viewMode: "conversational",
+    });
   },
 });
 
@@ -326,11 +327,12 @@ export const TestConfirmAllObservationsExcluded = TestObservationFilters.extend(
         await body.findByRole("button", { name: "Apply filters anyway" }),
       );
       await expect(args.onApply).toHaveBeenCalledTimes(1);
-      await expect(args.onApply).toHaveBeenCalledWith(
-        args.initialFilters,
-        "show",
-        "conversational",
-      );
+      await expect(args.onApply).toHaveBeenCalledWith({
+        name: "",
+        filters: args.initialFilters,
+        unmatchedTraces: "show",
+        viewMode: "conversational",
+      });
     },
   },
 );

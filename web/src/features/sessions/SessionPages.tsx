@@ -755,7 +755,6 @@ const LoadedSessionEventsPage: React.FC<{
     projectId,
     scope: "TableViewPresets:CUD",
   });
-  const [editingViewName, setEditingViewName] = useState("");
   const updateSessionView = api.sessionViews.update.useMutation();
   const deleteSessionView = api.sessionViews.delete.useMutation();
   const duplicateSessionView = api.sessionViews.create.useMutation();
@@ -1446,11 +1445,11 @@ const LoadedSessionEventsPage: React.FC<{
                   initialFilters={traceFilters}
                   initialUnmatchedTraces={unmatchedTraces}
                   initialViewMode={viewMode}
-                  onApply={(filters, nextUnmatchedTraces, nextViewMode) => {
+                  onApply={({ filters, unmatchedTraces, viewMode }) => {
                     viewSelection.customize({
                       filters,
-                      unmatchedTraces: nextUnmatchedTraces,
-                      viewMode: nextViewMode,
+                      unmatchedTraces,
+                      viewMode,
                     });
                     closeDialog();
                   }}
@@ -1563,25 +1562,28 @@ const LoadedSessionEventsPage: React.FC<{
                   initialViewMode={state.view.viewMode}
                   variant={{
                     type: "edit",
-                    name: editingViewName,
-                    onNameChange: setEditingViewName,
+                    initialName: state.view.name,
                     pending: updateSessionView.isPending,
                     disabled: !canSaveSessionView || !state.view.canEdit,
                     error: updateSessionView.error?.message,
                   }}
-                  onApply={async (filters, unmatchedTraces, viewMode) => {
+                  onApply={async ({
+                    name,
+                    filters,
+                    unmatchedTraces,
+                    viewMode,
+                  }) => {
                     if (
                       !canSaveSessionView ||
                       !state.view.canEdit ||
-                      updateSessionView.isPending ||
-                      !editingViewName.trim()
+                      updateSessionView.isPending
                     )
                       return;
                     try {
                       const result = await updateSessionView.mutateAsync({
                         projectId,
                         id: state.view.id,
-                        name: editingViewName.trim(),
+                        name,
                         filters,
                         viewMode,
                         unmatchedTraces,
@@ -1617,7 +1619,6 @@ const LoadedSessionEventsPage: React.FC<{
               updateSessionView.reset();
               deleteSessionView.reset();
               duplicateSessionView.reset();
-              if (state.action === "edit") setEditingViewName(state.view.name);
               openDialog(state);
             };
             return (
