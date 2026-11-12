@@ -685,8 +685,10 @@ function MetricContent({ metric }: { metric: HeaderMetric }) {
               <Metric href={metric.href} value={metric.linkText} />
             </div>
             {metric.rows.map((row) => {
-              // Several values get a line each under the label, keyed by caption.
-              const isGrouped = row.values.length > 1;
+              // Several or captioned values get a line each under the label.
+              const isGrouped =
+                row.values.length > 1 ||
+                row.values.some((value) => value.caption);
               return (
                 <div
                   key={row.id}
@@ -695,7 +697,8 @@ function MetricContent({ metric }: { metric: HeaderMetric }) {
                   <div className="grid grid-cols-[fit-content(45%)_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1.5">
                     <span
                       className={cn(
-                        "text-muted-foreground text-sm break-words",
+                        // `anywhere`, unlike `break-word`, lowers the min-content width the column sizes to.
+                        "text-muted-foreground text-sm wrap-anywhere",
                         isGrouped && "col-span-2",
                       )}
                     >
@@ -704,7 +707,7 @@ function MetricContent({ metric }: { metric: HeaderMetric }) {
                     {row.values.map((value) => (
                       <Fragment key={`${value.caption ?? ""}:${value.text}`}>
                         {isGrouped && (
-                          <span className="text-muted-foreground text-xs break-words">
+                          <span className="text-muted-foreground text-xs wrap-anywhere">
                             {value.caption}
                           </span>
                         )}

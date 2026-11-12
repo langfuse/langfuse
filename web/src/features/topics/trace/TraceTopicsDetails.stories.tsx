@@ -82,6 +82,9 @@ const overlaps = (a: Element, b: Element) => {
   );
 };
 
+const unbrokenRule =
+  "qa_chatbot_topics_for_onboarding_and_product_questions_production_v2";
+
 /** Long rule and topic names wrap inside the card instead of covering the question. */
 export const LongTopicNames = meta.story({
   name: "(Test) Long rule and topic names keep the question label readable",
@@ -90,7 +93,7 @@ export const LongTopicNames = meta.story({
       name: "Langfuse product overview and onboarding questions",
       index: 0,
     }),
-    result("intent", "QA-Chatbot Topics", {
+    result("intent", unbrokenRule, {
       name: "Explain Langfuse uses with doc links and a follow-up quickstart offer",
       index: 2,
     }),
@@ -106,25 +109,51 @@ export const LongTopicNames = meta.story({
       )[0],
     );
     const card = within(document.body);
-    const label = await card.findByText("Intent");
-    const grid = label.parentElement!;
-    const others = [
-      card.getByText("Product questions"),
-      card.getByText("QA-Chatbot Topics"),
-      card.getByText("Langfuse product overview and onboarding questions"),
-      card.getByText(
-        "Explain Langfuse uses with doc links and a follow-up quickstart offer",
-      ),
+    await card.findByText("Intent");
+    // Each question label with its rule captions and topic badges.
+    const rows = [
+      {
+        label: "Intent",
+        lines: [
+          [
+            "Product questions",
+            "Langfuse product overview and onboarding questions",
+          ],
+          [
+            unbrokenRule,
+            "Explain Langfuse uses with doc links and a follow-up quickstart offer",
+          ],
+        ],
+      },
+      {
+        label: "Sentiment",
+        lines: [
+          [
+            undefined,
+            "Neutral, information-seeking tone without frustration or urgency",
+          ],
+        ],
+      },
     ];
-    for (const other of others) {
-      await expect(overlaps(label, other)).toBe(false);
-      const { left, right } = other.getBoundingClientRect();
-      await expect(left).toBeGreaterThanOrEqual(
-        grid.getBoundingClientRect().left,
-      );
-      await expect(right).toBeLessThanOrEqual(
-        grid.getBoundingClientRect().right,
-      );
+    for (const row of rows) {
+      const label = card.getByText(row.label);
+      const grid = label.parentElement!.getBoundingClientRect();
+      for (const [caption, topic] of row.lines) {
+        const badge = card.getByText(topic!);
+        const cells = caption ? [card.getByText(caption), badge] : [badge];
+        for (const cell of cells) {
+          await expect(overlaps(label, cell)).toBe(false);
+          const { left, right } = cell.getBoundingClientRect();
+          await expect(left).toBeGreaterThanOrEqual(grid.left);
+          await expect(right).toBeLessThanOrEqual(grid.right);
+        }
+        // A squeezed badge clips its own text.
+        await expect(badge.scrollWidth).toBeLessThanOrEqual(badge.clientWidth);
+        if (caption)
+          await expect(badge.getBoundingClientRect().left).toBeGreaterThan(
+            card.getByText(caption).getBoundingClientRect().right,
+          );
+      }
     }
   },
 });
