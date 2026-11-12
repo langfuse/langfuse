@@ -35,6 +35,7 @@ type AuditableResource =
   | "score"
   | "scoreConfig"
   | "model"
+  | "defaultLlmModel"
   | "notificationPreference"
   | "prompt"
   | "promptProtectedLabel"

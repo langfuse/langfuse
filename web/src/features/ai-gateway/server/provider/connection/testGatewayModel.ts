@@ -1,6 +1,7 @@
 import { STATUS_CODES } from "node:http";
 
 import { getBedrockModelApiFormats } from "@/src/features/ai-gateway/fns/getBedrockModelApiFormats";
+import { isOpenAiEmbeddingModel } from "@/src/features/ai-gateway/fns/isOpenAiEmbeddingModel";
 import { decodeBedrockApiKey } from "@/src/features/ai-gateway/server/provider/bedrock";
 import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import {
@@ -32,9 +33,16 @@ export async function testGatewayModel(params: {
   extraHeaders: Record<string, string>;
   credential: string;
   model: string;
+  /** The formats the provider's catalog lists the model for. */
+  reportedFormats?: readonly GatewayApiFormat[];
 }): Promise<GatewayModelTestResult> {
   let firstFailure: GatewayModelTestResult | undefined;
-  for (const apiFormat of getTestApiFormats(params.provider, params.model)) {
+  const apiFormats = getTestApiFormats(
+    params.provider,
+    params.model,
+    params.reportedFormats,
+  );
+  for (const apiFormat of apiFormats) {
     const result = await sendTestRequest(params, apiFormat);
     if (result.success) return result;
     if (!firstFailure) firstFailure = result;
@@ -98,13 +106,24 @@ async function sendTestRequest(
 function getTestApiFormats(
   provider: GatewayProviderName,
   model: string,
+  reportedFormats: readonly GatewayApiFormat[] | undefined,
 ): GatewayApiFormat[] {
   if (provider === "ANTHROPIC") return ["anthropic.messages"];
+  if (provider === "OPENAI" && isOpenAiEmbeddingModel(model)) {
+    return ["openai.embeddings"];
+  }
   if (provider === "OPENAI" || provider === "XAI") {
     return ["openai.responses", "openai.chat-completions"];
   }
-  // Listed OpenRouter and Vercel models serve every format through one API.
+  // Listed OpenRouter and Vercel models serve every format through one API,
+  // except decision and embedding models, which serve only their own.
   if (provider === "OPENROUTER" || provider === "VERCEL") {
+    if (reportedFormats?.includes("openai.decisions")) {
+      return ["openai.decisions"];
+    }
+    if (reportedFormats?.includes("openai.embeddings")) {
+      return ["openai.embeddings"];
+    }
     return ["openai.chat-completions"];
   }
   const formats = getBedrockModelApiFormats(model);
@@ -115,6 +134,25 @@ function getTestRequest(apiFormat: GatewayApiFormat, model: string) {
   const messages = [{ role: "user", content: "Hi" }];
   if (apiFormat === "anthropic.messages") {
     return { path: "/messages", body: { model, max_tokens: 1, messages } };
+  }
+  if (apiFormat === "openai.decisions") {
+    return {
+      path: "/decisions",
+      body: {
+        model,
+        input: "Hi",
+        questions: [
+          {
+            type: "predicate",
+            name: "greeting",
+            instructions: "Is this a greeting?",
+          },
+        ],
+      },
+    };
+  }
+  if (apiFormat === "openai.embeddings") {
+    return { path: "/embeddings", body: { model, input: "Hi" } };
   }
   if (apiFormat === "openai.chat-completions") {
     return {

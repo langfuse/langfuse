@@ -25,6 +25,7 @@ import {
   type TopicSetupDraft,
   type TopicSetupQuestion,
 } from "./topic-setup-flow";
+import { suggestTopicRuleName } from "./topic-maps";
 
 export function TopicSetupFlowController({
   canWrite,
@@ -39,6 +40,7 @@ export function TopicSetupFlowController({
   onSaveSampling: (input: {
     enabled: boolean;
     sampling: number;
+    ruleId?: string;
   }) => Promise<unknown>;
   children: (control: { openSetup: () => void }) => ReactNode;
 }) {
@@ -89,6 +91,7 @@ function TopicSetupSession({
   onSaveSampling: (input: {
     enabled: boolean;
     sampling: number;
+    ruleId?: string;
   }) => Promise<unknown>;
   closeDialog: () => void;
 }) {
@@ -230,15 +233,20 @@ function TopicSetupSession({
       ),
       filter: draft.filter,
       traceIdleMs: draft.waitMinutes * 60_000,
-      ...(savedRuleId ? { ruleId: savedRuleId } : {}),
+      ...(savedRuleId
+        ? { ruleId: savedRuleId }
+        : { name: suggestTopicRuleName(draft.filter) }),
     });
-    setSavedRuleId(saved.id);
+    if (saved) setSavedRuleId(saved.id);
+    return saved?.id ?? savedRuleId;
   }
 
-  async function persistSampling(enabled: boolean) {
+  // `ruleId` is the rule the setup just saved, before state and the rules query catch up.
+  async function persistSampling(enabled: boolean, ruleId = savedRuleId) {
     await onSaveSampling({
       enabled,
       sampling: draft.samplePercent / 100,
+      ruleId,
     });
   }
 
@@ -282,8 +290,7 @@ function TopicSetupSession({
         return;
       }
       if (draft.step === "traces") {
-        await saveSetup();
-        await persistSampling(false);
+        await persistSampling(false, await saveSetup());
         capture("topics:setup_step_saved", {
           step: "traces",
           samplePercent: draft.samplePercent,

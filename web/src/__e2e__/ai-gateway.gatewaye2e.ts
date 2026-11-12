@@ -18,6 +18,7 @@ import {
   GatewayResolveResponseSchema,
   type GatewayProviderName,
 } from "@/src/features/ai-gateway/server/provider/registry";
+import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
 
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -214,6 +215,40 @@ const SLUGLESS_COMPLETIONS = [
       model: "gpt-6-sol",
       messages: [{ role: "user", content: "Reply with the word hello." }],
       max_completion_tokens: 32,
+    },
+    headers: {},
+  },
+  {
+    provider: GatewayProvider.OPENAI,
+    apiFormat: "openai.decisions",
+    model: "gpt-6-luna",
+    path: "/openai/v1/decisions",
+    body: {
+      model: "gpt-6-luna",
+      input: [
+        {
+          role: "user",
+          content: [{ type: "input_text", text: "The sky is green." }],
+        },
+      ],
+      questions: [
+        {
+          type: "predicate",
+          name: "is_false",
+          instructions: "Is the statement false?",
+        },
+      ],
+    },
+    headers: {},
+  },
+  {
+    provider: GatewayProvider.OPENAI,
+    apiFormat: "openai.embeddings",
+    model: "text-embedding-3-small",
+    path: "/openai/v1/embeddings",
+    body: {
+      model: "text-embedding-3-small",
+      input: "Reply with the word hello.",
     },
     headers: {},
   },
@@ -556,12 +591,21 @@ describe("AI gateway live end-to-end", () => {
                   }
                   expect(observation.projectId).toBe(defaultProjectId);
                   expect(observation.traceId).toBe(traceId);
-                  expect(observation.type).toBe("GENERATION");
+                  expect(observation.type).toBe(
+                    apiFormat === "openai.embeddings"
+                      ? "EMBEDDING"
+                      : "GENERATION",
+                  );
                   expectRequestedProviderModel(observation.model, model);
                   expect(observation.model).not.toContain(":");
                   expect(observation.providedUsageDetails).toEqual(
                     expectedUsage,
                   );
+                  if (apiFormat === "openai.embeddings") {
+                    expect(observation.usageDetails.total).toBe(
+                      expectedUsage.input,
+                    );
+                  }
                   await expectStoredInOneProject({
                     observationId: observationId!,
                     traceId: traceId!,
@@ -814,10 +858,10 @@ async function selectOnlyConnection(targetConnectionId: string) {
 }
 
 async function clearModelCaches(connectionIds: string[]) {
-  if (!redis || connectionIds.length === 0) return;
-  await redis.del(
-    ...connectionIds.map(
-      (connectionId) => `ai-gateway:models:${ORGANIZATION_ID}:${connectionId}`,
+  const catalogService = new GatewayModelCatalogService(prisma, redis);
+  await Promise.all(
+    connectionIds.map((connectionId) =>
+      catalogService.clearModelCache(ORGANIZATION_ID, connectionId),
     ),
   );
 }
@@ -1078,7 +1122,12 @@ function projectGatewayUsage(apiFormat: GatewayApiFormat, usage: unknown) {
   if (!usage || typeof usage !== "object" || Array.isArray(usage)) return null;
   const record = usage as Record<string, unknown>;
   if (apiFormat === "anthropic.messages") return record;
-  if (apiFormat === "openai.responses") {
+  if (apiFormat === "openai.embeddings") {
+    return isCountedToken(record.prompt_tokens)
+      ? { input: record.prompt_tokens }
+      : null;
+  }
+  if (apiFormat === "openai.responses" || apiFormat === "openai.decisions") {
     return projectOpenAiUsage(
       record,
       ["input_tokens", "output_tokens", "total_tokens"],

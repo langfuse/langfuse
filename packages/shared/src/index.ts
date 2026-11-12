@@ -190,6 +190,9 @@ export * from "./features/prompts/validation";
 export * from "./features/prompts/types";
 export * from "./features/prompts/constants";
 
+// onboarding
+export * from "./features/onboarding/starterOrganization";
+
 // skills
 export * from "./features/skills/types";
 export * from "./features/skills/trace";

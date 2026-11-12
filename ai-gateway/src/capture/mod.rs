@@ -1,6 +1,8 @@
 mod anthropic_messages;
 mod facts;
 mod openai_chat_completions;
+mod openai_decisions;
+mod openai_embeddings;
 mod openai_responses;
 mod response;
 mod sse;
@@ -17,12 +19,14 @@ use tokio::time::Instant;
 use crate::{
     correlation::RequestCorrelation,
     resolution::{ApiFormat, IngestionMode, MetadataValue, ResolvedRequestContext},
-    telemetry,
+    telemetry, transport,
 };
 use anthropic_messages::AnthropicMessagesCapture;
 pub(crate) use facts::ProviderFacts;
 pub(crate) use facts::{InferenceFacts, InputOmission, InputOmissionReason, RelayOutcome};
 use openai_chat_completions::OpenAiChatCompletionsCapture;
+use openai_decisions::OpenAiDecisionsCapture;
+use openai_embeddings::OpenAiEmbeddingsCapture;
 use openai_responses::OpenAiResponsesCapture;
 
 pub(crate) const MAX_INPUT_CAPTURE_BYTES: usize = 5 * 1024 * 1024;
@@ -34,6 +38,8 @@ const MAX_PROJECTED_BYTES: usize = 64 * 1024;
 enum ProtocolCapture {
     OpenAiResponses(OpenAiResponsesCapture),
     OpenAiChatCompletions(OpenAiChatCompletionsCapture),
+    OpenAiDecisions(OpenAiDecisionsCapture),
+    OpenAiEmbeddings(OpenAiEmbeddingsCapture),
     AnthropicMessages(AnthropicMessagesCapture),
 }
 
@@ -46,16 +52,47 @@ impl ProtocolCapture {
             ApiFormat::OpenAiChatCompletions => {
                 Self::OpenAiChatCompletions(OpenAiChatCompletionsCapture::new(headers, body, mode))
             }
+            ApiFormat::OpenAiDecisions => {
+                Self::OpenAiDecisions(OpenAiDecisionsCapture::new(headers, body, mode))
+            }
+            ApiFormat::OpenAiEmbeddings => {
+                Self::OpenAiEmbeddings(OpenAiEmbeddingsCapture::new(headers, body, mode))
+            }
             ApiFormat::AnthropicMessages => {
                 Self::AnthropicMessages(AnthropicMessagesCapture::new(headers, body, mode))
             }
         }
     }
 
+    fn api_format(&self) -> ApiFormat {
+        match self {
+            Self::OpenAiResponses(_) => ApiFormat::OpenAiResponses,
+            Self::OpenAiChatCompletions(_) => ApiFormat::OpenAiChatCompletions,
+            Self::OpenAiDecisions(_) => ApiFormat::OpenAiDecisions,
+            Self::OpenAiEmbeddings(_) => ApiFormat::OpenAiEmbeddings,
+            Self::AnthropicMessages(_) => ApiFormat::AnthropicMessages,
+        }
+    }
+
+    fn facts_mut(&mut self) -> &mut ProviderFacts {
+        match self {
+            Self::OpenAiResponses(capture) => &mut capture.facts,
+            Self::OpenAiChatCompletions(capture) => &mut capture.facts,
+            Self::OpenAiDecisions(capture) => &mut capture.facts,
+            Self::OpenAiEmbeddings(capture) => &mut capture.facts,
+            Self::AnthropicMessages(capture) => &mut capture.facts,
+        }
+    }
+
     fn record_response(&mut self, headers: &HeaderMap) {
+        let api_format = self.api_format();
+        self.facts_mut().provider_request_id =
+            transport::provider_request_id(headers, api_format).map(str::to_owned);
         match self {
             Self::OpenAiResponses(capture) => capture.record_response(headers),
             Self::OpenAiChatCompletions(capture) => capture.record_response(headers),
+            Self::OpenAiDecisions(capture) => capture.record_response(headers),
+            Self::OpenAiEmbeddings(capture) => capture.record_response(headers),
             Self::AnthropicMessages(capture) => capture.record_response(headers),
         }
     }
@@ -64,6 +101,8 @@ impl ProtocolCapture {
         match self {
             Self::OpenAiResponses(capture) => capture.push_bytes(bytes),
             Self::OpenAiChatCompletions(capture) => capture.push_bytes(bytes),
+            Self::OpenAiDecisions(capture) => capture.push_bytes(bytes),
+            Self::OpenAiEmbeddings(capture) => capture.push_bytes(bytes),
             Self::AnthropicMessages(capture) => capture.push_bytes(bytes),
         }
     }
@@ -72,24 +111,31 @@ impl ProtocolCapture {
         match self {
             Self::OpenAiResponses(capture) => capture.end_body(),
             Self::OpenAiChatCompletions(capture) => capture.end_body(),
+            Self::OpenAiDecisions(capture) => capture.end_body(),
+            Self::OpenAiEmbeddings(capture) => capture.end_body(),
             Self::AnthropicMessages(capture) => capture.end_body(),
         }
     }
 
-    fn into_facts(self) -> (&'static str, ProviderFacts) {
-        match self {
-            Self::OpenAiResponses(capture) => ("openai.responses", capture.into_facts()),
-            Self::OpenAiChatCompletions(capture) => {
-                ("openai.chat-completions", capture.into_facts())
-            }
-            Self::AnthropicMessages(capture) => ("anthropic.messages", capture.into_facts()),
-        }
+    fn into_facts(self) -> (ApiFormat, ProviderFacts) {
+        let api_format = self.api_format();
+        let facts = match self {
+            Self::OpenAiResponses(capture) => capture.into_facts(),
+            Self::OpenAiChatCompletions(capture) => capture.into_facts(),
+            Self::OpenAiDecisions(capture) => capture.into_facts(),
+            Self::OpenAiEmbeddings(capture) => capture.into_facts(),
+            Self::AnthropicMessages(capture) => capture.into_facts(),
+        };
+        (api_format, facts)
     }
 
     fn client_metadata(&self) -> Option<&Map<String, Value>> {
         match self {
             Self::OpenAiResponses(capture) => capture.client_metadata(),
-            Self::OpenAiChatCompletions(_) | Self::AnthropicMessages(_) => None,
+            Self::OpenAiChatCompletions(_)
+            | Self::OpenAiDecisions(_)
+            | Self::OpenAiEmbeddings(_)
+            | Self::AnthropicMessages(_) => None,
         }
     }
 }
@@ -356,6 +402,18 @@ fn retry_after_ms(headers: &HeaderMap) -> Option<u64> {
         .parse::<u64>()
         .ok()
         .map(|seconds| seconds.saturating_mul(1000))
+}
+
+/// Joins the error object's non-empty `keys` into one bounded `first: second` detail.
+fn error_detail(error: &Map<String, Value>, keys: [&str; 2]) -> Option<String> {
+    let detail = keys
+        .into_iter()
+        .filter_map(|key| error.get(key).and_then(Value::as_str))
+        .filter(|value| !value.is_empty())
+        .map(|value| &value[..value.floor_char_boundary(MAX_FACT_STRING)])
+        .collect::<Vec<_>>()
+        .join(": ");
+    (!detail.is_empty()).then(|| detail[..detail.floor_char_boundary(MAX_FACT_STRING)].to_owned())
 }
 
 fn bounded_string(value: &str) -> Option<String> {

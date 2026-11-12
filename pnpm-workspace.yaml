@@ -56,6 +56,8 @@ catalog:
 # 5 day delay for new dep upgrades to reduce supply chain attack risk
 minimumReleaseAge: 7200
 minimumReleaseAgeExclude:
+  # CVE-2026-125755: recipient address parsing fix.
+  - nodemailer@10.4.1
   # Security fix for CVE-2026-116592 and related redirect/cache advisories.
   - undici@7.30.2
   # Coordinated protocol upgrade accompanying the Mastra security fix.
@@ -140,7 +142,6 @@ overrides:
   rollup@^4.0.0: ^4.22.4
   "@types/node-fetch": ^2.6.13
   "@types/react-dom": 19.2.3
-  fast-xml-builder: 1.1.7
   # CVE-2026-118773: an aborted glob walk keeps reading directories. The
   # advisory's patched range is >=14.0.2, and 13.x has no release in it.
   # @sentry/nextjs 11.11 declares glob ^14.0.3. Storybook's docgen plugin
@@ -193,7 +194,7 @@ overrides:
   # nodemailer imports (we pass a custom sendVerificationRequest); without this
   # pnpm auto-installs a second, unused nodemailer@7 instance for web.
   # Remove once next-auth allows nodemailer ^10.
-  "next-auth>nodemailer": "^10.1.7"
+  "next-auth>nodemailer": "^10.4.1"
 patchedDependencies:
   # focusFirst crashes on null item refs (items unmounting while entry focus
   # runs), e.g. opening a row-actions dropdown while a table re-renders.
