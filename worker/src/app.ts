@@ -536,7 +536,7 @@ if (isTopicsEnabled()) {
     );
   if (env.QUEUE_CONSUMER_TOPICS_DELETE_QUEUE_IS_ENABLED === "true")
     WorkerManager.register(QueueName.TopicsDelete, topicsDeleteQueueProcessor, {
-      concurrency: 2,
+      concurrency: 1,
     });
   if (env.QUEUE_CONSUMER_TOPICS_UPDATE_QUEUE_IS_ENABLED === "true") {
     // Setup ticks get their own queue so they never wait behind a fit.

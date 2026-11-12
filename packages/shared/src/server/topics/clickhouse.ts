@@ -1358,7 +1358,8 @@ export async function getTopicTraceUnitTimeRange(
 /**
  * Deletes a project's Topics rows, or only the topics and assignments of the
  * given clustering runs. Summaries are per facet and shared across rules, so
- * only a project-wide delete removes them.
+ * only a project-wide delete removes them. Like trace deletion, each delete is
+ * skipped when nothing matches and bounded to the matching partitions.
  */
 export async function deleteTopicRows({
   projectId,
@@ -1368,30 +1369,60 @@ export async function deleteTopicRows({
   runIds?: string[];
 }): Promise<void> {
   if (runIds && !runIds.length) return;
-  const deletes = runIds
+  const targets: { table: string; time: string; run?: string }[] = runIds
     ? [
-        "DELETE FROM topics WHERE project_id = {projectId: String} AND created_by_run_id IN ({runIds: Array(String)})",
-        "DELETE FROM topic_assignments WHERE project_id = {projectId: String} AND clustering_run_id IN ({runIds: Array(String)})",
-      ]
-    : ["topics", "topic_assignments", "topic_facet_summaries"].map(
-        (table) =>
-          `DELETE FROM ${table} WHERE project_id = {projectId: String}`,
-      );
-  await Promise.all(
-    deletes.map((query) =>
-      commandClickhouse({
-        query,
-        params: { projectId, runIds },
-        clickhouseConfigs: {
-          request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+        { table: "topics", time: "created_at", run: "created_by_run_id" },
+        {
+          table: "topic_assignments",
+          time: "unit_start_time",
+          run: "clustering_run_id",
         },
-        // Patch parts disable the summary projection until they are materialized.
-        clickhouseSettings: query.includes("topic_facet_summaries")
-          ? { lightweight_delete_mode: "alter_update" }
-          : undefined,
+      ]
+    : [
+        { table: "topics", time: "created_at" },
+        { table: "topic_assignments", time: "unit_start_time" },
+        { table: "topic_facet_summaries", time: "unit_start_time" },
+      ];
+  const params = { projectId, runIds };
+  const clickhouseConfigs = {
+    request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+  };
+  await Promise.all(
+    targets.map(async ({ table, time, run }) => {
+      const where = `project_id = {projectId: String}${
+        run ? ` AND ${run} IN ({runIds: Array(String)})` : ""
+      }`;
+      const [bounds] = await queryClickhouse<{
+        min_timestamp: string;
+        max_timestamp: string;
+        count: string;
+      }>({
+        query: `SELECT min(${time}) AS min_timestamp, max(${time}) AS max_timestamp,
+            count() AS count
+          FROM ${table} WHERE ${where}`,
+        params,
+        clickhouseConfigs,
         tags: { route: "topics-delete", projectId },
-      }),
-    ),
+      });
+      if (Number(bounds?.count ?? 0) === 0) return;
+      await commandClickhouse({
+        query: `DELETE FROM ${table} WHERE ${where}
+          AND ${time} >= {minTimestamp: DateTime64(3)}
+          AND ${time} <= {maxTimestamp: DateTime64(3)}`,
+        params: {
+          ...params,
+          minTimestamp: bounds.min_timestamp,
+          maxTimestamp: bounds.max_timestamp,
+        },
+        clickhouseConfigs,
+        // Patch parts disable the summary projection until they are materialized.
+        clickhouseSettings:
+          table === "topic_facet_summaries"
+            ? { lightweight_delete_mode: "alter_update" }
+            : undefined,
+        tags: { route: "topics-delete", projectId },
+      });
+    }),
   );
   if (!runIds) await redis?.del(hasSummariesCacheKey(projectId));
 }
