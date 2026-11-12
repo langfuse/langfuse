@@ -785,7 +785,7 @@ function DropdownMenuNode({
                             "overflow-hidden text-ellipsis whitespace-nowrap",
                             item.variant === "entity" && "font-medium",
                           )}
-                          title={item.title}
+                          title={item.disabled?.reason ?? item.title}
                         >
                           {item.title}
                         </span>
