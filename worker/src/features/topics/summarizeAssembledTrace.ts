@@ -270,14 +270,18 @@ export async function summarizeTraceFacets(params: {
     source: "model" | "rule",
   ) => metrics.result("summary", result, 1, { source, facet: facetTag(facet) });
   // The projection's content check gates the text, whose run-facts header is never empty.
-  if (
-    !prepareAssembledTopicTranscript(params.transcript).hasContent ||
-    !params.transcript
-  ) {
+  const projection = prepareAssembledTopicTranscript(params.transcript);
+  if (!projection.hasContent || !params.transcript) {
     for (const facet of facets) outcome(facet, "insufficient_input", "rule");
     return undefined;
   }
   const text = renderStoredTopicText(params.transcript, params.executionIssues);
+  metrics.summaryInputCharacters("text", text.length);
+  metrics.summaryInputCharacters("json", projection.text.length);
+  getCurrentSpan()?.setAttributes({
+    "langfuse.topics.summary_input_characters": text.length,
+    "langfuse.topics.summary_input_json_characters": projection.text.length,
+  });
   // Built-in facets first, each group in listing order, so the cached prompt prefix stays stable.
   const ordered = [
     ...facets.filter((facet) => facet.builtIn),

@@ -216,6 +216,16 @@ describe("summarizeAssembledTrace", () => {
       expect.any(Number),
       { stage: "trace", outcome: "success", unit: "milliseconds" },
     );
+    const submittedText = state.summarize.mock.calls[0][2] as string;
+    for (const [format, characters] of [
+      ["text", submittedText.length],
+      ["json", expect.any(Number)],
+    ] as const)
+      expect(recordDistribution).toHaveBeenCalledWith(
+        "langfuse.topics.summary_input_characters",
+        characters,
+        { format },
+      );
   });
 
   it("summarizes and embeds all pending facets in one call each and splits their usage across the rows", async () => {
