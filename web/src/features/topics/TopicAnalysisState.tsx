@@ -35,12 +35,7 @@ function analysisState(
   traceCount: number,
 ) {
   const icon = <Layers size="lg" color="muted" aria-hidden />;
-  if (outcome === "failed" || (status === "failed" && outcome !== "published"))
-    return {
-      icon: <CircleAlert size="lg" color="destructive" aria-hidden />,
-      title: "This scan failed",
-      body: "Open the run for details, or start a new scan.",
-    };
+  // A question's final outcome stands even when a later question failed the run.
   if (outcome === "insufficient_data")
     return {
       icon,
@@ -59,10 +54,19 @@ function analysisState(
       title: "No clear topics formed",
       body: "These traces didn’t form clear groups. Try a larger, more varied set of traces.",
     };
+  if (outcome === "failed" || status === "failed")
+    return {
+      icon: <CircleAlert size="lg" color="destructive" aria-hidden />,
+      title: "This scan failed",
+      body: "Open the run for details, or start a new scan.",
+    };
   if (busy(status))
     return {
       icon: <Clock size="lg" color="muted" aria-hidden />,
-      title: `Grouping ${traceCount.toLocaleString("en-US")} traces into topics`,
+      // The count is known only once the run reaches a question.
+      title: traceCount
+        ? `Grouping ${traceCount.toLocaleString("en-US")} traces into topics`
+        : "Grouping traces into topics",
       body:
         status === "queued"
           ? "The scan is queued. Topics appear here when it finishes."

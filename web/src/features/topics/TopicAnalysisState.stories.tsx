@@ -14,11 +14,14 @@ const meta = preview.meta({
 
 export const Running = meta.story({});
 
-export const Queued = meta.story({ args: { status: "queued" as const } });
+// A new scan learns its trace count only when the run reaches a question.
+export const Queued = meta.story({
+  args: { status: "queued" as const, traceCount: 0 },
+});
 
 export const NotEnoughTraces = meta.story({
-  name: "(Test) A finished scan explains a question it couldn't group",
-  args: { status: "completed" as const, outcome: "insufficient_data" },
+  name: "(Test) A question's own result stands when a later question failed the scan",
+  args: { status: "failed" as const, outcome: "insufficient_data" },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     await expect(

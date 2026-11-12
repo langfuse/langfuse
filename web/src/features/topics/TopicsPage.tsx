@@ -574,7 +574,8 @@ function TopicsWorkspaceContent({
               selectedRule.enabled !== false &&
               !selectedRule.lastRefitAt &&
               !shownFacets.some((facet) => facet.map);
-            // A scan's question without a map shows where the scan stands, not the live-map empty state.
+            // A scan's question without topics shows where the scan stands, not the live-map empty state;
+            // a no-topics result still has a completed map with no topics.
             const analysisFacet = shownFacets.find(
               (facet) => facet.facetId === headerFacetId,
             );
@@ -582,7 +583,7 @@ function TopicsWorkspaceContent({
               analysisId &&
               analysisResults.data &&
               !analysisResults.error &&
-              !analysisFacet?.map
+              !analysisFacet?.map?.topics.length
                 ? {
                     status: analysisResults.data.execution.status,
                     outcome: analysisFacet?.outcome,
