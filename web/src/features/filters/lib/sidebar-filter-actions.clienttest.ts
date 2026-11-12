@@ -170,18 +170,18 @@ describe("applySelection", () => {
   );
 
   it("keeps a companion exclusion when a positive selection is cleared", () => {
-    const positive = {
+    const positive: FilterState[number] = {
       column: "tags",
       type: "arrayOptions",
       operator: "any of",
       value: ["a"],
-    } as const;
-    const exclusion = {
+    };
+    const exclusion: FilterState[number] = {
       column: "tags",
       type: "arrayOptions",
       operator: "none of",
       value: ["b"],
-    } as const;
+    };
     expect(
       applyCheckboxSelection(ctx, [positive, exclusion], "tags", []),
     ).toEqual([exclusion]);
@@ -189,8 +189,13 @@ describe("applySelection", () => {
     // any of [a] together with none of [a] is one empty selection, not an
     // exclusion to keep.
     const emptyPair: FilterState = [
-      { ...positive },
-      { ...exclusion, value: ["a"] },
+      positive,
+      {
+        column: "tags",
+        type: "arrayOptions",
+        operator: "none of",
+        value: ["a"],
+      },
     ];
     expect(applyCheckboxSelection(ctx, emptyPair, "tags", [])).toEqual([]);
   });
