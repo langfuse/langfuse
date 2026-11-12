@@ -23,6 +23,8 @@ import {
   skillDraftStorageKey,
   type SkillDraft,
 } from "@/src/features/skills/components/skillDraftStorage";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { parseSkillFrontmatterMetadata } from "@/src/features/skills/utils/parseSkillFrontmatterMetadata";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
@@ -40,12 +42,11 @@ export function NewSkillPage() {
     { projectId: projectId ?? "" },
     { enabled: Boolean(projectId), refetchOnWindowFocus: false },
   );
-  const [draft] = useState(() => {
-    const key = skillDraftStorageKey(projectId ?? "", null);
-    return (
-      restoreSkillDraft(key) ?? createSkillDraft(key, NEW_SKILL_INITIAL_VALUE)
-    );
-  });
+  const draftKey = skillDraftStorageKey(projectId ?? "", null);
+  const [storedDraft] = useState(() => restoreSkillDraft(draftKey));
+  const [draft, setDraft] = useState(
+    () => storedDraft ?? createSkillDraft(draftKey, NEW_SKILL_INITIAL_VALUE),
+  );
   const store = draft.store;
   const skillMarkdown = useStore(
     store,
@@ -54,47 +55,70 @@ export function NewSkillPage() {
   const metadata = parseSkillFrontmatterMetadata(skillMarkdown);
 
   return (
-    <SkillEditor
-      headerProps={{
-        title: metadata?.name.trim() ? metadata.name : "Create skill",
-        help:
-          metadata && !metadata.nameError
-            ? {
-                description:
-                  "The skill name and description are parsed from the frontmatter in SKILL.md.",
-              }
-            : undefined,
-        breadcrumb: [
-          { name: "Skills", href: `/project/${projectId}/skills` },
-          { name: "New skill" },
-        ],
-      }}
-      projectId={projectId ?? ""}
-      store={store}
-      canCreate={canCreate}
-      view={{
-        kind: "draft",
-        onDiscard: async () => {
+    <>
+      {storedDraft ? (
+        <DialogController
+          initialState={() => true}
+          onDismiss={() => {
+            storedDraft.discard();
+            setDraft(createSkillDraft(draftKey, NEW_SKILL_INITIAL_VALUE));
+          }}
+          renderDialog={({ closeDialog }) => (
+            <Dialog
+              title="Continue your draft?"
+              text="You have an unsaved skill draft from earlier in this tab."
+              requireExplicitClose
+              closeLabel="Start new"
+              actions={[{ label: "Continue draft", onClick: closeDialog }]}
+            />
+          )}
+        >
+          {() => null}
+        </DialogController>
+      ) : null}
+      <SkillEditor
+        key={draft === storedDraft ? "stored-draft" : "new-draft"}
+        headerProps={{
+          title: metadata?.name.trim() ? metadata.name : "Create skill",
+          help:
+            metadata && !metadata.nameError
+              ? {
+                  description:
+                    "The skill name and description are parsed from the frontmatter in SKILL.md.",
+                }
+              : undefined,
+          breadcrumb: [
+            { name: "Skills", href: `/project/${projectId}/skills` },
+            { name: "New skill" },
+          ],
+        }}
+        projectId={projectId ?? ""}
+        store={store}
+        canCreate={canCreate}
+        view={{
+          kind: "draft",
+          onDiscard: async () => {
+            draft.discard();
+            await router.push(`/project/${projectId}/skills`);
+          },
+        }}
+        history={{ kind: "new" }}
+        metadataOptions={{
+          labels: ["production"],
+          tags: filterOptions.data?.tags.map((tag) => tag.value) ?? [],
+        }}
+        onCreated={async (created) => {
           draft.discard();
-          await router.push(`/project/${projectId}/skills`);
-        },
-      }}
-      history={{ kind: "new" }}
-      metadataOptions={{
-        labels: ["production"],
-        tags: filterOptions.data?.tags.map((tag) => tag.value) ?? [],
-      }}
-      onCreated={async (created) => {
-        draft.discard();
-        await Promise.all([
-          utils.skills.all.invalidate(),
-          utils.skills.filterOptions.invalidate(),
-        ]);
-        await router.push(
-          `/project/${projectId}/skills/${encodeURIComponent(created.name)}?version=${created.version}`,
-        );
-      }}
-    />
+          await Promise.all([
+            utils.skills.all.invalidate(),
+            utils.skills.filterOptions.invalidate(),
+          ]);
+          await router.push(
+            `/project/${projectId}/skills/${encodeURIComponent(created.name)}?version=${created.version}`,
+          );
+        }}
+      />
+    </>
   );
 }
 
@@ -125,11 +149,21 @@ function ExistingSkillSession({
     projectId && skillName ? restoreSkillDraft(draftKey) : null,
   );
   const draftStore = draft?.store ?? null;
-  const isDraft = draftStore !== null && router.query.draft === "true";
-  const requestedVersion =
+  // Opening a skill without a version or draft in the URL resumes its stored
+  // draft at the version it is based on.
+  const opensStoredDraft =
+    draftStore !== null &&
+    router.query.version === undefined &&
+    router.query.draft === undefined;
+  const isDraft =
+    draftStore !== null && (opensStoredDraft || router.query.draft === "true");
+  const urlVersion =
     typeof router.query.version === "string"
       ? Number(router.query.version)
       : undefined;
+  const requestedVersion = opensStoredDraft
+    ? (draftStore.getState().baseVersion ?? undefined)
+    : urlVersion;
   const version = Number.isInteger(requestedVersion)
     ? requestedVersion
     : undefined;
