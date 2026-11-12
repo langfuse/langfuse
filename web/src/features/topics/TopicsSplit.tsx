@@ -42,7 +42,10 @@ export function TopicsSplit({
       >
         {topics}
       </ResizablePanel>
-      <ResizableHandle aria-label="Resize topics and traces" />
+      <ResizableHandle
+        withHandle="hover"
+        aria-label="Resize topics and traces"
+      />
       <ResizablePanel
         id="traces"
         minSize={orientation === "vertical" ? TRACES_MIN_HEIGHT : "25%"}
