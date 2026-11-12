@@ -267,6 +267,15 @@ describe("Topics project allowlist", () => {
     ["rules", () => outside().rules({ projectId })],
     ["runs", () => outside().executions({ projectId })],
     ["model settings", () => outside().modelSettings({ projectId })],
+    ["tracing filter options", () => outside().filterOptions({ projectId })],
+    [
+      "tracing column topics",
+      () =>
+        outside().forTraces({
+          projectId,
+          traces: [{ traceId: "trace-a", timestamp: new Date() }],
+        }),
+    ],
   ] as const;
 
   it.each(reads)("hides %s", async (_name, call) => {
@@ -445,8 +454,8 @@ describe("Topics filtered trace preview", () => {
     expect(request.query).toContain(
       "cityHash64(t.id, {samplingSeed: String}) ASC, t.id ASC",
     );
-    expect(request.query).toContain("e.level IN (");
-    expect(request.query).toContain('e."tags"');
+    expect(request.query).toContain("e.level in (");
+    expect(request.query).toContain("e.tags) = true");
     expect(request.query).toContain("e.start_time >= {");
     expect(request.query).toContain("e.start_time < {");
     expect(request.query).toContain("e.trace_id != ''");

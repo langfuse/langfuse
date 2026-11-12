@@ -156,7 +156,11 @@ proptest! {
     }
 
     #[test]
-    fn ordinary_and_nested_fallback_keep_javascript_semantics(document in ordinary_json(), control in 0u8..32) {
+    fn ordinary_and_nested_fallback_keep_javascript_semantics(
+        document in ordinary_json(),
+        control in 0u8..32,
+        computed in any::<u64>(),
+    ) {
         let key = format!("a{}b", char::from(control));
         prop_assert!(Value::parse(&format!("{{\"{key}\":1}}")).is_err(), "raw control in key");
         let escaped = format!("{{{}:1}}", serde_json::to_string(&key).unwrap());
@@ -165,6 +169,10 @@ proptest! {
         let expected = Value::from(document);
         let expected_json = expected.to_json_string();
         prop_assert_eq!(Value::parse(&json).unwrap(), expected);
+        prop_assert_eq!(
+            Value::from(computed).into_serde_lossy(),
+            SerdeValue::from(computed)
+        );
         let input = format!(r#"{{"\ud800":{},"nested":{{"\udc00":{},"overflow":1e309}}}}"#, json, json);
         let expected = format!(r#"{{"\ud800":{},"nested":{{"\udc00":{},"overflow":null}}}}"#, expected_json, expected_json);
         prop_assert_eq!(Value::parse(&input).unwrap().to_json_string(), expected);

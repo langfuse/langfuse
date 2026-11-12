@@ -56,6 +56,18 @@ catalog:
 # 5 day delay for new dep upgrades to reduce supply chain attack risk
 minimumReleaseAge: 7200
 minimumReleaseAgeExclude:
+  # Next.js 16.4.6 and its matching tooling clear the five-day window on November 14.
+  - next@16.4.6
+  - "@next/env@16.4.6"
+  - "@next/eslint-plugin-next@16.4.6"
+  - "@next/swc-darwin-arm64@16.4.6"
+  - "@next/swc-darwin-x64@16.4.6"
+  - "@next/swc-linux-arm64-gnu@16.4.6"
+  - "@next/swc-linux-arm64-musl@16.4.6"
+  - "@next/swc-linux-x64-gnu@16.4.6"
+  - "@next/swc-linux-x64-musl@16.4.6"
+  - "@next/swc-win32-arm64-msvc@16.4.6"
+  - "@next/swc-win32-x64-msvc@16.4.6"
   # CVE-2026-125755: recipient address parsing fix.
   - nodemailer@10.4.1
   # Security fix for CVE-2026-116592 and related redirect/cache advisories.
@@ -113,9 +125,6 @@ allowBuilds:
   ssh2: true
   vue-demi: true
 overrides:
-  # Storybook's compatible Vite adapter pins an older Next.js env prerelease.
-  # Keep its env loader aligned with the app until the adapter updates its pin.
-  "vite-plugin-storybook-nextjs@3.3.2>@next/env": 16.4.5
   # React Email requires html-to-text ^9, which pulls in vulnerable deepmerge
   # (CVE-2026-93753). Version 10.0.1 replaces it with patched deepmerge-ts.
   "@react-email/render>html-to-text": 10.0.1
@@ -141,7 +150,7 @@ overrides:
   tar-fs: ^2.1.2
   rollup@^4.0.0: ^4.22.4
   "@types/node-fetch": ^2.6.13
-  "@types/react-dom": 19.2.3
+  "@types/react-dom": 19.3.0
   # CVE-2026-118773: an aborted glob walk keeps reading directories. The
   # advisory's patched range is >=14.0.2, and 13.x has no release in it.
   # @sentry/nextjs 11.11 declares glob ^14.0.3. Storybook's docgen plugin

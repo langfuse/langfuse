@@ -127,7 +127,7 @@ function modelMatchesApiFormat(
 }
 
 // The gateway renders and validates entries by API family, so Bedrock,
-// OpenRouter, xAI and Vercel models are reported as the family whose route serves them.
+// OpenRouter, xAI, Vercel and Google AI Studio models are reported as the family whose route serves them.
 function toCatalogFamily(
   provider: GatewayModelCatalogEntry["provider"],
   apiFormat: GatewayApiFormat,

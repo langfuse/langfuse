@@ -47,7 +47,7 @@ export const WithAllProviders = meta.story({
 
 /** Every provider plus "More soon", as in the Models empty state. */
 export const SwitchboardWithAllRows = meta.story({
-  name: "(Test) Eight switchboard rows stay inside the diagram",
+  name: "(Test) Nine switchboard rows stay inside the diagram",
   args: { providers: [] },
   render: () => (
     <div className="mx-auto aspect-[440/200] w-full max-w-xl">
@@ -59,16 +59,17 @@ export const SwitchboardWithAllRows = meta.story({
           { provider: "OPENROUTER", isConnected: false },
           { provider: "XAI", isConnected: false },
           { provider: "VERCEL", isConnected: false },
+          { provider: "AZURE", isConnected: false },
           { provider: "VERTEX", isConnected: false },
         ]}
-        addLabel="Add"
+        unconnectedVariant="placeholder"
         comingSoonLabel="More soon"
       />
     </div>
   ),
   play: async ({ canvasElement }) => {
-    const pills = [...canvasElement.querySelectorAll('rect[width="150"]')];
-    await expect(pills).toHaveLength(8);
+    const pills = [...canvasElement.querySelectorAll('rect[rx="4"]')];
+    await expect(pills).toHaveLength(9);
     for (const pill of pills) {
       const top = Number(pill.getAttribute("y"));
       const bottom = top + Number(pill.getAttribute("height"));

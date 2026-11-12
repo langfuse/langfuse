@@ -16,6 +16,7 @@ export const Default = meta.story({
     instructions: buildAgentSetupInstructions({
       ...context,
       providers: ["ANTHROPIC", "OPENAI"],
+      apiProviders: ["ANTHROPIC", "OPENAI"],
     }),
   },
 });
@@ -41,6 +42,7 @@ export const TestWarnsWithoutAnthropic = meta.story({
     instructions: buildAgentSetupInstructions({
       ...context,
       providers: ["OPENAI"],
+      apiProviders: ["OPENAI"],
     }),
   },
   play: async ({ canvasElement }) => {

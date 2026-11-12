@@ -21,7 +21,7 @@ import { PopoverTrigger } from "@/src/components/ui/popover";
 import { JudgeModelPicker } from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import {
-  TOPIC_SETUP_BACKFILL_DAYS,
+  TOPIC_SETUP_BACKFILL_LIMIT,
   TOPIC_SETUP_WAIT_MINUTES,
   canLeaveTopicQuestions,
   isRecommendedTopicModel,
@@ -51,7 +51,7 @@ const MODEL_ROWS = [
 
 export type TopicSetupPastCount =
   | { status: "loading" }
-  | { status: "ready"; matched: number; days: number; dailyTraces: number }
+  | { status: "ready"; matched: number; dailyTraces: number }
   | { status: "error"; message: string };
 
 export type TopicSetupFlowDialogProps = {
@@ -438,10 +438,8 @@ function dailyEstimate(dailyTraces: number, samplePercent: number) {
 function backfillLine(count: TopicSetupPastCount) {
   if (count.status === "loading") return "Counting past traces…";
   if (count.status === "error") return "Could not count past traces";
-  if (count.matched === 0)
-    return `No past traces in the last ${TOPIC_SETUP_BACKFILL_DAYS} days`;
-  const window = count.days === 1 ? "day" : `${count.days} days`;
-  return `Include ~${count.matched.toLocaleString("en-US")} past traces from the last ${window}`;
+  if (count.matched === 0) return "No matching traces in the last 30 days";
+  return `Runs on up to ${TOPIC_SETUP_BACKFILL_LIMIT.toLocaleString("en-US")} recent traces that match your filters`;
 }
 
 function nextStepDisabled({

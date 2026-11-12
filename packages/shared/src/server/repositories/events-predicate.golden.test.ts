@@ -4,7 +4,12 @@
  * `compileEventsPredicate` to the SQL, binds, `events_full` routing and
  * errors of `createFilterFromFilterState` + `FilterList`, and every search
  * scope × text to those of `eventSearchCondition`. SQL compares after
- * `clickhouse format` and positional param names.
+ * `clickhouse format` and positional param names. Both sides take a field's
+ * column SQL from `events-predicate-fields.ts` (the column mapping renders it
+ * via `eventsFieldSql`), so the filter cases check the condition wiring (type,
+ * operator, binds, routing, errors), not the column expressions; the
+ * row-selection goldens in `events.golden.test.ts` pin those with a filter per
+ * column kind.
  */
 import { describe, expect, it } from "vitest";
 
@@ -62,20 +67,6 @@ type Outcome =
 const describeWithClickhouse = clickhouseFormatAvailable()
   ? describe
   : describe.skip;
-
-// `eventsTraceName` writes `coalesce`, the raw SQL `COALESCE`; ClickHouse
-// function names are case-insensitive and `clickhouse format` keeps the case.
-const normalizeFunctionCase = (sql: string) =>
-  sql.replaceAll("COALESCE(", "coalesce(");
-
-// The raw-SQL usage, cost and duration definitions read these columns
-// unqualified; the lowering qualifies every column with `e.`. Applied to the
-// `FilterList` side only, so the lowered side must qualify them itself.
-const qualifyLegacyColumns = (sql: string) =>
-  sql.replace(
-    /(?<![.\w"])(cost_details|usage_details|start_time|end_time)\b/g,
-    "e.$1",
-  );
 
 type Compiled = {
   sql: string;
@@ -142,7 +133,7 @@ const normalizeAll = (raws: readonly Raw[]): Outcome[] => {
     if (!("sql" in raw)) return raw;
     const sql = byRaw.get(raw);
     if (sql === undefined) return { ...raw, params: {} };
-    return comparable(normalizeFunctionCase(sql), raw);
+    return comparable(sql, raw);
   });
 };
 
@@ -161,7 +152,7 @@ const legacyFilter = (filter: FilterStateCondition[]): Raw => {
     );
     const { query, params } = list.apply();
     return {
-      sql: qualifyLegacyColumns(query),
+      sql: query,
       params,
       requiresEventsFull: filtersRequireEventsFull(list),
     };

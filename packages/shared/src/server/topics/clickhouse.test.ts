@@ -381,7 +381,7 @@ it("bounds Topics payload reads by their storage timestamp", async () => {
       readLatestTopicAssignments(
         "project-a",
         "facet-a",
-        "published-run",
+        ["published-run"],
         timeRange,
       ),
   ];
@@ -861,7 +861,7 @@ describe("Topics classifications", () => {
         await readLatestTopicAssignments(
           "project-a",
           "facet-a",
-          "published-run",
+          ["published-run"],
           timeRange,
         ),
       ).toEqual([{ ...row, traceName: inserted.trace_name }]);
@@ -871,17 +871,17 @@ describe("Topics classifications", () => {
         to: timeRange.to.toISOString(),
         projectId: "project-a",
         facetId: "facet-a",
-        publishedRunId: "published-run",
+        publishedRunIds: ["published-run"],
       });
       expect(query).toContain("facet_id = {facetId:String}");
       expect(query).toContain(
-        "AND clustering_run_id = {publishedRunId:String}",
+        "AND clustering_run_id IN {publishedRunIds:Array(String)}",
       );
       expect(query).toContain(
-        "ORDER BY facet_version DESC, assigned_at DESC, clustering_run_id DESC, origin DESC",
+        "ORDER BY facet_version DESC, assigned_at DESC, origin DESC",
       );
       expect(query).toContain(
-        "LIMIT 1 BY project_id, facet_id, trace_id, if(trace_id = '', session_id, '')",
+        "LIMIT 1 BY project_id, facet_id, clustering_run_id, trace_id, if(trace_id = '', session_id, '')",
       );
     },
   );

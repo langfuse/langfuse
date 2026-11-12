@@ -91,3 +91,12 @@ export const ParamNewLabels = z
   .describe(
     "Array of new labels to assign to the prompt version. The 'latest' label is auto-managed and cannot be supplied.",
   );
+
+export const ParamRemoveLabels = z
+  .array(z.string().min(1).max(PROMPT_LABEL_MAX_LENGTH))
+  .refine((labels) => !labels.includes(LATEST_PROMPT_LABEL), {
+    message: "Label 'latest' is always assigned to the latest prompt version",
+  })
+  .describe(
+    "Array of labels to remove from the prompt version. The 'latest' label is auto-managed and cannot be removed.",
+  );

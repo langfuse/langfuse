@@ -7,6 +7,7 @@ const HERO_PROVIDER_ORDER: GatewayProvider[] = [
   "OPENROUTER",
   "XAI",
   "VERCEL",
+  "AZURE",
   "VERTEX",
 ];
 

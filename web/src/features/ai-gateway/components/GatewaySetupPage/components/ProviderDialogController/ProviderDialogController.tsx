@@ -16,6 +16,10 @@ import {
   AdvancedSettings,
   type ExtraHeaderRow,
 } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/AdvancedSettings/AdvancedSettings";
+import {
+  AzureResourceField,
+  type AzureResourceFieldValue,
+} from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/AzureResourceField/AzureResourceField";
 import { ConnectionNameField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ConnectionNameField/ConnectionNameField";
 import { FieldHeader } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/FieldHeader";
 import { RegionField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/RegionField/RegionField";
@@ -26,6 +30,12 @@ import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabe
 import { vertexLocationGroups } from "@/src/features/ai-gateway/constants/vertexLocations";
 import { ModelListingDeniedAlert } from "@/src/features/ai-gateway/components/ModelListingDeniedAlert/ModelListingDeniedAlert";
 import { showToast } from "@/src/features/notifications/showToast";
+import {
+  getAzureResource,
+  getAzureResourceEndpoint,
+  isAzureProjectName,
+  isAzureResourceName,
+} from "@/src/features/ai-gateway/fns/azureResource";
 import { getAvailableGatewayProviders } from "@/src/features/ai-gateway/fns/getAvailableGatewayProviders";
 import { isGatewayApiFamily } from "@/src/features/ai-gateway/fns/isGatewayApiFamily";
 import { isGatewayConnectionNameError } from "@/src/features/ai-gateway/fns/isGatewayConnectionNameError";
@@ -46,6 +56,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { getLiveConnectionNameError } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/fns/getLiveConnectionNameError";
 import { useExistingConnectionNames } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/hooks/useExistingConnectionNames";
 
+const EMPTY_AZURE_RESOURCE: AzureResourceFieldValue = { name: "", project: "" };
 const DEFAULT_VERTEX_LOCATION = "global";
 const BEDROCK_REGION_FIELD = {
   id: "gateway-bedrock-region",
@@ -93,6 +104,8 @@ export function ProviderDialogController({
   const [awsRegion, setAwsRegion] = useState("");
   const [vertexLocation, setVertexLocation] = useState(DEFAULT_VERTEX_LOCATION);
   const [baseURL, setBaseURL] = useState("");
+  const [azureResource, setAzureResource] =
+    useState<AzureResourceFieldValue>(EMPTY_AZURE_RESOURCE);
   const [extraHeaders, setExtraHeaders] = useState<ExtraHeaderRow[]>([]);
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
@@ -124,7 +137,7 @@ export function ProviderDialogController({
   const isError = test.isError || (Boolean(saveError) && !serverNameError);
   const errorTitle = test.isError
     ? "Connection test failed"
-    : "Provider connection could not be saved";
+    : "Connection could not be saved";
 
   /** Skips the live check after saving, as the refetched list already holds the saved name. */
   const getNameError = (selectedConnection: GatewayConnection | null) =>
@@ -145,12 +158,21 @@ export function ProviderDialogController({
   };
 
   /**
-   * Bedrock, OpenRouter, xAI, Vercel and Vertex AI have no custom endpoint.
+   * Bedrock, OpenRouter, xAI, Vercel and Vertex AI have no custom endpoint,
+   * and Azure only the endpoint of its resource and project.
    * When editing, a blank header value keeps the stored value, so those rows
    * are sent; a new connection has no stored values and drops them.
    */
   const getEndpoint = (selectedConnection: GatewayConnection | null) => {
-    if (!isGatewayApiFamily(selectedConnection?.provider ?? provider)) {
+    const selectedProvider = selectedConnection?.provider ?? provider;
+    if (selectedProvider === "AZURE") {
+      return {
+        baseURL: isValidAzureResource(azureResource)
+          ? getAzureResourceEndpoint(azureResource)
+          : null,
+      };
+    }
+    if (!isGatewayApiFamily(selectedProvider)) {
       return {};
     }
     const headers = extraHeaders.filter(
@@ -167,6 +189,12 @@ export function ProviderDialogController({
 
   const loadEndpoint = (selectedConnection: GatewayConnection | null) => {
     setBaseURL(selectedConnection?.baseURL ?? "");
+    const resource = getAzureResource(selectedConnection?.baseURL ?? "");
+    setAzureResource(
+      resource
+        ? { name: resource.name, project: resource.project ?? "" }
+        : EMPTY_AZURE_RESOURCE,
+    );
     setExtraHeaders(
       (selectedConnection?.extraHeaderKeys ?? []).map((key) => ({
         id: crypto.randomUUID(),
@@ -272,7 +300,7 @@ export function ProviderDialogController({
               ? "aiGateway.updateConnection"
               : "aiGateway.createConnection",
           },
-          title: "Provider connection saved, but its models can't be listed",
+          title: "Connection saved, but its models can't be listed",
         });
       }
 
@@ -307,13 +335,13 @@ export function ProviderDialogController({
           ? getStoredRegionField(selectedConnection.config)
           : null;
         const dialogProvider = selectedConnection?.provider ?? provider;
+        const isMissingEndpoint =
+          dialogProvider === "AZURE" && !isValidAzureResource(azureResource);
         return (
           <>
             <DialogHeader>
               <DialogTitle>
-                {selectedConnection
-                  ? "Edit provider connection"
-                  : "Add provider connection"}
+                {selectedConnection ? "Edit connection" : "Add connection"}
               </DialogTitle>
             </DialogHeader>
             <DialogBody className="gap-6">
@@ -386,6 +414,13 @@ export function ProviderDialogController({
                   onChange={setVertexLocation}
                 />
               ) : null}
+              {dialogProvider === "AZURE" ? (
+                <AzureResourceField
+                  value={azureResource}
+                  isEditing={Boolean(selectedConnection)}
+                  onChange={setAzureResource}
+                />
+              ) : null}
               <SecretKeyField
                 provider={selectedConnection?.provider ?? provider}
                 credential={credential}
@@ -436,7 +471,12 @@ export function ProviderDialogController({
             <DialogFooter>
               <Button
                 variant="secondary"
-                disabled={!credential || isMissingRegion || isPending}
+                disabled={
+                  !credential ||
+                  isMissingRegion ||
+                  isMissingEndpoint ||
+                  isPending
+                }
                 loading={test.isPending}
                 onClick={() => testCredential(selectedConnection)}
               >
@@ -448,6 +488,7 @@ export function ProviderDialogController({
                   Boolean(nameError) ||
                   (!selectedConnection && !credential) ||
                   isMissingRegion ||
+                  isMissingEndpoint ||
                   isPending ||
                   isSaved
                 }
@@ -503,8 +544,15 @@ function CredentialTestSuccess({
     return <ModelListingDeniedAlert provider={provider} />;
   return (
     <Alert>
-      <Alert.Title>Provider connection is valid</Alert.Title>
+      <Alert.Title>Connection is valid</Alert.Title>
       <Alert.Description>No changes were saved.</Alert.Description>
     </Alert>
+  );
+}
+
+function isValidAzureResource({ name, project }: AzureResourceFieldValue) {
+  return (
+    isAzureResourceName(name) &&
+    (project.trim() === "" || isAzureProjectName(project))
   );
 }

@@ -81,6 +81,30 @@ const keyCopy = {
     ),
     placeholder: "Enter Vercel AI Gateway API key",
   },
+  AZURE: {
+    label: "Azure API key",
+    description: (
+      <>
+        Copy a key of the resource from its overview in the{" "}
+        <DocsLink href="https://ai.azure.com">
+          Microsoft Foundry portal
+        </DocsLink>
+        , or from Keys and Endpoint in the Azure portal.
+      </>
+    ),
+    placeholder: "Enter Azure API key",
+  },
+  GOOGLE_AI_STUDIO: {
+    label: "Gemini API key",
+    description: (
+      <>
+        Create one under{" "}
+        <DocsLink href="https://aistudio.google.com/apikey">API keys</DocsLink>{" "}
+        in Google AI Studio.
+      </>
+    ),
+    placeholder: "Enter Gemini API key",
+  },
   VERTEX: {
     label: "Service account key (JSON)",
     description: (

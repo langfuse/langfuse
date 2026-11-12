@@ -208,31 +208,43 @@ export const aiGatewayRouter = createTRPCRouter({
         input.orgId,
         GatewayConnectionStatus.ENABLED,
       );
+      const families = (connection: (typeof connections)[number]) => {
+        if (
+          connection.provider === "BEDROCK" ||
+          connection.provider === "OPENROUTER" ||
+          connection.provider === "VERCEL" ||
+          connection.provider === "AZURE"
+        ) {
+          return ["OPENAI", "ANTHROPIC"] satisfies GatewayApiFamily[];
+        }
+        if (
+          connection.provider === "XAI" ||
+          connection.provider === "GOOGLE_AI_STUDIO" ||
+          connection.provider === "VERTEX"
+        ) {
+          return ["OPENAI"] satisfies GatewayApiFamily[];
+        }
+        return [connection.provider];
+      };
       return {
         gatewayBaseUrl: getGatewayBaseUrl(
           getProductBaseUrl(),
           env.LANGFUSE_AI_GATEWAY_PUBLIC_URL,
         ),
+        // Agent clients call the OpenAI route with the Responses API, which
+        // Google AI Studio and Vertex AI lack; plain API calls also work over Chat Completions.
         providers: [
           ...new Set(
-            connections.flatMap((connection): GatewayApiFamily[] => {
-              if (
-                connection.provider === "BEDROCK" ||
-                connection.provider === "OPENROUTER" ||
-                connection.provider === "VERCEL"
-              ) {
-                return ["OPENAI", "ANTHROPIC"];
-              }
-              if (
-                connection.provider === "XAI" ||
-                connection.provider === "VERTEX"
-              ) {
-                return ["OPENAI"];
-              }
-              return [connection.provider];
-            }),
+            connections
+              .filter(
+                (connection) =>
+                  connection.provider !== "GOOGLE_AI_STUDIO" &&
+                  connection.provider !== "VERTEX",
+              )
+              .flatMap(families),
           ),
         ],
+        apiProviders: [...new Set(connections.flatMap(families))],
       };
     }),
 

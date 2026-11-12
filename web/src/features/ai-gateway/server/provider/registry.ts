@@ -25,6 +25,8 @@ export const gatewayProviders = [
   "OPENROUTER",
   "XAI",
   "VERCEL",
+  "AZURE",
+  "GOOGLE_AI_STUDIO",
   "VERTEX",
 ] as const;
 
@@ -50,6 +52,8 @@ const gatewayProviderIds = [
   "openrouter",
   "xai",
   "vercel",
+  "azure",
+  "google_ai_studio",
   "vertex",
 ] as const;
 export type GatewayProviderId = (typeof gatewayProviderIds)[number];
@@ -141,7 +145,7 @@ type ProviderDefinition = {
 
 type HostedGatewayProviderName = Exclude<
   GatewayProviderName,
-  "BEDROCK" | "VERTEX"
+  "BEDROCK" | "AZURE" | "VERTEX"
 >;
 type GatewayUpstream = Pick<ProviderDefinition, "baseUrl" | "authType">;
 
@@ -205,6 +209,17 @@ const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
       credentialCheck: { path: "/credits" },
       apiFormats: gatewayApiFormats,
     },
+    // Gemini API's OpenAI-compatible endpoint, which has no Responses route:
+    // https://ai.google.dev/gemini-api/docs/openai
+    GOOGLE_AI_STUDIO: {
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+      modelsPath: "/models",
+      authType: "bearer",
+      // A test completion fails for valid keys whose project lacks access to
+      // or quota for the test model.
+      credentialCheck: { path: "/models" },
+      apiFormats: ["openai.chat-completions", "openai.embeddings"],
+    },
   };
 
 export function getGatewayProviderDefinition(
@@ -222,16 +237,20 @@ export function providerSupportsApiFormat(
       apiFormat !== "openai.decisions" && apiFormat !== "openai.embeddings"
     );
   }
+  if (provider === "AZURE") return apiFormat !== "openai.decisions";
   if (provider === "VERTEX") return apiFormat === "openai.chat-completions";
   return PROVIDER_REGISTRY[provider].apiFormats.includes(apiFormat);
 }
 
-// Bedrock serves each API format but Decisions and Embeddings natively under its
-// own path and auth header. Vertex AI serves Chat Completions on an
-// OpenAI-compatible endpoint of the key's project in the connection's location.
-// Throws if a Bedrock or Vertex AI connection has no valid config. OpenAI and
-// Anthropic connections may override the official base URL; OpenRouter, xAI
-// and Vercel never store one.
+// Bedrock and Azure serve each supported API format natively under its own path
+// and auth header, Bedrock on its regional runtime and Azure on the origin of
+// the resource stored as the connection's base URL. Vertex AI serves Chat
+// Completions on an OpenAI-compatible endpoint of the key's project in the
+// connection's location.
+// Throws if a Bedrock or Vertex AI connection has no valid config or an Azure
+// connection has no endpoint. OpenAI and Anthropic connections may override
+// the official base URL; OpenRouter, xAI, Vercel and Google AI Studio never
+// store one.
 export function getGatewayUpstream(params: {
   provider: GatewayProviderName;
   apiFormat: GatewayApiFormat;
@@ -240,6 +259,13 @@ export function getGatewayUpstream(params: {
   /** The stored credential, decrypted. */
   credential: string;
 }): GatewayUpstream {
+  if (params.provider === "AZURE") {
+    if (!params.baseURL) throw new Error("Azure connection has no endpoint.");
+    return getPerFormatUpstream(
+      new URL(params.baseURL).origin,
+      params.apiFormat,
+    );
+  }
   if (params.provider === "VERTEX") {
     return {
       baseUrl: vertexOpenAICompatibleBaseUrl({
@@ -257,7 +283,14 @@ export function getGatewayUpstream(params: {
   const origin = bedrockRuntimeOrigin(
     GatewayBedrockConfigSchema.parse(params.config),
   );
-  if (params.apiFormat === "anthropic.messages") {
+  return getPerFormatUpstream(origin, params.apiFormat);
+}
+
+function getPerFormatUpstream(
+  origin: string,
+  apiFormat: GatewayApiFormat,
+): GatewayUpstream {
+  if (apiFormat === "anthropic.messages") {
     return { baseUrl: `${origin}/anthropic/v1`, authType: "x-api-key" };
   }
   return { baseUrl: `${origin}/openai/v1`, authType: "bearer" };
