@@ -1,13 +1,14 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   ForbiddenError,
   InternalServerError,
   LangfuseNotFoundError,
+  type OrderByState,
 } from "@langfuse/shared";
 import { Prisma, type PrismaClient, type Role } from "@langfuse/shared/src/db";
 import {
   createApiKey,
   deleteApiKeyFromDb,
+  orgBoundApiKeyScopes,
 } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
   OrganizationId,
@@ -18,23 +19,29 @@ import {
 import type { Cluster, Redis } from "ioredis";
 
 import { env } from "@/src/env.mjs";
-import { auditLog } from "@/src/features/audit-logs/server";
-import type { GatewayMetadata } from "@/src/features/ai-gateway/server/provider";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import type { GatewayMetadata } from "@/src/features/ai-gateway/server/provider/registry";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS } from "@/src/features/ai-gateway/constants/gatewayApiKeyLastUsed";
+import { getEffectiveGatewayIngestionMode } from "@/src/features/ai-gateway/fns/gatewayIngestionModePolicy";
+import { GatewayConfigRepository } from "@/src/features/ai-gateway/server/config/gatewayConfigRepository";
 import { GatewayApiKeyRepository } from "./gatewayApiKeyRepository";
+import { getGatewayApiKeysLastUsedAt } from "./gatewayApiKeyLastUsedRepository";
 
 type GatewayApiKeyIssuedAs = "user" | "serviceAccount";
 
 export class GatewayApiKeyService {
   private readonly repository: GatewayApiKeyRepository;
+  private readonly configRepository: GatewayConfigRepository;
 
   constructor(
     private readonly prisma: PrismaClient,
     private readonly redis?: Redis | Cluster | null,
   ) {
     this.repository = new GatewayApiKeyRepository(prisma);
+    this.configRepository = new GatewayConfigRepository(prisma);
   }
 
   /** Without ownerUserId, lists every gateway key in the organization. */
@@ -42,18 +49,57 @@ export class GatewayApiKeyService {
     organizationId: string;
     ownerUserId?: string;
     searchQuery?: string;
+    orderBy?: OrderByState;
     page: number;
     limit: number;
   }) {
     return this.repository.listGatewayApiKeys(params);
   }
 
+  /**
+   * Latest gateway request per key in the last
+   * GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS days, read from the organization's
+   * gateway ingestion project. Ids the caller cannot list are dropped.
+   * `isTracked` is false when gateway traffic is not recorded: ingestion mode
+   * `NONE` (which may keep a linked project) or no active ingestion project.
+   */
+  async getLastUsed(params: {
+    organizationId: string;
+    ownerUserId?: string;
+    apiKeyIds: string[];
+  }) {
+    const config = await this.configRepository.getConfig(params.organizationId);
+    const project = config?.defaultIngestionProject;
+    if (
+      !config ||
+      getEffectiveGatewayIngestionMode(config.ingestionMode) === "NONE" ||
+      !project ||
+      project.deletedAt ||
+      project.orgId !== params.organizationId
+    ) {
+      return { isTracked: false, apiKeys: [] };
+    }
+    const apiKeyIds =
+      await this.repository.filterVisibleGatewayApiKeyIds(params);
+    const since = new Date(
+      Date.now() - GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+    );
+    return {
+      isTracked: true,
+      apiKeys: await getGatewayApiKeysLastUsedAt({
+        projectId: project.id,
+        apiKeyIds,
+        since,
+      }),
+    };
+  }
+
   async create(params: {
     organizationId: string;
-    name?: string;
+    name: string;
     metadata: GatewayMetadata;
     expiresAt?: Date | null;
-    /** `user` keys are revoked with the creator's gateway access; `serviceAccount` keys belong to the organization. */
+    /** `user` keys are USER-scoped and also need their creator's roles to allow each call; `serviceAccount` keys belong to the organization. */
     issuedAs: GatewayApiKeyIssuedAs;
     session: OrgAuthedContext["session"];
   }) {
@@ -110,28 +156,31 @@ export class GatewayApiKeyService {
   }): Promise<void> {
     const association = await this.repository.getGatewayApiKey(params);
     if (!association) {
-      throw new LangfuseNotFoundError("Gateway API key not found");
+      throw new LangfuseNotFoundError("Gateway key not found");
     }
     // Read the hash before the row is gone; it is the resolve cache key.
     const revoked = await this.prisma.apiKey.findFirst({
       where: {
         id: params.apiKeyId,
         orgId: params.organizationId,
-        scope: "ORGANIZATION",
+        scope: { in: orgBoundApiKeyScopes },
       },
-      select: { fastHashedSecretKey: true },
+      select: { fastHashedSecretKey: true, scope: true },
     });
+    if (!revoked) {
+      throw new LangfuseNotFoundError("Gateway API key not found");
+    }
     const deleted = await deleteApiKeyFromDb({
       prisma: this.prisma,
       id: params.apiKeyId,
       entityId: params.organizationId,
-      scope: "ORGANIZATION",
+      scope: revoked.scope,
       redis: this.redis,
     });
     if (!deleted) {
-      throw new InternalServerError("Failed to revoke gateway API key");
+      throw new InternalServerError("Failed to revoke gateway key");
     }
-    if (revoked?.fastHashedSecretKey) {
+    if (revoked.fastHashedSecretKey) {
       await invalidateGatewayResolveCacheForApiKey(revoked.fastHashedSecretKey);
     }
     await auditLog(
@@ -177,7 +226,6 @@ async function assertCreatorCanInvokeGateway(
       AND user_id = ${params.session.user.id}
     FOR SHARE
   `;
-  if (params.session.user.admin) return;
   const allowed =
     membership !== undefined &&
     gatewayApiKeyCreatorScopes(params.issuedAs).every((scope) =>

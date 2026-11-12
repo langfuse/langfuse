@@ -6,9 +6,11 @@ Typed icon boundary for the web app. This package wraps Lucide and the supported
 import { Search, type IconComponent } from "@langfuse/icons";
 import { SiGithub } from "@langfuse/icons/si";
 import { TbBrandAzure } from "@langfuse/icons/tb";
+import { LangfuseMark } from "@langfuse/icons/brand";
 
 <Search size="base" color="default" aria-hidden />;
 <SiGithub size="lg" aria-label="GitHub" />;
+<LangfuseMark aria-hidden />;
 ```
 
 ## API
@@ -36,7 +38,7 @@ The `color` prop accepts semantic tokens, not arbitrary SVG color strings:
 
 Colors resolve as `hsl(var(--token))` through the app's runtime CSS variables, so light/dark themes remain in CSS. Use `inherit` for icons whose hover, selected, or disabled color is owned by the parent button or menu item. An explicit color sets an inline style and takes precedence over color classes; keep conditional classes in the raw escape hatch only when the semantic API cannot express the state. `__rawStyle.color` remains an explicit override.
 
-`className`, `style`, `width`, `height`, numeric `size`, and `strokeWidth` are intentionally rejected by TypeScript. The wrapper also drops forbidden styling props at runtime. Import icons from this package, not directly from `lucide-react` or `react-icons`; the web app's import restriction enforces that boundary.
+`className`, `style`, `width`, `height`, numeric `size`, and `strokeWidth` are intentionally rejected by TypeScript. The wrapper also drops forbidden styling props at runtime. `@langfuse/icons/brand` holds hand-written Langfuse marks; they keep their brand colors, so `color` has no effect on them. Import icons from this package, not directly from `lucide-react` or `react-icons`; the web app's import restriction enforces that boundary.
 
 ## Escape hatches
 
@@ -53,7 +55,7 @@ These props deliberately bypass the design-system constraints. They can override
 
 The root exports all Lucide icons and their aliases. `/si` exports Simple Icons; `/tb` exports Tabler icons. All exports are static, with pure wrapper calls and `sideEffects: false`, so unused icons can be tree-shaken. There is no runtime namespace lookup or icon registry.
 
-Each icon wrapper lives in its own JavaScript file under `dist/generated/`, with a matching `.d.ts` declaration; aliases share the same wrapper. `dist/index.js`, `dist/si.js`, and `dist/tb.js` re-export those wrappers, preserving the public imports. TypeScript compiles the shared `src/create-icon.tsx` implementation and emits its declarations, so all generated icons use the same inferred component contract. The entire `dist/` directory is generated and gitignored. Setup generates the exports automatically. Turbo runs generation before package tests, typechecking, and dependent builds, and caches the generated files. The setup hook skips manifest-only Docker install layers; the subsequent build generates the files once source is available.
+Each icon wrapper lives in its own JavaScript file under `dist/generated/`; aliases share the same wrapper. `dist/index.js`, `dist/si.js`, and `dist/tb.js` re-export those wrappers, preserving the public imports. Types are consolidated in `dist/index.d.ts`, `dist/si.d.ts`, and `dist/tb.d.ts` so TypeScript does not need to load a declaration module per icon. TypeScript compiles the shared `src/create-icon.tsx` implementation and emits its declarations, so all generated icons use the same inferred component contract. The entire `dist/` directory is generated and gitignored. Setup generates the exports automatically. Turbo runs generation before package tests, typechecking, and dependent builds, and caches the generated files. The setup hook skips manifest-only Docker install layers; the subsequent build generates the files once source is available.
 
 After updating the upstream libraries, regenerate and validate the exports:
 

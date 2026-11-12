@@ -71,9 +71,9 @@ describe("organization API keys trpc", () => {
     });
   });
 
-  // Instance admins bypass both RBAC and entitlement checks, so this session
-  // cannot cover plan gating. `entitledOwnerCaller` / `unentitledOwnerCaller`
-  // below are the non-admin owners used for that.
+  // Organization-scoped API keys require the `admin-api` entitlement, so the
+  // default owner sits on a plan that carries it. `entitledOwnerCaller` /
+  // `unentitledOwnerCaller` below cover the plan gate explicitly.
   const ownerSession: Session = {
     expires: "1",
     user: {
@@ -85,14 +85,13 @@ describe("organization API keys trpc", () => {
           id: organizationId,
           name: "Test Organization",
           role: "OWNER",
-          plan: "cloud:hobby",
+          plan: "cloud:team",
           cloudConfig: undefined,
           metadata: {},
           projects: [] as SessionOrg["projects"],
         } as SessionOrg,
       ],
       featureFlags: testFeatureFlags(),
-      admin: true,
     },
     environment: {} as any,
   };
@@ -115,7 +114,6 @@ describe("organization API keys trpc", () => {
         } as SessionOrg,
       ],
       featureFlags: testFeatureFlags(),
-      admin: false,
     },
     environment: {} as any,
   };
@@ -138,7 +136,6 @@ describe("organization API keys trpc", () => {
         } as SessionOrg,
       ],
       featureFlags: testFeatureFlags(),
-      admin: false,
     },
     environment: {} as any,
   };
@@ -165,7 +162,6 @@ describe("organization API keys trpc", () => {
   const unAuthedCaller = appRouter.createCaller({ ...unAuthedCtx, prisma });
 
   // Organization-scoped API keys are a paid feature (`admin-api` entitlement).
-  // These owners are deliberately not instance admins so the plan gate applies.
   const ownerSessionOnPlan = (plan: SessionOrg["plan"]): Session => ({
     expires: "1",
     user: {
@@ -184,7 +180,6 @@ describe("organization API keys trpc", () => {
         } as SessionOrg,
       ],
       featureFlags: testFeatureFlags(),
-      admin: false,
     },
     environment: {} as any,
   });
@@ -464,9 +459,12 @@ describe("organization API keys trpc", () => {
           userId: null,
           apiKeyName: "Original gateway key",
           userName: null,
+          userEmail: null,
           keyMetadata: {},
           ingestionProjectId: null,
           ingestionMode: null,
+          plan: "cloud:hobby",
+          rateLimitOverrides: [],
           connections: [],
         },
       });
@@ -479,6 +477,37 @@ describe("organization API keys trpc", () => {
       });
 
       expect(await cache.get(cacheEntry)).toBeNull();
+    });
+
+    it("rejects a blank name for a gateway key but not for other keys", async () => {
+      const gatewayKey = await createApiKey(prisma, {
+        tenant: OrganizationId(organizationId),
+        scope: OrganizationId(organizationId),
+        role: SystemRoleId("AI_GATEWAY"),
+        createdBy: UserId("user-1"),
+        name: "Named gateway key",
+      });
+
+      await expect(
+        ownerCaller.organizationApiKeys.updateName({
+          orgId: organizationId,
+          keyId: gatewayKey.id,
+          name: "  ",
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      await expect(
+        prisma.apiKey.findUniqueOrThrow({ where: { id: gatewayKey.id } }),
+      ).resolves.toMatchObject({ note: "Named gateway key" });
+
+      const otherKey = await ownerCaller.organizationApiKeys.create({
+        orgId: organizationId,
+        name: "Named key",
+      });
+      await ownerCaller.organizationApiKeys.updateName({
+        orgId: organizationId,
+        keyId: otherKey.id,
+        name: "",
+      });
     });
 
     it("returns NOT_FOUND for a missing API key", async () => {
@@ -599,9 +628,12 @@ describe("organization API keys trpc", () => {
           userId: null,
           apiKeyName: "Cached gateway key",
           userName: null,
+          userEmail: null,
           keyMetadata: {},
           ingestionProjectId: null,
           ingestionMode: null,
+          plan: "cloud:hobby",
+          rateLimitOverrides: [],
           connections: [],
         },
       });
@@ -726,7 +758,6 @@ describe("organization API keys trpc", () => {
             } as SessionOrg,
           ],
           featureFlags: testFeatureFlags(),
-          admin: false,
         },
         environment: {} as any,
       });
@@ -770,6 +801,7 @@ describe("organization API keys trpc", () => {
         });
         const key = await ownerCallerForOrg(orgId).organizationApiKeys.create({
           orgId,
+          name: `${role} key`,
           role,
         });
         expect(
@@ -784,6 +816,23 @@ describe("organization API keys trpc", () => {
         });
       },
     );
+
+    it("rejects an AI_GATEWAY key without a name", async () => {
+      Object.assign(env, { API_KEY_ORG_ROLES_ENABLE: "true" });
+      const orgId = `org-${randomUUID()}`;
+      await prisma.organization.create({
+        data: { id: orgId, name: "Scoped" },
+      });
+
+      await expect(
+        ownerCallerForOrg(orgId).organizationApiKeys.create({
+          orgId,
+          name: "  ",
+          role: "AI_GATEWAY",
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      await expect(prisma.apiKey.count({ where: { orgId } })).resolves.toBe(0);
+    });
 
     describe.each([
       { migration: "legacy", enabled: "false" },

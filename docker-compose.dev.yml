@@ -1,10 +1,10 @@
 services:
   clickhouse:
-    # The CI matrix spans ClickHouse versions: -azure pins 25.12, the Langfuse
-    # v4 minimum (events tables require the >=25.x text indexes /
-    # enable_full_text_index); this config runs the current Cloud version, and
-    # -redis-cluster exercises the newest release.
-    image: docker.io/clickhouse/clickhouse-server:26.4
+    # The CI matrix spans ClickHouse versions: -azure pins the oldest line CI
+    # covers (26.3 LTS; events tables require the >=25.x text indexes /
+    # enable_full_text_index), this config runs 26.8 LTS, and -redis-cluster
+    # exercises the newest release.
+    image: docker.io/clickhouse/clickhouse-server:26.8.36.3
     user: "101:101"
     container_name: ${CLICKHOUSE_CONTAINER_NAME:-langfuse-clickhouse}
     environment:
@@ -54,11 +54,13 @@ services:
   floci:
     profiles:
       - worker-tests
-    image: docker.io/floci/floci:1.5.17-compat
+    image: docker.io/floci/floci:2.4.0-compat
     user: "0"
     container_name: ${FLOCI_CONTAINER_NAME:-langfuse-floci}
     environment:
       FLOCI_HOSTNAME: floci
+      # Evaluates IAM trust and session policies, for the customer role auth tests.
+      FLOCI_SERVICES_IAM_ENFORCEMENT_ENABLED: "true"
       FLOCI_INIT_HOOKS_TIMEOUT_SECONDS: 120
     ports:
       - ${HOST_IP:-127.0.0.1}:${FLOCI_PORT:-4566}:4566

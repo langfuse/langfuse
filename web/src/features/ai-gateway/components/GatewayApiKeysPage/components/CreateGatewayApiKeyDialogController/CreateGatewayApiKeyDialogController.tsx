@@ -3,6 +3,9 @@ import { useSession } from "next-auth/react";
 import { ChevronRight, Plus, X } from "@langfuse/icons";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
+import { FormField } from "@/src/components/design-system/FormField/FormField";
+import { Input as DesignSystemInput } from "@/src/components/design-system/Input/Input";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -15,14 +18,12 @@ import {
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import {
-  ApiKeyExpirationInput,
-  type ApiKeyExpirationPreset,
-  resolveApiKeyExpiration,
-} from "@/src/features/apiKey";
+import { ApiKeyExpirationInput } from "@/src/features/apiKey/components/ApiKeyExpirationInput/ApiKeyExpirationInput";
+import type { ApiKeyExpirationPreset } from "@/src/features/apiKey/constants/apiKeyExpirationOptions";
+import { resolveApiKeyExpiration } from "@/src/features/apiKey/fns/resolveApiKeyExpiration";
 import { GeneratedKeyContent } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/GeneratedKeyContent";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
   api,
   reportNonTrpcError,
@@ -87,19 +88,20 @@ export function CreateGatewayApiKeyDialogController({
 
   const metadataCount = metadata.filter((field) => field.key.trim()).length;
   const expiresAt = resolveApiKeyExpiration(expiryPreset, customExpiry);
+  const effectiveIssuedAs = canIssueServiceAccountKeys ? issuedAs : "user";
+  const isNameMissing = !name.trim();
 
   const submit = async () => {
-    if (expiresAt === undefined) return;
+    if (expiresAt === undefined || isNameMissing) return;
     const metadataObject = Object.fromEntries(
       metadata
         .filter((field) => field.key.trim())
         .map((field) => [field.key.trim(), field.value]),
     );
-    const effectiveIssuedAs = canIssueServiceAccountKeys ? issuedAs : "user";
     try {
       const created = await create.mutateAsync({
         orgId: organizationId,
-        name: name.trim() || undefined,
+        name: name.trim(),
         metadata: metadataObject,
         expiresAt,
         issuedAs: effectiveIssuedAs,
@@ -117,9 +119,12 @@ export function CreateGatewayApiKeyDialogController({
         expiryPreset,
       });
       setGeneratedSecretKey(created.secretKey);
-      await utils.aiGateway.listApiKeys.invalidate({
-        orgId: organizationId,
-      });
+      await Promise.all([
+        utils.aiGateway.listApiKeys.invalidate({ orgId: organizationId }),
+        utils.aiGateway.getAnalyticsLabels.invalidate({
+          orgId: organizationId,
+        }),
+      ]);
     } catch (error) {
       reportNonTrpcError(error, "ai-gateway-api-keys");
     }
@@ -130,7 +135,12 @@ export function CreateGatewayApiKeyDialogController({
       onBeforeClose={() => !create.isPending}
       renderDialog={() =>
         generatedSecretKey ? (
-          <Dialog title="Gateway key created" size="md" closeLabel="Done">
+          <Dialog
+            title="Gateway key created"
+            size="md"
+            closeLabel="Done"
+            requireExplicitClose
+          >
             <GeneratedKeyContent
               organizationId={organizationId}
               secretKey={generatedSecretKey}
@@ -138,38 +148,19 @@ export function CreateGatewayApiKeyDialogController({
           </Dialog>
         ) : (
           <Dialog
-            title="Issue API key"
+            title="Create gateway key"
             size="md"
             actions={[
               {
                 label: "Create key",
                 loading: create.isPending,
-                disabled: create.isPending || expiresAt === undefined,
+                disabled:
+                  create.isPending || expiresAt === undefined || isNameMissing,
                 onClick: submit,
               },
             ]}
           >
             <Dialog.Body>
-              <div>
-                <Label
-                  htmlFor="gateway-key-name"
-                  className="flex items-center gap-1.5"
-                >
-                  Description
-                  <InfoTooltip label="About gateway key descriptions">
-                    Shown in the key list. Use it to describe what consumes the
-                    key.
-                  </InfoTooltip>
-                </Label>
-                <Input
-                  id="gateway-key-name"
-                  className="mt-1.5"
-                  maxLength={500}
-                  placeholder="e.g. Checkout agent, backend service"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                />
-              </div>
               {canIssueServiceAccountKeys ? (
                 <div className="flex flex-col gap-1.5">
                   <Label>Issued as</Label>
@@ -197,6 +188,34 @@ export function CreateGatewayApiKeyDialogController({
                   </p>
                 </div>
               ) : null}
+              <CustomTooltip
+                content={
+                  <span>
+                    Shown in the key list. Use it to describe what consumes the
+                    key.
+                  </span>
+                }
+              >
+                {({ getTriggerProps }) => (
+                  <FormField
+                    label="Name"
+                    required
+                    registerLabelTooltip={getTriggerProps}
+                  >
+                    {(field) => (
+                      <DesignSystemInput
+                        id={field.id}
+                        aria-describedby={field.inputDescribedById}
+                        maxLength={500}
+                        required
+                        placeholder="e.g. claude-local, codex-local, or backend-service"
+                        value={name}
+                        onChange={(event) => setName(event.target.value)}
+                      />
+                    )}
+                  </FormField>
+                )}
+              </CustomTooltip>
               <ApiKeyExpirationInput
                 id="gateway-key-expiry"
                 expiryPreset={expiryPreset}

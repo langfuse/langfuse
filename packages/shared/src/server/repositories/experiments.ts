@@ -1,8 +1,8 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { EXPERIMENT_IO_TRUNCATE_LENGTH } from "../../constants";
-import { matchesUiColumnMapping } from "../../tableDefinitions";
+import { matchesUiColumnMapping } from "../../tableDefinitions/types";
 import { env } from "../../env";
-import { type ScoreSourceType } from "../../domain";
+import type { ScoreSourceType } from "../../domain/scores";
 import { type OrderByState } from "../../interfaces/orderBy";
 import { type FilterState } from "../../types";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
@@ -12,13 +12,15 @@ import { avgIf, dateDiff, literal } from "../query-ast/extensions";
 import {
   FilterList,
   StringOptionsFilter,
-  orderByToClickhouseSql,
+  StringFilter,
+} from "../queries/clickhouse-sql/clickhouse-filter";
+import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factory";
+import {
   CTEQueryBuilder,
   CTEWithSchema,
   EventsAggQueryBuilder,
-  StringFilter,
-  extractTimeFilter,
-} from "../queries";
+} from "../queries/clickhouse-sql/event-query-builder";
+import { extractTimeFilter } from "../queries/clickhouse-sql/filter-utils";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
   buildScoreRowsCTE,
@@ -1420,6 +1422,9 @@ export const getExperimentItemsFromEvents = async (
  */
 export type ExperimentOutputData = {
   experimentId: string;
+  /** The run's root span and its trace. */
+  observationId: string;
+  traceId: string;
   output: string | null;
 };
 
@@ -1492,6 +1497,8 @@ export const getExperimentItemsBatchIO = async (props: {
       "leftUTF8(e.experiment_item_expected_output, {truncateLength: UInt32}) as expected_output",
       "e.experiment_item_id as item_id",
       "e.experiment_id as experiment_id",
+      "e.span_id as observation_id",
+      "e.trace_id as trace_id",
     )
     // We must deterministically return the latest row for each experiment_item_id, experiment_id pair until we model repetitions (LFE-8965)
     .orderByColumns([{ column: "e.start_time", direction: "DESC" }])
@@ -1502,6 +1509,8 @@ export const getExperimentItemsBatchIO = async (props: {
   const rows = await queryClickhouse<{
     item_id: string;
     experiment_id: string;
+    observation_id: string;
+    trace_id: string;
     input: string | null;
     output: string | null;
     expected_output: string | null;
@@ -1564,6 +1573,8 @@ export const getExperimentItemsBatchIO = async (props: {
     // Collect output from all experiments
     item.outputs.push({
       experimentId: row.experiment_id,
+      observationId: row.observation_id,
+      traceId: row.trace_id,
       output: row.output,
     });
   }

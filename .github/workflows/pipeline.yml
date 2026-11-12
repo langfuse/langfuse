@@ -294,10 +294,8 @@ jobs:
         run: |
           cp .env.dev.example .env
       - name: lint web
-        # Three packages with four ESLint workers leave headroom on 16 vCPUs.
-        run: pnpm turbo run lint --filter=!ai-gateway --filter=!@langfuse/native --concurrency=3 -- --concurrency=4
-      # Rust packages lint with cargo, which rejects the trailing ESLint flag
-      # above, so they run outside that invocation (ai-gateway in its own job).
+        run: pnpm turbo run lint --filter=!ai-gateway --filter=!@langfuse/native --concurrency=3 -- --threads=4
+      # Rust packages lint separately (ai-gateway in its own job).
       - name: lint native addon (rustfmt, clippy)
         run: pnpm --filter @langfuse/native run lint
       - name: Install Rust dependency checkers
@@ -652,33 +650,28 @@ jobs:
         # `clickhouse format` (from clickhouse-common-static) normalizes SQL for
         # the equivalence snapshots. Its output is version-specific, so pin the
         # exact version and regenerate snapshots on any bump; keep in sync with
-        # scripts/codex/cloud_services.sh. 26.4 is the v4-recommended version.
-        # continue-on-error + timeout-minutes: a missing binary OR a stalled apt
-        # mirror just skips the tests, never blocks (timeout-minutes bounds a
-        # hang, which continue-on-error alone would not).
-        continue-on-error: true
+        # scripts/codex/cloud_services.sh and docker-compose.dev.yml.
+        # Fails the job if the install fails: without the binary the
+        # SQL-equivalence suites skip and would pass silently.
         timeout-minutes: 5
         env:
-          CLICKHOUSE_VERSION: 26.4.5.143
+          CLICKHOUSE_VERSION: 26.8.36.3
         run: |
           set -euo pipefail
           sudo mkdir -p /etc/apt/keyrings
-          curl -fsSL https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key \
+          curl -fsSL --retry 5 --retry-all-errors https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key \
             | gpg --dearmor \
             | sudo tee /etc/apt/keyrings/clickhouse.gpg >/dev/null
           echo "deb [signed-by=/etc/apt/keyrings/clickhouse.gpg] https://packages.clickhouse.com/deb stable main" \
             | sudo tee /etc/apt/sources.list.d/clickhouse.list >/dev/null
-          sudo apt-get update
-          sudo apt-get install --allow-downgrades -y \
+          sudo apt-get -o Acquire::Retries=5 update
+          sudo apt-get -o Acquire::Retries=5 install --allow-downgrades -y \
             "clickhouse-common-static=${CLICKHOUSE_VERSION}"
           clickhouse --version
-      - name: run SQL-equivalence tests (non-blocking)
-        # Non-blocking: a snapshot drift or an intentional SQL change emits a
-        # warning but must not fail the job (`|| echo` swallows the exit code).
-        # Make it a required check once the suite has proven stable.
-        run: |
-          pnpm --filter @langfuse/shared run test .golden.test \
-            || echo "::warning title=SQL-equivalence tests failed::Query-AST SQL-equivalence snapshots drifted or the tests failed (non-blocking). Regenerate with: pnpm --filter @langfuse/shared run test .golden.test -u"
+      - name: run SQL-equivalence tests
+        # A snapshot drift fails the job. After an intentional SQL change,
+        # regenerate with: pnpm --filter @langfuse/shared run test .golden.test -u
+        run: pnpm --filter @langfuse/shared run test .golden.test
 
   test-docker-build:
     name: test-docker-build (${{ matrix.component }})
@@ -1152,6 +1145,7 @@ jobs:
         run: pnpm --filter=worker run test:exclude-llm-connections
         env:
           LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: ${{ matrix.deploy-mode == '' && 'http://localhost:4566' || '' }}
+          LANGFUSE_TEST_FLOCI_ENDPOINT: ${{ matrix.deploy-mode == '' && 'http://localhost:4566' || '' }}
 
   tests-fips:
     # Runs the web and worker suites the way a FIPS host would: on the UBI
@@ -1265,11 +1259,12 @@ jobs:
       - name: Run ${{ matrix.suite }} tests under forced FIPS
         env:
           LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: ${{ matrix.suite == 'worker' && 'http://localhost:4566' || '' }}
+          LANGFUSE_TEST_FLOCI_ENDPOINT: ${{ matrix.suite == 'worker' && 'http://localhost:4566' || '' }}
           SUITE: ${{ matrix.suite }}
         run: |
           docker run --rm --network host \
             -e OPENSSL_FORCE_FIPS_MODE=1 \
-            -e CI -e VITEST_MAX_WORKERS -e LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT \
+            -e CI -e VITEST_MAX_WORKERS -e LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT -e LANGFUSE_TEST_FLOCI_ENDPOINT \
             -e PNPM_STORE_DIR=/pnpm-store \
             -v "$(pnpm store path --silent):/pnpm-store" \
             -v "$PWD:/src:ro" \
@@ -1649,12 +1644,23 @@ jobs:
       - name: Load default env
         run: cp .env.dev.example .env
       - name: Configure gateway signing
+        # Values written to GITHUB_ENV are printed in every later step's env
+        # header, so mask the secrets before they reach GITHUB_ENV. Masks match
+        # single lines, so the PEM body is masked line by line.
         run: |
+          service_key="$(openssl rand -hex 32)"
+          echo "::add-mask::$service_key"
           openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out /tmp/gateway-jwt-private.pem
+          while IFS= read -r line; do
+            case "$line" in
+              "" | -----*) ;;
+              *) echo "::add-mask::$line" ;;
+            esac
+          done < /tmp/gateway-jwt-private.pem
           openssl pkey -in /tmp/gateway-jwt-private.pem -pubout -out /tmp/gateway-jwt-public.pem
           delimiter="GATEWAY_KEY_$(openssl rand -hex 12)"
           {
-            echo "LANGFUSE_AI_GATEWAY_SERVICE_KEY=$(openssl rand -hex 32)"
+            echo "LANGFUSE_AI_GATEWAY_SERVICE_KEY=$service_key"
             echo "LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST=seed-org-id"
             echo "LANGFUSE_AI_GATEWAY_JWT_KEY_ID=ci"
             echo "LANGFUSE_AI_GATEWAY_JWT_ISSUER=langfuse-gateway-ci"
@@ -1735,7 +1741,6 @@ jobs:
     if: always()
     permissions:
       contents: read
-      actions: read
     outputs:
       success: ${{ steps.set-success-output.outputs.success }}
     steps:
@@ -1755,21 +1760,33 @@ jobs:
         if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
         run: exit 1
         working-directory: .
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: failure() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/'))
-        with:
-          persist-credentials: false
-      - name: Notify Slack
-        if: failure() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/'))
-        uses: ./.github/actions/notify-slack-failure
-        with:
-          message: "❌ CI failed on ${{ github.ref_name }}"
-          webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}
       - name: Output job results
         run: |
           echo "Job results: ${STEPS_SET_SUCCESS_OUTPUT_OUTPUTS_SUCCESS}"
         env:
           STEPS_SET_SUCCESS_OUTPUT_OUTPUTS_SUCCESS: ${{ steps.set-success-output.outputs.success }}
+
+  # The alert lives in its own job because only a job-level `cancelled()` tells
+  # whether the run was cancelled. Inside a step of the always() gate it reads
+  # the gate's own status, which never becomes cancelled. A job that exceeds
+  # timeout-minutes is cancelled without cancelling the run, so it still alerts.
+  notify-ci-failure:
+    needs: all-ci-passed
+    if: ${{ !cancelled() && needs.all-ci-passed.result == 'failure' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/')) }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Notify Slack
+        uses: ./.github/actions/notify-slack-failure
+        with:
+          message: "❌ CI failed on ${{ github.ref_name }}"
+          webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}
+          ignore-job: all-ci-passed
 
   # A merge-queue run that only went green because a step was retried still hides
   # a real flake, and the retry means nobody is forced to look at it. Collect the
@@ -2250,21 +2267,17 @@ jobs:
     needs:
       - build-docker-image-release
       - publish-docker-image-release
-    if: always() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    # Job-level `!cancelled()` skips whole-run cancels; see notify-ci-failure.
+    if: ${{ !cancelled() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
       actions: read
     steps:
-      - name: Fail when a release image job failed
-        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
-        run: exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: failure()
         with:
           persist-credentials: false
       - name: Notify Slack
-        if: failure()
         uses: ./.github/actions/notify-slack-failure
         with:
           message: "❌ Docker release failed on ${{ github.ref_name }}"

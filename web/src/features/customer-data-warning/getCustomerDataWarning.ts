@@ -1,13 +1,14 @@
 const STAFF_EMAIL_DOMAINS = ["@clickhouse.com", "@langfuse.com"] as const;
 
 /**
- * Real org and project memberships from the session. Admins who are not
- * members have no entry here; staff access to those resources is granted in
- * the tRPC project and organization middleware.
+ * Org and project memberships from the session, including support access
+ * grants, which the session callback adds as VIEWER memberships flagged with
+ * `supportAccess`.
  */
 type CustomerDataWarningMembership = {
   id: string;
   projects: { id: string }[];
+  supportAccess?: boolean; // support access grant, not a real membership
 };
 
 export type CustomerDataWarning =
@@ -23,7 +24,6 @@ export type CustomerDataWarning =
 
 type CustomerDataWarningInput = {
   email: string | null | undefined;
-  isAdmin: boolean;
   isLangfuseCloud: boolean;
   projectId: string | null;
   organizationId: string | null;
@@ -57,11 +57,13 @@ function isOrganizationMember(
 export function getCustomerDataWarning(
   input: CustomerDataWarningInput,
 ): CustomerDataWarning | null {
-  if (!input.isLangfuseCloud || !input.isAdmin) return null;
+  const hasSupportAccess = input.memberships.some((m) => m.supportAccess);
+  if (!input.isLangfuseCloud || !hasSupportAccess) return null;
   if (!isStaffEmail(input.email)) return null;
+  const memberships = input.memberships.filter((m) => !m.supportAccess);
 
   if (input.projectId) {
-    if (isProjectMember(input.memberships, input.projectId)) return null;
+    if (isProjectMember(memberships, input.projectId)) return null;
     if (!input.organizationName || !input.projectName) return null;
     return {
       scope: "project",
@@ -71,8 +73,7 @@ export function getCustomerDataWarning(
   }
 
   if (input.organizationId) {
-    if (isOrganizationMember(input.memberships, input.organizationId))
-      return null;
+    if (isOrganizationMember(memberships, input.organizationId)) return null;
     if (!input.organizationName) return null;
     return {
       scope: "organization",

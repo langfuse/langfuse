@@ -1,4 +1,4 @@
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
@@ -23,26 +23,31 @@ import {
   escapeSqlLikePattern,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
-import { hasEntitlement } from "@/src/features/entitlements/server";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
+import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   hasProjectAccess,
   throwIfNoProjectAccess,
 } from "@/src/features/rbac/utils/checkProjectAccess";
 import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
 import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
+import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import {
   deleteUserBoundApiKeys,
-  deleteUserBoundApiKeysForRole,
   evictRevokedApiKeys,
+  evictUserGatewayResolveCache,
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
+import {
+  deleteOrgMembership,
+  deleteProjectMembership,
+  saveProjectMembership,
+  updateOrgMembership,
+} from "@langfuse/shared/memberships";
 import { inviteOrganizationMember } from "@/src/features/rbac/server/inviteOrganizationMember";
 import { throwIfHigherProjectRole } from "@/src/features/rbac/server/throwIfHigherProjectRole";
 import { throwIfHigherRole } from "@/src/features/rbac/server/throwIfHigherRole";
-import {
-  userFeaturePreviewFlags,
-  setUserFeaturePreviewWithAuthorization,
-} from "@/src/features/feature-flags/server";
+import { userFeaturePreviewFlags } from "@/src/features/feature-flags/available-flags";
+import { setUserFeaturePreviewWithAuthorization } from "@/src/features/feature-flags/server/organizationFeatureFlags";
 
 function buildUserSearchFilter(searchQuery: string | undefined | null) {
   if (searchQuery === undefined || searchQuery === null || searchQuery === "") {
@@ -71,7 +76,7 @@ export const membersRouter = createTRPCRouter({
         orgRole: z.enum(Role),
         // in case a projectRole should be set for a specific project
         projectId: z.string().optional(),
-        projectRole: z.enum(Role).optional(),
+        projectRole: z.enum(Role).exclude([Role.AI_GATEWAY]).optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -162,11 +167,9 @@ export const membersRouter = createTRPCRouter({
 
       const { deleted, revokedKeys } = await ctx.prisma.$transaction(
         async (tx) => {
-          const deleted = await tx.organizationMembership.delete({
-            where: {
-              id: orgMembership.id,
-              orgId: input.orgId,
-            },
+          const deleted = await deleteOrgMembership(tx, {
+            orgId: input.orgId,
+            userId: orgMembership.userId,
           });
           const revokedKeys = await deleteUserBoundApiKeys(tx, {
             userId: orgMembership.userId,
@@ -275,6 +278,7 @@ export const membersRouter = createTRPCRouter({
         ownRole: ctx.session.orgRole,
         role: input.role, // new
       });
+      requireGatewayEnabledForRole(input.orgId, input.role);
       throwIfHigherRole({
         ownRole: ctx.session.orgRole,
         role: membership.role, // old
@@ -298,26 +302,15 @@ export const membersRouter = createTRPCRouter({
         });
       }
 
-      const { updatedMembership, revokedKeys } = await ctx.prisma.$transaction(
-        async (tx) => {
-          const updatedMembership = await tx.organizationMembership.update({
-            where: {
-              id: membership.id,
-              orgId: input.orgId,
-            },
-            data: {
-              role: input.role,
-            },
-          });
-          const revokedKeys = await deleteUserBoundApiKeysForRole(tx, {
-            userId: membership.userId,
-            orgId: input.orgId,
-            role: input.role,
-          });
-          return { updatedMembership, revokedKeys };
-        },
-      );
-      await evictRevokedApiKeys(revokedKeys, { session: ctx.session });
+      const updatedMembership = await updateOrgMembership(ctx.prisma, {
+        orgId: input.orgId,
+        userId: membership.userId,
+        role: input.role,
+      });
+      await evictUserGatewayResolveCache(ctx.prisma, {
+        orgId: input.orgId,
+        userId: membership.userId,
+      });
 
       await auditLog({
         session: ctx.session,
@@ -366,7 +359,6 @@ export const membersRouter = createTRPCRouter({
       const result = await setUserFeaturePreviewWithAuthorization({
         prisma: ctx.prisma,
         actorUserId: ctx.session.user.id,
-        actorIsPlatformAdmin: ctx.session.user.admin === true,
         currentOrgId: input.orgId,
         targetUserId: input.userId,
         flag: input.flag,
@@ -411,7 +403,7 @@ export const membersRouter = createTRPCRouter({
         orgMembershipId: z.string(),
         userId: z.string(),
         projectId: z.string(),
-        projectRole: z.enum(Role).nullable(),
+        projectRole: z.enum(Role).exclude([Role.AI_GATEWAY]).nullable(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -525,14 +517,10 @@ export const membersRouter = createTRPCRouter({
       // If the project role is set to null, delete the project membership
       if (input.projectRole === null || input.projectRole === Role.NONE) {
         if (projectMembership) {
-          await ctx.prisma.projectMembership.delete({
-            where: {
-              projectId_userId: {
-                projectId: input.projectId,
-                userId: input.userId,
-              },
-              orgMembershipId: input.orgMembershipId,
-            },
+          await deleteProjectMembership(ctx.prisma, {
+            orgId: input.orgId,
+            projectId: input.projectId,
+            userId: input.userId,
           });
 
           await auditLog({
@@ -556,25 +544,14 @@ export const membersRouter = createTRPCRouter({
       });
 
       // Create/update
-      const updatedProjectMembership =
-        await ctx.prisma.projectMembership.upsert({
-          where: {
-            projectId_userId: {
-              projectId: input.projectId,
-              userId: input.userId,
-            },
-            orgMembershipId: input.orgMembershipId,
-          },
-          update: {
-            role: input.projectRole,
-          },
-          create: {
-            projectId: input.projectId,
-            userId: input.userId,
-            role: input.projectRole,
-            orgMembershipId: input.orgMembershipId,
-          },
-        });
+      const projectRole = input.projectRole;
+      const updatedProjectMembership = await saveProjectMembership(ctx.prisma, {
+        orgId: input.orgId,
+        projectId: input.projectId,
+        userId: input.userId,
+        role: projectRole,
+        orgMembershipId: input.orgMembershipId,
+      });
 
       await auditLog({
         session: ctx.session,

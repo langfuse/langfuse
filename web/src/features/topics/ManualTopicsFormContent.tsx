@@ -111,10 +111,9 @@ export function ManualTopicsFormContent({
     if (configurationError) return configurationError;
     if (regenerate.prerequisiteReason) return regenerate.prerequisiteReason;
     if (!settings) return "Loading Topics configuration…";
-    if (!configured)
-      return "Choose the Topics models in Configure Topics first.";
+    if (!configured) return "Choose the Topics models in Settings first.";
     if (settings.stored.blockedAt)
-      return `Topics is paused. ${settings.stored.blockMessage ?? "Fix the model connection in Configure Topics."}`;
+      return `Topics is paused. ${settings.stored.blockMessage ?? "Fix the model connection in Settings."}`;
     if (running) return "A Topics run is in progress. Wait for it to finish.";
     if (operation === "update" && regenerate.disabledReason)
       return regenerate.disabledReason;
@@ -136,10 +135,7 @@ export function ManualTopicsFormContent({
     const value = settings?.stored[slot];
     return {
       model: value?.model ?? "Not configured",
-      connection:
-        settings?.connections.find(
-          (connection) => connection.id === value?.llmApiKeyId,
-        )?.provider ?? "Project connection",
+      connection: value?.provider ?? "Project connection",
     };
   };
   async function submit() {

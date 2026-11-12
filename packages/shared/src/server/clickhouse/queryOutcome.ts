@@ -25,8 +25,9 @@ export const CLICKHOUSE_QUERY_ELAPSED_MS_METRIC =
   "langfuse.clickhouse.query.elapsed_ms";
 
 /**
- * `client_closed` is not a ClickHouse failure: the caller aborted or stopped
- * reading a streamed result, e.g. a browser closing a dashboard stream.
+ * `client_closed` is not a ClickHouse failure: the caller aborted its signal for
+ * a reason other than a deadline, e.g. a browser closing a dashboard stream. A
+ * deadline abort is an `error` with `error_code:client_timeout`.
  */
 export type ClickHouseQueryOutcome =
   | "success"
@@ -52,15 +53,16 @@ export const CLICKHOUSE_RESOURCE_ERROR_OUTCOMES = {
  * Metric tags must be bounded, so a route only gets its own label when its
  * value set is fixed by code:
  *
- * - Bare routes (`events.all`, `listObservations`, `langfuse.queue.trace_delete`)
- *   are tRPC procedure paths, MCP tool names and worker routes. Each is set only
- *   after the procedure, tool or queue resolved, so they pass through.
+ * - Bare routes (`events.all`, `listObservations`, `langfuse.queue.trace_delete`,
+ *   `topics-map`) are tRPC procedure paths, MCP tool names, worker routes and
+ *   route literals passed as query tags. Each is set only after the procedure,
+ *   tool or queue resolved, or fixed in code, so they pass through.
  * - REST routes carry their page template (`GET /api/public/traces/[traceId]`),
  *   taken from a list of the dynamic API routes in web. As a guard against a
  *   route missing from that list, a segment that is neither a word, a version
  *   (`v2`) nor a `[param]` placeholder drops the route to `other`.
  */
-const BARE_ROUTE_PATTERN = /^[A-Za-z][\w.]{0,99}$/;
+const BARE_ROUTE_PATTERN = /^[A-Za-z][\w.-]{0,99}$/;
 const REST_PATH_PREFIX = "/api/";
 const REST_STATIC_SEGMENT_PATTERN = /^(?:[A-Za-z][A-Za-z_-]*|v\d+|\[\w+\])$/;
 const MAX_REST_SEGMENTS = 10;
@@ -160,6 +162,10 @@ export function clickHouseQueryTableLabel(query: string): ClickHouseQueryTable {
  * by-`span_id` lookup that also bounds `trace_id`) is attributed to its
  * highest-ranked shape.
  *
+ * Queries without a selective predicate fall through to `time_range_scan`
+ * (lower-bounded by time) or `project_scan` (not bounded by time), so
+ * `other` is left for queries that do not filter by project at all.
+ *
  * Scores reads get their own shapes for the dedup strategy, which decides their
  * cost more than the filter predicate does. They rank first, but only when the
  * query's table label is `scores`.
@@ -173,6 +179,9 @@ export type ClickHouseQueryShape =
   | "id_or_ilike"
   | "by_span_id"
   | "by_trace_id"
+  | "by_session_id"
+  | "time_range_scan"
+  | "project_scan"
   | "other";
 
 const OTHER_SHAPE_LABEL = "other" as const;
@@ -199,6 +208,16 @@ const OTHER_SHAPE_LABEL = "other" as const;
  * - `by_trace_id`: a `trace_id IN (…)` / `trace_id IN {…}` / `trace_id = {…}`
  *   lookup — the unbounded variant is a distinct timeout class. The `IN` form
  *   appears both parenthesized (inline list) and bare (`{param: Array(...)}`).
+ *   The v3 `traces` and `observations` tables key on `id`, so an `id` lookup
+ *   counts as `by_trace_id` / `by_span_id` when that is the query's table.
+ * - `by_session_id`: a `session_id = {…}` / `session_id IN {…}` lookup.
+ * - `time_range_scan`: a lower bound on `start_time` / `timestamp` (a
+ *   parameter or `now()` / `today()` arithmetic) and nothing more selective.
+ * - `project_scan`: a `project_id` filter and nothing more selective — a scan
+ *   of the project's whole history.
+ *
+ * Column names may be quoted (`e."span_id"`), as the filter factory renders
+ * them.
  */
 const IO_CONTENT_FUNCTION_PATTERN =
   /\b(?:position(?:caseinsensitive)?|hasalltokens|hasanytokens|hastoken|startswith|endswith)\s*\(\s*(?:lower\s*\(\s*)?(?:\w+\.)?(?:input|output)\b/i;
@@ -211,18 +230,48 @@ const METADATA_CONTENT_PATTERN =
 
 const ID_OR_ILIKE_PATTERN = /\bilike\s*\{\s*searchString\b/i;
 
-const BY_SPAN_ID_PATTERN = /\bspan_id\s*=\s*\{|\bspan_id\s+in\s*(?:\(\s*)?\{/i;
+// Lookups match `<column> = {…}` or `<column> IN {…}` / `IN ({…})`, with the
+// column optionally quoted.
+const BY_SPAN_ID_PATTERN =
+  /\bspan_id"?\s*=\s*\{|\bspan_id"?\s+in\s*(?:\(\s*)?\{/i;
 
 const BY_TRACE_ID_PATTERN =
-  /\btrace_id\s*=\s*\{|\btrace_id\s+in\s*(?:\(\s*)?\{/i;
+  /\btrace_id"?\s*=\s*\{|\btrace_id"?\s+in\s*(?:\(\s*)?\{/i;
 
-const QUERY_SHAPE_PATTERNS: ReadonlyArray<[ClickHouseQueryShape, RegExp]> = [
+const BY_SESSION_ID_PATTERN =
+  /\bsession_id"?\s*=\s*\{|\bsession_id"?\s+in\s*(?:\(\s*)?\{/i;
+
+const BY_ID_PATTERN = /\bid"?\s*=\s*\{|\bid"?\s+in\s*(?:\(\s*)?\{/i;
+
+const PROJECT_FILTER_PATTERN =
+  /\bproject_id"?\s*=\s*\{|\bproject_id"?\s+in\s*(?:\(\s*)?\{/i;
+
+const ID_LOOKUP_SHAPE_BY_TABLE: Partial<
+  Record<ClickHouseQueryTable, ClickHouseQueryShape>
+> = {
+  traces: "by_trace_id",
+  observations: "by_span_id",
+};
+
+const TIME_RANGE_PATTERN =
+  /\b(?:start_time|timestamp)"?\s*>=?\s*(?:\{|now\s*\(|today\s*\()/i;
+
+const CONTENT_SHAPE_PATTERNS: ReadonlyArray<[ClickHouseQueryShape, RegExp]> = [
   ["io_content", IO_CONTENT_FUNCTION_PATTERN],
   ["io_content", IO_CONTENT_LIKE_PATTERN],
   ["metadata_content", METADATA_CONTENT_PATTERN],
   ["id_or_ilike", ID_OR_ILIKE_PATTERN],
+];
+
+const LOOKUP_SHAPE_PATTERNS: ReadonlyArray<[ClickHouseQueryShape, RegExp]> = [
   ["by_span_id", BY_SPAN_ID_PATTERN],
   ["by_trace_id", BY_TRACE_ID_PATTERN],
+];
+
+const FALLBACK_SHAPE_PATTERNS: ReadonlyArray<[ClickHouseQueryShape, RegExp]> = [
+  ["by_session_id", BY_SESSION_ID_PATTERN],
+  ["time_range_scan", TIME_RANGE_PATTERN],
+  ["project_scan", PROJECT_FILTER_PATTERN],
 ];
 
 /**
@@ -259,7 +308,17 @@ export function clickHouseQueryShape(
     const scoresShape = scoresQueryShape(query);
     if (scoresShape) return scoresShape;
   }
-  for (const [shape, pattern] of QUERY_SHAPE_PATTERNS) {
+  for (const [shape, pattern] of CONTENT_SHAPE_PATTERNS) {
+    if (pattern.test(query)) return shape;
+  }
+  // An `id` lookup names the table's own entity, so it outranks a `trace_id`
+  // bound on the same observations read.
+  const idLookupShape = ID_LOOKUP_SHAPE_BY_TABLE[table];
+  if (idLookupShape && BY_ID_PATTERN.test(query)) return idLookupShape;
+  for (const [shape, pattern] of [
+    ...LOOKUP_SHAPE_PATTERNS,
+    ...FALLBACK_SHAPE_PATTERNS,
+  ]) {
     if (pattern.test(query)) return shape;
   }
   return OTHER_SHAPE_LABEL;

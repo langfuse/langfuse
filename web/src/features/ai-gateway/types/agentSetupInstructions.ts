@@ -1,13 +1,13 @@
-import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
+import type { GatewayApiFamily } from "@/src/features/ai-gateway/types/gatewayProvider";
 
 /** What the snippets are rendered from; the secret key is deliberately not part of it. */
 export type AgentSetupContext = {
-  /** Gateway origin without a path, e.g. `https://staging.langfuse.com`. */
+  /** Gateway origin without a path, e.g. `https://gateway.staging.langfuse.com`. */
   gatewayOrigin: string;
-  /** Sent as `langfuse-user-id`; already safe to embed in shell, TOML and JSON strings. */
-  userId: string;
-  /** Providers with an enabled connection in the organization. */
-  providers: GatewayProvider[];
+  /** API families an agent client can use through an enabled connection; the OpenAI family needs the Responses API. */
+  providers: GatewayApiFamily[];
+  /** API families served by an enabled connection over any of their routes. */
+  apiProviders: GatewayApiFamily[];
 };
 
 export type AgentSetupStep = {
@@ -22,7 +22,14 @@ export type AgentSetupStep = {
 );
 
 export type AgentSetupInstructions = {
-  id: "api" | "claude-desktop" | "claude-code" | "codex" | "opencode";
+  id:
+    | "api"
+    | "claude-desktop"
+    | "claude-code"
+    | "codex"
+    | "opencode"
+    | "copilot-cli"
+    | "copilot-desktop";
   label: string;
   /** First line of the "Copy for agent" Markdown. */
   heading: string;

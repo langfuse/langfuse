@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { randomUUID } from "node:crypto";
 import type { Session } from "next-auth";
@@ -99,7 +98,6 @@ beforeAll(async () => {
     user: {
       id: userId,
       name: "Evaluator tester",
-      admin: false,
       canCreateOrganizations: false,
       organizations: [
         {

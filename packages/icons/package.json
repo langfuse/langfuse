@@ -15,6 +15,11 @@
       "import": "./dist/si.js",
       "default": "./dist/si.js"
     },
+    "./brand": {
+      "types": "./dist/brand.d.ts",
+      "import": "./dist/brand.js",
+      "default": "./dist/brand.js"
+    },
     "./tb": {
       "types": "./dist/tb.d.ts",
       "import": "./dist/tb.js",
@@ -33,16 +38,16 @@
     "react-icons": "5.5.0"
   },
   "peerDependencies": {
-    "react": "^19.2.4"
+    "react": "^19.3.1"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
-    "@types/react": "19.2.14",
-    "@types/react-dom": "19.2.3",
     "@types/node": "24.3.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
     "prettier": "^3.8.3",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "tsx": "^4.20.5"
   }
 }

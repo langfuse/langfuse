@@ -1,19 +1,27 @@
-import { auditLog } from "@/src/features/audit-logs/server";
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
 } from "@/src/server/api/trpc";
 import * as z from "zod";
+import { TRPCError } from "@trpc/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
 import { LangfuseNotFoundError } from "@langfuse/shared";
-import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import {
+  createApiKey,
+  orgBoundApiKeyScopes,
+} from "@langfuse/shared/src/server/auth/apiKeys";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { apiKeyCreationRoleSchema } from "@/src/features/public-api/server/apiKeyCreationRoleSchema";
 import { excludeGatewayApiKeys } from "@/src/features/ai-gateway/server/apiKey/excludeGatewayApiKeys";
-import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server";
+import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import { GATEWAY_ROLE } from "@/src/features/ai-gateway/fns/separateGatewayApiKeys";
+
+// Gateway traffic from keys without a bound user reports the key name as its user ID.
+const GATEWAY_KEY_NAME_REQUIRED = "Gateway keys need a name";
 
 export const organizationApiKeysRouter = createTRPCRouter({
   byOrganizationId: protectedOrganizationProcedure
@@ -33,7 +41,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
       return ctx.prisma.apiKey.findMany({
         where: {
           orgId: input.orgId,
-          scope: "ORGANIZATION",
+          scope: { in: orgBoundApiKeyScopes },
           isInAppAgentKey: false,
           ...(input.includeGatewayKeys ? {} : excludeGatewayApiKeys),
         },
@@ -67,17 +75,22 @@ export const organizationApiKeysRouter = createTRPCRouter({
     }),
   create: protectedOrganizationProcedure
     .input(
-      z.object({
-        orgId: z.string(),
-        name: z.string().optional(),
-        role: apiKeyCreationRoleSchema("organization"),
-        expiresAt: z
-          .date()
-          .nullish()
-          .refine((date) => date == null || date.getTime() > Date.now(), {
-            message: "Expiration date must be in the future",
-          }),
-      }),
+      z
+        .object({
+          orgId: z.string(),
+          name: z.string().optional(),
+          role: apiKeyCreationRoleSchema("organization"),
+          expiresAt: z
+            .date()
+            .nullish()
+            .refine((date) => date == null || date.getTime() > Date.now(), {
+              message: "Expiration date must be in the future",
+            }),
+        })
+        .refine((input) => input.role !== GATEWAY_ROLE || hasName(input.name), {
+          message: GATEWAY_KEY_NAME_REQUIRED,
+          path: ["name"],
+        }),
     )
     .mutation(async ({ input, ctx }) => {
       throwIfNoOrganizationAccess({
@@ -137,10 +150,23 @@ export const organizationApiKeysRouter = createTRPCRouter({
           orgId: input.orgId,
           isInAppAgentKey: false,
         },
+        include: {
+          roleAssignments: {
+            where: { systemRole: GATEWAY_ROLE },
+            select: { id: true },
+          },
+        },
       });
 
       if (!apiKey) {
         throw new LangfuseNotFoundError("API key not found");
+      }
+
+      if (apiKey.roleAssignments.length > 0 && !hasName(input.name)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: GATEWAY_KEY_NAME_REQUIRED,
+        });
       }
 
       await auditLog({
@@ -187,7 +213,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
         where: {
           id: input.id,
           orgId: input.orgId,
-          scope: "ORGANIZATION",
+          scope: { in: orgBoundApiKeyScopes },
         },
       });
 
@@ -207,7 +233,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
       const deleted = await new ApiAuthService(ctx.prisma, redis).deleteApiKey(
         input.id,
         input.orgId,
-        "ORGANIZATION",
+        apiKey.scope,
       );
       // Any organization key whose role grants gateway:invoke may sit in the
       // gateway resolve cache, which would otherwise keep it usable until the TTL.
@@ -219,3 +245,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
       return deleted;
     }),
 });
+
+function hasName(name: string | null | undefined) {
+  return (name?.trim().length ?? 0) > 0;
+}

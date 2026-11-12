@@ -1,6 +1,5 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { ForbiddenError, hasProjectAccessByRole } from "@langfuse/shared";
-import { type Prisma, Role } from "@langfuse/shared/src/db";
+import { type Prisma, type Role } from "@langfuse/shared/src/db";
 import { type ApiAccessLevel } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
@@ -8,7 +7,7 @@ import {
   type AuthorizationContext,
   type Decision,
 } from "@/src/features/auth/policy/types";
-import { shadowAuthorize } from "@/src/features/public-api/server";
+import { shadowAuthorize } from "@/src/features/public-api/server/shadowAuth";
 import { checkHasProtectedLabels } from "./checkHasProtectedLabels";
 
 export type ApiKeyProjectContext = {
@@ -20,9 +19,8 @@ export type ApiKeyProjectContext = {
 
 /**
  * Resolve the in-app-agent key creator's project role the same way the worker
- * run executor does: user.admin bypasses membership; otherwise org membership
- * is required and a project membership override wins. Fail closed on missing
- * user, missing org membership, or NONE.
+ * run executor does: org membership is required and a project membership
+ * override wins. Fail closed on missing user, missing org membership, or NONE.
  */
 async function resolveApiKeyCreatorProjectAccess(params: {
   prisma: Prisma.TransactionClient;
@@ -30,20 +28,15 @@ async function resolveApiKeyCreatorProjectAccess(params: {
   projectId: string;
   orgId: string;
 }): Promise<{
-  projectRole?: Role;
-  isAdmin: boolean;
+  projectRole: Role;
 } | null> {
   const user = await params.prisma.user.findUnique({
     where: { id: params.userId },
-    select: { id: true, admin: true },
+    select: { id: true },
   });
 
   if (!user) {
     return null;
-  }
-
-  if (user.admin) {
-    return { isAdmin: true };
   }
 
   const orgMembership = await params.prisma.organizationMembership.findFirst({
@@ -64,14 +57,11 @@ async function resolveApiKeyCreatorProjectAccess(params: {
 
   const projectRole = projectMembership?.role ?? orgMembership.role;
 
-  if (projectRole === Role.NONE) {
+  if (!hasProjectAccessByRole({ role: projectRole, scope: "project:read" })) {
     return null;
   }
 
-  return {
-    projectRole,
-    isAdmin: false,
-  };
+  return { projectRole };
 }
 
 /**
@@ -109,8 +99,7 @@ async function assertInAppAgentMayMutateProtectedLabels(params: {
   const mayMutateProtectedLabels =
     access !== null &&
     hasProjectAccessByRole({
-      role: access.projectRole ?? Role.MEMBER,
-      admin: access.isAdmin,
+      role: access.projectRole,
       scope: "promptProtectedLabels:CUD",
     });
 

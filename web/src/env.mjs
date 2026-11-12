@@ -366,13 +366,20 @@ export const env = createEnv({
         "ENCRYPTION_KEY must be 256 bits, 64 string characters in hex format, generate via: openssl rand -hex 32",
       )
       .optional(),
+    // ConductorOne support access webhook (Langfuse Cloud only), disabled
+    // unless both are set. ISSUER is the C1 tenant domain, e.g.
+    // "clickhouse.conductor.one"; ENTITLEMENT_ID is this region's entitlement.
+    LANGFUSE_CONDUCTORONE_ISSUER: z.string().min(1).optional(),
+    LANGFUSE_CONDUCTORONE_ENTITLEMENT_ID: z.string().min(1).optional(),
     LANGFUSE_AI_GATEWAY_SERVICE_KEY: z.string().min(1).optional(),
     LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS: z.string().min(1).optional(),
-    // Whether an AI gateway is deployed next to Web. When false, every gateway
-    // surface in Web is off regardless of the flags below. Langfuse Cloud (any
+    // Whether an AI gateway is deployed next to Web. Unset, it is deployed once
+    // LANGFUSE_AI_GATEWAY_SERVICE_KEY and LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY
+    // are both set. When not deployed, every gateway surface in Web is off
+    // regardless of the flags below. Langfuse Cloud (any
     // NEXT_PUBLIC_LANGFUSE_CLOUD_REGION), development and preview deployments
     // count as deployed.
-    LANGFUSE_AI_GATEWAY_DEPLOYED: z.enum(["true", "false"]).default("false"),
+    LANGFUSE_AI_GATEWAY_DEPLOYED: z.enum(["true", "false"]).optional(),
     // Enables a deployed gateway for every organization. When false, only
     // organizations in LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST can use it.
     // Unset means true, except on Langfuse Cloud where it means false.
@@ -483,6 +490,17 @@ export const env = createEnv({
       .enum(["true", "false"])
       .default("false"),
 
+    // Comma-separated organization ids that get external media storage without
+    // the enterprise entitlement. Only applies on Langfuse Cloud.
+    LANGFUSE_EXTERNAL_MEDIA_STORAGE_ORGANIZATION_ID_ALLOWLIST: z
+      .string()
+      .default("")
+      .transform((value) =>
+        value
+          .split(",")
+          .map((organizationId) => organizationId.trim())
+          .filter(Boolean),
+      ),
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS: z
       .string()
       .optional()
@@ -710,6 +728,24 @@ export const env = createEnv({
     LANGFUSE_MIGRATION_V4_WRITE_MODE: z
       .enum(["legacy", "dual", "events_only"])
       .default("events_only"),
+    // Langfuse Cloud only, temporary. The legacy v3 top banner. "off" hides it.
+    // Read only by
+    // features/v4-migration/server/v4MigrationBannerConfig.ts.
+    LANGFUSE_V4_BANNER_SEVERITY: z
+      .enum(["off", "warning", "critical"])
+      .default("off"),
+    // Comma-separated organization ids that never see the banner.
+    LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS: z
+      .string()
+      .optional()
+      .transform((value) =>
+        value
+          ? value
+              .split(",")
+              .map((organizationId) => organizationId.trim())
+              .filter(Boolean)
+          : [],
+      ),
 
     // Character count above which trace/observation I/O is rendered as plain
     // text instead of markdown. Served to the browser via the public tRPC
@@ -719,6 +755,19 @@ export const env = createEnv({
       .int()
       .positive()
       .default(150_000),
+    // Skill Management limits per skill version, enforced by the server only.
+    // Skill versions are sent as JSON through 4.5 MB request bodies on the
+    // tRPC, public API, and MCP routes, which bounds the usable byte limit.
+    LANGFUSE_SKILL_MAX_BYTES: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(1_000_000),
+    LANGFUSE_SKILL_MAX_FILES: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(200),
 
     // Reverse proxies in front of the web container that append the client
     // address to X-Forwarded-For. Audit events take the client IP from the
@@ -731,10 +780,24 @@ export const env = createEnv({
       .default(0),
 
     // Kill switch for staging audit events for the ClickHouse audit_logs table
-    // on Langfuse Cloud. The Postgres audit_logs row is written either way.
+    // (EE). The Postgres audit_logs row is written either way.
+    // Read-access events have no Postgres row, so turning it off stops
+    // recording them; reads still succeed.
     LANGFUSE_AUDIT_LOG_STAGING_ENABLED: z
       .enum(["true", "false"])
       .default("true"),
+
+    // Read-access audit events (EE).
+    // "org": recorded for organizations whose plan includes audit logs and
+    // that enable access logging in their settings.
+    // "enforced": recorded for every organization. On Langfuse Cloud this
+    // covers every plan; self-hosted instances need an enterprise license,
+    // without one nothing is recorded.
+    // "disabled": never recorded.
+    // LANGFUSE_AUDIT_LOG_STAGING_ENABLED=false also stops recording.
+    LANGFUSE_AUDIT_LOG_ACCESS_EVENTS: z
+      .enum(["org", "enforced", "disabled"])
+      .default("org"),
 
     // Background-migration env gates. Mirror worker/src/env.ts (names, defaults)
     // so the background-migrations status endpoint can tell dormant, env-gated
@@ -747,6 +810,11 @@ export const env = createEnv({
     LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES: z
       .enum(["true", "false"])
       .default("false"),
+
+    // Use adaptive scan windows when filling observations v2 pages.
+    LANGFUSE_OBSERVATIONS_V2_ADAPTIVE_SCAN_ENABLED: z
+      .enum(["true", "false"])
+      .default("true"),
 
     // Temporary kill-switch for the observations v2 subquery-IN rewrite.
     LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE: z
@@ -1183,6 +1251,9 @@ export const env = createEnv({
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
     ADMIN_API_KEY: process.env.ADMIN_API_KEY,
     ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
+    LANGFUSE_CONDUCTORONE_ISSUER: process.env.LANGFUSE_CONDUCTORONE_ISSUER,
+    LANGFUSE_CONDUCTORONE_ENTITLEMENT_ID:
+      process.env.LANGFUSE_CONDUCTORONE_ENTITLEMENT_ID,
     LANGFUSE_AI_GATEWAY_SERVICE_KEY:
       process.env.LANGFUSE_AI_GATEWAY_SERVICE_KEY,
     LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS:
@@ -1215,6 +1286,8 @@ export const env = createEnv({
     API_AUTH_MIGRATION: process.env.API_AUTH_MIGRATION,
     API_KEY_PROJECT_ROLES_ENABLE: process.env.API_KEY_PROJECT_ROLES_ENABLE,
     API_KEY_ORG_ROLES_ENABLE: process.env.API_KEY_ORG_ROLES_ENABLE,
+    LANGFUSE_EXTERNAL_MEDIA_STORAGE_ORGANIZATION_ID_ALLOWLIST:
+      process.env.LANGFUSE_EXTERNAL_MEDIA_STORAGE_ORGANIZATION_ID_ALLOWLIST,
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS:
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
@@ -1318,11 +1391,18 @@ export const env = createEnv({
       process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN,
     LANGFUSE_MIGRATION_V4_WRITE_MODE:
       process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+    LANGFUSE_V4_BANNER_SEVERITY: process.env.LANGFUSE_V4_BANNER_SEVERITY,
+    LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS:
+      process.env.LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS,
     LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
       process.env.LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
+    LANGFUSE_SKILL_MAX_BYTES: process.env.LANGFUSE_SKILL_MAX_BYTES,
+    LANGFUSE_SKILL_MAX_FILES: process.env.LANGFUSE_SKILL_MAX_FILES,
     LANGFUSE_TRUSTED_PROXY_COUNT: process.env.LANGFUSE_TRUSTED_PROXY_COUNT,
     LANGFUSE_AUDIT_LOG_STAGING_ENABLED:
       process.env.LANGFUSE_AUDIT_LOG_STAGING_ENABLED,
+    LANGFUSE_AUDIT_LOG_ACCESS_EVENTS:
+      process.env.LANGFUSE_AUDIT_LOG_ACCESS_EVENTS,
     LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL:
       process.env.LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL,
     LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES:
@@ -1330,6 +1410,8 @@ export const env = createEnv({
     // Legacy tracing search controls
     LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH:
       process.env.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH,
+    LANGFUSE_OBSERVATIONS_V2_ADAPTIVE_SCAN_ENABLED:
+      process.env.LANGFUSE_OBSERVATIONS_V2_ADAPTIVE_SCAN_ENABLED,
     LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE:
       process.env.LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE,
     LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY:

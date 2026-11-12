@@ -17,9 +17,9 @@ import {
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useKeyedSessionStorageState } from "@/src/features/filters/hooks/useKeyedSessionStorageState";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { showErrorToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import isEqual from "lodash/isEqual";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { validateOrderBy, validateFilters } from "../validation";
 import { isSystemPresetId } from "../components/data-table-view-presets-drawer";
 import type { FilterStateMigration } from "@/src/features/filters/lib/filter-config";
@@ -97,6 +97,8 @@ const hasQueryParam = (
 ) => {
   const value = query[key];
   if (Array.isArray(value)) return value.length > 0;
+  // An empty `filter` is an explicit "no filters", matching useSidebarFilterState.
+  if (key === "filter") return value !== undefined;
   return value !== undefined && value !== "";
 };
 

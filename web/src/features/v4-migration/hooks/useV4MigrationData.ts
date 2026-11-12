@@ -3,11 +3,12 @@ import {
   countActionableLegacyApiEntrypoints,
   isActionableLegacyApiUsage,
   normalizeLegacyApiEntrypoint,
-} from "@/src/features/v4";
+} from "@/src/features/v4/utils";
 import {
   getLegacyIntegrationLabels,
   getMigrationActionState,
   getMigrationCountState,
+  hasMigrationActionNeeded,
   type ProjectMigrationStatus,
 } from "@/src/features/v4-migration/migrationData";
 import { getV4MigrationSdkState } from "@/src/features/v4-migration/sdkVersionStatus";
@@ -186,18 +187,10 @@ export function useProjectV4MigrationActions(projectId: string | undefined): {
   );
   const actions = query.data;
 
-  if (!actions || actions.forceV3Experience) {
+  if (!actions) {
     return { actionNeeded: false };
   }
-  return {
-    actionNeeded: [
-      actions.sdkActionNeeded,
-      actions.experimentsActionNeeded,
-      actions.apisActionNeeded,
-      actions.evalsActionNeeded,
-      actions.exportsActionNeeded,
-    ].some((categoryActionNeeded) => categoryActionNeeded === true),
-  };
+  return { actionNeeded: hasMigrationActionNeeded(actions) };
 }
 
 export function useProjectV4MigrationData(params: {

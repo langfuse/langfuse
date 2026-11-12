@@ -29,7 +29,7 @@ import {
   EvalFailureReason,
   UnrecoverableEvalFailureError,
 } from "../evalFailureErrors";
-import { createW3CTraceId } from "../../utils";
+import { createW3CTraceId } from "../../utils/utilities";
 import { type EvalExecutionResult } from "../evalCompletion";
 import { type EvalExecutionDeps } from "../evalExecutionDeps";
 import {

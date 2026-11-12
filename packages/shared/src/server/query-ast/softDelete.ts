@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Soft-delete filtering. Always-on: every compile walks this pass.
  *
@@ -19,7 +18,7 @@ import {
   BinaryOperationNode,
   ColumnNode,
   IdentifierNode,
-  JoinNode,
+  OnNode,
   OperatorNode,
   ReferenceNode,
   SelectionNode,
@@ -36,7 +35,7 @@ import {
 } from "kysely";
 
 import { QueryCompileError } from "./errors";
-import { type ClickHouseSelectQueryNode } from "./nodes";
+import { bracketForAnd, type ClickHouseSelectQueryNode } from "./nodes";
 import { describeRelation } from "./relations";
 import { SOFT_DELETE_COLUMNS } from "./schema";
 import { SelectRewriteTransformer } from "./transformer";
@@ -112,14 +111,21 @@ function filterSelect(
   for (const relation of whereRelations) {
     if (!relation) continue;
     const predicate = notDeleted(relation);
+    // `where <alias>.<flag> = 0 and <where so far>`
     where = where
-      ? WhereNode.create(AndNode.create(predicate, where.where))
+      ? WhereNode.create(AndNode.create(predicate, bracketForAnd(where.where)))
       : WhereNode.create(predicate);
   }
 
+  // `on <caller on> and <alias>.<flag> = 0`
   const filteredJoins = joins.map(({ join, relation }) =>
     relation && join.on
-      ? JoinNode.cloneWithOn(join, notDeleted(relation))
+      ? {
+          ...join,
+          on: OnNode.create(
+            AndNode.create(bracketForAnd(join.on.on), notDeleted(relation)),
+          ),
+        }
       : join,
   );
 
@@ -278,8 +284,8 @@ function softDeleteRelation(
 }
 
 /**
- * Always qualified (by alias, else table name): a bare flag column would bind
- * to a same-named SELECT alias, e.g. `0 AS is_deleted`.
+ * `<alias>.<flag> = 0`. Always qualified (by alias, else table name): a bare
+ * flag column would bind to a same-named SELECT alias, e.g. `0 AS is_deleted`.
  */
 function notDeleted(relation: SoftDeleteRelation): OperationNode {
   return BinaryOperationNode.create(
@@ -289,6 +295,7 @@ function notDeleted(relation: SoftDeleteRelation): OperationNode {
   );
 }
 
+/** `<alias>.<flag>`, else `<table>.<flag>`. */
 function qualifiedFlag(relation: SoftDeleteRelation): ReferenceNode {
   return ReferenceNode.create(
     ColumnNode.create(relation.flag),

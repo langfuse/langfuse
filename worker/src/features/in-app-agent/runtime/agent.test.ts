@@ -1,31 +1,33 @@
 import { EventType } from "@ag-ui/core";
 import { MastraAgent } from "@ag-ui/mastra";
 import { Agent } from "@mastra/core/agent";
-import { createSkill } from "@mastra/core/skills";
 import { MCPClient } from "@mastra/mcp";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { AgUiEvent } from "@langfuse/shared/in-app-agent";
 import {
+  type AgUiEvent,
   IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME,
   IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
 } from "@langfuse/shared/in-app-agent";
+
 import { createInAppAgentToolPolicy } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { IN_APP_AGENT_MAX_STEPS } from "@langfuse/shared/in-app-agent/server/tunables";
-import { patchMastraApprovalChunks, type createAgUiStream } from "./agent";
-import { loadInAppAgentSkills } from "./skills";
+import { patchMastraToolErrors, type createAgUiStream } from "./agent";
+import { InAppAgentSkillSource } from "./skill-source";
 import {
-  createInAppAgentSandbox,
-  type SandboxProvider,
-  type SandboxSession,
-} from "./sandbox";
+  createSkillTools,
+  Workspace,
+  type SkillSource,
+} from "@mastra/core/workspace";
+import { createInAppAgentSandbox } from "./sandbox/service";
+import type { SandboxProvider, SandboxSession } from "./sandbox/types";
 import {
   DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS,
   decodeFiltersGeneric,
 } from "@langfuse/shared";
-import type { Langfuse } from "langfuse";
+import type { LangfuseClient } from "@langfuse/client";
 import type { InAppAgentTracingConfig } from "./instrumentation";
 
 const EXPECTED_MCP_USER_AGENT = "langfuse-in-app-agent";
@@ -65,6 +67,7 @@ const getAgentTools = (
   agentConfig?.tools as MockedAgentTools | undefined;
 
 type MockedAgentConfig = {
+  workspace?: Workspace;
   instructions?: (() => string) | string;
   model?: {
     provider?: string;
@@ -77,6 +80,7 @@ type MockedAgentConfig = {
     id: string;
     processInputStep?: (args: {
       stepNumber: number;
+      tools?: Record<string, unknown>;
       sendSignal?: (signal: unknown) => Promise<unknown>;
     }) => Promise<unknown>;
     processLLMRequest?: (args: {
@@ -122,6 +126,7 @@ const adapterEvents = vi.hoisted(() => ({
   items: [] as AgUiEvent[],
   /** Runs after the mocked adapter emits `items`, before it completes. */
   beforeComplete: undefined as (() => void) | undefined,
+  interrupt: undefined as (() => void) | undefined,
   cleanup: vi.fn().mockResolvedValue(undefined),
   inputs: [] as unknown[],
   createScoreConfigExecute: vi.fn().mockResolvedValue({
@@ -191,7 +196,6 @@ const promptMocks = vi.hoisted(() => ({
 
 const defaultInAppAgentUserAccess = {
   projectRole: "OWNER" as const,
-  isAdmin: false,
 };
 
 const defaultInAppAgentToolPolicy = createInAppAgentToolPolicy({
@@ -344,7 +348,7 @@ vi.mock("@aws-sdk/credential-providers", () => ({
 
 vi.mock("@mastra/core/agent", () => ({
   Agent: vi.fn().mockImplementation(function () {
-    return { abortRunStream: vi.fn() };
+    return { abortRunStream: vi.fn(() => adapterEvents.interrupt?.()) };
   }),
 }));
 
@@ -438,11 +442,9 @@ const createPatchedChunkProcessor = () => {
     })),
   };
 
-  // Derive the parameter type from the function instead of naming
-  // MastraAgent: web and shared can resolve @ag-ui/mastra to different pnpm
-  // peer instances, which tsc treats as non-identical types.
-  patchMastraApprovalChunks(
-    adapter as unknown as Parameters<typeof patchMastraApprovalChunks>[0],
+  // The fixture implements only the private chunk-processor hook.
+  patchMastraToolErrors(
+    adapter as unknown as Parameters<typeof patchMastraToolErrors>[0],
   );
 
   const processor = adapter.createChunkProcessor({ onError });
@@ -450,79 +452,7 @@ const createPatchedChunkProcessor = () => {
   return { forwardedChunks, onError, processor, flush };
 };
 
-describe("patchMastraApprovalChunks", () => {
-  it("converts tool-call approval chunks to suspended tool calls", () => {
-    const { forwardedChunks, onError, processor } =
-      createPatchedChunkProcessor();
-
-    processor.handleChunk({
-      type: "tool-call-approval",
-      runId: "run-1",
-      payload: {
-        toolCallId: "tool-call-1",
-        toolName: "langfuse_createScoreConfig",
-        args: {
-          name: "readiness",
-          dataType: "NUMERIC",
-          numericMinValue: 0,
-          numericMaxValue: 1,
-        },
-        resumeSchema: { type: "object" },
-      },
-    });
-
-    expect(onError).not.toHaveBeenCalled();
-    expect(forwardedChunks).toEqual([
-      {
-        type: "tool-call-suspended",
-        runId: "run-1",
-        payload: {
-          toolCallId: "tool-call-1",
-          toolName: "langfuse_createScoreConfig",
-          args: {
-            name: "readiness",
-            dataType: "NUMERIC",
-            numericMinValue: 0,
-            numericMaxValue: 1,
-          },
-          resumeSchema: { type: "object" },
-          suspendPayload: {
-            type: "approval",
-            toolCallId: "tool-call-1",
-            toolName: "langfuse_createScoreConfig",
-            args: {
-              name: "readiness",
-              dataType: "NUMERIC",
-              numericMinValue: 0,
-              numericMaxValue: 1,
-            },
-          },
-        },
-      },
-    ]);
-  });
-
-  it("reports malformed tool-call approvals", () => {
-    const { forwardedChunks, onError, processor } =
-      createPatchedChunkProcessor();
-
-    const shouldStop = processor.handleChunk({
-      type: "tool-call-approval",
-      payload: {
-        toolCallId: "tool-call-1",
-        args: { name: "readiness" },
-      },
-    });
-
-    expect(shouldStop).toBe(true);
-    expect(onError).toHaveBeenCalledWith(
-      new Error(
-        "Malformed tool-call-approval: missing toolCallId or toolName in payload",
-      ),
-    );
-    expect(forwardedChunks).toEqual([]);
-  });
-
+describe("patchMastraToolErrors", () => {
   it("converts tool-error chunks to tool-result error chunks", () => {
     const { forwardedChunks, onError, processor } =
       createPatchedChunkProcessor();
@@ -579,6 +509,7 @@ describe("createAgUiStream", () => {
     vi.clearAllMocks();
     bedrockMocks.streamParts = [];
     adapterEvents.beforeComplete = undefined;
+    adapterEvents.interrupt = undefined;
     promptMocks.getPrompt.mockResolvedValue({
       name: "in-app-agent-system-prompt",
       version: 2,
@@ -591,7 +522,7 @@ describe("createAgUiStream", () => {
     model = testBedrockModel("test-model"),
     onComplete?: (outcome?: unknown) => void,
     context: Array<{ description: string; value: string }> = [],
-    skills: ReturnType<typeof createSkill>[] = [],
+    skillSource: SkillSource = new InAppAgentSkillSource(),
   ) => {
     const { createAgUiStream } = await import("./agent");
     const input = {
@@ -636,10 +567,10 @@ describe("createAgUiStream", () => {
         },
         redirectAction: { projectId: "project-1", isV4Enabled: false },
         langfuseClient: {
-          getPrompt: promptMocks.getPrompt,
-        } as unknown as Langfuse,
+          prompt: { get: promptMocks.getPrompt },
+        } as unknown as LangfuseClient,
         useLocalPrompt: false,
-        skills,
+        skillSource,
         langfuseTracing: createTestTracingConfig(),
       },
     });
@@ -657,27 +588,65 @@ describe("createAgUiStream", () => {
     };
   };
 
-  it("uses the supplied managed skills for Mastra and tracing", async () => {
-    const skills = [
-      createSkill({
-        name: "local-guide",
-        description: "Local published guide",
-        instructions: "Follow the local guide.",
+  it("uses native workspace discovery and records its catalogue in tracing", async () => {
+    const readFile = vi.fn(
+      async () =>
+        "---\nname: langfuse\ndescription: Hosted fixture\n---\nFollow the fixture instructions.",
+    );
+    const skillSource: SkillSource = {
+      exists: async (path) =>
+        ["/skills", "/skills/langfuse", "/skills/langfuse/SKILL.md"].includes(
+          path,
+        ),
+      stat: async () => ({
+        name: "skills",
+        type: "directory",
+        size: 0,
+        createdAt: new Date(0),
+        modifiedAt: new Date(0),
       }),
-    ];
-
+      readFile,
+      readdir: async (path) =>
+        path === "/skills" ? [{ name: "langfuse", type: "directory" }] : [],
+    };
     await initializeBasicTracedAgent(
       "managed-skills-run",
       undefined,
       undefined,
       [],
-      skills,
+      skillSource,
     );
-
-    expect(vi.mocked(Agent).mock.calls.at(-1)?.[0].skills).toBe(skills);
+    const config = getLastAgentConfig();
+    expect(config?.workspace).toBeInstanceOf(Workspace);
+    expect(config?.workspace?.filesystem).toBeUndefined();
+    expect(config?.workspace?.sandbox).toBeUndefined();
+    const skills = await config?.workspace?.skills?.list();
+    expect(skills).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "langfuse", path: "/skills/langfuse" }),
+      ]),
+    );
+    expect(readFile).toHaveBeenCalledWith("/skills/langfuse/SKILL.md");
+    const processor = config?.inputProcessors?.find(
+      (processor) => processor.id === "workspace-tracing",
+    );
+    expect(processor).toBeDefined();
+    const runtimeTools = {
+      ...getAgentTools(config),
+      ...createSkillTools(config!.workspace!.skills!),
+    };
+    await processor?.processInputStep?.({ stepNumber: 0, tools: runtimeTools });
+    expect(
+      instrumentationMocks.instrumentation.recordAvailableTools,
+    ).toHaveBeenLastCalledWith(runtimeTools);
     expect(
       instrumentationMocks.instrumentation.recordAvailableSkills,
     ).toHaveBeenCalledWith(skills);
+    // Mastra adds these tools from the workspace during execution.
+    const tools = getAgentTools(config);
+    expect(tools).not.toHaveProperty("skill");
+    expect(tools).not.toHaveProperty("skill_read");
+    expect(tools).not.toHaveProperty("skill_search");
   });
 
   it("uses the shared Bedrock default-credential auth", async () => {
@@ -1236,8 +1205,8 @@ describe("createAgUiStream", () => {
     const persistedEvents: AgUiEvent[] = [];
     const eventOrder: string[] = [];
     const langfuseClient = {
-      getPrompt: promptMocks.getPrompt,
-    } as unknown as Langfuse;
+      prompt: { get: promptMocks.getPrompt },
+    } as unknown as LangfuseClient;
 
     const sandboxState = await createTestSandbox();
 
@@ -1329,7 +1298,7 @@ describe("createAgUiStream", () => {
         sandbox: sandboxState.sandbox,
         onFinish: sandboxState.onTurnEnded,
         useLocalPrompt: false,
-        skills: (await loadInAppAgentSkills({})).skills,
+        skillSource: new InAppAgentSkillSource(),
         langfuseTracing: createTestTracingConfig(),
       },
     });
@@ -1383,10 +1352,6 @@ describe("createAgUiStream", () => {
             id: "langfuse_proposeRedirect",
           }),
         }),
-        skills: expect.arrayContaining([
-          expect.objectContaining({ name: "langfuse-error-analysis" }),
-          expect.objectContaining({ name: "langfuse-cli" }),
-        ]),
       }),
     );
     const agentConfig = vi.mocked(Agent).mock.calls[0]?.[0];
@@ -1477,7 +1442,6 @@ describe("createAgUiStream", () => {
 
     expect(promptMocks.getPrompt).toHaveBeenCalledWith(
       "in-app-agent-system-prompt",
-      undefined,
       { type: "text" },
     );
     expect(promptMocks.compile).toHaveBeenCalledWith(
@@ -1593,6 +1557,62 @@ describe("createAgUiStream", () => {
     expect(instrumentationMocks.instrumentation.flush).toHaveBeenCalled();
   });
 
+  it("aborts the active model when an adapter event fails validation", async () => {
+    const { createAgUiStream } = await import("./agent");
+    const activeRun = new AbortController();
+    adapterEvents.interrupt = () => activeRun.abort();
+    adapterEvents.items = [
+      {
+        type: EventType.RUN_FINISHED,
+        threadId: "conversation-1",
+        runId: "run-malformed-event",
+        outcome: { type: "interrupt", interrupts: [] },
+      },
+    ];
+    const failures: unknown[] = [];
+    const stream = await createAgUiStream({
+      input: {
+        threadId: "conversation-1",
+        runId: "run-malformed-event",
+        messages: [{ id: "user-1", role: "user", content: "hello" }],
+        tools: [],
+        context: [],
+        state: null,
+        forwardedProps: {},
+      },
+      signal: new AbortController().signal,
+      options: {
+        model: testBedrockModel("test-model"),
+        langfuseMcp: {
+          url: "https://example.com/api/public/mcp",
+          publicKey: "pk",
+          secretKey: "sk",
+          toolPolicy: defaultInAppAgentToolPolicy,
+        },
+        redirectAction: { projectId: "project-1", isV4Enabled: false },
+        langfuseClient: {
+          prompt: { get: promptMocks.getPrompt },
+        } as unknown as LangfuseClient,
+        useLocalPrompt: false,
+        skillSource: new InAppAgentSkillSource(),
+        onError: (error) => {
+          failures.push(error);
+        },
+      },
+    });
+
+    const result = await readStream(stream).then(
+      () => ({ status: "completed" }),
+      (error: unknown) => ({ status: "failed", error }),
+    );
+    expect(activeRun.signal.aborted).toBe(true);
+    expect(result).toMatchObject({
+      status: "failed",
+      error: expect.any(Error),
+    });
+    expect(failures).toHaveLength(1);
+  });
+
   it("waits for tracing flush before finishing an aborted agent stream", async () => {
     const { createAgUiStream } = await import("./agent");
     let resolveFlush: (() => void) | undefined;
@@ -1639,10 +1659,10 @@ describe("createAgUiStream", () => {
         },
         redirectAction: { projectId: "project-1", isV4Enabled: false },
         langfuseClient: {
-          getPrompt: promptMocks.getPrompt,
-        } as unknown as Langfuse,
+          prompt: { get: promptMocks.getPrompt },
+        } as unknown as LangfuseClient,
         useLocalPrompt: false,
-        skills: [],
+        skillSource: new InAppAgentSkillSource(),
         langfuseTracing: createTestTracingConfig(),
       },
     });
@@ -1681,8 +1701,8 @@ describe("createAgUiStream", () => {
       forwardedProps: {},
     };
     const langfuseClient = {
-      getPrompt: promptMocks.getPrompt,
-    } as unknown as Langfuse;
+      prompt: { get: promptMocks.getPrompt },
+    } as unknown as LangfuseClient;
 
     adapterEvents.items = [
       {
@@ -1715,7 +1735,7 @@ describe("createAgUiStream", () => {
         },
         langfuseClient,
         useLocalPrompt: false,
-        skills: [],
+        skillSource: new InAppAgentSkillSource(),
       },
     });
 
@@ -1747,8 +1767,8 @@ describe("createAgUiStream", () => {
       forwardedProps: {},
     };
     const langfuseClient = {
-      getPrompt: promptMocks.getPrompt,
-    } as unknown as Langfuse;
+      prompt: { get: promptMocks.getPrompt },
+    } as unknown as LangfuseClient;
     const sandboxState = await createTestSandbox({
       providerSessionId: "expired-session",
       sessionLostReason: "terminal_state",
@@ -1786,7 +1806,7 @@ describe("createAgUiStream", () => {
         sandbox: sandboxState.sandbox,
         sandboxWorkspaceWasReset: sandboxState.workspaceWasReset,
         useLocalPrompt: false,
-        skills: [],
+        skillSource: new InAppAgentSkillSource(),
       },
     });
 
@@ -1830,8 +1850,8 @@ describe("createAgUiStream", () => {
     };
     const persistedEvents: AgUiEvent[] = [];
     const langfuseClient = {
-      getPrompt: promptMocks.getPrompt,
-    } as unknown as Langfuse;
+      prompt: { get: promptMocks.getPrompt },
+    } as unknown as LangfuseClient;
 
     adapterEvents.items = [
       {
@@ -1888,7 +1908,7 @@ describe("createAgUiStream", () => {
         },
         langfuseClient,
         useLocalPrompt: false,
-        skills: [],
+        skillSource: new InAppAgentSkillSource(),
       },
     });
 
@@ -1922,8 +1942,8 @@ describe("createAgUiStream", () => {
       forwardedProps: {},
     };
     const langfuseClient = {
-      getPrompt: promptMocks.getPrompt,
-    } as unknown as Langfuse;
+      prompt: { get: promptMocks.getPrompt },
+    } as unknown as LangfuseClient;
 
     adapterEvents.items = [
       {
@@ -1958,7 +1978,7 @@ describe("createAgUiStream", () => {
         redirectAction: { projectId: "project-1", isV4Enabled: false },
         langfuseClient,
         useLocalPrompt: false,
-        skills: [],
+        skillSource: new InAppAgentSkillSource(),
       },
     });
 
@@ -1999,8 +2019,8 @@ describe("createAgUiStream", () => {
     ];
     const persistedEvents: AgUiEvent[] = [];
     const langfuseClient = {
-      getPrompt: promptMocks.getPrompt,
-    } as unknown as Langfuse;
+      prompt: { get: promptMocks.getPrompt },
+    } as unknown as LangfuseClient;
 
     const stream = await createAgUiStream({
       input,
@@ -2023,7 +2043,7 @@ describe("createAgUiStream", () => {
         },
         langfuseClient,
         useLocalPrompt: false,
-        skills: [],
+        skillSource: new InAppAgentSkillSource(),
         langfuseTracing: createTestTracingConfig(),
       },
     });
@@ -2293,8 +2313,8 @@ describe("createAgUiStream", () => {
     ];
     const persistedEvents: AgUiEvent[] = [];
     const langfuseClient = {
-      getPrompt: promptMocks.getPrompt,
-    } as unknown as Langfuse;
+      prompt: { get: promptMocks.getPrompt },
+    } as unknown as LangfuseClient;
 
     const stream = await createAgUiStream({
       input,
@@ -2318,7 +2338,7 @@ describe("createAgUiStream", () => {
         langfuseClient,
         sandbox: (await createTestSandbox()).sandbox,
         useLocalPrompt: false,
-        skills: [],
+        skillSource: new InAppAgentSkillSource(),
       },
     });
     const streamedText = await readStream(stream);
@@ -2375,8 +2395,8 @@ describe("createAgUiStream", () => {
     const persistedEvents: AgUiEvent[] = [];
     const onError = vi.fn();
     const langfuseClient = {
-      getPrompt: promptMocks.getPrompt,
-    } as unknown as Langfuse;
+      prompt: { get: promptMocks.getPrompt },
+    } as unknown as LangfuseClient;
 
     const stream = await createAgUiStream({
       input,
@@ -2400,7 +2420,7 @@ describe("createAgUiStream", () => {
         },
         langfuseClient,
         useLocalPrompt: false,
-        skills: [],
+        skillSource: new InAppAgentSkillSource(),
         langfuseTracing: createTestTracingConfig(),
       },
     });
@@ -2544,8 +2564,8 @@ describe("createAgUiStream", () => {
     };
     adapterEvents.items = [];
     const langfuseClient = {
-      getPrompt: promptMocks.getPrompt,
-    } as unknown as Langfuse;
+      prompt: { get: promptMocks.getPrompt },
+    } as unknown as LangfuseClient;
 
     const stream = await createAgUiStream({
       input,
@@ -2565,7 +2585,7 @@ describe("createAgUiStream", () => {
         },
         langfuseClient,
         useLocalPrompt: false,
-        skills: [],
+        skillSource: new InAppAgentSkillSource(),
       },
     });
     await readStream(stream);
@@ -2623,8 +2643,8 @@ describe("createAgUiStream", () => {
       },
     ];
     const langfuseClient = {
-      getPrompt: promptMocks.getPrompt,
-    } as unknown as Langfuse;
+      prompt: { get: promptMocks.getPrompt },
+    } as unknown as LangfuseClient;
     const persistedEvents: AgUiEvent[] = [];
     const streamedEvents: AgUiEvent[] = [];
     const onComplete = vi.fn();
@@ -2650,7 +2670,7 @@ describe("createAgUiStream", () => {
         },
         langfuseClient,
         useLocalPrompt: false,
-        skills: [],
+        skillSource: new InAppAgentSkillSource(),
         langfuseTracing: createTestTracingConfig(),
       },
     });
@@ -2796,8 +2816,8 @@ describe("createAgUiStream", () => {
     };
     adapterEvents.items = [];
     const langfuseClient = {
-      getPrompt: promptMocks.getPrompt,
-    } as unknown as Langfuse;
+      prompt: { get: promptMocks.getPrompt },
+    } as unknown as LangfuseClient;
 
     const stream = await createAgUiStream({
       input,
@@ -2817,7 +2837,7 @@ describe("createAgUiStream", () => {
         },
         langfuseClient,
         useLocalPrompt: false,
-        skills: [],
+        skillSource: new InAppAgentSkillSource(),
       },
     });
     await readStream(stream);
@@ -2904,10 +2924,10 @@ describe("createAgUiStream", () => {
           isV4Enabled: false,
         },
         langfuseClient: {
-          getPrompt: promptMocks.getPrompt,
-        } as unknown as Langfuse,
+          prompt: { get: promptMocks.getPrompt },
+        } as unknown as LangfuseClient,
         useLocalPrompt: false,
-        skills: [],
+        skillSource: new InAppAgentSkillSource(),
       },
     });
 
@@ -2997,8 +3017,8 @@ function createToolApprovalResumeInput(
 
 function createTestTracingConfig(): InAppAgentTracingConfig {
   // Intentionally keeps the historical fixture shape (traceId instead of
-  // runId, no user.isAdmin); instrumentation is mocked in these tests and the
-  // config is only spread through, so the runtime payload must stay as-is.
+  // runId); instrumentation is mocked in these tests and the config is only
+  // spread through, so the runtime payload must stay as-is.
   return {
     environment: "langfuse-in-app-agent",
     metadata: { langfuse_project_id: "project-1" },

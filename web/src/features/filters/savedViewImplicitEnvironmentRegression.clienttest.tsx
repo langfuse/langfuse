@@ -15,10 +15,8 @@ import { useState } from "react";
 import { useSidebarFilterState } from "./hooks/useSidebarFilterState";
 import type { FilterConfig } from "./lib/filter-config";
 import { useTableViewManager } from "../../components/table/table-view-presets/hooks/useTableViewManager";
-import {
-  EVENTS_FIELD_REGISTRY,
-  filterStateToQueryText,
-} from "@/src/features/search-bar";
+import { EVENTS_FIELD_REGISTRY } from "@/src/features/search-bar/lib/fields";
+import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import {
   buildManagedEnvironmentPolicyConfig,
   toSearchBarEnvironmentFilters,
@@ -504,6 +502,28 @@ describe("Saved view restore with implicit environment defaults", () => {
     expect(screen.getByTestId("explicit-state").textContent).not.toContain(
       "checkout",
     );
+    expect(queryParamStore.has("viewId")).toBe(false);
+  });
+
+  it("does not apply a default saved view over an explicitly empty URL filter", async () => {
+    queryParamStore.delete("viewId");
+    queryParamStore.set("filter", "");
+    mockUseRouter.mockReturnValue({
+      isReady: true,
+      query: { filter: "" },
+    });
+    mockGetDefaultUseQuery.mockReturnValue({
+      data: { viewId: "view-1", scope: "project" },
+      isLoading: false,
+    });
+
+    render(<SavedViewHarness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-state").textContent).toBe("ready");
+    });
+
+    expect(screen.getByTestId("explicit-state").textContent).toBe("[]");
     expect(queryParamStore.has("viewId")).toBe(false);
   });
 

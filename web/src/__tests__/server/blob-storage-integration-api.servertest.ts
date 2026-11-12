@@ -20,7 +20,7 @@ import {
   LEGACY_EXPORT_PROJECT_CUTOFF,
   LEGACY_BLOB_EXPORTER_CUTOFF,
 } from "@langfuse/shared";
-import { decrypt } from "@langfuse/shared/encryption";
+import { decrypt, encrypt } from "@langfuse/shared/encryption";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const PRE_CUTOFF = new Date(
@@ -519,6 +519,94 @@ describe("Blob Storage Integrations API", () => {
       expect(response.status).toBe(200);
       expect(response.body.exportMode).toBe("FROM_CUSTOM_DATE");
       expect(response.body.exportStartDate).toBeDefined();
+    });
+
+    it("returns IAM role fields and keeps role auth unless access keys are sent", async () => {
+      const externalId = "lf-0123456789abcdef0123456789abcdef";
+      const roleArn = "arn:aws:iam::123456789012:role/langfuse-export";
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId: testProject1Id,
+          type: "S3",
+          bucketName: "test-bucket",
+          region: "us-east-1",
+          authType: "ROLE_ARN",
+          roleArn,
+          externalId: encrypt(externalId),
+          prefix: "langfuse-exports/",
+          exportFrequency: "daily",
+          enabled: true,
+          forcePathStyle: false,
+          fileType: "JSONL",
+          exportMode: "FULL_HISTORY",
+          exportSource: "EVENTS",
+        },
+      });
+      const auth = createBasicAuthHeader(testApiKey, testApiSecretKey);
+      const roleConfig = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+        accessKeyId: undefined,
+        secretAccessKey: undefined,
+      };
+
+      const list = await makeAPICall<{ data: Record<string, unknown>[] }>(
+        "GET",
+        "/api/public/integrations/blob-storage",
+        undefined,
+        auth,
+      );
+      expect(list.status).toBe(200);
+      expect(list.body.data[0]).toMatchObject({
+        authType: "ROLE_ARN",
+        roleArn,
+        externalId,
+        accessKeyId: null,
+        crossAccountRoleArn: null,
+      });
+      expect(list.body.data[0]).not.toHaveProperty("secretAccessKey");
+
+      const withKeys = await makeAPICall(
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        {
+          ...validBlobStorageConfig,
+          projectId: testProject1Id,
+          authType: "ROLE_ARN",
+        },
+        auth,
+      );
+      expect(withKeys.status).toBe(400);
+
+      // Omitting authType keeps the stored role instead of silently falling
+      // back to other credentials. Keeping it is allowed even though this
+      // deployment cannot assume roles, so the export can still be edited.
+      const keepsRole = await makeAPICall<Record<string, unknown>>(
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        roleConfig,
+        auth,
+      );
+      expect(keepsRole.status).toBe(200);
+      expect(keepsRole.body).toMatchObject({
+        authType: "ROLE_ARN",
+        roleArn,
+        accessKeyId: null,
+      });
+
+      const switched = await makeAPICall<Record<string, unknown>>(
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        { ...validBlobStorageConfig, projectId: testProject1Id },
+        auth,
+      );
+      expect(switched.status).toBe(200);
+      expect(switched.body).toMatchObject({
+        authType: "ACCESS_KEYS",
+        accessKeyId: validBlobStorageConfig.accessKeyId,
+        roleArn,
+        externalId,
+      });
     });
 
     it("should store secretAccessKey encrypted in database", async () => {
@@ -1021,6 +1109,39 @@ describe("Blob Storage Integrations API", () => {
       expect(saved?.bucketName).toBe("updated-bucket");
       // Omitting exportFieldGroups on update preserves the stored value.
       expect(saved?.exportFieldGroups).toStrictEqual(["core", "io"]);
+    });
+
+    it("PUT LEGACY_TRACES_OBSERVATIONS hides UI-set trace groups and keeps them on update", async () => {
+      await seedGrandfatheredLegacyRow({
+        exportFieldGroups: ["core", "io", "trace_core", "trace_metadata"],
+      });
+
+      const putResponse = await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        {
+          ...validBlobStorageConfig,
+          projectId: testProject1Id,
+          exportSource: "LEGACY_TRACES_OBSERVATIONS" as const,
+          exportFieldGroups: ["core", "metadata"],
+        },
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(putResponse.body.exportFieldGroups).toStrictEqual([
+        "core",
+        "metadata",
+      ]);
+
+      const saved = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: testProject1Id },
+      });
+      expect(saved?.exportFieldGroups).toStrictEqual([
+        "core",
+        "metadata",
+        "trace_core",
+        "trace_metadata",
+      ]);
     });
 
     // ---- Response shape ----

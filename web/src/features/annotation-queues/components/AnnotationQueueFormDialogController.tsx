@@ -1,12 +1,11 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ReactNode, useState } from "react";
 import { type CreateQueueWithAssignments } from "@langfuse/shared";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
-import { showErrorToast } from "@/src/features/notifications";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { AnnotationQueueFormDialogContent } from "@/src/features/annotation-queues/components/AnnotationQueueFormDialogContent";
 import { QueueScoreConfigFields } from "./QueueScoreConfigFields";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";

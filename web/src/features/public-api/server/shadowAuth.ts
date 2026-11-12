@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type NextApiRequest } from "next";
 import { getRequestMeta } from "next/dist/server/request-meta";
 

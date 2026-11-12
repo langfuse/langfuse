@@ -5,15 +5,15 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { z } from "zod";
 import { randomUUID } from "crypto";
-import { Role } from "@langfuse/shared";
+import { ForbiddenError, Role } from "@langfuse/shared";
 import projectMembershipRoute from "@/src/pages/api/public/projects/[projectId]/memberships";
 import { env } from "@/src/env.mjs";
 import { createMocks } from "node-mocks-http";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import * as auditLogs from "@/src/features/audit-logs/server";
-import { authenticator } from "@/src/features/apiKey/server";
+import * as auditLogs from "@/src/features/audit-logs/auditLog";
+import { authenticator } from "@/src/features/apiKey/authenticator";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
-import * as sfdc from "@/src/ee/features/sfdc-sync/server";
+import * as sfdc from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import {
   handleUpdateMembership,
   handleDeleteMembership,
@@ -701,19 +701,21 @@ describe("Organization membership safeguards", () => {
     });
     const context: AuthorizationContext = {
       ...adminContext,
-      policies: (
-        [
-          ["VIEWER", "organizationMembers:CUD"],
-          ["INGEST", "organizationMembers:manageOwnership"],
-        ] as const
-      ).map(([role, action]) => ({
-        id: action,
-        roleId: SystemRoleId(role),
-        tenantId: OrganizationId(orgId),
-        effect: "ALLOW",
-        actions: [action],
-        resources: [OrganizationId(orgId)],
-      })),
+      policies: [
+        (
+          [
+            ["VIEWER", "organizationMembers:CUD"],
+            ["INGEST", "organizationMembers:manageOwnership"],
+          ] as const
+        ).map(([role, action]) => ({
+          id: action,
+          roleId: SystemRoleId(role),
+          tenantId: OrganizationId(orgId),
+          effect: "ALLOW",
+          actions: [action],
+          resources: [OrganizationId(orgId)],
+        })),
+      ],
     };
     const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
       method: "PUT",
@@ -935,13 +937,9 @@ describe("Organization membership safeguards", () => {
       expect(await keyExists(key.id)).toBe(false);
     });
 
-    it.each([
-      [Role.MEMBER, true],
-      [Role.VIEWER, false],
-      [Role.NONE, false],
-    ])(
-      "keeps gateway keys of an OWNER moved to %s only while the role can invoke the gateway",
-      async (role, kept) => {
+    it.each([Role.MEMBER, Role.VIEWER, Role.NONE])(
+      "keeps gateway keys of an OWNER moved to %s, since a user key acts with its user's current roles",
+      async (role) => {
         await prisma.organizationMembership.update({
           where: { orgId_userId: { orgId, userId: memberId } },
           data: { role: Role.OWNER },
@@ -956,9 +954,69 @@ describe("Organization membership safeguards", () => {
         ).toBe(200);
 
         expect((await membership(memberId))?.role).toBe(role);
-        expect(await keyExists(key.id)).toBe(kept);
+        expect(await keyExists(key.id)).toBe(true);
       },
     );
+  });
+
+  describe("AI_GATEWAY role", () => {
+    const originalGatewayAvailability = {
+      NODE_ENV: env.NODE_ENV,
+      LANGFUSE_AI_GATEWAY_ENABLED: env.LANGFUSE_AI_GATEWAY_ENABLED,
+      NEXT_PUBLIC_PREVIEW_PR_URL: env.NEXT_PUBLIC_PREVIEW_PR_URL,
+      LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST:
+        env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
+    };
+    const putRole = async (role: Role) => {
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "PUT",
+        body: { userId: memberId, role },
+      });
+      await handleUpdateMembership(req, res, orgId, apiKeyId, ownerContext);
+      return res.statusCode;
+    };
+
+    // Only the org allowlist enables the gateway in these tests.
+    beforeEach(() => {
+      Object.assign(env, {
+        NODE_ENV: "test",
+        LANGFUSE_AI_GATEWAY_ENABLED: "false",
+        NEXT_PUBLIC_PREVIEW_PR_URL: undefined,
+        LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: [],
+      });
+    });
+
+    afterEach(() => {
+      Object.assign(env, originalGatewayAvailability);
+    });
+
+    it("rejects setting AI_GATEWAY while the AI Gateway is off", async () => {
+      await expect(putRole(Role.AI_GATEWAY)).rejects.toThrow(ForbiddenError);
+
+      expect((await membership(memberId))?.role).toBe(Role.MEMBER);
+      expect(await logs()).toEqual([]);
+    });
+
+    it("keeps an existing AI_GATEWAY member re-sent while the AI Gateway is off", async () => {
+      await prisma.organizationMembership.update({
+        where: { orgId_userId: { orgId, userId: memberId } },
+        data: { role: Role.AI_GATEWAY },
+      });
+
+      expect(await putRole(Role.AI_GATEWAY)).toBe(200);
+
+      expect((await membership(memberId))?.role).toBe(Role.AI_GATEWAY);
+    });
+
+    it("sets AI_GATEWAY while the AI Gateway is on for the org", async () => {
+      Object.assign(env, {
+        LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: [orgId],
+      });
+
+      expect(await putRole(Role.AI_GATEWAY)).toBe(200);
+
+      expect((await membership(memberId))?.role).toBe(Role.AI_GATEWAY);
+    });
   });
 });
 
@@ -1178,19 +1236,21 @@ describe("Project membership safeguards", () => {
   it("combines membership and ownership policy grants across roles", async () => {
     const context: AuthorizationContext = {
       ...adminContext,
-      policies: (
-        [
-          ["VIEWER", "projectMembers:CUD"],
-          ["INGEST", "projectMembers:manageOwnership"],
-        ] as const
-      ).map(([role, action]) => ({
-        id: action,
-        roleId: SystemRoleId(role),
-        tenantId: OrganizationId(orgId),
-        effect: "ALLOW",
-        actions: [action],
-        resources: [ProjectId(projectId)],
-      })),
+      policies: [
+        (
+          [
+            ["VIEWER", "projectMembers:CUD"],
+            ["INGEST", "projectMembers:manageOwnership"],
+          ] as const
+        ).map(([role, action]) => ({
+          id: action,
+          roleId: SystemRoleId(role),
+          tenantId: OrganizationId(orgId),
+          effect: "ALLOW",
+          actions: [action],
+          resources: [ProjectId(projectId)],
+        })),
+      ],
     };
     const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
       method: "PUT",

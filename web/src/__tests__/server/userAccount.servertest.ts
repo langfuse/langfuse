@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import type { JWT } from "next-auth/jwt";
@@ -11,10 +10,8 @@ import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import {
-  getFeaturePreviewOptOutFlag,
-  INTERNAL_FEATURE_FLAG,
-} from "@/src/features/feature-flags/server";
+import { getFeaturePreviewOptOutFlag } from "@/src/features/feature-flags/utils";
+import { INTERNAL_FEATURE_FLAG } from "@/src/features/feature-flags/available-flags";
 import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
 import { getAuthOptions } from "@/src/server/auth";
 
@@ -29,25 +26,36 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   });
 
-  it.each([true, false])(
-    "rejects a non-platform-admin Topics toggle to %s",
-    async (enabled) => {
-      const { caller, userId } = await createCaller();
+  it.each([{ emailDomain: "example.com" }, { emailDomain: "langfuse.com" }])(
+    "rejects a Topics toggle in external view without a grant ($emailDomain)",
+    async (options) => {
+      const { caller, userId } = await createCaller({
+        ...options,
+        featureFlags: [
+          "templateFlag",
+          getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
+        ],
+      });
       await expect(
         caller.userAccount.setFeaturePreviewEnabled({
           flag: "langfuseTopics",
-          enabled,
+          enabled: true,
         }),
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
       const user = await prisma.user.findUniqueOrThrow({
         where: { id: userId },
       });
-      expect(user.featureFlags).toEqual(["templateFlag"]);
+      expect(user.featureFlags).toEqual([
+        "templateFlag",
+        getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
+      ]);
     },
   );
 
-  it("lets a platform admin opt into and out of Topics locally without changing other flags", async () => {
-    const { caller, userId } = await createCaller({ admin: true });
+  it("lets internal staff manage Topics locally without changing other flags", async () => {
+    const { caller, userId } = await createCaller({
+      emailDomain: "clickhouse.com",
+    });
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
     await caller.userAccount.setFeaturePreviewEnabled({
       flag: "langfuseTopics",
@@ -65,6 +73,20 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
       (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
         .featureFlags,
     ).not.toContain("langfuseTopics");
+  });
+
+  it("lets an external user turn off an existing Topics grant", async () => {
+    const { caller, userId } = await createCaller({
+      featureFlags: ["templateFlag", "langfuseTopics"],
+    });
+    await caller.userAccount.setFeaturePreviewEnabled({
+      flag: "langfuseTopics",
+      enabled: false,
+    });
+    expect(
+      (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
+        .featureFlags,
+    ).toEqual(["templateFlag", getFeaturePreviewOptOutFlag("langfuseTopics")]);
   });
 
   it("enables a preview, leaving other flags intact", async () => {
@@ -150,20 +172,24 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
 });
 
 describe("userAccountRouter.setViewMode", () => {
-  const testEnv = env as {
-    LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: typeof env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES;
+  const originalEnv = {
+    LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:
+      env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
   };
-  const originalExperimental = env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES;
   beforeEach(() => {
-    testEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = "false";
+    Object.assign(env, {
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+    });
   });
   afterEach(() => {
-    testEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = originalExperimental;
+    Object.assign(env, originalEnv);
   });
 
-  it("persists only the external override and preserves other preferences", async () => {
+  it("lets staff switch views without V4 while preserving other preferences", async () => {
     const { caller, userId } = await createCaller({
-      admin: true,
+      emailDomain: "clickhouse.com",
       featureFlags: ["sessionViewV2"],
     });
     await caller.userAccount.setViewMode({ mode: "EXTERNAL" });
@@ -176,17 +202,24 @@ describe("userAccountRouter.setViewMode", () => {
       getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
     ]);
     await caller.userAccount.setViewMode({ mode: "INTERNAL" });
-    expect(
-      (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
-        .featureFlags,
-    ).toEqual(["sessionViewV2"]);
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+    });
+    expect(user.featureFlags).toEqual(["sessionViewV2"]);
   });
 
-  it("does not allow ordinary users to select internal mode", async () => {
-    const { caller } = await createCaller();
+  it("lets external users opt out but not enable internal view", async () => {
+    const { caller, userId } = await createCaller();
     await expect(
       caller.userAccount.setViewMode({ mode: "INTERNAL" }),
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    await caller.userAccount.setViewMode({ mode: "EXTERNAL" });
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+    });
+    expect(user.featureFlags).toContain(
+      getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
+    );
   });
 });
 
@@ -209,27 +242,23 @@ describe("userAccountRouter.signOutAllSessions", () => {
   });
 
   it("evicts an older session and admits a later one", async () => {
-    const { caller, email, session } = await createCaller();
+    const { caller, userId, email, session } = await createCaller();
     const revokedLoginAt = (await getSessionLoginAt(email, prisma)).getTime();
 
     await caller.userAccount.signOutAllSessions();
 
-    const sessionCallback = (await getAuthOptions()).callbacks
-      ?.session as (params: {
-      session: Session;
-      token: JWT;
-    }) => Promise<Session>;
+    const sessionCallback = await getSessionCallback();
 
     const revoked = await sessionCallback({
       session,
-      token: { email, loginAt: revokedLoginAt },
+      token: { email, sub: userId, loginAt: revokedLoginAt },
     });
     expect(revoked.user).toBeNull();
 
     const reLoginAt = (await getSessionLoginAt(email, prisma)).getTime();
     const admitted = await sessionCallback({
       session,
-      token: { email, loginAt: reLoginAt },
+      token: { email, sub: userId, loginAt: reLoginAt },
     });
     expect(admitted.user).not.toBeNull();
   });
@@ -276,17 +305,48 @@ describe("userAccountRouter.delete", () => {
       }),
     ).toBe(0);
   });
+
+  it("does not let a deleted account's session resolve to a new account with the same email", async () => {
+    const { caller, userId, email, session } = await createCaller();
+    const deletedLoginAt = (await getSessionLoginAt(email, prisma)).getTime();
+
+    await caller.userAccount.delete();
+    const replacement = await prisma.user.create({
+      data: { id: `user-${randomUUID()}`, email },
+    });
+
+    const sessionCallback = await getSessionCallback();
+    const stale = await sessionCallback({
+      session,
+      token: { email, sub: userId, loginAt: deletedLoginAt },
+    });
+    expect(stale.user).toBeNull();
+
+    const replacementLoginAt = (
+      await getSessionLoginAt(email, prisma)
+    ).getTime();
+    const fresh = await sessionCallback({
+      session,
+      token: { email, sub: replacement.id, loginAt: replacementLoginAt },
+    });
+    expect(fresh.user?.id).toBe(replacement.id);
+  });
 });
 
+async function getSessionCallback() {
+  return (await getAuthOptions()).callbacks?.session as (params: {
+    session: Session;
+    token: JWT;
+  }) => Promise<Session>;
+}
+
 async function createCaller({
-  admin = false,
   plan = "cloud:hobby",
   aiFeaturesEnabled = true,
   featureFlags = ["templateFlag"],
   includeProjectInSession = true,
   emailDomain = "example.com",
 }: {
-  admin?: boolean;
   plan?: Plan;
   aiFeaturesEnabled?: boolean;
   featureFlags?: string[];
@@ -320,7 +380,6 @@ async function createCaller({
       email: `${userId}@${emailDomain}`,
       name: "User Account Test User",
       featureFlags,
-      admin,
     },
   });
 
@@ -329,6 +388,7 @@ async function createCaller({
     user: {
       id: user.id,
       email: user.email,
+      v4BetaEnabled: false,
       name: user.name,
       canCreateOrganizations: true,
       organizations: [
@@ -358,13 +418,15 @@ async function createCaller({
         },
       ],
       featureFlags: testFeatureFlags({
+        internalFeatures: !featureFlags.includes(
+          getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
+        ),
         langfuseTopics: featureFlags.includes("langfuseTopics"),
         sessionViewV2: featureFlags.includes("sessionViewV2"),
         sessionViewV2Timeline: featureFlags.includes("sessionViewV2Timeline"),
         searchBar: featureFlags.includes("searchBar"),
         templateFlag: featureFlags.includes("templateFlag"),
       }),
-      admin,
     },
     environment: {
       enableExperimentalFeatures: false,

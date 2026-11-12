@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   type ComponentProps,
   useCallback,
@@ -9,8 +8,8 @@ import {
 import { useMediaQuery } from "react-responsive";
 import dynamic from "next/dynamic";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
-import { MAX_SKILL_FILES } from "@langfuse/shared";
 import { useStore } from "zustand";
+import { useShallow } from "zustand/react/shallow";
 import {
   Download,
   ChevronDown,
@@ -26,6 +25,7 @@ import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { SkillLinkedTraces } from "@/src/features/skills/components/SkillLinkedTraces";
+import { SkillUsage } from "@/src/features/skills/components/SkillUsage";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import Page from "@/src/components/layouts/Page";
 import { Button } from "@/src/components/ui/button";
@@ -33,7 +33,8 @@ import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
 import { InstallSkillDialog } from "@/src/features/skills/components/InstallSkillDialog";
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { createSkillVersionFromDraft } from "@/src/features/skills/actions/createSkillVersion";
 import { downloadSkillVersion } from "@/src/features/skills/actions/downloadSkillVersion";
@@ -51,7 +52,10 @@ import {
   type SkillFileExplorerState,
 } from "@/src/features/skills/components/SkillFileExplorer";
 import { importSkillFiles } from "@/src/features/skills/actions/importSkillFiles";
-import { getParentFolderPaths } from "@/src/features/skills/components/skillFileTree";
+import {
+  getParentFolderPaths,
+  parentFolder,
+} from "@/src/features/skills/components/skillFileTree";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
   createSkillDraftFile,
@@ -67,6 +71,7 @@ import { SkillVersionHistory } from "@/src/features/skills/components/SkillVersi
 import { SkillFileView } from "@/src/features/skills/components/SkillFileView";
 import { useSkillFileContents } from "@/src/features/skills/hooks/useSkillFileContents";
 import { useLangfuseV4WriteMode } from "@/src/features/organizations/hooks";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import {
   parseSkillFrontmatterMetadata,
   SKILL_NAME_RULES,
@@ -191,6 +196,7 @@ export function SkillEditor({
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const isDraft = view.kind === "draft";
+  const { isV4 } = useReadPath();
   const v4WriteMode = useLangfuseV4WriteMode();
   const canReadMetrics = v4WriteMode !== null && v4WriteMode !== "legacy";
   const [selectedTab, setSelectedTab] = useQueryParam(
@@ -198,7 +204,9 @@ export function SkillEditor({
     withDefault(StringParam, "files"),
   );
   const activeTab =
-    !isDraft && ["usage", "linked-traces", "metrics"].includes(selectedTab)
+    isV4 &&
+    !isDraft &&
+    ["usage", "linked-traces", "metrics"].includes(selectedTab)
       ? "usage"
       : "files";
   const canEditFiles = isDraft && canCreate && !isSaving;
@@ -208,6 +216,17 @@ export function SkillEditor({
     expandedFolders: new Set(store.getState().folders),
     pendingEntry: null,
   }));
+  const handleSelectFile = (path: string) => {
+    store.getState().actions.selectFile(path);
+    setTreeState((current) => ({
+      ...current,
+      selectedFolder: parentFolder(path),
+      expandedFolders: new Set([
+        ...current.expandedFolders,
+        ...getParentFolderPaths([path]),
+      ]),
+    }));
+  };
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const showUpload = canEditFiles && isUploadOpen;
   const uploadPanelRef = useRef<HTMLElement | null>(null);
@@ -381,23 +400,30 @@ export function SkillEditor({
   const downloadDisabled = isDownloading
     ? { reason: "Download in progress" }
     : undefined;
-  const usageTab = view.kind === "version" && baseVersion !== null && (
+  const usageTab = isV4 && view.kind === "version" && baseVersion !== null && (
     <Tabs.Content value="usage" layout="fill">
-      {canReadMetrics ? (
-        <SkillAnalytics
-          projectId={projectId}
-          skillId={view.skillId}
-          name={name}
-          version={baseVersion}
-          paths={Object.keys(store.getState().files).toSorted()}
-        />
-      ) : (
-        <SkillLinkedTraces
-          projectId={projectId}
-          name={name}
-          version={baseVersion}
-        />
-      )}
+      <SkillUsage
+        key={`${projectId}:${name}`}
+        projectId={projectId}
+        name={name}
+        version={baseVersion}
+      >
+        {canReadMetrics ? (
+          <SkillAnalytics
+            projectId={projectId}
+            skillId={view.skillId}
+            name={name}
+            version={baseVersion}
+            paths={Object.keys(store.getState().files).toSorted()}
+          />
+        ) : (
+          <SkillLinkedTraces
+            projectId={projectId}
+            name={name}
+            version={baseVersion}
+          />
+        )}
+      </SkillUsage>
     </Tabs.Content>
   );
 
@@ -574,7 +600,7 @@ export function SkillEditor({
         return state.kind === "discard" ? (
           <Dialog
             title="Discard draft?"
-            text="Your unsaved file changes and commit note will be lost."
+            text="Unsaved changes will be lost."
             actions={[
               {
                 label: "Discard draft",
@@ -659,7 +685,7 @@ export function SkillEditor({
                     src={undefined}
                     variant="panel"
                     accept={undefined}
-                    maxFiles={MAX_SKILL_FILES}
+                    maxFiles={10_000}
                     maxSize={undefined}
                     minSize={undefined}
                     isDisabled={isImporting}
@@ -726,7 +752,12 @@ export function SkillEditor({
                       <Tabs.Trigger
                         value="usage"
                         label="Usage"
-                        disabled={isDraft}
+                        disabled={isDraft || !isV4}
+                        tooltip={
+                          !isV4
+                            ? "Skill tracing is only supported in Langfuse v4."
+                            : undefined
+                        }
                       />
                     </Tabs.List>
                     {usageTab}
@@ -759,6 +790,7 @@ export function SkillEditor({
                             store={store}
                             isDraft={isDraft}
                             editable={canEditFiles}
+                            onSelectFile={handleSelectFile}
                           />
                         </ResizablePanel>
                       </ResizablePanelGroup>
@@ -826,12 +858,18 @@ function SkillFileEditor({
   store,
   isDraft,
   editable,
+  onSelectFile,
 }: {
   projectId: string;
   store: SkillEditorStore;
   isDraft: boolean;
   editable: boolean;
+  onSelectFile: (path: string) => void;
 }) {
+  const filePaths = useStore(
+    store,
+    useShallow((state) => Object.keys(state.files)),
+  );
   const activePath = useStore(store, (state) => state.activePath);
   const activeFile = useStore(store, (state) => state.files[state.activePath]!);
   const updateActiveFile = useStore(
@@ -874,6 +912,7 @@ function SkillFileEditor({
       key={isDraft ? "draft" : "version"}
       path={activePath}
       content={content}
+      fileNavigation={{ paths: filePaths, onSelect: onSelectFile }}
       mode={
         isDraft
           ? { kind: "draft", editable, onChange: updateActiveFile }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { MediaReferenceStringSchema, parseS3Uri } from "@langfuse/shared";
 
 const LANGFUSE_MEDIA_PREFIX = "@@@langfuseMedia:";

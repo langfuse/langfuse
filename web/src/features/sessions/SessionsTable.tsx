@@ -1,4 +1,5 @@
 /* eslint-disable no-nested-ternary, react/no-unstable-nested-components */
+import { useRouter } from "next/router";
 import { DataTable } from "@/src/components/table/data-table";
 import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/DataTablePagination";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -15,21 +16,23 @@ import { createNumberTableColumn } from "@/src/components/design-system/table/co
 import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
 import { StickySearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import {
-  useColumnVisibility,
-  useColumnOrder,
-} from "@/src/features/column-visibility";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
 import {
   type UseSidebarFilterStateOptions,
   useSidebarFilterState,
+} from "@/src/features/filters/hooks/useSidebarFilterState";
+
+import {
   getSessionFilterConfig,
   SESSION_COLUMN_TO_BACKEND_KEY,
   type SessionOmittableFilterColumn,
-  buildSidebarFilterSessionContextId,
-  transformFiltersForBackend,
-  sortOptionValues,
-  sessionsFieldRegistry,
-} from "@/src/features/filters";
+} from "@/src/features/filters/config/sessions-config";
+
+import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
+import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
+import { sessionsFieldRegistry } from "@/src/features/filters/config/sessionsSearchRegistry";
 
 import {
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
@@ -43,9 +46,9 @@ import {
   type ScoreAggregate,
 } from "@langfuse/shared";
 
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
-import { useOrderByState } from "@/src/features/orderBy";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
@@ -57,7 +60,7 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { tablePlaceholderOptions } from "@/src/components/table/utils/tablePlaceholder";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { joinSessionCoreAndMetrics } from "@/src/features/sessions/session-row-data";
-import { TagList } from "@/src/features/tag";
+import { default as TagList } from "@/src/features/tag/components/TagList";
 import {
   customRowHeightMenu,
   isCompactRowHeight,
@@ -68,21 +71,21 @@ import { TableHeaderControls } from "@/src/components/table/TableHeaderControls"
 import { cn } from "@/src/utils/tailwind";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
-import {
-  useSelectAll,
-  type TableAction,
-  TableActionMenu,
-  TableSelectionManager,
-} from "@/src/features/table";
+import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
+import type { TableAction } from "@/src/features/table/types";
+import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
+import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { type RowSelectionState } from "@tanstack/react-table";
-import { showSuccessToast } from "@/src/features/notifications";
-import { useScoreColumns, scoreFilters } from "@/src/features/scores";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
+import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 
-import { toObservedOptions, TableSearchBar } from "@/src/features/search-bar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
 
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export type SessionTableRow = {
   id: string;
@@ -137,6 +140,7 @@ export default function SessionsTable({
   isV4 = false,
   showControlsInPageHeader = false,
 }: SessionTableProps) {
+  const router = useRouter();
   const capture = usePostHogClientCapture();
   const sessionsFilterConfig = useMemo(
     () => getSessionFilterConfig(omittedFilter, isV4),
@@ -568,6 +572,16 @@ export default function SessionsTable({
     },
   ];
 
+  const sessionDetailPath = (sessionId: string) =>
+    `/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`;
+
+  const handleRowClick = (row: SessionTableRow) => {
+    // A row with an empty id has no detail page, and the ID cell renders no
+    // link for it either.
+    if (!row.id) return;
+    router.push(sessionDetailPath(row.id));
+  };
+
   const columns: LangfuseColumnDef<SessionTableRow>[] = [
     selectActionColumn,
     createLinkTableColumn<SessionTableRow>({
@@ -581,7 +595,7 @@ export default function SessionsTable({
         return {
           type: "link",
           props: {
-            path: `/project/${projectId}/sessions/${encodeURIComponent(value)}`,
+            path: sessionDetailPath(value),
             value,
           },
         };
@@ -1006,6 +1020,7 @@ export default function SessionsTable({
               customRowHeightPx={rowHeights.activeHeightPx}
               onCustomRowHeightChange={rowHeights.setCustomPx}
               onSelectRowHeight={setRowHeight}
+              onRowClick={handleRowClick}
             />
           </div>
         </StickySearchableTableFilterLayout>

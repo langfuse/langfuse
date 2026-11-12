@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { EventType } from "@ag-ui/core";
 import { z } from "zod";
 
@@ -16,8 +15,8 @@ type InAppAgentMcpToolApproval = "auto" | "approval";
 
 export type InAppAgentUserAccess = {
   projectRole?: Role;
-  // Global Langfuse admin flag. This bypasses project membership checks.
-  isAdmin: boolean;
+  // Topics is gated per user (feature preview) on top of `topics:read`.
+  topicsAvailable?: boolean;
 };
 
 type InAppAgentMcpToolPolicy = {
@@ -196,6 +195,18 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   runBatchEvaluation: {
     approval: "approval",
     availability: { scope: "evaluationRule:CUD" },
+  },
+  getDefaultEvaluationModel: {
+    approval: "auto",
+    availability: { scope: "evalDefaultModel:read" },
+  },
+  setDefaultEvaluationModel: {
+    approval: "approval",
+    availability: { scope: "evalDefaultModel:CUD" },
+  },
+  deleteDefaultEvaluationModel: {
+    approval: "approval",
+    availability: { scope: "evalDefaultModel:CUD" },
   },
   listExperiments: {
     approval: "auto",
@@ -425,6 +436,26 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "approval",
     availability: { scope: "dashboards:CUD" },
   },
+  listTopicFacets: {
+    approval: "auto",
+    availability: { scope: "topics:read" },
+  },
+  listTopics: {
+    approval: "auto",
+    availability: { scope: "topics:read" },
+  },
+  listTopicRules: {
+    approval: "auto",
+    availability: { scope: "topics:read" },
+  },
+  listTopicSummaries: {
+    approval: "auto",
+    availability: { scope: "topics:read" },
+  },
+  listTopicAssignments: {
+    approval: "auto",
+    availability: { scope: "topics:read" },
+  },
   getV4MigrationData: {
     approval: "auto",
     availability: { scope: "project:read" },
@@ -534,9 +565,15 @@ function isInAppAgentLangfuseMcpToolAvailable(params: {
     return false;
   }
 
+  if (
+    policy.availability.scope === "topics:read" &&
+    params.userAccess.topicsAvailable !== true
+  ) {
+    return false;
+  }
+
   return hasProjectAccessByRole({
     role: params.userAccess.projectRole ?? Role.MEMBER,
-    admin: params.userAccess.isAdmin,
     scope: policy.availability.scope,
   });
 }

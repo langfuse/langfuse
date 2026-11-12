@@ -14,13 +14,6 @@
 ARG BASE_IMAGE=registry.access.redhat.com/ubi9/ubi:9.8
 ARG MICRO_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-micro:9.8
 
-# TEMPORARY(node-24.22.1-security): Red Hat's nodejs:24 RPMs rebuilt with
-# security fixes from Node 24.22.1 (scripts/docker/nodejs-rpm/). install-nodejs.sh
-# uses them only while they are newer than the repos' nodejs, and the check
-# below fails the build if the installed Node lacks any of the fixes.
-ARG NODEJS_RPM_IMAGE=ghcr.io/langfuse/langfuse-nodejs-rpm:24.21.0-1.lf1@sha256:a64b46f8d92f11dacba52f2d10fc52be62944b5a992d00681a2e9cfa105e9637
-FROM ${NODEJS_RPM_IMAGE} AS nodejs-rpm
-
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS base
 
 # nodejs:24 and openssl (incl. the FIPS provider) come from the freely
@@ -28,19 +21,16 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS base
 # nodejs-full-i18n is required: the RPM Node is a small-ICU build and V8
 # segfaults in Intl.Segmenter (used e.g. by the prisma CLI's output
 # formatting) without the full ICU data.
-COPY scripts/docker/nodejs-rpm/install-nodejs.sh scripts/docker/nodejs-rpm/test-node-security-fixes.js /opt/nodejs-rpm/
-RUN --mount=type=bind,from=nodejs-rpm,source=/rpms,target=/tmp/nodejs-rpms \
-    dnf -y upgrade && \
-    bash /opt/nodejs-rpm/install-nodejs.sh /tmp/nodejs-rpms \
-    nodejs nodejs-libs npm nodejs-full-i18n openssl-fips-provider openssl-fips-provider-so && \
-    dnf clean all && \
-    node /opt/nodejs-rpm/test-node-security-fixes.js
+RUN dnf -y upgrade && \
+    dnf -y module enable nodejs:24 && \
+    dnf -y install --setopt=install_weak_deps=0 nodejs npm nodejs-full-i18n && \
+    dnf clean all
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
 # pnpm is installed pinned via npm instead of corepack: the corepack shim would
 # fetch pnpm from an unpinned CDN on first use.
-RUN npm install -g turbo@2.11.9 pnpm@12.8.2
+RUN npm install -g turbo@2.11.9 pnpm@12.16.1
 # Pass --build-arg NODE_USE_ENV_PROXY=1 when building behind a proxy.
 ARG NODE_USE_ENV_PROXY
 
@@ -59,14 +49,14 @@ ARG GID=1001
 # wget keeps exec-style container health checks working (e.g. `wget --spider
 # http://127.0.0.1:<port>/...` in ECS task definitions); it links GnuTLS,
 # which follows the host's FIPS mode like OpenSSL does.
-# The rpmdb check fails the build if the rootfs resolved a different nodejs
-# than the build stages.
-RUN --mount=type=bind,from=nodejs-rpm,source=/rpms,target=/tmp/nodejs-rpms \
-    NODEJS_INSTALLROOT=/mnt/rootfs bash /opt/nodejs-rpm/install-nodejs.sh /tmp/nodejs-rpms \
-    nodejs nodejs-libs npm nodejs-full-i18n openssl-fips-provider openssl-fips-provider-so \
-    bash coreutils-single sed \
+RUN dnf -y --installroot /mnt/rootfs --releasever 9 --setopt=install_weak_deps=0 \
+    --disableexcludes=all \
+    module enable nodejs:24 && \
+    dnf -y --installroot /mnt/rootfs --releasever 9 \
+    --setopt=install_weak_deps=0 --setopt=tsflags=nodocs \
+    --disableexcludes=all \
+    install nodejs nodejs-full-i18n bash coreutils-single sed \
     tzdata ca-certificates crypto-policies wget && \
-    test "$(rpm --root /mnt/rootfs -q nodejs)" = "$(rpm -q nodejs)" && \
     dnf --installroot /mnt/rootfs clean all && \
     rm -rf /mnt/rootfs/var/cache /mnt/rootfs/var/log/dnf*
 
@@ -210,9 +200,8 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} builder AS prod-deps
 
 # previously we copied the --from=builder /app . (includes full node_modules etc)
 # we only need the prod + generated prisma client plus .prisma artifacts
-# @langfuse/shared still pulls in next-auth transitively, so keep the deploy output
-# intact here instead of pruning node_modules in Docker.
 # pnpm deploy materializes linked workspace packages into the standalone artifact.
+COPY scripts/docker/prune-node-modules.sh /usr/local/bin/prune-node-modules
 RUN pnpm --filter worker deploy --prod /prod/worker && \
     builder_prisma_client_dir="$(find /app/node_modules/.pnpm -path '*/node_modules/@prisma/client' -type d | head -n 1)" && \
     deployed_prisma_client_dir="$(find /prod/worker/node_modules/.pnpm -path '*/node_modules/@prisma/client' -type d | head -n 1)" && \
@@ -220,7 +209,16 @@ RUN pnpm --filter worker deploy --prod /prod/worker && \
     deployed_prisma_runtime_dir="$(dirname "$(dirname "$deployed_prisma_client_dir")")/.prisma" && \
     rm -rf "$deployed_prisma_client_dir" "$deployed_prisma_runtime_dir" && \
     cp -R "$builder_prisma_client_dir" "$deployed_prisma_client_dir" && \
-    cp -R "$builder_prisma_runtime_dir" "$deployed_prisma_runtime_dir"
+    cp -R "$builder_prisma_runtime_dir" "$deployed_prisma_runtime_dir" && \
+    prune-node-modules /prod/worker/node_modules
+
+# Next.js with its SWC compiler and the Prisma CLI with its engines add ~400MB
+# and are never loaded by the worker. They used to arrive through next-auth in
+# @langfuse/shared and the optional prisma peer of @prisma/client.
+RUN if ls /prod/worker/node_modules/.pnpm | grep -E '^(next|prisma|@prisma\+engines)@'; then \
+    echo "worker deploy output contains Next.js or the Prisma CLI (see 'pnpm --filter worker why <pkg> --prod')" >&2; \
+    exit 1; \
+    fi
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} runtime-base AS runner
 

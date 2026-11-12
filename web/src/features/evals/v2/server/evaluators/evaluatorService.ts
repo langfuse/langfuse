@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
@@ -26,7 +25,7 @@ import {
   invalidateProjectEvalConfigCaches,
   logger,
 } from "@langfuse/shared/src/server";
-import { resolveLangfuseAiFeatureAvailability } from "@/src/features/ai-features/server";
+import { resolveLangfuseAiFeatureAvailability } from "@/src/features/ai-features/server/availability";
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
 import {
   type CreateEvaluatorInput,

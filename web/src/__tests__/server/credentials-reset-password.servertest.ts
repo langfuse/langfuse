@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { createHash, randomInt, randomUUID } from "crypto";
 import type { Session } from "next-auth";
@@ -211,7 +210,6 @@ async function createPasswordUser({
       canCreateOrganizations: true,
       organizations: [],
       featureFlags: testFeatureFlags({ templateFlag: false }),
-      admin: false,
     },
     environment: {
       enableExperimentalFeatures: false,

@@ -1,14 +1,16 @@
 import { Responsive } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
-import { type WidgetPlacement } from "../components/DashboardWidget";
+import {
+  DashboardWidget,
+  type WidgetPlacement,
+} from "@/src/features/widgets/components/DashboardWidget";
 import { type WidgetExportSource } from "@/src/features/widgets/utils/import-export-utils";
 import {
   PresetDashboardWidget,
   type PresetPlacement,
 } from "../components/PresetDashboardWidget";
-import { DashboardWidget } from "@/src/features/widgets";
-import type { ResolvedReadPath } from "@/src/features/events";
+import type { ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { type FilterState } from "@langfuse/shared";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
@@ -136,6 +138,8 @@ export function DashboardGrid({
   // floors, table rows) no longer fits and tiles scroll internally; the grid
   // grows vertically instead. (LFE-10813)
   const MIN_ROW_HEIGHT = 58;
+  // Matches the page padding (p-3) around the grid.
+  const GRID_GAP = 12;
   const rowHeight =
     width !== null ? Math.max(MIN_ROW_HEIGHT, ((width / 12) * 9) / 16) : 150;
 
@@ -149,7 +153,7 @@ export function DashboardGrid({
   const layout = widgets.map((w) => {
     const contentHeight = contentHeights[w.id];
     const contentRows = contentHeight
-      ? Math.ceil((contentHeight + 16) / (rowHeight + 16))
+      ? Math.ceil((contentHeight + GRID_GAP) / (rowHeight + GRID_GAP))
       : 0;
 
     return {
@@ -241,7 +245,7 @@ export function DashboardGrid({
   // Render flex layout for small screens
   if (isSmallScreen) {
     return (
-      <div className="flex w-full flex-col gap-4">
+      <div className="flex w-full flex-col gap-3">
         {widgets
           .slice()
           .sort((a, b) => a.y - b.y || a.x - b.x) // Sort by position for consistent order
@@ -273,7 +277,7 @@ export function DashboardGrid({
           width={width}
           layouts={{ lg: layout }}
           cols={{ lg: 12, md: 12, sm: 12, xs: 12, xxs: 12 }}
-          margin={[16, 16]}
+          margin={[GRID_GAP, GRID_GAP]}
           containerPadding={[0, 0]}
           rowHeight={rowHeight}
           isDraggable={canEdit}

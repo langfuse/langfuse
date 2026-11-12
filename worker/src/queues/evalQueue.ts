@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Job, Processor } from "bullmq";
 import { EvalTemplateType, JobExecutionStatus } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
@@ -16,8 +15,9 @@ import {
   type EvaluatorLlmErrorClassification,
 } from "@langfuse/shared/src/server";
 import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
-import { processObservationEval } from "../features/evaluation/observationEval";
-import { createW3CTraceId, retryLLMRateLimitError } from "../features/utils";
+import { processEval } from "../features/evaluation/observationEval/observationEvalProcessor";
+import { createW3CTraceId } from "../features/utils/utilities";
+import { retryLLMRateLimitError } from "../features/utils/retry-handler";
 import { isUnrecoverableError } from "../errors/UnrecoverableError";
 import { retryObservationNotFound } from "../features/evaluation/retryObservationNotFound";
 import { isObservationNotFoundError } from "../errors/ObservationNotFoundError";
@@ -317,7 +317,7 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
         );
       }
 
-      const outcome = await processObservationEval({
+      const outcome = await processEval({
         event: job.data.payload,
         executionType: EvalTemplateType.LLM_AS_JUDGE,
       });

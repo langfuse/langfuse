@@ -41,6 +41,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
 import {
+  AI_GATEWAY_SERVICE_NAME,
   LangfuseNotFoundError,
   type EventsTableFilterState,
   type FilterCondition,
@@ -362,6 +363,37 @@ describe("Clickhouse Events Repository Test", () => {
       await expect(
         getTotalCostByEvaluatorIds(projectId, [evaluatorId]),
       ).resolves.toEqual([{ evaluatorId, totalCost: 1.5 }]);
+    });
+
+    it("adds the cost of trace events without the evaluator id", async () => {
+      const evaluatorId = randomUUID();
+      const traceId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          evaluator_id: evaluatorId,
+          cost_details: { total: 0.25 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          cost_details: { total: 0.75 },
+        }),
+        // Another trace in the same week, without the evaluator.
+        createEvent({
+          project_id: projectId,
+          type: "GENERATION",
+          cost_details: { total: 5 },
+        }),
+      ]);
+
+      await expect(
+        getTotalCostByEvaluatorIds(projectId, [evaluatorId]),
+      ).resolves.toEqual([{ evaluatorId, totalCost: 1 }]);
     });
 
     it("returns the latest evaluator trace cost", async () => {
@@ -6001,7 +6033,7 @@ describe("Clickhouse Events Repository Test", () => {
 });
 
 describe("tracing counts by project on the events table", () => {
-  it("counts traces and observations created in the interval, excluding synthetic trace rows", async () => {
+  it("counts traces, observations and gateway requests created in the interval, excluding synthetic trace rows", async () => {
     const projectA = randomUUID();
     const projectB = randomUUID();
     const legacyTraceId = randomUUID();
@@ -6046,6 +6078,23 @@ describe("tracing counts by project on the events table", () => {
       }),
       event({ project_id: projectA, trace_id: randomUUID(), created_at: end }),
       event({ project_id: projectB, trace_id: randomUUID() }),
+      // AI gateway generations carry the gateway service; outside the window they don't count.
+      event({
+        project_id: projectB,
+        trace_id: randomUUID(),
+        service_name: AI_GATEWAY_SERVICE_NAME,
+      }),
+      event({
+        project_id: projectB,
+        trace_id: randomUUID(),
+        service_name: AI_GATEWAY_SERVICE_NAME,
+      }),
+      event({
+        project_id: projectB,
+        trace_id: randomUUID(),
+        service_name: AI_GATEWAY_SERVICE_NAME,
+        created_at: end,
+      }),
     ]);
 
     const counts =
@@ -6059,8 +6108,8 @@ describe("tracing counts by project on the events table", () => {
       counts.sort((a, b) => a.projectId.localeCompare(b.projectId)),
     ).toEqual(
       [
-        { projectId: projectA, traces: 3, observations: 5 },
-        { projectId: projectB, traces: 1, observations: 1 },
+        { projectId: projectA, traces: 3, observations: 5, gatewayRequests: 0 },
+        { projectId: projectB, traces: 3, observations: 3, gatewayRequests: 2 },
       ].sort((a, b) => a.projectId.localeCompare(b.projectId)),
     );
   });

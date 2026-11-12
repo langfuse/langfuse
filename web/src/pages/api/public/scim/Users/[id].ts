@@ -1,21 +1,27 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import {
+  createOrgMembership,
+  deleteOrgMembership,
+  updateOrgMembership,
+} from "@langfuse/shared/memberships";
 import {
   deleteUserBoundApiKeys,
-  deleteUserBoundApiKeysForRole,
   evictRevokedApiKeys,
+  evictUserGatewayResolveCache,
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 import { Prisma, prisma, type User, type Role } from "@langfuse/shared/src/db";
-import { logger } from "@langfuse/shared/src/server";
+import { logger, withSerializableRetry } from "@langfuse/shared/src/server";
 import { isBaseError, LangfuseConflictError } from "@langfuse/shared";
 import { z } from "zod";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { assertValidOwnershipChange } from "@/src/ee/features/admin-api/server/memberships";
-import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
-import { shadowAuth, writeScimError } from "@/src/features/public-api/server";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
+import { writeScimError } from "@/src/features/public-api/server/writeError";
 
 // Parse the first valid role from a SCIM `roles` array. Returns undefined when
 // the attribute is absent, empty, or unparsable, which the provisioning logic
@@ -25,7 +31,7 @@ function parseScimRole(roles: unknown): Role | undefined {
     return undefined;
   }
   const parsed = z
-    .array(z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"]))
+    .array(z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE", "AI_GATEWAY"]))
     .safeParse(roles);
   return parsed.success ? parsed.data[0] : undefined;
 }
@@ -75,42 +81,35 @@ async function provisionMembership({
     targetRole: Role,
   ): Promise<ProvisionOutcome | "missing"> => {
     try {
-      const result = await prisma.$transaction(
-        async (tx) => {
-          const current = await tx.organizationMembership.findUnique({
-            where: { orgId_userId: { orgId, userId } },
-          });
-          if (!current) {
-            return { t: "missing" as const };
-          }
-          if (current.role === targetRole) {
-            return { t: "unchanged" as const, role: current.role };
-          }
-          await assertValidOwnershipChange({
-            tx,
-            context: ctx,
-            orgId,
-            from: current.role,
-            to: targetRole,
-          });
-          const updated = await tx.organizationMembership.update({
-            where: { orgId_userId: { orgId, userId } },
-            data: { role: targetRole },
-          });
-          const revokedKeys = await deleteUserBoundApiKeysForRole(tx, {
-            userId,
-            orgId,
-            role: targetRole,
-          });
-          return {
-            t: "updated" as const,
-            before: current,
-            after: updated,
-            revokedKeys,
-          };
-        },
-        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-      );
+      const result = await withSerializableRetry(prisma, async (tx) => {
+        const current = await tx.organizationMembership.findUnique({
+          where: { orgId_userId: { orgId, userId } },
+        });
+        if (!current) {
+          return { t: "missing" as const };
+        }
+        if (current.role === targetRole) {
+          return { t: "unchanged" as const, role: current.role };
+        }
+        await assertValidOwnershipChange({
+          tx,
+          context: ctx,
+          orgId,
+          from: current.role,
+          to: targetRole,
+        });
+        requireGatewayEnabledForRole(orgId, targetRole);
+        const updated = await updateOrgMembership(tx, {
+          orgId,
+          userId,
+          role: targetRole,
+        });
+        return {
+          t: "updated" as const,
+          before: current,
+          after: updated,
+        };
+      });
 
       if (result.t === "missing") {
         return "missing";
@@ -119,7 +118,7 @@ async function provisionMembership({
         return { kind: "unchanged", role: result.role };
       }
 
-      await evictRevokedApiKeys(result.revokedKeys, { apiKeyId });
+      await evictUserGatewayResolveCache(prisma, { orgId, userId });
       await auditLog({
         resourceType: "orgMembership",
         resourceId: result.after.id,
@@ -137,8 +136,8 @@ async function provisionMembership({
       });
       return { kind: "updated", role: targetRole };
     } catch (error) {
-      // Serialization failure (P2034) from a concurrent membership change;
-      // surface as 409 so the SCIM client retries.
+      // Serialization failure (P2034) that outlasted the retries; surface as
+      // 409 so the SCIM client retries.
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === "P2034"
@@ -176,9 +175,12 @@ async function provisionMembership({
     from: undefined,
     to: roleToCreate,
   });
+  requireGatewayEnabledForRole(orgId, roleToCreate);
   try {
-    const created = await prisma.organizationMembership.create({
-      data: { userId, orgId, role: roleToCreate },
+    const created = await createOrgMembership(prisma, {
+      userId,
+      orgId,
+      role: roleToCreate,
     });
     await auditLog({
       resourceType: "orgMembership",
@@ -198,10 +200,7 @@ async function provisionMembership({
   } catch (error) {
     // A concurrent provisioning request created the row first. Apply the
     // requested role onto it (if any), keeping the periodic sync idempotent.
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002"
-    ) {
+    if (error instanceof LangfuseConflictError) {
       if (role === undefined) {
         return { kind: "unchanged", role: roleToCreate };
       }
@@ -258,35 +257,30 @@ async function deprovisionOrReject(
   ctx: AuthorizationContext | undefined,
 ): Promise<void> {
   try {
-    const outcome = await prisma.$transaction(
-      async (tx) => {
-        const membership = await tx.organizationMembership.findUnique({
-          where: { orgId_userId: { orgId, userId } },
-          // Capture the project memberships that Postgres cascade-deletes with
-          // this row (ProjectMembership.organizationMembership is onDelete:
-          // Cascade) so the audit `before` preserves which projects the user
-          // could access. They are unrecoverable once the delete commits, and
-          // this keeps parity with the tRPC deleteMembership audit entry.
-          include: { ProjectMemberships: true },
-        });
-        // Already absent: nothing to delete. Idempotent success, no audit.
-        if (!membership) {
-          return { result: "noop" as const };
-        }
-        await assertValidOwnershipChange({
-          tx,
-          context: ctx,
-          orgId,
-          from: membership.role,
-        });
-        await tx.organizationMembership.delete({
-          where: { orgId_userId: { orgId, userId } },
-        });
-        const revokedKeys = await deleteUserBoundApiKeys(tx, { userId, orgId });
-        return { result: "deleted" as const, membership, revokedKeys };
-      },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-    );
+    const outcome = await withSerializableRetry(prisma, async (tx) => {
+      const membership = await tx.organizationMembership.findUnique({
+        where: { orgId_userId: { orgId, userId } },
+        // Capture the project memberships that Postgres cascade-deletes with
+        // this row (ProjectMembership.organizationMembership is onDelete:
+        // Cascade) so the audit `before` preserves which projects the user
+        // could access. They are unrecoverable once the delete commits, and
+        // this keeps parity with the tRPC deleteMembership audit entry.
+        include: { ProjectMemberships: true },
+      });
+      // Already absent: nothing to delete. Idempotent success, no audit.
+      if (!membership) {
+        return { result: "noop" as const };
+      }
+      await assertValidOwnershipChange({
+        tx,
+        context: ctx,
+        orgId,
+        from: membership.role,
+      });
+      await deleteOrgMembership(tx, { orgId, userId });
+      const revokedKeys = await deleteUserBoundApiKeys(tx, { userId, orgId });
+      return { result: "deleted" as const, membership, revokedKeys };
+    });
 
     // Only audit and sync when a membership was actually removed.
     if (outcome.result === "deleted") {
@@ -303,8 +297,9 @@ async function deprovisionOrReject(
     }
   } catch (error) {
     // Postgres maps a serialization failure to Prisma error code P2034 ("could
-    // not serialize access due to concurrent update"). Surface as 409 so the
-    // SCIM client retries; on retry the guard will see the updated owner count.
+    // not serialize access due to concurrent update"). Once retries run out,
+    // surface as 409 so the SCIM client retries; on retry the guard will see
+    // the updated owner count.
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2034"
@@ -656,8 +651,15 @@ async function handlePut(
   // is omitted we create a default NONE membership if one is missing but leave
   // an existing membership untouched — so a periodic IdP full-sync that omits
   // roles cannot reset an existing member's role back to NONE.
-  if (typeof body.active === "boolean") {
-    if (body.active) {
+  //
+  // Okta profile pushes send `roles` without `active`. The membership check
+  // above guarantees the user is already a member, so a roles-only PUT is
+  // handled like `active: true`.
+  const isRolesOnlyUpdate =
+    body.active === undefined && body.roles !== undefined;
+  const effectiveActive = isRolesOnlyUpdate ? true : body.active;
+  if (typeof effectiveActive === "boolean") {
+    if (effectiveActive) {
       const outcome = await provisionMembership({
         userId: user.id,
         orgId,

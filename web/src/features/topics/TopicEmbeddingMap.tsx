@@ -1,6 +1,6 @@
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { type RouterOutputs } from "@/src/utils/api";
-import { EmbeddingMapView } from "./EmbeddingMapView";
+import { TopicMapExplorer as EmbeddingMapView } from "@/src/features/topics/map/TopicMapExplorer";
 import { TopicMapLoading } from "./TopicMapLoading";
 
 export function TopicEmbeddingMap({
@@ -28,7 +28,7 @@ export function TopicEmbeddingMap({
   if (query.data.status !== "ready")
     return (
       <p className="text-muted-foreground rounded-lg border p-4 text-sm">
-        {query.data.reason ?? "This run has no saved embedding projection."}
+        {query.data.reason ?? "This scan has no saved embedding projection."}
       </p>
     );
   return (

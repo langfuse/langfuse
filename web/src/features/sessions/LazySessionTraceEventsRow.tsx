@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import React from "react";
 import {
   TraceEventsRow,
@@ -8,7 +8,7 @@ import {
 import { useSessionDetailStore } from "@/src/features/sessions/SessionDetailStoreProvider";
 import { type RouterOutputs } from "@/src/utils/api";
 import { type FilterState } from "@langfuse/shared";
-import { type IOPreviewContentMode } from "@/src/features/traces";
+import type { IOPreviewContentMode } from "@/src/features/traces/components/IOPreview/IOPreview";
 
 type LazySessionTraceEventsRowProps = {
   trace: RouterOutputs["sessions"]["tracesFromEvents"][number];
@@ -23,6 +23,7 @@ type LazySessionTraceEventsRowProps = {
   surface?: TraceEventsSurface;
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
+  onCustomizeView?: () => void;
 };
 
 const LazySessionTraceEventsRowInner = (

@@ -23,31 +23,34 @@ import {
   Plus,
   Settings,
   Sun,
+  Waypoints,
   Zap,
   type IconComponent,
 } from "@langfuse/icons";
 import { useTheme } from "next-themes";
 import { keepPreviousData } from "@tanstack/react-query";
-import { Fragment, useEffect, memo, useState } from "react";
+import { Fragment, useCallback, useEffect, memo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { env } from "@/src/env.mjs";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
 import { useOrganizationSettingsPages } from "@/src/features/organizations/OrganizationSettingsPage";
-import { useAccountSettingsPages } from "@/src/features/account";
-import { useQueryProjectOrOrganization } from "@/src/features/projects";
+import { useGatewayPages } from "@/src/features/ai-gateway/hooks/useGatewayPages";
+import { buildGatewayPagePath } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayPagePath";
+import { useAccountSettingsPages } from "@/src/features/account/AccountSettingsPage";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useProjectSettingsPages } from "@/src/features/projects/ProjectSettingsPage";
 import { api } from "@/src/utils/api";
 import { type NavigationItem } from "@/src/components/layouts/utilities/routes";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type ProjectScope } from "@langfuse/shared";
-import { useReadPath } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import {
   useInAppAiAgent,
   useIsInAppAgentLauncherVisible,
-} from "@/src/features/in-app-agent";
+} from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 
 type IdNavigationItem = {
   type: "trace_id" | "observation_id";
@@ -164,6 +167,7 @@ const RECENT_ICON_BY_TYPE: Record<string, IconComponent> = {
   project: Grid2X2,
   project_settings: Settings,
   organization_settings: Settings,
+  ai_gateway: Waypoints,
   account_settings: Settings,
 };
 
@@ -778,6 +782,60 @@ function OrganizationSettingsGroup({
   );
 }
 
+function AiGatewayGroup({
+  onNavigate,
+}: {
+  onNavigate: (entry: RecentEntry) => void;
+}) {
+  const router = useRouter();
+  const capture = usePostHogClientCapture();
+  const gatewayPages = useGatewayPages();
+  const { organization } = useQueryProjectOrOrganization();
+
+  if (!organization) return null;
+
+  const gatewayItems = gatewayPages
+    .filter((page) => page.show && !page.disabledReason)
+    .map((page) => ({
+      title: `AI Gateway > ${page.title}`,
+      url: buildGatewayPagePath(organization.id, page.slug),
+      keywords: page.cmdKKeywords,
+    }));
+
+  if (gatewayItems.length === 0) return null;
+
+  return (
+    <>
+      <CommandSeparator />
+      <CommandGroup heading="AI Gateway">
+        {gatewayItems.map((item) => (
+          <CommandItem
+            key={item.url}
+            value={item.title}
+            keywords={item.keywords}
+            onSelect={() => {
+              router.push(item.url);
+              capture("cmd_k_menu:navigated", {
+                type: "ai_gateway",
+                title: item.title,
+                url: item.url,
+              });
+              onNavigate({
+                title: item.title,
+                url: item.url,
+                type: "ai_gateway",
+              });
+            }}
+          >
+            <Waypoints size="base" />
+            {item.title}
+          </CommandItem>
+        ))}
+      </CommandGroup>
+    </>
+  );
+}
+
 function AccountSettingsGroup({
   onNavigate,
 }: {
@@ -861,7 +919,15 @@ function CommandMenuComponent({
     false,
   );
 
+  // Closing drops the pending query so the next open does not search the previous text.
+  const clearSearch = useCallback(() => {
+    debouncedSearchChange.cancel();
+    setSearch("");
+    setDebouncedSearch("");
+  }, [debouncedSearchChange]);
+
   const navItems = mainNavigation
+    .filter((item) => !item.disabledReason)
     .flatMap((item) => {
       if (item.items) {
         // if the item has children, return the children and not the parent
@@ -893,12 +959,12 @@ function CommandMenuComponent({
         }
         const nextOpen = !open;
         setOpen(nextOpen);
-        if (!nextOpen) setSearch("");
+        if (!nextOpen) clearSearch();
       }
     };
     document.addEventListener("keydown", down);
     return () => document.removeEventListener("keydown", down);
-  }, [capture, setOpen, open]);
+  }, [capture, clearSearch, setOpen, open]);
 
   const shortcutItems = [
     ...[...pageShortcuts.byNavUrl.values()].flat(),
@@ -922,7 +988,7 @@ function CommandMenuComponent({
 
   const handleNavigate = (entry?: RecentEntry) => {
     if (entry) addRecent(entry);
-    setSearch("");
+    clearSearch();
     setOpen(false);
   };
 
@@ -931,7 +997,7 @@ function CommandMenuComponent({
       open={open}
       onOpenChange={(nextOpen) => {
         setOpen(nextOpen);
-        if (!nextOpen) setSearch("");
+        if (!nextOpen) clearSearch();
       }}
       filter={(value, search, keywords) =>
         matchesSearch(`${value} ${keywords?.join(" ")}`, search) ? 1 : 0
@@ -984,6 +1050,7 @@ function CommandMenuComponent({
           ))}
         <ProjectSettingsGroup onNavigate={handleNavigate} />
         <OrganizationSettingsGroup onNavigate={handleNavigate} />
+        <AiGatewayGroup onNavigate={handleNavigate} />
         <AccountSettingsGroup onNavigate={handleNavigate} />
       </CommandList>
     </CommandDialog>
@@ -1001,7 +1068,9 @@ export const CommandMenu = memo(
     const isSame = prevProps.mainNavigation.every((item, idx) => {
       const nextItem = nextProps.mainNavigation[idx];
       const itemTitleUrl =
-        item.title === nextItem.title && item.url === nextItem.url;
+        item.title === nextItem.title &&
+        item.url === nextItem.url &&
+        item.disabledReason === nextItem.disabledReason;
 
       if (!itemTitleUrl) {
         return false;

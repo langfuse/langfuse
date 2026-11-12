@@ -2,6 +2,7 @@ import { type PrismaClient } from "@langfuse/shared/src/db";
 import {
   BlobStorageExportMode,
   BlobStorageIntegrationType,
+  ForbiddenError,
   InvalidRequestError,
   type AnalyticsIntegrationExportSource,
   BlobStorageIntegrationFileType,
@@ -10,8 +11,14 @@ import {
   normalizeBlobStorageRegion,
   GCPServiceAccountKeySchema,
   GCS_USE_DEFAULT_CREDENTIALS,
+  STORAGE_ROLE_ARN_INVALID_MESSAGE,
+  STORAGE_ROLE_ARN_REGEX,
+  STORAGE_ROLE_PREFIX_INVALID_MESSAGE,
+  STORAGE_ROLE_PREFIX_REGEX,
+  StorageIntegrationAuthType,
 } from "@langfuse/shared";
-import { assertPersistedExportSourceAllowed } from "@/src/features/analytics-integrations/server";
+import { assertPersistedExportSourceAllowed } from "@/src/features/analytics-integrations/server/exportSource";
+import { isSameStorageDestination } from "@/src/features/automations/destinationUrl";
 import { encrypt } from "@langfuse/shared/encryption";
 import { env } from "@/src/env.mjs";
 import {
@@ -19,14 +26,26 @@ import {
   validateBlobStorageBucketHost,
   validateBlobStorageEndpoint,
 } from "@langfuse/shared/src/server";
+import { generateCustomerRoleExternalId } from "@langfuse/shared/src/server/ee/customerRoleAuth/customerRoleCredentials";
+import {
+  assertStorageRolePartition,
+  getCrossAccountRoleArn,
+} from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
+import {
+  STORAGE_SESSION_POLICY_MAX_LENGTH,
+  buildStorageWriteSessionPolicy,
+} from "@langfuse/shared/src/server/ee/storageRoleAuth/storageSessionPolicy";
 
 type UpsertBlobStorageIntegrationInput = {
   type: BlobStorageIntegrationType;
   bucketName: string;
   endpoint: string | null;
   region: string;
+  // Undefined means access keys.
+  authType?: StorageIntegrationAuthType;
   accessKeyId: string | null;
   secretAccessKey: string | null; // plain text — encrypted by this service
+  roleArn?: string | null;
   prefix: string;
   exportFrequency: string;
   enabled: boolean;
@@ -75,6 +94,59 @@ function secretFamily(type: BlobStorageIntegrationType) {
   }
 }
 
+// Returns the validated role ARN for an IAM role auth integration.
+function validateRoleAuthInput(params: {
+  type: BlobStorageIntegrationType;
+  roleArn: string | null | undefined;
+  bucketName: string;
+  prefix: string;
+  region: string;
+  canUseRoleAuth: boolean;
+  // The stored role ARN when the integration already uses IAM role auth.
+  storedRoleArn: string | null;
+}): string {
+  const roleArn = params.roleArn?.trim() ?? "";
+  // Saves that keep the stored role (e.g. pausing the export) stay possible
+  // after a plan downgrade or once the deployment drops IAM role auth.
+  if (roleArn !== params.storedRoleArn) {
+    if (!getCrossAccountRoleArn()) {
+      throw new InvalidRequestError(
+        "IAM role auth is not available on this Langfuse deployment",
+      );
+    }
+    if (!params.canUseRoleAuth) {
+      throw new ForbiddenError("IAM role auth requires an Enterprise plan");
+    }
+  }
+  if (params.type !== BlobStorageIntegrationType.S3) {
+    throw new InvalidRequestError(
+      "IAM role auth is only available for Amazon S3",
+    );
+  }
+  if (params.region.toLowerCase() === "auto") {
+    throw new InvalidRequestError(
+      "IAM role auth requires the bucket's AWS region",
+    );
+  }
+  if (!STORAGE_ROLE_ARN_REGEX.test(roleArn)) {
+    throw new InvalidRequestError(STORAGE_ROLE_ARN_INVALID_MESSAGE);
+  }
+  if (!STORAGE_ROLE_PREFIX_REGEX.test(params.prefix)) {
+    throw new InvalidRequestError(STORAGE_ROLE_PREFIX_INVALID_MESSAGE);
+  }
+  assertStorageRolePartition(roleArn);
+  const sessionPolicy = buildStorageWriteSessionPolicy({
+    roleArn,
+    bucketName: params.bucketName,
+    prefix: params.prefix,
+    region: params.region,
+  });
+  if (sessionPolicy.length > STORAGE_SESSION_POLICY_MAX_LENGTH) {
+    throw new InvalidRequestError("The export prefix is too long");
+  }
+  return roleArn;
+}
+
 function resolveExportStartDate(params: {
   exportMode: BlobStorageExportMode;
   exportStartDate: Date | null;
@@ -103,11 +175,14 @@ export async function upsertBlobStorageIntegration(params: {
   // through to the Prisma column default (TRACES_OBSERVATIONS). An UPDATE keeps
   // using data.exportSource, where undefined preserves the persisted value.
   createExportSource: AnalyticsIntegrationExportSource;
+  // Whether the organization's plan includes IAM role auth.
+  canUseRoleAuth: boolean;
 }) {
   const { prisma, projectId, data } = params;
 
   const isSelfHosted = !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const isGcs = data.type === BlobStorageIntegrationType.GOOGLE_CLOUD_STORAGE;
+  const usesRole = data.authType === StorageIntegrationAuthType.ROLE_ARN;
   const canUseHostCredentials =
     isSelfHosted && data.type === BlobStorageIntegrationType.S3;
 
@@ -117,7 +192,7 @@ export async function upsertBlobStorageIntegration(params: {
   // secret on UPDATE keeps whatever is stored. GCS never uses accessKeyId.
   // The sentinel is never a real secret: the form keeps it when the provider is
   // switched away from GCS, so treat it as "no secret" for every type.
-  const rawSecret = data.secretAccessKey?.trim() || null;
+  const rawSecret = usesRole ? null : data.secretAccessKey?.trim() || null;
   const isSentinel = rawSecret === GCS_USE_DEFAULT_CREDENTIALS;
   const isKeylessGcs = isGcs && isSentinel;
   const secretAccessKey = isSentinel ? null : rawSecret;
@@ -125,16 +200,38 @@ export async function upsertBlobStorageIntegration(params: {
     assertValidGcsServiceAccountKey(secretAccessKey);
   }
 
-  const accessKeyId = isGcs ? null : data.accessKeyId?.trim() || null;
-  // The GCS client always talks to Google, so an endpoint (e.g. one the form
-  // kept from another provider) is neither validated nor stored.
-  const endpoint = isGcs ? null : data.endpoint;
+  const accessKeyId =
+    isGcs || usesRole ? null : data.accessKeyId?.trim() || null;
+  // The GCS client always talks to Google, and IAM role auth is Amazon S3
+  // only, so an endpoint (e.g. one the form kept from another provider) is
+  // neither validated nor stored.
+  const endpoint = isGcs || usesRole ? null : data.endpoint;
   let region: string;
   try {
     region = normalizeBlobStorageRegion(data.region);
   } catch {
     throw new InvalidRequestError(BLOB_STORAGE_REGION_INVALID_MESSAGE);
   }
+  const storedRole = usesRole
+    ? await prisma.blobStorageIntegration.findUnique({
+        where: { projectId },
+        select: { authType: true, roleArn: true },
+      })
+    : null;
+  const roleArn = usesRole
+    ? validateRoleAuthInput({
+        type: data.type,
+        roleArn: data.roleArn,
+        bucketName: data.bucketName,
+        prefix: data.prefix,
+        region,
+        canUseRoleAuth: params.canUseRoleAuth,
+        storedRoleArn:
+          storedRole?.authType === StorageIntegrationAuthType.ROLE_ARN
+            ? storedRole.roleArn
+            : null,
+      })
+    : null;
 
   if (endpoint) {
     try {
@@ -152,7 +249,7 @@ export async function upsertBlobStorageIntegration(params: {
     }
   }
 
-  if (!isGcs && !canUseHostCredentials && !accessKeyId) {
+  if (!isGcs && !usesRole && !canUseHostCredentials && !accessKeyId) {
     throw new InvalidRequestError(
       "Access Key ID and Secret Access Key are required",
     );
@@ -168,11 +265,17 @@ export async function upsertBlobStorageIntegration(params: {
     bucketName: data.bucketName,
     endpoint,
     region,
+    authType: usesRole
+      ? StorageIntegrationAuthType.ROLE_ARN
+      : StorageIntegrationAuthType.ACCESS_KEYS,
     accessKeyId,
+    // Access-key saves keep the role ARN and external ID, so switching back
+    // does not invalidate the customer's trust policy.
+    ...(roleArn ? { roleArn } : {}),
     prefix: data.prefix,
     exportFrequency: data.exportFrequency,
     enabled: data.enabled,
-    forcePathStyle: data.forcePathStyle,
+    forcePathStyle: usesRole ? false : data.forcePathStyle,
     fileType: data.fileType,
     exportMode: data.exportMode,
     exportStartDate: resolvedExportStartDate,
@@ -184,8 +287,9 @@ export async function upsertBlobStorageIntegration(params: {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.blobStorageIntegration.findUnique({
       where: { projectId },
-      // createdAt/exportSource feed the post-upsert backstop below;
-      // type/secretAccessKey decide whether an update keeps a stored secret.
+      // createdAt/exportSource feed the post-upsert backstop below; the
+      // destination fields and secretAccessKey decide whether an update keeps
+      // a stored secret.
       select: {
         enabled: true,
         exportMode: true,
@@ -194,14 +298,42 @@ export async function upsertBlobStorageIntegration(params: {
         createdAt: true,
         exportSource: true,
         type: true,
+        bucketName: true,
+        endpoint: true,
+        accessKeyId: true,
         secretAccessKey: true,
+        externalId: true,
       },
     });
 
-    // A stored secret is only reusable within the same credential family.
-    const canKeepStoredSecret =
+    // A stored secret is only reusable within the same credential family, and
+    // only for the destination it was entered for.
+    const hasStoredSecretOfFamily =
       !!existing?.secretAccessKey &&
       secretFamily(existing.type) === secretFamily(data.type);
+    const canKeepStoredSecret =
+      hasStoredSecretOfFamily &&
+      isSameStorageDestination(existing, {
+        type: data.type,
+        bucketName: data.bucketName,
+        endpoint,
+        accessKeyId,
+      });
+    // Switching a self-hosted S3 integration to host credentials drops the
+    // stored secret instead of asking for it again.
+    const isSwitchingToHostCredentials = canUseHostCredentials && !accessKeyId;
+    if (
+      !usesRole &&
+      hasStoredSecretOfFamily &&
+      !canKeepStoredSecret &&
+      !secretAccessKey &&
+      !isKeylessGcs &&
+      !isSwitchingToHostCredentials
+    ) {
+      throw new InvalidRequestError(
+        "Secret access key is required when changing the storage provider, bucket, endpoint, or access key ID",
+      );
+    }
     // A GCS integration that will run keyless: explicitly requested, or an
     // update that sends no secret and has no stored GCS key to keep. Keyless
     // runs as the deployment identity, so it is gated by the bucket allowlist.
@@ -229,6 +361,7 @@ export async function upsertBlobStorageIntegration(params: {
       canUseHostCredentials && (!accessKeyId || !secretAccessKey);
     if (
       !isGcs &&
+      !usesRole &&
       !isUsingHostCredentials &&
       !secretAccessKey &&
       !canKeepStoredSecret
@@ -236,19 +369,28 @@ export async function upsertBlobStorageIntegration(params: {
       throw new InvalidRequestError("Secret access key is required");
     }
 
+    // A new external ID cannot be in the customer's trust policy yet, so the
+    // first export would fail with AccessDenied and auto-disable the
+    // integration. Save it disabled until the customer finishes setup.
+    const mintsExternalId = usesRole && !existing?.externalId;
+    const enabled = data.enabled && !mintsExternalId;
     const modeChanged = existing && existing.exportMode !== data.exportMode;
-    const justEnabled = data.enabled && !existing?.enabled;
+    const justEnabled = enabled && !existing?.enabled;
     const encryptedSecret = secretAccessKey ? encrypt(secretAccessKey) : null;
-    // Only overwrite secretAccessKey when a new value is provided, so partial
-    // updates don't wipe the existing encrypted secret. Keyless GCS, or a switch
-    // to another credential family, clears it, so a secret is never reused by
-    // the wrong provider.
-    let secretAccessKeyUpdate: { secretAccessKey: string | null } | object = {};
-    if (encryptedSecret) {
-      secretAccessKeyUpdate = { secretAccessKey: encryptedSecret };
-    } else if (willRunKeyless || !canKeepStoredSecret) {
-      secretAccessKeyUpdate = { secretAccessKey: null };
-    }
+    // An update without a new secret writes back the stored secret checked
+    // above, never omits the column: a concurrent save that changed the secret
+    // in between must not end up paired with this request's destination.
+    // Keyless GCS, or a destination the stored secret was not entered for,
+    // clears it.
+    const nextSecretAccessKey =
+      encryptedSecret ??
+      (canKeepStoredSecret && !willRunKeyless && !usesRole
+        ? existing.secretAccessKey
+        : null);
+    // Minted once and kept stable so the customer's trust policy keeps working.
+    const externalId = usesRole
+      ? (existing?.externalId ?? encrypt(generateCustomerRoleExternalId()))
+      : undefined;
 
     // The CREATE payload always carries a concrete source, resolved by the
     // caller through resolveExportSource. Applying it unconditionally (rather
@@ -264,6 +406,7 @@ export async function upsertBlobStorageIntegration(params: {
       where: { projectId },
       create: {
         ...writeData,
+        enabled,
         exportSource: params.createExportSource,
         // Parquet is the default export format; apply it when the caller omits
         // fileType on CREATE. This app-level fallback (not the Prisma column
@@ -271,13 +414,16 @@ export async function upsertBlobStorageIntegration(params: {
         fileType: data.fileType ?? BlobStorageIntegrationFileType.PARQUET,
         projectId,
         secretAccessKey: encryptedSecret,
+        externalId,
       },
       update: {
         ...writeData,
-        ...secretAccessKeyUpdate,
+        enabled,
+        secretAccessKey: nextSecretAccessKey,
+        externalId,
         // Schedule an immediate retry when saving an errored integration
         // so the scheduler picks it up via the nextSyncAt clause.
-        ...(existing?.lastError && data.enabled && !modeChanged
+        ...(existing?.lastError && enabled && !modeChanged
           ? { nextSyncAt: new Date() }
           : {}),
         // Reset sync state when export mode changes so the new mode's
@@ -289,7 +435,7 @@ export async function upsertBlobStorageIntegration(params: {
         ...(modeChanged || justEnabled ? { backfill: true } : {}),
         // Saving enabled resets the failure-notification cooldown: the
         // customer just acted, so a fresh failure should email promptly.
-        ...(data.enabled ? { lastFailureNotificationSentAt: null } : {}),
+        ...(enabled ? { lastFailureNotificationSentAt: null } : {}),
         runStartedAt: null,
       },
     });

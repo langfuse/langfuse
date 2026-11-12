@@ -133,6 +133,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
+          // eslint-disable-next-line jsx-a11y/role-has-required-aria-props
           role="combobox"
           aria-expanded={!disabled && open}
           className={cn(
@@ -153,12 +154,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
           </span>
           {selectedOption?.badge && (
             <span className="ml-1.5 flex shrink-0">
-              <Badge
-                color="filled"
-                font="mono"
-                size="sm"
-                text={selectedOption.badge}
-              />
+              <Badge color="filled" size="sm" text={selectedOption.badge} />
             </span>
           )}
           <span className="ml-2 flex">
@@ -227,12 +223,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                       {option.label ?? String(option.value)}
                       {option.badge && (
                         <span className="ml-auto flex shrink-0">
-                          <Badge
-                            color="filled"
-                            font="mono"
-                            size="sm"
-                            text={option.badge}
-                          />
+                          <Badge color="filled" size="sm" text={option.badge} />
                         </span>
                       )}
                     </CommandItem>
@@ -284,12 +275,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                     {option.label ?? String(option.value)}
                     {option.badge && (
                       <span className="ml-auto flex shrink-0">
-                        <Badge
-                          color="filled"
-                          font="mono"
-                          size="sm"
-                          text={option.badge}
-                        />
+                        <Badge color="filled" size="sm" text={option.badge} />
                       </span>
                     )}
                   </CommandItem>

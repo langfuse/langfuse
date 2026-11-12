@@ -15,13 +15,13 @@ import {
   getLatencyAndTotalCostForObservationsByTraces,
   getObservationsGroupedByTraceId,
   getScoresForTraces,
-  traceException,
+  logger,
   getDatasetItems,
   getDatasetItemsCount,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import groupBy from "lodash/groupBy";
-import { aggregateScores } from "@/src/features/scores/server";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { calculateRecursiveMetricsForRunItems } from "./utils";
 
 export const datasetRunsTableSchema = z.object({
@@ -138,7 +138,8 @@ export const getRunItemsByRunIdOrItemId = async <WithIO extends boolean = true>(
     scores: traceScores,
     dataTypes: AGGREGATABLE_SCORE_TYPES,
     includeHasMetadata: true,
-    onParseError: traceException,
+    onParseError: (error) =>
+      logger.warn("Invalid score omitted from response", { error }),
   });
 
   return runItems.map((ri) => {

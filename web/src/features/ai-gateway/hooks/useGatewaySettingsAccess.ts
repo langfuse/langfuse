@@ -1,9 +1,8 @@
 import { useSession } from "next-auth/react";
 
-import { env } from "@/src/env.mjs";
-import { canReadGatewayModels } from "@/src/features/ai-gateway/fns/canReadGatewayModels";
-import { useIsFeatureEnabled } from "@/src/features/feature-flags";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+import { gatewayPageAccess } from "@/src/features/ai-gateway/fns/gatewayPageAccess";
+import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
 
 /**
@@ -25,26 +24,18 @@ export function useGatewaySettingsAccess(organizationId: string | undefined) {
     scope: "gateway:invoke",
   });
   const isAiGatewayEnabled = useIsFeatureEnabled("aiGateway", {
-    enableForAdmins: false,
     organizationId,
   });
   const session = useSession();
 
-  /** Self-hosted without a gateway: managers get a pointer to the docs. */
-  const showNotDeployedNotice =
-    session.data?.environment.aiGatewayDeployed === false && canManageGateway;
-
-  const showManagement = isAiGatewayEnabled && canManageGateway;
-  /** Members manage their own gateway keys; managers see every key. */
-  const showApiKeys = isAiGatewayEnabled && canInvokeGateway;
-  const showModels =
-    isAiGatewayEnabled &&
-    organizationId !== undefined &&
-    canReadGatewayModels({
+  const { showNotDeployedNotice, showManagement, showApiKeys, showModels } =
+    gatewayPageAccess({
       organizationId,
-      demoOrganizationId: env.NEXT_PUBLIC_DEMO_ORG_ID,
-      canReadGateway,
+      isAiGatewayEnabled,
+      aiGatewayDeployed: session.data?.environment.aiGatewayDeployed,
       canManageGateway,
+      canReadGateway,
+      canInvokeGateway,
     });
 
   const setupStatus = api.aiGateway.getSetupStatus.useQuery(
@@ -63,6 +54,7 @@ export function useGatewaySettingsAccess(organizationId: string | undefined) {
     showModels,
     showApiKeys,
     isIngestionConfigured: setupStatus.data?.isConfigured,
+    isRecording: setupStatus.data?.isRecording,
     isSetupStatusPending: setupStatus.isPending,
   };
 }

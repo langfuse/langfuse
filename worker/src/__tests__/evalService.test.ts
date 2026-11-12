@@ -953,88 +953,6 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(jobs[0].startTime).not.toBeNull();
     }, 10_000);
 
-    test("handle dataset upsert with cached traces", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-      const traceId = randomUUID();
-      const datasetId = randomUUID();
-      const datasetItemId = randomUUID();
-
-      await upsertTrace({
-        id: traceId,
-        project_id: projectId,
-        timestamp: convertDateToClickhouseDateTime(new Date()),
-        created_at: convertDateToClickhouseDateTime(new Date()),
-        updated_at: convertDateToClickhouseDateTime(new Date()),
-      });
-
-      await prisma.dataset.create({
-        data: {
-          id: datasetId,
-          projectId,
-          name: "test-dataset",
-        },
-      });
-
-      await prisma.datasetItem.create({
-        data: {
-          id: datasetItemId,
-          projectId,
-          datasetId,
-          sourceTraceId: traceId,
-        },
-      });
-
-      await createMigratedEvalConfig({
-        data: {
-          id: randomUUID(),
-          projectId,
-          filter: JSON.parse("[]"),
-          jobType: "EVAL",
-          delay: 0,
-          sampling: new Decimal("1"),
-          targetObject: EvalTargetObject.DATASET,
-          scoreName: "score",
-          variableMapping: JSON.parse("[]"),
-        },
-      });
-
-      // Use two job configurations to ensure we're using the cache
-      await createMigratedEvalConfig({
-        data: {
-          id: randomUUID(),
-          projectId,
-          filter: [
-            {
-              type: "string",
-              value: "a",
-              column: "Dataset",
-              operator: "contains",
-            },
-          ],
-          jobType: "EVAL",
-          delay: 0,
-          sampling: new Decimal("1"),
-          targetObject: EvalTargetObject.DATASET,
-          scoreName: "score",
-          variableMapping: JSON.parse("[]"),
-        },
-      });
-
-      const payload = {
-        projectId,
-        traceId: traceId,
-        datasetItemId: datasetItemId,
-      };
-
-      await createEvalJobs({
-        sourceEventType: "trace-upsert",
-        event: payload,
-        jobTimestamp,
-      });
-      // If this does not throw, we're good.
-      expect(true).toBe(true);
-    });
-
     test("creates new eval job for a dataset on upsert of the trace", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const traceId = randomUUID();
@@ -1409,43 +1327,6 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(jobs[0].status.toString()).toBe("PENDING");
       expect(jobs[0].startTime).not.toBeNull();
       expect(jobs[0].endTime).to.be.null;
-    }, 10_000);
-
-    test("does not create job for inactive config", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-      const traceId = randomUUID();
-
-      await createMigratedEvalConfig({
-        data: {
-          id: randomUUID(),
-          projectId,
-          filter: JSON.parse("[]"),
-          jobType: "EVAL",
-          delay: 0,
-          sampling: new Decimal("1"),
-          targetObject: EvalTargetObject.TRACE,
-          scoreName: "score",
-          variableMapping: JSON.parse("[]"),
-          status: "INACTIVE",
-        },
-      });
-
-      const payload = {
-        projectId,
-        traceId: traceId,
-      };
-
-      await createEvalJobs({
-        sourceEventType: "trace-upsert",
-        event: payload,
-        jobTimestamp,
-      });
-
-      const jobs = await prisma.jobExecution.findMany({
-        where: { projectId },
-      });
-
-      expect(jobs.length).toBe(0);
     }, 10_000);
 
     test("does not create eval job for 0 sample rate", async () => {

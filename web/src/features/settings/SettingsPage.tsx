@@ -1,14 +1,16 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
-import { type ComponentProps } from "react";
+import { type ComponentProps, type ReactNode } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
-import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
+import {
+  isSettingsPageShown,
+  PagedSettingsContainer,
+} from "@/src/components/PagedSettingsContainer";
 import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
-import { useAccountSettingsPages } from "@/src/features/account";
-import { useQueryOrganization } from "@/src/features/organizations";
+import { useAccountSettingsPages } from "@/src/features/account/AccountSettingsPage";
+import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { useOrganizationSettingsPages } from "@/src/features/organizations/OrganizationSettingsPage";
 import { accountSettingsPath } from "@/src/features/settings/accountSettingsPath";
 
@@ -38,9 +40,6 @@ export function SettingsPage({ scope }: SettingsPageProps) {
 
   const activeSlug =
     typeof router.query.page === "string" ? router.query.page : undefined;
-  const fullHeight =
-    scope === "organization" &&
-    (activeSlug === "ai-gateway-models" || activeSlug === "ai-gateway");
 
   if (scope === "organization" && !organization) {
     return (
@@ -51,18 +50,11 @@ export function SettingsPage({ scope }: SettingsPageProps) {
   }
 
   return (
-    <ContainerPage
-      headerProps={{ title: "Settings" }}
-      extendRight={fullHeight}
-      fullHeight={fullHeight}
-    >
+    <ContainerPage headerProps={{ title: "Settings" }}>
       <PagedSettingsContainer
         activeSlug={activeSlug}
         pages={pages}
-        fullHeight={fullHeight}
-        sectionHeaders={{
-          [ORGANIZATION_SECTION]: <OrganizationSectionHeader />,
-        }}
+        sectionHeaders={organizationSectionHeaders(organization?.id, pages)}
       />
     </ContainerPage>
   );
@@ -150,4 +142,17 @@ export function buildSettingsPages({
   });
 
   return [...account, ...organization];
+}
+
+/** organizationSectionHeaders labels the org section unless the selected org shows none of its pages */
+function organizationSectionHeaders(
+  organizationId: string | undefined,
+  pages: SettingsPageEntry[],
+): Record<string, ReactNode> {
+  const showsOrganizationPage = pages.some(
+    (page) =>
+      page.section === ORGANIZATION_SECTION && isSettingsPageShown(page),
+  );
+  if (organizationId && !showsOrganizationPage) return {};
+  return { [ORGANIZATION_SECTION]: <OrganizationSectionHeader /> };
 }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { vi, type Mock } from "vitest";
 import { randomUUID } from "crypto";
 import { type Prisma } from "@langfuse/shared/src/db";

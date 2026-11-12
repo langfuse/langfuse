@@ -18,7 +18,6 @@ type ToastEventMap = {
 };
 
 // resource:action, only use snake_case
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
 const events = {
   table: [
     "filter_builder_open",
@@ -484,6 +483,15 @@ const events = {
   ],
   cmd_k_menu: ["opened", "search_entered", "navigated"],
   spend_alert: ["created", "updated", "deleted"],
+  // Launch surfaces answer "which entry point and state lead people into
+  // gateway setup or key creation?" Props are state enums and counts only.
+  ai_gateway_launch: [
+    "banner_cta_clicked",
+    "banner_dismissed",
+    "dialog_setup_clicked",
+    "dialog_get_key_clicked",
+    "dialog_learn_more_clicked",
+  ],
   sidebar: [
     "book_a_call_clicked",
     "v4_beta_toggled",
@@ -507,8 +515,12 @@ const events = {
     "status_row_clicked",
     "update_required_badge_clicked",
     "migrate_evals_with_agent_clicked",
-    "overview_banner_status_clicked",
-    "overview_banner_docs_clicked",
+    // Legacy v3 strip in the top-banner stack. Both carry
+    // { severity, actionNeededCount }; cta_clicked also carries `cta`.
+    "top_banner_shown",
+    "top_banner_cta_clicked",
+    // Opt-out users on the legacy-UI top strip → migration status page.
+    "legacy_ui_banner_status_clicked",
     "panel_docs_link_clicked",
     "create_project_keys_clicked",
     "panel_opened",

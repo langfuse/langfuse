@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { randomUUID } from "crypto";
 import type { Session } from "next-auth";
@@ -37,13 +36,16 @@ vi.mock("@/src/server/auth", () => ({
   getServerAuthSessionForRequest: authMocks.getServerAuthSessionForRequest,
 }));
 
-vi.mock("@/src/features/entitlements/server", async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>;
-  return {
-    ...actual,
-    hasEntitlement: entitlementMocks.hasEntitlement,
-  };
-});
+vi.mock(
+  "@/src/features/entitlements/server/hasEntitlement",
+  async (importOriginal) => {
+    const actual = (await importOriginal()) as Record<string, unknown>;
+    return {
+      ...actual,
+      hasEntitlement: entitlementMocks.hasEntitlement,
+    };
+  },
+);
 
 describe("in-app agent public API route auth", () => {
   beforeEach(() => {
@@ -131,7 +133,7 @@ describe("in-app agent public API route auth", () => {
       filterInAppAgentAvailableLangfuseMcpTools({
         tools,
         policy: createInAppAgentToolPolicy({
-          userAccess: { projectRole: "MEMBER", isAdmin: false },
+          userAccess: { projectRole: "MEMBER" },
         }),
       }),
     ).toEqual({
@@ -143,7 +145,7 @@ describe("in-app agent public API route auth", () => {
       filterInAppAgentAvailableLangfuseMcpTools({
         tools,
         policy: createInAppAgentToolPolicy({
-          userAccess: { projectRole: "OWNER", isAdmin: false },
+          userAccess: { projectRole: "OWNER" },
         }),
       }),
     ).toEqual(tools);
@@ -367,7 +369,6 @@ function createInAppAgentSession(params: {
       name: "Test User",
       email: "test@example.com",
       image: null,
-      admin: false,
       featureFlags: testFeatureFlags({ templateFlag: false }),
       organizations:
         (params.includeProjectMembership ?? true)

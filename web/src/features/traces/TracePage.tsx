@@ -1,4 +1,4 @@
-import { DetailPageNav } from "@/src/features/navigate-detail-pages";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useRouter } from "next/router";
 import { ErrorPage } from "@/src/components/error-page";
 import { TraceDetailActions } from "@/src/features/traces/components/TraceDetailActions";
@@ -6,11 +6,17 @@ import { useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailDa
 import Page from "@/src/components/layouts/Page";
 import { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
 import { useSession } from "next-auth/react";
-import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { stripBasePath } from "@/src/utils/redirect";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { getTraceScopeTabs } from "./fns/getTraceScopeTabs";
+import { getTraceScopeQuery } from "./fns/getTraceScopeQuery";
+import { resolveTraceScope } from "./fns/resolveTraceScope";
+import { api } from "@/src/utils/api";
 
 export function TracePage({
   traceId,
@@ -20,8 +26,14 @@ export function TracePage({
   timestamp?: Date;
 }) {
   const router = useRouter();
+  const utils = api.useUtils();
   const session = useSession();
+  const { isV4 } = useReadPath();
   const routeProjectId = (router.query.projectId as string) ?? "";
+  const unifiedTraceSessionViewEnabled = useIsFeatureEnabled(
+    "unifiedTraceSessionView",
+    { projectId: routeProjectId },
+  );
 
   // Shared, beta-aware fetch (same hook the peek uses).
   const trace = useTraceDetailData({
@@ -50,9 +62,7 @@ export function TracePage({
       />
     );
 
-  if (!trace.data) return <div className="p-3">Loading...</div>;
-
-  const isSharedTrace = trace.data.public;
+  const isSharedTrace = trace.data?.public ?? false;
   const showPublicIndicators = isSharedTrace && !hasProjectAccess;
   const encodedTargetPath = encodeURIComponent(
     stripBasePath(router.asPath || "/"),
@@ -90,35 +100,72 @@ export function TracePage({
   })();
   const traceContext = router.query.peek !== undefined ? "peek" : "fullscreen";
   const sharedBadge = showPublicIndicators ? (
-    <Badge color="primary" text="Public" />
+    <Badge color="outline" text="Public" />
   ) : undefined;
+  const sessionId = trace.data?.sessionId;
+  const { canSelectSession, isSessionScope, showScopeToggle } =
+    resolveTraceScope({
+      unifiedTraceSessionViewEnabled,
+      isV4,
+      isProjectMember: hasProjectAccess,
+      sessionId,
+      aggregation: router.query.aggregation,
+      context: traceContext,
+    });
 
-  return (
-    <Page
-      headerProps={{
-        // Route id, not the loaded one: the loaded trace may be the previous
-        // one kept as placeholder.
-        title: traceId,
-        itemType: "TRACE",
-        divider: false,
-        breadcrumb: [
-          {
-            name: "Traces",
-            href: `/project/${router.query.projectId as string}/traces`,
+  const headerProps = {
+    // Trace titles follow the route while the previous trace is kept as placeholder.
+    title: isSessionScope && sessionId ? sessionId : traceId,
+    itemType: isSessionScope ? "SESSION" : "TRACE",
+    titleTabs: showScopeToggle
+      ? getTraceScopeTabs({
+          value: isSessionScope ? "session" : "trace",
+          canSelectSession,
+          onValueChange: (next) => {
+            const query = getTraceScopeQuery(
+              router.query,
+              next,
+              [
+                ...(trace.data?.observations ?? []),
+                ...(sessionId
+                  ? (utils.sessions.observationsForSessionFromEvents.getData({
+                      projectId: routeProjectId,
+                      sessionId,
+                    })?.observations ?? [])
+                  : []),
+              ],
+              sessionId
+                ? utils.sessions.tracesFromEvents.getData({
+                    projectId: routeProjectId,
+                    sessionId,
+                  })
+                : undefined,
+            );
+            return router.replace(
+              { pathname: router.pathname, query },
+              undefined,
+              {
+                shallow: true,
+              },
+            );
           },
-        ],
-        showSidebarTrigger: !showPublicIndicators,
-        leadingControl,
-        breadcrumbBadges: sharedBadge,
-        actionButtonsRight: (
-          <>
+        })
+      : undefined,
+    actions: [
+      {
+        id: "navigation",
+        type: "custom",
+        pinned: true,
+        render: ({ layout }) =>
+          layout === "toolbar" ? (
             <DetailPageNav
               currentId={traceId}
               path={(entry) => {
-                const { view, display, projectId } = router.query;
+                const { view, display, projectId, aggregation } = router.query;
                 const queryParams = new URLSearchParams({
                   ...(typeof view === "string" ? { view } : {}),
                   ...(typeof display === "string" ? { display } : {}),
+                  ...(aggregation === "session" ? { aggregation } : {}),
                 });
                 const timestamp =
                   entry.params && entry.params.timestamp
@@ -138,37 +185,50 @@ export function TracePage({
               listKey="traces"
               compact
             />
-            <TraceDetailActions
-              isPlaceholderData={trace.isPlaceholderData}
-              trace={trace.data}
-              traceContext={traceContext}
-              timestamp={timestamp}
-              deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
-            />
-          </>
-        ),
-        // Mobile compact header: the same trace actions as full-width labeled
-        // menu rows (Make Public / Delete) for the `⋯` overflow, instead of the
-        // inline icon toolbar. Trace-to-trace nav is desktop-only.
-        actionButtonsMenu: (
-          <TraceDetailActions
-            isPlaceholderData={trace.isPlaceholderData}
-            trace={trace.data}
-            traceContext={traceContext}
-            timestamp={timestamp}
-            deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
-            layout="menu"
-          />
-        ),
+          ) : null,
+      },
+    ],
+  } satisfies NonNullable<
+    React.ComponentProps<typeof TraceDetailBody>["header"]
+  >["headerProps"];
+
+  return (
+    <Page
+      headerProps={{
+        title: headerProps.title,
+        hideTitleRow: true,
+        breadcrumb: [
+          { name: "Traces", href: `/project/${routeProjectId}/traces` },
+        ],
+        showSidebarTrigger: !showPublicIndicators,
+        leadingControl,
+        breadcrumbBadges: sharedBadge,
       }}
     >
       <div className="flex max-h-full min-h-0 flex-1 overflow-hidden">
-        <TraceDetailBody
-          trace={trace.data}
-          context={traceContext}
-          truncatedAtObservations={trace.truncatedAtObservations}
+        <TraceDetailActions
           isPlaceholderData={trace.isPlaceholderData}
-        />
+          trace={trace.data}
+          traceContext={traceContext}
+          timestamp={timestamp}
+          deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
+        >
+          {(traceActions) => (
+            <TraceDetailBody
+              trace={trace.data}
+              context={traceContext}
+              truncatedAtObservations={trace.truncatedAtObservations}
+              isPlaceholderData={trace.isPlaceholderData}
+              header={{
+                variant: "page",
+                headerProps: {
+                  ...headerProps,
+                  actions: [...headerProps.actions, ...traceActions],
+                },
+              }}
+            />
+          )}
+        </TraceDetailActions>
       </div>
     </Page>
   );

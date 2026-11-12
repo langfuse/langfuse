@@ -1,15 +1,17 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { GatewayProvider, PrismaClient } from "@langfuse/shared/src/db";
 import { logger, redis as defaultRedis } from "@langfuse/shared/src/server";
 import type { Cluster, Redis } from "ioredis";
 
 import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
 import { formatGatewayModelSlug } from "@/src/features/ai-gateway/fns/formatGatewayModelSlug";
+import { getBedrockModelApiFormats } from "@/src/features/ai-gateway/fns/getBedrockModelApiFormats";
+import { isGatewayApiFamily } from "@/src/features/ai-gateway/fns/isGatewayApiFamily";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import {
   type GatewayApiFormat,
+  gatewayApiFormats,
   gatewayProviders,
   providerSupportsApiFormat,
 } from "@/src/features/ai-gateway/server/provider/registry";
@@ -25,15 +27,10 @@ export class GatewayModelsService {
 
   constructor(
     prisma: PrismaClient,
-    fetcher: typeof fetch = fetch,
     redis: Redis | Cluster | null = defaultRedis,
   ) {
     this.repository = new GatewayModelsRepository(prisma);
-    this.modelCatalogService = new GatewayModelCatalogService(
-      prisma,
-      fetcher,
-      redis,
-    );
+    this.modelCatalogService = new GatewayModelCatalogService(prisma, redis);
   }
 
   async list(params: {
@@ -43,7 +40,7 @@ export class GatewayModelsService {
     const connections = await this.repository.getConnections({
       organizationId: params.context.organizationId,
       providers: gatewayProviders.filter((provider) =>
-        providerSupportsApiFormat(provider, params.apiFormat),
+        providerListsModelsFor(provider, params.apiFormat),
       ) as GatewayProvider[],
     });
     const results = await Promise.all(
@@ -83,15 +80,60 @@ export class GatewayModelsService {
             connection.allowedModels,
           );
           return catalog.models
-            .filter((model) => isGatewayModelAllowed(allowedModels, model.id))
-            .map((model) => ({
+            .filter(
+              (model) =>
+                isGatewayModelAllowed(allowedModels, model.id) &&
+                modelMatchesApiFormat(model, params.apiFormat),
+            )
+            .map(({ apiFormats: _apiFormats, ...model }) => ({
               ...model,
               id: formatGatewayModelSlug(connection.name, model.id),
+              provider: toCatalogFamily(model.provider, params.apiFormat),
             }));
         })
         .sort(compareModels),
     };
   }
+}
+
+// Like `modelMatchesApiFormat`: OpenAI listings arrive as `openai.responses`,
+// so a provider serving only Chat Completions must still be listed.
+function providerListsModelsFor(
+  provider: (typeof gatewayProviders)[number],
+  apiFormat: GatewayApiFormat,
+) {
+  if (apiFormat === "anthropic.messages") {
+    return providerSupportsApiFormat(provider, apiFormat);
+  }
+  return gatewayApiFormats.some(
+    (format) =>
+      format !== "anthropic.messages" &&
+      providerSupportsApiFormat(provider, format),
+  );
+}
+
+function modelMatchesApiFormat(
+  model: GatewayModelCatalogEntry,
+  apiFormat: GatewayApiFormat,
+) {
+  const formats =
+    model.apiFormats ??
+    (model.provider === "BEDROCK" ? getBedrockModelApiFormats(model.id) : null);
+  if (!formats) return true;
+  if (apiFormat === "anthropic.messages") return formats.includes(apiFormat);
+  // The gateway asks for OpenAI models with `openai.responses` on every OpenAI
+  // route, so a model serving only Chat Completions must still be listed.
+  return formats.some((format) => format !== "anthropic.messages");
+}
+
+// The gateway renders and validates entries by API family, so Bedrock,
+// OpenRouter, xAI, Vercel and Google AI Studio models are reported as the family whose route serves them.
+function toCatalogFamily(
+  provider: GatewayModelCatalogEntry["provider"],
+  apiFormat: GatewayApiFormat,
+) {
+  if (isGatewayApiFamily(provider)) return provider;
+  return apiFormat === "anthropic.messages" ? "ANTHROPIC" : "OPENAI";
 }
 
 function compareModels(
@@ -106,3 +148,5 @@ function compareModels(
   }
   return 0;
 }
+
+export const __test = { modelMatchesApiFormat };

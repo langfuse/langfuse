@@ -9,9 +9,10 @@ import {
   getTurnstileRemoteIp,
   verifyTurnstileToken,
 } from "@/src/features/auth/server/verifyTurnstile";
-import { getAdClickIdsFromRequest } from "@/src/features/auth/lib/signupAttribution";
+import { getSignupAttributionFromRequest } from "@/src/features/auth/lib/signupAttribution";
+import { sendSignupWebhook } from "@/src/features/auth/lib/signupSteps";
 import { signupSchema } from "@/src/features/auth/lib/signupSchema";
-import { getSsoAuthProviderIdForDomain } from "@/src/ee/features/multi-tenant-sso/server";
+import { getSsoAuthProviderIdForDomain } from "@/src/ee/features/multi-tenant-sso/utils";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { logger } from "@langfuse/shared/src/server";
 import { isEmailVerificationRequired } from "@/src/features/auth-credentials/lib/credentialsUtils";
@@ -116,7 +117,7 @@ export async function signupApiHandler(
       body.email,
       body.password,
       body.name,
-      { adClickIds: getAdClickIdsFromRequest(req) },
+      getSignupAttributionFromRequest(req, "credentials"),
     );
   } catch (error) {
     const message =
@@ -128,27 +129,12 @@ export async function signupApiHandler(
     return;
   }
 
-  // Trigger new user signup event
-  if (
-    env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK &&
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "STAGING" &&
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "DEV"
-  ) {
-    await fetch(env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK, {
-      method: "POST",
-      body: JSON.stringify({
-        name: body.name,
-        email: body.email,
-        referralSource: body.referralSource,
-        cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-        userId: userId,
-      }),
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-  }
+  sendSignupWebhook(
+    { id: userId, email: body.email, name: body.name },
+    { referralSource: body.referralSource },
+  ).catch((error) => {
+    logger.warn("Sign-up webhook failed", { userId, error });
+  });
 
   res.status(200).json({ message: "User created" });
 }

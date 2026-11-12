@@ -1,5 +1,5 @@
-/* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
-import { useEffect, useMemo, useState } from "react";
+/* eslint-disable react/no-unstable-nested-components */
+import { useState } from "react";
 import { ChevronLeft } from "@langfuse/icons";
 import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -7,15 +7,7 @@ import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekV
 import { useRouter } from "next/router";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import Page from "@/src/components/layouts/Page";
-import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
-import { TimeRangePicker } from "@/src/components/date-picker";
-import { useGlobalDateRange } from "@/src/features/global-time-range/useGlobalDateRange";
-import {
-  DASHBOARD_AGGREGATION_OPTIONS,
-  TABLE_AGGREGATION_OPTIONS,
-  TIME_RANGES,
-  type TimeRange,
-} from "@/src/utils/date-range-utils";
+import { TIME_RANGES, type TimeRange } from "@/src/utils/date-range-utils";
 import { ErrorPage } from "@/src/components/error-page";
 import {
   Sheet,
@@ -27,6 +19,7 @@ import { api, type RouterOutputs } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useCanViewTopics } from "@/src/features/topics/topicsAccess";
 import {
+  TOPICS_MAX_RULES,
   type TopicFacet,
   type TopicOperation,
   type TopicTimeRange,
@@ -51,32 +44,48 @@ import { AutomaticProcessingDialogController } from "./AutomaticProcessingDialog
 import { ConfigureTopicsDialogController } from "./ConfigureTopicsDialogController";
 import { TopicSetupFlowController } from "./TopicSetupFlowController";
 import { TopicSetupNotice } from "./TopicSetupNotice";
-import { topicSetupRun, topicSetupStage } from "./topic-setup-flow";
+import { topicRuleSetupProgress, topicSetupStage } from "./topic-setup-flow";
 import { TopicSetupProgressView } from "./TopicSetupProgressView";
 import { CurrentTopics, useCurrentTopics } from "./CurrentTopics";
 import { TopicsActionsMenu } from "./TopicsActionsMenu";
 import { prepareTopicsActions } from "./prepare-topics-actions";
 import { TopicsWorkspaceGate } from "./TopicsWorkspaceGate";
-import { isValidTopicTimeRange } from "./time-range";
 import { useTopicTraceFilters } from "./useTopicTraceFilters";
 import { TopicRunDetails } from "./TopicRunDetails";
 import { TopicRunHistoryList } from "./TopicRunHistoryList";
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
-import { busy, operationLabels } from "./topic-run-labels";
-
-const maxTimeRangeMs = TIME_RANGES.last90Days.minutes * 60_000;
-const sharedTimeRangePresets = [
-  ...new Set([...TABLE_AGGREGATION_OPTIONS, ...DASHBOARD_AGGREGATION_OPTIONS]),
-].sort((a, b) => TIME_RANGES[a].minutes - TIME_RANGES[b].minutes);
-const topicsTimeRangePresets = sharedTimeRangePresets.filter(
-  (range) => TIME_RANGES[range].minutes * 60_000 <= maxTimeRangeMs,
-);
+import { busy, runLabel } from "./topic-run-labels";
+import {
+  resolveTopicMapSelection,
+  topicMapQuery,
+  type TopicMapSelection,
+} from "./topic-maps";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
+import { TopicsMapPicker, type UsePreviewTopics } from "./TopicsMapPicker";
+import { TopicMapStrip } from "./TopicMapStrip";
+import { TopicRuleBuildingState } from "./TopicRuleBuildingState";
+import { TopicAnalysisState } from "./TopicAnalysisState";
+import { TopicSliceDialogController } from "./TopicSliceDialogController";
 
 const loadingPage = (
   <Page headerProps={{ title: "Topics" }}>
     <Spinner message="Loading topics" />
   </Page>
 );
+
+/** One map's results for the picker preview, cached for a minute. */
+const usePreviewTopics: UsePreviewTopics = (projectId, map) => {
+  const rule = api.topics.currentResults.useQuery(
+    { projectId, ruleId: map?.kind === "rule" ? map.id : undefined },
+    { enabled: map?.kind === "rule", staleTime: 60_000 },
+  );
+  const analysis = api.topics.analysisResults.useQuery(
+    { projectId, executionId: map?.kind === "analysis" ? map.id : "" },
+    { enabled: map?.kind === "analysis", staleTime: 60_000 },
+  );
+  const query = map?.kind === "analysis" ? analysis : rule;
+  return { facets: query.data?.facets, loading: query.isLoading };
+};
 
 export default function TopicsPage() {
   const router = useRouter();
@@ -104,26 +113,33 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
     facets: facets.data ?? [],
     facetsReady: facets.isSuccess,
   });
+  // The workspace mounts while facets load so its requests start alongside
+  // them. It remounts when the project later gains or loses its facets, but
+  // not when the first facets response arrives.
+  const hasFacets = facets.data ? facets.data.length > 0 : undefined;
+  const [loadedWithFacets, setLoadedWithFacets] = useState(hasFacets);
+  if (loadedWithFacets === undefined && hasFacets !== undefined)
+    setLoadedWithFacets(hasFacets);
+  const facetsChanged =
+    hasFacets !== undefined && hasFacets !== (loadedWithFacets ?? hasFacets);
   return (
-    <TopicsWorkspaceGate isLoading={facets.isLoading} fallback={loadingPage}>
-      <TopicSetupFlowController
-        projectId={projectId}
-        canWrite={canWrite}
-        settings={modelSettings.configure.settings}
-        onSaveSampling={modelSettings.automaticProcessing.save}
-      >
-        {({ openSetup }) => (
-          <TopicsWorkspaceView
-            key={(facets.data?.length ?? 0) > 0 ? "configured" : "empty"}
-            projectId={projectId}
-            facets={facets}
-            canWrite={canWrite}
-            modelSettings={modelSettings}
-            openSetup={openSetup}
-          />
-        )}
-      </TopicSetupFlowController>
-    </TopicsWorkspaceGate>
+    <TopicSetupFlowController
+      projectId={projectId}
+      canWrite={canWrite}
+      settings={modelSettings.configure.settings}
+      onSaveSampling={modelSettings.automaticProcessing.save}
+    >
+      {({ openSetup }) => (
+        <TopicsWorkspaceView
+          key={facetsChanged ? "facets-changed" : "first-load"}
+          projectId={projectId}
+          facets={facets}
+          canWrite={canWrite}
+          modelSettings={modelSettings}
+          openSetup={openSetup}
+        />
+      )}
+    </TopicSetupFlowController>
   );
 }
 
@@ -211,22 +227,6 @@ function TopicsWorkspaceContent({
     const bounds = { from: new Date(to.getTime() - minutes * 60_000), to };
     setGenerationRange({ selection, bounds });
   };
-  const { timeRange, setTimeRange } = useGlobalDateRange({
-    allowedRanges: sharedTimeRangePresets,
-    fallback: "last7Days",
-  });
-  const [refreshedAt, setRefreshedAt] = useState(Date.now);
-  // Coming back to the tab moves a relative range forward, so auto-analyzed traces show up.
-  useEffect(() => {
-    function refreshOnVisible() {
-      if (document.visibilityState !== "visible") return;
-      const now = Date.now();
-      setRefreshedAt((previous) => (now - previous > 60_000 ? now : previous));
-    }
-    document.addEventListener("visibilitychange", refreshOnVisible);
-    return () =>
-      document.removeEventListener("visibilitychange", refreshOnVisible);
-  }, []);
   const [tracePanel, setTracePanel] = useState<HTMLElement | null>(null);
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
@@ -239,49 +239,22 @@ function TopicsWorkspaceContent({
   const executions = api.topics.executions.useQuery(
     { projectId },
     {
-      refetchInterval: (query) => {
-        const data = query.state.data ?? [];
-        if (data.some((execution) => busy(execution.status))) return 3000;
-        // Keep polling through the hand-off from summaries to the topic update.
-        const run = topicSetupRun(data);
-        return run &&
-          !run.update &&
-          topicSetupStage(run, Date.now()).stage === "grouping"
+      refetchInterval: (query) =>
+        (query.state.data ?? []).some((execution) => busy(execution.status))
           ? 3000
-          : false;
-      },
+          : false,
     },
   );
   const [mountedAt] = useState(Date.now);
-  const setupRun = topicSetupRun(executions.data ?? []);
-  const setup = setupRun ? topicSetupStage(setupRun, Date.now()) : null;
-  // A finished run hands over to results; a failure from this visit stays until retried.
-  const showSetupProgress =
-    setupRun !== null &&
-    setup !== null &&
-    (["summarizing", "grouping", "naming"].includes(setup.stage) ||
-      (setup.stage === "failed" &&
-        Date.parse((setupRun.update ?? setupRun.process).updatedAt) >
-          mountedAt));
-  const setupRetry = api.topics.retry.useMutation({
-    onSuccess: () => utils.topics.executions.invalidate({ projectId }),
-  });
-  const setupDetailsId =
-    setupRun && setup?.stage === "failed"
-      ? (setup.retryId ?? setupRun.update?.id ?? setupRun.process.id)
-      : null;
-  const runFacets = (run: typeof setupRun) =>
-    run?.process.facets.map((facet) => {
-      return {
-        key: `${facet.facetId}:${facet.facetVersion}`,
-        name:
-          facets.data?.find((item) => item.id === facet.facetId)?.name ??
-          "Facet",
-        complete: facet.counts.complete,
-        requested: facet.counts.requested,
-      };
-    }) ?? [];
-  const setupFacets = runFacets(setupRun);
+  const facetName = (facetId: string) =>
+    facets.data?.find((item) => item.id === facetId)?.name ?? "Facet";
+  const runFacets = (process: RouterOutputs["topics"]["executions"][number]) =>
+    process.facets.map((facet) => ({
+      key: `${facet.facetId}:${facet.facetVersion}`,
+      name: facetName(facet.facetId),
+      complete: facet.counts.complete,
+      requested: facet.counts.requested,
+    }));
   const busyProcess =
     (executions.data ?? []).find(
       (execution) =>
@@ -303,7 +276,7 @@ function TopicsWorkspaceContent({
     },
   );
   const selectedRunTitle = selectedExecution.data
-    ? operationLabels[selectedExecution.data.input.operation]
+    ? runLabel(selectedExecution.data.input)
     : "Run";
   const completedAt = Math.max(
     0,
@@ -314,57 +287,121 @@ function TopicsWorkspaceContent({
           : [],
     ),
   );
-  const { currentTimeRange, effectiveTimeRange, isTimeRangeCapped } =
-    useMemo(() => {
-      const to =
-        "from" in timeRange
-          ? timeRange.to
-          : new Date(Math.max(Date.now(), completedAt, refreshedAt));
-      const from =
-        "from" in timeRange
-          ? timeRange.from
-          : new Date(
-              to.getTime() -
-                (TIME_RANGES[timeRange.range as keyof typeof TIME_RANGES]
-                  .minutes ?? TIME_RANGES.last7Days.minutes) *
-                  60_000,
-            );
-      const isTimeRangeCapped = to.getTime() - from.getTime() > maxTimeRangeMs;
-      const currentTimeRange = {
-        from: isTimeRangeCapped
-          ? new Date(to.getTime() - maxTimeRangeMs)
-          : from,
-        to,
-      };
-      let effectiveTimeRange = timeRange;
-      if (isTimeRangeCapped) {
-        effectiveTimeRange =
-          "from" in timeRange ? currentTimeRange : { range: "last90Days" };
-      }
-      return {
-        currentTimeRange,
-        effectiveTimeRange,
-        isTimeRangeCapped,
-      };
-    }, [timeRange, completedAt, refreshedAt]);
-  const validTimeRange = isValidTopicTimeRange(currentTimeRange);
+  // Runs that finished before the run list first loaded are already in the
+  // first results request; only later completions start a new one.
+  const [listedCompletedAt, setListedCompletedAt] = useState<number | null>(
+    null,
+  );
+  if (executions.data && listedCompletedAt === null)
+    setListedCompletedAt(completedAt);
+  const refreshAfter =
+    listedCompletedAt === null || completedAt === listedCompletedAt
+      ? 0
+      : completedAt;
   const running =
     Boolean(executions.data?.some((execution) => busy(execution.status))) ||
     busy(selectedExecution.data?.status ?? "");
+  const maps = api.topics.maps.useQuery(
+    { projectId },
+    {
+      refetchInterval: (query) =>
+        query.state.data?.analyses.some((analysis) => busy(analysis.status))
+          ? 3000
+          : false,
+    },
+  );
+
+  const mapSelection = resolveTopicMapSelection(
+    maps.data,
+    typeof router.query.map === "string" ? router.query.map : undefined,
+  );
+  const selectedRule =
+    mapSelection?.kind === "rule"
+      ? maps.data?.rules.find((rule) => rule.id === mapSelection.id)
+      : undefined;
+  const selectedAnalysis =
+    mapSelection?.kind === "analysis"
+      ? maps.data?.analyses.find((analysis) => analysis.id === mapSelection.id)
+      : undefined;
+  const analysisId = mapSelection?.kind === "analysis" ? mapSelection.id : null;
+  // Onboarding has no selection yet; the first rule is the one setup created.
+  const setupRuleId = analysisId
+    ? undefined
+    : (selectedRule?.id ?? maps.data?.rules[0]?.id);
+  const ruleSetup = api.topics.ruleSetupStatus.useQuery(
+    { projectId, ruleId: setupRuleId ?? "" },
+    {
+      enabled: setupRuleId !== undefined,
+      refetchInterval: (query) =>
+        query.state.data && topicRuleSetupProgress(query.state.data).active
+          ? 5000
+          : false,
+    },
+  );
+  const setup = ruleSetup.data ? topicRuleSetupProgress(ruleSetup.data) : null;
+  // A finished setup hands over to results; a failure from this visit stays until retried.
+  const showSetupProgress =
+    setup !== null &&
+    (setup.active ||
+      (setup.stage === "failed" &&
+        Date.parse(ruleSetup.data!.startedAt) > mountedAt));
+  const setupRetry = api.topics.startRuleSetup.useMutation({
+    onSuccess: () => utils.topics.ruleSetupStatus.invalidate({ projectId }),
+  });
+  const setupFacets =
+    setup?.facets.map((facet) => ({
+      key: facet.facetId,
+      name: facetName(facet.facetId),
+      complete: facet.complete,
+      requested: facet.requested,
+    })) ?? [];
+  const analysisResults = api.topics.analysisResults.useQuery(
+    { projectId, executionId: analysisId ?? "" },
+    {
+      enabled: analysisId !== null,
+      // The results area already explains a run it can't find.
+      meta: { silentHttpCodes: [404] },
+      refetchInterval: (query) =>
+        query.state.data && busy(query.state.data.execution.status)
+          ? 3000
+          : false,
+    },
+  );
+  const selectMap = (selection: TopicMapSelection) => {
+    const query: Record<string, string | string[] | undefined> = {
+      ...router.query,
+      ...topicMapQuery(selection),
+    };
+    delete query.run;
+    delete query.executionId;
+    router.push({ pathname: router.pathname, query }, undefined, {
+      shallow: true,
+    });
+  };
   const setupBlockedReason = startBlockedReason(
     running,
     modelSettings.automaticProcessing.state.status === "on",
   );
   const results = useCurrentTopics({
     projectId,
-    running,
+    // Setup fits are no executions; polling through them refetches once they finish.
+    running: running || Boolean(setup?.active),
     pollForSummaries: modelSettings.automaticProcessing.state.status === "on",
-    refreshAfter: completedAt,
-    timeRange: currentTimeRange,
+    refreshAfter,
+    ruleId: selectedRule?.id,
+    enabled: !analysisId,
   });
+  const shownResults = analysisId
+    ? {
+        data: analysisResults.data,
+        isLoading: analysisResults.isLoading,
+        error: analysisResults.error,
+      }
+    : results;
+  const scope = analysisId ? { analysisId } : { ruleId: selectedRule?.id };
   const traceFilters = useTopicTraceFilters(
     projectId,
-    results.data?.facets ?? [],
+    shownResults.data?.facets ?? [],
   );
   const { selectedFacetId } = traceFilters;
   const openExecution = (id: string) => {
@@ -391,6 +428,7 @@ function TopicsWorkspaceContent({
   }
   const regenerate = useRegenerateTopics({
     projectId,
+    ruleId: selectedRule?.id ?? null,
     facets: facets.data ?? [],
     canWrite,
     timeRange: generationRange.bounds,
@@ -416,275 +454,382 @@ function TopicsWorkspaceContent({
     modelSettings.configure.settings.stored.clustering,
   );
   const automaticProcessing = modelSettings.automaticProcessing;
-  function openAutomaticProcessingFromHeader() {
-    openAutomaticProcessing(automaticProcessing.state.status === "on");
-  }
   function turnAutomaticProcessingBackOn() {
     openAutomaticProcessing(true);
   }
 
-  return (
-    <DialogController<TopicOperation>
-      renderDialog={({ closeDialog, state }) => (
-        <ManualTopicsFormContent
-          {...pipeline.dialogProps}
-          initialOperation={state}
-          closeDialog={closeDialog}
-        />
-      )}
+  const workspace = (
+    <TopicSliceDialogController
+      projectId={projectId}
+      facets={facets.data ?? []}
+      liveDisabledReason={
+        (maps.data?.rules.length ?? 0) >= TOPICS_MAX_RULES
+          ? `A project can have at most ${TOPICS_MAX_RULES} live scans.`
+          : undefined
+      }
+      onAnalysisStarted={(executionId) =>
+        selectMap({ kind: "analysis", id: executionId })
+      }
+      onRuleCreated={(ruleId) => selectMap({ kind: "rule", id: ruleId })}
     >
-      {({ openDialog }) => {
-        const openManual = (operation: TopicOperation) => {
-          if (!("from" in generationRange.selection))
-            changeGenerationRange(generationRange.selection);
-          utils.topics.summaryCounts.invalidate({ projectId });
-          pipeline.clearError();
-          openDialog(operation);
-        };
-        function openTopicGeneration() {
-          openManual("update");
-        }
-        const hasStoredSummaries = Boolean(results.data?.hasStoredSummaries);
-        const headerFacetId = resolveTopicFacetId(
-          results.data?.facets ?? [],
-          selectedFacetId,
-        );
-        const showLanding =
-          validTimeRange &&
-          results.data !== undefined &&
-          !results.isLoading &&
-          !results.error &&
-          !hasStoredSummaries;
-        // Without a tracked setup run, a running summary run or automatic processing still shows progress.
-        const landingRun =
-          showLanding && !showSetupProgress && busyProcess
-            ? { process: busyProcess, update: null }
-            : null;
-        const waitingForTraces =
-          showLanding &&
-          !showSetupProgress &&
-          !landingRun &&
-          modelSettings.automaticProcessing.state.status === "on";
-        const showOnboarding = showSetupProgress || showLanding;
-        const landingOnly =
-          showLanding && !showSetupProgress && !setupBlockedReason;
-        const actions = prepareTopicsActions({
-          automaticProcessing,
-          canWrite,
-          configureAvailable: modelSettings.configure.settings !== null,
-          regenerateAvailable: pipeline.available,
-          menuOnly: landingOnly,
-          onAutomaticProcessing: openAutomaticProcessingFromHeader,
-          onConfigure: configured ? openConfigure : openSetup,
-          onRegenerate: openTopicGeneration,
-          onHistory: openHistory,
-          showUnassigned,
-          onShowUnassignedChange: setShowUnassigned,
-        });
-        return (
-          <Page
-            headerProps={{
-              title: "Topics",
-              className: "@container/topics-header",
-              actionButtonsLeft: showOnboarding ? null : (
-                <div className="flex items-center gap-3">
-                  {validTimeRange && headerFacetId && (
+      {({ openSliceDialog }) => (
+        <DialogController<TopicOperation>
+          renderDialog={({ closeDialog, state }) => (
+            <ManualTopicsFormContent
+              {...pipeline.dialogProps}
+              initialOperation={state}
+              closeDialog={closeDialog}
+            />
+          )}
+        >
+          {({ openDialog }) => {
+            const openManual = (operation: TopicOperation) => {
+              if (!("from" in generationRange.selection))
+                changeGenerationRange(generationRange.selection);
+              utils.topics.summaryCounts.invalidate({ projectId });
+              pipeline.clearError();
+              openDialog(operation);
+            };
+            function openTopicGeneration() {
+              openManual("update");
+            }
+            const hasStoredSummaries = Boolean(
+              results.data?.hasStoredSummaries,
+            );
+            const shownFacets = shownResults.data?.facets ?? [];
+            const headerFacetId = resolveTopicFacetId(
+              shownFacets,
+              selectedFacetId,
+            );
+            const showLanding =
+              !analysisId &&
+              results.data !== undefined &&
+              !results.isLoading &&
+              !results.error &&
+              !hasStoredSummaries;
+            // Without a tracked setup run, a running summary run or automatic processing still shows progress.
+            const landingRun =
+              showLanding && !showSetupProgress && busyProcess
+                ? { process: busyProcess, update: null }
+                : null;
+            const waitingForTraces =
+              showLanding &&
+              !showSetupProgress &&
+              !landingRun &&
+              modelSettings.automaticProcessing.state.status === "on";
+            // A later rule's setup keeps the header, so other maps stay reachable.
+            const setupInline =
+              showSetupProgress &&
+              Boolean(
+                maps.data?.rules.some(
+                  (rule) => rule.id !== setupRuleId && rule.lastRefitAt,
+                ),
+              );
+            const showOnboarding =
+              (showSetupProgress && !setupInline) || showLanding;
+            const landingOnly =
+              showLanding && !showSetupProgress && !setupBlockedReason;
+            const hasStrip =
+              (!showOnboarding && selectedRule !== undefined) ||
+              selectedAnalysis !== undefined;
+            // Rendered in both the strip and the handheld row, so the label wraps the switch instead of an id.
+            const unassignedSwitch = (
+              <label className="text-muted-foreground flex shrink-0 items-center gap-2 text-sm whitespace-nowrap">
+                <Switch
+                  size="sm"
+                  checked={showUnassigned}
+                  onCheckedChange={setShowUnassigned}
+                />
+                Unassigned
+              </label>
+            );
+            const viewControls = (
+              <>
+                {headerFacetId && (
+                  <span className="text-muted-foreground flex shrink-0 items-center gap-2.5 text-sm whitespace-nowrap">
+                    Analyze
                     <TopicsFacetTabs
-                      facets={results.data?.facets ?? []}
+                      facets={shownFacets}
                       selectedFacet={headerFacetId}
                       onSelectFacet={traceFilters.selectFacet}
                     />
-                  )}
-                  <span className="text-muted-foreground flex shrink-0 items-center gap-1 text-sm whitespace-nowrap">
-                    Visualize as
-                    <TopicsResultsViewSelect
-                      value={resultsView}
-                      onValueChange={setResultsView}
-                    />
                   </span>
-                </div>
-              ),
-              actionButtonsRight: <TopicsHeaderActions actions={actions} />,
-              actionButtonsMenu: ({ closeMenu }) => (
-                <TopicsActionsMenu actions={actions} closeMenu={closeMenu} />
-              ),
-            }}
-          >
-            {!showOnboarding && (
-              <PageHeaderControlsPortal>
-                <TimeRangePicker
-                  timeRange={effectiveTimeRange}
-                  onTimeRangeChange={setTimeRange}
-                  timeRangePresets={topicsTimeRangePresets}
-                  maxRangeMs={maxTimeRangeMs}
-                  className="my-0 max-w-full overflow-x-auto"
-                  triggerClassName="px-2"
-                />
-              </PageHeaderControlsPortal>
-            )}
-            <div
-              className={cn(
-                "ph-no-capture flex min-h-0 flex-1 flex-col gap-2 overflow-hidden",
-                showOnboarding && "p-2",
-              )}
-            >
-              {!showOnboarding && validTimeRange && headerFacetId && (
-                <div className="shrink-0 px-3 pt-2 md:hidden">
-                  <TopicsMobileControls
-                    facets={results.data?.facets ?? []}
-                    selectedFacet={headerFacetId}
-                    onSelectFacet={traceFilters.selectFacet}
-                    view={resultsView}
-                    onSelectView={setResultsView}
+                )}
+                <span className="text-muted-foreground flex shrink-0 items-center gap-2 text-sm whitespace-nowrap">
+                  Visualize as
+                  <TopicsResultsViewSelect
+                    value={resultsView}
+                    onValueChange={setResultsView}
                   />
-                </div>
-              )}
-              {isTimeRangeCapped && (
-                <p
-                  role="status"
-                  className="text-muted-foreground shrink-0 text-xs"
-                >
-                  {"from" in timeRange
-                    ? "Showing the final 90 days of your selected range."
-                    : "Showing the last 90 days."}{" "}
-                  Your selection is preserved on other pages.
-                </p>
-              )}
-              {!validTimeRange && (
-                <TopicsErrorMessage message="Select a time range of at most 90 days." />
-              )}
-              <TopicSetupNotice
-                notice={modelSettings.notice}
-                canWrite={canWrite}
-                canConfigure={modelSettings.configure.settings !== null}
-                onStart={openSetup}
-                startBlockedReason={setupBlockedReason}
-                onKeepOff={automaticProcessing.clearPause}
-                onTurnBackOn={turnAutomaticProcessingBackOn}
-                showOnboarding={
-                  showLanding &&
-                  !showSetupProgress &&
-                  !landingRun &&
-                  !waitingForTraces
-                }
-              />
-              {landingRun ? (
-                <TopicSetupProgressView
-                  stage={topicSetupStage(landingRun, Date.now()).stage}
-                  facets={runFacets(landingRun)}
-                  retrying={false}
-                  canRetry={false}
-                  onViewDetails={() => openExecution(landingRun.process.id)}
-                />
-              ) : null}
-              {waitingForTraces ? (
-                <TopicSetupProgressView
-                  waiting
-                  stage="summarizing"
-                  facets={[]}
-                  retrying={false}
-                  canRetry={false}
-                />
-              ) : null}
-              {showSetupProgress && setup ? (
-                <TopicSetupProgressView
-                  stage={setup.stage}
-                  facets={setupFacets}
-                  retrying={setupRetry.isPending}
-                  canRetry={setup.retryId !== null}
-                  onViewDetails={
-                    setupDetailsId
-                      ? () => openExecution(setupDetailsId)
-                      : undefined
+                </span>
+              </>
+            );
+            // Only once results loaded; loading and errors stay with CurrentTopics.
+            const showBuilding =
+              shownResults.data !== undefined &&
+              !shownResults.error &&
+              !showOnboarding &&
+              !showSetupProgress &&
+              selectedRule !== undefined &&
+              selectedRule.enabled !== false &&
+              !selectedRule.lastRefitAt &&
+              !shownFacets.some((facet) => facet.map);
+            // A scan's question without topics shows where the scan stands, not the live-map empty state;
+            // a no-topics result still has a completed map with no topics.
+            const analysisFacet = shownFacets.find(
+              (facet) => facet.facetId === headerFacetId,
+            );
+            const analysisState =
+              analysisId &&
+              analysisResults.data &&
+              !analysisResults.error &&
+              !analysisFacet?.map?.topics.length
+                ? {
+                    status: analysisResults.data.execution.status,
+                    outcome: analysisFacet?.outcome,
                   }
-                  onRetry={() => {
-                    if (setup.retryId)
-                      setupRetry.mutate({
-                        projectId,
-                        executionId: setup.retryId,
-                      });
-                  }}
-                />
-              ) : null}
-              <Sheet
-                open={historyOpen || executionId !== null}
-                onOpenChange={showExecutionList}
-              >
-                <SheetContent
-                  className="ph-no-capture flex w-full flex-col gap-0 p-0 sm:max-w-lg"
-                  aria-describedby={undefined}
-                >
-                  {executionId ? (
-                    <SheetTitle className="sr-only">
-                      {selectedRunTitle}
-                    </SheetTitle>
-                  ) : (
-                    <SheetHeader className="border-b px-5 py-4">
-                      <SheetTitle>Run history</SheetTitle>
-                    </SheetHeader>
-                  )}
-                  <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-                    {executionId ? (
-                      <ExecutionPanel
-                        key={executionId}
-                        projectId={projectId}
-                        executionId={executionId}
-                        query={selectedExecution}
-                        facets={facets.data ?? []}
-                        canWrite={canWrite}
-                        onBack={() => showExecutionList(true)}
-                      />
-                    ) : (
-                      <TopicRunHistoryList
-                        executions={executions.data ?? []}
-                        errorMessage={executions.error?.message}
-                        onOpen={openExecution}
-                        onRetry={() => executions.refetch()}
-                      />
-                    )}
-                  </div>
-                </SheetContent>
-              </Sheet>
-              <div
-                className={
-                  showOnboarding
-                    ? "contents"
-                    : "flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden"
-                }
-              >
-                <TablePeekViewTraceDetail
-                  {...peekNavigation}
-                  itemType="TRACE"
+                : null;
+            const actions = prepareTopicsActions({
+              automaticProcessing,
+              canWrite,
+              configureAvailable: modelSettings.configure.settings !== null,
+              menuOnly: landingOnly,
+              // Settings only edits models and idle time; setup starts from onboarding.
+              onConfigure: openConfigure,
+              onHistory: openHistory,
+              onEditRun:
+                canWrite && selectedRule && !showOnboarding
+                  ? () => openSliceDialog({ kind: "rule", rule: selectedRule })
+                  : undefined,
+              onNewAnalysis: () =>
+                openSliceDialog({
+                  kind: "analysis",
+                  filter:
+                    selectedAnalysis?.filter ?? selectedRule?.filter ?? [],
+                }),
+              showUnassigned,
+              onShowUnassignedChange: setShowUnassigned,
+            });
+            const mapPicker =
+              maps.data && mapSelection ? (
+                <TopicsMapPicker
                   projectId={projectId}
-                  defaultWidthTarget={tracePanel}
-                  widthStorageKey="topicsPeekViewWidthFraction"
+                  overview={maps.data}
+                  selection={mapSelection}
+                  facetId={selectedFacetId}
+                  onSelect={selectMap}
+                  usePreviewTopics={usePreviewTopics}
+                  processingOn={automaticProcessing.state.status === "on"}
+                  newScan={actions.newScan}
                 />
-                {validTimeRange && !showOnboarding && (
-                  <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-                    <CurrentTopics
-                      projectId={projectId}
-                      timeRange={currentTimeRange}
-                      result={results}
-                      selectedFacetId={selectedFacetId}
-                      view={resultsView}
-                      traceFilters={traceFilters}
-                      tracePanelRef={setTracePanel}
-                      onGenerateTopics={openTopicGeneration}
-                      canGenerateTopics={canWrite && !running && configured}
-                      showUnassigned={showUnassigned}
+              ) : null;
+            return (
+              <Page
+                headerProps={{
+                  title: "Topics",
+                  className: "@container/topics-header",
+                  actionButtonsLeft: showOnboarding ? null : (
+                    <div className="flex items-center gap-3">
+                      {mapPicker}
+                      {!hasStrip && viewControls}
+                      {!hasStrip && unassignedSwitch}
+                    </div>
+                  ),
+                  actionButtonsRight: <TopicsHeaderActions actions={actions} />,
+                  actionButtonsMenu: ({ closeMenu }) => (
+                    <TopicsActionsMenu
+                      actions={actions}
+                      closeMenu={closeMenu}
                     />
+                  ),
+                }}
+              >
+                <div className="ph-no-capture flex min-h-0 flex-1 flex-col overflow-hidden">
+                  {!showOnboarding && selectedRule ? (
+                    <TopicMapStrip.Rule
+                      rule={selectedRule}
+                      now={Date.now()}
+                      mapShown={shownFacets.some((facet) => facet.map)}
+                      controls={viewControls}
+                      options={unassignedSwitch}
+                    />
+                  ) : null}
+                  {selectedAnalysis ? (
+                    <TopicMapStrip.Analysis
+                      analysis={selectedAnalysis}
+                      controls={viewControls}
+                      options={unassignedSwitch}
+                    />
+                  ) : null}
+                  <div
+                    className={cn(
+                      "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden",
+                      showOnboarding && "p-2",
+                    )}
+                  >
+                    {!showOnboarding && (mapPicker || headerFacetId) && (
+                      <div className="flex shrink-0 flex-wrap items-center gap-2 px-3 pt-2 md:hidden">
+                        {mapPicker}
+                        {headerFacetId && (
+                          <TopicsMobileControls
+                            facets={shownFacets}
+                            selectedFacet={headerFacetId}
+                            onSelectFacet={traceFilters.selectFacet}
+                          />
+                        )}
+                        {hasStrip && unassignedSwitch}
+                      </div>
+                    )}
+                    <TopicSetupNotice
+                      notice={modelSettings.notice}
+                      canWrite={canWrite}
+                      canConfigure={modelSettings.configure.settings !== null}
+                      onStart={openSetup}
+                      startBlockedReason={setupBlockedReason}
+                      onKeepOff={automaticProcessing.clearPause}
+                      onTurnBackOn={turnAutomaticProcessingBackOn}
+                      showOnboarding={
+                        showLanding &&
+                        !showSetupProgress &&
+                        !landingRun &&
+                        !waitingForTraces
+                      }
+                    />
+                    {landingRun ? (
+                      <TopicSetupProgressView
+                        stage={topicSetupStage(landingRun, Date.now()).stage}
+                        facets={runFacets(landingRun.process)}
+                        retrying={false}
+                        canRetry={false}
+                        onViewDetails={() =>
+                          openExecution(landingRun.process.id)
+                        }
+                      />
+                    ) : null}
+                    {waitingForTraces ? (
+                      <TopicSetupProgressView
+                        waiting
+                        stage="summarizing"
+                        facets={[]}
+                        retrying={false}
+                        canRetry={false}
+                      />
+                    ) : null}
+                    {showSetupProgress && setup && setupRuleId ? (
+                      <TopicSetupProgressView
+                        stage={setup.stage}
+                        facets={setupFacets}
+                        fits={setup.fits}
+                        retrying={setupRetry.isPending}
+                        canRetry
+                        onRetry={() =>
+                          setupRetry.mutate({ projectId, ruleId: setupRuleId })
+                        }
+                      />
+                    ) : null}
+                    <Sheet
+                      open={historyOpen || executionId !== null}
+                      onOpenChange={showExecutionList}
+                    >
+                      <SheetContent
+                        className="ph-no-capture flex w-full flex-col gap-0 p-0 sm:max-w-lg"
+                        aria-describedby={undefined}
+                      >
+                        {executionId ? (
+                          <SheetTitle className="sr-only">
+                            {selectedRunTitle}
+                          </SheetTitle>
+                        ) : (
+                          <SheetHeader className="border-b px-5 py-4">
+                            <SheetTitle>Run history</SheetTitle>
+                          </SheetHeader>
+                        )}
+                        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                          {executionId ? (
+                            <ExecutionPanel
+                              key={executionId}
+                              projectId={projectId}
+                              executionId={executionId}
+                              query={selectedExecution}
+                              facets={facets.data ?? []}
+                              canWrite={canWrite}
+                              onBack={() => showExecutionList(true)}
+                            />
+                          ) : (
+                            <TopicRunHistoryList
+                              executions={executions.data ?? []}
+                              errorMessage={executions.error?.message}
+                              onOpen={openExecution}
+                              onRetry={() => executions.refetch()}
+                            />
+                          )}
+                        </div>
+                      </SheetContent>
+                    </Sheet>
+                    <div
+                      className={
+                        // Setup progress takes the space, so it stays centered.
+                        showOnboarding || setupInline
+                          ? "contents"
+                          : "flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden"
+                      }
+                    >
+                      <TablePeekViewTraceDetail
+                        {...peekNavigation}
+                        itemType="TRACE"
+                        projectId={projectId}
+                        defaultWidthTarget={tracePanel}
+                        widthStorageKey="topicsPeekViewWidthFraction"
+                      />
+                      {showBuilding && selectedRule ? (
+                        <TopicRuleBuildingState rule={selectedRule} />
+                      ) : null}
+                      {analysisState && analysisId ? (
+                        <TopicAnalysisState
+                          status={analysisState.status}
+                          outcome={analysisState.outcome}
+                          traceCount={selectedAnalysis?.traceCount ?? 0}
+                          onViewRun={() => openExecution(analysisId)}
+                        />
+                      ) : null}
+                      {!showOnboarding &&
+                        !showBuilding &&
+                        !setupInline &&
+                        !analysisState && (
+                          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                            <CurrentTopics
+                              projectId={projectId}
+                              scope={scope}
+                              result={shownResults}
+                              selectedFacetId={selectedFacetId}
+                              view={resultsView}
+                              traceFilters={traceFilters}
+                              tracePanelRef={setTracePanel}
+                              onGenerateTopics={openTopicGeneration}
+                              canGenerateTopics={
+                                canWrite && !running && configured
+                              }
+                              showUnassigned={showUnassigned}
+                            />
+                          </div>
+                        )}
+                      {facets.error && (
+                        <TopicsErrorMessage message={facets.error.message} />
+                      )}
+                    </div>
                   </div>
-                )}
-                {facets.isLoading && <p>Loading facets…</p>}
-                {facets.error && (
-                  <TopicsErrorMessage message={facets.error.message} />
-                )}
-              </div>
-            </div>
-          </Page>
-        );
-      }}
-    </DialogController>
+                </div>
+              </Page>
+            );
+          }}
+        </DialogController>
+      )}
+    </TopicSliceDialogController>
+  );
+  return (
+    <TopicsWorkspaceGate isLoading={facets.isLoading} fallback={loadingPage}>
+      {workspace}
+    </TopicsWorkspaceGate>
   );
 }
 
@@ -773,8 +918,7 @@ function ExecutionPanel({
 }
 
 function startBlockedReason(running: boolean, automaticOn: boolean) {
-  if (running)
-    return "Analysis is running. Topics appear here when it finishes.";
+  if (running) return "Scan is running. Topics appear here when it finishes.";
   if (automaticOn)
     return "Automatic processing is on. Topics appear here as traces are summarized.";
   return null;
