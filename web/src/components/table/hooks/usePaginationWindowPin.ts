@@ -61,6 +61,16 @@ function snapshotOpenWindow(
   return { from: range.from, to };
 }
 
+/** A fresh snapshot when still past page 1; page 1 and closed ranges stay open. */
+function pinCurrentPage(
+  enabled: boolean,
+  pageIndex: number,
+  range: TableDateRange | undefined,
+): PinnedWindow | null {
+  if (!enabled || pageIndex <= 0) return null;
+  return snapshotOpenWindow(range, new Date());
+}
+
 /**
  * Holds the paged result set still while the reader is past the first page.
  *
@@ -84,9 +94,11 @@ function snapshotOpenWindow(
  * page 1 to align with, so it pins both bounds to that first render (`to` =
  * now). An already-closed window (an absolute range) is left alone.
  *
- * `resetKey` drops the snapshot when sort, page size, or the selected time
- * range changes, so the next trip off page 1 pins a fresh window. Call
- * `resetPin` for column-filter edits, which the key does not see.
+ * `resetKey` (sort, page size, selected time range) and `resetPin` (column
+ * filters, which the key does not see) drop the previous snapshot. When the
+ * reader is still past page 1, that drop is a new snapshot (`to` = now, `from`
+ * = the current lower bound) so later clicks do not follow the live tail.
+ * Page 1 stays open, and the next departure pins to that page's newest row.
  *
  * Pass `enabled: false` for sorts that do not have a live tail (time ASC, or
  * a non-time column). Pinning those to `rows[0]`'s timestamp collapses the
@@ -105,14 +117,15 @@ export function usePaginationWindowPin(
   const [lastResetKey, setLastResetKey] = useState(resetKey);
   const [wasEnabled, setWasEnabled] = useState(enabled);
 
-  // Sort, page size, and the selected time range share one snapshot. Drop it
-  // in the same render the context changes so a URL page update cannot keep
-  // querying the previous window. Turning the live tail on while already past
-  // page 1 then pins to now, same as opening that page directly.
+  // Sort, page size, and the selected time range share one snapshot. Replace
+  // it in the same render the context changes so a URL page update cannot keep
+  // querying the previous window. Still being past page 1 takes a fresh
+  // snapshot instead of reopening the live tail. Turning the live tail on
+  // while already past page 1 pins to now, same as opening that page directly.
   let nextPinned: PinnedWindow | null | undefined;
   if (resetKey !== lastResetKey) {
     setLastResetKey(resetKey);
-    nextPinned = null;
+    nextPinned = pinCurrentPage(enabled, pageIndex, range);
   }
   if (enabled !== wasEnabled) {
     setWasEnabled(enabled);
@@ -146,7 +159,10 @@ export function usePaginationWindowPin(
     [enabled, pageIndex, range],
   );
 
-  const resetPin = useCallback(() => setPinned(null), []);
+  const resetPin = useCallback(
+    () => setPinned(pinCurrentPage(enabled, pageIndex, range)),
+    [enabled, pageIndex, range],
+  );
 
   return {
     range: pinnedRange,

@@ -106,9 +106,13 @@ describe("usePaginationWindowPin", () => {
       to: NEWEST_ON_PAGE_1,
     });
 
-    // Sort, page size, and the selected time range drop the snapshot.
+    // Sort, page size, and the selected time range replace the snapshot.
+    // Leaving it open while the reader is still past page 1 would let the
+    // next click follow the live tail and move the total again.
     rerender({ pageIndex: 3, range: slid, resetKey: "page-100" });
-    expect(result.current.range).toEqual(slid);
+    expect(result.current.range).toEqual({ from: slid.from, to: START });
+    act(() => result.current.pinOnLeavingFirstPage(4, olderTop));
+    expect(result.current.range).toEqual({ from: slid.from, to: START });
   });
 
   it("pins to now when a later page is opened directly, and leaves closed ranges alone", () => {
@@ -123,15 +127,23 @@ describe("usePaginationWindowPin", () => {
     expect(closed.result.current.range).toBe(absolute);
   });
 
-  it("releases the previous view's pin before the page reset reaches the URL", () => {
+  it("replaces the previous view's pin before the page reset reaches the URL", () => {
     const { result, rerender } = renderHook(
       ({ pageIndex }) => usePaginationWindowPin(LIVE, pageIndex),
       { initialProps: { pageIndex: 2 } },
     );
     expect(result.current.range?.to).toEqual(START);
+
+    // The URL page index lands a render later. Until then the reader is still
+    // past page 1, so the old window is replaced by a fresh one rather than
+    // left open.
+    const later = new Date(START.getTime() + 5_000);
+    vi.setSystemTime(later);
     act(() => result.current.resetPin());
-    expect(result.current.range?.to).toBeUndefined();
+    expect(result.current.range).toEqual({ from: LIVE.from, to: later });
+
     rerender({ pageIndex: 0 });
+    expect(result.current.range?.to).toBeUndefined();
     act(() => result.current.pinOnLeavingFirstPage(1, NEWEST_ON_PAGE_1));
     rerender({ pageIndex: 1 });
     expect(result.current.range?.to).toEqual(NEWEST_ON_PAGE_1);
