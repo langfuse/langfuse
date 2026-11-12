@@ -337,12 +337,13 @@ enum GatewayIngestionMode {
 }
 
 enum GatewayProvider {
-  OPENAI     @map("openai")
-  ANTHROPIC  @map("anthropic")
-  BEDROCK    @map("bedrock")
-  OPENROUTER @map("openrouter")
-  XAI        @map("xai")
-  VERCEL     @map("vercel")
+  OPENAI           @map("openai")
+  ANTHROPIC        @map("anthropic")
+  BEDROCK          @map("bedrock")
+  OPENROUTER       @map("openrouter")
+  XAI              @map("xai")
+  VERCEL           @map("vercel")
+  GOOGLE_AI_STUDIO @map("google_ai_studio")
 }
 
 enum GatewayConnectionStatus {
