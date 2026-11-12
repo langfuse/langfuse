@@ -468,13 +468,54 @@ export async function getPublishedTopicRun(
   return row ? (await hydrateRuns(projectId, [row]))[0] : null;
 }
 
-/** Serving run IDs of the facets; current results count only these runs' assignments. */
+type CurrentTopicMap = { ruleId: string | null; run: RunRow };
+
+/**
+ * Each rule's current map of the facets, as the worker assigns and the Topics
+ * map picker shows them. The oldest rule also serves setup's snapshot until its
+ * first fit; a facet no rule covers keeps its serving map.
+ */
+export async function getCurrentTopicMapRows(
+  projectId: string,
+  facetIds: string[],
+): Promise<CurrentTopicMap[]> {
+  if (!facetIds.length) return [];
+  const [rules, serving] = await Promise.all([
+    listTopicRules(projectId),
+    findServingRuns(projectId, facetIds),
+  ]);
+  const maps = await Promise.all(
+    [...new Set(facetIds)].flatMap(
+      (facetId): Promise<CurrentTopicMap | null>[] => {
+        const fallback = serving.find((run) => run.facetId === facetId) ?? null;
+        const owners = rules.filter((rule) => rule.facetIds.includes(facetId));
+        if (!owners.length)
+          return [Promise.resolve(fallback && { ruleId: null, run: fallback })];
+        return owners.map(async (rule) => {
+          const own = await getTopicRuleMapRow(projectId, rule.id, facetId);
+          const run =
+            own ??
+            (rule.id === rules[0]?.id && fallback && !fallback.ruleId
+              ? fallback
+              : null);
+          return run && { ruleId: rule.id, run };
+        });
+      },
+    ),
+  );
+  const unique = new Map<string, CurrentTopicMap>();
+  for (const map of maps) if (map) unique.set(map.run.id, map);
+  return [...unique.values()];
+}
+
+/** Current map IDs of the facets; current results count only these runs' assignments. */
 export async function getPublishedTopicRunIds(
   projectId: string,
   facetIds: string[],
 ): Promise<string[]> {
-  if (!facetIds.length) return [];
-  return (await findServingRuns(projectId, facetIds)).map(({ id }) => id);
+  return (await getCurrentTopicMapRows(projectId, facetIds)).map(
+    ({ run }) => run.id,
+  );
 }
 
 /** Capture compatible serving-map IDs without reading their ClickHouse cohorts. */

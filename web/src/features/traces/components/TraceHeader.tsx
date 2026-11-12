@@ -175,8 +175,10 @@ function LoadedTraceHeader({
         )
         .join(" "),
       rows: topicFacets.map((facet) => ({
-        id: facet.facetId,
-        label: facet.name,
+        id: `${facet.facetId}:${facet.runId ?? ""}`,
+        label: facet.ruleName
+          ? `${facet.name} · ${facet.ruleName}`
+          : facet.name,
         value:
           facet.topicName ??
           facet.outcome?.replaceAll("_", " ") ??
