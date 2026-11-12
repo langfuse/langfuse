@@ -49,8 +49,6 @@ import {
 } from "../../features/filters/sessionTraceFilters";
 import { tracesTableUiColumnDefinitions } from "../tableMappings/mapTracesTable";
 import { buildEventsObservationRowSelection } from "../queries/clickhouse-sql/events-observation-row-selection";
-import { applyCommentFilters } from "./commentFilterService";
-import { prisma } from "../../db";
 
 export type SessionTraceFromEvents = {
   id: string;
@@ -85,20 +83,13 @@ export const getSessionTracesFromEvents = async (props: {
   const filters = sessionTraceFilterSchema.parse(props.filter);
   const traceFilters = new FilterList(
     createFilterFromFilterState(
-      filters.filter((filter) =>
-        ["traceName", "userId", "environment", "traceTags"].includes(
-          filter.column,
-        ),
-      ),
+      filters.filter((filter) => filter.column === "traceName"),
       tracesTableUiColumnDefinitions,
       sessionTraceFilterColumns,
     ),
   ).apply();
   const observationFilters = filters.filter(
-    (filter) =>
-      !["traceName", "userId", "environment", "traceTags"].includes(
-        filter.column,
-      ),
+    (filter) => filter.column !== "traceName",
   );
   const sessionTraceIdsQuery = compileClickhouseQuery(
     builder.clearSelect().select("e.trace_id").clearGroupBy().clearOrderBy(),
@@ -109,50 +100,18 @@ export const getSessionTracesFromEvents = async (props: {
     params: Record<string, unknown>;
   } | null = null;
   if (observationFilters.length > 0) {
-    const comments = await applyCommentFilters({
-      filterState: observationFilters,
-      prisma,
-      projectId,
-      objectType: "OBSERVATION",
-    });
-    if (comments.hasNoMatches) return [];
-    const positionFilter = comments.filterState.find(
-      (filter) => filter.type === "positionInTrace",
-    );
     const { queryBuilder } = buildEventsObservationRowSelection({
       projectId,
-      filter: comments.filterState.filter(
-        (filter) => filter.type !== "positionInTrace",
-      ),
+      filter: observationFilters,
     });
-    queryBuilder
+    observationQuery = queryBuilder
       .selectRaw("e.trace_id")
+      .whereRaw("e.is_deleted = 0")
       .whereRaw(
         `e.trace_id IN (${sessionTraceIdsQuery.sql})`,
         sessionTraceIdsQuery.params,
-      );
-    if (positionFilter?.type === "positionInTrace") {
-      const direction =
-        positionFilter.key === "last" || positionFilter.key === "nthFromEnd"
-          ? "DESC"
-          : "ASC";
-      queryBuilder.selectRaw(
-        `ROW_NUMBER() OVER (PARTITION BY e.trace_id ORDER BY e.start_time ${direction}, e.event_ts ${direction}, e.span_id ${direction}) AS _rn`,
-      );
-      const ranked = queryBuilder.buildWithParams();
-      observationQuery = {
-        query: `SELECT trace_id FROM (${ranked.query}) WHERE _rn = {_sessionPosition: UInt32}`,
-        params: {
-          ...ranked.params,
-          _sessionPosition:
-            typeof positionFilter.value === "number"
-              ? Math.max(1, positionFilter.value)
-              : 1,
-        },
-      };
-    } else {
-      observationQuery = queryBuilder.buildWithParams();
-    }
+      )
+      .buildWithParams();
   }
   const query =
     filters.length === 0

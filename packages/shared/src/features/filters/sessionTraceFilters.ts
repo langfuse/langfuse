@@ -1,6 +1,5 @@
 import { singleFilterList } from "../../interfaces/filters";
 import { eventsTableCols } from "../../eventsTable";
-import { normalizeLegacySessionPositionInTraceFilters } from "./sessionPositionInTrace";
 import { type ColumnDefinition } from "../../tableDefinitions/types";
 
 export const sessionTraceFilterColumns: ColumnDefinition[] = [
@@ -39,7 +38,6 @@ export const sessionTraceFilterColumns: ColumnDefinition[] = [
 
 // Saved views and shared URLs created before observation filtering used root fields.
 const legacyObservationColumns: Record<string, string> = {
-  "Position in Trace": "positionInTrace",
   rootName: "name",
   rootType: "type",
   rootLevel: "level",
@@ -48,19 +46,17 @@ const legacyObservationColumns: Record<string, string> = {
 
 export const sessionTraceFilterSchema = singleFilterList
   .transform((filters) =>
-    normalizeLegacySessionPositionInTraceFilters(
-      filters.map((filter) => ({
-        ...filter,
-        column:
-          legacyObservationColumns[filter.column] ??
-          eventsTableCols.find(
-            (column: ColumnDefinition) =>
-              column.name === filter.column ||
-              column.aliases?.includes(filter.column),
-          )?.id ??
-          filter.column,
-      })),
-    ),
+    filters.map((filter) => ({
+      ...filter,
+      column:
+        legacyObservationColumns[filter.column] ??
+        eventsTableCols.find(
+          (column: ColumnDefinition) =>
+            column.name === filter.column ||
+            column.aliases?.includes(filter.column),
+        )?.id ??
+        filter.column,
+    })),
   )
   .superRefine((filters, ctx) => {
     filters.forEach((filter, index) => {

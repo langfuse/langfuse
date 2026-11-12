@@ -27,7 +27,10 @@ export function SessionViewTabs({
     "id" | "name" | "canEdit"
   > &
     Partial<
-      Pick<RouterOutputs["sessionViews"]["list"][number], "pinnedByDefault">
+      Pick<
+        RouterOutputs["sessionViews"]["list"][number],
+        "isPinnedByDefaultForProject"
+      >
     >)[];
   onManageViews: () => void;
   onUnpin: (id: string) => void;
@@ -37,7 +40,7 @@ export function SessionViewTabs({
   onValueChange: (value: string) => void;
   onCreate: () => void;
   canManageViews: boolean;
-  onSetDefaultPin?: (id: string, pinnedByDefault: boolean) => void;
+  onSetDefaultPin?: (id: string, isPinnedByDefaultForProject: boolean) => void;
   onViewAction: (id: string, action: "edit" | "delete" | "duplicate") => void;
 }) {
   return (
@@ -96,12 +99,15 @@ export function SessionViewTabs({
                       {
                         type: "item" as const,
                         id: "set-default-pin",
-                        title: view.pinnedByDefault
+                        title: view.isPinnedByDefaultForProject
                           ? "Remove default pin"
                           : "Pin by default",
-                        icon: view.pinnedByDefault ? PinOff : Pin,
+                        icon: view.isPinnedByDefaultForProject ? PinOff : Pin,
                         onClick: () =>
-                          onSetDefaultPin(view.id, !view.pinnedByDefault),
+                          onSetDefaultPin(
+                            view.id,
+                            !view.isPinnedByDefaultForProject,
+                          ),
                       },
                     ]
                   : []),

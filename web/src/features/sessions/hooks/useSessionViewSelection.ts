@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { StringParam, useQueryParams } from "use-query-params";
 import {
@@ -9,6 +9,7 @@ import {
 } from "@langfuse/shared";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import useSessionStorage from "@/src/components/useSessionStorage";
+import { useHistoryEntryRevisit } from "../useHistoryEntryRevisit";
 
 type Configuration = Pick<
   RouterOutputs["sessionViews"]["list"][number],
@@ -50,6 +51,7 @@ export function useSessionViewSelection({
   );
   const storageKey = `${projectId}:${userSession.data?.user?.id ?? "anonymous"}`;
   const context = `${storageKey}:${sessionId}`;
+  const isHistoryRevisit = useHistoryEntryRevisit(context);
   const savedViews = api.sessionViews.list.useQuery(
     { projectId },
     { enabled: enabled && userSession.status === "authenticated" },
@@ -136,15 +138,12 @@ export function useSessionViewSelection({
     savedViews.isSuccess &&
     !savedViews.data?.some(
       (view) =>
-        state.selection.type === "saved" &&
-        view.id === state.selection.viewId &&
-        view.isSupported,
+        state.selection.type === "saved" && view.id === state.selection.viewId,
     )
   ) {
     const nextId = pinnedIds.find(
       (id) =>
-        id === "messages" ||
-        savedViews.data?.some((view) => view.id === id && view.isSupported),
+        id === "messages" || savedViews.data?.some((view) => view.id === id),
     );
     const selection: Selection = (() => {
       if (nextId === "messages") return { type: "messages" };
@@ -156,6 +155,16 @@ export function useSessionViewSelection({
   }
 
   const selection = state.selection;
+  // Pending saves can finish after another draft or page becomes active.
+  const completionState = useRef({ state, mounted: true });
+  completionState.current.state = state;
+  useEffect(() => {
+    const current = completionState.current;
+    current.mounted = true;
+    return () => {
+      current.mounted = false;
+    };
+  }, []);
   const selectedSavedView =
     selection.type === "saved"
       ? savedViews.data?.find((view) => view.id === selection.viewId)
@@ -232,9 +241,7 @@ export function useSessionViewSelection({
       );
       return;
     }
-    const view = savedViews.data?.find(
-      (view) => view.id === id && view.isSupported,
-    );
+    const view = savedViews.data?.find((view) => view.id === id);
     if (view) transition({ type: "saved", viewId: id }, view, draft);
   };
 
@@ -248,9 +255,7 @@ export function useSessionViewSelection({
       return;
     const rememberedView = savedViews.data.find(
       (view) =>
-        view.id === remembered[storageKey] &&
-        view.isSupported &&
-        pinnedIds.includes(view.id),
+        view.id === remembered[storageKey] && pinnedIds.includes(view.id),
     );
     if (hasCustomization) {
       const matches = (view: Configuration) =>
@@ -262,10 +267,7 @@ export function useSessionViewSelection({
         rememberedView && matches(rememberedView)
           ? rememberedView
           : savedViews.data.find(
-              (view) =>
-                view.isSupported &&
-                pinnedIds.includes(view.id) &&
-                matches(view),
+              (view) => pinnedIds.includes(view.id) && matches(view),
             );
       setState({
         context,
@@ -278,12 +280,24 @@ export function useSessionViewSelection({
       });
       return;
     }
+    if (isHistoryRevisit) {
+      setState({
+        context,
+        queryKey,
+        selection: pinnedIds.includes("messages")
+          ? { type: "messages" }
+          : { type: "none" },
+        draft: null,
+        restored: true,
+      });
+      return;
+    }
     if (remembered[storageKey] === "") {
       transition({ type: "none" }, messagesConfiguration, null);
       return;
     }
-    const firstPinned = savedViews.data.find(
-      (view) => view.isSupported && pinnedIds.includes(view.id),
+    const firstPinned = savedViews.data.find((view) =>
+      pinnedIds.includes(view.id),
     );
     const view = rememberedView ?? firstPinned;
     if (rememberedView || !pinnedIds.includes("messages")) {
@@ -301,6 +315,7 @@ export function useSessionViewSelection({
     storageKey,
     pinnedIds,
     hasCustomization,
+    isHistoryRevisit,
     initialConfiguration,
     context,
     queryKey,
@@ -342,7 +357,6 @@ export function useSessionViewSelection({
           canEdit: true,
           ...existing,
           ...view,
-          isSupported: true,
         };
         if (existing)
           return current?.map((savedView) =>
@@ -352,14 +366,37 @@ export function useSessionViewSelection({
       });
       transition({ type: "saved", viewId: view.id }, view, draft);
     },
-    saveDraft: (view: Configuration & { id: string }) =>
-      transition({ type: "saved", viewId: view.id }, view, null),
+    saveDraft: (
+      view: Configuration & { id: string },
+      submittedDraft: Configuration | null = draft,
+    ) => {
+      const current = completionState.current;
+      if (
+        !current.mounted ||
+        current.state.context !== context ||
+        !submittedDraft
+      )
+        return;
+      const currentSelection = current.state.selection;
+      const currentDraft =
+        currentSelection.type === "draft"
+          ? currentSelection.configuration
+          : current.state.draft;
+      if (currentDraft !== submittedDraft) return;
+      const next = { ...current.state, draft: null };
+      if (currentSelection.type === "draft") {
+        next.selection = { type: "saved", viewId: view.id };
+        persist(next.selection, view);
+      }
+      current.state = next;
+      setState(next);
+    },
     removeDraft: () => {
       if (state.selection.type === "draft") {
         const nextId = pinnedIds.find(
           (id) =>
             id === "messages" ||
-            savedViews.data?.some((view) => view.id === id && view.isSupported),
+            savedViews.data?.some((view) => view.id === id),
         );
         const view = savedViews.data?.find((view) => view.id === nextId);
         if (view) transition({ type: "saved", viewId: view.id }, view, null);

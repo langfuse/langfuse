@@ -726,14 +726,7 @@ const LoadedSessionEventsPage: React.FC<{
       onMutate: async ({ projectId, ...changes }) => {
         pendingPreferenceUpdates.current += 1;
         await viewUtils.sessionViews.preferences.cancel({ projectId });
-        viewUtils.sessionViews.preferences.setData(
-          { projectId },
-          (current) => ({
-            pinnedViewIds: [],
-            ...current,
-            ...changes,
-          }),
-        );
+        viewUtils.sessionViews.preferences.setData({ projectId }, changes);
       },
       onSettled: () => {
         pendingPreferenceUpdates.current -= 1;
@@ -767,7 +760,11 @@ const LoadedSessionEventsPage: React.FC<{
   const deleteSessionView = api.sessionViews.delete.useMutation();
   const duplicateSessionView = api.sessionViews.create.useMutation();
   const createSessionView = api.sessionViews.create.useMutation({
-    onSuccess: async ({ view }) => {
+    onMutate: () => ({
+      draft: viewSelection.draft,
+      completeSave: viewSelection.saveDraft,
+    }),
+    onSuccess: async ({ view }, { projectId }, saveContext) => {
       capture("saved_views:create", {
         tableName: "session-detail",
         surface: "session_view",
@@ -783,14 +780,14 @@ const LoadedSessionEventsPage: React.FC<{
       ]);
       viewUtils.sessionViews.list.setData({ projectId }, (current) => [
         ...(current ?? []).filter((savedView) => savedView.id !== view.id),
-        { ...view, isSupported: true, canEdit: true, createdByUser: null },
+        { ...view, canEdit: true, createdByUser: null },
       ]);
       viewUtils.sessionViews.preferences.setData({ projectId }, (current) => ({
         pinnedViewIds: [
           ...new Set([...(current?.pinnedViewIds ?? ["messages"]), view.id]),
         ],
       }));
-      viewSelection.saveDraft(view);
+      saveContext?.completeSave(view, saveContext.draft);
       await Promise.all([
         viewUtils.sessionViews.list.invalidate({ projectId }),
         viewUtils.sessionViews.preferences.invalidate({ projectId }),
@@ -805,9 +802,7 @@ const LoadedSessionEventsPage: React.FC<{
     if (sessionViewId === id) {
       const nextViewId = [
         ...(isMessagesPinned ? ["messages"] : []),
-        ...customSessionViews
-          .filter((view) => view.isSupported)
-          .map((view) => view.id),
+        ...customSessionViews.map((view) => view.id),
       ].find(
         (viewId) => viewId !== id && pinnedSessionViewIds.includes(viewId),
       );
@@ -1492,7 +1487,6 @@ const LoadedSessionEventsPage: React.FC<{
                           ? "messages"
                           : customSessionViews.find(
                               (view) =>
-                                view.isSupported &&
                                 view.id !== state.view.id &&
                                 pinnedSessionViewIds.includes(view.id),
                             )?.id;
@@ -1647,7 +1641,7 @@ const LoadedSessionEventsPage: React.FC<{
                         const view = customSessionViews.find(
                           (view) => view.id === id,
                         );
-                        if (view?.isSupported && view.canEdit)
+                        if (view?.canEdit)
                           openViewAction({ view, action: "edit" });
                       }}
                       onDeleteView={(id) => {
@@ -1969,11 +1963,11 @@ const LoadedSessionEventsPage: React.FC<{
                               viewTabs={{
                                 canManageViews: canSaveSessionView,
                                 onSetDefaultPin: canSetDefaultPin
-                                  ? (id, pinnedByDefault) =>
+                                  ? (id, isPinnedByDefaultForProject) =>
                                       setDefaultPin.mutate({
                                         projectId,
                                         id,
-                                        pinnedByDefault,
+                                        isPinnedByDefaultForProject,
                                       })
                                   : undefined,
                                 onViewAction: (id, action) => {
@@ -1996,7 +1990,7 @@ const LoadedSessionEventsPage: React.FC<{
                                   const view = customSessionViews.find(
                                     (view) => view.id === id,
                                   );
-                                  if (!view?.isSupported) return;
+                                  if (!view) return;
                                   if (action !== "duplicate" && !view.canEdit)
                                     return;
                                   openViewAction({ action, view });
@@ -2017,10 +2011,8 @@ const LoadedSessionEventsPage: React.FC<{
                                 hasUnsavedView:
                                   sessionViewId === "unsaved" ||
                                   unsavedSessionView !== null,
-                                savedViews: customSessionViews.filter(
-                                  (view) =>
-                                    view.isSupported &&
-                                    pinnedSessionViewIds.includes(view.id),
+                                savedViews: customSessionViews.filter((view) =>
+                                  pinnedSessionViewIds.includes(view.id),
                                 ),
                                 onUnpin: unpinSessionView,
                                 onManageViews: () =>
@@ -2059,7 +2051,6 @@ const LoadedSessionEventsPage: React.FC<{
                                           ? customSessionViews.find(
                                               (view) =>
                                                 view.id === sessionViewId &&
-                                                view.isSupported &&
                                                 view.canEdit,
                                             )
                                           : undefined;

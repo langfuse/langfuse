@@ -7,7 +7,6 @@ const mocks = vi.hoisted(() => ({
   assemble: vi.fn(),
   observations: vi.fn(),
   root: vi.fn(),
-  comments: vi.fn(),
 }));
 vi.mock("@langfuse/shared/src/server", async () => {
   const { normalizeSpanIO } =
@@ -18,7 +17,6 @@ vi.mock("@langfuse/shared/src/server", async () => {
     assembleTranscript: mocks.assemble,
     getObservationsForTraceFromEventsTable: mocks.observations,
     getObservationByIdFromEventsTable: mocks.root,
-    applyCommentFilters: mocks.comments,
     normalizeIO: ({ io }: { io: Parameters<typeof normalizeSpanIO>[0] }) =>
       normalizeSpanIO(io),
   };
@@ -39,12 +37,6 @@ beforeEach(() => {
   mocks.assemble.mockReset();
   mocks.observations.mockReset();
   mocks.root.mockReset();
-  mocks.comments.mockImplementation(
-    ({ filterState }: { filterState: unknown[] }) => ({
-      filterState,
-      hasNoMatches: false,
-    }),
-  );
 });
 
 it("rejects unsupported position filters before fetching observations", async () => {

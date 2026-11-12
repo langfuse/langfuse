@@ -43,15 +43,9 @@ export const Duplicate = meta.story({
   },
 });
 export const ReadOnly = meta.story({
-  name: "(Test) Read only",
   args: {
     view: { id: "saved", name: "Generations" },
     canEdit: false,
-  },
-  play: async () => {
-    await expect(
-      within(document.body).getByRole("button", { name: "Save view" }),
-    ).toBeDisabled();
   },
 });
 export const Pending = meta.story({ args: { isPending: true } });

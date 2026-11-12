@@ -6,7 +6,6 @@ import {
   orderObservations,
   normalizeIO,
   type Transcript,
-  applyCommentFilters,
 } from "@langfuse/shared/src/server";
 import { sessionTraceFilterSchema, type FilterState } from "@langfuse/shared";
 import {
@@ -14,7 +13,6 @@ import {
   toolResultOutput,
   type NormalizedMessage,
 } from "@langfuse/shared/src/utils/normalized-io";
-import { prisma } from "@langfuse/shared/src/db";
 
 /** Bound expensive I/O reads separately from lightweight observation structure. */
 const MAX_TRANSCRIPT_OBSERVATIONS = 1_000;
@@ -60,18 +58,11 @@ export async function loadTraceTranscript(
     context === "session" ? sessionTraceFilterSchema.parse(filter ?? []) : [];
   if (context === "session" && filters.length > 0) {
     const observationFilters = filters.filter(
-      (filter) => !["traceName", "userId", "traceTags"].includes(filter.column),
+      (filter) => filter.column !== "traceName",
     );
-    const comments = await applyCommentFilters({
-      filterState: observationFilters,
-      prisma,
-      projectId: trace.projectId,
-      objectType: "OBSERVATION",
-    });
-    if (comments.hasNoMatches) return { transcript: null, cutoff: false };
     const content = await getObservationsForTraceFromEventsTable({
       ...source,
-      filter: comments.filterState,
+      filter: observationFilters,
       selectIOAndMetadata: true,
       limit: MAX_TRANSCRIPT_OBSERVATIONS,
     });

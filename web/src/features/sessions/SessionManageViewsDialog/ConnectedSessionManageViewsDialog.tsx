@@ -45,8 +45,8 @@ export function ConnectedSessionManageViewsDialog({
       canEdit={canEdit}
       onSetDefaultPin={
         canSetDefaultPin
-          ? (id, pinnedByDefault) =>
-              defaultPin.mutate({ projectId, id, pinnedByDefault })
+          ? (id, isPinnedByDefaultForProject) =>
+              defaultPin.mutate({ projectId, id, isPinnedByDefaultForProject })
           : undefined
       }
       isLoading={views.isLoading}

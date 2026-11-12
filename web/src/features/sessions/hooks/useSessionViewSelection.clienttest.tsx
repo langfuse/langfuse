@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   setQuery: vi.fn(),
   pinnedIds: ["messages", "saved"],
   viewExists: true,
+  router: { asPath: "/project/project/sessions/session" },
   cachedViews: undefined as RouterOutputs["sessionViews"]["list"] | undefined,
 }));
 
@@ -22,6 +23,7 @@ vi.mock("next-auth/react", () => ({
     data: { user: { id: "user" } },
   }),
 }));
+vi.mock("next/router", () => ({ useRouter: () => mocks.router }));
 vi.mock("use-query-params", () => ({
   StringParam: {},
   useQueryParams: () => [mocks.query, mocks.setQuery],
@@ -42,12 +44,11 @@ const view = {
   createdByUser: null,
   createdAt: new Date("2026-01-01"),
   updatedAt: new Date("2026-01-01"),
-  pinnedByDefault: false,
+  isPinnedByDefaultForProject: false,
   canEdit: true,
   filters: [],
   viewMode: "list" as const,
   unmatchedTraces: "hide" as const,
-  isSupported: true,
 };
 vi.mock("@/src/utils/api", () => ({
   api: {
@@ -83,6 +84,9 @@ vi.mock("@/src/utils/api", () => ({
 }));
 
 beforeEach(() => {
+  sessionStorage.clear();
+  window.history.replaceState(null, "");
+  mocks.router.asPath = "/project/project/sessions/session";
   mocks.query = {};
   mocks.pinnedIds = ["messages", "saved"];
   mocks.viewExists = true;
@@ -173,6 +177,20 @@ it("saving clears the draft even while URL state is stale", () => {
   expect(result.current.draft).toBeNull();
 });
 
+it("keeps a newer draft when an earlier save completes", () => {
+  const { result } = setup();
+  act(() => result.current.customize(view));
+  const submittedDraft = result.current.draft;
+  const completeSave = result.current.saveDraft;
+  const newerDraft = { ...view, viewMode: "conversational" as const };
+  act(() => result.current.customize(newerDraft));
+  mocks.setQuery.mockClear();
+  act(() => completeSave(view, submittedDraft));
+  expect(result.current.selectedId).toBe("unsaved");
+  expect(result.current.draft).toEqual(newerDraft);
+  expect(mocks.setQuery).not.toHaveBeenCalled();
+});
+
 it("restores a matching saved view from shared-link configuration only once", () => {
   mocks.query = { sessionView: "list", tracesWithoutMatches: "hide" };
   const { result, rerender } = setup();
@@ -227,6 +245,32 @@ it("restores selection and configuration on Back and Forward", () => {
   expect(result.current.selectedId).toBe("messages");
   expect(result.current.configuration.viewMode).toBe("conversational");
   expect(result.current.configuration.unmatchedTraces).toBe("show");
+});
+
+it("restores Messages on Back across sessions without applying the later session's remembered view", () => {
+  window.history.replaceState({ key: "session-a" }, "");
+  mocks.router.asPath = "/project/project/sessions/a";
+  const { result, rerender } = renderHook(
+    ({ sessionId }) =>
+      useSessionViewSelection({
+        projectId: "project",
+        sessionId,
+        enabled: true,
+      }),
+    { initialProps: { sessionId: "a" } },
+  );
+  window.history.replaceState({ key: "session-b" }, "");
+  mocks.router.asPath = "/project/project/sessions/b";
+  rerender({ sessionId: "b" });
+  act(() => result.current.select("saved"));
+  expect(result.current.selectedId).toBe("saved");
+
+  window.history.replaceState({ key: "session-a" }, "");
+  mocks.router.asPath = "/project/project/sessions/a";
+  mocks.setQuery.mockClear();
+  rerender({ sessionId: "a" });
+  expect(result.current.selectedId).toBe("messages");
+  expect(mocks.setQuery).not.toHaveBeenCalled();
 });
 
 it("restores an unpinned shared-link view as a draft on navigation", () => {

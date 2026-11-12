@@ -66,7 +66,7 @@ export const DefaultPinWithPersonalOptOut = meta.story({
         id: "default",
         name: "Shared view",
         canEdit: false,
-        pinnedByDefault: true,
+        isPinnedByDefaultForProject: true,
       },
     ],
     pinnedViewIds: ["messages"],

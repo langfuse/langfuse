@@ -49,7 +49,6 @@ const columns: ColumnDef<SessionViewRow>[] = [
             <IconButton
               icon={isPinned ? PinOff : Pin}
               label={pinLabel}
-              disabled={view.isSupported === false}
               {...getTriggerProps({
                 onClick: view.onTogglePin,
               })}
@@ -67,8 +66,7 @@ const columns: ColumnDef<SessionViewRow>[] = [
     cell: ({ row }) => (
       <span className="block truncate" title={row.original.name}>
         {row.original.name}
-        {row.original.isSupported === false && " (unsupported)"}
-        {row.original.pinnedByDefault && (
+        {row.original.isPinnedByDefaultForProject && (
           <span className="text-muted-foreground block text-xs">
             Pinned by default
           </span>
@@ -104,20 +102,19 @@ const columns: ColumnDef<SessionViewRow>[] = [
           {view.onSetDefaultPin && (
             <Tooltip
               label={
-                view.pinnedByDefault
+                view.isPinnedByDefaultForProject
                   ? "Remove the default pin for this project.\nPersonal pin choices are kept."
                   : "Pin by default for everyone in this project.\nPersonal pin choices are kept."
               }
             >
               {({ getTriggerProps }) => (
                 <IconButton
-                  icon={view.pinnedByDefault ? PinOff : Pin}
+                  icon={view.isPinnedByDefaultForProject ? PinOff : Pin}
                   label={
-                    view.pinnedByDefault
+                    view.isPinnedByDefaultForProject
                       ? `Remove default pin for ${view.name}`
                       : `Pin ${view.name} by default`
                   }
-                  disabled={view.isSupported === false}
                   {...getTriggerProps({ onClick: view.onSetDefaultPin })}
                 />
               )}
@@ -140,7 +137,7 @@ const columns: ColumnDef<SessionViewRow>[] = [
               <IconButton
                 icon={Pencil}
                 label={`Edit ${view.name}`}
-                disabled={!view.canEdit || view.isSupported === false}
+                disabled={!view.canEdit}
                 onClick={view.onEdit}
               />
               <IconButton
@@ -178,7 +175,7 @@ function SessionManageViewsList({
     Partial<
       Pick<
         RouterOutputs["sessionViews"]["list"][number],
-        "createdBy" | "createdByUser" | "isSupported" | "pinnedByDefault"
+        "createdBy" | "createdByUser" | "isPinnedByDefaultForProject"
       >
     >)[];
   currentUserId: string | undefined;
@@ -191,14 +188,11 @@ function SessionManageViewsList({
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onMove: (id: string, direction: "up" | "down") => void;
-  onSetDefaultPin?: (id: string, pinnedByDefault: boolean) => void;
+  onSetDefaultPin?: (id: string, isPinnedByDefaultForProject: boolean) => void;
 }) {
   const [tab, setTab] = useState("all");
   const reorderableViews = views.filter(
-    (view) =>
-      view.isSupported !== false &&
-      view.id !== "messages" &&
-      pinnedViewIds.includes(view.id),
+    (view) => view.id !== "messages" && pinnedViewIds.includes(view.id),
   );
 
   const filteredViews = views
@@ -219,8 +213,7 @@ function SessionManageViewsList({
     return {
       status: "success",
       data: filteredViews.map((view) => {
-        const isPinned =
-          view.isSupported !== false && pinnedViewIds.includes(view.id);
+        const isPinned = pinnedViewIds.includes(view.id);
         const index = reorderableViews.findIndex(
           (candidate) => candidate.id === view.id,
         );
@@ -238,7 +231,8 @@ function SessionManageViewsList({
           onDelete: () => onDelete(view.id),
           onSetDefaultPin:
             view.id !== "messages" && onSetDefaultPin
-              ? () => onSetDefaultPin(view.id, !view.pinnedByDefault)
+              ? () =>
+                  onSetDefaultPin(view.id, !view.isPinnedByDefaultForProject)
               : undefined,
         };
       }),
@@ -296,7 +290,7 @@ export function SessionManageViewsDialog({
   onUnpin: (id: string) => void;
   onEditView: (id: string) => void;
   onDeleteView: (id: string) => void;
-  onSetDefaultPin?: (id: string, pinnedByDefault: boolean) => void;
+  onSetDefaultPin?: (id: string, isPinnedByDefaultForProject: boolean) => void;
 }) {
   const customViews = [...views].sort((left, right) => {
     const leftIndex = pinnedViewIds.indexOf(left.id);
@@ -340,13 +334,7 @@ export function SessionManageViewsDialog({
           }}
           onEdit={(id) => {
             const view = customViews.find((view) => view.id === id);
-            if (
-              !view ||
-              view.isSupported === false ||
-              !canEdit ||
-              !view.canEdit
-            )
-              return;
+            if (!view || !canEdit || !view.canEdit) return;
             onEditView(id);
           }}
           onDelete={(id) => {

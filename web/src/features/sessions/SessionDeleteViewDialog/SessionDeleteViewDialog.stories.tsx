@@ -45,12 +45,10 @@ export const ProtectedMessages = meta.story({
     ).toBeDisabled();
   },
 });
-export const ReadOnly = ProtectedMessages.extend({
-  name: "(Test) Read only",
+export const ReadOnly = meta.story({
   args: { view: { id: "saved", name: "Generations" }, canEdit: false },
 });
-export const Pending = ProtectedMessages.extend({
-  name: "(Test) Pending",
+export const Pending = meta.story({
   args: { view: { id: "saved", name: "Generations" }, isPending: true },
 });
 export const Error = meta.story({

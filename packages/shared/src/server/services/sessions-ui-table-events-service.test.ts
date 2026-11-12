@@ -51,7 +51,7 @@ describe("session trace filtering", () => {
     expect(query).not.toContain("t.id IN (");
   });
 
-  it("filters aggregated trace attributes, not individual transcript observations", async () => {
+  it("filters trace names without restricting individual transcript observations", async () => {
     await getSessionTracesFromEvents({
       projectId: "project",
       sessionId: "session",
@@ -62,20 +62,12 @@ describe("session trace filtering", () => {
           operator: "=",
           value: "conversation",
         },
-        {
-          column: "environment",
-          type: "string",
-          operator: "=",
-          value: "production",
-        },
       ],
     });
     const { query, params } = capturedQuery();
     expect(query).toMatch(/SELECT t\.\* FROM session_traces t WHERE 1 = 1 AND/);
     expect(query).toContain("t.name");
-    expect(query).toContain("t.environment");
     expect(Object.values(params)).toContain("conversation");
-    expect(Object.values(params)).toContain("production");
     expect(query).not.toContain("AND t.id IN (");
   });
 
@@ -104,7 +96,11 @@ describe("session trace filtering", () => {
     assert(sessionParam);
     expect(params[sessionParam]).toBe("session");
     expect(observationQuery).not.toMatch(/group by/i);
-    expect(query).toContain("e.is_deleted = 0");
+    const matchingRowsQuery = observationQuery.slice(
+      0,
+      observationQuery.indexOf("AND e.trace_id IN ("),
+    );
+    expect(matchingRowsQuery).toContain("e.is_deleted = 0");
     expect(query).toContain("e.name");
     expect(query).toContain("e.level");
     expect(Object.values(params)).toContain("agent");
@@ -130,7 +126,7 @@ describe("session trace filtering", () => {
     expect(query).toContain("e.is_app_root");
   });
 
-  it("applies trace names separately from observation matching when hiding empty traces", async () => {
+  it("matches observation names and environments together when hiding empty traces", async () => {
     await getSessionTracesFromEvents({
       projectId: "project",
       sessionId: "session",
@@ -142,17 +138,26 @@ describe("session trace filtering", () => {
           value: "conversation",
         },
         { column: "name", type: "string", operator: "=", value: "agent" },
+        {
+          column: "environment",
+          type: "string",
+          operator: "=",
+          value: "production",
+        },
       ],
     });
 
     const { query, params } = capturedQuery();
     expect(query).toContain("t.name");
+    expect(query).not.toContain("t.environment");
     expect(query).toContain("AND t.id IN (");
     const observationQuery = query.slice(query.indexOf("AND t.id IN ("));
     expect(observationQuery).toContain("e.name");
+    expect(observationQuery).toContain("e.environment");
     expect(observationQuery).not.toContain("t.name");
     expect(Object.values(params)).toContain("conversation");
     expect(Object.values(params)).toContain("agent");
+    expect(Object.values(params)).toContain("production");
   });
 
   it.each([
