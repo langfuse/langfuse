@@ -8,6 +8,7 @@ export const gatewayApiFormats = [
   "openai.responses",
   "openai.chat-completions",
   "openai.decisions",
+  "openai.embeddings",
   "anthropic.messages",
 ] as const;
 
@@ -18,6 +19,7 @@ export const gatewayProviders = [
   "OPENROUTER",
   "XAI",
   "VERCEL",
+  "GOOGLE_AI_STUDIO",
 ] as const;
 
 export type GatewayApiFormat = (typeof gatewayApiFormats)[number];
@@ -35,6 +37,7 @@ const gatewayProviderIds = [
   "openrouter",
   "xai",
   "vercel",
+  "google_ai_studio",
 ] as const;
 export type GatewayProviderId = (typeof gatewayProviderIds)[number];
 
@@ -137,6 +140,7 @@ const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
         "openai.responses",
         "openai.chat-completions",
         "openai.decisions",
+        "openai.embeddings",
       ],
     },
     ANTHROPIC: {
@@ -158,6 +162,7 @@ const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
       apiFormats: [
         "openai.responses",
         "openai.chat-completions",
+        "openai.embeddings",
         "anthropic.messages",
       ],
     },
@@ -184,6 +189,17 @@ const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
       credentialCheck: { path: "/credits" },
       apiFormats: gatewayApiFormats,
     },
+    // Gemini API's OpenAI-compatible endpoint, which has no Responses route:
+    // https://ai.google.dev/gemini-api/docs/openai
+    GOOGLE_AI_STUDIO: {
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+      modelsPath: "/models",
+      authType: "bearer",
+      // A test completion fails for valid keys whose project lacks access to
+      // or quota for the test model.
+      credentialCheck: { path: "/models" },
+      apiFormats: ["openai.chat-completions", "openai.embeddings"],
+    },
   };
 
 export function getGatewayProviderDefinition(
@@ -196,15 +212,19 @@ export function providerSupportsApiFormat(
   provider: GatewayProviderName,
   apiFormat: GatewayApiFormat,
 ): boolean {
-  if (provider === "BEDROCK") return apiFormat !== "openai.decisions";
+  if (provider === "BEDROCK") {
+    return (
+      apiFormat !== "openai.decisions" && apiFormat !== "openai.embeddings"
+    );
+  }
   return PROVIDER_REGISTRY[provider].apiFormats.includes(apiFormat);
 }
 
-// Bedrock serves each API format but Decisions natively under its own path and
-// auth header.
+// Bedrock serves each API format but Decisions and Embeddings natively under its
+// own path and auth header.
 // Throws if a Bedrock connection has no valid region config. OpenAI and
-// Anthropic connections may override the official base URL; OpenRouter, xAI
-// and Vercel never store one.
+// Anthropic connections may override the official base URL; OpenRouter, xAI,
+// Vercel and Google AI Studio never store one.
 export function getGatewayUpstream(params: {
   provider: GatewayProviderName;
   apiFormat: GatewayApiFormat;

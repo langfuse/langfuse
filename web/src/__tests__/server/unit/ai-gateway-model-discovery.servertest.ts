@@ -5,14 +5,19 @@ import type { Redis } from "ioredis";
 
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
 import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
-import { __test as gatewayModelsService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
+import {
+  __test as gatewayModelsService,
+  GatewayModelsService,
+} from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
 import { anthropicModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/anthropic";
 import { bedrockModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/bedrock";
+import { googleAiStudioModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/googleAiStudio";
 import { openAiModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/openAi";
 import { openRouterModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/openRouter";
 import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
 import { vercelModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/vercel";
 import { xaiModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/xai";
+import type { GatewayModelCatalogEntry } from "@/src/features/ai-gateway/server/provider/models/types";
 
 vi.mock("@/src/features/ai-gateway/server/provider/getGatewayFetch", () => ({
   getGatewayFetch: vi.fn(),
@@ -98,7 +103,7 @@ describe("AI Gateway model discovery", () => {
     });
 
     expect(redis.setex).toHaveBeenCalledWith(
-      "ai-gateway:models:v2:org-1:connection-1",
+      "ai-gateway:models:v3:org-1:connection-1",
       120,
       expect.any(String),
     );
@@ -329,6 +334,85 @@ describe("AI Gateway model discovery", () => {
     );
   });
 
+  it("adds OpenRouter embedding models as embeddings-only, without failing on their listing", async () => {
+    const chatModel = {
+      id: "openai/gpt-5",
+      name: "GPT-5",
+      created: 1,
+      endpoints: [
+        "/api/v1/chat/completions",
+        "/api/v1/messages",
+        "/api/v1/responses",
+      ],
+    };
+    const embeddingModel = (id: string) => ({
+      id,
+      name: id,
+      created: 1,
+      endpoints: ["/api/v1/embeddings"],
+    });
+    const fetchIds = async (embeddingsResponse: Response) => {
+      const result = await openRouterModelDiscoveryAdapter.fetchCatalog({
+        credential: "sk-or-test",
+        config: null,
+        baseURL: null,
+        extraHeaders: {},
+        fetcher: async (url) =>
+          String(url) === "https://openrouter.ai/api/v1/embeddings/models"
+            ? embeddingsResponse
+            : Response.json({ data: [chatModel] }),
+      });
+      return (
+        result.success &&
+        result.models.map(({ id, apiFormats }) => ({ id, apiFormats }))
+      );
+    };
+
+    expect(
+      await fetchIds(
+        Response.json({
+          data: [
+            embeddingModel("openai/text-embedding-3-small"),
+            embeddingModel("openai/gpt-5"),
+          ],
+        }),
+      ),
+    ).toEqual([
+      { id: "openai/gpt-5", apiFormats: undefined },
+      {
+        id: "openai/text-embedding-3-small",
+        apiFormats: ["openai.embeddings"],
+      },
+    ]);
+    expect(await fetchIds(new Response(null, { status: 500 }))).toEqual([
+      { id: "openai/gpt-5", apiFormats: undefined },
+    ]);
+  });
+
+  it("lists embeddings-only models under OpenAI routes, never under Messages", () => {
+    const embeddingModel: GatewayModelCatalogEntry = {
+      id: "openai/text-embedding-3-small",
+      provider: "OPENROUTER",
+      canonicalSlug: "openai/text-embedding-3-small",
+      displayName: "Text Embedding 3 Small",
+      createdAt: new Date(0).toISOString(),
+      apiFormats: ["openai.embeddings"],
+    };
+
+    expect(
+      gatewayModelsService.modelMatchesApiFormat(
+        embeddingModel,
+        "openai.responses",
+      ),
+    ).toBe(true);
+    expect(
+      gatewayModelsService.modelMatchesApiFormat(
+        embeddingModel,
+        "anthropic.messages",
+      ),
+    ).toBe(false);
+  });
+
   it("lists the xAI language models the key can use", async () => {
     const fetcher = vi.fn<typeof fetch>(
       respondWith({
@@ -410,7 +494,94 @@ describe("AI Gateway model discovery", () => {
     });
   });
 
-  it("lists the Vercel language and decision models that are not deprecated or ineligible for the team", async () => {
+  it("lists Google AI Studio's Gemini chat and embedding models under the ids requests use", async () => {
+    const fetcher = vi.fn<typeof fetch>(
+      respondWith({
+        object: "list",
+        data: [
+          {
+            id: "models/gemini-3.5-flash",
+            object: "model",
+            owned_by: "google",
+          },
+          { id: "models/gemma-4-27b-it", object: "model", owned_by: "google" },
+          { id: "models/gemini-embedding-001", object: "model" },
+          { id: "models/gemini-3.5-flash-image", object: "model" },
+          { id: "models/gemini-3.5-flash-preview-tts", object: "model" },
+          { id: "models/imagen-4.0-generate-001", object: "model" },
+          { id: "models/veo-3.1-generate-preview", object: "model" },
+        ],
+      }),
+    );
+    const result = await googleAiStudioModelDiscoveryAdapter.fetchCatalog({
+      credential: "gemini-test",
+      config: null,
+      baseURL: null,
+      extraHeaders: {},
+      fetcher,
+    });
+
+    expect(String(fetcher.mock.calls[0]?.[0])).toBe(
+      "https://generativelanguage.googleapis.com/v1beta/openai/models",
+    );
+    expect(
+      result.success &&
+        result.models.map(({ id, apiFormats }) => ({ id, apiFormats })),
+    ).toEqual([
+      { id: "gemini-3.5-flash", apiFormats: ["openai.chat-completions"] },
+      { id: "gemma-4-27b-it", apiFormats: ["openai.chat-completions"] },
+      { id: "gemini-embedding-001", apiFormats: ["openai.embeddings"] },
+    ]);
+  });
+
+  it("treats Google AI Studio's 400 for a bad key as unauthorized", async () => {
+    const result = await googleAiStudioModelDiscoveryAdapter.fetchCatalog({
+      credential: "gemini-revoked",
+      config: null,
+      baseURL: null,
+      extraHeaders: {},
+      fetcher: async () =>
+        Response.json(
+          [
+            {
+              error: {
+                code: 400,
+                message: "Please pass a valid API key",
+                status: "INVALID_ARGUMENT",
+              },
+            },
+          ],
+          { status: 400 },
+        ),
+    });
+
+    expect(result).toEqual({ success: false, error: "unauthorized" });
+  });
+
+  it("lists models of providers without Responses on OpenAI routes, which ask with Responses", async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const prisma = {
+      gatewayAiConnection: { findMany },
+    } as unknown as PrismaClient;
+    const listedProviders = async (
+      apiFormat: "openai.responses" | "anthropic.messages",
+    ) => {
+      await new GatewayModelsService(prisma, null).list({
+        context: { organizationId: "org-1" } as never,
+        apiFormat,
+      });
+      return findMany.mock.lastCall?.[0].where.provider.in;
+    };
+
+    expect(await listedProviders("openai.responses")).toContain(
+      "GOOGLE_AI_STUDIO",
+    );
+    expect(await listedProviders("anthropic.messages")).not.toContain(
+      "GOOGLE_AI_STUDIO",
+    );
+  });
+
+  it("lists the Vercel language, embedding and decision models that are not deprecated or ineligible for the team", async () => {
     const model = (id: string, extra: Record<string, unknown> = {}) => ({
       id,
       object: "model",
@@ -464,6 +635,7 @@ describe("AI Gateway model discovery", () => {
       "unevaluated/model",
       "retiring/soon",
       "unparsable/deprecation",
+      "openai/text-embedding-3-small",
       "openai/gpt-6-luna-decisions",
       "typesafe-ai/jev",
     ]);
@@ -480,8 +652,12 @@ describe("AI Gateway model discovery", () => {
       ],
     });
     expect(
-      result.success && result.models.slice(-2).map((m) => m.apiFormats),
-    ).toEqual([["openai.decisions"], ["openai.decisions"]]);
+      result.success && result.models.slice(-3).map((m) => m.apiFormats),
+    ).toEqual([
+      ["openai.embeddings"],
+      ["openai.decisions"],
+      ["openai.decisions"],
+    ]);
     expect(result.success && result.expiresAt).toBe(
       Date.parse("2026-11-18T00:00:00Z"),
     );

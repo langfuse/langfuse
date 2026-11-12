@@ -11,6 +11,7 @@ export function useAgentSetupInstructions(organizationId: string) {
       ? buildAgentSetupInstructions({
           gatewayOrigin: new URL(clientSetup.data.gatewayBaseUrl).origin,
           providers: clientSetup.data.providers,
+          apiProviders: clientSetup.data.apiProviders,
         })
       : undefined,
     isPending: clientSetup.isPending,

@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   runFind: vi.fn(),
   runFindMany: vi.fn(),
   runUpdate: vi.fn(),
+  ruleFind: vi.fn(),
   topicFind: vi.fn(),
   topicWrite: vi.fn(),
 }));
@@ -27,6 +28,7 @@ vi.mock("../../db", () => {
       findMany: mocks.runFindMany,
       update: mocks.runUpdate,
     },
+    evaluationRule: { findFirst: mocks.ruleFind },
   };
   return {
     Prisma: {},

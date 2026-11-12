@@ -91,6 +91,18 @@ describe("getCodeEvalCapabilities", () => {
       }),
     ).rejects.toThrow("LANGFUSE_CODE_EVAL_EXTERNAL_SIGNING_SECRET");
   });
+
+  it("rejects an external endpoint that dispatch-time validation would reject", async () => {
+    await expect(
+      getCapabilitiesForEnv({
+        LANGFUSE_CODE_EVAL_DISPATCHER: "external",
+        LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT:
+          "http://executor:8080/evaluate%E0%A4%A",
+        LANGFUSE_CODE_EVAL_EXTERNAL_SIGNING_SECRET: "x".repeat(32),
+      }),
+    ).rejects.toThrow("LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT");
+  });
+
   it("enables only TypeScript for self-hosted insecure-local dispatching", async () => {
     await expect(
       getCapabilitiesForEnv({

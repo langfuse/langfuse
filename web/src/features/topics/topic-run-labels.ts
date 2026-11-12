@@ -5,10 +5,20 @@ import {
   type TopicOperation,
 } from "@langfuse/shared/topics";
 
-export const operationLabels: Record<TopicOperation, string> = {
+const operationLabels: Record<TopicOperation, string> = {
   process: "Analyze traces",
   update: "Regenerate topics",
 };
+
+/** A run's name in History: one-off scans are told apart from manual regenerates. */
+export function runLabel(input: {
+  operation: TopicOperation;
+  analysis?: unknown;
+}) {
+  return input.operation === "update" && input.analysis
+    ? "One-off clustering"
+    : operationLabels[input.operation];
+}
 
 export const executionLabels: Record<TopicExecutionStatus, string> = {
   queued: "Queued",

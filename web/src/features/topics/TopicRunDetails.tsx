@@ -22,7 +22,7 @@ import {
   executionBadgeTypes,
   executionLabels,
   formatTopicRunCost,
-  operationLabels,
+  runLabel,
 } from "./topic-run-labels";
 
 type Run = RouterOutputs["topics"]["execution"];
@@ -130,7 +130,7 @@ function questionNote(progress: FacetProgress, minimum: number | null) {
       : `${formatCount(unclustered)} summaries didn’t form clear groups. Try a larger, more varied set of traces.`;
   }
   if (progress.outcome === "awaiting_topics")
-    return `${formatCount(c.complete)} summaries are ready. Run Regenerate topics to group them.`;
+    return `${formatCount(c.complete)} summaries are ready. Start a new scan to group them.`;
   return null;
 }
 
@@ -221,7 +221,7 @@ export function TopicRunDetails({
       ? (execution.input.minimumTraceCount ??
         (execution.input.exploratory ? 10 : 100))
       : null;
-  const name = operationLabels[execution.input.operation];
+  const name = runLabel(execution.input);
   const meta = [
     format(new Date(execution.createdAt), "MMM d, HH:mm"),
     isUpdate
