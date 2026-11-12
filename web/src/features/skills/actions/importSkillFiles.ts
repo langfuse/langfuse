@@ -1,8 +1,4 @@
-import {
-  MAX_SKILL_BYTES,
-  MAX_SKILL_FILES,
-  SkillVersionFileInputSchema,
-} from "@langfuse/shared";
+import { SkillVersionFileInputSchema } from "@langfuse/shared";
 import { unzipSync } from "fflate";
 import { type FileWithPath } from "react-dropzone";
 import { getParentFolderPaths } from "../components/skillFileTree";
@@ -17,21 +13,7 @@ export async function importSkillFiles(
   files: FileWithPath[],
 ) {
   const imports: SkillDraftFile[] = [];
-  let importedBytes = 0;
-  const checkBudget = (size: number) => {
-    if (imports.length >= MAX_SKILL_FILES) {
-      throw new Error(`A skill can contain at most ${MAX_SKILL_FILES} files.`);
-    }
-    if (size > MAX_SKILL_BYTES) {
-      throw new Error(`Files must be at most ${MAX_SKILL_BYTES} bytes.`);
-    }
-    importedBytes += size;
-    if (importedBytes > MAX_SKILL_BYTES) {
-      throw new Error(`A skill can contain at most ${MAX_SKILL_BYTES} bytes.`);
-    }
-  };
   const addTextFile = (path: string, bytes: Uint8Array) => {
-    checkBudget(bytes.byteLength);
     let content: string;
     try {
       content = new TextDecoder("utf-8", {
@@ -55,15 +37,8 @@ export async function importSkillFiles(
       file.path ||
       file.name
     ).replace(/^(\.\/|\/)/, "");
-    if (file.size > MAX_SKILL_BYTES) {
-      throw new Error(
-        `Files must be at most ${MAX_SKILL_BYTES} bytes: ${path}`,
-      );
-    }
     const bytes = new Uint8Array(await file.arrayBuffer());
     if (/\.zip$/i.test(path)) {
-      let expandedBytes = importedBytes;
-      let expandedFiles = imports.length;
       const archivePaths = new Set<string>();
       const entries = unzipSync(bytes, {
         filter: (entry) => {
@@ -72,18 +47,6 @@ export async function importSkillFiles(
             throw new Error(`Duplicate ZIP entry: ${entry.name}`);
           }
           archivePaths.add(entry.name);
-          expandedBytes += entry.originalSize;
-          expandedFiles += 1;
-          // Check the expanded sizes before allocating decompression buffers.
-          if (
-            entry.originalSize > MAX_SKILL_BYTES ||
-            expandedBytes > MAX_SKILL_BYTES ||
-            expandedFiles > MAX_SKILL_FILES
-          ) {
-            throw new Error(
-              "The ZIP exceeds the skill size or file count limit.",
-            );
-          }
           return true;
         },
       });
@@ -117,20 +80,6 @@ export async function importSkillFiles(
       sourceContentLength: existing?.sourceContentLength ?? null,
     };
     delete nextDeletedFiles[file.path];
-  }
-  if (Object.keys(nextFiles).length > MAX_SKILL_FILES) {
-    throw new Error(`A skill can contain at most ${MAX_SKILL_FILES} files.`);
-  }
-  const totalBytes = Object.values(nextFiles).reduce(
-    (total, file) =>
-      total +
-      (file.content === undefined
-        ? (file.sourceContentLength ?? 0)
-        : new TextEncoder().encode(file.content).byteLength),
-    0,
-  );
-  if (totalBytes > MAX_SKILL_BYTES) {
-    throw new Error(`A skill can contain at most ${MAX_SKILL_BYTES} bytes.`);
   }
   const paths = imports.map((file) => file.path);
   store.setState({

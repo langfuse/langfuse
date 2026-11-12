@@ -1,5 +1,5 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
-import { MAX_SKILL_FILES, SkillFilePathSchema } from "@langfuse/shared";
+import { SkillFilePathSchema } from "@langfuse/shared";
 import { getParentFolderPaths } from "./skillFileTree";
 import { resetSkillName } from "../utils/resetSkillName";
 import { hashSkillFileContent } from "../utils/hashSkillFileContent";
@@ -325,8 +325,7 @@ export function createSkillEditorStore(
       restoreFile: (path) => {
         const state = get();
         const file = state.deletedFiles[path];
-        if (!file || Object.keys(state.files).length >= MAX_SKILL_FILES)
-          return false;
+        if (!file) return false;
         const { [path]: _, ...remainingDeletedFiles } = state.deletedFiles;
         set({
           files: { ...state.files, [path]: file },
