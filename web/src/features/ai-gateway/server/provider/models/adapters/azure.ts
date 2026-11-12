@@ -1,14 +1,16 @@
 import { z } from "zod/v4";
 
+import { getAzureResource } from "@/src/features/ai-gateway/fns/azureResource";
 import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider/registry";
 import { requestJson, standardHttpError } from "./shared";
 import type { ModelDiscoveryAdapter } from "../types";
 
 // Requests name a deployment, and `GET /openai/v1/models` lists the models the
-// resource could deploy instead. The Foundry project API lists deployments,
-// and `_project` addresses the resource's default project.
+// resource could deploy instead. The Foundry project API lists the deployments
+// of a project; `_project` addresses the default project, which not every
+// resource resolves.
 // https://learn.microsoft.com/en-us/rest/api/microsoft-foundry/aiproject
-const DEPLOYMENTS_PATH = "/api/projects/_project/deployments?api-version=v1";
+const DEFAULT_PROJECT = "_project";
 const MAX_PAGES = 10;
 const UNKNOWN_CREATED_AT = new Date(0).toISOString();
 
@@ -29,9 +31,15 @@ type Deployment = z.infer<typeof responseSchema>["value"][number];
 
 export const azureModelDiscoveryAdapter: ModelDiscoveryAdapter = {
   async fetchCatalog({ credential, baseURL, extraHeaders, fetcher }) {
-    if (!baseURL) return { success: false, error: "provider_error" };
+    const resource = baseURL ? getAzureResource(baseURL) : null;
+    if (!baseURL || !resource) {
+      return { success: false, error: "provider_error" };
+    }
+    const origin = new URL(baseURL).origin;
     const deployments: Deployment[] = [];
-    let url: URL | null = new URL(`${baseURL}${DEPLOYMENTS_PATH}`);
+    let url: URL | null = new URL(
+      `${origin}/api/projects/${resource.project ?? DEFAULT_PROJECT}/deployments?api-version=v1`,
+    );
     for (let page = 0; url && page < MAX_PAGES; page++) {
       const result = await requestJson({
         fetcher,
@@ -40,12 +48,10 @@ export const azureModelDiscoveryAdapter: ModelDiscoveryAdapter = {
       });
       if (!result.success) return result;
 
-      // A resource without a default project keeps its custom models.
-      if (result.response.status === 404) return { success: true, models: [] };
-      // The documented contract is OAuth only, so a key may call deployments
-      // without being allowed to list them; the credential check rejects bad
-      // keys before this.
-      if (result.response.status === 401 || result.response.status === 403) {
+      // An unknown project, or a key that may call deployments without
+      // listing them (the documented contract is OAuth only), keeps the custom
+      // models. The credential check rejects bad keys before this.
+      if ([401, 403, 404].includes(result.response.status)) {
         return { success: true, models: [], modelListingDenied: true };
       }
       const error = standardHttpError(result.response);
@@ -54,7 +60,7 @@ export const azureModelDiscoveryAdapter: ModelDiscoveryAdapter = {
       const parsed = responseSchema.safeParse(result.value);
       if (!parsed.success) return { success: false, error: "provider_error" };
       deployments.push(...parsed.data.value);
-      url = getNextPage(parsed.data.nextLink, baseURL);
+      url = getNextPage(parsed.data.nextLink, origin);
     }
 
     return {
@@ -80,10 +86,10 @@ export const azureModelDiscoveryAdapter: ModelDiscoveryAdapter = {
 };
 
 /** Follows pages only on the resource itself, which holds the API key. */
-function getNextPage(nextLink: string | undefined, baseURL: string) {
+function getNextPage(nextLink: string | undefined, origin: string) {
   if (!nextLink) return null;
-  const url = new URL(nextLink, baseURL);
-  return url.origin === new URL(baseURL).origin ? url : null;
+  const url = new URL(nextLink, origin);
+  return url.origin === origin ? url : null;
 }
 
 /**

@@ -227,8 +227,8 @@ export function providerSupportsApiFormat(
 }
 
 // Bedrock and Azure serve each supported API format natively under its own path
-// and auth header, Bedrock on its regional runtime and Azure on the resource
-// endpoint stored as the connection's base URL.
+// and auth header, Bedrock on its regional runtime and Azure on the origin of
+// the resource stored as the connection's base URL.
 // Throws if a Bedrock connection has no valid region config or an Azure
 // connection has no endpoint. OpenAI and Anthropic connections may override
 // the official base URL; OpenRouter, xAI, Vercel and Google AI Studio never
@@ -241,7 +241,10 @@ export function getGatewayUpstream(params: {
 }): GatewayUpstream {
   if (params.provider === "AZURE") {
     if (!params.baseURL) throw new Error("Azure connection has no endpoint.");
-    return getPerFormatUpstream(params.baseURL, params.apiFormat);
+    return getPerFormatUpstream(
+      new URL(params.baseURL).origin,
+      params.apiFormat,
+    );
   }
   if (params.provider !== "BEDROCK") {
     const { baseUrl, authType } = PROVIDER_REGISTRY[params.provider];

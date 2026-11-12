@@ -24,8 +24,8 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { GATEWAY_CONNECTION_NAME_ERRORS } from "@/src/features/ai-gateway/constants/gatewayConnection";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import {
+  getAzureResource,
   getAzureResourceEndpoint,
-  getAzureResourceName,
 } from "@/src/features/ai-gateway/fns/azureResource";
 import { isGatewayApiFamily } from "@/src/features/ai-gateway/fns/isGatewayApiFamily";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
@@ -330,7 +330,16 @@ export class GatewayProviderService {
         : toCanonicalBaseURL(params.existing.provider, params.baseURL);
     const isBaseURLChanged =
       baseURL !== undefined && baseURL !== params.existing.baseURL;
-    if (isBaseURLChanged && !params.hasCredential) {
+    // An Azure key belongs to the resource, so switching its project keeps it.
+    const isHostChanged =
+      isBaseURLChanged &&
+      !(
+        params.existing.provider === "AZURE" &&
+        baseURL &&
+        params.existing.baseURL &&
+        new URL(baseURL).origin === new URL(params.existing.baseURL).origin
+      );
+    if (isHostChanged && !params.hasCredential) {
       throw new InvalidRequestError(
         "A new API key is required when changing the base URL",
       );
@@ -350,7 +359,7 @@ export class GatewayProviderService {
         resolveUpdatedExtraHeaders({
           inputHeaders: params.extraHeaders,
           storedHeaders,
-          isBaseURLChanged,
+          isBaseURLChanged: isHostChanged,
         }) ?? null,
     };
     if (isEndpointChanged) {
@@ -624,13 +633,13 @@ function toCanonicalBaseURL(
     );
   }
   if (provider === "AZURE") {
-    const resourceName = getAzureResourceName(baseURL);
-    if (!resourceName) {
+    const resource = getAzureResource(baseURL);
+    if (!resource) {
       throw new InvalidRequestError(
-        "Azure connections need the name of a Microsoft Foundry resource",
+        "Azure connections need the name of a Microsoft Foundry resource and optionally of one of its projects",
       );
     }
-    return getAzureResourceEndpoint(resourceName);
+    return getAzureResourceEndpoint(resource);
   }
   const trimmed = baseURL.replace(/\/+$/, "");
   return provider === "ANTHROPIC" && !trimmed.endsWith("/v1")

@@ -118,7 +118,7 @@ describe("AI gateway provider registry", () => {
     ).toThrow();
   });
 
-  it("stores the Azure resource endpoint and routes each format below it", async () => {
+  it("stores the Azure resource and project and routes each format to the resource", async () => {
     const validator = vi.fn().mockRejectedValue(new Error("stop"));
     const prisma = {
       gatewayAiConnection: { findMany: vi.fn().mockResolvedValue([]) },
@@ -146,13 +146,26 @@ describe("AI gateway provider registry", () => {
         baseURL: "https://contoso.services.ai.azure.com",
       }),
     );
+    await expect(
+      create("https://contoso.services.ai.azure.com/api/projects/a/b"),
+    ).rejects.toThrow("Foundry resource");
+    await expect(
+      create("https://contoso.services.ai.azure.com/api/projects/my-project/"),
+    ).rejects.toThrow("stop");
+    expect(validator).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        baseURL:
+          "https://contoso.services.ai.azure.com/api/projects/my-project",
+      }),
+    );
 
     const upstream = (apiFormat: "openai.embeddings" | "anthropic.messages") =>
       getGatewayUpstream({
         provider: "AZURE",
         apiFormat,
         config: null,
-        baseURL: "https://contoso.services.ai.azure.com",
+        baseURL:
+          "https://contoso.services.ai.azure.com/api/projects/my-project",
       });
     expect(upstream("openai.embeddings")).toEqual({
       baseUrl: "https://contoso.services.ai.azure.com/openai/v1",
@@ -561,7 +574,7 @@ describe("AI gateway provider registry", () => {
     expect(String(fetcher.mock.calls[1]?.[0])).toContain("after_id=claude-a");
   });
 
-  it("lists the deployments of the Azure resource's default project", async () => {
+  it("lists the deployments of the connection's Azure project", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json({
         value: [
@@ -595,7 +608,8 @@ describe("AI gateway provider registry", () => {
           id: "connection-1",
           organizationId: "org-1",
           provider: "AZURE",
-          baseURL: "https://contoso.services.ai.azure.com",
+          baseURL:
+            "https://contoso.services.ai.azure.com/api/projects/my-project",
           encryptedCredential: encrypt("azure-key"),
           status: "ENABLED",
           allowedModels: null,
@@ -623,17 +637,17 @@ describe("AI gateway provider registry", () => {
       ],
     });
     expect(String(fetcher.mock.calls[0]?.[0])).toBe(
-      "https://contoso.services.ai.azure.com/api/projects/_project/deployments?api-version=v1",
+      "https://contoso.services.ai.azure.com/api/projects/my-project/deployments?api-version=v1",
     );
     expect(fetcher.mock.calls[0]?.[1]?.headers).toMatchObject({
       "api-key": "azure-key",
     });
   });
 
-  it("keeps Azure custom models when the key can't list deployments", async () => {
+  it("keeps Azure custom models when the default project can't be listed", async () => {
     const fetcher = vi
       .fn<typeof fetch>()
-      .mockResolvedValue(new Response(null, { status: 401 }));
+      .mockResolvedValue(new Response(null, { status: 404 }));
     const prisma = {
       gatewayAiConnection: {
         findFirst: vi.fn().mockResolvedValue({

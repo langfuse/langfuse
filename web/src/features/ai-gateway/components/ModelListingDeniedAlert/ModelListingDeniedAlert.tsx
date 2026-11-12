@@ -11,11 +11,26 @@ export function ModelListingDeniedAlert({
   return (
     <Alert variant="warning" icon={TriangleAlert}>
       <Alert.Title>Models can&apos;t be listed</Alert.Title>
-      <Alert.Description>
-        This key may call models but can&apos;t list all of them, so some models
-        may be missing here. {listingHint(provider)}
-      </Alert.Description>
+      <Alert.Description>{listingDescription(provider)}</Alert.Description>
     </Alert>
+  );
+}
+
+function listingDescription(provider: GatewayProvider) {
+  if (provider === "AZURE") {
+    return (
+      <>
+        Deployments are listed per Foundry project. Add the project name to the
+        connection to list them, or add deployments as custom models by their
+        deployment name.
+      </>
+    );
+  }
+  return (
+    <>
+      This key may call models but can&apos;t list all of them, so some models
+      may be missing here. {listingHint(provider)}
+    </>
   );
 }
 
@@ -32,9 +47,6 @@ function listingHint(provider: GatewayProvider) {
     return (
       <>Allow the models endpoint in the key&apos;s ACLs in the xAI Console.</>
     );
-  }
-  if (provider === "AZURE") {
-    return <>Add deployments as custom models by their deployment name.</>;
   }
   return null;
 }
