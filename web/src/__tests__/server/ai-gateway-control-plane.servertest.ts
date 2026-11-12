@@ -450,6 +450,7 @@ describe("AI gateway control plane", () => {
     expect(setup).toEqual({
       gatewayBaseUrl: expect.any(String),
       providers: ["OPENAI"],
+      apiProviders: ["OPENAI"],
     });
     await expect(
       viewer.aiGateway.getClientSetup({ orgId: owner.org.id }),
