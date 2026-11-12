@@ -6,12 +6,17 @@ import {
   updateOrgMembership,
 } from "@langfuse/shared/memberships";
 import {
-  deleteUserBoundApiKeys,
-  evictRevokedApiKeys,
   evictUserGatewayResolveCache,
-} from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
+  invalidateGatewayResolveCacheForApiKey,
+} from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { Prisma, prisma, type User, type Role } from "@langfuse/shared/src/db";
-import { logger, withSerializableRetry } from "@langfuse/shared/src/server";
+import {
+  invalidateCachedApiKeys,
+  logger,
+  withSerializableRetry,
+} from "@langfuse/shared/src/server";
+import { deleteApiKeys } from "@langfuse/shared/src/server/auth/apiKeys";
+import { OrganizationId, UserId } from "@langfuse/shared/rbac";
 import { isBaseError, LangfuseConflictError } from "@langfuse/shared";
 import { z } from "zod";
 import { type NextApiRequest, type NextApiResponse } from "next";
@@ -278,13 +283,37 @@ async function deprovisionOrReject(
         from: membership.role,
       });
       await deleteOrgMembership(tx, { orgId, userId });
-      const revokedKeys = await deleteUserBoundApiKeys(tx, { userId, orgId });
+      const revokedKeys = await deleteApiKeys(tx, {
+        tenant: OrganizationId(orgId),
+        scope: UserId(userId),
+      });
+      for (const apiKey of revokedKeys) {
+        await auditLog(
+          {
+            orgId,
+            apiKeyId,
+            resourceType: "apiKey",
+            resourceId: apiKey.id,
+            action: "delete",
+            before: apiKey,
+            after: { reason: "user_unbound", userId },
+          },
+          tx,
+        );
+      }
       return { result: "deleted" as const, membership, revokedKeys };
     });
 
     // Only audit and sync when a membership was actually removed.
     if (outcome.result === "deleted") {
-      await evictRevokedApiKeys(outcome.revokedKeys, { apiKeyId });
+      await invalidateCachedApiKeys(outcome.revokedKeys, `user ${userId}`);
+      await Promise.all(
+        outcome.revokedKeys.map(
+          ({ fastHashedSecretKey }) =>
+            fastHashedSecretKey &&
+            invalidateGatewayResolveCacheForApiKey(fastHashedSecretKey),
+        ),
+      );
       await auditLog({
         resourceType: "orgMembership",
         resourceId: outcome.membership.id,

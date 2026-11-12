@@ -1,10 +1,18 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { prisma } from "@langfuse/shared/src/db";
-import { logger, redis } from "@langfuse/shared/src/server";
+import {
+  invalidateCachedApiKeys,
+  logger,
+  withTransaction,
+} from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { z } from "zod";
-import { orgBoundApiKeyScopes } from "@langfuse/shared/src/server/auth/apiKeys";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import {
+  deleteApiKey,
+  orgBoundApiKeyDeleteScope,
+  orgBoundApiKeyScopes,
+} from "@langfuse/shared/src/server/auth/apiKeys";
+import { ApiKeyId } from "@langfuse/shared/rbac";
 
 export const validateQueryParams = (
   query: unknown,
@@ -26,40 +34,45 @@ export async function handleDeleteApiKey(
   organizationId: string,
   apiKeyId: string,
 ) {
-  // Check if API key exists and belongs to the organization
-  const apiKey = await prisma.apiKey.findFirst({
-    where: {
-      id: apiKeyId,
-      orgId: organizationId,
-      scope: { in: orgBoundApiKeyScopes },
+  const deleted = await withTransaction(prisma, async (tx) => {
+    const apiKey = await tx.apiKey.findFirst({
+      where: {
+        id: apiKeyId,
+        orgId: organizationId,
+        scope: { in: orgBoundApiKeyScopes },
+        isInAppAgentKey: false,
+      },
+      select: { scope: true, userId: true },
+    });
+    if (!apiKey) return null;
+
+    const deletedApiKey = await deleteApiKey(tx, {
+      ...orgBoundApiKeyDeleteScope(organizationId, apiKey),
+      id: ApiKeyId(apiKeyId),
       isInAppAgentKey: false,
-    },
+    });
+    if (deletedApiKey) {
+      await auditLog(
+        {
+          resourceType: "apiKey",
+          resourceId: deletedApiKey.id,
+          action: "delete",
+          before: deletedApiKey,
+          orgId: organizationId,
+          orgRole: "ADMIN",
+          apiKeyId: "ADMIN_KEY",
+        },
+        tx,
+      );
+    }
+    return deletedApiKey;
   });
 
-  if (!apiKey) {
+  if (!deleted) {
     return res.status(404).json({ error: "API key not found" });
   }
 
-  // Delete the API key
-  const deleted = await new ApiAuthService(prisma, redis).deleteApiKey(
-    apiKeyId,
-    organizationId,
-    apiKey.scope,
-  );
-
-  if (!deleted) {
-    return res.status(500).json({ error: "Failed to delete API key" });
-  }
-
-  // Log the API key deletion
-  await auditLog({
-    resourceType: "apiKey",
-    resourceId: apiKeyId,
-    action: "delete",
-    orgId: organizationId,
-    orgRole: "ADMIN",
-    apiKeyId: "ADMIN_KEY",
-  });
+  await invalidateCachedApiKeys([deleted], `key ${deleted.id}`);
 
   logger.info(
     `Deleted API key ${apiKeyId} for organization ${organizationId} via admin API`,

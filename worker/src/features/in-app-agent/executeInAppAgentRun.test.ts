@@ -197,14 +197,12 @@ vi.mock("@langfuse/shared/src/server/auth/apiKeys", async (importOriginal) => {
 
   return {
     ...actual,
-    deleteInAppAgentMcpApiKeyFromDb: async (
-      ...args: Parameters<typeof actual.deleteInAppAgentMcpApiKeyFromDb>
-    ) => {
+    deleteApiKey: async (...args: Parameters<typeof actual.deleteApiKey>) => {
       scenarioRef.apiKeyDeleteCalls += 1;
       if (scenarioRef.failApiKeyDelete) {
         throw new Error("simulated api key delete failure");
       }
-      return actual.deleteInAppAgentMcpApiKeyFromDb(...args);
+      return actual.deleteApiKey(...args);
     },
   };
 });

@@ -6,6 +6,7 @@ import {
   ProjectDeleteQueue,
   QueueJobs,
 } from "@langfuse/shared/src/server";
+import { deleteApiKeys } from "@langfuse/shared/src/server/auth/apiKeys";
 import { deleteProjectMemberships } from "@langfuse/shared/memberships";
 import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";
 import { transferApiKeyRoles } from "@langfuse/shared/rbac/server";
@@ -47,9 +48,12 @@ export class ProjectService {
    * Callers must check `project:delete`.
    */
   async delete(params: DeleteProjectParams) {
-    // API keys need to be deleted from cache. Otherwise, they will still be valid.
-    await this.apiAuthService.invalidateCachedProjectApiKeys(params.projectId);
-    const project = await this.softDeleteAndUnlinkGateway(params);
+    const { project, deletedApiKeys } =
+      await this.softDeleteAndUnlinkGateway(params);
+    await this.apiAuthService.invalidateCachedApiKeys(
+      deletedApiKeys,
+      `project ${params.projectId}`,
+    );
     await auditLog({
       ...params.actor,
       resourceType: "project",
@@ -132,8 +136,8 @@ export class ProjectService {
   }
 
   private async softDeleteAndUnlinkGateway(params: DeleteProjectParams) {
-    const { project, clearedGateway } = await this.prisma.$transaction(
-      async (tx) => {
+    const { project, clearedGateway, deletedApiKeys } =
+      await this.prisma.$transaction(async (tx) => {
         const clearedGateway = await new GatewayConfigService(
           tx,
         ).clearIngestionProject(params);
@@ -144,20 +148,31 @@ export class ProjectService {
             "Deleting the AI Gateway ingestion project requires the gateway:manage permission.",
           );
         }
-        await tx.apiKey.deleteMany({
-          where: { projectId: params.projectId, scope: "PROJECT" },
+        const deletedApiKeys = await deleteApiKeys(tx, {
+          scope: ProjectId(params.projectId),
         });
+        for (const apiKey of deletedApiKeys) {
+          await auditLog(
+            {
+              ...params.actor,
+              resourceType: "apiKey",
+              resourceId: apiKey.id,
+              action: "delete",
+              before: apiKey,
+            },
+            tx,
+          );
+        }
         const project = await tx.project.update({
           where: { id: params.projectId, orgId: params.organizationId },
           data: { deletedAt: new Date() },
         });
-        return { project, clearedGateway };
-      },
-    );
+        return { project, clearedGateway, deletedApiKeys };
+      });
     if (clearedGateway) {
       await invalidateGatewayResolveCacheForOrganization(params.organizationId);
     }
-    return project;
+    return { project, deletedApiKeys };
   }
 
   private async queueHardDelete(params: DeleteProjectParams) {

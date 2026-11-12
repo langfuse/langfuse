@@ -1,7 +1,12 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { prisma } from "@langfuse/shared/src/db";
-import { logger, redis } from "@langfuse/shared/src/server";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import {
+  invalidateCachedApiKeys,
+  logger,
+  withTransaction,
+} from "@langfuse/shared/src/server";
+import { deleteApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import { ApiKeyId, ProjectId } from "@langfuse/shared/rbac";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { z } from "zod";
 
@@ -28,38 +33,35 @@ export async function handleDeleteApiKey(
   orgId: string,
   authenticatingApiKeyId: string,
 ) {
-  const apiKey = await prisma.apiKey.findFirst({
-    where: {
-      id: apiKeyId,
-      projectId,
-      scope: "PROJECT",
+  const deleted = await withTransaction(prisma, async (tx) => {
+    const apiKey = await deleteApiKey(tx, {
+      scope: ProjectId(projectId),
+      id: ApiKeyId(apiKeyId),
       isInAppAgentKey: false,
-    },
+    });
+    if (apiKey) {
+      await auditLog(
+        {
+          resourceType: "apiKey",
+          resourceId: apiKey.id,
+          action: "delete",
+          before: apiKey,
+          orgId: orgId,
+          projectId: projectId,
+          orgRole: "ADMIN",
+          apiKeyId: authenticatingApiKeyId,
+        },
+        tx,
+      );
+    }
+    return apiKey;
   });
 
-  if (!apiKey) {
+  if (!deleted) {
     return res.status(404).json({ message: "API key not found" });
   }
 
-  const deleted = await new ApiAuthService(prisma, redis).deleteApiKey(
-    apiKeyId,
-    projectId,
-    "PROJECT",
-  );
-
-  if (!deleted) {
-    return res.status(500).json({ message: "Failed to delete API key" });
-  }
-
-  await auditLog({
-    resourceType: "apiKey",
-    resourceId: apiKeyId,
-    action: "delete",
-    orgId: orgId,
-    projectId: projectId,
-    orgRole: "ADMIN",
-    apiKeyId: authenticatingApiKeyId,
-  });
+  await invalidateCachedApiKeys([deleted], `key ${deleted.id}`);
 
   logger.info(
     `Deleted API key ${apiKeyId} for project ${projectId} via public API`,

@@ -1,7 +1,6 @@
 import { env } from "@/src/env.mjs";
 import {
   createShaHash,
-  deleteApiKeyFromDb,
   formatSubmittedPublicKeyForLog,
   recordIncrement,
   verifySecretKey,
@@ -21,7 +20,6 @@ import {
   type PrismaClient,
   type ApiKey,
   type Prisma,
-  type ApiKeyScope,
 } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { type Redis, type Cluster } from "ioredis";
@@ -46,7 +44,10 @@ export class ApiAuthService {
   // this function needs to be called, when the organisation is updated
   // - when projects move across organisations, the orgId in the API key cache needs to be updated
   // - when the plan of the org changes, the plan in the API key cache needs to be updated as well
-  async invalidateCachedApiKeys(apiKeys: ApiKey[], identifier: string) {
+  async invalidateCachedApiKeys(
+    apiKeys: Parameters<typeof invalidateCachedApiKeysShared>[0],
+    identifier: string,
+  ) {
     await invalidateCachedApiKeysShared(apiKeys, identifier, this.redis);
   }
 
@@ -56,22 +57,6 @@ export class ApiAuthService {
 
   async invalidateCachedProjectApiKeys(projectId: string) {
     await invalidateCachedProjectApiKeysShared(projectId, this.redis);
-  }
-
-  /**
-   * Deletes an API key from the database and invalidates it in Redis if available.
-   * @param id - The ID of the API key to delete.
-   * @param entityId - The ID of the entity (project or organization) to which the API key belongs.
-   * @param scope - The scope of the API key (either "PROJECT" or "ORGANIZATION").
-   */
-  async deleteApiKey(id: string, entityId: string, scope: ApiKeyScope) {
-    return deleteApiKeyFromDb({
-      prisma: this.prisma,
-      id,
-      entityId,
-      scope,
-      redis: this.redis,
-    });
   }
 
   async verifyAuthHeaderAndReturnScope(

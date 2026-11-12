@@ -10,11 +10,13 @@ import {
 import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import {
   InAppAgentRunQueue,
+  invalidateCachedApiKeys,
   logger,
   QueueJobs,
   redis,
 } from "@langfuse/shared/src/server";
-import { deleteInAppAgentMcpApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { deleteApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import { ApiKeyId, ProjectId } from "@langfuse/shared/rbac";
 import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
@@ -72,12 +74,14 @@ export async function getBackgroundConversationSnapshot(params: {
     projectId: params.projectId,
     conversationId: params.conversationId,
     deleteApiKey: async (apiKeyId) => {
-      await deleteInAppAgentMcpApiKeyFromDb({
-        prisma: params.prisma,
-        id: apiKeyId,
-        projectId: params.projectId,
-        redis,
+      const deleted = await deleteApiKey(params.prisma, {
+        scope: ProjectId(params.projectId),
+        id: ApiKeyId(apiKeyId),
+        isInAppAgentKey: true,
       });
+      if (deleted) {
+        await invalidateCachedApiKeys([deleted], `key ${deleted.id}`, redis);
+      }
     },
   });
 

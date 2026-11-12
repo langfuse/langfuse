@@ -21,10 +21,11 @@ import {
   isInternalViewEnabled,
 } from "@/src/features/feature-flags/utils";
 import { advanceSessionsExpiredAtForUser } from "@/src/features/auth/lib/sessionExpiration";
-import {
-  deleteUserBoundApiKeys,
-  evictRevokedApiKeys,
-} from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
+import { invalidateCachedApiKeys } from "@langfuse/shared/src/server";
+import { deleteApiKeys } from "@langfuse/shared/src/server/auth/apiKeys";
+import { UserId } from "@langfuse/shared/rbac";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 
 const updateDisplayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -224,7 +225,22 @@ export const userAccountRouter = createTRPCRouter({
           select: { orgId: true },
         });
 
-        const revokedKeys = await deleteUserBoundApiKeys(tx, { userId });
+        const revokedKeys = await deleteApiKeys(tx, { scope: UserId(userId) });
+        for (const apiKey of revokedKeys) {
+          if (!apiKey.orgId) continue;
+          await auditLog(
+            {
+              userId,
+              orgId: apiKey.orgId,
+              resourceType: "apiKey",
+              resourceId: apiKey.id,
+              action: "delete",
+              before: apiKey,
+              after: { reason: "user_unbound", userId },
+            },
+            tx,
+          );
+        }
 
         // Delete the user (cascade will handle related records)
         await tx.user.delete({
@@ -244,7 +260,14 @@ export const userAccountRouter = createTRPCRouter({
       },
     );
 
-    await evictRevokedApiKeys(revokedKeys, { userId });
+    await invalidateCachedApiKeys(revokedKeys, `user ${userId}`);
+    await Promise.all(
+      revokedKeys.map(
+        ({ fastHashedSecretKey }) =>
+          fastHashedSecretKey &&
+          invalidateGatewayResolveCacheForApiKey(fastHashedSecretKey),
+      ),
+    );
 
     // SFDC: remove every org-member bridge the cascade just deleted. After
     // commit so a rolled-back delete never desyncs SFDC; removeUser never

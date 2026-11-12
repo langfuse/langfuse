@@ -23,7 +23,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
 }));
 
 vi.mock("@langfuse/shared/src/server/auth/apiKeys", () => ({
-  deleteInAppAgentMcpApiKeyFromDb: vi.fn(),
+  deleteApiKey: vi.fn(),
 }));
 
 vi.mock("@langfuse/shared/src/db", () => ({

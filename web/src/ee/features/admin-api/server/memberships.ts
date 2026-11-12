@@ -3,10 +3,9 @@ import { z } from "zod";
 
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import {
-  deleteUserBoundApiKeys,
-  evictRevokedApiKeys,
   evictUserGatewayResolveCache,
-} from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
+  invalidateGatewayResolveCacheForApiKey,
+} from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
@@ -16,8 +15,10 @@ import {
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { authorize } from "@/src/features/rbac/authorize";
 import { ForbiddenError, Role } from "@langfuse/shared";
-import { OrganizationId } from "@langfuse/shared/rbac";
+import { OrganizationId, UserId } from "@langfuse/shared/rbac";
 import { prisma, type Prisma } from "@langfuse/shared/src/db";
+import { invalidateCachedApiKeys } from "@langfuse/shared/src/server";
+import { deleteApiKeys } from "@langfuse/shared/src/server/auth/apiKeys";
 
 // Schema for request body validation
 const MembershipSchema = z.object({
@@ -184,13 +185,37 @@ export async function handleDeleteMembership(
       },
       tx,
     );
-    const revokedKeys = await deleteUserBoundApiKeys(tx, {
-      userId: validatedBody.data.userId,
-      orgId,
+    const revokedKeys = await deleteApiKeys(tx, {
+      tenant: OrganizationId(orgId),
+      scope: UserId(before.userId),
     });
+    for (const apiKey of revokedKeys) {
+      await auditLog(
+        {
+          orgId,
+          apiKeyId,
+          resourceType: "apiKey",
+          resourceId: apiKey.id,
+          action: "delete",
+          before: apiKey,
+          after: { reason: "user_unbound", userId: before.userId },
+        },
+        tx,
+      );
+    }
     return { deleted: true, revokedKeys };
   });
-  await evictRevokedApiKeys(revokedKeys, { apiKeyId });
+  await invalidateCachedApiKeys(
+    revokedKeys,
+    `user ${validatedBody.data.userId}`,
+  );
+  await Promise.all(
+    revokedKeys.map(
+      ({ fastHashedSecretKey }) =>
+        fastHashedSecretKey &&
+        invalidateGatewayResolveCacheForApiKey(fastHashedSecretKey),
+    ),
+  );
 
   if (deleted) {
     const user = await prisma.user.findUnique({

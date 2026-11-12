@@ -5,6 +5,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { CloudConfigRateLimit, type Plan, plans } from "@langfuse/shared";
 import type { Cluster, Redis } from "ioredis";
+import type { Prisma } from "@langfuse/shared/src/db";
 import { z } from "zod/v4";
 
 import { env } from "@/src/env.mjs";
@@ -210,3 +211,21 @@ export const invalidateGatewayResolveCacheForOrganization = (
 export const invalidateGatewayResolveCacheForApiKey = (
   fastHashedSecretKey: string,
 ) => new GatewayResolveCache().invalidateApiKey(fastHashedSecretKey);
+
+/** evictUserGatewayResolveCache drops the cached resolve contexts of the user's keys in orgId after a committed role change */
+export async function evictUserGatewayResolveCache(
+  prisma: Prisma.TransactionClient,
+  p: { orgId: string; userId: string },
+): Promise<void> {
+  const keys = await prisma.apiKey.findMany({
+    where: { orgId: p.orgId, userId: p.userId },
+    select: { fastHashedSecretKey: true },
+  });
+  await Promise.all(
+    keys.map(
+      ({ fastHashedSecretKey }) =>
+        fastHashedSecretKey &&
+        invalidateGatewayResolveCacheForApiKey(fastHashedSecretKey),
+    ),
+  );
+}

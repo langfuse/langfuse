@@ -7,20 +7,11 @@ import { ForbiddenError } from "@langfuse/shared";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import {
   createApiKey,
-  createApiKeyCacheKey,
   createOrgProjectAndApiKey,
-  redis,
 } from "@langfuse/shared/src/server";
 import { GatewayApiKeyService } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyService";
-import {
-  deleteUserBoundApiKeys,
-  evictRevokedApiKeys,
-} from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
+import { deleteApiKeys } from "@langfuse/shared/src/server/auth/apiKeys";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
-import {
-  GATEWAY_RESOLVE_KEY_NON_EXISTENT,
-  GatewayResolveCache,
-} from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 
 const cleanupOrganizations: string[] = [];
@@ -58,14 +49,6 @@ async function boundUserOf(apiKeyId: string) {
     select: { userId: true },
   });
   return row.userId;
-}
-
-async function fastHashOf(apiKeyId: string) {
-  const row = await prisma.apiKey.findUniqueOrThrow({
-    where: { id: apiKeyId },
-    select: { fastHashedSecretKey: true },
-  });
-  return row.fastHashedSecretKey!;
 }
 
 async function createGatewayKey(orgId: string, userId: string) {
@@ -181,9 +164,10 @@ describe("user-bound API keys", () => {
         issuedAs: "serviceAccount",
         session: orgSession(user, org, Role.ADMIN),
       });
-      await prisma.$transaction((tx) =>
-        deleteUserBoundApiKeys(tx, { userId: user.id, orgId: org.id }),
-      );
+      await deleteApiKeys(prisma, {
+        tenant: OrganizationId(org.id),
+        scope: UserId(user.id),
+      });
 
       expect(await boundUserOf(key.id)).toBeNull();
       expect(
@@ -252,7 +236,7 @@ describe("user-bound API keys", () => {
     });
   });
 
-  describe("deleteUserBoundApiKeys", () => {
+  describe("deleteApiKeys with a user scope", () => {
     it("revokes only the user's bound keys in the given organization", async () => {
       const [org, otherOrg] = await Promise.all([createOrg(), createOrg()]);
       const [user, otherUser] = await Promise.all([createUser(), createUser()]);
@@ -266,9 +250,10 @@ describe("user-bound API keys", () => {
         createdBy: "system",
       });
 
-      const deleted = await prisma.$transaction((tx) =>
-        deleteUserBoundApiKeys(tx, { userId: user.id, orgId: org.id }),
-      );
+      const deleted = await deleteApiKeys(prisma, {
+        tenant: OrganizationId(org.id),
+        scope: UserId(user.id),
+      });
 
       expect(deleted.map((key) => key.id)).toEqual([revoked.id]);
       expect(await existingKeyIds()).toEqual(
@@ -276,90 +261,19 @@ describe("user-bound API keys", () => {
       );
     });
 
-    it("revokes the user's bound keys in every organization without an orgId", async () => {
+    it("revokes the user's bound keys in every organization without a tenant", async () => {
       const [org, otherOrg] = await Promise.all([createOrg(), createOrg()]);
       const [user, otherUser] = await Promise.all([createUser(), createUser()]);
       const first = await createGatewayKey(org.id, user.id);
       const second = await createGatewayKey(otherOrg.id, user.id);
       const otherUserKey = await createGatewayKey(org.id, otherUser.id);
 
-      const deleted = await prisma.$transaction((tx) =>
-        deleteUserBoundApiKeys(tx, { userId: user.id }),
-      );
+      const deleted = await deleteApiKeys(prisma, { scope: UserId(user.id) });
 
       expect(new Set(deleted.map((key) => key.id))).toEqual(
         new Set([first.id, second.id]),
       );
       expect(await existingKeyIds()).toEqual(new Set([otherUserKey.id]));
-    });
-  });
-
-  describe("evictRevokedApiKeys", () => {
-    it("clears the auth and gateway resolve caches of revoked keys", async () => {
-      const org = await createOrg();
-      const user = await createUser();
-      const key = await createGatewayKey(org.id, user.id);
-      const hash = await fastHashOf(key.id);
-      const resolveCache = new GatewayResolveCache();
-      await redis!.set(createApiKeyCacheKey(hash), "cached");
-      await resolveCache.set({
-        fastHashedSecretKey: hash,
-        apiFormat: "openai.responses",
-        context: GATEWAY_RESOLVE_KEY_NON_EXISTENT,
-      });
-
-      const deleted = await prisma.$transaction((tx) =>
-        deleteUserBoundApiKeys(tx, { userId: user.id, orgId: org.id }),
-      );
-      await evictRevokedApiKeys(deleted, { userId: user.id });
-
-      expect(await redis!.exists(createApiKeyCacheKey(hash))).toBe(0);
-      expect(
-        await resolveCache.get({
-          fastHashedSecretKey: hash,
-          apiFormat: "openai.responses",
-        }),
-      ).toBeNull();
-    });
-
-    it("writes one delete audit entry per key with the unbinding reason", async () => {
-      const org = await createOrg();
-      const [user, admin] = await Promise.all([createUser(), createUser()]);
-      const first = await createGatewayKey(org.id, user.id);
-      const second = await createGatewayKey(org.id, user.id);
-      await prisma.gatewayApiKeyAssociation.create({
-        data: { apiKeyId: first.id, metadata: { team: "search" } },
-      });
-
-      const deleted = await prisma.$transaction((tx) =>
-        deleteUserBoundApiKeys(tx, { userId: user.id, orgId: org.id }),
-      );
-      await evictRevokedApiKeys(deleted, { userId: admin.id });
-
-      const entries = await prisma.auditLog.findMany({
-        where: { resourceId: { in: [first.id, second.id] } },
-      });
-      expect(entries).toHaveLength(2);
-      const firstEntry = entries.find((entry) => entry.resourceId === first.id);
-      expect(firstEntry).toMatchObject({
-        resourceType: "apiKey",
-        action: "delete",
-        userId: admin.id,
-        orgId: org.id,
-      });
-      expect(JSON.parse(firstEntry!.before!)).toMatchObject({
-        metadata: { team: "search" },
-        apiKey: {
-          id: first.id,
-          publicKey: first.publicKey,
-          displaySecretKey: first.displaySecretKey,
-          createdByUserId: user.id,
-        },
-      });
-      expect(JSON.parse(firstEntry!.after!)).toEqual({
-        reason: "user_unbound",
-        userId: user.id,
-      });
     });
   });
 });

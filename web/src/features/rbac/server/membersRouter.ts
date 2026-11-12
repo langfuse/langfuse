@@ -21,7 +21,9 @@ import {
   getUserProjectRoles,
   getUserProjectRolesCount,
   escapeSqlLikePattern,
+  invalidateCachedApiKeys,
 } from "@langfuse/shared/src/server";
+import { OrganizationId, UserId } from "@langfuse/shared/rbac";
 import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -33,10 +35,10 @@ import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
 import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import {
-  deleteUserBoundApiKeys,
-  evictRevokedApiKeys,
   evictUserGatewayResolveCache,
-} from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
+  invalidateGatewayResolveCacheForApiKey,
+} from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import { deleteApiKeys } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
   deleteOrgMembership,
   deleteProjectMembership,
@@ -171,14 +173,37 @@ export const membersRouter = createTRPCRouter({
             orgId: input.orgId,
             userId: orgMembership.userId,
           });
-          const revokedKeys = await deleteUserBoundApiKeys(tx, {
-            userId: orgMembership.userId,
-            orgId: input.orgId,
+          const revokedKeys = await deleteApiKeys(tx, {
+            tenant: OrganizationId(input.orgId),
+            scope: UserId(orgMembership.userId),
           });
+          for (const apiKey of revokedKeys) {
+            await auditLog(
+              {
+                session: ctx.session,
+                resourceType: "apiKey",
+                resourceId: apiKey.id,
+                action: "delete",
+                before: apiKey,
+                after: { reason: "user_unbound", userId: orgMembership.userId },
+              },
+              tx,
+            );
+          }
           return { deleted, revokedKeys };
         },
       );
-      await evictRevokedApiKeys(revokedKeys, { session: ctx.session });
+      await invalidateCachedApiKeys(
+        revokedKeys,
+        `user ${orgMembership.userId}`,
+      );
+      await Promise.all(
+        revokedKeys.map(
+          ({ fastHashedSecretKey }) =>
+            fastHashedSecretKey &&
+            invalidateGatewayResolveCacheForApiKey(fastHashedSecretKey),
+        ),
+      );
 
       // SFDC: remove the org-member bridge.
       await getSfdcService()?.removeUser({

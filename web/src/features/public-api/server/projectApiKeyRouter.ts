@@ -5,11 +5,17 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import * as z from "zod";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
-import { redis } from "@langfuse/shared/src/server";
-import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import {
+  invalidateCachedApiKeys,
+  withTransaction,
+} from "@langfuse/shared/src/server";
+import {
+  createApiKey,
+  deleteApiKey,
+} from "@langfuse/shared/src/server/auth/apiKeys";
 import { LangfuseNotFoundError, StringNoHTML } from "@langfuse/shared";
 import {
+  ApiKeyId,
   OrganizationId,
   ProjectId,
   SystemRoleId,
@@ -172,6 +178,7 @@ export const projectApiKeysRouter = createTRPCRouter({
           projectId: input.projectId,
           scope: "PROJECT",
         },
+        select: { isInAppAgentKey: true },
       });
 
       if (!apiKey) {
@@ -180,17 +187,32 @@ export const projectApiKeysRouter = createTRPCRouter({
 
       if (apiKey.isInAppAgentKey) return false;
 
-      await auditLog({
-        session: ctx.session,
-        resourceType: "apiKey",
-        resourceId: input.id,
-        action: "delete",
+      const deleted = await withTransaction(ctx.prisma, async (tx) => {
+        const deletedApiKey = await deleteApiKey(tx, {
+          scope: ProjectId(input.projectId),
+          id: ApiKeyId(input.id),
+          isInAppAgentKey: false,
+        });
+        if (deletedApiKey) {
+          await auditLog(
+            {
+              session: ctx.session,
+              resourceType: "apiKey",
+              resourceId: deletedApiKey.id,
+              action: "delete",
+              before: deletedApiKey,
+            },
+            tx,
+          );
+        }
+        return deletedApiKey;
       });
 
-      return await new ApiAuthService(ctx.prisma, redis).deleteApiKey(
-        input.id,
-        input.projectId,
-        "PROJECT",
-      );
+      if (!deleted) {
+        throw new LangfuseNotFoundError("API key not found");
+      }
+
+      await invalidateCachedApiKeys([deleted], `key ${deleted.id}`);
+      return true;
     }),
 });

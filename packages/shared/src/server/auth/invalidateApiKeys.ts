@@ -15,7 +15,7 @@ import {
 import { createShaHash } from "./apiKeys";
 
 /** cacheKeysForRows includes legacy and versioned credential entries. */
-function cacheKeysForRows(apiKeys: ApiKey[]): string[] {
+function cacheKeysForRows(apiKeys: CachedApiKeyIdentity[]): string[] {
   const salt = env.SALT;
   const keys: string[] = [];
   for (const key of apiKeys) {
@@ -36,7 +36,7 @@ function cacheKeysForRows(apiKeys: ApiKey[]): string[] {
 
 /** invalidateCachedApiKeys removes every cached credential presentation. */
 export async function invalidateCachedApiKeys(
-  apiKeys: ApiKey[],
+  apiKeys: CachedApiKeyIdentity[],
   identifier: string,
   redisClient: Redis | Cluster | null = redis,
 ) {
@@ -170,3 +170,6 @@ export async function invalidateAllCachedApiKeys(
 
   return keysToDelete.length;
 }
+
+/** CachedApiKeyIdentity is the part of an api key its cache entries are keyed by */
+type CachedApiKeyIdentity = Pick<ApiKey, "fastHashedSecretKey" | "publicKey">;

@@ -379,6 +379,29 @@ describe("project API keys trpc", () => {
       ).rejects.toMatchObject({ code: "NOT_FOUND" });
     });
 
+    it("records the deleted key's fast hash in its delete audit log", async () => {
+      const { caller, projectId, orgId } = await createProjectCaller();
+      const key = await createApiKey(prisma, {
+        tenant: OrganizationId(orgId),
+        scope: ProjectId(projectId),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId("user-1"),
+      });
+      const { fastHashedSecretKey } = await prisma.apiKey.findUniqueOrThrow({
+        where: { id: key.id },
+        select: { fastHashedSecretKey: true },
+      });
+
+      await caller.projectApiKeys.delete({ projectId, id: key.id });
+
+      const audit = await prisma.auditLog.findFirstOrThrow({
+        where: { resourceType: "apiKey", resourceId: key.id, action: "delete" },
+      });
+      const before = JSON.parse(audit.before!);
+      expect(before.fastHashedSecretKey).toBe(fastHashedSecretKey);
+      expect(before).not.toHaveProperty("hashedSecretKey");
+    });
+
     it("does not delete in-app agent API keys", async () => {
       const { caller, projectId, orgId } = await createProjectCaller();
       const inAppAgentKey = await createApiKey(prisma, {

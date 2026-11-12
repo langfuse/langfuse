@@ -3,6 +3,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   getLangfuseAIAwsProfile,
   getLangfuseAITraceSinkParams,
+  invalidateCachedApiKeys,
   logger,
   recordIncrement,
   redis,
@@ -10,9 +11,10 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   createApiKey,
-  deleteInAppAgentMcpApiKeyFromDb,
+  deleteApiKey,
 } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
+  ApiKeyId,
   OrganizationId,
   ProjectId,
   SystemRoleId,
@@ -48,7 +50,6 @@ import {
   clearRunMcpApiKeyPointer,
   finishClaimedRun,
   heartbeatClaimedRun,
-  isMissingInAppAgentMcpApiKeyError,
   reconcileConversationRuns,
 } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 import {
@@ -98,19 +99,13 @@ async function deleteInAppAgentMcpApiKey(params: {
   projectId: string;
   apiKeyId: string;
 }): Promise<void> {
-  try {
-    await deleteInAppAgentMcpApiKeyFromDb({
-      prisma,
-      id: params.apiKeyId,
-      projectId: params.projectId,
-      redis,
-    });
-  } catch (error) {
-    // Concurrent cleanup or a prior delete already removed the row. Treat
-    // that as success so the mcpApiKeyId pointer can still be cleared.
-    if (!isMissingInAppAgentMcpApiKeyError(error)) {
-      throw error;
-    }
+  const deleted = await deleteApiKey(prisma, {
+    scope: ProjectId(params.projectId),
+    id: ApiKeyId(params.apiKeyId),
+    isInAppAgentKey: true,
+  });
+  if (deleted) {
+    await invalidateCachedApiKeys([deleted], `key ${deleted.id}`, redis);
   }
 }
 
