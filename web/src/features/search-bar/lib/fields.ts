@@ -20,6 +20,7 @@
 import {
   eventsPredicateSource,
   eventsTableCols,
+  ObservationLevelDomain,
   type ColumnDefinition,
   type FilterState,
   type PredicateSource,
@@ -64,6 +65,8 @@ export type FieldDef = {
   suggestObservedValues?: boolean;
   /** Preserve exact selections in the owning categorical facet's filter shape. */
   exactMatchUsesOptions?: boolean;
+  /** Allowed query values for equality; text-match operators stay unrestricted. */
+  allowedExactValues?: readonly string[];
   /** Canonical FilterState column emitted for this display-oriented field. */
   filterColumn?: string;
   /** Display/query value → canonical FilterState value for labeled options. */
@@ -255,17 +258,26 @@ export function fieldRegistryFromColumns(
             ? "arrayOption"
             : "textSearch";
       return {
-        id: column.id,
-        aliases: fieldOverlay?.aliases ?? column.aliases ?? [],
+        id: column.id === "level" ? "status" : column.id,
+        aliases:
+          column.id === "level"
+            ? ["level", ...(fieldOverlay?.aliases ?? column.aliases ?? [])]
+            : (fieldOverlay?.aliases ?? column.aliases ?? []),
         kind,
         syncMode: fieldOverlay?.syncMode ?? syncMode,
         exactMatchUsesOptions: column.type === "stringOptions",
+        allowedExactValues:
+          column.id === "level"
+            ? ObservationLevelDomain.options
+            : fieldOverlay?.allowedExactValues,
         label: fieldOverlay?.label ?? column.name,
         description: fieldOverlay?.description ?? column.name,
         nullable: column.nullable,
         directFilter: column.type !== "null",
         suggestObservedValues: fieldOverlay?.suggestObservedValues,
-        filterColumn: fieldOverlay?.filterColumn,
+        filterColumn:
+          fieldOverlay?.filterColumn ??
+          (column.id === "level" ? "level" : undefined),
         filterValueByDisplayValue: fieldOverlay?.filterValueByDisplayValue,
         displayValueByFilterValue: fieldOverlay?.displayValueByFilterValue,
         unit: fieldOverlay?.unit,
@@ -395,8 +407,8 @@ const EVENTS_FIELD_ROWS: Record<string, Omit<FieldDef, "id" | "kind">> = {
   ingestionSource: { aliases: ["ingestionsource", "ingestion_source", "source"], syncMode: "exactOption", label: "Ingestion source", description: "Ingestion source (API or OTel path)" },
   userId: { aliases: ["userid", "user_id", "user"], syncMode: "exactOption", label: "User ID", description: "Trace user id", nullable: true },
   sessionId: { aliases: ["sessionid", "session_id", "session"], syncMode: "exactOption", label: "Session ID", description: "Trace session id", nullable: true },
-  level: { aliases: [], syncMode: "exactOption", label: "Status", description: "Observation status" },
-  statusMessage: { aliases: ["statusmessage", "status_message", "status"], syncMode: "textSearch", label: "Status message", description: "Status message", nullable: true },
+  level: { filterColumn: "level", aliases: ["level"], syncMode: "exactOption", allowedExactValues: ObservationLevelDomain.options, label: "Status", description: "Observation status" },
+  statusMessage: { aliases: ["statusmessage", "status_message"], syncMode: "textSearch", label: "Status message", description: "Status message", nullable: true },
   modelId: { aliases: ["modelid", "model_id"], syncMode: "exactOption", label: "Model ID", description: "Internal model id", nullable: true },
   providedModelName: { aliases: ["providedmodelname", "provided_model_name", "model"], syncMode: "exactOption", label: "Model name", description: "Provided model name", nullable: true },
   promptName: { aliases: ["promptname", "prompt_name", "prompt"], syncMode: "exactOption", label: "Prompt name", description: "Prompt name", nullable: true },
@@ -454,7 +466,7 @@ function eventsSourceField(id: string) {
 /** The bar's events fields: each row joined with its `eventsPredicateSource` field. */
 export const FIELDS: FieldDef[] = Object.entries(EVENTS_FIELD_ROWS).map(
   ([id, row]) => ({
-    id,
+    id: id === "level" ? "status" : id,
     kind: fieldKindOf(eventsSourceField(id).type),
     ...row,
   }),
@@ -640,7 +652,7 @@ export const EVENTS_FIELD_REGISTRY = createFieldRegistry({
   defaultTextField: null,
   freeTextScopeLabel: "ids, names, input & output",
   searchExamples: [
-    "level:ERROR",
+    "status:ERROR",
     "-env:dev",
     "latency:>2",
     "scores.accuracy:>0.8",
@@ -650,7 +662,7 @@ export const EVENTS_FIELD_REGISTRY = createFieldRegistry({
   aiFilterPrompt: true,
   aiContextFields: [
     { observedOptionsKey: "type", promptLabel: "type" },
-    { observedOptionsKey: "level", promptLabel: "level" },
+    { observedOptionsKey: "level", promptLabel: "status" },
     { observedOptionsKey: "environment", promptLabel: "environment" },
     { observedOptionsKey: "traceName", promptLabel: "traceName" },
     { observedOptionsKey: "name", promptLabel: "name" },
@@ -845,7 +857,10 @@ export function operatorIssue(
       if (f.directFilter === false) {
         return `"${f.id}" only supports presence checks (has:${f.id} or -has:${f.id})`;
       }
-      if (f.filterColumn && (op === "~" || op === "^" || op === "$")) {
+      if (
+        f.filterValueByDisplayValue &&
+        (op === "~" || op === "^" || op === "$")
+      ) {
         return `"${f.id}" maps labeled options to exact stored values and does not support ${label(op)}`;
       }
       if (f.kind === "number") {

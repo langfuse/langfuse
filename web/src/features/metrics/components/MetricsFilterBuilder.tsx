@@ -133,7 +133,7 @@ export const buildV1FilterColumnsParams = ({
   metadataKeyOptions: [],
 });
 
-/** buildV2FilterColumnsParams assembles the metric filter column options from the v2 events filter-options discovery; closed Type/Level enums come from the domain schemas. */
+/** buildV2FilterColumnsParams assembles the metric filter column options from the v2 events filter-options discovery; closed Type/Status enums come from the domain schemas. */
 export const buildV2FilterColumnsParams = ({
   view,
   filterOptions,

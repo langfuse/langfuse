@@ -4183,6 +4183,7 @@ export const getEventsForAnalyticsIntegrations = async function* (
       langfuse_version: record.version,
       langfuse_model: record.provided_model_name,
       langfuse_level: record.level,
+      langfuse_status: record.level,
       langfuse_type: record.type,
       langfuse_tags: record.tags,
       langfuse_environment: record.environment,

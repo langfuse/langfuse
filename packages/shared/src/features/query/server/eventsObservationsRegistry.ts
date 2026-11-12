@@ -262,6 +262,7 @@ export const EVENTS_OBSERVATIONS_DIMENSIONS = {
   },
   type: { expression: (eb) => eb.ref("e.type") },
   name: { expression: (eb) => eb.ref("e.name") },
+  status: { expression: (eb) => eb.ref("e.level") },
   level: { expression: (eb) => eb.ref("e.level") },
   version: {
     expression: (eb) => nullIfEmpty(eb.ref("e.version")),

@@ -154,6 +154,7 @@ describe("batch export test suite", () => {
     }
 
     expect(rows).toHaveLength(3);
+    for (const row of rows) expect(row.status).toBe(row.level);
     expect(rows).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -3122,52 +3123,86 @@ describe("batch export test suite", () => {
       expect(Object.keys(eventsRows[0])).toEqual(Object.keys(legacyRows[0]));
     });
 
-    it("should produce byte-identical CSV headers across legacy and events read paths", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
+    it.each(["quality", "status"])(
+      "preserves existing CSV columns and the %s score when appending severity status",
+      async (scoreName) => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        const traceId = randomUUID();
+        const observationId = randomUUID();
 
-      await createObservationsCh([
-        createObservation({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-        }),
-      ]);
-      await createEventsCh([
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          start_time: Date.now() * 1000,
-        }),
-      ]);
+        await createObservationsCh([
+          createObservation({
+            project_id: projectId,
+            trace_id: traceId,
+            id: observationId,
+            type: "GENERATION",
+            level: "ERROR",
+          }),
+        ]);
+        await createEventsCh([
+          createEvent({
+            project_id: projectId,
+            trace_id: traceId,
+            span_id: observationId,
+            type: "GENERATION",
+            level: "ERROR",
+            start_time: Date.now() * 1000,
+          }),
+        ]);
+        await createScoresCh([
+          createTraceScore({
+            project_id: projectId,
+            trace_id: traceId,
+            observation_id: observationId,
+            name: scoreName,
+            value: 0.75,
+          }),
+        ]);
 
-      // End-to-end through the same CSV transform handleBatchExportJob uses:
-      // the header line is built from the first row's key order, and export
-      // consumers pin columns by index, so the two read paths must produce
-      // byte-identical header lines.
-      const readCsvHeader = async (useEventsTable: boolean) => {
-        const stream = await getObservationStream({
+        const props = {
           projectId,
           cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
           filter: [],
           fileFormat: BatchExportFileFormat.CSV,
-          useEventsTable,
-        });
-        const csvStream = stream.pipe(
-          streamTransformations[BatchExportFileFormat.CSV](),
-        );
-        let csv = "";
-        for await (const chunk of csvStream) {
-          csv += chunk.toString();
+        };
+        const headers: string[] = [];
+        for (const openStream of [
+          () => getObservationStream(props),
+          () => getObservationStream({ ...props, useEventsTable: true }),
+          () => getEventsStream(props),
+        ]) {
+          const stream = await openStream();
+          const rows: Record<string, unknown>[] = [];
+          stream.on("data", (row) => rows.push(row));
+          const csvStream = stream.pipe(
+            streamTransformations[BatchExportFileFormat.CSV](),
+          );
+          let csv = "";
+          for await (const chunk of csvStream) {
+            csv += chunk.toString();
+          }
+          const header = csv.split("\n")[0];
+          headers.push(header);
+
+          expect(rows).toHaveLength(1);
+          expect(rows[0].level).toBe("ERROR");
+          expect(rows[0][scoreName]).toEqual([0.75]);
+          expect(rows[0].status).toEqual(
+            scoreName === "status" ? [0.75] : "ERROR",
+          );
+          // The CSV transform uses insertion order. Severity must follow every
+          // existing field, including score columns; a status score keeps its key.
+          expect(header).toMatch(
+            scoreName === "status"
+              ? /"comments","status"$/
+              : /"comments","quality","status"$/,
+          );
         }
-        return csv.split("\n")[0];
-      };
 
-      const legacyHeader = await readCsvHeader(false);
-      const eventsHeader = await readCsvHeader(true);
-
-      expect(eventsHeader).toBe(legacyHeader);
-    });
+        // Legacy and events-backed observation exports have the same schema.
+        expect(headers[1]).toBe(headers[0]);
+      },
+    );
 
     it("routes events exports through getEventsStream, not the paginated reader", async () => {
       // Path A contract: the events-table export is served by getEventsStream

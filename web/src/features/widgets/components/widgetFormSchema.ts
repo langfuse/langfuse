@@ -430,7 +430,9 @@ export function deriveWidgetSuggestions(values: WidgetFormValues): {
       : undefined;
   const dimensionForNaming =
     isPivot && values.dimensions.length > 0
-      ? values.dimensions.map((d) => startCase(d.field)).join(" and ")
+      ? values.dimensions
+          .map((d) => startCase(d.field === "level" ? "status" : d.field))
+          .join(" and ")
       : (values.dimensions[0]?.field ?? "none");
 
   const aggregation = isPivot

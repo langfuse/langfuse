@@ -13,7 +13,7 @@ describe("buildFieldCatalog / nullableFieldIds", () => {
     const lines = catalog.split("\n");
     expect(lines).toHaveLength(FIELDS.length);
     // Spot-check a well-known field renders its id and emitted type.
-    expect(catalog).toContain("- level");
+    expect(catalog).toContain("- status [aliases: level]");
     expect(catalog).toMatch(/Emit as type "stringOptions"/);
   });
 
@@ -21,9 +21,9 @@ describe("buildFieldCatalog / nullableFieldIds", () => {
     const expected = FIELDS.filter((f) => f.nullable).map((f) => f.id);
     expect(nullableFieldIds()).toBe(expected.join(", "));
     // Sanity: there is at least one nullable field, and a non-nullable field
-    // (e.g. "level") is not among them.
+    // (e.g. "status") is not among them.
     expect(expected.length).toBeGreaterThan(0);
-    expect(expected).not.toContain("level");
+    expect(expected).not.toContain("status");
   });
 
   it("embeds the SAME registry-derived catalog/nullable-ids text the managed-prompt compile path uses", () => {

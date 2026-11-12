@@ -56,6 +56,7 @@ const ListObservationsBaseSchema = z.object({
   name: z.string().optional(),
   userId: z.string().optional(),
   level: ObservationLevelDomain.optional(),
+  status: ObservationLevelDomain.optional(),
   traceId: z.string().optional(),
   version: z.string().optional(),
   parentObservationId: z
@@ -126,7 +127,7 @@ export const [listObservationsTool, handleListObservations] = defineTool({
   description: [
     "Find and review observations in the current Langfuse project, such as generations, spans, events, agent steps, and tool calls.",
     "Traces consist of observations. Use this tool when the user asks to inspect traces: pass traceId to page through the observations for a specific trace; those observation records are the trace data returned by the API.",
-    "Prefer structured filters such as trace, name, type, level, and environment, combined with narrow time ranges. Use input/output/metadata content search only when matching that content is necessary to answer the user's question. Results are paginated with an opaque cursor.",
+    "Prefer structured filters such as trace, name, type, status, and environment, combined with narrow time ranges. Use input/output/metadata content search only when matching that content is necessary to answer the user's question. Results are paginated with an opaque cursor. The level filter remains a compatibility alias; status takes precedence when both are supplied.",
     'For metadata filters, first inspect metadata by passing both fromStartTime and toStartTime with a maximum range of 14 days (336 elapsed hours) and fields: ["id", "metadata"]. Then use a discovered key in a stringObject filter.',
     "",
     'Start with the default compact summary fields, then use getObservation to fetch full input/output only for selected observations that need closer inspection. Pass specific field names to limit the response size; fields: ["*"] returns the full observation.',
@@ -189,7 +190,7 @@ export const [listObservationsTool, handleListObservations] = defineTool({
               limit: input.limit,
               traceId: input.traceId,
               userId: input.userId,
-              level: input.level,
+              level: input.status ?? input.level,
               name: input.name,
               type: input.type,
               environment: input.environment,

@@ -1263,6 +1263,7 @@ describe("MCP Read Tools", () => {
           "name",
           "type",
           "level",
+          "status",
           "statusMessage",
           "startTime",
           "endTime",
@@ -1324,6 +1325,7 @@ describe("MCP Read Tools", () => {
 
       expect(result.resource).toBe("observation");
       expect(result.columns.providedModelName.type).toBe("stringOptions");
+      expect(result.columns.status).toEqual(result.columns.level);
       expect(result.columns.tags.type).toBe("arrayOptions");
       expect(result.columns.metadata).toEqual(
         expect.objectContaining({
@@ -1351,6 +1353,7 @@ describe("MCP Read Tools", () => {
       ["sessionId", "string", true],
       ["traceName", "stringOptions", true],
       ["level", "stringOptions", false],
+      ["status", "stringOptions", false],
       ["promptName", "stringOptions", true],
       ["modelId", "stringOptions", true],
       ["providedModelName", "stringOptions", true],
@@ -1516,6 +1519,52 @@ describe("MCP Read Tools", () => {
   });
 
   maybeEventsTable("listObservations tool", () => {
+    it("should filter by status and retain level compatibility", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const errorObservation = {
+        ...createObservationEvent({ projectId, traceId }),
+        level: "ERROR",
+      };
+      await createEventsCh([
+        createObservationEvent({ projectId, traceId }),
+        errorObservation,
+      ]);
+
+      for (const filters of [
+        { status: "ERROR" as const, level: "DEFAULT" as const },
+        {
+          filter: [
+            {
+              column: "status",
+              operator: "any of" as const,
+              value: ["ERROR"],
+              type: "stringOptions" as const,
+            },
+          ],
+        },
+      ]) {
+        const result = (await handleListObservations(
+          {
+            ...observationWindow,
+            traceId,
+            ...filters,
+            fields: ["id", "status", "level"],
+            limit: 100,
+          },
+          context,
+        )) as { data: Array<Record<string, unknown>> };
+
+        expect(result.data).toEqual([
+          expect.objectContaining({
+            id: errorObservation.id,
+            status: "ERROR",
+            level: "ERROR",
+          }),
+        ]);
+      }
+    });
+
     it("should have readOnlyHint annotation", () => {
       verifyToolAnnotations(listObservationsTool, { readOnlyHint: true });
     });
@@ -1690,6 +1739,7 @@ describe("MCP Read Tools", () => {
         name: observation.name,
         type: "GENERATION",
         level: "DEFAULT",
+        status: "DEFAULT",
         isRootObservation: true,
         providedModelName: "gpt-4o-mini",
         url: buildObservationUrl({
@@ -3212,6 +3262,21 @@ describe("MCP Read Tools", () => {
   });
 
   maybeEventsTable("getObservationFilterValues tool", () => {
+    it("should return status values from the level source", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      await createEventsCh([createObservationEvent({ projectId })]);
+
+      const result = await handleGetObservationFilterValues(
+        { column: "status", limit: 100 },
+        context,
+      );
+
+      expect(result).toMatchObject({
+        column: "status",
+        values: [{ value: "DEFAULT", count: 1 }],
+      });
+    });
+
     it("should have readOnlyHint annotation", () => {
       verifyToolAnnotations(getObservationFilterValuesTool, {
         readOnlyHint: true,

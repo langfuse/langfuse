@@ -71,7 +71,7 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
   const getWarningMessage = () => {
     switch (props.tableName) {
       case BatchTableNames.Traces:
-        return "Note: Filters on observation-level columns (Level, Tokens, Cost, Latency) and Comments are not included in trace exports. You may receive more data than expected.";
+        return "Note: Filters on observation-level columns (Status, Tokens, Cost, Latency) and Comments are not included in trace exports. You may receive more data than expected.";
       case BatchTableNames.Observations:
         return "Note: Filters on trace-level columns (Trace Name, Trace Tags, User ID, Trace Environment) and Comments are not included in observation exports. You may receive more data than expected.";
       case BatchTableNames.Events:

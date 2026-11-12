@@ -1968,6 +1968,7 @@ export const getGenerationsForAnalyticsIntegrations = async function* (
       langfuse_version: record.version,
       langfuse_model: record.model,
       langfuse_level: record.level,
+      langfuse_status: record.level,
       langfuse_tags: record.trace_tags,
       langfuse_environment: record.environment,
       langfuse_event_version: "1.0.0",

@@ -7,6 +7,7 @@ import {
   mapLegacyUiTableFilterToView,
   mapViewFilterToUiTableFilter,
   mapWidgetUiTableFilterToView,
+  normalizeStoredWidgetFiltersForEditor,
 } from "./dashboardUiTableToViewMapping";
 
 describe("widget filter mappings", () => {
@@ -43,6 +44,7 @@ describe("displayNameForFilterColumn", () => {
     ["userId", "User"],
     ["calledToolNames", "Tool Names (Called)"],
     ["level", "Status"],
+    ["status", "Status"],
     ["Level", "Status"],
     ["Status", "Status"],
   ])("resolves %s to %s", (column, expected) => {
@@ -55,23 +57,24 @@ describe("displayNameForFilterColumn", () => {
     );
   });
 
-  it("maps stored Level dashboard filters onto the level view field", () => {
-    expect(
-      mapLegacyUiTableFilterToView("observations", [
-        {
-          column: "Level",
-          type: "stringOptions",
-          operator: "any of",
-          value: ["ERROR"],
-        },
-      ]),
-    ).toEqual([
-      {
-        column: "level",
-        type: "stringOptions",
-        operator: "any of",
+  it.each(["Level", "level", "Status", "status"])(
+    "maps stored %s dashboard filters into the status editor and level query field",
+    (column) => {
+      const filter = {
+        column,
+        type: "stringOptions" as const,
+        operator: "any of" as const,
         value: ["ERROR"],
-      },
-    ]);
-  });
+      };
+      expect(mapLegacyUiTableFilterToView("observations", [filter])).toEqual([
+        { ...filter, column: "level" },
+      ]);
+      expect(
+        normalizeStoredWidgetFiltersForEditor("observations", [filter]),
+      ).toEqual({
+        editorFilters: [{ ...filter, column: "Status" }],
+        unsupportedFilters: [],
+      });
+    },
+  );
 });

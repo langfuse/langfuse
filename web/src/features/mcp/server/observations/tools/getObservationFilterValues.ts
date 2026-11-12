@@ -30,6 +30,7 @@ const OBSERVATION_MCP_FILTER_VALUE_COLUMNS = [
   "sessionId",
   "traceName",
   "level",
+  "status",
   "promptName",
   "promptVersion",
   "modelId",
@@ -139,7 +140,7 @@ export const [
 ] = defineTool({
   name: "getObservationFilterValues",
   description:
-    "List example values for a string or boolean observation filter field, such as names, types, levels, environments, model names, tags, users, or sessions. For numeric metric fields, returns a range with min, max, avg, and count. Use the returned cursor to page through long value lists.",
+    "List example values for a string or boolean observation filter field, such as names, types, statuses, environments, model names, tags, users, or sessions. For numeric metric fields, returns a range with min, max, avg, and count. Use the returned cursor to page through long value lists.",
   action: "traces:read",
   baseSchema: GetObservationFilterValuesBaseSchema,
   inputSchema: GetObservationFilterValuesBaseSchema,
@@ -161,8 +162,8 @@ export const [
           toStartTime: input.toStartTime,
         });
 
-        const eventsColumn =
-          input.column === "tags" ? "traceTags" : input.column;
+        const column = input.column === "status" ? "level" : input.column;
+        const eventsColumn = column === "tags" ? "traceTags" : column;
 
         if (isNumericEventsTableColumnId(eventsColumn)) {
           const range = await getEventFilterNumericRange({

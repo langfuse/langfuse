@@ -23,7 +23,7 @@ service:
         ## Field Selection
         Use the `fields` parameter to control which observation fields are returned:
         - `core` - Always included: id, traceId, startTime, endTime, projectId, parentObservationId, type
-        - `basic` - name, level, statusMessage, version, environment, bookmarked, public, userId, sessionId, isRootObservation
+        - `basic` - name, status, level, statusMessage, version, environment, bookmarked, public, userId, sessionId, isRootObservation
         - `time` - completionStartTime, createdAt, updatedAt
         - `io` - input, output
         - `metadata` - metadata (truncated to 200 chars by default, use `expandMetadata` to get full values)
@@ -80,7 +80,10 @@ service:
           traceId: optional<string>
           level:
             type: optional<commons.ObservationLevel>
-            docs: Optional filter for observations with a specific level (e.g. "DEBUG", "DEFAULT", "WARNING", "ERROR").
+            docs: Compatibility alias for the status filter. When both are provided, status takes precedence.
+          status:
+            type: optional<commons.ObservationLevel>
+            docs: Optional filter for observations with a specific status (DEBUG, DEFAULT, WARNING, ERROR). Takes precedence over level when both are provided.
           parentObservationId:
             type: optional<string>
             docs: |
@@ -108,7 +111,7 @@ service:
           filter:
             type: optional<string>
             docs: |
-              JSON string containing an array of filter conditions. A condition on the same field as a query parameter filter (userId, name, type, level, environment, fromStartTime, ...) replaces that parameter. Query parameters for other fields still apply. A `startTime` condition replaces both `fromStartTime` and `toStartTime`.
+              JSON string containing an array of filter conditions. A condition on the same field as a query parameter filter (userId, name, type, status, level, environment, fromStartTime, ...) replaces that parameter. Query parameters for other fields still apply. A `startTime` condition replaces both `fromStartTime` and `toStartTime`.
 
               ## Filter Structure
               Each filter condition has the following structure:
@@ -142,7 +145,8 @@ service:
               - `startTime` (datetime) - Observation start time
               - `endTime` (datetime) - Observation end time
               - `environment` (string) - Environment tag
-              - `level` (string) - Log level (DEBUG, DEFAULT, WARNING, ERROR)
+              - `status` (string) - Observation status (DEBUG, DEFAULT, WARNING, ERROR)
+              - `level` (string) - Compatibility alias for status
               - `statusMessage` (string) - Status message
               - `version` (string) - Version tag
               - `userId` (string) - User ID

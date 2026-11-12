@@ -29,14 +29,17 @@ const addIssues = (ctx: z.RefinementCtx, issues: z.core.$ZodIssue[]) => {
   }
 };
 
-const OBSERVATION_MCP_FILTER_COLUMN_TYPES = new Map(
+const OBSERVATION_MCP_FILTER_COLUMN_TYPES = new Map<
+  string,
+  ColumnDefinition["type"]
+>(
   eventsTableCols
     .filter((column) =>
       OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMNS.has(column.id),
     )
-    .map((column) => [
-      column.id === "traceTags" ? "tags" : column.id,
-      column.type,
+    .flatMap((column) => [
+      [column.id === "traceTags" ? "tags" : column.id, column.type] as const,
+      ...(column.id === "level" ? [["status", column.type] as const] : []),
     ]),
 );
 
@@ -213,10 +216,12 @@ export const ObservationMcpFilterSchema = z.preprocess(
       const type =
         filter.type ?? OBSERVATION_MCP_FILTER_COLUMN_TYPES.get(filter.column);
 
-      const reshaped =
-        filter.column === "tags"
-          ? { ...filter, type, column: "traceTags" }
-          : { ...filter, type };
+      const column = filter.column === "status" ? "level" : filter.column;
+      const reshaped = {
+        ...filter,
+        type,
+        column: column === "tags" ? "traceTags" : column,
+      };
       // Legacy `contains ""` presence spelling → `is set` before validation.
       const [coerced] = coerceLegacyEmptyMetadataFilters([
         reshaped,

@@ -345,7 +345,7 @@ export const getObservationStream = async (
     // Get comments for this observation
     const observationComments = commentsByObservation.get(bufferedRow.id) ?? [];
 
-    return getChunkWithFlattenedScores(
+    const row = getChunkWithFlattenedScores(
       [
         {
           ...convertObservation(bufferedRow, {
@@ -365,6 +365,10 @@ export const getObservationStream = async (
       ],
       emptyScoreColumns,
     )[0];
+    // Flattened score columns keep their names and positions, including status.
+    return Object.hasOwn(row, "status")
+      ? row
+      : { ...row, status: bufferedRow.level };
   };
 
   // Convert async generator to Node.js Readable stream
@@ -665,7 +669,7 @@ const getObservationStreamFromEvents = async (
       ...observationFields
     } = converted;
 
-    return getChunkWithFlattenedScores(
+    const row = getChunkWithFlattenedScores(
       [
         {
           ...observationFields,
@@ -686,6 +690,10 @@ const getObservationStreamFromEvents = async (
       ],
       emptyScoreColumns,
     )[0];
+    // Flattened score columns keep their names and positions, including status.
+    return Object.hasOwn(row, "status")
+      ? row
+      : { ...row, status: bufferedRow.level };
   };
 
   return Readable.from(

@@ -143,7 +143,7 @@ describe("experiment filter targets", () => {
       status: "committed",
       filters,
       canonical:
-        '"All experiments".scores.quality:>0.8 "Run B".scores.quality:<0.6 baseline.level:ERROR',
+        '"All experiments".scores.quality:>0.8 "Run B".scores.quality:<0.6 baseline.status:ERROR',
     });
     expect(
       planCommit("all.scores.quality:>0.8", undefined, registry),
@@ -168,6 +168,32 @@ describe("experiment filter targets", () => {
     expect(planCommit(query.text, undefined, renamed)).toMatchObject({
       filters,
     });
+  });
+
+  it("preserves experiment targets for status and legacy level filters", () => {
+    const registry = registryFor("run-a");
+    for (const field of ["status", "level"]) {
+      for (const [prefix, target] of [
+        ["", "all"],
+        ["baseline.", "baseline"],
+        ['"Run B".', "run-b"],
+      ]) {
+        expect(
+          planCommit(`${prefix}${field}:ERROR`, undefined, registry),
+        ).toMatchObject({
+          status: "committed",
+          filters: [
+            {
+              column: "level",
+              type: "stringOptions",
+              operator: "any of",
+              value: ["ERROR"],
+              target,
+            },
+          ],
+        });
+      }
+    }
   });
 
   it("keeps targetless saved filters on the baseline or first comparison", () => {

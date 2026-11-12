@@ -109,7 +109,7 @@ const OBSERVATIONS_EVENTS_SYSTEM_TABLE_VIEW_PRESETS: SystemTableViewPreset[] = [
   buildSystemPreset({
     id: `${SYSTEM_TABLE_VIEW_PRESET_ID_PREFIX}warnings_and_errors`,
     name: "Warnings & errors",
-    description: "Observations logged at WARNING or ERROR level",
+    description: "Observations with WARNING or ERROR status",
     tableName: TableViewPresetTableName.ObservationsEvents,
     category: SystemTableViewPresetCategory.Errors,
     filters: [

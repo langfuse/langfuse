@@ -12,12 +12,12 @@ export const SESSION_TRACE_FIELD_REGISTRY = fieldRegistryFromColumns(
     allowFreeText: false,
     defaultSearchType: [],
     metadata: false,
-    searchPlaceholder: "Filter observations… e.g. level:=ERROR",
+    searchPlaceholder: "Filter observations… e.g. status:=ERROR",
     searchExamples: [
       "name:=agent",
       "traceName:=chat",
       "type:=GENERATION",
-      "level:=ERROR",
+      "status:=ERROR",
       "isRootObservation:true",
     ],
     fields: {

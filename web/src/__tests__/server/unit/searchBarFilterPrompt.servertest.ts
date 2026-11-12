@@ -93,7 +93,7 @@ describe("buildFilterSystemPrompt", () => {
     expect(prompt).toContain("## Refining existing filters");
     expect(prompt).toContain("KEEP every existing filter");
     expect(prompt).toContain(
-      '[{"type":"stringOptions","column":"level","operator":"any of","value":["ERROR"]},{"type":"stringOptions","column":"environment","operator":"any of","value":["production"]}]',
+      '[{"type":"stringOptions","column":"status","operator":"any of","value":["ERROR"]},{"type":"stringOptions","column":"environment","operator":"any of","value":["production"]}]',
     );
     // No injected VALUES (nor the headings that only ever wrap a VALUE) ever
     // appear in the static skeleton.

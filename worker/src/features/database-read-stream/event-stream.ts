@@ -228,7 +228,11 @@ export const getEventsStream = async (props: {
       comments: eventComments,
     };
 
-    return getChunkWithFlattenedScores([eventRow], emptyScoreColumns)[0];
+    const row = getChunkWithFlattenedScores([eventRow], emptyScoreColumns)[0];
+    // Flattened score columns keep their names and positions, including status.
+    return Object.hasOwn(row, "status")
+      ? row
+      : { ...row, status: bufferedRow.level };
   };
 
   // Convert async generator to Node.js Readable stream

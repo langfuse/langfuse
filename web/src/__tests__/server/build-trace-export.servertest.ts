@@ -243,6 +243,8 @@ describe("buildTraceExport", () => {
         expect.objectContaining({
           id: "obs-1",
           traceId,
+          level: "DEFAULT",
+          status: "DEFAULT",
           traceName: "Trace 1",
           tags: [],
           bookmarked: false,
