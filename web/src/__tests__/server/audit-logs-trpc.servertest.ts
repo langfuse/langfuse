@@ -73,42 +73,50 @@ describe("auditLogs tRPC", () => {
       data: { name: "other", orgId: org.id },
     });
 
-    const [change, access, , , orgLevel] = await createAuditLogsCh([
-      {
-        org_id: org.id,
-        project_id: project.id,
-        timestamp: at(1),
-        actor_name: "Former Member",
-        actor_email: "former@example.com",
-      },
-      {
-        org_id: org.id,
-        project_id: project.id,
-        timestamp: at(2),
-        event_kind: "access",
-        resource_type: "trace",
-        action: "read",
-        resource_refs: ["trace:trace-1"],
-        route: "events.byTraceId",
-        result_count: 1,
-      },
-      {
-        org_id: org.id,
-        project_id: project.id,
-        timestamp: at(3),
-        event_kind: "access",
-        action: "read",
-        support_access: true,
-      },
-      { org_id: org.id, project_id: otherProject.id, timestamp: at(4) },
-      {
-        org_id: org.id,
-        timestamp: at(5),
-        actor_type: "SYSTEM",
-        user_id: "",
-        actor_name: "stripe-webhook",
-      },
-    ]);
+    const [beforeTransfer, change, access, , , orgLevel] =
+      await createAuditLogsCh([
+        // Written before the project moved here from another organisation.
+        {
+          org_id: "previous-org",
+          project_id: project.id,
+          timestamp: at(0),
+          action: "transfer",
+        },
+        {
+          org_id: org.id,
+          project_id: project.id,
+          timestamp: at(1),
+          actor_name: "Former Member",
+          actor_email: "former@example.com",
+        },
+        {
+          org_id: org.id,
+          project_id: project.id,
+          timestamp: at(2),
+          event_kind: "access",
+          resource_type: "trace",
+          action: "read",
+          resource_refs: ["trace:trace-1"],
+          route: "events.byTraceId",
+          result_count: 1,
+        },
+        {
+          org_id: org.id,
+          project_id: project.id,
+          timestamp: at(3),
+          event_kind: "access",
+          action: "read",
+          support_access: true,
+        },
+        { org_id: org.id, project_id: otherProject.id, timestamp: at(4) },
+        {
+          org_id: org.id,
+          timestamp: at(5),
+          actor_type: "SYSTEM",
+          user_id: "",
+          actor_name: "stripe-webhook",
+        },
+      ]);
 
     const caller = appRouter.createCaller({
       ...createInnerTRPCContext({
@@ -123,15 +131,16 @@ describe("auditLogs tRPC", () => {
       page: 0,
       limit: 50,
     });
-    expect(projectLogs.totalCount).toBe(2);
+    expect(projectLogs.totalCount).toBe(3);
     expect(projectLogs.data.map((log) => log.id)).toEqual([
       access.id,
       change.id,
+      beforeTransfer.id,
     ]);
     expect(projectLogs.data[0]).toMatchObject({
       eventKind: "access",
+      outcome: "success",
       route: "events.byTraceId",
-      resourceRefs: ["trace:trace-1"],
       resultCount: 1,
       before: null,
     });

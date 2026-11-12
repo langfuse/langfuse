@@ -28,7 +28,7 @@ import {
   getTracesByIds,
   getScoresForTraces,
   getDatasetItems,
-  getAuditLogs,
+  getAuditLogsForExport,
   storableTraceSessionIds,
   type PreferredClickhouseService,
 } from "@langfuse/shared/src/server";
@@ -724,20 +724,15 @@ export const getDatabaseReadStreamPaginated = async ({
     }
 
     case "audit_logs": {
-      const project = await prisma.project.findUniqueOrThrow({
-        where: { id: projectId },
-        select: { orgId: true },
-      });
       let after: { timestamp: Date; id: string } | undefined;
 
       return new DatabaseReadStream<unknown>(
         async (pageSize: number) => {
-          const auditLogs = await getAuditLogs({
-            orgId: project.orgId,
+          const auditLogs = await getAuditLogsForExport({
             projectId,
             limit: pageSize,
-            after,
             timestampBefore: cutoffCreatedAt,
+            after,
           });
           const last = auditLogs.at(-1);
           if (last) after = { timestamp: last.timestamp, id: last.id };

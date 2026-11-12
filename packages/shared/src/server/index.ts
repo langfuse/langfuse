@@ -726,6 +726,7 @@ export { convertAuditLogStagingRowToClickhouse } from "./repositories/auditLogs"
 export { type AuditLogEntry } from "./repositories/auditLogs";
 export { getAuditLogs } from "./repositories/auditLogs";
 export { getAuditLogsCount } from "./repositories/auditLogs";
+export { getAuditLogsForExport } from "./repositories/auditLogs";
 export { type BillableEventType } from "./repositories/billable-events";
 export { getBillableUnitCountsByProjectInWindow } from "./repositories/billable-events";
 export { getTopicSetupTraceCounts } from "./repositories/topic-setup-events";
