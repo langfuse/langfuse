@@ -214,6 +214,14 @@ WHERE is_deleted = 0
 -- and recorded in the migrations doc
 -- (https://docs.google.com/document/d/1bvz3FUFn3T4rfJ_U1qIh36FcJGfUVQwdAIOAHa3wPnA)
 -- — otherwise the DWH S3 export silently misses the new columns.
+-- Steps, run once per region (eu, us, hipaa, jp) as a user with DDL rights:
+--   1. SHOW CREATE VIEW analytics_events_core;  -- keep the output for rollback
+--   2. DROP VIEW IF EXISTS analytics_events_core;
+--   3. CREATE VIEW analytics_events_core AS ...  -- the statement below, verbatim
+--   4. SELECT * FROM analytics_events_core WHERE hour >= now() - INTERVAL 3 HOUR LIMIT 5;
+-- New columns are appended at the end so existing export columns keep their
+-- positions. The export pipeline and the dwh-dbt staging model must also pick
+-- them up before they reach the DWH.
 DROP VIEW IF EXISTS analytics_events_core;
 CREATE VIEW analytics_events_core AS
 SELECT
@@ -248,7 +256,13 @@ SELECT
   sumMap(map(if(scope_name = '', '-', concat(scope_name, '-', scope_version)), toUInt64(1))) AS count_scopes,
   sumMap(map(if(telemetry_sdk_language = '', '-', telemetry_sdk_language), toUInt64(1))) AS count_telemetry_sdk_languages,
   sumMap(map(if(telemetry_sdk_name = '', '-', concat(telemetry_sdk_language, '-', telemetry_sdk_name, '-', telemetry_sdk_version)), toUInt64(1))) AS count_sdk_telemetry_sdks,
-  sumMap(map(concat(if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name), '@', if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version)), toUInt64(1))) AS ingested_sdks
+  sumMap(map(concat(if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name), '@', if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version)), toUInt64(1))) AS ingested_sdks,
+  -- AI gateway executions only (service_name is set by ingestion for uploads
+  -- the gateway authenticated). Projects without gateway traffic get empty maps.
+  sumMapIf(map(if(ingestion_api_key = '', '-', ingestion_api_key), toUInt64(1)), service_name = 'langfuse-ai-gateway') AS gateway_count_keys,
+  sumMapIf(map(toString(level), toUInt64(1)), service_name = 'langfuse-ai-gateway') AS gateway_count_levels,
+  sumMapIf(map(if(provided_model_name = '', '-', provided_model_name), toUInt64(1)), service_name = 'langfuse-ai-gateway') AS gateway_count_models,
+  sumMapIf(map(if(metadata_values[indexOf(metadata_names, 'langfuse.gateway.connection.provider')] = '', '-', metadata_values[indexOf(metadata_names, 'langfuse.gateway.connection.provider')]), toUInt64(1)), service_name = 'langfuse-ai-gateway') AS gateway_count_providers
 FROM events_core
 WHERE toStartOfHour(start_time) <= toStartOfHour(subtractHours(now(), 1))
 GROUP BY project_id, hour;
