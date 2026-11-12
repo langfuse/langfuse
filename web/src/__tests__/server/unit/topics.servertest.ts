@@ -2,12 +2,12 @@ import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import {
   canUseEventsDispatch,
   canViewTopics,
-  useCanUseEventsDispatch,
 } from "@/src/features/topics/topicsAccess";
 import { TOPICS_BACKFILL_TRACE_LIMIT } from "@/src/features/topics/backfill-limit";
 import type { Session } from "next-auth";
 import type * as topicsServer from "@langfuse/shared/topics/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import type * as checkProjectAccess from "@/src/features/rbac/utils/checkProjectAccess";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   topicProcessingConfigSchema,
   topicEmbeddingConfigSchema,
@@ -78,6 +78,24 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
 vi.mock("@/src/features/audit-logs/auditLog", () => ({
   auditLog: mocks.auditLog,
 }));
+const permissionOverride = vi.hoisted(() => ({
+  grantedScopes: null as string[] | null,
+}));
+vi.mock(
+  "@/src/features/rbac/utils/checkProjectAccess",
+  async (importOriginal) => {
+    const actual = await importOriginal<typeof checkProjectAccess>();
+    return {
+      ...actual,
+      hasProjectAccess: (
+        params: Parameters<typeof actual.hasProjectAccess>[0],
+      ) =>
+        permissionOverride.grantedScopes
+          ? permissionOverride.grantedScopes.includes(params.scope)
+          : actual.hasProjectAccess(params),
+    };
+  },
+);
 vi.mock("@/src/features/posthog-analytics/server/backendActivity", () => ({
   recordBackendActivity: vi.fn(async () => undefined),
 }));
@@ -418,51 +436,32 @@ describe("events dispatch gate", () => {
       },
     }) as unknown as Session;
 
-  // Same three checks as Topics visibility, with evals read access instead of topics:read.
+  // Preview and allowlist behaviour is shared with canViewTopics; these rows pin the gate's inputs.
   it.each([
     ["a viewer on an allowlisted project", {}, true, true],
     ["a project outside the allowlist", {}, false, false],
     ["the feature preview turned off", { langfuseTopics: false }, true, false],
-    [
-      "ClickHouse staff in internal view",
-      { email: "member@clickhouse.com", langfuseTopics: false },
-      true,
-      true,
-    ],
-    [
-      "staff opting out of internal view",
-      {
-        email: "member@clickhouse.com",
-        internalFeatures: false,
-        langfuseTopics: false,
-      },
-      true,
-      false,
-    ],
-    [
-      "an explicit grant after opting out of internal view",
-      { email: "member@clickhouse.com", internalFeatures: false },
-      true,
-      true,
-    ],
     ["a role without evals access", { role: "NONE" }, true, false],
-    [
-      "internal view without project membership",
-      { email: "member@clickhouse.com", langfuseTopics: false, role: null },
-      true,
-      false,
-    ],
-    [
-      "internal view on a non-allowlisted project",
-      { email: "member@clickhouse.com" },
-      false,
-      false,
-    ],
   ] as const)("%s", (_case, user, topicsEnabled, expected) => {
-    expect(useCanUseEventsDispatch).toBeTypeOf("function");
     expect(
       canUseEventsDispatch(session(user), { id: projectId, topicsEnabled }),
     ).toBe(expected);
+  });
+
+  afterEach(() => {
+    permissionOverride.grantedScopes = null;
+  });
+
+  it("requires evals read access, not topics:read", () => {
+    const project = { id: projectId, topicsEnabled: true };
+
+    permissionOverride.grantedScopes = ["topics:read"];
+    expect(canUseEventsDispatch(session({}), project)).toBe(false);
+    expect(canViewTopics(session({}), project)).toBe(true);
+
+    permissionOverride.grantedScopes = ["evaluator:read"];
+    expect(canUseEventsDispatch(session({}), project)).toBe(true);
+    expect(canViewTopics(session({}), project)).toBe(false);
   });
 });
 

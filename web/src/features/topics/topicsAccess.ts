@@ -15,12 +15,22 @@ export function canViewTopics(
   project: TopicsProject | null | undefined,
 ) {
   return (
+    isTopicsPreviewAvailable(session, project) &&
+    hasProjectAccess({ session, projectId: project.id, scope: "topics:read" })
+  );
+}
+
+/** Project gate, internal view or the Topics preview, shared by every gate built on them. */
+function isTopicsPreviewAvailable(
+  session: Session | null,
+  project: TopicsProject | null | undefined,
+): project is TopicsProject {
+  return (
     !!project &&
     isEventsDispatchEnabledForProject(project) &&
     (isInternalViewEnabled(session) ||
       getContextualFeatureFlags(session?.user, { projectId: project.id })
-        ?.langfuseTopics === true) &&
-    hasProjectAccess({ session, projectId: project.id, scope: "topics:read" })
+        ?.langfuseTopics === true)
   );
 }
 
@@ -32,19 +42,15 @@ export function useCanViewTopics(projectId: string) {
 }
 
 /**
- * Events-dispatch gate: the deployment allowlist, internal view or the Topics
- * preview, and evals read access. The preview flag is `langfuseTopics`.
+ * Events-dispatch gate: the same allowlist and Topics preview as canViewTopics,
+ * with evals read access instead of topics:read.
  */
 export function canUseEventsDispatch(
   session: Session | null,
   project: TopicsProject | null | undefined,
 ) {
   return (
-    !!project &&
-    isEventsDispatchEnabledForProject(project) &&
-    (isInternalViewEnabled(session) ||
-      getContextualFeatureFlags(session?.user, { projectId: project.id })
-        ?.langfuseTopics === true) &&
+    isTopicsPreviewAvailable(session, project) &&
     hasEvalsReadAccess(session, project.id)
   );
 }
