@@ -34,4 +34,3 @@ export * from "./scheduler/types";
 export * from "./scheduler/scheduler";
 export * from "./processor/processor";
 export * from "./processor/buildMonitorAlertSlackMessage";
-export * from "./metrics";

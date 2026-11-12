@@ -22,7 +22,10 @@ import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQue
 import { cloudSpendAlertQueueProcessor } from "./queues/cloudSpendAlertQueue";
 import { isChbConfigured } from "./ee/cloudSpendAlerts/chbApiClient";
 import { cloudFreeTierUsageThresholdQueueProcessor } from "./queues/cloudFreeTierUsageThresholdQueue";
-import { monitorQueueProcessor } from "./queues/monitorQueue";
+import {
+  monitorQueueMetricTags,
+  monitorQueueProcessor,
+} from "./queues/monitorQueue";
 import { inAppAgentRunQueueProcessor } from "./queues/inAppAgentRunQueue";
 import { WorkerManager } from "./queues/workerManager";
 import {
@@ -498,6 +501,7 @@ if (env.QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED === "true") {
     // recovery so the unified TTL pacing is uncontested.
     lockDuration: monitorProcessorTtl + 60_000,
     maxStalledCount: 0,
+    metricTags: monitorQueueMetricTags,
   });
 }
 

@@ -36,10 +36,6 @@ import { buildPermalink } from "../helpers/buildPermalink";
 import { applyStateMachine, type MonitorCompletion } from "./applyStateMachine";
 import { computeSeverity } from "./computeSeverity";
 import { buildAlertMessage } from "./buildAlertMessage";
-import {
-  recordMonitorEvaluationLatency,
-  type MonitorEvaluationResult,
-} from "../metrics";
 
 export { monitorEvaluationOffsetMs } from "../types";
 
@@ -58,33 +54,51 @@ export class MonitorProcessor {
   /** process evaluates one queued monitor event and publishes any resulting alerts; the input is parsed to recoerce dates the queue serialized to strings. */
   async process(input: MonitorQueueEventInput, now: Date): Promise<void> {
     const event = MonitorQueueEventSchema.parse(input);
-    let evaluatedMonitors = event.monitors.length; // a failed claim counts every monitor of the event
-    let result: MonitorEvaluationResult = "error";
-    try {
-      await instrumentAsync({ name: "process" }, async (span) => {
-        const monitors = await instrumentAsync({ name: "claimMonitors" }, () =>
-          this.claimMonitors(event, now),
-        );
-        evaluatedMonitors = monitors.length;
-        span.setAttribute("monitors", monitors.length);
-        if (monitors.length === 0) return;
+    return instrumentAsync({ name: "process" }, async (span) => {
+      const monitors = await instrumentAsync({ name: "claimMonitors" }, () =>
+        this.claimMonitors(event, now),
+      );
+      span.setAttribute("monitors", monitors.length);
+      if (monitors.length === 0) return;
 
-        const { metrics, triggers, monitorWebhookInputs } =
-          await this.evaluateMonitors(event, monitors, now);
-        span.setAttribute("metrics", Object.keys(metrics).length);
-        span.setAttribute("triggers", triggers.length);
-        span.setAttribute("monitorWebhookInputs", monitorWebhookInputs.length);
-      });
-      result = "success";
-    } finally {
-      recordMonitorEvaluationLatency({
-        projectId: event.projectId,
-        window: event.window,
-        runAt: event.runAt,
-        result,
-        monitors: evaluatedMonitors,
-      });
-    }
+      const [metrics, triggers] = await Promise.all([
+        instrumentAsync({ name: "queryMetrics" }, () =>
+          this.queryMetrics(event),
+        ),
+        instrumentAsync({ name: "getTriggerConfigurations" }, () =>
+          this.getTriggerConfigurations({
+            projectId: event.projectId,
+            eventSource: TriggerEventSource.Monitor,
+            status: JobConfigState.ACTIVE,
+          }),
+        ),
+      ]);
+
+      span.setAttribute("metrics", Object.keys(metrics).length);
+      span.setAttribute("triggers", triggers.length);
+
+      const [completions, monitorWebhookInputs] = instrumentSync(
+        { name: "processMonitors" },
+        () =>
+          processMonitors({
+            monitors,
+            metrics,
+            triggers,
+            now,
+            runAt: event.runAt,
+            publishedAt: event.publishedAt,
+          }),
+      );
+      span.setAttribute("monitorWebhookInputs", monitorWebhookInputs.length);
+
+      await instrumentAsync({ name: "publishWebhookInputs" }, () =>
+        this.publishWebhookInputs(monitorWebhookInputs),
+      );
+
+      await instrumentAsync({ name: "complete" }, () =>
+        this.complete({ projectId: event.projectId, completions }),
+      );
+    });
   }
 
   /** claimMonitors conditionally claims the event's monitors for this worker, returning the rows it won. */
@@ -119,47 +133,6 @@ export class MonitorProcessor {
       data: { lastClaimedAt: now },
     });
     return prismaMonitors.map(monitorFromPrisma);
-  }
-
-  /** evaluateMonitors queries the event's metrics, publishes the resulting alerts, and completes the claimed monitors. */
-  private async evaluateMonitors(
-    event: MonitorQueueEvent,
-    monitors: Monitor[],
-    now: Date,
-  ): Promise<MonitorEvaluation> {
-    const [metrics, triggers] = await Promise.all([
-      instrumentAsync({ name: "queryMetrics" }, () => this.queryMetrics(event)),
-      instrumentAsync({ name: "getTriggerConfigurations" }, () =>
-        this.getTriggerConfigurations({
-          projectId: event.projectId,
-          eventSource: TriggerEventSource.Monitor,
-          status: JobConfigState.ACTIVE,
-        }),
-      ),
-    ]);
-
-    const [completions, monitorWebhookInputs] = instrumentSync(
-      { name: "processMonitors" },
-      () =>
-        processMonitors({
-          monitors,
-          metrics,
-          triggers,
-          now,
-          runAt: event.runAt,
-          publishedAt: event.publishedAt,
-        }),
-    );
-
-    await instrumentAsync({ name: "publishWebhookInputs" }, () =>
-      this.publishWebhookInputs(monitorWebhookInputs),
-    );
-
-    await instrumentAsync({ name: "complete" }, () =>
-      this.complete({ projectId: event.projectId, completions }),
-    );
-
-    return { metrics, triggers, monitorWebhookInputs, completions };
   }
 
   /** queryMetrics pre-screens the batch's metrics against the v2 data model, runs the accepted ones, and returns each metric keyed by `${aggregation}_${measure}` as a number, null, or the ErrorBadQuery sentinel. */
@@ -520,11 +493,3 @@ export type QueryExecutor = typeof defaultExecuteQuery;
 
 /** GetTriggerConfigurations loads the trigger configurations matching a filter. */
 export type GetTriggerConfigurations = typeof defaultGetTriggerConfigurations;
-
-/** MonitorEvaluation is what evaluating an event's claimed monitors produced. */
-type MonitorEvaluation = {
-  metrics: MetricMap;
-  triggers: TriggerDomainWithActions[];
-  monitorWebhookInputs: MonitorWebhookInput[];
-  completions: MonitorCompletion[];
-};
