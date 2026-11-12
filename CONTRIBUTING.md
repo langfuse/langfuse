@@ -154,6 +154,10 @@ For example, to run Postgres on `5433` and the web app on `3100`:
    `REDIS_PORT`, `CLICKHOUSE_HTTP_PORT` / `CLICKHOUSE_NATIVE_PORT` go with
    `CLICKHOUSE_URL` / `CLICKHOUSE_MIGRATION_URL`, and `MINIO_API_PORT` goes with
    the `LANGFUSE_S3_*_ENDPOINT` values.
+4. Set `NEXTAUTH_URL` in the root `.env` to `http://localhost:3100`. The
+   app builds callback and asset URLs from `NEXTAUTH_URL`, not from `PORT`;
+   leaving the `.env.dev.example` default of `http://localhost:3000` sends
+   OAuth and Slack callbacks to the old port.
 
 Do **not** put `PORT` in the root `.env`. Both `web` and `worker` load that file
 (`dotenv -e ../.env -- next dev` and `dotenv -e ../.env -- tsx watch ...`), so one
