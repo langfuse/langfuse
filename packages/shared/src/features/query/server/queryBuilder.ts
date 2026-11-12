@@ -257,6 +257,19 @@ function timeBucket(granularity: z.infer<typeof granularities>) {
   return TIME_BUCKETS[granularity];
 }
 
+/**
+ * `row_limit` as a `limit 25` literal. The query schema admits integers
+ * 1–1000; the check keeps `literal` to integers for callers that skip it.
+ */
+function rowLimitLiteral(rowLimit: number) {
+  if (!Number.isSafeInteger(rowLimit) || rowLimit < 0) {
+    throw new QueryCompileError(
+      `row_limit must be a non-negative integer, got ${rowLimit}.`,
+    );
+  }
+  return literal(rowLimit);
+}
+
 /** Throws `InvalidRequestError` unless `view` declares every relation in `relationTables`. */
 function assertKnownRelationTables(
   view: ViewDeclarationType,
@@ -1876,14 +1889,7 @@ export class QueryBuilder {
       );
     }
     if (rowLimit) {
-      // `limit 25` as a literal. The query schema admits integers 1–1000;
-      // the check keeps `literal` to integers for callers that skip it.
-      if (!Number.isSafeInteger(rowLimit) || rowLimit < 0) {
-        throw new QueryCompileError(
-          `row_limit must be a non-negative integer, got ${rowLimit}.`,
-        );
-      }
-      finished = finished.limit(literal(rowLimit));
+      finished = finished.limit(rowLimitLiteral(rowLimit));
     }
     const { sql: compiled, params } = compileClickhouseQuery(
       finished,
