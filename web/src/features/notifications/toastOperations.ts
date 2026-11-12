@@ -80,6 +80,8 @@ export const applicationToastOperations = [
   "external_media_storage.test",
   "filter_ai.generate",
   "gateway_configuration.save",
+  "group.create",
+  "group_members.update",
   "group_project_role.update",
   "group_roles.update",
   "gateway_model_access.save",

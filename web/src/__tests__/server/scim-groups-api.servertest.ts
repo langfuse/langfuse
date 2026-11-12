@@ -524,6 +524,52 @@ describe("SCIM Groups API", () => {
     });
   });
 
+  describe("groups created in the Langfuse UI (source MANUAL)", () => {
+    it("are invisible to SCIM: not listed, not readable, not changeable, not deletable", async () => {
+      const displayName = uniqueName("manual");
+      const manual = await prisma.group.create({
+        data: { orgId, displayName, source: "MANUAL" },
+      });
+      const path = `/api/public/scim/Groups/${manual.id}`;
+
+      const listed = await makeAPICall<ScimList>(
+        "GET",
+        `/api/public/scim/Groups?filter=${encodeURIComponent(`displayName eq "${displayName}"`)}`,
+        undefined,
+        auth(),
+      );
+      expect(listed.body.totalResults).toBe(0);
+      expect((await makeAPICall("GET", path, undefined, auth())).status).toBe(
+        404,
+      );
+      expect(
+        (
+          await makeAPICall(
+            "PATCH",
+            path,
+            {
+              schemas: [PATCH_SCHEMA],
+              Operations: [
+                { op: "add", path: "members", value: [{ value: alice }] },
+              ],
+            },
+            auth(),
+          )
+        ).status,
+      ).toBe(404);
+      expect(
+        (await makeAPICall("DELETE", path, undefined, auth())).status,
+      ).toBe(404);
+
+      expect(
+        await prisma.group.findUnique({
+          where: { id: manual.id },
+          select: { displayName: true, _count: { select: { members: true } } },
+        }),
+      ).toEqual({ displayName, _count: { members: 0 } });
+    });
+  });
+
   it("drops group memberships when the user is deprovisioned from the org", async () => {
     const dave = await createUserInOrg(orgId);
     const created = await createGroup({

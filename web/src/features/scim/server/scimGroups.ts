@@ -1,5 +1,5 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { Prisma, prisma } from "@langfuse/shared/src/db";
+import { GroupSource, Prisma, prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
@@ -15,6 +15,10 @@ const SCIM_LIST_RESPONSE_SCHEMA =
 const SCIM_ERROR_SCHEMA = "urn:ietf:params:scim:api:messages:2.0:Error";
 
 export const SCIM_GROUPS_MAX_RESULTS = 100;
+
+// The IdP only sees, changes and deletes groups it provisioned. Groups created
+// in the Langfuse UI (MANUAL) or by Langfuse (SYSTEM) are invisible to SCIM.
+const SCIM_SOURCE = GroupSource.SCIM;
 
 class ScimError extends Error {
   constructor(
@@ -155,7 +159,7 @@ export function toScimGroup(
 
 export async function getScimGroup(orgId: string, groupId: string) {
   return prisma.group.findFirst({
-    where: { id: groupId, orgId },
+    where: { id: groupId, orgId, source: SCIM_SOURCE },
     ...groupWithMembers,
   });
 }
@@ -188,7 +192,7 @@ export async function listScimGroups(params: {
   startIndex: number;
   count: number;
 }) {
-  const where = { ...params.where, orgId: params.orgId };
+  const where = { ...params.where, orgId: params.orgId, source: SCIM_SOURCE };
   const [totalResults, groups] = await Promise.all([
     prisma.group.count({ where }),
     prisma.group.findMany({
@@ -539,7 +543,9 @@ async function applyPatchOperation(
 }
 
 export async function deleteScimGroup(orgId: string, groupId: string) {
-  await prisma.group.delete({ where: { id: groupId, orgId } });
+  await prisma.group.delete({
+    where: { id: groupId, orgId, source: SCIM_SOURCE },
+  });
 }
 
 export function handleScimGroupsError(

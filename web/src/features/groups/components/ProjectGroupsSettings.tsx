@@ -1,27 +1,25 @@
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { AlertCircle, Trash2 } from "@langfuse/icons";
-import { projectRoleAccessRights } from "@langfuse/shared";
+import { AlertCircle } from "@langfuse/icons";
+import { projectRoleAccessRights, type Role } from "@langfuse/shared";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
+import { type TableProps } from "@/src/components/design-system/table/Table";
+import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import Header from "@/src/components/layouts/header";
-import { Card } from "@/src/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/src/components/ui/table";
+import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { GROUP_SOURCE_DISPLAY } from "@/src/features/groups/groupSource";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { RoleSelect } from "@/src/features/rbac/components/RoleSelect";
 import {
   hasProjectAccess,
   useHasProjectAccess,
 } from "@/src/features/rbac/utils/checkProjectAccess";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api, type RouterOutputs } from "@/src/utils/api";
 
 type ProjectGroup = RouterOutputs["groups"]["projectList"][number];
@@ -30,11 +28,126 @@ type GroupRole = "ADMIN" | "MEMBER" | "VIEWER";
 const GROUP_ROLES: GroupRole[] = ["VIEWER", "MEMBER", "ADMIN"];
 const roleLabel = (role: string) =>
   role.charAt(0) + role.slice(1).toLowerCase();
-const higherRoleReason = "You cannot grant a role higher than your own";
 
-// Project admins map the org's SCIM groups to a role on this project. Groups
-// and members stay owned by the IdP; org-wide group roles are set in the
-// organization settings and shown here read-only.
+type ProjectGroupRow = {
+  group: ProjectGroup;
+  displayName: string;
+  source: string;
+  memberCount: number;
+};
+
+type ColumnContext = {
+  orgId: string;
+  canEdit: boolean;
+  pendingGroupId: string | null;
+  /** Roles you cannot grant are left out, as on the Members page. */
+  projectRoles: (current: string | null) => Role[];
+  onChange: (group: ProjectGroup, role: GroupRole | null) => void;
+};
+
+function projectGroupColumns({
+  orgId,
+  canEdit,
+  pendingGroupId,
+  projectRoles,
+  onChange,
+}: ColumnContext): LangfuseColumnDef<ProjectGroupRow>[] {
+  return [
+    createTextTableColumn<ProjectGroupRow>({
+      accessorKey: "displayName",
+      header: "Name",
+    }),
+    createBadgeTableColumn<ProjectGroupRow>({
+      accessorKey: "source",
+      header: "Source",
+      size: 140,
+      range: "decorative",
+      getBadge: (value, { row }) => {
+        const display = GROUP_SOURCE_DISPLAY[row.original.group.source];
+        return { value, variant: display.color, icon: display.icon };
+      },
+    }),
+    createNumberTableColumn<ProjectGroupRow>({
+      accessorKey: "memberCount",
+      header: "Members",
+      size: 100,
+    }),
+    {
+      accessorKey: "orgRole",
+      header: "Organization Role",
+      headerTooltip: {
+        description:
+          "The group's organization role applies to every project. It is set in the organization settings.",
+        href: "https://langfuse.com/docs/administration/rbac",
+      },
+      size: 160,
+      cell: ({ row }) => (
+        <HoverCard
+          openDelay={0}
+          closeDelay={0}
+          placement="right"
+          content={
+            <div className="w-64 p-3">
+              <p className="text-xs">
+                The organization-level role of a group can be edited in the{" "}
+                <Link
+                  href={`/organization/${orgId}/settings/groups`}
+                  className="underline"
+                >
+                  organization settings
+                </Link>
+                .
+              </p>
+            </div>
+          }
+        >
+          {({ getTriggerProps }) => (
+            <span className="inline-flex" {...getTriggerProps()}>
+              <RoleSelect
+                roles={["NONE"]}
+                value={(row.original.group.orgRole as Role | null) ?? "NONE"}
+                canManageOwnership={false}
+                size="compact"
+                disabled
+                onValueChange={() => undefined}
+              />
+            </span>
+          )}
+        </HoverCard>
+      ),
+    },
+    {
+      accessorKey: "projectRole",
+      header: "Project Role",
+      headerTooltip: {
+        description:
+          "Every member of the group gets this role on this project, on top of their own role.",
+        href: "https://langfuse.com/docs/administration/rbac",
+      },
+      size: 160,
+      cell: ({ row }) => {
+        const { group } = row.original;
+        return (
+          <RoleSelect
+            roles={projectRoles(group.projectRole)}
+            value={(group.projectRole as Role | null) ?? "NONE"}
+            isProjectRole
+            canManageOwnership={false}
+            size="compact"
+            disabled={!canEdit || pendingGroupId === group.id}
+            onValueChange={(role) =>
+              onChange(group, role === "NONE" ? null : (role as GroupRole))
+            }
+          />
+        );
+      },
+    },
+  ];
+}
+
+// Project admins give the org's groups a role on this project, like project
+// roles of members. Groups, their members and org-wide roles are managed in
+// the organization settings.
 export function ProjectGroupsSettings({
   orgId,
   projectId,
@@ -53,6 +166,7 @@ export function ProjectGroupsSettings({
     useHasProjectAccess({ projectId, scope: "projectMembers:CUD" }) &&
     hasProjectRoles;
   const utils = api.useUtils();
+  const [search, setSearch] = useState("");
 
   const groups = api.groups.projectList.useQuery(
     { projectId },
@@ -67,7 +181,7 @@ export function ProjectGroupsSettings({
         "Group";
       showSuccessToast({
         operation: "group_project_role.update",
-        title: input.role ? "Group role saved" : "Group removed",
+        title: "Group role saved",
         description: input.role
           ? `${name} is now ${roleLabel(input.role)} on this project`
           : `${name} no longer has a role on this project`,
@@ -75,36 +189,66 @@ export function ProjectGroupsSettings({
       });
     },
   });
+  const pendingGroupId = setRole.isPending
+    ? (setRole.variables?.groupId ?? null)
+    : null;
 
-  // A role can be granted or taken away only if you hold all of its permissions.
-  const canGrant = (role: GroupRole) =>
-    projectRoleAccessRights[role].every((scope) =>
-      hasProjectAccess({ session: session.data, projectId, scope }),
-    );
+  const columns = useMemo(
+    () =>
+      projectGroupColumns({
+        orgId,
+        canEdit,
+        pendingGroupId,
+        // A role can be granted or taken away only if you hold all of its permissions.
+        projectRoles: (current) => [
+          "NONE",
+          ...GROUP_ROLES.filter(
+            (role) =>
+              role === current ||
+              projectRoleAccessRights[role].every((scope) =>
+                hasProjectAccess({ session: session.data, projectId, scope }),
+              ),
+          ),
+        ],
+        onChange: (group, role) =>
+          setRole.mutate({ projectId, groupId: group.id, role }),
+      }),
+    [orgId, canEdit, pendingGroupId, session.data, projectId, setRole],
+  );
 
-  const heading = (
-    <>
-      <Header title="Groups" />
-      <p className="text-muted-foreground mb-4 text-sm">
-        Give groups from your identity provider a role on this project. Members
-        keep their own role and gain the group role&apos;s permissions on top.
-        Group names and members are managed in your identity provider; org-wide
-        group roles are set in{" "}
-        <Link
-          href={`/organization/${orgId}/settings/groups`}
-          className="underline"
-        >
-          organization settings
-        </Link>
-        .
-      </p>
-    </>
+  const data = useMemo<TableProps<ProjectGroupRow>["data"]>(() => {
+    if (groups.isPending) return { status: "loading" };
+    if (groups.error) return { status: "error", error: groups.error.message };
+    const query = search.trim().toLowerCase();
+    return {
+      status: "success",
+      data: groups.data
+        .filter(
+          (group) => !query || group.displayName.toLowerCase().includes(query),
+        )
+        .map((group) => ({
+          group,
+          displayName: group.displayName,
+          source: GROUP_SOURCE_DISPLAY[group.source].badge,
+          memberCount: group.memberCount,
+        })),
+    };
+  }, [groups.isPending, groups.error, groups.data, search]);
+
+  const header = (
+    <Header
+      title="Project Groups"
+      help={{
+        description:
+          "Give your organization's groups a role on this project. Members keep their own role and gain the group role's permissions on top. Groups and their members are managed in the organization settings.",
+      }}
+    />
   );
 
   if (!hasAdminApi) {
     return (
       <div>
-        {heading}
+        {header}
         <Alert icon={AlertCircle}>
           <Alert.Title>Not available</Alert.Title>
           <Alert.Description>
@@ -117,7 +261,7 @@ export function ProjectGroupsSettings({
   if (!canRead) {
     return (
       <div>
-        {heading}
+        {header}
         <Alert>
           <Alert.Title>Access Denied</Alert.Title>
           <Alert.Description>
@@ -128,189 +272,43 @@ export function ProjectGroupsSettings({
     );
   }
 
-  const data = groups.data ?? [];
-  const withAccess = data.filter((group) => group.projectRole || group.orgRole);
-  const addable = data.filter((group) => !group.projectRole);
-  const isPending = (groupId: string) =>
-    setRole.isPending && setRole.variables?.groupId === groupId;
-
-  const roleOptions = (current: string | null) =>
-    GROUP_ROLES.map((role) =>
-      canGrant(role) || role === current
-        ? { value: role, label: roleLabel(role) }
-        : {
-            value: role,
-            label: roleLabel(role),
-            disabled: true as const,
-            disabledReason: higherRoleReason,
-          },
-    );
-
   return (
-    <div className="flex flex-col gap-4">
-      <div>{heading}</div>
-
+    <div>
+      {header}
       {!hasProjectRoles && (
-        <Alert icon={AlertCircle}>
-          <Alert.Title>
-            Project roles are not available on your plan
-          </Alert.Title>
-          <Alert.Description>
-            Groups can still get access through their org-wide role.
-          </Alert.Description>
-        </Alert>
-      )}
-      {groups.error && (
-        <Alert icon={AlertCircle}>
-          <Alert.Title>Could not load groups</Alert.Title>
-          <Alert.Description>{groups.error.message}</Alert.Description>
-        </Alert>
+        <div className="mb-4">
+          <Alert icon={AlertCircle}>
+            <Alert.Title>
+              Project roles are not available on your plan
+            </Alert.Title>
+            <Alert.Description>
+              Groups can still get access through their organization role.
+            </Alert.Description>
+          </Alert>
+        </div>
       )}
       {setRole.error && (
-        <Alert icon={AlertCircle}>
-          <Alert.Title>Could not save the group role</Alert.Title>
-          <Alert.Description>{setRole.error.message}</Alert.Description>
-        </Alert>
-      )}
-
-      {canEdit && addable.length > 0 && (
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="text-sm">Add a group to this project</span>
-          <div className="w-72">
-            <SelectInput
-              aria-label="Add a group to this project"
-              placeholder="Select a group"
-              search={{ placeholder: "Search groups" }}
-              value=""
-              options={addable.map((group) => ({
-                value: group.id,
-                label: group.displayName,
-              }))}
-              disabled={setRole.isPending || !canGrant("VIEWER")}
-              onValueChange={(groupId) =>
-                setRole.mutate({ projectId, groupId, role: "VIEWER" })
-              }
-            />
-          </div>
-          <span className="text-muted-foreground text-xs">
-            Added groups start as Viewer.
-          </span>
+        <div className="mb-4">
+          <Alert icon={AlertCircle}>
+            <Alert.Title>Could not save the group role</Alert.Title>
+            <Alert.Description>{setRole.error.message}</Alert.Description>
+          </Alert>
         </div>
       )}
-
-      <Card>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Group</TableHead>
-              <TableHead>Members</TableHead>
-              <TableHead>Role on this project</TableHead>
-              <TableHead>Org-wide role</TableHead>
-              <TableHead className="w-10" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {!groups.isLoading && withAccess.length === 0 && (
-              <TableRow>
-                <TableCell
-                  colSpan={5}
-                  className="text-muted-foreground py-8 text-center"
-                >
-                  {data.length === 0
-                    ? "No groups have been pushed by your identity provider yet."
-                    : "No group has access to this project yet."}
-                </TableCell>
-              </TableRow>
-            )}
-            {withAccess.map((group) => (
-              <ProjectGroupRow
-                key={group.id}
-                group={group}
-                canEdit={canEdit}
-                pending={isPending(group.id)}
-                roleOptions={roleOptions(group.projectRole)}
-                canRemove={
-                  group.projectRole !== null &&
-                  canGrant(group.projectRole as GroupRole)
-                }
-                onChange={(role) =>
-                  setRole.mutate({ projectId, groupId: group.id, role })
-                }
-              />
-            ))}
-          </TableBody>
-        </Table>
-      </Card>
+      <SettingsTable
+        tableName="project groups"
+        columns={columns}
+        data={data}
+        getRowLabel={(row) => row.displayName}
+        columnVisibilityKey="groupsColumnVisibilityProject"
+        columnOrderKey="groupsColumnOrderProject"
+        noResultsMessage="This organization has no groups yet."
+        search={{
+          value: search,
+          placeholder: "Search name",
+          onChange: setSearch,
+        }}
+      />
     </div>
-  );
-}
-
-function ProjectGroupRow({
-  group,
-  canEdit,
-  pending,
-  roleOptions,
-  canRemove,
-  onChange,
-}: {
-  group: ProjectGroup;
-  canEdit: boolean;
-  pending: boolean;
-  roleOptions: React.ComponentProps<
-    typeof SelectInput<GroupRole | "NONE">
-  >["options"];
-  canRemove: boolean;
-  onChange: (role: GroupRole | null) => void;
-}) {
-  return (
-    <TableRow>
-      <TableCell className="py-3">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-bold">{group.displayName}</span>
-          <span className="text-muted-foreground font-mono text-xs">
-            {group.externalId ? `IdP ID: ${group.externalId}` : "No IdP ID"}
-          </span>
-        </div>
-      </TableCell>
-      <TableCell className="py-3 text-sm whitespace-nowrap tabular-nums">
-        {group.memberCount} {group.memberCount === 1 ? "member" : "members"}
-      </TableCell>
-      <TableCell className="py-3">
-        <div className="w-44">
-          <SelectInput<GroupRole | "NONE">
-            aria-label={`Role of ${group.displayName} on this project`}
-            placeholder="Select a role"
-            value={(group.projectRole as GroupRole | null) ?? "NONE"}
-            options={[
-              { value: "NONE", label: "No project role" },
-              ...(roleOptions ?? []),
-            ]}
-            disabled={!canEdit || pending}
-            onValueChange={(role) => onChange(role === "NONE" ? null : role)}
-          />
-        </div>
-      </TableCell>
-      <TableCell className="py-3">
-        {group.orgRole ? (
-          <Badge
-            color="outline"
-            text={`${roleLabel(group.orgRole)} (all projects)`}
-          />
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        )}
-      </TableCell>
-      <TableCell className="py-3">
-        {canEdit && group.projectRole && (
-          <IconButton
-            variant="ghost"
-            icon={Trash2}
-            label={`Remove ${group.displayName} from this project`}
-            disabled={pending || !canRemove}
-            onClick={() => onChange(null)}
-          />
-        )}
-      </TableCell>
-    </TableRow>
   );
 }
