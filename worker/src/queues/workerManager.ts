@@ -204,11 +204,11 @@ export class WorkerManager {
     // jobs this container never picked up.
     worker.on("active", markQueueJobActivity);
     // No "active" counter: metricWrapper already records "request" on pickup.
-    worker.on("completed", (job: Job<JobData<Q>>) => {
+    worker.on("completed", (job: Job<JobData<Q>> | undefined) => {
       markQueueJobActivity();
       recordIncrement(baseMetric + ".rate", 1, {
         type: "completed",
-        ...metricTags(job.data),
+        ...jobMetricTags(metricTags, job),
         ...shardTag,
       });
     });
@@ -272,7 +272,7 @@ export class WorkerManager {
   }
 }
 
-/** jobMetricTags derives a job's metric tags, or none when BullMQ reports a failure without the job. */
+/** jobMetricTags derives a job's metric tags, or none when a worker event arrives without the job. */
 function jobMetricTags<Q extends QueueName>(
   metricTags: MetricTags<Q>,
   job: Job<JobData<Q>> | undefined,
