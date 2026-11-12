@@ -368,7 +368,7 @@ widening behavior.
 
 ### Escape hatches and their cost
 
-- `sql.ref("alias")` — the only way to reference a SELECT alias that is not a schema column (ClickHouse allows `GROUP BY`/expression reuse of aliases; Kysely's types do not model it). It is fully untyped — a typo reaches ClickHouse unchecked. Use sparingly. `db.dynamic.ref("alias")` is the same reference as an unaliased select item (`select costType` beside an `array join … as costType`, where `costType as costType` is a duplicate alias).
+- `aliasRef("alias")` (`extensions.ts`) — references a SELECT alias that is not a schema column (ClickHouse allows `GROUP BY`/expression reuse of aliases; Kysely's types do not model it), as a column reference node with `.as(…)`. Prefer it to `sql.ref("alias")`, which renders the same reference wrapped in raw SQL. Both are untyped — a typo reaches ClickHouse unchecked. Use sparingly. `db.dynamic.ref("alias")` is the same reference as an unaliased select item (`select costType` beside an `array join … as costType`, where `costType as costType` is a duplicate alias).
 - `eb.fn("ch_function", [...])` — arbitrary ClickHouse functions. The name is an
   unchecked string and the return type defaults to `unknown`; no arity or
   return checking.

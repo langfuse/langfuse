@@ -1,7 +1,6 @@
 import { randomUUID } from "crypto";
 import {
   expressionBuilder,
-  sql,
   type AliasableExpression,
   type Expression,
   type ExpressionBuilder,
@@ -41,6 +40,7 @@ import { compileClickhouseQuery } from "../../../server/query-ast/compile";
 import { getClickhouseKysely } from "../../../server/query-ast/dialect";
 import { QueryCompileError } from "../../../server/query-ast/errors";
 import {
+  aliasRef,
   anyValue,
   arrayJoin,
   arrayJoinElements,
@@ -1800,10 +1800,10 @@ export class QueryBuilder {
 
     const outerClauses: OuterClauses = {
       groupBy: [
-        ...appliedDimensions.map((d) => sql.ref(this.dimensionAlias(d))),
+        ...appliedDimensions.map((d) => aliasRef(this.dimensionAlias(d))),
         ...(bucket.type === "none"
           ? []
-          : [sql.ref(bucket.bucketDimensionAlias)]),
+          : [aliasRef(bucket.bucketDimensionAlias)]),
       ],
       orderBy,
       fill,
@@ -1840,7 +1840,7 @@ export class QueryBuilder {
         "e.span_id",
         ...appliedDimensions
           .filter((d) => d.explodeArray || d.pairExpand)
-          .map((d) => sql.ref(this.dimensionAlias(d))),
+          .map((d) => aliasRef(this.dimensionAlias(d))),
       ]);
     // select <dimensions>, <bucket>, <aggregation>(<measure>) … from (<perSpan>) as per_span
     return this.compileWithOuterClauses(
@@ -1852,7 +1852,7 @@ export class QueryBuilder {
         ...appliedDimensions.map((d) =>
           d.pairExpand
             ? db.dynamic.ref(this.dimensionAlias(d))
-            : sql.ref(this.dimensionAlias(d)).as(this.dimensionAlias(d)),
+            : aliasRef(this.dimensionAlias(d)).as(this.dimensionAlias(d)),
         ),
         ...(bucket.type === "none"
           ? []
@@ -1874,7 +1874,7 @@ export class QueryBuilder {
     let finished = groupBy.length > 0 ? select.groupBy(groupBy) : select;
     for (const item of orderBy) {
       finished = finished.orderBy(
-        sql.ref(item.field),
+        aliasRef(item.field),
         item.direction === "desc" ? "desc" : "asc",
       );
     }
@@ -2066,7 +2066,7 @@ export class QueryBuilder {
   ) {
     if (appliedMetrics.length === 0) return [eb.fn.countAll().as("count")];
     return appliedMetrics.map((metric) =>
-      this.astAggregate(eb, metric, sql.ref(metric.alias || metric.sql)).as(
+      this.astAggregate(eb, metric, aliasRef(metric.alias || metric.sql)).as(
         `${metric.aggregation}_${metric.alias || metric.sql}`,
       ),
     );

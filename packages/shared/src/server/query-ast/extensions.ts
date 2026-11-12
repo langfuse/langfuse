@@ -23,6 +23,7 @@ import {
   AggregateFunctionNode,
   BinaryOperationNode,
   ColumnNode,
+  DynamicReferenceBuilder,
   ExpressionWrapper,
   expressionBuilder,
   FromNode,
@@ -363,6 +364,17 @@ export function literal<T extends string | number | boolean | null>(
     );
   }
   return new ExpressionWrapper(ValueNode.createImmediate(value));
+}
+
+/**
+ * A reference to an alias that is not a schema column, such as a subquery's
+ * output (`per_span.name` read as `name`), as an aliasable column reference
+ * node. The name is not type-checked.
+ */
+export function aliasRef<T = unknown>(alias: string): ChExpression<T> {
+  return new ExpressionWrapper(
+    new DynamicReferenceBuilder(alias).toOperationNode(),
+  );
 }
 
 /** ClickHouse `if(condition, then, otherwise)`. */
