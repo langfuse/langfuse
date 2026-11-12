@@ -44,11 +44,11 @@ export const MoreOptionsExpanded = meta.story({
     await userEvent.click(
       await screen.findByRole("button", { name: "More options" }),
     );
-    await userEvent.click(screen.getByRole("tab", { name: "Custom" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Custom" }));
     await userEvent.click(screen.getByRole("button", { name: "Add metadata" }));
 
     expect(
-      screen.getByRole("tab", { name: "Custom", selected: true }),
+      screen.getByRole("radio", { name: "Custom", checked: true }),
     ).toBeVisible();
     expect(screen.getByLabelText("Custom expiration date")).toBeVisible();
 
@@ -70,7 +70,7 @@ export const SubmitsResolvedOptions = meta.story({
       " laptop ",
     );
     await userEvent.click(screen.getByRole("button", { name: "More options" }));
-    await userEvent.click(screen.getByRole("tab", { name: "1 week" }));
+    await userEvent.click(screen.getByRole("radio", { name: "1 week" }));
     await userEvent.click(screen.getByRole("button", { name: "Add metadata" }));
     await userEvent.type(
       screen.getByRole("textbox", { name: "Metadata key" }),
