@@ -1,7 +1,8 @@
 import { useState, type ReactNode } from "react";
 import { cva } from "class-variance-authority";
-import { Check, ChevronDown } from "@langfuse/icons";
+import { Check, ChevronDown, Info } from "@langfuse/icons";
 
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
 
 const markerVariants = cva(
@@ -61,8 +62,8 @@ const descriptionVariants = cva("text-muted-foreground", {
 type StepperProps = {
   number: number;
   title: string;
-  /** Sits beside the title, outside the collapse control. */
-  titleAccessory?: ReactNode;
+  /** Shown in an info tooltip beside the title, outside the collapse control. */
+  tooltipText?: string;
   description?: ReactNode;
   variant?: "filled" | "outline";
   size?: "default" | "sm";
@@ -96,7 +97,7 @@ type StepperProps = {
 export function Stepper({
   number,
   title,
-  titleAccessory,
+  tooltipText,
   description,
   variant = "filled",
   size = "default",
@@ -159,7 +160,20 @@ export function Stepper({
           ) : (
             <span className={titleVariants({ size, status })}>{title}</span>
           )}
-          {titleAccessory}
+          {tooltipText ? (
+            <Tooltip label={tooltipText}>
+              {({ getTriggerProps }) => (
+                <button
+                  {...getTriggerProps()}
+                  type="button"
+                  aria-label={`About ${title}`}
+                  className="inline-flex cursor-help items-center"
+                >
+                  <Info aria-hidden size="base" color="muted" />
+                </button>
+              )}
+            </Tooltip>
+          ) : null}
         </div>
         {expanded && hasBody ? (
           <div
