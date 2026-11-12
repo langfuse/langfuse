@@ -532,7 +532,18 @@ export const TestCompletionEdit = meta.story({
 
 export const TestLongValueListScrolls = meta.story({
   name: "(Test) Long value list scrolls inside a capped input",
-  args: { value: longValueList, tokens: longValueListTokens },
+  args: {
+    value: longValueList,
+    tokens: [
+      {
+        ...longValueListTokens[0]!,
+        explanation: {
+          subject: "Name",
+          predicate: "excludes these spans.",
+        },
+      },
+    ],
+  },
   decorators: [
     (Story) => (
       <div className="w-80">
@@ -541,12 +552,55 @@ export const TestLongValueListScrolls = meta.story({
     ),
   ],
   play: async ({ canvasElement }) => {
-    const input = within(canvasElement).getByRole("combobox");
+    const canvas = within(canvasElement);
+    const input = canvas.getByRole("combobox");
     const maxHeight = Number.parseFloat(getComputedStyle(input).maxHeight);
     await expect(Number.isFinite(maxHeight)).toBe(true);
     await expect(input.clientHeight).toBeLessThanOrEqual(Math.ceil(maxHeight));
     await expect(input.scrollHeight).toBeGreaterThan(input.clientHeight);
+
+    const insideField = (rect: DOMRect) => {
+      const bounds = input.getBoundingClientRect();
+      return rect.bottom <= bounds.bottom + 1 && rect.top >= bounds.top - 12;
+    };
+
+    input.scrollTop = 0;
+    const token = input.querySelector("[data-segment-id]");
+    if (!(token instanceof HTMLElement)) throw new Error("Expected a token");
+    await userEvent.hover(token);
+    const remove = await canvas.findByRole("button", { name: /^Remove / });
+    await expect(insideField(remove.getBoundingClientRect())).toBe(true);
+
     input.scrollTop = input.scrollHeight;
     await expect(input.scrollTop).toBeGreaterThan(0);
+    // Scrolling moves the text under the pointer and can clear hover.
+    await userEvent.hover(token);
+    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+      "tooltip",
+    );
+    const tooltipTop = tooltip.getBoundingClientRect().top;
+    const bounds = input.getBoundingClientRect();
+    await expect(tooltipTop).toBeGreaterThanOrEqual(bounds.top - 1);
+    await expect(tooltipTop).toBeLessThanOrEqual(bounds.bottom + 16);
+
+    await userEvent.click(input);
+    const selection = window.getSelection();
+    if (selection === null) throw new Error("Expected browser selection");
+    selection.selectAllChildren(input);
+    selection.collapseToEnd();
+    document.dispatchEvent(new Event("selectionchange"));
+    input.scrollTop = 0;
+    await userEvent.keyboard("x");
+    await waitFor(() => {
+      const current = window.getSelection();
+      if (current === null || current.rangeCount === 0) {
+        throw new Error("Expected a caret");
+      }
+      const caret = current.getRangeAt(0).getBoundingClientRect();
+      const field = input.getBoundingClientRect();
+      expect(caret.height).toBeGreaterThan(0);
+      expect(caret.top).toBeGreaterThanOrEqual(field.top - 1);
+      expect(caret.bottom).toBeLessThanOrEqual(field.bottom + 1);
+    });
   },
 });

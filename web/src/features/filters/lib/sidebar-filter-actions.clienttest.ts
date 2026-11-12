@@ -169,22 +169,31 @@ describe("applySelection", () => {
     },
   );
 
-  it.each(["env", "tags"])(
-    "clears an emptied positive %s selection when options are blank or unavailable",
-    (column) => {
-      const type = column === "tags" ? "arrayOptions" : "stringOptions";
-      for (const options of [[], [""]]) {
-        expect(
-          applyCheckboxSelection(
-            { ...ctx, options: { [column]: options } },
-            [{ column, type, operator: "any of", value: [""] }],
-            column,
-            [],
-          ),
-        ).toEqual([]);
-      }
-    },
-  );
+  it("keeps a companion exclusion when a positive selection is cleared", () => {
+    const positive = {
+      column: "tags",
+      type: "arrayOptions",
+      operator: "any of",
+      value: ["a"],
+    } as const;
+    const exclusion = {
+      column: "tags",
+      type: "arrayOptions",
+      operator: "none of",
+      value: ["b"],
+    } as const;
+    expect(
+      applyCheckboxSelection(ctx, [positive, exclusion], "tags", []),
+    ).toEqual([exclusion]);
+
+    // any of [a] together with none of [a] is one empty selection, not an
+    // exclusion to keep.
+    const emptyPair: FilterState = [
+      { ...positive },
+      { ...exclusion, value: ["a"] },
+    ];
+    expect(applyCheckboxSelection(ctx, emptyPair, "tags", [])).toEqual([]);
+  });
 
   it("keeps all managed environments unchecked and allows reselecting one", () => {
     const managedCtx: SidebarFilterActionContext = {

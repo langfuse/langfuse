@@ -311,7 +311,14 @@ export function applySelection(
         existingFilter?.type === "arrayOptions") &&
       (existingFilter.operator === "any of" ||
         existingFilter.operator === "all of");
-    if (positiveSelection) return other;
+    if (positiveSelection) {
+      // Drop only this positive filter. A companion exclusion on the same
+      // column (for example `tags:a -tags:b`) stays. The legacy empty pair
+      // (any of X and none of those same values) is one empty selection,
+      // so both halves go.
+      if (hasEmptyCheckboxSelection(current, column)) return other;
+      return current.filter((filter) => filter !== existingFilter);
+    }
 
     const previousValues =
       existingFilter?.type === "stringOptions" ||
