@@ -15,7 +15,7 @@ import {
   getEnabledTopicsModels,
   getTopicRule,
   getTopicRun,
-  getTopicSummaryCounts,
+  getTopicSetupSummaryCounts,
   isTopicRuleSetupActive,
   isTopicsProjectEnabled,
   listTopicFacets,
@@ -36,7 +36,7 @@ import type {
 import { resolveTraceIdleMs } from "../traceBatching/traceBatchReadiness";
 import { isTraceDispatchEnabled } from "../traceBatching/traceBatchSampling";
 import { seedTraceDispatch } from "../traceBatching/traceRuleRecording";
-import { currentRuleMap, selectFitWindow } from "./nightlyRefit";
+import { currentRuleMap, estimateFitWindow } from "./nightlyRefit";
 
 export const TOPIC_RULE_SETUP_TICK_MS = 15_000;
 const DAY_MS = 86_400_000;
@@ -212,12 +212,12 @@ async function selectAndSeed(
         )
       : undefined;
     if (matching === null) continue;
-    const counts = await getTopicSummaryCounts(
+    const counts = await getTopicSetupSummaryCounts(
       projectId,
       facetRefs(open),
       embeddingConfig,
       window,
-      matching ? { traces: matching } : undefined,
+      matching,
     );
     for (const facet of open)
       facet.existingCount =
@@ -372,7 +372,10 @@ async function startFit(
     // A standard fit stays within the clustering capacity, as nightly refits do.
     const sized = smallSample
       ? null
-      : await selectFitWindow(setup.projectId, ref, embeddingConfig, now);
+      : await estimateFitWindow(setup.projectId, ref, embeddingConfig, {
+          from,
+          to: now,
+        });
     const window = {
       from: new Date(Math.max(from.getTime(), sized?.from.getTime() ?? 0)),
       to: now,

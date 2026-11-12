@@ -8,6 +8,7 @@ import {
   getEnabledTopicsModels,
   getTopicClusteringSummaryStats,
   getTopicRuleMap,
+  getTopicNewestSummariesStart,
   isTopicRuleSetupActive,
   listTopicFacets,
   listTopicRules,
@@ -320,6 +321,18 @@ async function capacityFailedWindow(
  * cohort fits the worker's capacity; only aggregate counts and byte estimates
  * are loaded. After a capacity failure, the search starts from half that window.
  */
+// Fits leave a fifth of the clustering capacity as headroom.
+const fitLimits = () => ({
+  maxRows: Math.max(
+    topicClusterSettings(false).minimumCount,
+    Math.floor(env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS * 0.8),
+  ),
+  maxBytes: Math.max(
+    1,
+    Math.floor(env.LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES * 0.8),
+  ),
+});
+
 export async function selectFitWindow(
   projectId: string,
   facet: TopicFacetRef,
@@ -329,16 +342,7 @@ export async function selectFitWindow(
 ): Promise<TopicTimeRange | null> {
   const minimumCount = topicClusterSettings(false).minimumCount;
   if (env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS < minimumCount) return null;
-  const limits = {
-    maxRows: Math.max(
-      minimumCount,
-      Math.floor(env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS * 0.8),
-    ),
-    maxBytes: Math.max(
-      1,
-      Math.floor(env.LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES * 0.8),
-    ),
-  };
+  const limits = fitLimits();
   // Window lengths in hours: `longest` is the upper bound, `fitting` the best found.
   let longest = Math.floor(
     (failedWindow
@@ -373,6 +377,53 @@ export async function selectFitWindow(
   return fitting === null
     ? null
     : { from: new Date(to.getTime() - fitting * HOUR_MS), to };
+}
+
+/**
+ * A fit window within `window` that stays inside the clustering capacity: it
+ * starts at the newest summaries that fit, confirmed by one stats probe. The
+ * full search runs only when the probe exceeds the limits.
+ */
+export async function estimateFitWindow(
+  projectId: string,
+  facet: TopicFacetRef,
+  embeddingConfig: TopicEmbeddingConfig,
+  window: TopicTimeRange,
+): Promise<TopicTimeRange | null> {
+  const limits = fitLimits();
+  // Vector bytes plus the stats' 2 KB row allowance; the probe checks the text.
+  const capacity = Math.min(
+    limits.maxRows,
+    Math.floor(
+      limits.maxBytes / (embeddingConfig.embeddingDimensions * 8 + 2048),
+    ),
+  );
+  const newest = await getTopicNewestSummariesStart(
+    projectId,
+    facet,
+    embeddingConfig,
+    window,
+    capacity,
+  );
+  // The boundary minute holds summaries beyond the limit, so the window starts after it.
+  const estimate = {
+    from:
+      newest.count < capacity || !newest.start
+        ? window.from
+        : new Date(newest.start.getTime() + 60_000),
+    to: window.to,
+  };
+  const stats = await getTopicClusteringSummaryStats(
+    projectId,
+    facet.facetId,
+    facet.version,
+    embeddingConfig,
+    estimate,
+    limits,
+  );
+  return stats.count <= limits.maxRows && stats.bytes <= limits.maxBytes
+    ? estimate
+    : selectFitWindow(projectId, facet, embeddingConfig, window.to, estimate);
 }
 
 export class TopicsNightlyRefitRunner extends PeriodicExclusiveRunner {
