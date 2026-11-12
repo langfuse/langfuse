@@ -8,7 +8,6 @@ import {
   Hr,
   Html,
   Img,
-  Preview,
   Section,
   Tailwind,
   Text,
@@ -43,9 +42,6 @@ export const GatewayInvitationEmailTemplate = ({
   langfuseCloudRegion,
 }: GatewayInvitationEmailTemplateProps) => {
   const isInvitee = audience.kind === "invitee";
-  const previewText = isInvitee
-    ? `${inviterName} invited you to the AI Gateway`
-    : `${inviterName} set up the AI Gateway for ${orgName}`;
   const regionSuffix = langfuseCloudRegion
     ? ` (${langfuseCloudRegion} data region)`
     : "";
@@ -53,7 +49,6 @@ export const GatewayInvitationEmailTemplate = ({
   return (
     <Html>
       <Head />
-      <Preview>{previewText}</Preview>
       <Tailwind>
         <Body className="mx-auto my-auto bg-background font-sans">
           {/* Stay on the same 465px card as the other invites. Long links wrap inside it so the card cannot grow and get clipped. */}

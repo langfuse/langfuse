@@ -8,7 +8,6 @@ import {
   Hr,
   Html,
   Img,
-  Preview,
   Section,
   Tailwind,
   Text,
@@ -139,10 +138,6 @@ export const EvaluatorBlockedEmailTemplate = ({
   return (
     <Html>
       <Head />
-      <Preview>
-        LLM evaluator &quot;{evaluatorName}&quot; in project &quot;
-        {projectName}&quot; paused: {getReasonSummary(blockReason)}
-      </Preview>
       <Tailwind>
         <Body className="bg-background my-auto mx-auto font-sans">
           <Container className="mx-auto my-10 w-[465px] rounded border border-solid border-[#eaeaea] p-5">

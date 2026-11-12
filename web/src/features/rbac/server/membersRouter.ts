@@ -90,6 +90,7 @@ export const membersRouter = createTRPCRouter({
             to,
             orgName,
             orgId: input.orgId,
+            orgRole: input.orgRole,
             userExists,
             env: env,
           }),

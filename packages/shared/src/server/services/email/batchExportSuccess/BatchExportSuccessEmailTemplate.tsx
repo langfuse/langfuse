@@ -8,7 +8,6 @@ import {
   Hr,
   Html,
   Img,
-  Preview,
   Section,
   Tailwind,
   Text,
@@ -29,12 +28,9 @@ export const BatchExportSuccessEmailTemplate = ({
   batchExportName,
   downloadWindowHours,
 }: BatchExportSuccessTemplateProps) => {
-  const previewText = `Download your data export from Langfuse`;
-
   return (
     <Html>
       <Head />
-      <Preview>{previewText}</Preview>
       <Tailwind>
         <Body className="mx-auto my-auto bg-background font-sans">
           <Container className="mx-auto my-10 w-[465px] rounded border border-solid border-[#eaeaea] p-5">
