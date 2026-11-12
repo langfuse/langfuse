@@ -11,7 +11,7 @@ const loadErrorCopy = {
     description: "Retry to see the gateway connections.",
   },
   connection: {
-    title: "Provider connection could not be loaded",
+    title: "Connection could not be loaded",
     description: "Retry to manage model access for this connection.",
   },
   models: {
