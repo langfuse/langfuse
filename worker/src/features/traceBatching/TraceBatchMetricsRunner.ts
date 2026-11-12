@@ -1,11 +1,10 @@
 import {
+  EventsDispatchQueue,
   logger,
   recordGauge,
   redis,
-  TraceBatchQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
-import { recordTraceBatchActiveReads } from "../../queues/traceBatchQueue";
 import { PeriodicRunner } from "../../utils/PeriodicRunner";
 import {
   getTraceBatchFirstKeys,
@@ -47,7 +46,6 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
   protected async execute(): Promise<void> {
     if (!isTraceBatchPipelineEnabled()) return;
 
-    recordTraceBatchActiveReads();
     const collections = [
       this.collectQueueDepth(),
       this.collectWaitingHeadAge(),
@@ -74,10 +72,10 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
     }
   }
 
+  /** Delayed jobs of the dispatcher's target queue; waiting, active, and failed depth are on the generic queue gauge. */
   private async collectQueueDepth(): Promise<void> {
-    const queue = TraceBatchQueue.getInstance();
-    if (!queue) throw new Error("Trace batch queue is unavailable");
-    // Waiting, active, and failed depth are already on the generic queue gauge.
+    const queue = EventsDispatchQueue.getInstance();
+    if (!queue) throw new Error("Events dispatch queue is unavailable");
     const counts = await queue.getJobCounts("delayed");
     recordGauge(`${METRIC_PREFIX}.queue_depth`, counts.delayed ?? 0, {
       type: "delayed",
@@ -86,8 +84,8 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
   }
 
   private async collectWaitingHeadAge(): Promise<void> {
-    const queue = TraceBatchQueue.getInstance();
-    if (!queue) throw new Error("Trace batch queue is unavailable");
+    const queue = EventsDispatchQueue.getInstance();
+    if (!queue) throw new Error("Events dispatch queue is unavailable");
     // BullMQ returns the next FIFO entry in each of waiting and paused. A retry
     // can re-enter behind newer jobs, so this is not the oldest creation time
     // anywhere in the queue. Jobs can disappear between ID and hash reads.

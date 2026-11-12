@@ -441,7 +441,6 @@ export enum QueueName {
   TopicsEmbedding = "topics-embedding",
   TopicsAutomation = "topics-automation",
   TopicsSetup = "topics-setup",
-  TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
   TraceDelete = "trace-delete",
   ProjectDelete = "project-delete",
@@ -491,7 +490,6 @@ export enum QueueJobs {
   TopicsEmbedding = "topics-embedding",
   TopicsAutomation = "topics-automation",
   TopicsSetup = "topics-setup",
-  TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert",
   TraceDelete = "trace-delete",
   ProjectDelete = "project-delete",
@@ -600,31 +598,6 @@ export const TopicAutomationBatchSchema = z.object({
   timeRange: z.object({ from: z.coerce.date(), to: z.coerce.date() }),
 });
 
-export const TraceBatchEventSchema = z.object({
-  timestamp: z.coerce.date(),
-  id: z.string(),
-  name: z.literal(QueueJobs.TraceBatch),
-  payload: z.union([
-    z
-      .object({
-        traces: z.array(TraceBatchTraceSchema).min(1),
-      })
-      .strict(),
-    // Persisted single-project jobs must remain readable while consumers drain.
-    z
-      .object({
-        projectId: z.string(),
-        traces: z
-          .array(TraceBatchTraceSchema.omit({ projectId: true }).strict())
-          .min(1),
-      })
-      .strict()
-      .transform(({ projectId, traces }) => ({
-        traces: traces.map((trace) => ({ ...trace, projectId })),
-      })),
-  ]),
-});
-
 export type TQueueJobTypes = {
   [QueueName.Topics]: {
     timestamp: Date;
@@ -664,7 +637,6 @@ export type TQueueJobTypes = {
     name: QueueJobs.TopicsSetup;
     payload: { projectId: string; ruleId: string };
   };
-  [QueueName.TraceBatch]: z.infer<typeof TraceBatchEventSchema>;
   [QueueName.TraceUpsert]: {
     timestamp: Date;
     id: string;

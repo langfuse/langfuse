@@ -14,7 +14,7 @@ export type PendingTrace = {
   member: string;
   due: number;
   estimates?: { eventUpdateCount?: number; serializedEventBytes: number };
-  trace: TQueueJobTypes[QueueName.TraceBatch]["payload"]["traces"][number];
+  trace: TQueueJobTypes[QueueName.EventsDispatch]["payload"]["traces"][number];
 };
 
 /**
