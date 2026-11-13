@@ -290,6 +290,8 @@ jobs:
         run: bash scripts/ci/retry-on-merge-queue.test.sh
       - name: vitest CI reporter tests
         run: node --test scripts/vitest/ci-reporter.test.mjs
+      - name: Test Node code evaluator runner
+        run: node --test scripts/code-eval-runners/node/code-based-eval-handler.test.mjs
       - name: Load default env
         run: |
           cp .env.dev.example .env

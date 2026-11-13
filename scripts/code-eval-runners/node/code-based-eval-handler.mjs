@@ -46,18 +46,31 @@ return evaluate;`,
 }
 
 function normalizeResult(result) {
-  if (
-    typeof result !== "object" ||
-    result === null ||
-    !Array.isArray(result.scores)
-  ) {
+  try {
+    if (
+      typeof result !== "object" ||
+      result === null ||
+      !Array.isArray(result.scores)
+    ) {
+      return runnerError(
+        "INVALID_RESULT",
+        "Evaluator must return an object shaped like { scores: [...] }",
+      );
+    }
+
+    return JSON.parse(JSON.stringify(result));
+  } catch (error) {
+    let message;
+    try {
+      message = String(formatError(error));
+    } catch {
+      message = "Unknown serialization error";
+    }
     return runnerError(
       "INVALID_RESULT",
-      "Evaluator must return an object shaped like { scores: [...] }",
+      `Evaluator returned a result that could not be serialized: ${message}`,
     );
   }
-
-  return result;
 }
 
 function runnerError(code, message) {
