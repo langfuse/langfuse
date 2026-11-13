@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import * as crypto from "crypto";
 import type { Cluster, Redis } from "ioredis";
 import { env } from "../../env";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import {
   ApiKeyId,
   hasApiKeyKind,
@@ -108,6 +109,8 @@ export async function createApiKey(
     name?: string;
     expiresAt?: Date | null;
     isInAppAgentKey?: boolean;
+    /** Binds a project key to a user; user-scoped keys are bound through `scope`. */
+    boundUser?: UserId;
     predefinedKeys?: { secretKey: string; publicKey: string };
   },
 ): Promise<{
@@ -152,13 +155,14 @@ function validateApiKeyParams(opts: {
   name?: string;
   expiresAt?: Date | null;
   isInAppAgentKey?: boolean;
+  boundUser?: UserId;
 }): Omit<
   Prisma.ApiKeyUncheckedCreateInput,
   "publicKey" | "hashedSecretKey" | "fastHashedSecretKey" | "displaySecretKey"
 > {
   return {
     note: opts.name,
-    ...scopeColumns(opts.tenant, opts.scope),
+    ...scopeColumns(opts.tenant, opts.scope, opts.boundUser),
     ...creatorColumns(opts.createdBy),
     expiresAt: opts.expiresAt ?? null,
     isInAppAgentKey: opts.isInAppAgentKey ?? false,
@@ -169,10 +173,17 @@ function validateApiKeyParams(opts: {
 function scopeColumns(
   tenant: TenantId,
   scope: OrganizationId | ProjectId | UserId,
+  boundUser?: UserId,
 ): Pick<
   Prisma.ApiKeyUncheckedCreateInput,
   "orgId" | "projectId" | "userId" | "scope"
 > {
+  if (
+    boundUser !== undefined &&
+    (hasUserScope(scope) || !hasProjectKind(scope))
+  ) {
+    throw new InvalidRequestError("Only project keys take a bound user");
+  }
   if (hasUserScope(scope)) {
     return {
       orgId: untag(tenant),
@@ -181,7 +192,11 @@ function scopeColumns(
     };
   }
   if (hasProjectKind(scope)) {
-    return { projectId: untag(scope), scope: "PROJECT" };
+    return {
+      projectId: untag(scope),
+      scope: "PROJECT",
+      ...(boundUser !== undefined ? { userId: untag(boundUser) } : {}),
+    };
   }
   return { orgId: untag(scope), scope: "ORGANIZATION" };
 }

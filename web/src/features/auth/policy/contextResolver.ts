@@ -15,6 +15,9 @@ import {
   systemRoleAccessRights,
 } from "@langfuse/shared/rbac";
 
+import { isSandboxPublicKey } from "@langfuse/shared/in-app-agent";
+import { isSandboxKeyAction } from "@langfuse/shared/in-app-agent/server/sandboxKey";
+
 import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import {
@@ -119,6 +122,12 @@ async function materialize(
     boundResource: boundResourceFor(apiKey, org),
   };
 
+  if (isSandboxPublicKey(apiKey.publicKey)) {
+    return {
+      principal,
+      policies: await sandboxKeyPolicies(prisma, apiKey, authorization),
+    };
+  }
   const context = {
     principal,
     policies: await getPoliciesForApiKey(prisma, {
@@ -132,6 +141,38 @@ async function materialize(
     return { principal, policies: publicBearerPolicies(context, apiKey, org) };
   }
   return context;
+}
+
+/**
+ * sandboxKeyPolicies caps an in-app agent sandbox key at the sandbox scope.
+ * Its stored role is the bound user's project role at mint, so the result is
+ * that role intersected with the sandbox scope. A key that is not a
+ * user-bound project key, is presented as a public key, or lost its role
+ * assignment gets no policies; there is no legacy backfill.
+ */
+async function sandboxKeyPolicies(
+  prisma: PrismaClient,
+  apiKey: ApiKey,
+  authorization: "publicKey" | "privateKey",
+): Promise<Policy[][]> {
+  if (
+    authorization !== "privateKey" ||
+    apiKey.scope !== "PROJECT" ||
+    apiKey.userId === null ||
+    apiKey.userId !== apiKey.createdByUserId
+  ) {
+    return [];
+  }
+  const policies = toPolicies(
+    await getRolesForPrincipal(prisma, ApiKeyId(apiKey.id)),
+  )
+    .map((policy) =>
+      policy.effect === "DENY"
+        ? policy
+        : { ...policy, actions: policy.actions.filter(isSandboxKeyAction) },
+    )
+    .filter((policy) => policy.actions.length > 0);
+  return policies.length > 0 ? [policies] : [];
 }
 
 /** getPoliciesForApiKey loads one policy set per principal an api key acts as: its user's for a user key, then its own. */
