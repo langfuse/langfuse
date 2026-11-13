@@ -28,6 +28,7 @@ import {
   walkNodes,
   type ClickHouseSelectQueryNode,
 } from "./nodes";
+import { assertRawSqlSafe } from "./raw";
 import { describeRelation } from "./relations";
 import { TENANTED_TABLES } from "./schema";
 import { SelectRewriteTransformer } from "./transformer";
@@ -74,10 +75,9 @@ type ScopedRelation =
  * stamps the tree so {@link ClickHouseQueryCompiler} will compile it.
  *
  * FROM/JOIN sources must be table references or subqueries; anything else,
- * such as a table function, is rejected. Any `RawNode` whose SQL fragments
- * introduce a relation (`SELECT` / `FROM` / `JOIN`) is rejected — not only
- * FROM/JOIN table sources. Kysely's own keyword fragments (`asc` / `desc`) are
- * not relations and are allowed.
+ * such as a table function, is rejected. Raw SQL anywhere in the tree must
+ * pass `assertRawSqlSafe` (`raw.ts`): a self-contained expression that reads
+ * no relation.
  */
 export class TenancyInjectionPlugin implements KyselyPlugin {
   constructor(private readonly projectId: string) {
@@ -87,7 +87,7 @@ export class TenancyInjectionPlugin implements KyselyPlugin {
   transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
     const transformer = new TenancyInjectionTransformer(this.projectId);
     const injected = transformer.transformNode(args.node) as RootOperationNode;
-    rejectUnscopedRawSql(injected);
+    assertRawSqlSafe(injected);
     return stampTenancy(injected);
   }
 
@@ -406,32 +406,13 @@ export function assertTenancyStamped(node: RootOperationNode): void {
   }
 }
 
-const RAW_RELATION_SQL = /\b(?:from|join|select)\b/i;
-
-function rejectUnscopedRawSql(root: unknown): void {
-  walkNodes(root, (node) => {
-    if (!RawNode.is(node)) return;
-    if (node.sqlFragments.some((fragment) => RAW_RELATION_SQL.test(fragment))) {
-      throw new UnscopedRelationError(
-        "Raw SQL fragments that introduce a relation (SELECT/FROM/JOIN) are rejected in any position: they can bypass tenancy injection. Use traced table and column references instead.",
-      );
-    }
-    // `x IN ${sql.table("traces")}` reads a table with no FROM to scope.
-    if (node.parameters.some((parameter) => TableNode.is(parameter))) {
-      throw new UnscopedRelationError(
-        "A table reference inside raw SQL (sql.table) is rejected in any position: it reads a relation the tenancy pass cannot scope. Read the table through selectFrom/innerJoin or a subquery instead.",
-      );
-    }
-  });
-}
-
 /**
  * Rejects a standalone expression that reads a relation: a subquery, or a raw
  * fragment that introduces one. Outside a query there is no tenancy scope to
  * inject into it.
  */
 export function assertRelationFree(node: OperationNode): void {
-  rejectUnscopedRawSql(node);
+  assertRawSqlSafe(node);
   rejectSubqueries(node);
 }
 
