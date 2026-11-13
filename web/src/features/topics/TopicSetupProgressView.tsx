@@ -188,7 +188,7 @@ function snapshotCopy(failed: boolean): {
     title: "Building your snapshot",
     detail:
       "Runs in the background, so your topics will be here when you're back.",
-    note: "Usually takes 5–10 minutes with summarizing, 1–2 without.",
+    note: "Usually takes 5–10 minutes.",
   };
 }
 
