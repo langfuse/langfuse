@@ -2,6 +2,7 @@ import type { ComponentProps, ReactNode } from "react";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { ConnectedEditGatewayApiKeyDialog } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/EditGatewayApiKeyDialogController/components/ConnectedEditGatewayApiKeyDialog/ConnectedEditGatewayApiKeyDialog";
+import { restoreGatewayApiKeyMetadataTypes } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/fns/restoreGatewayApiKeyMetadataTypes";
 import { toGatewayApiKeyMetadataRows } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/fns/toGatewayApiKeyMetadataRows";
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -40,13 +41,17 @@ export function EditGatewayApiKeyDialogController({
   });
 
   const createSubmitHandler =
-    (apiKeyId: string, closeDialog: () => void): SubmitHandler =>
+    (apiKey: EditableGatewayApiKey, closeDialog: () => void): SubmitHandler =>
     async (input) => {
       try {
         await update.mutateAsync({
           orgId: organizationId,
-          id: apiKeyId,
+          id: apiKey.apiKey.id,
           ...input,
+          metadata: restoreGatewayApiKeyMetadataTypes(
+            input.metadata,
+            apiKey.metadata,
+          ),
         });
         capture("ai_gateway:api_key_updated", {
           orgId: organizationId,
@@ -80,7 +85,7 @@ export function EditGatewayApiKeyDialogController({
               : null
           }
           isSubmitting={update.isPending}
-          onSubmit={createSubmitHandler(state.apiKey.id, closeDialog)}
+          onSubmit={createSubmitHandler(state, closeDialog)}
         />
       )}
     >
