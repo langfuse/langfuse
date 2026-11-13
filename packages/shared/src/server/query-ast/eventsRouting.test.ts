@@ -2,6 +2,7 @@ import {
   AliasNode,
   FromNode,
   SelectQueryNode,
+  createQueryId,
   type Kysely,
   sql,
   type AliasableExpression,
@@ -22,6 +23,7 @@ import {
 import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
 import { QueryCompileError } from "./errors";
+import { EventsTableRoutingPlugin } from "./eventsRouting";
 import {
   firstMetadataValue,
   ifElse,
@@ -221,22 +223,27 @@ describe("logical events routing", () => {
   });
 
   it("rejects COLUMNS() in a select that reads events", () => {
-    expect(() =>
-      compile(
+    const route = (query: { toOperationNode(): SelectQueryNode }) => () =>
+      new EventsTableRoutingPlugin().transformQuery({
+        node: query.toOperationNode(),
+        queryId: createQueryId(),
+      });
+    expect(
+      route(
         db
           .selectFrom("events as e")
           .select((eb) => eb.fn<string>("COLUMNS", [eb.val("^inp")]).as("x")),
       ),
-    ).toThrow(QueryCompileError);
-    expect(() =>
-      compile(
+    ).toThrow('COLUMNS(…) cannot expand the logical "events" relation');
+    expect(
+      route(
         db
           .selectFrom("events as e")
           .select((eb) =>
             eb.fn.agg<string>("columns", [eb.val("^inp")]).as("x"),
           ),
       ),
-    ).toThrow(QueryCompileError);
+    ).toThrow('columns(…) cannot expand the logical "events" relation');
   });
 
   it("rejects FINAL around the logical relation", () => {
