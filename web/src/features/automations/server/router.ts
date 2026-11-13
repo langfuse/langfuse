@@ -65,7 +65,7 @@ export const automationsRouter = createTRPCRouter({
   sendWebhookTestEvent: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), automationId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const { projectId, automationId } = input;
+      const { projectId } = input;
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId,
