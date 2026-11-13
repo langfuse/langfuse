@@ -74,7 +74,7 @@ export async function testEvaluator(params: {
     ...executionData,
   });
 
-  return { ...result, durationMs: Date.now() - startedAt };
+  return { ...result, durationMs: Date.now() - startedAt, variables };
 }
 
 /**
@@ -116,6 +116,7 @@ export async function testEvaluatorOnTrace(params: {
       success: false as const,
       error: "This trace has no transcript to evaluate.",
       durationMs: Date.now() - startedAt,
+      variables: [],
     };
   }
   const extracted = extractTranscriptEvalVariables(
@@ -138,7 +139,11 @@ export async function testEvaluatorOnTrace(params: {
     ...executionData,
   });
 
-  return { ...result, durationMs: Date.now() - startedAt };
+  return {
+    ...result,
+    durationMs: Date.now() - startedAt,
+    variables: extracted.variables,
+  };
 }
 
 function resolveTestVariableMapping(definition: NormalizedEvaluatorDefinition) {
