@@ -5,8 +5,10 @@ import {
   type AuthHeaderValidVerificationResult,
   traceException,
   logger,
+  recordIncrement,
   contextWithLangfuseProps,
 } from "@langfuse/shared/src/server";
+import { isV4CutoffActive } from "@langfuse/shared/src/server/v4Cutoff";
 import {
   BaseError,
   ForbiddenError,
@@ -34,10 +36,14 @@ import {
   structuredPublicApiErrorContract,
   type PublicApiErrorContract,
 } from "./structuredPublicApiErrorContract";
-import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
+import {
+  clickHouseRouteForRequest,
+  requestPathForRequest,
+} from "@/src/features/public-api/server/clickHouseRequestTags";
 import {
   EVENTS_ONLY_UNAVAILABLE_MESSAGE,
   LEGACY_INGESTION_ORG_CUTOFF_MESSAGE,
+  LEGACY_WRITES_DEPRECATION,
   sendAuthErrorJson,
 } from "@/src/features/public-api/server/deprecations";
 import { applyLegacyApiOrganizationCutoff } from "@/src/features/public-api/server/legacyApiOrganizationCutoff";
@@ -325,6 +331,35 @@ export const createAuthedProjectAPIRoute = <
         projectId: auth.scope.projectId,
       });
       res.status(404).json(ORG_CUTOFF_UNAVAILABLE_BODY);
+      return;
+    }
+
+    let cutoffSurface: "ingestion" | "public_api" | null = null;
+    if (routeConfig.isLegacyTraceWrite) cutoffSurface = "ingestion";
+    else if (routeConfig.deprecation) cutoffSurface = "public_api";
+    if (
+      cutoffSurface &&
+      isV4CutoffActive({
+        cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+        enabled:
+          cutoffSurface === "ingestion"
+            ? env.LANGFUSE_V4_CUTOFF_INGESTION
+            : env.LANGFUSE_V4_CUTOFF_PUBLIC_API,
+        exemptOrgIds: env.LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS,
+        orgId: auth.scope.orgId,
+      })
+    ) {
+      recordIncrement("langfuse.v4_cutoff", 1, { surface: cutoffSurface });
+      logger.info("Langfuse v3 cutoff", {
+        surface: cutoffSurface,
+        orgId: auth.scope.orgId,
+        projectId: auth.scope.projectId,
+      });
+      const deprecation = routeConfig.deprecation ?? LEGACY_WRITES_DEPRECATION;
+      const { method, pathname } = requestPathForRequest(req);
+      res.status(410).json({
+        message: `${method} ${pathname} is not available. Use ${deprecation.replacement} (${deprecation.docsUrl}).`,
+      });
       return;
     }
 

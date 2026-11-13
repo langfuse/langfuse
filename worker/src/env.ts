@@ -823,6 +823,25 @@ const EnvSchema = z.object({
   LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR: z
     .enum(["dual_write", "direct"])
     .default("direct"),
+  // Langfuse Cloud only, temporary. v3 cutoff switches, flipped by hand.
+  // Ignored on self-hosted deployments.
+  // EVALS: trace and dataset LLM-as-a-Judge evaluators. New jobs are not created.
+  LANGFUSE_V4_CUTOFF_EVALS: z.enum(["true", "false"]).default("false"),
+  // INTEGRATIONS: blob storage, PostHog and Mixpanel exports on v3 sources.
+  LANGFUSE_V4_CUTOFF_INTEGRATIONS: z.enum(["true", "false"]).default("false"),
+  // Comma-separated organization ids that skip every cutoff.
+  // Keep in sync with web/src/env.mjs.
+  LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS: z
+    .string()
+    .optional()
+    .transform((value) =>
+      value
+        ? value
+            .split(",")
+            .map((organizationId) => organizationId.trim())
+            .filter(Boolean)
+        : [],
+    ),
   // Cloud-only rollout boundary for automatic direct OTel event writes.
   // Organizations created on or after this date are past the point where the v4
   // preview is force-enabled and cannot be switched off, so the events table is

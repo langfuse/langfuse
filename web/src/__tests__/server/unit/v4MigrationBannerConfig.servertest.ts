@@ -53,4 +53,17 @@ describe("v4 migration banner config", () => {
     });
     expect(off({ orgId: "org-a", isLangfuseCloud: true }).severity).toBe("off");
   });
+
+  it("hides the banner for orgs exempt from the v3 cutoff", async () => {
+    const configured = await loadState({
+      LANGFUSE_V4_BANNER_SEVERITY: "critical",
+      LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS: "org-cutoff",
+    });
+
+    expect(configured({ orgId: "org-cutoff", isLangfuseCloud: true })).toEqual({
+      severity: "off",
+      message: null,
+      exempt: true,
+    });
+  });
 });

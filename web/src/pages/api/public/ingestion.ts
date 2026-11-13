@@ -10,9 +10,14 @@ import {
   markProjectIngestFailure,
   createIngestionAttribution,
   processEventBatch,
+  recordIncrement,
   type ApiAccessLevel,
   redactLangfuseSecretKeys,
 } from "@langfuse/shared/src/server";
+import {
+  isV4CutoffActive,
+  V4_UPGRADE_GUIDE,
+} from "@langfuse/shared/src/server/v4Cutoff";
 import { telemetry } from "@/src/features/telemetry";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 import {
@@ -193,14 +198,35 @@ export default async function handler(
         // mixed batch still processes its score events.
         const isEventsOnlyMode =
           env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only";
+        const v4Cutoff = isV4CutoffActive({
+          cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+          enabled: env.LANGFUSE_V4_CUTOFF_INGESTION,
+          exemptOrgIds: env.LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS,
+          orgId: scope.orgId,
+        });
         const scoreOnlyReason = scoreOnlyReasonFor(
           isEventsOnlyMode,
           scope.organizationCreatedAt,
+          v4Cutoff,
         );
         const { batchForProcessing, rejectedErrors } = filterBatchForEventsOnly(
           parsedSchema.data.batch,
           scoreOnlyReason,
         );
+        if (scoreOnlyReason === "v4_cutoff" && rejectedErrors.length > 0) {
+          recordIncrement("langfuse.v4_cutoff", 1, { surface: "ingestion" });
+          logger.info("Langfuse v3 cutoff", {
+            surface: "ingestion",
+            orgId: scope.orgId,
+            projectId,
+          });
+          if (batchForProcessing.length === 0) {
+            setDeprecationHeaders(res, INGESTION_DEPRECATION);
+            return res.status(410).json({
+              message: `Langfuse v3 trace and observation ingestion is not available. ${V4_UPGRADE_GUIDE}`,
+            });
+          }
+        }
         if (scoreOnlyReason === "org_cutoff") {
           recordLegacyIngestionScoreOnlyRejection({
             route: "POST /api/public/ingestion",
@@ -331,19 +357,22 @@ const TRACE_OR_OBSERVATION_EVENT_TYPES = new Set<string>(
 );
 
 /** ScoreOnlyReason is why this request may only ingest scores; it picks the rejection text. */
-type ScoreOnlyReason = "events_only" | "org_cutoff";
+type ScoreOnlyReason = "events_only" | "org_cutoff" | "v4_cutoff";
 
 const SCORE_ONLY_REJECTION: Record<ScoreOnlyReason, string> = {
   events_only: `is not accepted by /api/public/ingestion when LANGFUSE_MIGRATION_V4_WRITE_MODE is events_only. This endpoint only accepts score events. ${EVENTS_ONLY_INGESTION_REMEDIATION}`,
   org_cutoff: `is not accepted. ${LEGACY_INGESTION_ORG_CUTOFF_MESSAGE}`,
+  v4_cutoff: `is not accepted. Langfuse v3 trace and observation ingestion is not available. ${V4_UPGRADE_GUIDE}`,
 };
 
 function scoreOnlyReasonFor(
   isEventsOnlyMode: boolean,
   organizationCreatedAt: string | null | undefined,
+  v4Cutoff: boolean,
 ): ScoreOnlyReason | null {
   if (isEventsOnlyMode) return "events_only";
   if (isLegacyIngestionScoreOnlyOrg(organizationCreatedAt)) return "org_cutoff";
+  if (v4Cutoff) return "v4_cutoff";
   return null;
 }
 
@@ -373,7 +402,7 @@ export function filterBatchForEventsOnly(
     } else {
       rejectedErrors.push({
         id,
-        status: 400,
+        status: scoreOnlyReason === "v4_cutoff" ? 410 : 400,
         message: "Event type not accepted",
         error: `Event type "${type ?? "unknown"}" ${SCORE_ONLY_REJECTION[scoreOnlyReason]}`,
       });

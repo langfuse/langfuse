@@ -746,6 +746,25 @@ export const env = createEnv({
               .filter(Boolean)
           : [],
       ),
+    // Langfuse Cloud only, temporary. v3 cutoff switches, flipped by hand.
+    // Ignored on self-hosted deployments.
+    // INGESTION: legacy batch events except score-create, and legacy trace writes.
+    LANGFUSE_V4_CUTOFF_INGESTION: z.enum(["true", "false"]).default("false"),
+    // PUBLIC_API: public API handlers that carry a v3 deprecation.
+    LANGFUSE_V4_CUTOFF_PUBLIC_API: z.enum(["true", "false"]).default("false"),
+    // Comma-separated organization ids that skip every cutoff and the banner.
+    // Keep in sync with worker/src/env.ts.
+    LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS: z
+      .string()
+      .optional()
+      .transform((value) =>
+        value
+          ? value
+              .split(",")
+              .map((organizationId) => organizationId.trim())
+              .filter(Boolean)
+          : [],
+      ),
 
     // Character count above which trace/observation I/O is rendered as plain
     // text instead of markdown. Served to the browser via the public tRPC
@@ -1394,6 +1413,10 @@ export const env = createEnv({
     LANGFUSE_V4_BANNER_SEVERITY: process.env.LANGFUSE_V4_BANNER_SEVERITY,
     LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS:
       process.env.LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS,
+    LANGFUSE_V4_CUTOFF_INGESTION: process.env.LANGFUSE_V4_CUTOFF_INGESTION,
+    LANGFUSE_V4_CUTOFF_PUBLIC_API: process.env.LANGFUSE_V4_CUTOFF_PUBLIC_API,
+    LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS:
+      process.env.LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS,
     LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
       process.env.LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
     LANGFUSE_SKILL_MAX_BYTES: process.env.LANGFUSE_SKILL_MAX_BYTES,

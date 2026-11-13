@@ -80,6 +80,10 @@ import { decrypt } from "@langfuse/shared/encryption";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
+import {
+  isV4CutoffActive,
+  V4_UPGRADE_GUIDE,
+} from "@langfuse/shared/src/server/v4Cutoff";
 import { env } from "../../env";
 import { assertExportSourceWritable } from "../exportWriteModeGuard";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
@@ -1201,6 +1205,31 @@ export const handleBlobStorageIntegrationProjectJob = async (
     await prisma.blobStorageIntegration.updateMany({
       where: { projectId },
       data: { runStartedAt: null },
+    });
+    return;
+  }
+
+  if (
+    isLegacyExportSource(blobStorageIntegration.exportSource) &&
+    isV4CutoffActive({
+      cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+      enabled: env.LANGFUSE_V4_CUTOFF_INTEGRATIONS,
+      exemptOrgIds: env.LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS,
+      orgId: blobStorageIntegration.project?.orgId,
+    })
+  ) {
+    recordIncrement("langfuse.v4_cutoff", 1, { surface: "integrations" });
+    logger.info("Langfuse v3 cutoff", {
+      surface: "integrations",
+      orgId: blobStorageIntegration.project?.orgId,
+      projectId,
+    });
+    await prisma.blobStorageIntegration.updateMany({
+      where: { projectId },
+      data: {
+        lastError: `Export stopped: Langfuse v3 export sources are not available on Langfuse Cloud. ${V4_UPGRADE_GUIDE}`,
+        lastErrorAt: new Date(),
+      },
     });
     return;
   }
