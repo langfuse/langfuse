@@ -217,8 +217,11 @@ const TENANCY_FIXTURE = `
     ('t2', '${otherProject}'), ('t3', '${otherProject}');
 `;
 
-/** Reads of `observations` outside FROM and JOIN, each returning project ids. */
-const NESTED_READS: [string, () => ClickhouseCompilable][] = [
+/**
+ * Reads of `observations` outside FROM and JOIN, each returning project ids,
+ * with the rows each returns once scoped to the compiled project.
+ */
+const NESTED_READS: [string, () => ClickhouseCompilable, string[][]][] = [
   [
     "an IN subquery",
     // `select 'proj-b' as p where 'proj-b' in (select project_id from observations)`
@@ -234,6 +237,7 @@ const NESTED_READS: [string, () => ClickhouseCompilable][] = [
           ),
         );
     },
+    [],
   ],
   [
     "a scalar subquery",
@@ -249,6 +253,7 @@ const NESTED_READS: [string, () => ClickhouseCompilable][] = [
           .as("p"),
       );
     },
+    [[projectId]],
   ],
   [
     "a CTE body",
@@ -259,6 +264,7 @@ const NESTED_READS: [string, () => ClickhouseCompilable][] = [
         )
         .selectFrom("w")
         .select("w.project_id"),
+    [[projectId]],
   ],
   [
     "a JOIN subquery",
@@ -276,6 +282,7 @@ const NESTED_READS: [string, () => ClickhouseCompilable][] = [
         )
         .select("s.project_id as p");
     },
+    [[projectId]],
   ],
 ];
 
@@ -322,16 +329,14 @@ describeWithClickhouseLocal(
 
     it.each(NESTED_READS)(
       "do not survive a read of observations in %s",
-      (_position, read) => {
+      (_position, read, scopedRows) => {
         // Unscoped, each read returns the other project's id.
         expect(
           projectsRead(renderPassOutput(read().toOperationNode())).flat(),
         ).toContain(otherProject);
-        for (const value of projectsRead(
-          renderPassOutput(tenancyOnly(read())),
-        ).flat()) {
-          expect(["", projectId]).toContain(value);
-        }
+        expect(projectsRead(renderPassOutput(tenancyOnly(read())))).toEqual(
+          scopedRows,
+        );
       },
     );
   },
