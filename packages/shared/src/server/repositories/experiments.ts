@@ -417,7 +417,10 @@ export const getExperimentsStartTime = async (props: {
   const [row] = await queryClickhouse<{ start_time: string | null }>({
     query,
     params,
-    tags: { projectId: props.projectId },
+    tags: {
+      projectId: props.projectId,
+      route: "experiments.getExperimentsStartTime",
+    },
     preferredClickhouseService: "EventsReadOnly",
   });
 
