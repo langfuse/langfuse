@@ -195,6 +195,7 @@ the wall clock** — otherwise re-runs silently duplicate rows and
 
 - time anchors come from `utcDayStartMs()` (UTC midnight, computed in TS —
   ClickHouse's `today()` is server-timezone)
+- the bulk SQL may end at seed time (`endSeconds`, used by `many-traces`) only by compressing the anchor day's rows into midnight..now, with the anchor at midnight in the ClickHouse server timezone (`serverTimezone()`, not UTC): each row's server-local date stays fixed, so `toDate(...)` keys survive same-day re-runs
 - per-row variation comes from the stateless `jitter(seed, index, max)`
   (scenarios) or salted `xxHash32(number)` columns (bulk SQL); wrap hash
   inputs in `toUInt64` — xxHash32 hashes the binary representation, and a
