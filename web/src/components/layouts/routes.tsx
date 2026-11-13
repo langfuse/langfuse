@@ -37,6 +37,7 @@ import { V4SidebarToggle } from "@/src/features/events/components/V4SidebarToggl
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { BookACallButton } from "@/src/components/nav/BookACallButton";
 import { SidebarNavItem } from "@/src/components/nav/SidebarNavItem";
+import { useAppNavigation } from "@/src/components/nav/AppNavigationProvider";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -454,6 +455,7 @@ function TopicsInternalBadge() {
 
 function CommandMenuTrigger({ isCollapsed }: { isCollapsed: boolean }) {
   const { setOpen } = useCommandMenu();
+  const appNavigation = useAppNavigation();
   const capture = usePostHogClientCapture();
 
   return (
@@ -463,6 +465,7 @@ function CommandMenuTrigger({ isCollapsed }: { isCollapsed: boolean }) {
         capture("cmd_k_menu:opened", {
           source: "main_navigation",
         });
+        appNavigation?.closeTransientNavigation();
         setOpen(true);
       }}
       leading={<Search size="base" />}

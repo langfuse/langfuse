@@ -2,7 +2,10 @@ import { useId } from "react";
 import { useSidebarSurface } from "@/src/features/app-shell/contexts/SidebarSurfaceProvider";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { SidebarNavItem } from "@/src/components/nav/SidebarNavItem";
-import { type RouteGroup } from "@/src/components/layouts/routes";
+import {
+  ROUTE_GROUP_BADGES,
+  type RouteGroup,
+} from "@/src/components/layouts/routes";
 import { type NavigationItem } from "@/src/components/layouts/utilities/routes";
 
 type GroupedNavigationItems = {
@@ -39,6 +42,8 @@ function NavigationEntry({
           <span
             {...getTriggerProps()}
             tabIndex={0}
+            role="link"
+            aria-disabled="true"
             aria-label={`${item.title}: ${item.disabledReason}`}
             className="block opacity-50"
           >
@@ -103,10 +108,11 @@ function NavigationGroup({
         className={
           isCollapsed
             ? "mx-2 my-2 border-t"
-            : "text-sidebar-foreground/70 px-2 pt-2 pb-0.5 text-xs font-bold"
+            : "text-sidebar-foreground/70 flex items-center gap-2 px-2 pt-2 pb-0.5 text-xs font-bold"
         }
       >
         <span className={isCollapsed ? "sr-only" : undefined}>{title}</span>
+        {!isCollapsed && ROUTE_GROUP_BADGES[title as RouteGroup]}
       </div>
       <NavigationList items={items} isCollapsed={isCollapsed} />
     </div>

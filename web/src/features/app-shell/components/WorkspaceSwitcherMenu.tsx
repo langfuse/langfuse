@@ -11,12 +11,21 @@ import {
   CommandList,
 } from "@/src/components/ui/command";
 import { WorkspaceGlyph } from "@/src/features/app-shell/components/WorkspaceGlyph";
-import { type SwitcherProject } from "@/src/features/app-shell/fns/buildSwitcherSections";
+import {
+  type SwitcherOrganization,
+  type SwitcherProject,
+} from "@/src/features/app-shell/fns/buildSwitcherSections";
 import { scoreSwitcherMatch } from "@/src/features/app-shell/fns/scoreSwitcherMatch";
 import { useWorkspaceSwitcher } from "@/src/features/app-shell/hooks/useWorkspaceSwitcher";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 type SelectionSection = "recent" | "organization" | "search" | "actions";
+
+function organizationCaption(organization: SwitcherOrganization): string {
+  if (organization.isDemo) return "Demo";
+  if (organization.projectCount === 1) return "1 project";
+  return `${organization.projectCount} projects`;
+}
 
 function ProjectItem({
   project,
@@ -140,8 +149,9 @@ export function WorkspaceSwitcherMenu({ onDone }: { onDone: () => void }) {
             ))}
           </CommandGroup>
         ) : null}
-        {visibleGroups.map(({ organization, projects }) =>
-          projects.length > 0 ? (
+        {visibleGroups
+          .filter((group) => group.projects.length > 0)
+          .map(({ organization, projects }) => (
             <CommandGroup
               key={organization.id}
               heading={
@@ -165,8 +175,7 @@ export function WorkspaceSwitcherMenu({ onDone }: { onDone: () => void }) {
                 />
               ))}
             </CommandGroup>
-          ) : null,
-        )}
+          ))}
         {sections.organizations.length > 1 ? (
           <CommandGroup heading="Organizations">
             {sections.organizations.map((organization) => (
@@ -193,9 +202,7 @@ export function WorkspaceSwitcherMenu({ onDone }: { onDone: () => void }) {
                   {organization.name}
                 </span>
                 <span className="text-muted-foreground shrink-0 text-xs">
-                  {organization.isDemo
-                    ? "Demo"
-                    : `${organization.projectCount} ${organization.projectCount === 1 ? "project" : "projects"}`}
+                  {organizationCaption(organization)}
                 </span>
                 {organization.isCurrent ? (
                   <Check

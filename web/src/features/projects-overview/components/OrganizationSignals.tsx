@@ -89,13 +89,13 @@ function UsageTile({
             Ingestion is paused until the limit resets or the plan changes.{" "}
           </span>
         ) : null}
-        {usage.ratio !== null && !usage.isIngestionBlocked ? (
+        {usage.ratio !== null && !usage.isIngestionBlocked && (
           <span className={tone === "default" ? undefined : "text-dark-yellow"}>
             {usage.level === "near-limit" ? "Near the plan limit · " : null}
             {usage.level === "over-limit" ? "Over the plan limit · " : null}
             {percentFormat.format(usage.ratio)} used ·{" "}
           </span>
-        ) : null}
+        )}
         {usage.limit === null ? "No limit on this plan · " : null}
         {usage.periodKind === "billing-cycle" ? "Resets " : "Through "}
         {dateFormat.format(usage.periodEnd)}
@@ -130,6 +130,14 @@ export function OrganizationSignals({
       .length,
   };
 
+  const projectLabel = live.length === 1 ? "project" : "projects";
+  const memberLabel = organization.memberCount === 1 ? "member" : "members";
+  const attentionVerb = counts.attention === 1 ? "needs" : "need";
+  const attentionLabel =
+    counts.attention > 0
+      ? `${counts.attention} ${attentionVerb} attention`
+      : "Nothing needs attention";
+
   return (
     <div className="ph-no-capture grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {organization.usage ? (
@@ -146,8 +154,7 @@ export function OrganizationSignals({
             <span className="font-bold">{live.length}</span>
             <span className="text-muted-foreground">
               {" "}
-              {live.length === 1 ? "project" : "projects"} · {counts.receiving}{" "}
-              receiving data
+              {projectLabel} · {counts.receiving} receiving data
             </span>
           </p>
         )}
@@ -158,9 +165,7 @@ export function OrganizationSignals({
               : "text-muted-foreground text-xs"
           }
         >
-          {counts.attention > 0
-            ? `${counts.attention} need${counts.attention === 1 ? "s" : ""} attention`
-            : "Nothing needs attention"}
+          {attentionLabel}
           {counts.notSetUp > 0 ? ` · ${counts.notSetUp} not set up` : null}
         </p>
       </SignalTile>
@@ -170,8 +175,7 @@ export function OrganizationSignals({
           {organization.memberCount !== null ? (
             <span className="text-muted-foreground">
               {" "}
-              · {organization.memberCount}{" "}
-              {organization.memberCount === 1 ? "member" : "members"}
+              · {organization.memberCount} {memberLabel}
             </span>
           ) : null}
         </p>

@@ -88,38 +88,36 @@ export function AppShellSidebarPanel({
   return (
     <SidebarPanel>
       <SidebarPanel.Header>
-        {isCollapsed ? (
-          <SidebarExpansionToggle />
-        ) : (
-          <>
-            <Link
-              href="/"
-              aria-label="Langfuse home"
-              className="flex shrink-0 items-center"
-            >
-              <LangfuseLogo
-                logoLightModeHref={uiCustomization?.logoLightModeHref}
-                logoDarkModeHref={uiCustomization?.logoDarkModeHref}
-              />
-            </Link>
-            <div
-              className={
-                surface === "sheet"
-                  ? "mr-9 ml-auto flex min-w-0 items-center overflow-hidden"
-                  : "ml-auto flex min-w-0 items-center overflow-hidden"
-              }
-            >
-              <VersionMenu state={versionState}>
-                {({ Trigger, triggerProps }) => (
-                  <Trigger asChild>
-                    <VersionBadge state={versionState} {...triggerProps} />
-                  </Trigger>
-                )}
-              </VersionMenu>
-            </div>
-            {surface === "docked" && <SidebarExpansionToggle />}
-          </>
+        {!isCollapsed && (
+          <Link
+            href="/"
+            aria-label="Langfuse home"
+            className="flex shrink-0 items-center"
+          >
+            <LangfuseLogo
+              logoLightModeHref={uiCustomization?.logoLightModeHref}
+              logoDarkModeHref={uiCustomization?.logoDarkModeHref}
+            />
+          </Link>
         )}
+        {!isCollapsed && (
+          <div
+            className={
+              surface === "sheet"
+                ? "mr-9 ml-auto flex min-w-0 items-center overflow-hidden"
+                : "ml-auto flex min-w-0 items-center overflow-hidden"
+            }
+          >
+            <VersionMenu state={versionState}>
+              {({ Trigger, triggerProps }) => (
+                <Trigger asChild>
+                  <VersionBadge state={versionState} {...triggerProps} />
+                </Trigger>
+              )}
+            </VersionMenu>
+          </div>
+        )}
+        {surface !== "sheet" && <SidebarExpansionToggle />}
       </SidebarPanel.Header>
       <SidebarPanel.Section>
         <div className="flex flex-col gap-1">

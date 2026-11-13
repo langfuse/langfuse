@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, Settings } from "@langfuse/icons";
+import { Progress } from "@/src/components/design-system/Progress/Progress";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { WorkspaceGlyph } from "@/src/features/app-shell/components/WorkspaceGlyph";
 import { IngestionStatusLine } from "@/src/features/projects-overview/components/IngestionStatusLine";
@@ -70,7 +71,7 @@ export function ProjectOverviewCard({
         {roleLabel ? <Badge text={roleLabel} color="filled" size="sm" /> : null}
       </div>
 
-      {project.usage && !canSetUpTracing ? (
+      {project.usage && !canSetUpTracing && (
         <div className="flex flex-col gap-1">
           <div className="flex items-baseline justify-between gap-2 text-xs">
             <span className="text-muted-foreground">Usage this period</span>
@@ -82,19 +83,11 @@ export function ProjectOverviewCard({
               </span>
             </span>
           </div>
-          <div
-            aria-hidden="true"
-            className="bg-muted h-1 w-full overflow-hidden rounded-full"
-          >
-            <div
-              className={
-                isUsageHeavy
-                  ? "bg-dark-yellow h-full rounded-full"
-                  : "bg-foreground-tertiary h-full rounded-full"
-              }
-              style={{ width: `${Math.round(project.usage.share * 100)}%` }}
-            />
-          </div>
+          <Progress
+            value={Math.round(project.usage.share * 100)}
+            tone={isUsageHeavy ? "warning" : "default"}
+            label={`Share of organization usage for ${project.name}`}
+          />
           {isUsageHeavy ? (
             <p className="text-dark-yellow text-xs">
               Drives most of the usage, and the organization is near its plan
@@ -102,7 +95,7 @@ export function ProjectOverviewCard({
             </p>
           ) : null}
         </div>
-      ) : null}
+      )}
 
       <div className="mt-auto flex flex-wrap items-center gap-2">
         {project.migration ? (

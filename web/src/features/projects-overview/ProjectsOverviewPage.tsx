@@ -157,11 +157,12 @@ export function ProjectsOverviewPage() {
             onDismiss={() => setQuery({ notice: undefined }, "replaceIn")}
           />
         ) : null}
-        {scoped.length === 0 ? (
+        {scoped.length === 0 && (
           <NoOrganizationState
             canCreateOrganizations={canCreateOrganizations}
           />
-        ) : (
+        )}
+        {scoped.length > 0 && (
           <>
             {singleOrganization ? (
               <OrganizationSignals organization={singleOrganization} />
