@@ -6,7 +6,7 @@ import { AllowedModelsPreview } from "@/src/features/ai-gateway/components/Gatew
 import { ModelPatternsInput } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/components/GatewayApiKeyModelsField/components/ModelPatternsInput/ModelPatternsInput";
 import type { CreateGatewayApiKeyFormValues } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/types/createGatewayApiKeyFormSchema";
 import { matchesGatewayModelPatterns } from "@/src/features/ai-gateway/fns/gatewayModelPatterns";
-import type { GatewayEnabledModel } from "@/src/features/ai-gateway/types/gatewayEnabledModel";
+import type { GatewayEnabledModels } from "@/src/features/ai-gateway/types/gatewayEnabledModels";
 
 const PATTERN_HELP = [
   { type: "text", text: "Use " },
@@ -23,7 +23,7 @@ const PATTERN_HELP = [
 type GatewayApiKeyModelsFieldProps = {
   control: Control<CreateGatewayApiKeyFormValues>;
   /** Undefined hides the allowed models preview. */
-  enabledModels: GatewayEnabledModel[] | undefined;
+  enabledModels: GatewayEnabledModels | undefined;
 };
 
 export function GatewayApiKeyModelsField({
@@ -32,9 +32,13 @@ export function GatewayApiKeyModelsField({
 }: GatewayApiKeyModelsFieldProps) {
   const { field } = useController({ control, name: "modelPatterns" });
   const patterns = field.value;
-  const allowedModels = enabledModels?.filter((model) =>
+  const allowedModels = enabledModels?.models.filter((model) =>
     matchesGatewayModelPatterns(patterns, model.slug),
   );
+  const unknownCatalogConnectionNames =
+    enabledModels?.connections
+      .filter((connection) => connection.isCatalogUnknown)
+      .map((connection) => connection.name) ?? [];
 
   return (
     <div className="flex flex-col gap-2">
@@ -73,7 +77,10 @@ export function GatewayApiKeyModelsField({
         </p>
       ) : null}
       {patterns.length > 0 && allowedModels ? (
-        <AllowedModelsPreview models={allowedModels} />
+        <AllowedModelsPreview
+          models={allowedModels}
+          unknownCatalogConnectionNames={unknownCatalogConnectionNames}
+        />
       ) : null}
     </div>
   );

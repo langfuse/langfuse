@@ -5,7 +5,7 @@ import preview from "@/.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { CreateGatewayApiKeyDialog } from "./CreateGatewayApiKeyDialog";
 
-const enabledModels = [
+const models = [
   ...[
     "gpt-5",
     "gpt-5-mini",
@@ -32,6 +32,13 @@ const enabledModels = [
     }),
   ),
 ];
+const enabledModels = {
+  models,
+  connections: [
+    { name: "openai", isCatalogUnknown: false },
+    { name: "anthropic", isCatalogUnknown: false },
+  ],
+};
 
 const meta = preview.meta({
   component: CreateGatewayApiKeyDialog,

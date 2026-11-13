@@ -1,9 +1,9 @@
 import { useState, type ComponentProps, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 
-import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { ConnectedCreateGatewayApiKeyDialog } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/ConnectedCreateGatewayApiKeyDialog/ConnectedCreateGatewayApiKeyDialog";
+import { GeneratedKeyDialog } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/GeneratedKeyDialog/GeneratedKeyDialog";
 import { GeneratedKeyContent } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/GeneratedKeyContent";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
@@ -74,17 +74,12 @@ export function CreateGatewayApiKeyDialogController({
       onBeforeClose={() => !create.isPending}
       renderDialog={({ isOpen }) =>
         generatedSecretKey ? (
-          <Dialog
-            title="Gateway key created"
-            size="md"
-            closeLabel="Done"
-            requireExplicitClose
-          >
+          <GeneratedKeyDialog>
             <GeneratedKeyContent
               organizationId={organizationId}
               secretKey={generatedSecretKey}
             />
-          </Dialog>
+          </GeneratedKeyDialog>
         ) : (
           <ConnectedCreateGatewayApiKeyDialog
             organizationId={organizationId}

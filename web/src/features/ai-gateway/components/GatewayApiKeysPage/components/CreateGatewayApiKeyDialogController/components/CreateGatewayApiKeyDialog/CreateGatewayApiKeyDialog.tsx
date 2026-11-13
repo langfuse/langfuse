@@ -17,7 +17,7 @@ import {
   createGatewayApiKeyFormSchema,
   type CreateGatewayApiKeyFormValues,
 } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/types/createGatewayApiKeyFormSchema";
-import type { GatewayEnabledModel } from "@/src/features/ai-gateway/types/gatewayEnabledModel";
+import type { GatewayEnabledModels } from "@/src/features/ai-gateway/types/gatewayEnabledModels";
 import type { RouterInputs } from "@/src/utils/api";
 
 const defaultValues: CreateGatewayApiKeyFormValues = {
@@ -48,7 +48,7 @@ type CreateGatewayApiKeySubmission = Omit<
 type CreateGatewayApiKeyDialogProps = {
   canIssueServiceAccountKeys: boolean;
   /** Previews which models the patterns allow; undefined hides the preview. */
-  enabledModels: GatewayEnabledModel[] | undefined;
+  enabledModels: GatewayEnabledModels | undefined;
   errorMessage: string | null;
   isSubmitting: boolean;
   onSubmit: (submission: CreateGatewayApiKeySubmission) => void;
@@ -192,7 +192,7 @@ function MoreOptions({
   enabledModels,
 }: {
   control: Control<CreateGatewayApiKeyFormValues>;
-  enabledModels: GatewayEnabledModel[] | undefined;
+  enabledModels: GatewayEnabledModels | undefined;
 }) {
   const contentId = useId();
   const [isExpanded, setIsExpanded] = useState(false);

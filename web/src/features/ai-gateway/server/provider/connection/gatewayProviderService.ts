@@ -19,7 +19,7 @@ import {
   validateLlmConnectionBaseURL,
 } from "@langfuse/shared/src/server";
 import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
-import { GatewayApiKeyService } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyService";
+import { GatewayApiKeyRepository } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyRepository";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { GATEWAY_CONNECTION_NAME_ERRORS } from "@/src/features/ai-gateway/constants/gatewayConnection";
@@ -53,15 +53,17 @@ import { requestJson } from "../models/adapters/shared";
 export class GatewayProviderService {
   private readonly repository: GatewayProviderRepository;
   private readonly modelCatalogService: GatewayModelCatalogService;
-  private readonly apiKeyService: GatewayApiKeyService;
+  private readonly apiKeyRepository: GatewayApiKeyRepository;
 
   constructor(
     private readonly prisma: PrismaClient,
     private readonly validateCredential: CredentialValidator = validateGatewayCredential,
     modelCatalogService?: GatewayModelCatalogService,
+    apiKeyRepository?: GatewayApiKeyRepository,
   ) {
     this.repository = new GatewayProviderRepository(prisma);
-    this.apiKeyService = new GatewayApiKeyService(prisma);
+    this.apiKeyRepository =
+      apiKeyRepository ?? new GatewayApiKeyRepository(prisma);
     this.modelCatalogService =
       modelCatalogService ?? new GatewayModelCatalogService(prisma);
   }
@@ -273,7 +275,7 @@ export class GatewayProviderService {
           tx,
         );
         if (name !== undefined) {
-          await this.apiKeyService.renameConnectionInModelPatterns(tx, {
+          await this.apiKeyRepository.renameConnectionInModelPatterns(tx, {
             organizationId: params.organizationId,
             previousName: existing.name,
             name,

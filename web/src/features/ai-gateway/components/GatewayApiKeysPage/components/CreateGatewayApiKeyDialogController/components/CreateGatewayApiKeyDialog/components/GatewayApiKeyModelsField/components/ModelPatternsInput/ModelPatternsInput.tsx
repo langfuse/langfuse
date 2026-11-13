@@ -20,9 +20,9 @@ import { ModelPatternTag } from "@/src/features/ai-gateway/components/GatewayApi
 import { getGatewayModelPatternSuggestions } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/components/GatewayApiKeyModelsField/fns/getGatewayModelPatternSuggestions";
 import type { GatewayModelPatternSuggestion } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/components/GatewayApiKeyModelsField/types/gatewayModelPatternSuggestion";
 import { addGatewayModelPatterns } from "@/src/features/ai-gateway/fns/gatewayModelPatterns";
-import type { GatewayEnabledModel } from "@/src/features/ai-gateway/types/gatewayEnabledModel";
+import type { GatewayEnabledModels } from "@/src/features/ai-gateway/types/gatewayEnabledModels";
 
-const NO_ENABLED_MODELS: GatewayEnabledModel[] = [];
+const NO_ENABLED_MODELS: GatewayEnabledModels = { models: [], connections: [] };
 
 type ModelPatternsInputProps = {
   /** cmdk owns the input id, so the accessible name comes from its own label. */
@@ -31,7 +31,7 @@ type ModelPatternsInputProps = {
   name: string;
   patterns: string[];
   /** Undefined offers only "All enabled models" and the typed pattern. */
-  enabledModels: GatewayEnabledModel[] | undefined;
+  enabledModels: GatewayEnabledModels | undefined;
   onPatternsChange: (patterns: string[]) => void;
   onBlur: () => void;
   inputRef: Ref<HTMLInputElement>;

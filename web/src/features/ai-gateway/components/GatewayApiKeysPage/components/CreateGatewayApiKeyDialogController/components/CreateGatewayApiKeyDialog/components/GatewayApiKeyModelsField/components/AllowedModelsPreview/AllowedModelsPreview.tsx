@@ -9,9 +9,14 @@ const PAGE_SIZE = 40;
 
 type AllowedModelsPreviewProps = {
   models: GatewayEnabledModel[];
+  /** Connections whose models couldn't be loaded, so none of theirs are listed. */
+  unknownCatalogConnectionNames: string[];
 };
 
-export function AllowedModelsPreview({ models }: AllowedModelsPreviewProps) {
+export function AllowedModelsPreview({
+  models,
+  unknownCatalogConnectionNames,
+}: AllowedModelsPreviewProps) {
   const [visibleCount, setVisibleCount] = useState(COLLAPSED_COUNT);
   const hiddenCount = Math.max(models.length - visibleCount, 0);
 
@@ -21,11 +26,17 @@ export function AllowedModelsPreview({ models }: AllowedModelsPreviewProps) {
   return (
     <div className="flex flex-col gap-2">
       <p className="text-muted-foreground text-sm">Allowed models</p>
-      {models.length === 0 ? (
+      {unknownCatalogConnectionNames.length > 0 ? (
+        <p className="text-muted-foreground text-sm">
+          {`Couldn't load the models of ${unknownCatalogConnectionNames.join(", ")}, so they aren't listed. The key can still call the ones these patterns match.`}
+        </p>
+      ) : null}
+      {models.length === 0 && unknownCatalogConnectionNames.length === 0 ? (
         <p className="text-muted-foreground text-sm">
           No enabled models match these patterns.
         </p>
-      ) : (
+      ) : null}
+      {models.length > 0 ? (
         <ul className="ph-no-capture flex flex-wrap items-center gap-1">
           {models.slice(0, visibleCount).map((model) => (
             <li key={model.slug}>
@@ -53,7 +64,7 @@ export function AllowedModelsPreview({ models }: AllowedModelsPreviewProps) {
             </li>
           ) : null}
         </ul>
-      )}
+      ) : null}
     </div>
   );
 }
