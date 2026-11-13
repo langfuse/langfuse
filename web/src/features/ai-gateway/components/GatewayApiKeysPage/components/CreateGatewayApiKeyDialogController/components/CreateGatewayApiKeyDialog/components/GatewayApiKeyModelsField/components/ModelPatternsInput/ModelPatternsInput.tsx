@@ -44,7 +44,11 @@ export function ModelPatternsInput({
 }: ModelPatternsInputProps) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
-  const suggestions = getGatewayModelPatternSuggestions(query, enabledModels);
+  const suggestions = getGatewayModelPatternSuggestions(
+    query,
+    enabledModels,
+    patterns,
+  );
 
   const isChecked = (suggestion: GatewayModelPatternSuggestion) =>
     suggestion.pattern === null

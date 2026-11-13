@@ -1,5 +1,9 @@
 import type { GatewayModelPatternSuggestion } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/components/GatewayApiKeyModelsField/types/gatewayModelPatternSuggestion";
-import { toTypedGatewayModelPattern } from "@/src/features/ai-gateway/fns/gatewayModelPatterns";
+import {
+  isGatewayModelExcludePattern,
+  matchesGatewayModelPatterns,
+  toTypedGatewayModelPattern,
+} from "@/src/features/ai-gateway/fns/gatewayModelPatterns";
 import type { GatewayEnabledModel } from "@/src/features/ai-gateway/types/gatewayEnabledModel";
 
 const EXCLUDE_PREFIX = "-";
@@ -11,14 +15,20 @@ const toConnectionName = (slug: string) => slug.split(":")[0];
  * Without a query: "All enabled models" and one `connection:*` per connection.
  * With a query: matching connections and models, then the query as a pattern
  * (see toTypedGatewayModelPattern). A query with a wildcard is offered first,
- * so Enter adds it as typed.
+ * so Enter adds it as typed. Models the current exclude patterns remove are
+ * not suggested, nor are connections without any other model.
  */
 export function getGatewayModelPatternSuggestions(
   query: string,
   enabledModels: readonly GatewayEnabledModel[],
+  patterns: readonly string[],
 ): GatewayModelPatternSuggestion[] {
+  const excludes = patterns.filter(isGatewayModelExcludePattern);
+  const suggestableModels = enabledModels.filter((model) =>
+    matchesGatewayModelPatterns(excludes, model.slug),
+  );
   const connectionNames = [
-    ...new Set(enabledModels.map((model) => toConnectionName(model.slug))),
+    ...new Set(suggestableModels.map((model) => toConnectionName(model.slug))),
   ];
   const trimmed = query.trim();
   if (!trimmed) {
@@ -44,7 +54,7 @@ export function getGatewayModelPatternSuggestions(
       kind: "connection" as const,
       pattern: `${prefix}${name}:*`,
     }));
-  const models = enabledModels
+  const models = suggestableModels
     .filter((model) => model.slug.toLowerCase().includes(needle))
     .slice(0, MAX_MODEL_SUGGESTIONS)
     .map((model) => ({
