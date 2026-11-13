@@ -7,7 +7,7 @@ import { type CloudConfigSchema } from "../../interfaces/cloudConfigSchema";
 export const ENTERPRISE_TRIAL_UNIT_LIMIT = 250_000;
 
 /** How long an enterprise trial lasts after it is redeemed. */
-export const ENTERPRISE_TRIAL_DURATION_DAYS = 30;
+export const ENTERPRISE_TRIAL_DURATION_DAYS = 60;
 
 /** Whether the org's enterprise trial has started and not yet ended. */
 export function isEnterpriseTrialActive(

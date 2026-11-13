@@ -33,7 +33,7 @@ describe("redeemEnterpriseTrial", () => {
     await prisma.organization.deleteMany({ where: { id: orgId } });
   });
 
-  it("starts a 30-day trial for a valid code, once per org", async () => {
+  it("starts a 60-day trial for a valid code, once per org", async () => {
     await expect(
       redeemEnterpriseTrial({
         orgId,
@@ -43,14 +43,14 @@ describe("redeemEnterpriseTrial", () => {
       }),
     ).resolves.toEqual({
       startedAt: "2026-11-12T12:00:00.000Z",
-      endsAt: "2026-12-12T12:00:00.000Z",
+      endsAt: "2027-01-11T12:00:00.000Z",
     });
 
     expect(await cloudConfig()).toMatchObject({
       defaultLookBackDays: 7,
       enterpriseTrial: {
         startedAt: "2026-11-12T12:00:00.000Z",
-        endsAt: "2026-12-12T12:00:00.000Z",
+        endsAt: "2027-01-11T12:00:00.000Z",
       },
     });
 
