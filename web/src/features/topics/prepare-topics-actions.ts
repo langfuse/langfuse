@@ -51,7 +51,7 @@ export function prepareTopicsActions({
   menuOnly: boolean;
   onConfigure: () => void;
   onHistory: () => void;
-  /** Opens New map and New snapshot; hidden without write access. */
+  /** Opens New map and New snapshot; disabled without write access. */
   onNewMap?: () => void;
   onNewSnapshot?: () => void;
   /** Why no further map can be created, e.g. the project's limit. */
@@ -97,19 +97,22 @@ export function prepareTopicsActions({
     checked: showUnassigned,
     onCheckedChange: onShowUnassignedChange,
   } as const;
-  // Without write access, creating is hidden rather than disabled.
-  const disabledReason = createDisabledReason(state);
-  const newMap =
-    onNewMap && canWrite
-      ? {
-          onSelect: onNewMap,
-          disabledReason: disabledReason ?? mapDisabledReason,
-        }
-      : null;
-  const newSnapshot =
-    onNewSnapshot && canWrite
-      ? { onSelect: onNewSnapshot, disabledReason }
-      : null;
+  const newMap = onNewMap
+    ? {
+        onSelect: onNewMap,
+        disabledReason: !canWrite
+          ? NO_WRITE_ACCESS
+          : (createDisabledReason(state) ?? mapDisabledReason),
+      }
+    : null;
+  const newSnapshot = onNewSnapshot
+    ? {
+        onSelect: onNewSnapshot,
+        disabledReason: !canWrite
+          ? NO_WRITE_ACCESS
+          : createDisabledReason(state),
+      }
+    : null;
   if (newSnapshot)
     menu.unshift({
       id: "new-snapshot",

@@ -565,13 +565,17 @@ it.each([
   const editMap = screen.getByRole("button", { name: "Edit map" });
   expect(editMap).toHaveProperty("disabled", !canWrite);
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
-  const labels = (await screen.findAllByRole("menuitem")).map(
-    (item) => item.textContent,
-  );
-  expect(labels).not.toContain("Edit map");
-  // Creating needs write access, so it is hidden rather than disabled.
-  expect(labels.includes("New map")).toBe(canWrite);
-  expect(labels.includes("New snapshot")).toBe(canWrite);
+  const items = await screen.findAllByRole("menuitem");
+  expect(items.map((item) => item.textContent)).not.toContain("Edit map");
+  // Every action stays visible; without write access it is disabled with a reason.
+  for (const label of ["New map", "New snapshot"]) {
+    const item = items.find((candidate) => candidate.textContent === label);
+    expect(item).toBeDefined();
+    expect(item!.getAttribute("aria-disabled")).toBe(canWrite ? null : "true");
+    expect(item!.getAttribute("title")).toBe(
+      canWrite ? null : "You need permission to edit Topics.",
+    );
+  }
 });
 
 it.each([

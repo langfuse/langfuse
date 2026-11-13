@@ -7,6 +7,7 @@ import {
   type IconComponent,
 } from "@langfuse/icons";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { FloatingController } from "@/src/components/design-system/FloatingController/FloatingController";
 import { cn } from "@/src/utils/tailwind";
@@ -247,10 +248,9 @@ function CreateButton({
   label: string;
   onChosen: () => void;
 }) {
-  return (
+  const button = (
     <button
       type="button"
-      title={entry.disabledReason}
       disabled={Boolean(entry.disabledReason)}
       onClick={() => {
         onChosen();
@@ -261,6 +261,20 @@ function CreateButton({
       <Icon size="base" color="default" aria-hidden />
       {label}
     </button>
+  );
+  if (!entry.disabledReason) return button;
+  return (
+    // Disabled buttons fire no pointer events, so the tooltip listens on a wrapper.
+    <Tooltip label={entry.disabledReason}>
+      {({ getTriggerProps }) => (
+        <span
+          {...getTriggerProps()}
+          className="flex w-full cursor-not-allowed [&>button]:pointer-events-none"
+        >
+          {button}
+        </span>
+      )}
+    </Tooltip>
   );
 }
 
