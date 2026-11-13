@@ -100,15 +100,27 @@ export function TopicTraceFilterSection({
     <div className="ph-no-capture flex flex-col gap-6">
       <section className="flex flex-col gap-2">
         {description ? (
-          <SectionHeader
-            title={title}
-            meta={null}
-            description={description}
-            tooltip={COPY[kind].tooltip}
-            trailing={
-              <FilterModeToggle mode={model.mode} onChange={model.changeMode} />
-            }
-          />
+          <div className="flex flex-col gap-y-1">
+            <SectionHeader
+              title={title}
+              meta={null}
+              description={null}
+              tooltip={COPY[kind].tooltip}
+              trailing={null}
+            />
+            {/* In narrow dialogs the toggle wraps below the description rather than squeezing it. */}
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-muted-foreground min-w-0 flex-1 basis-56 text-sm">
+                {description}
+              </p>
+              <div className="shrink-0">
+                <FilterModeToggle
+                  mode={model.mode}
+                  onChange={model.changeMode}
+                />
+              </div>
+            </div>
+          </div>
         ) : (
           <div className="flex items-center justify-between gap-2">
             <SectionHeader
