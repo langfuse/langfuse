@@ -71,15 +71,21 @@ function rectsFor(element: HTMLElement): DOMRectList {
   } as unknown as DOMRectList;
 }
 
-function Editor() {
+function Editor({
+  queryTokens = tokens,
+  diagnostics = [],
+}: {
+  queryTokens?: Token[];
+  diagnostics?: { message: string }[];
+}) {
   const controller = useQueryInputController();
   const [value, setValue] = useState(QUERY);
   return (
     <QueryInput
       label="Query"
       value={value}
-      diagnostics={[]}
-      tokens={tokens}
+      diagnostics={diagnostics}
+      tokens={queryTokens}
       placeholder="Filter"
       controller={controller}
       completions={completions}
@@ -148,6 +154,49 @@ describe("QueryInput token tooltip", () => {
     fireEvent.mouseOver(beta!);
     expect(screen.getByTestId("search-bar-token-tooltip")).toHaveTextContent(
       "Beta is the second filter",
+    );
+  });
+
+  it("shows the caret token's error again once suggestions close", () => {
+    vi.spyOn(HTMLElement.prototype, "getClientRects").mockImplementation(
+      function (this: HTMLElement) {
+        return rectsFor(this);
+      },
+    );
+    const invalidTokens = tokens.map((token) =>
+      token.id === "alpha" ? { ...token, error: "Unknown field" } : token,
+    );
+    render(
+      <Editor
+        queryTokens={invalidTokens}
+        diagnostics={[{ message: "Unknown field" }]}
+      />,
+      { wrapper: LayerProvider },
+    );
+
+    const input = screen.getByRole("combobox", { name: "Query" });
+    const [alpha] = screen.getAllByTestId("search-bar-token");
+    fireEvent.focus(input);
+    placeCaret(alpha!, 1);
+    fireEvent.mouseOver(alpha!);
+    fireEvent(
+      input,
+      new InputEvent("beforeinput", {
+        bubbles: true,
+        cancelable: true,
+        inputType: "insertText",
+        data: "x",
+      }),
+    );
+
+    expect(input).toHaveAttribute("aria-expanded", "true");
+    expect(
+      screen.queryByTestId("search-bar-token-tooltip"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(screen.getByTestId("search-bar-token-tooltip")).toHaveTextContent(
+      "Unknown field",
     );
   });
 });

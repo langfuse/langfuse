@@ -1249,9 +1249,10 @@ function QueryInputEditor({
   const removeTarget =
     segments.find((s) => s.editable && s.id === removeTargetId) ?? null;
   // While suggestions are open, the token under the caret shows no tooltip,
-  // so typing does not chase a popover. Its explanation returns once that
-  // list closes; after blur the caret segment is gone, so a resting pointer
-  // explains the token again. A different hovered token is unaffected.
+  // so typing does not chase a popover. Once that list closes, the caret
+  // token's tooltip returns and an error wins the slot over its explanation.
+  // After blur the caret segment is gone, so a resting pointer explains the
+  // token again. A different hovered token is unaffected.
   const caretTokenId = caretSegment?.id ?? null;
   const hoveredSegment =
     hoveredTokenId === null
@@ -1261,22 +1262,26 @@ function QueryInputEditor({
     hoveredSegment !== null && hoveredSegment.id !== caretTokenId
       ? hoveredSegment
       : null;
-  // Error diagnostics still show on a hovered token other than the one being
-  // edited, including while suggestions are open. The tooltip flips above the
-  // bar then, so it does not cover the list (see the render below).
+  // While suggestions are open, an error still shows on a hovered token other
+  // than the one being edited. The tooltip flips above the bar then, so it
+  // does not cover the list (see the render below). Once that list closes,
+  // the hovered token — including the one under the caret — or the caret
+  // token itself shows its error again.
+  const errorSegment =
+    plan !== null ? hoveredOtherSegment : (hoveredSegment ?? caretSegment);
   const errorTarget =
     showTokenDiagnostics &&
-    hoveredOtherSegment !== null &&
-    hoveredOtherSegment.editable &&
-    hoveredOtherSegment.error !== null
-      ? hoveredOtherSegment
+    errorSegment !== null &&
+    errorSegment.editable &&
+    errorSegment.error !== null
+      ? errorSegment
       : null;
 
   // Plain-language explanation, in the same slot — an error wins it. While
   // suggestions are open, skip hover explanations so a resting pointer does
   // not park a tooltip above the bar. Once that list closes, the caret token
-  // explains itself again; after blur the caret segment is gone and the
-  // pointer explains the token it rests on.
+  // explains itself again unless its error took the slot; after blur the
+  // caret segment is gone and the pointer explains the token it rests on.
   const explainTarget = (() => {
     if (errorTarget !== null) return null;
     if (plan !== null) return null;
