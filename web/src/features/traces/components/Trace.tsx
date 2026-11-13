@@ -93,25 +93,53 @@ const DESKTOP_LAYOUTS = {
     groupId: "trace-layout-v3",
     defaultNavigationCollapsed: false,
     expandDetailOnMount: false,
+    defaultDetailCollapsed: false,
   },
   peek: {
     groupId: "trace-layout-peek-v1",
     defaultNavigationCollapsed: false,
     expandDetailOnMount: false,
+    defaultDetailCollapsed: false,
+  },
+  // Observation samples open with the span detail on its rail.
+  "peek-detail-collapsed": {
+    groupId: "trace-layout-observation-detail-collapsed-v1",
+    defaultNavigationCollapsed: false,
+    expandDetailOnMount: false,
+    defaultDetailCollapsed: true,
   },
   "peek-observation-focused": {
     groupId: "trace-layout-peek-navigation-collapsed-v1",
     defaultNavigationCollapsed: true,
     expandDetailOnMount: false,
+    defaultDetailCollapsed: false,
   },
   annotation: {
     groupId: "trace-layout-annotation-v1",
     defaultNavigationCollapsed: true,
     expandDetailOnMount: true,
+    defaultDetailCollapsed: false,
   },
 } as const;
 
 type DesktopLayout = (typeof DESKTOP_LAYOUTS)[keyof typeof DESKTOP_LAYOUTS];
+type DesktopLayoutKey = keyof typeof DESKTOP_LAYOUTS;
+
+function desktopLayoutKeyFor({
+  presentation,
+  traceContext,
+  layout,
+}: {
+  presentation: TracePresentation | null;
+  traceContext: "fullscreen" | "peek" | "annotation";
+  layout: TraceProps["layout"];
+}): DesktopLayoutKey {
+  if (presentation === "observation") return "peek-detail-collapsed";
+  if (traceContext === "peek" && layout === "observation-focused") {
+    return "peek-observation-focused";
+  }
+  return traceContext;
+}
 
 /**
  * SelectionProvider sits ABOVE the trace data so the selected observation can be
@@ -120,18 +148,18 @@ type DesktopLayout = (typeof DESKTOP_LAYOUTS)[keyof typeof DESKTOP_LAYOUTS];
  */
 export function Trace(props: TraceProps | TraceLoadingProps) {
   const traceContext = props.context ?? "fullscreen";
-  const desktopLayoutKey =
-    traceContext === "peek" && props.layout === "observation-focused"
-      ? "peek-observation-focused"
-      : traceContext;
+  const presentation = props.presentation ?? null;
+  const desktopLayoutKey = desktopLayoutKeyFor({
+    presentation,
+    traceContext,
+    layout: props.layout,
+  });
   const desktopLayout = DESKTOP_LAYOUTS[desktopLayoutKey];
   const isMobile = useIsMobile();
   const trace = props.isLoading === true ? null : props.trace;
   const observations = props.isLoading === true ? null : props.observations;
   const preferredObservationId =
     props.isLoading === true ? null : (props.preferredObservationId ?? null);
-  const presentation =
-    props.isLoading === true ? null : (props.presentation ?? null);
   const defaultObservationId = useMemo(
     () =>
       preferredObservationId ??
@@ -147,6 +175,7 @@ export function Trace(props: TraceProps | TraceLoadingProps) {
             defaultObservationId={defaultObservationId}
             isMobile={isMobile}
             expandDetailOnMount={desktopLayout.expandDetailOnMount}
+            collapseDetailInitially={desktopLayout.defaultDetailCollapsed}
           >
             {props.isLoading === true ? (
               <TraceLoading
@@ -164,7 +193,10 @@ export function Trace(props: TraceProps | TraceLoadingProps) {
 }
 
 /** Layout only, before the trace arrives; each panel draws its own placeholder. */
-type TraceLoadingProps = Pick<TraceProps, "context" | "layout" | "header"> & {
+type TraceLoadingProps = Pick<
+  TraceProps,
+  "context" | "layout" | "header" | "presentation"
+> & {
   isLoading: true;
 };
 

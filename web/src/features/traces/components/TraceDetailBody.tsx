@@ -45,7 +45,13 @@ export function TraceDetailBody({
   );
   if (!trace)
     return (
-      <Trace isLoading context={context} layout={layout} header={header} />
+      <Trace
+        isLoading
+        context={context}
+        layout={layout}
+        header={header}
+        presentation={presentation}
+      />
     );
   return (
     <Trace
