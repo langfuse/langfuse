@@ -512,14 +512,15 @@ export async function listEvaluatorOptions(params: {
     where: {
       projectId: params.projectId,
       ...visibleEvaluatorWhere,
-      ...(params.search
-        ? {
-            name: {
-              contains: escapeSqlLikePattern(params.search),
-              mode: "insensitive",
-            },
-          }
-        : {}),
+      // Every whitespace-separated term must appear in the name, in any order.
+      AND: (params.search?.split(/\s+/) ?? [])
+        .filter((term) => term !== "")
+        .map((term) => ({
+          name: {
+            contains: escapeSqlLikePattern(term),
+            mode: "insensitive" as const,
+          },
+        })),
       ...(params.excludeLegacyEvaluators ? batchEligibleEvaluatorWhere : {}),
     },
     orderBy: [{ name: "asc" }, { id: "asc" }],

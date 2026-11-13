@@ -3,6 +3,7 @@ import {
   buildCreateActions,
   buildPageShortcuts,
   getEntityBaseUrl,
+  getEvaluatorNameSearch,
   getIdNavigationItem,
   getRecentPickAnalytics,
   getSearchAnalytics,
@@ -286,5 +287,17 @@ describe("toEntityGroup", () => {
       toEntityGroup("evaluator", null, [{ id: "e1", name: "Toxicity" }], "")
         .items,
     ).toEqual([]);
+  });
+});
+
+describe("getEvaluatorNameSearch", () => {
+  it.each([
+    ["evaluator", undefined],
+    ["eval", undefined],
+    ["Toxicity eval", "toxicity"],
+    ["evaluator tox  Hallucination", "tox hallucination"],
+    ["  ", undefined],
+  ])("searches names for %j with %j", (search, expected) => {
+    expect(getEvaluatorNameSearch(search)).toBe(expected);
   });
 });

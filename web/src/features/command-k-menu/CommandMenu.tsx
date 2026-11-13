@@ -1252,7 +1252,7 @@ function useEntityGroups(
     {
       projectId,
       limit: ENTITY_LIMIT,
-      search: debouncedSearch.trim() || undefined,
+      search: getEvaluatorNameSearch(debouncedSearch),
     },
     {
       enabled: open && evaluatorsUrl !== null,
@@ -1427,6 +1427,20 @@ export function toEntityGroup(
       url: `${baseUrl}/${encodeURIComponent(row[pathKey])}`,
     })),
   };
+}
+
+/**
+ * Name terms for the server-side evaluator search. The server matches every
+ * term against the name only, while the menu also accepts a match on the
+ * group keywords, so terms the keywords satisfy are left out.
+ */
+export function getEvaluatorNameSearch(search: string): string | undefined {
+  const keywordText = ENTITY_GROUPS.evaluator.keywords.join(" ");
+  const nameTerms = search
+    .toLowerCase()
+    .split(" ")
+    .filter((term) => term !== "" && !keywordText.includes(term));
+  return nameTerms.join(" ") || undefined;
 }
 
 /** Every space-separated search term appears in the text, ignoring case. */
