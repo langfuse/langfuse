@@ -203,10 +203,9 @@ export const StartRules = meta.story({
       "Billing questions",
     );
     await expect(create).toBeEnabled();
-    // 42 summaries alone still start, as a small sample with a recommendation.
+    // 42 summaries alone still start, with a recommendation for 100.
     await userEvent.click(toggle);
     await expect(create).toBeEnabled();
-    await expect(body.getByText("SMALL SAMPLE")).toBeInTheDocument();
     await expect(
       body.getByText(/We recommend at least 100/),
     ).toBeInTheDocument();

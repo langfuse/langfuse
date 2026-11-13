@@ -1,7 +1,6 @@
 import { useId, type ReactNode } from "react";
 import { Camera, Clock, Info, Layers, Sparkles } from "@langfuse/icons";
 import { type TopicFacet } from "@langfuse/shared/topics";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Input } from "@/src/components/design-system/Input/Input";
@@ -312,9 +311,6 @@ function SnapshotSummary({
         {extra > 0
           ? `~${count(grouped)} traces will be grouped (${count(preview.summarizedCount)} summarized + up to ${count(extra)} new)`
           : `${count(grouped)} summarized traces will be grouped`}
-        {smallSample ? (
-          <Badge text="SMALL SAMPLE" size="sm" color="info" />
-        ) : null}
       </span>
       {smallSample ? (
         <span className="flex items-center gap-2">
