@@ -135,6 +135,73 @@ describe("useEventsFilterOptions filtered facet counts (LFE-14489)", () => {
     mocks.bulkClient?.clear();
   });
 
+  it("reports deferred facets and approximate count as loading", () => {
+    mocks.bulkData = undefined as never;
+    const { result, rerender } = renderHook(
+      ({ deferred }) =>
+        useEventsFilterOptions({
+          projectId: "p",
+          startTimeFilter: [START_TIME],
+          includeApproxCount: true,
+          lazy: true,
+          enabled: false,
+          deferred,
+        }),
+      { initialProps: { deferred: true } },
+    );
+    expect(result.current.isFilterOptionsPending).toBe(true);
+    expect(result.current.isApproxTotalCountLoading).toBe(true);
+
+    rerender({ deferred: false });
+    expect(result.current.isFilterOptionsPending).toBe(false);
+    expect(result.current.isApproxTotalCountLoading).toBe(false);
+  });
+
+  it("keeps loaded facet data visible and marks missing facets loading while deferred", () => {
+    mocks.bulkData = {
+      environment: [{ value: "production", count: 120 }],
+      approxTotalCount: 120,
+    };
+    mocks.bulkClient = new QueryClient();
+    const { result } = renderHook(() =>
+      useEventsFilterOptions({
+        projectId: "p",
+        startTimeFilter: [START_TIME],
+        includeApproxCount: true,
+        lazy: true,
+        enabled: false,
+        deferred: true,
+      }),
+    );
+
+    expect(result.current.isFilterOptionsPending).toBe(false);
+    expect(result.current.isApproxTotalCountLoading).toBe(false);
+    expect(result.current.approxTotalCount).toBe(120);
+    expect(result.current.loadingColumns?.has("environment")).toBe(false);
+    expect(result.current.loadingColumns?.has("name")).toBe(true);
+  });
+
+  it("reports requested bulk and per-column facets as loading while deferred", () => {
+    const { result, rerender } = renderHook(
+      ({ deferred }) =>
+        useEventsFilterOptions({
+          projectId: "p",
+          startTimeFilter: [START_TIME],
+          refiningFilter: [ENV_PROD, LEVEL_ERROR],
+          lazy: true,
+          enabled: false,
+          deferred,
+        }),
+      { initialProps: { deferred: true } },
+    );
+    expect([...(result.current.loadingColumns ?? [])]).toEqual(
+      expect.arrayContaining(["environment", "level", "name"]),
+    );
+
+    rerender({ deferred: false });
+    expect(result.current.loadingColumns?.size).toBe(0);
+  });
+
   it("retains counts across column changes and only clears counts across scope changes", () => {
     const environment = [{ value: "production", count: 120 }];
     mocks.bulkData = {
