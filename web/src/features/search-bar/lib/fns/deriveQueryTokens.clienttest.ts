@@ -5,6 +5,55 @@ import * as validation from "../validate";
 import { createTokenFacetState } from "./tokenFacet";
 
 describe("deriveQueryTokens", () => {
+  it("keeps complete two-value collections interactive without compacting their source", () => {
+    for (const expression of [
+      "name:(alpha OR beta)",
+      "-name:(alpha OR beta)",
+      "tags:(alpha AND beta)",
+      "NOT (name:(alpha OR beta))",
+    ]) {
+      const draft = `${expression} level:ERROR`;
+      const token = deriveQueryTokens({
+        draft,
+        scoreTypes: undefined,
+        registry: EVENTS_FIELD_REGISTRY,
+        showDiagnostics: true,
+        fieldReason: undefined,
+        freeTextReason: undefined,
+      }).find((candidate) => candidate.raw.includes("alpha"));
+      const raw = expression.includes("AND")
+        ? "(alpha AND beta)"
+        : "(alpha OR beta)";
+      const from = draft.indexOf(raw);
+      expect(token?.collection).toMatchObject({
+        compact: false,
+        values: ["alpha", "beta"],
+        atom: { raw, from, to: from + raw.length },
+      });
+      expect(
+        createTokenFacetState(draft, token!, EVENTS_FIELD_REGISTRY),
+      ).not.toBe(null);
+    }
+    for (const draft of [
+      "name:(alpha OR beta",
+      "name:alpha",
+      "name:=alpha",
+      "name:(alpha)",
+      "name:alpha,beta",
+    ]) {
+      expect(
+        deriveQueryTokens({
+          draft,
+          scoreTypes: undefined,
+          registry: EVENTS_FIELD_REGISTRY,
+          showDiagnostics: true,
+          fieldReason: undefined,
+          freeTextReason: undefined,
+        }).every((token) => token.collection === undefined),
+      ).toBe(true);
+    }
+  });
+
   it("keeps a complete value list folded while its key is unknown without hiding value errors", () => {
     const project = (draft: string, registry = EVENTS_FIELD_REGISTRY) =>
       deriveQueryTokens({
@@ -15,32 +64,35 @@ describe("deriveQueryTokens", () => {
         fieldReason: undefined,
         freeTextReason: undefined,
       });
-    for (const key of ["n", "unknown.field", ""]) {
-      const draft = `${key}:(alpha OR beta OR gamma)`;
-      const [token] = project(draft);
-      expect(token?.kind).toBe("invalid");
-      expect(token?.error).toContain(`Unknown field "${key}"`);
-      expect(
-        validation
-          .validateQuery(draft)
-          .diagnostics.every(
-            (diagnostic) => diagnostic.code === "unknown-field",
-          ),
-      ).toBe(true);
-      expect(token?.summary?.atom).toEqual({
-        from: key.length + 1,
-        to: draft.length,
-        raw: "(alpha OR beta OR gamma)",
-      });
+    for (const values of ["alpha OR beta", "alpha OR beta OR gamma"]) {
+      for (const key of ["n", "unknown.field", ""]) {
+        const raw = `(${values})`;
+        const draft = `${key}:${raw}`;
+        const [token] = project(draft);
+        expect(token?.kind).toBe("invalid");
+        expect(token?.error).toContain(`Unknown field "${key}"`);
+        expect(
+          validation
+            .validateQuery(draft)
+            .diagnostics.every(
+              (diagnostic) => diagnostic.code === "unknown-field",
+            ),
+        ).toBe(true);
+        expect(token?.collection?.atom).toEqual({
+          from: key.length + 1,
+          to: draft.length,
+          raw,
+        });
+      }
     }
     for (const draft of [
       "latency:(alpha OR beta OR gamma)",
       "name:(alpha OR beta OR)",
       "n:(alpha OR beta OR)",
     ]) {
-      expect(project(draft).every((token) => token.summary === undefined)).toBe(
-        true,
-      );
+      expect(
+        project(draft).every((token) => token.collection === undefined),
+      ).toBe(true);
     }
     expect(
       project('"Unavailable".name:(alpha OR beta OR gamma)', {
@@ -50,7 +102,7 @@ describe("deriveQueryTokens", () => {
           supports: () => true,
           targets: [{ id: "all", label: "All", keyword: true }],
         },
-      }).every((token) => token.summary === undefined),
+      }).every((token) => token.collection === undefined),
     ).toBe(true);
 
     const draft = "reworded:(alpha OR beta OR gamma)";
@@ -66,7 +118,7 @@ describe("deriveQueryTokens", () => {
     try {
       const [token] = project(draft);
       expect(token?.error).toBe("This field name is not recognized");
-      expect(token?.summary?.atom.raw).toBe("(alpha OR beta OR gamma)");
+      expect(token?.collection?.atom.raw).toBe("(alpha OR beta OR gamma)");
     } finally {
       reworded.mockRestore();
     }
@@ -107,20 +159,20 @@ describe("deriveQueryTokens", () => {
         showDiagnostics: true,
         fieldReason: undefined,
         freeTextReason: undefined,
-      }).find((candidate) => candidate.summary !== undefined)!;
+      }).find((candidate) => candidate.collection !== undefined)!;
       const from = draft.indexOf(valueSource!);
       const to = from + valueSource!.length;
-      expect(token.summary?.atom).toEqual({ from, to, raw: valueSource });
+      expect(token.collection?.atom).toEqual({ from, to, raw: valueSource });
       const prefix = token
-        .summary!.groups[0]!.parts.map((part) => part.text)
+        .collection!.groups[0]!.parts.map((part) => part.text)
         .join("");
       const suffix = token
-        .summary!.groups.slice(2)
+        .collection!.groups.slice(2)
         .flatMap((group) => group.parts.map((part) => part.text))
         .join("");
       expect(prefix + valueSource + suffix).toBe(token.raw);
       expect(
-        draft.slice(0, from) + token.summary!.atom.raw + draft.slice(to),
+        draft.slice(0, from) + token.collection!.atom.raw + draft.slice(to),
       ).toBe(draft);
     }
   });
@@ -162,8 +214,8 @@ describe("deriveQueryTokens", () => {
         fieldReason: undefined,
         freeTextReason: undefined,
       });
-      expect(token?.summary?.values).toEqual(["alpha", "beta", "gamma"]);
-      expect(token?.summary?.label).toContain(`${relation} 3 values`);
+      expect(token?.collection?.values).toEqual(["alpha", "beta", "gamma"]);
+      expect(token?.collection?.label).toContain(`${relation} 3 values`);
       expect(token?.raw).toBe(draft);
       expect(
         token?.groups
@@ -183,10 +235,10 @@ describe("deriveQueryTokens", () => {
       fieldReason: undefined,
       freeTextReason: undefined,
     });
-    const group = tokens.find((token) => token.summary !== undefined);
-    expect(group?.summary?.label).toBe("Name none of 3 values");
+    const group = tokens.find((token) => token.collection !== undefined);
+    expect(group?.collection?.label).toBe("Name none of 3 values");
     expect(group?.raw).toBe(draft.slice(group?.from, group?.to));
-    expect(group?.summary?.groups[1]?.parts).toEqual([
+    expect(group?.collection?.groups[1]?.parts).toEqual([
       { text: "alpha", tone: "value" },
     ]);
     expect(
@@ -214,7 +266,7 @@ describe("deriveQueryTokens", () => {
         createTokenFacetState(draft, collection, EVENTS_FIELD_REGISTRY),
       ).toBe(null);
       expect(collection.editable).toBe(true);
-      expect(collection.summary).toBeUndefined();
+      expect(collection.collection).toBeUndefined();
     }
   });
 

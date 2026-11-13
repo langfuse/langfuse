@@ -180,6 +180,13 @@ export const TestCompactGroupEditing = meta.story({
   },
   args: {
     initialDraft: "name:(request-a OR request-b OR request-c) level:ERROR ",
+    observed: {
+      name: [
+        { value: "request-a" },
+        { value: "request-b" },
+        { value: "request-c" },
+      ],
+    },
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
@@ -213,6 +220,42 @@ export const TestCompactGroupEditing = meta.story({
     await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(group).toHaveFocus());
     await expect(group).toHaveAttribute("aria-expanded", "false");
+    await userEvent.keyboard(" ");
+    dialog = await body.findByRole("dialog", { name: "Edit filter values" });
+    await userEvent.click(
+      within(dialog).getByRole("checkbox", { name: "request-c" }),
+    );
+    await expect(dialog).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+    const inlineValues = canvas.getByRole("button", { name: /Edit.*2 values/ });
+    await waitFor(() => expect(inlineValues).toHaveFocus());
+    await expect(inlineValues).toHaveTextContent("(request-a OR request-b)");
+    const valuesClipboard = new DataTransfer();
+    inlineValues.dispatchEvent(
+      new ClipboardEvent("copy", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData: valuesClipboard,
+      }),
+    );
+    await expect(valuesClipboard.getData("text/plain")).toBe(
+      "(request-a OR request-b)",
+    );
+    await userEvent.keyboard("{ArrowLeft}");
+    await expect(input).toHaveFocus();
+    await userEvent.keyboard("{ArrowRight}");
+    await expect(inlineValues).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+    dialog = await body.findByRole("dialog", { name: "Edit filter values" });
+    await userEvent.click(
+      within(dialog).getByRole("checkbox", { name: "request-c" }),
+    );
+    await userEvent.keyboard("{Escape}");
+    const compactValues = canvas.getByRole("button", {
+      name: /Edit.*3 values/,
+    });
+    await waitFor(() => expect(compactValues).toHaveFocus());
+    await expect(compactValues).toHaveTextContent("+2");
     await userEvent.keyboard(" ");
     dialog = await body.findByRole("dialog", { name: "Edit filter values" });
     await userEvent.click(
@@ -350,9 +393,34 @@ export const TestPickerKeyboardFocus = meta.story({
     const dialog = await body.findByRole("dialog", {
       name: "Edit filter values",
     });
-    await expect(
-      within(dialog).getByRole("textbox", { name: "Filter values" }),
-    ).toHaveFocus();
+    const search = within(dialog).getByRole("textbox", {
+      name: "Filter values",
+    });
+    await expect(search).toHaveFocus();
+    const outset = Math.max(
+      0,
+      ...Array.from(
+        getComputedStyle(search).boxShadow.matchAll(/0px 0px 0px ([\d.]+)px/g),
+        (match) => Number(match[1]),
+      ),
+    );
+    await expect(outset).toBeGreaterThan(0);
+    await waitFor(() => {
+      for (
+        let ancestor = search.parentElement;
+        ancestor !== null && ancestor !== dialog;
+        ancestor = ancestor.parentElement
+      ) {
+        if (
+          /auto|scroll|hidden|clip/.test(getComputedStyle(ancestor).overflowY)
+        )
+          expect(
+            search.getBoundingClientRect().top - outset,
+          ).toBeGreaterThanOrEqual(
+            ancestor.getBoundingClientRect().top + ancestor.clientTop,
+          );
+      }
+    });
     await userEvent.keyboard("{ArrowDown}");
     const checkbox = within(dialog).getByRole("checkbox", { name: "value-0" });
     await expect(checkbox).toHaveFocus();

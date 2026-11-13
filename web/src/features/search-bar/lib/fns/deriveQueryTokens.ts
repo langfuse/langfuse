@@ -39,11 +39,11 @@ export function deriveQueryTokens(options: ProjectionOptions) {
     if (filter === undefined) return token;
     const layout = filterLayoutOf(filter);
     const subject = token.explanation?.subject ?? filter.displayField;
-    const summary = collectionSummary(filter, subject, layout);
+    const collection = valueCollection(filter, subject, layout);
     return {
       ...token,
       groups: [layout.fieldGroup, layout.valueGroup],
-      ...(summary ? { summary } : {}),
+      ...(collection ? { collection } : {}),
     };
   });
 }
@@ -135,12 +135,12 @@ function filterLayoutOf(segment: FilterPresentation): FilterLayout {
   };
 }
 
-function collectionSummary(
+function valueCollection(
   segment: FilterPresentation,
   subject: string,
   layout: FilterLayout,
-): QueryToken["summary"] {
-  if (segment.values.length <= 2 || segment.collectionEditable === false)
+): QueryToken["collection"] {
+  if (segment.values.length < 2 || segment.collectionEditable === false)
     return undefined;
   let relation = "any of";
   if (segment.negated !== (segment.inheritedNegation ?? false))
@@ -152,6 +152,10 @@ function collectionSummary(
       ? segment.target.from
       : segment.raw.length;
   while (to > from && /\s/.test(segment.raw[to - 1]!)) to--;
+  const raw = segment.raw.slice(from, to);
+  const compact = segment.values.length > 2;
+  if (!compact && (!raw.startsWith("(") || !raw.endsWith(")")))
+    return undefined;
   const valueParts: TokenPart[] = [];
   if (relation !== "any of" && !segment.inheritedNegation)
     valueParts.push({
@@ -175,11 +179,12 @@ function collectionSummary(
     atom: {
       from: segment.from + from,
       to: segment.from + to,
-      raw: segment.raw.slice(from, to),
+      raw,
     },
     label: `${subject} ${relation} ${segment.values.length} values`,
     previewLabel: `${subject} ${relation === "any of" ? "" : `${relation} `}${segment.values.length} values`,
     values: segment.values,
+    compact,
     groups,
   };
 }

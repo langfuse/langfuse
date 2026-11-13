@@ -180,13 +180,13 @@ export function SearchComposer({
     if (restoreValuePickerFocusRef.current) {
       const focus = valuePickerFocusRef.current;
       const currentToken = tokens.find(
-        (token) => token.from === focus?.from && token.summary !== undefined,
+        (token) => token.from === focus?.from && token.collection !== undefined,
       );
       let currentTrigger = focus?.trigger.isConnected ? focus.trigger : null;
       if (currentTrigger === null && currentToken !== undefined)
         currentTrigger =
           focus?.editor?.querySelector<HTMLButtonElement>(
-            `[data-segment-id="${CSS.escape(currentToken.id)}"] [data-query-summary]`,
+            `[data-segment-id="${CSS.escape(currentToken.id)}"] [data-query-collection]`,
           ) ?? null;
       (currentTrigger ?? focus?.editor)?.focus();
       controller.setAutocompleteOpen(false);

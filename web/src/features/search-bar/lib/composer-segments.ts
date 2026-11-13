@@ -311,7 +311,7 @@ export function deriveComposerSegments(
         message: messages.join("; "),
         editable: true,
         ...(matchedLeaf?.kind === "filter" &&
-        matchedLeaf.node.values.length > 2 &&
+        matchedLeaf.node.values.length >= 2 &&
         hasOnlyUnknownFieldErrors(diagnostics, matchedLeaf, draftText)
           ? { filter: filterPresentation(matchedLeaf, registry) }
           : {}),

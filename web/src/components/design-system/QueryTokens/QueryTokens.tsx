@@ -83,8 +83,8 @@ export function QueryTokens({
     inactiveReason: string | null;
     kind: "filter" | "freeText" | "operator" | "paren" | "invalid";
     groups?: readonly TokenGroup[];
-    /** A display projection; raw and offsets always describe the complete query. */
-    summary?: {
+    /** An interactive value collection over complete source, with optional compaction. */
+    collection?: {
       /** Absolute source range for the non-editable value collection only. */
       atom: { from: number; to: number; raw: string };
       /** Field prefix, value preview, then any trailing target groups. */
@@ -92,6 +92,7 @@ export function QueryTokens({
       label: string;
       previewLabel: string;
       values: readonly string[];
+      compact: boolean;
     };
   }[];
   highlightedTokenId?: string | null;
@@ -113,26 +114,31 @@ export function QueryTokens({
         </span>
       ));
   for (const token of tokens) {
-    const summary = onActivateToken === undefined ? undefined : token.summary;
+    const collection =
+      onActivateToken === undefined ? undefined : token.collection;
     if (token.from > cursor)
       content.push(
         ...plainText(value.slice(cursor, token.from), `gap:${cursor}`),
       );
     let tokenContent: ReactNode = token.raw;
-    if (summary !== undefined) {
+    if (collection !== undefined) {
       tokenContent = (
         <>
-          {renderGroups(summary.groups.slice(0, 1), false)}
+          {renderGroups(collection.groups.slice(0, 1), false)}
           <span
-            data-query-source={summary.atom.raw}
+            data-query-source={collection.atom.raw}
             contentEditable={false}
-            className="ml-1 inline-flex h-6 max-w-full items-center align-bottom"
+            className={cn(
+              collection.compact
+                ? "ml-1 inline-flex h-6 max-w-full items-center align-bottom"
+                : "inline",
+            )}
           >
             <button
               type="button"
-              data-query-summary
+              data-query-collection
               disabled={token.error !== null}
-              aria-label={`Edit ${summary.label}${token.inactiveReason === null ? "" : `. Not applied on this view: ${token.inactiveReason}`}`}
+              aria-label={`Edit ${collection.label}${token.inactiveReason === null ? "" : `. Not applied on this view: ${token.inactiveReason}`}`}
               aria-haspopup="dialog"
               aria-expanded={tokenEditor?.from === token.from}
               aria-controls={
@@ -144,20 +150,31 @@ export function QueryTokens({
               onClick={(event) =>
                 onActivateToken?.(token.id, event.currentTarget)
               }
-              className="border-border-contrast bg-secondary focus-visible:ring-ring hover:border-foreground/40 hover:bg-accent aria-expanded:border-foreground/40 aria-expanded:bg-accent inline-flex h-5.5 max-w-full min-w-0 cursor-pointer items-center gap-1 rounded-md border px-1.5 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none"
+              className={cn(
+                "focus-visible:ring-ring max-w-full cursor-pointer text-left transition-colors focus-visible:ring-2 focus-visible:outline-none",
+                collection.compact
+                  ? "border-border-contrast bg-secondary hover:border-foreground/40 hover:bg-accent aria-expanded:border-foreground/40 aria-expanded:bg-accent inline-flex h-5.5 min-w-0 items-center gap-1 rounded-md border px-1.5"
+                  : "text-qlang-value hover:bg-accent aria-expanded:bg-accent inline rounded-sm align-baseline wrap-anywhere whitespace-pre-wrap",
+              )}
             >
-              {renderGroups(summary.groups.slice(1, 2), true)}
-              <span className="bg-background/70 text-muted-foreground shrink-0 rounded-sm px-1 font-sans text-[10px] leading-4">
-                +{summary.values.length - 1}
-              </span>
-              <ChevronDown
-                size="sm"
-                __rawClassName="text-muted-foreground shrink-0"
-                aria-hidden
-              />
+              {collection.compact ? (
+                <>
+                  {renderGroups(collection.groups.slice(1, 2), true)}
+                  <span className="bg-background/70 text-muted-foreground shrink-0 rounded-sm px-1 font-sans text-[10px] leading-4">
+                    +{collection.values.length - 1}
+                  </span>
+                  <ChevronDown
+                    size="sm"
+                    __rawClassName="text-muted-foreground shrink-0"
+                    aria-hidden
+                  />
+                </>
+              ) : (
+                collection.atom.raw
+              )}
             </button>
           </span>
-          {renderGroups(summary.groups.slice(2), false)}
+          {renderGroups(collection.groups.slice(2), false)}
         </>
       );
     } else if (token.groups !== undefined) {
@@ -174,15 +191,15 @@ export function QueryTokens({
         data-deactivated={token.inactiveReason !== null || undefined}
         className={cn(
           "ph-no-capture max-w-full",
-          summary === undefined
+          collection === undefined
             ? tokenStyles[token.kind]
             : "inline rounded-sm border border-transparent px-1.5 py-0.5",
-          summary !== undefined &&
+          collection !== undefined &&
             token.kind === "invalid" &&
             "border-destructive/70 bg-destructive/10 text-destructive border-dashed",
           token.inactiveReason !== null &&
             "line-through decoration-1 opacity-50",
-          summary === undefined &&
+          collection === undefined &&
             token.id === highlightedTokenId &&
             "border-ring",
         )}

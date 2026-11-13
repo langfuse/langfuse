@@ -120,7 +120,7 @@ export function FilterValuesPopover({
           Loading values…
         </p>
       ) : null}
-      <div className="max-h-[min(420px,55vh)] overflow-y-auto pb-1">
+      <div className="max-h-[min(420px,55vh)] overflow-y-auto py-1">
         <CategoricalFilterSelect
           filterKey={state.template.key}
           loading={pending && model.options.length === 0}

@@ -931,10 +931,10 @@ function QueryInputEditor({
   })();
   const explainTargetId = explainTarget?.id ?? null;
   const collectionPreview =
-    onEditToken !== undefined && explainTarget?.summary !== undefined;
+    onEditToken !== undefined && explainTarget?.collection !== undefined;
   const explanation = (() => {
-    if (onEditToken !== undefined && explainTarget?.summary !== undefined) {
-      return { subject: explainTarget.summary.previewLabel, predicate: "" };
+    if (onEditToken !== undefined && explainTarget?.collection !== undefined) {
+      return { subject: explainTarget.collection.previewLabel, predicate: "" };
     }
     return explainTarget?.explanation ?? null;
   })();
@@ -965,14 +965,14 @@ function QueryInputEditor({
   const onKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
     if (event.nativeEvent.isComposing) return;
     if (event.key !== "Escape") setTooltipDismissed(false);
-    const summaryButton =
+    const collectionButton =
       event.target instanceof Element
-        ? event.target.closest("[data-query-summary]")
+        ? event.target.closest("[data-query-collection]")
         : null;
-    const summaryRoot = rootRef.current;
-    const summaryAtom =
-      summaryRoot !== null && summaryButton !== null
-        ? sourceAtomForNode(summaryRoot, summaryButton)
+    const collectionRoot = rootRef.current;
+    const collectionAtom =
+      collectionRoot !== null && collectionButton !== null
+        ? sourceAtomForNode(collectionRoot, collectionButton)
         : null;
 
     if (
@@ -980,19 +980,19 @@ function QueryInputEditor({
       (event.key === "z" || event.key === "Z")
     ) {
       event.preventDefault();
-      if (summaryAtom !== null) focusEditorAt(summaryAtom.to);
+      if (collectionAtom !== null) focusEditorAt(collectionAtom.to);
       if (event.shiftKey) redo();
       else undo();
       return;
     }
     if ((event.metaKey || event.ctrlKey) && event.key === "y") {
       event.preventDefault();
-      if (summaryAtom !== null) focusEditorAt(summaryAtom.to);
+      if (collectionAtom !== null) focusEditorAt(collectionAtom.to);
       redo();
       return;
     }
 
-    if (summaryButton !== null) {
+    if (collectionButton !== null) {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "a") {
         const root = rootRef.current;
         if (root !== null) {
@@ -1014,10 +1014,10 @@ function QueryInputEditor({
         !event.ctrlKey &&
         !event.metaKey
       ) {
-        if (summaryAtom !== null) {
+        if (collectionAtom !== null) {
           event.preventDefault();
           focusEditorAt(
-            event.key === "ArrowLeft" ? summaryAtom.from : summaryAtom.to,
+            event.key === "ArrowLeft" ? collectionAtom.from : collectionAtom.to,
           );
         }
       }
@@ -1129,7 +1129,7 @@ function QueryInputEditor({
       const collection = sourceAtomAtOffset(root, target);
       if (collection !== null) {
         const button = collection.element.querySelector<HTMLButtonElement>(
-          "[data-query-summary]",
+          "[data-query-collection]",
         );
         if (button !== null && !button.disabled) {
           event.preventDefault();
@@ -1263,7 +1263,7 @@ function QueryInputEditor({
   const onCut = (event: React.ClipboardEvent<HTMLElement>) => {
     if (
       event.target instanceof Element &&
-      event.target.closest("[data-query-summary]")
+      event.target.closest("[data-query-collection]")
     ) {
       event.preventDefault();
       return;
@@ -1283,7 +1283,7 @@ function QueryInputEditor({
     event.preventDefault();
     if (
       event.target instanceof Element &&
-      event.target.closest("[data-query-summary]")
+      event.target.closest("[data-query-collection]")
     )
       return;
     // Collapse only line-breaking whitespace/tabs (single-line surface);
@@ -1407,8 +1407,8 @@ function QueryInputEditor({
   // description regardless of the popover — including the "not applied" note,
   // which the visible tooltip also carries.
   const caretExplanation = (() => {
-    if (onEditToken !== undefined && caretSegment?.summary !== undefined) {
-      return { subject: caretSegment.summary.label, predicate: "" };
+    if (onEditToken !== undefined && caretSegment?.collection !== undefined) {
+      return { subject: caretSegment.collection.label, predicate: "" };
     }
     return caretSegment?.explanation ?? null;
   })();
@@ -1447,15 +1447,15 @@ function QueryInputEditor({
   > | null>(null);
   const preferTooltipAbove = plan !== null;
   const removeTargetIdActual = removeTarget?.id ?? null;
-  const compactRemoveTarget =
-    onEditToken !== undefined && removeTarget?.summary !== undefined;
+  const collectionRemoveTarget =
+    onEditToken !== undefined && removeTarget?.collection !== undefined;
   const measurePositions = React.useCallback(() => {
     const root = rootRef.current;
     const container = containerRef.current;
     const rectsOf = (id: string | null): DOMRect[] => {
       if (root === null || id === null) return [];
       const el = root.querySelector(`[data-segment-id="${CSS.escape(id)}"]`);
-      const anchor = el?.querySelector("[data-query-summary]") ?? el;
+      const anchor = el?.querySelector("[data-query-collection]") ?? el;
       const bounds = root.getBoundingClientRect();
       return anchor === null
         ? []
@@ -1472,7 +1472,9 @@ function QueryInputEditor({
       const containerRect = container.getBoundingClientRect();
       const next = {
         left:
-          lastRect.right - containerRect.left - (compactRemoveTarget ? 6 : 10),
+          lastRect.right -
+          containerRect.left -
+          (collectionRemoveTarget ? 6 : 10),
         top: lastRect.top - containerRect.top - 12,
       };
       setRemovePosition((previous) =>
@@ -1515,7 +1517,7 @@ function QueryInputEditor({
     );
   }, [
     collectionPreview,
-    compactRemoveTarget,
+    collectionRemoveTarget,
     preferTooltipAbove,
     removeTargetIdActual,
     tooltipTargetId,
@@ -1621,10 +1623,10 @@ function QueryInputEditor({
                       predicate, so no dangling space before the period. */}
               {explanation?.predicate !== "" && <> {explanation?.predicate}</>}
               {onEditToken !== undefined &&
-                explainTarget?.summary !== undefined && (
+                explainTarget?.collection !== undefined && (
                   <div className="mt-1 border-t pt-1">
                     <ul className="flex flex-col gap-1 font-mono">
-                      {explainTarget.summary.values
+                      {explainTarget.collection.values
                         .slice(0, 6)
                         .map((value, index) => (
                           <li key={index} title="" className="truncate">
@@ -1633,8 +1635,8 @@ function QueryInputEditor({
                         ))}
                     </ul>
                     <span className="text-muted-foreground mt-1 block">
-                      {explainTarget.summary.values.length > 6 &&
-                        `${explainTarget.summary.values.length - 6} more values. `}
+                      {explainTarget.collection.values.length > 6 &&
+                        `${explainTarget.collection.values.length - 6} more values. `}
                       {explainTarget.error !== null
                         ? "Choose a valid field to edit values"
                         : "Click to edit"}
@@ -2095,7 +2097,7 @@ function RemoveTokenButton({
   position: { left: number; top: number };
   onRemove: (segment: QueryToken) => void;
 }) {
-  const label = `Remove ${segment.summary?.label ?? segment.raw}`;
+  const label = `Remove ${segment.collection?.label ?? segment.raw}`;
   return (
     <button
       type="button"

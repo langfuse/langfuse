@@ -127,9 +127,18 @@ text: `!`, lowercase `not`/`or`/`and` (use `-field:value` to exclude;
 search for it as literal text. (Top-level grouping with `(` `)` is tracked as a
 follow-up.)
 
-## Compact value groups
+## Value collections
 
-Filters with more than two values project the value list into a separate collection control beside the field. The control shows the first value and remaining count; OR matching is implicit, while all-of and exclusion remain explicit. Only the values are an editing atom. Keys, negation, and experiment targets stay editable in the bar. Canonical token text and source spans remain complete, and selecting the entire query copies its complete expression. An unknown or temporarily empty key retains its collapsed values while typing, with the value picker disabled until the field resolves. Invalid values or group syntax remain ordinary editable text.
+Complete two-value groups stay fully written inline and open the same checkbox
+picker as larger lists. Lists with more than two values show the first value and
+remaining count; OR matching is implicit in the compact presentation, while
+all-of and exclusion remain explicit. The interaction metadata is independent of
+compaction. Only the values are an editing atom. Keys, negation, and experiment
+targets stay editable in the bar. Canonical token text and source spans remain
+complete, and selecting the entire query copies its complete expression. An
+unknown or temporarily empty key retains its collapsed values while typing,
+with the value picker disabled until the field resolves. Scalar values,
+incomplete groups, and invalid value syntax remain ordinary editable text.
 
 `SearchComposer` opens a value-anchored popup with the same `CategoricalFilterSelect` used by the sidebar: checkboxes, observed values and counts, search, Only/All gestures, and array matching modes. Every selection applies immediately. The popup edits only its condition, preserving companion conditions and experiment targets, and remains open when the collection shrinks below the collapse threshold. Stored values remain available when absent from current observations. All query editing stays in the bar; key autocomplete replaces the key without consuming its values. Queries may contain up to 65,536 characters; URL-backed search phrases retain a 2,048-character limit and structured filters use the bounded-URL storage fallback.
 
