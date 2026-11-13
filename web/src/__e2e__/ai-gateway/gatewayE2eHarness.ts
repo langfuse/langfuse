@@ -351,7 +351,8 @@ export async function expectListedAndIngested(
   input: Omit<CompletionRequest, "secretKey">,
 ) {
   await withGatewayApiKey(input.apiFormat, async ({ secretKey }) => {
-    expect(await listGatewayModelIds(secretKey, input.apiFormat)).toContain(
+    const listed = await listGatewayModelIds(secretKey, input.apiFormat);
+    expect(listed, listed.join("\n")).toContain(
       gatewayModelSlug(input.providerModel),
     );
     await completeAndExpectIngested({ ...input, secretKey });
