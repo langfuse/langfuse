@@ -12,7 +12,8 @@ const MAX_MODEL_SUGGESTIONS = 50;
 const toConnectionName = (slug: string) => slug.split(":")[0];
 
 /**
- * Without a query: "All enabled models" and one `connection:*` per connection.
+ * Without a query: "All enabled models" and one `connection:*` per connection;
+ * with only `-`, one `-connection:*` per connection.
  * With a query: matching connections and models, then the query as a pattern
  * (see toTypedGatewayModelPattern). A query with a wildcard is offered first,
  * so Enter adds it as typed. Models the current exclude patterns remove are
@@ -43,6 +44,12 @@ export function getGatewayModelPatternSuggestions(
 
   const prefix = trimmed.startsWith(EXCLUDE_PREFIX) ? EXCLUDE_PREFIX : "";
   const term = trimmed.slice(prefix.length);
+  if (!term) {
+    return connectionNames.map((name) => ({
+      kind: "connection" as const,
+      pattern: `${prefix}${name}:*`,
+    }));
+  }
   const typedPattern = toTypedGatewayModelPattern(trimmed);
   if (typedPattern === null) return [];
 

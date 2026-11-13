@@ -23,4 +23,8 @@ describe("getGatewayModelPatternSuggestions", () => {
       "*gpt*",
     ]);
   });
+
+  it("suggests excluding a connection when only the exclude prefix is typed", () => {
+    expect(suggestedPatterns("-", [])).toEqual(["-openai:*", "-azure:*"]);
+  });
 });
