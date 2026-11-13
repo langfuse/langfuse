@@ -65,6 +65,8 @@ export * from "./evals/extractObservationVariables";
 export * from "./evals/classifyEvaluatorLlmError";
 export * from "./evals/llmEvaluatorExecution";
 export * from "./evals/decisionModelEvaluatorExecution";
+export * from "./evals/traceEvalsConfig";
+export * from "./evals/traceEvalsProcessingGate";
 export * from "./llm/createDecisionModelClient";
 export * from "./llm/typesafe/typeSafeDecisionModelClient";
 export * from "./utils/traceId";

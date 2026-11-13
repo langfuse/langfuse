@@ -1,46 +1,48 @@
 import { type Session } from "next-auth";
-import { isEventsDispatchAvailable } from "@/src/features/events-dispatch/isEventsDispatchAvailable";
-import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
+import { useSession } from "next-auth/react";
+import {
+  getContextualFeatureFlags,
+  isInternalViewEnabled,
+} from "@/src/features/feature-flags/utils";
+import { useProject } from "@/src/features/projects/hooks";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
-type TranscriptEvalsProject = { id: string; topicsEnabled?: boolean };
+type TraceEvalsProject = { id: string; traceEvalsEnabled?: boolean };
 
-/**
- * Trace-transcript evals are available when all of these hold:
- * - the project is on the allowlist, AND
- * - internal view is on OR the `traceTranscriptEvals` preview is on, AND
- * - the user has `evaluator:read` OR `evaluationRule:read`.
- *
- * `internalViewEnabled` is the current view-mode setting. Do not derive it with
- * `isInternalViewEnabled(session)`: that session flag stays true after internal
- * features are turned off.
- */
+/** Visibility gate for every trace evals surface: project gate, internal view or feature preview, and evaluator:read or evaluationRule:read. */
 export function canViewTraceTranscriptsEvals(
   session: Session | null,
-  project: TranscriptEvalsProject | null | undefined,
-  internalViewEnabled: boolean,
+  project: TraceEvalsProject | null | undefined,
 ) {
-  if (
-    !isEventsDispatchAvailable(project, {
-      internalViewEnabled,
-      previewEnabled:
-        getContextualFeatureFlags(session?.user, { projectId: project?.id })
-          ?.traceTranscriptEvals === true,
-    })
-  ) {
-    return false;
-  }
+  return (
+    !!project &&
+    isTraceEvalsEnabledForProject(project) &&
+    (isInternalViewEnabled(session) ||
+      getContextualFeatureFlags(session?.user, { projectId: project.id })
+        ?.traceTranscriptEvals === true) &&
+    (hasProjectAccess({
+      session,
+      projectId: project.id,
+      scope: "evaluator:read",
+    }) ||
+      hasProjectAccess({
+        session,
+        projectId: project.id,
+        scope: "evaluationRule:read",
+      }))
+  );
+}
 
-  const canReadEvaluators = hasProjectAccess({
-    session,
-    projectId: project.id,
-    scope: "evaluator:read",
-  });
-  const canReadEvaluationRules = hasProjectAccess({
-    session,
-    projectId: project.id,
-    scope: "evaluationRule:read",
-  });
+/** Resolves the project like the rest of the app. */
+export function useCanViewTraceTranscriptsEvals(projectId: string) {
+  const session = useSession().data;
+  const { project } = useProject(projectId);
+  return canViewTraceTranscriptsEvals(session, project);
+}
 
-  return canReadEvaluators || canReadEvaluationRules;
+/** Project gate: trace evals are enabled for the project (deployment allowlist, resolved on the server). */
+function isTraceEvalsEnabledForProject(
+  project: TraceEvalsProject | null | undefined,
+) {
+  return project?.traceEvalsEnabled === true;
 }
