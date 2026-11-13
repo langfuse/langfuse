@@ -13,6 +13,7 @@ import {
   getContextualFeatureFlags,
   hasInternalAccess,
 } from "@/src/features/feature-flags/utils";
+import { canUseTraceTranscriptEvals } from "@/src/features/evals/server/traceTranscriptEvalsAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -500,8 +501,9 @@ export const eventsRouter = createTRPCRouter({
   ),
   /**
    * Assemble the message transcript of a trace from its generations and tools,
-   * see `loadTraceTranscript`. Available to internal users and Session Timeline
-   * preview users, only where the events tables are written.
+   * see `loadTraceTranscript`. Available to internal users, Session Timeline
+   * preview users and users with trace transcript evals, only where the events
+   * tables are written.
    */
   transcriptByTraceId: auditedQuery(
     protectedGetEventsTraceProcedure.input(
@@ -537,12 +539,25 @@ export const eventsRouter = createTRPCRouter({
           email: ctx.session?.user?.email,
           isExperimentalFeaturesEnabled:
             env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
-        })
+        }) &&
+        !(
+          ctx.session?.user &&
+          ctx.session.environment &&
+          canUseTraceTranscriptEvals(
+            {
+              ...ctx.session,
+              user: ctx.session.user,
+              environment: ctx.session.environment,
+              expires: ctx.session.expires ?? "",
+            },
+            input.projectId,
+          )
+        )
       ) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message:
-            "Transcripts require internal access or the Session Timeline preview.",
+            "Transcripts require internal access, the Session Timeline preview, or trace evaluations.",
         });
       }
       if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy") {

@@ -40,7 +40,10 @@ import {
   encodeEvaluatorVersionCursor,
   EvaluatorDefinitionSchema,
 } from "./evaluatorTypes";
-import { testEvaluator as executeEvaluatorTest } from "./testEvaluator";
+import {
+  testEvaluator as executeEvaluatorTest,
+  testEvaluatorOnTrace as executeEvaluatorTestOnTrace,
+} from "./testEvaluator";
 import * as repository from "./evaluatorRepository";
 import {
   EvaluatorConfigurationError,
@@ -624,9 +627,47 @@ export class EvaluatorService {
       definition: requestedDefinition,
       ...executionParams
     } = params;
+    return executeEvaluatorTest({
+      ...executionParams,
+      ...(await this.resolveTestDefinition({
+        projectId: params.projectId,
+        evaluatorId: requestedEvaluatorId,
+        definition: requestedDefinition,
+      })),
+    });
+  }
 
-    let evaluatorId = requestedEvaluatorId;
-    let definition = requestedDefinition;
+  async testEvaluatorOnTrace(
+    params: Omit<
+      Parameters<typeof executeEvaluatorTestOnTrace>[0],
+      "evaluatorId" | "definition" | "includeEvaluatorLink"
+    > & {
+      evaluatorId?: string;
+      definition?: EvaluatorDefinition;
+    },
+  ) {
+    const {
+      evaluatorId: requestedEvaluatorId,
+      definition: requestedDefinition,
+      ...executionParams
+    } = params;
+    return executeEvaluatorTestOnTrace({
+      ...executionParams,
+      ...(await this.resolveTestDefinition({
+        projectId: params.projectId,
+        evaluatorId: requestedEvaluatorId,
+        definition: requestedDefinition,
+      })),
+    });
+  }
+
+  private async resolveTestDefinition(params: {
+    projectId: string;
+    evaluatorId?: string;
+    definition?: EvaluatorDefinition;
+  }) {
+    let evaluatorId = params.evaluatorId;
+    let definition = params.definition;
     let includeEvaluatorLink = false;
 
     if (definition) {
@@ -665,12 +706,7 @@ export class EvaluatorService {
       includeEvaluatorLink = true;
     }
 
-    return executeEvaluatorTest({
-      ...executionParams,
-      evaluatorId,
-      definition,
-      includeEvaluatorLink,
-    });
+    return { evaluatorId, definition, includeEvaluatorLink };
   }
 
   async suggestName(params: SuggestEvaluatorTextParams) {

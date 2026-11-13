@@ -21,6 +21,8 @@ Internal view is available to users with an account email ending exactly in `@la
 
 `langfuseTopics` is an internal personal preview, excluded from organization defaults and member management. Its toggle is visible only in Internal view or with an existing personal grant; Internal view shows it as enabled and disables editing. In External view, an existing grant can be disabled but cannot be restored without Internal view. Feature access also requires the [Topics access gate](../topics/topicsAccess.ts).
 
+`traceTranscriptEvals` follows the same rules as `langfuseTopics`: an internal personal preview whose toggle is visible only in Internal view or with an existing personal grant. Feature access also requires the [trace evals access gate](../evals/transcriptEvalsAccess.ts).
+
 Internal personal previews are registered in `internalFeaturePreviewFlags`; the personal modal and self-toggle mutation use `personalFeaturePreviewFlags`. Keep `featurePreviewFlags` limited to previews organizations may manage.
 
 Unified Trace and Session View uses the same Internal view or existing personal grant access for its preview toggle. It remains an explicit opt-in, including in Internal view and experimental deployments, and requires the events-backed read path.

@@ -5,46 +5,70 @@ import { type Session } from "next-auth";
 import { canViewTraceTranscriptsEvals } from "./transcriptEvalsAccess";
 
 const projectId = "project-1";
-const project = { id: projectId, topicsEnabled: true };
 
-// Staff email with a stale `internalFeatures: true`: the user already turned
-// internal view off, but this session copy still says it is on.
-function session(flags: Partial<Flags>): Session {
+function session({
+  email = "member@example.com",
+  role = "VIEWER",
+  ...flags
+}: Partial<Flags> & { email?: string; role?: string | null }): Session {
   return {
     expires: "1",
     environment: { enableExperimentalFeatures: false },
     user: {
       id: "user-a",
-      email: "member@clickhouse.com",
-      featureFlags: testFeatureFlags({ internalFeatures: true, ...flags }),
-      organizations: [
-        {
-          id: "org-a",
-          role: "VIEWER",
-          projects: [{ id: projectId, role: "VIEWER" }],
-        },
-      ],
+      email,
+      featureFlags: testFeatureFlags(flags),
+      organizations: role
+        ? [{ id: "org-a", role, projects: [{ id: projectId, role }] }]
+        : [],
     },
   } as unknown as Session;
 }
 
 describe("canViewTraceTranscriptsEvals", () => {
-  it("needs the current internal view or its own preview flag", () => {
-    const topicsOnly = session({
-      langfuseTopics: true,
-      traceTranscriptEvals: false,
-    });
-    const evalsPreview = session({
-      langfuseTopics: false,
-      traceTranscriptEvals: true,
-    });
-
-    expect(canViewTraceTranscriptsEvals(topicsOnly, project, false)).toBe(
-      false,
-    );
-    expect(canViewTraceTranscriptsEvals(evalsPreview, project, false)).toBe(
+  it.each([
+    [
+      "its own preview on a listed project",
+      { traceTranscriptEvals: true },
+      { traceEvalsEnabled: true },
       true,
-    );
-    expect(canViewTraceTranscriptsEvals(topicsOnly, project, true)).toBe(true);
+    ],
+    [
+      "internal view on a listed project",
+      { email: "member@clickhouse.com" },
+      { traceEvalsEnabled: true },
+      true,
+    ],
+    [
+      "the Topics preview alone",
+      { langfuseTopics: true },
+      { traceEvalsEnabled: true },
+      false,
+    ],
+    [
+      "a project that is only on the Topics list",
+      { traceTranscriptEvals: true },
+      { topicsEnabled: true },
+      false,
+    ],
+    [
+      "internal view on an unlisted project",
+      { email: "member@clickhouse.com" },
+      { traceEvalsEnabled: false },
+      false,
+    ],
+    [
+      "its own preview without project membership",
+      { traceTranscriptEvals: true, role: null },
+      { traceEvalsEnabled: true },
+      false,
+    ],
+  ] as const)("%s", (_case, user, project, expected) => {
+    expect(
+      canViewTraceTranscriptsEvals(session(user), {
+        id: projectId,
+        ...project,
+      }),
+    ).toBe(expected);
   });
 });

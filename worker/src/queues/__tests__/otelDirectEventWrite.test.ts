@@ -21,6 +21,10 @@ import { createObservationEvalSchedulerDeps } from "../../features/evaluation/ob
 import { Prisma } from "@langfuse/shared/src/db";
 import { observationForEvalSchema, TopicsTargetObject } from "@langfuse/shared";
 import {
+  getTraceEvalsProcessingSampling,
+  isTraceEvalsProcessingActive,
+} from "@langfuse/shared/src/server";
+import {
   isTopicsEnabled,
   getTopicsProcessingSampling,
   isTopicsProcessingActive,
@@ -52,6 +56,8 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   redis: {},
   getS3EventStorageClient: vi.fn(),
   markProjectIngestFailure: vi.fn(),
+  isTraceEvalsProcessingActive: vi.fn().mockResolvedValue(false),
+  getTraceEvalsProcessingSampling: vi.fn().mockResolvedValue(0),
 }));
 vi.mock("../../features/evaluation/fetchEvalRules", () => ({
   fetchEvalRules: vi.fn().mockResolvedValue({
@@ -121,6 +127,19 @@ describe("trace-rule recording at the evaluation stage", () => {
       observationRulesEnabled: false,
     },
     {
+      mode: "project not on the trace evals list",
+      shouldWriteToEventsTable: true,
+      writeFails: false,
+      traceEvalsEnabled: false,
+    },
+    {
+      mode: "project only on the trace evals list",
+      shouldWriteToEventsTable: true,
+      writeFails: false,
+      topicsEnabled: false,
+      experimentRate: 0,
+    },
+    {
       mode: "accepted write",
       shouldWriteToEventsTable: true,
       writeFails: false,
@@ -134,6 +153,8 @@ describe("trace-rule recording at the evaluation stage", () => {
       invalidSpanId,
       ingestionEnabled = true,
       topicsEnabled = true,
+      traceEvalsEnabled = true,
+      experimentRate = 1,
       observationRulesEnabled = true,
     }) => {
       const original = { ...env };
@@ -143,7 +164,13 @@ describe("trace-rule recording at the evaluation stage", () => {
       vi.mocked(getTopicsProcessingSampling).mockResolvedValue(
         topicsEnabled ? 1 : 0,
       );
-      env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE = 1;
+      vi.mocked(isTraceEvalsProcessingActive).mockResolvedValue(
+        traceEvalsEnabled,
+      );
+      vi.mocked(getTraceEvalsProcessingSampling).mockResolvedValue(
+        traceEvalsEnabled ? 1 : 0,
+      );
+      env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE = experimentRate;
       env.LANGFUSE_TRACE_DISPATCH_ENABLED = ingestionEnabled ? "true" : "false";
       const includeTraceTranscriptRules =
         shouldWriteToEventsTable && ingestionEnabled;
@@ -236,6 +263,8 @@ describe("trace-rule recording at the evaluation stage", () => {
             shouldWriteToEventsTable,
           }),
         ).resolves.toBeUndefined();
+        const experimentRuleIds =
+          experimentRate > 0 ? ["__trace_batch_experiment__"] : [];
         const recordedSpans = [
           failedSpanId === "match" || invalidSpanId === "match"
             ? []
@@ -243,7 +272,10 @@ describe("trace-rule recording at the evaluation stage", () => {
                 {
                   traceId: "trace",
                   spanStartTimeISO: inputs[0].startTimeISO,
-                  ruleIds: ["trace-rule"],
+                  // A judge rule is recorded only for a project on the trace evals list.
+                  ruleIds: traceEvalsEnabled
+                    ? ["trace-rule"]
+                    : experimentRuleIds,
                   serializedEventBytes: Buffer.byteLength(
                     JSON.stringify(persistedMatch),
                   ),
@@ -255,7 +287,7 @@ describe("trace-rule recording at the evaluation stage", () => {
                 {
                   traceId: "trace",
                   spanStartTimeISO: inputs[1].startTimeISO,
-                  ruleIds: ["__trace_batch_experiment__"],
+                  ruleIds: experimentRuleIds,
                   serializedEventBytes: Buffer.byteLength(
                     JSON.stringify(persistedOther),
                   ),
@@ -300,6 +332,8 @@ describe("trace-rule recording at the evaluation stage", () => {
         vi.mocked(isTopicsProjectEnabled).mockReturnValue(false);
         vi.mocked(isTopicsProcessingActive).mockResolvedValue(false);
         vi.mocked(getTopicsProcessingSampling).mockResolvedValue(0);
+        vi.mocked(isTraceEvalsProcessingActive).mockResolvedValue(false);
+        vi.mocked(getTraceEvalsProcessingSampling).mockResolvedValue(0);
         vi.clearAllMocks();
       }
     },

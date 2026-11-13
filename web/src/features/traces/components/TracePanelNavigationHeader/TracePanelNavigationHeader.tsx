@@ -15,6 +15,7 @@ import { useSearch } from "@/src/features/traces/contexts/SearchProvider";
 import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataProvider";
+import { useTracePresentation } from "@/src/features/traces/contexts/TracePresentationProvider";
 import { type GraphUnavailableReason } from "@/src/features/traces/fns/graphAvailability";
 import {
   Tooltip,
@@ -142,6 +143,7 @@ function TracePanelNavigationHeaderExpanded({
   const [headerContainerRef, headerContainerSize] =
     useElementSize<HTMLDivElement>();
   const isSearchWrapped = (headerContainerSize?.width ?? Infinity) <= 299;
+  const forceViewMenu = useTracePresentation() != null;
 
   // When the detail (info) panel is closed, the tree/timeline owns the whole
   // surface — so the left "collapse panel" toggle would only shrink the one
@@ -309,14 +311,20 @@ function TracePanelNavigationHeaderExpanded({
               </DropdownMenu>
             </div>
 
-            <div className="ml-2 hidden @min-[330px]/navheader:block">
-              <ViewModeSwitch
-                activeView={activeView}
-                graphDisabledReason={graphDisabledReason}
-                onSelect={handleSelectView}
-              />
-            </div>
-            <div className="ml-2 @min-[330px]/navheader:hidden">
+            {!forceViewMenu && (
+              <div className="ml-2 hidden @min-[330px]/navheader:block">
+                <ViewModeSwitch
+                  activeView={activeView}
+                  graphDisabledReason={graphDisabledReason}
+                  onSelect={handleSelectView}
+                />
+              </div>
+            )}
+            <div
+              className={
+                forceViewMenu ? "ml-2" : "ml-2 @min-[330px]/navheader:hidden"
+              }
+            >
               <DropdownMenuController
                 align="end"
                 renderMenu={() => (

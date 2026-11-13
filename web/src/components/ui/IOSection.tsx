@@ -15,6 +15,7 @@ import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { cn } from "@/src/utils/tailwind";
+import { useIOSectionCollapsed } from "@/src/components/ui/IOSectionCollapsedProvider";
 
 /** An icon button in the section header. */
 export type IOSectionAction = {
@@ -164,7 +165,10 @@ export function IOSection({
   tone,
   children,
 }: IOSectionProps) {
-  const [internalCollapsed, setInternalCollapsed] = useState(defaultCollapsed);
+  const collapseByDefault = useIOSectionCollapsed();
+  const [internalCollapsed, setInternalCollapsed] = useState(
+    () => defaultCollapsed || collapseByDefault,
+  );
   const isCollapsed = collapsed ?? internalCollapsed;
   const Caret = isCollapsed ? ChevronRight : ChevronDown;
 

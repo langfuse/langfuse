@@ -11,9 +11,9 @@ import {
   buildEvalExecutionData,
   type ExtractedVariable,
 } from "@langfuse/shared/src/server";
-import { extractTranscriptEvalVariables } from "../../eventsDispatch/traceTranscriptEval";
 import { isEvalTargetEnvironmentAllowed } from "../isEvalTargetEnvironmentAllowed";
 import {
+  extractTranscriptEvalVariables,
   getCodeEvalVariableMapping,
   observationForEvalSchema,
   observationVariableMappingList,

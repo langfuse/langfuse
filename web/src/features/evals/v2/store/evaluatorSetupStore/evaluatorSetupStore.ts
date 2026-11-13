@@ -1,6 +1,7 @@
 import {
   EvalTemplateTypeEnum,
   experimentTargetEvalVariableColumns,
+  isTraceTranscriptEvalType,
   observationVariableMappingList,
   type FilterState,
   type ModelConfig,
@@ -91,6 +92,9 @@ function buildInitialQuestions(
     : [];
 }
 
+/** Which right-hand panel feeds the test: one observation or a whole trace transcript. */
+export type EvaluatorSampleScope = "observation" | "trace";
+
 type EvaluatorSetupStoreActions = {
   setType: (type: EditableEvaluatorType) => void;
   setQuestion: (question: DecisionModelQuestionDraft) => void;
@@ -124,6 +128,12 @@ type EvaluatorSetupStoreActions = {
     selectedObservation: SampleObservation | null,
   ) => void;
   setSampleFilter: (sampleFilter: FilterState) => void;
+  setSampleScope: (sampleScope: EvaluatorSampleScope) => void;
+  setTraceSampleFilter: (traceSampleFilter: FilterState) => void;
+  setTraceVariableField: (
+    variable: string,
+    fieldState: VariableFieldState,
+  ) => void;
   setPromptPreviewEnabled: (promptPreviewEnabled: boolean) => void;
   setTestPanelOpen: (testPanelOpen: boolean) => void;
   applyDefinition: (definition: NormalizedEvaluatorDefinition) => void;
@@ -155,12 +165,22 @@ export type EvaluatorSetupStoreState = {
   hasChangedModelSelection: boolean;
   selectedObservation: SampleObservation | null;
   sampleFilter: FilterState;
+  sampleScope: EvaluatorSampleScope;
+  traceSampleFilter: FilterState;
+  /** Trace-scope bindings; variables without an entry read all of `threads`. */
+  traceVariableFields: Record<string, VariableFieldState>;
   promptPreviewEnabled: boolean;
   testPanelOpen: boolean;
   actions: EvaluatorSetupStoreActions;
 };
 
 export type EvaluatorSetupStore = StoreApi<EvaluatorSetupStoreState>;
+
+/** Code evaluators cannot run on a trace transcript, so they always use observations. */
+export const selectSampleScope = (
+  state: Pick<EvaluatorSetupStoreState, "type" | "sampleScope">,
+): EvaluatorSampleScope =>
+  isTraceTranscriptEvalType(state.type) ? state.sampleScope : "observation";
 
 export const selectHasValidModel = (state: EvaluatorSetupStoreState) => {
   if (state.type === EvalTemplateTypeEnum.LLM_AS_JUDGE) {
@@ -253,6 +273,9 @@ export function createEvaluatorSetupStore({
     sampleFilter: initialSampleFilter ?? [
       ...DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING,
     ],
+    sampleScope: "observation",
+    traceSampleFilter: [],
+    traceVariableFields: {},
     promptPreviewEnabled: false,
     testPanelOpen: true,
     actions: {
@@ -487,6 +510,20 @@ export function createEvaluatorSetupStore({
       setSelectedObservation: (selectedObservation) =>
         set({ selectedObservation }),
       setSampleFilter: (sampleFilter) => set({ sampleFilter }),
+      setSampleScope: (sampleScope) =>
+        set((state) =>
+          state.sampleScope === sampleScope
+            ? state
+            : { sampleScope, activeMapping: null },
+        ),
+      setTraceSampleFilter: (traceSampleFilter) => set({ traceSampleFilter }),
+      setTraceVariableField: (variable, fieldState) =>
+        set((state) => ({
+          traceVariableFields: {
+            ...state.traceVariableFields,
+            [variable]: fieldState,
+          },
+        })),
       setPromptPreviewEnabled: (promptPreviewEnabled) =>
         set({ promptPreviewEnabled }),
       setTestPanelOpen: (testPanelOpen) => set({ testPanelOpen }),

@@ -13,6 +13,7 @@ export function SampleObservationSelectorContainer({
   projectId,
   timeRange,
   onOpenTrace,
+  samplePresentation = "table",
 }: {
   store: EvaluatorSetupStore;
   projectId: string;
@@ -22,11 +23,13 @@ export function SampleObservationSelectorContainer({
   onOpenTrace: Parameters<
     typeof EvaluatorSampleObservationSelector
   >[0]["onOpenTrace"];
+  samplePresentation?: "table" | "detail";
 }) {
-  const selectedObservationId = useStore(
+  const selectedObservation = useStore(
     store,
-    (state) => state.selectedObservation?.id ?? null,
+    (state) => state.selectedObservation,
   );
+  const selectedObservationId = selectedObservation?.id ?? null;
   const filterState = useStore(store, (state) => state.sampleFilter);
   const actions = store.getState().actions;
   const onboardingAnalytics = useEvalOnboardingAnalytics();
@@ -55,10 +58,12 @@ export function SampleObservationSelectorContainer({
       projectId={projectId}
       timeRange={timeRange}
       selectedObservationId={selectedObservationId}
+      selectedObservation={selectedObservation}
       filterState={filterState}
       onFilterStateChange={changeFilterState}
       onSelect={actions.setSelectedObservation}
       onOpenTrace={onOpenTrace}
+      samplePresentation={samplePresentation}
     />
   );
 }

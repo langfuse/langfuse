@@ -7,6 +7,7 @@ import {
   coerceLegacyEmptyMetadataFilters,
   EvalTargetObject,
   EvalTemplateType,
+  TopicsTargetObject,
   type FilterState,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
@@ -19,6 +20,7 @@ import {
 } from "@langfuse/shared/src/server";
 import type {
   CreateRuleInput,
+  CreateTraceTranscriptRuleInput,
   ListRulesInput,
   RuleAssignmentInput,
   RuleSelectionInput,
@@ -32,9 +34,24 @@ export type RulePrisma = PrismaClient | Prisma.TransactionClient;
 
 const MAX_REUSABLE_FILTER_CANDIDATES = 20;
 
-const visibleRuleWhere = {
-  assignments: { none: { evaluator: { type: EvalTemplateType.FACET } } },
-} satisfies Prisma.EvaluationRuleWhereInput;
+/**
+ * Opt-in for trace transcript rules. Only the rule router sets it, behind the
+ * trace transcript evals gate; the public API and MCP never do.
+ */
+export type RuleVisibility = { includeTraceTranscriptRules?: boolean };
+
+/**
+ * Topics rules never show. Trace transcript rules stay out of every read and
+ * write unless the caller opts in through `RuleVisibility`.
+ */
+function visibleRuleWhere(visibility?: RuleVisibility) {
+  return {
+    assignments: { none: { evaluator: { type: EvalTemplateType.FACET } } },
+    ...(visibility?.includeTraceTranscriptRules
+      ? {}
+      : { targetObject: { not: TopicsTargetObject } }),
+  } satisfies Prisma.EvaluationRuleWhereInput;
+}
 
 const latestVersion = {
   orderBy: { version: "desc" as const },
@@ -79,8 +96,9 @@ function ruleWhere(params: {
   projectId: string;
   search?: string;
   enabled?: boolean;
-  targetObjects?: EvalTargetObject[];
+  targetObjects?: (EvalTargetObject | typeof TopicsTargetObject)[];
   filter?: FilterState;
+  visibility?: RuleVisibility;
 }): Prisma.EvaluationRuleWhereInput {
   const handlers = {
     name: {
@@ -116,7 +134,7 @@ function ruleWhere(params: {
 
   return {
     projectId: params.projectId,
-    ...visibleRuleWhere,
+    ...visibleRuleWhere(params.visibility),
     ...(params.search
       ? {
           name: {
@@ -132,21 +150,25 @@ function ruleWhere(params: {
             ? JobConfigState.ACTIVE
             : JobConfigState.INACTIVE,
         }),
-    ...(params.targetObjects === undefined
-      ? {}
-      : { targetObject: { in: params.targetObjects } }),
-    AND: compilePrismaFilters<Prisma.EvaluationRuleWhereInput>(
-      params.filter ?? [],
-      handlers,
-    ),
+    // A requested target narrows the visible rules; it never widens them.
+    AND: [
+      ...(params.targetObjects === undefined
+        ? []
+        : [{ targetObject: { in: params.targetObjects } }]),
+      ...compilePrismaFilters<Prisma.EvaluationRuleWhereInput>(
+        params.filter ?? [],
+        handlers,
+      ),
+    ],
   };
 }
 
 export async function listRules(params: {
   prisma: PrismaClient;
   input: ListRulesInput;
+  visibility?: RuleVisibility;
 }) {
-  const where = ruleWhere(params.input);
+  const where = ruleWhere({ ...params.input, visibility: params.visibility });
   const requestedOrder = params.input.orderBy;
   const orderColumn =
     requestedOrder?.column === "enabled"
@@ -212,7 +234,7 @@ export async function listReusableFilterCandidates(params: {
   const rules = await params.prisma.evaluationRule.findMany({
     where: {
       projectId: params.projectId,
-      ...visibleRuleWhere,
+      ...visibleRuleWhere(),
       targetObject: {
         in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
       },
@@ -254,7 +276,7 @@ export function listRulesForExperimentDataset(params: {
   return params.prisma.evaluationRule.findMany({
     where: {
       projectId: params.projectId,
-      ...visibleRuleWhere,
+      ...visibleRuleWhere(),
       AND: [
         {
           OR: [
@@ -298,10 +320,14 @@ export function listRulesForExperimentDataset(params: {
 export async function listRuleFilterOptions(params: {
   prisma: PrismaClient;
   projectId: string;
+  visibility?: RuleVisibility;
 }) {
   const [rules, upgradeRequiredRule] = await Promise.all([
     params.prisma.evaluationRule.findMany({
-      where: { projectId: params.projectId, ...visibleRuleWhere },
+      where: {
+        projectId: params.projectId,
+        ...visibleRuleWhere(params.visibility),
+      },
       select: {
         name: true,
         createdByUser: { select: { id: true, name: true, email: true } },
@@ -310,7 +336,7 @@ export async function listRuleFilterOptions(params: {
     params.prisma.evaluationRule.findFirst({
       where: {
         projectId: params.projectId,
-        ...visibleRuleWhere,
+        ...visibleRuleWhere(params.visibility),
         ...upgradeRequiredRuleCondition,
       },
       select: { id: true },
@@ -335,12 +361,28 @@ export function findRule(params: {
   prisma: RulePrisma;
   projectId: string;
   ruleId: string;
+  visibility?: RuleVisibility;
 }) {
   return params.prisma.evaluationRule.findFirst({
     where: {
       id: params.ruleId,
       projectId: params.projectId,
-      ...visibleRuleWhere,
+      ...visibleRuleWhere(params.visibility),
+    },
+    include: ruleInclude,
+  });
+}
+
+/** The row just written, including a trace transcript target the list hides. */
+export function findWrittenRule(params: {
+  prisma: RulePrisma;
+  projectId: string;
+  ruleId: string;
+}) {
+  return params.prisma.evaluationRule.findFirst({
+    where: {
+      id: params.ruleId,
+      projectId: params.projectId,
     },
     include: ruleInclude,
   });
@@ -355,7 +397,7 @@ export async function findActiveRuleWithMatchingFilterAndSampling(params: {
   const rules = await params.prisma.evaluationRule.findMany({
     where: {
       projectId: params.projectId,
-      ...visibleRuleWhere,
+      ...visibleRuleWhere(),
       status: JobConfigState.ACTIVE,
       targetObject: EvalTargetObject.EVENT,
       sampling: params.sampling,
@@ -380,7 +422,7 @@ export async function findActiveRuleWithMatchingFilterAndSampling(params: {
 
 export function createRule(params: {
   prisma: RulePrisma;
-  input: CreateRuleInput;
+  input: CreateRuleInput | CreateTraceTranscriptRuleInput;
   createdByUserId: string | null;
 }) {
   return params.prisma.evaluationRule.create({
@@ -410,15 +452,16 @@ export function createRule(params: {
 
 export function updateRule(params: {
   prisma: RulePrisma;
-  input: UpdateRuleInput;
-  targetObject?: EvalTargetObject;
+  input: Omit<UpdateRuleInput, "targetObject">;
+  targetObject?: EvalTargetObject | typeof TopicsTargetObject;
   filter?: Prisma.InputJsonValue;
+  visibility?: RuleVisibility;
 }) {
   return params.prisma.evaluationRule.update({
     where: {
       id: params.input.ruleId,
       projectId: params.input.projectId,
-      ...visibleRuleWhere,
+      ...visibleRuleWhere(params.visibility),
     },
     data: {
       ...(params.targetObject === undefined
@@ -448,6 +491,7 @@ export function setRuleStatus(params: {
   enabled: boolean;
   sampling?: number;
   unassignedOnly?: boolean;
+  visibility?: RuleVisibility;
 }) {
   const status = params.enabled
     ? JobConfigState.ACTIVE
@@ -455,7 +499,7 @@ export function setRuleStatus(params: {
   return params.prisma.evaluationRule.updateMany({
     where: {
       projectId: params.projectId,
-      ...visibleRuleWhere,
+      ...visibleRuleWhere(params.visibility),
       ...(params.ruleIds === undefined ? {} : { id: { in: params.ruleIds } }),
       ...(params.unassignedOnly ? { assignments: { none: {} } } : {}),
       ...(params.sampling === undefined ? { status: { not: status } } : {}),
@@ -471,12 +515,13 @@ export async function deleteRule(params: {
   prisma: RulePrisma;
   projectId: string;
   ruleId: string;
+  visibility?: RuleVisibility;
 }) {
   const result = await params.prisma.evaluationRule.deleteMany({
     where: {
       id: params.ruleId,
       projectId: params.projectId,
-      ...visibleRuleWhere,
+      ...visibleRuleWhere(params.visibility),
     },
   });
   if (result.count === 0) return false;
@@ -493,12 +538,13 @@ export async function deleteRules(params: {
   prisma: RulePrisma;
   projectId: string;
   ruleIds: string[];
+  visibility?: RuleVisibility;
 }) {
   const visibleIds = await params.prisma.evaluationRule.findMany({
     where: {
       projectId: params.projectId,
       id: { in: params.ruleIds },
-      ...visibleRuleWhere,
+      ...visibleRuleWhere(params.visibility),
     },
     select: { id: true },
   });
@@ -509,7 +555,7 @@ export async function deleteRules(params: {
     where: {
       projectId: params.projectId,
       id: { in: ruleIds },
-      ...visibleRuleWhere,
+      ...visibleRuleWhere(params.visibility),
     },
   });
   await params.prisma.jobExecution.deleteMany({
@@ -524,20 +570,21 @@ export async function deleteRules(params: {
 export async function listSelectedRuleIds(params: {
   prisma: RulePrisma;
   input: RuleSelectionInput;
+  visibility?: RuleVisibility;
 }) {
   if ("ruleIds" in params.input) {
     const rules = await params.prisma.evaluationRule.findMany({
       where: {
         projectId: params.input.projectId,
         id: { in: params.input.ruleIds },
-        ...visibleRuleWhere,
+        ...visibleRuleWhere(params.visibility),
       },
       select: { id: true },
     });
     return rules.map(({ id }) => id);
   }
   const rules = await params.prisma.evaluationRule.findMany({
-    where: ruleWhere(params.input),
+    where: ruleWhere({ ...params.input, visibility: params.visibility }),
     select: { id: true },
   });
   return rules.map(({ id }) => id);
@@ -548,6 +595,7 @@ export async function replaceAssignments(params: {
   projectId: string;
   ruleId: string;
   assignments: RuleAssignmentInput[];
+  visibility?: RuleVisibility;
 }) {
   await params.prisma.evaluationRuleEvaluatorAssignment.deleteMany({
     where: {
@@ -570,6 +618,7 @@ export async function replaceAssignments(params: {
       projectId: params.projectId,
       ruleIds: [params.ruleId],
       enabled: false,
+      visibility: params.visibility,
     });
   }
   return result;
@@ -596,6 +645,7 @@ export async function detachEvaluator(params: {
   projectId: string;
   ruleId: string;
   evaluatorId: string;
+  visibility?: RuleVisibility;
 }) {
   const result =
     await params.prisma.evaluationRuleEvaluatorAssignment.deleteMany({
@@ -612,6 +662,7 @@ export async function detachEvaluator(params: {
       ruleIds: [params.ruleId],
       enabled: false,
       unassignedOnly: true,
+      visibility: params.visibility,
     });
   }
   return result.count > 0;
@@ -621,6 +672,7 @@ export async function countRulesForEvaluators(params: {
   prisma: RulePrisma;
   projectId: string;
   evaluatorIds: string[];
+  visibility?: RuleVisibility;
 }) {
   if (params.evaluatorIds.length === 0) return {};
 
@@ -630,7 +682,7 @@ export async function countRulesForEvaluators(params: {
       projectId: params.projectId,
       evaluatorId: { in: params.evaluatorIds },
       evaluator: { type: { not: EvalTemplateType.FACET } },
-      evaluationRule: visibleRuleWhere,
+      evaluationRule: visibleRuleWhere(params.visibility),
     },
     _count: { _all: true },
   });
@@ -644,6 +696,7 @@ export async function listRulesForEvaluator(params: {
   prisma: PrismaClient;
   projectId: string;
   evaluatorId: string;
+  visibility?: RuleVisibility;
 }) {
   const assignments =
     await params.prisma.evaluationRuleEvaluatorAssignment.findMany({
@@ -656,7 +709,7 @@ export async function listRulesForEvaluator(params: {
         },
         evaluationRule: {
           projectId: params.projectId,
-          ...visibleRuleWhere,
+          ...visibleRuleWhere(params.visibility),
         },
       },
       orderBy: { createdAt: "desc" },

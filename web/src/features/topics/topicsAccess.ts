@@ -4,7 +4,6 @@ import {
   getContextualFeatureFlags,
   isInternalViewEnabled,
 } from "@/src/features/feature-flags/utils";
-import { isEventsDispatchAvailable } from "@/src/features/events-dispatch/isEventsDispatchAvailable";
 import { useProject } from "@/src/features/projects/hooks";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
@@ -16,12 +15,11 @@ export function canViewTopics(
   project: TopicsProject | null | undefined,
 ) {
   return (
-    isEventsDispatchAvailable(project, {
-      internalViewEnabled: isInternalViewEnabled(session),
-      previewEnabled:
-        getContextualFeatureFlags(session?.user, { projectId: project?.id })
-          ?.langfuseTopics === true,
-    }) &&
+    !!project &&
+    isTopicsEnabledForProject(project) &&
+    (isInternalViewEnabled(session) ||
+      getContextualFeatureFlags(session?.user, { projectId: project.id })
+        ?.langfuseTopics === true) &&
     hasProjectAccess({ session, projectId: project.id, scope: "topics:read" })
   );
 }
@@ -31,4 +29,9 @@ export function useCanViewTopics(projectId: string) {
   const session = useSession().data;
   const { project } = useProject(projectId);
   return canViewTopics(session, project);
+}
+
+/** Project gate: Topics is enabled for the project (deployment allowlist, resolved on the server). */
+function isTopicsEnabledForProject(project: TopicsProject | null | undefined) {
+  return project?.topicsEnabled === true;
 }

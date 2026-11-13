@@ -19,6 +19,12 @@ import { useSelectedObservation } from "@/src/features/traces/hooks/useSelectedO
 import { SearchProvider } from "@/src/features/traces/contexts/SearchProvider";
 import { JsonExpansionProvider } from "@/src/features/traces/contexts/JsonExpansionProvider";
 import {
+  TracePresentationProvider,
+  useTracePresentation,
+  type TracePresentation,
+} from "@/src/features/traces/contexts/TracePresentationProvider";
+import { IOSectionCollapsedProvider } from "@/src/components/ui/IOSectionCollapsedProvider";
+import {
   TraceGraphDataProvider,
   useTraceGraphData,
 } from "@/src/features/traces/contexts/TraceGraphDataProvider";
@@ -34,7 +40,7 @@ import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useTraceComments } from "@/src/features/traces/hooks/useTraceComments";
 import { TraceGraphView } from "@/src/features/traces/components/TraceGraphView/TraceGraphView";
 
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/router";
 import { getCommentDrawerInitialStateFromUrl } from "@/src/features/comments/CommentDrawerController";
 import { TraceReviewPanelProvider } from "@/src/features/traces/contexts/TraceReviewPanelProvider";
@@ -69,6 +75,17 @@ export type TraceProps = {
   truncatedAtObservations?: number;
   /** This is the previous trace, kept on screen while the next one loads. */
   isPlaceholderData?: boolean;
+  /**
+   * Selects this observation when the URL has none. The URL observation still
+   * wins, so a caller that sets the query param keeps control of later clicks.
+   */
+  preferredObservationId?: string | null;
+  /**
+   * Embedded sample view. "messages" opens the transcript. "observation" opens
+   * the span. Both hide the metrics row and start with input and output
+   * collapsed. Unset on the standalone trace page.
+   */
+  presentation?: TracePresentation;
 };
 
 const DESKTOP_LAYOUTS = {
@@ -76,25 +93,53 @@ const DESKTOP_LAYOUTS = {
     groupId: "trace-layout-v3",
     defaultNavigationCollapsed: false,
     expandDetailOnMount: false,
+    defaultDetailCollapsed: false,
   },
   peek: {
     groupId: "trace-layout-peek-v1",
     defaultNavigationCollapsed: false,
     expandDetailOnMount: false,
+    defaultDetailCollapsed: false,
+  },
+  // Observation samples open with the span detail on its rail.
+  "peek-detail-collapsed": {
+    groupId: "trace-layout-observation-detail-collapsed-v1",
+    defaultNavigationCollapsed: false,
+    expandDetailOnMount: false,
+    defaultDetailCollapsed: true,
   },
   "peek-observation-focused": {
     groupId: "trace-layout-peek-navigation-collapsed-v1",
     defaultNavigationCollapsed: true,
     expandDetailOnMount: false,
+    defaultDetailCollapsed: false,
   },
   annotation: {
     groupId: "trace-layout-annotation-v1",
     defaultNavigationCollapsed: true,
     expandDetailOnMount: true,
+    defaultDetailCollapsed: false,
   },
 } as const;
 
 type DesktopLayout = (typeof DESKTOP_LAYOUTS)[keyof typeof DESKTOP_LAYOUTS];
+type DesktopLayoutKey = keyof typeof DESKTOP_LAYOUTS;
+
+function desktopLayoutKeyFor({
+  presentation,
+  traceContext,
+  layout,
+}: {
+  presentation: TracePresentation | null;
+  traceContext: "fullscreen" | "peek" | "annotation";
+  layout: TraceProps["layout"];
+}): DesktopLayoutKey {
+  if (presentation === "observation") return "peek-detail-collapsed";
+  if (traceContext === "peek" && layout === "observation-focused") {
+    return "peek-observation-focused";
+  }
+  return traceContext;
+}
 
 /**
  * SelectionProvider sits ABOVE the trace data so the selected observation can be
@@ -103,38 +148,55 @@ type DesktopLayout = (typeof DESKTOP_LAYOUTS)[keyof typeof DESKTOP_LAYOUTS];
  */
 export function Trace(props: TraceProps | TraceLoadingProps) {
   const traceContext = props.context ?? "fullscreen";
-  const desktopLayoutKey =
-    traceContext === "peek" && props.layout === "observation-focused"
-      ? "peek-observation-focused"
-      : traceContext;
+  const presentation = props.presentation ?? null;
+  const desktopLayoutKey = desktopLayoutKeyFor({
+    presentation,
+    traceContext,
+    layout: props.layout,
+  });
   const desktopLayout = DESKTOP_LAYOUTS[desktopLayoutKey];
   const isMobile = useIsMobile();
   const trace = props.isLoading === true ? null : props.trace;
   const observations = props.isLoading === true ? null : props.observations;
+  const preferredObservationId =
+    props.isLoading === true ? null : (props.preferredObservationId ?? null);
   const defaultObservationId = useMemo(
-    () => resolveDefaultObservationId(trace, observations),
-    [trace, observations],
+    () =>
+      preferredObservationId ??
+      resolveDefaultObservationId(trace, observations),
+    [preferredObservationId, trace, observations],
   );
 
   return (
-    <ViewPreferencesProvider traceContext={traceContext}>
-      <SelectionProvider
-        defaultObservationId={defaultObservationId}
-        isMobile={isMobile}
-        expandDetailOnMount={desktopLayout.expandDetailOnMount}
-      >
-        {props.isLoading === true ? (
-          <TraceLoading desktopLayout={desktopLayout} header={props.header} />
-        ) : (
-          <TraceWithSelection {...props} desktopLayout={desktopLayout} />
-        )}
-      </SelectionProvider>
-    </ViewPreferencesProvider>
+    <TracePresentationProvider presentation={presentation}>
+      <IOSectionCollapsedProvider collapsed={presentation != null}>
+        <ViewPreferencesProvider traceContext={traceContext}>
+          <SelectionProvider
+            defaultObservationId={defaultObservationId}
+            isMobile={isMobile}
+            expandDetailOnMount={desktopLayout.expandDetailOnMount}
+            collapseDetailInitially={desktopLayout.defaultDetailCollapsed}
+          >
+            {props.isLoading === true ? (
+              <TraceLoading
+                desktopLayout={desktopLayout}
+                header={props.header}
+              />
+            ) : (
+              <TraceWithSelection {...props} desktopLayout={desktopLayout} />
+            )}
+          </SelectionProvider>
+        </ViewPreferencesProvider>
+      </IOSectionCollapsedProvider>
+    </TracePresentationProvider>
   );
 }
 
 /** Layout only, before the trace arrives; each panel draws its own placeholder. */
-type TraceLoadingProps = Pick<TraceProps, "context" | "layout" | "header"> & {
+type TraceLoadingProps = Pick<
+  TraceProps,
+  "context" | "layout" | "header" | "presentation"
+> & {
   isLoading: true;
 };
 
@@ -338,12 +400,33 @@ function TraceContent({
   const isMobile = useIsMobile();
   const { isGraphViewAvailable } = useTraceGraphData();
   const { isPlaceholderData, sessionTraces } = useTraceData();
+  const presentation = useTracePresentation();
   const [traceView, setTraceView] = useQueryParam("traceView", StringParam);
+  const [embeddedView, setEmbeddedView] = useState<"messages" | "trace">(
+    presentation === "messages" ? "messages" : "trace",
+  );
+  const [seenPresentation, setSeenPresentation] = useState(presentation);
+  if (presentation !== seenPresentation) {
+    setSeenPresentation(presentation);
+    setEmbeddedView(presentation === "messages" ? "messages" : "trace");
+  }
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const traceTranscriptEvalsPreview = useIsFeatureEnabled(
+    "traceTranscriptEvals",
+  );
   const { isV4 } = useReadPath();
-  const showMessagesTab = isV4 && internalFeaturesEnabled;
-  const activeView =
-    showMessagesTab && traceView === "messages" ? "messages" : "trace";
+  // Embedded eval panels also show Messages under the trace-level evals preview.
+  const showMessagesTab =
+    presentation === "messages" ||
+    (isV4 &&
+      (internalFeaturesEnabled ||
+        (presentation != null && traceTranscriptEvalsPreview)));
+  const activeView = traceTab({
+    presentation,
+    showMessagesTab,
+    embeddedView,
+    traceView,
+  });
   const stale = staleProps(isPlaceholderData);
   const sessionErrorBanner = sessionError ? (
     <SessionErrorBanner onRetry={sessionError.onRetry} />
@@ -366,8 +449,15 @@ function TraceContent({
           <Tabs
             value={activeView}
             onValueChange={(value) => {
-              if (value === "messages") setTraceView("messages", "pushIn");
-              if (value === "trace") setTraceView(undefined, "pushIn");
+              const next = value === "messages" ? "messages" : "trace";
+              if (presentation) {
+                setEmbeddedView(next);
+                return;
+              }
+              setTraceView(
+                next === "messages" ? "messages" : undefined,
+                "pushIn",
+              );
             }}
             layout="fill"
           >
@@ -410,6 +500,22 @@ function TraceContent({
 
 const traceContentClassName =
   "flex h-full w-full min-w-0 flex-col overflow-hidden";
+
+function traceTab({
+  presentation,
+  showMessagesTab,
+  embeddedView,
+  traceView,
+}: {
+  presentation: TracePresentation | null;
+  showMessagesTab: boolean;
+  embeddedView: "messages" | "trace";
+  traceView: string | null | undefined;
+}) {
+  if (!showMessagesTab) return "trace";
+  if (presentation) return embeddedView;
+  return traceView === "messages" ? "messages" : "trace";
+}
 
 function TraceLoading({
   desktopLayout,

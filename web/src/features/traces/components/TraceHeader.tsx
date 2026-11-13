@@ -17,6 +17,7 @@ import { traceTopicRows } from "@/src/features/topics/trace/trace-topic-rows";
 import { useMemo } from "react";
 
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
+import { useTracePresentation } from "@/src/features/traces/contexts/TracePresentationProvider";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import { useTraceTopicFacets } from "@/src/features/topics/trace/useTraceTopicFacets";
 import { PlusIcon, SquarePen, MessageSquare } from "@langfuse/icons";
@@ -85,6 +86,7 @@ function LoadedTraceHeader({
     [mergedScores],
   );
 
+  const presentation = useTracePresentation();
   const tags = sessionTraces
     ? [...new Set(sessionTraces.flatMap((entry) => entry.tags))]
     : trace.tags;
@@ -212,7 +214,7 @@ function LoadedTraceHeader({
       {(configuredHeader) => (
         <ObservabilityEntityDetailHeader
           {...configuredHeader}
-          metrics={metrics}
+          metrics={presentation ? [] : metrics}
           isPlaceholderData={isPlaceholderData}
         />
       )}

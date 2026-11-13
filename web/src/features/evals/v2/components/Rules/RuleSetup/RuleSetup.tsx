@@ -6,7 +6,10 @@ import type {
 
 import type { AIAssistedInput } from "@/src/components/ui/AIAssistedInput";
 import { RuleEvaluatorsStep } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleEvaluatorsStep";
-import { RuleFilterStep } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleFilterStep";
+import {
+  RuleFilterStep,
+  type RuleScope,
+} from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleFilterStep";
 import { RuleNameStep } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleNameStep";
 
 export function RuleSetup({
@@ -15,6 +18,8 @@ export function RuleSetup({
   evaluatorSearch,
   onEvaluatorSearchChange,
   store,
+  scope,
+  onScopeChange,
   nameAIAssistance,
   onNameStepOpenChange,
 }: {
@@ -23,12 +28,19 @@ export function RuleSetup({
   evaluatorSearch: string;
   onEvaluatorSearchChange: (search: string) => void;
   store: RuleSetupStore;
+  scope?: RuleScope;
+  onScopeChange?: (scope: RuleScope) => void;
   nameAIAssistance: ComponentProps<typeof AIAssistedInput>["aiAssistance"];
   onNameStepOpenChange: (open: boolean) => void;
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <RuleFilterStep projectId={projectId} store={store} />
+      <RuleFilterStep
+        projectId={projectId}
+        store={store}
+        scope={scope}
+        onScopeChange={onScopeChange}
+      />
       <RuleEvaluatorsStep
         projectId={projectId}
         evaluatorOptions={evaluatorOptions}

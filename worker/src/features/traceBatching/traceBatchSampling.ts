@@ -1,4 +1,9 @@
-import { logger, recordIncrement } from "@langfuse/shared/src/server";
+import {
+  getTraceEvalsProcessingSampling,
+  isTraceEvalsProjectEnabled,
+  logger,
+  recordIncrement,
+} from "@langfuse/shared/src/server";
 import {
   getTopicsProcessingSampling,
   isTopicsEnabled,
@@ -30,18 +35,28 @@ export function isTraceBatchPipelineEnabled(): boolean {
 }
 
 /**
- * A trace is admitted when it passes its Topics rule's sampling or the
- * experiment's sampling. Both use the same deterministic trace-ID value, so
- * the admitted share is the larger rate.
+ * A trace is admitted when it passes its Topics rule's sampling, its trace
+ * evals rule's sampling, or the experiment's sampling. All use the same
+ * deterministic trace-ID value, so the admitted share is the largest rate.
  */
 export async function resolveTraceBatchSamplingRate(
   projectId: string,
 ): Promise<number> {
   if (!isTraceBatchPipelineEnabled()) return 0;
 
-  let topicsRate: number;
+  const [topicsRate, traceEvalsRate] = await Promise.all([
+    resolveTopicsRate(projectId),
+    resolveTraceEvalsRate(projectId),
+  ]);
+  const experimentRate = isTraceDispatchEnabled()
+    ? env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE
+    : 0;
+  return Math.max(topicsRate, traceEvalsRate, experimentRate);
+}
+
+async function resolveTopicsRate(projectId: string): Promise<number> {
   try {
-    topicsRate = await getTopicsProcessingSampling(projectId);
+    return await getTopicsProcessingSampling(projectId);
   } catch (error) {
     // Preserve Topics intake during an outage; consumers still check project models.
     recordIncrement("langfuse.trace_batch.topics_gate_failures", 1);
@@ -49,12 +64,27 @@ export async function resolveTraceBatchSamplingRate(
       projectId,
       error,
     });
-    topicsRate = isTopicsProjectEnabled(projectId) ? 1 : 0;
+    return isTopicsProjectEnabled(projectId) ? 1 : 0;
   }
-  const experimentRate = isTraceDispatchEnabled()
-    ? env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE
-    : 0;
-  return Math.max(topicsRate, experimentRate);
+}
+
+/** Trace evals record only through trace dispatch; legacy Topics batching never admits them. */
+async function resolveTraceEvalsRate(projectId: string): Promise<number> {
+  if (!isTraceDispatchEnabled()) return 0;
+  try {
+    return await getTraceEvalsProcessingSampling(projectId);
+  } catch (error) {
+    // Preserve trace evals intake during an outage; rules are still matched per trace.
+    recordIncrement("langfuse.trace_batch.trace_evals_gate_failures", 1);
+    logger.warn(
+      "Failed to read trace evals processing state, using allowlist",
+      {
+        projectId,
+        error,
+      },
+    );
+    return isTraceEvalsProjectEnabled(projectId) ? 1 : 0;
+  }
 }
 
 export function isTraceBatchSampled(

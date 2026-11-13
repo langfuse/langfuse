@@ -1,7 +1,9 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import {
+  EvalTargetObject,
   EvalTemplateType,
+  TopicsTargetObject,
   observationVariableMappingList,
   singleFilterList,
 } from "@langfuse/shared";
@@ -16,8 +18,21 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
+import { traceTranscriptAssignments } from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
+import { useCanViewTraceTranscriptsEvals } from "@/src/features/evals/transcriptEvalsAccess";
+import type { RuleScope } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleFilterStep";
 
 type Rule = RouterOutputs["evalsV2"]["rules"]["get"];
+
+function targetObjectPatch(scope: RuleScope, currentTarget: string) {
+  if (scope === "trace" && currentTarget !== TopicsTargetObject) {
+    return { targetObject: TopicsTargetObject };
+  }
+  if (scope === "observation" && currentTarget === TopicsTargetObject) {
+    return { targetObject: EvalTargetObject.EVENT };
+  }
+  return {};
+}
 
 export function EditRuleDialogContent({
   projectId,
@@ -38,6 +53,11 @@ export function EditRuleDialogContent({
 }) {
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
+  const traceEvalsAvailable = useCanViewTraceTranscriptsEvals(projectId);
+  const [scope, setScope] = useState<RuleScope>(
+    String(rule.targetObject) === TopicsTargetObject ? "trace" : "observation",
+  );
+  const traceScope = traceEvalsAvailable && scope === "trace";
   const [ruleSetupStore] = useState(() =>
     createRuleSetupStore({
       name: rule.name,
@@ -82,16 +102,21 @@ export function EditRuleDialogContent({
     const detachedCount = rule.assignments.filter(
       (assignment) => !nextIds.has(assignment.evaluator.id),
     ).length;
+    const savedScope = traceScope ? "trace" : "observation";
     await update.mutateAsync({
       projectId,
       ruleId: rule.id,
       name: draft.name.trim(),
       filter: draft.filter,
       sampling: draft.sampling,
-      evaluatorMappings: draft.assignments.map((assignment) => ({
-        evaluatorId: assignment.evaluatorId,
-        variableMapping: assignment.variableMapping,
-      })),
+      ...targetObjectPatch(savedScope, rule.targetObject),
+      evaluatorMappings:
+        savedScope === "trace"
+          ? traceTranscriptAssignments(draft.assignments)
+          : draft.assignments.map((assignment) => ({
+              evaluatorId: assignment.evaluatorId,
+              variableMapping: assignment.variableMapping,
+            })),
     });
     capture("evaluation_rules:update", {
       assignmentCount: draft.assignments.length,
@@ -135,6 +160,8 @@ export function EditRuleDialogContent({
             evaluatorSearch={evaluatorSearch}
             onEvaluatorSearchChange={onEvaluatorSearchChange}
             store={ruleSetupStore}
+            scope={traceScope ? "trace" : "observation"}
+            onScopeChange={traceEvalsAvailable ? setScope : undefined}
             nameAIAssistance={{ state: "unavailable" }}
             onNameStepOpenChange={() => undefined}
           />
