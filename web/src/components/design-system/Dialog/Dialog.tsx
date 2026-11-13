@@ -52,9 +52,6 @@ type DialogProps = {
   requireExplicitClose?: boolean;
   /** Disable when a child interaction handles activation keys on the document. */
   stopPropagationOnEnterSpace?: boolean;
-  onCloseAutoFocus?: React.ComponentProps<
-    typeof DialogPrimitive.Content
-  >["onCloseAutoFocus"];
   size?: VariantProps<typeof dialogContentVariants>["size"];
   title: string;
 } & (
@@ -72,7 +69,6 @@ function DialogRoot({
   closeOnInteractionOutside = false,
   requireExplicitClose = false,
   stopPropagationOnEnterSpace = true,
-  onCloseAutoFocus,
   size,
   text,
   title,
@@ -106,7 +102,6 @@ function DialogRoot({
       />
       <DialogPrimitive.Content
         aria-describedby={undefined}
-        onCloseAutoFocus={onCloseAutoFocus}
         className={cn(motionStyles.content, dialogContentVariants({ size }))}
         onOpenAutoFocus={(event) => {
           // Radix otherwise focuses Cancel because it is the first tabbable.

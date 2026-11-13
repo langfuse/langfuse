@@ -23,108 +23,144 @@ export function deriveQueryTokens({
   fieldReason: ((field: string) => string | null) | undefined;
   freeTextReason: string | null | undefined;
 }): ComponentProps<typeof QueryTokens>["tokens"] {
-  return deriveComposerSegments(draft, scoreTypes, registry).map((segment) => {
-    const token = {
-      id: segment.id,
-      from: segment.from,
-      to: segment.to,
-      raw: segment.raw,
-      editable: segment.editable,
-      kind:
-        segment.kind === "invalid" && !showDiagnostics
-          ? ("freeText" as const)
-          : segment.kind,
-      error: segment.kind === "invalid" ? segment.message : null,
-      explanation: explainSegment(segment, registry, draft),
-      inactiveReason: deactivationReason(segment, fieldReason, freeTextReason),
-    };
-    if (segment.kind !== "filter") return token;
-    const raw = segment.target
-      ? segment.raw.slice(0, segment.target.from) +
-        segment.raw.slice(segment.target.to)
-      : segment.raw;
-    const dash = segment.negated ? "-" : "";
-    const prefixTarget =
-      segment.target !== undefined && segment.target.from <= dash.length;
-    const targetParts = segment.target
-      ? [
-          {
-            text: segment.raw.slice(segment.target.from, segment.target.to),
-            tone: "target" as const,
-            color: (
-              Object.keys(
-                QUERY_LABEL_COLORS,
-              ) as (keyof typeof QUERY_LABEL_COLORS)[]
-            ).find((color) =>
-              segment.target?.textClassName?.includes(`text-${color}-`),
-            ),
-          },
-        ]
-      : [];
-    const body = segment.negated ? raw.slice(1) : raw;
-    // A quoted metadata key may contain a colon that is not the separator.
-    const colon = indexOfOutsideQuotes(body, ":");
-    const numeric =
-      segment.values.length > 0 &&
-      segment.values.every((value) => /^-?\d+(\.\d+)?$/.test(value.trim()));
-    const fieldGroup = {
-      noWrap: true,
-      parts: [
-        { text: dash, tone: "muted" as const },
-        ...(prefixTarget ? targetParts : []),
-        { text: segment.displayField, tone: "field" as const },
-        { text: ":", tone: "muted" as const },
-      ],
-    };
-    let relation = "any of";
-    if (segment.negated !== (segment.inheritedNegation ?? false))
-      relation = "none of";
-    else if (segment.valueOp === "and") relation = "all of";
-    const subject = token.explanation?.subject ?? segment.displayField;
-    return {
-      ...token,
-      ...(segment.values.length > 2
-        ? {
-            summary: {
-              label: `${subject} ${relation} ${segment.values.length} values`,
-              previewLabel: `${subject} ${relation === "any of" ? "" : `${relation} `}${segment.values.length} values`,
-              values: segment.values,
-              groups: [
-                fieldGroup,
-                {
-                  noWrap: true,
-                  parts: [
-                    ...(relation === "any of" || segment.inheritedNegation
-                      ? []
-                      : [
-                          {
-                            text: `${relation === "all of" ? "all" : "none"} `,
-                            tone: "muted" as const,
-                          },
-                        ]),
-                    { text: segment.values[0]!, tone: "value" as const },
-                  ],
-                },
-                ...(!prefixTarget && targetParts.length > 0
-                  ? [{ noWrap: true, parts: targetParts }]
-                  : []),
-              ],
-            },
-          }
-        : {}),
-      groups: [
-        fieldGroup,
-        {
-          noWrap: false,
-          parts: [
+  return deriveComposerSegments(draft, scoreTypes, registry).map(
+    (sourceSegment) => {
+      const token = {
+        id: sourceSegment.id,
+        from: sourceSegment.from,
+        to: sourceSegment.to,
+        raw: sourceSegment.raw,
+        editable: sourceSegment.editable,
+        kind:
+          sourceSegment.kind === "invalid" && !showDiagnostics
+            ? ("freeText" as const)
+            : sourceSegment.kind,
+        error: sourceSegment.kind === "invalid" ? sourceSegment.message : null,
+        explanation: explainSegment(sourceSegment, registry, draft),
+        inactiveReason: deactivationReason(
+          sourceSegment,
+          fieldReason,
+          freeTextReason,
+        ),
+      };
+      let segment;
+      if (sourceSegment.kind === "filter") segment = sourceSegment;
+      else if (sourceSegment.kind === "invalid" && sourceSegment.filter)
+        segment = { ...sourceSegment, ...sourceSegment.filter };
+      else return token;
+      const raw = segment.target
+        ? segment.raw.slice(0, segment.target.from) +
+          segment.raw.slice(segment.target.to)
+        : segment.raw;
+      const dash = segment.negated ? "-" : "";
+      const prefixTarget =
+        segment.target !== undefined && segment.target.from <= dash.length;
+      const targetParts = segment.target
+        ? [
             {
-              text: colon === -1 ? "" : body.slice(colon + 1),
-              tone: numeric ? ("number" as const) : ("value" as const),
+              text: segment.raw.slice(segment.target.from, segment.target.to),
+              tone: "target" as const,
+              color: (
+                Object.keys(
+                  QUERY_LABEL_COLORS,
+                ) as (keyof typeof QUERY_LABEL_COLORS)[]
+              ).find((color) =>
+                segment.target?.textClassName?.includes(`text-${color}-`),
+              ),
             },
-            ...(!prefixTarget ? targetParts : []),
-          ],
-        },
-      ],
-    };
-  });
+          ]
+        : [];
+      const body = segment.negated ? raw.slice(1) : raw;
+      // A quoted metadata key may contain a colon that is not the separator.
+      const colon = indexOfOutsideQuotes(body, ":");
+      const numeric =
+        segment.values.length > 0 &&
+        segment.values.every((value) => /^-?\d+(\.\d+)?$/.test(value.trim()));
+      const fieldGroup = {
+        noWrap: true,
+        parts: [
+          { text: dash, tone: "muted" as const },
+          ...(prefixTarget ? targetParts : []),
+          { text: segment.displayField, tone: "field" as const },
+          { text: ":", tone: "muted" as const },
+        ],
+      };
+      let relation = "any of";
+      if (segment.negated !== (segment.inheritedNegation ?? false))
+        relation = "none of";
+      else if (segment.valueOp === "and") relation = "all of";
+      const subject = token.explanation?.subject ?? segment.displayField;
+      const valueFrom = indexOfOutsideQuotes(segment.raw, ":") + 1;
+      let valueTo =
+        segment.target && !prefixTarget
+          ? segment.target.from
+          : segment.raw.length;
+      while (valueTo > valueFrom && /\s/.test(segment.raw[valueTo - 1]!))
+        valueTo--;
+      return {
+        ...token,
+        ...(segment.values.length > 2
+          ? {
+              summary: {
+                atom: {
+                  from: segment.from + valueFrom,
+                  to: segment.from + valueTo,
+                  raw: segment.raw.slice(valueFrom, valueTo),
+                },
+                label: `${subject} ${relation} ${segment.values.length} values`,
+                previewLabel: `${subject} ${relation === "any of" ? "" : `${relation} `}${segment.values.length} values`,
+                values: segment.values,
+                groups: [
+                  fieldGroup,
+                  {
+                    noWrap: true,
+                    parts: [
+                      ...(relation === "any of" || segment.inheritedNegation
+                        ? []
+                        : [
+                            {
+                              text: `${relation === "all of" ? "all" : "none"} `,
+                              tone: "muted" as const,
+                            },
+                          ]),
+                      { text: segment.values[0]!, tone: "value" as const },
+                    ],
+                  },
+                  ...(!prefixTarget && targetParts.length > 0
+                    ? [
+                        {
+                          noWrap: true,
+                          parts: [
+                            {
+                              text: segment.raw.slice(
+                                valueTo,
+                                segment.target!.from,
+                              ),
+                              tone: "muted" as const,
+                            },
+                            ...targetParts,
+                          ],
+                        },
+                      ]
+                    : []),
+                ],
+              },
+            }
+          : {}),
+        groups: [
+          fieldGroup,
+          {
+            noWrap: false,
+            parts: [
+              {
+                text: colon === -1 ? "" : body.slice(colon + 1),
+                tone: numeric ? ("number" as const) : ("value" as const),
+              },
+              ...(!prefixTarget ? targetParts : []),
+            ],
+          },
+        ],
+      };
+    },
+  );
 }

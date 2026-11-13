@@ -189,7 +189,7 @@ export const TestCompactGroupEditing = meta.story({
     await expect(group).toHaveTextContent("+2");
     await userEvent.click(input);
     const range = document.createRange();
-    range.setStart(input, 0);
+    range.setStartBefore(group.closest("[data-query-source]")!);
     range.collapse(true);
     window.getSelection()?.removeAllRanges();
     window.getSelection()?.addRange(range);
@@ -256,20 +256,70 @@ export const TestCompactGroupEditing = meta.story({
       }),
     );
     await expect(clipboard.getData("text/plain")).toBe(args.initialDraft);
-    const expand = canvas.getByRole("button", { name: "Expand query" });
-    await userEvent.click(expand);
-    await body.findByRole("dialog", { name: "Edit query" });
-    await userEvent.keyboard("{Escape}");
-    await waitFor(() => expect(expand).toHaveFocus());
-    await userEvent.click(expand);
-    const queryDialog = await body.findByRole("dialog", { name: "Edit query" });
-    await userEvent.click(
-      within(queryDialog).getByRole("button", { name: "Apply" }),
-    );
-    await waitFor(() => expect(expand).toHaveFocus());
     await userEvent.click(
       canvas.getByRole("button", { name: /Edit.*3 values/ }),
     );
+  },
+});
+
+export const TestInlineKeyEditing = meta.story({
+  name: "(Test) Keys edit inline without losing collapsed values",
+  args: {
+    initialDraft: "id:(request-a OR request-b OR request-c) level:ERROR ",
+    observed: { name: [] },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const input = canvas.getByRole("combobox");
+    const values = "(request-a OR request-b OR request-c)";
+    await userEvent.click(input);
+    const key = input.querySelector('[data-part="field"]')?.firstChild;
+    if (key === undefined || key === null)
+      throw new Error("Expected the editable ID key");
+    const range = document.createRange();
+    range.setStart(key, 0);
+    range.setEnd(key, 2);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(range);
+    await userEvent.keyboard("n");
+    await expect(input.querySelector("[data-query-source]")).toHaveAttribute(
+      "data-query-source",
+      values,
+    );
+    await expect(
+      canvas.getByRole("button", { name: /Edit.*3 values/ }),
+    ).toBeDisabled();
+    await userEvent.keyboard("a");
+    await userEvent.click(
+      await body.findByRole("option", { name: /Observation name/ }),
+    );
+    await expect(input.querySelector("[data-query-source]")).toHaveAttribute(
+      "data-query-source",
+      values,
+    );
+    const group = canvas.getByRole("button", {
+      name: "Edit Name any of 3 values",
+    });
+    await expect(group).toBeEnabled();
+    await expect(input).toHaveTextContent("level:ERROR");
+    group.focus();
+    await userEvent.keyboard("{Meta>}a{/Meta}");
+    const clipboard = new DataTransfer();
+    input.dispatchEvent(
+      new ClipboardEvent("copy", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData: clipboard,
+      }),
+    );
+    await expect(clipboard.getData("text/plain")).toBe(
+      `name:${values} level:ERROR `,
+    );
+    await userEvent.click(group);
+    await expect(
+      await body.findByRole("dialog", { name: "Edit filter values" }),
+    ).toBeVisible();
   },
 });
 

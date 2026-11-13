@@ -1944,12 +1944,6 @@ export function applyPick(
         ? option.fieldId
         : `${option.fieldId}:`;
     keepOpen = true;
-    // A dot-prefix field (`metadata.`/`scores.`/`traceScores.`) is itself a
-    // partial key. When an existing `:value` follows, consume the whole term so
-    // the user re-picks the key from observed options instead.
-    if (option.fieldId.endsWith(".") && colonFollows) {
-      replaceTo = termAt(current, plan.from)?.to ?? plan.to;
-    }
   } else if (option.kind === "value") {
     insert = serializeValue(option.value);
     keepOpen = plan.keepOpenOnPick ?? false;

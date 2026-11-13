@@ -7,6 +7,8 @@ import {
   selectionOffsets,
   setSelectionRange,
   snapOffsetAcrossAtoms,
+  sourceAtomAtOffset,
+  sourceAtomForNode,
   textFromRoot,
 } from "./queryInputDom";
 
@@ -45,6 +47,57 @@ afterEach(() => {
 });
 
 describe("query input source mapping", () => {
+  it("keeps a nested value atom separate from editable negation, key, and target text", () => {
+    const root = document.createElement("div");
+    root.contentEditable = "true";
+    const condition = document.createElement("span");
+    const prefix = '-metadata."kind:variant":';
+    const values = '("a" OR "b" OR "c")';
+    const suffix = ' @"Run A"';
+    const key = document.createTextNode(prefix);
+    const atom = document.createElement("span");
+    atom.contentEditable = "false";
+    atom.setAttribute("data-query-source", values);
+    const button = document.createElement("button");
+    button.textContent = "a +2";
+    atom.appendChild(button);
+    const target = document.createTextNode(suffix);
+    condition.append(key, atom, target);
+    root.appendChild(condition);
+    document.body.appendChild(root);
+    const from = prefix.length;
+    const to = from + values.length;
+    expect(textFromRoot(root)).toBe(prefix + values + suffix);
+    expect(sourceAtomForNode(root, button)).toEqual({
+      from,
+      to,
+      element: atom,
+    });
+    expect(sourceAtomForNode(root, key)).toBeNull();
+    expect(sourceAtomAtOffset(root, from - 1)).toBeNull();
+    expect(sourceAtomAtOffset(root, from + 1)).toEqual({
+      from,
+      to,
+      element: atom,
+    });
+    expect(expandRangeAcrossAtoms(root, { from: 1, to: from - 1 })).toEqual({
+      from: 1,
+      to: from - 1,
+    });
+    expect(expandRangeAcrossAtoms(root, { from: to - 1, to: to + 1 })).toEqual({
+      from,
+      to: to + 1,
+    });
+    setSelectionRange(root, 1, from - 1);
+    expect(selectionOffsets(root)).toEqual({ start: 1, end: from - 1 });
+    setSelectionRange(root, to + 2, to + 2);
+    expect(selectionOffsets(root)).toEqual({ start: to + 2, end: to + 2 });
+    expect(domPositionForLogicalOffset(root, to + 2)).toEqual({
+      node: target,
+      offset: 2,
+    });
+  });
+
   it("keeps folded source intact through DOM reads and selection-based clipboard edits", () => {
     const { root, atom, from, to, text, suffix } = createEditor();
     expect(textFromRoot(root)).toBe(text);

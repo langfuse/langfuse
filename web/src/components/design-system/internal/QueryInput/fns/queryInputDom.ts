@@ -9,6 +9,7 @@ type SourceNode = SourceRange & {
   source: string;
   atomic: boolean;
 };
+type SourceAtom = SourceRange & { element: Element };
 
 function withoutJoiners(text: string): string {
   return text.replace(WORD_JOINER_RE, "");
@@ -55,6 +56,31 @@ function sourceNodes(root: HTMLElement): SourceNode[] {
 
 export function textFromRoot(root: HTMLElement): string {
   return sourceText(root);
+}
+
+export function sourceAtomForNode(
+  root: HTMLElement,
+  node: Node,
+): SourceAtom | null {
+  if (!root.contains(node)) return null;
+  const atom = sourceNodes(root).find(
+    (part) => part.atomic && part.node.contains(node),
+  );
+  return atom === undefined
+    ? null
+    : { from: atom.from, to: atom.to, element: atom.node as Element };
+}
+
+export function sourceAtomAtOffset(
+  root: HTMLElement,
+  offset: number,
+): SourceAtom | null {
+  const atom = sourceNodes(root).find(
+    (part) => part.atomic && part.from < offset && offset < part.to,
+  );
+  return atom === undefined
+    ? null
+    : { from: atom.from, to: atom.to, element: atom.node as Element };
 }
 
 function rawOffsetForLogicalOffset(
@@ -225,10 +251,8 @@ export function snapOffsetAcrossAtoms(
   offset: number,
   direction: Direction,
 ): number {
-  const atom = sourceNodes(root).find(
-    (part) => part.atomic && part.from < offset && offset < part.to,
-  );
-  if (atom === undefined) return offset;
+  const atom = sourceAtomAtOffset(root, offset);
+  if (atom === null) return offset;
   return direction === "backward" ? atom.from : atom.to;
 }
 

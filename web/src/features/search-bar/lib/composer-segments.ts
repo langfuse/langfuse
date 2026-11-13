@@ -12,7 +12,7 @@ import { resolveFilterTarget } from "./targeting";
 import type { ScoreTypeContext } from "./adapter";
 import type { ASTNode, CompareOp, FilterNode, Span, TextNode } from "./ast";
 import { EVENTS_FIELD_REGISTRY, type FieldRegistry } from "./fields";
-import { lexTokens, type Diagnostic } from "./langQ";
+import { indexOfOutsideQuotes, lexTokens, type Diagnostic } from "./langQ";
 import { validateQuery } from "./validate";
 
 export type FilterSegment = {
@@ -35,6 +35,17 @@ export type FilterSegment = {
   editable: true;
 };
 
+type FilterPresentation = Pick<
+  FilterSegment,
+  | "target"
+  | "displayField"
+  | "values"
+  | "op"
+  | "valueOp"
+  | "negated"
+  | "inheritedNegation"
+>;
+
 type PlainSegment = {
   id: string;
   kind: "freeText" | "operator" | "paren";
@@ -52,6 +63,8 @@ type InvalidSegment = {
   raw: string;
   message: string;
   editable: true;
+  /** Complete values remain foldable while only the field name is unresolved. */
+  filter?: FilterPresentation;
 };
 
 export type ComposerSegment = FilterSegment | PlainSegment | InvalidSegment;
@@ -142,6 +155,61 @@ function overlappingErrors(diagnostics: Diagnostic[], span: Span): string[] {
   return messages;
 }
 
+function filterPresentation(
+  leaf: Extract<Leaf, { kind: "filter" }>,
+  registry: FieldRegistry,
+): FilterPresentation {
+  const { node, span } = leaf;
+  return {
+    displayField: node.rawKey ?? node.key,
+    values: node.values,
+    op: node.op,
+    valueOp: node.valueOp,
+    negated: leaf.negated,
+    ...(leaf.inheritedNegation ? { inheritedNegation: true } : {}),
+    ...(node.target?.span
+      ? {
+          target: {
+            from: node.target.span.from - span.from,
+            to: node.target.span.to - span.from,
+            textClassName: (() => {
+              const resolved = resolveFilterTarget(node, registry);
+              return "id" in resolved
+                ? registry.targeting?.targets.find(
+                    (target) => target.id === resolved.id,
+                  )?.textClassName
+                : undefined;
+            })(),
+          },
+        }
+      : {}),
+  };
+}
+
+function hasOnlyUnknownFieldErrors(
+  diagnostics: Diagnostic[],
+  leaf: Extract<Leaf, { kind: "filter" }>,
+  text: string,
+): boolean {
+  const errors = diagnostics.filter(
+    (diagnostic) =>
+      diagnostic.severity === "error" &&
+      diagnostic.from < leaf.span.to &&
+      diagnostic.to > leaf.span.from,
+  );
+  const message = `Unknown field "${leaf.node.rawKey ?? leaf.node.key}"`;
+  const colon = indexOfOutsideQuotes(
+    text.slice(leaf.span.from, leaf.span.to),
+    ":",
+  );
+  const keyEnd = leaf.span.from + Math.max(colon, 1);
+  return (
+    colon !== -1 &&
+    errors.every((error) => error.message === message) &&
+    errors.some((error) => error.from >= leaf.span.from && error.to <= keyEnd)
+  );
+}
+
 // ---- projection ----
 
 // One-slot memo: the composer and its consumers all derive from the same
@@ -201,6 +269,11 @@ export function deriveComposerSegments(
         raw,
         message: messages.join("; "),
         editable: true,
+        ...(matchedLeaf?.kind === "filter" &&
+        matchedLeaf.node.values.length > 2 &&
+        hasOnlyUnknownFieldErrors(diagnostics, matchedLeaf, draftText)
+          ? { filter: filterPresentation(matchedLeaf, registry) }
+          : {}),
       });
       continue;
     }
@@ -235,36 +308,14 @@ export function deriveComposerSegments(
       leaf.kind === "filter" &&
       leaf.span.to === span.to
     ) {
-      const node = leaf.node;
       segments.push({
         id: segmentId("filter", span, raw),
         kind: "filter",
         from: span.from,
         to: span.to,
         raw,
-        displayField: node.rawKey ?? node.key,
-        values: node.values,
-        op: node.op,
-        valueOp: node.valueOp,
-        negated: leaf.negated,
-        ...(leaf.inheritedNegation ? { inheritedNegation: true } : {}),
+        ...filterPresentation(leaf, registry),
         editable: true,
-        ...(node.target?.span
-          ? {
-              target: {
-                from: node.target.span.from - span.from,
-                to: node.target.span.to - span.from,
-                textClassName: (() => {
-                  const resolved = resolveFilterTarget(node, registry);
-                  return "id" in resolved
-                    ? registry.targeting?.targets.find(
-                        (target) => target.id === resolved.id,
-                      )?.textClassName
-                    : undefined;
-                })(),
-              },
-            }
-          : {}),
       });
       continue;
     }

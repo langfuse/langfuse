@@ -30,16 +30,12 @@ import {
   SCORE_LEVEL_LABELS,
 } from "@/src/components/ScoreTag";
 import { composerPlaceholder } from "../presentation";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { FilterValuesPopover } from "./FilterValuesPopover";
 import { PopoverController } from "@/src/components/ui/popover";
 import {
   createTokenFacetState,
   type TokenFacetState,
 } from "../../lib/fns/tokenFacet";
-import { QueryExpressionEditor } from "./QueryExpressionEditor";
-
-type QueryEditorState = { originalDraft: string; initialValue: string };
 type ValuePickerState = {
   state: TokenFacetState;
   tokenFrom: number | null;
@@ -108,7 +104,6 @@ export function SearchComposer({
 
   const controller = useQueryInputController();
   const valuePickerId = React.useId();
-  const queryEditorTriggerRef = React.useRef<HTMLButtonElement | null>(null);
   const [valuePicker, setValuePicker] = React.useState<ValuePickerState | null>(
     null,
   );
@@ -166,246 +161,196 @@ export function SearchComposer({
   });
 
   return (
-    <DialogController<QueryEditorState>
-      renderDialog={({ state, closeDialog }) => {
-        const apply = (value: string) => {
-          if (
-            !draftsSemanticallyEqual(
-              store.getState().draft,
-              state.originalDraft,
-              scoreTypes,
-              registry,
-            )
-          )
-            return false;
-          store.getState().actions.setDraft(value);
-          return commit("pick") !== null;
-        };
-        return (
-          <QueryExpressionEditor
-            initialValue={state.initialValue}
+    <PopoverController
+      contentId={valuePickerId}
+      ariaLabel="Edit filter values"
+      align="start"
+      contentClassName="w-80 max-w-[calc(100vw-24px)] p-0 py-2"
+      disabled={false}
+      modal={false}
+      onOpenAutoFocus={(event) => {
+        const target = document
+          .getElementById(valuePickerId)
+          ?.querySelector<HTMLElement>('input, [role="checkbox"]');
+        if (target !== null && target !== undefined) {
+          event.preventDefault();
+          target.focus();
+        }
+      }}
+      onEscapeKeyDown={() => {
+        restoreValuePickerFocusRef.current = true;
+      }}
+      onCloseAutoFocus={(event) => {
+        event.preventDefault();
+        if (restoreValuePickerFocusRef.current) {
+          const focus = valuePickerFocusRef.current;
+          const currentToken = tokens.find(
+            (token) =>
+              token.from === focus?.from && token.summary !== undefined,
+          );
+          let currentTrigger = focus?.trigger.isConnected
+            ? focus.trigger
+            : null;
+          if (currentTrigger === null && currentToken !== undefined)
+            currentTrigger =
+              focus?.editor?.querySelector<HTMLButtonElement>(
+                `[data-segment-id="${CSS.escape(currentToken.id)}"] [data-query-summary]`,
+              ) ?? null;
+          (currentTrigger ?? focus?.editor)?.focus();
+          controller.setAutocompleteOpen(false);
+        }
+        restoreValuePickerFocusRef.current = false;
+      }}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) setValuePicker(null);
+      }}
+      renderContent={({ closePopover }) =>
+        valuePicker !== null ? (
+          <FilterValuesPopover
+            state={valuePicker.state}
             registry={registry}
             scoreTypes={scoreTypes}
-            onApply={apply}
-            onClose={closeDialog}
-            onCloseAutoFocus={(event) => {
-              event.preventDefault();
-              const trigger = queryEditorTriggerRef.current;
-              if (trigger?.isConnected) trigger.focus();
-              controller.setAutocompleteOpen(false);
+            observed={observed}
+            erroredColumns={erroredColumns}
+            onClose={() => {
+              restoreValuePickerFocusRef.current = true;
+              closePopover();
+            }}
+            onApply={(previousQuery, nextState) => {
+              if (
+                !draftsSemanticallyEqual(
+                  store.getState().draft,
+                  previousQuery,
+                  scoreTypes,
+                  registry,
+                )
+              )
+                return false;
+              store.getState().actions.setDraft(nextState.query);
+              if (commit("pick") === null) return false;
+              if (valuePickerFocusRef.current !== null)
+                valuePickerFocusRef.current.from =
+                  nextState.expression === null ? null : nextState.span.from;
+              setValuePicker((current) =>
+                current === null
+                  ? null
+                  : {
+                      ...current,
+                      state: nextState,
+                      tokenFrom:
+                        nextState.expression === null
+                          ? null
+                          : nextState.span.from,
+                    },
+              );
+              return true;
             }}
           />
-        );
-      }}
+        ) : null
+      }
     >
-      {({ openDialog }) => (
-        <PopoverController
-          contentId={valuePickerId}
-          ariaLabel="Edit filter values"
-          align="start"
-          contentClassName="w-80 max-w-[calc(100vw-24px)] p-0 py-2"
-          disabled={false}
-          modal={false}
-          onOpenAutoFocus={(event) => {
-            const target = document
-              .getElementById(valuePickerId)
-              ?.querySelector<HTMLElement>('input, [role="checkbox"]');
-            if (target !== null && target !== undefined) {
-              event.preventDefault();
-              target.focus();
-            }
-          }}
-          onEscapeKeyDown={() => {
-            restoreValuePickerFocusRef.current = true;
-          }}
-          onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            if (restoreValuePickerFocusRef.current) {
-              const focus = valuePickerFocusRef.current;
-              const currentToken = tokens.find(
-                (token) =>
-                  token.from === focus?.from && token.summary !== undefined,
-              );
-              let currentTrigger = focus?.trigger.isConnected
-                ? focus.trigger
-                : null;
-              if (currentTrigger === null && currentToken !== undefined)
-                currentTrigger =
-                  focus?.editor?.querySelector<HTMLButtonElement>(
-                    `[data-segment-id="${CSS.escape(currentToken.id)}"] [data-query-summary]`,
-                  ) ?? null;
-              (currentTrigger ?? focus?.editor)?.focus();
-              controller.setAutocompleteOpen(false);
-            }
-            restoreValuePickerFocusRef.current = false;
-          }}
-          onOpenChange={(isOpen) => {
-            if (!isOpen) setValuePicker(null);
-          }}
-          renderContent={({ closePopover }) =>
-            valuePicker !== null ? (
-              <FilterValuesPopover
-                state={valuePicker.state}
-                registry={registry}
-                scoreTypes={scoreTypes}
-                observed={observed}
-                erroredColumns={erroredColumns}
-                onClose={() => {
-                  restoreValuePickerFocusRef.current = true;
-                  closePopover();
-                }}
-                onApply={(previousQuery, nextState) => {
-                  if (
-                    !draftsSemanticallyEqual(
-                      store.getState().draft,
-                      previousQuery,
-                      scoreTypes,
-                      registry,
-                    )
-                  )
-                    return false;
-                  store.getState().actions.setDraft(nextState.query);
-                  if (commit("pick") === null) return false;
-                  if (valuePickerFocusRef.current !== null)
-                    valuePickerFocusRef.current.from =
-                      nextState.expression === null
-                        ? null
-                        : nextState.span.from;
-                  setValuePicker((current) =>
-                    current === null
-                      ? null
-                      : {
-                          ...current,
-                          state: nextState,
-                          tokenFrom:
-                            nextState.expression === null
-                              ? null
-                              : nextState.span.from,
-                        },
-                  );
-                  return true;
-                }}
-              />
-            ) : null
-          }
-        >
-          {({ openPopover, Anchor, isOpen }) => (
-            <>
-              {valuePicker !== null ? (
-                <Anchor virtualRef={valuePicker.virtualRef} />
-              ) : null}
-              <QueryInput
-                inputId={inputId}
-                label="Search"
-                size={size}
-                value={draft}
-                diagnostics={showDiagnostics ? diagnostics : []}
-                tokens={tokens}
-                placeholder={composerPlaceholder(registry)}
-                action={
-                  onActivateAi
-                    ? {
-                        label: "Ask AI",
-                        title: "Ask AI to build or refine filters",
-                        onClick: onActivateAi,
-                      }
-                    : undefined
-                }
-                onValueChange={(value) =>
-                  store.getState().actions.setDraft(value)
-                }
-                onCommit={(value, reason) => {
-                  const state = store.getState();
-                  if (value !== state.draft) state.actions.setDraft(value);
-                  return commit(reason);
-                }}
-                onRemoveToken={(token) => {
-                  store.getState().actions.removeChipSpan(token.from, token.to);
-                  if (store.getState().draftValid) commit("pick");
-                }}
-                areEquivalent={(left, right) =>
-                  draftsSemanticallyEqual(left, right, scoreTypes, registry)
-                }
-                controller={controller}
-                completions={completions}
-                tokenEditor={
-                  isOpen &&
-                  valuePicker !== null &&
-                  valuePicker.tokenFrom !== null
-                    ? {
-                        from: valuePicker.tokenFrom,
-                        popupId: valuePickerId,
-                      }
-                    : undefined
-                }
-                onEditToken={(token, anchor) => {
-                  const initialState = createTokenFacetState(
-                    store.getState().draft,
-                    token,
-                    registry,
-                  );
-                  if (initialState === null) return;
-                  const rect = anchor.getBoundingClientRect();
-                  const reference =
-                    anchor.closest<HTMLElement>('[role="search"]') ?? anchor;
-                  valuePickerFocusRef.current = {
-                    trigger: anchor,
-                    editor: reference.querySelector<HTMLElement>(
-                      '[contenteditable="true"]',
-                    ),
-                    from: token.from,
-                  };
-                  restoreValuePickerFocusRef.current = false;
-                  const base = reference.getBoundingClientRect();
-                  const leftOffset = rect.left - base.left;
-                  const topOffset = rect.top - base.top;
-                  setValuePicker({
-                    state: initialState,
-                    tokenFrom: token.from,
-                    virtualRef: {
-                      current: {
-                        getBoundingClientRect: () => {
-                          if (anchor.isConnected)
-                            return anchor.getBoundingClientRect();
-                          const current = reference.getBoundingClientRect();
-                          return new DOMRect(
-                            current.left + leftOffset,
-                            current.top + topOffset,
-                            rect.width,
-                            rect.height,
-                          );
-                        },
-                      },
-                    },
-                  });
-                  const field = registry.resolveField(
-                    initialState.template.key,
-                  );
-                  if (
-                    field?.type === "field" &&
-                    (field.field.syncMode === "exactOption" ||
-                      field.field.syncMode === "arrayOption")
-                  ) {
-                    onRequestColumns?.([
-                      field.field.filterColumn ?? field.field.id,
-                    ]);
+      {({ openPopover, Anchor, isOpen }) => (
+        <>
+          {valuePicker !== null ? (
+            <Anchor virtualRef={valuePicker.virtualRef} />
+          ) : null}
+          <QueryInput
+            inputId={inputId}
+            label="Search"
+            size={size}
+            value={draft}
+            diagnostics={showDiagnostics ? diagnostics : []}
+            tokens={tokens}
+            placeholder={composerPlaceholder(registry)}
+            action={
+              onActivateAi
+                ? {
+                    label: "Ask AI",
+                    title: "Ask AI to build or refine filters",
+                    onClick: onActivateAi,
                   }
-                  controller.setAutocompleteOpen(false);
-                  openPopover();
-                }}
-                onExpand={(trigger) => {
-                  queryEditorTriggerRef.current = trigger;
-                  openDialog({
-                    originalDraft: store.getState().draft,
-                    initialValue: store.getState().draft,
-                  });
-                }}
-              />
-            </>
-          )}
-        </PopoverController>
+                : undefined
+            }
+            onValueChange={(value) => store.getState().actions.setDraft(value)}
+            onCommit={(value, reason) => {
+              const state = store.getState();
+              if (value !== state.draft) state.actions.setDraft(value);
+              return commit(reason);
+            }}
+            onRemoveToken={(token) => {
+              store.getState().actions.removeChipSpan(token.from, token.to);
+              if (store.getState().draftValid) commit("pick");
+            }}
+            areEquivalent={(left, right) =>
+              draftsSemanticallyEqual(left, right, scoreTypes, registry)
+            }
+            controller={controller}
+            completions={completions}
+            tokenEditor={
+              isOpen && valuePicker !== null && valuePicker.tokenFrom !== null
+                ? {
+                    from: valuePicker.tokenFrom,
+                    popupId: valuePickerId,
+                  }
+                : undefined
+            }
+            onEditToken={(token, anchor) => {
+              const initialState = createTokenFacetState(
+                store.getState().draft,
+                token,
+                registry,
+              );
+              if (initialState === null) return;
+              const rect = anchor.getBoundingClientRect();
+              const reference =
+                anchor.closest<HTMLElement>('[role="search"]') ?? anchor;
+              valuePickerFocusRef.current = {
+                trigger: anchor,
+                editor: reference.querySelector<HTMLElement>(
+                  '[contenteditable="true"]',
+                ),
+                from: token.from,
+              };
+              restoreValuePickerFocusRef.current = false;
+              const base = reference.getBoundingClientRect();
+              const leftOffset = rect.left - base.left;
+              const topOffset = rect.top - base.top;
+              setValuePicker({
+                state: initialState,
+                tokenFrom: token.from,
+                virtualRef: {
+                  current: {
+                    getBoundingClientRect: () => {
+                      if (anchor.isConnected)
+                        return anchor.getBoundingClientRect();
+                      const current = reference.getBoundingClientRect();
+                      return new DOMRect(
+                        current.left + leftOffset,
+                        current.top + topOffset,
+                        rect.width,
+                        rect.height,
+                      );
+                    },
+                  },
+                },
+              });
+              const field = registry.resolveField(initialState.template.key);
+              if (
+                field?.type === "field" &&
+                (field.field.syncMode === "exactOption" ||
+                  field.field.syncMode === "arrayOption")
+              ) {
+                onRequestColumns?.([
+                  field.field.filterColumn ?? field.field.id,
+                ]);
+              }
+              controller.setAutocompleteOpen(false);
+              openPopover();
+            }}
+          />
+        </>
       )}
-    </DialogController>
+    </PopoverController>
   );
 }
 

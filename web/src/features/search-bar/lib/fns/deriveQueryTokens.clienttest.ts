@@ -3,6 +3,91 @@ import { deriveQueryTokens } from "./deriveQueryTokens";
 import { EVENTS_FIELD_REGISTRY } from "../fields";
 
 describe("deriveQueryTokens", () => {
+  it("keeps a complete value list folded while its key is unknown without hiding value errors", () => {
+    const project = (draft: string) =>
+      deriveQueryTokens({
+        draft,
+        scoreTypes: undefined,
+        registry: EVENTS_FIELD_REGISTRY,
+        showDiagnostics: true,
+        fieldReason: undefined,
+        freeTextReason: undefined,
+      });
+    for (const key of ["n", "unknown.field", ""]) {
+      const draft = `${key}:(alpha OR beta OR gamma)`;
+      const [token] = project(draft);
+      expect(token?.kind).toBe("invalid");
+      expect(token?.error).toContain(`Unknown field "${key}"`);
+      expect(token?.summary?.atom).toEqual({
+        from: key.length + 1,
+        to: draft.length,
+        raw: "(alpha OR beta OR gamma)",
+      });
+    }
+    for (const draft of [
+      "latency:(alpha OR beta OR gamma)",
+      "name:(alpha OR beta OR)",
+      "n:(alpha OR beta OR)",
+    ]) {
+      expect(project(draft).every((token) => token.summary === undefined)).toBe(
+        true,
+      );
+    }
+  });
+
+  it("folds only value source while leaving keys, negation, and targets outside the atom", () => {
+    const registry = {
+      ...EVENTS_FIELD_REGISTRY,
+      targeting: {
+        defaultTarget: "all",
+        supports: () => true,
+        targets: [
+          { id: "all", label: "All", keyword: true },
+          { id: "run-a", label: "Run: A" },
+        ],
+      },
+    };
+    for (const [expression, valueSource] of [
+      ["name:(alpha OR beta OR gamma)", "(alpha OR beta OR gamma)"],
+      ["-name:(alpha OR beta OR gamma)", "(alpha OR beta OR gamma)"],
+      ["tags:(alpha AND beta AND gamma)", "(alpha AND beta AND gamma)"],
+      ["NOT (name:(alpha OR beta OR gamma))", "(alpha OR beta OR gamma)"],
+      [
+        '\"Run: A\".scores.\"Rouge: Score\":(alpha OR beta OR gamma)',
+        "(alpha OR beta OR gamma)",
+      ],
+      [
+        '-scores.\"Rouge: Score\":(alpha OR beta OR gamma) @\"Run: A\"',
+        "(alpha OR beta OR gamma)",
+      ],
+      ["name:alpha,beta,gamma", "alpha,beta,gamma"],
+    ]) {
+      const draft = `level:ERROR ${expression} env:dev`;
+      const token = deriveQueryTokens({
+        draft,
+        scoreTypes: undefined,
+        registry,
+        showDiagnostics: true,
+        fieldReason: undefined,
+        freeTextReason: undefined,
+      }).find((candidate) => candidate.summary !== undefined)!;
+      const from = draft.indexOf(valueSource!);
+      const to = from + valueSource!.length;
+      expect(token.summary?.atom).toEqual({ from, to, raw: valueSource });
+      const prefix = token
+        .summary!.groups[0]!.parts.map((part) => part.text)
+        .join("");
+      const suffix = token
+        .summary!.groups.slice(2)
+        .flatMap((group) => group.parts.map((part) => part.text))
+        .join("");
+      expect(prefix + valueSource + suffix).toBe(token.raw);
+      expect(
+        draft.slice(0, from) + token.summary!.atom.raw + draft.slice(to),
+      ).toBe(draft);
+    }
+  });
+
   it("keeps an excessively complex query in one editable error region", () => {
     const draft = "bad:1 ".repeat(10000).trim();
     const tokens = deriveQueryTokens({

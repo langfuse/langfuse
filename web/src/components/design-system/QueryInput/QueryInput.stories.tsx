@@ -10,6 +10,7 @@ import { WORD_JOINER } from "../QueryTokens/QueryTokens.constants";
 import { Dialog } from "../Dialog/Dialog";
 import { DialogController } from "../DialogController/DialogController";
 import { Button } from "../Button/Button";
+import { selectionOffsets } from "../internal/QueryInput/fns/queryInputDom";
 
 const meta = preview.meta({
   component: (
@@ -526,14 +527,19 @@ export const TestPreviewEscapeInDialog = TestControlledSelection.extend({
 export const TestCollectionPreviewHover = TestPreviewEscapeInDialog.extend({
   name: "(Test) Collection preview stays hoverable and dismisses before its dialog",
   args: {
-    value: "status:(open OR pending OR closed)",
+    value: "status:(open OR pending OR closed) @baseline",
     onEditToken: fn(),
     tokens: previewTokens.map((token) => ({
       ...token,
-      raw: "status:(open OR pending OR closed)",
-      to: "status:(open OR pending OR closed)".length,
+      raw: "status:(open OR pending OR closed) @baseline",
+      to: "status:(open OR pending OR closed) @baseline".length,
       explanation: { subject: "Status", predicate: "is open" },
       summary: {
+        atom: {
+          from: "status:".length,
+          to: "status:(open OR pending OR closed)".length,
+          raw: "(open OR pending OR closed)",
+        },
         label: "Status any of 3 values",
         previewLabel: "Status 3 values",
         values: ["open", "pending", "closed"],
@@ -546,6 +552,7 @@ export const TestCollectionPreviewHover = TestPreviewEscapeInDialog.extend({
             ],
           },
           { noWrap: true, parts: [{ text: "open", tone: "value" }] },
+          { noWrap: true, parts: [{ text: " @baseline", tone: "target" }] },
         ],
       },
     })),
@@ -580,3 +587,74 @@ export const TestCollectionPreviewHover = TestPreviewEscapeInDialog.extend({
     );
   },
 });
+
+export const TestCollectionSourceNavigation = TestCollectionPreviewHover.extend(
+  {
+    name: "(Test) Collection values preserve editable key navigation and source copying",
+    play: async ({ canvasElement, args }) => {
+      const atom = args.tokens[0]?.summary?.atom;
+      if (atom === undefined) throw new Error("Expected a values-only atom");
+      const canvas = within(canvasElement);
+      const body = within(canvasElement.ownerDocument.body);
+      await userEvent.click(
+        canvas.getByRole("button", { name: "Open dialog" }),
+      );
+      const dialog = await body.findByRole("dialog", { name: "Query dialog" });
+      const input = within(dialog).getByRole("combobox");
+      const collection = within(dialog).getByRole("button", {
+        name: "Edit Status any of 3 values",
+      });
+      await userEvent.click(input);
+      const range = document.createRange();
+      range.setStart(input, 0);
+      range.collapse(true);
+      window.getSelection()?.removeAllRanges();
+      window.getSelection()?.addRange(range);
+
+      await userEvent.keyboard("{ArrowRight}");
+      await expect(input).toHaveFocus();
+      await expect(selectionOffsets(input)).toEqual({ start: 1, end: 1 });
+      for (let index = 1; index < "status:".length; index++)
+        await userEvent.keyboard("{ArrowRight}");
+      await expect(input).toHaveFocus();
+      await userEvent.keyboard("{ArrowRight}");
+      await expect(collection).toHaveFocus();
+
+      const valuesClipboard = new DataTransfer();
+      collection.dispatchEvent(
+        new ClipboardEvent("copy", {
+          bubbles: true,
+          cancelable: true,
+          clipboardData: valuesClipboard,
+        }),
+      );
+      await expect(valuesClipboard.getData("text/plain")).toBe(
+        "(open OR pending OR closed)",
+      );
+      await userEvent.keyboard("{ArrowLeft}");
+      await expect(input).toHaveFocus();
+      await expect(selectionOffsets(input)).toEqual({
+        start: atom.from,
+        end: atom.from,
+      });
+      await userEvent.keyboard("{ArrowRight}{ArrowRight}");
+      await expect(input).toHaveFocus();
+      await expect(selectionOffsets(input)).toEqual({
+        start: atom.to,
+        end: atom.to,
+      });
+      await userEvent.keyboard("{ArrowLeft}");
+      await expect(collection).toHaveFocus();
+      await userEvent.keyboard("{Meta>}a{/Meta}");
+      const queryClipboard = new DataTransfer();
+      input.dispatchEvent(
+        new ClipboardEvent("copy", {
+          bubbles: true,
+          cancelable: true,
+          clipboardData: queryClipboard,
+        }),
+      );
+      await expect(queryClipboard.getData("text/plain")).toBe(args.value);
+    },
+  },
+);

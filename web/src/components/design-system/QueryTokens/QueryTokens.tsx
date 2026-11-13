@@ -85,6 +85,8 @@ export function QueryTokens({
     groups?: readonly TokenGroup[];
     /** A display projection; raw and offsets always describe the complete query. */
     summary?: {
+      /** Absolute source range for the non-editable value collection only. */
+      atom: { from: number; to: number; raw: string };
       /** Field prefix, value preview, then any trailing target groups. */
       groups: readonly TokenGroup[];
       label: string;
@@ -120,35 +122,42 @@ export function QueryTokens({
     if (summary !== undefined) {
       tokenContent = (
         <>
-          <span className="inline-flex max-w-[50%] min-w-0 shrink-0">
-            {renderGroups(summary.groups.slice(0, 1), true)}
-          </span>
-          <button
-            type="button"
-            data-query-summary
-            aria-label={`Edit ${summary.label}${token.inactiveReason === null ? "" : `. Not applied on this view: ${token.inactiveReason}`}`}
-            aria-haspopup="dialog"
-            aria-expanded={tokenEditor?.from === token.from}
-            aria-controls={
-              tokenEditor?.from === token.from ? tokenEditor.popupId : undefined
-            }
-            aria-describedby={helpId}
-            onClick={(event) =>
-              onActivateToken?.(token.id, event.currentTarget)
-            }
-            className="border-border-contrast bg-secondary focus-visible:ring-ring hover:border-foreground/40 hover:bg-accent aria-expanded:border-foreground/40 aria-expanded:bg-accent inline-flex h-5.5 max-w-full min-w-0 cursor-pointer items-center gap-1 rounded-md border px-1.5 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none"
+          {renderGroups(summary.groups.slice(0, 1), false)}
+          <span
+            data-query-source={summary.atom.raw}
+            contentEditable={false}
+            className="ml-1 inline-flex h-6 max-w-full items-center align-bottom"
           >
-            {renderGroups(summary.groups.slice(1, 2), true)}
-            <span className="bg-background/70 text-muted-foreground shrink-0 rounded-sm px-1 font-sans text-[10px] leading-4">
-              +{summary.values.length - 1}
-            </span>
-            <ChevronDown
-              size="sm"
-              __rawClassName="text-muted-foreground shrink-0"
-              aria-hidden
-            />
-          </button>
-          {renderGroups(summary.groups.slice(2), true)}
+            <button
+              type="button"
+              data-query-summary
+              disabled={token.error !== null}
+              aria-label={`Edit ${summary.label}${token.inactiveReason === null ? "" : `. Not applied on this view: ${token.inactiveReason}`}`}
+              aria-haspopup="dialog"
+              aria-expanded={tokenEditor?.from === token.from}
+              aria-controls={
+                tokenEditor?.from === token.from
+                  ? tokenEditor.popupId
+                  : undefined
+              }
+              aria-describedby={helpId}
+              onClick={(event) =>
+                onActivateToken?.(token.id, event.currentTarget)
+              }
+              className="border-border-contrast bg-secondary focus-visible:ring-ring hover:border-foreground/40 hover:bg-accent aria-expanded:border-foreground/40 aria-expanded:bg-accent inline-flex h-5.5 max-w-full min-w-0 cursor-pointer items-center gap-1 rounded-md border px-1.5 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            >
+              {renderGroups(summary.groups.slice(1, 2), true)}
+              <span className="bg-background/70 text-muted-foreground shrink-0 rounded-sm px-1 font-sans text-[10px] leading-4">
+                +{summary.values.length - 1}
+              </span>
+              <ChevronDown
+                size="sm"
+                __rawClassName="text-muted-foreground shrink-0"
+                aria-hidden
+              />
+            </button>
+          </span>
+          {renderGroups(summary.groups.slice(2), false)}
         </>
       );
     } else if (token.groups !== undefined) {
@@ -162,14 +171,15 @@ export function QueryTokens({
         data-testid="search-bar-token"
         data-kind={token.kind}
         data-segment-id={token.id}
-        data-query-source={summary === undefined ? undefined : token.raw}
-        contentEditable={summary === undefined ? undefined : false}
         data-deactivated={token.inactiveReason !== null || undefined}
         className={cn(
           "ph-no-capture max-w-full",
           summary === undefined
             ? tokenStyles[token.kind]
-            : "inline-flex h-6 items-center gap-1 rounded-sm border border-transparent px-1.5 align-bottom",
+            : "inline rounded-sm border border-transparent px-1.5 py-0.5",
+          summary !== undefined &&
+            token.kind === "invalid" &&
+            "border-destructive/70 bg-destructive/10 text-destructive border-dashed",
           token.inactiveReason !== null &&
             "line-through decoration-1 opacity-50",
           summary === undefined &&

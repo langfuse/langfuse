@@ -129,15 +129,15 @@ follow-up.)
 
 ## Compact value groups
 
-Validated filters with more than two values project the value list into a separate collection control beside the field. The control shows the first value and remaining count; OR matching is implicit, while all-of and exclusion remain explicit. Experiment targets stay outside the value control. Canonical token text and source spans remain complete. `QueryInput` treats each compact token as one editing atom; its selection and clipboard mapping use the complete expression. Invalid or incomplete filters remain ordinary editable text.
+Filters with more than two values project the value list into a separate collection control beside the field. The control shows the first value and remaining count; OR matching is implicit, while all-of and exclusion remain explicit. Only the values are an editing atom. Keys, negation, and experiment targets stay editable in the bar. Canonical token text and source spans remain complete, and selecting the entire query copies its complete expression. An unknown or temporarily empty key retains its collapsed values while typing, with the value picker disabled until the field resolves. Invalid values or group syntax remain ordinary editable text.
 
-`SearchComposer` opens a chip-anchored popup with the same `CategoricalFilterSelect` used by the sidebar: checkboxes, observed values and counts, search, Only/All gestures, and array matching modes. Every selection applies immediately. The popup edits only its condition, preserving companion conditions and experiment targets, and remains open when the chip shrinks below the collapse threshold. Stored values remain available when absent from current observations. `QueryExpressionEditor` provides separate bounded full-query editing. Queries may contain up to 65,536 characters; URL-backed search phrases retain a 2,048-character limit and structured filters use the bounded-URL storage fallback.
+`SearchComposer` opens a value-anchored popup with the same `CategoricalFilterSelect` used by the sidebar: checkboxes, observed values and counts, search, Only/All gestures, and array matching modes. Every selection applies immediately. The popup edits only its condition, preserving companion conditions and experiment targets, and remains open when the collection shrinks below the collapse threshold. Stored values remain available when absent from current observations. All query editing stays in the bar; key autocomplete replaces the key without consuming its values. Queries may contain up to 65,536 characters; URL-backed search phrases retain a 2,048-character limit and structured filters use the bounded-URL storage fallback.
 
 The parser also bounds expression nesting to 128 levels and the lexer token count to 1,024. A grouped value list is one token, so these complexity limits keep large membership lists available while rejecting pathological expression trees and diagnostic-heavy input. Excessively complex input remains one editable error region. The picker preserves array matching mode through singleton values and edits an enclosing NOT together with its condition.
 
 Oversized filters use session storage and survive same-tab refreshes; the plain page URL does not carry them. Save a table view to share a large selection across browsers.
 
-Keyboard arrows focus value controls; Enter/Space open the picker. In the picker, Down from search enters the values and Up/Down move between visible checkboxes; Space toggles a value. Only/All actions remain reachable with Tab. Rows keep their current order while focused so selection changes cannot unmount the active control. Escape returns to the current value control, or the editor if the compact control no longer exists. `SearchComposer` owns the current picker condition so its trigger state and focus destination track edits.
+Keyboard arrows move normally through the key and focus the value control at its boundary; Enter/Space open the picker. Copying a focused value control copies only its complete value source. In the picker, Down from search enters the values and Up/Down move between visible checkboxes; Space toggles a value. Only/All actions remain reachable with Tab. Rows keep their current order while focused so selection changes cannot unmount the active control. Escape returns to the current value control, or the editor if the compact control no longer exists. `SearchComposer` owns the current picker condition so its trigger state and focus destination track edits.
 
 ## Data flow (one source of truth, one direction)
 
@@ -562,9 +562,10 @@ real consumer and validate it against that view's backend filter contract.
   `defaultTextField` view must also pin its phrase/round-trip behaviour
   explicitly, as the sessions block does.
 
-- **`SearchComposer` (~1.3k LOC) has no unit tests** — the contenteditable
-  controller is browser-reviewed only. Extracting the selection/`beforeinput`
-  machinery into a hook (below) is the prerequisite to testing it.
+- **The shared `QueryInput` owns contenteditable behavior** — source/DOM mapping
+  has focused client coverage, while keyboard, clipboard, undo, and composer
+  integration behavior run in browser stories. `SearchComposer` owns query
+  completions, commits, and the value picker.
 - **Client integration coverage** in `web/src/components/table/data-table-controls.clienttest.tsx`
   exercises real sidebar inputs, filter state, and bar commits: delayed string
   and numeric edits preserve newly committed bar filters, and clearing a facet
@@ -576,11 +577,6 @@ real consumer and validate it against that view's backend filter contract.
 
 ## Next slices
 
-- Pill click-to-edit: a dedicated value-switcher dropdown anchored to a
-  _selected pill_. (Editing a value already works by placing the caret in it —
-  see SearchComposer; only the pill-anchored dropdown is unbuilt. The prototype's
-  `planTokenValueCompletions` planner was removed as dead code in review, so this
-  is a clean slice with nothing half-wired.)
 - Saved-view round-trip for free text/search scopes.
 - Strict-mode follow-ups (pending product decisions):
   - **Decision A — free-text semantics**: keep phrase (contiguous substring;
@@ -590,6 +586,6 @@ real consumer and validate it against that view's backend filter contract.
     operators, or leave it. Entangled with `tidyQueryText`/chip-removal (which
     strips redundant parens and would bail on a now-"invalid" paren) and
     removes documented top-level grouping — needs its own pass.
-- Optional: extract `SearchComposer`'s contenteditable selection/`beforeinput`
+- Optional: extract `QueryInput`'s contenteditable selection/`beforeinput`
   machinery into a `useContentEditableController` hook to fully separate the
   imperative integration from the React component.

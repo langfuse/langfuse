@@ -30,7 +30,6 @@ import {
   Parentheses,
   Search,
   WandSparkles,
-  Maximize2,
   X,
 } from "@langfuse/icons";
 
@@ -47,7 +46,6 @@ import {
   QUERY_LABEL_COLORS,
 } from "../QueryTokens/QueryTokens.constants";
 import { QueryTokens } from "../QueryTokens/QueryTokens";
-import { IconButton } from "../IconButton/IconButton";
 import {
   textFromRoot,
   selectionOffsets,
@@ -56,6 +54,8 @@ import {
   setSelectionRange,
   snapOffsetAcrossAtoms,
   expandRangeAcrossAtoms,
+  sourceAtomAtOffset,
+  sourceAtomForNode,
 } from "../internal/QueryInput/fns/queryInputDom";
 import { optionDomId } from "../internal/QueryInput/fns/optionDomId";
 export { optionDomId } from "../internal/QueryInput/fns/optionDomId";
@@ -374,7 +374,6 @@ function QueryInputEditor({
   completions,
   onEditToken,
   tokenEditor,
-  onExpand,
   size = "default",
 }: {
   inputId?: string;
@@ -395,7 +394,6 @@ function QueryInputEditor({
   completions: QueryCompletionPlan | null;
   onEditToken?: (token: QueryToken, anchor: HTMLButtonElement) => void;
   tokenEditor?: { from: number; popupId: string };
-  onExpand?: (trigger: HTMLButtonElement) => void;
 }) {
   const id = React.useId();
   const listboxId = `${id}-suggestions`;
@@ -929,27 +927,25 @@ function QueryInputEditor({
       event.target instanceof Element
         ? event.target.closest("[data-query-summary]")
         : null;
-    const summaryTokenId = summaryButton
-      ?.closest("[data-segment-id]")
-      ?.getAttribute("data-segment-id");
-    const summaryToken =
-      summaryTokenId === undefined
-        ? undefined
-        : segments.find((segment) => segment.id === summaryTokenId);
+    const summaryRoot = rootRef.current;
+    const summaryAtom =
+      summaryRoot !== null && summaryButton !== null
+        ? sourceAtomForNode(summaryRoot, summaryButton)
+        : null;
 
     if (
       (event.metaKey || event.ctrlKey) &&
       (event.key === "z" || event.key === "Z")
     ) {
       event.preventDefault();
-      if (summaryToken !== undefined) focusEditorAt(summaryToken.to);
+      if (summaryAtom !== null) focusEditorAt(summaryAtom.to);
       if (event.shiftKey) redo();
       else undo();
       return;
     }
     if ((event.metaKey || event.ctrlKey) && event.key === "y") {
       event.preventDefault();
-      if (summaryToken !== undefined) focusEditorAt(summaryToken.to);
+      if (summaryAtom !== null) focusEditorAt(summaryAtom.to);
       redo();
       return;
     }
@@ -976,10 +972,10 @@ function QueryInputEditor({
         !event.ctrlKey &&
         !event.metaKey
       ) {
-        if (summaryToken !== undefined) {
+        if (summaryAtom !== null) {
           event.preventDefault();
           focusEditorAt(
-            event.key === "ArrowLeft" ? summaryToken.from : summaryToken.to,
+            event.key === "ArrowLeft" ? summaryAtom.from : summaryAtom.to,
           );
         }
       }
@@ -1088,20 +1084,12 @@ function QueryInputEditor({
         event.key === "ArrowLeft"
           ? Math.max(0, end - 1)
           : Math.min(draft.length, end + 1);
-      const collection =
-        onEditToken === undefined
-          ? undefined
-          : segments.find(
-              (segment) =>
-                segment.summary !== undefined &&
-                segment.from < target &&
-                target < segment.to,
-            );
-      if (collection !== undefined) {
-        const button = root.querySelector<HTMLButtonElement>(
-          `[data-segment-id="${CSS.escape(collection.id)}"] [data-query-summary]`,
+      const collection = sourceAtomAtOffset(root, target);
+      if (collection !== null) {
+        const button = collection.element.querySelector<HTMLButtonElement>(
+          "[data-query-summary]",
         );
-        if (button !== null) {
+        if (button !== null && !button.disabled) {
           event.preventDefault();
           pendingSelectionRef.current = null;
           button.focus();
@@ -1563,7 +1551,9 @@ function QueryInputEditor({
                     <span className="text-muted-foreground mt-1 block">
                       {explainTarget.summary.values.length > 6 &&
                         `${explainTarget.summary.values.length - 6} more values. `}
-                      Click to edit
+                      {explainTarget.error !== null
+                        ? "Choose a valid field to edit values"
+                        : "Click to edit"}
                     </span>
                   </div>
                 )}
@@ -1619,27 +1609,10 @@ function QueryInputEditor({
                 action !== undefined && !showGlobalDiagnostics
                   ? "right-20"
                   : "right-8",
-                onExpand !== undefined && "left-10",
               )}
               title={placeholder}
             >
               {placeholder}
-            </div>
-          )}
-          {onExpand !== undefined && (
-            <div className="absolute top-1 left-2">
-              <IconButton
-                icon={Maximize2}
-                label="Expand query"
-                size="sm"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={(event) => {
-                  hasInteractedRef.current = true;
-                  setAutocompleteOpen(false);
-                  setHoveredTokenId(null);
-                  onExpand(event.currentTarget);
-                }}
-              />
             </div>
           )}
           <QueryInputText>
@@ -1670,10 +1643,7 @@ function QueryInputEditor({
               inputMode="text"
               data-testid="search-bar-input"
               data-input-control-field
-              className={cn(
-                "ph-no-capture max-h-24 overflow-y-auto caret-[hsl(var(--foreground))] outline-none",
-                onExpand !== undefined && "pl-8",
-              )}
+              className="ph-no-capture max-h-24 overflow-y-auto caret-[hsl(var(--foreground))] outline-none"
               onScroll={measurePositions}
               onInput={(event) => {
                 if (!(event.nativeEvent as InputEvent).isComposing)
@@ -1700,7 +1670,9 @@ function QueryInputEditor({
                     : null;
                 setTooltipDismissed(false);
                 setFocusedTokenId(
-                  target?.getAttribute("data-segment-id") ?? null,
+                  target
+                    ?.closest("[data-segment-id]")
+                    ?.getAttribute("data-segment-id") ?? null,
                 );
               }}
             >
