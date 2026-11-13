@@ -4,16 +4,18 @@ import { normalizeSpanIO } from "../../../parser";
 import {
   capturedTraceFixtures,
   microsoftAgentProductionShapeFixture,
+  semconvMediaPartsFixture,
 } from "./fixtures";
 
 describe("OTel GenAI normalized I/O", () => {
-  it.each([...capturedTraceFixtures, microsoftAgentProductionShapeFixture])(
-    "$name",
-    ({ spanIO, expected }) => {
-      expect(normalizeSpanIO(spanIO)).toEqual({
-        ...expected,
-        span: spanIO,
-      });
-    },
-  );
+  it.each([
+    ...capturedTraceFixtures,
+    microsoftAgentProductionShapeFixture,
+    semconvMediaPartsFixture,
+  ])("$name", ({ spanIO, expected }) => {
+    expect(normalizeSpanIO(spanIO)).toEqual({
+      ...expected,
+      span: spanIO,
+    });
+  });
 });
