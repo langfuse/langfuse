@@ -721,13 +721,14 @@ export async function getNewestTopicClusteringSummaries(
           limit,
         },
         tags: { route: "topics-newest-clustering-summaries", projectId },
-        // Rule filters scan events, which belong on the events replica.
-        ...(sliceTraces && { preferredClickhouseService: "EventsReadOnly" }),
+        // A background read: keep it off the primary and bound its CPU.
+        preferredClickhouseService: "EventsReadOnly",
         // The client must outlast the server limit for the timeout to be reported as one.
         clickhouseConfigs: {
           request_timeout: (NEWEST_SUMMARIES_TIMEOUT_SECONDS + 15) * 1000,
         },
         clickhouseSettings: {
+          max_threads: 2,
           max_execution_time: NEWEST_SUMMARIES_TIMEOUT_SECONDS,
           timeout_overflow_mode: "throw",
         },
