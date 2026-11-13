@@ -5,7 +5,9 @@ import { env } from "../../env";
 import type { ScoreSourceType } from "../../domain/scores";
 import { type OrderByState } from "../../interfaces/orderBy";
 import { type FilterState } from "../../types";
+import { subHours } from "date-fns";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_HOURS } from "./constants";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
 import { avgIf, dateDiff, literal } from "../query-ast/extensions";
@@ -388,6 +390,41 @@ export const getExperimentMetricsFromEvents = async (props: {
   }));
 };
 
+/**
+ * Earliest start time across the given experiments, or undefined when none
+ * has events. A score can't predate the experiment it scores, so this bounds
+ * experiment score lookups.
+ */
+export const getExperimentsStartTime = async (props: {
+  projectId: string;
+  experimentIds: string[];
+}): Promise<Date | undefined> => {
+  if (props.experimentIds.length === 0) return undefined;
+
+  const builder = getClickhouseKysely()
+    .selectFrom("events as e")
+    .select((eb) =>
+      eb.fn<string | null>("minOrNull", ["e.start_time"]).as("start_time"),
+    )
+    .where("e.experiment_id", "in", props.experimentIds)
+    .where("e.experiment_id", "!=", literal(""));
+  const { sql: query, params } = compileClickhouseQuery(
+    builder,
+    props.projectId,
+  );
+
+  const [row] = await queryClickhouse<{ start_time: string | null }>({
+    query,
+    params,
+    tags: { projectId: props.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return row?.start_time
+    ? parseClickhouseUTCDateTimeFormat(row.start_time)
+    : undefined;
+};
+
 export type FetchExperimentsFromEventsProps = {
   select: "count" | "rows";
   projectId: string;
@@ -609,6 +646,12 @@ type ExperimentItemInput = {
      */
     requireBaselinePresence?: boolean;
   };
+  /**
+   * Earliest start of the experiments in play. Score filters ignore scores
+   * older than this minus the usual score lookback, matching the score
+   * lookups that display them.
+   */
+  experimentsStartTime?: Date;
 };
 
 /**
@@ -1158,6 +1201,7 @@ const getExperimentItemsFromEventsGeneric = (params: {
   config?: {
     requireBaselinePresence?: boolean;
   };
+  experimentsStartTime?: Date;
   limit?: number;
   offset?: number;
 }) => {
@@ -1168,6 +1212,7 @@ const getExperimentItemsFromEventsGeneric = (params: {
     compExperimentIds,
     filterByExperiment,
     config,
+    experimentsStartTime,
     limit,
     offset,
   } = params;
@@ -1213,6 +1258,15 @@ const getExperimentItemsFromEventsGeneric = (params: {
         "item_scores_agg",
         experimentItemScoreCTE({
           projectId,
+          // buildScoresCTE applies no lookback of its own, so subtract it here.
+          startTimeFrom: experimentsStartTime
+            ? convertDateToClickhouseDateTime(
+                subHours(
+                  experimentsStartTime,
+                  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_HOURS,
+                ),
+              )
+            : undefined,
           itemRootsCTE: {
             ...itemRoots,
             schema: ["project_id", "root_span_id", "trace_id"],
@@ -1229,9 +1283,11 @@ const getExperimentItemsFromEventsGeneric = (params: {
     .when(hasTraceScoreFilters, (b) =>
       b.withCTE(
         "trace_scores_agg",
-        // Optionally add timestamp >= oldest_selected_experiment_start as a coarse partition prune
         eventsTracesScoresAggregation({
           projectId,
+          startTimeFrom: experimentsStartTime
+            ? convertDateToClickhouseDateTime(experimentsStartTime)
+            : undefined,
           hasScoreAggregationFilters: true,
         }),
       ),
@@ -1293,6 +1349,7 @@ export const getExperimentItemsFromEvents = async (
     limit,
     offset,
     config,
+    experimentsStartTime,
   } = props;
 
   // ========== QUERY 1: Get filtered item_ids using intersection logic ==========
@@ -1304,6 +1361,7 @@ export const getExperimentItemsFromEvents = async (
       compExperimentIds,
       filterByExperiment,
       config,
+      experimentsStartTime,
       limit,
       offset,
     });

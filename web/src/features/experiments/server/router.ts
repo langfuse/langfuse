@@ -19,6 +19,7 @@ import {
   getExperimentItemsBatchIO,
   getExperimentItemsCountFromEvents,
   getExperimentItemsFromEvents,
+  getExperimentsStartTime,
   getExperimentMetricsFromEvents,
   getNumericScoresGroupedByName,
   getScoresForExperimentItems,
@@ -671,6 +672,16 @@ export const experimentsRouter = createTRPCRouter({
         scope: "promptExperiments:read",
       });
 
+      // A score can't predate the experiment it scores, so the experiments'
+      // earliest start bounds both the score filters and the score lookups.
+      const experimentsStartTime = await getExperimentsStartTime({
+        projectId: input.projectId,
+        experimentIds: [
+          ...(input.baseExperimentId ? [input.baseExperimentId] : []),
+          ...input.compExperimentIds,
+        ],
+      });
+
       const items = await getExperimentItemsFromEvents({
         projectId: input.projectId,
         baseExperimentId: input.baseExperimentId ?? undefined,
@@ -681,6 +692,7 @@ export const experimentsRouter = createTRPCRouter({
         config: {
           requireBaselinePresence: input.itemVisibility === "baseline-only",
         },
+        experimentsStartTime,
       });
 
       const observationIds = Array.from(
@@ -694,19 +706,11 @@ export const experimentsRouter = createTRPCRouter({
         ),
       );
 
-      // A score can't predate the experiment run it scores, so the earliest
-      // run start bounds both score lookups.
-      const startTimes = items.flatMap((item) =>
-        item.experiments.map((run) => run.startTime.getTime()),
-      );
-      const minStartTime =
-        startTimes.length > 0 ? new Date(Math.min(...startTimes)) : undefined;
-
       const [observationScores, traceScores] = await Promise.all([
         getScoresForObservations({
           projectId: input.projectId,
           observationIds,
-          minTimestamp: minStartTime,
+          minTimestamp: experimentsStartTime,
           excludeMetadata: true,
           includeHasMetadata: true,
           preferredClickhouseService: "ReadOnly",
@@ -714,7 +718,7 @@ export const experimentsRouter = createTRPCRouter({
         getScoresForTraces({
           projectId: input.projectId,
           traceIds,
-          timestamp: minStartTime,
+          timestamp: experimentsStartTime,
           level: "trace",
           excludeMetadata: true,
           includeHasMetadata: true,
@@ -831,6 +835,10 @@ export const experimentsRouter = createTRPCRouter({
         scope: "promptExperiments:read",
       });
 
+      const experimentIds = [
+        ...(input.baseExperimentId ? [input.baseExperimentId] : []),
+        ...input.compExperimentIds,
+      ];
       const count = await getExperimentItemsCountFromEvents({
         projectId: input.projectId,
         baseExperimentId: input.baseExperimentId ?? undefined,
@@ -839,6 +847,10 @@ export const experimentsRouter = createTRPCRouter({
         config: {
           requireBaselinePresence: input.itemVisibility === "baseline-only",
         },
+        experimentsStartTime: await getExperimentsStartTime({
+          projectId: input.projectId,
+          experimentIds,
+        }),
       });
 
       return {

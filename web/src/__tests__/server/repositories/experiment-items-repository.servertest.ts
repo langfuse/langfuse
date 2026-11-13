@@ -4,6 +4,7 @@ import {
   createScoresCh,
   getExperimentItemsFromEvents,
   getExperimentItemsCountFromEvents,
+  getExperimentsStartTime,
   getExperimentItemsBatchIO,
   getExperimentMetricsFromEvents,
   createTraceScore,
@@ -152,6 +153,77 @@ describe("Clickhouse Experiment Items Repository Test", () => {
       // THEN: Item should be returned
       expect(result).toHaveLength(1);
       expect(result[0].itemId).toBe(item1Id);
+    });
+
+    it("should ignore scores older than the experiment start in score filters", async () => {
+      const baselineExpId = randomUUID();
+      const itemId = randomUUID();
+      const traceId = randomUUID();
+      const rootId = randomUUID();
+      const startTimeMs = Date.now() - 24 * 60 * 60 * 1000;
+      const tooOldMs = startTimeMs - 2 * 60 * 60 * 1000;
+
+      await createEventsCh([
+        createExperimentEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          span_id: rootId,
+          experimentId: baselineExpId,
+          experimentName: "baseline-exp",
+          itemId,
+          experimentItemRootSpanId: rootId,
+          start_time: startTimeMs * 1000,
+        }),
+      ]);
+      await createScoresCh(
+        [null, rootId].map((observationId) =>
+          createTraceScore({
+            project_id: projectId,
+            trace_id: traceId,
+            observation_id: observationId,
+            name: "too-old",
+            value: 1,
+            data_type: "NUMERIC",
+            timestamp: tooOldMs,
+            created_at: tooOldMs,
+            updated_at: tooOldMs,
+            event_ts: tooOldMs,
+          }),
+        ),
+      );
+
+      const experimentsStartTime = await getExperimentsStartTime({
+        projectId,
+        experimentIds: [baselineExpId],
+      });
+      expect(experimentsStartTime?.getTime()).toBe(startTimeMs);
+
+      for (const column of ["trace_scores_avg", "obs_scores_avg"]) {
+        const result = await getExperimentItemsFromEvents({
+          projectId,
+          baseExperimentId: baselineExpId,
+          compExperimentIds: [],
+          filterByExperiment: [
+            {
+              experimentId: baselineExpId,
+              filters: [
+                {
+                  column,
+                  type: "numberObject",
+                  key: "too-old",
+                  operator: ">",
+                  value: 0.5,
+                } as FilterCondition,
+              ],
+            },
+          ],
+          experimentsStartTime,
+          limit: 10,
+          offset: 0,
+        });
+
+        expect(result, column).toHaveLength(0);
+      }
     });
 
     it("should filter items by root observation numeric scores", async () => {
