@@ -63,6 +63,7 @@ import {
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { TopicsMapPicker, type UsePreviewTopics } from "./TopicsMapPicker";
 import { TopicMapStrip } from "./TopicMapStrip";
+import { useTopicMapCost } from "./useTopicMapCost";
 import { TopicRuleBuildingState } from "./TopicRuleBuildingState";
 import { TopicAnalysisState } from "./TopicAnalysisState";
 import { TopicSliceDialogController } from "./TopicSliceDialogController";
@@ -324,6 +325,10 @@ function TopicsWorkspaceContent({
       ? maps.data?.analyses.find((analysis) => analysis.id === mapSelection.id)
       : undefined;
   const analysisId = mapSelection?.kind === "analysis" ? mapSelection.id : null;
+  const mapCost = useTopicMapCost(projectId, {
+    ruleId: selectedRule?.id,
+    analysisId: selectedAnalysis?.id,
+  });
   // Onboarding has no selection yet; the first rule is the one setup created.
   const setupRuleId = analysisId
     ? undefined
@@ -645,6 +650,7 @@ function TopicsWorkspaceContent({
                       rule={selectedRule}
                       now={Date.now()}
                       mapShown={shownFacets.some((facet) => facet.map)}
+                      cost={mapCost}
                       controls={viewControls}
                       options={unassignedSwitch}
                     />
@@ -652,6 +658,7 @@ function TopicsWorkspaceContent({
                   {selectedAnalysis ? (
                     <TopicMapStrip.Analysis
                       analysis={selectedAnalysis}
+                      cost={mapCost}
                       controls={viewControls}
                       options={unassignedSwitch}
                     />
