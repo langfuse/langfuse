@@ -1,0 +1,261 @@
+import { prisma } from "../../../src/db";
+import { encrypt, generateWebhookSecret } from "../../../src/encryption";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "../../../src/features/rbac/types";
+import { createApiKey, getDisplaySecretKey } from "../../../src/server";
+import { ScenarioDefinition, SeedError } from "./types";
+
+/**
+ * Clean, curated home for docs videos and screenshots: a dedicated org and
+ * projects with no test clutter. The other `docs-demo-*` scenarios seed into
+ * DOCS_DEMO_PROJECT_ID via `--project docs-demo`.
+ */
+const DOCS_DEMO_ORG_ID = "docs-demo-org";
+export const DOCS_DEMO_PROJECT_ID = "docs-demo";
+const DOCS_DEMO_SIBLING_PROJECTS = [
+  { id: "docs-demo-research", name: "research-assistant" },
+  { id: "docs-demo-voice", name: "voice-agent" },
+];
+const DOCS_DEMO_API_KEYS = {
+  publicKey: "pk-lf-docs-demo",
+  secretKey: "sk-lf-docs-demo",
+};
+/** The user created by `pnpm --filter=shared run db:seed`. */
+const DEMO_USER_EMAIL = "demo@langfuse.com";
+const ONCALL_AUTOMATION = {
+  id: "docs-demo-oncall-webhook",
+  triggerId: "docs-demo-oncall-webhook-trigger",
+  actionId: "docs-demo-oncall-webhook-action",
+  name: "On-call webhook",
+};
+/** A teammate to @mention in comment videos; never signs in. */
+const TEAMMATE = { email: "maya.chen@acme.example", name: "Maya Chen" };
+
+function summary(
+  ctx: Parameters<ScenarioDefinition["run"]>[0],
+  startedAt: number,
+  projects: number,
+  dryRun: boolean,
+) {
+  return {
+    scenario: "docs-demo-project",
+    target: "clickhouse" as const,
+    params: {},
+    projectId: DOCS_DEMO_PROJECT_ID,
+    environment: ctx.environment,
+    traceIds: [],
+    sessionIds: [],
+    counts: { organizations: 1, projects },
+    verified: {},
+    links: [`${ctx.baseUrl}/project/${DOCS_DEMO_PROJECT_ID}`],
+    dryRun,
+    durationMs: Date.now() - startedAt,
+  };
+}
+
+export const docsDemoProjectScenario: ScenarioDefinition = {
+  name: "docs-demo-project",
+  description:
+    "Creates the clean 'Acme Corp' org with project 'customer-support' (id docs-demo) plus two sibling projects, makes the demo user OWNER, adds project API keys pk-lf-docs-demo / sk-lf-docs-demo, and — when DOCS_DEMO_LLM_API_KEY is set — an OpenAI-adapter LLM connection (base URL from DOCS_DEMO_LLM_BASE_URL); adds teammate Maya Chen as MEMBER and an 'On-call webhook' monitor automation; re-runs remove any other project LLM connection, extra API keys, saved table views, playground tools, exports, monitors, comments, web callouts and skills, and clear the retention setting. Run once before the other docs-demo-* scenarios, which take --project docs-demo.",
+  supportsV4: false,
+  flags: [],
+  run: async (ctx) => {
+    const startedAt = Date.now();
+    const user = await prisma.user.findUnique({
+      where: { email: DEMO_USER_EMAIL },
+    });
+    if (!user) {
+      throw new SeedError(
+        `${DEMO_USER_EMAIL} not found`,
+        "pnpm --filter=shared run db:seed",
+      );
+    }
+    const projects = [
+      { id: DOCS_DEMO_PROJECT_ID, name: "customer-support" },
+      ...DOCS_DEMO_SIBLING_PROJECTS,
+    ];
+    if (ctx.dryRun) {
+      return summary(ctx, startedAt, projects.length, true);
+    }
+
+    await prisma.organization.upsert({
+      where: { id: DOCS_DEMO_ORG_ID },
+      update: { name: "Acme Corp" },
+      create: {
+        id: DOCS_DEMO_ORG_ID,
+        name: "Acme Corp",
+        cloudConfig: { plan: "Team" },
+      },
+    });
+    for (const project of projects) {
+      await prisma.project.upsert({
+        where: { id: project.id },
+        update: { name: project.name, orgId: DOCS_DEMO_ORG_ID },
+        create: { ...project, orgId: DOCS_DEMO_ORG_ID },
+      });
+    }
+    await prisma.organizationMembership.upsert({
+      where: { orgId_userId: { orgId: DOCS_DEMO_ORG_ID, userId: user.id } },
+      create: { orgId: DOCS_DEMO_ORG_ID, userId: user.id, role: "OWNER" },
+      update: { role: "OWNER" },
+    });
+
+    const existingKey = await prisma.apiKey.findUnique({
+      where: { publicKey: DOCS_DEMO_API_KEYS.publicKey },
+    });
+    if (!existingKey) {
+      await createApiKey(prisma, {
+        tenant: OrganizationId(DOCS_DEMO_ORG_ID),
+        scope: ProjectId(DOCS_DEMO_PROJECT_ID),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId(user.id),
+        name: "docs-demo",
+        predefinedKeys: DOCS_DEMO_API_KEYS,
+      });
+    }
+
+    // Connections a video created (the add-LLM-connection scene saves one)
+    // are removed, so every take starts from the same list.
+    await prisma.llmApiKeys.deleteMany({
+      where: { projectId: DOCS_DEMO_PROJECT_ID, provider: { not: "openai" } },
+    });
+    // Likewise the API keys, saved table views, playground tools and schemas,
+    // and exports other videos create.
+    await prisma.apiKey.deleteMany({
+      where: {
+        projectId: DOCS_DEMO_PROJECT_ID,
+        publicKey: { not: DOCS_DEMO_API_KEYS.publicKey },
+      },
+    });
+    await prisma.defaultView.deleteMany({
+      where: { projectId: DOCS_DEMO_PROJECT_ID },
+    });
+    await prisma.tableViewPreset.deleteMany({
+      where: { projectId: DOCS_DEMO_PROJECT_ID },
+    });
+    await prisma.llmTool.deleteMany({
+      where: { projectId: DOCS_DEMO_PROJECT_ID },
+    });
+    await prisma.llmSchema.deleteMany({
+      where: { projectId: DOCS_DEMO_PROJECT_ID },
+    });
+    await prisma.batchExport.deleteMany({
+      where: { projectId: DOCS_DEMO_PROJECT_ID },
+    });
+    // Monitors, comments (with their reactions), web callouts, skills and
+    // the retention setting the settings, tracing and skill videos create.
+    await prisma.monitor.deleteMany({
+      where: { projectId: DOCS_DEMO_PROJECT_ID },
+    });
+    await prisma.comment.deleteMany({
+      where: { projectId: DOCS_DEMO_PROJECT_ID },
+    });
+    await prisma.webCalloutEndpoint.deleteMany({
+      where: { projectId: DOCS_DEMO_PROJECT_ID },
+    });
+    await prisma.skill.deleteMany({
+      where: { projectId: DOCS_DEMO_PROJECT_ID },
+    });
+    await prisma.project.update({
+      where: { id: DOCS_DEMO_PROJECT_ID },
+      data: { retentionDays: null },
+    });
+
+    // A webhook automation the alerts video sends its monitor to. The URL is
+    // a placeholder: monitors in this project never fire during a take.
+    await prisma.trigger.upsert({
+      where: { id: ONCALL_AUTOMATION.triggerId },
+      update: {},
+      create: {
+        id: ONCALL_AUTOMATION.triggerId,
+        projectId: DOCS_DEMO_PROJECT_ID,
+        eventSource: "monitor",
+        eventActions: [],
+        filter: [],
+      },
+    });
+    const existingAction = await prisma.action.findUnique({
+      where: { id: ONCALL_AUTOMATION.actionId },
+    });
+    if (!existingAction) {
+      const { secretKey, displaySecretKey } = generateWebhookSecret();
+      await prisma.action.create({
+        data: {
+          id: ONCALL_AUTOMATION.actionId,
+          projectId: DOCS_DEMO_PROJECT_ID,
+          type: "WEBHOOK",
+          config: {
+            type: "WEBHOOK",
+            url: "https://hooks.acme.example/langfuse/on-call",
+            apiVersion: { monitor: "v1" },
+            requestHeaders: {},
+            displayHeaders: {},
+            secretKey: encrypt(secretKey),
+            displaySecretKey,
+          },
+        },
+      });
+    }
+    await prisma.automation.upsert({
+      where: { id: ONCALL_AUTOMATION.id },
+      update: { name: ONCALL_AUTOMATION.name },
+      create: {
+        id: ONCALL_AUTOMATION.id,
+        name: ONCALL_AUTOMATION.name,
+        projectId: DOCS_DEMO_PROJECT_ID,
+        triggerId: ONCALL_AUTOMATION.triggerId,
+        actionId: ONCALL_AUTOMATION.actionId,
+      },
+    });
+
+    const teammate = await prisma.user.upsert({
+      where: { email: TEAMMATE.email },
+      update: { name: TEAMMATE.name },
+      create: TEAMMATE,
+    });
+    await prisma.organizationMembership.upsert({
+      where: {
+        orgId_userId: { orgId: DOCS_DEMO_ORG_ID, userId: teammate.id },
+      },
+      create: { orgId: DOCS_DEMO_ORG_ID, userId: teammate.id, role: "MEMBER" },
+      update: { role: "MEMBER" },
+    });
+
+    // The key only ever comes from the environment, never from this file.
+    const llmKey = process.env.DOCS_DEMO_LLM_API_KEY; // eslint-disable-line turbo/no-undeclared-env-vars
+    if (llmKey) {
+      const baseURL =
+        process.env.DOCS_DEMO_LLM_BASE_URL ?? // eslint-disable-line turbo/no-undeclared-env-vars
+        null;
+      const connection = {
+        adapter: "openai",
+        secretKey: encrypt(llmKey),
+        displaySecretKey: getDisplaySecretKey(llmKey),
+        baseURL,
+      };
+      await prisma.llmApiKeys.upsert({
+        where: {
+          projectId_provider: {
+            projectId: DOCS_DEMO_PROJECT_ID,
+            provider: "openai",
+          },
+        },
+        update: connection,
+        create: {
+          ...connection,
+          provider: "openai",
+          projectId: DOCS_DEMO_PROJECT_ID,
+        },
+      });
+      ctx.log("LLM connection 'openai' upserted");
+    } else {
+      ctx.log("DOCS_DEMO_LLM_API_KEY not set; skipping the LLM connection");
+    }
+
+    return summary(ctx, startedAt, projects.length, false);
+  },
+};
