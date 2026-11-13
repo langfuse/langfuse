@@ -1406,30 +1406,50 @@ describe("AI gateway control plane", () => {
           baseURL: "https://93.184.215.14/v1",
           extraHeaders: { "x-team": "research" },
         });
-        const routes = {
+        // Created as OpenAI because creating an OpenRouter connection checks
+        // the credential against openrouter.ai.
+        const openRouter = await caller.aiGateway.createConnection({
+          orgId: org.id,
+          name: "OpenRouter-proxied",
+          provider: "OPENAI",
+          credential: "sk-test",
+        });
+        await prisma.gatewayAiConnection.update({
+          where: { id: openRouter.id },
+          data: { provider: "OPENROUTER" },
+        });
+        const routesFor = (
+          provider: "OPENAI" | "OPENROUTER",
+          connectionId: string,
+        ) => ({
           testConnection: (endpoint: Endpoint) =>
             caller.aiGateway.testConnection({
               orgId: org.id,
-              id: proxied.id,
-              provider: "OPENAI",
+              id: connectionId,
+              provider,
               credential: "sk-test",
               ...endpoint,
             }),
           createConnection: (endpoint: Endpoint) =>
             caller.aiGateway.createConnection({
               orgId: org.id,
-              name: `OpenAI-${randomUUID().slice(0, 8)}`,
-              provider: "OPENAI",
+              name: `${provider}-${randomUUID().slice(0, 8)}`,
+              provider,
               credential: "sk-test",
               ...endpoint,
             }),
           updateConnection: (endpoint: Endpoint) =>
             caller.aiGateway.updateConnection({
               orgId: org.id,
-              id: proxied.id,
+              id: connectionId,
               credential: "sk-test",
               ...endpoint,
             }),
+        });
+        const routes = routesFor("OPENAI", proxied.id);
+        const routesByProvider = {
+          OPENAI: routes,
+          OPENROUTER: routesFor("OPENROUTER", openRouter.id),
         };
         const rejected: Array<{
           name: string;
@@ -1470,13 +1490,17 @@ describe("AI gateway control plane", () => {
           sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = testCase.cloud
             ? "STAGING"
             : undefined;
-          for (const [route, call] of Object.entries(routes)) {
-            const code = await call(testCase.endpoint).then(
-              () => "OK",
-              (error: { code?: string }) => error.code ?? "UNKNOWN",
-            );
-            if (code !== testCase.code) {
-              outcomes.push(`${route} ${testCase.name}: ${code}`);
+          for (const [provider, providerRoutes] of Object.entries(
+            routesByProvider,
+          )) {
+            for (const [route, call] of Object.entries(providerRoutes)) {
+              const code = await call(testCase.endpoint).then(
+                () => "OK",
+                (error: { code?: string }) => error.code ?? "UNKNOWN",
+              );
+              if (code !== testCase.code) {
+                outcomes.push(`${provider} ${route} ${testCase.name}: ${code}`);
+              }
             }
           }
         }
