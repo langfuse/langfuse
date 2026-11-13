@@ -57,7 +57,7 @@ export function TabBar({
                           "bg-background before:to-background absolute top-1/2 right-1 -translate-y-1/2 rounded-sm before:pointer-events-none before:absolute before:inset-y-0 before:right-full before:w-4 before:bg-linear-to-r before:from-transparent",
                           // Without hover the button stays visible, so it takes
                           // its own slot after the label at a touch-sized target.
-                          "pointer-coarse:static pointer-coarse:-ml-3 pointer-coarse:translate-y-0 pointer-coarse:before:hidden pointer-coarse:[&>button]:size-8",
+                          "pointer-coarse:static pointer-coarse:-ml-3 pointer-coarse:translate-y-0 pointer-coarse:before:hidden",
                           !triggerProps["aria-expanded"] &&
                             "opacity-0 group-focus-within/tab:opacity-100 group-hover/tab:opacity-100 pointer-coarse:opacity-100",
                         )}
@@ -65,7 +65,7 @@ export function TabBar({
                         <IconButton
                           icon={EllipsisVertical}
                           label={menu.label}
-                          size="xs"
+                          size="xsTouch"
                           {...triggerProps}
                         />
                       </div>
