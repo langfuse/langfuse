@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  DECISION_MODEL_CONNECTIONS_HINT,
   isAllowedDecisionModel,
   isTextAdapterDecisionModel,
   unsupportedDecisionModelMessage,
@@ -69,10 +70,11 @@ export function DecisionModelSelector({
   );
   const unsupportedMessage =
     selectedModel != null && selectedConnection != null && !selectedIsAllowed
-      ? unsupportedDecisionModelMessage(
+      ? (unsupportedDecisionModelMessage(
           selectedConnection.adapter,
           selectedModel.model,
-        )
+        ) ??
+        `Connection "${selectedConnection.provider}" is not a decision-model connection. Use ${DECISION_MODEL_CONNECTIONS_HINT}.`)
       : null;
   // Shown until the user picks a model. The store stays untouched.
   const displayedModel = selectedModel ?? preferredDecisionModel(rows);
