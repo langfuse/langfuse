@@ -287,6 +287,7 @@ and it is where tenancy is enforced:
    both. It then identity-stamps the tree (`WeakSet`); a copied
    `langfuseTenancy` property is not a valid stamp.
    Only inner and left joins take the scope in their ON clause; a right or full join on a tenanted table must be scoped in WHERE or behind a subquery, else it throws `UnscopedRelationError`. Every other join type throws it: a cross join, since ClickHouse has no `CROSS JOIN … ON`, and lateral, apply and USING joins, which are not ClickHouse SQL.
+   A select with more than one FROM item (`selectFrom([a, b])`) throws it too: ClickHouse reads `from a, b` as a cross join, so write an inner join with an explicit ON condition.
 3. `DedupLoweringPlugin` applies the table's declared read idiom
    (`none` / `limitBy` / `final`). `events_core` and `events_full` are
    `none` — immutable at read time, so the pass does not inject LIMIT BY or

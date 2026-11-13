@@ -114,9 +114,9 @@ class TenancyInjectionTransformer extends SelectRewriteTransformer {
 
 /**
  * Scopes each tenanted FROM table in WHERE, and each tenanted join table in
- * WHERE or, for an inner or left join, in ON. Throws for a join type or
- * relation source the pass does not accept, and for a right or full join on a
- * tenanted table that WHERE does not scope.
+ * WHERE or, for an inner or left join, in ON. Throws for more than one FROM
+ * item, for a join type or relation source the pass does not accept, and for a
+ * right or full join on a tenanted table that WHERE does not scope.
  *
  * Kysely keeps the FROM relations in `node.from.froms` and each join in
  * `node.joins`: a `JoinNode` holds the join type, the joined relation (`table`)
@@ -133,6 +133,7 @@ function injectSelect(
     relation: classifyRelation(join.table),
   }));
 
+  assertSingleFrom(fromRelations);
   for (const relation of fromRelations) {
     assertRelationAllowed(relation);
   }
@@ -238,6 +239,15 @@ function assertJoinTypeAllowed(join: JoinNode): void {
   if (!ALLOWED_JOINS.has(join.joinType)) {
     throw new UnscopedRelationError(
       `${join.joinType} is rejected: only inner, left, right and full joins are accepted. A cross join has no ON clause the tenancy pass can scope, and lateral, apply and USING joins are not ClickHouse SQL. Use an inner join with an explicit ON condition instead.`,
+    );
+  }
+}
+
+/** Throws for a comma FROM list, which ClickHouse reads as a cross join. */
+function assertSingleFrom(fromRelations: ScopedRelation[]): void {
+  if (fromRelations.length > 1) {
+    throw new UnscopedRelationError(
+      `A select with ${fromRelations.length} FROM items is rejected: ClickHouse reads \`from a, b\` as a cross join. Use an inner join with an explicit ON condition instead.`,
     );
   }
 }

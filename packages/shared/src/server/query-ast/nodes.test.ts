@@ -426,6 +426,21 @@ describe("tenancy injection", () => {
     );
   });
 
+  it("rejects a select with more than one FROM item", () => {
+    // ClickHouse reads `from a, b` as a cross join.
+    const db = getClickhouseKysely();
+    const qb = db
+      .selectFrom([
+        "traces as t",
+        db.selectFrom("scores").select(["trace_id"]).as("s"),
+      ])
+      .select("t.id");
+
+    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
+      "A select with 2 FROM items is rejected",
+    );
+  });
+
   it("does not count a bare project_id that a SELECT alias shadows as coverage", () => {
     // ClickHouse resolves a bare name to a SELECT alias before a table column.
     const qb = getClickhouseKysely()
