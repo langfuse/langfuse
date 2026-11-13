@@ -3,6 +3,7 @@ import { useCallback, type RefObject } from "react";
 import type { EvalTemplateType } from "@langfuse/shared";
 
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { EvaluatorGalleryAiBox } from "./components/EvaluatorGalleryAiBox/EvaluatorGalleryAiBox";
 import { EvaluatorGalleryStartRow } from "./components/EvaluatorGalleryStartRow/EvaluatorGalleryStartRow";
 import { EvaluatorGallerySection } from "./components/EvaluatorGallerySection/EvaluatorGallerySection";
 import { EvaluatorGallerySidebar } from "./components/EvaluatorGallerySidebar/EvaluatorGallerySidebar";
@@ -50,6 +51,7 @@ export function EvaluatorGalleryView({
   isLoadingMoreProjectTemplates = false,
   onLoadMoreProjectTemplates,
   errorMessage,
+  onBuildWithAi,
 }: {
   search: string;
   onSearchChange: (search: string) => void;
@@ -67,6 +69,8 @@ export function EvaluatorGalleryView({
   isLoadingMoreProjectTemplates?: boolean;
   onLoadMoreProjectTemplates?: () => void;
   errorMessage?: string;
+  /** Omitted when the in-app assistant is unavailable. Resolves whether it sent. */
+  onBuildWithAi?: (prompt: string) => Promise<boolean>;
 }) {
   const sidebarItems = gallerySidebarItems(navigationItems, sections);
   const resolvedSection =
@@ -138,6 +142,9 @@ export function EvaluatorGalleryView({
             className="min-h-0 flex-1 overflow-y-auto"
           >
             <div className="flex flex-col gap-12 px-4 py-4">
+              {onBuildWithAi ? (
+                <EvaluatorGalleryAiBox onSubmit={onBuildWithAi} />
+              ) : null}
               {!isSingleSection && (!search.trim() || !hasTemplates) ? (
                 <EvaluatorGalleryStartRow
                   onCreateFromScratch={onCreateFromScratch}

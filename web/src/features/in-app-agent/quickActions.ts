@@ -72,6 +72,7 @@ export type InAppAgentSubmitOptions = {
     | "chat"
     | "add-widget-modal"
     | "evaluators-empty-state"
+    | "evaluator-gallery"
     | "skill-editor";
 };
 

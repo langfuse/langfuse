@@ -101,6 +101,7 @@ export type InAppAgentEntryPoint =
   | "dashboard_widget"
   | "v4_migration"
   | "evaluators_empty_state"
+  | "evaluator_gallery"
   | "skill_editor";
 
 function useBackgroundExecutionView(
