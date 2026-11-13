@@ -3,6 +3,7 @@ import type { FilterState } from "@langfuse/shared";
 import {
   DEFAULT_TOPIC_FACETS,
   TOPICS_ANALYSIS_MIN_TRACES,
+  TOPICS_ANALYSIS_SMALL_SAMPLE_MIN_TRACES,
   type TopicFacet,
 } from "@langfuse/shared/topics";
 import { expect, fn, userEvent, within } from "storybook/test";
@@ -81,6 +82,7 @@ function SnapshotStory({
     summarizedCount: Math.round(counts.summarizedCount * scale),
     unsummarizedCount: Math.round(counts.unsummarizedCount * scale),
     minimumTraceCount: TOPICS_ANALYSIS_MIN_TRACES,
+    smallSampleMinimumTraceCount: TOPICS_ANALYSIS_SMALL_SAMPLE_MIN_TRACES,
   };
   const tracePreview: TopicTracePreview = shown
     ? {
@@ -121,7 +123,7 @@ function SnapshotStory({
         name.trim().length > 0 &&
         Boolean(shown) &&
         facetIds.length > 0 &&
-        shown!.summarizedCount + extra >= shown!.minimumTraceCount
+        shown!.summarizedCount + extra >= shown!.smallSampleMinimumTraceCount
       }
       starting={false}
       errors={errors}
@@ -167,7 +169,12 @@ export const NothingToSummarize = meta.story({
 
 export const TooFewTraces = meta.story({
   name: "Too few traces to start",
-  args: { counts: { summarizedCount: 12, unsummarizedCount: 0 } },
+  args: { counts: { summarizedCount: 6, unsummarizedCount: 0 } },
+});
+
+export const SmallSample = meta.story({
+  name: "Small sample below 100",
+  args: { counts: { summarizedCount: 0, unsummarizedCount: 49 } },
 });
 
 export const Counting = meta.story({ args: { counts: null } });
@@ -181,7 +188,7 @@ export const StartFailed = meta.story({
 });
 
 export const StartRules = meta.story({
-  name: "(Test) Create needs a name and, below the minimum, summarizing",
+  name: "(Test) Create needs a name; below 100 it starts as a small sample",
   args: { counts: { summarizedCount: 42, unsummarizedCount: 880 } },
   play: async () => {
     const body = within(document.body);
@@ -196,10 +203,12 @@ export const StartRules = meta.story({
       "Billing questions",
     );
     await expect(create).toBeEnabled();
+    // 42 summaries alone still start, as a small sample with a recommendation.
     await userEvent.click(toggle);
-    await expect(create).toBeDisabled();
+    await expect(create).toBeEnabled();
+    await expect(body.getByText("SMALL SAMPLE")).toBeInTheDocument();
     await expect(
-      body.getByText(/A snapshot needs at least 100/),
+      body.getByText(/We recommend at least 100/),
     ).toBeInTheDocument();
   },
 });

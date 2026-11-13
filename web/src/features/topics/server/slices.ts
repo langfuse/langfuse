@@ -3,6 +3,7 @@ import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import {
   TOPICS_ANALYSIS_MIN_TRACES,
   TOPICS_ANALYSIS_SAMPLING_SEED,
+  TOPICS_ANALYSIS_SMALL_SAMPLE_MIN_TRACES,
   TOPICS_SLICE_MAX_TRACES,
   type TopicSnapshotSummarize,
   type TopicAnalysisConfig,
@@ -123,6 +124,7 @@ export async function previewTopicAnalysis(input: {
     summarized: counts,
     summarizedCount,
     minimumTraceCount: TOPICS_ANALYSIS_MIN_TRACES,
+    smallSampleMinimumTraceCount: TOPICS_ANALYSIS_SMALL_SAMPLE_MIN_TRACES,
     ready: summarizedCount >= TOPICS_ANALYSIS_MIN_TRACES,
   };
 }
@@ -146,9 +148,10 @@ export async function startTopicAnalysis(
   const extra = input.summarize
     ? Math.min(input.summarize.limit, preview.unsummarizedCount)
     : 0;
-  if (preview.summarizedCount + extra < TOPICS_ANALYSIS_MIN_TRACES)
+  const grouped = preview.summarizedCount + extra;
+  if (grouped < TOPICS_ANALYSIS_SMALL_SAMPLE_MIN_TRACES)
     throw new InvalidRequestError(
-      `A snapshot needs at least ${TOPICS_ANALYSIS_MIN_TRACES} summarized traces in this slice.`,
+      `A snapshot needs at least ${TOPICS_ANALYSIS_SMALL_SAMPLE_MIN_TRACES} summarized traces in this slice.`,
     );
   const summarize = extra > 0 ? input.summarize : undefined;
   const requestId = randomUUID();
@@ -160,7 +163,8 @@ export async function startTopicAnalysis(
       facets: input.facets,
       embeddingConfig: await embeddingConfig(input.projectId),
       timeRange: input.timeRange,
-      exploratory: false,
+      // Below the recommended count, the fit uses small-sample clustering.
+      exploratory: grouped < TOPICS_ANALYSIS_MIN_TRACES,
       analysis: {
         label: input.label,
         filter: input.filter,

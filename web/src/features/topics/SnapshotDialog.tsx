@@ -103,7 +103,7 @@ export function SnapshotDialog({
     facetRefs.length > 0 &&
     preview !== null &&
     !counts.isFetching &&
-    preview.summarizedCount + extra >= preview.minimumTraceCount;
+    preview.summarizedCount + extra >= preview.smallSampleMinimumTraceCount;
 
   return (
     <SnapshotDialogView
