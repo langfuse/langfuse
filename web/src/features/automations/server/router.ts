@@ -113,9 +113,10 @@ export const automationsRouter = createTRPCRouter({
           trigger: automation.trigger,
           projectId,
         });
-      } catch {
+      } catch (cause) {
         throw new TRPCError({
           code: "BAD_GATEWAY",
+          cause,
           message:
             "Could not deliver the test event. Check the destination and try again.",
         });

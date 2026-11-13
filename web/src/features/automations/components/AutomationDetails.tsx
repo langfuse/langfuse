@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { api } from "@/src/utils/api";
+import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Edit } from "@langfuse/icons";
 import { AutomationForm } from "./AutomationForm";
@@ -45,7 +45,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
     scope: "automations:CUD",
   });
   const testWebhook = api.automations.sendWebhookTestEvent.useMutation({
-    meta: { silentAllErrors: true },
+    onError: (error) => reportTrpcErrorWithoutToast(error, "automations"),
   });
   const isCurrentWebhookTest =
     testWebhook.variables?.projectId === projectId &&
