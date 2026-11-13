@@ -69,6 +69,11 @@ export type TraceProps = {
   truncatedAtObservations?: number;
   /** This is the previous trace, kept on screen while the next one loads. */
   isPlaceholderData?: boolean;
+  /**
+   * Selects this observation when the URL has none. The URL observation still
+   * wins, so a caller that sets the query param keeps control of later clicks.
+   */
+  preferredObservationId?: string | null;
   /** Shows the Messages tab even when the internal preview gate is off. */
   showMessages?: boolean;
 };
@@ -113,9 +118,13 @@ export function Trace(props: TraceProps | TraceLoadingProps) {
   const isMobile = useIsMobile();
   const trace = props.isLoading === true ? null : props.trace;
   const observations = props.isLoading === true ? null : props.observations;
+  const preferredObservationId =
+    props.isLoading === true ? null : (props.preferredObservationId ?? null);
   const defaultObservationId = useMemo(
-    () => resolveDefaultObservationId(trace, observations),
-    [trace, observations],
+    () =>
+      preferredObservationId ??
+      resolveDefaultObservationId(trace, observations),
+    [preferredObservationId, trace, observations],
   );
 
   return (

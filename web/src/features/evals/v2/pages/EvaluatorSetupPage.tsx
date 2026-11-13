@@ -914,14 +914,15 @@ export function EvaluatorSetupPage(
       projectId={projectId}
       store={evaluatorSetupStore}
       heading={
-        traceEvalsAvailable && isTraceTranscriptEvalType(modelDraft.type) ? (
+        traceEvalsAvailable ? (
           <SampleScopeSwitcher
             scope={sampleScope}
             onScopeChange={changeSampleScope}
+            traceComingSoon={!isTraceTranscriptEvalType(modelDraft.type)}
           />
         ) : undefined
       }
-      traceDetail={sampleScope === "trace"}
+      traceDetail={traceEvalsAvailable}
       sampleSelector={
         sampleScope === "trace" ? (
           <TraceSampleSelectorContainer
@@ -936,6 +937,7 @@ export function EvaluatorSetupPage(
             projectId={projectId}
             timeRange={absoluteTimeRange}
             onOpenTrace={openSampleTrace}
+            samplePresentation={traceEvalsAvailable ? "detail" : "table"}
           />
         )
       }

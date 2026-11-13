@@ -7,7 +7,6 @@ import {
   type SampleObservation,
 } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 import { resolveSelection } from "@/src/features/evals/v2/components/Evaluators/Testing/components/EvaluatorSampleObservationSelector/EvaluatorSampleObservationSelector";
-import { EvaluatorSampleDetail } from "@/src/features/evals/v2/components/Evaluators/Testing/components/EvaluatorSampleDetail/EvaluatorSampleDetail";
 import { TRACE_TRANSCRIPT_SAMPLE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 
@@ -18,16 +17,6 @@ const NO_LEADING_COLUMNS: Parameters<
 const preserveObservedOptions: Parameters<
   typeof SampleObservationSelectorBase
 >[0]["mapObservedOptions"] = (observed) => observed;
-
-/** First matching observation per trace, in match order. */
-function matchingTraces(observations: SampleObservation[]) {
-  const seen = new Set<string>();
-  return observations.filter((observation) => {
-    if (!observation.traceId || seen.has(observation.traceId)) return false;
-    seen.add(observation.traceId);
-    return true;
-  });
-}
 
 /** Trace-scope sample: rule filters and one matching trace at a time. */
 export function TraceSampleSelectorContainer({
@@ -58,6 +47,7 @@ export function TraceSampleSelectorContainer({
       tableName="evaluator-sample-traces"
       registry={TRACE_TRANSCRIPT_SAMPLE_FIELD_REGISTRY}
       selectedObservationId={selectedObservation?.id ?? null}
+      selectedObservation={selectedObservation}
       onSelect={actions.setSelectedObservation}
       onOpenTrace={onOpenTrace}
       leadingColumns={NO_LEADING_COLUMNS}
@@ -70,16 +60,7 @@ export function TraceSampleSelectorContainer({
       formatCount={(count) => compactNumberFormatter(count)}
       mapObservedOptions={preserveObservedOptions}
       samplePresentation="detail"
-      renderMatches={(matches) => (
-        <EvaluatorSampleDetail
-          projectId={projectId}
-          observations={matchingTraces(matches.observations)}
-          selectedObservationId={selectedObservation?.id ?? null}
-          selectedObservation={selectedObservation}
-          pending={matches.pending}
-          onSelect={actions.setSelectedObservation}
-        />
-      )}
+      sampleScope="trace"
     />
   );
 }

@@ -1,12 +1,6 @@
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
-import {
-  useCallback,
-  useMemo,
-  useState,
-  type ReactNode,
-  type UIEvent,
-} from "react";
+import { useCallback, useMemo, useRef, useState, type UIEvent } from "react";
 import {
   Database,
   FlaskConical,
@@ -56,6 +50,7 @@ import {
   type MapSampleObservedOptions,
   useSampleObservationFilterOptions,
 } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/hooks/useSampleObservationFilterOptions";
+import { EvaluatorSampleDetail } from "@/src/features/evals/v2/components/Evaluators/Testing/components/EvaluatorSampleDetail/EvaluatorSampleDetail";
 import { useReusableRuleFilterPresets } from "@/src/features/evals/v2/hooks/useReusableRuleFilterPresets";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -138,12 +133,6 @@ function timeFilters(range: AbsoluteTimeRange | null): FilterState {
   ];
 }
 
-/** The loaded matches, for callers that present them without the table. */
-type SampleObservationMatches = {
-  observations: SampleObservation[];
-  pending: boolean;
-};
-
 export type SampleObservationSelectorBaseProps = {
   projectId: string;
   timeRange: AbsoluteTimeRange | null;
@@ -153,6 +142,7 @@ export type SampleObservationSelectorBaseProps = {
   tableName: string;
   registry: FieldRegistry | undefined;
   selectedObservationId: string | null;
+  selectedObservation?: SampleObservation | null;
   onSelect: (observation: SampleObservation | null) => void;
   onOpenTrace: (observation: SampleObservation) => void;
   leadingColumns: LangfuseColumnDef<SampleObservation>[];
@@ -167,11 +157,38 @@ export type SampleObservationSelectorBaseProps = {
   matchingTooltip: string;
   formatCount: (count: number) => string;
   mapObservedOptions: MapSampleObservedOptions;
-  /** Replaces the matching observations table. */
-  renderMatches?: (matches: SampleObservationMatches) => ReactNode;
-  /** "detail" tightens the filter and lets the matches fill the panel. */
+  /** "detail" shows one sample in the trace view instead of the table. */
   samplePresentation?: "table" | "detail";
+  sampleScope?: "trace" | "observation";
 };
+
+function suppressedRetarget(
+  resolved: SampleObservation | null | undefined,
+  retainedId: string | null,
+  retainedIsListed: boolean,
+  selectedObservationId: string | null,
+) {
+  if (
+    resolved &&
+    retainedId &&
+    !retainedIsListed &&
+    selectedObservationId === retainedId &&
+    resolved.id !== retainedId
+  ) {
+    return undefined;
+  }
+  return resolved;
+}
+
+/** First matching observation per trace, in match order. */
+function matchingTraces(observations: SampleObservation[]) {
+  const seen = new Set<string>();
+  return observations.filter((observation) => {
+    if (!observation.traceId || seen.has(observation.traceId)) return false;
+    seen.add(observation.traceId);
+    return true;
+  });
+}
 
 function selectorLayoutClassName(showTraceDetail: boolean) {
   if (showTraceDetail) {
@@ -192,6 +209,7 @@ export function SampleObservationSelectorBase(
     tableName,
     registry,
     selectedObservationId,
+    selectedObservation = null,
     onSelect,
     onOpenTrace,
     leadingColumns,
@@ -203,8 +221,8 @@ export function SampleObservationSelectorBase(
     matchingTooltip,
     formatCount,
     mapObservedOptions,
-    renderMatches,
     samplePresentation = "table",
+    sampleScope = "observation",
   } = props;
   const showTraceDetail = samplePresentation === "detail";
   const activeRegistry = registry ?? EVENTS_FIELD_REGISTRY;
@@ -243,12 +261,22 @@ export function SampleObservationSelectorBase(
         ]
       : EXAMPLES;
   }, [datasetOptions]);
+  const retainedSelectionId = useRef<string | null>(null);
   const setFilters = (
     next: FilterState | ((current: FilterState) => FilterState),
   ) => {
+    retainedSelectionId.current = null;
     const resolved = typeof next === "function" ? next(filterState) : next;
     onFilterStateChange(resolved);
   };
+  const retargetSample = useCallback(
+    (observation: SampleObservation, filters: FilterState) => {
+      retainedSelectionId.current = observation.id;
+      onSelect(observation);
+      onFilterStateChange(filters);
+    },
+    [onFilterStateChange, onSelect],
+  );
   const [searchQuery, setSearchQuery] = useState<string | null>(null);
   const [searchType, setSearchType] = useState<TracingSearchType[]>([]);
   const [rowHeight] = useRowHeightLocalStorage(
@@ -370,7 +398,7 @@ export function SampleObservationSelectorBase(
           {
             ...sendAsPostOption,
             enabled:
-              !renderMatches &&
+              !showTraceDetail &&
               observationQuery.isSuccess &&
               observations.length > 0,
           },
@@ -428,6 +456,21 @@ export function SampleObservationSelectorBase(
           if (element) onSelect(selectionToReconcile);
         }
       : undefined;
+  const querySettled =
+    observationQuery.isSuccess && !observationQuery.isFetching;
+  const retainedId = retainedSelectionId.current;
+  const retainedIsListed =
+    querySettled &&
+    retainedId != null &&
+    matchingObservations.some((observation) => observation.id === retainedId);
+  const detailSelectionToReconcile = suppressedRetarget(
+    querySettled
+      ? resolveSelection(matchingObservations, selectedObservationId)
+      : undefined,
+    retainedId,
+    retainedIsListed,
+    selectedObservationId,
+  );
 
   const columns = useMemo<LangfuseColumnDef<SampleObservation>[]>(
     () => [
@@ -628,19 +671,38 @@ export function SampleObservationSelectorBase(
         ) : null}
       </section>
 
-      {renderMatches ? (
-        <div
-          ref={reconcileSelection}
-          className={
-            showTraceDetail
-              ? "-mx-6 flex min-h-0 flex-1 flex-col border-t"
-              : undefined
-          }
-        >
-          {renderMatches({
-            observations: matchingObservations,
-            pending: observationsPending,
-          })}
+      {showTraceDetail ? (
+        <div className="-mx-6 flex min-h-0 flex-1 flex-col border-t">
+          <div
+            ref={
+              retainedIsListed || detailSelectionToReconcile !== undefined
+                ? (element) => {
+                    // Commit fresh query results through the existing selection owner without a data-sync effect.
+                    if (!element) return;
+                    if (retainedIsListed) retainedSelectionId.current = null;
+                    if (detailSelectionToReconcile !== undefined) {
+                      onSelect(detailSelectionToReconcile);
+                    }
+                  }
+                : undefined
+            }
+            hidden
+          />
+          <EvaluatorSampleDetail
+            projectId={projectId}
+            sampleScope={sampleScope}
+            observations={
+              sampleScope === "trace"
+                ? matchingTraces(matchingObservations)
+                : matchingObservations
+            }
+            selectedObservationId={selectedObservationId}
+            selectedObservation={selectedObservation}
+            filterState={filterState}
+            pending={observationsPending}
+            onSelect={onSelect}
+            onRetarget={retargetSample}
+          />
         </div>
       ) : (
         <section className="flex min-h-0 flex-col gap-2">
