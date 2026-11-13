@@ -25,11 +25,12 @@ export function TopicRuleDialogView({
   onSamplingPercentChange,
   dailyTraces,
   canSave,
-  saveDisabledReason,
+  readOnlyReason,
   saving,
   saveError,
   onSave,
 }: TopicRuleDialogViewProps) {
+  const readOnly = readOnlyReason !== undefined;
   return (
     <Dialog
       title="Edit scan"
@@ -37,8 +38,8 @@ export function TopicRuleDialogView({
       actions={[
         {
           label: "Save changes",
-          disabled: !canSave,
-          disabledReason: saveDisabledReason,
+          disabled: readOnly || !canSave,
+          disabledReason: readOnlyReason,
           loading: saving,
           onClick: onSave,
         },
@@ -46,11 +47,17 @@ export function TopicRuleDialogView({
     >
       <Dialog.Body separators="both">
         <div className="ph-no-capture flex flex-col gap-6">
+          {readOnly ? (
+            <p className="text-muted-foreground text-sm">
+              View only. {readOnlyReason}
+            </p>
+          ) : null}
           <TopicSliceFields.Section label="Name">
             <Input
               aria-label="Scan name"
               value={ruleName}
               maxLength={100}
+              disabled={readOnly}
               onChange={(event) => onNameChange(event.target.value)}
             />
           </TopicSliceFields.Section>
@@ -58,7 +65,9 @@ export function TopicRuleDialogView({
             facets={facets}
             selectedIds={facetIds}
             onChange={onFacetIdsChange}
+            disabled={readOnly}
           />
+          {/* The filter editor has no disabled mode; the view-only note and Save cover it. */}
           <TopicTraceFilterSection
             projectId={projectId}
             filters={filter}
@@ -68,12 +77,14 @@ export function TopicRuleDialogView({
           <TopicSliceFields.AutoAnalyze
             on={!paused}
             onChange={(on) => onPausedChange(!on)}
+            disabled={readOnly}
           >
             <TopicSliceFields.Sampling
               value={samplingPercent}
               onChange={onSamplingPercentChange}
               dailyTraces={dailyTraces}
               tooltip="Share of new matching traces this scan analyzes."
+              disabled={readOnly}
             />
           </TopicSliceFields.AutoAnalyze>
           {filterError && filter.length ? (
@@ -104,7 +115,8 @@ type TopicRuleDialogViewProps = {
   /** Matching traces per day over the last week; null while unknown. */
   dailyTraces: number | null;
   canSave: boolean;
-  saveDisabledReason?: string;
+  /** Why the viewer can't change this scan; set, the fields are disabled and Save explains it. */
+  readOnlyReason?: string;
   saving: boolean;
   saveError: string | null;
   onSave: () => void;

@@ -159,11 +159,13 @@ function TopicSamplingField({
 function TopicAutoAnalyzeField({
   on,
   onChange,
+  disabled,
   disabledReason,
   children,
 }: {
   on: boolean;
   onChange: (on: boolean) => void;
+  disabled?: boolean;
   /** Why the scan can't be live, e.g. the project's live scan limit. */
   disabledReason?: string;
   children: ReactNode;
@@ -186,7 +188,7 @@ function TopicAutoAnalyzeField({
         <Switch
           id={id}
           checked={on}
-          disabled={Boolean(disabledReason)}
+          disabled={disabled || Boolean(disabledReason)}
           onCheckedChange={onChange}
         />
       </div>
