@@ -6,7 +6,6 @@ import {
   type TopicRule,
 } from "@langfuse/shared/topics";
 import { api } from "@/src/utils/api";
-import { suggestTopicRuleName } from "./topic-maps";
 import { TOPIC_SETUP_BACKFILL_DAYS } from "./topic-setup-flow";
 import { useTopicTraceFilter } from "./useTopicTraceFilter";
 import { TopicRuleDialogView } from "./TopicRuleDialogView";
@@ -19,7 +18,7 @@ type TopicRuleForm = {
   paused: boolean;
 };
 
-/** Edits a live run: filter, questions, auto-analyze, sample rate and name. */
+/** Edits a map: filter, facets, live updates, sample rate and name. */
 export function TopicRuleDialog({
   projectId,
   facets,
@@ -75,7 +74,7 @@ export function TopicRuleDialog({
     await save.mutateAsync({
       projectId,
       id: rule.id,
-      name: values.name.trim() || suggestTopicRuleName(values.filter),
+      name: values.name.trim(),
       filter: values.filter,
       facetIds: values.facetIds,
       sampling: values.samplingPercent / 100,
@@ -106,7 +105,9 @@ export function TopicRuleDialog({
       samplingPercent={samplingPercent}
       onSamplingPercentChange={(next) => form.setValue("samplingPercent", next)}
       dailyTraces={dailyTraces}
-      canSave={traceFilter.ready && facetIds.length > 0}
+      canSave={
+        name.trim().length > 0 && traceFilter.ready && facetIds.length > 0
+      }
       saving={save.isPending || setEnabled.isPending}
       saveError={(save.error ?? setEnabled.error)?.message ?? null}
       onSave={() => {

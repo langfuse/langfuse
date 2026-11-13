@@ -54,6 +54,16 @@ ORDER BY event_time DESC
 LIMIT 50;
 ```
 
+## Snapshots that summarize first
+
+A snapshot is an `update` execution with `analysis` settings; its BatchAction stores the filter, facets, window and, with `analysis.summarize`, how many traces to summarize and how to pick them (random or latest). Such a snapshot starts in the `summarizing` phase and a `topics-setup` job, not the update job, drives it ([snapshotSetup.ts](snapshotSetup.ts)):
+
+1. The first tick selects finished matching traces without a stored result for every facet (idle for twice the project's wait) and enqueues them as `events-dispatch` jobs, in locality batches as the dispatcher forms them, carrying `batchActionId` instead of rule IDs. Jobs are delayed over up to three minutes so summaries do not reach the provider at once. The trace-dispatch maps are not used, and a failed trace is not restored to them.
+2. Events-dispatch routes those traces only to Topics. The per-trace job summarizes the snapshot's facets and stores `metadata.executionId` on each summary; it assigns nothing online.
+3. Each 15 s tick counts the seeded traces' summaries into the execution's facet progress. At 90% settled, a minute without growth or eight minutes, the tick enqueues the usual update job, which clusters the snapshot's window with `batch_action_id` on its runs. A snapshot's fit picks its mode from the summaries it loads: below 100 it clusters a small sample (at least 10, minimum cluster size 3); rule fits keep the mode in their run config.
+
+The seeded trace IDs and the settle clock live in the BatchAction's `summarizing` config. Three failed ticks in a row fail the execution.
+
 ## Transcript and summary contract
 
 Manual processing and trace batches share the transcript producer and [topics-model-input.ts](../../../../packages/shared/src/server/transcript/topics-model-input.ts) projection. The model receives conversation history and current-turn messages without observation provenance, reasoning content, tool definitions or inline media payloads. Empty projected content produces `insufficient_input` without inference. The [shared transcript README](../../../../packages/shared/src/server/transcript/README.md) owns observation eligibility and assembly semantics; diagnostic text renderers are not the Topics model input.

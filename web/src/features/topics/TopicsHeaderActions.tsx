@@ -9,7 +9,7 @@ import { type TopicsActions } from "./prepare-topics-actions";
 export function TopicsHeaderActions({ actions }: { actions: TopicsActions }) {
   return (
     <div className="ph-no-capture flex shrink-0 items-center justify-end gap-1">
-      {actions.editRun && <EditScanButton editRun={actions.editRun} />}
+      {actions.editRun && <EditMapButton editRun={actions.editRun} />}
       <DropdownMenu
         ariaLabel="Topics actions"
         placement="bottom-end"
@@ -42,7 +42,7 @@ export function TopicsHeaderActions({ actions }: { actions: TopicsActions }) {
   );
 }
 
-function EditScanButton({
+function EditMapButton({
   editRun,
 }: {
   editRun: NonNullable<TopicsActions["editRun"]>;
@@ -50,7 +50,7 @@ function EditScanButton({
   if (!editRun.disabledReason)
     return (
       <Button
-        text="Edit scan"
+        text="Edit map"
         icon={Pencil}
         size="default"
         variant="ghost"
@@ -66,7 +66,7 @@ function EditScanButton({
           className="inline-flex cursor-not-allowed [&>button]:pointer-events-none"
         >
           <Button
-            text="Edit scan"
+            text="Edit map"
             icon={Pencil}
             size="default"
             variant="ghost"

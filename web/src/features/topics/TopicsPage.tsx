@@ -27,6 +27,7 @@ import {
 import { useTopicPipelineForm } from "./TopicPipelineForm";
 import { ManualTopicsFormContent } from "./ManualTopicsFormContent";
 import { cn } from "@/src/utils/tailwind";
+import { useIsHandheld } from "@/src/hooks/use-mobile";
 import { TopicsFacetTabs } from "./TopicsFacetTabs";
 import { TopicsMobileControls } from "./TopicsMobileControls";
 import { resolveTopicFacetId } from "./topic-facet-selection";
@@ -39,12 +40,16 @@ import {
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { useRegenerateTopics } from "./useRegenerateTopics";
-import { useTopicModelSettings } from "./TopicModelSettings";
+import { useTopicSettings } from "./useTopicSettings";
 import { AutomaticProcessingDialogController } from "./AutomaticProcessingDialogController";
 import { ConfigureTopicsDialogController } from "./ConfigureTopicsDialogController";
 import { TopicSetupFlowController } from "./TopicSetupFlowController";
 import { TopicSetupNotice } from "./TopicSetupNotice";
-import { topicRuleSetupProgress, topicSetupStage } from "./topic-setup-flow";
+import {
+  topicRuleSetupProgress,
+  topicSetupStage,
+  type TopicSetupStage,
+} from "./topic-setup-flow";
 import { TopicSetupProgressView } from "./TopicSetupProgressView";
 import { CurrentTopics, useCurrentTopics } from "./CurrentTopics";
 import { TopicsActionsMenu } from "./TopicsActionsMenu";
@@ -107,7 +112,7 @@ export default function TopicsPage() {
 function TopicsWorkspace({ projectId }: { projectId: string }) {
   const facets = api.topics.facets.useQuery({ projectId });
   const canWrite = useHasProjectAccess({ projectId, scope: "topics:CUD" });
-  const modelSettings = useTopicModelSettings({
+  const modelSettings = useTopicSettings({
     projectId,
     canWrite,
     facets: facets.data ?? [],
@@ -147,7 +152,7 @@ type TopicsWorkspaceViewProps = {
   projectId: string;
   facets: UseQueryResult<TopicFacet[], { message: string }>;
   canWrite: boolean;
-  modelSettings: ReturnType<typeof useTopicModelSettings>;
+  modelSettings: ReturnType<typeof useTopicSettings>;
   openSetup: () => void;
 };
 
@@ -204,6 +209,7 @@ function TopicsWorkspaceContent({
 }: TopicsWorkspaceContentProps) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [resultsView, setResultsView] = useTopicsResultsView();
+  const isHandheld = useIsHandheld();
   const [showUnassigned, setShowUnassigned] = useSessionStorage(
     `topics-show-unassigned:${projectId}`,
     true,
@@ -458,15 +464,15 @@ function TopicsWorkspaceContent({
     openAutomaticProcessing(true);
   }
 
+  const mapLimitReason =
+    (maps.data?.rules.length ?? 0) >= TOPICS_MAX_RULES
+      ? `A project can have at most ${TOPICS_MAX_RULES} maps.`
+      : undefined;
   const workspace = (
     <TopicSliceDialogController
       projectId={projectId}
       facets={facets.data ?? []}
-      liveDisabledReason={
-        (maps.data?.rules.length ?? 0) >= TOPICS_MAX_RULES
-          ? `A project can have at most ${TOPICS_MAX_RULES} live scans.`
-          : undefined
-      }
+      mapDisabledReason={mapLimitReason}
       onAnalysisStarted={(executionId) =>
         selectMap({ kind: "analysis", id: executionId })
       }
@@ -532,7 +538,7 @@ function TopicsWorkspaceContent({
             const hasStrip =
               (!showOnboarding && selectedRule !== undefined) ||
               selectedAnalysis !== undefined;
-            // Rendered in both the strip and the handheld row, so the label wraps the switch instead of an id.
+            // Below md only the page menu's Show unassigned row carries this setting.
             const unassignedSwitch = (
               <label className="text-muted-foreground flex shrink-0 items-center gap-2 text-sm whitespace-nowrap">
                 <Switch
@@ -555,13 +561,16 @@ function TopicsWorkspaceContent({
                     />
                   </span>
                 )}
-                <span className="text-muted-foreground flex shrink-0 items-center gap-2 text-sm whitespace-nowrap">
-                  Visualize as
-                  <TopicsResultsViewSelect
-                    value={resultsView}
-                    onValueChange={setResultsView}
-                  />
-                </span>
+                {/* Handheld results always show the treemap under their own Visualize tab. */}
+                {!isHandheld && (
+                  <span className="text-muted-foreground flex shrink-0 items-center gap-2 text-sm whitespace-nowrap">
+                    Visualize as
+                    <TopicsResultsViewSelect
+                      value={resultsView}
+                      onValueChange={setResultsView}
+                    />
+                  </span>
+                )}
               </>
             );
             // Only once results loaded; loading and errors stay with CurrentTopics.
@@ -601,7 +610,9 @@ function TopicsWorkspaceContent({
                 selectedRule && !showOnboarding
                   ? () => openSliceDialog({ kind: "rule", rule: selectedRule })
                   : undefined,
-              onNewAnalysis: () => openSliceDialog({ kind: "analysis" }),
+              onNewMap: () => openSliceDialog({ kind: "map" }),
+              onNewSnapshot: () => openSliceDialog({ kind: "snapshot" }),
+              mapDisabledReason: mapLimitReason,
               showUnassigned,
               onShowUnassignedChange: setShowUnassigned,
             });
@@ -615,7 +626,10 @@ function TopicsWorkspaceContent({
                   onSelect={selectMap}
                   usePreviewTopics={usePreviewTopics}
                   processingOn={automaticProcessing.state.status === "on"}
-                  newScan={actions.newScan}
+                  create={{
+                    map: actions.newMap,
+                    snapshot: actions.newSnapshot,
+                  }}
                 />
               ) : null;
             return (
@@ -672,7 +686,6 @@ function TopicsWorkspaceContent({
                             onSelectFacet={traceFilters.selectFacet}
                           />
                         )}
-                        {hasStrip && unassignedSwitch}
                       </div>
                     )}
                     <TopicSetupNotice
@@ -779,7 +792,24 @@ function TopicsWorkspaceContent({
                       {showBuilding && selectedRule ? (
                         <TopicRuleBuildingState rule={selectedRule} />
                       ) : null}
-                      {analysisState && analysisId ? (
+                      {analysisState &&
+                      analysisId &&
+                      analysisResults.data &&
+                      busy(analysisState.status) ? (
+                        <TopicSetupProgressView
+                          variant="snapshot"
+                          {...snapshotProgress(
+                            analysisResults.data.execution,
+                            facets.data ?? [],
+                          )}
+                          retrying={false}
+                          canRetry={false}
+                          onViewDetails={() => openExecution(analysisId)}
+                        />
+                      ) : null}
+                      {analysisState &&
+                      analysisId &&
+                      !busy(analysisState.status) ? (
                         <TopicAnalysisState
                           status={analysisState.status}
                           outcome={analysisState.outcome}
@@ -913,8 +943,42 @@ function ExecutionPanel({
 }
 
 function startBlockedReason(running: boolean, automaticOn: boolean) {
-  if (running) return "Scan is running. Topics appear here when it finishes.";
+  if (running)
+    return "Snapshot is running. Topics appear here when it finishes.";
   if (automaticOn)
     return "Automatic processing is on. Topics appear here as traces are summarized.";
   return null;
+}
+
+/** A busy snapshot's stage and per-facet counts for the progress view. */
+function snapshotProgress(
+  execution: {
+    phase: string;
+    progress: {
+      facetId: string;
+      outcome: string;
+      requested: number;
+      complete: number;
+    }[];
+  },
+  facets: { id: string; name: string }[],
+) {
+  // Clustering and naming read as one step, as in a map's setup.
+  const stage: TopicSetupStage =
+    execution.phase === "summarizing" ? "summarizing" : "grouping";
+  return {
+    stage,
+    facets: execution.progress.map((facet) => ({
+      key: facet.facetId,
+      name:
+        facets.find(({ id }) => id === facet.facetId)?.name ?? facet.facetId,
+      complete: facet.complete,
+      requested: facet.requested,
+    })),
+    fits: {
+      done: execution.progress.filter((facet) => facet.outcome !== "pending")
+        .length,
+      total: execution.progress.length,
+    },
+  };
 }

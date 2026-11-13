@@ -18,12 +18,15 @@ import {
   renderClickhouseExpression,
   renderClickhouseSelections,
 } from "./compile";
+import { CteNamePlugin } from "./ctes";
+import { DedupLoweringPlugin } from "./dedup";
 import { getClickhouseKysely } from "./dialect";
 import {
   QueryCompileError,
   TypeCompatibilityError,
   UnscopedRelationError,
 } from "./errors";
+import { EventsTableRoutingPlugin } from "./eventsRouting";
 import {
   arrayDistinct,
   arrayExists,
@@ -70,6 +73,7 @@ import {
   asOperationNode,
 } from "./nodes";
 import type { ClickHouseDatabase } from "./schema";
+import { SchemaReferencePlugin } from "./schemaReferences";
 import { TenancyInjectionPlugin } from "./tenancy";
 import { defineView, fromView } from "./views";
 
@@ -599,6 +603,50 @@ describe("three-part references", () => {
   });
 });
 
+describe("compiler passes in production", () => {
+  const events = () => getClickhouseKysely().selectFrom("events as e");
+
+  // Each pass suite applies its pass alone (passHarness.ts), so only this
+  // test catches a pass dropped from, or reordered in, the production list.
+  // A new pass goes here, in order, next to its own pass-alone suite.
+  it("are the passes the pass suites test, in their order", () => {
+    expect(compilerPasses(projectId).map((pass) => pass.constructor)).toEqual([
+      SchemaReferencePlugin,
+      CteNamePlugin,
+      EventsTableRoutingPlugin,
+      TenancyInjectionPlugin,
+      DedupLoweringPlugin,
+    ]);
+  });
+
+  // An entry point that skipped a pass would leave its effect out.
+  it.each([
+    [
+      "compileClickhouseQuery",
+      () => compileClickhouseQuery(events().select("e.span_id"), projectId),
+    ],
+    [
+      "compileClickhouseCondition",
+      () =>
+        compileClickhouseCondition(
+          events().where("e.name", "=", "x"),
+          projectId,
+          "f_",
+        ),
+    ],
+  ])("%s runs every pass", (_name, compile) => {
+    const spies = compilerPasses(projectId).map((pass) =>
+      vi.spyOn(Object.getPrototypeOf(pass), "transformQuery"),
+    );
+    try {
+      compile();
+      for (const spy of spies) expect(spy).toHaveBeenCalled();
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+    }
+  });
+});
+
 describe("compileClickhouseCondition", () => {
   const events = () => getClickhouseKysely().selectFrom("events as e");
 
@@ -614,23 +662,6 @@ describe("compileClickhouseCondition", () => {
       params: { f_1: projectId, f_2: 3, f_3: "x" },
       requiresEventsFull: false,
     });
-  });
-
-  // A pass the condition path skipped would leave its effect out of the splice.
-  it("runs every compiler pass", () => {
-    const spies = compilerPasses(projectId).map((pass) =>
-      vi.spyOn(Object.getPrototypeOf(pass), "transformQuery"),
-    );
-    try {
-      compileClickhouseCondition(
-        events().where("e.name", "=", "x"),
-        projectId,
-        "f_",
-      );
-      for (const spy of spies) expect(spy).toHaveBeenCalled();
-    } finally {
-      for (const spy of spies) spy.mockRestore();
-    }
   });
 
   it("rejects sum() over a String column at the runtime validation pass", () => {

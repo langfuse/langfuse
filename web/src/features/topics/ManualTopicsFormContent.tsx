@@ -7,7 +7,7 @@ import { type TopicOperation } from "@langfuse/shared/topics";
 import { type TimeRange } from "@/src/utils/date-range-utils";
 import { useTopicTraceSelector } from "./TopicTraceSelector";
 import { type RegenerateTopics } from "./useRegenerateTopics";
-import { type ConfigureTopicsSettingsInput } from "./TopicModelSettings";
+import { type ConfigureTopicsSettingsInput } from "./useTopicSettings";
 import { ManualTopicsDialog } from "./ManualTopicsDialog";
 import { manualTopicsSelection } from "./manual-topics-selection";
 

@@ -134,11 +134,50 @@ export async function enqueueTopicRuleSetup(
   );
 }
 
+const snapshotSetupJobId = (projectId: string, executionId: string) =>
+  createHash("sha256")
+    .update(JSON.stringify([projectId, executionId, "snapshot-setup"]))
+    .digest("hex");
+
+/** Idempotent per snapshot: summarizes its traces, then enqueues its update. */
+export async function enqueueTopicSnapshotSetup(
+  projectId: string,
+  executionId: string,
+): Promise<void> {
+  const queue = TopicsSetupQueue.getInstance();
+  if (!queue) throw new Error("Topics setup requires Redis.");
+  const id = snapshotSetupJobId(projectId, executionId);
+  // A resume reuses the ID; a finished earlier job would make the add a no-op.
+  const previous = await queue.getJob(id);
+  if (
+    previous &&
+    ((await previous.isCompleted()) || (await previous.isFailed()))
+  )
+    await previous.remove();
+  await queue.add(
+    QueueJobs.TopicsSetup,
+    {
+      id,
+      timestamp: new Date(),
+      name: QueueJobs.TopicsSetup,
+      payload: { projectId, executionId },
+    },
+    { jobId: id },
+  );
+}
+
 export async function getTopicExecutionQueueState(
   execution: TopicExecutionSummary,
 ) {
   const { projectId, id: executionId } = execution;
   const operation = execution.input.operation;
+  // A snapshot summarizing first has only its setup job until the fit is enqueued.
+  if (operation === "update" && execution.phase === "summarizing") {
+    const job = await TopicsSetupQueue.getInstance()?.getJob(
+      snapshotSetupJobId(projectId, executionId),
+    );
+    return job ? job.getState() : ("missing" as const);
+  }
   const queue = executionQueue(operation);
   if (!queue)
     throw new Error("Topics requires the local development server and Redis.");
