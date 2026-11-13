@@ -39,6 +39,15 @@ const issuedAsDescriptions: Record<
   serviceAccount: "Keeps working when people leave the organization.",
 };
 
+// A locked key may belong to another member, so it is not described as "you".
+const lockedIssuedAsDescriptions: Record<
+  GatewayApiKeyFormValues["issuedAs"],
+  string
+> = {
+  user: "Stops working if its owner leaves the organization.",
+  serviceAccount: issuedAsDescriptions.serviceAccount,
+};
+
 type GatewayApiKeySubmission = Omit<
   RouterInputs["aiGateway"]["createApiKey"],
   "orgId"
@@ -188,12 +197,15 @@ function IssuedAsField({
   disabled: boolean;
 }) {
   const issuedAs = useWatch({ control, name: "issuedAs" });
+  const descriptions = disabled
+    ? lockedIssuedAsDescriptions
+    : issuedAsDescriptions;
   return (
     <Form.Field
       control={control}
       name="issuedAs"
       label="Issued as"
-      description={issuedAsDescriptions[issuedAs]}
+      description={descriptions[issuedAs]}
     >
       {(field) => (
         <div id={field.id}>
@@ -203,7 +215,11 @@ function IssuedAsField({
             onValueChange={field.onChange}
           >
             <Tabs.List variant="inset" size="md" aria-label="Issued as">
-              <Tabs.Trigger value="user" label="My user" disabled={disabled} />
+              <Tabs.Trigger
+                value="user"
+                label={disabled ? "User" : "My user"}
+                disabled={disabled}
+              />
               <Tabs.Trigger
                 value="serviceAccount"
                 label="Service account"

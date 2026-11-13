@@ -84,6 +84,8 @@ export function EditGatewayApiKeyDialogController({
         closeDialog();
       } catch (error) {
         reportNonTrpcError(error, "ai-gateway-api-keys");
+        // A conflict means the cached row is stale; reopening must load the current key.
+        await utils.aiGateway.listApiKeys.invalidate({ orgId: organizationId });
       }
     };
 
