@@ -24,10 +24,21 @@ metrics-exporter-dogstatsd = "0.9"
 napi = { version = "3", default-features = false, features = ["napi9"] }
 napi-derive = "3"
 ndarray = "0.16"
+indexmap = { version = "2", features = ["serde"] }
+ryu-js = "=1.0.3"
 jiter = { version = "=0.17.0", default-features = false }
+num-bigint = "=0.4.8"
+num-traits = "0.2"
 rust_decimal = { version = "1.37.2", default-features = false, features = ["std"] }
-serde = "1"
-serde_json = { version = "1", features = ["float_roundtrip", "raw_value"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip", "raw_value"] }
+fancy-regex = "0.17"
+# Before changing this exact pin, review the new source against the pinned release
+# and consider maintaining a Langfuse fork. Return to upstream regress when a release
+# passes our JavaScript compatibility and bounded-matching tests.
+# Keep `prohibit-unsafe` enabled for checked indexing while handling ingestion data.
+regress = { package = "jlens-regress", version = "=0.32.0", features = ["prohibit-unsafe"] }
+hstr = "=4.0.3"
 sha2 = { version = "0.10", features = ["asm"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }

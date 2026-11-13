@@ -55,8 +55,8 @@ export const openAiModelDiscoveryAdapter: ModelDiscoveryAdapter = {
   },
 };
 
-/** OpenAI keeps listing models past their shutdown date. Returns null for a missing or unparsable date. */
-function parseShutdownDate(shutdownDate: string | null | undefined) {
+/** Providers keep listing models past their shutdown date. Returns null for a missing or unparsable date. */
+export function parseShutdownDate(shutdownDate: string | null | undefined) {
   if (!shutdownDate) return null;
   const shutdownAt = Date.parse(`${shutdownDate}T00:00:00Z`);
   return Number.isNaN(shutdownAt) ? null : shutdownAt;

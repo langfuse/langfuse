@@ -64,6 +64,8 @@ import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganiz
 import { PaymentBannerView } from "@/src/features/payment-banner/PaymentBannerView";
 import { usePaymentBanner } from "@/src/features/payment-banner/PaymentBanner";
 import { useTopBannerHeight } from "@/src/features/top-banner/useTopBannerHeight";
+import { useV4MigrationTopBanner } from "@/src/features/v4-migration/hooks/useV4MigrationTopBanner";
+import { V4MigrationTopBannerView } from "@/src/features/v4-migration/V4MigrationTopBannerView";
 import { AppShell } from "@/src/features/app-shell/components/AppShell";
 import { AppShellSidebarPanel } from "@/src/features/app-shell/components/AppShellSidebarPanel";
 import { useAppShellVariant } from "@/src/features/app-shell/hooks/useAppShellVariant";
@@ -394,6 +396,7 @@ function AppFrame({
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const versionUpdatePrompt = useVersionUpdatePrompt();
   const paymentBanner = usePaymentBanner();
+  const v4MigrationTopBanner = useV4MigrationTopBanner();
   const topBannerRef = useTopBannerHeight();
   const { organization: currentOrganization, project: currentProject } =
     useQueryProjectOrOrganization();
@@ -404,7 +407,6 @@ function AppFrame({
   const showLegacyUiBanner = useLegacyUiBannerVisible(routerProjectId);
   const customerDataWarning = getCustomerDataWarning({
     email: user.email,
-    isAdmin: user.admin === true,
     isLangfuseCloud,
     projectId: routerProjectId ?? null,
     organizationId:
@@ -429,6 +431,9 @@ function AppFrame({
             billingSettingsHref={paymentBanner.billingSettingsHref}
             severity={paymentBanner.severity}
           />
+        )}
+        {v4MigrationTopBanner && (
+          <V4MigrationTopBannerView {...v4MigrationTopBanner} />
         )}
         {env.NEXT_PUBLIC_PREVIEW_PR_URL && (
           <PreviewDeploymentBanner prUrl={env.NEXT_PUBLIC_PREVIEW_PR_URL} />

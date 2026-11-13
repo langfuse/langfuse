@@ -7,10 +7,15 @@ import { CloudFreeTierUsageThresholdQueue } from "./cloudFreeTierUsageThresholdQ
 import { DatasetRunItemUpsertQueue } from "./datasetRunItemUpsert";
 import { ExperimentCreateQueue } from "./experimentCreateQueue";
 import { TraceDeleteQueue } from "./traceDelete";
-import { TopicsQueue, TopicsUpdateQueue } from "../topics/queue";
+import {
+  TopicsQueue,
+  TopicsSetupQueue,
+  TopicsUpdateQueue,
+} from "../topics/queue";
 import { TopicsEmbeddingQueue } from "../topics/embedding-queue";
 import { TopicsAutomationQueue } from "../topics/automation-queue";
 import { TraceBatchQueue } from "./traceBatch";
+import { EventsDispatchQueue } from "./eventsDispatchQueue";
 import { ProjectDeleteQueue } from "./projectDelete";
 import { PostHogIntegrationQueue } from "./postHogIntegrationQueue";
 import { PostHogIntegrationProcessingQueue } from "./postHogIntegrationProcessingQueue";
@@ -61,8 +66,12 @@ export function getQueue(
       return TopicsEmbeddingQueue.getInstance();
     case QueueName.TopicsAutomation:
       return TopicsAutomationQueue.getInstance();
+    case QueueName.TopicsSetup:
+      return TopicsSetupQueue.getInstance();
     case QueueName.TraceBatch:
       return TraceBatchQueue.getInstance();
+    case QueueName.EventsDispatch:
+      return EventsDispatchQueue.getInstance();
     case QueueName.BatchExport:
       return BatchExportQueue.getInstance();
     case QueueName.CloudUsageMeteringQueue:

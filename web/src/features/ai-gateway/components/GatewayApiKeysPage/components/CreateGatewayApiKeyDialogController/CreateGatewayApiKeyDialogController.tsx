@@ -1,26 +1,9 @@
-import { useState, type ReactNode } from "react";
+import { useState, type ComponentProps, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
-import { ChevronRight, Plus, X } from "@langfuse/icons";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
-import { FormField } from "@/src/components/design-system/FormField/FormField";
-import { Input as DesignSystemInput } from "@/src/components/design-system/Input/Input";
-import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { Button } from "@/src/components/ui/button";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/src/components/ui/collapsible";
-import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
-import { Input } from "@/src/components/ui/input";
-import { Label } from "@/src/components/ui/label";
-import { ApiKeyExpirationInput } from "@/src/features/apiKey/components/ApiKeyExpirationInput/ApiKeyExpirationInput";
-import type { ApiKeyExpirationPreset } from "@/src/features/apiKey/constants/apiKeyExpirationOptions";
-import { resolveApiKeyExpiration } from "@/src/features/apiKey/fns/resolveApiKeyExpiration";
+import { ConnectedGatewayApiKeyDialog } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/ConnectedGatewayApiKeyDialog/ConnectedGatewayApiKeyDialog";
+import { GeneratedKeyDialog } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/GeneratedKeyDialog/GeneratedKeyDialog";
 import { GeneratedKeyContent } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/GeneratedKeyContent";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
@@ -30,19 +13,6 @@ import {
   reportTrpcErrorWithoutToast,
 } from "@/src/utils/api";
 
-type MetadataField = {
-  id: number;
-  key: string;
-  value: string;
-};
-
-type IssuedAs = "user" | "serviceAccount";
-
-const issuedAsDescriptions: Record<IssuedAs, string> = {
-  user: "Stops working if you leave the organization.",
-  serviceAccount: "Keeps working when people leave the organization.",
-};
-
 export function CreateGatewayApiKeyDialogController({
   organizationId,
   children,
@@ -50,16 +20,6 @@ export function CreateGatewayApiKeyDialogController({
   organizationId: string;
   children: (control: { openDialog: () => void }) => ReactNode;
 }) {
-  const [name, setName] = useState("");
-  const [expiryPreset, setExpiryPreset] =
-    useState<ApiKeyExpirationPreset>("never");
-  const [customExpiry, setCustomExpiry] = useState("");
-  const [metadata, setMetadata] = useState<MetadataField[]>(() => [
-    { id: 1, key: "", value: "" },
-  ]);
-  const [isMetadataOpen, setIsMetadataOpen] = useState(false);
-  const [nextMetadataId, setNextMetadataId] = useState(2);
-  const [issuedAs, setIssuedAs] = useState<IssuedAs>("user");
   const canIssueServiceAccountKeys = useHasOrganizationAccess({
     organizationId,
     scope: "gateway:manage",
@@ -75,36 +35,15 @@ export function CreateGatewayApiKeyDialogController({
       reportTrpcErrorWithoutToast(error, "ai-gateway-api-keys"),
   });
 
-  const reset = () => {
-    setName("");
-    setExpiryPreset("never");
-    setCustomExpiry("");
-    setMetadata([{ id: 1, key: "", value: "" }]);
-    setIsMetadataOpen(false);
-    setGeneratedSecretKey(null);
-    setNextMetadataId(2);
-    setIssuedAs("user");
-  };
+  const reset = () => setGeneratedSecretKey(null);
 
-  const metadataCount = metadata.filter((field) => field.key.trim()).length;
-  const expiresAt = resolveApiKeyExpiration(expiryPreset, customExpiry);
-  const effectiveIssuedAs = canIssueServiceAccountKeys ? issuedAs : "user";
-  const isNameMissing = !name.trim();
-
-  const submit = async () => {
-    if (expiresAt === undefined || isNameMissing) return;
-    const metadataObject = Object.fromEntries(
-      metadata
-        .filter((field) => field.key.trim())
-        .map((field) => [field.key.trim(), field.value]),
-    );
+  const submit: ComponentProps<
+    typeof ConnectedGatewayApiKeyDialog
+  >["onSubmit"] = async ({ expiryPreset, metadataCount, ...input }) => {
     try {
       const created = await create.mutateAsync({
         orgId: organizationId,
-        name: name.trim(),
-        metadata: metadataObject,
-        expiresAt,
-        issuedAs: effectiveIssuedAs,
+        ...input,
       });
       capture("ai_gateway:api_key_created", {
         orgId: organizationId,
@@ -112,16 +51,19 @@ export function CreateGatewayApiKeyDialogController({
           session.data?.user?.organizations.find(
             (organization) => organization.id === organizationId,
           )?.role ?? null,
-        isServiceAccount: effectiveIssuedAs === "serviceAccount",
+        isServiceAccount: input.issuedAs === "serviceAccount",
         hasMetadata: metadataCount > 0,
         metadataCount,
-        hasDescription: name.trim().length > 0,
+        hasDescription: input.name.length > 0,
         expiryPreset,
       });
       setGeneratedSecretKey(created.secretKey);
-      await utils.aiGateway.listApiKeys.invalidate({
-        orgId: organizationId,
-      });
+      await Promise.all([
+        utils.aiGateway.listApiKeys.invalidate({ orgId: organizationId }),
+        utils.aiGateway.getAnalyticsLabels.invalidate({
+          orgId: organizationId,
+        }),
+      ]);
     } catch (error) {
       reportNonTrpcError(error, "ai-gateway-api-keys");
     }
@@ -130,200 +72,29 @@ export function CreateGatewayApiKeyDialogController({
   return (
     <DialogController
       onBeforeClose={() => !create.isPending}
-      renderDialog={() =>
+      renderDialog={({ isOpen }) =>
         generatedSecretKey ? (
-          <Dialog
-            title="Gateway key created"
-            size="md"
-            closeLabel="Done"
-            requireExplicitClose
-          >
+          <GeneratedKeyDialog>
             <GeneratedKeyContent
               organizationId={organizationId}
               secretKey={generatedSecretKey}
             />
-          </Dialog>
+          </GeneratedKeyDialog>
         ) : (
-          <Dialog
+          <ConnectedGatewayApiKeyDialog
+            organizationId={organizationId}
+            isOpen={isOpen}
             title="Create gateway key"
-            size="md"
-            actions={[
-              {
-                label: "Create key",
-                loading: create.isPending,
-                disabled:
-                  create.isPending || expiresAt === undefined || isNameMissing,
-                onClick: submit,
-              },
-            ]}
-          >
-            <Dialog.Body>
-              {canIssueServiceAccountKeys ? (
-                <div className="flex flex-col gap-1.5">
-                  <Label>Issued as</Label>
-                  <div>
-                    <Tabs
-                      activationMode="manual"
-                      value={issuedAs}
-                      onValueChange={(value) => setIssuedAs(value as IssuedAs)}
-                    >
-                      <Tabs.List
-                        variant="inset"
-                        size="md"
-                        aria-label="Issued as"
-                      >
-                        <Tabs.Trigger value="user" label="My user" />
-                        <Tabs.Trigger
-                          value="serviceAccount"
-                          label="Service account"
-                        />
-                      </Tabs.List>
-                    </Tabs>
-                  </div>
-                  <p className="text-muted-foreground text-xs">
-                    {issuedAsDescriptions[issuedAs]}
-                  </p>
-                </div>
-              ) : null}
-              <CustomTooltip
-                content={
-                  <span>
-                    Shown in the key list. Use it to describe what consumes the
-                    key.
-                  </span>
-                }
-              >
-                {({ getTriggerProps }) => (
-                  <FormField
-                    label="Name"
-                    required
-                    registerLabelTooltip={getTriggerProps}
-                  >
-                    {(field) => (
-                      <DesignSystemInput
-                        id={field.id}
-                        aria-describedby={field.inputDescribedById}
-                        maxLength={500}
-                        required
-                        placeholder="e.g. claude-local, codex-local, or backend-service"
-                        value={name}
-                        onChange={(event) => setName(event.target.value)}
-                      />
-                    )}
-                  </FormField>
-                )}
-              </CustomTooltip>
-              <ApiKeyExpirationInput
-                id="gateway-key-expiry"
-                expiryPreset={expiryPreset}
-                customExpiry={customExpiry}
-                onExpiryPresetChange={setExpiryPreset}
-                onCustomExpiryChange={setCustomExpiry}
-              />
-              <Collapsible
-                open={isMetadataOpen}
-                onOpenChange={setIsMetadataOpen}
-              >
-                <div className="flex items-center gap-1.5">
-                  <CollapsibleTrigger asChild>
-                    <button
-                      type="button"
-                      className="group flex items-center gap-2 text-left text-sm"
-                    >
-                      <ChevronRight
-                        size="base"
-                        color="tertiary"
-                        __rawClassName="translate-y-px transition-transform group-data-[state=open]:rotate-90"
-                      />
-                      <span>Metadata</span>
-                      <span className="text-muted-foreground font-normal">
-                        (optional)
-                        {metadataCount > 0 ? ` · ${metadataCount} set` : ""}
-                      </span>
-                    </button>
-                  </CollapsibleTrigger>
-                  <InfoTooltip label="About gateway key metadata">
-                    Attached to every trace from this key, so you can filter and
-                    group by it.
-                  </InfoTooltip>
-                </div>
-                <CollapsibleContent className="mt-2 pl-5.5">
-                  <div className="flex flex-col gap-2">
-                    {metadata.map((field) => (
-                      <div
-                        key={field.id}
-                        className="ph-no-capture flex items-center gap-2"
-                      >
-                        <Input
-                          aria-label="Metadata key"
-                          placeholder="key"
-                          value={field.key}
-                          onChange={(event) =>
-                            setMetadata((current) =>
-                              current.map((item) =>
-                                item.id === field.id
-                                  ? { ...item, key: event.target.value }
-                                  : item,
-                              ),
-                            )
-                          }
-                        />
-                        <Input
-                          aria-label="Metadata value"
-                          placeholder="value"
-                          value={field.value}
-                          onChange={(event) =>
-                            setMetadata((current) =>
-                              current.map((item) =>
-                                item.id === field.id
-                                  ? { ...item, value: event.target.value }
-                                  : item,
-                              ),
-                            )
-                          }
-                        />
-                        <Button
-                          size="icon-xs"
-                          variant="ghost"
-                          aria-label="Remove metadata field"
-                          onClick={() =>
-                            setMetadata((current) =>
-                              current.filter((item) => item.id !== field.id),
-                            )
-                          }
-                        >
-                          <X size="sm" color="default" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                  <button
-                    type="button"
-                    className="text-primary mt-2 flex items-center gap-1 text-sm hover:underline"
-                    onClick={() => {
-                      setMetadata((current) => [
-                        ...current,
-                        { id: nextMetadataId, key: "", value: "" },
-                      ]);
-                      setNextMetadataId((current) => current + 1);
-                    }}
-                  >
-                    <Plus size="base" />
-                    Add metadata
-                  </button>
-                </CollapsibleContent>
-              </Collapsible>
-              {create.isError ? (
-                <Alert variant="destructive">
-                  <Alert.Title>Gateway key could not be created</Alert.Title>
-                  <Alert.Description>
-                    {create.error?.message ??
-                      "Check the metadata and try again."}
-                  </Alert.Description>
-                </Alert>
-              ) : null}
-            </Dialog.Body>
-          </Dialog>
+            submitLabel="Create key"
+            canIssueServiceAccountKeys={canIssueServiceAccountKeys}
+            errorMessage={
+              create.isError
+                ? (create.error?.message ?? "Check the metadata and try again.")
+                : null
+            }
+            isSubmitting={create.isPending}
+            onSubmit={submit}
+          />
         )
       }
     >

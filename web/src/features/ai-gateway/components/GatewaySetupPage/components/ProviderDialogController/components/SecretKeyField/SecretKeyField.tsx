@@ -44,6 +44,81 @@ const keyCopy = {
     ),
     placeholder: "Enter Bedrock API key",
   },
+  OPENROUTER: {
+    label: "OpenRouter API key",
+    description: (
+      <>
+        Create one under{" "}
+        <DocsLink href="https://openrouter.ai/settings/keys">API keys</DocsLink>{" "}
+        in your OpenRouter settings.
+      </>
+    ),
+    placeholder: "Enter OpenRouter API key",
+  },
+  XAI: {
+    label: "xAI API key",
+    description: (
+      <>
+        Create one under{" "}
+        <DocsLink href="https://console.x.ai/team/default/api-keys">
+          API keys
+        </DocsLink>{" "}
+        in the xAI Console.
+      </>
+    ),
+    placeholder: "Enter xAI API key",
+  },
+  VERCEL: {
+    label: "Vercel AI Gateway API key",
+    description: (
+      <>
+        Create one under{" "}
+        <DocsLink href="https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai-gateway%2Fapi-keys">
+          API keys
+        </DocsLink>{" "}
+        in your Vercel AI Gateway dashboard.
+      </>
+    ),
+    placeholder: "Enter Vercel AI Gateway API key",
+  },
+  AZURE: {
+    label: "Azure API key",
+    description: (
+      <>
+        Copy a key of the resource from its overview in the{" "}
+        <DocsLink href="https://ai.azure.com">
+          Microsoft Foundry portal
+        </DocsLink>
+        , or from Keys and Endpoint in the Azure portal.
+      </>
+    ),
+    placeholder: "Enter Azure API key",
+  },
+  GOOGLE_AI_STUDIO: {
+    label: "Gemini API key",
+    description: (
+      <>
+        Create one under{" "}
+        <DocsLink href="https://aistudio.google.com/apikey">API keys</DocsLink>{" "}
+        in Google AI Studio.
+      </>
+    ),
+    placeholder: "Enter Gemini API key",
+  },
+  VERTEX: {
+    label: "Service account key (JSON)",
+    description: (
+      <>
+        Create a{" "}
+        <DocsLink href="https://cloud.google.com/iam/docs/keys-create-delete">
+          service account key
+        </DocsLink>{" "}
+        for a service account with the Vertex AI User role, then paste the whole
+        JSON file.
+      </>
+    ),
+    placeholder: "Paste service account key JSON",
+  },
 } satisfies Record<
   GatewayProvider,
   { label: string; description: ReactNode; placeholder: string }

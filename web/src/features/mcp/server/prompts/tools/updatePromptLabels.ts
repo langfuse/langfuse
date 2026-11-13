@@ -8,7 +8,11 @@
 
 import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
-import { ParamPromptName, ParamNewLabels } from "../validation";
+import {
+  ParamPromptName,
+  ParamNewLabels,
+  ParamRemoveLabels,
+} from "../validation";
 import { updatePromptLabelsForApi } from "@/src/features/prompts/server/prompt-api-service";
 import { buildPromptUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
@@ -32,8 +36,15 @@ const UpdatePromptLabelsBaseSchema = z.object({
     .describe("The version number to update (required)"),
   newLabels: z
     .array(z.string())
+    .optional()
     .describe(
-      "Array of new labels to assign to the prompt version (can be empty to remove all labels). The 'latest' label is auto-managed and cannot be supplied.",
+      "Labels to add to the prompt version. Existing labels are kept. The 'latest' label is auto-managed and cannot be supplied.",
+    ),
+  removeLabels: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Labels to remove from this prompt version. Labels not on this version are ignored. The 'latest' label cannot be removed.",
     ),
 });
 
@@ -41,15 +52,25 @@ const UpdatePromptLabelsBaseSchema = z.object({
  * Input schema for runtime validation
  * Uses full validation schemas with refinements
  */
-const UpdatePromptLabelsInputSchema = z.object({
-  name: ParamPromptName,
-  version: z.coerce
-    .number()
-    .int()
-    .positive()
-    .describe("The version number to update (required)"),
-  newLabels: ParamNewLabels,
-});
+const UpdatePromptLabelsInputSchema = z
+  .object({
+    name: ParamPromptName,
+    version: z.coerce
+      .number()
+      .int()
+      .positive()
+      .describe("The version number to update (required)"),
+    newLabels: ParamNewLabels.optional(),
+    removeLabels: ParamRemoveLabels.optional(),
+  })
+  .refine(
+    ({ newLabels = [], removeLabels = [] }) =>
+      !newLabels.some((label) => removeLabels.includes(label)),
+    {
+      message: "A label cannot be in both newLabels and removeLabels",
+      path: ["removeLabels"],
+    },
+  );
 
 /**
  * updatePromptLabels tool definition and handler
@@ -61,13 +82,15 @@ export const [updatePromptLabelsTool, handleUpdatePromptLabels] = defineTool({
     "",
     "Important:",
     "- ONLY way to modify existing prompts (labels only)",
-    "- Specified labels are added to the version (preserving others not mentioned)",
+    "- Labels in newLabels are added to the version (preserving others not mentioned)",
+    "- Labels in removeLabels are removed from this version only",
     "- Labels are unique across versions - setting a label on one version automatically removes it from others",
     "- 'latest' label is auto-managed and cannot be set manually",
     "- Only add the 'production' label when the user explicitly asks to promote this prompt version to production",
+    "- Only remove the 'production' label when the user explicitly asks; without it, fetching the prompt by default fails",
     "- Cannot modify prompt content, type, or tags - use createTextPrompt or createChatPrompt for new versions",
     "",
-    "Accepts: name, version (required), newLabels (array, can be empty to remove all labels)",
+    "Accepts: name, version (required), newLabels (optional array), removeLabels (optional array)",
   ].join("\n"),
   action: "prompts:CUD",
   baseSchema: UpdatePromptLabelsBaseSchema,
@@ -79,10 +102,11 @@ export const [updatePromptLabelsTool, handleUpdatePromptLabels] = defineTool({
       attributes: {
         "mcp.prompt_name": input.name,
         "mcp.prompt_version": input.version,
-        "mcp.new_labels_count": input.newLabels.length,
+        "mcp.new_labels_count": input.newLabels?.length ?? 0,
+        "mcp.remove_labels_count": input.removeLabels?.length ?? 0,
       },
       fn: async () => {
-        const { name, version, newLabels } = input;
+        const { name, version, newLabels = [], removeLabels = [] } = input;
 
         const { updatedPrompt } = await updatePromptLabelsForApi({
           context,
@@ -90,6 +114,7 @@ export const [updatePromptLabelsTool, handleUpdatePromptLabels] = defineTool({
           promptName: name,
           promptVersion: version,
           newLabels,
+          removeLabels,
         });
 
         // Return formatted response

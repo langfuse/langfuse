@@ -11,6 +11,7 @@ import { ComposerWithPreview } from "@/src/features/search-bar/components/Compos
 import { SearchComposer } from "@/src/features/search-bar/components/SearchComposer/SearchComposer";
 import { SearchBarStoreProvider } from "@/src/features/search-bar/store/SearchBarStoreProvider";
 import { createSearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
+import { SidebarAccountButton } from "@/src/features/app-shell/components/SidebarAccountButton";
 
 const { initMock } = vi.hoisted(() => ({
   initMock: vi.fn(),
@@ -99,6 +100,26 @@ describe("PostHog session replay privacy", () => {
     expect(
       screen.getByTestId("search-bar-preview").closest(".ph-no-capture"),
     ).not.toBeNull();
+  });
+
+  it("blocks sidebar account identity including native tooltip attributes", () => {
+    render(
+      <SidebarAccountButton
+        user={{
+          name: "private-account-name",
+          email: "private-account@example.com",
+          avatar: "",
+        }}
+      />,
+    );
+
+    for (const value of [
+      "private-account-name",
+      "private-account@example.com",
+    ]) {
+      const identity = screen.getByTitle(value);
+      expect(identity.closest(".ph-no-capture")).not.toBeNull();
+    }
   });
 
   it("records regular UI text while masking input values", async () => {

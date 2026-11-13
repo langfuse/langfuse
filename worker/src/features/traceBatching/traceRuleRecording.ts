@@ -132,6 +132,65 @@ const RECORD_SCRIPT = `
   return expired
 `;
 
+// Seeds already ingested traces. Unlike recording, bytes come from the stored
+// trace, so the larger value wins, and a later due time is kept.
+// KEYS: pending, due, then one bounds key per member.
+// ARGV: bounds TTL, pending TTL, rules JSON, then per member: member, min start, max start, revision, bytes, due offset.
+const SEED_SCRIPT = `
+  local pendingKey, dueKey = KEYS[1], KEYS[2]
+  local clock = redis.call('TIME')
+  local now = clock[1] * 1000 + math.floor(clock[2] / 1000)
+  local boundsTtl = tonumber(ARGV[1])
+  local pendingTtl = tonumber(ARGV[2])
+  local seededRules = cjson.decode(ARGV[3])
+  local latestDue = 0
+  for key = 3, #KEYS do
+    local i = 4 + (key - 3) * 6
+    local member = ARGV[i]
+    local due = now + tonumber(ARGV[i + 5])
+    latestDue = math.max(latestDue, due)
+    local minStart = tonumber(ARGV[i + 1])
+    local maxStart = tonumber(ARGV[i + 2])
+    local serializedEventBytes = tonumber(ARGV[i + 4])
+    local previousBounds = redis.call('GET', KEYS[key])
+    if previousBounds then
+      local bounds = cmsgpack.unpack(previousBounds)
+      minStart = math.min(minStart, bounds[1])
+      maxStart = math.max(maxStart, bounds[2])
+      serializedEventBytes = math.max(serializedEventBytes, bounds[3])
+    end
+    redis.call('SET', KEYS[key], cmsgpack.pack({
+      minStart, maxStart, serializedEventBytes
+    }), 'PX', boundsTtl)
+
+    -- Keep live selections unless they are expired or incomplete, as recording does.
+    local previousPending = redis.call('HGET', pendingKey, member)
+    local pending = previousPending and cjson.decode(previousPending)
+    local priorDue = tonumber(redis.call('ZSCORE', dueKey, member))
+    if pending and (not previousBounds or not priorDue or priorDue + pendingTtl <= now) then
+      pending = nil
+    end
+    local rules = {}
+    local seen = {}
+    for _, id in ipairs(pending and pending.rules or {}) do
+      if not seen[id] then table.insert(rules, id); seen[id] = true end
+    end
+    for _, id in ipairs(seededRules) do
+      if not seen[id] then table.insert(rules, id); seen[id] = true end
+    end
+    redis.call('HSET', pendingKey, member, cjson.encode({
+      revision = ARGV[i + 3], rules = rules,
+      failed_cnt = pending and pending.failed_cnt or 0
+    }))
+    redis.call('ZADD', dueKey, 'GT', due, member)
+  end
+  for _, key in ipairs({ pendingKey, dueKey }) do
+    if redis.call('PEXPIRETIME', key) < latestDue + pendingTtl then
+      redis.call('PEXPIREAT', key, string.format('%.0f', latestDue + pendingTtl))
+    end
+  end
+`;
+
 // Read readiness, revision and retained bounds atomically before enqueueing.
 // KEYS: due, pending, then one bounds key per member; ARGV: cutoff, pending TTL, then the members.
 export const HYDRATE_RECORDING_SCRIPT = `
@@ -183,10 +242,70 @@ export const ACKNOWLEDGE_RECORDING_SCRIPT = `
   return result
 `;
 
+// Return traces whose processing failed after enqueueing.
+// KEYS: pending, due, then one bounds key per member.
+// ARGV: pending TTL, then per member: member, failed revision, fresh revision, rules JSON, failed count, backoff.
+// Returns per member: 0 bounds expired, 1 restored, 2 merged into newer pending state.
+export const RESTORE_RECORDING_SCRIPT = `
+  local pendingKey, dueKey = KEYS[1], KEYS[2]
+  local clock = redis.call('TIME')
+  local now = clock[1] * 1000 + math.floor(clock[2] / 1000)
+  local pendingTtl = tonumber(ARGV[1])
+  local latestDue = 0
+  local result = {}
+  for key = 3, #KEYS do
+    local i = 2 + (key - 3) * 6
+    local member = ARGV[i]
+    if redis.call('EXISTS', KEYS[key]) == 0 then
+      table.insert(result, 0)
+    else
+      local previous = redis.call('HGET', pendingKey, member)
+      local pending = previous and cjson.decode(previous)
+      local rules = {}
+      local seen = {}
+      for _, id in ipairs(pending and pending.rules or {}) do
+        if not seen[id] then table.insert(rules, id); seen[id] = true end
+      end
+      for _, id in ipairs(cjson.decode(ARGV[i + 3])) do
+        if not seen[id] then table.insert(rules, id); seen[id] = true end
+      end
+      -- The failed revision is still pending when the dispatcher has not acknowledged it yet;
+      -- replacing it keeps that acknowledgement from deleting the retry.
+      if pending and pending.revision ~= ARGV[i + 1] then
+        -- Newer activity owns revision, due and failures; keep the failed rules.
+        pending.rules = rules
+        redis.call('HSET', pendingKey, member, cjson.encode(pending))
+        table.insert(result, 2)
+      else
+        local due = now + tonumber(ARGV[i + 5])
+        redis.call('HSET', pendingKey, member, cjson.encode({
+          revision = ARGV[i + 2], rules = rules,
+          failed_cnt = tonumber(ARGV[i + 4])
+        }))
+        redis.call('ZADD', dueKey, due, member)
+        latestDue = math.max(latestDue, due)
+        table.insert(result, 1)
+      end
+    end
+  end
+  if latestDue > 0 then
+    for _, key in ipairs({ pendingKey, dueKey }) do
+      if redis.call('PEXPIRETIME', key) < latestDue + pendingTtl then
+        redis.call('PEXPIREAT', key, string.format('%.0f', latestDue + pendingTtl))
+      end
+    end
+  end
+  return result
+`;
+
 const recordingScriptHashes = new Map(
-  [RECORD_SCRIPT, HYDRATE_RECORDING_SCRIPT, ACKNOWLEDGE_RECORDING_SCRIPT].map(
-    (script) => [script, createHash("sha1").update(script).digest("hex")],
-  ),
+  [
+    RECORD_SCRIPT,
+    SEED_SCRIPT,
+    HYDRATE_RECORDING_SCRIPT,
+    ACKNOWLEDGE_RECORDING_SCRIPT,
+    RESTORE_RECORDING_SCRIPT,
+  ].map((script) => [script, createHash("sha1").update(script).digest("hex")]),
 );
 
 export async function evalRecording(
@@ -330,6 +449,66 @@ export async function recordTraceActivity(
       recordIncrement("langfuse.trace_dispatch.expired_traces", expired, {
         source: "ingestion",
       });
+    }
+  }
+}
+
+/**
+ * Queues already ingested traces for rules, due evenly over [dueInMs, dueInMs + spreadMs)
+ * from now, so their LLM calls do not all start at once; later live activity wins.
+ */
+export async function seedTraceDispatch(
+  projectId: string,
+  traces: readonly {
+    traceId: string;
+    minStart: number;
+    maxStart: number;
+    serializedEventBytes: number;
+  }[],
+  ruleIds: readonly string[],
+  dueInMs: number,
+  spreadMs = 0,
+): Promise<void> {
+  if (traces.length === 0) return;
+  if (!redis) throw new Error("Trace rule recording requires Redis");
+  const shards = new Map<
+    number,
+    ((typeof traces)[number] & { member: string; dueOffset: number })[]
+  >();
+  traces.forEach((trace, index) => {
+    const member = JSON.stringify([projectId, trace.traceId]);
+    const shard = getTraceBatchShard(member);
+    const dueOffset = dueInMs + Math.floor((index * spreadMs) / traces.length);
+    shards.set(shard, [
+      ...(shards.get(shard) ?? []),
+      { ...trace, member, dueOffset },
+    ]);
+  });
+  for (const [shard, entries] of shards) {
+    const { pending, due } = getRecordingKeys(shard);
+    for (let offset = 0; offset < entries.length; offset += REDIS_BATCH_SIZE) {
+      const chunk = entries.slice(offset, offset + REDIS_BATCH_SIZE);
+      await evalRecording(
+        SEED_SCRIPT,
+        [
+          pending,
+          due,
+          ...chunk.map(({ member }) => getRecordingBoundsKey(shard, member)),
+        ],
+        [
+          env.LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS,
+          env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
+          JSON.stringify(ruleIds),
+          ...chunk.flatMap((trace) => [
+            trace.member,
+            trace.minStart,
+            trace.maxStart,
+            randomUUID(),
+            trace.serializedEventBytes,
+            trace.dueOffset,
+          ]),
+        ],
+      );
     }
   }
 }

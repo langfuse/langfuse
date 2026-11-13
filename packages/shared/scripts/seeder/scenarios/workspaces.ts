@@ -46,8 +46,8 @@ import { countRows } from "./verify";
 // Busy projects carry their usage as v3 rows (10 billable units per trace),
 // stamped with their own time like ingestion does, so the billing meter and
 // the per-project usage agree. Recent activity is
-// anchored to the current UTC hour, so a run in a later hour adds a fresh
-// handful of recent traces instead of updating the old ones.
+// anchored to the current UTC day, so same-day re-runs replace the same
+// rows without changing their ClickHouse sort keys.
 // ---------------------------------------------------------------------------
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -238,10 +238,9 @@ const projectId = (ctx: ScenarioContext, workspace: string, project: string) =>
 
 const lastTraceTimestamp = (
   lastTrace: Extract<Activity, { kind: "traces" }>["lastTrace"],
-  hourStart: number,
   dayStart: number,
 ): number => {
-  if (lastTrace === "recent") return hourStart - 4 * 60 * 1000;
+  if (lastTrace === "recent") return dayStart;
   if (lastTrace === "two-days-ago") return dayStart - 2 * DAY_MS + 9 * HOUR_MS;
   if (lastTrace === "19-days-ago") return dayStart - 19 * DAY_MS + 15 * HOUR_MS;
   return dayStart - 45 * DAY_MS + 11 * HOUR_MS;
@@ -403,7 +402,6 @@ const run = async (
   }
 
   const dayStart = utcDayStartMs();
-  const hourStart = Math.floor(Date.now() / HOUR_MS) * HOUR_MS;
 
   ctx.log(
     `writing ${WORKSPACES.length} organizations and ${allProjects.length} projects for ${userEmail}`,
@@ -472,17 +470,16 @@ const run = async (
   projectsWithData.forEach(({ workspace, project }, projectIndex) => {
     if (project.activity.kind !== "traces") return;
     const pid = projectId(ctx, workspace.slug, project.slug);
-    const newest = lastTraceTimestamp(
-      project.activity.lastTrace,
-      hourStart,
-      dayStart,
-    );
+    const newest = lastTraceTimestamp(project.activity.lastTrace, dayStart);
     for (let i = 0; i < recentTraces; i++) {
       const index = projectIndex * recentTraces + i;
       const trace = traceRecord({
         id: `${pid}-t${i}`,
         pid,
-        timestamp: newest - i * 7 * 60 * 1000 - jitter(ctx.seed, index, 60_000),
+        timestamp:
+          newest -
+          i * 7 * 60 * 1000 -
+          jitter(ctx.seed + projectIndex, i, 60_000),
         name: TRACE_NAMES[i % TRACE_NAMES.length],
         ctx,
         index,

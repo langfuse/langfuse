@@ -5,6 +5,7 @@ import {
 
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "@/src/env.mjs";
+import { gatewayOnlyLanding } from "@/src/features/organizations/utils/gatewayOnlyLanding";
 import { getSignupOnboardingStatus } from "@/src/features/onboarding/server/onboardingService";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { getServerAuthSession } from "@/src/server/auth";
@@ -37,11 +38,22 @@ function projectIdFromCookie({
   return cookie.projectId;
 }
 
-/** Carries `/`'s query string over when the destination has none of its own. */
+/** Carries `/`'s query string over, keeping destination-owned parameters authoritative. */
 function withForwardedQuery(destination: string, resolvedUrl: string): string {
   const queryStart = resolvedUrl.indexOf("?");
-  if (queryStart === -1 || destination.includes("?")) return destination;
-  return `${destination}${resolvedUrl.slice(queryStart)}`;
+  if (queryStart === -1) return destination;
+  if (!destination.includes("?")) {
+    return `${destination}${resolvedUrl.slice(queryStart)}`;
+  }
+  const [pathname, destinationQuery] = destination.split("?");
+  const params = new URLSearchParams(destinationQuery);
+  const destinationKeys = new Set(params.keys());
+  for (const [key, value] of new URLSearchParams(
+    resolvedUrl.slice(queryStart + 1),
+  )) {
+    if (!destinationKeys.has(key)) params.append(key, value);
+  }
+  return `${pathname}?${params.toString()}`;
 }
 
 /**
@@ -63,6 +75,8 @@ export async function getLandingServerSideProps(
       id: project.id,
       hasTraces: project.hasTraces,
     })),
+    canOpen:
+      gatewayOnlyLanding(session, organization.id)?.canUseGateway !== false,
     canCreateProjects: hasOrganizationAccess({
       session,
       organizationId: organization.id,
@@ -102,7 +116,7 @@ export async function getLandingServerSideProps(
 
   if (decision.shouldForgetRememberedProject) {
     if (browserProjectId !== null) {
-      ctx.res.setHeader("Set-Cookie", serializeClearedProjectCookie());
+      ctx.res.appendHeader("Set-Cookie", serializeClearedProjectCookie());
     }
     await forgetLastVisitedProject(user.id);
   }

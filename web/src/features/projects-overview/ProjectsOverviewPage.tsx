@@ -24,11 +24,6 @@ import {
 import { type OrganizationOverview } from "@/src/features/projects-overview/fns/projectsOverview/buildProjectsOverview";
 import { useProjectsOverview } from "@/src/features/projects-overview/hooks/useProjectsOverview";
 import { createOrganizationRoute } from "@/src/features/setup/setupRoutes";
-import {
-  V4MigrationBanner,
-  useV4MigrationBannerState,
-} from "@/src/features/v4-migration/V4MigrationBanner";
-import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 
 const STATUS_FILTERS = ["all", "attention", "not-set-up"] as const;
 const LANDING_NOTICES = ["welcome", "last-project-unavailable"] as const;
@@ -85,8 +80,6 @@ export function ProjectsOverviewPage() {
       ? router.query.organizationId
       : null;
   const { organizations, isSessionLoading } = useProjectsOverview();
-  const isV4MigrationShown = useV4UpgradeUiEnabled();
-  const migrationBanner = useV4MigrationBannerState(isV4MigrationShown);
   const [query, setQuery] = useQueryParams({
     search: withDefault(StringParam, ""),
     status: withDefault(StringParam, "all"),
@@ -142,7 +135,9 @@ export function ProjectsOverviewPage() {
   return (
     <ContainerPage
       headerProps={{
-        title: singleOrganization?.name ?? "All organizations",
+        title: singleOrganization
+          ? "Organization overview"
+          : "All organizations",
         help: { description: HELP },
         actionButtonsRight: headerActions,
       }}
@@ -152,12 +147,6 @@ export function ProjectsOverviewPage() {
           <LandingNoticeCallout
             notice={notice}
             onDismiss={() => setQuery({ notice: undefined }, "replaceIn")}
-          />
-        ) : null}
-        {isV4MigrationShown && migrationBanner.projectsNeedingMigration > 0 ? (
-          <V4MigrationBanner
-            projectsNeedingMigration={migrationBanner.projectsNeedingMigration}
-            totalProjects={migrationBanner.totalProjects}
           />
         ) : null}
         {scoped.length === 0 ? (

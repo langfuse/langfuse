@@ -131,7 +131,7 @@ export function OrganizationSignals({
   };
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="ph-no-capture grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {organization.usage ? (
         <UsageTile
           organizationId={organization.id}

@@ -12,7 +12,6 @@ exports[`golden: environments.getEnvironmentsForProject > writeMode=events_only 
     "sql": "SELECT DISTINCT environment
 FROM events_core AS events
 WHERE (events.project_id = {param1:String})
-    AND (events.is_deleted = 0)
     AND (start_time >= {param2:DateTime64(6)})",
   },
   {
@@ -24,7 +23,7 @@ WHERE (events.project_id = {param1:String})
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
 FROM scores
-WHERE (project_id = {param1:String})
+WHERE (scores.project_id = {param1:String})
     AND (data_type IN ('NUMERIC', 'BOOLEAN', 'CATEGORICAL', 'TEXT'))
     AND (timestamp >= {param2:DateTime64(3)})",
   },
@@ -41,8 +40,7 @@ exports[`golden: environments.getEnvironmentsForProject > writeMode=events_only 
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
 FROM events_core AS events
-WHERE (events.project_id = {param1:String})
-    AND (events.is_deleted = 0)",
+WHERE events.project_id = {param1:String}",
   },
   {
     "fn": "queryClickhouse",
@@ -52,7 +50,7 @@ WHERE (events.project_id = {param1:String})
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
 FROM scores
-WHERE (project_id = {param1:String})
+WHERE (scores.project_id = {param1:String})
     AND (data_type IN ('NUMERIC', 'BOOLEAN', 'CATEGORICAL', 'TEXT'))",
   },
 ]
@@ -69,12 +67,12 @@ exports[`golden: environments.getEnvironmentsForProject > writeMode=legacy fromT
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
 FROM traces
-WHERE (project_id = {param1:String})
+WHERE (traces.project_id = {param1:String})
     AND (timestamp >= {param2:DateTime64(3)})
 UNION ALL
 SELECT DISTINCT environment
 FROM observations
-WHERE (project_id = {param1:String})
+WHERE (observations.project_id = {param1:String})
     AND (start_time >= {param2:DateTime64(3)})",
   },
   {
@@ -86,7 +84,7 @@ WHERE (project_id = {param1:String})
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
 FROM scores
-WHERE (project_id = {param1:String})
+WHERE (scores.project_id = {param1:String})
     AND (data_type IN ('NUMERIC', 'BOOLEAN', 'CATEGORICAL', 'TEXT'))
     AND (timestamp >= {param2:DateTime64(3)})",
   },
@@ -103,11 +101,11 @@ exports[`golden: environments.getEnvironmentsForProject > writeMode=legacy fromT
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
 FROM traces
-WHERE project_id = {param1:String}
+WHERE traces.project_id = {param1:String}
 UNION ALL
 SELECT DISTINCT environment
 FROM observations
-WHERE project_id = {param1:String}",
+WHERE observations.project_id = {param1:String}",
   },
   {
     "fn": "queryClickhouse",
@@ -117,7 +115,7 @@ WHERE project_id = {param1:String}",
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
 FROM scores
-WHERE (project_id = {param1:String})
+WHERE (scores.project_id = {param1:String})
     AND (data_type IN ('NUMERIC', 'BOOLEAN', 'CATEGORICAL', 'TEXT'))",
   },
 ]

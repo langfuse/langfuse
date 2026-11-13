@@ -728,6 +728,24 @@ export const env = createEnv({
     LANGFUSE_MIGRATION_V4_WRITE_MODE: z
       .enum(["legacy", "dual", "events_only"])
       .default("events_only"),
+    // Langfuse Cloud only, temporary. The legacy v3 top banner. "off" hides it.
+    // Read only by
+    // features/v4-migration/server/v4MigrationBannerConfig.ts.
+    LANGFUSE_V4_BANNER_SEVERITY: z
+      .enum(["off", "warning", "critical"])
+      .default("off"),
+    // Comma-separated organization ids that never see the banner.
+    LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS: z
+      .string()
+      .optional()
+      .transform((value) =>
+        value
+          ? value
+              .split(",")
+              .map((organizationId) => organizationId.trim())
+              .filter(Boolean)
+          : [],
+      ),
 
     // Character count above which trace/observation I/O is rendered as plain
     // text instead of markdown. Served to the browser via the public tRPC
@@ -737,6 +755,19 @@ export const env = createEnv({
       .int()
       .positive()
       .default(150_000),
+    // Skill Management limits per skill version, enforced by the server only.
+    // Skill versions are sent as JSON through 4.5 MB request bodies on the
+    // tRPC, public API, and MCP routes, which bounds the usable byte limit.
+    LANGFUSE_SKILL_MAX_BYTES: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(1_000_000),
+    LANGFUSE_SKILL_MAX_FILES: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(200),
 
     // Reverse proxies in front of the web container that append the client
     // address to X-Forwarded-For. Audit events take the client IP from the
@@ -749,7 +780,7 @@ export const env = createEnv({
       .default(0),
 
     // Kill switch for staging audit events for the ClickHouse audit_logs table
-    // on Langfuse Cloud. The Postgres audit_logs row is written either way.
+    // (EE). The Postgres audit_logs row is written either way.
     // Read-access events have no Postgres row, so turning it off stops
     // recording them; reads still succeed.
     LANGFUSE_AUDIT_LOG_STAGING_ENABLED: z
@@ -1360,8 +1391,13 @@ export const env = createEnv({
       process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN,
     LANGFUSE_MIGRATION_V4_WRITE_MODE:
       process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+    LANGFUSE_V4_BANNER_SEVERITY: process.env.LANGFUSE_V4_BANNER_SEVERITY,
+    LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS:
+      process.env.LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS,
     LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
       process.env.LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
+    LANGFUSE_SKILL_MAX_BYTES: process.env.LANGFUSE_SKILL_MAX_BYTES,
+    LANGFUSE_SKILL_MAX_FILES: process.env.LANGFUSE_SKILL_MAX_FILES,
     LANGFUSE_TRUSTED_PROXY_COUNT: process.env.LANGFUSE_TRUSTED_PROXY_COUNT,
     LANGFUSE_AUDIT_LOG_STAGING_ENABLED:
       process.env.LANGFUSE_AUDIT_LOG_STAGING_ENABLED,

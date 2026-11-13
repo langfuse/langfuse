@@ -32,7 +32,7 @@ export default async function handler(
 
   const origin = getRequestOrigin(req);
   if (origin) {
-    res.setHeader(
+    res.appendHeader(
       "Set-Cookie",
       serializeProjectCookie({ origin, projectId, userId: session.user.id }),
     );

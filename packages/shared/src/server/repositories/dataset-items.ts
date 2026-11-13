@@ -1118,7 +1118,11 @@ function buildPrismaWhereFromFilterState(filterState: FilterState): any {
         break;
       case "status":
         if (filter.type === "stringOptions" && filter.value.length > 0) {
-          where.status = { in: filter.value.map((v) => v as DatasetStatus) };
+          const statuses = filter.value.map((v) => v as DatasetStatus);
+          where.status =
+            filter.operator === "none of"
+              ? { notIn: statuses }
+              : { in: statuses };
         }
         break;
       case "createdAt":
@@ -1594,8 +1598,8 @@ export async function getDatasetItemById<
     [Implementation.VERSIONED]: async () => {
       // VERSIONED: Get version at or before specified timestamp, returns null if doesn't exist
       const selectFields = includeIO
-        ? 'id, project_id AS "projectId", dataset_id AS "datasetId", input, expected_output AS "expectedOutput", metadata, source_trace_id AS "sourceTraceId", source_observation_id AS "sourceObservationId", status, created_at AS "createdAt", updated_at AS "updatedAt", valid_from AS "validFrom"'
-        : 'id, project_id AS "projectId", dataset_id AS "datasetId", source_trace_id AS "sourceTraceId", source_observation_id AS "sourceObservationId", status, created_at AS "createdAt", updated_at AS "updatedAt", valid_from AS "validFrom"';
+        ? 'id, project_id AS "projectId", dataset_id AS "datasetId", input, expected_output AS "expectedOutput", metadata, source_trace_id AS "sourceTraceId", source_observation_id AS "sourceObservationId", status, created_at AS "createdAt", updated_at AS "updatedAt", valid_from AS "validFrom", is_deleted AS "isDeleted"'
+        : 'id, project_id AS "projectId", dataset_id AS "datasetId", source_trace_id AS "sourceTraceId", source_observation_id AS "sourceObservationId", status, created_at AS "createdAt", updated_at AS "updatedAt", valid_from AS "validFrom", is_deleted AS "isDeleted"';
 
       const datasetFilter = props.datasetId
         ? Prisma.sql`AND dataset_id = ${props.datasetId}`
@@ -1612,22 +1616,25 @@ export async function getDatasetItemById<
           `
         : Prisma.sql`AND valid_to IS NULL`;
 
+      // Newest open row wins, including a delete marker. Filtering
+      // is_deleted first would skip that marker and return an older open row.
       const result = await prisma.$queryRaw<DatasetItem[]>(
         Prisma.sql`
           SELECT ${Prisma.raw(selectFields)}
           FROM dataset_items
           WHERE project_id = ${props.projectId}
             AND id = ${props.datasetItemId}
-            AND is_deleted = false
             ${datasetFilter}
             ${statusFilter}
             ${versionFilter}
+          ORDER BY valid_from DESC
           LIMIT 1
         `,
       );
 
       const item = result[0];
-      return item ? toDomainType(item, includeIO) : null;
+      if (!item || item.isDeleted) return null;
+      return toDomainType(item, includeIO);
     },
   });
 }

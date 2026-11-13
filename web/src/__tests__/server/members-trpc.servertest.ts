@@ -15,6 +15,25 @@ import { env } from "@/src/env.mjs";
 type SessionUser = NonNullable<Session["user"]>;
 type SessionProject = SessionUser["organizations"][number]["projects"][number];
 import { v4 as uuidv4 } from "uuid";
+import type * as SharedServer from "@langfuse/shared/src/server";
+import type * as MultiTenantSsoUtils from "@/src/ee/features/multi-tenant-sso/utils";
+
+const SSO_ENFORCED_DOMAIN = "sso-enforced.test";
+
+const { sendMembershipInvitationEmail } = vi.hoisted(() => ({
+  sendMembershipInvitationEmail: vi.fn(async () => {}),
+}));
+
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof SharedServer>()),
+  sendMembershipInvitationEmail,
+}));
+
+vi.mock("@/src/ee/features/multi-tenant-sso/utils", async (importOriginal) => ({
+  ...(await importOriginal<typeof MultiTenantSsoUtils>()),
+  getSsoAuthProviderIdForDomain: async (domain: string) =>
+    domain === SSO_ENFORCED_DOMAIN ? `${SSO_ENFORCED_DOMAIN}.okta` : null,
+}));
 
 async function createTestOrg(plan: Plan) {
   const orgId = uuidv4();
@@ -96,7 +115,6 @@ function createSession(
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin: false, // Not admin to test actual limits
     },
     environment: {
       enableExperimentalFeatures: false,
@@ -348,6 +366,37 @@ describe("membersRouter.create - organization member limit enforcement", () => {
       });
       expect(inviteCount).toBe(4);
     }, 25_000);
+  });
+});
+
+describe("membersRouter.create - invitation email", () => {
+  it("flags new invitees on SSO-enforced domains so the link opens sign-in", async () => {
+    const { org, caller } = await prepare("cloud:team");
+    const ssoEmail = `invite-${uuidv4().substring(0, 8)}@${SSO_ENFORCED_DOMAIN}`;
+    const otherEmail = `invite-${uuidv4().substring(0, 8)}@test.com`;
+
+    for (const email of [ssoEmail, otherEmail]) {
+      await caller.members.create({
+        orgId: org.id,
+        email,
+        orgRole: Role.MEMBER,
+      });
+    }
+
+    expect(sendMembershipInvitationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: ssoEmail,
+        userExists: false,
+        ssoEnforced: true,
+      }),
+    );
+    expect(sendMembershipInvitationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: otherEmail,
+        userExists: false,
+        ssoEnforced: false,
+      }),
+    );
   });
 });
 
@@ -944,7 +993,7 @@ describe("membersRouter.updateProjectRole - orgMembership/userId consistency", (
 });
 
 describe("membersRouter.create - duplicate project membership", () => {
-  it("returns BAD_REQUEST when re-adding an existing org member to a project they already belong to", async () => {
+  it("returns CONFLICT when re-adding an existing org member to a project they already belong to", async () => {
     const { org, project, caller } = await prepare("cloud:team");
     const user = await createTestUser();
     const orgMembership = await prisma.organizationMembership.create({
@@ -972,7 +1021,7 @@ describe("membersRouter.create - duplicate project membership", () => {
         projectRole: Role.VIEWER,
       }),
     ).rejects.toMatchObject({
-      code: "BAD_REQUEST",
+      code: "CONFLICT",
       message: "User is already a member of this project",
     });
   });
@@ -1029,7 +1078,7 @@ describe("membersRouter.create - duplicate project membership", () => {
 });
 
 describe("membersRouter.create - duplicate org membership", () => {
-  it("returns BAD_REQUEST when a concurrent request already created the org membership", async () => {
+  it("returns CONFLICT when a concurrent request already created the org membership", async () => {
     const { org, caller } = await prepare("cloud:team");
     const user = await createTestUser();
 
@@ -1057,7 +1106,7 @@ describe("membersRouter.create - duplicate org membership", () => {
           orgRole: Role.MEMBER,
         }),
       ).rejects.toMatchObject({
-        code: "BAD_REQUEST",
+        code: "CONFLICT",
         message: "User is already a member of this organization",
       });
     } finally {
@@ -1203,13 +1252,9 @@ describe("membersRouter - gateway key revocation", () => {
     expect(await keyExists(key.id)).toBe(false);
   });
 
-  it.each([
-    [Role.MEMBER, true],
-    [Role.VIEWER, false],
-    [Role.NONE, false],
-  ])(
-    "updateOrgMembership from OWNER to %s keeps the bound gateway key: %s",
-    async (role, kept) => {
+  it.each([Role.MEMBER, Role.VIEWER, Role.NONE])(
+    "updateOrgMembership from OWNER to %s keeps the bound gateway key",
+    async (role) => {
       const { org, caller } = await prepare("cloud:core");
       const otherOwner = await createTestUser();
       const membership = await prisma.organizationMembership.create({
@@ -1223,7 +1268,7 @@ describe("membersRouter - gateway key revocation", () => {
         role,
       });
 
-      expect(await keyExists(key.id)).toBe(kept);
+      expect(await keyExists(key.id)).toBe(true);
     },
   );
 });

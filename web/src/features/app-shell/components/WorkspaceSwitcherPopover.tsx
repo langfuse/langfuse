@@ -29,7 +29,7 @@ export function WorkspaceSwitcherPopover({
         side={side}
         align="start"
         sideOffset={6}
-        className="w-[min(22rem,calc(100vw-1rem))] overflow-hidden p-0"
+        className="ph-no-capture w-[min(22rem,calc(100vw-1rem))] overflow-hidden p-0"
       >
         <WorkspaceSwitcherMenu onDone={() => onOpenChange(false)} />
       </PopoverContent>

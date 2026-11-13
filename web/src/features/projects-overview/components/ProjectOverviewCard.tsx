@@ -28,7 +28,7 @@ export function ProjectOverviewCard({
 }) {
   if (project.isDeleted) {
     return (
-      <div className="bg-muted/40 flex h-full flex-col gap-2 rounded-lg border border-dashed p-4">
+      <div className="ph-no-capture bg-muted/40 flex h-full flex-col gap-2 rounded-lg border border-dashed p-4">
         <div className="flex min-w-0 items-center gap-2">
           <WorkspaceGlyph id={project.id} name={project.name} size="md" />
           <h3
@@ -50,7 +50,7 @@ export function ProjectOverviewCard({
   const canSetUpTracing = project.ingestion.kind === "not-set-up";
 
   return (
-    <div className="bg-card hover:border-border-contrast relative flex h-full flex-col gap-3 rounded-lg border p-4 transition-colors">
+    <div className="ph-no-capture bg-card hover:border-border-contrast relative flex h-full flex-col gap-3 rounded-lg border p-4 transition-colors">
       <Link
         href={`/project/${project.id}`}
         aria-label={`Open project ${project.name}`}

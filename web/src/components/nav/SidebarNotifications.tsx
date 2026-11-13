@@ -11,7 +11,7 @@ import {
 import {
   SIDEBAR_NOTIFICATIONS,
   type SidebarNotification,
-} from "@/src/components/nav/sidebarNotifications";
+} from "@/src/components/nav/sidebarNotificationDefinitions";
 
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 

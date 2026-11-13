@@ -6,7 +6,9 @@ import {
   ProjectDeleteQueue,
   QueueJobs,
 } from "@langfuse/shared/src/server";
-import { transferRoleAssignments } from "@langfuse/shared/rbac/server";
+import { deleteProjectMemberships } from "@langfuse/shared/memberships";
+import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";
+import { transferApiKeyRoles } from "@langfuse/shared/rbac/server";
 import { reconcileTopicsConnectionsForProject } from "@langfuse/shared/topics/server";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
@@ -87,14 +89,15 @@ export class ProjectService {
     });
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.projectMembership.deleteMany({ where: { projectId } });
       await tx.project.update({
         where: { id: projectId, orgId: organizationId },
         data: { orgId: targetOrganizationId },
       });
-      // Move the project's api-key assignments to the destination org and
-      // drop its user assignments, matching the membership wipe above.
-      await transferRoleAssignments(tx, projectId, targetOrganizationId);
+      await deleteProjectMemberships(tx, { projectId });
+      await transferApiKeyRoles(tx, {
+        ownerId: ProjectId(projectId),
+        newTenantId: OrganizationId(targetOrganizationId),
+      });
     });
 
     // API keys need to be deleted from cache. Otherwise, they will still be valid.

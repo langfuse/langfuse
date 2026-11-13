@@ -134,6 +134,20 @@ describe("hover overlay", () => {
     expect(store.getState().peek).toBe("closed");
   });
 
+  it("closes the next hover after dismissal unmounts the panel under the pointer", () => {
+    const { store, actions } = unpinned();
+    actions.openOverlay("hover");
+    actions.pointerEnterPanel();
+    actions.dismiss();
+
+    actions.pointerEnterTrigger();
+    vi.advanceTimersByTime(SIDEBAR_OPEN_DELAY_MS);
+    actions.pointerLeaveTrigger();
+    vi.advanceTimersByTime(SIDEBAR_CLOSE_DELAY_MS);
+
+    expect(store.getState().peek).toBe("closed");
+  });
+
   it("stays open while the switcher is open", () => {
     const { store, actions } = unpinned();
     actions.openOverlay("hover");

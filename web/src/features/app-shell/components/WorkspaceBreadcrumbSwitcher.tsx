@@ -34,7 +34,7 @@ export function WorkspaceBreadcrumbSwitcher() {
         <Trigger asChild>
           <button
             type="button"
-            className="text-primary hover:bg-accent focus-visible:ring-ring data-[state=open]:bg-accent -mx-1 flex h-6 min-w-0 items-center gap-1.5 rounded-sm px-1 text-sm leading-none outline-hidden focus-visible:ring-2"
+            className="ph-no-capture text-primary hover:bg-accent focus-visible:ring-ring data-[state=open]:bg-accent -mx-1 flex h-6 min-w-0 items-center gap-1.5 rounded-sm px-1 text-sm leading-none outline-hidden focus-visible:ring-2"
           >
             <span
               className="max-w-48 truncate"

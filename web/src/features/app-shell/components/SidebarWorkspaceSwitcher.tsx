@@ -41,7 +41,7 @@ export function SidebarWorkspaceSwitcher() {
           <button
             type="button"
             aria-label={`Switch project or organization. Current: ${title}`}
-            className="group/switcher border-sidebar-border bg-background hover:bg-sidebar-accent focus-visible:ring-sidebar-ring data-[state=open]:bg-sidebar-accent flex w-full min-w-0 items-center gap-2 rounded-md border px-2 py-1.5 text-left outline-hidden transition-colors focus-visible:ring-2"
+            className="ph-no-capture group/switcher border-sidebar-border bg-background hover:bg-sidebar-accent focus-visible:ring-sidebar-ring data-[state=open]:bg-sidebar-accent flex w-full min-w-0 items-center gap-2 rounded-md border px-2 py-1.5 text-left outline-hidden transition-colors focus-visible:ring-2"
           >
             {glyph ? (
               <WorkspaceGlyph id={glyph.id} name={glyph.name} size="md" />

@@ -1,7 +1,7 @@
 import { cva } from "class-variance-authority";
 
 const glyphVariants = cva(
-  "inline-flex shrink-0 items-center justify-center rounded-md leading-none font-bold uppercase select-none",
+  "ph-no-capture inline-flex shrink-0 items-center justify-center rounded-md leading-none font-bold uppercase select-none",
   {
     variants: {
       size: {

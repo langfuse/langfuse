@@ -66,8 +66,13 @@ test("Create the first project, then create its API key from the onboarding card
   // instead, and the user leaves onboarding with no keys.
   const secretKey = page.getByText(SECRET_KEY_PATTERN);
   const publicKey = page.getByText(PUBLIC_KEY_PATTERN);
-  await expect(secretKey).toBeVisible();
   await expect(publicKey).toBeVisible();
+
+  await expect(secretKey).toHaveCount(0);
+  const showKeyButtons = page.getByRole("button", { name: "Show key" });
+  await expect(showKeyButtons).toHaveCount(2);
+  await showKeyButtons.first().click();
+  await expect(secretKey).toBeVisible();
 
   const secretKeyValue = (await secretKey.innerText()).trim();
   const publicKeyValue = (await publicKey.innerText()).trim();
@@ -75,6 +80,9 @@ test("Create the first project, then create its API key from the onboarding card
   // The panel also offers the pair as a copyable `.env` block; it is what the
   // user actually pastes, so it has to carry the same two values.
   const envSnippet = page.locator("code", { hasText: "LANGFUSE_SECRET_KEY" });
+  // The snippet's actions only show on hover.
+  await envSnippet.hover();
+  await showKeyButtons.first().click();
   await expect(envSnippet).toContainText(
     `LANGFUSE_SECRET_KEY="${secretKeyValue}"`,
   );

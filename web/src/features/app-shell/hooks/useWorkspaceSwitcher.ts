@@ -53,6 +53,10 @@ export function useWorkspaceSwitcher() {
     organizationId: organization?.id,
     scope: "projects:create",
   });
+  const canReadOrganizationSettings = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "organizationSettings:read",
+  });
 
   const sections = buildSwitcherSections({
     organizations: user?.organizations ?? [],
@@ -96,7 +100,7 @@ export function useWorkspaceSwitcher() {
           },
         ]
       : []),
-    ...(organization
+    ...(organization && canReadOrganizationSettings
       ? [
           {
             id: "organization-settings" as const,

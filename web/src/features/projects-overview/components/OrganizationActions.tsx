@@ -13,20 +13,26 @@ export function OrganizationActions({
     organizationId,
     scope: "organizationMembers:read",
   });
+  const canReadSettings = useHasOrganizationAccess({
+    organizationId,
+    scope: "organizationSettings:read",
+  });
   const canCreateProjects = useHasOrganizationAccess({
     organizationId,
     scope: "projects:create",
   });
 
   return (
-    <div className="flex flex-wrap items-center gap-1">
-      <Button
-        href={`/organization/${organizationId}/settings`}
-        text="Settings"
-        icon={Settings}
-        variant="ghost"
-        size="sm"
-      />
+    <div className="ph-no-capture flex flex-wrap items-center gap-1">
+      {canReadSettings ? (
+        <Button
+          href={`/organization/${organizationId}/settings`}
+          text="Settings"
+          icon={Settings}
+          variant="ghost"
+          size="sm"
+        />
+      ) : null}
       {canReadMembers ? (
         <Button
           href={`/organization/${organizationId}/settings/members`}

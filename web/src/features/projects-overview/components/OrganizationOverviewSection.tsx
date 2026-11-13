@@ -16,7 +16,10 @@ export function OrganizationOverviewSection({
   const headingId = `organization-${organization.id}`;
 
   return (
-    <section aria-labelledby={headingId} className="flex flex-col gap-3">
+    <section
+      aria-labelledby={headingId}
+      className="ph-no-capture flex flex-col gap-3"
+    >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <div className="flex min-w-0 items-center gap-2">
           <WorkspaceGlyph

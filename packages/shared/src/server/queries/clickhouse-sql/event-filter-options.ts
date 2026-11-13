@@ -12,7 +12,10 @@ import { convertDateToClickhouseDateTime } from "../../clickhouse/client";
 import { eventsTableUiColumnDefinitions } from "../../tableMappings/mapEventsTable";
 import { FilterList } from "./clickhouse-filter";
 import { EventsAggQueryBuilder } from "./event-query-builder";
-import { buildEventsObservationRowSelection } from "./events-observation-row-selection";
+import {
+  buildEventsObservationRowSelection,
+  withoutPositionInTrace,
+} from "./events-observation-row-selection";
 import { createFilterFromFilterState } from "./factory";
 
 export const EVENTS_FILTER_OPTION_TOP_N = 1000;
@@ -511,7 +514,7 @@ export const buildEventsFilterOptionsForColumnsQuery = (params: {
   const { queryBuilder: aggregatedOptionsBuilder } =
     buildEventsObservationRowSelection({
       projectId: params.projectId,
-      filter: params.filter,
+      filter: withoutPositionInTrace(params.filter),
     });
 
   const includeApproxTotal = params.includeApproxCount === true;
@@ -695,7 +698,7 @@ export const buildEventsExactFilterOptionsForColumnsQuery = (params: {
   const { queryBuilder: aggregatedOptionsBuilder } =
     buildEventsObservationRowSelection({
       projectId: params.projectId,
-      filter: params.filter,
+      filter: withoutPositionInTrace(params.filter),
     });
 
   const sampleRows = params.sampleRows ?? 0;

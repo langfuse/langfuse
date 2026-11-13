@@ -39,7 +39,6 @@ function caller(userId: string, memberships: [string, string, Role][]) {
     expires: "1",
     user: {
       id: userId,
-      admin: false,
       featureFlags: testFeatureFlags({ langfuseTopics: true }),
       organizations: memberships.map(([orgId, projectId, role]) => ({
         id: orgId,
@@ -305,6 +304,26 @@ describe("Topics tRPC access", () => {
         where: { projectId: a.projectId, name: "Hijacked" },
       }),
     ).toBe(0);
+  });
+
+  it("rejects a one-off scan filter that a live scan could not save", async () => {
+    const admin = caller(userId, [[a.orgId, a.projectId, "ADMIN"]]);
+    await expect(
+      admin.startAnalysis({
+        projectId: a.projectId,
+        label: "Slow traces",
+        filter: [
+          { column: "latency", type: "number", operator: ">", value: 10 },
+        ],
+        timeRange: { from: new Date(Date.now() - 86_400_000), to: new Date() },
+        facets: [{ facetId: a.facetId, version: 1 }],
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining(
+        'Filter column "latency" is not supported',
+      ),
+    });
   });
 
   it("rejects first-run setup reads and writes for a project the caller is not a member of", async () => {

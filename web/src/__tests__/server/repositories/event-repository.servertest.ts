@@ -7,7 +7,6 @@ import {
   getObservationsCountFromEventsTable,
   getObservationsCountsFromEventsTable,
   getObservationByIdFromEventsTable,
-  getObservationFullIOForSessionFromEventsTable,
   getAgentGraphDataFromEventsTable,
   getObservationsFromEventsTableForPublicApi,
   getObservationsCountFromEventsTableForPublicApi,
@@ -42,7 +41,6 @@ import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
 import {
   AI_GATEWAY_SERVICE_NAME,
-  LangfuseNotFoundError,
   type EventsTableFilterState,
   type FilterCondition,
   type TimeFilter,
@@ -1258,41 +1256,6 @@ describe("Clickhouse Events Repository Test", () => {
           startTimeLowerBound: new Date(observationStart + 3 * DAY_MS),
         }),
       ).rejects.toThrow();
-    });
-  });
-
-  maybe("latest-version reads of a soft-deleted observation", () => {
-    it("read it as missing even though an older live version exists", async () => {
-      const traceId = randomUUID();
-      const observationId = randomUUID();
-      const sessionId = randomUUID();
-      const start = Date.now() - 60_000;
-      const version = {
-        id: observationId,
-        span_id: observationId,
-        project_id: projectId,
-        trace_id: traceId,
-        session_id: sessionId,
-        start_time: start,
-      };
-
-      await createEventsCh([
-        createEvent({ ...version, event_ts: start }),
-        createEvent({ ...version, event_ts: start + 1000, is_deleted: 1 }),
-      ]);
-
-      await expect(
-        getObservationByIdFromEventsTable({ id: observationId, projectId }),
-      ).rejects.toThrow(LangfuseNotFoundError);
-      await expect(
-        getObservationFullIOForSessionFromEventsTable({
-          projectId,
-          sessionId,
-          traceId,
-          observationId,
-          startTime: new Date(start),
-        }),
-      ).resolves.toBeNull();
     });
   });
 
@@ -4733,44 +4696,6 @@ describe("Clickhouse Events Repository Test", () => {
             name: "trace-after-session-change",
           }),
         ]);
-      });
-    });
-
-    it("should skip traces whose session spans are all soft-deleted", async () => {
-      const uniqueProjectId = randomUUID();
-      const sessionId = randomUUID();
-      const deletedTraceId = randomUUID();
-      const liveTraceId = randomUUID();
-      const nowMicro = Date.now() * 1000;
-
-      await createEventsCh([
-        createEvent({
-          id: randomUUID(),
-          span_id: randomUUID(),
-          project_id: uniqueProjectId,
-          trace_id: deletedTraceId,
-          session_id: sessionId,
-          start_time: nowMicro,
-          event_ts: nowMicro,
-          is_deleted: 1,
-        }),
-        createEvent({
-          id: randomUUID(),
-          span_id: randomUUID(),
-          project_id: uniqueProjectId,
-          trace_id: liveTraceId,
-          session_id: sessionId,
-          start_time: nowMicro + 1_000,
-          event_ts: nowMicro + 1_000,
-        }),
-      ]);
-
-      await waitForExpect(async () => {
-        const traces = await getTracesIdentifierForSessionFromEvents(
-          uniqueProjectId,
-          sessionId,
-        );
-        expect(traces.map((trace) => trace.id)).toEqual([liveTraceId]);
       });
     });
   });

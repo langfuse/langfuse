@@ -102,6 +102,7 @@ export function createSidebarStore({
     const close = () => {
       cancelOpen();
       cancelClose();
+      isPointerInPanel = false;
       isPeekOwnedBySwitcher = false;
       holdCount = 0;
       holdGeneration += 1;

@@ -161,6 +161,20 @@ const EnvSchema = z.object({
     .positive()
     .max(2 * 24 * 60 * 60 * 1_000)
     .default(24 * 60 * 60 * 1_000),
+  // Requires trace dispatch; the dispatcher then enqueues events-dispatch jobs instead of trace-batch jobs.
+  LANGFUSE_EVENTS_DISPATCH_ENABLED: z.enum(["true", "false"]).default("false"),
+  QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_EVENTS_DISPATCH_CONCURRENCY: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(2),
+  // Experiment: read and store every dispatched trace, enqueueing consumers only where rules apply.
+  LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES: z
+    .enum(["true", "false"])
+    .default("false"),
   LANGFUSE_TRACE_BATCH_INGESTION_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -225,6 +239,13 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(256 * 1024 * 1024),
+  // 04:00 UTC is early morning in Europe and late evening in the Americas.
+  LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(23)
+    .default(4),
   LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE: z.coerce
     .number()
     .int()
@@ -284,7 +305,7 @@ const EnvSchema = z.object({
     .number()
     .int()
     .positive()
-    .default(30_000),
+    .default(60_000),
   LANGFUSE_SECONDARY_OTEL_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z
     .string()
     .optional(),
@@ -741,8 +762,8 @@ const EnvSchema = z.object({
     .default("false"), // Use ON CLUSTER and clusterAllReplicas for cleaner operations
 
   // Audit log relay: moves audit_log_staging rows into ClickHouse audit_logs.
-  // Runs only in cloud deployments (NEXT_PUBLIC_LANGFUSE_CLOUD_REGION set),
-  // where it is on unless disabled here.
+  // Runs on Langfuse Cloud and on self-hosted instances with an enterprise
+  // license, where it is on unless disabled here.
   LANGFUSE_AUDIT_LOG_RELAY_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_AUDIT_LOG_RELAY_INTERVAL_MS: z.coerce
     .number()
@@ -905,10 +926,6 @@ const EnvSchema = z.object({
     .positive()
     .default(600_000),
   LANGFUSE_DELETE_BATCH_SIZE: z.coerce.number().positive().default(2000),
-  LANGFUSE_TOKEN_COUNT_WORKER_POOL_SIZE: z.coerce
-    .number()
-    .positive()
-    .default(2),
   /** Interval at which one worker per queue set polls queue depth and DLQ age */
   LANGFUSE_QUEUE_METRICS_INTERVAL_MS: z.coerce.number().min(100).default(1000),
   LANGFUSE_QUEUE_METRICS_ENABLED: z.enum(["true", "false"]).default("true"),

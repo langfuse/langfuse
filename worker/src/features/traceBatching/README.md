@@ -115,6 +115,8 @@ Redis CPU/memory. Queue metrics remain under `langfuse.trace_batch`.
 
 - `LANGFUSE_TRACE_DISPATCH_ENABLED` selects trace dispatch; otherwise enabled Topics uses legacy readiness.
 - `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED` and `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` choose the service roles.
+- With trace dispatch, `LANGFUSE_EVENTS_DISPATCH_ENABLED` sends dispatched traces to `events-dispatch-queue` instead of trace-batch; `QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED` (worker-cpu only) consumes it with `LANGFUSE_EVENTS_DISPATCH_CONCURRENCY` jobs. Its ClickHouse read settings (60 s limit, 2 threads, block size 512), pending-bytes cap and upload concurrency are constants in `eventsDispatch.ts`, not env vars.
+- `LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES` (experiment) also reads and stores traces without consumer rules, counted as `trace_outcomes{outcome:stored}`; consumers are still enqueued only where rules apply.
 - `LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE` admits an additional experiment cohort; it does not make those traces eligible for Topics or input capture.
 - A project's `tracing_readiness_settings.trace_idle_ms` overrides `LANGFUSE_TRACE_BATCH_IDLE_MS`. Saving refreshes its cache; failed reads fall back to the deployment value.
 
@@ -394,18 +396,18 @@ precondition for enabling writes.
 
 The reader groups rows by project and trace. It assembles a trace when the pair changes and flushes the last trace only after successful end of stream. A stream error discards the partial final trace while draining already accepted work. Completion covers that query window, not future arrivals. Preserve exact tenant and trace boundaries when changing the reader.
 
-[traceBatchTranscript.ts](traceBatchTranscript.ts) owns assembly and diagnostic measurements; the [shared transcript README](../../../../packages/shared/src/server/transcript/README.md) owns transcript semantics. `assembleTranscriptContext` supplies both the conversation transcript and execution issues for storage. The per-trace Topics job reads the stored transcript and applies [its own model projection](../topics/assembledTranscript.ts). The generic and Topics plain-text renderers used for size comparisons are not the model input; their clipping limits do not limit inference.
+[traceBatchTranscript.ts](traceBatchTranscript.ts) owns assembly and diagnostic measurements; the [shared transcript README](../../../../packages/shared/src/server/transcript/README.md) owns transcript semantics. `assembleTranscriptContext` supplies both the conversation transcript and execution issues for storage. The per-trace Topics job reads the stored transcript and applies [its own model projection](../../../../packages/shared/src/server/transcript/topics-model-input.ts). The generic and Topics plain-text renderers used for size comparisons are not the model input; their clipping limits do not limit inference.
 
-Assembly and tokenization run serially per batch, with at most one pending local tokenizer request. Storage and enqueue run under `LANGFUSE_TOPICS_TRACE_CONCURRENCY`. Reads continue until queued logical payload bytes exceed `LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES`, then resume as soon as completed work brings them back under that threshold. The socket idle timeout must allow for these pauses. The threshold excludes object overhead and the trace currently being read, so it is not a hard memory cap. Tokenizer timeouts reject the waiting promise without cancelling queued or running encoding.
+Assembly runs serially per batch. Storage and enqueue run under `LANGFUSE_TOPICS_TRACE_CONCURRENCY`. Reads continue until queued logical payload bytes exceed `LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES`, then resume as soon as completed work brings them back under that threshold. The socket idle timeout must allow for these pauses. The threshold excludes object overhead and the trace currently being read, so it is not a hard memory cap.
 
-The `trace-batch-transcript` span records project/trace identifiers, a source peek link, assembly duration, structure counts and size estimates, without transcript content. `LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED` additionally emits size distributions; failure counters remain enabled independently. Token estimates use `o200k_base` locally and are not provider billing usage.
+The `trace-batch-transcript` span records project/trace identifiers, a source peek link, assembly and rendering durations, structure counts and character counts, without transcript content. `LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED` additionally emits distributions; failure counters remain enabled independently. Diagnostic renderings do not undergo tokenization. Topics separately uses local token counts to enforce its [model input budgets](../topics/README.md).
 
 When comparing measurements:
 
-- Full assembled JSON includes wrappers and provenance. Current-turn/history estimates use role/parts projections; their sum is `transcript_message_tokens`.
+- Full assembled JSON character counts include wrappers and provenance.
 - Generic and Topics text lengths measure diagnostic renderings of the same trace. They do not represent the serialized Topics inference request.
 - Tool-response/content character shares use serialized parts on both sides; divide aggregate sums for a traffic share, not per-trace percentages.
-- Missing or failed token estimates are omitted, not zero. Span duration includes tokenizer waits; use the assembly-duration attribute for assembly performance.
+- Span duration includes diagnostic rendering; use the assembly-duration attribute for assembly performance.
 
 The peek link shows current observations, not a saved copy of the measured transcript. Late arrivals and retries can produce different samples for the same trace, and APM sampling controls which spans remain searchable.
 

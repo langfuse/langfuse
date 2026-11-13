@@ -44,9 +44,7 @@ test.describe("Create project", () => {
     await signIn(page);
     await page.goto("/organizations");
 
-    // Start create org flow. `page.isVisible` does not wait and its result
-    // was discarded, so the click below carried the whole wait on its 10s
-    // action timeout; assert it instead.
+    // Start the create-organization flow from the projects overview.
     const createOrganization = page.getByRole("link", {
       name: /new organization/i,
     });

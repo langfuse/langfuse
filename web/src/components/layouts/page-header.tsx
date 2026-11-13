@@ -1,6 +1,4 @@
 /* eslint-disable @repo/no-style-props, @repo/component-file-structure */
-import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
-import { useEnvLabel } from "@/src/hooks/useEnvLabel";
 import { type LangfuseItemType } from "@/src/components/ItemBadge";
 import { EntityTitle } from "@/src/components/EntityTitle";
 import {
@@ -89,7 +87,6 @@ const PageHeader = ({
   hideTitleRow = false,
 }: PageHeaderProps) => {
   const appNavigation = useAppNavigation();
-  const envLabel = useEnvLabel();
   const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
   // The sidebar control + brand mark only make sense where a real sidebar
   // exists to toggle/mirror. On the sidebar-less MinimalLayout (public/shared
@@ -128,7 +125,9 @@ const PageHeader = ({
             <div className="flex min-h-[43px] min-w-0 flex-wrap items-center gap-2">
               {SidebarControl ? (
                 <>
-                  <SidebarControl />
+                  <div className="relative z-10 flex items-center">
+                    <SidebarControl />
+                  </div>
                   {/* Brand the app in the top bar while the sidebar (which
                       owns the logo) is off-canvas below `md`. Hidden on
                       desktop where the sidebar logo is visible. */}
@@ -140,12 +139,6 @@ const PageHeader = ({
                 )
               )}
               <div className="flex flex-wrap items-center gap-1.5">
-                {envLabel.visible && (
-                  <EnvLabelBadge
-                    region={envLabel.region}
-                    onDismiss={envLabel.dismiss}
-                  />
-                )}
                 <BreadcrumbComponent items={breadcrumb} />
                 {breadcrumbBadges}
               </div>

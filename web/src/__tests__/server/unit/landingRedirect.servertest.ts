@@ -1,3 +1,4 @@
+import { ServerResponse, type IncomingMessage } from "http";
 const mockEnv = vi.hoisted(() => ({
   env: {
     NEXTAUTH_URL: "https://us.cloud.langfuse.com",
@@ -53,6 +54,7 @@ const acme = {
   id: "acme",
   projects: [project("acme-api"), project("acme-web")],
   canCreateProjects: true,
+  canOpen: true,
 };
 
 const resolve = (overrides: Partial<LandingInput>) =>
@@ -135,6 +137,7 @@ describe("resolveLandingDestination", () => {
             id: "globex",
             projects: [project("chat")],
             canCreateProjects: false,
+            canOpen: true,
           },
         ],
       });
@@ -148,11 +151,13 @@ describe("resolveLandingDestination", () => {
             id: "demo-org",
             projects: [project("demo")],
             canCreateProjects: false,
+            canOpen: true,
           },
           {
             id: "acme",
             projects: [project("mine", false)],
             canCreateProjects: true,
+            canOpen: true,
           },
         ],
       });
@@ -164,8 +169,18 @@ describe("resolveLandingDestination", () => {
     it("starts project creation where the user may create one", async () => {
       const { destination } = await resolve({
         organizations: [
-          { id: "viewer-org", projects: [], canCreateProjects: false },
-          { id: "owner-org", projects: [], canCreateProjects: true },
+          {
+            id: "viewer-org",
+            projects: [],
+            canCreateProjects: false,
+            canOpen: true,
+          },
+          {
+            id: "owner-org",
+            projects: [],
+            canCreateProjects: true,
+            canOpen: true,
+          },
         ],
       });
       expect(destination).toBe(
@@ -176,7 +191,12 @@ describe("resolveLandingDestination", () => {
     it("opens the organization when the user cannot create projects", async () => {
       const { destination } = await resolve({
         organizations: [
-          { id: "viewer-org", projects: [], canCreateProjects: false },
+          {
+            id: "viewer-org",
+            projects: [],
+            canCreateProjects: false,
+            canOpen: true,
+          },
         ],
       });
       expect(destination).toBe("/organization/viewer-org");
@@ -200,6 +220,7 @@ describe("resolveLandingDestination", () => {
                 id: "demo-org",
                 projects: [project("demo")],
                 canCreateProjects: false,
+                canOpen: true,
               },
             ],
           })
@@ -224,16 +245,15 @@ describe("getLandingServerSideProps for /", () => {
     cookie,
     resolvedUrl = "/",
   }: { cookie?: ProjectCookie; resolvedUrl?: string } = {}) => {
-    const setHeader = vi.fn();
+    const req = {
+      headers: { host: "us.cloud.langfuse.com", "x-forwarded-proto": "https" },
+      cookies: cookie ? { [projectCookieName]: JSON.stringify(cookie) } : {},
+    };
+    const res = new ServerResponse(req as unknown as IncomingMessage);
+    const setHeader = vi.spyOn(res, "setHeader");
     const ctx = {
-      req: {
-        headers: {
-          host: "us.cloud.langfuse.com",
-          "x-forwarded-proto": "https",
-        },
-        cookies: cookie ? { [projectCookieName]: JSON.stringify(cookie) } : {},
-      },
-      res: { setHeader },
+      req,
+      res,
       resolvedUrl,
     } as unknown as GetServerSidePropsContext;
     return { ctx, setHeader };
@@ -328,6 +348,59 @@ describe("getLandingServerSideProps for /", () => {
     );
     expect(setHeader.mock.calls[0]?.[1]).toContain("Max-Age=0");
     expect(forgetLastVisitedProjectMock).toHaveBeenCalledWith("user-1");
+  });
+
+  it("preserves refreshed session cookies when clearing a stale project cookie", async () => {
+    getServerAuthSessionMock.mockResolvedValue(makeSession(["p1", "p2"]));
+    const { ctx } = makeCtx({ cookie: cookieFor("deleted") });
+    ctx.res.setHeader("Set-Cookie", ["session-token=refreshed; HttpOnly"]);
+
+    await getLandingServerSideProps(ctx);
+
+    expect(ctx.res.getHeader("Set-Cookie")).toEqual([
+      "session-token=refreshed; HttpOnly",
+      expect.stringContaining(`${projectCookieName}=; `),
+    ]);
+  });
+
+  it("prefers an available gateway organization over an unavailable one without projects", async () => {
+    const base = makeSession([]);
+    getServerAuthSessionMock.mockResolvedValue({
+      ...base,
+      user: {
+        ...base.user,
+        organizations: [
+          {
+            id: "gateway-off",
+            role: "AI_GATEWAY",
+            projects: [],
+            featureFlags: { aiGateway: false },
+          },
+          {
+            id: "gateway-on",
+            role: "AI_GATEWAY",
+            projects: [],
+            featureFlags: { aiGateway: true },
+          },
+        ],
+      },
+    });
+
+    expect(await getLandingServerSideProps(makeCtx().ctx)).toEqual(
+      redirectTo("/organization/gateway-on"),
+    );
+  });
+
+  it("keeps the requested shell when the landing destination adds its own notice", async () => {
+    getServerAuthSessionMock.mockResolvedValue(makeSession(["p1", "p2"]));
+
+    const result = await getLandingServerSideProps(
+      makeCtx({ resolvedUrl: "/?shell=classic&notice=ignored" }).ctx,
+    );
+
+    expect(result).toEqual(
+      redirectTo("/organization/org-1?notice=welcome&shell=classic"),
+    );
   });
 
   it("forwards the query string to the project", async () => {

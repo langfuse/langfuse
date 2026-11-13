@@ -20,6 +20,8 @@ type LandingOrganization = {
   /** Projects the user can read, in session order. Deleted projects are already excluded. */
   projects: LandingProject[];
   canCreateProjects: boolean;
+  /** Whether the organization has a landing surface this user can open. */
+  canOpen: boolean;
 };
 
 export type LandingInput = {
@@ -139,7 +141,9 @@ export async function resolveLandingDestination({
     return decide(createProjectRoute(organizationForNewProject.id));
   }
 
-  const firstOwnOrganization = ownOrganizations[0];
+  const firstOwnOrganization =
+    ownOrganizations.find((organization) => organization.canOpen) ??
+    ownOrganizations[0];
   if (firstOwnOrganization) {
     return decide(`/organization/${firstOwnOrganization.id}`);
   }
