@@ -42,6 +42,7 @@ export function RuleSampleObservationSelector({
   onSelect,
   onOpenTrace,
   sampleScope = "observation",
+  showMatches = true,
 }: {
   projectId: string;
   timeRange: AbsoluteTimeRange | null;
@@ -53,6 +54,7 @@ export function RuleSampleObservationSelector({
   onSelect: (observation: SampleObservation | null) => void;
   onOpenTrace: (observation: SampleObservation) => void;
   sampleScope?: "trace" | "observation";
+  showMatches?: boolean;
 }) {
   const previewFilters = useMemo(
     () => toEventsPreviewFilters(filterState),
@@ -75,6 +77,7 @@ export function RuleSampleObservationSelector({
       resolveSelection={resolveSelection}
       getRowClassName={undefined}
       sampleScope={sampleScope}
+      showMatches={showMatches}
       filterDescription={
         sampleScope === "trace"
           ? "Define which incoming traces match this rule."

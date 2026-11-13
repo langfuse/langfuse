@@ -176,8 +176,9 @@ export type SampleObservationSelectorBaseProps = {
   mapObservedOptions: MapSampleObservedOptions;
   /** "detail" shows one sample in the trace view instead of the table. */
   samplePresentation?: "table" | "detail";
-  /** "trace" lists the root of each matching trace instead of the matching observations. */
   sampleScope?: "trace" | "observation";
+  /** Trace transcript rules keep the filter and do not list matching traces. */
+  showMatches?: boolean;
 };
 
 function suppressedRetarget(
@@ -231,6 +232,7 @@ export function SampleObservationSelectorBase(
     mapObservedOptions,
     samplePresentation = "table",
     sampleScope = "observation",
+    showMatches = true,
   } = props;
   const showTraceDetail = samplePresentation === "detail";
   const activeRegistry = registry ?? EVENTS_FIELD_REGISTRY;
@@ -360,6 +362,7 @@ export function SampleObservationSelectorBase(
   });
   // Both lists read in the events table's stable start_time DESC tuple order,
   // so they take no orderBy. Trace scope lists the root of each matching trace.
+  const listMatches = showMatches || showTraceDetail;
   const matchTraces = sampleScope === "trace";
   const listInput = {
     projectId,
@@ -371,7 +374,7 @@ export function SampleObservationSelectorBase(
   const observationListQuery = api.events.listCursor.useInfiniteQuery(
     listInput,
     {
-      enabled: !matchTraces,
+      enabled: listMatches && !matchTraces,
       getNextPageParam: (lastPage) => lastPage.nextCursor,
     },
   );
@@ -382,7 +385,7 @@ export function SampleObservationSelectorBase(
       windowTo: timeRange?.to,
     },
     {
-      enabled: matchTraces,
+      enabled: listMatches && matchTraces,
       getNextPageParam: (lastPage) => lastPage.nextCursor,
     },
   );
@@ -729,13 +732,12 @@ export function SampleObservationSelectorBase(
           />
         </div>
       )}
-      {!showTraceDetail && (
+      {!showTraceDetail && showMatches && (
         <section className="flex min-h-0 flex-col gap-2">
           <SectionHeader
-            title={matchTraces ? "Matching traces" : "Matching observations"}
+            title="Matching observations"
             meta={
-              // The approximate count is of observations, not traces.
-              !matchTraces && options.approxTotalCount !== null ? (
+              options.approxTotalCount !== null ? (
                 <span className="text-muted-foreground shrink-0 text-sm">
                   {formatCount(options.approxTotalCount)}
                 </span>
@@ -787,11 +789,7 @@ export function SampleObservationSelectorBase(
               rowHeight={rowHeight}
               onRowClick={onOpenTrace}
               getRowClassName={getRowClassName}
-              noResultsMessage={
-                matchTraces
-                  ? "No traces match the current filters and time range."
-                  : "No observations match the current filters and time range."
-              }
+              noResultsMessage="No observations match the current filters and time range."
             />
           </div>
         </section>
