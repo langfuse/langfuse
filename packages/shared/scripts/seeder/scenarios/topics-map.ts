@@ -349,9 +349,11 @@ export const topicsMapScenario: ScenarioDefinition = {
     ctx.log("writing summaries");
     await writeTopicSummaries([...intentSummaries, ...issueSummaries]);
 
+    // Run ids are unique across projects, so the default prefix alone would collide.
+    const runPrefix = `${ctx.idPrefix}-${ctx.projectId}`;
     const maps = [
       {
-        runId: `${ctx.idPrefix}-intent`,
+        runId: `${runPrefix}-intent`,
         rule: rules[0]!,
         facet: intent,
         topics: INTENT_TOPICS,
@@ -360,7 +362,7 @@ export const topicsMapScenario: ScenarioDefinition = {
         summaries: intentSummaries,
       },
       {
-        runId: `${ctx.idPrefix}-issues`,
+        runId: `${runPrefix}-issues`,
         rule: rules[0]!,
         facet: issues,
         topics: ISSUE_TOPICS,
@@ -369,7 +371,7 @@ export const topicsMapScenario: ScenarioDefinition = {
         summaries: issueSummaries,
       },
       {
-        runId: `${ctx.idPrefix}-enterprise-intent`,
+        runId: `${runPrefix}-enterprise-intent`,
         rule: rules[1]!,
         facet: intent,
         topics: INTENT_TOPICS,
