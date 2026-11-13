@@ -46,6 +46,8 @@ const STALL_MS = 60_000;
 const STANDARD_FIT_MINIMUM = 100;
 // Events-dispatch caches a project's rules for 15 s; earlier, a pod may drop the new rule.
 const SEED_DELAY_MS = 20_000;
+// Spreads seeded dispatch so up to SETUP_TRACES summaries do not hit the LLM at once.
+const SEED_SPREAD_MS = 60_000;
 // Summaries date from a trace's first event, which can precede the window.
 const SPAN_MARGIN_MS = 5 * 60_000;
 // Fails visibly before the setup keys expire after an hour.
@@ -269,7 +271,13 @@ async function selectAndSeed(
           (previous.find(({ facetId }) => facetId === facet.facetId)
             ?.complete ?? 0),
       );
-    await seedTraceDispatch(projectId, bounds, [rule.id], SEED_DELAY_MS);
+    await seedTraceDispatch(
+      projectId,
+      bounds,
+      [rule.id],
+      SEED_DELAY_MS,
+      SEED_SPREAD_MS,
+    );
   }
   setup.seededCount = seeded.length;
   for (const facet of open)

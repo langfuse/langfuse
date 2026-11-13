@@ -145,6 +145,7 @@ describe("Topics rule setup", () => {
       ),
       [rule.id],
       expect.any(Number),
+      expect.any(Number),
     );
     expect(await readTopicRuleSetup(projectId, rule.id)).toMatchObject({
       phase: "summarizing",
