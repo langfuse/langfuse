@@ -102,6 +102,16 @@ function Option({
   );
 }
 
+/** Divider between option groups inside `List`; spacing comes from padding so the line keeps clear of the rows. */
+function Separator({ ...props }: SlottedProps) {
+  return (
+    <Slot
+      className="bg-border box-content h-px bg-clip-content py-1.5"
+      {...props}
+    />
+  );
+}
+
 function Loading({ message }: { message: string }) {
   return (
     <Option highlight="aria-selected">
@@ -221,4 +231,5 @@ export const InputDropdown = {
   OptionContent,
   Root,
   Search,
+  Separator,
 };
