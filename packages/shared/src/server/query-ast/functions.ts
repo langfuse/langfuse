@@ -1,13 +1,15 @@
 import {
   AggregateFunctionNode,
   BinaryOperationNode,
-  ColumnNode,
   FunctionNode,
-  IdentifierNode,
   OperatorNode,
   ParensNode,
+  PrimitiveValueListNode,
   RawNode,
-  ReferenceNode,
+  SelectQueryNode,
+  TupleNode,
+  ValueListNode,
+  ValueNode,
   type KyselyPlugin,
   type OperationNode,
   type PluginTransformQueryArgs,
@@ -126,9 +128,9 @@ const ALLOWED_FUNCTIONS: ReadonlySet<string> = new Set([
 const IN_OPERATOR = /(^|\s)in$/i;
 
 /**
- * Rejects every function outside {@link ALLOWED_FUNCTIONS}, and a column
- * reference on the right of `in`, which ClickHouse reads as a table:
- * `t.id in scores` reads all of `scores`, unscoped.
+ * Rejects every function outside {@link ALLOWED_FUNCTIONS}, and anything but
+ * values or a subquery on the right of `in`: ClickHouse reads a name there as
+ * a table, so `t.id in scores` reads all of `scores`, unscoped.
  */
 export class FunctionAllowlistPlugin implements KyselyPlugin {
   transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
@@ -152,48 +154,42 @@ export function assertAllowedCalls(root: OperationNode): void {
     }
     if (
       BinaryOperationNode.is(node) &&
-      IN_OPERATOR.test(nameText(node.operator)?.trim() ?? "") &&
-      nameText(node.rightOperand) !== undefined
+      IN_OPERATOR.test(operatorText(node.operator).trim()) &&
+      !isInOperand(node.rightOperand)
     ) {
       throw new UnscopedRelationError(
-        "A column reference on the right of IN is rejected: ClickHouse reads a bare name there as a table, unscoped. Compare against a value list, a parameter, or a subquery.",
+        "Only values or a subquery may sit on the right of IN: ClickHouse reads a name there as a table, unscoped. Compare against a value list, a parameter, or a subquery.",
       );
     }
   });
 }
 
-/**
- * The text of a node that holds only names, as ClickHouse reads it: `scores`
- * for `scores`, `sql.ref("scores")`, `sql.id("scores")`, `sql.raw("scores")`
- * or `(scores)`, and `in` for an operator. Undefined once anything else, such
- * as a value or a subquery, is part of it.
- */
-function nameText(node: OperationNode): string | undefined {
+/** `in` for `OperatorNode("in")` and for raw sql`in` alike. */
+function operatorText(node: OperationNode): string {
   if (OperatorNode.is(node)) return node.operator;
-  if (IdentifierNode.is(node)) return node.name;
-  if (ColumnNode.is(node)) return node.column.name;
-  if (ReferenceNode.is(node)) {
-    const column = ColumnNode.is(node.column) ? node.column.column.name : "*";
-    return node.table
-      ? `${node.table.table.identifier.name}.${column}`
-      : column;
+  if (RawNode.is(node) && node.parameters.length === 0) {
+    return node.sqlFragments.join("");
   }
-  if (ParensNode.is(node)) {
-    const inner = nameText(node.node);
-    return inner === undefined ? undefined : `(${inner})`;
+  return "";
+}
+
+/**
+ * Values, a subquery, or lists and brackets of those: `[1, 2]`,
+ * `(${typedValue(...)})`, `tuple(...)` values, `selectFrom(...)`.
+ */
+function isInOperand(node: OperationNode): boolean {
+  if (
+    ValueNode.is(node) ||
+    PrimitiveValueListNode.is(node) ||
+    SelectQueryNode.is(node)
+  ) {
+    return true;
   }
-  if (!RawNode.is(node)) return undefined;
-  let text = node.sqlFragments[0] ?? "";
-  for (const [i, parameter] of node.parameters.entries()) {
-    const part = nameText(parameter);
-    if (part === undefined) return undefined;
-    text += part + (node.sqlFragments[i + 1] ?? "");
+  if (ParensNode.is(node)) return isInOperand(node.node);
+  if (ValueListNode.is(node) || TupleNode.is(node)) {
+    return node.values.every(isInOperand);
   }
-  // Raw text of brackets and spaces around one name still reads that name.
-  return /^[\s(]*[A-Za-z_][A-Za-z0-9_.]*[\s)]*$/.test(text) ||
-    IN_OPERATOR.test(text.trim())
-    ? text
-    : undefined;
+  return false;
 }
 
 function functionName(node: OperationNode): string | undefined {

@@ -68,6 +68,18 @@ describe("function allowlist", () => {
     ["sql.id", (eb: Eb) => eb("traces.id", "in", sql.id("scores") as never)],
     ["sql.raw", (eb: Eb) => eb("traces.id", "in", sql.raw("scores") as never)],
     [
+      "eb.table",
+      (eb: Eb) => eb("traces.id", "in", eb.table("scores" as never) as never),
+    ],
+    [
+      "a backtick-quoted raw name",
+      (eb: Eb) => eb("traces.id", "in", sql.raw("`scores`") as never),
+    ],
+    [
+      "a double-quoted raw name",
+      (eb: Eb) => eb("traces.id", "in", sql.raw('"scores"') as never),
+    ],
+    [
       "brackets",
       (eb: Eb) =>
         eb("traces.id", "in", eb.parens(eb.ref("scores" as never)) as never),
@@ -85,7 +97,9 @@ describe("function allowlist", () => {
         .select("id")
         .where((eb) => condition(eb));
       expect(check(query)).toThrow(UnscopedRelationError);
-      expect(check(query)).toThrow("A column reference on the right of IN");
+      expect(check(query)).toThrow(
+        "Only values or a subquery may sit on the right of IN",
+      );
     },
   );
 
