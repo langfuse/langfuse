@@ -20,6 +20,7 @@ import {
   getExperimentMetricsFromEvents,
   getExperimentsCountFromEvents,
   getExperimentsFromEvents,
+  getExperimentsStartTime,
 } from "../index";
 
 const FIXED_PROJECT_ID = "golden-project";
@@ -44,6 +45,22 @@ describeWithClickhouse("golden: experiments simple aggregates family", () => {
 
   it("getExperimentMetricsFromEvents experimentIds=set", async () => {
     await getExperimentMetricsFromEvents({
+      projectId: FIXED_PROJECT_ID,
+      experimentIds: FIXED_EXPERIMENT_IDS,
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getExperimentsStartTime experimentIds=empty", async () => {
+    await getExperimentsStartTime({
+      projectId: FIXED_PROJECT_ID,
+      experimentIds: [],
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getExperimentsStartTime experimentIds=set", async () => {
+    await getExperimentsStartTime({
       projectId: FIXED_PROJECT_ID,
       experimentIds: FIXED_EXPERIMENT_IDS,
     });
