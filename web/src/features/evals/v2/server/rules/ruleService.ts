@@ -65,15 +65,22 @@ type RuleServiceUpdateInput = Omit<UpdateRuleInput, "targetObject"> & {
 };
 
 export class RuleService {
+  /**
+   * `visibility` opts into trace transcript rules. The rule router passes it
+   * behind the trace transcript evals gate; the public API and MCP leave it
+   * off, so their reads and writes never reach a trace transcript rule.
+   */
   constructor(
     private readonly prisma: PrismaClient,
     private readonly audit: (event: RuleAuditEvent) => Promise<void>,
+    private readonly visibility: repository.RuleVisibility = {},
   ) {}
 
   async list(input: ListRulesInput) {
     const { rules, totalItems } = await repository.listRules({
       prisma: this.prisma,
       input,
+      visibility: this.visibility,
     });
     return { rules: rules.map(toRuleResponse), totalItems };
   }
@@ -94,6 +101,7 @@ export class RuleService {
     return repository.listRuleFilterOptions({
       prisma: this.prisma,
       projectId,
+      visibility: this.visibility,
     });
   }
 
@@ -102,6 +110,7 @@ export class RuleService {
       prisma: this.prisma,
       projectId,
       ruleId,
+      visibility: this.visibility,
     });
     if (!rule) throw new LangfuseNotFoundError("Evaluation rule not found");
     return toRuleResponse(rule);
@@ -187,6 +196,7 @@ export class RuleService {
       prisma: this.prisma,
       projectId,
       evaluatorId,
+      visibility: this.visibility,
     });
   }
 
@@ -195,6 +205,7 @@ export class RuleService {
       prisma: this.prisma,
       projectId,
       evaluatorIds,
+      visibility: this.visibility,
     });
   }
 
@@ -438,8 +449,11 @@ export class RuleService {
           ? EvalTargetObject.EXPERIMENT
           : currentTargetObject;
       const explicitTarget = input.targetObject;
+      // An update that names no target keeps a trace transcript rule one.
       const normalized =
-        explicitTarget === TopicsTargetObject
+        explicitTarget === TopicsTargetObject ||
+        (explicitTarget === undefined &&
+          current.targetObject === TopicsTargetObject)
           ? { targetObject: TopicsTargetObject, filter: effectiveFilter }
           : normalizeEvaluationRuleTarget({
               targetObject: explicitTarget ?? inheritedTargetObject,
@@ -480,6 +494,7 @@ export class RuleService {
         input,
         targetObject: normalized.targetObject,
         filter: filter as Prisma.InputJsonValue,
+        visibility: this.visibility,
       });
       if (input.evaluatorMappings) {
         await repository.replaceAssignments({
@@ -487,6 +502,7 @@ export class RuleService {
           projectId: input.projectId,
           ruleId: input.ruleId,
           assignments: input.evaluatorMappings,
+          visibility: this.visibility,
         });
       }
       const updated =
@@ -500,6 +516,7 @@ export class RuleService {
               prisma,
               projectId: input.projectId,
               ruleId: input.ruleId,
+              visibility: this.visibility,
             });
       if (!updated)
         throw new LangfuseNotFoundError("Evaluation rule not found");
@@ -544,11 +561,13 @@ export class RuleService {
         ruleIds: [params.ruleId],
         enabled: params.enabled,
         sampling: params.sampling,
+        visibility: this.visibility,
       });
       const updated = await repository.findRule({
         prisma,
         projectId: params.projectId,
         ruleId: params.ruleId,
+        visibility: this.visibility,
       });
       if (!updated)
         throw new LangfuseNotFoundError("Evaluation rule not found");
@@ -566,7 +585,12 @@ export class RuleService {
 
   async delete(projectId: string, ruleId: string) {
     const deleted = await this.prisma.$transaction((prisma) =>
-      repository.deleteRule({ prisma, projectId, ruleId }),
+      repository.deleteRule({
+        prisma,
+        projectId,
+        ruleId,
+        visibility: this.visibility,
+      }),
     );
     if (!deleted) throw new LangfuseNotFoundError("Evaluation rule not found");
     await invalidateProjectEvalConfigCaches(projectId);
@@ -575,11 +599,16 @@ export class RuleService {
 
   async deleteMany(input: RuleSelectionInput) {
     const ruleIds = await this.prisma.$transaction(async (prisma) => {
-      const ids = await repository.listSelectedRuleIds({ prisma, input });
+      const ids = await repository.listSelectedRuleIds({
+        prisma,
+        input,
+        visibility: this.visibility,
+      });
       await repository.deleteRules({
         prisma,
         projectId: input.projectId,
         ruleIds: ids,
+        visibility: this.visibility,
       });
       return ids;
     });
@@ -610,6 +639,7 @@ export class RuleService {
       const ids = await repository.listSelectedRuleIds({
         prisma,
         input: selection,
+        visibility: this.visibility,
       });
       const legacyRuleCount = await prisma.evaluationRule.count({
         where: {
@@ -682,11 +712,23 @@ export class RuleService {
         params.ruleId,
       );
       this.assertLegacyRuleAssignmentsWritable(rule.targetObject);
-      const [assignment] = await this.prepareModernAssignments({
-        prisma,
-        projectId: params.projectId,
-        assignments: [params.assignment],
-      });
+      const [assignment] =
+        rule.targetObject === TopicsTargetObject
+          ? await this.assertTraceTranscriptAssignments({
+              prisma,
+              projectId: params.projectId,
+              assignments: [
+                {
+                  evaluatorId: params.assignment.evaluatorId,
+                  variableMapping: params.assignment.variableMapping ?? [],
+                },
+              ],
+            })
+          : await this.prepareModernAssignments({
+              prisma,
+              projectId: params.projectId,
+              assignments: [params.assignment],
+            });
       await repository.attachEvaluator({
         prisma,
         projectId: params.projectId,
@@ -705,6 +747,7 @@ export class RuleService {
           projectId: params.projectId,
           ruleIds: [params.ruleId],
           enabled: true,
+          visibility: this.visibility,
         });
       }
     });
@@ -725,7 +768,11 @@ export class RuleService {
   }) {
     const deleted = await this.prisma.$transaction(async (prisma) => {
       await this.requireRule(prisma, params.projectId, params.ruleId);
-      return repository.detachEvaluator({ prisma, ...params });
+      return repository.detachEvaluator({
+        prisma,
+        ...params,
+        visibility: this.visibility,
+      });
     });
     if (!deleted) throw new LangfuseNotFoundError("Assignment not found");
     await invalidateProjectEvalConfigCaches(params.projectId);
@@ -759,7 +806,12 @@ export class RuleService {
     projectId: string,
     ruleId: string,
   ) {
-    const rule = await repository.findRule({ prisma, projectId, ruleId });
+    const rule = await repository.findRule({
+      prisma,
+      projectId,
+      ruleId,
+      visibility: this.visibility,
+    });
     if (!rule) throw new LangfuseNotFoundError("Evaluation rule not found");
     return rule;
   }
@@ -850,6 +902,7 @@ export class RuleService {
         variableMapping: assignment.variableMapping,
       });
     }
+    return params.assignments;
   }
 
   private async prepareModernAssignments(params: {

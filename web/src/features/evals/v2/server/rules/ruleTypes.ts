@@ -41,9 +41,15 @@ export const ListRulesSchema = z.object({
   search: z.string().trim().max(200).optional(),
   enabled: z.boolean().optional(),
   targetObjects: z
-    .array(z.enum([EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT]))
+    .array(
+      z.enum([
+        EvalTargetObject.EVENT,
+        EvalTargetObject.EXPERIMENT,
+        TopicsTargetObject,
+      ]),
+    )
     .min(1)
-    .max(2)
+    .max(3)
     .optional(),
   filter: singleFilterList
     .superRefine((filters, ctx) => {

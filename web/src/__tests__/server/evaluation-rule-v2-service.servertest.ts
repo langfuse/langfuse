@@ -634,6 +634,103 @@ describe("RuleService", () => {
         "Evaluation rule not found",
       );
     });
+
+    it("manages a trace rule only through a service that opted into trace rules", async () => {
+      const closed = createService();
+      const gated = new RuleService(prisma, async () => undefined, {
+        includeTraceTranscriptRules: true,
+      });
+      const variableMapping = [
+        {
+          templateVariable: "output",
+          selectedColumnId: "threads",
+          jsonSelector: null,
+        },
+      ];
+      const rule = await gated.createTraceTranscriptRule(
+        {
+          projectId,
+          name: "Support conversations",
+          targetObject: TopicsTargetObject,
+          filter: [],
+          sampling: 1,
+          enabled: true,
+          evaluatorAssignments: [
+            { evaluatorId: defaultEvaluatorId, variableMapping },
+          ],
+        },
+        null,
+      );
+      const traceRulesOnly = {
+        projectId,
+        page: 1,
+        limit: 50,
+        targetObjects: [TopicsTargetObject],
+      };
+
+      // The public API and MCP build the service without the opt-in.
+      await expect(closed.list(traceRulesOnly)).resolves.toEqual({
+        rules: [],
+        totalItems: 0,
+      });
+      await expect(
+        closed.update({ projectId, ruleId: rule.id, sampling: 0.5 }),
+      ).rejects.toThrow("Evaluation rule not found");
+      await expect(
+        closed.setEnabled({ projectId, ruleId: rule.id, enabled: false }),
+      ).rejects.toThrow("Evaluation rule not found");
+      await expect(
+        closed.attach({
+          projectId,
+          ruleId: rule.id,
+          assignment: { evaluatorId: defaultEvaluatorId, variableMapping },
+        }),
+      ).rejects.toThrow("Evaluation rule not found");
+      await expect(
+        closed.deleteMany({ projectId, ruleIds: [rule.id] }),
+      ).resolves.toEqual([]);
+      await expect(closed.delete(projectId, rule.id)).rejects.toThrow(
+        "Evaluation rule not found",
+      );
+      await expect(
+        closed.listRulesForEvaluator(projectId, defaultEvaluatorId),
+      ).resolves.toEqual([]);
+
+      const listed = await gated.list(traceRulesOnly);
+      expect(listed.rules.map(({ id }) => id)).toEqual([rule.id]);
+      // An update that names no target keeps the rule a trace rule.
+      const updated = await gated.update({
+        projectId,
+        ruleId: rule.id,
+        sampling: 0.5,
+      });
+      expect(updated).toMatchObject({
+        targetObject: TopicsTargetObject,
+        sampling: 0.5,
+      });
+      // A second evaluator needs its own threads mapping on a trace rule.
+      const second = await createEvaluator();
+      await expect(
+        gated.attach({
+          projectId,
+          ruleId: rule.id,
+          assignment: { evaluatorId: second.id, variableMapping: null },
+        }),
+      ).rejects.toThrow();
+      const attached = await gated.attach({
+        projectId,
+        ruleId: rule.id,
+        assignment: { evaluatorId: second.id, variableMapping },
+      });
+      expect(attached.assignments).toHaveLength(2);
+      await expect(
+        gated.setEnabled({ projectId, ruleId: rule.id, enabled: false }),
+      ).resolves.toMatchObject({ enabled: false });
+      await gated.delete(projectId, rule.id);
+      await expect(
+        prisma.evaluationRule.findUnique({ where: { id: rule.id } }),
+      ).resolves.toBeNull();
+    });
   });
 
   describe("get and update", () => {

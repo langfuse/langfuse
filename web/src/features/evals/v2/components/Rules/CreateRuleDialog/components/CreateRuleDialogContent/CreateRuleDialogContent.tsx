@@ -41,6 +41,7 @@ export function CreateRuleDialogContent({
   initialEvaluator,
   initialDraft,
   initialFilter,
+  initialScope = "observation",
   targetObject,
   evaluatorSearch,
   successNotification,
@@ -54,6 +55,7 @@ export function CreateRuleDialogContent({
   initialEvaluator: RuleEvaluatorOption | undefined;
   initialDraft: RuleDraft | undefined;
   initialFilter: FilterState | undefined;
+  initialScope?: RuleScope;
   targetObject?: Extract<EvalTargetObject, "event" | "experiment">;
   evaluatorSearch: string;
   successNotification: "toast" | "none";
@@ -67,7 +69,7 @@ export function CreateRuleDialogContent({
   const nameAIAssistanceAvailable =
     isLangfuseCloud && Boolean(organization?.aiFeaturesEnabled);
   const traceEvalsAvailable = useCanViewTraceTranscriptsEvals(projectId);
-  const [scope, setScope] = useState<RuleScope>("observation");
+  const [scope, setScope] = useState<RuleScope>(initialScope);
   const traceScope = traceEvalsAvailable && scope === "trace";
   const [ruleSetupStore] = useState(() =>
     createRuleSetupStore({

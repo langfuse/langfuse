@@ -59,7 +59,11 @@ import {
   getRuleNavigationUrl,
 } from "@/src/features/evals/v2/utils/ruleNavigation";
 import { ruleExecutionsUrl } from "@/src/features/evals/v2/fns/rules/ruleExecutionsUrl";
-import { TableViewPresetTableName, type OrderByState } from "@langfuse/shared";
+import {
+  TableViewPresetTableName,
+  TopicsTargetObject,
+  type OrderByState,
+} from "@langfuse/shared";
 import { omitFilterFacets } from "@/src/features/filters/lib/filter-config";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
@@ -263,6 +267,11 @@ export function RulesTable({
             <RuleNameCell
               name={row.original.name}
               legacy={legacy}
+              scope={
+                String(row.original.targetObject) === TopicsTargetObject
+                  ? "trace"
+                  : "observation"
+              }
               onUpgrade={
                 upgradeRequired
                   ? () => {

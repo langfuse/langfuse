@@ -9,7 +9,10 @@ import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { throwIfTraceTranscriptEvalsUnavailable } from "@/src/features/evals/server/traceTranscriptEvalsAccess";
+import {
+  canUseTraceTranscriptEvals,
+  throwIfTraceTranscriptEvalsUnavailable,
+} from "@/src/features/evals/server/traceTranscriptEvalsAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -34,14 +37,26 @@ import {
   UpdateRuleSchema,
 } from "./ruleTypes";
 
+/**
+ * Trace transcript rules are read and written here only, and only for a
+ * session that passes the trace transcript evals gate.
+ */
 function serviceForContext(ctx: ProjectAuthedContext) {
-  return new RuleService(ctx.prisma, ({ action, ruleId }) =>
-    auditLog({
-      session: ctx.session,
-      resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
-      resourceId: ruleId,
-      action,
-    }),
+  return new RuleService(
+    ctx.prisma,
+    ({ action, ruleId }) =>
+      auditLog({
+        session: ctx.session,
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+        resourceId: ruleId,
+        action,
+      }),
+    {
+      includeTraceTranscriptRules: canUseTraceTranscriptEvals(
+        ctx.session,
+        ctx.session.projectId,
+      ),
+    },
   );
 }
 

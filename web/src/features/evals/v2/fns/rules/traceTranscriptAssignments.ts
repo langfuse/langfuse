@@ -6,6 +6,7 @@ import {
 /**
  * A trace transcript rule stores every variable on the threads column. The
  * rule form still edits observation mappings; the writer only accepts threads.
+ * A mapping already on threads keeps its JSON path.
  */
 export function traceTranscriptAssignments(
   assignments: {
@@ -22,7 +23,10 @@ export function traceTranscriptAssignments(
       variableMapping: source.map((mapping) => ({
         templateVariable: mapping.templateVariable,
         selectedColumnId: TRACE_TRANSCRIPT_EVAL_COLUMN,
-        jsonSelector: null,
+        jsonSelector:
+          mapping.selectedColumnId === TRACE_TRANSCRIPT_EVAL_COLUMN
+            ? (mapping.jsonSelector ?? null)
+            : null,
       })),
     };
   });
