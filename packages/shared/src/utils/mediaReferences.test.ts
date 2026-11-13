@@ -54,6 +54,18 @@ describe("findMediaReferences", () => {
     ).toEqual([]);
   });
 
+  it("ignores strings containing multiple references", () => {
+    expect(findMediaReferences(`${imageRef}${audioRef}`)).toEqual([]);
+    expect(
+      findMediaReferences({
+        combined: [`${imageRef}${audioRef}`, `${imageRef} ${audioRef}`],
+        valid: imageRef,
+      }),
+    ).toMatchObject([
+      { id: "cc48838a-3da8-4ca4-a007-2cf8df930e69", jsonPath: "$['valid']" },
+    ]);
+  });
+
   it("handles objects with a literal 'match' key", () => {
     expect(findMediaReferences({ match: imageRef })).toMatchObject([
       { jsonPath: "$['match']" },

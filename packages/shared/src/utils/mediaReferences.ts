@@ -1,6 +1,9 @@
 import { JSONPath } from "jsonpath-plus";
 
-import { MediaReferenceStringSchema } from "./IORepresentation/chatML/types";
+import {
+  isMediaReferencePart,
+  MediaReferenceStringSchema,
+} from "./IORepresentation/chatML/types";
 
 /**
  * Scans a JSON value for `@@@langfuseMedia:...@@@` reference strings and
@@ -33,6 +36,9 @@ export function findMediaReferences(value: unknown) {
 }
 
 function parseReference(value: string, jsonPath: string) {
+  // Only a single whole reference may be associated with a dataset item.
+  if (!isMediaReferencePart(value)) return null;
+
   const parsed = MediaReferenceStringSchema.safeParse(value);
 
   return parsed.success ? { ...parsed.data, jsonPath } : null;
