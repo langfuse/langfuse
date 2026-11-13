@@ -17,6 +17,7 @@ const CREDENTIAL_SOURCES = {
   OPENROUTER: "API key from openrouter.ai",
   XAI: "API key from console.x.ai",
   VERCEL: "API key from vercel.com",
+  AZURE: "Resource name and API key from ai.azure.com",
   GOOGLE_AI_STUDIO: "API key from aistudio.google.com",
 } satisfies Record<GatewayProvider, string>;
 
@@ -45,7 +46,7 @@ export function GatewayNoProvidersEmptyState({
           href={GATEWAY_SETUP_DOCS_URL}
         />
       </GatewayPlaceholder.Actions>
-      <NoProvidersDiagram addLabel="+ Add" />
+      <NoProvidersDiagram unconnectedVariant="placeholder" />
       <ul className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
         {getGatewaySetupHeroProviders(new Set()).map(({ provider }) => (
           <li key={provider}>

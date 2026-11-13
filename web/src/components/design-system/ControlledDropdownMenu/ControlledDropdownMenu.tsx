@@ -133,16 +133,45 @@ function withoutStraySeparators<T extends { type: string }>(items: T[]): T[] {
   });
 }
 
-function mergeRefs<T>(...refs: Array<React.Ref<T> | undefined>) {
-  return (value: T | null) => {
-    refs.forEach((ref) => {
-      if (typeof ref === "function") {
-        ref(value);
-      } else if (ref) {
-        ref.current = value;
-      }
-    });
-  };
+function useStableTriggerRef(
+  setReference: ReturnType<typeof useFloating>["refs"]["setReference"],
+) {
+  return React.useMemo(() => {
+    // Stable composed refs avoid detaching the trigger on every prop-getter call.
+    const mergedRefs = new WeakMap<
+      NonNullable<React.Ref<HTMLElement>>,
+      React.RefCallback<HTMLElement>
+    >();
+
+    return (callerRef: React.Ref<HTMLElement> | undefined) => {
+      if (!callerRef) return setReference;
+      const cachedRef = mergedRefs.get(callerRef);
+      if (cachedRef) return cachedRef;
+
+      const mergedRef: React.RefCallback<HTMLElement> = (node) => {
+        setReference(node);
+        if (typeof callerRef === "function") {
+          const cleanup = callerRef(node);
+          return () => {
+            setReference(null);
+            if (cleanup) {
+              cleanup();
+            } else {
+              callerRef(null);
+            }
+          };
+        }
+
+        callerRef.current = node;
+        return () => {
+          setReference(null);
+          callerRef.current = null;
+        };
+      };
+      mergedRefs.set(callerRef, mergedRef);
+      return mergedRef;
+    };
+  }, [setReference]);
 }
 
 type MenuAction =
@@ -383,6 +412,7 @@ function DropdownMenuNode({
   const { getFloatingProps, getItemProps, getReferenceProps } = useInteractions(
     [click, hover, dismiss, role, listNavigation, typeahead],
   );
+  const getTriggerRef = useStableTriggerRef(refs.setReference);
   const visibleItems = React.useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
     if (!search || !normalizedQuery) return withoutStraySeparators(items);
@@ -450,7 +480,7 @@ function DropdownMenuNode({
           return getReferenceProps({
             ...triggerProps,
             "aria-expanded": isOpen,
-            ref: mergeRefs(ref, refs.setReference),
+            ref: getTriggerRef(ref),
           });
         },
       })}

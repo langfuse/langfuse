@@ -32,7 +32,6 @@ import {
   readStagedTopicSummary,
   enqueueTopicEmbeddingBatch,
   TOPIC_EMBEDDING_EXPIRED_ERROR,
-  TOPICS_TRANSCRIPT_VERSION,
   getTopicsModels,
   type TopicEmbeddingRef,
   type TopicsModels,
@@ -80,6 +79,7 @@ import {
 import { matchTopicContinuity } from "./continuity";
 import { createEventLoopYielder } from "./event-loop";
 import { TopicMetrics } from "./metrics";
+import { TOPICS_TEXT_VERSION } from "./assembledTranscript";
 import { splitTopicModelUsage } from "./summaryResult";
 import { matchedSummaries, matchRefitWindow } from "./refitFilter";
 
@@ -253,7 +253,7 @@ async function reuseSummaries(
       (row) =>
         row.summaryModel === execution.input.processingConfig.summaryModel &&
         row.transcriptId === ASSEMBLED_TRANSCRIPT_ID &&
-        row.transcriptVersion === TOPICS_TRANSCRIPT_VERSION,
+        row.transcriptVersion === TOPICS_TEXT_VERSION,
     );
     if (!reusable) continue;
     metrics.result("summary", "cached");
@@ -301,6 +301,7 @@ async function summarizePending(
     models,
     facets,
     transcript: input.transcript,
+    executionIssues: input.executionIssues,
     config: execution.input.processingConfig,
     metadata: {
       source_trace_id: traceId,
@@ -1650,17 +1651,19 @@ async function refitCohort({
 
 /**
  * The map a refit continues, so its topics keep their IDs and names: the rule's
- * published map of the facet, or the serving snapshot while the rule has none.
- * A map of another facet version is not continued.
+ * published map of the facet, or the snapshot no rule owns while the rule has
+ * none. Another rule's map and another facet version are not continued.
  */
 async function continuedMap(
   projectId: string,
   ruleId: string,
   facet: TopicFacetVersion,
 ): Promise<TopicRun | null> {
-  const current =
-    (await getTopicRuleMap(projectId, ruleId, facet.facetId)) ??
-    (await getPublishedTopicRun(projectId, facet.facetId));
+  const own = await getTopicRuleMap(projectId, ruleId, facet.facetId);
+  const serving = own
+    ? null
+    : await getPublishedTopicRun(projectId, facet.facetId);
+  const current = own ?? (serving?.ruleId ? null : serving);
   return current?.facetVersion === facet.version ? current : null;
 }
 

@@ -12,6 +12,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import {
   DialogBody,
+  DialogClose,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -73,7 +74,7 @@ export function ApiKeyCreateDialogContent(
     const { secretKey, publicKey, baseUrl } = props;
 
     return (
-      <DialogContent closeOnInteractionOutside>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>API Keys</DialogTitle>
         </DialogHeader>
@@ -86,6 +87,11 @@ export function ApiKeyCreateDialogContent(
             showMcpSection={true}
           />
         </DialogBody>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button>Done</Button>
+          </DialogClose>
+        </DialogFooter>
       </DialogContent>
     );
   }

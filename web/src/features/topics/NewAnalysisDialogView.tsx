@@ -35,7 +35,7 @@ export function NewAnalysisDialogView({
       size="md"
       actions={[
         {
-          label: "Start scan",
+          label: live ? "Start live scan" : "Start one-off scan",
           disabled: !canStart,
           loading: starting,
           onClick: onStart,

@@ -389,6 +389,22 @@ describe("AI Gateway model discovery", () => {
     ]);
   });
 
+  it("lists OpenRouter models from a connection's custom base URL", async () => {
+    const fetcher = vi.fn<typeof fetch>(respondWith({ data: [] }));
+    await openRouterModelDiscoveryAdapter.fetchCatalog({
+      credential: "sk-or-test",
+      config: null,
+      baseURL: "https://eu.openrouter.ai/api/v1",
+      extraHeaders: {},
+      fetcher,
+    });
+
+    expect(fetcher.mock.calls.map(([url]) => String(url))).toEqual([
+      "https://eu.openrouter.ai/api/v1/models/user",
+      "https://eu.openrouter.ai/api/v1/embeddings/models",
+    ]);
+  });
+
   it("lists embeddings-only models under OpenAI routes, never under Messages", () => {
     const embeddingModel: GatewayModelCatalogEntry = {
       id: "openai/text-embedding-3-small",
@@ -685,6 +701,19 @@ describe("AI Gateway path credential check", () => {
     ).rejects.toMatchObject({ httpCode });
   });
 
+  it("keeps the provider's answer to a rejected key", async () => {
+    const body = { error: { code: "401", message: "Access denied" } };
+    await expect(
+      testKey(async () => Response.json(body, { status: 401 })),
+    ).rejects.toMatchObject({
+      providerResponse: {
+        status: 401,
+        statusText: "Unauthorized",
+        body: JSON.stringify(body),
+      },
+    });
+  });
+
   it("treats an unreachable provider as retryable", async () => {
     await expect(
       testKey(async () => {
@@ -697,5 +726,24 @@ describe("AI Gateway path credential check", () => {
     await expect(testKey(async () => Response.json({}))).resolves.toEqual({
       modelListingDenied: false,
     });
+  });
+
+  it("checks the key against a custom OpenRouter base URL", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => Response.json({}));
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+
+    await new GatewayProviderService({} as PrismaClient).testCredential({
+      organizationId: "org",
+      provider: "OPENROUTER",
+      credential: "sk-or-test",
+      baseURL: "https://93.184.215.14/api/v1/",
+    });
+
+    expect(String(fetcher.mock.calls[0]?.[0])).toBe(
+      "https://93.184.215.14/api/v1/key",
+    );
+    expect(getGatewayFetch).toHaveBeenCalledWith(
+      expect.objectContaining({ baseURL: "https://93.184.215.14/api/v1" }),
+    );
   });
 });

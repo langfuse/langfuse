@@ -81,6 +81,7 @@ import {
   startTopicAnalysis,
   topicMapsOverview,
 } from "./slices";
+import { topicFilterOptions, tracesTopics } from "./traceTopics";
 import { TOPIC_SETUP_BACKFILL_LIMIT } from "../topic-setup-flow";
 
 const projectInput = z.object({ projectId: topicIdSchema });
@@ -383,6 +384,20 @@ export const topicsRouter = createTRPCRouter({
   traces: topicsProcedure
     .input(tracesInput)
     .query(({ input }) => listTopicTraces(input)),
+  /** Tracing table column: current topics for the visible page, loaded after the rows. */
+  forTraces: topicsProcedure
+    .input(
+      projectInput.extend({
+        traces: z
+          .array(z.object({ traceId: z.string().min(1), timestamp: z.date() }))
+          .min(1)
+          .max(500),
+      }),
+    )
+    .query(({ input }) => tracesTopics(input.projectId, input.traces)),
+  filterOptions: topicsProcedure.query(({ input }) =>
+    topicFilterOptions(input.projectId),
+  ),
   /** Rule maps and one-off analyses for the map picker and the Rules page. */
   maps: topicsProcedure.query(({ input }) =>
     topicMapsOverview(input.projectId),
@@ -405,6 +420,9 @@ export const topicsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      // One-off scans accept only filters a live scan could save.
+      const filterError = topicRuleFilterError(input.filter);
+      if (filterError) throw new InvalidRequestError(filterError);
       await requireFacetVersions(input.projectId, input.facets);
       return startTopicAnalysis(input, ctx.session.user.id);
     }),

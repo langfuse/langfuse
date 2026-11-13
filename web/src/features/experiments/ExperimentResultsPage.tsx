@@ -13,7 +13,6 @@ import { ExperimentDisplaySettings } from "@/src/features/experiments/components
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { ExperimentSelectionControls } from "@/src/features/experiments/components/ExperimentSelectionControls";
-import { useIoRenderModeLocalStorage } from "@/src/components/table/data-table-io-render-mode-switch";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   diffModeChangedProps,
@@ -45,10 +44,6 @@ export default function ExperimentResultsPage() {
     allExperimentIds,
     colorExperimentIds,
   } = useExperimentResultsState();
-  const [ioRenderMode, setIoRenderMode] = useIoRenderModeLocalStorage(
-    "experiment-items",
-    "json",
-  );
 
   const [isOverviewOpen, setIsOverviewOpen] = useSessionStorage(
     "overview-panel-experiment-detail",
@@ -159,12 +154,7 @@ export default function ExperimentResultsPage() {
         persistId={`experiment-detail-${baselineId ?? "none"}`}
         mainContent={
           <ExperimentItemsTable
-            // The shared table body's memo comparator does not look at the
-            // column definitions, so a format change alone never reaches the
-            // cells. Remounting is what makes the switch take effect.
-            key={ioRenderMode}
             projectId={projectId}
-            ioRenderMode={ioRenderMode}
             toolbarSettings={
               <ExperimentDisplaySettings
                 layout={layout}
@@ -175,8 +165,6 @@ export default function ExperimentResultsPage() {
                 onItemVisibilityChange={setItemVisibility}
                 hasComparisons={comparisonIds.length > 0}
                 hasBaseline={hasBaseline}
-                ioRenderMode={ioRenderMode}
-                onIoRenderModeChange={setIoRenderMode}
               />
             }
           />

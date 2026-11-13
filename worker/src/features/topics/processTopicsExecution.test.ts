@@ -11,12 +11,12 @@ import type {
   TopicTimeRange,
 } from "@langfuse/shared/topics";
 import {
-  TOPICS_TRANSCRIPT_VERSION,
   getTopicClusteringSummaries,
   type TopicEmbeddingBatch,
   type TopicEmbeddingRef,
 } from "@langfuse/shared/topics/server";
 import { assembleTranscript } from "@langfuse/shared/src/server";
+import { TOPICS_TEXT_VERSION } from "./assembledTranscript";
 import {
   topicExecutionInputSchema,
   topicSourceKey,
@@ -73,7 +73,7 @@ const facet: TopicFacetVersion = {
 };
 
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
-  const { TOPICS_TRANSCRIPT_VERSION, TOPIC_EMBEDDING_EXPIRED_ERROR } =
+  const { TOPIC_EMBEDDING_EXPIRED_ERROR } =
     await importOriginal<typeof import("@langfuse/shared/topics/server")>();
   return {
     getTopicTextResponseMetadata: () => undefined,
@@ -99,7 +99,6 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
         clustering: slot("clustering", "gpt-5.6-terra"),
       };
     },
-    TOPICS_TRANSCRIPT_VERSION,
     TOPIC_EMBEDDING_EXPIRED_ERROR,
     stageTopicSummary: async (
       scope: { projectId: string; executionId: string },
@@ -438,6 +437,7 @@ function traceInput(traceId: string, input: string | null = traceId) {
         metadata: {},
       },
     ]),
+    executionIssues: [],
   };
 }
 
@@ -598,15 +598,12 @@ beforeEach(() => {
     traceInput(traceId),
   );
   state.summarize.mockImplementation(async (_facet, text: string) => {
-    // The projected transcript the trace-batch path sends.
-    const transcript = JSON.parse(text);
-    const input = transcript.threads[0].currentTurn[0].parts.find(
-      (part: { type: string }) => part.type === "text",
-    );
+    // The rendered Topics text carries the request on its own line.
+    const request = /\[user · request\] (.*)/.exec(text)![1];
     return {
       output: {
         status: "applicable",
-        summary: input!.text,
+        summary: request,
       },
       providedUsageDetails: { summary_input: 1 },
       usageDetails: { summary_input: 1 },
@@ -911,7 +908,7 @@ describe("Topics execution", () => {
   );
 
   it.each([
-    { version: TOPICS_TRANSCRIPT_VERSION, calls: 1, usageDetails: {} },
+    { version: TOPICS_TEXT_VERSION, calls: 1, usageDetails: {} },
     {
       version: "older-transcript",
       calls: 2,
@@ -938,7 +935,7 @@ describe("Topics execution", () => {
         {
           environment: "staging",
           traceName: "Updated support",
-          transcriptVersion: TOPICS_TRANSCRIPT_VERSION,
+          transcriptVersion: TOPICS_TEXT_VERSION,
           metadata: { executionId: "second" },
         },
       ]);
@@ -1616,47 +1613,55 @@ describe("Topics execution", () => {
     },
   );
 
-  it("fits a rule's first map from its scheduled run, continuing the setup snapshot's topics", async () => {
-    await processSelection("source", 100);
-    await updateSelection("published");
-    const published = {
-      ...[...state.runs.values()].at(-1)!,
-      batchActionId: "setup",
-    };
-    state.runs.set(published.id, published);
-    state.runs.set("refit", {
-      ...pendingRun({
-        id: "refit",
-        projectId: "project",
-        facetId: facet.facetId,
-        facetVersion: facet.version,
-        config: {
-          embeddingModel: "eu.cohere.embed-v4:0",
-          dimensions: 256,
-          timeRange: {
-            from: "2026-01-01T00:00:00.000Z",
-            to: "2026-01-08T00:00:00.000Z",
+  it.each([
+    { owner: "the setup snapshot", ruleId: null, continued: true },
+    { owner: "another rule's map", ruleId: "other-rule", continued: false },
+  ])(
+    "fits a rule's first map from its scheduled run, continuing $owner only if no rule owns it",
+    async ({ ruleId, continued }) => {
+      await processSelection("source", 100);
+      await updateSelection("published");
+      const published = {
+        ...[...state.runs.values()].at(-1)!,
+        batchActionId: ruleId ? null : "setup",
+        ruleId,
+      };
+      state.runs.set(published.id, published);
+      state.runs.set("refit", {
+        ...pendingRun({
+          id: "refit",
+          projectId: "project",
+          facetId: facet.facetId,
+          facetVersion: facet.version,
+          config: {
+            embeddingModel: "eu.cohere.embed-v4:0",
+            dimensions: 256,
+            timeRange: {
+              from: "2026-01-01T00:00:00.000Z",
+              to: "2026-01-08T00:00:00.000Z",
+            },
           },
-        },
-      }),
-      ruleId: "rule",
-    });
-    state.name.mockClear();
+        }),
+        ruleId: "rule",
+      });
+      state.name.mockClear();
 
-    await processTopicRuleRefit({ projectId: "project", runId: "refit" });
+      await processTopicRuleRefit({ projectId: "project", runId: "refit" });
 
-    const refit = state.runs.get("refit")!;
-    expect(refit).toMatchObject({ status: "completed", ruleId: "rule" });
-    expect(refit.topics.map((topic) => topic.topicId).sort()).toEqual(
-      published.topics.map((topic) => topic.topicId).sort(),
-    );
-    expect(state.name).not.toHaveBeenCalled();
-    expect(
-      [...state.assignments.values()].filter(
-        (row) => row.runId === "refit" && row.origin === "initial",
-      ),
-    ).toHaveLength(100);
-  });
+      const refit = state.runs.get("refit")!;
+      expect(refit).toMatchObject({ status: "completed", ruleId: "rule" });
+      const sameTopics = refit.topics.some((topic) =>
+        published.topics.some((other) => other.topicId === topic.topicId),
+      );
+      expect(sameTopics).toBe(continued);
+      if (continued) expect(state.name).not.toHaveBeenCalled();
+      expect(
+        [...state.assignments.values()].filter(
+          (row) => row.runId === "refit" && row.origin === "initial",
+        ),
+      ).toHaveLength(100);
+    },
+  );
 
   it("bounds assignment writes and retries publication when a batch is not visible", async () => {
     await processSelection("source", 1);

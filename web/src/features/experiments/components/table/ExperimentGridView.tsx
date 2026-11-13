@@ -43,8 +43,6 @@ type ExperimentGridViewProps = {
   useExperimentColors?: boolean;
   /** Whether cells carry a delta against the baseline (the diff mode). */
   showDiff: boolean;
-  /** Render I/O cells as single-line text (true) or JSON tree (false). */
-  singleLine: boolean;
   rows: ExperimentItemsTableRow[];
   isLoading: boolean;
   /**
@@ -90,7 +88,6 @@ export const ExperimentGridView = ({
   comparisonExperimentIds,
   useExperimentColors = true,
   showDiff,
-  singleLine,
   rows,
   isLoading,
   ioLoading,
@@ -223,7 +220,6 @@ export const ExperimentGridView = ({
               baselineLatencyMs={baselineData?.latencyMs}
               observationId={expData.observationId}
               traceId={expData.traceId}
-              singleLine={singleLine}
               scores={expData.observationScores ?? {}}
               traceScores={expData.traceScores ?? {}}
               observationScoreOrder={observationScoreOrder}
@@ -293,7 +289,6 @@ export const ExperimentGridView = ({
     columnVisibility,
     useExperimentColors,
     showDiff,
-    singleLine,
     peekView,
     canAnnotate,
     capture,
@@ -325,7 +320,6 @@ export const ExperimentGridView = ({
             itemId={row.original.itemId}
             input={row.original.input}
             isLoading={ioLoading}
-            singleLine={singleLine}
           />
         ),
       },
@@ -340,9 +334,9 @@ export const ExperimentGridView = ({
               size: 200,
               getCell: (value) =>
                 ioLoading ? { type: "loading" } : value || undefined,
-              // Display chooses text or JSON. Row height does not.
+              // JSON tree. Row height does not collapse this cell to one line.
               followRowHeight: false,
-              singleLine,
+              singleLine: false,
               variant: "output",
             }),
           ]
@@ -356,7 +350,6 @@ export const ExperimentGridView = ({
       ioLoading,
       selectActionColumn,
       showExpectedOutput,
-      singleLine,
     ],
   );
 

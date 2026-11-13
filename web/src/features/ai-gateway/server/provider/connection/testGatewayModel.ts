@@ -18,6 +18,12 @@ const BEDROCK_TEST_ORDER: GatewayApiFormat[] = [
   "openai.chat-completions",
   "openai.responses",
 ];
+const AZURE_TEST_ORDER: GatewayApiFormat[] = [
+  "openai.responses",
+  "openai.chat-completions",
+  "openai.embeddings",
+  "anthropic.messages",
+];
 
 export type GatewayModelTestResult =
   | { success: true; durationMs: number }
@@ -103,7 +109,8 @@ async function sendTestRequest(
 }
 
 // Bedrock models the gateway cannot classify, such as application inference
-// profile ARNs, may serve any format, so each one is tried until one answers.
+// profile ARNs, and Azure deployments, whose names are chosen freely, may serve
+// any format, so each one is tried until one answers.
 function getTestApiFormats(
   provider: GatewayProviderName,
   model: string,
@@ -113,6 +120,7 @@ function getTestApiFormats(
   if (provider === "OPENAI" && isOpenAiEmbeddingModel(model)) {
     return ["openai.embeddings"];
   }
+  if (provider === "AZURE") return [...(reportedFormats ?? AZURE_TEST_ORDER)];
   if (provider === "GOOGLE_AI_STUDIO") {
     return isGeminiEmbeddingModel(model)
       ? ["openai.embeddings"]
