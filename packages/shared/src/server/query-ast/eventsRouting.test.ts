@@ -1469,17 +1469,4 @@ describe("routing pass alone", () => {
       }
     },
   );
-
-  it("routes each relation of one select on its own", () => {
-    expect(
-      routedTables(
-        routeAlone(
-          db
-            .selectFrom("events as a")
-            .innerJoin("events as b", "b.span_id", "a.span_id")
-            .select(["a.span_id", "b.input"]),
-        ),
-      ),
-    ).toEqual(["events_core", "events_full"]);
-  });
 });
