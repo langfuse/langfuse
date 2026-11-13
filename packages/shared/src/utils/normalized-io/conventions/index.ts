@@ -6,6 +6,7 @@ import { geminiProvider } from "./providers/gemini";
 import { langchainProvider } from "./providers/langchain";
 import { langfuseAgentPluginsProvider } from "./providers/langfuse-agent-plugins";
 import { openAiProvider } from "./providers/openai";
+import { openRouterProvider } from "./providers/openrouter";
 import { otelGenaiProvider } from "./providers/otel-genai";
 import { pydanticAiProvider } from "./providers/pydantic-ai";
 import { semanticKernelProvider } from "./providers/semantic-kernel";
@@ -34,6 +35,7 @@ export const registeredProviders: readonly IOConvention[] = [
   anthropicProvider,
   geminiProvider,
   langchainProvider,
+  openRouterProvider,
   aiSdkProvider,
   otelGenaiProvider,
   pydanticAiProvider,
