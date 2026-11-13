@@ -67,7 +67,11 @@ describeWithClickhouse("golden: scores.getScoresForExperimentItems", () => {
   });
 
   it("experimentIds set", async () => {
-    await getScoresForExperimentItems(FIXED_PROJECT_ID, FIXED_EXPERIMENT_IDS);
+    await getScoresForExperimentItems(
+      FIXED_PROJECT_ID,
+      FIXED_EXPERIMENT_IDS,
+      FIXED_FROM_TIMESTAMP,
+    );
 
     expect(snapshotCapturedQuery()).toMatchSnapshot();
   });
