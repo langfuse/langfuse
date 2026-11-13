@@ -122,3 +122,33 @@ export const TestSearch = meta.story({
     );
   },
 });
+
+export const TestActionsStayInView = meta.story({
+  name: "(Test) Actions stay in view with many projects",
+  args: {
+    state: "loaded",
+    projects: Array.from({ length: 40 }, (_, index) =>
+      createProject(`project-${index + 1}`, `Project ${index + 1}`),
+    ),
+    currentProjectId: "project-1",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(canvas.getByRole("button", { name: "Trigger" }));
+
+    const menuElement = body.getByRole("menu", { name: "Projects" });
+    const menu = within(menuElement);
+    const menuBottom = menuElement.getBoundingClientRect().bottom;
+    for (const name of ["Project settings", "New project"]) {
+      const action = menu.getByRole("menuitem", { name });
+      await expect(action.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+        menuBottom,
+      );
+    }
+    await expect(
+      menu.getByRole("link", { name: "Project 40" }).getBoundingClientRect()
+        .top,
+    ).toBeGreaterThan(menuBottom);
+  },
+});
