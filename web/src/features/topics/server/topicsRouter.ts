@@ -28,6 +28,10 @@ import {
   readTopicExecutionSummary,
   readTopicExecutionTraceErrors,
   getTopicExecutionCosts,
+  enqueueTopicSnapshotSetup,
+  readTopicSnapshotSummarizing,
+  writeTopicExecution,
+  writeTopicSnapshotSummarizing,
   getTopicSummaryCounts,
   listTopicExecutions,
   listTopicFacets,
@@ -793,6 +797,27 @@ export const topicsRouter = createTRPCRouter({
         throw new InvalidRequestError(
           "Only failed or interrupted executions can be resumed.",
         );
+      // A snapshot that never seeded its traces summarizes first, through its setup.
+      const summarizing =
+        execution.input.operation === "update" &&
+        execution.input.analysis?.summarize
+          ? await readTopicSnapshotSummarizing(input.projectId, execution.id)
+          : undefined;
+      if (summarizing !== undefined && !summarizing?.traceIds) {
+        if (summarizing)
+          await writeTopicSnapshotSummarizing(input.projectId, execution.id, {
+            ...summarizing,
+            failedTicks: 0,
+          });
+        await writeTopicExecution({
+          ...execution,
+          status: "queued",
+          phase: "summarizing",
+          error: null,
+        });
+        await enqueueTopicSnapshotSetup(input.projectId, execution.id);
+        return;
+      }
       await enqueueTopicExecution(input.projectId, execution.id);
     }),
   map: topicsProcedure

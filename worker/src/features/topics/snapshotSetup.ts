@@ -70,7 +70,7 @@ export async function tickTopicSnapshotSetup(
   try {
     if (!isTopicsProjectEnabled(projectId))
       throw new Error("Topics is not enabled for this project.");
-    const seeded = state ?? (await seed(execution, now));
+    const seeded = state?.traceIds ? state : await seed(execution, now);
     return await settle(execution, seeded, now);
   } catch (error) {
     const failedTicks = (state?.failedTicks ?? 0) + 1;
@@ -81,9 +81,10 @@ export async function tickTopicSnapshotSetup(
       failedTicks,
       error,
     });
-    if (state && failedTicks < MAX_FAILED_TICKS) {
+    // A failure before seeding leaves a state without trace IDs, so the next tick seeds again.
+    if (failedTicks < MAX_FAILED_TICKS) {
       await writeTopicSnapshotSummarizing(projectId, executionId, {
-        ...state,
+        ...(state ?? unseeded(execution, now)),
         failedTicks,
       });
       return true;
@@ -96,6 +97,21 @@ export async function tickTopicSnapshotSetup(
     });
     return false;
   }
+}
+
+function unseeded(
+  execution: SnapshotExecution,
+  now: Date,
+): TopicSnapshotSummarizing {
+  return {
+    startedAt: now.toISOString(),
+    from: execution.input.timeRange.from.toISOString(),
+    traceIds: null,
+    seededCount: 0,
+    grewAt: null,
+    settled: 0,
+    failedTicks: 0,
+  };
 }
 
 /** Selects the traces to summarize and enqueues them as events-dispatch jobs, spread out. */
@@ -151,6 +167,7 @@ async function seed(
       ),
     ).toISOString(),
     traceIds: bounds.map(({ traceId }) => traceId),
+    seededCount: bounds.length,
     grewAt: null,
     settled: 0,
     failedTicks: 0,
@@ -161,7 +178,7 @@ async function seed(
     executionId,
     days,
     selection: summarize.selection,
-    seeded: state.traceIds.length,
+    seeded: state.seededCount,
   });
   return state;
 }
@@ -235,11 +252,12 @@ async function settle(
   now: Date,
 ): Promise<boolean> {
   const { projectId, id: executionId } = execution;
+  const traceIds = state.traceIds ?? [];
   const counts = await countTopicTraceSummaries(
     projectId,
     execution.input.facets,
     execution.input.embeddingConfig,
-    state.traceIds,
+    traceIds,
     new Date(state.startedAt),
     new Date(state.from),
   );
@@ -249,13 +267,13 @@ async function settle(
     ...facet,
     counts: {
       ...facet.counts,
-      requested: state.traceIds.length,
+      requested: traceIds.length,
       complete:
         counts.find(({ facetId }) => facetId === facet.facetId)?.settled ?? 0,
     },
   }));
   const done =
-    settled >= SETTLED_SHARE * state.traceIds.length ||
+    settled >= SETTLED_SHARE * traceIds.length ||
     (grewAt !== null && now.getTime() - Date.parse(grewAt) >= STALL_MS) ||
     now.getTime() - Date.parse(state.startedAt) >= DEADLINE_MS;
   await writeTopicSnapshotSummarizing(projectId, executionId, {
@@ -272,11 +290,31 @@ async function settle(
     error: null,
   });
   if (!done) return true;
-  await enqueueTopicExecution(projectId, executionId);
+  try {
+    await enqueueTopicExecution(projectId, executionId);
+  } catch (error) {
+    // Back to summarizing, so the next tick retries the handoff.
+    await writeTopicExecution({
+      ...execution,
+      facets,
+      status: "running",
+      phase: "summarizing",
+      error: null,
+    });
+    throw error;
+  }
+  // Nothing reads the trace IDs after the handoff; cost uses metadata.executionId.
+  await writeTopicSnapshotSummarizing(projectId, executionId, {
+    ...state,
+    traceIds: [],
+    grewAt,
+    settled,
+    failedTicks: 0,
+  });
   logger.info("Finished Topics snapshot summarizing", {
     projectId,
     executionId,
-    seeded: state.traceIds.length,
+    seeded: state.seededCount,
     settled,
     durationMs: now.getTime() - Date.parse(state.startedAt),
   });

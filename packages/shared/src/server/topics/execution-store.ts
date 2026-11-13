@@ -26,7 +26,7 @@ type BatchMetadata = {
   inputHash: string;
   requestHash: string;
   progressVersion?: number;
-  /** A snapshot's traces seeded for summarizing, kept until its fit starts. */
+  /** A snapshot's seeding state; its trace IDs are dropped once the fit is enqueued. */
   summarizing?: TopicSnapshotSummarizing;
 };
 /** Seeded traces and the settle clock of a snapshot that summarizes before it groups. */
@@ -34,7 +34,9 @@ export type TopicSnapshotSummarizing = {
   startedAt: string;
   /** Earliest first event of a seeded trace; summary counts start here. */
   from: string;
-  traceIds: string[];
+  /** Null until seeding succeeds; emptied once the fit is enqueued. */
+  traceIds: string[] | null;
+  seededCount: number;
   /** When the settled count last grew; null before the first summary. */
   grewAt: string | null;
   settled: number;

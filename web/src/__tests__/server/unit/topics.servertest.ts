@@ -45,6 +45,10 @@ const mocks = vi.hoisted(() => ({
   saveTopicsSetup: vi.fn(),
   setTopicsAutomaticProcessing: vi.fn(),
   enqueueTopicExecution: vi.fn(),
+  enqueueTopicSnapshotSetup: vi.fn(),
+  readTopicSnapshotSummarizing: vi.fn(),
+  writeTopicExecution: vi.fn(),
+  writeTopicSnapshotSummarizing: vi.fn(),
   getTopicExecutionQueueState: vi.fn(),
   queryClickhouse: vi.fn(),
   auditLog: vi.fn(),
@@ -1030,6 +1034,36 @@ describe("Topics local execution access and publication", () => {
     );
   });
 
+  it("resumes a snapshot that failed before seeding through its summarizing setup", async () => {
+    const failed = execution();
+    failed.status = "failed";
+    failed.phase = "failed";
+    failed.facets[0]!.outcome = "pending";
+    failed.input.analysis = {
+      label: "Billing",
+      filter: [],
+      seed: "topics-analysis",
+      summarize: { limit: 500, selection: "random" },
+    };
+    mocks.readTopicExecutionSummary.mockResolvedValue(failed);
+    mocks.getTopicExecutionQueueState.mockResolvedValue("missing");
+    mocks.readTopicSnapshotSummarizing.mockResolvedValue({
+      traceIds: null,
+      failedTicks: 3,
+    });
+
+    await caller().retry({ projectId, executionId: failed.id });
+
+    expect(mocks.writeTopicExecution).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "queued", phase: "summarizing" }),
+    );
+    expect(mocks.enqueueTopicSnapshotSetup).toHaveBeenCalledWith(
+      projectId,
+      failed.id,
+    );
+    expect(mocks.enqueueTopicExecution).not.toHaveBeenCalled();
+  });
+
   it("shows a queued retry without overwriting worker-owned journal progress", async () => {
     const interrupted = execution();
     interrupted.status = "failed";
@@ -1474,6 +1508,34 @@ describe("Topics analyses", () => {
     expect(mocks.queryClickhouse.mock.calls[0][0].query).toMatch(
       /^SELECT count\(\) AS count FROM \(SELECT DISTINCT id FROM/,
     );
+  });
+
+  it("previews and starts a snapshot when the unsummarized count fails", async () => {
+    const slice = {
+      projectId,
+      filter: [condition("environment", "production")],
+      timeRange,
+      facets: selectedFacets,
+    };
+    // Only the unsummarized-trace scan (it reads last_ts) fails, as on a timeout.
+    mocks.queryClickhouse.mockImplementation(async ({ query }) => {
+      if (query.includes("last_ts")) throw new Error("Timeout exceeded");
+      return [{ count: "250" }];
+    });
+    mocks.getTopicSummaryCounts.mockResolvedValue([
+      { facetId, facetVersion, count: 120 },
+    ]);
+    mocks.createTopicExecution.mockResolvedValue({
+      ...execution(),
+      status: "queued",
+    });
+    expect(await caller().previewAnalysis(slice)).toMatchObject({
+      summarizedCount: 120,
+      unsummarizedCount: null,
+    });
+    await expect(
+      caller().startAnalysis({ ...slice, label: "Production" }),
+    ).resolves.toMatchObject({ id: execution().id });
   });
 
   it("serves an analysis from its own run and window, listing only its members", async () => {

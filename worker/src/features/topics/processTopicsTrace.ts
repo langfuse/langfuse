@@ -94,15 +94,25 @@ function matchedRules(
   return settings.rules.filter((rule) => ruleIds.has(rule.id));
 }
 
-/** Facets a snapshot selected, or null when it no longer summarizes. */
+/**
+ * Facets a snapshot selected whose current version is still the one it saved,
+ * since the snapshot counts and clusters that version; null when it no longer summarizes.
+ */
 async function snapshotFacetIds(
   projectId: string,
   executionId: string,
+  facets: TopicFacet[],
 ): Promise<string[] | null> {
   const execution = await readTopicExecutionSummary(projectId, executionId);
   if (execution?.input.operation !== "update" || execution.status === "failed")
     return null;
-  return execution.input.facets.map(({ facetId }) => facetId);
+  return execution.input.facets.flatMap(({ facetId, version }) =>
+    facets.some(
+      (facet) => facet.id === facetId && facet.versions[0]?.version === version,
+    )
+      ? [facetId]
+      : [],
+  );
 }
 
 /** Facets the matched rules or the snapshot select, in listing order; a retry restricts them to its unfinished facets. */
@@ -249,7 +259,7 @@ async function processEvent(
   if (!models) return { outcome: "disabled" };
   const rules = matchedRules(event, settings);
   const snapshotFacets = event.batchActionId
-    ? await snapshotFacetIds(projectId, event.batchActionId)
+    ? await snapshotFacetIds(projectId, event.batchActionId, settings.facets)
     : [];
   if (snapshotFacets === null) return { outcome: "stale" };
   const facets = selectFacets(event, rules, settings, snapshotFacets);

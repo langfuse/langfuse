@@ -26,8 +26,8 @@ export const SNAPSHOT_DEFAULT_SUMMARIZE: SnapshotSummarize = {
 
 type SnapshotPreview = {
   summarizedCount: number;
-  /** Finished matching traces without a summary for every selected question. */
-  unsummarizedCount: number;
+  /** Finished matching traces without a summary for every selected facet; null when the count failed. */
+  unsummarizedCount: number | null;
   /** Recommended count; below it the snapshot clusters in small-sample mode. */
   minimumTraceCount: number;
   /** Fewest traces a small-sample snapshot can group. */
@@ -38,8 +38,12 @@ const COUNT_PRESETS = [100, 250, 500, 1_000];
 const count = (value: number) => value.toLocaleString("en-US");
 const traces = (value: number) =>
   `${count(value)} ${value === 1 ? "trace" : "traces"}`;
+// Without a count, every preset is offered; the selection takes what exists.
 const summarizeMax = (preview: SnapshotPreview) =>
-  Math.min(TOPICS_BACKFILL_TRACE_LIMIT, preview.unsummarizedCount);
+  Math.min(
+    TOPICS_BACKFILL_TRACE_LIMIT,
+    preview.unsummarizedCount ?? TOPICS_BACKFILL_TRACE_LIMIT,
+  );
 
 /** Count choices up to what can be summarized; "all N" when fewer remain. */
 function countOptions(max: number) {
@@ -47,6 +51,13 @@ function countOptions(max: number) {
   if (max > 0 && max < TOPICS_BACKFILL_TRACE_LIMIT && !options.includes(max))
     options.push(max);
   return options;
+}
+
+/** The largest option up to the configured count, else the smallest. */
+function chosenCount(configured: number, options: number[]) {
+  return (
+    options.filter((option) => option <= configured).at(-1) ?? options[0] ?? 0
+  );
 }
 
 /** Whether summarizing is on: the user's choice, else on when summaries are short. */
@@ -66,12 +77,7 @@ export function snapshotSummarizeCount(
   preview: SnapshotPreview | null,
 ) {
   if (!preview || !summarizeOn(summarize, preview)) return 0;
-  const options = countOptions(summarizeMax(preview));
-  return (
-    options.filter((option) => option <= summarize.count).at(-1) ??
-    options[0] ??
-    0
-  );
+  return chosenCount(summarize.count, countOptions(summarizeMax(preview)));
 }
 
 /** The New snapshot dialog without data fetching; stories render it directly. */
@@ -155,6 +161,13 @@ function CoverageBar({
 }) {
   if (!preview)
     return <p className="text-muted-foreground text-sm">Counting summaries…</p>;
+  if (preview.unsummarizedCount === null)
+    return (
+      <p className="text-muted-foreground text-sm">
+        {count(preview.summarizedCount)} already summarized · couldn’t count the
+        traces without a summary
+      </p>
+    );
   const total = preview.summarizedCount + preview.unsummarizedCount;
   const share = (value: number) => (total === 0 ? 0 : (value / total) * 100);
   const notConsidered = preview.unsummarizedCount - extra;
@@ -246,7 +259,7 @@ function SummarizeSentence({
         <>
           <TopicInlineSelect
             label="Traces to summarize"
-            value={String(value || options[0])}
+            value={String(value || chosenCount(summarize.count, options))}
             options={options.map((option) => ({
               value: String(option),
               label:
@@ -298,7 +311,7 @@ function SnapshotSummary({
           ? "No summarized traces yet."
           : `Only ${traces(preview.summarizedCount)} summarized.`}{" "}
         A snapshot needs at least {count(preview.smallSampleMinimumTraceCount)}.{" "}
-        {preview.unsummarizedCount > 0
+        {preview.unsummarizedCount !== 0
           ? "Summarize more traces or widen the filter."
           : "Widen the filter or time range."}
       </div>

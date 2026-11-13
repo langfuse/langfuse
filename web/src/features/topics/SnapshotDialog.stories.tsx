@@ -46,7 +46,7 @@ const traces = [
 
 type Counts = {
   summarizedCount: number;
-  unsummarizedCount: number;
+  unsummarizedCount: number | null;
 };
 
 function SnapshotStory({
@@ -80,14 +80,17 @@ function SnapshotStory({
   const scale = windowDays / 7;
   const shown = counts && {
     summarizedCount: Math.round(counts.summarizedCount * scale),
-    unsummarizedCount: Math.round(counts.unsummarizedCount * scale),
+    unsummarizedCount:
+      counts.unsummarizedCount === null
+        ? null
+        : Math.round(counts.unsummarizedCount * scale),
     minimumTraceCount: TOPICS_ANALYSIS_MIN_TRACES,
     smallSampleMinimumTraceCount: TOPICS_ANALYSIS_SMALL_SAMPLE_MIN_TRACES,
   };
   const tracePreview: TopicTracePreview = shown
     ? {
         status: "ready",
-        count: shown.summarizedCount + shown.unsummarizedCount,
+        count: shown.summarizedCount + (shown.unsummarizedCount ?? 0),
         traces,
       }
     : { status: "loading" };
@@ -174,6 +177,11 @@ export const TooFewTraces = meta.story({
 
 export const Counting = meta.story({ args: { counts: null } });
 
+export const CountUnavailable = meta.story({
+  name: "Unsummarized count unavailable",
+  args: { counts: { summarizedCount: 1_284, unsummarizedCount: null } },
+});
+
 export const StartFailed = meta.story({
   name: "Start failed",
   args: {
@@ -192,6 +200,8 @@ export const StartRules = meta.story({
       name: "Summarize more traces",
     });
     await expect(toggle).toBeChecked();
+    const traces = body.getByRole("combobox", { name: "Traces to summarize" });
+    await expect(traces).toHaveTextContent("500");
     await expect(create).toBeDisabled();
     await userEvent.type(
       body.getByRole("textbox", { name: "Snapshot name" }),
@@ -201,5 +211,7 @@ export const StartRules = meta.story({
     // 42 summaries alone still start; the fit clusters them as a small sample.
     await userEvent.click(toggle);
     await expect(create).toBeEnabled();
+    // Off, the count still shows what turning it on would summarize.
+    await expect(traces).toHaveTextContent("500");
   },
 });

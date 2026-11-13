@@ -147,6 +147,13 @@ export async function enqueueTopicSnapshotSetup(
   const queue = TopicsSetupQueue.getInstance();
   if (!queue) throw new Error("Topics setup requires Redis.");
   const id = snapshotSetupJobId(projectId, executionId);
+  // A resume reuses the ID; a finished earlier job would make the add a no-op.
+  const previous = await queue.getJob(id);
+  if (
+    previous &&
+    ((await previous.isCompleted()) || (await previous.isFailed()))
+  )
+    await previous.remove();
   await queue.add(
     QueueJobs.TopicsSetup,
     {

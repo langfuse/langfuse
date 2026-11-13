@@ -12,6 +12,7 @@ import {
   createTopicFacet,
   enqueueTopicExecution,
   readTopicExecutionSummary,
+  readTopicSnapshotSummarizing,
   writeTopicSummaries,
 } from "@langfuse/shared/topics/server";
 import { tickTopicSnapshotSetup } from "./snapshotSetup";
@@ -23,10 +24,25 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
   isTopicsProjectEnabled: () => true,
 }));
 const add = vi.fn();
-vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
-  EventsDispatchQueue: { getInstance: () => ({ add }) },
-}));
+const selection = vi.hoisted(() => ({ failNext: false }));
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("@langfuse/shared/src/server")>();
+  return {
+    ...original,
+    EventsDispatchQueue: { getInstance: () => ({ add }) },
+    // Lets a test fail the first selection once, as a ClickHouse timeout would.
+    getTopicSetupTraceIds: async (
+      ...args: Parameters<typeof original.getTopicSetupTraceIds>
+    ) => {
+      if (selection.failNext) {
+        selection.failNext = false;
+        throw new Error("Timeout exceeded");
+      }
+      return original.getTopicSetupTraceIds(...args);
+    },
+  };
+});
 
 const DIMENSIONS = 64;
 
@@ -54,6 +70,8 @@ describe("Topics snapshot summarizing", () => {
   });
 
   it("dispatches unsummarized traces with its ID, then enqueues its fit once they settle", async () => {
+    // The first selection times out once; the snapshot retries instead of failing.
+    selection.failNext = true;
     const facetId = (
       await createTopicFacet({
         projectId,
@@ -98,6 +116,12 @@ describe("Topics snapshot summarizing", () => {
       "user",
     );
     expect(execution.phase).toBe("summarizing");
+
+    expect(await tickTopicSnapshotSetup(projectId, execution.id)).toBe(true);
+    expect(add).not.toHaveBeenCalled();
+    expect(
+      await readTopicSnapshotSummarizing(projectId, execution.id),
+    ).toMatchObject({ traceIds: null, failedTicks: 1 });
 
     expect(await tickTopicSnapshotSetup(projectId, execution.id)).toBe(true);
     const dispatched = add.mock.calls.flatMap(([, job]) => {
@@ -152,5 +176,9 @@ describe("Topics snapshot summarizing", () => {
       phase: "queued",
       facets: [{ counts: { requested: 3, complete: 3 } }],
     });
+    // The fit no longer needs the seeded IDs; only the count stays.
+    expect(
+      await readTopicSnapshotSummarizing(projectId, execution.id),
+    ).toMatchObject({ traceIds: [], seededCount: 3 });
   });
 });

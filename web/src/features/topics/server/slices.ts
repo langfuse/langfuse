@@ -25,6 +25,7 @@ import {
   readTopicExecutionSummary,
   topicAnalysisCohort,
 } from "@langfuse/shared/topics/server";
+import { logger } from "@langfuse/shared/src/server";
 import { countUnsummarizedTopicTraces } from "./traceSelection";
 
 type Filter = TopicRule["filter"];
@@ -114,7 +115,16 @@ export async function previewTopicAnalysis(input: {
       input.timeRange,
       cohort,
     ),
-    countUnsummarizedTopicTraces({ ...input, embeddingConfig: config }),
+    // An estimate for the summarize option; a slow scan must not block the snapshot.
+    countUnsummarizedTopicTraces({ ...input, embeddingConfig: config }).catch(
+      (error: unknown) => {
+        logger.warn("Topics snapshot could not count unsummarized traces", {
+          projectId: input.projectId,
+          error,
+        });
+        return null;
+      },
+    ),
   ]);
   const summarizedCount = Math.min(...counts.map(({ count }) => count));
   return {
@@ -145,8 +155,12 @@ export async function startTopicAnalysis(
   userId: string,
 ) {
   const preview = await previewTopicAnalysis(input);
+  // Without a count, the selection itself bounds what gets summarized.
   const extra = input.summarize
-    ? Math.min(input.summarize.limit, preview.unsummarizedCount)
+    ? Math.min(
+        input.summarize.limit,
+        preview.unsummarizedCount ?? input.summarize.limit,
+      )
     : 0;
   const grouped = preview.summarizedCount + extra;
   if (grouped < TOPICS_ANALYSIS_SMALL_SAMPLE_MIN_TRACES)
