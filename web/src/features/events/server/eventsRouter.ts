@@ -591,8 +591,8 @@ export const eventsRouter = createTRPCRouter({
   ),
   /**
    * Render a trace as the text the Topics summarizer receives, loaded the way
-   * manual Topics runs load it. Internal users only, and only where the events
-   * tables are written.
+   * manual Topics runs load it but bounded by the trace timestamp. Internal
+   * users only, and only where the events tables are written.
    */
   topicsTranscriptByTraceId: auditedQuery(
     protectedGetEventsTraceProcedure.input(
@@ -632,7 +632,11 @@ export const eventsRouter = createTRPCRouter({
 
           let loaded: Awaited<ReturnType<typeof loadTopicTranscript>>;
           try {
-            loaded = await loadTopicTranscript(input);
+            loaded = await loadTopicTranscript({
+              projectId: input.projectId,
+              traceId: input.traceId,
+              timestamp: ctx.trace?.timestamp ?? input.timestamp,
+            });
           } catch (error) {
             if (error instanceof TopicTraceTooLarge)
               return { text: null, hasContent: false, tooLarge: true };
