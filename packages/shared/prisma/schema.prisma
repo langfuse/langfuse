@@ -144,6 +144,7 @@ model Organization {
   gatewayAiConnections             GatewayAiConnection[]
   organizationLlmApiKeys           LlmApiKeys[]             @relation("OrganizationLlmApiKeys")
   roleAssignments                  RoleAssignment[]         @relation("RoleAssignmentTenant")
+  groups                           Group[]
 
   deprecatedRoleAssignments RoleAssignment[] @relation("DeprecatedRoleAssignmentOrganization") @ignore
 
@@ -301,6 +302,8 @@ model RoleAssignment {
   user         User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
   apiKeyId     String?      @map("api_key_id")
   apiKey       ApiKey?      @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  groupId      String?      @map("group_id")
+  group        Group?       @relation(fields: [groupId], references: [id], onDelete: Cascade)
   roleId       String       @map("role_id")
   systemRole   SystemRole   @map("system_role")
   createdAt    DateTime     @default(now()) @map("created_at")
@@ -327,6 +330,7 @@ model RoleAssignment {
   @@index([principalId])
   @@index([userId])
   @@index([apiKeyId])
+  @@index([groupId])
   @@map("role_assignments")
 }
 
@@ -537,10 +541,10 @@ model LlmApiKeys {
   organizationId String?       @map("organization_id")
   organization   Organization? @relation("OrganizationLlmApiKeys", fields: [organizationId], references: [id], onDelete: Cascade)
 
-  DefaultLlmModel DefaultLlmModel[] @relation("LlmApiKeyId")
-  topicSummaryConfigs    TopicConfig[] @relation("TopicConfigSummaryLlmApiKey")
-  topicEmbeddingConfigs  TopicConfig[] @relation("TopicConfigEmbeddingLlmApiKey")
-  topicClusteringConfigs TopicConfig[] @relation("TopicConfigClusteringLlmApiKey")
+  DefaultLlmModel        DefaultLlmModel[] @relation("LlmApiKeyId")
+  topicSummaryConfigs    TopicConfig[]     @relation("TopicConfigSummaryLlmApiKey")
+  topicEmbeddingConfigs  TopicConfig[]     @relation("TopicConfigEmbeddingLlmApiKey")
+  topicClusteringConfigs TopicConfig[]     @relation("TopicConfigClusteringLlmApiKey")
 
   @@unique([projectId, provider])
   @@unique([organizationId, provider])
@@ -557,10 +561,50 @@ model OrganizationMembership {
   createdAt          DateTime            @default(now()) @map("created_at")
   updatedAt          DateTime            @default(now()) @updatedAt @map("updated_at")
   ProjectMemberships ProjectMembership[]
+  groupMemberships   GroupMembership[]
 
   @@unique([orgId, userId])
   @@index([userId])
   @@map("organization_memberships")
+}
+
+enum GroupSource {
+  SCIM // provisioned through SCIM /Groups
+  SYSTEM // created by Langfuse itself
+  MANUAL // created by an org admin in the Langfuse UI; invisible to SCIM
+}
+
+// Org members grouped by the IdP. Roles come from role_assignments (`group/<id>`).
+model Group {
+  id              String            @id @default(cuid())
+  orgId           String            @map("org_id")
+  organization    Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  // Not unique: Entra ID allows several groups with the same name.
+  displayName     String            @map("display_name")
+  // Unique per org when set (partial index in the migration).
+  externalId      String?           @map("external_id")
+  source          GroupSource       @default(SCIM)
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @default(now()) @updatedAt @map("updated_at")
+  members         GroupMembership[]
+  roleAssignments RoleAssignment[]
+
+  @@index([orgId, displayName])
+  @@map("groups")
+}
+
+// Cascades from the org membership: leaving the org leaves its groups.
+model GroupMembership {
+  id                     String                 @id @default(cuid())
+  groupId                String                 @map("group_id")
+  group                  Group                  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  orgMembershipId        String                 @map("org_membership_id")
+  organizationMembership OrganizationMembership @relation(fields: [orgMembershipId], references: [id], onDelete: Cascade)
+  createdAt              DateTime               @default(now()) @map("created_at")
+
+  @@unique([groupId, orgMembershipId])
+  @@index([orgMembershipId])
+  @@map("group_memberships")
 }
 
 // Set a project-specific role for a user in an organization
@@ -1005,15 +1049,15 @@ model SkillFile {
 }
 
 model SkillBlob {
-  id         String    @id @default(cuid())
-  createdAt  DateTime  @default(now()) @map("created_at")
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
 
   projectId String  @map("project_id")
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   sha256Hash    String @map("sha_256_hash") @db.Char(44)
   contentType   String @map("content_type")
-  contentLength Int @map("content_length")
+  contentLength Int    @map("content_length")
   content       String @db.Text
 
   files SkillFile[]
@@ -1173,7 +1217,7 @@ model Evaluator {
 
   name            String
   type            EvalTemplateType
-  isBuiltIn       Boolean              @default(false) @map("is_built_in")
+  isBuiltIn       Boolean               @default(false) @map("is_built_in")
   description     String?
   createdByUserId String?               @map("created_by_user_id")
   createdByUser   User?                 @relation("EvaluatorCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
@@ -1433,7 +1477,7 @@ model TopicConfig {
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   // Kill switch for automatic trace processing; facet rules are kept while off.
-  enabled Boolean @default(false)
+  enabled      Boolean               @default(false)
   // Same columns as Evaluator, set when a configured connection is no longer valid.
   blockedAt    DateTime?             @map("blocked_at")
   blockReason  EvaluatorBlockReason? @map("block_reason")
@@ -1509,7 +1553,7 @@ model PosthogIntegration {
   // True while the integration is exporting history (new, re-enabled, or export
   // mode reset), so the export staleness gauge can separate it from steady
   // state. Cleared by the worker once a run lands within an hour of its start.
-  backfill               Boolean                          @default(true)
+  backfill Boolean @default(true)
 
   // Last deterministic customer-config fault (bad hostname) that disabled the
   // integration. Written by the worker, surfaced in the integration settings
@@ -1533,7 +1577,7 @@ model MixpanelIntegration {
   // True while the integration is exporting history (new, re-enabled, or export
   // mode reset), so the export staleness gauge can separate it from steady
   // state. Cleared by the worker once a run lands within an hour of its start.
-  backfill                      Boolean                          @default(true)
+  backfill Boolean @default(true)
 
   @@map("mixpanel_integrations")
 }
@@ -1579,7 +1623,7 @@ model BlobStorageIntegration {
   // True while the integration is exporting history (new, re-enabled, or export
   // mode reset), so the export staleness gauge can separate it from steady
   // state. Cleared by the worker once a run lands within an hour of its start.
-  backfill     Boolean   @default(true)
+  backfill Boolean @default(true)
 
   // Error tracking
   lastError   String?   @map("last_error")

@@ -54,11 +54,15 @@ export const useHasOrganizationAccess = (p: {
 
 // For use in UI components as function, if session is already available
 export function hasOrganizationAccess(p: HasOrganizationAccessParams): boolean {
-  const organizationRole: Role | undefined = hasOwnRole(p)
-    ? p.role
-    : p.session?.user?.organizations.find((org) => org.id === p.organizationId)
-        ?.role;
-  if (organizationRole === undefined) return false;
+  if (hasOwnRole(p)) {
+    return organizationRoleAccessRights[p.role].includes(p.scope);
+  }
+  const organization = p.session?.user?.organizations.find(
+    (org) => org.id === p.organizationId,
+  );
+  if (!organization) return false;
 
-  return organizationRoleAccessRights[organizationRole].includes(p.scope);
+  return (
+    organization.scopes ?? organizationRoleAccessRights[organization.role]
+  ).includes(p.scope);
 }

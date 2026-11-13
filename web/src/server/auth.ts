@@ -7,7 +7,7 @@ import {
   type Session,
 } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, type Role } from "@langfuse/shared/src/db";
 import { isInAppAgentInstanceEnabled } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import {
   hashPassword,
@@ -90,6 +90,8 @@ import {
   sendResetPasswordVerificationRequest,
   instrumentAsync,
   logger,
+  resolveOrganizationScopes,
+  resolveProjectScopes,
   resolveProjectRole,
   isLangfuseAITracingConfigured,
   shouldSkipScoresDedup,
@@ -936,6 +938,17 @@ export async function getAuthOptions(
                           project: true,
                         },
                       },
+                      groupMemberships: {
+                        select: {
+                          group: {
+                            select: {
+                              roleAssignments: {
+                                select: { projectId: true, systemRole: true },
+                              },
+                            },
+                          },
+                        },
+                      },
                     },
                   },
                 },
@@ -1046,10 +1059,25 @@ export async function getAuthOptions(
                         const parsedCloudConfig = CloudConfigSchema.safeParse(
                           orgMembership.organization.cloudConfig,
                         );
+                        // Support-access memberships have no groups.
+                        const groupRoles =
+                          "groupMemberships" in orgMembership
+                            ? orgMembership.groupMemberships.flatMap(
+                                ({ group }) =>
+                                  group.roleAssignments.map((assignment) => ({
+                                    projectId: assignment.projectId,
+                                    role: assignment.systemRole as Role,
+                                  })),
+                              )
+                            : [];
                         return {
                           id: orgMembership.organization.id,
                           name: orgMembership.organization.name,
                           role: orgMembership.role,
+                          scopes: resolveOrganizationScopes({
+                            orgMembershipRole: orgMembership.role,
+                            groupRoles,
+                          }),
                           supportAccess: "supportAccess" in orgMembership,
                           metadata:
                             (orgMembership.organization.metadata as Record<
@@ -1085,6 +1113,13 @@ export async function getAuthOptions(
                                 id: project.id,
                                 name: project.name,
                                 role: projectRole,
+                                scopes: resolveProjectScopes({
+                                  projectId: project.id,
+                                  projectMemberships:
+                                    orgMembership.ProjectMemberships,
+                                  orgMembershipRole: orgMembership.role,
+                                  groupRoles,
+                                }),
                                 retentionDays: project.retentionDays,
                                 hasTraces: project.hasTraces,
                                 topicsEnabled: isTopicsProjectEnabled(
@@ -1105,11 +1140,12 @@ export async function getAuthOptions(
                                 createdAt: project.createdAt.toISOString(),
                               };
                             })
-                            // Only include projects where the user has the required role
+                            // Only include projects the user can read
                             .filter((project) =>
-                              projectRoleAccessRights[project.role].includes(
-                                "project:read",
-                              ),
+                              (
+                                project.scopes ??
+                                projectRoleAccessRights[project.role]
+                              ).includes("project:read"),
                             ),
 
                           // Enables features/entitlements based on the plan of the organization, either cloud or EE version when self-hosting

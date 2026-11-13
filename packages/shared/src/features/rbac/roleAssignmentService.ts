@@ -12,6 +12,7 @@ import { getOrgMembershipRoles } from "../memberships/orgMembershipRepository";
 import { getProjectMembershipRoles } from "../memberships/projectMembershipRepository";
 import {
   hasApiKeyKind,
+  hasGroupKind,
   hasOrganizationKind,
   hasSystemRoleKind,
   hasUserKind,
@@ -93,6 +94,16 @@ export async function revokeUserRoles(
 ): Promise<void> {
   await prisma.roleAssignment.deleteMany({
     where: { ownerId, userId: { not: null } },
+  });
+}
+
+/** revokeGroupRoles removes every group's assignments on an owner. */
+export async function revokeGroupRoles(
+  prisma: Prisma.TransactionClient,
+  { ownerId }: { ownerId: OwnerId },
+): Promise<void> {
+  await prisma.roleAssignment.deleteMany({
+    where: { ownerId, groupId: { not: null } },
   });
 }
 
@@ -196,9 +207,13 @@ async function validateTenancy(
 
 /** principalFields pairs a tagged principal with its foreign key. */
 function principalFields(principalId: PrincipalId) {
-  return hasApiKeyKind(principalId)
-    ? { principalId, apiKeyId: untag(principalId) }
-    : { principalId, userId: untag(principalId) };
+  if (hasApiKeyKind(principalId)) {
+    return { principalId, apiKeyId: untag(principalId) };
+  }
+  if (hasGroupKind(principalId)) {
+    return { principalId, groupId: untag(principalId) };
+  }
+  return { principalId, userId: untag(principalId) };
 }
 
 /** validateRole rejects unsupported roles and returns their storage fields. */

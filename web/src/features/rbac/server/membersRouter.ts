@@ -46,7 +46,10 @@ import {
 import { inviteOrganizationMember } from "@/src/features/rbac/server/inviteOrganizationMember";
 import { isSsoEnforcedForEmail } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { throwIfHigherProjectRole } from "@/src/features/rbac/server/throwIfHigherProjectRole";
-import { throwIfHigherRole } from "@/src/features/rbac/server/throwIfHigherRole";
+import {
+  sessionOrganizationScopes,
+  throwIfHigherRole,
+} from "@/src/features/rbac/server/throwIfHigherRole";
 import { userFeaturePreviewFlags } from "@/src/features/feature-flags/available-flags";
 import { setUserFeaturePreviewWithAuthorization } from "@/src/features/feature-flags/server/organizationFeatureFlags";
 
@@ -139,6 +142,7 @@ export const membersRouter = createTRPCRouter({
 
       throwIfHigherRole({
         ownRole: ctx.session.orgRole,
+        ownScopes: sessionOrganizationScopes(ctx.session),
         role: orgMembership.role,
       });
 
@@ -278,11 +282,13 @@ export const membersRouter = createTRPCRouter({
 
       throwIfHigherRole({
         ownRole: ctx.session.orgRole,
+        ownScopes: sessionOrganizationScopes(ctx.session),
         role: input.role, // new
       });
       requireGatewayEnabledForRole(input.orgId, input.role);
       throwIfHigherRole({
         ownRole: ctx.session.orgRole,
+        ownScopes: sessionOrganizationScopes(ctx.session),
         role: membership.role, // old
       });
 
@@ -496,6 +502,7 @@ export const membersRouter = createTRPCRouter({
       // cannot edit project roles of users with higher org roles
       throwIfHigherRole({
         ownRole: ctx.session.orgRole,
+        ownScopes: sessionOrganizationScopes(ctx.session),
         role: orgMembership.role,
       });
 

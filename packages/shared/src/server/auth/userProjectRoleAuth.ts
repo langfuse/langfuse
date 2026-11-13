@@ -2,21 +2,84 @@ import { prisma, Prisma, Role, ProjectMembership } from "../../db";
 import type { FilterState } from "../../types";
 import { tableColumnsToSqlFilterAndPrefix } from "../filterToPrisma";
 import { usersTableCols } from "../../tableDefinitions/usersTable";
-import { hasProjectAccessByRole } from "../../features/rbac/projectAccessRights";
+import {
+  hasProjectAccessByRole,
+  projectRoleAccessRights,
+  type ProjectScope,
+} from "../../features/rbac/projectAccessRights";
+import {
+  organizationRoleAccessRights,
+  type OrganizationScope,
+} from "../../features/rbac/organizationAccessRights";
 
+/** A role granted through a group; `projectId` is null for org-wide grants. */
+export type GroupRoleGrant = { projectId: string | null; role: Role };
+
+const union = <T>(lists: T[][]): T[] => [...new Set(lists.flat())];
+
+/** Direct role on a project: the project role if set, else the org role. */
 export function resolveProjectRole({
   projectId,
   projectMemberships,
   orgMembershipRole,
 }: {
   projectId: string;
-  projectMemberships: ProjectMembership[];
+  projectMemberships: Pick<ProjectMembership, "projectId" | "role">[];
   orgMembershipRole: Role;
 }): Role {
   return (
     projectMemberships.find((membership) => membership.projectId === projectId)
       ?.role ?? orgMembershipRole
   );
+}
+
+/**
+ * Org permissions of the direct role plus org-wide group roles.
+ * Undefined when no group grants anything org-wide.
+ */
+export function resolveOrganizationScopes({
+  orgMembershipRole,
+  groupRoles,
+}: {
+  orgMembershipRole: Role;
+  groupRoles: GroupRoleGrant[];
+}): OrganizationScope[] | undefined {
+  const grants = groupRoles.filter((grant) => grant.projectId === null);
+  if (grants.length === 0) return undefined;
+  return union([
+    organizationRoleAccessRights[orgMembershipRole],
+    ...grants.map((grant) => organizationRoleAccessRights[grant.role]),
+  ]);
+}
+
+/**
+ * Project permissions of the direct role plus group roles that apply to the
+ * project. Undefined when no group applies.
+ */
+export function resolveProjectScopes({
+  projectId,
+  projectMemberships,
+  orgMembershipRole,
+  groupRoles,
+}: {
+  projectId: string;
+  projectMemberships: Pick<ProjectMembership, "projectId" | "role">[];
+  orgMembershipRole: Role;
+  groupRoles: GroupRoleGrant[];
+}): ProjectScope[] | undefined {
+  const grants = groupRoles.filter(
+    (grant) => grant.projectId === null || grant.projectId === projectId,
+  );
+  if (grants.length === 0) return undefined;
+  const directRole = resolveProjectRole({
+    projectId,
+    projectMemberships,
+    orgMembershipRole,
+  });
+  return union([
+    projectRoleAccessRights[directRole],
+    ...grants.map((grant) => projectRoleAccessRights[grant.role]),
+  ]);
 }
 
 /**

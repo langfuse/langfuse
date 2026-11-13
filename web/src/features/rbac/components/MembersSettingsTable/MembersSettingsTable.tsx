@@ -25,6 +25,7 @@ import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import Link from "next/link";
 import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
 import { Button } from "@/src/components/ui/button";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 
 const formatRoleLabel = (role: Role) => systemRoleAccessRights[role].name;
 
@@ -45,11 +46,19 @@ export type MembersSettingsTableRow = {
   createdAt: Date;
   orgRole: Role;
   projectRole?: Role;
+  groupRoles: MemberGroupRole[];
   featurePreviews: Record<FeaturePreviewFlag, boolean> | null;
   featurePreviewManagement:
     | RouterOutput["members"]["allFromOrg"]["memberships"][number]["featurePreviewManagement"]
     | null;
   meta: { userId: string; orgMembershipId: string };
+};
+
+export type MemberGroupRole = {
+  groupId: string;
+  groupName: string;
+  role: Role;
+  level: "organization" | "project";
 };
 
 type MembersSettingsTableProps = Pick<
@@ -105,6 +114,9 @@ export function MembersSettingsTable({
   pagination,
   ...tableProps
 }: MembersSettingsTableProps) {
+  const showGroupRoles =
+    tableProps.data.status === "success" &&
+    tableProps.data.data.some((member) => member.groupRoles.length > 0);
   const columns = useMemo<LangfuseColumnDef<MembersSettingsTableRow>[]>(
     () => [
       createUserTableColumn<MembersSettingsTableRow>({
@@ -248,6 +260,29 @@ export function MembersSettingsTable({
             },
           ] satisfies LangfuseColumnDef<MembersSettingsTableRow>[])
         : []),
+      ...(showGroupRoles
+        ? ([
+            {
+              accessorKey: "groupRoles",
+              header: "Via Groups",
+              headerTooltip: {
+                description: project
+                  ? "Roles from the member's groups, org-wide or on this project. They add to the direct role and never lower it. Map groups to roles in organization settings."
+                  : "Org-wide roles from the member's groups. They add to the organization role and never lower it. Map groups to roles in organization settings.",
+                href: "https://langfuse.com/docs/administration/rbac",
+              },
+              size: 200,
+              enableHiding: true,
+              cell: ({ row }) => (
+                <GroupRolesCell
+                  orgId={orgId}
+                  groupRoles={row.original.groupRoles}
+                  showLevel={Boolean(project)}
+                />
+              ),
+            },
+          ] satisfies LangfuseColumnDef<MembersSettingsTableRow>[])
+        : []),
       ...(showFeaturePreviews
         ? ([
             {
@@ -304,6 +339,7 @@ export function MembersSettingsTable({
       project,
       projectRolesEntitlement,
       showFeaturePreviews,
+      showGroupRoles,
       updatingOrgRoleMembershipIds,
       updatingProjectRoleMembershipIds,
     ],
@@ -368,5 +404,49 @@ export function MembersSettingsTable({
       pagination={pagination}
       {...tableProps}
     />
+  );
+}
+
+function GroupRolesCell({
+  orgId,
+  groupRoles,
+  showLevel,
+}: {
+  orgId: string;
+  groupRoles: MemberGroupRole[];
+  showLevel: boolean;
+}) {
+  if (groupRoles.length === 0) {
+    return <span className="text-muted-foreground">—</span>;
+  }
+  return (
+    <div className="flex flex-wrap gap-1">
+      {groupRoles.map((grant) => {
+        const scope =
+          grant.level === "organization" ? "org-wide" : "on this project";
+        return (
+          <Tooltip
+            key={`${grant.groupId}-${grant.level}`}
+            label={`${formatRoleLabel(grant.role)} ${scope}, from group ${grant.groupName}`}
+          >
+            {({ getTriggerProps }) => (
+              <Link
+                href={`/organization/${orgId}/settings/groups`}
+                className="inline-flex"
+                {...getTriggerProps()}
+              >
+                <Badge
+                  color="outline"
+                  interactive
+                  text={`${formatRoleLabel(grant.role)} · ${grant.groupName}${
+                    showLevel && grant.level === "organization" ? " (org)" : ""
+                  }`}
+                />
+              </Link>
+            )}
+          </Tooltip>
+        );
+      })}
+    </div>
   );
 }

@@ -374,6 +374,7 @@ function convertToTableRow(
     createdAt: membership.createdAt,
     orgRole: membership.role,
     projectRole: membership.projectRole,
+    groupRoles: membership.groupRoles,
     featurePreviews,
     featurePreviewManagement,
   };

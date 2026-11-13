@@ -15,7 +15,10 @@ import {
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { throwIfHigherProjectRole } from "@/src/features/rbac/server/throwIfHigherProjectRole";
-import { throwIfHigherRole } from "@/src/features/rbac/server/throwIfHigherRole";
+import {
+  sessionOrganizationScopes,
+  throwIfHigherRole,
+} from "@/src/features/rbac/server/throwIfHigherRole";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 
@@ -116,6 +119,7 @@ export async function inviteOrganizationMember({
 
   throwIfHigherRole({
     ownRole: ctx.session.orgRole,
+    ownScopes: sessionOrganizationScopes(ctx.session),
     role: input.orgRole,
   });
   requireGatewayEnabledForRole(input.orgId, input.orgRole);
