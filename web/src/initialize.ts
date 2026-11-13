@@ -17,10 +17,15 @@ import {
 } from "@langfuse/shared/rbac";
 import {
   initializeClickhouseCompatibility,
+  loadLargeProjectIds,
   logger,
+  redis,
 } from "@langfuse/shared/src/server";
 
 await initializeClickhouseCompatibility();
+if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+  loadLargeProjectIds(redis);
+}
 
 // Warn if LANGFUSE_INIT_* variables are set but LANGFUSE_INIT_ORG_ID is missing
 if (!env.LANGFUSE_INIT_ORG_ID) {

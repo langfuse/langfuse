@@ -1679,6 +1679,58 @@ export const getTracingCountsByProjectInCreationIntervalFromEventsTable =
     }));
   };
 
+/**
+ * Projects with at least `minSpans` events_core rows created in `[start, end)`.
+ * Every stored row counts, including the synthetic `t-<traceId>` rows of
+ * ingestion-API traces, because the count measures data volume, not usage.
+ * The threshold is applied in ClickHouse so only qualifying ids are returned.
+ * Spans that started more than a day before `start` are not counted: the
+ * `start_time` bound lets ClickHouse prune partitions, which a `created_at`
+ * filter alone cannot.
+ */
+export const getProjectIdsWithMinSpansInCreationIntervalFromEventsTable =
+  async ({
+    start,
+    end,
+    minSpans,
+  }: {
+    start: Date;
+    end: Date;
+    minSpans: number;
+  }): Promise<string[]> => {
+    // Spans several projects, so it cannot go through compileClickhouseQuery,
+    // whose tenancy scope is always a single project.
+    const query = `
+      SELECT project_id
+      FROM events_core
+      WHERE created_at >= {start: DateTime64(3)}
+      AND created_at < {end: DateTime64(3)}
+      AND start_time >= {startTimeFrom: DateTime64(3)}
+      AND is_deleted = 0
+      GROUP BY project_id
+      HAVING count() >= {minSpans: UInt64}
+    `;
+
+    const ONE_DAY_MS = 24 * 3600 * 1000;
+    const rows = await queryClickhouse<{ project_id: string }>({
+      query,
+      params: {
+        start: convertDateToClickhouseDateTime(start),
+        startTimeFrom: convertDateToClickhouseDateTime(
+          new Date(start.getTime() - ONE_DAY_MS),
+        ),
+        end: convertDateToClickhouseDateTime(end),
+        minSpans,
+      },
+      clickhouseConfigs: {
+        request_timeout: 300000, // 5 minutes timeout
+      },
+      preferredClickhouseService: "EventsReadOnly",
+    });
+
+    return rows.map((row) => row.project_id);
+  };
+
 type PublicApiObservationsQuery = {
   projectId: string;
   page: number;
