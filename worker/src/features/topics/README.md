@@ -63,7 +63,7 @@ LIMIT 50;
 
 ## Transcript and summary contract
 
-Manual processing and trace batches share the transcript producer and [assembledTranscript.ts](assembledTranscript.ts) projection. The model receives conversation history and current-turn messages without observation provenance, reasoning content, tool definitions or inline media payloads. Empty projected content produces `insufficient_input` without inference. The [shared transcript README](../../../../packages/shared/src/server/transcript/README.md) owns observation eligibility and assembly semantics; diagnostic text renderers are not the Topics model input.
+Manual processing and trace batches share the transcript producer and [topics-model-input.ts](../../../../packages/shared/src/server/transcript/topics-model-input.ts) projection. The model receives conversation history and current-turn messages without observation provenance, reasoning content, tool definitions or inline media payloads. Empty projected content produces `insufficient_input` without inference. The [shared transcript README](../../../../packages/shared/src/server/transcript/README.md) owns observation eligibility and assembly semantics; diagnostic text renderers are not the Topics model input.
 
 [trace-input.ts](../../../../packages/shared/src/server/topics/trace-input.ts) bounds manual source loading separately from the summary request's token budget. The request budget includes transcript, instructions and schema; oversized input fails before inference, without shortening evidence per facet. Keep tokenizer code and its WASM dependency in worker `models.ts`.
 
