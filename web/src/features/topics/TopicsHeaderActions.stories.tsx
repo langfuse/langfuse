@@ -115,5 +115,13 @@ export const RefreshCooldown = meta.story({
       "title",
       "Refreshed recently. Available again in 10 min.",
     );
+    // Touch screens show no title tooltip, so the reason must be on screen.
+    await waitFor(() =>
+      expect(
+        within(item).getByText(
+          "Refreshed recently. Available again in 10 min.",
+        ),
+      ).toBeVisible(),
+    );
   },
 });

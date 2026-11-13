@@ -570,11 +570,16 @@ it.each([
   expect(items.map((item) => item.textContent)).not.toContain("Edit map");
   // Every action stays visible; without write access it is disabled with a reason.
   for (const label of ["New map", "New snapshot"]) {
-    const item = items.find((candidate) => candidate.textContent === label);
+    const item = items.find((candidate) =>
+      candidate.textContent?.startsWith(label),
+    );
     expect(item).toBeDefined();
     expect(item!.getAttribute("aria-disabled")).toBe(canWrite ? null : "true");
     expect(item!.getAttribute("title")).toBe(
       canWrite ? null : "You need permission to edit Topics.",
+    );
+    expect(item!.textContent).toBe(
+      canWrite ? label : `${label}You need permission to edit Topics.`,
     );
   }
 });
