@@ -959,11 +959,9 @@ function snapshotProgress(
   },
   facets: { id: string; name: string }[],
 ) {
-  const stages: Record<string, TopicSetupStage> = {
-    summarizing: "summarizing",
-    naming: "naming",
-  };
-  const stage = stages[execution.phase] ?? "grouping";
+  // Clustering and naming read as one step, as in a map's setup.
+  const stage: TopicSetupStage =
+    execution.phase === "summarizing" ? "summarizing" : "grouping";
   return {
     stage,
     facets: execution.progress.map((facet) => ({
