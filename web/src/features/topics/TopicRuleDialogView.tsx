@@ -25,6 +25,7 @@ export function TopicRuleDialogView({
   onSamplingPercentChange,
   dailyTraces,
   canSave,
+  saveDisabledReason,
   saving,
   saveError,
   onSave,
@@ -37,6 +38,7 @@ export function TopicRuleDialogView({
         {
           label: "Save changes",
           disabled: !canSave,
+          disabledReason: saveDisabledReason,
           loading: saving,
           onClick: onSave,
         },
@@ -102,6 +104,7 @@ type TopicRuleDialogViewProps = {
   /** Matching traces per day over the last week; null while unknown. */
   dailyTraces: number | null;
   canSave: boolean;
+  saveDisabledReason?: string;
   saving: boolean;
   saveError: string | null;
   onSave: () => void;

@@ -15,6 +15,7 @@ export type TopicSliceDialog =
 export function TopicSliceDialogController({
   projectId,
   facets,
+  canWrite,
   liveDisabledReason,
   onAnalysisStarted,
   onRuleCreated,
@@ -22,6 +23,7 @@ export function TopicSliceDialogController({
 }: {
   projectId: string;
   facets: TopicFacet[];
+  canWrite: boolean;
   /** Why New scan can't create another live scan; absent when it can. */
   liveDisabledReason?: string;
   onAnalysisStarted: (executionId: string) => void;
@@ -47,6 +49,7 @@ export function TopicSliceDialogController({
             projectId={projectId}
             facets={facets}
             rule={state.rule}
+            canWrite={canWrite}
             closeDialog={closeDialog}
           />
         )

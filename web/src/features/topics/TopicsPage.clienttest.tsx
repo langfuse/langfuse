@@ -538,8 +538,12 @@ it("puts New scan first in the menu with the scan actions", async () => {
   ]);
 });
 
-it("shows Edit scan as a header button for a selected live scan", async () => {
+it.each([
+  { access: "with topics:CUD", canWrite: true },
+  { access: "without topics:CUD", canWrite: false },
+])("shows Edit scan as a header button $access", async ({ canWrite }) => {
   withSummaries();
+  state.canWrite = canWrite;
   state.maps = {
     rules: [
       {

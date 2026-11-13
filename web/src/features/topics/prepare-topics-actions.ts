@@ -52,7 +52,7 @@ export function prepareTopicsActions({
   onHistory: () => void;
   /** Starts a one-off analysis; absent where none can start. */
   onNewAnalysis?: () => void;
-  /** Edits the selected live run; absent for past runs or without write access. */
+  /** Opens the selected live run's settings; absent for past runs. */
   onEditRun?: () => void;
   showUnassigned: boolean;
   onShowUnassignedChange: (show: boolean) => void;

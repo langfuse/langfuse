@@ -462,6 +462,7 @@ function TopicsWorkspaceContent({
     <TopicSliceDialogController
       projectId={projectId}
       facets={facets.data ?? []}
+      canWrite={canWrite}
       liveDisabledReason={
         (maps.data?.rules.length ?? 0) >= TOPICS_MAX_RULES
           ? `A project can have at most ${TOPICS_MAX_RULES} live scans.`
@@ -598,7 +599,7 @@ function TopicsWorkspaceContent({
               onConfigure: openConfigure,
               onHistory: openHistory,
               onEditRun:
-                canWrite && selectedRule && !showOnboarding
+                selectedRule && !showOnboarding
                   ? () => openSliceDialog({ kind: "rule", rule: selectedRule })
                   : undefined,
               onNewAnalysis: () => openSliceDialog({ kind: "analysis" }),
