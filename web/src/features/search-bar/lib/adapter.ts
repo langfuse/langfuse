@@ -703,7 +703,7 @@ export const INVERTED_COMPARISON = {
 
 type ComparisonOp = keyof typeof INVERTED_COMPARISON;
 
-function isComparison(op: FilterNode["op"]): op is ComparisonOp {
+export function isComparison(op: FilterNode["op"]): op is ComparisonOp {
   return op === ">" || op === "<" || op === ">=" || op === "<=";
 }
 

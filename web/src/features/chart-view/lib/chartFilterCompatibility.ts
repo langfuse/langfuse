@@ -1,5 +1,6 @@
 import { type FilterCondition, type FilterState } from "@langfuse/shared";
 import type { CompareOp } from "@/src/features/search-bar/lib/ast";
+import { isComparison } from "@/src/features/search-bar/lib/adapter";
 import {
   type FieldRegistry,
   resolveField,
@@ -104,14 +105,6 @@ export const CHART_SEARCH_QUERY_REASON =
 const CHART_PRESENCE_FILTER_REASON =
   "Charts can't filter by whether a field is set at the moment — still applies to the table.";
 
-/** Search-bar operators that lower a metadata token to a numeric comparison. */
-const METADATA_COMPARISONS: ReadonlySet<CompareOp> = new Set([
-  ">",
-  "<",
-  ">=",
-  "<=",
-]);
-
 /** Fallback for a column, or a filter shape, the chart query has no place for. */
 const CHART_UNSUPPORTED_FIELD_REASON =
   "Charts can't filter by this field at the moment — still applies to the table.";
@@ -206,11 +199,7 @@ export function chartSearchFieldReason(
   if (ref.type === "metadata") {
     // Comparisons lower to `numberObject`, which the chart query rejects;
     // everything else lowers to the keyed `stringObject` shape it accepts.
-    if (
-      ref.numeric === true &&
-      op !== undefined &&
-      METADATA_COMPARISONS.has(op)
-    )
+    if (ref.numeric === true && op !== undefined && isComparison(op))
       return CHART_UNSUPPORTED_FIELD_REASON;
     return chartFilterExclusionReason("metadata");
   }
