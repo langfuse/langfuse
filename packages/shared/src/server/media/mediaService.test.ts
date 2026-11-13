@@ -4,7 +4,6 @@ const mocks = vi.hoisted(() => ({
   executeRaw: vi.fn(),
   queryRaw: vi.fn(),
   findUnique: vi.fn(),
-  updateMany: vi.fn(),
   update: vi.fn(),
   uploadFile: vi.fn(),
 }));
@@ -16,7 +15,6 @@ vi.mock("../../db", () => ({
     $queryRaw: mocks.queryRaw,
     media: {
       findUnique: mocks.findUnique,
-      updateMany: mocks.updateMany,
       update: mocks.update,
     },
   },
@@ -40,11 +38,11 @@ const CONTENT_BYTES = Buffer.from("test-image");
 describe("uploadMediaForTrace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.executeRaw.mockResolvedValue(1);
   });
 
   it("creates, links, and uploads a new media asset", async () => {
     mocks.findUnique.mockResolvedValue(null);
-    mocks.updateMany.mockResolvedValue({ count: 1 });
     mocks.update.mockResolvedValue({});
     mocks.uploadFile.mockResolvedValue(undefined);
 
@@ -64,7 +62,7 @@ describe("uploadMediaForTrace", () => {
       mediaId: "n-vgG9Qb-2loPinXEdit_8",
       outcome: "uploaded",
     });
-    expect(mocks.executeRaw).toHaveBeenCalledTimes(1);
+    expect(mocks.executeRaw).toHaveBeenCalledTimes(2);
     expect(mocks.queryRaw).toHaveBeenCalledTimes(1);
     expect(mocks.queryRaw.mock.calls[0]).toContain(
       MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
@@ -99,7 +97,6 @@ describe("uploadMediaForTrace", () => {
       $metadata: { httpStatusCode: 503 },
     });
     mocks.findUnique.mockResolvedValue(null);
-    mocks.updateMany.mockResolvedValue({ count: 1 });
     mocks.uploadFile.mockRejectedValue(uploadError);
 
     await expect(
