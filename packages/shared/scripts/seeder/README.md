@@ -153,6 +153,12 @@ The default seeds discovery and held-out assignment traces; `evaluation` adds va
 
 Use `--batch discovery`, summarize those traces, then update topics with **Small sample mode**. Process `--batch assignment` after the map is published to check assignment to existing topics. These processing steps require configured models. The evaluation batch also needs small sample mode for facets with fewer than the normal minimum of applicable summaries. Use `pnpm run seed -- list` for flags.
 
+```bash
+pnpm run seed -- topics-map
+```
+
+`topics-map` skips the models: it writes summaries, two rules ("All traces" and a long-named filtered rule) and completed Intent and Issues maps with 2D coordinates, so the treemap, list and map views render right away. Topic sizes range from 34 traces down to 2, and the map includes long topic names, outliers and four traces awaiting a map. The project still needs Topics enabled (`LANGFUSE_TOPICS_ENABLED`, `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`, a cloud region and the Topics feature flag for the user).
+
 ## The contract (additive-only)
 
 Scenario names, flag names, JSON summary keys, and exit-code semantics are a
