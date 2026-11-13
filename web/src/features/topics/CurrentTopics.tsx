@@ -34,8 +34,6 @@ export function CurrentTopics({
   view,
   tracePanelRef,
   traceFilters,
-  onGenerateTopics,
-  canGenerateTopics,
   showUnassigned,
 }: CurrentTopicsProps) {
   const selectedFacet = result.data?.facets.find(
@@ -69,8 +67,6 @@ export function CurrentTopics({
           view={view}
           tracePanelRef={tracePanelRef}
           traceFilters={traceFilters}
-          onGenerateTopics={onGenerateTopics}
-          canGenerateTopics={canGenerateTopics}
           showUnassigned={showUnassigned}
         />
       )}
@@ -85,8 +81,6 @@ function CurrentFacet({
   view,
   tracePanelRef,
   traceFilters,
-  onGenerateTopics,
-  canGenerateTopics,
   showUnassigned,
 }: CurrentFacetProps) {
   const isHandheld = useIsHandheld();
@@ -134,8 +128,6 @@ function CurrentFacet({
           view="treemap"
           mapResult={mapResult}
           traceFilters={traceFilters}
-          onGenerateTopics={onGenerateTopics}
-          canGenerateTopics={canGenerateTopics}
           onOpenTrace={peekNavigation.openPeek}
           showUnassigned={showUnassigned}
         />
@@ -184,18 +176,11 @@ function MobileTopics({
   view,
   mapResult,
   traceFilters,
-  onGenerateTopics,
-  canGenerateTopics,
   onOpenTrace,
   showUnassigned,
 }: Pick<
   CurrentFacetProps,
-  | "projectId"
-  | "facet"
-  | "traceFilters"
-  | "onGenerateTopics"
-  | "canGenerateTopics"
-  | "showUnassigned"
+  "projectId" | "facet" | "traceFilters" | "showUnassigned"
 > & {
   view: "treemap";
   mapResult: ComponentProps<typeof MobileTopicsView>["mapResult"];
@@ -218,8 +203,6 @@ function MobileTopics({
       selectedTraceId={selectedTraceId}
       onSelectTrace={setSelectedTraceId}
       onOpenTrace={onOpenTrace}
-      onGenerateTopics={onGenerateTopics}
-      canGenerateTopics={canGenerateTopics}
       isV4={isV4}
       useTraces={useFacetTopicTraces}
       showUnassigned={showUnassigned}
@@ -288,8 +271,6 @@ type CurrentTopicsProps = {
   view: TopicsResultsView;
   tracePanelRef?: (element: HTMLElement | null) => void;
   traceFilters: ReturnType<typeof useTopicTraceFilters>;
-  onGenerateTopics: () => void;
-  canGenerateTopics: boolean;
   showUnassigned: boolean;
 };
 
@@ -300,8 +281,6 @@ type CurrentFacetProps = {
   view: TopicsResultsView;
   tracePanelRef?: (element: HTMLElement | null) => void;
   traceFilters: ReturnType<typeof useTopicTraceFilters>;
-  onGenerateTopics: () => void;
-  canGenerateTopics: boolean;
   showUnassigned: boolean;
 };
 
