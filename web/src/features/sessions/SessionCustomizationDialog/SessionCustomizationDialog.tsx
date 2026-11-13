@@ -18,6 +18,16 @@ import { useSessionFilterPreview } from "./useSessionFilterPreview";
 
 type SessionViewMode = "conversational" | "list";
 
+function hasPreset(filters: FilterState, preset: FilterState[number]) {
+  return filters.some(
+    (existing) =>
+      existing.column === preset.column &&
+      existing.type === preset.type &&
+      existing.operator === preset.operator &&
+      existing.value === preset.value,
+  );
+}
+
 export function SessionCustomizationDialog({
   projectId,
   initialFilters,
@@ -75,13 +85,7 @@ export function SessionCustomizationDialog({
   const handlePresetToggle = (filter: FilterState[number]) => {
     const filters = filterInput.readFilters();
     if (filters === null) return;
-    const present = filters.some(
-      (existing) =>
-        existing.column === filter.column &&
-        existing.type === filter.type &&
-        existing.operator === filter.operator &&
-        existing.value === filter.value,
-    );
+    const present = hasPreset(filters, filter);
     const remaining = filters.filter(
       (existing) =>
         existing.column !== filter.column ||
@@ -220,7 +224,8 @@ export function SessionCustomizationDialog({
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="flex h-8 items-center gap-2 text-sm"
+                      className="aria-pressed:border-primary aria-pressed:bg-primary/5 flex h-8 items-center gap-2 text-sm"
+                      aria-pressed={hasPreset(filterInput.filters, filter)}
                       disabled={filterInput.invalid}
                       onClick={() => handlePresetToggle(filter)}
                     >
