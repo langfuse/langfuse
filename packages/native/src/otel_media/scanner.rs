@@ -18,11 +18,11 @@
 //!   `-- sort entries + validate_edit_plan  return non-overlapping source ranges
 //! ```
 //!
-//! Media can appear inside JSON stored as a string. Decoding that string removes
-//! escapes, so offsets found in the inner document cannot be used to edit its
-//! parent. `translate_nested_entries` maps them back through each containing string;
+//! Media can appear inside JSON stored as a string. Decoding that string gives
+//! offsets in the decoded document, while edits target the parent source.
+//! `translate_nested_entries` maps each offset back through its containing string;
 //! see `MediaDiscovery::map_string_boundaries` for the two-cursor algorithm and example.
-//! After `MAX_EMBEDDED_JSON_DEPTH`, only Data URI text is inspected. `payload`
+//! At `MAX_EMBEDDED_JSON_DEPTH`, `discover_data_uri_candidates` scans text for Data URIs. `payload`
 //! applies the resulting edits and retains the text needed for upload/restoration.
 
 use std::collections::HashMap;
@@ -32,7 +32,7 @@ use std::sync::Arc;
 use base64::Engine;
 use jiter::Jiter;
 
-use super::data_uri::{find_data_uri_candidates, parse_data_uri};
+pub(super) use super::data_uri::{find_data_uri_candidates, parse_data_uri};
 use super::encoding::{hash_encoded_data, is_python_bytes_literal, is_valid_base64_syntax, BASE64};
 use super::payload::{
     validate_edit_plan, EarlyMediaError, MediaEncoding, MediaManifest, MediaManifestEntry,
@@ -40,15 +40,15 @@ use super::payload::{
 };
 use super::rules::{
     is_media_reference, is_supported_content_type, may_be_serialized_json,
-    may_contain_serialized_media, DATA_URI_PREFIX, MIN_EARLY_MEDIA_BYTES,
+    may_contain_serialized_media, DATA_URI_PREFIX,
 };
 use super::structural_walk::Candidate;
 use super::WalkStats;
 
-// Count JSON documents parsed from strings, excluding the outer input, not object/array depth.
-// After two embedded documents, stop interpreting further strings as structured documents;
-// still extract directly recognizable Data URIs from their text.
-const MAX_EMBEDDED_JSON_DEPTH: usize = 2;
+// Count JSON documents parsed from strings; the outer input is depth zero. Object/array nesting
+// uses the separate structural-walk depth limit. At two embedded documents, scan text for Data URIs.
+pub(super) const MAX_EMBEDDED_JSON_DEPTH: usize = 2;
+pub(super) use super::rules::MIN_EARLY_MEDIA_BYTES;
 /// Content metadata shared by the outer document and JSON embedded in its strings.
 #[derive(Default)]
 struct ScanState {
@@ -57,9 +57,18 @@ struct ScanState {
 
 /// Discover media in validated text whose media marker check already matched.
 pub(super) fn discover(input: &str) -> Result<MediaManifest, EarlyMediaError> {
+    discover_at_depth(input, 0, MIN_EARLY_MEDIA_BYTES)
+}
+
+pub(super) fn discover_at_depth(
+    input: &str,
+    embedded_depth: usize,
+    min_candidate_bytes: usize,
+) -> Result<MediaManifest, EarlyMediaError> {
     discover_inner(
         input,
-        0,
+        embedded_depth,
+        min_candidate_bytes,
         &mut ScanState::default(),
         &mut WalkStats::default(),
     )
@@ -71,7 +80,7 @@ pub(super) fn discover_measured(
 ) -> Result<(MediaManifest, usize, usize, usize), EarlyMediaError> {
     let mut state = ScanState::default();
     let mut stats = WalkStats::default();
-    let manifest = discover_inner(input, 0, &mut state, &mut stats)?;
+    let manifest = discover_inner(input, 0, MIN_EARLY_MEDIA_BYTES, &mut state, &mut stats)?;
     Ok((
         manifest,
         stats.bytes_walked,
@@ -83,16 +92,23 @@ pub(super) fn discover_measured(
 fn discover_inner(
     input: &str,
     embedded_depth: usize,
+    min_candidate_bytes: usize,
     state: &mut ScanState,
     stats: &mut WalkStats,
 ) -> Result<MediaManifest, EarlyMediaError> {
-    let candidates = super::structural_walk::scan(input.as_bytes(), embedded_depth == 0, stats)?;
+    let candidates = super::structural_walk::scan(
+        input.as_bytes(),
+        embedded_depth == 0,
+        min_candidate_bytes,
+        stats,
+    )?;
     let mut entries = Vec::new();
     let mut discovery = MediaDiscovery {
         input,
         state,
         stats,
         embedded_depth,
+        min_candidate_bytes,
         entries: &mut entries,
     };
     for candidate in candidates {
@@ -110,6 +126,7 @@ struct MediaDiscovery<'a, 'state, 'stats> {
     state: &'state mut ScanState,
     stats: &'stats mut WalkStats,
     embedded_depth: usize,
+    min_candidate_bytes: usize,
     entries: &'stats mut Vec<MediaManifestEntry>,
 }
 
@@ -121,14 +138,13 @@ impl MediaDiscovery<'_, '_, '_> {
         };
         let token = &self.input[token_range.clone()];
         let mut decoder = Jiter::new(token.as_bytes());
-        // Plain text is already valid UTF-8; only escapes need Jiter's decoder.
+        // Plain text can be borrowed directly; strings containing escapes use Jiter's decoder.
         let value = &token[1..token.len() - 1];
         let value = if value.contains('\\') {
             let Ok(value) = decoder.next_str() else {
-                // RawValue accepts unpaired escapes such as "\ud800" as JSON syntax,
-                // but Jiter cannot decode them into Rust's Unicode-scalar `str`.
-                // Keep the entire string inline, including any media in it; other
-                // string candidates are still processed.
+                // RawValue accepts a lone-surrogate escape such as "\ud800" as JSON syntax,
+                // while Jiter::next_str returns an error because Rust `str` requires Unicode
+                // scalar values. Keep this source string inline and continue with later candidates.
                 return Ok(());
             };
             value
@@ -180,7 +196,13 @@ impl MediaDiscovery<'_, '_, '_> {
             return Ok(false);
         }
 
-        let mut nested = discover_inner(value, self.embedded_depth + 1, self.state, self.stats)?;
+        let mut nested = discover_inner(
+            value,
+            self.embedded_depth + 1,
+            self.min_candidate_bytes,
+            self.state,
+            self.stats,
+        )?;
         self.translate_nested_entries(value, token_range, &mut nested.entries)?;
         self.entries.extend(nested.entries);
         Ok(true)
@@ -196,7 +218,7 @@ impl MediaDiscovery<'_, '_, '_> {
             || (self.embedded_depth >= MAX_EMBEDDED_JSON_DEPTH && may_be_serialized_json(value));
         let candidates = find_data_uri_candidates(value)
             .into_iter()
-            .filter(|(range, _)| value[range.clone()].len() >= MIN_EARLY_MEDIA_BYTES)
+            .filter(|(range, _)| value[range.clone()].len() >= self.min_candidate_bytes)
             .collect::<Vec<_>>();
         if candidates.is_empty() {
             return Ok(());
@@ -209,7 +231,7 @@ impl MediaDiscovery<'_, '_, '_> {
         let mapped = self.map_string_boundaries(token_range, value, &boundaries)?;
         for (index, (range, content_type)) in candidates.into_iter().enumerate() {
             let source_range = mapped[index * 2]..mapped[index * 2 + 1];
-            // Beyond the document/depth limit we have not parsed all string layers.
+            // The document/depth limit leaves some string layers unparsed.
             // In `data:image/png;name=\u00e9;base64,...`, the \u00e9 might be
             // an inner JSON escape or literal text. Restoring it at the wrong layer
             // changes the spelling or value. Keep escaped candidates inline here.
@@ -320,7 +342,7 @@ impl MediaDiscovery<'_, '_, '_> {
         encoding: MediaEncoding,
         source_range: Range<usize>,
     ) -> Result<(), EarlyMediaError> {
-        if encoded_data.len() < MIN_EARLY_MEDIA_BYTES {
+        if encoded_data.len() < self.min_candidate_bytes {
             return Ok(());
         }
         let same_source_spelling = self
@@ -362,10 +384,10 @@ impl MediaDiscovery<'_, '_, '_> {
     /// Unescaped bytes advance both cursors equally. An escape advances the source
     /// by 2 bytes (`\/`), 6 (`\u0061`), or 12 (a surrogate pair); the decoded cursor
     /// advances by the corresponding character's UTF-8 length. Jiter has already
-    /// decoded/validated the character; this function only counts its source width.
+    /// decoded/validated the character; this function pairs its decoded width with source width.
     ///
-    /// `memchr` skips a run without backslashes in one step. We save positions only
-    /// at the supplied starts/ends of media, rather than allocate a map per byte.
+    /// `memchr` finds the next backslash so both cursors can advance across intervening bytes.
+    /// The method records positions at the requested media boundaries.
     ///
     /// With the opening quote at input byte 0:
     /// ```text
