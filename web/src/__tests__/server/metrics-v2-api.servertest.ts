@@ -114,11 +114,6 @@ describe("/api/public/v2/metrics API Endpoint", () => {
     );
   });
 
-  it("should kill redis connection", () => {
-    // we need at least one test case to avoid hanging
-    // redis connection when everything else is skipped.
-  });
-
   maybe("Basic Functionality", () => {
     it("preserves DateTime64 filter instants outside the ClickHouse session timezone", async () => {
       const instant = new Date("2026-08-14T23:30:00.123+02:00");
