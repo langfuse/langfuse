@@ -36,6 +36,7 @@ export type Diagnostic = {
   to: number;
   severity: "error" | "warning";
   message: string;
+  code?: "unknown-field";
 };
 
 export type ParseResult = {
@@ -345,6 +346,7 @@ function parseUnscopedTermNode(
       to: span.from + Math.max(colon, 1),
       severity: "error",
       message: `Unknown field "${keyRaw}"`,
+      code: "unknown-field",
     });
   }
   // A dot-path key segment with grammar chars (`scores."Rouge Score"`,

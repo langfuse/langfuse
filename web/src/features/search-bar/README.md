@@ -139,6 +139,10 @@ Oversized filters use session storage and survive same-tab refreshes; the plain 
 
 Keyboard arrows move normally through the key and focus the value control at its boundary; Enter/Space open the picker. Copying a focused value control copies only its complete value source. In the picker, Down from search enters the values and Up/Down move between visible checkboxes; Space toggles a value. Only/All actions remain reachable with Tab. Rows keep their current order while focused so selection changes cannot unmount the active control. Escape returns to the current value control, or the editor if the compact control no longer exists. `SearchComposer` owns the current picker condition so its trigger state and focus destination track edits.
 
+The collection is a display projection over complete source, not another filter state. Design-system components handle opaque source atoms; field, target, and matching semantics stay in the feature adapter. Hover previews measure their content and stay inside the visual viewport. Unknown-field diagnostics carry a typed code so retaining values during key editing does not depend on diagnostic wording.
+
+The sidebar edits one membership condition or its supported text mode. Compound conditions, presence checks, and unsupported text operators remain visible and clearable there, with a condition count directing edits to the existing bar. Sidebar actions refuse to replace those conditions with a partial checkbox interpretation; a collection popup can still edit its own condition independently. Loaded options are not the universe: checking every loaded value preserves a finite positive selection, while an explicit reset clears it. Unchecking the last positive selection resets the facet rather than materializing exclusions for every loaded value. Managed-environment defaults and explicit enable-all overrides retain their own policy.
+
 ## Data flow (one source of truth, one direction)
 
 The table's URL filter state — `FilterState` (the `filter` param, owned by the
@@ -421,6 +425,10 @@ The bar's adapter emits that **same `FilterState`** (see the `fields.ts` header:
 lowering, the URL contract, and the facet sidebar are **already shared** with
 the bar. The only thing forked per view is the **front half**: the field
 registry + grammar + value validation. Keep it that way.
+
+A shared filter contract does not imply that every compound predicate fits one
+facet control. Such conditions stay editable individually in the bar and must
+remain read-only in a sidebar control that cannot represent them faithfully.
 
 **The multi-view seam is implemented.** Parser, validator, adapter, reverse
 adapter, serializer, completion planner, token projection, store, and AI prompt

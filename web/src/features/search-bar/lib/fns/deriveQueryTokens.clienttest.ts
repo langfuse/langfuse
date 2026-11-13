@@ -1,14 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { deriveQueryTokens } from "./deriveQueryTokens";
 import { EVENTS_FIELD_REGISTRY } from "../fields";
+import * as validation from "../validate";
 
 describe("deriveQueryTokens", () => {
   it("keeps a complete value list folded while its key is unknown without hiding value errors", () => {
-    const project = (draft: string) =>
+    const project = (draft: string, registry = EVENTS_FIELD_REGISTRY) =>
       deriveQueryTokens({
         draft,
         scoreTypes: undefined,
-        registry: EVENTS_FIELD_REGISTRY,
+        registry,
         showDiagnostics: true,
         fieldReason: undefined,
         freeTextReason: undefined,
@@ -18,6 +19,13 @@ describe("deriveQueryTokens", () => {
       const [token] = project(draft);
       expect(token?.kind).toBe("invalid");
       expect(token?.error).toContain(`Unknown field "${key}"`);
+      expect(
+        validation
+          .validateQuery(draft)
+          .diagnostics.every(
+            (diagnostic) => diagnostic.code === "unknown-field",
+          ),
+      ).toBe(true);
       expect(token?.summary?.atom).toEqual({
         from: key.length + 1,
         to: draft.length,
@@ -32,6 +40,34 @@ describe("deriveQueryTokens", () => {
       expect(project(draft).every((token) => token.summary === undefined)).toBe(
         true,
       );
+    }
+    expect(
+      project('"Unavailable".name:(alpha OR beta OR gamma)', {
+        ...EVENTS_FIELD_REGISTRY,
+        targeting: {
+          defaultTarget: "all",
+          supports: () => true,
+          targets: [{ id: "all", label: "All", keyword: true }],
+        },
+      }).every((token) => token.summary === undefined),
+    ).toBe(true);
+
+    const draft = "reworded:(alpha OR beta OR gamma)";
+    const result = validation.validateQuery(draft);
+    const reworded = vi.spyOn(validation, "validateQuery").mockReturnValue({
+      ...result,
+      diagnostics: result.diagnostics.map((diagnostic) => ({
+        ...diagnostic,
+        code: "unknown-field" as const,
+        message: "This field name is not recognized",
+      })),
+    });
+    try {
+      const [token] = project(draft);
+      expect(token?.error).toBe("This field name is not recognized");
+      expect(token?.summary?.atom.raw).toBe("(alpha OR beta OR gamma)");
+    } finally {
+      reworded.mockRestore();
     }
   });
 

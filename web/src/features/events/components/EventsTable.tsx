@@ -1913,6 +1913,9 @@ export default function ObservationsEventsTable({
                       size={showControlsInPageHeader ? "large" : "default"}
                       key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
                       registry={searchRegistry}
+                      managedEnvironmentPolicy={
+                        queryFilter.managedEnvironmentPolicyConfig
+                      }
                       projectId={projectId}
                       tableName={eventsFilterConfig.tableName}
                       isV4={true}
@@ -2051,6 +2054,9 @@ export default function ObservationsEventsTable({
                     size={showControlsInPageHeader ? "large" : "default"}
                     key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
                     registry={searchRegistry}
+                    managedEnvironmentPolicy={
+                      queryFilter.managedEnvironmentPolicyConfig
+                    }
                     projectId={projectId}
                     tableName={eventsFilterConfig.tableName}
                     isV4={true}

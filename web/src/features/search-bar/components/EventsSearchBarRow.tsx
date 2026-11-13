@@ -35,6 +35,7 @@ import { SearchBarStoreProvider } from "@/src/features/search-bar/store/SearchBa
 import type { SearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
 import type { SearchCommit } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import type { QueryPresetSection } from "@/src/features/search-bar/lib/completions";
+import type { ManagedEnvironmentPolicyConfig } from "@/src/features/filters/lib/managedEnvironmentPolicy";
 
 type EventsSearchBarRowProps = Omit<
   React.ComponentProps<typeof EventsSearchBarRowContent>,
@@ -69,6 +70,7 @@ function EventsSearchBarRowContent({
   store,
   commit,
   observed,
+  managedEnvironmentPolicy,
   erroredColumns,
   fieldReason,
   freeTextReason,
@@ -93,6 +95,7 @@ function EventsSearchBarRowContent({
   store: SearchBarStore;
   commit: SearchCommit;
   observed: ObservedOptions | undefined;
+  managedEnvironmentPolicy?: ManagedEnvironmentPolicyConfig;
   /** Columns whose lazy fetch terminally errored — value-stage loading settles to
    *  empty (per column) instead of pinning, matching the sidebar's settled-error
    *  state, without blocking other columns. */
@@ -188,6 +191,7 @@ function EventsSearchBarRowContent({
             inputId={inputId}
             projectId={projectId}
             observed={observed}
+            managedEnvironmentPolicy={managedEnvironmentPolicy}
             erroredColumns={erroredColumns}
             fieldReason={fieldReason}
             freeTextReason={freeTextReason}

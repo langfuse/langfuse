@@ -6,7 +6,21 @@ import { removeToken } from "./edits";
 import { astToFilterState } from "./adapter";
 import { EVENTS_FIELD_REGISTRY } from "./fields";
 import { parse } from "./langQ";
-import { applyTokenFacetAction, createTokenFacetState } from "./fns/tokenFacet";
+import {
+  applyTokenFacetAction,
+  createTokenFacetState,
+  tokenFacetModel,
+} from "./fns/tokenFacet";
+import {
+  buildEffectiveEnvironmentFilter,
+  canonicalizeExplicitEnvironmentFilters,
+} from "../../filters/lib/managedEnvironmentPolicy";
+import {
+  applyCheckboxSelection,
+  buildOnlySelection,
+  type SidebarFilterActionContext,
+} from "../../filters/lib/sidebar-filter-actions";
+import { type FilterState } from "@langfuse/shared";
 
 function spanOf(text: string, token: string) {
   const from = text.indexOf(token);
@@ -14,6 +28,287 @@ function spanOf(text: string, token: string) {
 }
 
 describe("removeToken — semantic preservation", () => {
+  it("matches managed environment checkbox intent while keeping hidden defaults out of query text", () => {
+    const policy = {
+      managedEnvironmentColumn: "environment",
+      hiddenEnvironments: ["internal", "hidden-outside-options"],
+    };
+    const observed = ["prod", "stage", "qa", "public", "internal"];
+    const options = [...observed, "hidden-outside-options"];
+    const expression = "-env:(prod OR stage OR qa)";
+    const companion = "-name:=blocked";
+    const query = `${expression} ${companion}`;
+    const initial = createTokenFacetState(
+      query,
+      spanOf(query, expression),
+      EVENTS_FIELD_REGISTRY,
+    )!;
+    const context: SidebarFilterActionContext = {
+      ...policy,
+      facets: [
+        { type: "categorical", column: "environment", label: "Environment" },
+      ],
+      columnDefinitions: [
+        {
+          id: "environment",
+          name: "Environment",
+          internal: "environment",
+          type: "stringOptions",
+          options: [],
+        },
+      ],
+      options: { environment: options },
+    };
+    const canonicalize = (filters: FilterState) =>
+      canonicalizeExplicitEnvironmentFilters({
+        explicitFilters: filters,
+        config: policy,
+      });
+    const explicit = (text: string) =>
+      canonicalize(astToFilterState(parse(text).ast).filters).filter(
+        (filter) => filter.column === "environment",
+      );
+    const effective = (text: string) =>
+      buildEffectiveEnvironmentFilter({
+        explicitFilters: explicit(text),
+        config: policy,
+      });
+    const normalized = (filters: FilterState) =>
+      filters.map((filter) =>
+        filter.type === "stringOptions"
+          ? { ...filter, value: [...filter.value].sort() }
+          : filter,
+      );
+    const env = (
+      operator: "any of" | "none of",
+      value: string[],
+    ): FilterState => [
+      {
+        type: "stringOptions",
+        column: "environment",
+        operator,
+        value: [...value].sort(),
+      },
+    ];
+    const model = tokenFacetModel(
+      initial,
+      observed,
+      EVENTS_FIELD_REGISTRY,
+      policy,
+    );
+    expect(model.options).toEqual(options);
+    expect(model.value).toEqual(["public"]);
+    expect(normalized(model.filters)).toEqual(
+      env("none of", [...policy.hiddenEnvironments, "prod", "stage", "qa"]),
+    );
+    const justProd = applyTokenFacetAction(
+      initial,
+      observed,
+      { kind: "selection", values: ["stage", "qa", "public"] },
+      EVENTS_FIELD_REGISTRY,
+      policy,
+    );
+    expect(normalized(explicit(justProd.query))).toEqual(
+      env("none of", [...policy.hiddenEnvironments, "prod"]),
+    );
+    expect(
+      tokenFacetModel(justProd, observed, EVENTS_FIELD_REGISTRY, policy).value,
+    ).toEqual(["stage", "qa", "public"]);
+
+    const checked = ["prod", "public"];
+    const rechecked = applyTokenFacetAction(
+      initial,
+      observed,
+      { kind: "selection", values: checked },
+      EVENTS_FIELD_REGISTRY,
+      policy,
+    );
+    const sidebar = applyCheckboxSelection(
+      context,
+      effective(query),
+      "environment",
+      checked,
+    );
+    expect(normalized(explicit(rechecked.query))).toEqual(
+      env("none of", [...policy.hiddenEnvironments, "stage", "qa"]),
+    );
+    expect(normalized(explicit(rechecked.query))).toEqual(
+      normalized(canonicalize(sidebar)),
+    );
+    expect(rechecked.query).toContain(companion);
+    expect(rechecked.query).not.toContain("hidden-outside-options");
+
+    const defaults = applyTokenFacetAction(
+      rechecked,
+      observed,
+      { kind: "selection", values: ["prod", "stage", "qa", "public"] },
+      EVENTS_FIELD_REGISTRY,
+      policy,
+    );
+    expect(defaults.query).toBe(companion);
+    expect(explicit(defaults.query)).toEqual([]);
+    expect(normalized(effective(defaults.query))).toEqual(
+      env("none of", policy.hiddenEnvironments),
+    );
+
+    const onlyHidden = applyTokenFacetAction(
+      initial,
+      observed,
+      { kind: "only", value: "internal" },
+      EVENTS_FIELD_REGISTRY,
+      policy,
+    );
+    const sidebarOnly = buildOnlySelection(
+      context,
+      effective(query),
+      "environment",
+      "internal",
+    )!;
+    const sidebarHidden = applyCheckboxSelection(
+      context,
+      effective(query),
+      "environment",
+      sidebarOnly.values,
+      sidebarOnly.operator,
+    );
+    expect(explicit(onlyHidden.query)).toEqual(env("any of", ["internal"]));
+    expect(explicit(onlyHidden.query)).toEqual(sidebarHidden);
+    const all = applyTokenFacetAction(
+      onlyHidden,
+      observed,
+      { kind: "only", value: "internal" },
+      EVENTS_FIELD_REGISTRY,
+      policy,
+    );
+    expect(normalized(explicit(all.query))).toEqual(env("any of", options));
+    expect(normalized(explicit(all.query))).toEqual(
+      normalized(
+        applyCheckboxSelection(context, sidebarHidden, "environment", options),
+      ),
+    );
+    expect(all.query).toContain(companion);
+    const reset = applyTokenFacetAction(
+      all,
+      observed,
+      { kind: "clear" },
+      EVENTS_FIELD_REGISTRY,
+      policy,
+    );
+    expect(reset.query).toBe(companion);
+    expect(normalized(effective(reset.query))).toEqual(
+      env("none of", policy.hiddenEnvironments),
+    );
+
+    const compoundQuery = `${query} -env:=public`;
+    const compound = createTokenFacetState(
+      compoundQuery,
+      spanOf(compoundQuery, expression),
+      EVENTS_FIELD_REGISTRY,
+    )!;
+    expect(
+      tokenFacetModel(compound, observed, EVENTS_FIELD_REGISTRY, policy)
+        .filters,
+    ).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["prod", "stage", "qa"],
+      },
+    ]);
+    const editedCompound = applyTokenFacetAction(
+      compound,
+      observed,
+      { kind: "only", value: "internal" },
+      EVENTS_FIELD_REGISTRY,
+      policy,
+    );
+    expect(editedCompound.query).toContain(companion);
+    expect(editedCompound.query).toContain("-env:=public");
+    expect(explicit(editedCompound.query)).toEqual([
+      ...env("any of", ["internal"]),
+      ...env("none of", ["public"]),
+    ]);
+    const nameQuery = "name:(alpha OR beta OR gamma)";
+    const name = createTokenFacetState(
+      nameQuery,
+      { from: 0, to: nameQuery.length },
+      EVENTS_FIELD_REGISTRY,
+    )!;
+    expect(
+      tokenFacetModel(name, [], EVENTS_FIELD_REGISTRY, policy).options,
+    ).toEqual(["alpha", "beta", "gamma"]);
+
+    const targetedRegistry = {
+      ...EVENTS_FIELD_REGISTRY,
+      targeting: {
+        defaultTarget: "all",
+        supports: () => true,
+        targets: [
+          { id: "all", label: "All", keyword: true },
+          { id: "run-a", label: "Run A" },
+        ],
+      },
+    };
+    const targetedExpression = '-"Run A".env:(prod OR stage OR qa)';
+    const targetedQuery = `${targetedExpression} ${companion}`;
+    const targeted = createTokenFacetState(
+      targetedQuery,
+      spanOf(targetedQuery, targetedExpression),
+      targetedRegistry,
+    )!;
+    const editedTarget = applyTokenFacetAction(
+      targeted,
+      observed,
+      { kind: "selection", values: checked },
+      targetedRegistry,
+      policy,
+    );
+    expect(editedTarget.query).toContain(companion);
+    expect(
+      astToFilterState(
+        parse(editedTarget.query, targetedRegistry).ast,
+        undefined,
+        targetedRegistry,
+      ).filters.find((filter) => filter.column === "environment"),
+    ).toEqual({
+      type: "stringOptions",
+      column: "environment",
+      operator: "none of",
+      value: ["stage", "qa"],
+      target: "run-a",
+    });
+  });
+
+  it("clears only its positive condition when the singleton All action is chosen", () => {
+    for (const expression of [
+      "name:(alpha OR beta OR gamma)",
+      "tags:(alpha AND beta AND gamma)",
+    ]) {
+      const companion = "-name:=blocked";
+      const query = `${expression} ${companion}`;
+      const initial = createTokenFacetState(
+        query,
+        spanOf(query, expression),
+        EVENTS_FIELD_REGISTRY,
+      )!;
+      const singleton = applyTokenFacetAction(
+        initial,
+        [],
+        { kind: "selection", values: ["alpha"] },
+        EVENTS_FIELD_REGISTRY,
+      );
+      const all = applyTokenFacetAction(
+        singleton,
+        [],
+        { kind: "only", value: "alpha" },
+        EVENTS_FIELD_REGISTRY,
+      );
+      expect(all.query).toBe(companion);
+      expect(all.expression).toBeNull();
+    }
+  });
+
   it("applies Only to the complete negated condition in keyword and dash forms", () => {
     const token = "name:(alpha OR beta OR gamma)";
     for (const expression of [

@@ -3,6 +3,7 @@ import { X } from "@langfuse/icons";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { CategoricalFilterSelect } from "@/src/features/filters/components/CategoricalFilterSelect";
+import type { ManagedEnvironmentPolicyConfig } from "@/src/features/filters/lib/managedEnvironmentPolicy";
 import { type ScoreTypeContext } from "../../lib/adapter";
 import { SCORE_COLUMNS, type FieldRegistry } from "../../lib/fields";
 import { type ObservedOptions } from "../../lib/observed-options";
@@ -19,6 +20,7 @@ export function FilterValuesPopover({
   registry,
   scoreTypes,
   observed,
+  managedEnvironmentPolicy,
   erroredColumns,
   onApply,
   onClose,
@@ -27,6 +29,7 @@ export function FilterValuesPopover({
   registry: FieldRegistry;
   scoreTypes: ScoreTypeContext | undefined;
   observed: ObservedOptions | undefined;
+  managedEnvironmentPolicy?: ManagedEnvironmentPolicyConfig;
   erroredColumns: ReadonlySet<string> | undefined;
   onApply: (previousQuery: string, nextState: TokenFacetState) => boolean;
   onClose: () => void;
@@ -44,7 +47,12 @@ export function FilterValuesPopover({
     count: option.count,
   }));
   const available = displayValues.map((option) => option.value);
-  const model = tokenFacetModel(state, available, registry);
+  const model = tokenFacetModel(
+    state,
+    available,
+    registry,
+    managedEnvironmentPolicy,
+  );
   const counts = new Map(
     displayValues.map((option) => [option.value, option.count ?? 0]),
   );
@@ -54,7 +62,13 @@ export function FilterValuesPopover({
       observed[optionKey] === undefined &&
       !erroredColumns?.has(optionKey));
   const apply = (action: TokenFacetAction) => {
-    const next = applyTokenFacetAction(state, available, action, registry);
+    const next = applyTokenFacetAction(
+      state,
+      available,
+      action,
+      registry,
+      managedEnvironmentPolicy,
+    );
     if (next === state) return;
     const validation = validateQuery(next.query, scoreTypes, registry);
     if (!validation.valid) {

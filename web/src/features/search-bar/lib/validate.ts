@@ -220,11 +220,11 @@ export function semanticDiagnostics(
   const termRegistry = registry.filterStateErrors
     ? { ...registry, filterStateErrors: undefined }
     : registry;
-  const { errors: wholeQueryErrors, searchQuery } = astToFilterState(
-    ast,
-    scoreTypes,
-    registry,
-  );
+  const {
+    errors: wholeQueryErrors,
+    errorCodes: wholeQueryErrorCodes,
+    searchQuery,
+  } = astToFilterState(ast, scoreTypes, registry);
   let firstCompatibilityScope: ASTNode | undefined;
   for (const node of topLevel) {
     const ref = node.kind === "filter" ? registry.resolveField(node.key) : null;
@@ -235,7 +235,7 @@ export function semanticDiagnostics(
       isCompatibilityScope && firstCompatibilityScope
         ? { kind: "and", children: [firstCompatibilityScope, node] }
         : node;
-    const { errors, searchType } = astToFilterState(
+    const { errors, errorCodes, searchType } = astToFilterState(
       term,
       scoreTypes,
       termRegistry,
@@ -250,7 +250,14 @@ export function semanticDiagnostics(
       // A compatibility scope uses a phrase elsewhere in the query. Keep its
       // precise error span only when the complete query confirms the error.
       if (isCompatibilityScope && !wholeQueryErrors.includes(message)) continue;
-      out.push({ from: span.from, to: span.to, severity: "error", message });
+      const code = errorCodes?.get(message);
+      out.push({
+        from: span.from,
+        to: span.to,
+        severity: "error",
+        message,
+        ...(code ? { code } : {}),
+      });
     }
     hasFilterWarnings(node, textLength, out, false, registry);
   }
@@ -271,7 +278,13 @@ export function semanticDiagnostics(
     }
     for (const message of wholeQueryErrors) {
       if (!out.some((diagnostic) => diagnostic.message === message)) {
-        out.push({ ...span, severity: "error", message });
+        const code = wholeQueryErrorCodes?.get(message);
+        out.push({
+          ...span,
+          severity: "error",
+          message,
+          ...(code ? { code } : {}),
+        });
       }
     }
   }

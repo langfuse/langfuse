@@ -107,6 +107,48 @@ const isLowSurrogate = (code: number) => code >= 0xdc00 && code <= 0xdfff;
 
 type LogicalRange = { start: number; end: number };
 
+function positionTokenTooltip({
+  anchor,
+  size,
+  viewport,
+  preferAbove,
+  hoverable,
+}: {
+  anchor: DOMRect;
+  size: { width: number; height: number };
+  viewport: { left: number; top: number; width: number; height: number };
+  preferAbove: boolean;
+  hoverable: boolean;
+}) {
+  const padding = 8;
+  const bridge = hoverable ? 6 : 0;
+  const gap = hoverable ? 0 : 6;
+  const maxWidth = Math.max(0, Math.min(360, viewport.width - 32));
+  const maxHeight = Math.max(0, viewport.height - padding * 2 - bridge);
+  const width = Math.min(size.width, maxWidth);
+  const height = Math.min(size.height, maxHeight + bridge);
+  const roomAbove = anchor.top - viewport.top - padding - gap;
+  const roomBelow =
+    viewport.top + viewport.height - padding - anchor.bottom - gap;
+  const above = preferAbove
+    ? height <= roomAbove || roomAbove >= roomBelow
+    : height > roomBelow && roomAbove > roomBelow;
+  const top = above ? anchor.top - gap - height : anchor.bottom + gap;
+  return {
+    left: Math.max(
+      viewport.left + padding,
+      Math.min(anchor.left, viewport.left + viewport.width - padding - width),
+    ),
+    top: Math.max(
+      viewport.top + padding,
+      Math.min(top, viewport.top + viewport.height - padding - height),
+    ),
+    above,
+    maxWidth,
+    maxHeight,
+  };
+}
+
 // IME composition (Korean, Chinese, Japanese) inserts a text node the
 // contenteditable root does not already own. React will not remove that
 // sibling when it later projects a token, so the composed run doubles and
@@ -1398,19 +1440,12 @@ function QueryInputEditor({
     left: number;
     top: number;
   } | null>(null);
-  // Anchors for the per-token tooltip — left edge of the token, plus its
-  // bottom (default placement, just under the block) and top (used to flip the
-  // tooltip ABOVE the block while the suggestions popover is open below). These
-  // are VIEWPORT coordinates (not container-relative): the tooltip portals to
-  // document.body and is positioned `fixed`, so it reads the token's own
-  // getClientRects() directly. The bar's band is sticky (it doesn't scroll out
-  // from under the token), so a fixed anchor stays put; it re-measures on draft
-  // change and the container ResizeObserver below, same as the X button.
-  const [tooltipPosition, setTooltipPosition] = React.useState<{
-    left: number;
-    belowTop: number;
-    aboveTop: number;
-  } | null>(null);
+  // The portaled tooltip uses viewport coordinates and its measured size.
+  // Suggestions prefer the opposite side, subject to available viewport space.
+  const [tooltipPosition, setTooltipPosition] = React.useState<ReturnType<
+    typeof positionTokenTooltip
+  > | null>(null);
+  const preferTooltipAbove = plan !== null;
   const removeTargetIdActual = removeTarget?.id ?? null;
   const compactRemoveTarget =
     onEditToken !== undefined && removeTarget?.summary !== undefined;
@@ -1435,30 +1470,74 @@ function QueryInputEditor({
       setRemovePosition(null);
     } else {
       const containerRect = container.getBoundingClientRect();
-      setRemovePosition({
+      const next = {
         left:
           lastRect.right - containerRect.left - (compactRemoveTarget ? 6 : 10),
         top: lastRect.top - containerRect.top - 12,
-      });
+      };
+      setRemovePosition((previous) =>
+        previous?.left === next.left && previous.top === next.top
+          ? previous
+          : next,
+      );
     }
 
     const tooltipRect = rectsOf(tooltipTargetId)[0] ?? null;
-    setTooltipPosition(
-      tooltipRect === null
-        ? null
-        : {
-            left: Math.max(
-              8,
-              Math.min(
-                tooltipRect.left,
-                window.innerWidth - Math.min(360, window.innerWidth - 32) - 8,
-              ),
-            ),
-            belowTop: tooltipRect.bottom + 6,
-            aboveTop: tooltipRect.top,
-          },
+    if (tooltipRect === null) {
+      setTooltipPosition(null);
+      return;
+    }
+    const viewport = window.visualViewport;
+    const next = positionTokenTooltip({
+      anchor: tooltipRect,
+      size: tooltipRef.current?.getBoundingClientRect() ?? {
+        width: 0,
+        height: 0,
+      },
+      viewport: {
+        left: viewport?.offsetLeft ?? 0,
+        top: viewport?.offsetTop ?? 0,
+        width: viewport?.width ?? window.innerWidth,
+        height: viewport?.height ?? window.innerHeight,
+      },
+      preferAbove: preferTooltipAbove,
+      hoverable: collectionPreview,
+    });
+    setTooltipPosition((previous) =>
+      previous !== null &&
+      previous.left === next.left &&
+      previous.top === next.top &&
+      previous.above === next.above &&
+      previous.maxHeight === next.maxHeight &&
+      previous.maxWidth === next.maxWidth
+        ? previous
+        : next,
     );
-  }, [compactRemoveTarget, removeTargetIdActual, tooltipTargetId]);
+  }, [
+    collectionPreview,
+    compactRemoveTarget,
+    preferTooltipAbove,
+    removeTargetIdActual,
+    tooltipTargetId,
+  ]);
+
+  const attachTooltip = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      tooltipRef.current = node;
+      if (node === null) return;
+      measurePositions();
+      const observer =
+        typeof ResizeObserver === "undefined"
+          ? null
+          : new ResizeObserver(measurePositions);
+      observer?.observe(node);
+      return () => {
+        observer?.disconnect();
+        tooltipRef.current = null;
+      };
+    },
+    [measurePositions],
+  );
 
   // Re-measure when a target or the draft text changes.
   React.useLayoutEffect(() => {
@@ -1475,7 +1554,17 @@ function QueryInputEditor({
     if (container === null || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(() => measurePositions());
     observer.observe(container);
-    return () => observer.disconnect();
+    window.addEventListener("resize", measurePositions);
+    window.addEventListener("scroll", measurePositions, true);
+    window.visualViewport?.addEventListener("resize", measurePositions);
+    window.visualViewport?.addEventListener("scroll", measurePositions);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measurePositions);
+      window.removeEventListener("scroll", measurePositions, true);
+      window.visualViewport?.removeEventListener("resize", measurePositions);
+      window.visualViewport?.removeEventListener("scroll", measurePositions);
+    };
   }, [measurePositions, removeTargetIdActual, tooltipTargetId]);
 
   // Include the visual gap in the collection preview's hover area so the
@@ -1483,7 +1572,7 @@ function QueryInputEditor({
   const tokenTooltip =
     tooltipPosition === null ? null : (
       <div
-        ref={tooltipRef}
+        ref={attachTooltip}
         onMouseLeave={
           collectionPreview
             ? (event) => {
@@ -1496,33 +1585,28 @@ function QueryInputEditor({
               }
             : undefined
         }
-        style={
-          plan !== null
-            ? {
-                left: tooltipPosition.left,
-                top: tooltipPosition.aboveTop,
-                transform: collectionPreview
-                  ? "translateY(-100%)"
-                  : "translateY(calc(-100% - 6px))",
-              }
-            : {
-                left: tooltipPosition.left,
-                top: tooltipPosition.belowTop - (collectionPreview ? 6 : 0),
-              }
-        }
+        style={{
+          left: tooltipPosition.left,
+          top: tooltipPosition.top,
+          maxWidth: tooltipPosition.maxWidth,
+        }}
         className={cn(
-          "fixed max-w-[min(360px,calc(100vw-32px))]",
+          "fixed w-max",
           collectionPreview
-            ? ["pointer-events-auto", plan !== null ? "pb-1.5" : "pt-1.5"]
+            ? [
+                "pointer-events-auto",
+                tooltipPosition.above ? "pb-1.5" : "pt-1.5",
+              ]
             : "pointer-events-none",
         )}
       >
         <div
           role="tooltip"
           data-testid="search-bar-token-tooltip"
+          style={{ maxHeight: tooltipPosition.maxHeight }}
           className={cn(
             "ph-no-capture bg-popover rounded-md border",
-            "px-2 py-1 font-sans text-xs leading-snug shadow-md",
+            "overflow-x-hidden overflow-y-auto px-2 py-1 font-sans text-xs leading-snug break-words shadow-md",
             errorTarget !== null
               ? "border-destructive/40 text-destructive"
               : "border-border text-popover-foreground",

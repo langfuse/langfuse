@@ -1406,6 +1406,9 @@ export default function ObservationsTable({
                 tableName={observationsFilterConfig.tableName}
                 registry={searchRegistry}
                 filterState={queryFilter.searchBarFilterState}
+                managedEnvironmentPolicy={
+                  queryFilter.managedEnvironmentPolicyConfig
+                }
                 setFilterState={queryFilter.setFilterState}
                 observed={observedOptions}
                 isV4={false}

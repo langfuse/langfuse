@@ -3,6 +3,13 @@ import { type ASTNode, type FilterNode, type Span } from "../ast";
 import { type FieldRegistry } from "../fields";
 import { parse, serialize } from "../langQ";
 import { removeToken } from "../edits";
+import { astToFilterState } from "../adapter";
+import {
+  buildEffectiveEnvironmentFilter,
+  canonicalizeExplicitEnvironmentFilters,
+  toSearchBarEnvironmentFilters,
+  type ManagedEnvironmentPolicyConfig,
+} from "../../../filters/lib/managedEnvironmentPolicy";
 import {
   applyCheckboxSelection,
   buildOnlySelection,
@@ -121,17 +128,65 @@ function currentFilter(
   ];
 }
 
+function tokenManagedPolicy(
+  state: TokenFacetState,
+  registry: FieldRegistry,
+  policy: ManagedEnvironmentPolicyConfig | undefined,
+) {
+  const ref = registry.resolveField(state.template.key);
+  if (
+    !policy?.hiddenEnvironments.length ||
+    ref?.type !== "field" ||
+    (ref.field.filterColumn ?? ref.field.id) !== policy.managedEnvironmentColumn
+  )
+    return undefined;
+  const config: ManagedEnvironmentPolicyConfig = {
+    managedEnvironmentColumn: state.template.key,
+    hiddenEnvironments: policy.hiddenEnvironments.map(
+      (value) => ref.field.displayValueByFilterValue?.get(value) ?? value,
+    ),
+  };
+  const managedFilters = astToFilterState(
+    parse(state.query, registry).ast,
+    undefined,
+    registry,
+  ).filters.filter(
+    (filter) => filter.column === policy.managedEnvironmentColumn,
+  );
+  // The owning policy only projects a single checkbox condition. Other
+  // conditions on this column keep their explicit, token-local meaning.
+  const eligible =
+    state.expression === null
+      ? managedFilters.length === 0
+      : managedFilters.length === 1 &&
+        managedFilters[0]?.type === "stringOptions";
+  return { config, eligible };
+}
+
 export function tokenFacetModel(
   state: TokenFacetState,
   observedValues: readonly string[],
   registry: FieldRegistry,
+  managedEnvironmentPolicy?: ManagedEnvironmentPolicyConfig,
 ) {
-  const filters = currentFilter(state, registry);
+  const policy = tokenManagedPolicy(state, registry, managedEnvironmentPolicy);
+  const managedPolicy = policy?.eligible ? policy.config : undefined;
+  let filters = currentFilter(state, registry);
+  if (managedPolicy) {
+    filters = buildEffectiveEnvironmentFilter({
+      explicitFilters: canonicalizeExplicitEnvironmentFilters({
+        explicitFilters: filters,
+        config: managedPolicy,
+      }),
+      config: managedPolicy,
+    });
+  }
   const current = filters[0];
   const options = Array.from(
     new Set([
       ...observedValues,
       ...state.template.values,
+      ...(policy?.config.hiddenEnvironments ?? []),
       ...filters.flatMap((filter) =>
         Array.isArray(filter.value) ? (filter.value as string[]) : [],
       ),
@@ -145,6 +200,7 @@ export function tokenFacetModel(
     value: computeSelectedValues(options, current),
     operator: current?.operator as CheckboxOperator | undefined,
     array,
+    managedPolicy,
   };
 }
 
@@ -153,10 +209,17 @@ export function applyTokenFacetAction(
   observedValues: readonly string[],
   action: TokenFacetAction,
   registry: FieldRegistry,
+  managedEnvironmentPolicy?: ManagedEnvironmentPolicyConfig,
 ): TokenFacetState {
-  const model = tokenFacetModel(state, observedValues, registry);
+  const model = tokenFacetModel(
+    state,
+    observedValues,
+    registry,
+    managedEnvironmentPolicy,
+  );
   const column = state.template.key;
   const context: SidebarFilterActionContext = {
+    ...model.managedPolicy,
     facets: [{ type: "categorical", column, label: column }],
     columnDefinitions: [
       {
@@ -186,12 +249,24 @@ export function applyTokenFacetAction(
     );
   } else if (action.kind === "only") {
     if (model.value.length === 1 && model.value.includes(action.value)) {
-      next = applyCheckboxSelection(
-        context,
-        model.filters,
-        column,
-        model.options,
-      );
+      if (model.operator === "any of" || model.operator === "all of") {
+        next = model.managedPolicy
+          ? applyCheckboxSelection(
+              context,
+              model.filters,
+              column,
+              model.options,
+              "any of",
+            )
+          : [];
+      } else {
+        next = applyCheckboxSelection(
+          context,
+          model.filters,
+          column,
+          model.options,
+        );
+      }
     } else {
       const selection = buildOnlySelection(
         context,
@@ -219,7 +294,16 @@ export function applyTokenFacetAction(
       action.operator,
     );
   }
-  const nextFilter = next[0];
+  const displayed = model.managedPolicy
+    ? toSearchBarEnvironmentFilters({
+        explicitFilters: canonicalizeExplicitEnvironmentFilters({
+          explicitFilters: next,
+          config: model.managedPolicy,
+        }),
+        config: model.managedPolicy,
+      })
+    : next;
+  const nextFilter = displayed[0];
   if (nextFilter === undefined) {
     if (state.expression === null) return state;
     const query = removeToken(state.query, state.span, registry);

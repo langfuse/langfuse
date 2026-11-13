@@ -31,6 +31,7 @@ import {
 } from "@/src/components/ScoreTag";
 import { composerPlaceholder } from "../presentation";
 import { FilterValuesPopover } from "./FilterValuesPopover";
+import type { ManagedEnvironmentPolicyConfig } from "@/src/features/filters/lib/managedEnvironmentPolicy";
 import { PopoverController } from "@/src/components/ui/popover";
 import {
   createTokenFacetState,
@@ -55,6 +56,7 @@ export function SearchComposer({
   inputId,
   projectId,
   observed,
+  managedEnvironmentPolicy,
   erroredColumns,
   onActivateAi,
   onRequestColumns,
@@ -69,6 +71,7 @@ export function SearchComposer({
   projectId?: string;
   size?: React.ComponentProps<typeof QueryInput>["size"];
   observed: ObservedOptions | undefined;
+  managedEnvironmentPolicy?: ManagedEnvironmentPolicyConfig;
   erroredColumns?: ReadonlySet<string>;
   onActivateAi?: () => void;
   onRequestColumns?: (columns: readonly string[]) => void;
@@ -211,6 +214,7 @@ export function SearchComposer({
             registry={registry}
             scoreTypes={scoreTypes}
             observed={observed}
+            managedEnvironmentPolicy={managedEnvironmentPolicy}
             erroredColumns={erroredColumns}
             onClose={() => {
               restoreValuePickerFocusRef.current = true;

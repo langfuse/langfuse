@@ -25,7 +25,7 @@ function atomSource(node: Node): string | null {
 // no editable characters or caret positions to the query.
 function sourceText(node: Node): string {
   const source = atomSource(node);
-  if (source !== null) return withoutJoiners(source);
+  if (source !== null) return source;
   if (node.nodeType === Node.TEXT_NODE)
     return withoutJoiners(node.textContent ?? "");
   return Array.from(node.childNodes, sourceText).join("");
@@ -37,7 +37,7 @@ function sourceNodes(root: HTMLElement): SourceNode[] {
   const visit = (node: Node): void => {
     const atom = atomSource(node);
     if (atom !== null || node.nodeType === Node.TEXT_NODE) {
-      const source = withoutJoiners(atom ?? node.textContent ?? "");
+      const source = atom ?? withoutJoiners(node.textContent ?? "");
       nodes.push({
         node,
         source,
@@ -107,7 +107,7 @@ export function logicalOffsetForDomPosition(
   const locate = (node: Node, before: number): number => {
     const source = atomSource(node);
     if (source !== null) {
-      const length = withoutJoiners(source).length;
+      const length = source.length;
       if (node === container && offset === 0) return before;
       if (node === container && offset >= node.childNodes.length)
         return before + length;

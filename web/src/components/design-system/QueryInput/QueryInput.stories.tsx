@@ -1,5 +1,6 @@
 import { useState, type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { page } from "vitest/browser";
 import preview from "../../../../.storybook/preview";
 import {
   QueryInput,
@@ -529,6 +530,18 @@ export const TestCollectionPreviewHover = TestPreviewEscapeInDialog.extend({
   args: {
     value: "status:(open OR pending OR closed) @baseline",
     onEditToken: fn(),
+    completions: {
+      autoHighlight: false,
+      loading: false,
+      options: [
+        {
+          id: "owner",
+          label: "owner:=me",
+          edit: { next: "owner:=me", caret: 9, keepOpen: false },
+          onApplied: fn(),
+        },
+      ],
+    },
     tokens: previewTokens.map((token) => ({
       ...token,
       raw: "status:(open OR pending OR closed) @baseline",
@@ -558,33 +571,58 @@ export const TestCollectionPreviewHover = TestPreviewEscapeInDialog.extend({
     })),
   },
   play: async ({ canvasElement }) => {
-    const body = within(canvasElement.ownerDocument.body);
-    await userEvent.click(
-      within(canvasElement).getByRole("button", { name: "Open dialog" }),
-    );
-    const dialog = await body.findByRole("dialog", { name: "Query dialog" });
-    const outside = within(dialog).getByRole("button", { name: "Close" });
-    outside.focus();
-    await userEvent.hover(
-      within(dialog).getByRole("button", {
+    const viewport = { width: window.innerWidth, height: window.innerHeight };
+    await page.viewport(320, 220);
+    try {
+      const body = within(canvasElement.ownerDocument.body);
+      await userEvent.click(
+        within(canvasElement).getByRole("button", { name: "Open dialog" }),
+      );
+      const dialog = await body.findByRole("dialog", { name: "Query dialog" });
+      const input = within(dialog).getByRole("combobox");
+      await userEvent.click(input);
+      await body.findByRole("listbox");
+      const collection = within(dialog).getByRole("button", {
         name: "Edit Status any of 3 values",
-      }),
-    );
-    const tooltip = await body.findByTestId("search-bar-token-tooltip");
-    await userEvent.hover(tooltip);
-    await expect(tooltip).toBeVisible();
-    await expect(outside).toHaveFocus();
-    await userEvent.keyboard("{Escape}");
-    await waitFor(() =>
-      expect(
-        body.queryByTestId("search-bar-token-tooltip"),
-      ).not.toBeInTheDocument(),
-    );
-    await expect(dialog).toBeVisible();
-    await userEvent.keyboard("{Escape}");
-    await waitFor(() =>
-      expect(body.queryByRole("dialog")).not.toBeInTheDocument(),
-    );
+      });
+      await userEvent.hover(collection);
+      const preview = await body.findByTestId("search-bar-token-tooltip");
+      const expectInsideViewport = () => {
+        const bounds = preview.getBoundingClientRect();
+        expect(bounds.top).toBeGreaterThanOrEqual(0);
+        expect(bounds.left).toBeGreaterThanOrEqual(0);
+        expect(bounds.bottom).toBeLessThanOrEqual(window.innerHeight);
+        expect(bounds.right).toBeLessThanOrEqual(window.innerWidth);
+      };
+      await waitFor(expectInsideViewport);
+      await page.viewport(320, 120);
+      await waitFor(expectInsideViewport);
+      await page.viewport(320, 220);
+      const outside = within(dialog).getByRole("button", { name: "Close" });
+      outside.focus();
+      await userEvent.hover(
+        within(dialog).getByRole("button", {
+          name: "Edit Status any of 3 values",
+        }),
+      );
+      const tooltip = await body.findByTestId("search-bar-token-tooltip");
+      await userEvent.hover(tooltip);
+      await expect(tooltip).toBeVisible();
+      await expect(outside).toHaveFocus();
+      await userEvent.keyboard("{Escape}");
+      await waitFor(() =>
+        expect(
+          body.queryByTestId("search-bar-token-tooltip"),
+        ).not.toBeInTheDocument(),
+      );
+      await expect(dialog).toBeVisible();
+      await userEvent.keyboard("{Escape}");
+      await waitFor(() =>
+        expect(body.queryByRole("dialog")).not.toBeInTheDocument(),
+      );
+    } finally {
+      await page.viewport(viewport.width, viewport.height);
+    }
   },
 });
 

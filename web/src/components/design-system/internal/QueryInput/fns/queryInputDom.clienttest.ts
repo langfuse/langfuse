@@ -47,6 +47,23 @@ afterEach(() => {
 });
 
 describe("query input source mapping", () => {
+  it("preserves literal word joiners in atom source and subsequent editable offsets", () => {
+    const { root, atom, prefix, suffix } = createEditor();
+    const values = '("a\u2060b" OR c OR d)';
+    prefix.textContent = `name:${WORD_JOINER}`;
+    atom.setAttribute("data-query-source", values);
+    suffix.textContent = ` env:prod${WORD_JOINER}`;
+    const from = "name:".length;
+    const to = from + values.length;
+    expect(textFromRoot(root)).toBe(`name:${values} env:prod`);
+    expect(sourceAtomForNode(root, atom)).toEqual({ from, to, element: atom });
+    expect(logicalOffsetForDomPosition(root, suffix.firstChild!, 5)).toBe(
+      to + 5,
+    );
+    setSelectionRange(root, to + 5, to + 5);
+    expect(selectionOffsets(root)).toEqual({ start: to + 5, end: to + 5 });
+  });
+
   it("keeps a nested value atom separate from editable negation, key, and target text", () => {
     const root = document.createElement("div");
     root.contentEditable = "true";

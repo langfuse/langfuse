@@ -197,7 +197,6 @@ function hasOnlyUnknownFieldErrors(
       diagnostic.from < leaf.span.to &&
       diagnostic.to > leaf.span.from,
   );
-  const message = `Unknown field "${leaf.node.rawKey ?? leaf.node.key}"`;
   const colon = indexOfOutsideQuotes(
     text.slice(leaf.span.from, leaf.span.to),
     ":",
@@ -205,7 +204,7 @@ function hasOnlyUnknownFieldErrors(
   const keyEnd = leaf.span.from + Math.max(colon, 1);
   return (
     colon !== -1 &&
-    errors.every((error) => error.message === message) &&
+    errors.every((error) => error.code === "unknown-field") &&
     errors.some((error) => error.from >= leaf.span.from && error.to <= keyEnd)
   );
 }
