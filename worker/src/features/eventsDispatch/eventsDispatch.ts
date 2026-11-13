@@ -272,7 +272,6 @@ function readShapeAttributes(
  */
 async function streamTraces(
   readable: Map<string, ReadableTrace>,
-  readWindow: "batch" | "project",
 ): Promise<TraceOutcome[]> {
   const outcomes: TraceOutcome[] = [];
   const pending = new Set<Promise<void>>();
@@ -303,10 +302,7 @@ async function streamTraces(
   const traces = [...readable.values()].map(({ trace }) => trace);
   const queryId = randomUUID();
   const span = getCurrentSpan();
-  span?.setAttributes({
-    ...readShapeAttributes(traces, queryId),
-    "langfuse.events_dispatch.read.window": readWindow,
-  });
+  span?.setAttributes(readShapeAttributes(traces, queryId));
   const startedAt = performance.now();
   let firstRowMs: number | undefined;
   let rows = 0;
@@ -317,10 +313,8 @@ async function streamTraces(
     let currentKey: string | undefined;
     let currentBytes = 0;
     for await (const row of getTraceBatchEventStream(
-      { traces, readWindow },
+      { traces },
       {
-        // Tags system.query_log rows so both read windows can be compared.
-        experimentId: `read-window-${readWindow}`,
         maxThreads: READ_MAX_THREADS,
         maxBlockSize: READ_MAX_BLOCK_SIZE,
         maxExecutionTimeS: READ_TIMEOUT_MS / 1000,
@@ -457,14 +451,7 @@ export async function processEventsDispatchJob(
   event: z.infer<typeof EventsDispatchEventSchema>,
 ): Promise<Record<string, number>> {
   const { readable, outcomes } = await selectTraces(event.payload.traces);
-  // Job IDs are content hashes, so the split is stable across retries.
-  const readWindow =
-    parseInt(event.id.slice(0, 8), 16) / 0x1_0000_0000 <
-    env.LANGFUSE_EVENTS_DISPATCH_PROJECT_READ_WINDOW_RATE
-      ? "project"
-      : "batch";
-  if (readable.size > 0)
-    outcomes.push(...(await streamTraces(readable, readWindow)));
+  if (readable.size > 0) outcomes.push(...(await streamTraces(readable)));
   // Storage-only traces have no consumer to retry for.
   const failed = outcomes.flatMap((result) =>
     result.outcome === "failed" && result.retryRuleIds.length > 0

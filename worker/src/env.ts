@@ -175,12 +175,6 @@ const EnvSchema = z.object({
   LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES: z
     .enum(["true", "false"])
     .default("false"),
-  // Share of events-dispatch jobs whose read prunes per project instead of per batch.
-  LANGFUSE_EVENTS_DISPATCH_PROJECT_READ_WINDOW_RATE: z.coerce
-    .number()
-    .min(0)
-    .max(1)
-    .default(0),
   LANGFUSE_TRACE_BATCH_INGESTION_ENABLED: z
     .enum(["true", "false"])
     .default("false"),

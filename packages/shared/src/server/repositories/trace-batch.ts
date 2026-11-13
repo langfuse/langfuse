@@ -28,13 +28,12 @@ export type TraceBatchEventRow = {
 
 const TRACE_QUERY_BUFFER_MS = 2 * 60_000;
 // Chunk sizes keep a 10,000-trace job with UUID-sized IDs under ClickHouse's
-// default 1,000 HTTP fields and 128 KiB per field. Unrolling one predicate per
-// window would also exceed default max_query_size.
+// default 1,000 HTTP fields (http_max_fields) and 128 KiB per field. Unrolling
+// one predicate per window would also exceed the 128 KiB SQL body part.
+const MAX_QUERY_PARAMS = 1_000;
 const TIME_GROUP_PARAM_CHUNK_SIZE = 50;
 const TRACE_ID_PARAM_CHUNK_SIZE = 2_000;
 const TRACE_PAIR_PARAM_CHUNK_SIZE = 1_000;
-// Above this many projects the "project" read window falls back to one batch window.
-const MAX_PROJECT_READ_WINDOWS = 64;
 
 const chunkItems = <T>(items: readonly T[], size: number) => {
   const chunks: T[][] = [];
@@ -51,18 +50,14 @@ type TraceBatchEventStreamProps = {
     minStart: number;
     maxStart: number;
   }>;
-  /** "project" prunes each project by its own traces' window instead of the whole batch's. */
-  readWindow?: "batch" | "project";
 };
 
-/** Outer start_time filter ClickHouse can prune partitions and granules with. */
-const buildReadWindow = ({
-  traces,
-  readWindow,
-}: TraceBatchEventStreamProps): {
-  predicate: string;
-  params: Record<string, unknown>;
-} => {
+// Per-project prunable windows, so one wide trace can't widen its neighbours' scans.
+// Falls back to one batch window when the windows would exceed the parameter budget.
+const buildReadWindow = (
+  traces: TraceBatchEventStreamProps["traces"],
+  otherParamCount: number,
+): { predicate: string; params: Record<string, unknown> } => {
   const windows = new Map<string, { min: number; max: number }>();
   for (const { projectId, minStart, maxStart } of traces) {
     const window = windows.get(projectId);
@@ -71,7 +66,7 @@ const buildReadWindow = ({
       max: Math.max(window?.max ?? maxStart, maxStart),
     });
   }
-  if (readWindow !== "project" || windows.size > MAX_PROJECT_READ_WINDOWS)
+  if (otherParamCount + 3 * windows.size >= MAX_QUERY_PARAMS)
     return {
       predicate:
         "e.start_time >= fromUnixTimestamp64Milli({batchMinStart: Int64}) AND e.start_time <= fromUnixTimestamp64Milli({batchMaxStart: Int64})",
@@ -181,7 +176,13 @@ const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
     );
     return `(e.project_id, e.trace_id) IN {${name}: Array(Tuple(String, String))}`;
   });
-  const readWindow = buildReadWindow(props);
+  const readWindow = buildReadWindow(
+    props.traces,
+    [timeGroupParams, projectParams, traceIdParams, pairParams].reduce(
+      (count, params) => count + Object.keys(params).length,
+      0,
+    ),
+  );
   const builder = new EventsQueryBuilder({ projectId: NoProjectId })
     .selectRaw(
       "e.project_id",
