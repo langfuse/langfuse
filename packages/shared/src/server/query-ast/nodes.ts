@@ -140,6 +140,61 @@ export const ArrayIndexNode = {
   },
 };
 
+/**
+ * ClickHouse parametric aggregate `func(parameters)(args)`:
+ * `quantile(0.95)(latency)`, `histogram(25)(toFloat64(latency))`. The
+ * parameters are inlined constants, as ClickHouse requires. `func` is an
+ * identifier, so the compiler checks it like any other name. A
+ * {@link CustomNode}.
+ */
+export type ParametricAggregateNode = {
+  readonly kind: "ParametricAggregateNode";
+  readonly func: IdentifierNode;
+  readonly parameters: ReadonlyArray<OperationNode>;
+  readonly args: ReadonlyArray<OperationNode>;
+};
+
+export const ParametricAggregateNode = {
+  is(node: { kind: string }): node is ParametricAggregateNode {
+    return node.kind === "ParametricAggregateNode";
+  },
+  create(
+    func: IdentifierNode,
+    parameters: ReadonlyArray<OperationNode>,
+    args: ReadonlyArray<OperationNode>,
+  ): ParametricAggregateNode {
+    return Object.freeze({
+      kind: "ParametricAggregateNode",
+      func,
+      parameters: Object.freeze([...parameters]),
+      args: Object.freeze([...args]),
+    });
+  },
+};
+
+/**
+ * ClickHouse `WITH FILL FROM <from> TO <to> STEP <step>` after the last
+ * ORDER BY item: rows for the missing values of that item between `from`
+ * and `to`, `step` apart. An extra field of
+ * {@link ClickHouseSelectQueryNode}, like LIMIT BY.
+ */
+export type WithFillNode = {
+  readonly kind: "WithFillNode";
+  readonly from: OperationNode;
+  readonly to: OperationNode;
+  readonly step: OperationNode;
+};
+
+export const WithFillNode = {
+  create(
+    from: OperationNode,
+    to: OperationNode,
+    step: OperationNode,
+  ): WithFillNode {
+    return Object.freeze({ kind: "WithFillNode", from, to, step });
+  },
+};
+
 // A type name with optional arguments: identifiers, integers, nested types
 // and quoted time zones (`DateTime64(3, 'UTC')`). No `{`, `}` or `:`, so the
 // type cannot close its `{p:<type>}` placeholder.
@@ -196,6 +251,8 @@ export const TupleSubcolumnNode = {
 export type ClickHouseSelectQueryNode = SelectQueryNode & {
   readonly arrayJoins?: ReadonlyArray<ArrayJoinNode>;
   readonly limitBy?: LimitByNode;
+  /** Set by `withFill(...)`: the fill of the last ORDER BY item. */
+  readonly withFill?: WithFillNode;
   /** Set by `includeDeleted()`: the soft-delete pass skips this select. */
   readonly includeDeleted?: true;
   /**
@@ -242,7 +299,11 @@ export const FinalTableNode = {
  * here: they are extra fields on {@link ClickHouseSelectQueryNode}, never in a
  * node slot.
  */
-export type CustomNode = ArrayIndexNode | FinalTableNode | TupleSubcolumnNode;
+export type CustomNode =
+  | ArrayIndexNode
+  | FinalTableNode
+  | ParametricAggregateNode
+  | TupleSubcolumnNode;
 
 type CustomNodeByKind = { [N in CustomNode as N["kind"]]: N };
 
@@ -283,6 +344,25 @@ const CUSTOM_NODE_OPS: {
     compile: (node, child, sql) => {
       child(node.table);
       sql(" final");
+    },
+  },
+  ParametricAggregateNode: {
+    transform: (node, child) =>
+      ParametricAggregateNode.create(
+        child(node.func),
+        node.parameters.map(child),
+        node.args.map(child),
+      ),
+    compile: (node, child, sql) => {
+      child(node.func);
+      for (const list of [node.parameters, node.args]) {
+        sql("(");
+        list.forEach((item, index) => {
+          if (index > 0) sql(", ");
+          child(item);
+        });
+        sql(")");
+      }
     },
   },
   TupleSubcolumnNode: {

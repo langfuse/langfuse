@@ -5,6 +5,7 @@ import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import {
   deleteUserBoundApiKeys,
   evictRevokedApiKeys,
+  evictUserGatewayResolveCache,
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -122,6 +123,10 @@ export async function handleUpdateMembership(
       tx,
     );
     return after;
+  });
+  await evictUserGatewayResolveCache(prisma, {
+    orgId,
+    userId: membership.userId,
   });
 
   await getSfdcService()?.setUserRole({

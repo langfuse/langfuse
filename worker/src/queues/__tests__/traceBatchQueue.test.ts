@@ -44,7 +44,7 @@ import {
 
 const inputStorage = vi.hoisted(() => ({
   put: vi.fn<TraceBatchInputStorage["put"]>(),
-  get: vi.fn<TraceBatchInputStorage["get"]>(),
+  legacyGet: vi.fn<TraceBatchInputStorage["legacyGet"]>(),
 }));
 const topicsQueue = vi.hoisted(() => ({ add: vi.fn() }));
 

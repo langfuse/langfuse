@@ -226,6 +226,15 @@ describe("ExternalCodeEvalDispatcher", () => {
     expect(String(error.message)).not.toContain("executor-token");
   });
 
+  it("dispatches to an endpoint that startup accepted with surrounding Unicode whitespace", async () => {
+    replies.push({ status: 200, body: { scores: SCORES } });
+    endpoint = `\u00a0${endpoint}`;
+
+    await expect(createDispatcher().dispatch(input)).resolves.toEqual({
+      scores: SCORES,
+    });
+  });
+
   it("stops reading responses beyond the result size limit", async () => {
     replies.push("oversized");
 

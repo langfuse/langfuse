@@ -126,7 +126,10 @@ async function selectTraces(traces: DispatchTrace[]) {
   return { readable, outcomes };
 }
 
-/** Stores one trace's transcript, then enqueues each consumer's job; never throws. */
+/**
+ * Stores one trace's transcript, then enqueues each consumer's job.
+ * Enqueue failures stay on the outcome; this never throws.
+ */
 function dispatchTrace(
   { trace, jobs }: ReadableTrace,
   observations: TraceEventObservation[],
@@ -158,6 +161,9 @@ function dispatchTrace(
       const reference = { projectId, traceId, revision };
       let stored;
       try {
+        const traceTimestamp = new Date(
+          Math.min(...observations.map((row) => row.startTime.getTime())),
+        );
         const context = assembleTranscriptContext(
           orderObservations(observations),
         );
@@ -166,9 +172,7 @@ function dispatchTrace(
           executionIssues: context?.executionIssues ?? [],
           traceContext: {
             sessionId: newestSessionId(observations),
-            traceTimestamp: new Date(
-              Math.min(...observations.map((row) => row.startTime.getTime())),
-            ).toISOString(),
+            traceTimestamp: traceTimestamp.toISOString(),
             environment: latest.environment,
             traceName: newestTraceName(observations),
           },
@@ -199,10 +203,14 @@ function dispatchTrace(
       const failedRuleIds: string[] = [];
       await Promise.all(
         jobs.map(({ consumer, ruleIds }) =>
-          consumer.enqueue(reference, ruleIds).catch((error) => {
-            traceException(error, span);
-            failedRuleIds.push(...ruleIds);
-          }),
+          consumer
+            .enqueue(reference, ruleIds, {
+              transcriptS3Path: stored.key,
+            })
+            .catch((error) => {
+              traceException(error, span);
+              failedRuleIds.push(...ruleIds);
+            }),
         ),
       );
       // Only failed consumers retry; the others already hold this revision's job.
@@ -213,7 +221,9 @@ function dispatchTrace(
           trace,
           retryRuleIds: failedRuleIds,
         });
-      return finish({ outcome: jobs.length > 0 ? "enqueued" : "stored" });
+      return finish({
+        outcome: jobs.length > 0 ? "enqueued" : "stored",
+      });
     },
   );
 }
@@ -348,14 +358,16 @@ async function streamTraces(
     // Started traces finish even when the read fails; a job retry deduplicates them.
     await Promise.all(pending);
   }
-  for (const key of readable.keys())
-    if (!seen.has(key)) outcomes.push({ outcome: "missing" });
+  for (const key of readable.keys()) {
+    if (seen.has(key)) continue;
+    outcomes.push({ outcome: "missing" });
+  }
   return outcomes;
 }
 
 /** Returns failed traces to the pending map with backoff; drops them after the last retry. */
 async function restoreFailedTraces(
-  failed: { trace: DispatchTrace; ruleIds: string[] }[],
+  failed: { trace: DispatchTrace; ruleIds: string[]; reason: string }[],
 ): Promise<void> {
   const results = { restored: 0, merged: 0, expired: 0, dropped: 0 };
   const shards = new Map<number, typeof failed>();
@@ -456,7 +468,13 @@ export async function processEventsDispatchJob(
   // Storage-only traces have no consumer to retry for.
   const failed = outcomes.flatMap((result) =>
     result.outcome === "failed" && result.retryRuleIds.length > 0
-      ? [{ trace: result.trace, ruleIds: result.retryRuleIds }]
+      ? [
+          {
+            trace: result.trace,
+            ruleIds: result.retryRuleIds,
+            reason: result.reason,
+          },
+        ]
       : [],
   );
   if (failed.length > 0) await restoreFailedTraces(failed);

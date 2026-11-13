@@ -15,7 +15,6 @@ import {
 } from "@/src/server/api/trpc";
 import { env } from "@/src/env.mjs";
 import { canReadGatewayModels } from "@/src/features/ai-gateway/fns/canReadGatewayModels";
-import { isGatewayPreReleaseEnvironment } from "@/src/features/ai-gateway/fns/isGatewayPreReleaseEnvironment";
 import { getProductBaseUrl } from "@/src/utils/base-url";
 import {
   GatewayConnectionStatus,
@@ -23,7 +22,7 @@ import {
   GatewayProvider,
 } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
-import { ForbiddenError, orderBy } from "@langfuse/shared";
+import { orderBy } from "@langfuse/shared";
 import { query as analyticsQuery } from "@langfuse/shared/query";
 
 import {
@@ -46,6 +45,7 @@ import { GatewayBedrockConfigSchema } from "@/src/features/ai-gateway/server/pro
 import type { GatewayApiFamily } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
 import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
+import { ProviderCredentialRejectedError } from "@/src/features/ai-gateway/server/provider/connection/ProviderCredentialRejectedError";
 
 const organizationInput = z.object({ orgId: z.string() });
 /** Naming rules live in `parseGatewayConnectionName` so the dialog can show them on the field. */
@@ -78,15 +78,6 @@ function requireGatewayAdmin(params: { session: Session; orgId: string }) {
     organizationId: params.orgId,
     scope: "gateway:manage",
   });
-}
-
-function requireExtraHeadersAvailable(endpoint: {
-  extraHeaders?: Record<string, string>;
-}) {
-  const hasExtraHeaders = Object.keys(endpoint.extraHeaders ?? {}).length > 0;
-  if (hasExtraHeaders && !isGatewayPreReleaseEnvironment()) {
-    throw new ForbiddenError("Extra headers are not available yet.");
-  }
 }
 
 /** Admits gateway key owners. */
@@ -216,26 +207,40 @@ export const aiGatewayRouter = createTRPCRouter({
         input.orgId,
         GatewayConnectionStatus.ENABLED,
       );
+      const families = (connection: (typeof connections)[number]) => {
+        if (
+          connection.provider === "BEDROCK" ||
+          connection.provider === "OPENROUTER" ||
+          connection.provider === "VERCEL" ||
+          connection.provider === "AZURE"
+        ) {
+          return ["OPENAI", "ANTHROPIC"] satisfies GatewayApiFamily[];
+        }
+        if (
+          connection.provider === "XAI" ||
+          connection.provider === "GOOGLE_AI_STUDIO"
+        ) {
+          return ["OPENAI"] satisfies GatewayApiFamily[];
+        }
+        return [connection.provider];
+      };
       return {
         gatewayBaseUrl: getGatewayBaseUrl(
           getProductBaseUrl(),
           env.LANGFUSE_AI_GATEWAY_PUBLIC_URL,
         ),
+        // Agent clients call the OpenAI route with the Responses API, which
+        // Google AI Studio lacks; plain API calls also work over Chat Completions.
         providers: [
           ...new Set(
-            connections.flatMap((connection): GatewayApiFamily[] => {
-              if (
-                connection.provider === "BEDROCK" ||
-                connection.provider === "OPENROUTER" ||
-                connection.provider === "VERCEL"
-              ) {
-                return ["OPENAI", "ANTHROPIC"];
-              }
-              if (connection.provider === "XAI") return ["OPENAI"];
-              return [connection.provider];
-            }),
+            connections
+              .filter(
+                (connection) => connection.provider !== "GOOGLE_AI_STUDIO",
+              )
+              .flatMap(families),
           ),
         ],
+        apiProviders: [...new Set(connections.flatMap(families))],
       };
     }),
 
@@ -350,19 +355,30 @@ export const aiGatewayRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      requireExtraHeadersAvailable(input);
-      const { modelListingDenied } = await new GatewayProviderService(
-        ctx.prisma,
-      ).testCredential({
-        organizationId: input.orgId,
-        connectionId: input.id,
-        provider: input.provider,
-        credential: input.credential,
-        config: input.config,
-        baseURL: input.baseURL,
-        extraHeaders: input.extraHeaders,
-      });
-      return { success: true, modelListingDenied };
+      try {
+        const { modelListingDenied } = await new GatewayProviderService(
+          ctx.prisma,
+        ).testCredential({
+          organizationId: input.orgId,
+          connectionId: input.id,
+          provider: input.provider,
+          credential: input.credential,
+          config: input.config,
+          baseURL: input.baseURL,
+          extraHeaders: input.extraHeaders,
+        });
+        return { success: true as const, modelListingDenied };
+      } catch (error) {
+        // The admin is testing their own credential, so the provider's
+        // answer is shown to them as is.
+        if (error instanceof ProviderCredentialRejectedError) {
+          return {
+            success: false as const,
+            providerResponse: error.providerResponse,
+          };
+        }
+        throw error;
+      }
     }),
 
   createConnection: protectedOrganizationProcedureWithoutTracing
@@ -377,7 +393,6 @@ export const aiGatewayRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      requireExtraHeadersAvailable(input);
       const connection = await new GatewayProviderService(ctx.prisma).create({
         organizationId: input.orgId,
         name: input.name,
@@ -408,7 +423,6 @@ export const aiGatewayRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      requireExtraHeadersAvailable(input);
       return new GatewayProviderService(ctx.prisma).update({
         organizationId: input.orgId,
         id: input.id,

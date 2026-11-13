@@ -7,6 +7,8 @@ import {
 export const gatewayApiFormats = [
   "openai.responses",
   "openai.chat-completions",
+  "openai.decisions",
+  "openai.embeddings",
   "anthropic.messages",
 ] as const;
 
@@ -17,6 +19,8 @@ export const gatewayProviders = [
   "OPENROUTER",
   "XAI",
   "VERCEL",
+  "AZURE",
+  "GOOGLE_AI_STUDIO",
 ] as const;
 
 export type GatewayApiFormat = (typeof gatewayApiFormats)[number];
@@ -34,6 +38,8 @@ const gatewayProviderIds = [
   "openrouter",
   "xai",
   "vercel",
+  "azure",
+  "google_ai_studio",
 ] as const;
 export type GatewayProviderId = (typeof gatewayProviderIds)[number];
 
@@ -122,7 +128,10 @@ type ProviderDefinition = {
   apiFormats: readonly GatewayApiFormat[];
 };
 
-type HostedGatewayProviderName = Exclude<GatewayProviderName, "BEDROCK">;
+type HostedGatewayProviderName = Exclude<
+  GatewayProviderName,
+  "BEDROCK" | "AZURE"
+>;
 type GatewayUpstream = Pick<ProviderDefinition, "baseUrl" | "authType">;
 
 const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
@@ -132,7 +141,12 @@ const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
       modelsPath: "/models",
       authType: "bearer",
       credentialCheck: { model: "gpt-4o-mini" },
-      apiFormats: ["openai.responses", "openai.chat-completions"],
+      apiFormats: [
+        "openai.responses",
+        "openai.chat-completions",
+        "openai.decisions",
+        "openai.embeddings",
+      ],
     },
     ANTHROPIC: {
       baseUrl: "https://api.anthropic.com/v1",
@@ -142,6 +156,7 @@ const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
       apiFormats: ["anthropic.messages"],
     },
     // OpenRouter takes a Bearer key on every format, including Anthropic Messages.
+    // Its Decisions endpoint is an alpha with its own request shape, so it is not routed.
     OPENROUTER: {
       baseUrl: "https://openrouter.ai/api/v1",
       modelsPath: "/models/user",
@@ -149,7 +164,12 @@ const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
       // A test completion fails for valid keys whose credits, data policy or
       // provider preferences exclude the test model.
       credentialCheck: { path: "/key" },
-      apiFormats: gatewayApiFormats,
+      apiFormats: [
+        "openai.responses",
+        "openai.chat-completions",
+        "openai.embeddings",
+        "anthropic.messages",
+      ],
     },
     // xAI's Anthropic Messages compatibility is deprecated, so only the OpenAI
     // formats are routed.
@@ -174,6 +194,17 @@ const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
       credentialCheck: { path: "/credits" },
       apiFormats: gatewayApiFormats,
     },
+    // Gemini API's OpenAI-compatible endpoint, which has no Responses route:
+    // https://ai.google.dev/gemini-api/docs/openai
+    GOOGLE_AI_STUDIO: {
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+      modelsPath: "/models",
+      authType: "bearer",
+      // A test completion fails for valid keys whose project lacks access to
+      // or quota for the test model.
+      credentialCheck: { path: "/models" },
+      apiFormats: ["openai.chat-completions", "openai.embeddings"],
+    },
   };
 
 export function getGatewayProviderDefinition(
@@ -186,20 +217,35 @@ export function providerSupportsApiFormat(
   provider: GatewayProviderName,
   apiFormat: GatewayApiFormat,
 ): boolean {
-  if (provider === "BEDROCK") return true;
+  if (provider === "BEDROCK") {
+    return (
+      apiFormat !== "openai.decisions" && apiFormat !== "openai.embeddings"
+    );
+  }
+  if (provider === "AZURE") return apiFormat !== "openai.decisions";
   return PROVIDER_REGISTRY[provider].apiFormats.includes(apiFormat);
 }
 
-// Bedrock serves each API format natively under its own path and auth header.
-// Throws if a Bedrock connection has no valid region config. OpenAI and
-// Anthropic connections may override the official base URL; OpenRouter, xAI
-// and Vercel never store one.
+// Bedrock and Azure serve each supported API format natively under its own path
+// and auth header, Bedrock on its regional runtime and Azure on the origin of
+// the resource stored as the connection's base URL.
+// Throws if a Bedrock connection has no valid region config or an Azure
+// connection has no endpoint. OpenAI and Anthropic connections may override
+// the official base URL; OpenRouter, xAI, Vercel and Google AI Studio never
+// store one.
 export function getGatewayUpstream(params: {
   provider: GatewayProviderName;
   apiFormat: GatewayApiFormat;
   config: unknown;
   baseURL: string | null;
 }): GatewayUpstream {
+  if (params.provider === "AZURE") {
+    if (!params.baseURL) throw new Error("Azure connection has no endpoint.");
+    return getPerFormatUpstream(
+      new URL(params.baseURL).origin,
+      params.apiFormat,
+    );
+  }
   if (params.provider !== "BEDROCK") {
     const { baseUrl, authType } = PROVIDER_REGISTRY[params.provider];
     return { baseUrl: params.baseURL ?? baseUrl, authType };
@@ -208,7 +254,14 @@ export function getGatewayUpstream(params: {
   const origin = bedrockRuntimeOrigin(
     GatewayBedrockConfigSchema.parse(params.config),
   );
-  if (params.apiFormat === "anthropic.messages") {
+  return getPerFormatUpstream(origin, params.apiFormat);
+}
+
+function getPerFormatUpstream(
+  origin: string,
+  apiFormat: GatewayApiFormat,
+): GatewayUpstream {
+  if (apiFormat === "anthropic.messages") {
     return { baseUrl: `${origin}/anthropic/v1`, authType: "x-api-key" };
   }
   return { baseUrl: `${origin}/openai/v1`, authType: "bearer" };

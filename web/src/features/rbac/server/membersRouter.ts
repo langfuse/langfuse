@@ -35,6 +35,7 @@ import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/a
 import {
   deleteUserBoundApiKeys,
   evictRevokedApiKeys,
+  evictUserGatewayResolveCache,
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 import {
   deleteOrgMembership,
@@ -43,6 +44,7 @@ import {
   updateOrgMembership,
 } from "@langfuse/shared/memberships";
 import { inviteOrganizationMember } from "@/src/features/rbac/server/inviteOrganizationMember";
+import { isSsoEnforcedForEmail } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { throwIfHigherProjectRole } from "@/src/features/rbac/server/throwIfHigherProjectRole";
 import { throwIfHigherRole } from "@/src/features/rbac/server/throwIfHigherRole";
 import { userFeaturePreviewFlags } from "@/src/features/feature-flags/available-flags";
@@ -82,7 +84,7 @@ export const membersRouter = createTRPCRouter({
       return inviteOrganizationMember({
         ctx,
         input,
-        sendInvitationEmail: ({ to, orgName, userExists }) =>
+        sendInvitationEmail: async ({ to, orgName, userExists }) =>
           sendMembershipInvitationEmail({
             inviterEmail: ctx.session.user.email!,
             inviterName: ctx.session.user.name!,
@@ -90,6 +92,7 @@ export const membersRouter = createTRPCRouter({
             orgName,
             orgId: input.orgId,
             userExists,
+            ssoEnforced: !userExists && (await isSsoEnforcedForEmail(to)),
             env: env,
           }),
       });
@@ -305,6 +308,10 @@ export const membersRouter = createTRPCRouter({
         orgId: input.orgId,
         userId: membership.userId,
         role: input.role,
+      });
+      await evictUserGatewayResolveCache(ctx.prisma, {
+        orgId: input.orgId,
+        userId: membership.userId,
       });
 
       await auditLog({

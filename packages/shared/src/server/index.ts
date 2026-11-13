@@ -162,7 +162,10 @@ export { toEvalRecord } from "./normalized-io/projections/eval-record";
 export { toToolColumns } from "./normalized-io/projections/tool-call-columns";
 export { orderObservations } from "./transcript/ordering";
 export { assembleTranscript } from "./transcript/transcript";
-export { renderTranscript } from "./transcript/topics-renderer";
+export {
+  redactModelPayload,
+  renderTranscript,
+} from "./transcript/topics-renderer";
 export { renderTranscriptFromObservations } from "./transcript/topics-renderer";
 export { transcriptBlockTypes } from "./transcript/topics-renderer";
 export { renderGenericTranscript } from "./transcript/generic-renderer";
@@ -725,8 +728,12 @@ export { deriveAuditLogEventId } from "./repositories/auditLogs";
 export { convertAuditLogStagingRowToClickhouse } from "./repositories/auditLogs";
 export { type BillableEventType } from "./repositories/billable-events";
 export { getBillableUnitCountsByProjectInWindow } from "./repositories/billable-events";
-export { getTopicSetupTraceCounts } from "./repositories/topic-setup-events";
-export { getTopicSetupTraceIds } from "./repositories/topic-setup-events";
+export { getTopicSetupTraceCount } from "./repositories/topic-setup-events";
+export {
+  getTopicSetupTraceBounds,
+  getTopicSetupTraceIds,
+  TOPIC_SETUP_WINDOW_DAYS,
+} from "./repositories/topic-setup-events";
 export { getTopicSetupTraceNames } from "./repositories/topic-setup-events";
 export {
   getTopicResultCounts,

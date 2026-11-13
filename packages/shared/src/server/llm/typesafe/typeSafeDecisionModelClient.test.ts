@@ -263,4 +263,29 @@ describe("createTypeSafeDecisionModelClient", () => {
       isRetryable: false,
     });
   });
+
+  // The eval queue reschedules rate-limited jobs itself; waiting out
+  // Retry-After here would hold a worker slot for up to a minute.
+  it("fails fast on a rate limit instead of waiting out Retry-After", async () => {
+    const fetchImpl = vi.fn().mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ message: "Rate limit exceeded" }), {
+          status: 429,
+          headers: { "Content-Type": "application/json", "Retry-After": "59" },
+        }),
+    );
+
+    const client = createTypeSafeDecisionModelClient({
+      apiKey: "sk-test",
+      model: "jev-latest",
+      fetchImpl,
+    });
+
+    await expect(client.evaluate(request)).rejects.toMatchObject({
+      name: "AI_APICallError",
+      statusCode: 429,
+      isRetryable: true,
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  }, 1_000);
 });
