@@ -678,17 +678,22 @@ export async function getNewestTopicClusteringSummaries(
   let bytes = 0;
   let to = timeRange.to;
   for (const days of NEWEST_SUMMARIES_STEP_DAYS) {
-    const from = new Date(
-      Math.max(
-        timeRange.from.getTime(),
-        timeRange.to.getTime() - days * 86_400_000,
-      ),
-    );
+    // The last step reaches the window's start, which setup can set earlier.
+    const from =
+      days === NEWEST_SUMMARIES_STEP_DAYS.at(-1)
+        ? timeRange.from
+        : new Date(
+            Math.max(
+              timeRange.from.getTime(),
+              timeRange.to.getTime() - days * 86_400_000,
+            ),
+          );
     const limit = Math.min(
       limits.maxRows - summaries.length,
       Math.floor((limits.maxBytes - bytes) / rowBytes),
     );
     if (from >= to || limit < 1) break;
+    const loaded = summaries.length;
     try {
       const sliceTraces = await traces?.({ from, to });
       const newestKeysSql = `${clusteringSummariesSql(
@@ -716,6 +721,8 @@ export async function getNewestTopicClusteringSummaries(
           limit,
         },
         tags: { route: "topics-newest-clustering-summaries", projectId },
+        // Rule filters scan events, which belong on the events replica.
+        ...(sliceTraces && { preferredClickhouseService: "EventsReadOnly" }),
         // The client must outlast the server limit for the timeout to be reported as one.
         clickhouseConfigs: {
           request_timeout: (NEWEST_SUMMARIES_TIMEOUT_SECONDS + 15) * 1000,
@@ -741,6 +748,8 @@ export async function getNewestTopicClusteringSummaries(
       });
       break;
     }
+    // A full step may have left newer summaries in its slice; older ones must not follow.
+    if (summaries.length - loaded === limit) break;
     to = from;
   }
   return summaries;

@@ -152,36 +152,42 @@ describe("Topics trace selection", () => {
       to: selection.to,
     };
 
-    const summaries = await getNewestTopicClusteringSummaries(
-      projectId,
-      facet,
-      { embeddingModel: "embed", embeddingDimensions: 2 },
-      timeRange,
-      { maxRows: 3, maxBytes: 1_000_000 },
-      (slice) =>
-        summarizedTopicMatchesQuery(
-          {
-            projectId,
-            facet,
-            filter: [
-              {
-                column: "name",
-                type: "stringOptions",
-                operator: "any of",
-                value: ["fetch_context"],
-              },
-            ],
-            ...slice,
-          },
-          prisma,
-        ),
-    );
+    const newest = (limits: { maxRows: number; maxBytes: number }) =>
+      getNewestTopicClusteringSummaries(
+        projectId,
+        facet,
+        { embeddingModel: "embed", embeddingDimensions: 2 },
+        timeRange,
+        limits,
+        (slice) =>
+          summarizedTopicMatchesQuery(
+            {
+              projectId,
+              facet,
+              filter: [
+                {
+                  column: "name",
+                  type: "stringOptions",
+                  operator: "any of",
+                  value: ["fetch_context"],
+                },
+              ],
+              ...slice,
+            },
+            prisma,
+          ),
+      ).then((rows) => rows.map(({ traceId }) => traceId));
 
     // The newest summary does not match; the oldest match is past the limit.
-    expect(summaries.map(({ traceId }) => traceId)).toEqual([
+    await expect(newest({ maxRows: 3, maxBytes: 1_000_000 })).resolves.toEqual([
       "trace-new",
       "trace-old",
       "trace-long",
+    ]);
+    // A step that fills its byte-estimated limit ends the read, so no older slice follows.
+    await expect(newest({ maxRows: 3, maxBytes: 6000 })).resolves.toEqual([
+      "trace-new",
+      "trace-old",
     ]);
   });
 
