@@ -194,6 +194,26 @@ describe("geminiAdapter", () => {
       expect(toolCall.args).toBeUndefined();
     });
 
+    it("should keep OTel GenAI text parts that carry content instead of text", () => {
+      // Vercel AI SDK 7 (@ai-sdk/otel) calling a Gemini model
+      const input = [
+        {
+          role: "user",
+          parts: [{ type: "text", content: "Analyse this phone call" }],
+        },
+      ];
+
+      const result = chatmlNormalizeInput(input, {
+        metadata: { scope: { name: "gen_ai", attributes: {} } },
+        observationName: "chat gemini-3-flash-preview",
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data).toHaveLength(1);
+      expect(result.data?.[0].role).toBe("user");
+      expect(result.data?.[0].content).toBe("Analyse this phone call");
+    });
+
     it("should handle Google ADK format with tool calls and function responses", () => {
       // This is the format from google-adk-2025-08-28.json
       const input = {
