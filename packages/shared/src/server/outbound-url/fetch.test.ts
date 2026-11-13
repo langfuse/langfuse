@@ -1,7 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { context, propagation, type Baggage } from "@opentelemetry/api";
+import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   CircularRedirectError,
   MaxRedirectsExceededError,
+  fetchWithSecureRedirects,
   redactUrlCredentials,
   urlForLog,
 } from "./fetch";
@@ -114,5 +117,43 @@ describe("redirect error reporting", () => {
     expectSignedUrlRedacted(
       new CircularRedirectError([signedRedirectUrl, signedRedirectUrl]),
     );
+  });
+});
+
+describe("fetchWithSecureRedirects baggage", () => {
+  const contextManager = new AsyncLocalStorageContextManager();
+
+  beforeAll(() => {
+    contextManager.enable();
+    context.setGlobalContextManager(contextManager);
+  });
+
+  afterAll(() => {
+    vi.unstubAllGlobals();
+    context.disable();
+  });
+
+  it("sends the request without the caller's baggage", async () => {
+    let outboundBaggage: Baggage | undefined = propagation.createBaggage();
+    vi.stubGlobal("fetch", async () => {
+      outboundBaggage = propagation.getBaggage(context.active());
+      return new Response("ok");
+    });
+    const callerContext = propagation.setBaggage(
+      context.active(),
+      propagation.createBaggage({
+        "langfuse.project.id": { value: "project-1" },
+      }),
+    );
+
+    await context.with(callerContext, () =>
+      fetchWithSecureRedirects(
+        "https://example.com/hook",
+        { method: "POST" },
+        { maxRedirects: 0, skipValidation: true },
+      ),
+    );
+
+    expect(outboundBaggage).toBeUndefined();
   });
 });

@@ -42,7 +42,10 @@
   `src/server/billing/billingLedgerShadow.ts` compares legacy billing counts
   with the ledger and only reports (metrics plus one log line); it never
   throws. Callers gate it on `LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED`.
-- Queue payload schemas: `src/server/queues.ts`
+- Queue payload schemas: `src/server/queues.ts`. `EvalJobExecutionEventSchema`
+  is a union on `type`. Observation jobs carry `observationS3Path`.
+  Trace-transcript jobs carry `traceId`, `revision`, and `transcriptS3Path`
+  (the object key returned when the envelope was stored).
 - Queue helpers: `src/server/redis/*`
   `getShardIndex` from `src/server/redis/sharding.ts` is exported by the server
   barrel; hash the unit identity when a project can dominate traffic.
@@ -56,21 +59,8 @@
   trace at the next pair or successful EOF; time buckets must not precede trace ID.
 - Code evaluator dispatcher/error contract: `src/server/evals/codeEvalDispatcherTypes.ts`. Keep provider mappings, user-visible messages, and worker terminal-outcome classification aligned when adding an error code.
 - Dashboard/monitor query feature (data model + server-only builder/executor): `src/features/query/*`
-- Query-builder AST (server half, WIP): `src/server/query-ast/*` — the Kysely
-  ClickHouse dialect (ARRAY JOIN / LIMIT BY / FINAL / metadata subscript nodes,
-  single-project tenancy injection, per-table soft-delete filtering and
-  dedup lowering, virtual views, catalog parity). Compile only through
-  `compileClickhouseQuery` in `src/server/query-ast/compile.ts`. SQL
-  correctness is proven by a golden-SQL harness
-  (`src/server/repositories/goldenHarness.ts`, capturing at the
-  `src/server/repositories/clickhouse.ts` exec seam and normalizing via
-  `clickhouse format`); each migrated call site keeps its `*.golden.test.ts`
-  baseline next to the call site (e.g.
-  `src/server/repositories/environments.golden.test.ts`,
-  `src/server/repositories/events.golden.test.ts`,
-  `src/server/repositories/scores.golden.test.ts`,
-  `src/server/queries/clickhouse-sql/event-filter-options.golden.test.ts`).
-- Events predicate lowering (server half of the predicate source): `src/server/repositories/events-predicate.ts` lowers a `Predicate` and its free-text `search` to Kysely conditions over `events as e` (`lowerEventsPredicate`, `lowerEventsSearch`), or to `{ sql, params, requiresEventsFull }` for the raw-SQL builders (`compileEventsPredicate`, `compileEventsSearch`). Per-field expressions live in `events-predicate-fields.ts`; the routing verdict (`requiresEventsFull`) comes from the routing pass via `compileClickhouseCondition`; `events-predicate.golden.test.ts` holds both to the `FilterList` / `eventSearchCondition` SQL per field × type × operator.
+- Query-builder AST (server half, WIP): `src/server/query-ast/*` — the Kysely ClickHouse dialect (ARRAY JOIN / LIMIT BY / FINAL / metadata subscript nodes, single-project tenancy injection, per-table dedup lowering, virtual views, catalog parity). Compile only through `compileClickhouseQuery` in `src/server/query-ast/compile.ts`. SQL correctness is proven by a golden-SQL harness (`src/server/repositories/goldenHarness.ts`, capturing at the `src/server/repositories/clickhouse.ts` exec seam and normalizing via `clickhouse format`); each migrated call site keeps its `*.golden.test.ts` baseline next to the call site (e.g. `src/server/repositories/environments.golden.test.ts`, `src/server/repositories/events.golden.test.ts`, `src/server/repositories/scores.golden.test.ts`, `src/server/queries/clickhouse-sql/event-filter-options.golden.test.ts`).
+- Events predicate lowering (server half of the predicate source): `src/server/repositories/events-predicate.ts` lowers a `Predicate` and its free-text `search` to Kysely conditions over `events as e` (`lowerEventsPredicate`, `lowerEventsSearch`), or to `{ sql, params, requiresEventsFull }` for the raw-SQL builders (`compileEventsPredicate`, `compileEventsSearch`). The events row-selection planner (`src/server/queries/clickhouse-sql/events-observation-row-selection.ts`) compiles its non-score filters and search through them; score filters stay `FilterList` text. Per-field expressions live in `events-predicate-fields.ts`, and `eventsTableUiColumnDefinitions` renders its column SQL from them (`eventsFieldSql`); the routing verdict (`requiresEventsFull`) comes from the routing pass via `compileClickhouseCondition`; `events-predicate.golden.test.ts` checks the condition wiring (type, operator, binds, routing, errors) against `FilterList` per field × type × operator and the search against `eventSearchCondition`. Both filter sides share the column SQL; the row-selection goldens (`events.golden.test.ts`) pin it with a planner filter per column kind (bare, quoted, expression, usage/cost-map expression, array, empty-equals-null, ingestion columns), so a field of a new kind needs a case there.
 - Query-builder predicate (client-safe half, WIP): `src/query-ast/*`, exported from the main barrel — the `Predicate` tree (`and | or | not | condition`) with its zod schema, `PredicateWithSearch` (the tree plus at most one free-text search), the `FilterState` + `searchQuery`/`searchType` codec (`fromFilterState` / `toFilterState`), `analyzePredicate` contradiction diagnostics, and the semantic source registry (`eventsPredicateSource`, kept in parity with `eventsTableCols` and the events search columns by `sources.test.ts`). No server imports here.
 - Postgres schema: `prisma/schema.prisma`
 - Prisma migrations: `prisma/migrations/*`
@@ -87,7 +77,7 @@
 
 - `@langfuse/shared/topics`: client-safe Topics contracts and configuration schemas in `src/topics`.
 - `@langfuse/shared/topics/server`: persistence, model setup, queues and execution progress in `src/server/topics`. Before changing processing, storage or costs, read the [Topics worker guide](../../worker/src/features/topics/README.md).
-  - Save models, the Topics rule and trace idle time through `setup.ts`; refresh readiness and processing caches only after the transaction commits.
+  - Save models, the first Topics rule and trace idle time through `setup.ts`; refresh readiness and processing caches only after the transaction commits. A project has up to five rules (`slices.ts`); analyses are one-off clustering runs over a tracing filter and never change a rule's map.
   - Model saves preserve automatic-processing state. Use `setTopicsAutomaticProcessing` to toggle it or change rule sampling.
   - Keep the embedding model and dimensions fixed once embeddings exist.
   - Invalidate `processing-gate.ts` after committed config, rule or facet changes; `invalidateProjectEvalConfigCaches` includes this invalidation.
@@ -101,11 +91,17 @@
   non-null transcript; `Transcript` itself stays conversational.
   `schema.ts` owns the current transcript shape; `types.ts` infers its output
   types. Message/part types come from `src/utils/normalized-io/schema.ts`.
+  `topics-model-input.ts` owns what the Topics summarizer receives
+  (`renderStoredTopicText`, `prepareAssembledTopicTranscript`,
+  `TOPICS_TEXT_VERSION`); the worker and the internal trace "Show topics
+  transcript" dialog share it.
 
 - `src/server/traceBatch`: versioned input storage through the server barrel.
   `createTraceBatchInputStorage()` returns the `TraceBatchInputStorage` interface
-  with `put` and `get`, sharing a project/trace/revision key in the event bucket
-  and one lazily initialized provider client across factory calls. Consumers
+  with `put` and `get`, and one lazily initialized provider client across
+  factory calls. `put` returns the object key when the envelope is stored.
+  `get` reads that key. Topics still rebuilds the key through `legacyGet`.
+  Consumers
   receive the storage object. The writer takes `TraceBatchInputData` with transcript,
   `executionIssues` (empty without a transcript) and required `traceContext`; session ID and trace name are nullable. The reader
   requires and returns both. Context timestamps
@@ -134,7 +130,7 @@
   AI SDK-native LLM execution helpers (`generateLLMText`, `streamLLMText`, and
   `embedLLMText`), `isInternalEvalEnvironment` for shared eval/Topics exclusions,
   Bedrock default-credential provider auth
-  (`createDefaultBedrockProviderAuth`), and server test utilities. Langfuse AI
+  (`createDefaultBedrockProviderAuth`), Vertex AI access tokens from the deployment's credentials or a service account key (`vertexAuth.ts`), and server test utilities. Langfuse AI
   callers select their local profile through `getLangfuseAIAwsProfile`;
   generic Bedrock auth only uses an explicitly supplied profile or the normal
   AWS credential chain.

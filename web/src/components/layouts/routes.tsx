@@ -127,7 +127,7 @@ export const ROUTES: Route[] = [
         icon: Home,
       },
       {
-        title: "Providers & Models",
+        title: "Connections & Models",
         slug: GATEWAY_PAGE_SLUGS.models,
         icon: Box,
       },

@@ -10,7 +10,6 @@ import {
   UNASSIGNED_SWATCH_COLOR,
   unassignedTileClasses,
 } from "./topic-map-colors";
-import { type TopicsResultsView } from "./TopicsResultsViewSelect";
 
 export const UNASSIGNED_TOPIC_ID = "__unassigned";
 
@@ -28,7 +27,10 @@ export type TopicDisplay = Pick<
 };
 
 /** Topic identity, counts, and colors shared by the list and treemap renderers. */
-export function prepareTopicDisplay(facet: Facet, view: TopicsResultsView) {
+export function prepareTopicDisplay(
+  facet: Facet,
+  view: "treemap" | "list" | "map" | "grid",
+) {
   const mapIndices = new Map(
     orderedFacetTopics(facet).map((topic, index) => [topic.id, index]),
   );
@@ -39,7 +41,7 @@ export function prepareTopicDisplay(facet: Facet, view: TopicsResultsView) {
       description,
       count,
       color:
-        view === "treemap"
+        view === "treemap" || view === "list"
           ? treemapSwatchColor(index)
           : topicColor(mapIndices.get(id) ?? -1),
       tiles: {

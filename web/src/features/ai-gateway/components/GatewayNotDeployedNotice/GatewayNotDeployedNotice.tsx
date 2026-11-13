@@ -11,7 +11,7 @@ export function GatewayNotDeployedNotice() {
   return (
     <GatewayPlaceholder.Frame
       title="AI Gateway isn’t deployed"
-      description="On self-hosted Langfuse, the AI Gateway runs as a separate service. Deploy it next to your Langfuse instance to configure provider credentials, models and gateway keys."
+      description="On self-hosted Langfuse, the AI Gateway runs as a separate service. Deploy it next to your Langfuse instance to configure provider connections, models and gateway keys."
     >
       <Button
         variant="outline"

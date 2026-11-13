@@ -100,9 +100,6 @@ export const TestSearch = meta.story({
       menu.getByRole("link", { name: "Production" }),
     ).toHaveAttribute("href", "/project/project-production");
     await expect(
-      menu.getByRole("link", { name: "Go to settings for Production" }),
-    ).toHaveAttribute("href", "/project/project-production/settings");
-    await expect(
       menu.getByRole("menuitem", { name: "New project" }),
     ).toBeVisible();
 

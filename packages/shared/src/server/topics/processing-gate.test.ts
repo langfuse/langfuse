@@ -17,7 +17,7 @@ vi.mock("../../db", () => ({
   JobConfigState: { ACTIVE: "ACTIVE" },
   prisma: {
     topicConfig: { findFirst: mocks.configFind },
-    evaluationRule: { findFirst: mocks.ruleFind },
+    evaluationRule: { findMany: mocks.ruleFind },
   },
 }));
 
@@ -29,7 +29,7 @@ describe("isTopicsProcessingActive", () => {
     mocks.allowlisted.mockReturnValue(true);
     mocks.redis.get.mockResolvedValue(null);
     mocks.configFind.mockResolvedValue({ id: "config-a" });
-    mocks.ruleFind.mockResolvedValue({ id: "rule-a", sampling: 1 });
+    mocks.ruleFind.mockResolvedValue([{ id: "rule-a", sampling: 1 }]);
   });
 
   it("skips Redis and Postgres for projects outside the allowlist", async () => {
@@ -77,14 +77,17 @@ describe("isTopicsProcessingActive", () => {
     (missing === "config"
       ? mocks.configFind
       : mocks.ruleFind
-    ).mockResolvedValue(null);
+    ).mockResolvedValue(missing === "config" ? null : []);
 
     await expect(isTopicsProcessingActive("project-a")).resolves.toBe(false);
     expect(mocks.redis.set).toHaveBeenCalledWith(key, "0", "EX", 300);
   });
 
-  it("returns the active rule's sampling rate and caches it", async () => {
-    mocks.ruleFind.mockResolvedValue({ id: "rule-a", sampling: 0.25 });
+  it("returns the largest active rule sampling rate and caches it", async () => {
+    mocks.ruleFind.mockResolvedValue([
+      { id: "rule-a", sampling: 0.1 },
+      { id: "rule-b", sampling: 0.25 },
+    ]);
 
     await expect(getTopicsProcessingSampling("project-a")).resolves.toBe(0.25);
     expect(mocks.redis.set).toHaveBeenCalledWith(key, "0.25", "EX", 300);

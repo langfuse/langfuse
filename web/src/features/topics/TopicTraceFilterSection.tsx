@@ -1,8 +1,12 @@
+import { useId, useState } from "react";
 import { type ColumnDef } from "@tanstack/react-table";
-import type { FilterState } from "@langfuse/shared";
+import {
+  traceTranscriptFilterDefinition,
+  type FilterState,
+} from "@langfuse/shared";
 import { TOPICS_RULE_FILTER_HINT } from "@langfuse/shared/topics";
+import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { Table } from "@/src/components/design-system/table/Table";
-import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { env } from "@/src/env.mjs";
 import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/FilterModeToggle";
 import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder";
@@ -17,30 +21,80 @@ import {
   type TopicTracePreviewRow,
 } from "./useTopicTraceFilter";
 
-/** The first rule's trace filter in the setup flow, with the latest traces it matches. */
+const matchingTraceColumns: ColumnDef<TopicTracePreviewRow>[] = [
+  {
+    accessorKey: "name",
+    header: "Trace name",
+    size: 320,
+    // One-line rows; the row itself opens the trace.
+    cell: ({ row }) => {
+      const label = row.original.name ?? row.original.id;
+      return (
+        <span className="block truncate text-sm" title={label}>
+          {label}
+        </span>
+      );
+    },
+  },
+  {
+    accessorKey: "timestamp",
+    header: "Start time",
+    size: 176,
+    cell: ({ row }) => new Date(row.original.timestamp).toLocaleString(),
+  },
+  { accessorKey: "environment", header: "Environment", size: 128 },
+];
+
+const FILTER_TOOLTIP = `A trace matches when one of its observations meets every filter. ${TOPICS_RULE_FILTER_HINT}`;
+
+type TopicTraceFilterSectionProps = {
+  projectId: string;
+  filters: FilterState;
+  onFiltersChange: (filters: FilterState) => void;
+  model: TopicTraceFilterModel;
+  title?: string;
+  /** Null hides the line under the title. */
+  description?: string | null;
+};
+
+/** A scan's trace filter (setup, New scan, Edit scan), with the traces it matches. */
 export function TopicTraceFilterSection({
   projectId,
   filters,
   onFiltersChange,
   model,
-}: {
-  projectId: string;
-  filters: FilterState;
-  onFiltersChange: (filters: FilterState) => void;
-  model: TopicTraceFilterModel;
-}) {
+  title = "Filter traces",
+  // Topics are clustered per scan, so each agent or app wants its own.
+  description = "Topics runs on trace-level. If this project traces several agents or AI applications, filter to one so the topic maps are specific to your use case. Add a live scan for each.",
+}: TopicTraceFilterSectionProps) {
+  // The count is enough to judge a filter; the rows show on request.
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const previewId = useId();
   return (
     <div className="ph-no-capture flex flex-col gap-6">
       <section className="flex flex-col gap-2">
-        <SectionHeader
-          title="Filter traces"
-          meta={null}
-          description="A trace matches when one of its observations meets every filter."
-          tooltip={TOPICS_RULE_FILTER_HINT}
-          trailing={
+        {description ? (
+          <SectionHeader
+            title={title}
+            meta={null}
+            description={description}
+            tooltip={FILTER_TOOLTIP}
+            trailing={
+              <FilterModeToggle mode={model.mode} onChange={model.changeMode} />
+            }
+          />
+        ) : (
+          <div className="flex items-center justify-between gap-2">
+            <SectionHeader
+              title={title}
+              meta={null}
+              description={null}
+              tooltip={FILTER_TOOLTIP}
+              trailing={null}
+            />
             <FilterModeToggle mode={model.mode} onChange={model.changeMode} />
-          }
-        />
+          </div>
+        )}
         {model.mode === "query" ? (
           <EventsSearchBarRow
             projectId={projectId}
@@ -61,6 +115,7 @@ export function TopicTraceFilterSection({
               filterState={filters}
               onChange={onFiltersChange}
               queryOnlyColumnIds={topicsFilterQueryOnlyColumnIds}
+              operators={traceTranscriptFilterDefinition.operators}
             />
             {model.error ? (
               <p className="text-destructive text-xs">{model.error}</p>
@@ -69,40 +124,66 @@ export function TopicTraceFilterSection({
         )}
       </section>
       <section className="flex min-h-0 flex-col gap-2">
-        <SectionHeader
-          title="Matching traces"
-          meta={
-            model.preview.status === "ready" ? (
-              <MatchedTraceCount count={model.preview.count} />
-            ) : null
-          }
-          description="The latest traces from the last seven days that match the filters."
-          tooltip="Traces that are still running are included."
-          trailing={null}
-        />
-        <div className="flex h-72 min-h-0 min-w-0 flex-col overflow-hidden rounded-md border">
-          <Table
-            tableName="Topics setup matching traces"
-            columns={matchingTraceColumns(projectId)}
-            data={tableData(model.preview)}
-            onRowClick={(trace) => openTrace(projectId, trace.id)}
-            noResultsMessage={
-              model.preview.status === "invalid"
-                ? "Fix the filter to preview matching traces."
-                : "No traces in the last seven days match these filters."
-            }
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <MatchSummary preview={model.preview} />
+          <span aria-hidden className="text-muted-foreground text-sm">
+            ·
+          </span>
+          <ExpandToggle
+            expanded={previewOpen}
+            onExpandedChange={setPreviewOpen}
+            label="Preview traces"
+            expandedLabel="Hide traces"
+            variant="icon"
+            iconPosition="right"
+            size="sm"
+            controls={previewId}
           />
         </div>
+        {previewOpen ? (
+          <div
+            id={previewId}
+            className="flex max-h-48 min-h-0 min-w-0 flex-col overflow-hidden rounded-md border"
+          >
+            <Table
+              tableName="Topics setup matching traces"
+              rowHeight="s"
+              topBorder={false}
+              columns={matchingTraceColumns}
+              data={tableData(model.preview)}
+              onRowClick={(trace) => openTrace(projectId, trace.id)}
+              noResultsMessage={
+                model.preview.status === "invalid"
+                  ? "Fix the filter to preview matching traces."
+                  : "No traces in the last seven days match these filters."
+              }
+            />
+          </div>
+        ) : null}
       </section>
     </div>
   );
 }
 
-function MatchedTraceCount({ count }: { count: number }) {
-  const unit = count === 1 ? "trace" : "traces";
+/** Grey text before the toggle: the match count, or why there is none. */
+function MatchSummary({ preview }: { preview: TopicTracePreview }) {
+  if (preview.status === "error")
+    return <span className="text-destructive text-sm">{preview.message}</span>;
+  if (preview.status === "invalid")
+    return (
+      <span className="text-muted-foreground text-sm">
+        Fix the filter to count matching traces.
+      </span>
+    );
+  if (preview.status !== "ready")
+    return (
+      <span className="text-muted-foreground text-sm">Counting traces…</span>
+    );
+  const unit = preview.count === 1 ? "trace" : "traces";
   return (
-    <span className="text-muted-foreground shrink-0 text-sm">
-      ({compactNumberFormatter(count)} {unit})
+    <span className="text-muted-foreground text-sm">
+      ~{compactNumberFormatter(preview.count)} matching {unit} in the last 7
+      days
     </span>
   );
 }
@@ -124,53 +205,5 @@ function openTrace(projectId: string, traceId: string) {
     `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${tracePath(projectId, traceId)}`,
     "_blank",
     "noopener,noreferrer",
-  );
-}
-
-function matchingTraceColumns(
-  projectId: string,
-): ColumnDef<TopicTracePreviewRow>[] {
-  return [
-    {
-      accessorKey: "name",
-      header: "Trace",
-      size: 320,
-      cell: ({ row }) => (
-        <TraceNameCell projectId={projectId} trace={row.original} />
-      ),
-    },
-    {
-      accessorKey: "timestamp",
-      header: "First match",
-      size: 176,
-      cell: ({ row }) => new Date(row.original.timestamp).toLocaleString(),
-    },
-    { accessorKey: "environment", header: "Environment", size: 128 },
-  ];
-}
-
-function TraceNameCell({
-  projectId,
-  trace,
-}: {
-  projectId: string;
-  trace: TopicTracePreviewRow;
-}) {
-  return (
-    <div className="min-w-0">
-      <TextLink
-        path={tracePath(projectId, trace.id)}
-        value={trace.name ?? trace.id}
-        onClick={() => openTrace(projectId, trace.id)}
-      />
-      {trace.name ? (
-        <span
-          title={trace.id}
-          className="text-muted-foreground block truncate font-mono text-xs"
-        >
-          {trace.id}
-        </span>
-      ) : null}
-    </div>
   );
 }

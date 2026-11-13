@@ -281,7 +281,12 @@ describe("automatic Topics assignment against storage", () => {
     const [first, ...others] = await runs("pending");
     expect(others).toEqual([]);
     expect(first).toMatchObject({ ruleId: rule.id, batchActionId: null });
-    expect(enqueueTopicRuleRefit).toHaveBeenCalledWith(projectId, first.id);
+    // Nightly fits queue behind a setup's first fit.
+    expect(enqueueTopicRuleRefit).toHaveBeenCalledWith(
+      projectId,
+      first.id,
+      expect.any(Number),
+    );
 
     await prisma.topicClusteringRun.update({
       where: { id: first.id },

@@ -7,11 +7,15 @@ import type {
 } from "../../topics";
 import { applyCommentFilters } from "../services/commentFilterService";
 import { CTEQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
-import { buildEventsObservationRowSelection } from "../queries/clickhouse-sql/events-observation-row-selection";
+import {
+  buildEventsObservationRowSelection,
+  withoutPositionInTrace,
+} from "../queries/clickhouse-sql/events-observation-row-selection";
 import { FilterList } from "../queries/clickhouse-sql/clickhouse-filter";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { queryClickhouse } from "../repositories/clickhouse";
+import type { TopicCohortTraces } from "./clickhouse";
 import {
   INTERNAL_EVAL_ENVIRONMENT_PREFIX,
   PUBLIC_LLM_JUDGE_ENVIRONMENT,
@@ -62,7 +66,7 @@ async function matchingObservationsQuery(
 
   const { queryBuilder } = buildEventsObservationRowSelection({
     projectId: input.projectId,
-    filter: filterState
+    filter: withoutPositionInTrace(filterState)
       .filter((filter) => filter.column !== "traceName")
       .concat([
         {
@@ -184,6 +188,37 @@ export async function topicMatchingTraceIdsQuery(
         params: matching.params,
       }
     : null;
+}
+
+/** The same subquery for clustering joins, which need one even when nothing matches. */
+export async function selectTopicCohortTraces(
+  input: Parameters<typeof topicMatchingTraceIdsQuery>[0],
+  prisma: PrismaClient,
+): Promise<TopicCohortTraces> {
+  return (
+    (await topicMatchingTraceIdsQuery(input, prisma)) ?? {
+      query: "SELECT '' AS id LIMIT 0",
+      params: {},
+    }
+  );
+}
+
+export async function countTopicCohortTraces(
+  projectId: string,
+  traces: TopicCohortTraces,
+): Promise<number> {
+  const [row] = await queryClickhouse<{ count: string }>({
+    query: `SELECT count() AS count FROM (${traces.query})`,
+    params: traces.params,
+    preferredClickhouseService: "EventsReadOnly",
+    tags: { projectId, route: "topics-cohort-count" },
+    clickhouseSettings: {
+      max_threads: 2,
+      max_execution_time: 30,
+      timeout_overflow_mode: "throw",
+    },
+  });
+  return Number(row?.count ?? 0);
 }
 
 /** Select unique trace identities from matching observations. */

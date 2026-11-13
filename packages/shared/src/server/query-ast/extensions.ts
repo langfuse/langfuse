@@ -3,14 +3,14 @@
  *
  * Kysely has no native representation for several ClickHouse constructs, so
  * this file supplies them in three forms:
- *   - Plugins ({@link ArrayJoinPlugin}, {@link LimitByPlugin}) that attach a
- *     custom operation node (`ArrayJoinNode` / `LimitByNode`) onto the select
- *     node during query transformation; the ClickHouse compiler renders them.
- *   - `$call` helpers ({@link arrayJoin}, {@link limitBy}, {@link useFinal},
- *     {@link includeDeleted})
- *     that apply those plugins while extending the builder's output row type,
- *     so produced aliases are type-checked and misspelled references are
- *     compile errors.
+ *   - Plugins ({@link ArrayJoinPlugin}, {@link LimitByPlugin},
+ *     {@link WithFillPlugin}) that attach a custom operation node
+ *     (`ArrayJoinNode` / `LimitByNode` / `WithFillNode`) onto the select node
+ *     during query transformation; the ClickHouse compiler renders them.
+ *   - `$call` helpers ({@link arrayJoin}, {@link limitBy}, {@link withFill},
+ *     {@link useFinal}) that apply those plugins while extending the builder's
+ *     output row type, so produced aliases are type-checked and misspelled
+ *     references are compile errors.
  *   - Typed expression helpers ({@link mapKeys}, {@link metadataValue},
  *     {@link medianExact}, …) that build ClickHouse aggregates, map/array
  *     function calls and `metadata[key]` subscripts as real, parameter-bound
@@ -22,6 +22,7 @@ import {
   AggregateFunctionNode,
   BinaryOperationNode,
   ColumnNode,
+  DynamicReferenceBuilder,
   ExpressionWrapper,
   expressionBuilder,
   FromNode,
@@ -30,6 +31,7 @@ import {
   JoinNode,
   OperatorNode,
   ReferenceNode,
+  SelectQueryNode,
   TableNode,
   TupleNode,
   ValueNode,
@@ -50,8 +52,10 @@ import {
   FinalTableNode,
   LimitByNode,
   MetadataPrefilterNode,
+  ParametricAggregateNode,
   TypedParam,
   TupleSubcolumnNode,
+  WithFillNode,
   asOperationNode,
   finalTable,
   type ArrayJoinVariant,
@@ -230,22 +234,11 @@ export function mapValue<V = number>(
 }
 
 /**
- * `container[key]`: a map takes a string key, an array a number index. A
- * plain `string` key is bound as a query parameter.
+ * `map[key]`. A plain `string` key is bound as a query parameter.
  */
 function subscript<V>(
   container: Expression<Record<string, V>>,
   key: string | Expression<string>,
-  metadataLookup: boolean,
-): ChExpression<V>;
-function subscript<V>(
-  container: Expression<V[]>,
-  key: Expression<number>,
-  metadataLookup: boolean,
-): ChExpression<V>;
-function subscript<V>(
-  container: Expression<Record<string, V> | V[]>,
-  key: string | Expression<string | number>,
   metadataLookup: boolean,
 ): ChExpression<V> {
   return new ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, V>(
@@ -372,6 +365,17 @@ export function literal<T extends string | number | boolean | null>(
   return new ExpressionWrapper(ValueNode.createImmediate(value));
 }
 
+/**
+ * A reference to an alias that is not a schema column, such as a subquery's
+ * output (`per_span.name` read as `name`), as an aliasable column reference
+ * node. The name is not type-checked.
+ */
+export function aliasRef<T = unknown>(alias: string): ChExpression<T> {
+  return new ExpressionWrapper(
+    new DynamicReferenceBuilder(alias).toOperationNode(),
+  );
+}
+
 /** ClickHouse `if(condition, then, otherwise)`. */
 export function ifElse<A, B>(
   condition: Expression<SqlBool>,
@@ -447,6 +451,13 @@ export function arrayLength(
   return functionCall("length", [array]);
 }
 
+/** ClickHouse `arrayConcat(a, b, …)`: the elements of each array in turn. */
+export function arrayConcat<T>(
+  ...arrays: Expression<T[]>[]
+): ChExpression<T[]> {
+  return functionCall("arrayConcat", arrays);
+}
+
 /** ClickHouse `arraySort(array)`: the elements in ascending order. */
 export function arraySort<T>(array: Expression<T[]>): ChExpression<T[]> {
   return functionCall("arraySort", [array]);
@@ -487,7 +498,7 @@ export function hasAll<T>(
 }
 
 /** ClickHouse `indexOf(array, element)`: 1-based position, 0 when absent. */
-export function indexOf<T>(
+function indexOf<T>(
   array: Expression<T[]>,
   element: Expression<T>,
 ): ChExpression<number> {
@@ -751,17 +762,6 @@ export function countEqual<T>(
   return functionCall("countEqual", [array, value]);
 }
 
-/**
- * `array[index]` with a 1-based `index`; the element type's default (`''`,
- * `0`) when out of range.
- */
-export function arrayElement<T>(
-  array: Expression<T[]>,
-  index: Expression<number>,
-): ChExpression<T> {
-  return subscript(array, index, false);
-}
-
 /** ClickHouse `toNullable(value)`. */
 export function toNullable<T>(value: Expression<T>): ChExpression<T | null> {
   return functionCall("toNullable", [value]);
@@ -894,6 +894,141 @@ export function toStartOfMinute(
   value: Expression<Date> | Date,
 ): ChExpression<Date> {
   return functionCall("toStartOfMinute", [dateArg(value)]);
+}
+
+/** ClickHouse `toStartOfHour(value)`; a JS `Date` is bound. */
+export function toStartOfHour(
+  value: Expression<Date> | Date,
+): ChExpression<Date> {
+  return functionCall("toStartOfHour", [dateArg(value)]);
+}
+
+/** ClickHouse `toMonday(value)`, the Monday of its week; a JS `Date` is bound. */
+export function toMonday(value: Expression<Date> | Date): ChExpression<Date> {
+  return functionCall("toMonday", [dateArg(value)]);
+}
+
+/** ClickHouse `toStartOfMonth(value)`; a JS `Date` is bound. */
+export function toStartOfMonth(
+  value: Expression<Date> | Date,
+): ChExpression<Date> {
+  return functionCall("toStartOfMonth", [dateArg(value)]);
+}
+
+/** Units of {@link interval}, by the ClickHouse function that builds one. */
+const INTERVAL_FUNCTIONS = {
+  minute: "toIntervalMinute",
+  hour: "toIntervalHour",
+  day: "toIntervalDay",
+  week: "toIntervalWeek",
+  month: "toIntervalMonth",
+} as const;
+
+/** A unit {@link interval} takes: `minute`, `hour`, `day`, `week` or `month`. */
+export type IntervalUnit = keyof typeof INTERVAL_FUNCTIONS;
+
+/** A ClickHouse `Interval` value, as {@link interval} builds it. */
+export type IntervalValue = {
+  readonly interval: IntervalUnit;
+};
+
+/**
+ * `count` `unit`s: `interval(5, "minute")` → `toIntervalMinute(5)`, which
+ * ClickHouse reads as `INTERVAL 5 MINUTE`. `count` is inlined and must be a
+ * positive integer.
+ */
+export function interval(
+  count: number,
+  unit: IntervalUnit,
+): ChExpression<IntervalValue> {
+  if (!Number.isInteger(count) || count < 1) {
+    throw new QueryCompileError(
+      `interval count must be a positive integer, got ${count}.`,
+    );
+  }
+  return functionCall(INTERVAL_FUNCTIONS[unit], [
+    ValueNode.createImmediate(count),
+  ]);
+}
+
+/**
+ * ClickHouse `toStartOfInterval(value, step)`, the start of the `step`-long
+ * bucket `value` falls in. A JS `Date` binds as `DateTime64(3)`, not as the
+ * type of the column it is bucketed beside; to bind another type, pass
+ * `typedValue(...)`.
+ */
+export function toStartOfInterval(
+  value: Expression<Date> | Date,
+  step: Expression<IntervalValue>,
+): ChExpression<Date> {
+  return functionCall("toStartOfInterval", [dateArg(value), step]);
+}
+
+/** ClickHouse `toFloat64(value)`. */
+export function toFloat64(value: Expression<unknown>): ChExpression<number> {
+  return functionCall("toFloat64", [value]);
+}
+
+/**
+ * ClickHouse `arrayJoin(array)` in a select list: one row per element, the
+ * element as the value. Distinct from the ARRAY JOIN clause
+ * ({@link arrayJoin}).
+ */
+export function arrayJoinElements<T>(array: Expression<T[]>): ChExpression<T> {
+  return functionCall("arrayJoin", [array]);
+}
+
+/**
+ * `fn(parameters)(value)` with the parameters inlined, as ClickHouse requires
+ * them to be constants.
+ */
+function parametricAggregate<T>(
+  fn: string,
+  parameters: ReadonlyArray<number>,
+  value: Expression<unknown>,
+): ChExpression<T> {
+  return new ExpressionWrapper(
+    asOperationNode(
+      ParametricAggregateNode.create(
+        IdentifierNode.create(fn),
+        parameters.map((parameter) => ValueNode.createImmediate(parameter)),
+        [value.toOperationNode()],
+      ),
+    ),
+  );
+}
+
+/**
+ * ClickHouse `quantile(level)(value)`, an approximate quantile. `level` is
+ * inlined and must be in [0, 1].
+ */
+export function quantile(
+  level: number,
+  value: Expression<unknown>,
+): ChExpression<number> {
+  if (!(level >= 0 && level <= 1)) {
+    throw new QueryCompileError(
+      `quantile level must be in [0, 1], got ${level}.`,
+    );
+  }
+  return parametricAggregate("quantile", [level], value);
+}
+
+/**
+ * ClickHouse `histogram(bins)(value)`: up to `bins` adaptive buckets of a
+ * Float64 value, as an array of `(lower, upper, height)` tuples. `bins` is
+ * inlined and must be a positive integer.
+ */
+export function histogram(
+  bins: number,
+  value: Expression<number>,
+): ChExpression<Array<[number, number, number]>> {
+  if (!Number.isInteger(bins) || bins < 1) {
+    throw new QueryCompileError(
+      `histogram bins must be a positive integer, got ${bins}.`,
+    );
+  }
+  return parametricAggregate("histogram", [bins], value);
 }
 
 /** ClickHouse `tuple(a, b, …)`. */
@@ -1067,8 +1202,8 @@ export function metadataValue(
 
 /**
  * The first entry of `key` in the events metadata, `values[indexOf(names,
- * key)]`, `''` without the key. Marked like {@link metadataValue}, with the
- * same argument rules.
+ * key)]`, `''` without the key. A metadata lookup for events routing like
+ * {@link metadataValue}, with the same argument rules.
  */
 export function firstMetadataValue(
   names: Expression<string[]>,
@@ -1262,6 +1397,45 @@ export function limitBy<DB, TB extends keyof DB>(spec: LimitBySpec<DB, TB>) {
     );
 }
 
+/** Plugin that attaches a {@link WithFillNode} onto the select node. */
+class WithFillPlugin implements KyselyPlugin {
+  constructor(private readonly node: WithFillNode) {}
+
+  transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
+    if (!SelectQueryNode.is(args.node)) return args.node;
+    const node: ClickHouseSelectQueryNode = {
+      ...new ClickHouseOperationNodeTransformer().transformNode(args.node),
+      withFill: this.node,
+    };
+    return node;
+  }
+
+  async transformResult(args: PluginTransformResultArgs) {
+    return args.result;
+  }
+}
+
+/**
+ * WITH FILL on the last ORDER BY item as a `$call` step:
+ * `qb.orderBy(…).$call(withFill({ from: toDate(a), to: toDate(b), step: interval(1, "day") }))`
+ * → `order by … with fill from toDate(a) to toDate(b) step toIntervalDay(1)`.
+ * Compiling it without an ORDER BY throws.
+ */
+export function withFill(spec: {
+  from: Expression<unknown>;
+  to: Expression<unknown>;
+  step: Expression<IntervalValue>;
+}) {
+  const node = WithFillNode.create(
+    spec.from.toOperationNode(),
+    spec.to.toOperationNode(),
+    spec.step.toOperationNode(),
+  );
+  return <DB, TB extends keyof DB, O>(
+    qb: SelectQueryBuilder<DB, TB, O>,
+  ): SelectQueryBuilder<DB, TB, O> => qb.withPlugin(new WithFillPlugin(node));
+}
+
 function wrapFinal(
   node: OperationNode,
   tables: ReadonlySet<string>,
@@ -1327,49 +1501,4 @@ export function useFinal(tables: ReadonlyArray<keyof ClickHouseDatabase>) {
   return <DB, TB extends keyof DB, O>(
     qb: SelectQueryBuilder<DB, TB, O>,
   ): SelectQueryBuilder<DB, TB, O> => qb.withPlugin(new FinalPlugin(names));
-}
-
-/**
- * Read soft-deleted rows too: `qb.$call(includeDeleted())`. Applies to this
- * select's FROM/JOIN relations only; nested selects are still filtered. A
- * select that reads no soft-delete table fails to compile.
- */
-export function includeDeleted() {
-  return <DB, TB extends keyof DB, O>(
-    qb: SelectQueryBuilder<DB, TB, O>,
-  ): SelectQueryBuilder<DB, TB, O> =>
-    qb.withPlugin(new SoftDeleteMarkerPlugin("includeDeleted"));
-}
-
-/**
- * Drop soft-deleted rows after this select's ORDER BY / LIMIT / LIMIT BY
- * instead of before: `qb.$call(softDeleteAfterLimit())`. For a latest-version
- * pick, where a deletion is a newer version with the flag set; filtering
- * first would return the older live version. Compiles to
- * `select latest.<output>, … from (<this select, flag added>) as latest where
- * latest.<flag> = 0`. The select reads exactly one soft-delete table, has a
- * LIMIT or LIMIT BY, has no GROUP BY or set operation, names every output (no
- * `*`, unaliased expressions), and does not select the flag itself.
- */
-export function softDeleteAfterLimit() {
-  return <DB, TB extends keyof DB, O>(
-    qb: SelectQueryBuilder<DB, TB, O>,
-  ): SelectQueryBuilder<DB, TB, O> =>
-    qb.withPlugin(new SoftDeleteMarkerPlugin("softDeleteAfterLimit"));
-}
-
-/** Sets a soft-delete marker on the select; the soft-delete pass reads it. */
-class SoftDeleteMarkerPlugin implements KyselyPlugin {
-  constructor(
-    private readonly marker: "includeDeleted" | "softDeleteAfterLimit",
-  ) {}
-
-  transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
-    if (args.node.kind !== "SelectQueryNode") return args.node;
-    return { ...args.node, [this.marker]: true } as RootOperationNode;
-  }
-
-  async transformResult(args: PluginTransformResultArgs) {
-    return args.result;
-  }
 }

@@ -10,23 +10,33 @@ import {
   TopicsTraceQueue,
   type TraceBatchInputReference,
 } from "@langfuse/shared/src/server";
+import {
+  TRACE_TRANSCRIPT_EVAL_CONSUMER,
+  TRACE_TRANSCRIPT_EVAL_TYPES,
+  enqueueTraceTranscriptEvals,
+} from "./traceTranscriptEval";
 
 export const JOB_MAX_AGE_MS = 2 * 60 * 60_000;
 
 /** A queue that runs per-trace work from the stored transcript; it resolves its rule's definitions itself. */
+type EventsDispatchEnqueueContext = {
+  transcriptS3Path: string;
+};
+
 type EventsDispatchConsumer = {
   name: string;
-  evaluatorType: EvalTemplateType;
+  evaluatorTypes: readonly EvalTemplateType[];
   enqueue: (
     reference: TraceBatchInputReference,
     ruleIds: string[],
+    context: EventsDispatchEnqueueContext,
   ) => Promise<void>;
 };
 
 const CONSUMERS: EventsDispatchConsumer[] = [
   {
     name: "topics",
-    evaluatorType: EvalTemplateType.FACET,
+    evaluatorTypes: [EvalTemplateType.FACET],
     enqueue: async (reference, ruleIds) => {
       const queue = TopicsTraceQueue.getInstance({
         shardingKey: `${reference.projectId}-${reference.traceId}`,
@@ -53,6 +63,11 @@ const CONSUMERS: EventsDispatchConsumer[] = [
         },
       );
     },
+  },
+  {
+    name: TRACE_TRANSCRIPT_EVAL_CONSUMER,
+    evaluatorTypes: TRACE_TRANSCRIPT_EVAL_TYPES,
+    enqueue: enqueueTraceTranscriptEvals,
   },
 ];
 
@@ -113,7 +128,7 @@ export async function routeRules(
   const unresolved = ruleIds.filter((id) => !types.has(id));
   const jobs = CONSUMERS.flatMap((consumer) => {
     const selected = ruleIds.filter((id) =>
-      types.get(id)?.has(consumer.evaluatorType),
+      consumer.evaluatorTypes.some((type) => types.get(id)?.has(type)),
     );
     return selected.length > 0 ? [{ consumer, ruleIds: selected }] : [];
   });

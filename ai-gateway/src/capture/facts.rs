@@ -2,6 +2,8 @@
 use serde::Serialize;
 use serde_json::{Map, Value, value::RawValue};
 
+use crate::resolution::ApiFormat;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum RelayOutcome {
@@ -45,7 +47,7 @@ pub(crate) struct InputOmission {
 
 #[derive(Serialize)]
 pub(crate) struct InferenceFacts {
-    pub api_format: &'static str,
+    pub api_format: ApiFormat,
     pub start_time_unix_ms: u128,
     pub duration_ms: u128,
     pub first_byte_ms: Option<u128>,

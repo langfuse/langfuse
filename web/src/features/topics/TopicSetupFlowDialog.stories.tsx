@@ -93,7 +93,7 @@ function SetupStory({
       onSamplePercentChange={fn()}
       onSummaryChange={fn()}
       onWaitMinutesChange={fn()}
-      pastCount={{ status: "ready", matched: 412, days: 14, dailyTraces: 180 }}
+      pastCount={{ status: "ready", matched: 412, dailyTraces: 180 }}
       providerGroups={providerGroups}
       questions={selected}
       samplePercent={100}

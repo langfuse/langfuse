@@ -12,7 +12,7 @@ export const Default = meta.story({
 export const DuplicateNameError = meta.story({
   args: {
     name: "Production",
-    nameError: "A provider credential with this name already exists.",
+    nameError: "A provider connection with this name already exists.",
     onNameChange: fn(),
   },
 });

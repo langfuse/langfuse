@@ -12,6 +12,7 @@ const meta = preview.meta({
 const allSizes = Object.keys({
   14: true,
   16: true,
+  24: true,
   28: true,
   32: true,
   42: true,

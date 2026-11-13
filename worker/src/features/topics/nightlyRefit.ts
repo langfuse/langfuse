@@ -8,8 +8,11 @@ import {
   getEnabledTopicsModels,
   getTopicClusteringSummaryStats,
   getTopicRuleMap,
+  getTopicNewestSummariesStart,
+  isTopicRuleSetupActive,
   listTopicFacets,
   listTopicRules,
+  readTopicRuleSetup,
   TOPIC_CLUSTERING_CAPACITY_ERROR,
 } from "@langfuse/shared/topics/server";
 import {
@@ -30,6 +33,8 @@ const DAY_MS = 24 * HOUR_MS;
 const MAX_REFITS_PER_TICK = 5;
 // Projects refit at a stable offset within this many minutes after the hour.
 const REFIT_SPREAD_MINUTES = 30;
+// Nightly fits queue behind unprioritized jobs, such as a setup's first fit.
+const NIGHTLY_REFIT_PRIORITY = 10;
 
 /**
  * The latest daily refit time at or before `now`: the configured UTC hour plus
@@ -90,6 +95,13 @@ export async function scheduleNightlyTopicRefits(
     })) {
       // A rule saved after its slot is first fitted at the next slot, once its backfill ran.
       if (new Date(rule.updatedAt) > project.slot) continue;
+      // Replacing open runs below would fail the setup's fit.
+      if (
+        isTopicRuleSetupActive(
+          await readTopicRuleSetup(project.projectId, rule.id),
+        )
+      )
+        continue;
       for (const facet of facets) {
         const version = facet.versions[0]?.version;
         if (!version || !rule.facetIds.includes(facet.id)) continue;
@@ -157,7 +169,7 @@ async function refitRuleFacet({
   if (existing) {
     // Recovers a run whose queue job was lost before it started.
     if (existing.status === "pending")
-      await enqueueTopicRuleRefit(projectId, runId);
+      await enqueueTopicRuleRefit(projectId, runId, NIGHTLY_REFIT_PRIORITY);
     return false;
   }
   // A fit still open from an earlier slot was interrupted; this slot replaces it.
@@ -185,15 +197,16 @@ async function refitRuleFacet({
     embeddingModel: embeddingConfig.embeddingModel,
     dimensions: embeddingConfig.embeddingDimensions,
   };
-  const current = await getTopicRuleMap(projectId, ruleId, facet.facetId);
-  const previous =
-    current?.facetVersion === facet.version &&
-    current.config.embeddingModel === embedding.embeddingModel &&
-    current.config.dimensions === embedding.dimensions
-      ? current
-      : null;
+  const previous = await currentRuleMap(
+    projectId,
+    ruleId,
+    facet,
+    embeddingConfig,
+  );
+  // A provisional map misses summaries that finished after its fit, inside its window.
   const timeRange =
     previous &&
+    !previous.config.provisional &&
     !(await hasNewSummaries(projectId, facet, embeddingConfig, previous, now))
       ? null
       : await selectFitWindow(
@@ -220,7 +233,7 @@ async function refitRuleFacet({
       },
     },
   });
-  await enqueueTopicRuleRefit(projectId, runId);
+  await enqueueTopicRuleRefit(projectId, runId, NIGHTLY_REFIT_PRIORITY);
   recordIncrement("langfuse.topics.nightly_refits", 1, { outcome: "started" });
   logger.info("Started nightly Topics refit", {
     projectId,
@@ -231,6 +244,21 @@ async function refitRuleFacet({
     firstMap: previous === null,
   });
   return true;
+}
+
+/** The rule's map of this facet version and embedding, which a refit continues. */
+export async function currentRuleMap(
+  projectId: string,
+  ruleId: string,
+  facet: TopicFacetRef,
+  embeddingConfig: TopicEmbeddingConfig,
+): Promise<TopicRun | null> {
+  const current = await getTopicRuleMap(projectId, ruleId, facet.facetId);
+  return current?.facetVersion === facet.version &&
+    current.config.embeddingModel === embeddingConfig.embeddingModel &&
+    current.config.dimensions === embeddingConfig.embeddingDimensions
+    ? current
+    : null;
 }
 
 /** Whether summaries of traces newer than the published map's window exist. */
@@ -293,6 +321,18 @@ async function capacityFailedWindow(
  * cohort fits the worker's capacity; only aggregate counts and byte estimates
  * are loaded. After a capacity failure, the search starts from half that window.
  */
+// Fits leave a fifth of the clustering capacity as headroom.
+const fitLimits = () => ({
+  maxRows: Math.max(
+    topicClusterSettings(false).minimumCount,
+    Math.floor(env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS * 0.8),
+  ),
+  maxBytes: Math.max(
+    1,
+    Math.floor(env.LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES * 0.8),
+  ),
+});
+
 async function selectFitWindow(
   projectId: string,
   facet: TopicFacetRef,
@@ -302,16 +342,7 @@ async function selectFitWindow(
 ): Promise<TopicTimeRange | null> {
   const minimumCount = topicClusterSettings(false).minimumCount;
   if (env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS < minimumCount) return null;
-  const limits = {
-    maxRows: Math.max(
-      minimumCount,
-      Math.floor(env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS * 0.8),
-    ),
-    maxBytes: Math.max(
-      1,
-      Math.floor(env.LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES * 0.8),
-    ),
-  };
+  const limits = fitLimits();
   // Window lengths in hours: `longest` is the upper bound, `fitting` the best found.
   let longest = Math.floor(
     (failedWindow
@@ -346,6 +377,55 @@ async function selectFitWindow(
   return fitting === null
     ? null
     : { from: new Date(to.getTime() - fitting * HOUR_MS), to };
+}
+
+/**
+ * A fit window within `window` that stays inside the clustering capacity: it
+ * starts at the newest summaries that fit, confirmed by one stats probe. The
+ * full search runs only when the probe exceeds the limits; null when no window
+ * fits, as for selectFitWindow.
+ */
+export async function estimateFitWindow(
+  projectId: string,
+  facet: TopicFacetRef,
+  embeddingConfig: TopicEmbeddingConfig,
+  window: TopicTimeRange,
+): Promise<TopicTimeRange | null> {
+  const limits = fitLimits();
+  // Vector bytes plus the stats' 2 KB row allowance; the probe checks the text.
+  const capacity = Math.min(
+    limits.maxRows,
+    Math.floor(
+      limits.maxBytes / (embeddingConfig.embeddingDimensions * 8 + 2048),
+    ),
+  );
+  const newest = await getTopicNewestSummariesStart(
+    projectId,
+    facet,
+    embeddingConfig,
+    window,
+    capacity,
+  );
+  // The boundary minute holds summaries beyond the limit, so the window starts after it.
+  const estimate = {
+    from:
+      newest.count < capacity || !newest.start
+        ? window.from
+        : new Date(newest.start.getTime() + 60_000),
+    to: window.to,
+  };
+  const stats = await getTopicClusteringSummaryStats(
+    projectId,
+    facet.facetId,
+    facet.version,
+    embeddingConfig,
+    estimate,
+    limits,
+  );
+  return stats.count <= limits.maxRows && stats.bytes <= limits.maxBytes
+    ? estimate
+    : // A full search: halving a short estimate could leave no hour to search.
+      selectFitWindow(projectId, facet, embeddingConfig, window.to);
 }
 
 export class TopicsNightlyRefitRunner extends PeriodicExclusiveRunner {

@@ -13,7 +13,10 @@ export type IngestionProjectRowProps = {
   onChange: (settings: GatewayIngestionSettings) => void;
 };
 
-/** Reads as one sentence: "Record in a [new] project named [ai-gateway]". */
+/**
+ * Reads as one sentence: "Record in a [new] project named [ai-gateway]" or
+ * "Record in the [existing] project [langfuse-docs]".
+ */
 export function IngestionProjectRow({
   settings,
   projects,
@@ -51,7 +54,7 @@ export function IngestionProjectRow({
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
-      <span>{isNewProject ? "Record in a" : "Record in an"}</span>
+      <span>{isNewProject ? "Record in a" : "Record in the"}</span>
       <div className="w-fit">
         <SelectInput
           aria-label="New or existing project"

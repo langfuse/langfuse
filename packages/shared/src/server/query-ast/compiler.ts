@@ -38,6 +38,7 @@ import {
   compileCustomNode,
   type ClickHouseSelectQueryNode,
   type LimitByNode,
+  type WithFillNode,
 } from "./nodes";
 import { QueryCompileError, UnscopedRelationError } from "./errors";
 import { selectRelations } from "./relations";
@@ -850,10 +851,11 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
 
   /**
    * Wholesale copy of Kysely's `DefaultQueryCompiler.visitSelectQuery` (kept in
-   * sync with the pinned 0.28.17) with two ClickHouse-only insertions:
+   * sync with the pinned 0.28.17) with three ClickHouse-only insertions:
    *   - the ARRAY JOIN block, emitted after JOINs and before WHERE (line ~193)
+   *   - the WITH FILL block, emitted right after ORDER BY
    *   - the LIMIT BY block, emitted before LIMIT (line ~225)
-   * Both read extra fields off {@link ClickHouseSelectQueryNode}. Every other
+   * All read extra fields off {@link ClickHouseSelectQueryNode}. Every other
    * clause mirrors the parent verbatim. We override the whole method rather
    * than call `super` because the parent emits clauses in a fixed order and
    * offers no hook to inject a clause between JOIN and WHERE.
@@ -947,6 +949,16 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       this.visitNode(node.orderBy);
     }
 
+    if (chNode.withFill) {
+      if (!node.orderBy) {
+        throw new QueryCompileError(
+          "WITH FILL fills the last ORDER BY item; add an orderBy before withFill().",
+        );
+      }
+      this.append(" ");
+      this.visitWithFill(chNode.withFill);
+    }
+
     if (chNode.limitBy) {
       this.append(" ");
       this.visitLimitBy(chNode.limitBy);
@@ -994,6 +1006,15 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       this.append(" as ");
       this.visitNode(item.alias);
     });
+  }
+
+  private visitWithFill(node: WithFillNode): void {
+    this.append("with fill from ");
+    this.visitNode(node.from);
+    this.append(" to ");
+    this.visitNode(node.to);
+    this.append(" step ");
+    this.visitNode(node.step);
   }
 
   private visitLimitBy(node: LimitByNode): void {

@@ -99,6 +99,7 @@ function ReadOnlyConnectionModels({
       connectionName={connection.name}
       provider={connection.provider}
       models={result.models}
+      modelApiFormats={result.modelApiFormats}
       enabledModels={
         new Set(
           result.models.filter((model) =>

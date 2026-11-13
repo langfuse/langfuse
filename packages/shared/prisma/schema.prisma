@@ -337,12 +337,15 @@ enum GatewayIngestionMode {
 }
 
 enum GatewayProvider {
-  OPENAI     @map("openai")
-  ANTHROPIC  @map("anthropic")
-  BEDROCK    @map("bedrock")
-  OPENROUTER @map("openrouter")
-  XAI        @map("xai")
-  VERCEL     @map("vercel")
+  OPENAI           @map("openai")
+  ANTHROPIC        @map("anthropic")
+  BEDROCK          @map("bedrock")
+  OPENROUTER       @map("openrouter")
+  XAI              @map("xai")
+  VERCEL           @map("vercel")
+  AZURE            @map("azure")
+  GOOGLE_AI_STUDIO @map("google_ai_studio")
+  VERTEX           @map("vertex")
 }
 
 enum GatewayConnectionStatus {
@@ -389,9 +392,11 @@ model GatewayAiConnection {
 }
 
 model GatewayApiKeyAssociation {
-  apiKeyId String @id @map("api_key_id")
-  apiKey   ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
-  metadata Json   @default("{}") @db.JsonB
+  apiKeyId      String @id @map("api_key_id")
+  apiKey        ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  metadata      Json   @default("{}") @db.JsonB
+  // Model patterns this key may call (`*` wildcard, `-` excludes); null allows every enabled model.
+  allowedModels Json?  @map("allowed_models") @db.JsonB
 
   @@map("gateway_api_key_associations")
 }
@@ -1723,6 +1728,8 @@ model BatchAction {
   processedCount Int?    @map("processed_count")
   failedCount    Int?    @map("failed_count")
   log            String?
+  // Last row a resumable batch action finished, written with the counts.
+  cursor         Json?
 
   @@index([projectId, userId])
   @@index([status])

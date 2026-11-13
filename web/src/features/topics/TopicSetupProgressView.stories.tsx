@@ -1,4 +1,4 @@
-import { fn } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { TopicSetupProgressView } from "./TopicSetupProgressView";
 
@@ -26,6 +26,22 @@ export const Naming = meta.story({
   args: {
     stage: "naming" as const,
     facets: facets.map((facet) => ({ ...facet, complete: 500 })),
+  },
+});
+
+export const ClusteringTopics = meta.story({
+  name: "(Test) Building topics counts finished fits, not summaries",
+  args: {
+    stage: "grouping" as const,
+    facets: facets.map((facet) => ({ ...facet, complete: 500 })),
+    fits: { done: 2, total: 4 },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText("Clustering and identifying topics"),
+    ).toBeInTheDocument();
+    await expect(canvas.getByText(/^2\s*\/\s*4$/)).toBeInTheDocument();
   },
 });
 

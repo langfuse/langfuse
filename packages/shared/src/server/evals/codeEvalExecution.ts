@@ -141,7 +141,6 @@ function buildCodeEvalPayload(params: {
       toolCalls,
     },
   };
-
   if (params.hasExperimentContext) {
     payload.experiment = {
       itemExpectedOutput: byName.get("experimentItemExpectedOutput") ?? null,

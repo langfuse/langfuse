@@ -9,16 +9,18 @@ import {
 } from "@/src/components/ui/breadcrumb";
 import { Fragment } from "react";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { env } from "@/src/env.mjs";
+import { isCloudPlan, planLabels } from "@langfuse/shared";
 import {
   useOrgProjectSwitchPaths,
   useQueryProjectOrOrganization,
 } from "@/src/features/projects/hooks";
 import { useSession } from "next-auth/react";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { isCloudPlan, planLabels } from "@langfuse/shared";
 import Link from "next/link";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { cn } from "@/src/utils/tailwind";
+import { useOptionalSidebar } from "@/src/components/ui/sidebar";
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
 
@@ -34,6 +36,9 @@ const BreadcrumbComponent = ({
   const { getProjectPath, getOrgPath } = useOrgProjectSwitchPaths();
 
   const organizations = session.data?.user?.organizations;
+  // The expanded desktop sidebar shows the org switcher, so the breadcrumb
+  // drops it there.
+  const orgInSidebar = useOptionalSidebar()?.state === "expanded";
 
   const canCreateOrganizations = session.data?.user?.canCreateOrganizations;
   const canCreateProjects = useHasOrganizationAccess({
@@ -51,32 +56,45 @@ const BreadcrumbComponent = ({
               : { state: "loading" })}
             canCreateOrganizations={!!canCreateOrganizations}
             getOrgPath={getOrgPath}
+            currentOrganizationId={organization.id}
           >
             {({ getTriggerProps }) => (
               <button
                 type="button"
-                className="text-primary flex h-5 items-center gap-1.5 p-0 text-sm leading-none"
+                className={cn(
+                  "text-primary -ml-3 flex h-5 items-center gap-1.5 py-0 pr-0 pl-3 text-sm leading-none",
+                  orgInSidebar && "md:hidden",
+                )}
                 {...getTriggerProps()}
               >
-                <span className="ph-no-capture">
+                <span className="ph-no-capture font-medium">
                   {organization?.name ?? "Organization"}
                 </span>
-                {isCloudPlan(organization?.plan) &&
+                {isCloudPlan(organization.plan) &&
                   organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID && (
                     <Badge
                       color="filled"
                       size="sm"
-                      text={planLabels[organization.plan]}
+                      text={planLabels[organization.plan].toUpperCase()}
                     />
                   )}
-                <DropdownIndicator size="sm" nudge />
+                <DropdownIndicator
+                  direction="up-down"
+                  size="sm"
+                  color="muted"
+                />
               </button>
             )}
           </OrganizationDropdownMenu>
         )}
         {organization && project && (
           <>
-            <BreadcrumbSeparator className="text-foreground-tertiary">
+            <BreadcrumbSeparator
+              className={cn(
+                "text-foreground-tertiary",
+                orgInSidebar && "md:hidden",
+              )}
+            >
               /
             </BreadcrumbSeparator>
             <ProjectDropdownMenu
@@ -91,15 +109,22 @@ const BreadcrumbComponent = ({
                 : { state: "loading" })}
               canCreateProjects={!!canCreateProjects}
               getProjectPath={getProjectPath}
+              currentProjectId={project.id}
             >
               {({ getTriggerProps }) => (
                 <button
                   type="button"
-                  className="text-primary flex h-5 items-center gap-1.5 p-0 leading-none"
+                  className="text-primary -ml-3 flex h-5 items-center gap-1.5 py-0 pr-0 pl-3 leading-none"
                   {...getTriggerProps()}
                 >
-                  <span className="ph-no-capture">{project.name}</span>
-                  <DropdownIndicator size="sm" nudge />
+                  <span className="ph-no-capture font-medium">
+                    {project.name}
+                  </span>
+                  <DropdownIndicator
+                    direction="up-down"
+                    size="sm"
+                    color="muted"
+                  />
                 </button>
               )}
             </ProjectDropdownMenu>
@@ -114,7 +139,16 @@ const BreadcrumbComponent = ({
           );
           return (
             <Fragment key={index}>
-              <BreadcrumbSeparator className="text-foreground-tertiary">
+              <BreadcrumbSeparator
+                className={cn(
+                  "text-foreground-tertiary",
+                  index === 0 &&
+                    organization &&
+                    !project &&
+                    orgInSidebar &&
+                    "md:hidden",
+                )}
+              >
                 /
               </BreadcrumbSeparator>
               <BreadcrumbItem key={index}>

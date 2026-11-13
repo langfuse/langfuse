@@ -211,7 +211,7 @@ describe("tenancy injection", () => {
       );
 
     const whereRaw = getClickhouseKysely()
-      .selectFrom("events_truncated")
+      .selectFrom("traces")
       .select("environment")
       .where(sql<boolean>`id IN (SELECT id FROM traces)`);
 
@@ -337,6 +337,110 @@ describe("tenancy injection", () => {
     );
   });
 
+  it("injects the project scope into the ON clause of a LEFT join", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("traces as t")
+      .leftJoin("scores as s", (join) => join.onRef("s.trace_id", "=", "t.id"))
+      .select("t.id");
+
+    expect(compileClickhouseQuery(qb, projectId).sql).toMatchInlineSnapshot(
+      `"select t.id from traces as t left join scores as s on s.trace_id = t.id and s.project_id = {p1:String} where t.project_id = {p1:String}"`,
+    );
+  });
+
+  it("rejects a RIGHT or FULL join scoped only in ON", () => {
+    // The joined table's unmatched rows survive the join, and nothing outside
+    // the ON clause filters them: the FROM is a subquery. A caller-written ON
+    // scope is rejected like an injected one.
+    const db = getClickhouseKysely();
+    const from = () =>
+      db.selectFrom("traces").select(["id", "project_id"]).as("s");
+    const right = db
+      .selectFrom(from())
+      .rightJoin("events as e", (join) => join.onRef("e.trace_id", "=", "s.id"))
+      .select("e.span_id");
+    const full = db
+      .selectFrom(from())
+      .fullJoin("scores", (join) => join.onRef("scores.trace_id", "=", "s.id"))
+      .select("scores.value");
+
+    expect(() => compileClickhouseQuery(right, projectId)).toThrow(
+      UnscopedRelationError,
+    );
+    expect(() => compileClickhouseQuery(full, projectId)).toThrow(
+      UnscopedRelationError,
+    );
+    const scopedInOn = db
+      .selectFrom(from())
+      .rightJoin("events as e", (join) =>
+        join
+          .onRef("e.trace_id", "=", "s.id")
+          .on("e.project_id", "=", projectId),
+      )
+      .select("e.span_id");
+    expect(() => compileClickhouseQuery(scopedInOn, projectId)).toThrow(
+      UnscopedRelationError,
+    );
+  });
+
+  it("accepts a RIGHT join whose joined table WHERE scopes", () => {
+    const db = getClickhouseKysely();
+    const qb = db
+      .selectFrom(db.selectFrom("traces").select(["id", "project_id"]).as("s"))
+      .rightJoin("scores", (join) => join.onRef("scores.trace_id", "=", "s.id"))
+      .where("scores.project_id", "=", projectId)
+      .select("scores.value");
+
+    expect(compileClickhouseQuery(qb, projectId).sql).toMatchInlineSnapshot(
+      `"select scores.value from (select id, project_id from traces where traces.project_id = {p1:String}) as s right join scores on scores.trace_id = s.id where scores.project_id = {p1:String}"`,
+    );
+  });
+
+  it("rejects every join type but inner, left, right and full, tenanted or not", () => {
+    // ClickHouse has no `CROSS JOIN … ON`, so there is nowhere to inject, and
+    // no lateral join at all.
+    const db = getClickhouseKysely();
+    const sub = () =>
+      db.selectFrom("traces").select(["id", "project_id"]).as("s");
+    const tenanted = db
+      .selectFrom(sub())
+      .crossJoin("scores")
+      .select("scores.value");
+    const subqueryOnly = db
+      .selectFrom("traces as t")
+      .crossJoin(sub())
+      .select("t.id");
+    const lateral = db
+      .selectFrom("traces as t")
+      .crossJoinLateral(sub())
+      .select("t.id");
+
+    expect(() => compileClickhouseQuery(tenanted, projectId)).toThrow(
+      UnscopedRelationError,
+    );
+    expect(() => compileClickhouseQuery(subqueryOnly, projectId)).toThrow(
+      UnscopedRelationError,
+    );
+    expect(() => compileClickhouseQuery(lateral, projectId)).toThrow(
+      "LateralCrossJoin is rejected",
+    );
+  });
+
+  it("rejects a select with more than one FROM item", () => {
+    // ClickHouse reads `from a, b` as a cross join.
+    const db = getClickhouseKysely();
+    const qb = db
+      .selectFrom([
+        "traces as t",
+        db.selectFrom("scores").select(["trace_id"]).as("s"),
+      ])
+      .select("t.id");
+
+    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
+      "A select with 2 FROM items is rejected",
+    );
+  });
+
   it("does not count a bare project_id that a SELECT alias shadows as coverage", () => {
     // ClickHouse resolves a bare name to a SELECT alias before a table column.
     const qb = getClickhouseKysely()
@@ -400,6 +504,21 @@ describe("tenancy injection", () => {
     expect(compiled).toMatch(/t\.project_id/i);
     const matches = compiled.match(/project_id/gi) ?? [];
     expect(matches.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("rejects a select whose FROM and JOIN items share a name", () => {
+    // ClickHouse binds `traces.` to the alias `scores as traces`, so one
+    // `traces.project_id` predicate would leave the physical `traces` unscoped.
+    const qb = getClickhouseKysely()
+      .selectFrom("traces")
+      .innerJoin("scores as traces", (join) =>
+        join.on("traces.trace_id", "=", "t1"),
+      )
+      .select("traces.id");
+
+    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
+      `FROM/JOIN name "traces" names two relations`,
+    );
   });
 
   describe("CTE names", () => {
@@ -726,8 +845,8 @@ describe("tenancy injection", () => {
     });
 
     it("accepts a CTE named like an Object prototype key", () => {
-      // The registry lookups of the soft-delete and dedup passes must not
-      // find `Object.prototype.constructor` for it.
+      // The dedup pass's registry lookup must not find
+      // `Object.prototype.constructor` for it.
       expect(
         compile(
           db

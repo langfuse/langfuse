@@ -102,6 +102,7 @@ describe("QueueMetricsRunner", () => {
 
     expect(mocks.getJobCounts).toHaveBeenCalledWith(
       "waiting",
+      "prioritized",
       "paused",
       "failed",
       "active",

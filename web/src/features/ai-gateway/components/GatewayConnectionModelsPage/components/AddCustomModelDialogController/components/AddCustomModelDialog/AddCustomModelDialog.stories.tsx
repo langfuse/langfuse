@@ -42,7 +42,7 @@ const failedTestArgs = {
   onTest: fn(async () => ({
     success: false as const,
     status: "404 Not Found",
-    error: `This credential cannot access ${MODEL_ID} in the selected region.`,
+    error: `This connection cannot access ${MODEL_ID} in the selected region.`,
   })),
 };
 
@@ -56,7 +56,7 @@ export const BeforeTest = meta.story({
     await userEvent.type(dialog.getByLabelText("Model ID"), MODEL_ID);
     await expect(
       dialog.getByText(
-        "This model hasn't been tested with your credential yet.",
+        "This model hasn't been tested with this connection yet.",
       ),
     ).toBeVisible();
     await expect(

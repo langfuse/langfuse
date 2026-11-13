@@ -6,15 +6,15 @@ import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/Expand
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { FieldHeader } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/FieldHeader";
-import { isGatewayPreReleaseEnvironment } from "@/src/features/ai-gateway/fns/isGatewayPreReleaseEnvironment";
-import type { GatewayApiFamily } from "@/src/features/ai-gateway/types/gatewayProvider";
+import type { GatewayCustomEndpointProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 
 export type ExtraHeaderRow = { id: string; key: string; value: string };
 
-const defaultBaseUrls: Record<GatewayApiFamily, string> = {
+const defaultBaseUrls: Record<GatewayCustomEndpointProvider, string> = {
   OPENAI: "OpenAI default: https://api.openai.com/v1",
   ANTHROPIC:
     "Anthropic default: https://api.anthropic.com (excluding /v1/messages)",
+  OPENROUTER: "OpenRouter default: https://openrouter.ai/api/v1",
 };
 
 export function AdvancedSettings({
@@ -26,7 +26,7 @@ export function AdvancedSettings({
   onBaseURLChange,
   onHeadersChange,
 }: {
-  provider: GatewayApiFamily;
+  provider: GatewayCustomEndpointProvider;
   baseURL: string;
   headers: ExtraHeaderRow[];
   /** Names whose values are stored; their rows may stay blank to keep the value. */
@@ -74,13 +74,11 @@ export function AdvancedSettings({
               onChange={handleBaseURLChange}
             />
           </div>
-          {isGatewayPreReleaseEnvironment() && (
-            <ExtraHeadersSettings
-              headers={headers}
-              storedHeaderKeys={storedHeaderKeys}
-              onHeadersChange={onHeadersChange}
-            />
-          )}
+          <ExtraHeadersSettings
+            headers={headers}
+            storedHeaderKeys={storedHeaderKeys}
+            onHeadersChange={onHeadersChange}
+          />
         </div>
       ) : null}
     </div>

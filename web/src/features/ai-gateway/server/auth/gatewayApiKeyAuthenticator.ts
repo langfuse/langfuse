@@ -16,10 +16,10 @@ import {
   type GatewayApiFormat,
   type GatewayMetadata,
   GatewayMetadataSchema,
+  GatewayProviderConfigSchema,
   gatewayProviders,
   providerSupportsApiFormat,
 } from "@/src/features/ai-gateway/server/provider/registry";
-import { GatewayBedrockConfigSchema } from "@/src/features/ai-gateway/server/provider/bedrock";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
 import { GatewayModelRoutingService } from "@/src/features/ai-gateway/server/routing/gatewayModelRoutingService";
@@ -64,15 +64,23 @@ export class GatewayApiKeyAuthenticator {
     const route = this.modelRoutingService.resolve(
       params.model,
       context.connections,
+      params.apiFormat,
+      context.keyAllowedModels,
     );
     if (!route) {
       throw new GatewayControlPlaneError("Invalid gateway model", 400);
     }
+    // A key's patterns only narrow what the admin enabled, and a denial reads
+    // the same either way.
     if (
       route.connection &&
       !isGatewayModelAllowed(
         route.connection.allowedModels,
         route.providerModel,
+        {
+          connectionName: route.connection.name,
+          allowedModels: context.keyAllowedModels,
+        },
       )
     ) {
       throw new GatewayControlPlaneError(
@@ -164,6 +172,9 @@ export class GatewayApiKeyAuthenticator {
       userName: row.user?.name || null,
       userEmail: row.user?.email || null,
       keyMetadata: toKeyMetadata(row.gatewayAssociation?.metadata),
+      keyAllowedModels: parseGatewayAllowedModels(
+        row.gatewayAssociation?.allowedModels ?? null,
+      ),
       ingestionProjectId: projectIsUsable
         ? (gatewayConfig?.defaultIngestionProjectId ?? null)
         : null,
@@ -174,7 +185,7 @@ export class GatewayApiKeyAuthenticator {
         ...connection,
         allowedModels: parseGatewayAllowedModels(connection.allowedModels),
         config:
-          GatewayBedrockConfigSchema.safeParse(connection.config).data ?? null,
+          GatewayProviderConfigSchema.safeParse(connection.config).data ?? null,
       })),
     };
 

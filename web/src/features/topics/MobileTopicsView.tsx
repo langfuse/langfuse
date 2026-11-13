@@ -1,4 +1,4 @@
-import { useMemo, useState, type ComponentProps } from "react";
+import { useContext, useMemo, useState, type ComponentProps } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -19,6 +19,7 @@ import { MobileTopicVisualization } from "./MobileTopicVisualization";
 import { TopicsTraceToolbar } from "./TopicsTraceToolbar";
 import { prepareMobileTopics } from "./prepare-mobile-topics";
 import { UNASSIGNED_TOPIC_ID } from "./prepare-topic-display";
+import { FacetTraceSource } from "./useFacetTopicTraces";
 
 type MobileTopicsViewProps = {
   projectId: string;
@@ -99,7 +100,19 @@ export function MobileTopicsView({
         : new Set<string>(JSON.parse(matchingTraceKey)),
     [matchingTraceKey],
   );
-  const tracingHref = topicTracesHref(projectId, visible, isV4);
+  // Only a plain topic selection maps to the tracing filter; analysis snapshots have their own topics.
+  const isAnalysis = Boolean(useContext(FacetTraceSource)?.analysisId);
+  const tracingHref = topicTracesHref(
+    projectId,
+    visible,
+    isV4,
+    selectedTopic &&
+      selectedTopic.id !== UNASSIGNED_TOPIC_ID &&
+      !searchQuery &&
+      !isAnalysis
+      ? { facet, name: selectedTopic.name }
+      : undefined,
+  );
 
   function showAllTraces() {
     onFiltersChange([]);

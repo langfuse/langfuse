@@ -197,7 +197,7 @@ it("shows the AI Gateway pages among the organization routes", () => {
   ).toEqual([
     "Projects",
     "Overview",
-    "Providers & Models",
+    "Connections & Models",
     "Gateway keys",
     "Tracing",
     "Settings",

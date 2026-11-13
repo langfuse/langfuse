@@ -232,6 +232,8 @@ export async function createTopicExecution(
               from: input.timeRange.from.toISOString(),
               to: input.timeRange.to.toISOString(),
             },
+            // Analyses never serve, not even before a rule's first refit.
+            ...(input.analysis ? { analysis: true } : {}),
           },
         })),
       });
@@ -302,6 +304,26 @@ export async function listTopicExecutions(
     where: { projectId, actionType: TOPICS_ACTION },
     orderBy: { createdAt: "desc" },
     take: 100,
+  });
+  return batches.map(summaryResult);
+}
+
+/** One-off analysis executions, newest first; each rerun is its own execution. */
+export async function listTopicAnalysisExecutions(
+  projectId: string,
+): Promise<TopicExecutionSummary[]> {
+  topicIdSchema.parse(projectId);
+  const batches = await prisma.batchAction.findMany({
+    where: {
+      projectId,
+      actionType: TOPICS_ACTION,
+      config: {
+        path: ["inputSettings", "analysis", "seed"],
+        string_contains: "",
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 200,
   });
   return batches.map(summaryResult);
 }

@@ -52,7 +52,10 @@ import {
   TopicsTraceQueue,
 } from "@langfuse/shared/src/server";
 import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/licenseCheck";
-import { monitorProcessorTtl } from "@langfuse/shared/monitors/server";
+import {
+  monitorProcessorTtl,
+  monitorQueueMetricTags,
+} from "@langfuse/shared/monitors/server";
 import { IN_APP_AGENT_RUN_MAX_DURATION_MS } from "@langfuse/shared/in-app-agent/server/tunables";
 import { env, v4WritesToEventsTable } from "./env";
 import { isInAppAgentWorkerSurfaceEnabled } from "./features/in-app-agent/enablement";
@@ -93,7 +96,7 @@ import { batchActionQueueProcessor } from "./queues/batchActionQueue";
 import { scoreDeleteProcessor } from "./queues/scoreDelete";
 import { DlqRetryService } from "./services/dlq/dlqRetryService";
 import { entityChangeQueueProcessor } from "./queues/entityChangeQueue";
-import { webhookProcessor } from "./queues/webhooks";
+import { webhookProcessor, webhookQueueMetricTags } from "./queues/webhooks";
 import { datasetDeleteProcessor } from "./queues/datasetDelete";
 import { otelIngestionQueueProcessorBuilder } from "./queues/otelIngestionQueue";
 import { eventPropagationProcessor } from "./queues/eventPropagationQueue";
@@ -125,6 +128,7 @@ import {
 } from "./queues/topicsQueue";
 import { topicsEmbeddingQueueProcessor } from "./queues/topicsEmbeddingQueue";
 import { topicsAutomationQueueProcessor } from "./queues/topicsAutomationQueue";
+import { topicsSetupQueueProcessor } from "./queues/topicsSetupQueue";
 import { TopicsNightlyRefitRunner } from "./features/topics/nightlyRefit";
 
 const app = express();
@@ -200,7 +204,7 @@ if (env.QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED === "true") {
   const traceUpsertShardNames = TraceUpsertQueue.getShardNames();
   traceUpsertShardNames.forEach((shardName) => {
     WorkerManager.register(
-      shardName as QueueName,
+      shardName as QueueName.TraceUpsert,
       evalJobTraceCreatorQueueProcessor,
       {
         concurrency: env.LANGFUSE_TRACE_UPSERT_WORKER_CONCURRENCY,
@@ -503,6 +507,7 @@ if (env.QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED === "true") {
     // recovery so the unified TTL pacing is uncontested.
     lockDuration: monitorProcessorTtl + 60_000,
     maxStalledCount: 0,
+    metricTags: monitorQueueMetricTags,
   });
 }
 
@@ -533,6 +538,10 @@ if (isTopicsEnabled()) {
       { concurrency: 2 },
     );
   if (env.QUEUE_CONSUMER_TOPICS_UPDATE_QUEUE_IS_ENABLED === "true") {
+    // Setup ticks get their own queue so they never wait behind a fit.
+    WorkerManager.register(QueueName.TopicsSetup, topicsSetupQueueProcessor, {
+      concurrency: 5,
+    });
     topicsNightlyRefitRunner = new TopicsNightlyRefitRunner();
     topicsNightlyRefitRunner.start();
   }
@@ -776,6 +785,7 @@ if (env.QUEUE_CONSUMER_DEAD_LETTER_RETRY_QUEUE_IS_ENABLED === "true") {
 if (env.QUEUE_CONSUMER_WEBHOOK_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(QueueName.WebhookQueue, webhookProcessor, {
     concurrency: env.LANGFUSE_WEBHOOK_QUEUE_PROCESSING_CONCURRENCY,
+    metricTags: webhookQueueMetricTags,
   });
 }
 

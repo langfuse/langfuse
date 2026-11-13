@@ -32,7 +32,7 @@ export function topicRuleWhere(
 
 /**
  * The share of the project's new traces that enter trace-batch processing for
- * Topics: the active rule's sampling rate when the project is allowlisted,
+ * Topics: the largest sampling rate of the active rules when the project is allowlisted,
  * Topics is on with all three models configured, and an active rule runs at
  * least one facet that is not blocked; otherwise 0. The answer is cached in
  * Redis. A failed or timed-out lookup caches the allowlist answer (1) briefly
@@ -92,12 +92,14 @@ async function readCache(projectId: string): Promise<number | null> {
 }
 
 async function lookupProcessingSampling(projectId: string): Promise<number> {
-  const [config, rule] = await Promise.all([
+  const [config, rules] = await Promise.all([
     findActiveTopicsConfig(projectId),
-    findActiveTopicRule(projectId),
+    findActiveTopicRules(projectId),
   ]);
-  if (!config || !rule) return 0;
-  return Math.min(1, Math.max(0, Number(rule.sampling)));
+  if (!config || !rules.length) return 0;
+  // Rules sample on the same deterministic trace-ID value, so the largest rate admits every rule's sample.
+  const sampling = Math.max(...rules.map((rule) => Number(rule.sampling)));
+  return Math.min(1, Math.max(0, sampling));
 }
 
 function findActiveTopicsConfig(projectId: string) {
@@ -116,8 +118,8 @@ function findActiveTopicsConfig(projectId: string) {
   });
 }
 
-function findActiveTopicRule(projectId: string) {
-  return prisma.evaluationRule.findFirst({
+function findActiveTopicRules(projectId: string) {
+  return prisma.evaluationRule.findMany({
     where: {
       AND: [
         topicRuleWhere(projectId),
