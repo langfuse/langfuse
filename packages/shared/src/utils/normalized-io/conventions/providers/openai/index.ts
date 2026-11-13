@@ -47,7 +47,7 @@ import type {
 /**
  * OpenAI convention: Chat Completions and Responses API shapes. This module
  * owns OpenAI's typed block vocabulary, its `choices`/`output` response
- * envelopes, and the `refusal`/`audio`/reasoning-item sibling fields.
+ * envelopes, and the `refusal`/`audio`/reasoning sibling fields.
  */
 
 // OpenAI Chat Completions `finish_reason` vocabulary -> the canonical
@@ -388,17 +388,56 @@ function normalizeAudioOutput(
 }
 
 /**
- * OpenAI message-sibling fields: `refusal`/`audio`, and Responses reasoning
- * items (content[] is collected via the regular parts path; `summary` is a
- * sibling stream collected either way, and the replayable `encrypted_content`
- * blob becomes its own stream element after the visible parts).
+ * OpenAI message-sibling fields: Chat Completions reasoning strings,
+ * `refusal`/`audio`, and Responses reasoning items (content[] is collected via
+ * the regular parts path; `summary` is a sibling stream collected either way,
+ * and the replayable `encrypted_content` blob follows the visible parts).
  */
 function openAiCollectSiblingParts(
   value: Record<string, unknown>,
   baseParts: readonly NormalizedMessagePart[],
   context: { normalizePartList(values: unknown[]): NormalizedMessagePart[] },
 ): SiblingPartContribution[] {
+  const contributions: SiblingPartContribution[] = [];
   const parts: NormalizedMessagePart[] = [];
+
+  if (value.role === "assistant" && value.type !== "reasoning") {
+    const reasoningTexts = [
+      value.reasoning_content,
+      value.reasoning,
+      asRecord(value.provider_specific_fields)?.reasoning,
+    ]
+      .map(optionalString)
+      .filter((text) => text !== undefined);
+    if (reasoningTexts.length > 0) {
+      const existingParts = [
+        ...baseParts,
+        ...context.normalizePartList(
+          Array.isArray(value.thinking) ? value.thinking : [],
+        ),
+      ];
+      const seen = new Set(
+        existingParts.flatMap((part) =>
+          part.type === "reasoning" && part.content.kind === "text"
+            ? [part.content.text]
+            : [],
+        ),
+      );
+      const reasoningParts: NormalizedMessagePart[] = [];
+      for (const text of reasoningTexts) {
+        if (seen.has(text)) continue;
+        seen.add(text);
+        reasoningParts.push(reasoningPart(text));
+      }
+      if (reasoningParts.length > 0) {
+        contributions.push({
+          sourceKey: "openai.reasoning",
+          slot: "after-content",
+          parts: reasoningParts,
+        });
+      }
+    }
+  }
 
   const refusal = optionalString(value.refusal);
   if (refusal) parts.push({ type: "text", refusal: true, text: refusal });
@@ -410,9 +449,14 @@ function openAiCollectSiblingParts(
     parts.push(...openAiReasoningParts(value, baseParts, context));
   }
 
-  return parts.length > 0
-    ? [{ sourceKey: "openai.siblings", slot: "after-tool-calls", parts }]
-    : [];
+  if (parts.length > 0) {
+    contributions.push({
+      sourceKey: "openai.siblings",
+      slot: "after-tool-calls",
+      parts,
+    });
+  }
+  return contributions;
 }
 
 function openAiReasoningParts(

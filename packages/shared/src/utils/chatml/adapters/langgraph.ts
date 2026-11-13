@@ -7,8 +7,10 @@ import {
   attachToolDefinitionsToMessages,
   normalizeToolDefinitionsForChatMl,
   schemaMatches,
+  getNestedProperty,
 } from "../helpers";
 import { z } from "zod";
+import { openAIAdapter } from "./openai";
 
 // Detection schemas for LangChain/LangGraph formats
 
@@ -41,6 +43,25 @@ const LangGraphMessageSchema = z
           ("role" in msg || "additional_kwargs" in msg),
       );
       if (!hasLangGraphMessageShape) return false;
+
+      const hasPlainOpenAiReasoning =
+        data.some(
+          (msg) =>
+            msg.role === "assistant" &&
+            [
+              msg.reasoning_content,
+              msg.reasoning,
+              getNestedProperty(msg, "provider_specific_fields", "reasoning"),
+            ].some((value) => typeof value === "string" && value.length > 0),
+        ) &&
+        data.every(
+          (msg) =>
+            msg.type === undefined && msg.additional_kwargs === undefined,
+        );
+      // Plain reasoning arrays belong to the OpenAI adapter, while
+      // LangChain-specific fields retain their existing interpretation.
+      if (hasPlainOpenAiReasoning && openAIAdapter.detect({ data }))
+        return false;
 
       // Reject if any message has top-level parts (Microsoft Agent/Gemini format)
       return !data.some(

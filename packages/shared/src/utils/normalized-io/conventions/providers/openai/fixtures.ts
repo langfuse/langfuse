@@ -1,5 +1,140 @@
 import type { NormalizedIOFixture } from "../fixture-types";
 
+const chatCompletionReasoning = "17 × 20 = 340, 17 × 3 = 51, 340 + 51 = 391.";
+const existingThinking = {
+  type: "thinking",
+  content: "Check the arithmetic.",
+  signature: "sig_existing",
+};
+
+export const openAiMessageReasoningFixture: NormalizedIOFixture = {
+  name: "preserves message-level reasoning alongside content, thinking, and tool calls",
+  spanIO: {
+    input: undefined,
+    metadata: undefined,
+    output: {
+      choices: [
+        {
+          message: {
+            role: "assistant",
+            content: "391",
+            reasoning_content: chatCompletionReasoning,
+            reasoning: "The result is positive.",
+            provider_specific_fields: { reasoning: chatCompletionReasoning },
+            thinking: [existingThinking],
+            refusal: "I cannot answer the other request.",
+            tool_calls: [
+              {
+                id: "call_check",
+                type: "function",
+                function: { name: "check_result", arguments: '{"value":391}' },
+              },
+            ],
+          },
+        },
+        {
+          message: {
+            role: "assistant",
+            content: null,
+            provider_specific_fields: {
+              reasoning: "Only reasoning is available.",
+            },
+          },
+        },
+        {
+          message: {
+            role: "assistant",
+            content: "Already normalized.",
+            reasoning_content: existingThinking.content,
+            reasoning: existingThinking.content,
+            provider_specific_fields: { reasoning: existingThinking.content },
+            thinking: [existingThinking],
+          },
+        },
+        {
+          message: {
+            role: "assistant",
+            content: "Ordinary content.",
+            reasoning_content: "",
+            reasoning: { effort: "high" },
+            provider_specific_fields: { reasoning: ["not a reasoning string"] },
+          },
+        },
+      ],
+    },
+  },
+  expected: {
+    messages: [
+      {
+        source: "output",
+        role: "assistant",
+        parts: [
+          { type: "text", text: "391" },
+          {
+            type: "reasoning",
+            content: { kind: "text", text: chatCompletionReasoning },
+          },
+          {
+            type: "reasoning",
+            content: { kind: "text", text: "The result is positive." },
+          },
+          {
+            type: "reasoning",
+            content: {
+              kind: "text",
+              text: existingThinking.content,
+              signature: "sig_existing",
+            },
+          },
+          {
+            type: "tool-call",
+            toolCallId: "call_check",
+            toolName: "check_result",
+            input: { value: 391 },
+            toolType: "function",
+          },
+          {
+            type: "text",
+            refusal: true,
+            text: "I cannot answer the other request.",
+          },
+        ],
+      },
+      {
+        source: "output",
+        role: "assistant",
+        parts: [
+          {
+            type: "reasoning",
+            content: { kind: "text", text: "Only reasoning is available." },
+          },
+        ],
+      },
+      {
+        source: "output",
+        role: "assistant",
+        parts: [
+          { type: "text", text: "Already normalized." },
+          {
+            type: "reasoning",
+            content: {
+              kind: "text",
+              text: existingThinking.content,
+              signature: "sig_existing",
+            },
+          },
+        ],
+      },
+      {
+        source: "output",
+        role: "assistant",
+        parts: [{ type: "text", text: "Ordinary content." }],
+      },
+    ],
+    toolDefinitions: [],
+  },
+};
+
 // Docs-derived Responses requests (not captured traces).
 // https://developers.openai.com/api/docs/guides/text
 export const documentedResponsesFixtures: NormalizedIOFixture[] = [
