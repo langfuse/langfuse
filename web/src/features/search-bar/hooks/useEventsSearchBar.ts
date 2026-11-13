@@ -280,12 +280,15 @@ export function useEventsSearchBar({
   const searchTypeRef = useRef(searchType);
   searchTypeRef.current = searchType;
 
-  /** Preserve hidden filters unless the same target, column, and key is edited. */
+  /**
+   * Preserve hidden filters, plus any `extraHidden`, unless the same target,
+   * column, and key is edited.
+   */
   const mergeWithSkipped = useCallback(
-    (filters: FilterState): FilterState =>
+    (filters: FilterState, extraHidden: FilterState = []): FilterState =>
       mergeSkippedFilters(
         filters,
-        skippedFiltersRef.current,
+        [...new Set([...skippedFiltersRef.current, ...extraHidden])],
         appliedStateRef.current.filters,
       ),
     [],
@@ -341,16 +344,9 @@ export function useEventsSearchBar({
         applyRef.current;
       // The AI filter contract has no numeric metadata comparison, so the
       // result never carries one: keep them like hidden filters.
-      const numericMetadata = appliedStateRef.current.filters.filter(
-        (f) =>
-          f.type === "numberObject" &&
-          registry.numericMetadata &&
-          registry.columnIdOf(f.column) === "metadata",
-      );
-      const committedFilters = mergeSkippedFilters(
+      const committedFilters = mergeWithSkipped(
         filters,
-        [...new Set([...skippedFiltersRef.current, ...numericMetadata])],
-        appliedStateRef.current.filters,
+        numericMetadataFilters(appliedStateRef.current.filters, registry),
       );
       beginCommit({
         filters: committedFilters,
@@ -363,7 +359,7 @@ export function useEventsSearchBar({
         setSearchType([...registry.defaultSearchType]);
       }
     },
-    [beginCommit, registry],
+    [beginCommit, mergeWithSkipped, registry],
   );
 
   // The committed text at the last render — the dedup baseline so a blur that
@@ -491,6 +487,18 @@ export function useEventsSearchBar({
   );
 
   return { store, commit, applyFilters, resetDraft };
+}
+
+/** The numeric metadata comparisons in `filters`; none when the registry has no numeric metadata. */
+function numericMetadataFilters(
+  filters: FilterState,
+  registry: FieldRegistry,
+): FilterState {
+  if (!registry.numericMetadata) return [];
+  return filters.filter(
+    (f) =>
+      f.type === "numberObject" && registry.columnIdOf(f.column) === "metadata",
+  );
 }
 
 /**
