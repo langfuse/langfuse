@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useRef, useState } from "react";
 import type { EvalTemplateType } from "@langfuse/shared";
 
@@ -15,14 +16,14 @@ import {
   EVALUATOR_GALLERY_ALL_SECTION_KEY,
   EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,
 } from "@/src/features/evals/v2/constants/evaluatorGallery";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { getEvaluatorCreationAnalyticsProperties } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
 import { getTemplateSelectionAnalyticsProperties } from "@/src/features/evals/v2/fns/templateGallery/getTemplateSelectionAnalyticsProperties";
 import { api } from "@/src/utils/api";
 import {
   useInAppAiAgent,
   useIsInAppAgentLauncherVisible,
-} from "@/src/features/in-app-agent";
+} from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 
 // Search reports once the user pauses typing, so one query is one event.
 const SEARCH_CAPTURE_DELAY_MS = 1000;

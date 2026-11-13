@@ -1,7 +1,7 @@
 import { getEvaluatorBlockMetadata } from "@langfuse/shared";
 import { type TopicRule } from "@langfuse/shared/topics";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { type AutomaticProcessingState } from "./AutomaticProcessingControl";
+import { type AutomaticProcessingState } from "./prepare-topics-actions";
 
 type StoredSettings = RouterOutputs["topics"]["modelSettings"];
 
@@ -12,18 +12,34 @@ type StoredSettings = RouterOutputs["topics"]["modelSettings"];
 export function useAutomaticProcessing({
   projectId,
   rule,
+  hasRules,
   stored,
 }: {
   projectId: string;
+  /** The rule whose sampling the dialog edits; null with several rules. */
   rule: TopicRule | null;
+  hasRules: boolean;
   stored: StoredSettings | undefined;
 }) {
   const mutation = useSetAutomaticProcessing(projectId);
   return {
-    state: automaticProcessingState(stored, rule),
+    state: automaticProcessingState(stored, hasRules),
     clearPause: () => mutation.mutate({ projectId, enabled: false }),
-    save: (input: { enabled: boolean; sampling: number }) =>
-      mutation.mutateAsync({ projectId, ...input }),
+    // Sampling belongs to a rule; with several rules it is set per rule.
+    save: ({
+      enabled,
+      sampling,
+      ruleId = rule?.id,
+    }: {
+      enabled: boolean;
+      sampling?: number;
+      ruleId?: string;
+    }) =>
+      mutation.mutateAsync(
+        ruleId && sampling !== undefined
+          ? { projectId, enabled, sampling, ruleId }
+          : { projectId, enabled },
+      ),
     saving: mutation.isPending,
   };
 }
@@ -39,11 +55,11 @@ function useSetAutomaticProcessing(projectId: string) {
   });
 }
 
-export function automaticProcessingState(
+function automaticProcessingState(
   stored: StoredSettings | undefined,
-  rule: TopicRule | null,
+  hasRules: boolean,
 ): AutomaticProcessingState {
-  if (!stored || stored.enabled === null || !rule)
+  if (!stored || stored.enabled === null || !hasRules)
     return { status: "unconfigured" };
   if (stored.blockMessage)
     return {
@@ -53,7 +69,5 @@ export function automaticProcessingState(
         : "Paused",
     };
   if (stored.enabled) return { status: "on" };
-  // Only turning on needs the allowlist, so a running setup can still be turned off.
-  if (!stored.processingAvailable) return { status: "unavailable" };
   return { status: "off" };
 }

@@ -52,7 +52,6 @@ const createCaller = async (opts: { v4BetaEnabled?: boolean } = {}) => {
       id: `user-${randomUUID()}`,
       name: "Batch Delete Test User",
       canCreateOrganizations: true,
-      admin: true,
       v4BetaEnabled: opts.v4BetaEnabled ?? false,
       organizations: [
         {
@@ -589,11 +588,14 @@ describe("traces.deleteMany batch action", () => {
       const { projectId, caller } = await createCaller({
         v4BetaEnabled: true,
       });
+      const queue = await prisma.annotationQueue.create({
+        data: { projectId, name: `queue-${randomUUID()}` },
+      });
 
       await expect(
         caller.annotationQueueItems.createMany({
           projectId,
-          queueId: randomUUID(),
+          queueId: queue.id,
           objectIds: [randomUUID()],
           objectType: AnnotationQueueObjectType.TRACE,
           isBatchAction: true,

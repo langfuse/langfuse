@@ -2,13 +2,13 @@ import {
   DECISION_MODEL_LIMITS,
   DecisionModelQuestionType,
 } from "@langfuse/shared";
-import { Sparkles } from "lucide-react";
+import { Sparkles } from "@langfuse/icons";
 
 import { TextActionButton } from "@/src/components/TextActionButton/TextActionButton";
 import { Button } from "@/src/components/ui/button";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Label } from "@/src/components/ui/label";
-import { SortableList } from "@/src/features/evals/v2/components/SortableList/SortableList";
+import { SortableList } from "@/src/components/design-system/SortableList/SortableList";
 import { DecisionModelQuestionCard } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/DecisionModelQuestionCard/DecisionModelQuestionCard";
 import { QUESTION_TYPE_COPY } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/QuestionTypeSelector/QuestionTypeSelector";
 import type {
@@ -154,7 +154,7 @@ export function DecisionModelQuestionList({
                   size="sm"
                   onClick={() => onAddExample(type)}
                 >
-                  <Sparkles className="icon-base text-icon-foreground mr-1" />
+                  <Sparkles size="base" color="default" __rawClassName="mr-1" />
                   {copy.label}: “{examples[type].instructions}”
                 </Button>
               );
@@ -189,12 +189,11 @@ export function DecisionModelQuestionList({
         />
       )}
 
-      <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
         <TextActionButton text="Add question" onClick={onAdd} />
-        <InfoTooltip label="About extra questions">
-          Answered together in one call; extra questions add only their own
-          tokens.
-        </InfoTooltip>
+        <span className="text-muted-foreground inline-flex h-6 items-center text-xs leading-none">
+          One call; extra questions add only their own tokens.
+        </span>
       </div>
     </div>
   );

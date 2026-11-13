@@ -6,13 +6,15 @@
  *    comparisons).
  *  - `COLUMN_DATA_TYPES` — the coarse runtime type map the aggregate type-check
  *    pass consults (`typecheck.ts`).
- *  - `TABLE_BIND_TYPES` / `COLUMN_BIND_TYPES` — the ClickHouse bind types the
- *    compiler uses when a value is compared to a known column (`compiler.ts`).
+ *  - `TABLE_BIND_TYPES` — the ClickHouse bind types the compiler uses when a
+ *    value is compared to a known column (`compiler.ts`).
  *  - `TENANTED_TABLES` — the relations the tenancy pass must scope
  *    (`tenancy.ts`).
  *  - `DEDUP_SPECS` — the per-table read idiom the lowering pass applies
  *    (`dedup.ts`). Each table names an existing production mechanism; the
  *    pass does not invent a new one.
+ *  - `SOFT_DELETE_COLUMNS` — the flag column the soft-delete pass filters to
+ *    `0` (`softDelete.ts`).
  *
  * Deriving every view from one declaration keeps them from drifting apart.
  *
@@ -27,9 +29,9 @@
 export type ChColumnType =
   | "String"
   | "Nullable(String)"
-  | "Float"
+  | "Float64"
   | "Decimal(18,12)"
-  | "DateTime"
+  | "DateTime64(3)"
   | "DateTime64(6)"
   | "UInt8"
   | "UInt16"
@@ -40,13 +42,30 @@ export type ChColumnType =
   | "Array(String)"
   | "Map(String, UInt64)"
   | "Map(String, Decimal(18,12))"
-  | "Map(String, String)";
+  | "Map(String, String)"
+  | "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String))"
+  | "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String, filePath String))";
 
+/** One `skills_available` element, read as an object keyed by tuple name. */
+type SkillRef = {
+  langfuseSkillId: string | null;
+  skillVersion: number | null;
+  skillName: string;
+};
+
+/**
+ * Logical TS type of a column: the value a caller binds, and what a result
+ * value means once parsed. Not the wire type — `JSONEachRow` returns
+ * `DateTime64` as a `YYYY-MM-DD hh:mm:ss.ffffff` string, and `UInt64` as a
+ * string on servers that quote 64-bit integers. Rows inferred from a builder
+ * (`InferResult`) therefore do not describe raw query results; read those
+ * through a read schema and converter.
+ */
 type TsTypeOfColumn<T extends ChColumnType> = T extends "String"
   ? string
   : T extends "Nullable(String)"
     ? string | null
-    : T extends "Float" | "Decimal(18,12)"
+    : T extends "Float64" | "Decimal(18,12)"
       ? number
       : T extends "UInt8" | "UInt16" | "UInt64"
         ? number
@@ -54,7 +73,7 @@ type TsTypeOfColumn<T extends ChColumnType> = T extends "String"
           ? boolean
           : T extends "Nullable(UInt16)"
             ? number | null
-            : T extends "DateTime" | "DateTime64(6)"
+            : T extends "DateTime64(3)" | "DateTime64(6)"
               ? Date
               : T extends "Nullable(DateTime64(6))"
                 ? Date | null
@@ -66,7 +85,11 @@ type TsTypeOfColumn<T extends ChColumnType> = T extends "String"
                     ? Record<string, number>
                     : T extends "Map(String, String)"
                       ? Record<string, string>
-                      : never;
+                      : T extends "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String))"
+                        ? SkillRef[]
+                        : T extends "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String, filePath String))"
+                          ? (SkillRef & { filePath: string })[]
+                          : never;
 
 /** Coarse runtime category the aggregate type-check pass reasons about. */
 export type ColumnDataType = "string" | "number" | "date" | "array" | "map";
@@ -74,7 +97,7 @@ export type ColumnDataType = "string" | "number" | "date" | "array" | "map";
 const RUNTIME_TYPE: Record<ChColumnType, ColumnDataType> = {
   String: "string",
   "Nullable(String)": "string",
-  Float: "number",
+  Float64: "number",
   "Decimal(18,12)": "number",
   UInt8: "number",
   UInt16: "number",
@@ -82,13 +105,17 @@ const RUNTIME_TYPE: Record<ChColumnType, ColumnDataType> = {
   // ClickHouse stores Bool as UInt8, so numeric aggregates accept it.
   Bool: "number",
   "Nullable(UInt16)": "number",
-  DateTime: "date",
+  "DateTime64(3)": "date",
   "DateTime64(6)": "date",
   "Nullable(DateTime64(6))": "date",
   "Array(String)": "array",
   "Map(String, UInt64)": "map",
   "Map(String, Decimal(18,12))": "map",
   "Map(String, String)": "map",
+  "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String))":
+    "array",
+  "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String, filePath String))":
+    "array",
 };
 
 /**
@@ -123,11 +150,18 @@ function defineTable<const Cols extends Record<string, ChColumnType>>(spec: {
    * migrated; `none` is an explicit "do not collapse" (immutable rows).
    */
   dedup?: DedupSpec;
+  /**
+   * Column that marks a soft-deleted row. The soft-delete pass injects
+   * `<column> = 0` on every read of this table unless the select opts out
+   * with `includeDeleted()`, or after its LIMIT with `softDeleteAfterLimit()`.
+   */
+  softDelete?: keyof Cols & string;
 }) {
   return {
     columns: spec.columns,
     tenant: spec.tenant ?? true,
     dedup: spec.dedup,
+    softDelete: spec.softDelete,
   };
 }
 
@@ -210,14 +244,55 @@ const EVENTS_COLUMNS = {
   created_at: "DateTime64(6)",
   updated_at: "DateTime64(6)",
   ingestion_api_key: "String",
+  skills_available:
+    "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String))",
+  skills_resource_loaded:
+    "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String, filePath String))",
 } as const satisfies Record<string, ChColumnType>;
+
+/**
+ * How `events_core` cuts a column, read on `events_full`:
+ * - `text`: `leftUTF8(x, 200)`;
+ * - `elements`: `arrayMap(v -> leftUTF8(v, 200), x)`;
+ * - `length`: `lengthUTF8(leftUTF8(of, 200))`, materialized from the cut
+ *   `of` column.
+ *
+ * Either shape, told apart by `cut`: only a `length` entry has `of`, and it
+ * must name an events column (`{ cut: "length" }` alone or `{ cut: "text",
+ * of: … }` in {@link EVENTS_CORE_TRUNCATIONS} fails to compile).
+ */
+export type EventsCoreTruncation =
+  | { cut: "text" | "elements" }
+  | { cut: "length"; of: keyof typeof EVENTS_COLUMNS };
+
+/**
+ * Columns whose `events_core` copy differs from `events_full`, and how
+ * `events_core_mv` cuts each one to its first 200 code points
+ * (`EVENTS_CORE_TRUNCATION_LIMIT`). `schema.test.ts` holds it to the cuts
+ * of the latest `events_core_mv` query and the `events_core` materialized
+ * lengths in `clickhouse/migrations/canonical`.
+ */
+export const EVENTS_CORE_TRUNCATIONS = {
+  input: { cut: "text" },
+  output: { cut: "text" },
+  metadata_values: { cut: "elements" },
+  input_length: { cut: "length", of: "input" },
+  output_length: { cut: "length", of: "output" },
+} as const satisfies Partial<
+  Record<keyof typeof EVENTS_COLUMNS, EventsCoreTruncation>
+>;
+
+/** The columns of {@link EVENTS_CORE_TRUNCATIONS}. */
+export const EVENTS_CORE_TRUNCATED_COLUMNS: ReadonlySet<string> = new Set(
+  Object.keys(EVENTS_CORE_TRUNCATIONS),
+);
 
 const TABLE_REGISTRY = {
   traces: defineTable({
     columns: {
       environment: "String",
       project_id: "String",
-      timestamp: "DateTime",
+      timestamp: "DateTime64(3)",
       id: "String",
     },
   }),
@@ -225,7 +300,7 @@ const TABLE_REGISTRY = {
     columns: {
       environment: "String",
       project_id: "String",
-      start_time: "DateTime",
+      start_time: "DateTime64(3)",
       trace_id: "String",
       cost_details: "Map(String, Decimal(18,12))",
       usage_details: "Map(String, UInt64)",
@@ -235,6 +310,7 @@ const TABLE_REGISTRY = {
     columns: EVENTS_COLUMNS,
     // Immutable at read time. Do not inject LIMIT BY or FINAL.
     dedup: { strategy: "none" },
+    softDelete: "is_deleted",
   }),
   // Same projection as events_core with full I/O. Tenanted and immutable
   // for the same reasons; selected when a point-read needs untruncated
@@ -242,23 +318,41 @@ const TABLE_REGISTRY = {
   events_full: defineTable({
     columns: EVENTS_COLUMNS,
     dedup: { strategy: "none" },
+    softDelete: "is_deleted",
+  }),
+  // Logical relation over events_core / events_full. The routing pass
+  // (`eventsRouting.ts`) replaces it with one of them before any other pass
+  // runs, so ClickHouse never sees this name.
+  events: defineTable({
+    columns: EVENTS_COLUMNS,
+    dedup: { strategy: "none" },
+    softDelete: "is_deleted",
+  }),
+  // Logical relation for reading the truncated copy on purpose
+  // (input/output/metadata previews): routing compiles it to events_core
+  // unless its WHERE needs events_full, and then cuts what it reads outside
+  // that WHERE (README, `eventsRouting.ts`).
+  events_truncated: defineTable({
+    columns: EVENTS_COLUMNS,
+    dedup: { strategy: "none" },
+    softDelete: "is_deleted",
   }),
   scores: defineTable({
     columns: {
       id: "String",
       environment: "String",
       project_id: "String",
-      timestamp: "DateTime",
-      event_ts: "DateTime",
-      created_at: "DateTime",
-      updated_at: "DateTime",
+      timestamp: "DateTime64(3)",
+      event_ts: "DateTime64(3)",
+      created_at: "DateTime64(3)",
+      updated_at: "DateTime64(3)",
       data_type: "String",
       trace_id: "Nullable(String)",
       session_id: "Nullable(String)",
       observation_id: "Nullable(String)",
       dataset_run_id: "Nullable(String)",
       name: "String",
-      value: "Float",
+      value: "Float64",
       source: "String",
       comment: "Nullable(String)",
       author_user_id: "Nullable(String)",
@@ -276,27 +370,62 @@ type RowOf<Cols extends Record<string, ChColumnType>> = {
   [C in keyof Cols]: TsTypeOfColumn<Cols[C]>;
 };
 
-/** Derived Kysely row types. */
+/**
+ * Relations only the routing pass may name. Call sites read the logical
+ * `events` / `events_truncated` instead.
+ */
+export const PHYSICAL_EVENTS_TABLES: ReadonlySet<string> = new Set([
+  "events_core",
+  "events_full",
+] satisfies ReadonlyArray<keyof typeof TABLE_REGISTRY>);
+
+/** Logical relations the routing pass replaces with a physical events table. */
+export const LOGICAL_EVENTS_TABLES: ReadonlySet<string> = new Set([
+  "events",
+  "events_truncated",
+] satisfies ReadonlyArray<keyof typeof TABLE_REGISTRY>);
+
+/** Derived Kysely row types, without the physical events tables. */
 export type ClickHouseDatabase = {
-  [T in keyof typeof TABLE_REGISTRY]: RowOf<
-    (typeof TABLE_REGISTRY)[T]["columns"]
-  >;
+  [T in Exclude<
+    keyof typeof TABLE_REGISTRY,
+    "events_core" | "events_full"
+  >]: RowOf<(typeof TABLE_REGISTRY)[T]["columns"]>;
 };
+
+/**
+ * Declared ClickHouse type per column, per physical registry table. A
+ * servertest checks it against `system.columns` of the migrated database. The
+ * logical events relations have no table of their own; their columns are
+ * `events_core`'s and `events_full`'s.
+ */
+export const TABLE_COLUMN_TYPES: Record<
+  string,
+  Record<string, ChColumnType>
+> = lookupTable(
+  Object.entries(TABLE_REGISTRY)
+    .filter(([table]) => !LOGICAL_EVENTS_TABLES.has(table))
+    .map(([table, spec]) => [table, spec.columns]),
+);
 
 /**
  * Derived coarse runtime column-type map (column name -> category), consumed by
  * the aggregate type-check pass. Column names are consistent across tables in
  * this schema, so a flat map is unambiguous.
  */
-export const COLUMN_DATA_TYPES: Record<string, ColumnDataType> =
-  Object.fromEntries(
-    Object.values(TABLE_REGISTRY).flatMap((table) =>
-      Object.entries(table.columns).map(([name, chType]) => [
-        name,
-        RUNTIME_TYPE[chType],
-      ]),
-    ),
-  );
+export const COLUMN_DATA_TYPES: Record<string, ColumnDataType> = lookupTable(
+  Object.values(TABLE_REGISTRY).flatMap((table) =>
+    Object.entries(table.columns).map(([name, chType]) => [
+      name,
+      RUNTIME_TYPE[chType],
+    ]),
+  ),
+);
+
+/** Every registry relation name, the logical events relations included. */
+export const REGISTRY_TABLES: ReadonlySet<string> = new Set(
+  Object.keys(TABLE_REGISTRY),
+);
 
 /** Derived set of relations the tenancy pass must scope. */
 export const TENANTED_TABLES = new Set<string>(
@@ -306,21 +435,27 @@ export const TENANTED_TABLES = new Set<string>(
 );
 
 /** Derived per-table read idioms, keyed by table name. */
-export const DEDUP_SPECS: Record<string, DedupSpec> = Object.fromEntries(
+export const DEDUP_SPECS: Record<string, DedupSpec> = lookupTable(
   Object.entries(TABLE_REGISTRY).flatMap(([name, spec]) =>
     spec.dedup ? [[name, spec.dedup]] : [],
   ),
 );
 
+/** Derived soft-delete flag column, keyed by table name. */
+export const SOFT_DELETE_COLUMNS: Record<string, string> = lookupTable(
+  Object.entries(TABLE_REGISTRY).flatMap(([name, spec]) =>
+    spec.softDelete ? [[name, spec.softDelete]] : [],
+  ),
+);
+
 /**
  * ClickHouse bind type for a JS value compared against this column. Wider than
- * the coarse {@link COLUMN_DATA_TYPES} category: `DateTime` columns bind as
- * `DateTime64(3)`, `Float` as `Float64`, so an integer literal compared to
- * `value` still becomes `{p:Float64}`.
+ * the coarse {@link COLUMN_DATA_TYPES} category, so an integer literal compared
+ * to `value` still becomes `{p:Float64}`.
  */
 const BIND_TYPE: Record<ChColumnType, string> = {
   String: "String",
-  Float: "Float64",
+  Float64: "Float64",
   "Decimal(18,12)": "Decimal(18, 12)",
   UInt8: "UInt8",
   UInt16: "UInt16",
@@ -329,23 +464,27 @@ const BIND_TYPE: Record<ChColumnType, string> = {
   // A bound value is never NULL; NULL checks compile to `IS NULL`.
   "Nullable(String)": "String",
   "Nullable(UInt16)": "UInt16",
-  DateTime: "DateTime64(3)",
+  "DateTime64(3)": "DateTime64(3)",
   "DateTime64(6)": "DateTime64(6)",
   "Nullable(DateTime64(6))": "DateTime64(6)",
   "Array(String)": "Array(String)",
   "Map(String, UInt64)": "Map(String, UInt64)",
   "Map(String, Decimal(18,12))": "Map(String, Decimal(18, 12))",
   "Map(String, String)": "Map(String, String)",
+  "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String))":
+    "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String))",
+  "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String, filePath String))":
+    "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String, filePath String))",
 };
 
 /** Bind type per column, per registry table. */
 export const TABLE_BIND_TYPES: Record<
   string,
   Record<string, string>
-> = Object.fromEntries(
+> = lookupTable(
   Object.entries(TABLE_REGISTRY).map(([table, spec]) => [
     table,
-    Object.fromEntries(
+    lookupTable(
       Object.entries(spec.columns).map(([name, chType]) => [
         name,
         BIND_TYPE[chType],
@@ -355,21 +494,12 @@ export const TABLE_BIND_TYPES: Record<
 );
 
 /**
- * Bind type by bare column name, for operands whose relation is opaque to the
- * compiler (e.g. a qualifier no relation in scope declares). Only names with the same bind type in
- * every table are kept, since `start_time` is `DateTime64(6)` on events but
- * `DateTime64(3)` on observations.
+ * `Object.fromEntries` without `Object.prototype`, so a lookup by a name such
+ * as `constructor` or `toString` finds nothing instead of an inherited
+ * function: `lookupTable([["traces", 1]]).constructor` → undefined.
  */
-export const COLUMN_BIND_TYPES: Record<string, string> = (() => {
-  const byName = new Map<string, Set<string>>();
-  for (const columns of Object.values(TABLE_BIND_TYPES)) {
-    for (const [name, bindType] of Object.entries(columns)) {
-      byName.set(name, (byName.get(name) ?? new Set()).add(bindType));
-    }
-  }
-  return Object.fromEntries(
-    [...byName]
-      .filter(([, types]) => types.size === 1)
-      .map(([name, types]) => [name, [...types][0]]),
-  );
-})();
+export function lookupTable<V>(
+  entries: Iterable<readonly [string, V]>,
+): Record<string, V> {
+  return Object.assign(Object.create(null), Object.fromEntries(entries));
+}

@@ -1,9 +1,9 @@
 import React, { useMemo } from "react";
-import {
-  Chart,
-  type LegendSummaryMode,
-  type MissingBucketValue,
-} from "@/src/features/widgets";
+import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import type {
+  LegendSummaryMode,
+  MissingBucketValue,
+} from "@/src/features/widgets/chart-library/chart-props";
 import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { type TimeSeriesChartDataPoint } from "@/src/features/dashboard/components/hooks";
 

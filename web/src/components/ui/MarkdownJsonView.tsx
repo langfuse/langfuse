@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure, @typescript-eslint/no-use-before-define */
 import {
   OpenAIContentParts,
   OpenAIContentSchema,
@@ -6,9 +6,9 @@ import {
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
-import { type MediaReturnType } from "@/src/features/media";
-import { Check, Copy } from "lucide-react";
+import { MarkdownView } from "@/src/components/ui/MarkdownView";
+import { type MediaReturnType } from "@/src/features/media/validation";
+import { Check, Copy } from "@langfuse/icons";
 import { useMemo, useState } from "react";
 import { type z } from "zod";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
@@ -38,19 +38,13 @@ export function MarkdownJsonViewHeader({
 }: MarkdownJsonViewHeaderProps) {
   const [isCopied, setIsCopied] = useState(false);
 
-  const titleContent = (
-    <>
-      {titleIcon}
-      {title}
-    </>
-  );
-
   return (
-    <div className="io-message-header flex flex-row items-center justify-between px-1 py-1 text-base font-bold capitalize">
+    <div className="io-message-header flex h-8 flex-row items-center justify-between px-1 text-sm font-bold capitalize">
       {/* Masked from session recordings: the title can be a customer-provided
           message `name` (or tool name) rather than a fixed role string. */}
       <div className="ph-no-capture flex items-center gap-2">
-        {titleContent}
+        {titleIcon}
+        {title}
       </div>
       <div
         className={cn(
@@ -76,9 +70,9 @@ export function MarkdownJsonViewHeader({
             className="text-muted-foreground hover:text-foreground hover:bg-transparent"
           >
             {isCopied ? (
-              <Check className="icon-base text-icon-foreground" />
+              <Check size="base" color="default" />
             ) : (
-              <Copy className="icon-base text-icon-foreground" />
+              <Copy size="base" color="default" />
             )}
           </Button>
         )}
@@ -131,31 +125,16 @@ const isOpenAIContentWithExternalS3Image = (content: unknown) => {
   return hasExternalS3Image && hasOnlyRenderableParts;
 };
 
-// MarkdownJsonView renders markdown whenever the content is valid markdown
-// (see canRenderContentAsMarkdown), otherwise it falls back to JSON.
 export function MarkdownJsonView({
   content,
-  title,
-  titleIcon,
   className,
   audio,
   media,
-  controlButtons,
-  afterHeader,
-  isSystemPrompt,
 }: {
   content?: unknown;
-  title?: string;
-  titleIcon?: React.ReactNode;
   className?: string;
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
-  controlButtons?: React.ReactNode;
-  /** Content to render between header and main content (e.g., thinking blocks) */
-  afterHeader?: React.ReactNode;
-  /** Collapse long content to a preview (from raw `role === "system"`, since
-      the title can carry a message `name` instead of the role). */
-  isSystemPrompt?: boolean;
 }) {
   const characterLimit = useMarkdownRenderCharacterLimit();
   // Boxed so a renderable `null` content stays distinguishable from
@@ -168,32 +147,19 @@ export function MarkdownJsonView({
     [content, characterLimit],
   );
 
-  return (
-    <>
-      {markdownContent ? (
-        <MarkdownView
-          markdown={markdownContent.value}
-          title={title}
-          titleIcon={titleIcon}
-          audio={audio}
-          media={media}
-          controlButtons={controlButtons}
-          afterHeader={afterHeader}
-          isSystemPrompt={isSystemPrompt}
-        />
-      ) : (
-        <PrettyJsonView
-          json={content ?? (audio ? { audio } : null)}
-          title={title}
-          titleIcon={titleIcon}
-          className={className}
-          media={media}
-          currentView="pretty"
-          controlButtons={controlButtons}
-          afterHeader={afterHeader}
-          isSystemPrompt={isSystemPrompt}
-        />
-      )}
-    </>
+  return markdownContent ? (
+    <MarkdownView
+      markdown={markdownContent.value}
+      audio={audio}
+      media={media}
+    />
+  ) : (
+    <div className={className}>
+      <PrettyJsonView
+        json={content ?? (audio ? { audio } : null)}
+        media={media}
+        currentView="pretty"
+      />
+    </div>
   );
 }

@@ -5,7 +5,9 @@ import { createBullMQQueueOptionsWithRedis, redis } from "../redis/redis";
 import { logger } from "../logger";
 import { isTopicsEnabled } from "./config";
 import {
+  createTopicExecution,
   readTopicExecutionSummary,
+  readTopicExecutionUserId,
   writeTopicExecution,
 } from "./execution-store";
 import type {
@@ -22,6 +24,8 @@ const ownsExecution = (state: string) =>
     state,
   );
 type TopicsJob = TQueueJobTypes[QueueName.Topics];
+type TopicsUpdateJob = TQueueJobTypes[QueueName.TopicsUpdate];
+type TopicsSetupJob = TQueueJobTypes[QueueName.TopicsSetup];
 const batchJobId = (executionId: string, index: number) =>
   `${executionId}-${index}`;
 const progressKeys = (projectId: string, executionId: string) => {
@@ -38,12 +42,12 @@ const expiredInput = () =>
     "Topics batch inputs or retry state expired. Start a new execution with your trace selection.",
   );
 
-function createTopicsQueue(
-  queueName: QueueName.Topics | QueueName.TopicsUpdate,
-): Queue<TopicsJob> | null {
+function createTopicsQueue<Job extends TopicsUpdateJob | TopicsSetupJob>(
+  queueName: QueueName.Topics | QueueName.TopicsUpdate | QueueName.TopicsSetup,
+): Queue<Job> | null {
   const options = createBullMQQueueOptionsWithRedis(queueName);
   if (!options) return null;
-  const queue = new Queue<TopicsJob>(queueName, {
+  const queue = new Queue<Job>(queueName, {
     ...options,
     defaultJobOptions: {
       attempts: 1,
@@ -63,18 +67,72 @@ export class TopicsQueue {
   }
 }
 export class TopicsUpdateQueue {
-  private static instance: Queue<TopicsJob> | null = null;
-  static getInstance(): Queue<TopicsJob> | null {
+  private static instance: Queue<TopicsUpdateJob> | null = null;
+  static getInstance(): Queue<TopicsUpdateJob> | null {
     if (!isTopicsEnabled()) return null;
     if (!this.instance)
       this.instance = createTopicsQueue(QueueName.TopicsUpdate);
     return this.instance;
   }
 }
+/** The clock of rule setups; each job delays itself while its setup runs. */
+export class TopicsSetupQueue {
+  private static instance: Queue<TopicsSetupJob> | null = null;
+  static getInstance(): Queue<TopicsSetupJob> | null {
+    if (!isTopicsEnabled()) return null;
+    if (!this.instance)
+      this.instance = createTopicsQueue(QueueName.TopicsSetup);
+    return this.instance;
+  }
+}
+// Execution jobs on the update queue share the Topics job shape.
 const executionQueue = (operation: TopicOperation) =>
   operation === "process"
     ? TopicsQueue.getInstance()
-    : TopicsUpdateQueue.getInstance();
+    : (TopicsUpdateQueue.getInstance() as Queue<TopicsJob> | null);
+
+/** Idempotent per run: the job ID is the run ID. A priority runs after unprioritized jobs. */
+export async function enqueueTopicRuleRefit(
+  projectId: string,
+  runId: string,
+  priority?: number,
+): Promise<void> {
+  const queue = TopicsUpdateQueue.getInstance();
+  if (!queue) throw new Error("Topics rule refits require the update queue.");
+  await queue.add(
+    QueueJobs.TopicsRuleRefit,
+    {
+      id: runId,
+      timestamp: new Date(),
+      name: QueueJobs.TopicsRuleRefit,
+      payload: { projectId, runId },
+    },
+    { jobId: runId, priority },
+  );
+}
+
+/** Idempotent per setup: the job ID derives from the rule and the setup's start. */
+export async function enqueueTopicRuleSetup(
+  projectId: string,
+  ruleId: string,
+  startedAt: string,
+): Promise<void> {
+  const queue = TopicsSetupQueue.getInstance();
+  if (!queue) throw new Error("Topics setup requires Redis.");
+  const id = createHash("sha256")
+    .update(JSON.stringify([projectId, ruleId, startedAt]))
+    .digest("hex");
+  await queue.add(
+    QueueJobs.TopicsSetup,
+    {
+      id,
+      timestamp: new Date(),
+      name: QueueJobs.TopicsSetup,
+      payload: { projectId, ruleId },
+    },
+    { jobId: id },
+  );
+}
 
 export async function getTopicExecutionQueueState(
   execution: TopicExecutionSummary,
@@ -344,6 +402,33 @@ export async function recordTopicProcessBatchProgress(
   execution.phase = done ? execution.status : local.phase;
   execution.error = failed ? (local.error ?? execution.error) : null;
   await writeTopicExecution(execution, totals.get("version"));
+  if (done && !failed) await startFollowUpTopicUpdate(execution);
+}
+
+/** Idempotent: the update's request ID derives from the process execution. */
+async function startFollowUpTopicUpdate(execution: TopicExecutionSummary) {
+  const { input } = execution;
+  if (input.operation !== "process" || !input.thenUpdate) return;
+  const userId = await readTopicExecutionUserId(
+    execution.projectId,
+    execution.id,
+  );
+  if (!userId) return;
+  const update = await createTopicExecution(
+    {
+      operation: "update",
+      projectId: execution.projectId,
+      requestId: `${execution.id}-topics`,
+      facets: input.facets,
+      embeddingConfig: input.embeddingConfig,
+      timeRange: input.thenUpdate.timeRange,
+      exploratory: false,
+    },
+    undefined,
+    userId,
+  );
+  if (update.status === "queued")
+    await enqueueTopicExecution(execution.projectId, update.id);
 }
 
 /** Error details have the queue's retention; counts remain in Postgres. */

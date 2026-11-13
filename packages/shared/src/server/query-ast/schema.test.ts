@@ -1,19 +1,72 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { EVENTS_CORE_TRUNCATION_LIMIT } from "../queries/clickhouse-sql/events-core-truncation";
 import {
-  COLUMN_BIND_TYPES,
   COLUMN_DATA_TYPES,
+  EVENTS_CORE_TRUNCATIONS,
   TABLE_BIND_TYPES,
   DEDUP_SPECS,
   TENANTED_TABLES,
 } from "./schema";
-import { schemaTypeAssertions, extensionTypeAssertions } from "./types.assert";
+
+describe("EVENTS_CORE_TRUNCATIONS", () => {
+  // Statements of the canonical up migrations, in migration order.
+  const dir = join(__dirname, "../../../clickhouse/migrations/canonical");
+  const statements = readdirSync(dir)
+    .filter((file) => file.endsWith(".up.sql"))
+    .sort()
+    .flatMap((file) => readFileSync(join(dir, file), "utf8").split(";"));
+
+  it("matches the cuts of the latest events_core_mv query and the events_core lengths", () => {
+    const mvQuery = statements.findLast((s) =>
+      /events_core_mv\b[^;]*\b(AS|MODIFY QUERY)\s+SELECT\b/.test(s),
+    );
+    // `<expr> as <column>` select items: the columns the MV cuts.
+    const cuts = Object.fromEntries(
+      [...(mvQuery ?? "").matchAll(/^\s*(\S.*?) as (\w+),?$/gim)].map(
+        ([, expression, column]) => [column, expression],
+      ),
+    );
+    // `<column> UInt64 MATERIALIZED lengthUTF8(<cut column>)` on events_core.
+    const lengths = statements
+      .filter((s) =>
+        /^\s*(CREATE TABLE|ALTER TABLE)[^;]*\bevents_core\s/.test(s),
+      )
+      .flatMap((s) => [
+        ...s.matchAll(/(\w+) UInt64 MATERIALIZED lengthUTF8\((\w+)\)/g),
+      ])
+      .filter(([, , of]) => of in cuts)
+      .map(([, column, of]) => [column, `lengthUTF8(${cuts[of]})`]);
+
+    const n = EVENTS_CORE_TRUNCATION_LIMIT;
+    const cut = {
+      text: (column: string) => `leftUTF8(${column}, ${n})`,
+      elements: (column: string) =>
+        `arrayMap(v -> leftUTF8(v, ${n}), ${column})`,
+    };
+    const expected = Object.entries(EVENTS_CORE_TRUNCATIONS).map(
+      ([column, t]) => [
+        column,
+        t.cut === "length"
+          ? `lengthUTF8(${cut.text(t.of)})`
+          : cut[t.cut](column),
+      ],
+    );
+    expect({ ...cuts, ...Object.fromEntries(lengths) }).toEqual(
+      Object.fromEntries(expected),
+    );
+  });
+});
 
 describe("table registry derivation", () => {
   it("derives the tenanted table set from the registry", () => {
     expect([...TENANTED_TABLES].sort()).toEqual([
+      "events",
       "events_core",
       "events_full",
+      "events_truncated",
       "observations",
       "scores",
       "traces",
@@ -39,23 +92,10 @@ describe("table registry derivation", () => {
   });
 
   it("derives ClickHouse bind types from the same column declarations", () => {
-    expect(COLUMN_BIND_TYPES.total_cost).toBe("Decimal(18, 12)");
-    expect(COLUMN_BIND_TYPES.value).toBe("Float64");
+    expect(TABLE_BIND_TYPES.events_core.total_cost).toBe("Decimal(18, 12)");
+    expect(TABLE_BIND_TYPES.scores.value).toBe("Float64");
     expect(TABLE_BIND_TYPES.scores.trace_id).toBe("String");
     expect(TABLE_BIND_TYPES.events_core.start_time).toBe("DateTime64(6)");
     expect(TABLE_BIND_TYPES.observations.start_time).toBe("DateTime64(3)");
-    expect(COLUMN_BIND_TYPES.start_time).toBeUndefined();
-    expect(COLUMN_BIND_TYPES.project_id).toBe("String");
-    expect(COLUMN_BIND_TYPES.metadata_names).toBe("Array(String)");
-    expect(COLUMN_BIND_TYPES.is_deleted).toBe("UInt8");
-    expect(COLUMN_BIND_TYPES.metadata).toBe("Map(String, String)");
-    expect(COLUMN_BIND_TYPES.cost_details).toBe("Map(String, Decimal(18, 12))");
-  });
-
-  // The assertions themselves are compile-time (`tsc` is the test); this only
-  // anchors the file so its `@ts-expect-error` checks stay in the build graph.
-  it("keeps the compile-time type assertions in the build graph", () => {
-    expect(typeof schemaTypeAssertions).toBe("function");
-    expect(typeof extensionTypeAssertions).toBe("function");
   });
 });

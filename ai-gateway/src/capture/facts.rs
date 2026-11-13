@@ -1,6 +1,8 @@
 //! Owned facts at the capture/telemetry boundary. Content and usage remain native JSON.
 use serde::Serialize;
-use serde_json::{Map, Value};
+use serde_json::{Map, Value, value::RawValue};
+
+use crate::resolution::ApiFormat;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -19,6 +21,11 @@ impl RelayOutcome {
             Self::Timeout => "timeout",
             Self::TransportError => "transport_error",
         }
+    }
+
+    /// A cancellation is the caller hanging up, so it is not a failure.
+    pub(crate) fn is_failure(self) -> bool {
+        matches!(self, Self::Timeout | Self::TransportError)
     }
 }
 
@@ -40,12 +47,16 @@ pub(crate) struct InputOmission {
 
 #[derive(Serialize)]
 pub(crate) struct InferenceFacts {
-    pub api_format: &'static str,
+    pub api_format: ApiFormat,
     pub start_time_unix_ms: u128,
     pub duration_ms: u128,
     pub first_byte_ms: Option<u128>,
     pub completion_start_ms: Option<u128>,
     pub http_status: Option<u16>,
+    pub retry_after_ms: Option<u64>,
+    pub upstream_model: Option<String>,
+    pub request_body_bytes: usize,
+    pub response_body_bytes: u64,
     pub metadata: Value,
     pub outcome: RelayOutcome,
     #[serde(flatten)]
@@ -61,7 +72,10 @@ pub(crate) struct ProviderFacts {
     pub request_metadata: Map<String, Value>,
     pub error_message: Option<String>,
     pub usage_details: Option<Value>,
-    pub input: Option<Value>,
+    /// The response's top-level `provider_metadata`, where gateways such as
+    /// Vercel report what they billed when `usage` has no cost.
+    pub provider_metadata: Option<Value>,
+    pub input: Option<Box<RawValue>>,
     pub input_omission: Option<InputOmission>,
     pub output: Option<Value>,
     pub provider_response_id: Option<String>,
@@ -70,4 +84,13 @@ pub(crate) struct ProviderFacts {
     pub input_complete: bool,
     pub output_complete: bool,
     pub capture_complete: bool,
+}
+
+#[cfg(test)]
+impl ProviderFacts {
+    pub(crate) fn input_json(&self) -> Option<Value> {
+        self.input
+            .as_ref()
+            .map(|raw| serde_json::from_str(raw.get()).unwrap())
+    }
 }

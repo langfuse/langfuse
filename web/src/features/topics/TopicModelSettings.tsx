@@ -12,11 +12,12 @@ export type ConfigureTopicsSettingsInput = {
   traceIdleMs: number | null;
   connections: Connection[];
   facets: TopicFacet[];
+  /** The project's only rule; null with none or several. */
   rule: TopicRule | null;
+  ruleCount: number;
 };
 
 export type TopicSetupNoticeState = {
-  unavailable: boolean;
   status:
     | { kind: "paused"; message: string }
     | { kind: "setup" }
@@ -55,6 +56,7 @@ export function useTopicModelSettings({
   const automaticProcessing = useAutomaticProcessing({
     projectId,
     rule,
+    hasRules: Boolean(rules.data?.length),
     stored: settings.data,
   });
 
@@ -79,29 +81,31 @@ export function useTopicModelSettings({
           connections: connections.data.data,
           facets,
           rule,
+          ruleCount: rules.data.length,
         }
       : null;
+
+  const configurationError =
+    settings.error ?? readinessSettings.error ?? connections.error;
 
   return {
     configure: {
       settings: configureSettings,
-      triggerVariant:
-        configureSettings && !configured
-          ? ("primary" as const)
-          : ("secondary" as const),
+      error: configurationError
+        ? `Could not load Topics configuration: ${configurationError.message} Reload the page to retry.`
+        : null,
     },
     automaticProcessing: {
       ...automaticProcessing,
       dialog: {
+        projectId,
         rule,
         stored: settings.data,
-        traceIdleMs: readinessSettings.data?.traceIdleMs ?? null,
         save: automaticProcessing.save,
         saving: automaticProcessing.saving,
       },
     },
     notice: {
-      unavailable: Boolean(settings.data && !settings.data.processingAvailable),
       status,
     } satisfies TopicSetupNoticeState,
   };

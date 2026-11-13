@@ -1,4 +1,8 @@
 import z from "zod";
+import {
+  SkillsAvailableSchema,
+  SkillsResourceLoadedSchema,
+} from "../../features/skills/trace";
 import type { IngestionAttribution } from "../ingestion/ingestionAttribution";
 import { DEFAULT_TRACE_ENVIRONMENT } from "../ingestion/types";
 import { toClickhouseDateTime } from "../clickhouse/client";
@@ -118,6 +122,8 @@ export const eventsObservationRecordBaseSchema =
 
 export const eventsObservationRecordReadSchema =
   observationRecordReadSchema.extend({
+    skills_available: SkillsAvailableSchema.optional(),
+    skills_resource_loaded: SkillsResourceLoadedSchema.optional(),
     user_id: z.string().nullish(),
     session_id: z.string().nullish(),
     is_root_observation: z.boolean().optional(),
@@ -513,6 +519,8 @@ export const eventRecordBaseSchema = z.object({
   tool_definitions: z.record(z.string(), z.string()).default({}),
   tool_calls: z.array(z.string()).default([]),
   tool_call_names: z.array(z.string()).default([]),
+  skills_available: SkillsAvailableSchema.optional(),
+  skills_resource_loaded: SkillsResourceLoadedSchema.optional(),
 
   // I/O
   input: z.string().nullish(),
@@ -554,7 +562,8 @@ export const eventRecordBaseSchema = z.object({
 
   // Generic props
   blob_storage_file_path: z.string(),
-  event_bytes: z.number(),
+  // Omitted by current writers, accepted from older writers during rollout.
+  event_bytes: z.number().optional(),
   is_deleted: z.number(),
 });
 
@@ -562,6 +571,7 @@ export const eventRecordBaseSchema = z.object({
 export type EventRecordBaseType = z.infer<typeof eventRecordBaseSchema>;
 
 export const eventRecordReadSchema = eventRecordBaseSchema.extend({
+  event_bytes: z.number(),
   total_cost: z.number().nullish(),
 
   start_time: clickhouseStringDateSchema,
@@ -601,6 +611,7 @@ export type AuditLogRecordInsertType = {
   actor_email: string;
   user_org_role: string;
   user_project_role: string;
+  support_access: boolean;
   resource_type: string;
   resource_id: string;
   resource_refs: string[];

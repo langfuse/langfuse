@@ -11,12 +11,11 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import Header from "@/src/components/layouts/header";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { useHasEntitlement } from "@/src/features/entitlements";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { XIcon, Check } from "lucide-react";
+import { XIcon, Check } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { ActionButton } from "@/src/components/ActionButton";
 import { cn } from "@/src/utils/tailwind";
@@ -56,7 +55,6 @@ export default function ProtectedLabelsSettings({
     scope: "promptProtectedLabels:CUD",
   });
   const hasEntitlement = useHasEntitlement("prompt-protected-labels");
-  const skillsEnabled = useInternalFeaturesEnabled();
 
   const form = useForm({
     resolver: zodResolver(AddLabelFormSchema),
@@ -116,7 +114,7 @@ export default function ProtectedLabelsSettings({
         <p className="text-primary mb-4 text-sm">
           Protected labels can only be modified by users with admin or owner
           access. This prevents other users from changing or removing these
-          labels from {skillsEnabled ? "prompts and skills" : "prompts"}.
+          labels from prompts and skills.
         </p>
         <div className="mb-4 flex flex-wrap gap-2">
           {protectedLabels.map((label) => (
@@ -141,7 +139,7 @@ export default function ProtectedLabelsSettings({
                     }
                   }}
                 >
-                  <XIcon className="icon-base text-icon-foreground" />
+                  <XIcon size="base" color="default" />
                 </Button>
               )}
             </StatusBadge>
@@ -162,6 +160,7 @@ export default function ProtectedLabelsSettings({
                       <FormControl>
                         <Button
                           variant="outline"
+                          // eslint-disable-next-line jsx-a11y/role-has-required-aria-props
                           role="combobox"
                           aria-expanded={open}
                           className={cn(
@@ -195,8 +194,9 @@ export default function ProtectedLabelsSettings({
                               }}
                             >
                               <Check
-                                className={cn(
-                                  "icon-base mr-2",
+                                size="base"
+                                __rawClassName={cn(
+                                  "mr-2",
                                   field.value === label
                                     ? "opacity-100"
                                     : "opacity-0",

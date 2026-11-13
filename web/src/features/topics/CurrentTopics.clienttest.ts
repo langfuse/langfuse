@@ -2,9 +2,21 @@ import { createElement, type ReactNode } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { decodeFiltersGeneric } from "@langfuse/shared";
+import { TOPICS_MAX_TIME_RANGE_MS } from "@langfuse/shared/topics";
 import { __test } from "./CurrentTopics";
+import {
+  type Facet,
+  type TopicTraceQuery,
+  topicTracesHref,
+  type TopicTracesResult,
+  useTracesWithSelection,
+} from "./facet-topics";
 
-const { fetchResults } = vi.hoisted(() => ({ fetchResults: vi.fn() }));
+const { fetchResults, resetTraces } = vi.hoisted(() => ({
+  fetchResults: vi.fn(),
+  resetTraces: vi.fn(),
+}));
 vi.mock("@/src/utils/api", () => ({
   api: {
     topics: {
@@ -12,6 +24,7 @@ vi.mock("@/src/utils/api", () => ({
     },
     useUtils: () => ({
       client: { topics: { currentResults: { query: fetchResults } } },
+      topics: { traces: { reset: resetTraces } },
     }),
   },
 }));
@@ -35,6 +48,7 @@ afterEach(() => {
 
 describe("current Topics query", () => {
   it("fetches final results while an old poll is in flight, then stops polling", async () => {
+    resetTraces.mockReset();
     const facet = {
       facetId: "intent",
       name: "Intent",
@@ -45,7 +59,9 @@ describe("current Topics query", () => {
       awaitingCount: 0,
       usableCount: 0,
     };
-    fetchResults.mockReset().mockResolvedValue([facet]);
+    fetchResults
+      .mockReset()
+      .mockResolvedValue({ hasStoredSummaries: false, facets: [facet] });
     const props = {
       projectId: "project",
       running: true,
@@ -59,9 +75,17 @@ describe("current Topics query", () => {
     });
     await act(() => vi.advanceTimersByTimeAsync(0));
     expect(fetchResults).toHaveBeenCalledOnce();
-    expect(view.result.current.data).toEqual([facet]);
+    expect(view.result.current.data).toEqual({
+      hasStoredSummaries: false,
+      facets: [facet],
+    });
 
-    let finishOldPoll: ((rows: (typeof facet)[]) => void) | undefined;
+    let finishOldPoll:
+      | ((rows: {
+          hasStoredSummaries: boolean;
+          facets: (typeof facet)[];
+        }) => void)
+      | undefined;
     fetchResults.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -70,6 +94,7 @@ describe("current Topics query", () => {
     );
     await act(() => vi.advanceTimersByTimeAsync(3000));
     expect(fetchResults).toHaveBeenCalledTimes(2);
+    expect(resetTraces).not.toHaveBeenCalled();
 
     const completed = [
       {
@@ -87,15 +112,22 @@ describe("current Topics query", () => {
         ],
       },
     ];
-    fetchResults.mockResolvedValue(completed);
+    fetchResults.mockResolvedValue({
+      hasStoredSummaries: true,
+      facets: completed,
+    });
     vi.setSystemTime(Date.now() + 1000);
     view.rerender({ ...props, running: false, refreshAfter: Date.now() });
     await act(async () => {
-      finishOldPoll?.([facet]);
+      finishOldPoll?.({ hasStoredSummaries: false, facets: [facet] });
     });
     await act(() => vi.advanceTimersByTimeAsync(3001));
     expect(fetchResults).toHaveBeenCalledTimes(3);
-    expect(view.result.current.data).toEqual(completed);
+    expect(view.result.current.data).toEqual({
+      hasStoredSummaries: true,
+      facets: completed,
+    });
+    expect(resetTraces).toHaveBeenCalledOnce();
 
     await act(() => vi.advanceTimersByTimeAsync(9000));
     expect(fetchResults).toHaveBeenCalledTimes(3);
@@ -109,5 +141,93 @@ describe("current Topics query", () => {
       });
     });
     expect(fetchResults).toHaveBeenCalledTimes(4);
+    expect(resetTraces).toHaveBeenCalledOnce();
+  });
+  it("polls waiting automatic processing at ten seconds and stops once ready", async () => {
+    fetchResults
+      .mockReset()
+      .mockResolvedValue({ hasStoredSummaries: false, facets: [] });
+    renderHook(__test.useCurrentTopics, {
+      initialProps: {
+        projectId: "project",
+        running: false,
+        pollForSummaries: true,
+        refreshAfter: 0,
+        timeRange,
+      },
+      wrapper: ({ children }: { children: ReactNode }) =>
+        createElement(QueryClientProvider, { client }, children),
+    });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(fetchResults).toHaveBeenCalledOnce();
+    await act(() => vi.advanceTimersByTimeAsync(9999));
+    expect(fetchResults).toHaveBeenCalledOnce();
+    fetchResults.mockResolvedValue({ hasStoredSummaries: true, facets: [] });
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(fetchResults).toHaveBeenCalledTimes(2);
+    await act(() => vi.advanceTimersByTimeAsync(30000));
+    expect(fetchResults).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("trace selection", () => {
+  const row = (traceId: string) => ({
+    traceId,
+    unitStartTime: timeRange.from.toISOString(),
+    facetVersion: 1,
+    summary: "",
+    outcome: "assigned" as const,
+    topicId: null,
+    topicName: null,
+  });
+  const loaded = ["newest", "older"];
+  const fakeTraces = (query: TopicTraceQuery | null): TopicTracesResult => ({
+    rows:
+      query === null ? [] : (query.traceId ? [query.traceId] : loaded).map(row),
+    isLoading: false,
+    isLoadingMore: false,
+    error: null,
+    hasMore: false,
+    loadMore: () => undefined,
+  });
+  const listed = (query: TopicTraceQuery, selected: string | null) =>
+    renderHook(() =>
+      useTracesWithSelection(fakeTraces, query, selected),
+    ).result.current.rows.map((item) => item.traceId);
+
+  it("pins a selection outside the loaded pages unless a trace ID is searched", () => {
+    expect(listed({}, "older")).toEqual(["newest", "older"]);
+    expect(listed({}, "picked")).toEqual(["picked", "newest", "older"]);
+    expect(listed({ traceId: "searched" }, "picked")).toEqual(["searched"]);
+  });
+});
+
+describe("Open in Tracing", () => {
+  it("filters by the topic over a window the tracing topic filter accepts", () => {
+    const to = new Date("2026-09-23T00:00:00Z");
+    const facet = {
+      name: "Intent",
+      window: { from: new Date(to.getTime() - TOPICS_MAX_TIME_RANGE_MS), to },
+    } as Facet;
+    const url = new URL(
+      topicTracesHref("p1", [], true, { facet, name: "Billing" })!,
+      "http://localhost",
+    );
+    expect(decodeFiltersGeneric(url.searchParams.get("filter")!)).toEqual([
+      {
+        column: "topics",
+        type: "categoryOptions",
+        key: "Intent",
+        operator: "any of",
+        value: ["Billing"],
+      },
+    ]);
+    // The server adds 1 ms to the inclusive upper bound before checking the maximum.
+    const [from, until] = url.searchParams
+      .get("dateRange")!
+      .split("-")
+      .map(Number);
+    expect(until).toBe(to.getTime());
+    expect(until + 1 - from).toBe(TOPICS_MAX_TIME_RANGE_MS);
   });
 });

@@ -21,9 +21,10 @@ import {
   invalidateCachedOrgApiKeys,
   startOfDayUTC,
 } from "@langfuse/shared/src/server";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { type StripeSubscriptionMetadata } from "@/src/ee/features/billing/utils/stripeSubscriptionMetadata";
-import { syncOrgPlanChangeToSfdc } from "@/src/ee/features/sfdc-sync/server";
+import { syncOrgPlanChangeToSfdc } from "@/src/ee/features/sfdc-sync/server/planChangeSync";
 import { createDefaultSpendAlertsForStripeProduct } from "@/src/ee/features/billing/server/defaultSpendAlerts";
 
 /**
@@ -676,6 +677,7 @@ export async function handleSubscriptionChanged(
 
     // Invalidate API keys in Redis for it to be updated
     await invalidateCachedOrgApiKeys(parsedOrg.id);
+    await invalidateGatewayResolveCacheForOrganization(parsedOrg.id);
 
     auditLog({
       session: {
@@ -725,6 +727,7 @@ export async function handleSubscriptionChanged(
     // Reset billing cycle anchor on downgrade to hobby to start of today
     await updateOrgBillingCycleAnchor(parsedOrg.id);
     await invalidateCachedOrgApiKeys(parsedOrg.id);
+    await invalidateGatewayResolveCacheForOrganization(parsedOrg.id);
 
     auditLog({
       session: {

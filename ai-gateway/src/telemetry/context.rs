@@ -9,11 +9,12 @@ use opentelemetry_sdk::{
     trace::{IdGenerator, RandomIdGenerator},
 };
 use serde::Serialize;
-use serde_json::{Map, Value};
+use serde_json::{Map, Value, value::RawValue};
 use sha2::{Digest, Sha256};
 
 const MAX_HEADER_BYTES: usize = 8 * 1024;
 const MAX_FIELD_BYTES: usize = 1024;
+const MAX_USER_AGENT_BYTES: usize = 256;
 const MAX_ENTRIES: usize = 64;
 const MAX_AGENT_HEADER_BYTES: usize = 8 * 1024;
 const MAX_AGENT_METADATA_BYTES: usize = 4 * 1024;
@@ -116,17 +117,21 @@ pub(super) struct GenerationContext {
     pub trace_state: String,
     pub attributes: Map<String, Value>,
     pub metadata: Map<String, Value>,
+    pub user_agent: Option<String>,
 }
 
 impl GenerationContext {
     #[cfg(test)]
-    pub fn from_headers(headers: &HeaderMap) -> Self {
+    pub(super) fn from_headers(headers: &HeaderMap) -> Self {
         Self::from_request(headers, None)
     }
 
     /// `client_metadata` is the request body's agent metadata object, already
-    /// removed from the captured input by [`take_agent_client_metadata`].
-    pub fn from_request(headers: &HeaderMap, client_metadata: Option<&Map<String, Value>>) -> Self {
+    /// removed from the captured input by [`agent_client_metadata`].
+    pub(super) fn from_request(
+        headers: &HeaderMap,
+        client_metadata: Option<&Map<String, Value>>,
+    ) -> Self {
         let ids = RandomIdGenerator::default();
         let mut result = Self {
             trace_id: ids.new_trace_id().to_string(),
@@ -135,6 +140,7 @@ impl GenerationContext {
             trace_state: String::new(),
             attributes: Map::new(),
             metadata: Map::new(),
+            user_agent: client_user_agent(headers),
         };
         let bytes = HEADERS
             .iter()
@@ -145,8 +151,8 @@ impl GenerationContext {
             return result;
         }
         let mut trace_headers = HeaderMap::new();
-        if let Some(value) = single_header(headers, "traceparent") {
-            trace_headers.insert("traceparent", value.parse().expect("existing header value"));
+        if let Some(Ok(value)) = single_header(headers, "traceparent").map(str::parse) {
+            trace_headers.insert("traceparent", value);
         }
         // W3C tracestate is a list and may span multiple HTTP header fields.
         let trace_state = headers
@@ -155,10 +161,9 @@ impl GenerationContext {
             .filter_map(|value| value.to_str().ok())
             .collect::<Vec<_>>()
             .join(",");
-        trace_headers.insert(
-            "tracestate",
-            trace_state.parse().expect("existing header values"),
-        );
+        if let Ok(value) = trace_state.parse() {
+            trace_headers.insert("tracestate", value);
+        }
         let context = TraceContextPropagator::new()
             .extract_with_context(&Context::new(), &HeaderExtractor(&trace_headers));
         let parent = context.span();
@@ -424,27 +429,16 @@ impl AgentContext {
     }
 }
 
-/// Remove a coding agent's `client_metadata` object from a captured request so its
-/// identifiers are recorded as `agent.*` metadata rather than as prompt input.
-/// Unrecognized or oversized objects stay in the request untouched.
-pub(crate) fn take_agent_client_metadata(
-    request: &mut Map<String, Value>,
-) -> Option<Map<String, Value>> {
-    let recognized = request
-        .get("client_metadata")
-        .and_then(Value::as_object)
-        .is_some_and(|metadata| {
-            is_codex_client_metadata(metadata)
-                && serde_json::to_vec(metadata)
-                    .is_ok_and(|bytes| bytes.len() <= MAX_CLIENT_METADATA_BYTES)
-        });
-    if !recognized {
+/// A coding agent's `client_metadata` object, parsed so its identifiers are recorded
+/// as `agent.*` metadata rather than as prompt input. Unrecognized or oversized
+/// objects yield `None` and stay in the captured request untouched.
+pub(crate) fn agent_client_metadata(raw: &RawValue) -> Option<Map<String, Value>> {
+    if raw.get().len() > MAX_CLIENT_METADATA_BYTES {
         return None;
     }
-    match request.remove("client_metadata") {
-        Some(Value::Object(metadata)) => Some(metadata),
-        _ => None,
-    }
+    serde_json::from_str(raw.get())
+        .ok()
+        .filter(is_codex_client_metadata)
 }
 
 fn is_codex_client_metadata(metadata: &Map<String, Value>) -> bool {
@@ -482,6 +476,18 @@ fn clean_agent_field(value: &str) -> Option<String> {
 
 fn user_agent(headers: &HeaderMap) -> Option<String> {
     agent_header(headers, "user-agent").map(|value| value.to_ascii_lowercase())
+}
+
+fn client_user_agent(headers: &HeaderMap) -> Option<String> {
+    let value = single_header(headers, "user-agent")?.trim();
+    if value.is_empty() || value.chars().any(char::is_control) {
+        return None;
+    }
+    let mut end = value.len().min(MAX_USER_AGENT_BYTES);
+    while !value.is_char_boundary(end) {
+        end -= 1;
+    }
+    Some(value[..end].to_owned())
 }
 
 fn agent_trace_id(name: &str, session_id: Option<&str>, turn_id: &str) -> String {

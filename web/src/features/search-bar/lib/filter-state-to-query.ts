@@ -26,6 +26,7 @@ import {
 } from "./fields";
 import { serialize } from "./langQ";
 import { quoteIfNeeded } from "./quoting";
+import { supportsFilterTarget, targetReference } from "./targeting";
 
 function filterNode(
   key: string,
@@ -202,10 +203,18 @@ function lowerSingle(
     }
     case "stringObject": {
       const id = registry.columnIdOf(filter.column);
-      if (id !== "metadata") return null;
+      const namespace =
+        Object.entries(registry.metadataNamespaces ?? {}).find(
+          ([, column]) => column === filter.column || column === id,
+        )?.[0] ?? (id === "metadata" && registry.metadata ? "metadata" : null);
+      if (namespace === null) return null;
       // A key with grammar chars (`:`, space, …) is quoted so it re-lexes as one
       // token (`metadata."my key"`); resolveField unquotes it on the way back.
-      const key = `metadata.${quoteIfNeeded(filter.key)}`;
+      const key = `${namespace}.${quoteIfNeeded(filter.key)}`;
+      if (filter.operator === "is set" || filter.operator === "is not set") {
+        const presence = filterNode("has", "=", [key]);
+        return filter.operator === "is not set" ? negate(presence) : presence;
+      }
       if (filter.operator === "does not contain") {
         return negate(filterNode(key, "~", [filter.value]));
       }
@@ -231,7 +240,12 @@ function lowerSingle(
       return filter.operator === "<>" ? negate(node) : node;
     }
     case "categoryOptions": {
-      const path = scorePathOf(filter.column, filter.key, registry);
+      const namespace = Object.entries(
+        registry.keyedOptionNamespaces ?? {},
+      ).find(([, column]) => column === filter.column)?.[0];
+      const path = namespace
+        ? `${namespace}.${quoteIfNeeded(filter.key)}`
+        : scorePathOf(filter.column, filter.key, registry);
       if (path === null || filter.value.length === 0) return null;
       const node = filterNode(path, "=", filter.value);
       return filter.operator === "none of" ? negate(node) : node;
@@ -287,6 +301,33 @@ export function filterStateToQueryText(
       skipped.push(`${filter.column} (${filter.type} ${filter.operator})`);
       skippedFilters.push(filter);
       continue;
+    }
+    let condition: FilterNode | null = null;
+    if (node.kind === "filter") {
+      condition = node;
+    } else if (node.kind === "not" && node.child.kind === "filter") {
+      condition = node.child;
+    }
+    if (condition) {
+      if (registry.targeting && supportsFilterTarget(condition, registry)) {
+        const target = registry.targeting.targets.find(
+          (entry) =>
+            entry.id ===
+            (filter.target ??
+              registry.targeting?.legacyDefaultTarget ??
+              registry.targeting?.defaultTarget),
+        );
+        if (!target) {
+          skipped.push(`${filter.column} (target unavailable)`);
+          skippedFilters.push(filter);
+          continue;
+        }
+        condition.target = targetReference(target);
+      } else if (filter.target) {
+        skipped.push(`${filter.column} (target not supported)`);
+        skippedFilters.push(filter);
+        continue;
+      }
     }
     nodes.push(node);
   }
@@ -419,7 +460,12 @@ function normalizeFilterValues(
 // `:` is contains and `:=` is exact, two different ops — as is datetime, which
 // has only comparison forms.
 function exactEqualsBareForm(ref: FieldRef): boolean {
-  if (ref.type === "metadata" || ref.type === "scores") return true;
+  if (
+    ref.type === "metadata" ||
+    ref.type === "scores" ||
+    ref.type === "keyedOptions"
+  )
+    return true;
   if (ref.type === "field") {
     const k = ref.field.kind;
     return (

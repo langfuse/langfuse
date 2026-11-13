@@ -18,14 +18,12 @@ function createCaller({
   orgId,
   projectName = "Test project",
   orgName = "Test organization",
-  admin = true,
   projectRole = "ADMIN",
 }: {
   projectId: string;
   orgId: string;
   projectName?: string;
   orgName?: string;
-  admin?: boolean;
   projectRole?: "ADMIN" | "MEMBER";
 }) {
   const session: Session = {
@@ -59,7 +57,6 @@ function createCaller({
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin,
     },
     environment: {
       enableExperimentalFeatures: false,
@@ -148,7 +145,6 @@ describe("prompts trpc", () => {
         const { caller } = createCaller({
           projectId,
           orgId: v4(),
-          admin: false,
         });
 
         await expect(
@@ -214,7 +210,6 @@ describe("prompts trpc", () => {
         orgId: org.id,
         projectName: project.name,
         orgName: org.name,
-        admin: false,
       });
       const previousLimit =
         entitlementAccess["cloud:hobby"].entitlementLimits[
@@ -263,7 +258,6 @@ describe("prompts trpc", () => {
         orgId: org.id,
         projectName: project.name,
         orgName: org.name,
-        admin: false,
         projectRole: "MEMBER",
       });
 
@@ -1441,6 +1435,45 @@ describe("prompts trpc", () => {
       expect(searchResults.prompts[0].name).toBe("evolving-prompt");
       // The returned prompt should be the latest version
       expect(searchResults.prompts[0].version).toBe(2);
+    });
+
+    it("should match LIKE wildcard characters in names and tags literally", async () => {
+      const { project, caller } = await prepare();
+
+      const createPrompt = (name: string, tags: string[]) =>
+        prisma.prompt.create({
+          data: {
+            id: v4(),
+            projectId: project.id,
+            name,
+            version: 1,
+            type: "text",
+            prompt: { text: "unrelated" },
+            createdBy: "test-user",
+            tags,
+          },
+        });
+
+      await createPrompt("gpt_4-prompt", []);
+      await createPrompt("gpt-4-prompt", []);
+      await createPrompt("discount-literal", ["save 100%"]);
+      await createPrompt("discount-wildcard", ["save 1000"]);
+
+      const search = async (searchQuery: string) =>
+        (
+          await caller.prompts.all({
+            projectId: project.id,
+            page: 0,
+            limit: 10,
+            filter: [],
+            orderBy: { column: "createdAt", order: "DESC" },
+            searchQuery,
+            searchType: ["id"],
+          })
+        ).prompts.map((p) => p.name);
+
+      expect(await search("gpt_4")).toEqual(["gpt_4-prompt"]);
+      expect(await search("100%")).toEqual(["discount-literal"]);
     });
   });
 

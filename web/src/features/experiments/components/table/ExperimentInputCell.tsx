@@ -1,4 +1,4 @@
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "@langfuse/icons";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
@@ -10,14 +10,12 @@ export function ExperimentInputCell({
   itemId,
   input,
   isLoading,
-  singleLine,
 }: {
   projectId: string;
   datasetId: string | null;
   itemId: string;
   input: string | null | undefined;
   isLoading: boolean;
-  singleLine: boolean;
 }) {
   const router = useRouter();
   const href = datasetId
@@ -47,21 +45,21 @@ export function ExperimentInputCell({
           className="text-muted-foreground hover:text-primary absolute top-1 right-1 rounded-sm p-0.5 focus-visible:ring-2 focus-visible:outline-none"
           onClick={(event) => event.stopPropagation()}
         >
-          <ArrowUpRight className="icon-base" aria-hidden />
+          <ArrowUpRight size="base" aria-hidden />
         </Link>
       ) : null}
-      {/* Display chooses text or JSON. Row height does not. */}
+      {/* JSON tree. Row height does not collapse this cell to one line. */}
       {isLoading ? (
         <ConnectedIOTableCell
           isLoading
           followRowHeight={false}
-          singleLine={singleLine}
+          singleLine={false}
         />
       ) : (
         <ConnectedIOTableCell
           data={input ?? null}
           followRowHeight={false}
-          singleLine={singleLine}
+          singleLine={false}
         />
       )}
     </div>

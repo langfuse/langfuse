@@ -7,7 +7,7 @@
  * Positioned next to line numbers, not indented.
  */
 
-import { ChevronRight, ChevronDown, Loader2 } from "lucide-react";
+import { ChevronRight, ChevronDown, Loader2 } from "@langfuse/icons";
 import { type JSONTheme } from "../types";
 
 interface ExpandButtonProps {
@@ -64,7 +64,7 @@ export function ExpandButton({
       }
       disabled={isToggling}
     >
-      <Icon className="icon-base" />
+      <Icon size="base" />
     </button>
   );
 }

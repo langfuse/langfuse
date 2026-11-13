@@ -286,18 +286,21 @@ describe("IOPreviewJSON node-count gating", () => {
   });
 
   it("does not hand an oversized output to the correction diff (avoids per-render re-stringify)", () => {
-    // Regression (LFE-10847 review 🔴): CorrectedOutputField always mounts the
-    // diff dialog, which JSON.stringifies `actualOutput` unmemoized in its
-    // render body — so handing it the full oversized output re-serializes
-    // megabytes on every render/keystroke. A gated output must reach it as
-    // undefined (actualOutputTooLarge=true drives the "too large to diff"
-    // branch); the decoded value still feeds the lazy viewer/probe separately.
+    // Regression: CorrectedOutputField always mounts the diff dialog, which
+    // JSON.stringifies `actualOutput` unmemoized in its render body — so
+    // handing it the full oversized output re-serializes megabytes on every
+    // render/keystroke. A gated output must reach it as undefined
+    // (actualOutputTooLarge=true drives the "too large to diff" branch); the
+    // decoded value still feeds the lazy viewer/probe separately.
+    // observationId is required so CorrectedOutputSection mounts (corrections
+    // UI is no longer shown for showCorrections alone).
     render(
       <IOPreviewJSON
         output={manyRows()}
         hideInput
         hideIfNull={false}
         showCorrections={true}
+        observationId="obs-1"
         projectId="p"
         traceId="t"
       />,
@@ -313,6 +316,7 @@ describe("IOPreviewJSON node-count gating", () => {
         hideInput
         hideIfNull={false}
         showCorrections={true}
+        observationId="obs-1"
         projectId="p"
         traceId="t"
       />,

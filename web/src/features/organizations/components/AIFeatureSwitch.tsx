@@ -1,6 +1,6 @@
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { Button } from "@/src/components/ui/button";
-import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { api } from "@/src/utils/api";
 import { useEffect, useState } from "react";
 import {
@@ -12,14 +12,15 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import Header from "@/src/components/layouts/header";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   useLangfuseCloudRegion,
   useQueryOrganization,
 } from "@/src/features/organizations/hooks";
 import { Card } from "@/src/components/ui/card";
-import { LockIcon, ExternalLink } from "lucide-react";
+import { ExternalLink } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
+import { AIFeatureSettingRow } from "@/src/features/organizations/components/AIFeatureSettingRow";
 
 export default function AIFeatureSwitch() {
   const { data: session, update: updateSession } = useSession();
@@ -46,8 +47,6 @@ export default function AIFeatureSwitch() {
   const updateAIFeatures = api.organizations.update.useMutation({
     onSuccess: async () => {
       await updateSession();
-      // Admins resolve org context from this query, not the session
-      utils.organizations.byId.invalidate();
       setConfirmOpen(false);
     },
     onError: () => {
@@ -58,8 +57,6 @@ export default function AIFeatureSwitch() {
   const updateAITelemetry = api.organizations.update.useMutation({
     onSuccess: async () => {
       await updateSession();
-      // Admins resolve org context from this query, not the session
-      utils.organizations.byId.invalidate();
       utils.inAppAgent.telemetryProject.invalidate();
     },
     onError: () => {
@@ -121,13 +118,11 @@ export default function AIFeatureSwitch() {
     <div>
       <Header title="AI Features" />
       <Card className="mb-4 p-3">
-        <div className="flex flex-row items-center justify-between">
-          <div className="flex flex-col gap-1">
-            <h4 className="font-bold">
-              Enable AI powered features for your organization
-            </h4>
-            {isLangfuseCloud ? (
-              <p className="text-sm">
+        <AIFeatureSettingRow
+          title="Enable AI powered features for your organization"
+          description={
+            isLangfuseCloud ? (
+              <>
                 This setting applies to all users and projects. Any data{" "}
                 <i>can</i> be sent to AWS Bedrock within the Langfuse data
                 region. Your data will not be used to train models. Applicable
@@ -139,55 +134,30 @@ export default function AIFeatureSwitch() {
                   className="text-primary inline-flex items-center gap-1 hover:underline"
                 >
                   More details in the docs here.
-                  <ExternalLink className="icon-sm" />
+                  <ExternalLink size="sm" />
                 </a>
-              </p>
+              </>
             ) : (
-              <p className="text-sm">
-                This setting applies to all users and projects. When enabled,
-                the assistant can send relevant project data to the model
-                provider configured by your instance administrator.
-              </p>
-            )}
-          </div>
-          <div className="relative">
-            <Switch
-              checked={isAIFeatureSwitchEnabled}
-              onCheckedChange={handleSwitchChange}
-              disabled={!hasAccess}
-            />
-            {!hasAccess && (
-              <span title="No access">
-                <LockIcon className="text-muted icon-base absolute top-1/2 right-3 -translate-y-1/2 transform" />
-              </span>
-            )}
-          </div>
-        </div>
+              "This setting applies to all users and projects. When enabled, Halo can send relevant project data to the model provider configured by your instance administrator."
+            )
+          }
+          checked={isAIFeatureSwitchEnabled}
+          onCheckedChange={handleSwitchChange}
+          disabled={!hasAccess}
+          locked={!hasAccess}
+        />
         {isLangfuseCloud &&
           isAIFeatureSwitchEnabled &&
           aiFeaturesTracingConfigured && (
-            <div className="mt-4 flex flex-row items-center justify-between border-t pt-4">
-              <div className="flex flex-col gap-1">
-                <h4 className="font-bold">
-                  AI Data Use for Product/Service Improvement
-                </h4>
-                <p className="text-sm">
-                  Share data about your use of AI with Langfuse for product and
-                  service improvement.
-                </p>
-              </div>
-              <div className="relative">
-                <Switch
-                  checked={isAITelemetrySwitchEnabled}
-                  onCheckedChange={handleTelemetrySwitchChange}
-                  disabled={!hasAccess || updateAITelemetry.isPending}
-                />
-                {!hasAccess && (
-                  <span title="No access">
-                    <LockIcon className="text-muted icon-base absolute top-1/2 right-3 -translate-y-1/2 transform" />
-                  </span>
-                )}
-              </div>
+            <div className="mt-4 border-t pt-4">
+              <AIFeatureSettingRow
+                title="AI Data Use for Product/Service Improvement"
+                description="Share data about your use of AI with Langfuse for product and service improvement."
+                checked={isAITelemetrySwitchEnabled}
+                onCheckedChange={handleTelemetrySwitchChange}
+                disabled={!hasAccess || updateAITelemetry.isPending}
+                locked={!hasAccess}
+              />
             </div>
           )}
       </Card>
@@ -227,7 +197,7 @@ export default function AIFeatureSwitch() {
                     className="text-primary inline-flex items-center gap-1 hover:underline"
                   >
                     Learn more in the docs.
-                    <ExternalLink className="icon-sm" />
+                    <ExternalLink size="sm" />
                   </a>
                 </>
               )}

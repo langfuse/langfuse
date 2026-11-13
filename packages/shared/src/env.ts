@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { parseOutboundUrl } from "./server/outbound-url/parse";
+import { parseBlockedCidr } from "./server/webhooks/parseBlockedCidr";
 import { removeEmptyEnvVariables } from "./utils/environment";
 
 // Per-segment byte budget for S3 event keys. Off by default (2048 > 800-byte
@@ -26,6 +28,23 @@ export const redisSocketTimeoutMsSchema = z.coerce
       "REDIS_SOCKET_TIMEOUT_MS must be 0 (disabled) or at least 10000; BullMQ blocking commands idle ~5s between packets",
   })
   .default(30_000);
+
+function commaSeparatedLowercase(value: string | undefined): string[] {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((part) => part.toLowerCase().trim())
+    .filter((part) => part.length > 0);
+}
+
+const optionalCommaSeparatedLowercase = z
+  .string()
+  .optional()
+  .transform(commaSeparatedLowercase);
+
+function isCidr(value: string): boolean {
+  return parseBlockedCidr(value) !== undefined;
+}
 
 const DEFAULT_LLM_COMPLETION_TIMEOUT_MS = 120_000;
 
@@ -142,6 +161,12 @@ const EnvSchema = z.object({
     .default(20_000),
   LANGFUSE_CACHE_PROMPT_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_CACHE_PROMPT_TTL_SECONDS: z.coerce.number().default(3600), // 1h
+  LANGFUSE_CACHE_SKILL_ENABLED: z.enum(["true", "false"]).default("true"),
+  LANGFUSE_CACHE_SKILL_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(3600), // 1h
   CLICKHOUSE_URL: z.url(),
   CLICKHOUSE_READ_ONLY_URL: z.url().optional(),
   CLICKHOUSE_EVENTS_READ_ONLY_URL: z.url().optional(),
@@ -228,13 +253,70 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(1),
+  LANGFUSE_TOPICS_TRACE_QUEUE_SHARD_COUNT: z.coerce
+    .number()
+    .positive()
+    .default(1),
   LANGFUSE_CODE_EVAL_EXECUTION_QUEUE_SHARD_COUNT: z.coerce
     .number()
     .positive()
     .default(1),
   LANGFUSE_CODE_EVAL_DISPATCHER: z
-    .enum(["insecure-local", "aws-lambda"])
+    .enum(["insecure-local", "aws-lambda", "external"])
     .optional(),
+  LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT: z.string().optional(),
+  LANGFUSE_CODE_EVAL_EXTERNAL_SIGNING_SECRET: z.string().min(32).optional(),
+  LANGFUSE_CODE_EVAL_EXTERNAL_HEADERS: z
+    .string()
+    .optional()
+    .transform((value, ctx) => {
+      if (value == null || value.trim() === "") return {};
+
+      let json: unknown;
+      try {
+        json = JSON.parse(value);
+      } catch {
+        json = undefined;
+      }
+      const parsed = z.record(z.string(), z.string()).safeParse(json);
+      if (!parsed.success) {
+        ctx.addIssue({
+          code: "custom",
+          message:
+            "LANGFUSE_CODE_EVAL_EXTERNAL_HEADERS must be a JSON object of string header names and values",
+        });
+        return z.NEVER;
+      }
+      return parsed.data;
+    }),
+  LANGFUSE_CODE_EVAL_EXTERNAL_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(1_000)
+    .max(15_000)
+    .default(10_000),
+  LANGFUSE_CODE_EVAL_EXTERNAL_CONNECT_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(100)
+    .max(15_000)
+    .default(3_000),
+  LANGFUSE_CODE_EVAL_EXTERNAL_MAX_ATTEMPTS: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(10)
+    .default(3),
+  LANGFUSE_CODE_EVAL_EXTERNAL_LANGUAGES: z
+    .string()
+    .default("PYTHON,TYPESCRIPT")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((language) => language.trim().toUpperCase())
+        .filter(Boolean),
+    )
+    .pipe(z.array(z.enum(["PYTHON", "TYPESCRIPT"])).min(1)),
   LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: z.string().optional(),
   LANGFUSE_CODE_EVAL_AWS_LAMBDA_NODE_FUNCTION_NAME: z
     .string()
@@ -256,6 +338,18 @@ const EnvSchema = z.object({
     .number()
     .nonnegative()
     .default(5_000),
+  LANGFUSE_LARGE_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform(
+      (value) =>
+        new Set(
+          value
+            .split(",")
+            .map((id) => id.trim())
+            .filter(Boolean),
+        ),
+    ),
   LANGFUSE_DELETE_SKIP_PROJECT_IDS: z
     .string()
     .optional()
@@ -295,6 +389,11 @@ const EnvSchema = z.object({
     .default(3),
   LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string(), // Langfuse requires a bucket name for S3 Event Uploads.
   LANGFUSE_S3_EVENT_UPLOAD_PREFIX: z.string().default(""),
+  LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_REQUEST_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(10_000), // 10 seconds
   LANGFUSE_S3_EVENT_UPLOAD_REGION: z.string().optional(),
   LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: z.string().optional(),
   LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
@@ -333,6 +432,9 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(30_000),
+  // Intermediate role that customer storage roles trust. Integrations can use
+  // IAM role auth only when this is set.
+  LANGFUSE_CROSS_ACCOUNT_ROLE_ARN: z.string().optional(),
   LANGFUSE_USE_AZURE_BLOB: z.enum(["true", "false"]).default("false"),
   LANGFUSE_AZURE_SKIP_CONTAINER_CHECK: z
     .enum(["true", "false"])
@@ -426,6 +528,12 @@ const EnvSchema = z.object({
     .default(20_000),
   LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS: z.coerce.number().default(600_000), // 10 minutes
   LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS: z.coerce.number().default(3), // Maximum attempts for socket hang up errors
+  // Sends ClickHouse query() parameters as multipart/form-data body parts
+  // instead of URL query-string entries, so parameter values stay out of
+  // request URLs (proxy access logs, HTTP client spans).
+  LANGFUSE_CLICKHOUSE_MULTIPART_QUERY_PARAMS: z
+    .enum(["true", "false"])
+    .default("true"),
   LANGFUSE_SKIP_S3_LIST_FOR_OBSERVATIONS_PROJECT_IDS: z.string().optional(),
   LANGFUSE_INGESTION_PROCESSING_SAMPLED_PROJECTS: z
     .string()
@@ -477,6 +585,11 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  // When non-empty, webhook URLs must use one of these hosts. Distinct from
+  // LANGFUSE_WEBHOOK_WHITELISTED_HOST, which only exempts a host from the
+  // private-address block. Does not apply to other callers of that exemption
+  // list. Entries are exact hostnames (no scheme or port; IPv6 in brackets).
+  LANGFUSE_WEBHOOK_ALLOWED_HOSTS: optionalCommaSeparatedLowercase,
   LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS: z
     .string()
     .optional()
@@ -495,6 +608,14 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  // When non-empty, every outbound LLM request must use one of these hosts,
+  // including provider default hosts and Langfuse AI. Bedrock checks
+  // bedrock-runtime.<region>.<partition>, or the host of
+  // AWS_ENDPOINT_URL_BEDROCK_RUNTIME / AWS_ENDPOINT_URL when one of those is
+  // set. AI Gateway Bedrock connections also call bedrock.<region>.amazonaws.com
+  // to test credentials and list models. Ignored on Langfuse Cloud, same as the
+  // LLM exemption list above.
+  LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS: optionalCommaSeparatedLowercase,
   LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS: z
     .string()
     .optional()
@@ -513,6 +634,19 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  // When non-empty, blob storage export endpoints must use one of these hosts,
+  // and blob endpoint validation is on. Listed hosts may resolve to private
+  // addresses. Bucket names under a listed host ({bucket}.{host}) are allowed
+  // too, but still may not resolve to a private address unless it is in
+  // LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS / _IP_SEGMENTS; private
+  // S3-compatible stores can use path-style instead. S3 exports without a
+  // custom endpoint connect to s3.<region>.amazonaws.com, which must then be
+  // listed; region "auto" first connects to s3.us-east-1.amazonaws.com. S3
+  // exports using host credentials (web identity or an assumed role) also
+  // call sts.<region>.amazonaws.com through the same check, so list it too.
+  // GCS exports always connect to Google and are not checked. Ignored on
+  // Langfuse Cloud.
+  LANGFUSE_BLOB_STORAGE_ENDPOINT_ALLOWED_HOSTS: optionalCommaSeparatedLowercase,
   LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_IPS: z
     .string()
     .optional()
@@ -531,6 +665,10 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  // When non-empty, external media storage endpoints must use one of these
+  // hosts. Ignored on Langfuse Cloud.
+  LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_ALLOWED_HOSTS:
+    optionalCommaSeparatedLowercase,
   // Buckets that keyless GOOGLE_CLOUD_STORAGE blob exports (default credentials,
   // no service account key) may write to. Those run as the deployment's own GCP
   // identity (ADC), so without this allowlist any project owner could export into
@@ -565,6 +703,18 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  // Extra CIDR ranges merged into the private-address block for outbound URL
+  // checks that already run. Blob storage stays opt-in: these ranges apply
+  // there only when a blob endpoint exemption or allowed-hosts list turns
+  // blob endpoint validation on. Exemptions
+  // in the per-surface *_WHITELISTED_* lists still win.
+  LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS: optionalCommaSeparatedLowercase.refine(
+    (segments) => segments.every(isCidr),
+    {
+      message:
+        "LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS must be a comma-separated list of CIDR ranges",
+    },
+  ),
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   SLACK_STATE_SECRET: z.string().optional(),
@@ -678,6 +828,20 @@ const EnvSchema = z.object({
   LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS: z
     .enum(["true", "false"])
     .default("false"),
+  // Comma-separated project ids whose scores are never updated after ingestion.
+  // Reads of the scores table skip deduplication (FINAL / LIMIT 1 BY) for them.
+  LANGFUSE_SKIP_SCORES_DEDUP_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform(
+      (value) =>
+        new Set(
+          value
+            .split(",")
+            .map((id) => id.trim())
+            .filter(Boolean),
+        ),
+    ),
 
   // Langfuse AI Features
   LANGFUSE_AI_FEATURES_PUBLIC_KEY: z.string().optional(),
@@ -726,9 +890,37 @@ const EnvSchema = z.object({
     ),
 });
 
+const ValidatedEnvSchema = EnvSchema.superRefine((env, ctx) => {
+  if (env.LANGFUSE_CODE_EVAL_DISPATCHER !== "external") return;
+
+  if (!env.LANGFUSE_CODE_EVAL_EXTERNAL_SIGNING_SECRET) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["LANGFUSE_CODE_EVAL_EXTERNAL_SIGNING_SECRET"],
+      message:
+        "LANGFUSE_CODE_EVAL_EXTERNAL_SIGNING_SECRET is required when LANGFUSE_CODE_EVAL_DISPATCHER=external",
+    });
+  }
+
+  let endpoint: URL | undefined;
+  try {
+    endpoint = parseOutboundUrl(env.LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT ?? "");
+  } catch {
+    endpoint = undefined;
+  }
+  if (!endpoint || !["http:", "https:"].includes(endpoint.protocol)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT"],
+      message:
+        "LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT must be an http(s) URL without credentials when LANGFUSE_CODE_EVAL_DISPATCHER=external",
+    });
+  }
+});
+
 export type SharedEnv = z.infer<typeof EnvSchema>;
 
 export const env: SharedEnv =
   process.env.DOCKER_BUILD === "1" // eslint-disable-line turbo/no-undeclared-env-vars
     ? (process.env as any)
-    : EnvSchema.parse(removeEmptyEnvVariables(process.env));
+    : ValidatedEnvSchema.parse(removeEmptyEnvVariables(process.env));

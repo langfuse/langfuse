@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 /* eslint-disable @repo/no-style-props */
 import { TextActionButton } from "@/src/components/TextActionButton/TextActionButton";
 import { Button } from "@/src/components/ui/button";
@@ -29,7 +29,7 @@ import {
   Plus,
   WandSparkles,
   X,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import {
   Popover,
@@ -41,8 +41,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { MultiSelect } from "@/src/features/filters/components/multi-select";
-import { SingleSelect } from "@/src/features/filters/components/single-select";
+import { MultiSelect } from "@/src/features/filters/components/MultiSelect";
+import { SingleSelect } from "@/src/features/filters/components/SingleSelect";
 import { FilterToken } from "@/src/features/filters/components/FilterToken";
 import { getColumnOptionsForFilterRow } from "@/src/features/filters/lib/filter-transform";
 import {
@@ -59,7 +59,9 @@ import {
   getSessionPositionInTraceFilterMode,
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { CompactConnectorRow } from "@/src/features/filters/components/CompactConnectorRow";
+import { CompactPickerButton } from "@/src/features/filters/components/CompactPickerButton";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   InputCommand,
   InputCommandEmpty,
@@ -68,11 +70,9 @@ import {
   InputCommandItem,
   InputCommandList,
 } from "@/src/components/ui/input-command";
-import { useQueryProject } from "@/src/features/projects";
-import {
-  useLangfuseCloudRegion,
-  openAIFeaturesSettings,
-} from "@/src/features/organizations";
+import { useQueryProject } from "@/src/features/projects/hooks";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { openAIFeaturesSettings } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
 
 /**
  * Extended ColumnDefinition with optional alert for UI display.
@@ -303,7 +303,7 @@ export function PopoverFilterBuilder({
               variant="ghost"
               className="relative"
             >
-              <FilterIcon className="icon-base text-icon-foreground" />
+              <FilterIcon size="base" color="default" />
               {filterState.length > 0 && (
                 <span className="bg-input absolute top-0 -right-1 flex h-4 min-w-4 items-center justify-center rounded-sm px-1 text-xs shadow-xs">
                   {filterState.length}
@@ -337,7 +337,7 @@ export function PopoverFilterBuilder({
                 size="icon"
                 className="ml-0.5"
               >
-                <X className="icon-base text-icon-foreground" />
+                <X size="base" color="default" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Clear all filters</TooltipContent>
@@ -352,7 +352,7 @@ export function PopoverFilterBuilder({
                 size="icon-xs"
                 className="hover:bg-background ml-0.5"
               >
-                <X className="icon-sm text-icon-foreground" />
+                <X size="sm" color="default" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Clear all filters</TooltipContent>
@@ -455,6 +455,7 @@ export function InlineFilterBuilder({
   onStringObjectKeyChange,
   compact = false,
   subtleAddButton = false,
+  operators,
 }: {
   columns: ColumnDefinitionWithAlert[];
   filterState: FilterState;
@@ -480,6 +481,8 @@ export function InlineFilterBuilder({
   compact?: boolean;
   /** Renders the add action like the subtle prompt-editor "Add message" action. */
   subtleAddButton?: boolean;
+  /** Operators offered per filter type; defaults to every operator. */
+  operators?: FilterOperators;
 }) {
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
@@ -530,18 +533,15 @@ export function InlineFilterBuilder({
         onStringObjectKeyChange={onStringObjectKeyChange}
         compact={compact}
         subtleAddButton={subtleAddButton}
+        operators={operators}
       />
     </div>
   );
 }
 
-const getOperator = (
-  type: NonNullable<WipFilterCondition["type"]>,
-): WipFilterCondition["operator"] => {
-  return filterOperators[type]?.length > 0
-    ? filterOperators[type][0]
-    : undefined;
-};
+type FilterOperators = Partial<
+  Record<keyof typeof filterOperators, readonly string[]>
+>;
 
 /**
  * Returns severity-based styling classes for alert icons and tooltips
@@ -580,6 +580,7 @@ function FilterBuilderForm({
   compact = false,
   subtleAddButton = false,
   aiFilter,
+  operators,
 }: {
   columnIdentifier: ColumnIdentifier;
   columns: ColumnDefinitionWithAlert[];
@@ -602,7 +603,11 @@ function FilterBuilderForm({
   compact?: boolean;
   subtleAddButton?: boolean;
   aiFilter?: AiFilterConfig;
+  operators?: FilterOperators;
 }) {
+  // A type missing from `operators` offers none, like the eval filter definitions.
+  const operatorsFor = (type: keyof typeof filterOperators) =>
+    operators ? (operators[type] ?? []) : filterOperators[type];
   const [showAiFilter, setShowAiFilter] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiError, setAiError] = useState<string | null>(null);
@@ -700,21 +705,13 @@ function FilterBuilderForm({
         onOpenChange={(open) => setOpenColumnRow(open ? i : null)}
       >
         <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            role="combobox"
-            type="button"
+          <CompactPickerButton
             disabled={disabled}
-            className={cn(
-              "flex items-center justify-between gap-2",
-              compact ? "w-full min-w-0" : "w-full min-w-32",
-            )}
+            title={columnLabel}
+            minWidth={compact ? "none" : "default"}
           >
-            <span className="min-w-0 truncate" title={columnLabel}>
-              {columnLabel}
-            </span>
-            <DropdownIndicator />
-          </Button>
+            {columnLabel}
+          </CompactPickerButton>
         </PopoverTrigger>
         <PopoverContent align="start" className="ph-no-capture max-w-fit p-0">
           <InputCommand>
@@ -737,7 +734,7 @@ function FilterBuilderForm({
                       onSelect={(value) => {
                         const col = columns.find((c) => c.id === value);
                         const defaultOperator = col?.type
-                          ? getOperator(col.type)
+                          ? operatorsFor(col.type)[0]
                           : undefined;
 
                         handleFilterChange(
@@ -763,8 +760,9 @@ function FilterBuilderForm({
                       }}
                     >
                       <Check
-                        className={cn(
-                          "icon-base mr-2",
+                        size="base"
+                        __rawClassName={cn(
+                          "mr-2",
                           option.id === column?.id ? "visible" : "invisible",
                         )}
                       />
@@ -773,10 +771,8 @@ function FilterBuilderForm({
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Info
-                              className={cn(
-                                "icon-base ml-2",
-                                alertStyles.iconColor,
-                              )}
+                              size="base"
+                              __rawClassName={cn("ml-2", alertStyles.iconColor)}
                             />
                           </TooltipTrigger>
                           <TooltipContent
@@ -939,7 +935,7 @@ function FilterBuilderForm({
         </SelectTrigger>
         <SelectContent className="ph-no-capture">
           {filter.type !== undefined
-            ? filterOperators[filter.type].map((option) => (
+            ? operatorsFor(filter.type).map((option) => (
                 <SelectItem key={option} value={option}>
                   {option}
                 </SelectItem>
@@ -1120,7 +1116,7 @@ function FilterBuilderForm({
         disabled={disabled}
         size="xs"
       >
-        <X className="icon-sm text-icon-foreground" />
+        <X size="sm" color="default" />
       </Button>
     );
 
@@ -1140,17 +1136,13 @@ function FilterBuilderForm({
           ) : null}
           <div className="flex w-5 shrink-0 justify-end">{removeButton}</div>
         </div>
-        <div className="flex items-start">
-          <span className="w-16 shrink-0" aria-hidden="true" />
-          <div className="border-input h-6 w-3 shrink-0 rounded-bl-md border-b-2 border-l-2" />
-          <div className="flex min-w-0 flex-1 items-center gap-1.5 pt-2">
-            <div className="shrink-0">{operatorSelect}</div>
-            {valueControl ? (
-              <div className="min-w-0 flex-1">{valueControl}</div>
-            ) : null}
-            <span className="w-5 shrink-0" aria-hidden="true" />
-          </div>
-        </div>
+        <CompactConnectorRow indent="label" align="center">
+          <div className="shrink-0">{operatorSelect}</div>
+          {valueControl ? (
+            <div className="min-w-0 flex-1">{valueControl}</div>
+          ) : null}
+          <span className="w-5 shrink-0" aria-hidden="true" />
+        </CompactConnectorRow>
       </div>
     ) : (
       <tr key={i}>
@@ -1192,11 +1184,15 @@ function FilterBuilderForm({
             }
             className="text-muted-foreground w-full justify-start"
           >
-            <WandSparkles className="icon-base text-icon-foreground mr-2" />
+            <WandSparkles size="base" color="default" __rawClassName="mr-2" />
             {!aiFilter.aiFeaturesEnabled ? (
               <>
                 AI Filters: Enable in Organization Settings (Admin Only)
-                <ExternalLink className="icon-base text-icon-foreground ml-2" />
+                <ExternalLink
+                  size="base"
+                  color="default"
+                  __rawClassName="ml-2"
+                />
               </>
             ) : showAiFilter ? (
               "Cancel"
@@ -1233,7 +1229,7 @@ function FilterBuilderForm({
                 </Button>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Info className="text-muted-foreground icon-base" />
+                    <Info size="base" color="muted" />
                   </TooltipTrigger>
                   <TooltipContent>
                     <p className="text-xs">
@@ -1280,7 +1276,7 @@ function FilterBuilderForm({
                 variant="outline"
                 size="sm"
               >
-                <Plus className="icon-base text-icon-foreground mr-2 shrink-0" />
+                <Plus size="base" color="default" __rawClassName="mr-2" />
                 Add filter
               </Button>
             )

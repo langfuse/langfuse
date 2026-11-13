@@ -2,18 +2,29 @@
 
 import { describe, expect, it } from "vitest";
 import type { FilterState } from "@langfuse/shared";
-import {
-  EVENTS_FIELD_REGISTRY,
-  planCommit,
-  filterStateToQueryText,
-  runSearchBarInvariants,
-} from "@/src/features/search-bar";
+import { EVENTS_FIELD_REGISTRY } from "@/src/features/search-bar/lib/fields";
+import { planCommit } from "@/src/features/search-bar/lib/commit";
+import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
+import { runSearchBarInvariants } from "@/src/features/search-bar/lib/searchBarInvariants";
 
 import { eventsSearchRegistry } from "./eventsSearchRegistry";
 
 describe("events search scope", () => {
   it("preserves the full-page grammar and AI capability", () => {
     expect(eventsSearchRegistry([])).toBe(EVENTS_FIELD_REGISTRY);
+  });
+
+  it("offers the topics syntax only when Topics is available, without touching Ask AI", () => {
+    expect(EVENTS_FIELD_REGISTRY.resolveField("topics.Intent")).toBeNull();
+    const hidden = eventsSearchRegistry(["topics"]);
+    expect(hidden.resolveField("topics.Intent")).toBeNull();
+    expect(hidden.aiFilterPrompt).toBe(true);
+    const available = eventsSearchRegistry([], false, true);
+    expect(available.resolveField("topics.Intent")).toMatchObject({
+      type: "keyedOptions",
+      column: "topics",
+    });
+    expect(available.aiFilterPrompt).toBe(true);
   });
 
   it("keeps remaining fields' meaning while closing host-owned fields and aliases", () => {

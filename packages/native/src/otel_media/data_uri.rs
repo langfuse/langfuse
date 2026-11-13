@@ -3,8 +3,8 @@
 use std::ops::Range;
 
 use super::encoding::{
-    has_data_uri_boundary, is_base64_character, is_data_uri_terminator, is_valid_content_type,
-    is_valid_data_uri_parameters,
+    base64_unpadded_prefix_len, has_data_uri_boundary, is_base64_character, is_data_uri_terminator,
+    is_valid_content_type, is_valid_data_uri_parameters,
 };
 use super::rules::{is_supported_content_type, BASE64_MARKER, DATA_URI_PREFIX};
 
@@ -64,7 +64,7 @@ pub(super) fn parse_data_uri(value: &str, mut start: usize) -> Option<ParsedData
         });
     }
     let data_start = marker_start + BASE64_MARKER.len();
-    let mut end = data_start;
+    let mut end = data_start + base64_unpadded_prefix_len(&bytes[data_start..]);
     let mut padding = 0;
     let mut valid = true;
     while end < value.len() && is_base64_character(value.as_bytes()[end]) {

@@ -3,6 +3,7 @@ import { usePostHog } from "posthog-js/react";
 import { useCallback } from "react";
 import type { AnnotationEventMap } from "@/src/features/scores/lib/annotationAnalytics";
 import type { EvalOnboardingEventMap } from "@/src/features/evals/v2/types/evalOnboardingAnalytics";
+import type { AiGatewayEventMap } from "@/src/features/ai-gateway/types/aiGatewayAnalytics";
 import type {
   ToastInteractionEventProperties,
   ToastShownEventProperties,
@@ -17,7 +18,6 @@ type ToastEventMap = {
 };
 
 // resource:action, only use snake_case
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
 const events = {
   table: [
     "filter_builder_open",
@@ -38,6 +38,7 @@ const events = {
     "observation_tree_toggle_scores",
     "observation_tree_toggle_metrics",
     "io_mode_switch",
+    "io_parser_comparison",
     "test_in_playground_button_click",
     "display_mode_switch",
     "download_button_click",
@@ -148,7 +149,12 @@ const events = {
     "level_added",
   ],
   annotation: ["entry_click"],
-  annotation_queues: ["item_added", "item_removed", "manage_click"],
+  annotation_queues: [
+    "item_added",
+    "item_removed",
+    "manage_click",
+    "score_configs_saved",
+  ],
   score_configs: [
     "create_form_submit",
     "update_form_submit",
@@ -431,6 +437,7 @@ const events = {
     "ai_features_toggle",
     "ai_telemetry_toggle",
     "feature_flag_default_toggled",
+    "personal_feature_previews_opened",
     "user_feature_flag_toggled",
   ],
   help_popup: ["opened", "href_clicked"],
@@ -441,6 +448,12 @@ const events = {
     "message_sent",
     "community_hours_click",
   ], // also used on landing page for consistency
+  topics: [
+    "results_view_select",
+    "setup_opened",
+    "setup_step_saved",
+    "setup_started",
+  ],
   in_app_agent: [
     "activity_opened",
     "entry_point_click",
@@ -449,8 +462,38 @@ const events = {
     "quick_action_started",
     "tool_approval_decided",
   ],
+  // AI Gateway setup and adoption. Props are typed in AiGatewayEventMap and
+  // carry `orgId` on every event: metadata only, never emails, names,
+  // credentials, key metadata or model ids.
+  ai_gateway: [
+    "setup_guide_viewed",
+    "setup_step_completed",
+    "ingestion_settings_saved",
+    "provider_credential_added",
+    "provider_credential_updated",
+    "provider_credential_deleted",
+    "team_invite_sent",
+    "api_key_created",
+    "api_key_updated",
+    "api_key_revoked",
+    "api_key_secret_copied",
+    "api_key_secret_revealed",
+    "model_access_changed",
+    "model_name_copied",
+    "agent_setup_instructions_viewed",
+    "agent_setup_instructions_copied",
+  ],
   cmd_k_menu: ["opened", "search_entered", "navigated"],
   spend_alert: ["created", "updated", "deleted"],
+  // Launch surfaces answer "which entry point and state lead people into
+  // gateway setup or key creation?" Props are state enums and counts only.
+  ai_gateway_launch: [
+    "banner_cta_clicked",
+    "banner_dismissed",
+    "dialog_setup_clicked",
+    "dialog_get_key_clicked",
+    "dialog_learn_more_clicked",
+  ],
   sidebar: [
     "book_a_call_clicked",
     "v4_beta_toggled",
@@ -474,8 +517,12 @@ const events = {
     "status_row_clicked",
     "update_required_badge_clicked",
     "migrate_evals_with_agent_clicked",
-    "overview_banner_status_clicked",
-    "overview_banner_docs_clicked",
+    // Legacy v3 strip in the top-banner stack. Both carry
+    // { severity, actionNeededCount }; cta_clicked also carries `cta`.
+    "top_banner_shown",
+    "top_banner_cta_clicked",
+    // Opt-out users on the legacy-UI top strip → migration status page.
+    "legacy_ui_banner_status_clicked",
     "panel_docs_link_clicked",
     "create_project_keys_clicked",
     "panel_opened",
@@ -517,6 +564,7 @@ type EventName = {
 
 type TypedEventMap = AnnotationEventMap &
   EvalOnboardingEventMap &
+  AiGatewayEventMap &
   ToastEventMap;
 
 type EventProperties = TypedEventMap & {

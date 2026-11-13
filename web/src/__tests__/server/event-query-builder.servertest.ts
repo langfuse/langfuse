@@ -40,7 +40,8 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
       expect(filter).toBeDefined();
       if (!filter) throw new Error("expected filter");
       const applied = filter.apply();
-      expect(applied.query).toContain(expression);
+      // The filter renders the expression with lowercase keywords (`or`, `null`).
+      expect(applied.query.toLowerCase()).toContain(expression.toLowerCase());
       expect(applied.query).toContain(clickhouseType);
       expect(Object.values(applied.params)).toContain("0");
     },
@@ -72,7 +73,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
 
       expect(filter).toBeDefined();
       if (!filter) throw new Error("expected filter");
-      expect(filter.apply().query).toContain(`${expression} is null`);
+      expect(filter.apply().query.toLowerCase()).toContain(
+        `${expression.toLowerCase()} is null`,
+      );
     },
   );
 
@@ -605,15 +608,15 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
       expect(filter).toBeDefined();
       if (!filter) throw new Error("expected filter");
       const applied = filter.apply();
-      expect(applied.query).toContain('e."ingestion_api_key" IN');
+      expect(applied.query).toContain("e.ingestion_api_key IN");
       expect(Object.values(applied.params)).toContainEqual([apiKey]);
     },
   );
 
   it.each([
-    ["ingestionSdkName", 'e."ingestion_sdk_name" IN', "python"],
-    ["ingestionSdkVersion", 'e."ingestion_sdk_version" IN', "4.7.1"],
-    ["ingestionSource", 'e."source" IN', "otel"],
+    ["ingestionSdkName", "e.ingestion_sdk_name IN", "python"],
+    ["ingestionSdkVersion", "e.ingestion_sdk_version IN", "4.7.1"],
+    ["ingestionSource", "e.source IN", "otel"],
   ] as const)(
     "maps %s filters to the ingestion attribution column",
     (column, expectedClause, value) => {
@@ -697,7 +700,7 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     expect(filter).toBeDefined();
     if (!filter) throw new Error("expected filter");
     expect(filter.apply().query).toContain(
-      `(e."experiment_id" = '' OR e."experiment_id" IS NULL)`,
+      `(e.experiment_id = '' OR e.experiment_id IS NULL)`,
     );
   });
 
@@ -1030,7 +1033,7 @@ describe("EventsQueryBuilder", () => {
     expect(query).toContain("FROM events_full e");
   });
 
-  it("should include pricing tier fields in observation list, detail, usage, and export field sets", () => {
+  it("should include pricing tier fields in observation list, usage, and export field sets", () => {
     const buildQuery = (
       ...fieldSets: Parameters<EventsQueryBuilder["selectFieldSet"]>
     ) =>
@@ -1042,25 +1045,17 @@ describe("EventsQueryBuilder", () => {
 
     const listQuery = buildQuery("base", "calculated");
     const slimListQuery = buildQuery("baseWithoutTools", "calculated");
-    const byIdQuery = buildQuery(
-      "byIdBase",
-      "byIdModel",
-      "byIdPrompt",
-      "byIdTimestamps",
-    );
     const usageQuery = buildQuery("core", "usage");
     const exportQuery = buildQuery("export");
 
-    [listQuery, slimListQuery, byIdQuery, usageQuery, exportQuery].forEach(
-      (query) => {
-        expect(query).toContain(
-          "e.usage_pricing_tier_id as usage_pricing_tier_id",
-        );
-        expect(query).toContain(
-          "e.usage_pricing_tier_name as usage_pricing_tier_name",
-        );
-      },
-    );
+    [listQuery, slimListQuery, usageQuery, exportQuery].forEach((query) => {
+      expect(query).toContain(
+        "e.usage_pricing_tier_id as usage_pricing_tier_id",
+      );
+      expect(query).toContain(
+        "e.usage_pricing_tier_name as usage_pricing_tier_name",
+      );
+    });
   });
 
   it("should include experiment item metadata in eval field set", () => {
@@ -1105,7 +1100,7 @@ describe("ExperimentsAggregationQueryBuilder", () => {
       .buildWithParams();
 
     expect(query).toContain(
-      "uniqIf(e.experiment_item_id, e.level = 'ERROR') AS error_count",
+      "uniqIf(e.experiment_item_id, e.level = 'ERROR') as error_count",
     );
   });
 });

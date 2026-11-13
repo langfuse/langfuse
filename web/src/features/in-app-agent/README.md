@@ -154,9 +154,10 @@ separate click event would answer.
 Rollback is a code revert; background execution does not require a schema
 rollback.
 
-Workers with `LANGFUSE_IN_APP_AGENT_ENABLED` set consume the run queue and
-reconcile stale runs; without it, runs commit as `QUEUED` and die at
-`queue_timeout`. Cloud is on unless the flag is `"false"`. Split-role workers
+Workers with `LANGFUSE_IN_APP_AGENT_ENABLED` set consume the run queue.
+Stale-run reconciliation runs independently of assistant enablement so abandoned
+runs cannot block retention after opt-out; it never executes agent work.
+Cloud is on unless the flag is `"false"`. Split-role workers
 can keep the instance on and set
 `QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED=false` (and
 `LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED=false`) to skip those
@@ -166,6 +167,14 @@ its default of 20 equals full US capacity and exceeds JP and staging.
 
 Conversation switching, detached invalidations, retry, and conversation-list run
 statuses remain separate project concerns.
+
+Assistant conversation retention runs independently of ingestion retention mode
+and assistant enablement, under an enterprise license. It is enabled by default;
+`QUEUE_CONSUMER_DATA_RETENTION_QUEUE_IS_ENABLED=false` no longer pauses assistant
+retention. Set `LANGFUSE_IN_APP_AGENT_RETENTION_CLEANER_ENABLED=false` on every
+worker to pause it. Conversations with unfinished runs remain excluded until
+reconciliation settles them. Keep at least one integrity runner enabled for
+stale-run reconciliation, including after assistant opt-out.
 
 Environment ownership:
 
@@ -236,7 +245,7 @@ MCP registry behavior:
 - In-app-agent keys can call read-only tools directly when the tool has `readOnlyHint: true`.
 - In-app-agent keys need a valid tool override to call named non-read-only Langfuse MCP tools.
 
-RBAC is the first gate for Langfuse MCP tools. Before a tool is exposed to the model, shared `mcpPolicy.ts` checks the signed-in user's `projectRole` and `isAdmin` against the tool's required `ProjectScope` with `hasProjectAccess()`. That means the assistant never sees tools the user could not use manually in the product UI or APIs. Human approval is a second gate on top of RBAC for tools classified as `"approval"`: approval can allow one execution of a tool the user already has access to, but it does not widen the user's project permissions.
+RBAC is the first gate for Langfuse MCP tools. Before a tool is exposed to the model, shared `mcpPolicy.ts` checks the signed-in user's `projectRole` against the tool's required `ProjectScope` with `hasProjectAccessByRole()`. That means the assistant never sees tools the user could not use manually in the product UI or APIs. Human approval is a second gate on top of RBAC for tools classified as `"approval"`: approval can allow one execution of a tool the user already has access to, but it does not widen the user's project permissions.
 
 Human approval is separate from the MCP tool override. Shared `mcpPolicy.ts` classifies every Langfuse MCP tool in `IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES`, using unprefixed MCP registry names and either `"auto"` or `"approval"`. The web in-app-agent server test imports the MCP registry's `McpToolName` contract and verifies both type equality and runtime registry equality, so adding a Langfuse MCP tool requires an explicit in-app agent approval classification without making MCP bootstrap depend on the in-app agent.
 

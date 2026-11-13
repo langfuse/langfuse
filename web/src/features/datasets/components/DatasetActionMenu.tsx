@@ -1,4 +1,4 @@
-import { Bot, Copy, Edit, LockIcon, Trash } from "lucide-react";
+import { Bot, Copy, Edit, LockIcon, Trash } from "@langfuse/icons";
 import { type ComponentProps, useMemo } from "react";
 
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";

@@ -7,6 +7,7 @@ import { QueryBuilder } from "./queryBuilder";
 // Mock it so these stay unit-level and do not need ClickHouse.
 vi.mock("../../../server/queries/clickhouse-sql/query-options", () => ({
   shouldSkipObservationsFinal: vi.fn().mockResolvedValue(false),
+  shouldSkipScoresDedup: vi.fn().mockReturnValue(false),
 }));
 
 const usageByTypeTimeseries = {
@@ -41,8 +42,8 @@ describe("queryBuilder pairExpand ARRAY JOIN aliases", () => {
       true,
     );
 
-    expect(query).toContain("ARRAY JOIN");
-    expect(query).toMatch(/mapKeys\([^)]*usage_details\) AS usageType/);
+    expect(query).toMatch(/array join/i);
+    expect(query).toMatch(/mapKeys\([^)]*usage_details\) as usageType/i);
     expect(query).not.toMatch(/usageType\s+as\s+usageType/i);
     expect(query).toMatch(/sum\(usage_value\)\s+as\s+sum_usageByType/i);
   });
@@ -54,8 +55,8 @@ describe("queryBuilder pairExpand ARRAY JOIN aliases", () => {
       false,
     );
 
-    expect(query).toContain("ARRAY JOIN");
-    expect(query).toMatch(/mapKeys\([^)]*cost_details\) AS costType/);
+    expect(query).toMatch(/array join/i);
+    expect(query).toMatch(/mapKeys\([^)]*cost_details\) as costType/i);
     expect(query).not.toMatch(/costType\s+as\s+costType/i);
   });
 });

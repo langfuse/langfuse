@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import {
@@ -38,6 +38,7 @@ import {
   executeLlmEvaluator,
   type CodeEvalScoreWithName,
   type EvaluatorLlmErrorClassification,
+  type ExtractedVariable,
 } from "@langfuse/shared/src/server";
 import {
   inMemoryFilterRequiresMetadata,
@@ -70,8 +71,12 @@ import {
 } from "@langfuse/shared";
 import { env } from "../../env";
 import { prisma } from "@langfuse/shared/src/db";
-import { createW3CTraceId } from "../utils";
+import { createW3CTraceId } from "../utils/utilities";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
+import {
+  EvalFailureReason,
+  UnrecoverableEvalFailureError,
+} from "./evalFailureErrors";
 import { ObservationNotFoundError } from "../../errors/ObservationNotFoundError";
 import {
   completeEvalExecution,
@@ -85,7 +90,7 @@ import {
   type EvalExecutionDeps,
   createProductionEvalExecutionDeps,
 } from "./evalExecutionDeps";
-import { type ExtractedVariable } from "@langfuse/shared/src/server";
+
 import {
   buildEvalExecutionSpanAttributes,
   buildEvaluatorLlmErrorSpanAttributes,
@@ -1062,8 +1067,9 @@ export async function runLLMAsJudgeEvaluation({
         logger.warn(
           `Eval job ${jobExecutionId} will fail. ${modelConfig.error}`,
         );
-        throw new UnrecoverableError(
+        throw new UnrecoverableEvalFailureError(
           `Invalid model configuration for job ${jobExecutionId}: ${modelConfig.error}`,
+          EvalFailureReason.InvalidModelConfig,
         );
       }
 
@@ -1196,8 +1202,9 @@ export async function runLLMAsJudgeEvaluation({
 
       if (!parsedLLMOutput.success) {
         span.setAttribute("eval.execution.outcome", "invalid_model_output");
-        throw new UnrecoverableError(
+        throw new UnrecoverableEvalFailureError(
           `Invalid LLM response format from model ${modelConfig.config.model}. Error: ${parsedLLMOutput.error}`,
+          EvalFailureReason.InvalidModelOutput,
         );
       }
 
@@ -1307,6 +1314,7 @@ export async function executeLLMAsJudgeEvaluation(
   await completeEvalExecution({
     projectId: params.projectId,
     jobExecutionId: params.jobExecutionId,
+    scoreTimestamp: params.job.createdAt,
     traceId: params.job.jobInputTraceId,
     observationId: params.job.jobInputObservationId,
     environment: params.environment,

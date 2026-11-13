@@ -4,8 +4,10 @@ import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { env } from "@/src/env.mjs";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import {
+  isoDateTime,
   type ChbPlanCode,
   chbPlanCodes,
   chbPlanCodeToPlan,
@@ -74,7 +76,7 @@ const ChbEventBusTimestampSchema = z.union([z.number(), z.string()]).nullish();
 const ChbWebhookEventSchema = z.object({
   eventId: z.string().min(1),
   type: ChbWebhookEventTypeSchema,
-  occurredAt: z.iso.datetime({ offset: true }),
+  occurredAt: isoDateTime({ offset: true }),
   data: z.object({
     // Event-bus record id, not the attached plan id
     id: z.string().nullish(),
@@ -436,6 +438,7 @@ async function persistAndPropagate(params: {
   // TTL.
   try {
     await invalidateCachedOrgApiKeys(parsedOrg.id);
+    await invalidateGatewayResolveCacheForOrganization(parsedOrg.id);
   } catch (error) {
     logger.error(
       `[CHB Webhook] Failed to invalidate cached API keys for org ${parsedOrg.id} after applying ${event.type}`,

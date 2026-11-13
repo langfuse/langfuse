@@ -4,7 +4,7 @@ import {
   type FilterConfig,
 } from "@/src/features/filters/lib/filter-config";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
-import { renderLevelIcon } from "@/src/components/level-colors";
+import { renderLevelIcon } from "@/src/components/ObservationLevelTag";
 
 // Helper function to get column name from eventsTableCols by ID
 export const getEventsColumnName = (id: string): string => {
@@ -70,7 +70,8 @@ const migrateLegacyRootObservationFilters = (
 export type ObservationEventsOmittableFilterColumn =
   | "sessionId"
   | "userId"
-  | "promptName";
+  | "promptName"
+  | "topics";
 
 export const observationEventsFilterConfig: FilterConfig = {
   tableName: "observations-events",
@@ -309,6 +310,16 @@ export const observationEventsFilterConfig: FilterConfig = {
       label: "Tool Names (Called)",
     },
     {
+      type: "categorical" as const,
+      column: "skillNamesAvailable",
+      label: "Skill Names (Available)",
+    },
+    {
+      type: "categorical" as const,
+      column: "skillsNamesLoaded",
+      label: "Skill Names (Loaded)",
+    },
+    {
       type: "numeric" as const,
       column: "toolDefinitions",
       label: "Available Tools",
@@ -345,6 +356,13 @@ export const observationEventsFilterConfig: FilterConfig = {
       label: "Comment Content",
     },
   ],
+};
+
+/** Added by the tracing table only when canViewTopics passes, so inheriting sidebars never show it. */
+export const topicsFilterFacet = {
+  type: "keyValue" as const,
+  column: "topics",
+  label: "Topics",
 };
 
 export function getObservationEventsFilterConfig(

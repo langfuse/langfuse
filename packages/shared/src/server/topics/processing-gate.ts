@@ -1,5 +1,5 @@
 import { JobConfigState, prisma, type Prisma } from "../../db";
-import { EvalTargetObject } from "../../features/evals/types";
+import { TopicsTargetObject } from "../../features/evals/types";
 import { logger } from "../logger";
 import { redis } from "../redis/redis";
 import { isTopicsProjectEnabled } from "./config";
@@ -16,13 +16,13 @@ const CACHE_KEY_PREFIX = "langfuse:topics:processing-active";
 
 const cacheKey = (projectId: string) => `${CACHE_KEY_PREFIX}:${projectId}`;
 
-/** The project's Topics rule: a trace rule whose evaluators are all facets. */
+/** The project's Topics rule: a transcript rule whose evaluators are all facets. */
 export function topicRuleWhere(
   projectId: string,
 ): Prisma.EvaluationRuleWhereInput {
   return {
     projectId,
-    targetObject: EvalTargetObject.TRACE,
+    targetObject: TopicsTargetObject,
     assignments: {
       some: {},
       every: { projectId, evaluator: { projectId, type: "FACET" } },
@@ -31,27 +31,35 @@ export function topicRuleWhere(
 }
 
 /**
- * Whether new traces of the project enter trace-batch processing for Topics:
- * the project is allowlisted, Topics is on with all three models configured,
- * and an active rule runs at least one facet that is not blocked. Both answers
- * are cached in Redis. A failed or timed-out lookup caches the allowlist answer
- * briefly and propagates.
+ * The share of the project's new traces that enter trace-batch processing for
+ * Topics: the largest sampling rate of the active rules when the project is allowlisted,
+ * Topics is on with all three models configured, and an active rule runs at
+ * least one facet that is not blocked; otherwise 0. The answer is cached in
+ * Redis. A failed or timed-out lookup caches the allowlist answer (1) briefly
+ * and propagates.
  */
+export async function getTopicsProcessingSampling(
+  projectId: string,
+): Promise<number> {
+  if (!isTopicsProjectEnabled(projectId)) return 0;
+  const cached = await readCache(projectId);
+  if (cached !== null) return cached;
+  let sampling: number;
+  try {
+    sampling = await withTimeout(lookupProcessingSampling(projectId));
+  } catch (error) {
+    await writeCache(projectId, 1, FAILURE_TTL_SECONDS);
+    throw error;
+  }
+  await writeCache(projectId, sampling, CACHE_TTL_SECONDS);
+  return sampling;
+}
+
+/** Whether any new traces of the project enter trace-batch processing for Topics. */
 export async function isTopicsProcessingActive(
   projectId: string,
 ): Promise<boolean> {
-  if (!isTopicsProjectEnabled(projectId)) return false;
-  const cached = await readCache(projectId);
-  if (cached !== null) return cached;
-  let active: boolean;
-  try {
-    active = await withTimeout(lookupProcessingActive(projectId));
-  } catch (error) {
-    await writeCache(projectId, true, FAILURE_TTL_SECONDS);
-    throw error;
-  }
-  await writeCache(projectId, active, CACHE_TTL_SECONDS);
-  return active;
+  return (await getTopicsProcessingSampling(projectId)) > 0;
 }
 
 /** Call after a committed change to the project's Topics config or rule. */
@@ -68,12 +76,12 @@ export async function invalidateTopicsProcessingActive(
   }
 }
 
-async function readCache(projectId: string): Promise<boolean | null> {
+async function readCache(projectId: string): Promise<number | null> {
   try {
     const cached = await redis?.get(cacheKey(projectId));
-    if (cached === "1") return true;
-    if (cached === "0") return false;
-    return null;
+    const sampling =
+      cached === null || cached === undefined ? NaN : Number(cached);
+    return sampling >= 0 && sampling <= 1 ? sampling : null;
   } catch (error) {
     logger.warn("Failed to read cached Topics processing state", {
       projectId,
@@ -83,12 +91,15 @@ async function readCache(projectId: string): Promise<boolean | null> {
   }
 }
 
-async function lookupProcessingActive(projectId: string): Promise<boolean> {
-  const [config, rule] = await Promise.all([
+async function lookupProcessingSampling(projectId: string): Promise<number> {
+  const [config, rules] = await Promise.all([
     findActiveTopicsConfig(projectId),
-    findActiveTopicRule(projectId),
+    findActiveTopicRules(projectId),
   ]);
-  return Boolean(config && rule);
+  if (!config || !rules.length) return 0;
+  // Rules sample on the same deterministic trace-ID value, so the largest rate admits every rule's sample.
+  const sampling = Math.max(...rules.map((rule) => Number(rule.sampling)));
+  return Math.min(1, Math.max(0, sampling));
 }
 
 function findActiveTopicsConfig(projectId: string) {
@@ -107,8 +118,8 @@ function findActiveTopicsConfig(projectId: string) {
   });
 }
 
-function findActiveTopicRule(projectId: string) {
-  return prisma.evaluationRule.findFirst({
+function findActiveTopicRules(projectId: string) {
+  return prisma.evaluationRule.findMany({
     where: {
       AND: [
         topicRuleWhere(projectId),
@@ -120,7 +131,7 @@ function findActiveTopicRule(projectId: string) {
         },
       ],
     },
-    select: { id: true },
+    select: { id: true, sampling: true },
   });
 }
 
@@ -141,11 +152,11 @@ async function withTimeout<T>(lookup: Promise<T>): Promise<T> {
 
 async function writeCache(
   projectId: string,
-  active: boolean,
+  sampling: number,
   ttlSeconds: number,
 ): Promise<void> {
   try {
-    await redis?.set(cacheKey(projectId), active ? "1" : "0", "EX", ttlSeconds);
+    await redis?.set(cacheKey(projectId), String(sampling), "EX", ttlSeconds);
   } catch (error) {
     logger.warn("Failed to cache Topics processing state", {
       projectId,

@@ -1,7 +1,13 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated, react/no-unstable-nested-components -- Legacy UI usage retained during migration to design-system components. */
 import { useMemo, useRef, useState } from "react";
 import { formatDistanceToNowStrict } from "date-fns";
-import { Copy, ExternalLink, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import {
+  Copy,
+  ExternalLink,
+  MoreVertical,
+  Pencil,
+  Trash2,
+} from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { DataTable } from "@/src/components/table/data-table";
@@ -10,7 +16,7 @@ import {
   DataTableControlsProvider,
 } from "@/src/components/table/data-table-controls";
 import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import { TablePeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
+import { TablePeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/TablePeekViewEvaluatorConfigDetail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
   customRowHeightMenu,
@@ -19,9 +25,9 @@ import {
 import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
-import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
+import { ConfirmDialog } from "@/src/components/ui/ConfirmDialog";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/CreateRuleDialog";
 import { EditRuleDialog } from "@/src/features/evals/v2/components/Rules/EditRuleDialog/EditRuleDialog";
@@ -30,13 +36,11 @@ import { RuleActiveSwitchCell } from "@/src/features/evals/v2/components/Rules/R
 import { RuleNameCell } from "@/src/features/evals/v2/components/Rules/RulesTable/components/RuleNameCell/RuleNameCell";
 import { RulesTableToolbar } from "@/src/features/evals/v2/components/Rules/RulesTable/components/RulesTableToolbar/RulesTableToolbar";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { TableSelectionManager } from "@/src/features/table";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { RuleFilterPills } from "@/src/features/evals/v2/components/Rules/RuleFilterPills/RuleFilterPills";
-import {
-  useColumnOrder,
-  useColumnVisibility,
-} from "@/src/features/column-visibility";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import type { RuleTableRow } from "@/src/features/evals/v2/types/rules";
 import {
   Tooltip,
@@ -56,11 +60,10 @@ import {
 } from "@/src/features/evals/v2/utils/ruleNavigation";
 import { ruleExecutionsUrl } from "@/src/features/evals/v2/fns/rules/ruleExecutionsUrl";
 import { TableViewPresetTableName, type OrderByState } from "@langfuse/shared";
-import {
-  omitFilterFacets,
-  useSidebarFilterState,
-} from "@/src/features/filters";
-import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+import { omitFilterFacets } from "@/src/features/filters/lib/filter-config";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 
 import { evaluationRulesListFieldRegistry } from "@/src/features/evals/v2/constants/tableSearchRegistry";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
@@ -70,7 +73,7 @@ import {
   evaluationRuleTableFilterOptions,
 } from "@/src/features/evals/v2/constants/tableFilterColumns";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
-import { useOrderByState } from "@/src/features/orderBy";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 
 function RelativeDate({ date }: { date: Date }) {
@@ -94,14 +97,12 @@ function RuleEvaluatorsCell({
       additionalOverflowCount={0}
       getKey={(assignment) => assignment.id}
       renderItem={(assignment) => (
-        <Badge variant="secondary">{assignment.evaluator.name}</Badge>
+        <Badge color="filled" text={assignment.evaluator.name} />
       )}
       renderOverflow={({ hiddenItems, overflowItemCount }) => (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Badge variant="secondary" className="font-normal">
-              +{overflowItemCount}
-            </Badge>
+            <Badge color="filled" text={`+${overflowItemCount}`} />
           </TooltipTrigger>
           <TooltipContent>
             {hiddenItems.map(({ evaluator }) => evaluator.name).join(", ")}
@@ -395,7 +396,7 @@ export function RulesTable({
                   router.push(ruleExecutionsUrl(projectId, row.original.id));
                 }}
               >
-                View traces <ExternalLink className="icon-base ml-1" />
+                View traces <ExternalLink size="base" __rawClassName="ml-1" />
               </Button>
               <DropdownMenu
                 placement="bottom-end"
@@ -442,7 +443,7 @@ export function RulesTable({
                     aria-label={`Actions for ${row.original.name}`}
                     {...getTriggerProps()}
                   >
-                    <MoreVertical className="icon-sm text-icon-foreground" />
+                    <MoreVertical size="sm" color="default" />
                   </Button>
                 )}
               </DropdownMenu>

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { prisma, type Prisma } from "../../db";
 import { getTopicProcessingMapIds } from "./postgres";
-import { InvalidRequestError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { BatchActionStatus } from "../../features/batchAction/types";
 import {
   topicExecutionInputSchema,
@@ -79,6 +79,24 @@ function checkRequest(
     );
 }
 
+// JSON storage turns time ranges into strings; restore them as dates.
+function storedInput(
+  settings: BatchMetadata["inputSettings"],
+): TopicExecutionSummary["input"] {
+  if (settings.operation === "update")
+    return {
+      ...settings,
+      timeRange: topicTimeRangeSchema.parse(settings.timeRange),
+    };
+  if (!settings.thenUpdate) return settings;
+  return {
+    ...settings,
+    thenUpdate: {
+      timeRange: topicTimeRangeSchema.parse(settings.thenUpdate.timeRange),
+    },
+  };
+}
+
 function summaryResult(row: BatchRow): TopicExecutionSummary {
   const state = batchMetadata(row);
   const status = (
@@ -93,15 +111,7 @@ function summaryResult(row: BatchRow): TopicExecutionSummary {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     error: row.log,
-    input:
-      state.inputSettings.operation === "update"
-        ? {
-            ...state.inputSettings,
-            timeRange: topicTimeRangeSchema.parse(
-              state.inputSettings.timeRange,
-            ),
-          }
-        : state.inputSettings,
+    input: storedInput(state.inputSettings),
     facets: state.inputSettings.facets.map(({ facetId, version }) => {
       const facet = state.facets.find(
         (candidate) =>
@@ -112,6 +122,15 @@ function summaryResult(row: BatchRow): TopicExecutionSummary {
       return facet;
     }),
   };
+}
+
+/** The user who started an execution, so follow-up runs stay in their History. */
+export async function readTopicExecutionUserId(
+  projectId: string,
+  executionId: string,
+): Promise<string | null> {
+  const row = await storedExecution(projectId, executionId);
+  return row?.userId ?? null;
 }
 
 /** Postgres owns compact execution settings and progress, never per-trace payloads. */
@@ -206,11 +225,15 @@ export async function createTopicExecution(
           facetId: facet.facetId,
           facetVersion: facet.facetVersion,
           status: "pending",
+          // A manual update is a one-off snapshot of its execution.
+          batchActionId: id,
           config: {
             timeRange: {
               from: input.timeRange.from.toISOString(),
               to: input.timeRange.to.toISOString(),
             },
+            // Analyses never serve, not even before a rule's first refit.
+            ...(input.analysis ? { analysis: true } : {}),
           },
         })),
       });
@@ -281,6 +304,26 @@ export async function listTopicExecutions(
     where: { projectId, actionType: TOPICS_ACTION },
     orderBy: { createdAt: "desc" },
     take: 100,
+  });
+  return batches.map(summaryResult);
+}
+
+/** One-off analysis executions, newest first; each rerun is its own execution. */
+export async function listTopicAnalysisExecutions(
+  projectId: string,
+): Promise<TopicExecutionSummary[]> {
+  topicIdSchema.parse(projectId);
+  const batches = await prisma.batchAction.findMany({
+    where: {
+      projectId,
+      actionType: TOPICS_ACTION,
+      config: {
+        path: ["inputSettings", "analysis", "seed"],
+        string_contains: "",
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 200,
   });
   return batches.map(summaryResult);
 }

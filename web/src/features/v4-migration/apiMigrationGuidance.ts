@@ -1,8 +1,14 @@
+import { LANGFUSE_SDK_LATEST_MAJOR } from "@langfuse/shared";
+
 export type MigrationSdkName = "python" | "javascript";
 
 export type ApiMigrationGuidance = {
   currentMethod?: string;
+  /** Method name on the latest SDK major. */
   replacementMethod?: string;
+  /** Method name on the previous major, from `minimumVersion` onwards. */
+  previousMajorReplacementMethod?: string;
+  latestMajor?: number;
   replacement: string;
   minimumVersion?: string;
   requiresUpgrade?: boolean;
@@ -10,7 +16,12 @@ export type ApiMigrationGuidance = {
 
 type SdkMethods = Record<
   MigrationSdkName,
-  { current: string; replacement: string; minimumVersion?: string }
+  {
+    current: string;
+    replacement: string;
+    previousMajorReplacement?: string;
+    minimumVersion?: string;
+  }
 >;
 
 const observationsMethods = (current: SdkMethods): SdkMethods => current;
@@ -84,12 +95,14 @@ const guidanceByEndpoint: Record<
     methods: {
       python: {
         current: "client.api.scores.get_many",
-        replacement: "client.api.scores_v3.get_many_v3",
+        replacement: "client.api.scores.get_many",
+        previousMajorReplacement: "client.api.scores_v3.get_many_v3",
         minimumVersion: "4.8.1",
       },
       javascript: {
         current: "client.api.scores.getMany",
-        replacement: "client.api.scoresV3.getManyV3",
+        replacement: "client.api.scores.getMany",
+        previousMajorReplacement: "client.api.scoresV3.getManyV3",
         minimumVersion: "5.5.0",
       },
     },
@@ -99,12 +112,14 @@ const guidanceByEndpoint: Record<
     methods: {
       python: {
         current: "client.api.scores.get_by_id",
-        replacement: "client.api.scores_v3.get_many_v3",
+        replacement: "client.api.scores.get_many(id=...)",
+        previousMajorReplacement: "client.api.scores_v3.get_many_v3",
         minimumVersion: "4.8.1",
       },
       javascript: {
         current: "client.api.scores.getById",
-        replacement: "client.api.scoresV3.getManyV3",
+        replacement: "client.api.scores.getMany({ id })",
+        previousMajorReplacement: "client.api.scoresV3.getManyV3",
         minimumVersion: "5.5.0",
       },
     },
@@ -114,12 +129,14 @@ const guidanceByEndpoint: Record<
     methods: {
       python: {
         current: "client.api.scores.get_by_id",
-        replacement: "client.api.scores_v3.get_many_v3",
+        replacement: "client.api.scores.get_many(id=...)",
+        previousMajorReplacement: "client.api.scores_v3.get_many_v3",
         minimumVersion: "4.8.1",
       },
       javascript: {
         current: "client.api.scores.getById",
-        replacement: "client.api.scoresV3.getManyV3",
+        replacement: "client.api.scores.getMany({ id })",
+        previousMajorReplacement: "client.api.scoresV3.getManyV3",
         minimumVersion: "5.5.0",
       },
     },
@@ -173,10 +190,12 @@ const guidanceByEndpoint: Record<
       python: {
         current: "client.api.dataset_run_items.list",
         replacement: "client.api.experiments.list_items",
+        minimumVersion: "4.13.1",
       },
       javascript: {
         current: "client.api.datasetRunItems.list",
         replacement: "client.api.experiments.listItems",
+        minimumVersion: "5.10.0",
       },
     },
   },
@@ -186,10 +205,12 @@ const guidanceByEndpoint: Record<
       python: {
         current: "client.api.datasets.get_runs",
         replacement: "client.api.experiments.list",
+        minimumVersion: "4.13.1",
       },
       javascript: {
         current: "client.api.datasets.getRuns",
         replacement: "client.api.experiments.list",
+        minimumVersion: "5.10.0",
       },
     },
   },
@@ -199,10 +220,12 @@ const guidanceByEndpoint: Record<
       python: {
         current: "client.api.datasets.get_run",
         replacement: "client.api.experiments.list_items",
+        minimumVersion: "4.13.1",
       },
       javascript: {
         current: "client.api.datasets.getRun",
         replacement: "client.api.experiments.listItems",
+        minimumVersion: "5.10.0",
       },
     },
   },
@@ -242,11 +265,15 @@ export const getApiMigrationGuidance = (
     genericReplacements[endpoint] ??
     "the replacement API in the migration guide";
   const methods = sdkName ? endpointGuidance?.methods?.[sdkName] : undefined;
-  if (!methods) return { replacement };
+  if (!sdkName || !methods) return { replacement };
 
   return {
     currentMethod: methods.current,
     replacementMethod: methods.replacement,
+    ...(methods.previousMajorReplacement
+      ? { previousMajorReplacementMethod: methods.previousMajorReplacement }
+      : {}),
+    latestMajor: LANGFUSE_SDK_LATEST_MAJOR[sdkName],
     replacement,
     minimumVersion: methods.minimumVersion,
     requiresUpgrade: methods.minimumVersion

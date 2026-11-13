@@ -1,7 +1,8 @@
 /* eslint-disable @repo/no-null-render */
 import { useMemo, useState, useRef } from "react";
-import { type MediaReturnType } from "@/src/features/media";
-import { File, Image as ImageIcon, Volume2, Video } from "lucide-react";
+import { mediaUrlQueryOptions } from "@/src/features/media/constants/mediaUrlQueryOptions";
+import { type MediaReturnType } from "@/src/features/media/validation";
+import { File, Image as ImageIcon, Volume2, Video } from "@langfuse/icons";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import {
   Popover,
@@ -67,7 +68,6 @@ function ImagePreview({ src }: { src?: string }) {
       className="bg-muted h-24 w-24 overflow-hidden rounded-md border transition-opacity hover:opacity-80"
       aria-label="Open image in new tab"
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src}
         alt="Media preview"
@@ -90,11 +90,7 @@ function MediaPreview({ mediaItem }: { mediaItem: MediaReturnType }) {
     },
     {
       enabled: Boolean(projectId),
-      meta: { silentHttpCodes: [404] },
-      refetchOnWindowFocus: false,
-      refetchOnMount: false,
-      refetchOnReconnect: false,
-      staleTime: 55 * 60 * 1000, // 55 minutes, s3 links expire after 1 hour
+      ...mediaUrlQueryOptions,
     },
   );
 
@@ -247,7 +243,7 @@ export function MediaButtonGroup({ media }: MediaButtonGroupProps) {
                 e.preventDefault();
               }}
             >
-              <group.icon className="icon-base" />
+              <group.icon size="base" />
               {group.items.length > 1 && (
                 <span className="bg-primary text-primary-foreground absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full text-[9px] font-bold">
                   {group.items.length}

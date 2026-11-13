@@ -20,6 +20,8 @@ export const EXPECTED_TRPC_BAD_REQUEST_PATHS = [
   "datasets.triggerRemoteExperiment",
   "datasets.upsertRemoteExperiment",
   "models.upsert",
+  "aiGateway.createConnection",
+  "aiGateway.updateConnection",
 ] as const;
 
 const FAILED_FETCH_MESSAGE = /^failed to fetch(?: \([^)]+\))?$/i;

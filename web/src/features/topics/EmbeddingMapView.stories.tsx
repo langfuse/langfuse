@@ -2,7 +2,7 @@ import { useState, type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { EmbeddingMapView } from "./EmbeddingMapView";
+import { TopicMapExplorer as EmbeddingMapView } from "@/src/features/topics/map/TopicMapExplorer";
 import {
   fitCamera,
   prepareTopicMap,
@@ -17,6 +17,7 @@ const data = {
     {
       traceId: "trace-billing",
       summary: "Customer asks for a copy of an invoice.",
+      unitStartTime: "2026-10-01T00:00:00.000Z",
       topicId: "billing",
       outcome: "assigned",
       x: 0,
@@ -25,6 +26,7 @@ const data = {
     {
       traceId: "trace-outlier",
       summary: "Customer asks about a new integration.",
+      unitStartTime: "2026-10-01T00:00:00.000Z",
       topicId: null,
       outcome: "outlier",
       x: 3,
@@ -130,6 +132,7 @@ const denseData = {
         return {
           traceId: `demo-${cluster.id}-${index + 1}`,
           summary: `${cluster.summaries[index % cluster.summaries.length]} Request ${index + 1}.`,
+          unitStartTime: "2026-10-01T00:00:00.000Z",
           topicId: cluster.id,
           outcome: "assigned" as const,
           x: cluster.center[0] + Math.cos(angle) * radius,
@@ -141,6 +144,7 @@ const denseData = {
       traceId: `demo-outlier-${index + 1}`,
       summary:
         "A gift-wrapping request does not match the recurring operational issues.",
+      unitStartTime: "2026-10-01T00:00:00.000Z",
       topicId: null,
       outcome: "outlier" as const,
       x: -30 + index * 8,
@@ -150,6 +154,7 @@ const denseData = {
       traceId: `demo-unassigned-${index + 1}`,
       summary:
         "An exchange-policy summary has saved coordinates but its topic assignment is unavailable.",
+      unitStartTime: "2026-10-01T00:00:00.000Z",
       topicId: null,
       outcome: "unassigned" as const,
       x: 73 + index * 2,
@@ -307,14 +312,12 @@ async function hoverInlineNode(canvasElement: HTMLElement) {
 const meta = preview.meta({
   component: EmbeddingMapView,
   args: {
-    projectId: "storybook-project",
     topics: [{ id: "billing", name: "Billing" }],
     data,
     selectedTopic: null,
     selectedTraceId: null,
     onSelectTopic: fn(),
     onSelectTrace: fn(),
-    onOpenTrace: fn(),
   },
 });
 
@@ -398,7 +401,6 @@ export const ExploreZoneAndTrace = meta.story({
     selectedTraceId: null,
     onSelectTopic: fn(),
     onSelectTrace: fn(),
-    onOpenTrace: fn(),
   },
   render: (args) => <ControlledExplorer {...args} />,
   play: async ({ canvasElement, args }) => {
@@ -432,7 +434,7 @@ export const ExploreZoneAndTrace = meta.story({
     const stage = canvas.getByRole("group", {
       name: /^Interactive topic map/,
     });
-    await expect(args.onOpenTrace).toHaveBeenCalledWith(trace.traceId);
+    await expect(summaryButton).toHaveAttribute("aria-pressed", "true");
     stage.focus();
     await userEvent.keyboard("0");
     await expect(args.onSelectTopic).toHaveBeenLastCalledWith(null);
@@ -690,7 +692,6 @@ export const HoverPreservesMapGeometry = meta.story({
     selectedTopic: null,
     selectedTraceId: null,
     onSelectTrace: fn(),
-    onOpenTrace: fn(),
   },
   render: (args) => (
     <div style={{ height: 680 }}>
@@ -768,7 +769,6 @@ export const HoverPreservesMapGeometry = meta.story({
       }),
     );
     await expect(args.onSelectTrace).toHaveBeenLastCalledWith(trace.traceId);
-    await expect(args.onOpenTrace).toHaveBeenLastCalledWith(trace.traceId);
     await waitFor(assertStageBounds);
     stage.dispatchEvent(
       new MouseEvent("click", {
@@ -797,6 +797,7 @@ export const InterruptingTopicFlightKeepsPaintedZoom = meta.story({
         {
           traceId: "flight-marker-left",
           summary: "An inventory lookup times out before returning stock.",
+          unitStartTime: "2026-10-01T00:00:00.000Z",
           topicId: "inventory-timeouts",
           outcome: "assigned",
           x: -5,
@@ -805,6 +806,7 @@ export const InterruptingTopicFlightKeepsPaintedZoom = meta.story({
         {
           traceId: "flight-marker-right",
           summary: "A repeated inventory lookup returns the same timeout.",
+          unitStartTime: "2026-10-01T00:00:00.000Z",
           topicId: "inventory-timeouts",
           outcome: "assigned",
           x: -4.75,

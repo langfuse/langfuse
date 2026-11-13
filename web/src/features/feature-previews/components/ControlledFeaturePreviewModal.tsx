@@ -1,9 +1,12 @@
 /* eslint-disable no-nested-ternary */
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useSession } from "next-auth/react";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useReadPath, V4_PREVIEW_LABEL } from "@/src/features/events";
-import { featurePreviewLabels } from "@/src/features/feature-flags";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
+import { featurePreviewLabels } from "@/src/features/feature-flags/available-flags";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
@@ -23,6 +26,7 @@ export function ControlledFeaturePreviewModal({
   onOpenChange,
 }: ControlledFeaturePreviewModalProps) {
   const authSession = useSession();
+  const internalViewEnabled = useInternalFeaturesEnabled();
   const { isV4 } = useReadPath();
   const capture = usePostHogClientCapture();
   const setFeaturePreviewEnabled =
@@ -51,15 +55,41 @@ export function ControlledFeaturePreviewModal({
   const onToggle = (flag: PreviewFlag) => (enabled: boolean) =>
     setFeaturePreviewEnabled.mutate({ flag, enabled });
 
+  const isTopicsEnabled =
+    internalViewEnabled ||
+    authSession.data?.user?.featureFlags.langfuseTopics === true;
+
   const isModernSessionEnabled =
-    authSession.data?.user?.featureFlags.sessionViewV2 === true ||
-    authSession.data?.environment.enableExperimentalFeatures === true;
+    isV4 &&
+    (authSession.data?.user?.featureFlags.sessionViewV2 === true ||
+      authSession.data?.environment.enableExperimentalFeatures === true);
 
   const state: Partial<Record<PreviewFlag, PreviewState>> = {
-    ...(authSession.data?.user?.admin === true
+    ...(internalViewEnabled ||
+    authSession.data?.user?.featureFlags.unifiedTraceSessionView === true
+      ? {
+          unifiedTraceSessionView: {
+            enabled:
+              isV4 &&
+              authSession.data?.user?.featureFlags.unifiedTraceSessionView ===
+                true,
+            disabled: !isV4,
+            warningReason: !isV4
+              ? `Unified Trace and Session View requires ${V4_PREVIEW_LABEL}.`
+              : undefined,
+            onToggle: onToggle("unifiedTraceSessionView"),
+            isToggling: setFeaturePreviewEnabled.isPending,
+          },
+        }
+      : {}),
+    ...(isTopicsEnabled
       ? {
           langfuseTopics: {
-            enabled: authSession.data.user.featureFlags.langfuseTopics === true,
+            enabled: isTopicsEnabled,
+            disabled: internalViewEnabled,
+            warningReason: internalViewEnabled
+              ? "Topics is enabled by Internal view. Switching to External view hides it unless it has been enabled for you separately."
+              : undefined,
             onToggle: onToggle("langfuseTopics"),
             isToggling: setFeaturePreviewEnabled.isPending,
           },
@@ -80,10 +110,10 @@ export function ControlledFeaturePreviewModal({
     },
     sessionViewV2Timeline: {
       enabled:
-        authSession.data?.user?.featureFlags.sessionViewV2Timeline === true ||
-        authSession.data?.environment.enableExperimentalFeatures === true,
+        isModernSessionEnabled &&
+        (authSession.data?.user?.featureFlags.sessionViewV2Timeline === true ||
+          authSession.data?.environment.enableExperimentalFeatures === true),
       disabled:
-        !isV4 ||
         !isModernSessionEnabled ||
         authSession.data?.environment.enableExperimentalFeatures === true,
       warningReason: !isV4

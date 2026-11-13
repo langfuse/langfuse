@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import { PlusCircle, Trash2 } from "lucide-react";
+import { PlusCircle, Trash2 } from "@langfuse/icons";
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -62,7 +62,7 @@ export function TierConditionsEditor({
             })
           }
         >
-          <PlusCircle className="icon-base text-icon-foreground mr-1" />
+          <PlusCircle size="base" color="default" __rawClassName="mr-1" />
           Add Condition
         </Button>
       </div>
@@ -90,7 +90,7 @@ export function TierConditionsEditor({
                 size="sm"
                 onClick={() => remove(conditionIndex)}
               >
-                <Trash2 className="icon-base text-icon-foreground" />
+                <Trash2 size="base" color="default" />
               </Button>
             </div>
 

@@ -37,6 +37,8 @@ describe("ClickHouse query tags", () => {
         surface: "worker",
         route: "langfuse.queue.trace_batch",
         projectId: "MULTI_PROJECT",
+        projectSize: "unknown",
+        queryWindow: "none",
         experimentId: "arm-b",
       });
     } finally {
@@ -49,6 +51,7 @@ describe("ClickHouse query tags", () => {
       route:
         "GET /api/public/traces/123e4567-e89b-12d3-a456-426614174000?select=full",
       projectId: "project-1",
+      queryWindow: "30d",
     });
 
     expect(JSON.parse(logComment)).toEqual({
@@ -57,6 +60,8 @@ describe("ClickHouse query tags", () => {
       route:
         "GET /api/public/traces/123e4567-e89b-12d3-a456-426614174000?select=full",
       projectId: "project-1",
+      projectSize: "unknown",
+      queryWindow: "30d",
     });
   });
 
@@ -66,6 +71,8 @@ describe("ClickHouse query tags", () => {
     expect(JSON.parse(logComment)).toEqual({
       tag_schema_version: "1",
       surface: "unknown",
+      projectSize: "unknown",
+      queryWindow: "none",
     });
   });
 
@@ -77,6 +84,8 @@ describe("ClickHouse query tags", () => {
     expect(JSON.parse(logComment)).toEqual({
       tag_schema_version: "1",
       surface: "publicapi",
+      projectSize: "unknown",
+      queryWindow: "none",
     });
   });
 });

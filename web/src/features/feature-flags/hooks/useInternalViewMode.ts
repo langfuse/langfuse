@@ -1,6 +1,6 @@
 import { useSession } from "next-auth/react";
 import { api } from "@/src/utils/api";
-import { showErrorToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { hasInternalAccess } from "../utils";
 import { useInternalFeaturesEnabled } from "./useInternalFeaturesEnabled";
@@ -9,7 +9,7 @@ export function useInternalViewMode() {
   const session = useSession();
   const enabled = useInternalFeaturesEnabled();
   const available = hasInternalAccess({
-    isAdmin: session.data?.user?.admin === true,
+    email: session.data?.user?.email,
     isExperimentalFeaturesEnabled:
       session.data?.environment.enableExperimentalFeatures === true,
   });

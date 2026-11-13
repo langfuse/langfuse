@@ -3,6 +3,7 @@ import {
   recordIncrement,
   redis as defaultRedis,
 } from "@langfuse/shared/src/server";
+import { CloudConfigRateLimit, type Plan, plans } from "@langfuse/shared";
 import type { Cluster, Redis } from "ioredis";
 import { z } from "zod/v4";
 
@@ -13,7 +14,9 @@ import { env } from "@/src/env.mjs";
 import {
   GatewayMetadataSchema,
   gatewayApiFormats,
+  gatewayProviders,
 } from "@/src/features/ai-gateway/server/provider/registry";
+import { GatewayBedrockConfigSchema } from "@/src/features/ai-gateway/server/provider/bedrock";
 
 const CACHE_PREFIX = "ai-gateway:resolve";
 
@@ -26,17 +29,35 @@ export const GATEWAY_RESOLVE_KEY_NON_EXISTENT = "gateway-key-non-existent";
 export const CachedResolveContext = z.object({
   organizationId: z.string(),
   apiKeyId: z.string(),
+  userId: z.string().nullable(),
+  // Defaulted so entries cached before these fields existed still parse.
+  apiKeyName: z.string().nullable().default(null),
+  userName: z.string().nullable().default(null),
+  userEmail: z.string().nullable().default(null),
   keyMetadata: GatewayMetadataSchema,
+  /**
+   * Model patterns of the key; null allows every model the admin enabled.
+   * Required, so entries cached before patterns existed are refetched instead
+   * of allowing every model.
+   */
+  keyAllowedModels: z.array(z.string()).nullable(),
   ingestionProjectId: z.string().nullable(),
-  ingestionMode: z.enum(["USAGE", "FULL"]).nullable(),
-  connection: z
-    .object({
+  ingestionMode: z.enum(["NONE", "USAGE", "FULL"]).nullable(),
+  plan: z.custom<Plan>((value) => plans.includes(value as Plan)),
+  rateLimitOverrides: CloudConfigRateLimit,
+  connections: z.array(
+    z.object({
       id: z.string(),
       name: z.string(),
-      provider: z.enum(["OPENAI", "ANTHROPIC"]),
+      provider: z.enum(gatewayProviders),
       encryptedCredential: z.string(),
-    })
-    .nullable(),
+      allowedModels: z.array(z.string()).nullable(),
+      config: GatewayBedrockConfigSchema.nullable().default(null),
+      baseURL: z.string().nullable().default(null),
+      /** Still encrypted; decrypted only when a request resolves to this connection. */
+      extraHeaders: z.string().nullable().default(null),
+    }),
+  ),
 });
 export type CachedResolveContext = z.infer<typeof CachedResolveContext>;
 
@@ -90,6 +111,11 @@ export class GatewayResolveCache {
         );
         recordIncrement("langfuse.gateway.resolve.cache_miss", 1);
         return null;
+      }
+
+      if (parsed.data === GATEWAY_RESOLVE_KEY_NON_EXISTENT) {
+        recordIncrement("langfuse.gateway.resolve.cache_hit", 1);
+        return parsed.data;
       }
 
       recordIncrement("langfuse.gateway.resolve.cache_hit", 1);
@@ -150,7 +176,7 @@ export class GatewayResolveCache {
   /**
    * Drops every cached resolve context for an organization. Call this after any
    * change that alters what /resolve would answer: connections, credentials,
-   * routing priority, connection status, or the gateway config.
+   * connection status, model access, or the gateway config.
    */
   async invalidateOrganization(organizationId: string) {
     if (!this.enabled) return;

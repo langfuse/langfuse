@@ -1,23 +1,27 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
+import { shouldSkipScoresDedup } from "../queries/clickhouse-sql/query-options";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { OrderByState } from "../../interfaces/orderBy";
 import { sessionCols } from "../tableMappings/mapSessionTable";
 import { FilterState } from "../../types";
 import { sessionsViewCols } from "../../tableDefinitions/sessionsView";
-import { findUiColumnMapping } from "../../tableDefinitions";
+import { findUiColumnMapping } from "../../tableDefinitions/types";
 import {
   convertDateToClickhouseDateTime,
   type PreferredClickhouseService,
 } from "../clickhouse/client";
 import { scoreBooleansAggregation } from "../queries/clickhouse-sql/query-fragments";
-import { DateTimeFilter, FilterList, orderByToClickhouseSql } from "../queries";
+import {
+  DateTimeFilter,
+  FilterList,
+} from "../queries/clickhouse-sql/clickhouse-filter";
+import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factory";
 import {
   getProjectIdDefaultFilter,
   createFilterFromFilterState,
 } from "../queries/clickhouse-sql/factory";
-import {
-  TRACE_TO_OBSERVATIONS_INTERVAL,
-  queryClickhouse,
-} from "../repositories";
+import { TRACE_TO_OBSERVATIONS_INTERVAL } from "../repositories/constants";
+import { queryClickhouse } from "../repositories/clickhouse";
 
 export type SessionDataReturnType = {
   session_id: string;
@@ -285,7 +289,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         data_type,
         string_value,
         avg(value) avg_value
-      FROM scores s FINAL
+      FROM scores s ${shouldSkipScoresDedup(projectId) ? "" : "FINAL"}
       WHERE
         project_id = {projectId: String}
         ${scoresFilterRes ? `AND ${scoresFilterRes.query}` : ""}

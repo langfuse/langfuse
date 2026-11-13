@@ -1,0 +1,263 @@
+import { useContext, useMemo, useState, type ComponentProps } from "react";
+import { type FilterState } from "@langfuse/shared";
+import { Button } from "@/src/components/design-system/Button/Button";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import {
+  type Facet,
+  type UseTopicTraces,
+  orderedFacetTopics,
+  topicTracesHref,
+  useTracesWithSelection,
+} from "./facet-topics";
+import {
+  filterTopicTraces,
+  selectTopicTraceFilters,
+} from "./topic-trace-filters";
+import { TopicMobileList } from "./TopicMobileList";
+import { TopicMobileTraceList } from "./TopicMobileTraceList";
+import { MobileTopicVisualization } from "./MobileTopicVisualization";
+import { TopicsTraceToolbar } from "./TopicsTraceToolbar";
+import { prepareMobileTopics } from "./prepare-mobile-topics";
+import { UNASSIGNED_TOPIC_ID } from "./prepare-topic-display";
+import { FacetTraceSource } from "./useFacetTopicTraces";
+
+type MobileTopicsViewProps = {
+  projectId: string;
+  facet: Facet;
+  view: ComponentProps<typeof MobileTopicVisualization>["view"];
+  mapResult: ComponentProps<typeof MobileTopicVisualization>["mapResult"];
+  filters: FilterState;
+  searchQuery: string | null;
+  onFiltersChange: (filters: FilterState) => void;
+  onSearchQueryChange: (query: string | null) => void;
+  selectedTraceId: string | null;
+  onSelectTrace: (traceId: string | null) => void;
+  onOpenTrace: (traceId: string) => void;
+  onGenerateTopics: () => void;
+  canGenerateTopics: boolean;
+  isV4: boolean;
+  useTraces: UseTopicTraces;
+  showUnassigned: boolean;
+};
+
+/** Local navigation only; query data and persisted filters stay with the caller. */
+export function MobileTopicsView({
+  projectId,
+  facet,
+  view,
+  mapResult,
+  filters,
+  searchQuery,
+  onFiltersChange,
+  onSearchQueryChange,
+  selectedTraceId,
+  onSelectTrace,
+  onOpenTrace,
+  onGenerateTopics,
+  canGenerateTopics,
+  isV4,
+  useTraces,
+  showUnassigned,
+}: MobileTopicsViewProps) {
+  const [navigation, setNavigation] = useState({
+    view,
+    panel: filters.length > 0 || searchQuery ? "traces" : "topics",
+  });
+  if (navigation.view !== view) {
+    setNavigation({ view, panel: "visualization" });
+  }
+  function showPanel(panel: string) {
+    setNavigation({ view, panel });
+  }
+  const { topics, selectedTopicId, selectedTopic, traceQuery } =
+    prepareMobileTopics(facet, view, filters, searchQuery, showUnassigned);
+  const traces = useTracesWithSelection(useTraces, traceQuery, selectedTraceId);
+  const visible = traces.rows;
+  const mapPoints =
+    mapResult.data?.status === "ready" ? mapResult.data.points : null;
+  // The map highlights its own points that match the filters.
+  const matchingTraceKey = useMemo(() => {
+    if (!(filters.length > 0 || searchQuery?.trim()) || !mapPoints) return null;
+    const names = new Map(facet.topics.map((topic) => [topic.id, topic.name]));
+    return JSON.stringify(
+      filterTopicTraces(
+        mapPoints.map((point) => ({
+          ...point,
+          topicName: point.topicId ? (names.get(point.topicId) ?? null) : null,
+        })),
+        filters,
+        searchQuery,
+      )
+        .map((row) => row.traceId)
+        .sort(),
+    );
+  }, [filters, searchQuery, mapPoints, facet.topics]);
+  // Map frame identity follows matching IDs, preserving tap previews across refreshes.
+  const matchingTraceIds = useMemo(
+    () =>
+      matchingTraceKey === null
+        ? undefined
+        : new Set<string>(JSON.parse(matchingTraceKey)),
+    [matchingTraceKey],
+  );
+  // Only a plain topic selection maps to the tracing filter; analysis snapshots have their own topics.
+  const isAnalysis = Boolean(useContext(FacetTraceSource)?.analysisId);
+  const tracingHref = topicTracesHref(
+    projectId,
+    visible,
+    isV4,
+    selectedTopic &&
+      selectedTopic.id !== UNASSIGNED_TOPIC_ID &&
+      !searchQuery &&
+      !isAnalysis
+      ? { facet, name: selectedTopic.name }
+      : undefined,
+  );
+
+  function showAllTraces() {
+    onFiltersChange([]);
+    onSearchQueryChange(null);
+    showPanel("traces");
+  }
+  function selectTopic(topicId: string | null) {
+    if (topicId === null) {
+      onFiltersChange([]);
+      onSearchQueryChange(null);
+      return;
+    }
+    onFiltersChange(
+      topicId === UNASSIGNED_TOPIC_ID
+        ? [
+            {
+              column: "assignment",
+              type: "stringOptions",
+              operator: "none of",
+              value: ["assigned"],
+            },
+          ]
+        : selectTopicTraceFilters([], topicId),
+    );
+    onSearchQueryChange(null);
+    showPanel("traces");
+  }
+  function selectTrace(traceId: string | null) {
+    // A point outside the filters clears them; one inside is pinned once loaded.
+    if (
+      traceId !== null &&
+      matchingTraceIds &&
+      !matchingTraceIds.has(traceId)
+    ) {
+      onFiltersChange([]);
+      onSearchQueryChange(null);
+    }
+    onSelectTrace(traceId);
+    if (traceId !== null) showPanel("traces");
+  }
+  function openTrace(traceId: string) {
+    onSelectTrace(traceId);
+    onOpenTrace(traceId);
+  }
+
+  return (
+    <div className="ph-no-capture flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <Tabs value={navigation.panel} onValueChange={showPanel} layout="fill">
+        <Tabs.List variant="underline" layout="full" aria-label="Topics panels">
+          <Tabs.Trigger value="topics" label="Topics" />
+          <Tabs.Trigger value="traces" label="Traces" />
+          <Tabs.Trigger value="visualization" label="Visualize" />
+        </Tabs.List>
+        <Tabs.Content value="topics" layout="fill">
+          <TopicMobileList
+            topics={topics}
+            totalCount={facet.counts.total}
+            selectedTopicId={selectedTopicId}
+            onSelectTopic={selectTopic}
+            onShowAllTraces={showAllTraces}
+          />
+          {facet.topics.length === 0 && canGenerateTopics && (
+            <div className="shrink-0 border-t p-3">
+              <Button text="Generate topics" onClick={onGenerateTopics} />
+            </div>
+          )}
+        </Tabs.Content>
+        <Tabs.Content value="traces" layout="fill">
+          <section
+            aria-label="Topic traces"
+            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+          >
+            <TopicMobileTraceList
+              key={facet.facetId}
+              filterKey={JSON.stringify([filters, searchQuery])}
+              traces={traces}
+              selectedTraceId={selectedTraceId}
+              onOpenTrace={openTrace}
+            >
+              <div className="shrink-0 border-b px-4 py-3">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <h3 className="min-w-0 flex-1 text-sm font-bold [overflow-wrap:anywhere]">
+                    {selectedTopic?.name ?? "Trace summaries"}
+                  </h3>
+                  <span className="text-muted-foreground text-xs tabular-nums">
+                    ~
+                    {(
+                      selectedTopic?.count ?? facet.counts.total
+                    ).toLocaleString()}{" "}
+                    traces
+                  </span>
+                </div>
+                {selectedTopic?.description && (
+                  <p className="text-muted-foreground mt-1 line-clamp-3 text-sm [overflow-wrap:anywhere]">
+                    {selectedTopic.description}
+                  </p>
+                )}
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {(filters.length > 0 || searchQuery) && (
+                    <Button
+                      text="Show all traces"
+                      variant="ghost"
+                      size="sm"
+                      onClick={showAllTraces}
+                    />
+                  )}
+                  {tracingHref && (
+                    <Button
+                      text="Open in Tracing"
+                      href={tracingHref}
+                      variant="secondary"
+                      size="sm"
+                    />
+                  )}
+                </div>
+              </div>
+              <TopicsTraceToolbar
+                projectId={projectId}
+                topics={orderedFacetTopics(facet)}
+                filters={filters}
+                onFiltersChange={onFiltersChange}
+                searchQuery={searchQuery}
+                onSearchQueryChange={onSearchQueryChange}
+              />
+            </TopicMobileTraceList>
+          </section>
+        </Tabs.Content>
+        <Tabs.Content value="visualization" layout="fill">
+          <MobileTopicVisualization
+            facet={facet}
+            treemapTopics={topics}
+            view={view}
+            mapResult={mapResult}
+            selectedTopicId={selectedTopicId}
+            selectedTraceId={
+              visible.some((row) => row.traceId === selectedTraceId)
+                ? selectedTraceId
+                : null
+            }
+            matchingTraceIds={matchingTraceIds}
+            onSelectTopic={selectTopic}
+            onSelectTrace={selectTrace}
+          />
+        </Tabs.Content>
+      </Tabs>
+    </div>
+  );
+}

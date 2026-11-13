@@ -1,13 +1,13 @@
 import { v4 } from "uuid";
 import type { z } from "zod";
 
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { validateCommentReferenceObject } from "@/src/features/comments/validateCommentReferenceObject";
-import {
-  type GetCommentV1Query,
-  type GetCommentsV1Query,
-  type PostCommentsV1Body,
-} from "@/src/features/public-api/server";
+import type {
+  GetCommentV1Query,
+  GetCommentsV1Query,
+  PostCommentsV1Body,
+} from "@/src/features/public-api/types/comments";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 

@@ -1,11 +1,11 @@
+/* eslint-disable @repo/component-file-structure */
 /**
  * TraceMetadataBadges - Extracted badge components for trace metadata
  *
  * Following the pattern from ObservationDetailView/ObservationMetadataBadgesSimple.tsx
  */
 
-import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
+import { Metric } from "@/src/components/design-system/Metric/Metric";
 
 export function SessionBadge({
   sessionId,
@@ -15,10 +15,10 @@ export function SessionBadge({
   projectId: string;
 }) {
   return (
-    <LinkBadge
+    <Metric
       href={`/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`}
       noCapture
-      text="session"
+      value="session"
       title={sessionId}
     />
   );
@@ -35,11 +35,11 @@ export function UserIdBadge({
   const text = userId;
 
   return (
-    <LinkBadge
+    <Metric
       href={`/project/${projectId}/users/${encodeURIComponent(userId)}`}
       noCapture
       label={label}
-      text={text}
+      value={text}
     />
   );
 }
@@ -55,23 +55,23 @@ export function TargetTraceBadge({
   const text = targetTraceId;
 
   return (
-    <LinkBadge
+    <Metric
       href={`/project/${projectId}/traces/${encodeURIComponent(targetTraceId)}`}
       noCapture
       label={label}
-      text={text}
+      value={text}
     />
   );
 }
 
 export function EnvironmentBadge({ environment }: { environment: string }) {
-  return <Badge font="mono" color="ghost" label="env" text={environment} />;
+  return <Metric label="env" value={environment} />;
 }
 
 export function ReleaseBadge({ release }: { release: string }) {
-  return <Badge font="mono" color="ghost" label="release" text={release} />;
+  return <Metric label="release" value={release} />;
 }
 
 export function VersionBadge({ version }: { version: string }) {
-  return <Badge font="mono" color="ghost" label="version" text={version} />;
+  return <Metric label="version" value={version} />;
 }

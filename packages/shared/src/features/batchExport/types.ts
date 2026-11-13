@@ -3,6 +3,10 @@ import z from "zod";
 import { BatchExport } from "@prisma/client";
 
 import { singleFilterList } from "../../interfaces/filters";
+import {
+  isTopicFilter,
+  TOPIC_FILTERS_IN_BATCH_JOBS_MESSAGE,
+} from "../../topics";
 import { orderBy } from "../../interfaces/orderBy";
 import { BatchTableNames } from "../../interfaces/tableNames";
 import {
@@ -18,6 +22,13 @@ export enum BatchExportStatus {
   FAILED = "FAILED",
   CANCELLED = "CANCELLED",
 }
+
+/** Interval at which the worker refreshes a running export's updatedAt. */
+export const BATCH_EXPORT_HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
+
+/** Age after which an untouched QUEUED/PROCESSING export stops blocking its user's next one. */
+export const BATCH_EXPORT_ABANDONED_AFTER_MS =
+  3 * BATCH_EXPORT_HEARTBEAT_INTERVAL_MS;
 
 export enum BatchExportFileFormat {
   JSON = "JSON",
@@ -74,6 +85,14 @@ export const BatchExportQuerySchema = z
         code: "custom",
         path: ["searchType"],
         message: TRACING_SEARCH_TYPE_REQUIRED_MESSAGE,
+      });
+    }
+
+    if ((query.filter ?? []).some(isTopicFilter)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["filter"],
+        message: TOPIC_FILTERS_IN_BATCH_JOBS_MESSAGE,
       });
     }
 

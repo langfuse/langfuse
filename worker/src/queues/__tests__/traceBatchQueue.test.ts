@@ -18,38 +18,35 @@ import {
   getTraceBatchEventStream,
   logger,
   QueueJobs,
-  TraceBatchQueue,
   type QueueName,
   recordDistribution,
   recordGauge,
   recordIncrement,
+  type TraceBatchInputStorage,
   type TQueueJobTypes,
+  type TranscriptContext,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
-import { tokenCountAsync } from "../../features/tokenisation/async-usage";
-import { tokenCount } from "../../features/tokenisation/usage";
-import { TopicsProviderUnavailable } from "../../features/topics/provider-error";
-import { summarizeAssembledTrace } from "../../features/topics/summarizeAssembledTrace";
 import {
   getEnabledTopicsModels,
-  listTopicFacets,
+  isTopicsEnabled,
+  isTopicsProjectEnabled,
   listTopicRules,
-  isValidTopicSummary,
-  pauseTopicsModels,
-  writeTopicSummaries,
   type TopicsModels,
 } from "@langfuse/shared/topics/server";
-import type {
-  TopicFacet,
-  TopicRule,
-  TopicSummary,
-} from "@langfuse/shared/topics";
+import type { TopicRule } from "@langfuse/shared/topics";
 import { recordTraceBatchTranscript } from "../../features/traceBatching/traceBatchTranscript";
 import * as traceBatchTranscript from "../../features/traceBatching/traceBatchTranscript";
 import {
   recordTraceBatchActiveReads,
   traceBatchQueueProcessor,
 } from "../traceBatchQueue";
+
+const inputStorage = vi.hoisted(() => ({
+  put: vi.fn<TraceBatchInputStorage["put"]>(),
+  legacyGet: vi.fn<TraceBatchInputStorage["legacyGet"]>(),
+}));
+const topicsQueue = vi.hoisted(() => ({ add: vi.fn() }));
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
@@ -58,34 +55,22 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   recordDistribution: vi.fn(),
   recordGauge: vi.fn(),
   recordIncrement: vi.fn(),
-}));
-
-vi.mock("../../features/topics/summarizeAssembledTrace", () => ({
-  summarizeAssembledTrace: vi.fn(async () => ({
-    outcome: "unchanged",
-    rows: [],
-  })),
+  createTraceBatchInputStorage: () => inputStorage,
+  TopicsTraceQueue: { getInstance: vi.fn(() => topicsQueue) },
 }));
 
 vi.mock("@langfuse/shared/topics/server", () => ({
+  isTopicsEnabled: vi.fn(() => true),
   isTopicsProjectEnabled: vi.fn(() => true),
   getEnabledTopicsModels: vi.fn(
     async (projectIds: string[]) =>
       new Map(projectIds.map((projectId) => [projectId, { projectId }])),
   ),
-  listTopicFacets: vi.fn(async () => []),
-  listTopicRules: vi.fn(async () => []),
-  pauseTopicsModels: vi.fn(),
-  writeTopicSummaries: vi.fn(),
-  isValidTopicSummary: vi.fn(() => true),
-}));
-
-// Exercise real tokenization without starting the compiled worker-thread pool.
-vi.mock("../../features/tokenisation/async-usage", () => ({
-  tokenCountAsync: vi.fn(async (params) => tokenCount(params)),
+  listTopicRules: vi.fn(),
 }));
 
 const originalReadEnabled = env.LANGFUSE_TRACE_BATCH_READ_ENABLED;
+const originalDispatchEnabled = env.LANGFUSE_TRACE_DISPATCH_ENABLED;
 const originalTranscriptMetricsEnabled =
   env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED;
 const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
@@ -110,12 +95,25 @@ afterAll(async () => {
 beforeEach(() => {
   exporter.reset();
   env.LANGFUSE_TRACE_BATCH_READ_ENABLED = "true";
+  env.LANGFUSE_TRACE_DISPATCH_ENABLED = "false";
+  vi.mocked(isTopicsEnabled).mockReturnValue(true);
+  vi.mocked(isTopicsProjectEnabled).mockReturnValue(true);
+  // By default every trace is sampled by one rule with one facet.
+  vi.mocked(listTopicRules).mockResolvedValue([
+    { id: "rule", facetIds: ["intent"], sampling: 1 } as TopicRule,
+  ]);
+  topicsQueue.add.mockResolvedValue(undefined);
+  inputStorage.put.mockResolvedValue({
+    outcome: "stored",
+    jsonLength: 100,
+  });
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
   vi.mocked(getCurrentSpan).mockReturnValue(processingSpan);
   vi.spyOn(processingSpan, "setAttributes");
 });
 afterEach(() => {
   env.LANGFUSE_TRACE_BATCH_READ_ENABLED = originalReadEnabled;
+  env.LANGFUSE_TRACE_DISPATCH_ENABLED = originalDispatchEnabled;
   env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED =
     originalTranscriptMetricsEnabled;
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
@@ -140,54 +138,41 @@ describe("trace batch queue", () => {
       ),
     ];
 
-    await recordTraceBatchTranscript(observations);
+    let assembled: TranscriptContext | null | undefined;
+    let spanEndedBeforeCallback = false;
+    await recordTraceBatchTranscript(observations, async (context) => {
+      assembled = context;
+      spanEndedBeforeCallback = exporter.getFinishedSpans().length === 1;
+    });
 
-    expect(tokenCountAsync).toHaveBeenCalledTimes(4);
-    const baselineJson = vi.mocked(tokenCountAsync).mock.calls[1][0]
-      .text as string;
-    expect(
-      JSON.parse(baselineJson).threads[0].currentTurn.observations,
-    ).toEqual([expect.objectContaining({ traceId: "topics-sample" })]);
-    const genericText = vi.mocked(tokenCountAsync).mock.calls[2][0].text;
-    expect(genericText).toBe(
-      "[user] Explain the result\n[assistant] The answer",
-    );
-    const renderedText = vi.mocked(tokenCountAsync).mock.calls[3][0].text;
-    expect(renderedText).toBe(
-      [
-        "<run_facts>",
-        "threads: 1 · rendered user entries: 1 · rendered tool calls: 0 · error signals: 0 · omitted lines: 0",
-        "</run_facts>",
-        "<this_run>",
-        "[generation] explain",
-        "[user · request] Explain the result",
-        "[assistant · final output] The answer",
-        "</this_run>",
-        "<end_of_run>",
-        "last action: assistant text",
-        "final output: assistant",
-        "</end_of_run>",
-      ].join("\n"),
-    );
+    expect(assembled).not.toBeNull();
+    const baselineJson = JSON.stringify(assembled!.transcript);
+    expect(assembled!.transcript.threads[0].currentTurn.observations).toEqual([
+      expect.objectContaining({ traceId: "topics-sample" }),
+    ]);
+    expect(spanEndedBeforeCallback).toBe(true);
+    const genericText = "[user] Explain the result\n[assistant] The answer";
+    const renderedText = [
+      "<run_facts>",
+      "threads: 1 · rendered user entries: 1 · rendered tool calls: 0 · error signals: 0 · omitted lines: 0",
+      "</run_facts>",
+      "<this_run>",
+      "[generation] explain",
+      "[user · request] Explain the result",
+      "[assistant · final output] The answer",
+      "</this_run>",
+      "<end_of_run>",
+      "last action: assistant text",
+      "final output: assistant",
+      "</end_of_run>",
+    ].join("\n");
     expect(recordDistribution).not.toHaveBeenCalled();
     expect(exporter.getFinishedSpans()[0].attributes).toMatchObject({
       "langfuse.trace_batch.transcript_json_characters": baselineJson.length,
-      "langfuse.trace_batch.transcript_json_tokens": tokenCount({
-        model: vi.mocked(tokenCountAsync).mock.calls[1][0].model,
-        text: baselineJson,
-      }),
       "langfuse.trace_batch.generic_transcript_characters": genericText.length,
-      "langfuse.trace_batch.generic_transcript_tokens": tokenCount({
-        model: vi.mocked(tokenCountAsync).mock.calls[2][0].model,
-        text: genericText,
-      }),
       "langfuse.trace_batch.topics_transcript_characters": renderedText.length,
       "langfuse.trace_batch.topics_transcript_blocks_cut": 0,
       "langfuse.trace_batch.topics_transcript_history_share": 0,
-      "langfuse.trace_batch.topics_transcript_tokens": tokenCount({
-        model: vi.mocked(tokenCountAsync).mock.calls[3][0].model,
-        text: renderedText,
-      }),
       "langfuse.trace_batch.topics_transcript_block_user_raw_characters":
         "Explain the result".length,
       "langfuse.trace_batch.topics_transcript_block_observations_raw_characters":
@@ -215,57 +200,27 @@ describe("trace batch queue", () => {
       ),
     ]);
 
-    const renderedText = vi.mocked(tokenCountAsync).mock.calls[3][0].text;
+    const renderedText = [
+      "<run_facts>",
+      "threads: 1 · rendered user entries: 1 · rendered tool calls: 0 · error signals: 0 · omitted lines: 0",
+      "</run_facts>",
+      "<this_run>",
+      "[generation] explain",
+      "[user · request] Explain the result",
+      "[assistant · final output] The answer",
+      "</this_run>",
+      "<end_of_run>",
+      "last action: assistant text",
+      "final output: assistant",
+      "</end_of_run>",
+    ].join("\n");
     expect(recordDistribution).toHaveBeenCalledWith(
       "langfuse.trace_batch.topics_transcript_characters",
-      String(renderedText).length,
-    );
-    expect(recordDistribution).toHaveBeenCalledWith(
-      "langfuse.trace_batch.topics_transcript_tokens",
-      expect.any(Number),
-      { tokenizer: "o200k_base" },
+      renderedText.length,
     );
     expect(recordDistribution).toHaveBeenCalledWith(
       "langfuse.trace_batch.transcript_json_characters",
       expect.any(Number),
-    );
-  });
-
-  it("keeps the batch successful when Topics token estimation fails", async () => {
-    vi.mocked(tokenCountAsync)
-      .mockResolvedValueOnce(10)
-      .mockResolvedValueOnce(20)
-      .mockResolvedValueOnce(30)
-      .mockRejectedValueOnce(new Error("tokenizer unavailable"));
-
-    await expect(
-      recordTraceBatchTranscript([
-        convertObservation(
-          createObservation({
-            type: "GENERATION",
-            trace_id: "topics-failure",
-            input: JSON.stringify([{ role: "user", content: "Question" }]),
-            output: JSON.stringify({ role: "assistant", content: "Answer" }),
-          }),
-        ),
-      ]),
-    ).resolves.toBeUndefined();
-
-    expect(recordIncrement).toHaveBeenCalledWith(
-      "langfuse.trace_batch.topics_transcript_failed",
-      1,
-    );
-    expect(recordDistribution).not.toHaveBeenCalled();
-    const span = exporter.getFinishedSpans()[0];
-    expect(span.attributes).toMatchObject({
-      "langfuse.trace_batch.topics_transcript": "failed",
-      "langfuse.trace_batch.topics_transcript_characters": expect.any(Number),
-      "langfuse.trace_batch.transcript_message_tokens": 10,
-      "langfuse.trace_batch.transcript_json_tokens": 20,
-      "langfuse.trace_batch.generic_transcript_tokens": 30,
-    });
-    expect(span.attributes).not.toHaveProperty(
-      "langfuse.trace_batch.topics_transcript_tokens",
     );
   });
 
@@ -304,32 +259,40 @@ describe("trace batch queue", () => {
           output: JSON.stringify(output),
         }),
       );
-    await recordTraceBatchTranscript([
-      observation("1", [...history, question], call),
-      observation("2", {}, "tool payload", "TOOL"),
-      observation(
-        "3",
-        [
-          ...history,
-          question,
-          call,
-          { role: "tool", tool_call_id: "call", content: "tool payload" },
-        ],
-        "current answer",
-      ),
-      observation(
-        "4",
-        [{ role: "user", content: "independent question" }],
-        "independent answer",
-      ),
-    ]);
-    const estimates = vi
-      .mocked(tokenCountAsync)
-      .mock.calls.map(([params]) => params);
-    expect(estimates).toHaveLength(5);
-    const [current, historyOnly] = estimates
-      .slice(0, 2)
-      .map(({ text }) => JSON.stringify(text));
+    let assembled: TranscriptContext | null | undefined;
+    await recordTraceBatchTranscript(
+      [
+        observation("1", [...history, question], call),
+        observation("2", {}, "tool payload", "TOOL"),
+        observation(
+          "3",
+          [
+            ...history,
+            question,
+            call,
+            { role: "tool", tool_call_id: "call", content: "tool payload" },
+          ],
+          "current answer",
+        ),
+        observation(
+          "4",
+          [{ role: "user", content: "independent question" }],
+          "independent answer",
+        ),
+      ],
+      async (context) => {
+        assembled = context;
+      },
+    );
+    expect(assembled).not.toBeNull();
+    const transcript = assembled!.transcript;
+    expect(transcript.threads).toHaveLength(2);
+    const current = JSON.stringify(
+      transcript.threads.map(({ currentTurn }) => currentTurn.messages),
+    );
+    const historyOnly = JSON.stringify(
+      transcript.threads.map(({ conversationHistory }) => conversationHistory),
+    );
     expect(current.split("tool payload")).toHaveLength(2);
     expect(current).not.toContain("earlier question");
     expect(current).toContain("current question");
@@ -345,14 +308,6 @@ describe("trace batch queue", () => {
       "langfuse.trace_batch.transcript_history_part_count": 2,
       "langfuse.trace_batch.transcript_current_turn_tool_call_count": 1,
       "langfuse.trace_batch.transcript_current_turn_tool_result_count": 1,
-      "langfuse.trace_batch.transcript_current_turn_tokens": tokenCount(
-        estimates[0],
-      ),
-      "langfuse.trace_batch.transcript_history_tokens": tokenCount(
-        estimates[1],
-      ),
-      "langfuse.trace_batch.transcript_message_tokens":
-        tokenCount(estimates[0])! + tokenCount(estimates[1])!,
     });
     const toolCharacters = JSON.stringify({
       type: "tool-result",
@@ -406,7 +361,6 @@ describe("trace batch queue", () => {
         }),
       ),
     ]);
-    expect(tokenCountAsync).toHaveBeenCalledTimes(4);
     const toolCharacters = JSON.stringify({
       type: "tool-result",
       toolCallId: "unmatched",
@@ -422,74 +376,22 @@ describe("trace batch queue", () => {
       "langfuse.trace_batch.transcript_tool_response_characters":
         toolCharacters,
       "langfuse.trace_batch.transcript_content_characters": totalCharacters,
-      "langfuse.trace_batch.transcript_history_tokens": 0,
     });
   });
 
-  it.each(["unavailable", "failed"])(
-    "retains current-turn tokens and character counts but omits the sum when history is %s",
-    async (outcome) => {
-      vi.mocked(tokenCountAsync).mockResolvedValueOnce(100);
-      if (outcome === "unavailable")
-        vi.mocked(tokenCountAsync).mockResolvedValueOnce(undefined);
-      else
-        vi.mocked(tokenCountAsync).mockRejectedValueOnce(
-          new Error("tokenizer failed"),
-        );
-      await recordTraceBatchTranscript([
-        convertObservation(
-          createObservation({
-            type: "GENERATION",
-            trace_id: "trace",
-            input: JSON.stringify([
-              { role: "assistant", content: "history" },
-              { role: "user", content: "question" },
-            ]),
-            output: "answer",
-          }),
-        ),
-      ]);
-      const span = exporter.getFinishedSpans()[0];
-      expect(
-        span.attributes["langfuse.trace_batch.transcript_current_turn_tokens"],
-      ).toBe(100);
-      expect(span.attributes).not.toHaveProperty(
-        "langfuse.trace_batch.transcript_history_tokens",
-      );
-      expect(span.attributes).not.toHaveProperty(
-        "langfuse.trace_batch.transcript_message_tokens",
-      );
-      expect(
-        span.attributes["langfuse.trace_batch.transcript_content_characters"],
-      ).toBeGreaterThan(0);
-      expect(span.attributes["langfuse.trace_batch.token_estimation"]).toBe(
-        outcome,
-      );
-      expect(recordIncrement).toHaveBeenCalledWith(
-        `langfuse.trace_batch.token_estimation_${outcome}`,
-        1,
-      );
-    },
-  );
-
   it.each([false, true])(
-    "keeps streaming while one tokenization is pending and drains it (stream fails: %s)",
+    "keeps streaming while a transcript upload is pending (stream fails: %s)",
     async (streamFails) => {
-      let resolveFirst!: (tokens: number) => void;
-      let rejectSecond!: (error: Error) => void;
-      let cleaningUp = false;
-      vi.mocked(tokenCountAsync)
-        .mockImplementationOnce(
-          () => new Promise<number>((resolve) => (resolveFirst = resolve)),
-        )
-        .mockImplementationOnce(() => Promise.resolve(0))
-        .mockImplementationOnce(() => Promise.resolve(0))
-        .mockImplementationOnce(() => Promise.resolve(0))
-        .mockImplementationOnce(() =>
-          cleaningUp
-            ? Promise.resolve(0)
-            : new Promise<number>((_, reject) => (rejectSecond = reject)),
-        );
+      let releaseFirstUpload!: () => void;
+      const firstUpload = new Promise<void>(
+        (resolve) => (releaseFirstUpload = resolve),
+      );
+      let firstUploadStarted = false;
+      inputStorage.put.mockImplementationOnce(async () => {
+        firstUploadStarted = true;
+        await firstUpload;
+        return { outcome: "stored", jsonLength: 100 };
+      });
       let suppliedThirdTrace = false;
       let reachedEnd = false;
       let settled = false;
@@ -524,7 +426,7 @@ describe("trace batch queue", () => {
       );
       const job = {
         data: {
-          id: "bounded-tokenization",
+          id: "streaming-storage",
           name: QueueJobs.TraceBatch,
           timestamp: new Date(),
           payload: {
@@ -548,64 +450,39 @@ describe("trace batch queue", () => {
         );
       void processing.then(() => (settled = true));
       try {
-        // The stream drains while a is being tokenized, so the socket never
-        // idles; b and c wait behind a for the shared tokenizer pool.
+        // The stream drains while the first transcript upload is pending, so
+        // the ClickHouse socket does not wait for downstream storage work.
         await vi.waitFor(() => expect(reachedEnd).toBe(true));
         expect(suppliedThirdTrace).toBe(true);
-        expect(tokenCountAsync).toHaveBeenCalledTimes(1);
-        expect(exporter.getFinishedSpans()).toHaveLength(0);
-        resolveFirst(100);
-        await vi.waitFor(() =>
-          expect(tokenCountAsync).toHaveBeenCalledTimes(5),
-        );
+        await vi.waitFor(() => expect(firstUploadStarted).toBe(true));
         expect(settled).toBe(false);
-        // An unavailable token estimate must not retry a whole batch or mask
-        // the original stream failure; its promise is drained before returning.
-        rejectSecond(new Error("token count timed out"));
+        releaseFirstUpload();
         const outcome = await processing;
         expect(outcome.error).toBe(streamFails ? failure : undefined);
-        const spans = exporter.getFinishedSpans();
+        const spans = exporter
+          .getFinishedSpans()
+          .filter((span) => span.name === "trace-batch-transcript");
         expect(spans).toHaveLength(streamFails ? 2 : 3);
         expect(spans[0].attributes).toMatchObject({
           "langfuse.trace.id": "a",
-          "langfuse.trace_batch.transcript_message_tokens": 100,
         });
-        expect(spans[1].attributes).toMatchObject({
-          "langfuse.trace.id": "b",
-          "langfuse.trace_batch.token_estimation": "failed",
-        });
-        expect(spans[1].status.code).toBe(SpanStatusCode.UNSET);
-        expect(spans[1].attributes).not.toHaveProperty(
-          "langfuse.trace_batch.transcript_message_tokens",
-        );
-        expect(
-          spans[1].attributes["langfuse.trace_batch.transcript_characters"],
-        ).toBeGreaterThan(0);
         for (const span of spans) {
           expect(span.parentSpanContext?.spanId).toBe(
             processingSpan.spanContext().spanId,
           );
+          expect(span.status.code).toBe(SpanStatusCode.UNSET);
+          expect(span.attributes).toHaveProperty(
+            "langfuse.trace_batch.transcript_characters",
+            expect.any(Number),
+          );
         }
-        expect(recordIncrement).toHaveBeenCalledWith(
-          "langfuse.trace_batch.token_estimation_failed",
-          1,
-        );
-        expect(
-          spans.filter(
-            (span) =>
-              "langfuse.trace_batch.transcript_assembly_duration_ms" in
-              span.attributes,
-          ),
-        ).toHaveLength(streamFails ? 2 : 3);
       } finally {
-        cleaningUp = true;
-        resolveFirst?.(100);
-        rejectSecond?.(new Error("test cleanup"));
+        releaseFirstUpload();
         await processing;
       }
     },
   );
-  it("summarizes traces concurrently and resumes streaming when any summary brings payloads below the cap", async () => {
+  it("stores traces concurrently and resumes streaming when any upload brings payloads below the cap", async () => {
     const originalCap = env.LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES;
     env.LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES = 1_000;
     const payload = "x".repeat(600);
@@ -614,14 +491,14 @@ describe("trace batch queue", () => {
     let resolveSecond!: () => void;
     const first = new Promise<void>((resolve) => (resolveFirst = resolve));
     const second = new Promise<void>((resolve) => (resolveSecond = resolve));
-    vi.mocked(summarizeAssembledTrace)
+    inputStorage.put
       .mockImplementationOnce(async () => {
         await first;
-        return { outcome: "summarized", rows: [] };
+        return { outcome: "stored", jsonLength: 1 };
       })
       .mockImplementationOnce(async () => {
         await second;
-        return { outcome: "summarized", rows: [] };
+        return { outcome: "stored", jsonLength: 1 };
       });
     vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
       for (const traceId of ["a", "b", "c"]) {
@@ -676,172 +553,26 @@ describe("trace batch queue", () => {
         ),
       );
       expect(reachedEnd).toBe(false);
-      await vi.waitFor(() =>
-        expect(summarizeAssembledTrace).toHaveBeenCalledTimes(2),
-      );
+      await vi.waitFor(() => expect(inputStorage.put).toHaveBeenCalledTimes(2));
       // The later trace finishing first releases its payload.
       resolveSecond();
       await vi.waitFor(() => expect(reachedEnd).toBe(true));
-      await vi.waitFor(() =>
-        expect(summarizeAssembledTrace).toHaveBeenCalledTimes(3),
-      );
+      await vi.waitFor(() => expect(inputStorage.put).toHaveBeenCalledTimes(3));
       expect(settled).toBe(false);
       resolveFirst();
       await expect(processing).resolves.toEqual(
         expect.objectContaining({ traceCount: 3 }),
       );
+      expect(topicsQueue.add).toHaveBeenCalledTimes(3);
     } finally {
       resolveFirst();
       resolveSecond();
       await processing;
       env.LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES = originalCap;
-      vi.mocked(summarizeAssembledTrace).mockResolvedValue({
-        outcome: "unchanged",
-        rows: [],
-      });
     }
   });
-  it("finishes the batch past a failed trace, writes rows once, retries transient errors and drops only failing rows", async () => {
-    const traces = ["a", "b", "c"];
-    vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
-      for (const projectId of traces)
-        yield {
-          project_id: projectId,
-          trace_id: "trace",
-          environment: "default",
-          span_id: "span",
-          parent_span_id: null,
-          start_time: "2026-09-11 00:00:00.000000",
-          event_ts: "2026-09-11 00:00:00.000000",
-          type: "GENERATION",
-          name: "generation",
-          input: JSON.stringify([{ role: "user", content: projectId }]),
-          output: JSON.stringify({ role: "assistant", content: "answer" }),
-          metadata: {},
-          level: "DEFAULT",
-          status_message: null,
-          tool_definitions: {},
-          tool_calls: [],
-          tool_call_names: [],
-        };
-    });
-    vi.mocked(summarizeAssembledTrace).mockImplementation(
-      async ({ projectId }) => ({
-        outcome: "summarized",
-        rows: [{ projectId, state: "complete" } as TopicSummary],
-        // A failed trace still returns its valid facets.
-        ...(projectId === "b"
-          ? {
-              failure: new TopicsProviderUnavailable(
-                "bad output",
-                "invalid_output",
-              ),
-            }
-          : {}),
-      }),
-    );
-    const add = vi.fn();
-    vi.spyOn(TraceBatchQueue, "getInstance").mockReturnValue({
-      add,
-    } as unknown as ReturnType<typeof TraceBatchQueue.getInstance>);
-    const entry = (projectId: string) => ({
-      projectId,
-      traceId: "trace",
-      minStart: 0,
-      maxStart: 1,
-      revision: "r",
-    });
-    const job = {
-      data: {
-        id: "outcomes",
-        name: QueueJobs.TraceBatch,
-        timestamp: new Date(),
-        payload: { traces: traces.map(entry) },
-      },
-    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
 
-    await expect(traceBatchQueueProcessor(job, undefined)).resolves.toEqual(
-      expect.objectContaining({ traceCount: 3 }),
-    );
-    expect(
-      vi.mocked(summarizeAssembledTrace).mock.calls.map(([t]) => t.projectId),
-    ).toEqual(traces);
-    expect(recordIncrement).toHaveBeenCalledWith(
-      "langfuse.topics.trace_outcomes",
-      2,
-      { outcome: "summarized" },
-    );
-    expect(recordIncrement).toHaveBeenCalledWith(
-      "langfuse.topics.trace_outcomes",
-      1,
-      { outcome: "failed", reason: "invalid_output" },
-    );
-    expect(writeTopicSummaries).toHaveBeenCalledOnce();
-    expect(
-      vi
-        .mocked(writeTopicSummaries)
-        .mock.calls[0][0].map((row) => row.projectId),
-    ).toEqual(traces);
-    expect(add).not.toHaveBeenCalled();
-
-    // c's invalid row is dropped before the insert; a transient error retries the rest.
-    vi.mocked(recordIncrement).mockClear();
-    vi.mocked(isValidTopicSummary).mockImplementation(
-      (row) => row.projectId !== "c",
-    );
-    vi.mocked(writeTopicSummaries).mockRejectedValueOnce(
-      new Error("Timeout error."),
-    );
-    await expect(traceBatchQueueProcessor(job, undefined)).resolves.toEqual(
-      expect.objectContaining({ traceCount: 3 }),
-    );
-    const outcomeCalls = vi
-      .mocked(recordIncrement)
-      .mock.calls.filter(([name]) => name === "langfuse.topics.trace_outcomes");
-    expect(outcomeCalls).toEqual(
-      expect.arrayContaining([
-        ["langfuse.topics.trace_outcomes", 1, { outcome: "summarized" }],
-        [
-          "langfuse.topics.trace_outcomes",
-          1,
-          { outcome: "failed", reason: "invalid_output" },
-        ],
-        [
-          "langfuse.topics.trace_outcomes",
-          1,
-          { outcome: "failed", reason: "storage" },
-        ],
-      ]),
-    );
-    expect(outcomeCalls).toHaveLength(3);
-    expect(writeTopicSummaries).toHaveBeenCalledTimes(3);
-    expect(
-      vi
-        .mocked(writeTopicSummaries)
-        .mock.lastCall![0].map((row) => row.projectId),
-    ).toEqual(["a", "b"]);
-
-    // Like ClickhouseWriter, an outage drops the insert once instead of splitting it.
-    vi.mocked(recordIncrement).mockClear();
-    vi.mocked(isValidTopicSummary).mockImplementation(() => true);
-    vi.mocked(writeTopicSummaries)
-      .mockReset()
-      .mockRejectedValue(new Error("connect ECONNREFUSED"));
-    await traceBatchQueueProcessor(job, undefined);
-    expect(writeTopicSummaries).toHaveBeenCalledOnce();
-    expect(recordIncrement).toHaveBeenCalledWith(
-      "langfuse.topics.trace_outcomes",
-      2,
-      { outcome: "failed", reason: "storage" },
-    );
-    vi.mocked(writeTopicSummaries).mockReset();
-    vi.mocked(summarizeAssembledTrace).mockImplementation(async () => ({
-      outcome: "unchanged",
-      rows: [],
-    }));
-  });
-
-  it("stores completed traces' rows before rethrowing a failed stream, so a retry skips them", async () => {
+  it("enqueues completed traces before rethrowing a failed stream", async () => {
     const failure = new Error("query failed");
     const event = (projectId: string) => ({
       project_id: projectId,
@@ -868,12 +599,6 @@ describe("trace batch queue", () => {
       yield event("b");
       throw failure;
     });
-    vi.mocked(summarizeAssembledTrace).mockImplementation(
-      async ({ projectId }) => ({
-        outcome: "summarized",
-        rows: [{ projectId, state: "complete" } as TopicSummary],
-      }),
-    );
     const job = {
       data: {
         id: "stream-failure",
@@ -894,19 +619,240 @@ describe("trace batch queue", () => {
     await expect(traceBatchQueueProcessor(job, undefined)).rejects.toBe(
       failure,
     );
-    expect(writeTopicSummaries).toHaveBeenCalledOnce();
-    expect(vi.mocked(writeTopicSummaries).mock.calls[0][0]).toEqual([
-      { projectId: "a", state: "complete" },
-    ]);
-    vi.mocked(summarizeAssembledTrace).mockImplementation(async () => ({
-      outcome: "unchanged",
-      rows: [],
-    }));
+    // Deduplication makes the retry skip a's revision.
+    expect(
+      topicsQueue.add.mock.calls.map(([, data]) => data.payload.projectId),
+    ).toEqual(["a"]);
   });
 
-  it("summarizes only the saved rule's facets and skips traces outside its sampling", async () => {
+  it("counts a trace whose input cannot be stored or enqueued as failed without failing the batch", async () => {
     vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
-      for (const projectId of ["picked", "sampled-out"])
+      for (const traceId of ["too-large", "upload", "enqueue"])
+        yield {
+          project_id: "project",
+          trace_id: traceId,
+          environment: "default",
+          span_id: "span",
+          parent_span_id: null,
+          start_time: "2026-09-11 00:00:00.000000",
+          event_ts: "2026-09-11 00:00:00.000000",
+          type: "GENERATION",
+          name: "generation",
+          input: JSON.stringify([{ role: "user", content: "private input" }]),
+          output: JSON.stringify({ role: "assistant", content: "answer" }),
+          metadata: {},
+          level: "DEFAULT",
+          status_message: null,
+          tool_definitions: {},
+          tool_calls: [],
+          tool_call_names: [],
+        };
+    });
+    inputStorage.put.mockImplementation(async ({ traceId }) => {
+      if (traceId === "upload") throw new Error("Failed to upload file to S3");
+      return traceId === "too-large"
+        ? { outcome: "too_large", jsonLength: 1_000_001 }
+        : { outcome: "stored", jsonLength: 100 };
+    });
+    topicsQueue.add.mockRejectedValue(new Error("Redis unavailable"));
+    const job = {
+      data: {
+        id: "storage",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload: {
+          traces: ["too-large", "upload", "enqueue"].map((traceId) => ({
+            projectId: "project",
+            traceId,
+            minStart: 0,
+            maxStart: 1,
+            revision: "r",
+          })),
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+    await expect(traceBatchQueueProcessor(job, undefined)).resolves.toEqual(
+      expect.objectContaining({ traceCount: 3 }),
+    );
+    for (const reason of ["input_too_large", "input_storage", "enqueue"])
+      expect(recordIncrement).toHaveBeenCalledWith(
+        "langfuse.topics.trace_outcomes",
+        1,
+        { source: "trace_batch", outcome: "failed", reason },
+      );
+    expect(topicsQueue.add).toHaveBeenCalledOnce();
+    const storageSpan = exporter
+      .getFinishedSpans()
+      .find(
+        (span) =>
+          span.name === "trace-batch-store-inputs" &&
+          span.attributes["langfuse.trace.id"] === "upload",
+      );
+    expect(
+      storageSpan?.attributes["langfuse.trace_batch.input_storage.outcome"],
+    ).toBe("upload_failed");
+    expect(storageSpan?.status.code).toBe(SpanStatusCode.ERROR);
+  });
+
+  it("skips the ClickHouse read when a dispatched batch has no Topics project", async () => {
+    env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
+    vi.mocked(isTopicsProjectEnabled).mockReturnValue(false);
+    const job = {
+      opts: {},
+      data: {
+        id: "experiment-only",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload: {
+          traces: ["first", "second"].map((traceId) => ({
+            projectId: "sampled-project",
+            traceId,
+            minStart: 0,
+            maxStart: 1,
+            revision: "queued-revision",
+          })),
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+    await expect(traceBatchQueueProcessor(job, undefined)).resolves.toEqual({
+      observationCount: 0,
+      traceCount: 0,
+      projectCount: 0,
+      inputBytes: 0,
+      outputBytes: 0,
+      metadataBytes: 0,
+      ioMetadataBytes: 0,
+    });
+    expect(getTraceBatchEventStream).not.toHaveBeenCalled();
+    expect(inputStorage.put).not.toHaveBeenCalled();
+    expect(topicsQueue.add).not.toHaveBeenCalled();
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.trace_batch.skipped_traces",
+      2,
+      { reason: "no_topics_project" },
+    );
+    expect(recordDistribution).not.toHaveBeenCalledWith(
+      "langfuse.trace_batch.missing_trace_count",
+      expect.anything(),
+    );
+  });
+
+  it("reads only Topics projects from a mixed dispatched batch", async () => {
+    env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
+    vi.mocked(isTopicsProjectEnabled).mockImplementation(
+      (projectId) => projectId === "topics-project",
+    );
+    vi.mocked(getTraceBatchEventStream).mockImplementation(
+      async function* () {},
+    );
+    const job = {
+      opts: {},
+      data: {
+        id: "mixed",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload: {
+          traces: [
+            ["topics-project", "kept"],
+            ["sampled-project", "skipped"],
+          ].map(([projectId, traceId]) => ({
+            projectId,
+            traceId,
+            minStart: 0,
+            maxStart: 1,
+            revision: "queued-revision",
+          })),
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+    await expect(
+      traceBatchQueueProcessor(job, undefined),
+    ).resolves.toMatchObject({ traceCount: 0 });
+    expect(getTraceBatchEventStream).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        traces: [
+          expect.objectContaining({
+            projectId: "topics-project",
+            traceId: "kept",
+          }),
+        ],
+      }),
+      expect.anything(),
+    );
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.trace_batch.skipped_traces",
+      1,
+      { reason: "no_topics_project" },
+    );
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.missing_trace_count",
+      1,
+    );
+  });
+
+  it("stores execution issues next to the transcript", async () => {
+    vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
+      yield {
+        project_id: "project",
+        trace_id: "trace",
+        environment: "default",
+        span_id: "span",
+        parent_span_id: null,
+        start_time: "2026-09-11 00:00:00.000000",
+        event_ts: "2026-09-11 00:00:00.000000",
+        type: "GENERATION",
+        name: "generation",
+        input: JSON.stringify([{ role: "user", content: "Hi" }]),
+        output: JSON.stringify({ role: "assistant", content: "Hello" }),
+        metadata: {},
+        level: "WARNING",
+        status_message: "Rate limited, retried",
+        tool_definitions: {},
+        tool_calls: [],
+        tool_call_names: [],
+      };
+    });
+    const job = {
+      data: {
+        id: "issues",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload: {
+          traces: [
+            {
+              projectId: "project",
+              traceId: "trace",
+              minStart: 0,
+              maxStart: 1,
+              revision: "queued-revision",
+            },
+          ],
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+    await traceBatchQueueProcessor(job, undefined);
+
+    expect(inputStorage.put).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      expect.objectContaining({
+        executionIssues: [
+          expect.objectContaining({
+            observationId: "span",
+            level: "WARNING",
+            statusMessage: "Rate limited, retried",
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("stores and enqueues a trace with each rule that samples it, deduplicated per revision", async () => {
+    vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
+      for (const projectId of ["picked", "sampled-out", "no-rule"])
         yield {
           project_id: projectId,
           trace_id: "trace",
@@ -927,29 +873,30 @@ describe("trace batch queue", () => {
           tool_call_names: [],
         };
     });
-    const facet = (id: string) => ({ id }) as TopicFacet;
-    vi.mocked(listTopicFacets).mockResolvedValue([
-      facet("intent"),
-      facet("issues"),
-    ]);
-    vi.mocked(listTopicRules).mockImplementation(async (projectId) => [
-      {
-        facetIds: ["issues"],
-        sampling: projectId === "picked" ? 1 : 0,
-      } as TopicRule,
-    ]);
+    vi.mocked(listTopicRules).mockImplementation(async (projectId) =>
+      projectId === "no-rule"
+        ? []
+        : [
+            {
+              id: "issues-rule",
+              facetIds: ["issues"],
+              sampling: projectId === "picked" ? 1 : 0,
+            } as TopicRule,
+            { id: "never", facetIds: ["intent"], sampling: 0 } as TopicRule,
+          ],
+    );
     const job = {
       data: {
         id: "rule",
         name: QueueJobs.TraceBatch,
         timestamp: new Date(),
         payload: {
-          traces: ["picked", "sampled-out"].map((projectId) => ({
+          traces: ["picked", "sampled-out", "no-rule"].map((projectId) => ({
             projectId,
             traceId: "trace",
             minStart: 0,
             maxStart: 1,
-            revision: "r",
+            revision: `revision-${projectId}`,
           })),
         },
       },
@@ -957,19 +904,114 @@ describe("trace batch queue", () => {
 
     await traceBatchQueueProcessor(job, undefined);
 
-    expect(
-      vi
-        .mocked(summarizeAssembledTrace)
-        .mock.calls.map(([input]) => [
-          input.projectId,
-          input.facets.map(({ id }) => id),
-        ]),
-    ).toEqual([["picked", ["issues"]]]);
-    vi.mocked(listTopicFacets).mockResolvedValue([]);
-    vi.mocked(listTopicRules).mockResolvedValue([]);
+    // Traces no rule samples never reach ClickHouse.
+    expect(getTraceBatchEventStream).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        traces: [expect.objectContaining({ projectId: "picked" })],
+      }),
+      expect.anything(),
+    );
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.trace_batch.skipped_traces",
+      1,
+      { reason: "rule_sampling" },
+    );
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.trace_batch.skipped_traces",
+      1,
+      { reason: "no_topics_project" },
+    );
+    expect(inputStorage.put).toHaveBeenCalledExactlyOnceWith(
+      { projectId: "picked", traceId: "trace", revision: "revision-picked" },
+      expect.objectContaining({
+        transcript: expect.objectContaining({ threads: expect.any(Array) }),
+      }),
+    );
+    expect(topicsQueue.add).toHaveBeenCalledExactlyOnceWith(
+      QueueJobs.TopicsTraceJob,
+      expect.objectContaining({
+        name: QueueJobs.TopicsTraceJob,
+        payload: {
+          projectId: "picked",
+          traceId: "trace",
+          revision: "revision-picked",
+          ruleIds: ["issues-rule"],
+        },
+      }),
+      {
+        deduplication: {
+          id: JSON.stringify(["picked", "trace", "revision-picked"]),
+          ttl: expect.any(Number),
+        },
+      },
+    );
   });
 
-  it("skips projects without enabled Topics models and pauses a project whose connection is rejected", async () => {
+  it("passes the session and trace name of the newest event that has one, breaking timestamp ties by span ID", async () => {
+    vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
+      for (const [span, eventTs, sessionId, traceName] of [
+        ["a", "2026-09-11 00:00:01.000000", "session-old", "trace-old"],
+        ["b", "2026-09-11 00:00:02.000000", "session-new", "trace-new"],
+        ["d", "2026-09-11 00:00:02.000000", "session-tie", "trace-tie"],
+        ["c", "2026-09-11 00:00:03.000000", "", ""],
+      ])
+        yield {
+          project_id: "project",
+          trace_id: "trace",
+          session_id: sessionId,
+          trace_name: traceName,
+          environment: `env-${span}`,
+          span_id: span,
+          parent_span_id: null,
+          start_time: `2026-09-11 00:00:0${span === "d" ? "0" : "1"}.000000`,
+          event_ts: eventTs,
+          type: "GENERATION",
+          name: `generation-${span}`,
+          input: JSON.stringify([{ role: "user", content: span }]),
+          output: JSON.stringify({ role: "assistant", content: "answer" }),
+          metadata: {},
+          level: "DEFAULT",
+          status_message: null,
+          tool_definitions: {},
+          tool_calls: [],
+          tool_call_names: [],
+        };
+    });
+    const job = {
+      data: {
+        id: "session",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload: {
+          traces: [
+            {
+              projectId: "project",
+              traceId: "trace",
+              minStart: 0,
+              maxStart: 1,
+              revision: "r",
+            },
+          ],
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+    await traceBatchQueueProcessor(job, undefined);
+
+    expect(inputStorage.put).toHaveBeenCalledWith(
+      { projectId: "project", traceId: "trace", revision: "r" },
+      expect.objectContaining({
+        traceContext: {
+          sessionId: "session-tie",
+          traceTimestamp: "2026-09-11T00:00:00.000Z",
+          environment: "env-c",
+          traceName: "trace-tie",
+        },
+      }),
+    );
+  });
+
+  it("skips projects without enabled Topics models", async () => {
     const rows = [
       ["off", "trace-1"],
       ["on", "trace-1"],
@@ -1002,17 +1044,6 @@ describe("trace batch queue", () => {
     vi.mocked(getEnabledTopicsModels).mockResolvedValueOnce(
       new Map([["on", models]]),
     );
-    vi.mocked(summarizeAssembledTrace).mockImplementation(
-      async ({ traceId }) => {
-        if (traceId === "trace-2")
-          throw new TopicsProviderUnavailable(
-            "Connection rejected (HTTP 401).",
-            "authentication",
-            "summary",
-          );
-        return { outcome: "summarized", rows: [] };
-      },
-    );
     const job = {
       data: {
         id: "kill-switch",
@@ -1037,35 +1068,46 @@ describe("trace batch queue", () => {
       "off",
       "on",
     ]);
-    expect(listTopicFacets).toHaveBeenCalledExactlyOnceWith("on");
-    expect(
-      vi
-        .mocked(summarizeAssembledTrace)
-        .mock.calls.map(([input]) => [
-          input.projectId,
-          input.traceId,
-          input.models,
-        ]),
-    ).toEqual([
-      ["on", "trace-1", models],
-      ["on", "trace-2", models],
-    ]);
-    expect(pauseTopicsModels).toHaveBeenCalledExactlyOnceWith("on", {
-      blockReason: "LLM_CONNECTION_AUTH_INVALID",
-      blockMessage: expect.stringContaining("Connection rejected (HTTP 401)."),
-    });
+    expect(listTopicRules).toHaveBeenCalledExactlyOnceWith("on");
+    expect(inputStorage.put.mock.calls.map(([reference]) => reference)).toEqual(
+      ["trace-1", "trace-2", "trace-3"].map((traceId) => ({
+        projectId: "on",
+        traceId,
+        revision: "r",
+      })),
+    );
+    expect(topicsQueue.add).toHaveBeenCalledTimes(3);
     expect(recordIncrement).toHaveBeenCalledWith(
       "langfuse.topics.trace_outcomes",
-      2,
-      { outcome: "disabled" },
+      1,
+      { source: "trace_batch", outcome: "disabled" },
     );
-    vi.mocked(summarizeAssembledTrace).mockImplementation(async () => ({
-      outcome: "unchanged",
-      rows: [],
-    }));
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.trace_batch.skipped_traces",
+      1,
+      { reason: "no_topics_project" },
+    );
   });
 
-  it("assembles each tenant's trace with its latest environment at the boundary and EOF", async () => {
+  it("uses the latest environment to exclude internal traces from Topics and storage", async () => {
+    const originalRecordTraceBatchTranscript =
+      traceBatchTranscript.recordTraceBatchTranscript;
+    const assembledContexts: Array<{
+      traceId: string | undefined;
+      context: TranscriptContext | null;
+    }> = [];
+    vi.spyOn(
+      traceBatchTranscript,
+      "recordTraceBatchTranscript",
+    ).mockImplementation(async (observations, onTranscript) =>
+      originalRecordTraceBatchTranscript(observations, async (context) => {
+        assembledContexts.push({
+          traceId: observations[0]?.traceId,
+          context,
+        });
+        await onTranscript?.(context);
+      }),
+    );
     const userMessage = { role: "user", content: "first question" };
     const answer = { role: "assistant", content: "first answer" };
     const row = {
@@ -1104,7 +1146,6 @@ describe("trace batch queue", () => {
       };
       // The newer internal event has an earlier start time and smaller span ID.
       yield row;
-      expect(tokenCountAsync).not.toHaveBeenCalled();
       yield {
         ...row,
         project_id: "b",
@@ -1137,17 +1178,17 @@ describe("trace batch queue", () => {
     } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
     await traceBatchQueueProcessor(job, undefined);
     expect(
-      vi.mocked(summarizeAssembledTrace).mock.calls.map(([input]) => ({
-        projectId: input.projectId,
-        environment: input.environment,
-      })),
-    ).toEqual([
-      { projectId: "a", environment: "langfuse-topics" },
-      { projectId: "b", environment: "production" },
-    ]);
-    const estimates = vi.mocked(tokenCountAsync).mock.calls;
-    expect(estimates).toHaveLength(5);
-    const serializedTranscript = JSON.stringify(estimates[0][0].text);
+      topicsQueue.add.mock.calls.map(([, data]) => data.payload.projectId),
+    ).toEqual(["b"]);
+    expect(inputStorage.put.mock.calls.map(([reference]) => reference)).toEqual(
+      [{ projectId: "b", traceId: "shared-trace", revision: "r" }],
+    );
+    const assembledTranscript = assembledContexts.find(
+      ({ context }) => context !== null,
+    )?.context?.transcript;
+    if (!assembledTranscript)
+      throw new Error("Expected an assembled transcript for the user trace");
+    const serializedTranscript = JSON.stringify(assembledTranscript);
     for (const content of [
       "first question",
       "first answer",
@@ -1156,7 +1197,9 @@ describe("trace batch queue", () => {
     ]) {
       expect(serializedTranscript.split(content)).toHaveLength(2);
     }
-    const spans = exporter.getFinishedSpans();
+    const spans = exporter
+      .getFinishedSpans()
+      .filter((span) => span.name === "trace-batch-transcript");
     expect(spans).toHaveLength(2);
     for (const [index, projectId] of ["a", "b"].entries()) {
       const span = spans[index];
@@ -1166,12 +1209,6 @@ describe("trace batch queue", () => {
         "langfuse.trace.id": "shared-trace",
         "langfuse.trace_batch.observation_count": 2,
         "langfuse.trace_batch.has_transcript": index === 0,
-        "langfuse.trace_batch.transcript_message_tokens":
-          index === 0 ? tokenCount(estimates[0][0]) : 0,
-        "langfuse.trace_batch.transcript_current_turn_tokens":
-          index === 0 ? expect.any(Number) : 0,
-        "langfuse.trace_batch.transcript_history_tokens":
-          index === 0 ? expect.any(Number) : 0,
         "langfuse.trace_batch.transcript_content_characters":
           index === 0 ? expect.any(Number) : 0,
         "langfuse.trace_batch.transcript_tool_response_characters":
@@ -1188,6 +1225,21 @@ describe("trace batch queue", () => {
       expect(JSON.stringify(span.attributes)).not.toContain("first question");
     }
   });
+  it("discards jobs before parsing when both pipelines are disabled", async () => {
+    vi.mocked(isTopicsEnabled).mockReturnValue(false);
+    const job = {
+      opts: {},
+      data: { incompatiblePayload: true },
+    } as unknown as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+    await expect(traceBatchQueueProcessor(job, undefined)).resolves.toEqual({
+      discarded: "pipelines_disabled",
+    });
+    expect(getTraceBatchEventStream).not.toHaveBeenCalled();
+    expect(inputStorage.put).not.toHaveBeenCalled();
+    expect(job.opts.removeOnComplete).toBe(true);
+  });
+
   it("discards self-hosted jobs before parsing even when reads are enabled", async () => {
     env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID = "discarded-read";
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
@@ -1327,7 +1379,6 @@ describe("trace batch queue", () => {
       await expect(traceBatchQueueProcessor(job, undefined)).rejects.toBe(
         failure,
       );
-      expect(tokenCountAsync).not.toHaveBeenCalled();
       expect(getTraceBatchEventStream).toHaveBeenCalledWith(payload, {
         maxThreads: 1,
         maxBlockSize: 512,
@@ -1480,7 +1531,7 @@ describe("trace batch queue", () => {
         "langfuse.trace_batch.observation_count",
         expect.any(Number),
       );
-      expect(summarizeAssembledTrace).not.toHaveBeenCalled();
+      expect(inputStorage.put).not.toHaveBeenCalled();
       expect(recordGauge).toHaveBeenLastCalledWith(
         "langfuse.trace_batch.active_reads",
         0,
@@ -1522,9 +1573,12 @@ describe("trace batch queue", () => {
 
     const successfulRead = traceBatchQueueProcessor(job, undefined);
     const failedRead = traceBatchQueueProcessor(job, undefined);
-    expect(recordGauge).toHaveBeenLastCalledWith(
-      "langfuse.trace_batch.active_reads",
-      2,
+    // Both reads pass the Topics settings lookup before they start streaming.
+    await vi.waitFor(() =>
+      expect(recordGauge).toHaveBeenLastCalledWith(
+        "langfuse.trace_batch.active_reads",
+        2,
+      ),
     );
     // Periodic samples keep unchanged, long-running reads visible.
     recordTraceBatchActiveReads();
@@ -1761,7 +1815,10 @@ describe("trace batch queue", () => {
         metadataBytes: 0,
         ioMetadataBytes: hasRows ? 10 : 0,
       });
-      expect(processingSpan.setAttributes).not.toHaveBeenCalled();
+      // Only Topics batch totals; no experiment attributes without an experiment.
+      expect(vi.mocked(processingSpan.setAttributes).mock.calls).toEqual(
+        hasRows ? [[{ "langfuse.topics.traces.queued": 1 }]] : [],
+      );
       expect(recordDistribution).toHaveBeenCalledWith(
         "langfuse.trace_batch.input_bytes",
         hasRows ? 5 : 0,

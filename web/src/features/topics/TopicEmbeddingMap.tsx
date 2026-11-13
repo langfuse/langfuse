@@ -1,12 +1,10 @@
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { type RouterOutputs } from "@/src/utils/api";
-import { EmbeddingMapView } from "./EmbeddingMapView";
+import { TopicMapExplorer as EmbeddingMapView } from "@/src/features/topics/map/TopicMapExplorer";
 import { TopicMapLoading } from "./TopicMapLoading";
 
 export function TopicEmbeddingMap({
-  projectId,
   query,
-  onOpenTrace,
   topics,
   selectedTopic,
   onSelectTopic,
@@ -14,6 +12,7 @@ export function TopicEmbeddingMap({
   selectedTraceId,
   matchingTraceIds,
   fillContainer = false,
+  previewOnSelect = false,
 }: TopicEmbeddingMapProps) {
   if (query.error)
     return (
@@ -29,13 +28,11 @@ export function TopicEmbeddingMap({
   if (query.data.status !== "ready")
     return (
       <p className="text-muted-foreground rounded-lg border p-4 text-sm">
-        {query.data.reason ?? "This run has no saved embedding projection."}
+        {query.data.reason ?? "This scan has no saved embedding projection."}
       </p>
     );
   return (
     <EmbeddingMapView
-      projectId={projectId}
-      onOpenTrace={onOpenTrace}
       data={query.data}
       topics={topics}
       selectedTopic={selectedTopic}
@@ -44,17 +41,16 @@ export function TopicEmbeddingMap({
       selectedTraceId={selectedTraceId}
       matchingTraceIds={matchingTraceIds}
       fillContainer={fillContainer}
+      previewOnSelect={previewOnSelect}
     />
   );
 }
 
 type TopicEmbeddingMapProps = {
-  projectId: string;
   query: {
     data?: RouterOutputs["topics"]["map"];
     error: { message: string } | null;
   };
-  onOpenTrace: (traceId: string) => void;
   topics: Topic[];
   selectedTopic: string | null;
   onSelectTopic: (id: string | null) => void;
@@ -62,9 +58,10 @@ type TopicEmbeddingMapProps = {
   selectedTraceId: string | null;
   matchingTraceIds?: ReadonlySet<string>;
   fillContainer?: boolean;
+  previewOnSelect?: boolean;
 };
 
 type Topic = Pick<
-  RouterOutputs["topics"]["currentResults"][number]["topics"][number],
+  RouterOutputs["topics"]["currentResults"]["facets"][number]["topics"][number],
   "id" | "name"
 > & { description?: string };

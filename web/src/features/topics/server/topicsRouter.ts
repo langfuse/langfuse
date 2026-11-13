@@ -2,21 +2,22 @@ import { z } from "zod";
 import { createHash } from "node:crypto";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import {
+  getTopicSetupTraceNames,
   getTracingReadinessSettings,
-  type Transcript,
 } from "@langfuse/shared/src/server";
 import {
   topicEmbeddingConfigSchema,
   topicExecutionInputSchema,
   topicIdSchema,
   topicFacetRefSchema,
-  topicTraceIdSchema,
+  topicProcessingConfigSchema,
   topicRuleConfigSchema,
   topicTimeRangeSchema,
   topicsAutomaticProcessingSchema,
+  TOPICS_MAX_TIME_RANGE_MS,
   topicsModelSettingsSchema,
   topicsSetupSchema,
-  type TopicTimeRange,
+  topicRuleFilterError,
   type TopicExecutionSummary,
   type TopicFacetRef,
 } from "@langfuse/shared/topics";
@@ -25,9 +26,11 @@ import {
   readTopicExecutionForRequest,
   readTopicExecutionSummary,
   readTopicExecutionTraceErrors,
+  getTopicExecutionCosts,
   getTopicSummaryCounts,
   listTopicExecutions,
   listTopicFacets,
+  isTopicsProjectEnabled,
   getTopicFacetVersion,
   getLatestFacetSummaries,
   createTopicFacet,
@@ -36,18 +39,18 @@ import {
   getTopicRule,
   saveTopicRule,
   getTopicRun,
-  listTopicSummaries,
   readTopicMapAssignments,
-  loadTopicTranscript,
-  isTopicsEnabled,
-  isTopicsProjectEnabled,
   getTopicsModels,
   readTopicsModelSettings,
   checkTopicsModelSettings,
   saveTopicsSetup,
   setTopicsAutomaticProcessing,
+  setTopicRuleEnabled,
   enqueueTopicExecution,
   getTopicExecutionQueueState,
+  getEnabledTopicsModels,
+  readTopicRuleSetup,
+  startTopicRuleSetup,
 } from "@langfuse/shared/topics/server";
 import {
   createTRPCRouter,
@@ -57,40 +60,87 @@ import {
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
-import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
+import { canViewTopics } from "@/src/features/topics/topicsAccess";
 import {
   previewTopicTraces,
   resolveTopicTraceSelection,
+  countTopicSetupTraces,
+  selectTopicSetupTraces,
   topicTraceSelectionSchema,
   topicTriggerInputSchema,
 } from "./traceSelection";
 
-import { currentTopicResults } from "./currentResults";
+import {
+  analysisTopicResults,
+  currentTopicResults,
+  listTopicTraces,
+  traceFacetResults,
+} from "./currentResults";
+import {
+  previewTopicAnalysis,
+  startTopicAnalysis,
+  topicMapsOverview,
+} from "./slices";
+import { topicFilterOptions, tracesTopics } from "./traceTopics";
+import { TOPIC_SETUP_BACKFILL_LIMIT } from "../topic-setup-flow";
 
 const projectInput = z.object({ projectId: topicIdSchema });
+// Covers the gap between a trace's first and last event (p99 is about 4 minutes).
+const SETUP_TRACE_SPAN_MARGIN_MS = 5 * 60_000;
 const executionInput = projectInput.extend({ executionId: topicIdSchema });
 const resultInput = projectInput.extend({
   timeRange: topicTimeRangeSchema.refine(
-    ({ from, to }) => to.getTime() - from.getTime() <= 93 * 86_400_000,
+    ({ from, to }) => to.getTime() - from.getTime() <= TOPICS_MAX_TIME_RANGE_MS,
     "Select a time range of at most 93 days.",
   ),
 });
-const mapInput = resultInput.extend({ runId: topicIdSchema });
+const mapInput = projectInput.extend({ runId: topicIdSchema });
+const analysisFilterInput = projectInput.extend({
+  filter: topicRuleConfigSchema.shape.filter,
+  timeRange: resultInput.shape.timeRange,
+  facets: z.array(topicFacetRefSchema).min(1),
+});
+const tracesInput = projectInput.extend({
+  facetId: topicIdSchema,
+  /** A rule's live map or an analysis snapshot; omitted means every rule. */
+  ruleId: topicIdSchema.optional(),
+  analysisId: topicIdSchema.optional(),
+  topicIds: z
+    .object({
+      operator: z.enum(["any of", "none of"]),
+      values: z.array(z.string()).max(1000),
+    })
+    .optional(),
+  statuses: z
+    .object({
+      operator: z.enum(["any of", "none of"]),
+      values: z.array(
+        z.enum([
+          "assigned",
+          "outlier",
+          "awaiting_map",
+          "not_applicable",
+          "insufficient_input",
+        ]),
+      ),
+    })
+    .optional(),
+  assigned: z.boolean().optional(),
+  traceId: z.string().min(1).optional(),
+  cursor: z
+    .object({ timestamp: z.date(), traceId: z.string(), facetId: z.string() })
+    .optional(),
+});
 const topicsProcedure = protectedProjectProcedureWithoutTracing
   .input(projectInput)
   .use(({ ctx, input, next }) => {
-    if (
-      !isTopicsEnabled() ||
-      getContextualFeatureFlags(ctx.session.user, {
-        projectId: input.projectId,
-      })?.langfuseTopics !== true
-    )
+    // The allowlist comes from env here, so admins outside the project are covered too.
+    const project = {
+      id: input.projectId,
+      topicsEnabled: isTopicsProjectEnabled(input.projectId),
+    };
+    if (!canViewTopics(ctx.session, project))
       throw new LangfuseNotFoundError("Topics is not available.");
-    throwIfNoProjectAccess({
-      session: ctx.session,
-      projectId: input.projectId,
-      scope: "topics:read",
-    });
     return next();
   });
 const topicsWriteProcedure = topicsProcedure.use(({ ctx, input, next }) => {
@@ -210,6 +260,7 @@ type TopicMap = {
   points: {
     traceId: string;
     summary: string;
+    unitStartTime: string;
     topicId: string | null;
     outcome: "assigned" | "outlier" | "unassigned";
     x: number;
@@ -217,10 +268,10 @@ type TopicMap = {
   }[];
   unpositionedCount: number;
 };
+/** The run's own discovery cohort, independent of the page's time range. */
 async function publishedTopicMap(input: {
   projectId: string;
   runId: string;
-  timeRange: TopicTimeRange;
 }): Promise<TopicMap> {
   const run = await getTopicRun(input.projectId, input.runId);
   if (!run || run.projectId !== input.projectId)
@@ -233,12 +284,15 @@ async function publishedTopicMap(input: {
     unpositionedCount: 0,
   };
   if (run.status !== "completed") return unavailable;
+  const cohortRange = topicTimeRangeSchema.safeParse(run.config.timeRange);
+  if (!cohortRange.success)
+    return { ...unavailable, reason: "This map has no saved cohort window." };
   const discoveryAssignments = (
     await readTopicMapAssignments(
       input.projectId,
       { facetId: run.facetId, version: run.facetVersion },
       run.id,
-      input.timeRange,
+      cohortRange.data,
     )
   ).sort((a, b) => (a.traceId ?? "").localeCompare(b.traceId ?? ""));
   if (!discoveryAssignments.length)
@@ -269,7 +323,8 @@ async function publishedTopicMap(input: {
     input.projectId,
     run.facetId,
     run.facetVersion,
-    input.timeRange,
+    cohortRange.data,
+    discoveryAssignments.map((row) => row.traceId!),
   );
   const byTraceId = new Map(
     summaries
@@ -298,6 +353,7 @@ async function publishedTopicMap(input: {
         {
           traceId: row.traceId,
           summary: row.summary,
+          unitStartTime: row.unitStartTime,
           topicId: assignment?.topicId ?? null,
           outcome,
           x,
@@ -316,10 +372,67 @@ async function publishedTopicMap(input: {
 }
 
 export const topicsRouter = createTRPCRouter({
+  /** Counts per facet over its published map's window; the page has no time filter. */
   currentResults: topicsProcedure
-    .input(resultInput)
+    .input(projectInput.extend({ ruleId: topicIdSchema.optional() }))
     .query(({ input }) =>
-      currentTopicResults(input.projectId, input.timeRange),
+      currentTopicResults(input.projectId, undefined, {
+        ruleId: input.ruleId,
+      }),
+    ),
+  /** One page of a facet's traces; filters and paging run in ClickHouse. */
+  traces: topicsProcedure
+    .input(tracesInput)
+    .query(({ input }) => listTopicTraces(input)),
+  /** Tracing table column: current topics for the visible page, loaded after the rows. */
+  forTraces: topicsProcedure
+    .input(
+      projectInput.extend({
+        traces: z
+          .array(z.object({ traceId: z.string().min(1), timestamp: z.date() }))
+          .min(1)
+          .max(500),
+      }),
+    )
+    .query(({ input }) => tracesTopics(input.projectId, input.traces)),
+  filterOptions: topicsProcedure.query(({ input }) =>
+    topicFilterOptions(input.projectId),
+  ),
+  /** Rule maps and one-off analyses for the map picker and the Rules page. */
+  maps: topicsProcedure.query(({ input }) =>
+    topicMapsOverview(input.projectId),
+  ),
+  analysisResults: topicsProcedure
+    .input(executionInput)
+    .query(({ input }) =>
+      analysisTopicResults(input.projectId, input.executionId),
+    ),
+  previewAnalysis: topicsProcedure
+    .input(analysisFilterInput)
+    .query(async ({ input }) => {
+      await requireFacetVersions(input.projectId, input.facets);
+      return previewTopicAnalysis(input);
+    }),
+  startAnalysis: topicsWriteProcedure
+    .input(
+      analysisFilterInput.extend({
+        label: z.string().trim().min(1).max(100),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      // One-off scans accept only filters a live scan could save.
+      const filterError = topicRuleFilterError(input.filter);
+      if (filterError) throw new InvalidRequestError(filterError);
+      await requireFacetVersions(input.projectId, input.facets);
+      return startTopicAnalysis(input, ctx.session.user.id);
+    }),
+  /** Trace header: every facet result of one trace, with its summary. */
+  forTrace: topicsProcedure
+    .input(
+      projectInput.extend({ traceId: z.string().min(1), timestamp: z.date() }),
+    )
+    .query(({ input }) =>
+      traceFacetResults(input.projectId, input.traceId, input.timestamp),
     ),
   previewTraces: topicsProcedure
     .input(topicTraceSelectionSchema)
@@ -349,9 +462,15 @@ export const topicsRouter = createTRPCRouter({
         id: topicIdSchema.optional(),
         name: z.string().trim().min(1).max(100),
         facetIds: z.array(topicIdSchema).min(1),
+        sampling: z.number().gt(0).max(1).optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      const filterError = topicRuleFilterError(input.filter);
+      if (filterError) throw new InvalidRequestError(filterError);
+      const before = input.id
+        ? await getTopicRule(input.projectId, input.id)
+        : null;
       const rule = await saveTopicRule({
         ...input,
         userId: ctx.session.user.id,
@@ -361,14 +480,33 @@ export const topicsRouter = createTRPCRouter({
         resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
         resourceId: rule.id,
         action: input.id ? "update" : "create",
+        ...(before ? { before } : {}),
         after: rule,
       });
       return rule;
     }),
-  modelSettings: topicsProcedure.query(async ({ input }) => ({
-    ...(await readTopicsModelSettings(input.projectId)),
-    processingAvailable: isTopicsProjectEnabled(input.projectId),
-  })),
+  setRuleEnabled: topicsWriteProcedure
+    .input(projectInput.extend({ id: topicIdSchema, enabled: z.boolean() }))
+    .mutation(async ({ input, ctx }) => {
+      const before = await getTopicRule(input.projectId, input.id);
+      const rule = await setTopicRuleEnabled(
+        input.projectId,
+        input.id,
+        input.enabled,
+      );
+      await auditLog({
+        session: ctx.session,
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+        resourceId: rule.id,
+        action: "update",
+        before,
+        after: rule,
+      });
+      return rule;
+    }),
+  modelSettings: topicsProcedure.query(({ input }) =>
+    readTopicsModelSettings(input.projectId),
+  ),
   tracingReadinessSettings: topicsProcedure.query(({ input }) =>
     getTracingReadinessSettings(input.projectId),
   ),
@@ -383,29 +521,26 @@ export const topicsRouter = createTRPCRouter({
       const rule = await auditedTopicConfigSave(ctx, projectId, () =>
         saveTopicsSetup(projectId, setup, ctx.session.user.id),
       );
-      await auditLog({
-        session: ctx.session,
-        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
-        resourceId: rule.id,
-        action: setup.ruleId ? "update" : "create",
-        after: rule,
-      });
+      if (rule)
+        await auditLog({
+          session: ctx.session,
+          resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+          resourceId: rule.id,
+          action: setup.ruleId ? "update" : "create",
+          after: rule,
+        });
       return rule;
     }),
   setAutomaticProcessing: topicsWriteProcedure
     .input(topicsAutomaticProcessingSchema.extend({ projectId: topicIdSchema }))
     .mutation(async ({ input: { projectId, ...input }, ctx }) => {
-      if (input.enabled && !isTopicsProjectEnabled(projectId))
-        throw new InvalidRequestError(
-          "Topics processing is not enabled for this project.",
-        );
       const { ruleBefore, ruleAfter } = await auditedTopicConfigSave(
         ctx,
         projectId,
         () =>
           setTopicsAutomaticProcessing(projectId, input, ctx.session.user.id),
       );
-      if (ruleBefore.sampling !== ruleAfter.sampling)
+      if (ruleBefore && ruleAfter && ruleBefore.sampling !== ruleAfter.sampling)
         await auditLog({
           session: ctx.session,
           resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
@@ -414,7 +549,7 @@ export const topicsRouter = createTRPCRouter({
           before: ruleBefore,
           after: ruleAfter,
         });
-      return { enabled: input.enabled, sampling: ruleAfter.sampling };
+      return { enabled: input.enabled, sampling: ruleAfter?.sampling ?? null };
     }),
   summaryCounts: topicsProcedure
     .input(
@@ -435,16 +570,33 @@ export const topicsRouter = createTRPCRouter({
         input.timeRange,
       );
     }),
-  executions: topicsProcedure.query(async ({ input }) =>
-    Promise.all(
-      (await listTopicExecutions(input.projectId)).map(recoverExecutionState),
-    ),
-  ),
-  execution: topicsProcedure
-    .input(executionInput)
-    .query(({ input }) =>
-      executionWithRecovery(input.projectId, input.executionId),
-    ),
+  executions: topicsProcedure.query(async ({ input }) => {
+    const listed = await listTopicExecutions(input.projectId);
+    const [executions, costs] = await Promise.all([
+      Promise.all(listed.map(recoverExecutionState)),
+      getTopicExecutionCosts(
+        input.projectId,
+        listed
+          .filter((execution) => execution.input.operation === "process")
+          .map((execution) => execution.id),
+      ),
+    ]);
+    return executions.map((execution) => ({
+      ...execution,
+      estimatedCost: costs[execution.id] ?? null,
+    }));
+  }),
+  execution: topicsProcedure.input(executionInput).query(async ({ input }) => {
+    const execution = await executionWithRecovery(
+      input.projectId,
+      input.executionId,
+    );
+    const costs = await getTopicExecutionCosts(
+      input.projectId,
+      execution.input.operation === "process" ? [execution.id] : [],
+    );
+    return { ...execution, estimatedCost: costs[execution.id] ?? null };
+  }),
   traceErrors: topicsProcedure
     .input(executionInput)
     .query(async ({ input }) => {
@@ -455,13 +607,121 @@ export const topicsRouter = createTRPCRouter({
       if (!execution) throw new LangfuseNotFoundError("Execution not found.");
       return readTopicExecutionTraceErrors(execution);
     }),
+  setupTraceCounts: topicsProcedure
+    .input(
+      projectInput.extend({
+        // Counts the stored rule's filter too, which saveRule validates less strictly.
+        filter: topicRuleConfigSchema.shape.filter.default([]),
+      }),
+    )
+    .query(({ input }) =>
+      countTopicSetupTraces({
+        projectId: input.projectId,
+        filter: input.filter,
+        now: new Date(),
+      }),
+    ),
+  setupTraceNames: topicsProcedure.query(({ input }) =>
+    getTopicSetupTraceNames({ projectId: input.projectId, now: new Date() }),
+  ),
+  /**
+   * Builds a rule's first map: reuses summaries, seeds the shortfall, then fits.
+   * Null when the rule is paused or automatic processing is off.
+   */
+  startRuleSetup: topicsWriteProcedure
+    .input(projectInput.extend({ ruleId: topicIdSchema }))
+    .mutation(async ({ input }) => {
+      const rule = await getTopicRule(input.projectId, input.ruleId);
+      if (!rule) throw new LangfuseNotFoundError("Topic rule not found.");
+      const processing = await getEnabledTopicsModels([input.projectId]);
+      if (rule.enabled === false || !processing.has(input.projectId))
+        return null;
+      return startTopicRuleSetup(input.projectId, input.ruleId);
+    }),
+  ruleSetupStatus: topicsProcedure
+    .input(projectInput.extend({ ruleId: topicIdSchema }))
+    .query(({ input }) => readTopicRuleSetup(input.projectId, input.ruleId)),
+  /** Summarizes recent finished traces, then generates topics over the same window. */
+  startSetup: topicsWriteProcedure
+    .input(
+      projectInput.extend({
+        requestId: topicIdSchema,
+        sampling: z.number().gt(0).max(1),
+        facets: z.array(topicFacetRefSchema).min(1),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const { summary, embedding } = await requireTopicsModels(input.projectId);
+      // Hash only the caller's input: a retry must find this run, not re-select traces.
+      const requestHash = createHash("sha256")
+        .update(
+          JSON.stringify({
+            input,
+            summaryModel: summary.model,
+            embeddingModel: embedding.model,
+          }),
+        )
+        .digest("hex");
+      const existing = await readTopicExecutionForRequest(
+        input.projectId,
+        input.requestId,
+        requestHash,
+      );
+      if (existing) {
+        if (existing.status === "queued")
+          await enqueueTopicExecution(input.projectId, existing.id);
+        return {
+          id: existing.id,
+          traceCount: existing.facets[0]?.counts.requested ?? 0,
+        };
+      }
+      await requireFacetVersions(input.projectId, input.facets);
+      const now = new Date();
+      // The backfill selects what the first rule matches, as ingestion will.
+      const [rule] = await listTopicRules(input.projectId);
+      const { traceIds, days } = await selectTopicSetupTraces({
+        projectId: input.projectId,
+        filter: rule?.filter ?? [],
+        sampling: input.sampling,
+        limit: TOPIC_SETUP_BACKFILL_LIMIT,
+        now,
+      });
+      if (traceIds.length === 0) return { id: null, traceCount: 0 };
+      const execution = await createTopicExecution(
+        {
+          operation: "process",
+          projectId: input.projectId,
+          requestId: input.requestId,
+          facets: input.facets,
+          traceIds,
+          reuseExistingSummaries: true,
+          embeddingConfig: {
+            embeddingModel: embedding.model,
+            embeddingDimensions: embedding.dimensions,
+          },
+          processingConfig: topicProcessingConfigSchema.parse({
+            summaryModel: summary.model,
+          }),
+          thenUpdate: {
+            // Summaries date from a trace's first event, which can precede the window.
+            timeRange: {
+              from: new Date(
+                now.getTime() - days * 86_400_000 - SETUP_TRACE_SPAN_MARGIN_MS,
+              ),
+              to: now,
+            },
+          },
+        },
+        requestHash,
+        ctx.session.user.id,
+      );
+      if (execution.status === "queued")
+        await enqueueTopicExecution(input.projectId, execution.id, traceIds);
+      return { id: execution.id, traceCount: traceIds.length };
+    }),
   trigger: topicsWriteProcedure
     .input(topicTriggerInputSchema)
     .mutation(async ({ input, ctx }) => {
-      if (!isTopicsProjectEnabled(input.projectId))
-        throw new InvalidRequestError(
-          "Topics processing is not enabled for this project.",
-        );
       const { summary, embedding } = await requireTopicsModels(input.projectId);
       const models = {
         summaryModel: summary.model,
@@ -481,34 +741,14 @@ export const topicsRouter = createTRPCRouter({
           await enqueueTopicExecution(input.projectId, existing.id);
         return { id: existing.id };
       }
-      const ruleId = input.operation === "process" ? input.ruleId : undefined;
-      const rule = ruleId ? await getTopicRule(input.projectId, ruleId) : null;
-      if (ruleId && !rule)
-        throw new InvalidRequestError("Topic rule not found in this project.");
-      if (rule && !("selection" in input))
+      // Processing past traces writes rule-agnostic summaries; rules never backfill.
+      if (input.operation === "process" && input.ruleId)
         throw new InvalidRequestError(
-          "Topic rules require a filtered trace selection.",
+          "Process past traces with a trace filter instead of a rule.",
         );
+      if (input.operation === "update" && input.analysis)
+        throw new InvalidRequestError("Start scans with New scan.");
       await requireFacetVersions(input.projectId, input.facets);
-      const facetIds = new Set(input.facets.map(({ facetId }) => facetId));
-
-      if (
-        rule &&
-        (rule.facetIds.length !== facetIds.size ||
-          !rule.facetIds.every((id) => facetIds.has(id)))
-      )
-        throw new InvalidRequestError(
-          "Select the facets attached to this Topic rule, or save its changes first.",
-        );
-      if (rule && "selection" in input) {
-        // Reject stale previews instead of silently running a newly edited rule.
-        const selected = topicRuleConfigSchema.parse(input.selection);
-        const saved = topicRuleConfigSchema.parse(rule);
-        if (JSON.stringify(selected) !== JSON.stringify(saved))
-          throw new InvalidRequestError(
-            "This Topic rule changed. Reload it and preview the traces again.",
-          );
-      }
       const resolvedInput = await resolveTopicTraceSelection(input, ctx.prisma);
       const configuredInput = topicExecutionInputSchema.parse({
         ...resolvedInput,
@@ -543,10 +783,6 @@ export const topicsRouter = createTRPCRouter({
   retry: topicsWriteProcedure
     .input(executionInput)
     .mutation(async ({ input }) => {
-      if (!isTopicsProjectEnabled(input.projectId))
-        throw new InvalidRequestError(
-          "Topics processing is not enabled for this project.",
-        );
       const execution = await executionWithRecovery(
         input.projectId,
         input.executionId,
@@ -560,49 +796,4 @@ export const topicsRouter = createTRPCRouter({
   map: topicsProcedure
     .input(mapInput)
     .query(({ input }) => publishedTopicMap(input)),
-  inspect: topicsProcedure
-    .input(
-      projectInput.extend({
-        facetId: topicIdSchema,
-        facetVersion: topicFacetRefSchema.shape.version,
-        traceId: topicTraceIdSchema,
-        unitStartTime: z.coerce.date(),
-      }),
-    )
-    .query(async ({ input }) => {
-      const [summary] = await listTopicSummaries(
-        input.projectId,
-        {
-          facetId: input.facetId,
-          facetVersion: input.facetVersion,
-          traceIds: [input.traceId],
-        },
-        {
-          from: input.unitStartTime,
-          to: new Date(input.unitStartTime.getTime() + 1),
-        },
-      );
-      if (
-        !summary ||
-        summary.projectId !== input.projectId ||
-        summary.facetId !== input.facetId ||
-        summary.facetVersion !== input.facetVersion ||
-        summary.traceId !== input.traceId
-      )
-        throw new LangfuseNotFoundError("Trace summary not found.");
-      let transcript: Transcript | null = null;
-      try {
-        const current = await loadTopicTranscript({
-          projectId: input.projectId,
-          traceId: summary.traceId,
-        });
-        transcript = current.transcript;
-      } catch {
-        // Stored summaries remain inspectable after source retention or deletion.
-      }
-      return {
-        model: summary.summaryModel,
-        transcript,
-      };
-    }),
 });

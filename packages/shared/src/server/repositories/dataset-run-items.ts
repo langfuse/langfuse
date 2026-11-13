@@ -1,33 +1,35 @@
+import { shouldSkipScoresDedup } from "../queries/clickhouse-sql/query-options";
 import { DatasetRunItemDomain } from "../../domain/dataset-run-items";
 import { scoreBooleansAggregation } from "../queries/clickhouse-sql/query-fragments";
 import { type OrderByState } from "../../interfaces/orderBy";
-import { datasetRunItemsTableUiColumnDefinitions } from "../tableMappings";
+import { datasetRunItemsTableUiColumnDefinitions } from "../tableMappings/mapDatasetRunItemsTable";
 import { datasetRunsTableUiColumnDefinitions } from "../../tableDefinitions/mapDatasetRunsTable";
 import { datasetRunItemsTableCols } from "../../tableDefinitions/datasetRunItemsTable";
 import { datasetRunsTableCols } from "../../tableDefinitions/datasetRunsTable";
 import { FilterState } from "../../types";
+import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
-  createFilterFromFilterState,
   FilterList,
-  orderByToClickhouseSql,
   StringFilter,
   StringOptionsFilter,
-} from "../queries";
+} from "../queries/clickhouse-sql/clickhouse-filter";
+import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factory";
 import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
+  commandClickhouse,
 } from "./clickhouse";
 import { convertDatasetRunItemClickhouseToDomain } from "./dataset-run-items-converters";
 import { DatasetRunItemRecord } from "./definitions";
 import { env } from "../../env";
-import { commandClickhouse } from "./clickhouse";
+
 import Decimal from "decimal.js";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import {
   convertDateToClickhouseDateTime,
   type PreferredClickhouseService,
 } from "../clickhouse/client";
-import { ScoreAggregate } from "../../features/scores";
+import { ScoreAggregate } from "../../features/scores/interfaces/ui/types";
 
 type DatasetItemIdsByTraceIdQuery = {
   projectId: string;
@@ -358,7 +360,7 @@ const getDatasetRunsTableInternal = async <T>(
           data_type,
           string_value,
           avg(value) as avg_value
-        FROM scores s FINAL
+        FROM scores s ${shouldSkipScoresDedup(projectId) ? "" : "FINAL"}
         WHERE ${appliedScoresFilter.query}
         AND s.trace_id IN (
           SELECT dri.trace_id
@@ -670,7 +672,7 @@ const getQualifyingDatasetItems = async <T>(opts: {
          data_type,
          string_value,
          avg(value) as avg_value
-       FROM scores s FINAL
+       FROM scores s ${shouldSkipScoresDedup(projectId) ? "" : "FINAL"}
        WHERE ${appliedScoresFilter.query}
        AND s.trace_id IN (
          SELECT dri.trace_id
@@ -853,7 +855,7 @@ const getDatasetRunItemsTableInternal = async <
          data_type,
          string_value,
          avg(value) as avg_value
-       FROM scores s FINAL
+       FROM scores s ${shouldSkipScoresDedup(projectId) ? "" : "FINAL"}
        WHERE ${appliedScoresFilter.query}
        AND s.trace_id IN (
         SELECT dri.trace_id

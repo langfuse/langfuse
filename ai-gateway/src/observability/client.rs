@@ -88,7 +88,7 @@ mod tests {
 
     #[tokio::test]
     async fn middleware_preserves_safe_context_and_sanitizes_transport_errors() {
-        opentelemetry::global::set_text_map_propagator(TraceContextPropagator::new());
+        global::set_text_map_propagator(TraceContextPropagator::new());
         let exporter = InMemorySpanExporter::default();
         let provider = SdkTracerProvider::builder()
             .with_simple_exporter(exporter.clone())

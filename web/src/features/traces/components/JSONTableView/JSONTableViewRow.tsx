@@ -5,7 +5,7 @@
  */
 
 import { memo } from "react";
-import { ChevronRight, ChevronDown } from "lucide-react";
+import { ChevronRight, ChevronDown } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 import { useClickWithoutSelection } from "@/src/hooks/useClickWithoutSelection";
@@ -63,9 +63,7 @@ function JSONTableViewRowInner<T>({
         {renderRowPrefix && renderRowPrefix(item, isExpanded)}
 
         {/* Expand icon */}
-        {expandable && (
-          <ChevronIcon className="text-muted-foreground icon-base shrink-0" />
-        )}
+        {expandable && <ChevronIcon size="base" color="muted" />}
 
         {/* Column cells */}
         {columns.map((column) => {

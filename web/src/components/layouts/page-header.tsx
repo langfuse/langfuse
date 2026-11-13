@@ -1,19 +1,21 @@
-/* eslint-disable @repo/no-style-props */
-import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
-import { useEnvLabel } from "@/src/hooks/useEnvLabel";
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import { type LangfuseItemType } from "@/src/components/ItemBadge";
 import { EntityTitle } from "@/src/components/EntityTitle";
+import {
+  EntityTitleTabs,
+  type EntityTitleTabsProps,
+} from "@/src/components/EntityTitleTabs";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
-import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
-import { TopbarBrand } from "@/src/components/nav/topbar-brand";
-import { useHasAppSidebar } from "@/src/components/nav/sidebar-presence";
-import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent";
+import { InAppAiAgentButton } from "@/src/components/nav/InAppAiAgentButton";
+import { TopbarBrand } from "@/src/components/nav/TopbarBrand";
+import { useHasAppSidebar } from "@/src/components/nav/SidebarPresenceProvider";
+import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { SidebarTrigger } from "@/src/components/ui/sidebar";
 import {
   PageTabs,
   type PageTabsProps,
-} from "@/src/components/layouts/page-tabs";
+} from "@/src/components/layouts/PageTabs";
 import { cn } from "@/src/utils/tailwind";
 import { type ReactNode } from "react";
 import {
@@ -48,6 +50,8 @@ export type PageHeaderProps = {
   help?: { description: React.ReactNode; href?: string; className?: string };
   titleTooltip?: string;
   itemType?: LangfuseItemType;
+  /** Replaces the entity icon immediately before the title. */
+  titleTabs?: EntityTitleTabsProps;
   container?: boolean;
   tabsProps?: PageTabsProps;
   className?: string;
@@ -59,11 +63,14 @@ export type PageHeaderProps = {
   leadingControl?: ReactNode;
   titleBadges?: ReactNode;
   breadcrumbBadges?: ReactNode;
+  /** hideTitleRow drops the title and actions row, keeping the breadcrumb bar. */
+  hideTitleRow?: boolean;
 };
 
 const PageHeader = ({
   title,
   itemType,
+  titleTabs,
   actionButtonsLeft,
   actionButtonsRight,
   actionButtonsRightClassName,
@@ -78,9 +85,9 @@ const PageHeader = ({
   leadingControl,
   titleBadges,
   breadcrumbBadges,
+  hideTitleRow = false,
 }: PageHeaderProps) => {
   const hasAppSidebar = useHasAppSidebar();
-  const envLabel = useEnvLabel();
   const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
   // The sidebar trigger + brand mark only make sense where a real AppSidebar
   // exists to toggle/mirror. On the sidebar-less MinimalLayout (public/shared
@@ -91,7 +98,7 @@ const PageHeader = ({
     <div
       className={cn([
         "top-banner-offset bg-background sticky z-30 w-full",
-        divider && !tabsProps && "border-b",
+        divider && !tabsProps && !hideTitleRow && "border-b",
         className,
       ])}
       id="page-header"
@@ -118,7 +125,8 @@ const PageHeader = ({
             <div className="flex min-h-[43px] min-w-0 flex-wrap items-center gap-2">
               {showSidebarChrome ? (
                 <>
-                  <SidebarTrigger />
+                  {/* Above the breadcrumb trigger, whose box reaches under it. */}
+                  <SidebarTrigger className="relative z-10" />
                   {/* Brand the app in the top bar while the sidebar (which
                       owns the logo) is off-canvas below `md`. Hidden on
                       desktop where the sidebar logo is visible. */}
@@ -130,7 +138,6 @@ const PageHeader = ({
                 )
               )}
               <div className="flex flex-wrap items-center gap-1.5">
-                {envLabel.visible && <EnvLabelBadge region={envLabel.region} />}
                 <BreadcrumbComponent items={breadcrumb} />
                 {breadcrumbBadges}
               </div>
@@ -146,7 +153,7 @@ const PageHeader = ({
         </div>
 
         {/* Bottom Row */}
-        <div>
+        <div className={cn(hideTitleRow && "hidden")}>
           <div
             className={cn(
               "flex w-full flex-wrap items-center justify-between gap-1 px-4 md:flex-nowrap",
@@ -157,10 +164,15 @@ const PageHeader = ({
             {/* Left side content */}
             <div className="flex min-w-0 grow flex-wrap items-center md:grow-0">
               <div className="mr-2 flex min-w-0 items-center gap-2">
+                {titleTabs && (
+                  <div className="shrink-0">
+                    <EntityTitleTabs {...titleTabs} />
+                  </div>
+                )}
                 <div className="max-w-md min-w-0 md:max-w-none">
                   <EntityTitle
                     as="h2"
-                    type={itemType}
+                    type={titleTabs ? undefined : itemType}
                     title={title}
                     tooltip={titleTooltip}
                     help={help}

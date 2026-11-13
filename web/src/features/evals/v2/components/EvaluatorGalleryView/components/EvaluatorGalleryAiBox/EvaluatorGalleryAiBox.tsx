@@ -1,6 +1,6 @@
 import { type KeyboardEvent } from "react";
 import { useForm } from "react-hook-form";
-import { BotMessageSquare } from "lucide-react";
+import { BotMessageSquare } from "@langfuse/icons";
 
 import { Button } from "@/src/components/design-system/Button/Button";
 import { cn } from "@/src/utils/tailwind";

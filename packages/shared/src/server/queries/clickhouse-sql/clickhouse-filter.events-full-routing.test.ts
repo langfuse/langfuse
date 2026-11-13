@@ -5,12 +5,12 @@ import {
   FilterList,
   filtersRequireEventsFull,
   metadataFilterCanPruneEventsFull,
-  metadataFilterIsEventsCoreSafe,
   NullFilter,
   NumberObjectFilter,
   StringFilter,
   StringObjectFilter,
 } from "./clickhouse-filter";
+import { metadataFilterIsEventsCoreSafe } from "./events-core-truncation";
 import { createFilterFromFilterState } from "./factory";
 import { experimentItemsTableNativeUiColumnDefinitions } from "../../tableMappings/mapExperimentItemsTable";
 

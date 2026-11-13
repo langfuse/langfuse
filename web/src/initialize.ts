@@ -2,10 +2,19 @@ import { env } from "@/src/env.mjs";
 import { createUserEmailPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { prisma } from "@langfuse/shared/src/db";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
+import {
+  saveOrgMembership,
+  saveProjectMembership,
+} from "@langfuse/shared/memberships";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { CloudConfigSchema } from "@langfuse/shared";
-import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 import {
   initializeClickhouseCompatibility,
   logger,
@@ -136,16 +145,10 @@ if (env.LANGFUSE_INIT_ORG_ID) {
     initUserId = userId;
 
     // Create OrgMembership: Org -> OrgMembership <- User
-    const orgMembership = await prisma.organizationMembership.upsert({
-      where: {
-        orgId_userId: { userId, orgId: org.id },
-      },
-      update: { role: "OWNER" },
-      create: {
-        userId,
-        orgId: org.id,
-        role: "OWNER",
-      },
+    const orgMembership = await saveOrgMembership(prisma, {
+      userId,
+      orgId: org.id,
+      role: "OWNER",
     });
 
     // On EE plans with rbac-project-roles, createUserEmailPassword ->
@@ -159,20 +162,12 @@ if (env.LANGFUSE_INIT_ORG_ID) {
         entitlement: "rbac-project-roles",
       })
     ) {
-      await prisma.projectMembership.upsert({
-        where: {
-          projectId_userId: {
-            projectId: env.LANGFUSE_INIT_PROJECT_ID,
-            userId,
-          },
-        },
-        update: { role: "OWNER" },
-        create: {
-          userId,
-          orgMembershipId: orgMembership.id,
-          projectId: env.LANGFUSE_INIT_PROJECT_ID,
-          role: "OWNER",
-        },
+      await saveProjectMembership(prisma, {
+        orgId: org.id,
+        userId,
+        orgMembershipId: orgMembership.id,
+        projectId: env.LANGFUSE_INIT_PROJECT_ID,
+        role: "OWNER",
       });
     }
   }
@@ -204,7 +199,8 @@ if (env.LANGFUSE_INIT_ORG_ID) {
       existingApiKey.projectId !== env.LANGFUSE_INIT_PROJECT_ID
     ) {
       await createApiKey(prisma, {
-        owner: ProjectId(env.LANGFUSE_INIT_PROJECT_ID),
+        tenant: OrganizationId(env.LANGFUSE_INIT_ORG_ID),
+        scope: ProjectId(env.LANGFUSE_INIT_PROJECT_ID),
         role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: initUserId ? UserId(initUserId) : "system",
         name: "Provisioned API Key",

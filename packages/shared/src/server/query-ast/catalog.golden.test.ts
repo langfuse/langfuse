@@ -34,9 +34,10 @@ if (!clickhouseLocalAvailable()) {
 describeWithClickhouse("catalog parity", () => {
   for (const entry of CATALOG) {
     it(`${entry.id} (tier ${entry.tier}) compile(AST) ≡ referenceSQL`, () => {
-      const compiled = compileClickhouseQuery(entry.build(), {
-        projectId: CATALOG_PROJECT_ID,
-      });
+      const compiled = compileClickhouseQuery(
+        entry.build(),
+        CATALOG_PROJECT_ID,
+      );
 
       const left = normalizeParams(formatSql(compiled.sql), compiled.params);
       const right = normalizeParams(
@@ -72,9 +73,7 @@ describeWithClickhouseLocal("catalog JOIN execution", () => {
     expect(entry).toBeDefined();
     if (!entry) return;
 
-    const compiled = compileClickhouseQuery(entry.build(), {
-      projectId: CATALOG_PROJECT_ID,
-    });
+    const compiled = compileClickhouseQuery(entry.build(), CATALOG_PROJECT_ID);
     const refs = compiled.sql.match(/[\w.]*project_id/gi) ?? [];
     expect(refs.length).toBeGreaterThanOrEqual(3);
     for (const ref of refs) {
@@ -111,6 +110,7 @@ const CATALOG_MEMORY_DDL = `
     event_ts DateTime64(6),
     type String,
     total_cost Decimal(18, 12),
+    is_deleted UInt8,
     metadata_names Array(String),
     metadata_values Array(String)
   ) ENGINE = Memory;
@@ -153,9 +153,10 @@ describeWithClickhouseLocal("catalog tier 5-7 execution", () => {
       expect(entry).toBeDefined();
       if (!entry) return;
 
-      const compiled = compileClickhouseQuery(entry.build(), {
-        projectId: CATALOG_PROJECT_ID,
-      });
+      const compiled = compileClickhouseQuery(
+        entry.build(),
+        CATALOG_PROJECT_ID,
+      );
       const executable = substituteNamedParams(compiled.sql, compiled.params);
       executeClickhouseLocal(`${CATALOG_MEMORY_DDL}\n${executable}`);
     });
@@ -168,9 +169,7 @@ describeWithClickhouseLocal("catalog metadata semantics", () => {
     expect(entry).toBeDefined();
     if (!entry) return;
 
-    const compiled = compileClickhouseQuery(entry.build(), {
-      projectId: CATALOG_PROJECT_ID,
-    });
+    const compiled = compileClickhouseQuery(entry.build(), CATALOG_PROJECT_ID);
     const executable = substituteNamedParams(compiled.sql, compiled.params);
     const output = executeClickhouseLocal(`${CATALOG_MEMORY_DDL}
       INSERT INTO events_core (project_id, metadata_names, metadata_values)

@@ -1,22 +1,24 @@
 /* The experiment marker's colour is data — which run this is, out of the N
    selected (`getExperimentColorStyles`) — so it arrives as a class rather than
-   as a variant, the same way `DiffLabel` takes one. */
-/* eslint-disable @repo/no-style-props */
+   as a variant. */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure, react/no-unstable-nested-components */
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { EMPTY_VALUE_PLACEHOLDER } from "@/src/components/design-system/table/constants";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Metric } from "@/src/components/design-system/Metric/Metric";
 import {
   type ScoreAggregate,
   type AggregatedScoreData,
 } from "@langfuse/shared";
-import { useMemo, Fragment, useState } from "react";
+import { useMemo, Fragment } from "react";
 import {
   type BaselineDiff,
   calculateNumericDiff,
-  computeScoreDiffs,
-  DiffLabel,
-} from "@/src/features/datasets";
+} from "@/src/features/datasets/lib/calculateBaselineDiff";
+
+import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
+import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import { Separator } from "@/src/components/ui/separator";
 import { type VisibilityState } from "@tanstack/react-table";
 import {
@@ -25,19 +27,13 @@ import {
 } from "@/src/features/experiments/components/table/types";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { usdFormatter } from "@/src/utils/numbers";
-import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
-import { Copy, Check, ExternalLink, SquarePen } from "lucide-react";
+import { SquarePen } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { api } from "@/src/utils/api";
-import { Skeleton } from "@/src/components/ui/skeleton";
-import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { decomposeAggregateScoreKey } from "@/src/features/scores";
+import { decomposeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import { cn } from "@/src/utils/tailwind";
-import Link from "next/link";
-import { type ScoreLevel } from "@/src/components/score-tag";
+import { type ScoreLevel } from "@/src/components/ScoreTag";
 import { NotRecordedMetric } from "./NotRecordedMetric";
-import { describeRunComparison } from "@/src/features/experiments/fns/describeRunComparison";
+import { ExperimentScoreHover, scoreValueOf } from "./ExperimentScoreHover";
 
 type ExperimentGridCellProps = {
   projectId: string;
@@ -51,8 +47,6 @@ type ExperimentGridCellProps = {
   baselineLatencyMs?: number | null;
   observationId: string;
   traceId: string;
-  /** Render the output cell as single-line text (true) or JSON tree (false). */
-  singleLine: boolean;
   scores: ScoreAggregate;
   traceScores: ScoreAggregate;
   observationScoreOrder: string[];
@@ -101,25 +95,6 @@ type GridCellData = {
   isLoading: boolean;
 };
 
-/**
- * How one score reads in a cell: a categorical score's modal value, a numeric
- * score's average. Shared with the hover sentence beside it, which has to
- * quote the same value the cell shows.
- */
-const scoreValueOf = (aggregate?: AggregatedScoreData | null): string => {
-  if (!aggregate) return EMPTY_VALUE_PLACEHOLDER;
-  if (aggregate.type === "CATEGORICAL") {
-    if (aggregate.valueCounts && aggregate.valueCounts.length > 0) {
-      return [...aggregate.valueCounts].sort((a, b) => b.count - a.count)[0]
-        .value;
-    }
-    return aggregate.values?.[0] ?? EMPTY_VALUE_PLACEHOLDER;
-  }
-  return aggregate.average !== undefined
-    ? aggregate.average.toFixed(2)
-    : EMPTY_VALUE_PLACEHOLDER;
-};
-
 const formatLatency = (value: number) => `${(value / 1000).toFixed(4)}s`;
 const formatCost = (value: number) => usdFormatter(value, 4, 4);
 
@@ -149,149 +124,57 @@ const ScoreItem = ({
   showScoreLevelLabel: boolean;
   showBaselineDelta: boolean;
 }) => {
-  // Decompose the key to get name, source, and dataType
-  const { name, source, dataType } = decomposeAggregateScoreKey(scoreKey);
-
+  const { name } = decomposeAggregateScoreKey(scoreKey);
   const displayValue = scoreValueOf(aggregate);
 
-  const [isOpen, setIsOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const { data: metadata, isError } = api.scores.getScoreMetadataById.useQuery(
-    { projectId, id: aggregate?.id ?? "" },
-    {
-      enabled:
-        isOpen && !!projectId && !!aggregate?.id && !!aggregate.hasMetadata,
-      trpc: { context: { skipBatch: true } },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-    },
-  );
-
   return (
-    <HoverCard
-      onOpenChange={setIsOpen}
-      placement="bottom-start"
-      onClick={(event) => event.stopPropagation()}
-      content={
-        <div className="max-h-[50vh] w-96 overflow-auto p-3 text-xs break-words whitespace-normal">
-          <div className="flex flex-col gap-3">
-            <span className="font-bold">{name}</span>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
-              <dt className="text-muted-foreground">Value</dt>
-              <dd className="min-w-0">
-                {displayValue}
-                {diff?.type === "CATEGORICAL" && (
-                  <span className="text-muted-foreground ml-2 whitespace-normal">
-                    {diff.from
-                      ? `← Baseline: ${diff.from}`
-                      : "Varies from baseline"}
-                  </span>
-                )}
-              </dd>
-              <dt className="text-muted-foreground">Source</dt>
-              <dd className="capitalize">{source.toLowerCase()}</dd>
-              <dt className="text-muted-foreground">Type</dt>
-              <dd className="capitalize">{dataType.toLowerCase()}</dd>
-            </dl>
-            {aggregate?.comment && (
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Comment</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    text={copied ? "Copied" : "Copy comment"}
-                    icon={copied ? Check : Copy}
-                    onClick={async () => {
-                      await copyTextToClipboard(aggregate.comment!);
-                      setCopied(true);
-                      setTimeout(() => setCopied(false), 2000);
-                    }}
-                  />
-                </div>
-                <p className="whitespace-pre-wrap">{aggregate.comment}</p>
-              </div>
-            )}
-            {aggregate?.hasMetadata && aggregate.id && (
-              <div className="flex flex-col gap-1">
-                <span className="text-muted-foreground">Metadata</span>
-                {isError && <p>Could not load metadata.</p>}
-                {!isError && metadata !== undefined && (
-                  <JSONView json={metadata} />
-                )}
-                {!isError && metadata === undefined && (
-                  <Skeleton className="h-12 w-full" />
-                )}
-              </div>
-            )}
-            {aggregate?.executionTraceId && (
-              <Link
-                href={`/project/${projectId}/traces/${encodeURIComponent(aggregate.executionTraceId)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 hover:underline"
-              >
-                <ExternalLink className="icon-sm" />
-                View execution trace
-              </Link>
-            )}
-          </div>
-        </div>
-      }
+    <ExperimentScoreHover
+      scoreKey={scoreKey}
+      aggregate={aggregate}
+      diff={diff}
+      projectId={projectId}
     >
-      {({ getTriggerProps }) => (
-        <div
-          tabIndex={0}
-          className="flex cursor-default items-center justify-between gap-2 text-xs"
-          {...getTriggerProps()}
-        >
-          <div className="flex min-w-0 items-center gap-1">
-            <span className="text-muted-foreground line-clamp-1 min-w-0">
-              {showScoreLevelLabel &&
-                `${level === "trace" ? "Trace" : "Observation"}: `}
-              {name}
-            </span>
-          </div>
-          {/* Comparison rows reserve a delta slot even when their values are equal. */}
-          <div className={valueColumnsClass(showBaselineDelta)}>
-            <span className="flex max-w-full min-w-0 items-center gap-1">
-              {displayValue === EMPTY_VALUE_PLACEHOLDER ? (
-                <span className="text-xs">
-                  <EmptyValue />
-                </span>
-              ) : (
-                <Badge
-                  variant="secondary"
-                  className="min-w-0 truncate text-xs font-bold"
-                  title=""
-                >
-                  {displayValue}
-                </Badge>
-              )}
-            </span>
-            {diff?.type === "CATEGORICAL" && (
-              <span
-                className="text-muted-foreground text-xs"
-                aria-label="Changed compared to baseline"
-                title="Changed compared to baseline"
-              >
-                ↻
-              </span>
-            )}
-            {diff?.type === "NUMERIC" && (
-              <DiffLabel
-                variant="ghost"
-                className="px-0"
-                diff={diff}
-                formatValue={(value) => value.toFixed(2)}
-              />
-            )}
-          </div>
+      <div
+        tabIndex={0}
+        className="flex cursor-default items-center justify-between gap-2 text-xs"
+      >
+        <div className="flex min-w-0 items-center gap-1">
+          <span className="text-muted-foreground line-clamp-1 min-w-0">
+            {showScoreLevelLabel &&
+              `${level === "trace" ? "Trace" : "Observation"}: `}
+            {name}
+          </span>
         </div>
-      )}
-    </HoverCard>
+        {/* Comparison rows reserve a delta slot even when their values are equal. */}
+        <div className={valueColumnsClass(showBaselineDelta)}>
+          <span className="flex max-w-full min-w-0 items-center gap-1">
+            {displayValue === EMPTY_VALUE_PLACEHOLDER ? (
+              <span className="text-xs">
+                <EmptyValue />
+              </span>
+            ) : (
+              <Badge color="filled" text={displayValue} title="" />
+            )}
+          </span>
+          {diff?.type === "CATEGORICAL" && (
+            <span
+              className="text-muted-foreground text-xs"
+              aria-label="Changed compared to baseline"
+              title="Changed compared to baseline"
+            >
+              ↻
+            </span>
+          )}
+          {diff?.type === "NUMERIC" && (
+            <DiffLabel
+              plain
+              diff={diff}
+              formatValue={(value) => value.toFixed(2)}
+            />
+          )}
+        </div>
+      </div>
+    </ExperimentScoreHover>
   );
 };
 
@@ -366,17 +249,10 @@ const CellMetadataFooter = ({
               )}
               {data.latencyDiff && (
                 <DiffLabel
-                  variant="ghost"
-                  className="px-0"
+                  plain
                   diff={data.latencyDiff}
                   preferNegativeDiff
                   formatValue={formatLatency}
-                  title={describeRunComparison({
-                    baselineName: data.baselineExperimentName,
-                    baselineText: formatLatency(data.baselineLatencyMs ?? 0),
-                    currentText: formatLatency(data.latencyMs ?? 0),
-                    verb: "took",
-                  })}
                 />
               )}
             </div>
@@ -396,17 +272,10 @@ const CellMetadataFooter = ({
             )}
             {data.totalCostDiff && (
               <DiffLabel
-                variant="ghost"
-                className="px-0"
+                plain
                 diff={data.totalCostDiff}
                 preferNegativeDiff
                 formatValue={formatCost}
-                title={describeRunComparison({
-                  baselineName: data.baselineExperimentName,
-                  baselineText: formatCost(data.baselineTotalCost ?? 0),
-                  currentText: formatCost(data.totalCost ?? 0),
-                  verb: "cost",
-                })}
               />
             )}
           </div>
@@ -416,9 +285,7 @@ const CellMetadataFooter = ({
         <div className="flex items-center justify-between gap-2">
           <span className="text-muted-foreground">Status</span>
           <div className={valueColumnsClass(data.showBaselineDelta)}>
-            <Badge variant="ghost" className="px-0">
-              {data.level}
-            </Badge>
+            <Metric value={data.level} />
           </div>
         </div>
       )}
@@ -485,7 +352,6 @@ export const ExperimentGridCell = ({
   baselineLatencyMs,
   observationId,
   traceId,
-  singleLine,
   scores,
   traceScores,
   observationScoreOrder,
@@ -592,7 +458,7 @@ export const ExperimentGridCell = ({
           },
         ] satisfies CellRowDef<GridCellData>[])
       : []),
-    // Output section. Display chooses text or JSON. Row height does not.
+    // Output section. JSON tree. Row height does not collapse it to one line.
     {
       accessorKey: "output",
       header: "Output",
@@ -602,14 +468,14 @@ export const ExperimentGridCell = ({
             isLoading
             variant="output"
             followRowHeight={false}
-            singleLine={singleLine}
+            singleLine={false}
           />
         ) : (
           <ConnectedIOTableCell
             data={data.output ?? null}
             variant="output"
             followRowHeight={false}
-            singleLine={singleLine}
+            singleLine={false}
           />
         ),
     },

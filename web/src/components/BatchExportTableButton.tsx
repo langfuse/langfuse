@@ -10,7 +10,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
-import { Download, Info } from "lucide-react";
+import { Download, Info } from "@langfuse/icons";
 import {
   type BatchExportTableName,
   exportOptions,
@@ -20,7 +20,7 @@ import {
 } from "@langfuse/shared";
 import React from "react";
 import { api } from "@/src/utils/api";
-import { showSuccessToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 export type BatchExportTableButtonProps = {
   projectId: string;
@@ -29,6 +29,7 @@ export type BatchExportTableButtonProps = {
   filterState: any;
   searchQuery?: any;
   searchType?: any;
+  disabledReason?: string;
 };
 
 export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
@@ -92,7 +93,7 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          variant="outline"
+          variant="ghost"
           size="icon"
           title="Export"
           className="hidden md:inline-flex"
@@ -100,7 +101,7 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
           {isExporting ? (
             <Spinner size="sm" />
           ) : (
-            <Download className="icon-base text-icon-foreground" />
+            <Download size="base" color="default" />
           )}
         </Button>
       </DropdownMenuTrigger>
@@ -110,21 +111,27 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
           {warningMessage && (
             <div className="text-muted-foreground px-2 py-1.5 text-xs">
               <div className="flex items-start gap-1.5">
-                <Info className="icon-base mt-0.5 shrink-0" />
+                <Info size="base" __rawClassName="mt-0.5" />
                 <span>{warningMessage}</span>
               </div>
             </div>
           )}
           <DropdownMenuSeparator />
-          {Object.entries(exportOptions).map(([key, options]) => (
-            <DropdownMenuItem
-              key={key}
-              className="capitalize"
-              onClick={() => handleExport(key as BatchExportFileFormat)}
-            >
-              as {options.label}
-            </DropdownMenuItem>
-          ))}
+          {props.disabledReason ? (
+            <div className="text-muted-foreground px-2 py-1.5 text-sm">
+              {props.disabledReason}
+            </div>
+          ) : (
+            Object.entries(exportOptions).map(([key, options]) => (
+              <DropdownMenuItem
+                key={key}
+                className="capitalize"
+                onClick={() => handleExport(key as BatchExportFileFormat)}
+              >
+                as {options.label}
+              </DropdownMenuItem>
+            ))
+          )}
         </DropdownMenuContent>
       </DropdownMenuPortal>
     </DropdownMenu>

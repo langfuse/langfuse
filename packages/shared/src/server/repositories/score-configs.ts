@@ -3,8 +3,10 @@ import {
   filterAndValidateDbScoreConfigList,
   validateDbScoreConfigSafe,
 } from "../../features/scoreConfigs/validation";
-import { LangfuseNotFoundError, InternalServerError } from "../../errors";
+import { LangfuseNotFoundError } from "../../errors/NotFoundError";
+import { InternalServerError } from "../../errors/InternalServerError";
 import { traceException } from "../instrumentation";
+import { logger } from "../logger";
 
 export const listScoreConfigs = async ({
   projectId,
@@ -31,9 +33,8 @@ export const listScoreConfigs = async ({
     }),
   ]);
 
-  const configs = filterAndValidateDbScoreConfigList(
-    rawConfigs,
-    traceException,
+  const configs = filterAndValidateDbScoreConfigList(rawConfigs, (error) =>
+    logger.warn("Invalid score config omitted from response", { error }),
   );
 
   return {

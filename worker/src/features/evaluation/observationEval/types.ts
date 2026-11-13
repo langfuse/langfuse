@@ -12,6 +12,7 @@ import type {
   EvalTargetObject,
   FilterState,
   ObservationVariableMapping,
+  TopicsTargetObject,
 } from "@langfuse/shared";
 
 /**
@@ -70,6 +71,14 @@ export type EvaluationRuleWithAssignments = Pick<
   assignments: ObservationEvalAssignment[];
 };
 
+export type TraceTranscriptEvalRule = Omit<
+  EvaluationRuleWithAssignments,
+  "targetObject" | "ruleId"
+> & {
+  targetObject: typeof TopicsTargetObject;
+  ruleId: string;
+};
+
 /**
  * What the scheduler matches an observation against: an evaluation rule, or
  * the legacy job configuration it replaced (still reachable through manual
@@ -123,5 +132,7 @@ export interface ObservationEvalSchedulerDeps {
      * evaluator version mapping.
      */
     variableMapping?: ObservationVariableMapping[];
+    /** Batch action of a manual batch run; omitted for live ingestion. */
+    batchActionId?: string;
   }) => Promise<void>;
 }

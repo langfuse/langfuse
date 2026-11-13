@@ -8,6 +8,7 @@ import {
 
 type UseExperimentItemsTableDataParams = {
   projectId: string;
+  filtersValid?: boolean;
   baseExperimentId?: string;
   compExperimentIds: string[];
   filterByExperiment: {
@@ -36,6 +37,7 @@ type UseExperimentItemsTableDataParams = {
  */
 export function useExperimentItemsTableData({
   projectId,
+  filtersValid = true,
   baseExperimentId,
   compExperimentIds,
   filterByExperiment,
@@ -45,7 +47,7 @@ export function useExperimentItemsTableData({
   ioCharLimit,
 }: UseExperimentItemsTableDataParams) {
   const hasSelectedRuns =
-    Boolean(baseExperimentId) || compExperimentIds.length > 0;
+    filtersValid && (Boolean(baseExperimentId) || compExperimentIds.length > 0);
 
   // Prepare query payloads
   const getCountPayload = useMemo(
@@ -206,7 +208,10 @@ export function useExperimentItemsTableData({
   // already false while its empty data would read as the answer. The payload
   // check keeps the flag false when there is genuinely nothing to fetch.
   const ioLoading =
-    batchIOPayload !== null && !batchIOQuery.isSuccess && !batchIOQuery.isError;
+    hasSelectedRuns &&
+    batchIOPayload !== null &&
+    !batchIOQuery.isSuccess &&
+    !batchIOQuery.isError;
   const isTotalCountLoading =
     hasSelectedRuns && !totalCountQuery.isSuccess && !totalCountQuery.isError;
 

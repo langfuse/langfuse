@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
+import { randomBytes } from "crypto";
 import { pipeline, Readable, Writable } from "stream";
+import { setTimeout } from "timers/promises";
 import { promisify } from "util";
 import { gunzipSync } from "zlib";
 import { TimedGzip, type GzipStats } from "./gzipStream";
@@ -88,6 +90,34 @@ describe("TimedGzip", () => {
     await expect(
       pipelineAsync(source, new TimedGzip(6, stats), collect([])),
     ).rejects.toThrow("upstream failed");
+  });
+
+  it("keeps flowing when the consumer starts reading after the output buffer filled", async () => {
+    // The blob export uploader only starts reading once CreateMultipartUpload
+    // returns, so compressed output can fill the readable buffer before the
+    // first read. Incompressible input guarantees more than one highWaterMark
+    // of output during that delay.
+    const chunks = Array.from({ length: 64 }, () => randomBytes(16 * 1024));
+    const expected = Buffer.concat(chunks);
+    const stats: GzipStats = { level: 6, activeMs: 0, backpressureMs: 0 };
+    const gzip = new TimedGzip(6, stats);
+    const done = pipelineAsync(Readable.from(chunks), gzip);
+
+    await setTimeout(100);
+
+    const received: Buffer[] = [];
+    const consume = (async () => {
+      for await (const chunk of gzip) received.push(chunk);
+      await done;
+      return "finished" as const;
+    })();
+    const outcome = await Promise.race([
+      consume,
+      setTimeout(2_000, "stalled" as const),
+    ]);
+
+    expect(outcome).toBe("finished");
+    expect(gunzipSync(Buffer.concat(received)).equals(expected)).toBe(true);
   });
 
   it("uses the zlib default when level is undefined", async () => {

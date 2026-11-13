@@ -1,20 +1,9 @@
 import type { ComponentProps } from "react";
 
-import { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
+import { AIAssistedInput } from "@/src/components/ui/AIAssistedInput";
 import { Label } from "@/src/components/ui/label";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
-import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
-
-const COPY = {
-  default: {
-    description:
-      "Give the evaluator a clear name (it's also used as the score name) and explain when it should be used.",
-  },
-  decisionModel: {
-    description:
-      "Give the evaluator a clear name and explain when it should be used.",
-  },
-} as const;
+import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 
 export function NameStep({
   step,
@@ -29,7 +18,7 @@ export function NameStep({
   descriptionAIAssistance,
 }: {
   step: number;
-  variant: keyof typeof COPY;
+  variant: "default" | "decisionModel";
   open: boolean;
   onOpenChange: (open: boolean) => void;
   name: string;
@@ -45,7 +34,6 @@ export function NameStep({
     <Stepper
       number={step}
       title="Name evaluator"
-      description={COPY[variant].description}
       open={open}
       onOpenChange={onOpenChange}
     >

@@ -70,6 +70,7 @@ export async function processTopicEmbeddingBatch(
                   models.embedding,
                   traceRows.map(({ summary }) => summary.summary),
                   dimensions,
+                  models.projectId,
                 );
               } catch (error) {
                 throw error instanceof TopicsProviderUnavailable

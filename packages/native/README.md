@@ -31,11 +31,13 @@ CPU-bound fits can be killed without blocking the worker.
 type checks and tooling work without a Rust toolchain. `*.node` binaries and
 `target/` are ignored.
 
-The encoder uses a small local source overlay for the pinned `clickhouse`
-0.15.2 crate. `scripts/prepare-clickhouse-rs.sh` downloads the exact crate
-archive, verifies its checksum, applies the delta in `patches/`, and writes an
-ignored Cargo patch configuration. The repository keeps the delta and setup
-script, not a vendored copy of the crate.
+The encoder uses the pinned `ch-core-rs` Git dependency for ClickHouse Native
+format encoding. The HTTP transport remains in the worker.
+
+The `rust:*` scripts remove the obsolete generated `.cargo/config.toml` from
+checkouts that used the patched encoder. Modified configs are preserved; remove
+the old `clickhouse` patch entry manually if warned. Direct Cargo commands bypass
+this cleanup.
 
 ## Building
 
@@ -84,7 +86,12 @@ the checksum-verified standalone Rust installer into its UBI9 builder stage;
 `turbo run build --filter=worker...` compiles the addon for glibc, and
 `pnpm deploy` copies the `.node` file into the runtime image next to the
 loader. Each architecture builds on a native runner, so no cross
-compilation is involved. The runtime image gains only the compiled library.
+compilation is involved. The runtime image gains only the compiled library and
+its third-party license notices at
+`/usr/share/licenses/langfuse-native/THIRD_PARTY_LICENSES.txt`, rendered by
+[cargo-about](https://github.com/EmbarkStudios/cargo-about) from `about.hbs`.
+`about.toml` lists the accepted licenses; the worker image build fails when a
+dependency uses any other license.
 CI jobs that build the worker need no extra setup: rustup on the runner
 installs the pinned toolchain the first time `cargo` runs in this directory.
 The Rust lint runs as its own step in the lint job, outside the ESLint turbo

@@ -9,6 +9,11 @@ import {
   BedrockCredentialSchema,
   type LLMConnectionConfig,
 } from "../../../../interfaces/customLLMProviderConfigSchemas";
+import { parseOutboundUrl } from "../../../outbound-url/validation";
+import {
+  assertLlmProviderHostAllowed,
+  llmBaseUrlWhitelistFromEnv,
+} from "../../baseUrlValidation";
 import type { LLMCredentialSource, TranslatedProviderOptions } from "./types";
 import { isPlainObject } from "./utils";
 
@@ -19,6 +24,17 @@ import { isPlainObject } from "./utils";
 // could reshape that host. The AWS SDK applies equivalent host-label
 // validation, but this provider builds its own endpoint.
 const AWS_REGION_PATTERN = /^[a-z0-9-]+$/;
+
+// Same order as @ai-sdk/amazon-bedrock resolveAmazonBedrockBaseURL. An earlier
+// prefix wins, including where a longer prefix also matches.
+const BEDROCK_PARTITION_DNS_SUFFIXES = [
+  { regionPrefix: "cn-", dnsSuffix: "amazonaws.com.cn" },
+  { regionPrefix: "us-iso-", dnsSuffix: "c2s.ic.gov" },
+  { regionPrefix: "us-isob-", dnsSuffix: "sc2s.sgov.gov" },
+  { regionPrefix: "eu-isoe-", dnsSuffix: "cloud.adc-e.uk" },
+  { regionPrefix: "us-isof-", dnsSuffix: "csp.hci.ic.gov" },
+  { regionPrefix: "eusc-", dnsSuffix: "amazonaws.eu" },
+] as const;
 
 export function assertValidBedrockRegion(region: string | undefined): void {
   if (region !== undefined && !AWS_REGION_PATTERN.test(region)) {
@@ -174,11 +190,53 @@ export function resolveBedrockProviderAuth(params: {
   }
 }
 
+/** bedrockPartitionDnsSuffix returns the AWS partition suffix for a region. */
+function bedrockPartitionDnsSuffix(region: string): string {
+  return (
+    BEDROCK_PARTITION_DNS_SUFFIXES.find(({ regionPrefix }) =>
+      region.startsWith(regionPrefix),
+    )?.dnsSuffix ?? "amazonaws.com"
+  );
+}
+
+/** readProcessEnv reads one variable at call time, matching the Bedrock SDK. */
+function readProcessEnv(name: string): string | undefined {
+  const value = process.env[name];
+  return typeof value === "string" ? value : undefined;
+}
+
+/** bedrockRuntimeHostname returns the host the Bedrock runtime transport calls. */
+function bedrockRuntimeHostname(region: string | undefined): string {
+  const endpoint =
+    readProcessEnv("AWS_ENDPOINT_URL_BEDROCK_RUNTIME") ??
+    readProcessEnv("AWS_ENDPOINT_URL");
+  if (endpoint != null) {
+    return parseOutboundUrl(endpoint).hostname;
+  }
+
+  const resolvedRegion = region ?? readProcessEnv("AWS_REGION");
+  if (!resolvedRegion) {
+    throw new Error(
+      "Bedrock region is required when an LLM host allowlist is configured.",
+    );
+  }
+  assertValidBedrockRegion(resolvedRegion);
+  return `bedrock-runtime.${resolvedRegion}.${bedrockPartitionDnsSuffix(resolvedRegion)}`;
+}
+
+/** assertBedrockHostAllowed rejects a Bedrock host outside a configured LLM allowlist. */
+function assertBedrockHostAllowed(region: string | undefined): void {
+  // Without an allowlist the region may stay unresolved for the AWS SDK.
+  if (!llmBaseUrlWhitelistFromEnv().allowedHosts?.length) return;
+  assertLlmProviderHostAllowed(bedrockRuntimeHostname(region));
+}
+
 /**
  * No custom fetch is used: Bedrock has no user-controlled base URL (the host
  * is derived from the region), and self-hosted deployments commonly reach
  * Bedrock through VPC endpoints resolving to private IPs, which the secure
  * LLM fetch would block. Requests therefore use the provider's AWS transport.
+ * A configured LLM host allowlist is still applied to that transport's host.
  */
 function createBedrockProvider(params: {
   projectId?: string;
@@ -193,6 +251,7 @@ function createBedrockProvider(params: {
     ? { region: getLangfuseAIBedrockRegion() }
     : BedrockConfigSchema.parse(config);
   assertValidBedrockRegion(region);
+  assertBedrockHostAllowed(region);
 
   const auth = resolveBedrockProviderAuth({
     secretKey: apiKey,

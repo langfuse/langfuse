@@ -79,6 +79,11 @@ export type FormatMetricOptions = {
   unit?: string;
   style: "full" | "compact";
   maxCharacters?: number;
+  /**
+   * `"cents"` rounds USD to two decimals and shows non-zero values below one
+   * cent as `<$0.01`. By default values under $5 keep up to six decimals.
+   */
+  usdPrecision?: "cents";
 };
 
 export type MetricFormatterFunction = (
@@ -160,6 +165,8 @@ export interface ChartProps {
    * affects a categorical axis — a temporal axis keeps its timestamp labels.
    */
   hideXAxisLabels?: boolean;
+  /** compactYAxis shrinks the y-axis gutter to fit short tick labels. Consumed by LINE_TIME_SERIES. */
+  compactYAxis?: boolean;
   /**
    * Give each bar of a categorical (entity) axis its own palette colour, plus a
    * legend below the plot that names it. Off by default: a dashboard bar chart

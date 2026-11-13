@@ -6,7 +6,7 @@
  */
 
 import { useCallback } from "react";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { usePrefetchObservation } from "@/src/features/traces/hooks/usePrefetchObservation";
 import { type TreeNode } from "../types/treeNode";
 
@@ -22,7 +22,11 @@ export function useHandlePrefetchObservation() {
     (node: TreeNode) => {
       // Don't prefetch for TRACE type (only observations)
       if (node.type !== "TRACE") {
-        prefetch(node.id, trace.id, node.startTime);
+        prefetch(
+          node.observationId ?? node.id,
+          node.traceId ?? trace.id,
+          node.startTime,
+        );
       }
     },
     [prefetch, trace.id],

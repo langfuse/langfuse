@@ -1,6 +1,6 @@
 services:
   clickhouse:
-    image: docker.io/clickhouse/clickhouse-server:25.12
+    image: docker.io/clickhouse/clickhouse-server:26.3.62.3
     user: "101:101"
     environment:
       CLICKHOUSE_DB: default
@@ -47,8 +47,9 @@ services:
       test: ["CMD", "mc", "ready", "local"]
       interval: 1s
       timeout: 5s
-      retries: 5
-      start_period: 1s
+      retries: 30
+      start_period: 30s
+      start_interval: 1s
     networks:
       - default
 

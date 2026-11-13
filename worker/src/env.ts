@@ -64,6 +64,12 @@ const EnvSchema = z.object({
   // CHB's resource-server identifier. Defaulted because it is the same value
   // in every CHB tenant, and overridable in case that stops being true.
   CLICKHOUSE_BILLING_AUTH0_AUDIENCE: z.string().default("billing-api"),
+  // Compares each metered Stripe interval with the billable_events ledger and
+  // reports the gap. Requires the ledger table, which only Langfuse Cloud has;
+  // keep in sync with web/src/env.mjs.
+  LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
 
   LANGFUSE_CACHE_AUTOMATIONS_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_CACHE_AUTOMATIONS_TTL_SECONDS: z.coerce.number().default(60),
@@ -143,6 +149,32 @@ const EnvSchema = z.object({
       message:
         'Use "*" alone to select all projects, or a comma-separated list of project IDs',
     }),
+  LANGFUSE_TRACE_DISPATCH_ENABLED: z.enum(["true", "false"]).default("false"),
+  LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE: z.coerce
+    .number()
+    .min(0)
+    .max(1)
+    .default(0),
+  LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(2 * 24 * 60 * 60 * 1_000)
+    .default(24 * 60 * 60 * 1_000),
+  // Requires trace dispatch; the dispatcher then enqueues events-dispatch jobs instead of trace-batch jobs.
+  LANGFUSE_EVENTS_DISPATCH_ENABLED: z.enum(["true", "false"]).default("false"),
+  QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_EVENTS_DISPATCH_CONCURRENCY: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(2),
+  // Experiment: read and store every dispatched trace, enqueueing consumers only where rules apply.
+  LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES: z
+    .enum(["true", "false"])
+    .default("false"),
   LANGFUSE_TRACE_BATCH_INGESTION_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -187,6 +219,33 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(20),
+  QUEUE_CONSUMER_TOPICS_TRACE_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  // Per-trace Topics jobs per worker and shard; each makes one summary and one embedding call.
+  LANGFUSE_TOPICS_TRACE_QUEUE_PROCESSING_CONCURRENCY: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(20),
+  // Admission policy for full-cohort fitting; excludes child-process and runtime overhead.
+  LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(20_000),
+  LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(256 * 1024 * 1024),
+  // 04:00 UTC is early morning in Europe and late evening in the Americas.
+  LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(23)
+    .default(4),
   LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE: z.coerce
     .number()
     .int()
@@ -246,7 +305,7 @@ const EnvSchema = z.object({
     .number()
     .int()
     .positive()
-    .default(30_000),
+    .default(60_000),
   LANGFUSE_SECONDARY_OTEL_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z
     .string()
     .optional(),
@@ -352,6 +411,11 @@ const EnvSchema = z.object({
   // Otel
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4318"),
   OTEL_SERVICE_NAME: z.string().default("worker"),
+  // Stamps ECS task/cluster (aws.ecs.*, cloud.*) and container.id resource
+  // attributes onto every exported span.
+  OTEL_CONTAINER_RESOURCE_DETECTORS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
 
   LANGFUSE_ENABLE_BACKGROUND_MIGRATIONS: z
     .enum(["true", "false"])
@@ -383,14 +447,18 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
-  // Optional opt-outs for split-role workers. Unset follows
-  // LANGFUSE_IN_APP_AGENT_ENABLED; "false" skips that surface.
+  // Run execution follows LANGFUSE_IN_APP_AGENT_ENABLED unless opted out.
   QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .optional(),
   LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED: z
     .enum(["true", "false"])
     .optional(),
+  LANGFUSE_IN_APP_AGENT_RETENTION_CLEANER_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  // Opt in to the AI-features project's production skills with this tag.
+  LANGFUSE_IN_APP_AGENT_SKILLS_TAG: z.string().trim().min(1).optional(),
   LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
     .enum(["dangerous-docker", "lambda-microvm"])
     .optional(),
@@ -421,6 +489,18 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_BATCH_ACTION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_TOPICS_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_TOPICS_UPDATE_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_TOPICS_EMBEDDING_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_TOPICS_AUTOMATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_EVAL_EXECUTION_QUEUE_IS_ENABLED: z
@@ -682,8 +762,8 @@ const EnvSchema = z.object({
     .default("false"), // Use ON CLUSTER and clusterAllReplicas for cleaner operations
 
   // Audit log relay: moves audit_log_staging rows into ClickHouse audit_logs.
-  // Runs only in cloud deployments (NEXT_PUBLIC_LANGFUSE_CLOUD_REGION set),
-  // where it is on unless disabled here.
+  // Runs on Langfuse Cloud and on self-hosted instances with an enterprise
+  // license, where it is on unless disabled here.
   LANGFUSE_AUDIT_LOG_RELAY_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_AUDIT_LOG_RELAY_INTERVAL_MS: z.coerce
     .number()
@@ -846,10 +926,6 @@ const EnvSchema = z.object({
     .positive()
     .default(600_000),
   LANGFUSE_DELETE_BATCH_SIZE: z.coerce.number().positive().default(2000),
-  LANGFUSE_TOKEN_COUNT_WORKER_POOL_SIZE: z.coerce
-    .number()
-    .positive()
-    .default(2),
   /** Interval at which one worker per queue set polls queue depth and DLQ age */
   LANGFUSE_QUEUE_METRICS_INTERVAL_MS: z.coerce.number().min(100).default(1000),
   LANGFUSE_QUEUE_METRICS_ENABLED: z.enum(["true", "false"]).default("true"),

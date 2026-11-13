@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events";
 import { v4 } from "uuid";
 import { createMocks, type Body } from "node-mocks-http";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -7,9 +8,38 @@ import {
   createTracesCh,
   type TraceRecordInsertType,
 } from "@langfuse/shared/src/server";
+import type * as QueryServer from "@langfuse/shared/query/server";
+import type * as SharedServer from "@langfuse/shared/src/server";
 import handler from "../../pages/api/dashboard/execute-query-stream";
 
-// --- Auth mock (only thing we need to mock — no real session in tests) ---
+const { mockPrepareExecuteQuery, mockQueryClickhouseWithProgress } = vi.hoisted(
+  () => ({
+    mockPrepareExecuteQuery: vi.fn(),
+    mockQueryClickhouseWithProgress: vi.fn(),
+  }),
+);
+
+vi.mock("@langfuse/shared/query/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof QueryServer>();
+  mockPrepareExecuteQuery.mockImplementation(actual.prepareExecuteQuery);
+  return {
+    ...actual,
+    prepareExecuteQuery: mockPrepareExecuteQuery,
+  };
+});
+
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof SharedServer>();
+  mockQueryClickhouseWithProgress.mockImplementation(
+    actual.queryClickhouseWithProgress,
+  );
+  return {
+    ...actual,
+    queryClickhouseWithProgress: mockQueryClickhouseWithProgress,
+  };
+});
+
+// --- Auth mock ---
 
 const mockGetServerAuthSession = vi.fn();
 vi.mock("../../server/auth", () => ({
@@ -26,13 +56,22 @@ vi.mock("../../server/adminAccessWebhook", () => ({
 
 // --- Helpers ---
 
-function createPostMocks(body: unknown) {
-  const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
-    method: "POST",
-    body: body as Body,
-  });
+function createPostMocks(body: unknown, useRealEventEmitter = false) {
+  const { req, res } = createMocks<NextApiRequest, NextApiResponse>(
+    {
+      method: "POST",
+      body: body as Body,
+    },
+    useRealEventEmitter ? { eventEmitter: EventEmitter } : undefined,
+  );
   // node-mocks-http doesn't implement flushHeaders
   res.flushHeaders = vi.fn();
+  // node-mocks-http's write() omits the writable backpressure return value.
+  const originalWrite = res.write.bind(res);
+  res.write = ((chunk: string | Uint8Array) => {
+    originalWrite(chunk);
+    return true;
+  }) as typeof res.write;
   return { req, res };
 }
 
@@ -90,8 +129,12 @@ describe("execute-query-stream handler", () => {
     toTimestamp = new Date(baseTime + 60 * 60 * 1000).toISOString();
   });
 
+  beforeEach(() => {
+    mockSendAdminAccessWebhook.mockClear();
+  });
+
   function makeSession(overrides?: {
-    admin?: boolean;
+    supportAccess?: boolean;
     projects?: Array<{ id: string }>;
     v4BetaEnabled?: boolean;
   }) {
@@ -99,11 +142,11 @@ describe("execute-query-stream handler", () => {
       user: {
         id: "user-1",
         email: "test@example.com",
-        admin: overrides?.admin ?? false,
         v4BetaEnabled: overrides?.v4BetaEnabled ?? true,
         organizations: [
           {
             id: orgId,
+            supportAccess: overrides?.supportAccess ?? false,
             projects: overrides?.projects ?? [{ id: projectId }],
           },
         ],
@@ -202,26 +245,9 @@ describe("execute-query-stream handler", () => {
     });
   });
 
-  it("should return 404 when admin accesses non-existent project", async () => {
+  it("should send the admin access webhook when access comes from a support access grant", async () => {
     mockGetServerAuthSession.mockResolvedValue(
-      makeSession({ admin: true, projects: [] }),
-    );
-    const { req, res } = createPostMocks({
-      ...makeBody(),
-      projectId: v4(), // random non-existent project
-    });
-
-    await handler(req, res);
-
-    expect(res._getStatusCode()).toBe(404);
-    expect(JSON.parse(res._getData())).toMatchObject({
-      message: "Project not found",
-    });
-  });
-
-  it("should allow admin access to project they are not a member of and send webhook", async () => {
-    mockGetServerAuthSession.mockResolvedValue(
-      makeSession({ admin: true, projects: [] }),
+      makeSession({ supportAccess: true }),
     );
     const { req, res } = createPostMocks(makeBody());
 
@@ -233,6 +259,17 @@ describe("execute-query-stream handler", () => {
       orgId,
     });
     // Should still stream data successfully
+    const events = parseSSEEvents(res._getData());
+    expect(events.some((e) => e.event === "done")).toBe(true);
+  });
+
+  it("should not send the admin access webhook for regular members", async () => {
+    mockGetServerAuthSession.mockResolvedValue(makeSession());
+    const { req, res } = createPostMocks(makeBody());
+
+    await handler(req, res);
+
+    expect(mockSendAdminAccessWebhook).not.toHaveBeenCalled();
     const events = parseSSEEvents(res._getData());
     expect(events.some((e) => e.event === "done")).toBe(true);
   });
@@ -306,5 +343,156 @@ describe("execute-query-stream handler", () => {
     }
 
     expect(events.some((e) => e.event === "done")).toBe(true);
+  });
+});
+
+describe("execute-query-stream backpressure", () => {
+  const projectId = "backpressure-project";
+  const session = {
+    user: {
+      id: "user-1",
+      email: "test@example.com",
+      v4BetaEnabled: true,
+      organizations: [
+        {
+          id: "backpressure-org",
+          supportAccess: false,
+          projects: [{ id: projectId }],
+        },
+      ],
+    },
+  };
+  const body = {
+    projectId,
+    version: "v1" as const,
+    query: {
+      view: "traces" as const,
+      dimensions: [],
+      metrics: [{ measure: "count" as const, aggregation: "count" as const }],
+      filters: [],
+      timeDimension: null,
+      fromTimestamp: "2024-06-14T12:00:00.000Z",
+      toTimestamp: "2024-06-16T12:00:00.000Z",
+      orderBy: null,
+    },
+  };
+
+  beforeEach(() => {
+    mockGetServerAuthSession.mockResolvedValue(session);
+    mockPrepareExecuteQuery.mockImplementationOnce(async () => ({
+      compiledQuery: "SELECT 1",
+      parameters: {},
+      preferredClickhouseService: undefined,
+      tags: { projectId },
+      clickhouseSettings: {},
+      usesTraceTable: false,
+      fromTimestamp: "2024-06-14T12:00:00.000Z",
+    }));
+  });
+
+  it("waits for drain before consuming the next SSE event", async () => {
+    let firstWriteSeen!: () => void;
+    const firstWrite = new Promise<void>((resolve) => {
+      firstWriteSeen = resolve;
+    });
+    let generatorClosed = false;
+    const events: string[] = [];
+    const fakeEvents = async function* () {
+      try {
+        yield { row: { count_count: 1 } };
+        yield { row: { count_count: 2 } };
+      } finally {
+        generatorClosed = true;
+      }
+    };
+    mockQueryClickhouseWithProgress.mockImplementationOnce(() => fakeEvents());
+
+    const { req, res } = createPostMocks(body, true);
+    const originalWrite = res.write.bind(res);
+    vi.spyOn(res, "write").mockImplementation((chunk: string | Uint8Array) => {
+      events.push(String(chunk));
+      originalWrite(chunk);
+      if (events.length === 1) {
+        firstWriteSeen();
+        return false;
+      }
+      return true;
+    });
+
+    const handlerPromise = handler(req, res);
+    await firstWrite;
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(events).toHaveLength(1);
+    expect(generatorClosed).toBe(false);
+
+    res.emit("drain");
+    await handlerPromise;
+
+    expect(
+      events.filter((event) => event.startsWith("event: row")),
+    ).toHaveLength(2);
+    expect(events.at(-1)).toMatch(/^event: done/);
+    expect(generatorClosed).toBe(true);
+  });
+
+  it("stops and cleans up when the client closes while waiting for drain", async () => {
+    let firstWriteSeen!: () => void;
+    const firstWrite = new Promise<void>((resolve) => {
+      firstWriteSeen = resolve;
+    });
+    let generatorClosed = false;
+    const events: string[] = [];
+    const fakeEvents = async function* () {
+      try {
+        yield { row: { count_count: 1 } };
+        yield { row: { count_count: 2 } };
+      } finally {
+        generatorClosed = true;
+      }
+    };
+    mockQueryClickhouseWithProgress.mockImplementationOnce(() => fakeEvents());
+
+    const { req, res } = createPostMocks(body, true);
+    const originalWrite = res.write.bind(res);
+    vi.spyOn(res, "write").mockImplementation((chunk: string | Uint8Array) => {
+      events.push(String(chunk));
+      originalWrite(chunk);
+      if (events.length === 1) {
+        firstWriteSeen();
+        return false;
+      }
+      return true;
+    });
+
+    const handlerPromise = handler(req, res);
+    await firstWrite;
+    res.emit("close");
+    await handlerPromise;
+
+    expect(events).toHaveLength(1);
+    expect(generatorClosed).toBe(true);
+  });
+
+  it("sends actionable advice for an oversized ClickHouse result", async () => {
+    const fakeEvents = async function* () {
+      yield { row: { count_count: 1 } };
+      yield {
+        exception:
+          "Code: 158. DB::Exception: Limit for result exceeded, max bytes: 10.00 MiB. (TOO_MANY_ROWS_OR_BYTES)",
+      };
+    };
+    mockQueryClickhouseWithProgress.mockImplementationOnce(() => fakeEvents());
+
+    const { req, res } = createPostMocks(body);
+    await handler(req, res);
+
+    const events = parseSSEEvents(res._getData());
+    const errorEvent = events.find((event) => event.event === "error");
+    expect(errorEvent).toBeDefined();
+    expect(JSON.parse(errorEvent!.data).message).toMatch(
+      /result is too large.*shorter date range.*specific filters/i,
+    );
+    expect(events.some((event) => event.event === "done")).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-import { Settings } from "lucide-react";
+import { PlusIcon, Settings } from "@langfuse/icons";
 import { type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
@@ -44,6 +44,44 @@ export const Internal = meta.story({
     title: undefined,
     ariaLabel: "Session actions",
     internal: true,
+  },
+});
+
+export const WithHeaderAction = meta.story({
+  args: {
+    title: "Projects",
+    headerAction: {
+      text: "New",
+      tooltip: "New project",
+      href: "/projects/new",
+      icon: PlusIcon,
+    },
+    search: { placeholder: "Search projects..." },
+  },
+});
+
+export const TestHeaderActionKeyboard = meta.story({
+  name: "(Test) Header action keyboard navigation",
+  args: WithHeaderAction.input.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(canvas.getByRole("button", { name: "Open menu" }));
+    await expect(
+      body.getByRole("searchbox", { name: "Search projects..." }),
+    ).toHaveFocus();
+
+    await userEvent.keyboard("{ArrowDown}");
+    await userEvent.keyboard("{ArrowUp}");
+    const headerAction = body.getByRole("menuitem", { name: "New project" });
+    await waitFor(() => expect(headerAction).toHaveFocus());
+    await expect(headerAction).toHaveAttribute("href", "/projects/new");
+
+    const onNavigate = fn((event: MouseEvent) => event.preventDefault());
+    headerAction.addEventListener("click", onNavigate);
+    await userEvent.keyboard("{Enter}");
+    await expect(onNavigate).toHaveBeenCalledOnce();
+    await expect(body.queryByRole("menu", { name: "Projects" })).toBeNull();
   },
 });
 
@@ -303,6 +341,10 @@ export const TestDisabledAction = meta.story({
       "title",
       "You don't have permission to edit this item.",
     );
+    await expect(within(menuItem).getByText("Edit")).toHaveAttribute(
+      "title",
+      "You don't have permission to edit this item.",
+    );
 
     await userEvent.click(body.getByRole("button", { name: "Edit" }));
     await expect(onDisabledAction).not.toHaveBeenCalled();
@@ -509,5 +551,37 @@ export const TestNestedMenusStayWithinViewport = meta.story({
         name: "Customer support quality evaluation with additional reference answers",
       }),
     ).toBeVisible();
+  },
+});
+
+export const TestClearsTheSearch = meta.story({
+  name: "(Test) Clears the search",
+  args: {
+    search: { placeholder: "Search items" },
+    items: [
+      { type: "item", id: "report", title: "Create report", onClick: fn() },
+      { type: "item", id: "help", title: "Help", onClick: fn() },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "Open menu" }));
+    const search = body.getByRole("searchbox", { name: "Search items" });
+    await expect(
+      body.queryByRole("button", { name: "Clear search" }),
+    ).toBeNull();
+
+    await userEvent.type(search, "report");
+    await expect(body.queryByRole("menuitem", { name: "Help" })).toBeNull();
+
+    await userEvent.click(body.getByRole("button", { name: "Clear search" }));
+    await expect(search).toHaveValue("");
+    // Clearing filters the list back open without dismissing the menu around
+    // it, and leaves focus in the field.
+    await expect(body.getByRole("menu", { name: "Actions" })).toBeVisible();
+    await expect(body.getByRole("menuitem", { name: "Help" })).toBeVisible();
+    await expect(search).toHaveFocus();
   },
 });

@@ -58,16 +58,16 @@ impl FakeWeb {
     }
 
     fn control_plane(&self) -> ControlPlaneClient {
-        self.control_plane_with_limits(Duration::from_secs(2), 256 * 1024)
+        self.control_plane_with_resolve_limits(Duration::from_secs(2), 256 * 1024)
     }
 
-    fn control_plane_with_limits(
+    fn control_plane_with_resolve_limits(
         &self,
         timeout: Duration,
         max_response_bytes: usize,
     ) -> ControlPlaneClient {
         let mut config = ControlPlaneConfig::new(&self.url, SERVICE_KEY).unwrap();
-        config.limits = ResolutionLimits {
+        config.resolve_limits = ControlPlaneLimits {
             timeout,
             max_response_bytes,
         };
@@ -85,7 +85,7 @@ impl FakeWeb {
 )]
 fn response(value: Value) -> Response<Body> {
     Response::builder()
-        .header(header::CONTENT_TYPE, "application/json")
+        .header(CONTENT_TYPE, "application/json")
         .body(Body::from(value.to_string()))
         .unwrap()
 }
@@ -97,14 +97,17 @@ fn success(project: &str, provider_token: &str) -> Value {
             "id": "connection-1",
             "name": "Primary OpenAI",
             "provider": "openai",
+            "provider_model": "gpt-4.1",
             "api_format": "openai.responses",
             "base_url": "https://api.openai.com/v1",
-            "auth": {"type": "Bearer", "token": provider_token}
+            "auth": {"type": "Bearer", "token": provider_token},
+            "extra_headers": {}
         },
         "attribution": {
             "organization_id": "org-1",
             "project_id": project,
             "key_id": "key-1",
+            "user_id": "user-1",
             "key_metadata": {"customer": "private-customer-label", "enabled": true, "number": 42},
             "provider_connection_id": "connection-1"
         },
@@ -114,17 +117,17 @@ fn success(project: &str, provider_token: &str) -> Value {
 }
 
 #[tokio::test]
-async fn signs_the_exact_key_and_sends_only_the_api_format() {
+async fn signs_the_exact_key_and_sends_api_format_and_model() {
     let web = FakeWeb::start(|request| async move {
         assert_eq!(request.method(), "POST");
         assert_eq!(request.uri(), "/api/internal/ai-gateway/v1/resolve");
-        assert_eq!(request.headers()[header::AUTHORIZATION], "Bearer gw_test_alice");
-        assert_eq!(request.headers()[header::CONTENT_TYPE], "application/json");
+        assert_eq!(request.headers()[AUTHORIZATION], "Bearer gw_test_alice");
+        assert_eq!(request.headers()[CONTENT_TYPE], "application/json");
         assert_eq!(request.headers()["langfuse-gateway-request-id"], REQUEST_ID);
         assert_eq!(request.headers()["langfuse-gateway-authorization"],
             "HMAC timestamp=1800000000,signature=e104b6baa50d9b766b036e27876683aa1f4bff7f31bb6af66dce6b636a53b2bd");
         assert_eq!(to_bytes(request.into_body(), 1024).await.unwrap(),
-            r#"{"apiFormat":"openai.responses"}"#);
+            r#"{"apiFormat":"openai.responses","model":"primary:gpt-4.1","requestBytes":0}"#);
         response(success("project-1", "private-provider-token"))
     }).await;
 
@@ -133,6 +136,8 @@ async fn signs_the_exact_key_and_sends_only_the_api_format() {
         .resolve_at(
             GATEWAY_KEY,
             ApiFormat::OpenAiResponses,
+            "primary:gpt-4.1",
+            0,
             NOW_TIME,
             REQUEST_ID,
         )
@@ -142,17 +147,22 @@ async fn signs_the_exact_key_and_sends_only_the_api_format() {
     assert_eq!(context.connection().name(), Some("Primary OpenAI"));
     assert_eq!(context.connection().provider(), Provider::OpenAi);
     assert_eq!(context.connection().provider().as_str(), "openai");
+    assert_eq!(context.connection().provider_model(), "gpt-4.1");
     assert!(matches!(
         context.connection().credential(),
         ProviderCredential::Bearer("private-provider-token")
     ));
-    assert_eq!(context.attribution().project_id(), "project-1");
+    assert_eq!(
+        context.attribution().project_id().map(ProjectId::as_str),
+        Some("project-1")
+    );
     assert_eq!(
         context.attribution().provider_connection_id(),
         "connection-1"
     );
+    assert_eq!(context.attribution().user_id(), Some("user-1"));
     assert_eq!(
-        context.ingestion().access_token(),
+        context.ingestion().unwrap().access_token().expose_secret(),
         ingestion_token("org-1", "project-1")
     );
     let debug = format!("{context:?}");
@@ -172,8 +182,88 @@ async fn signs_the_exact_key_and_sends_only_the_api_format() {
 }
 
 #[tokio::test]
+async fn fetches_models_from_the_control_plane() {
+    let web = FakeWeb::start(|request| async move {
+        assert_eq!(request.method(), "GET");
+        assert_eq!(
+            request.uri(),
+            "/api/internal/ai-gateway/v1/models?api_format=openai.responses"
+        );
+        assert_eq!(request.headers()[AUTHORIZATION], "Bearer gw_test_alice");
+        assert!(
+            request
+                .headers()
+                .contains_key("langfuse-gateway-authorization")
+        );
+        assert_eq!(request.headers()["langfuse-gateway-request-id"], REQUEST_ID);
+        assert!(
+            to_bytes(request.into_body(), 1024)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        response(json!({
+            "data": [{
+                "id": "Primary OpenAI:gpt-4.1",
+                "provider": "OPENAI"
+            }]
+        }))
+    })
+    .await;
+
+    let body = web
+        .control_plane()
+        .models(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            REQUEST_ID,
+            &mut |_| Ok(()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        serde_json::from_slice::<Value>(&body).unwrap()["data"][0]["id"],
+        "Primary OpenAI:gpt-4.1"
+    );
+}
+
+#[tokio::test]
+async fn model_catalogs_have_a_larger_response_limit_than_resolution() {
+    let body = "x".repeat(300 * 1024);
+    let web = FakeWeb::start(move |_| {
+        let body = body.clone();
+        async move { Response::new(Body::from(body)) }
+    })
+    .await;
+    let control_plane = web.control_plane();
+
+    let resolution = control_plane
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            "primary:gpt-4.1",
+            0,
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await;
+    assert!(matches!(resolution, Err(ResolutionError::ResponseTooLarge)));
+
+    let models = control_plane
+        .models(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            REQUEST_ID,
+            &mut |_| Ok(()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(models.len(), 300 * 1024);
+}
+
+#[tokio::test]
 async fn denied_and_failed_resolutions_are_classified_without_retries_or_body_leaks() {
-    for status in [401, 403, 404, 500, 503] {
+    for status in [400, 401, 403, 404, 429, 500, 503, 504] {
         let web = FakeWeb::start(move |_| async move {
             Response::builder()
                 .status(status)
@@ -186,12 +276,15 @@ async fn denied_and_failed_resolutions_are_classified_without_retries_or_body_le
             .resolve_at(
                 GATEWAY_KEY,
                 ApiFormat::OpenAiResponses,
+                "primary:gpt-4.1",
+                0,
                 NOW_TIME,
                 REQUEST_ID,
             )
             .await
             .unwrap_err();
         assert!(match status {
+            400 => matches!(error, ResolutionError::InvalidRequest),
             401 => matches!(error, ResolutionError::Authentication),
             403 => matches!(error, ResolutionError::Forbidden),
             404 => matches!(error, ResolutionError::NoRoute),
@@ -200,6 +293,258 @@ async fn denied_and_failed_resolutions_are_classified_without_retries_or_body_le
         assert!(!format!("{error:?} {error}").contains("private-upstream-error"));
         assert_eq!(web.calls(), 1);
     }
+}
+
+async fn resolve_against(web: &FakeWeb) -> Result<ResolvedRequestContext, ResolutionError> {
+    web.control_plane()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            "primary:gpt-4.1",
+            0,
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+}
+
+#[tokio::test]
+async fn retries_a_bad_gateway_once_and_then_gives_up() {
+    let attempts = Arc::new(AtomicUsize::new(0));
+    let seen = attempts.clone();
+    let web = FakeWeb::start(move |_| {
+        let attempt = seen.fetch_add(1, Ordering::SeqCst);
+        async move {
+            if attempt == 0 {
+                Response::builder()
+                    .status(StatusCode::BAD_GATEWAY)
+                    .body(Body::empty())
+                    .unwrap()
+            } else {
+                response(success("project-1", "private-provider-token"))
+            }
+        }
+    })
+    .await;
+    let context = resolve_against(&web).await.unwrap();
+    assert_eq!(context.connection().id(), "connection-1");
+    assert_eq!(web.calls(), 2);
+
+    let web = FakeWeb::start(|_| async {
+        Response::builder()
+            .status(StatusCode::BAD_GATEWAY)
+            .body(Body::empty())
+            .unwrap()
+    })
+    .await;
+    assert_eq!(
+        resolve_against(&web).await.unwrap_err(),
+        ResolutionError::Unavailable
+    );
+    assert_eq!(web.calls(), 2);
+}
+
+#[tokio::test]
+async fn retries_once_when_web_closes_the_connection_without_answering() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let connections = Arc::new(AtomicUsize::new(0));
+    let accepted = connections.clone();
+    let body = success("project-1", "private-provider-token").to_string();
+    let server = tokio::spawn(async move {
+        loop {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let connection = accepted.fetch_add(1, Ordering::SeqCst);
+            let mut request = vec![0; 16 * 1024];
+            let _ = socket.read(&mut request).await.unwrap();
+            if connection == 0 {
+                continue;
+            }
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(reply.as_bytes()).await.unwrap();
+        }
+    });
+    let config = ControlPlaneConfig::new(&url, SERVICE_KEY).unwrap();
+    let context = ControlPlaneClient::new(config)
+        .unwrap()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            "primary:gpt-4.1",
+            0,
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap();
+    server.abort();
+    assert_eq!(context.connection().id(), "connection-1");
+    assert_eq!(connections.load(Ordering::SeqCst), 2);
+}
+
+#[tokio::test]
+async fn timeouts_are_not_retried() {
+    let web = FakeWeb::start(|_| async {
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        response(success("project-1", "private-provider-token"))
+    })
+    .await;
+    let error = web
+        .control_plane_with_resolve_limits(Duration::from_millis(100), 256 * 1024)
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            "primary:gpt-4.1",
+            0,
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(error, ResolutionError::Timeout);
+    assert_eq!(web.calls(), 1);
+}
+
+#[tokio::test]
+async fn model_policy_rejections_are_distinct_from_other_forbidden_responses() {
+    let web = FakeWeb::start(|_| async {
+        Response::builder()
+            .status(StatusCode::FORBIDDEN)
+            .header("langfuse-gateway-error-code", "model_not_allowed")
+            .body(Body::from("private-upstream-error"))
+            .unwrap()
+    })
+    .await;
+
+    let error = web
+        .control_plane()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            "primary:gpt-4.1",
+            0,
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap_err();
+
+    assert!(matches!(error, ResolutionError::ModelNotAllowed));
+    assert!(!format!("{error:?} {error}").contains("private-upstream-error"));
+}
+
+#[tokio::test]
+async fn organization_rate_limits_carry_web_message_and_retry_after() {
+    let web = FakeWeb::start(|_| async {
+        Response::builder()
+            .status(StatusCode::TOO_MANY_REQUESTS)
+            .header("retry-after", "17")
+            .header("langfuse-gateway-error-code", "rate_limit_exceeded")
+            .body(Body::from(
+                r#"{"error":"Langfuse AI Gateway rate limit exceeded: bytes","limit":"bytes","organizationId":"org-1"}"#,
+            ))
+            .unwrap()
+    })
+    .await;
+
+    let error = web
+        .control_plane()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            "primary:gpt-4.1",
+            4096,
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap_err();
+
+    let ResolutionError::RateLimited(limit) = error else {
+        panic!("expected a rate limit, got {error:?}");
+    };
+    assert_eq!(limit.kind(), RateLimitKind::Bytes);
+    assert_eq!(limit.retry_after_secs(), 17);
+    assert_eq!(
+        limit.message(),
+        "Langfuse AI Gateway rate limit exceeded: bytes"
+    );
+    assert_eq!(limit.organization_id(), Some("org-1"));
+    assert_eq!(web.calls(), 1);
+}
+
+#[tokio::test]
+async fn unreadable_rate_limit_bodies_fall_back_to_a_langfuse_message() {
+    let web = FakeWeb::start(|_| async {
+        Response::builder()
+            .status(StatusCode::TOO_MANY_REQUESTS)
+            .header("langfuse-gateway-error-code", "rate_limit_exceeded")
+            .body(Body::from("private-upstream-error"))
+            .unwrap()
+    })
+    .await;
+
+    let error = web
+        .control_plane()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            "primary:gpt-4.1",
+            0,
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap_err();
+
+    let ResolutionError::RateLimited(limit) = error else {
+        panic!("expected a rate limit, got {error:?}");
+    };
+    assert_eq!(limit.kind(), RateLimitKind::Requests);
+    assert_eq!(limit.retry_after_secs(), 1);
+    assert!(
+        limit
+            .message()
+            .starts_with("Langfuse AI Gateway rate limit exceeded")
+    );
+    assert!(!limit.message().contains("private-upstream-error"));
+}
+
+/// A rejected gateway signature means the service keys disagree, which is the
+/// gateway's fault, not the caller's.
+#[tokio::test]
+async fn rejected_gateway_signatures_are_configuration_errors() {
+    let web = FakeWeb::start(|_| async {
+        Response::builder()
+            .status(StatusCode::UNAUTHORIZED)
+            .header(
+                "langfuse-gateway-error-code",
+                "invalid_gateway_authorization",
+            )
+            .body(Body::empty())
+            .unwrap()
+    })
+    .await;
+
+    let error = web
+        .control_plane()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            "primary:gpt-4.1",
+            0,
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap_err();
+
+    assert!(matches!(error, ResolutionError::Configuration));
 }
 
 #[tokio::test]
@@ -223,6 +568,8 @@ async fn never_follows_redirects_with_credentials() {
             .resolve_at(
                 GATEWAY_KEY,
                 ApiFormat::OpenAiResponses,
+                "primary:gpt-4.1",
+                0,
                 NOW_TIME,
                 REQUEST_ID
             )
@@ -250,10 +597,12 @@ async fn rejects_oversized_declared_and_chunked_responses() {
         })
         .await;
         let result = web
-            .control_plane_with_limits(Duration::from_secs(2), 128)
+            .control_plane_with_resolve_limits(Duration::from_secs(2), 128)
             .resolve_at(
                 GATEWAY_KEY,
                 ApiFormat::OpenAiResponses,
+                "primary:gpt-4.1",
+                0,
                 NOW_TIME,
                 REQUEST_ID,
             )
@@ -282,10 +631,12 @@ async fn deadline_covers_response_headers_and_body() {
         .await;
         let result = tokio::time::timeout(
             Duration::from_millis(500),
-            web.control_plane_with_limits(Duration::from_millis(30), 256 * 1024)
+            web.control_plane_with_resolve_limits(Duration::from_millis(30), 256 * 1024)
                 .resolve_at(
                     GATEWAY_KEY,
                     ApiFormat::OpenAiResponses,
+                    "primary:gpt-4.1",
+                    0,
                     NOW_TIME,
                     REQUEST_ID,
                 ),
@@ -303,7 +654,14 @@ async fn malformed_credentials_never_reach_web() {
     for key in ["", "has space", "has\r\nheader", "has\ttab"] {
         let result = web
             .control_plane()
-            .resolve_at(key, ApiFormat::OpenAiResponses, NOW_TIME, REQUEST_ID)
+            .resolve_at(
+                key,
+                ApiFormat::OpenAiResponses,
+                "primary:gpt-4.1",
+                0,
+                NOW_TIME,
+                REQUEST_ID,
+            )
             .await;
         assert!(matches!(result, Err(ResolutionError::InvalidCredential)));
     }
@@ -324,6 +682,8 @@ async fn rejects_a_grant_that_expires_while_resolving_across_a_second_boundary()
         .resolve_at(
             GATEWAY_KEY,
             ApiFormat::OpenAiResponses,
+            "primary:gpt-4.1",
+            0,
             NOW_TIME + Duration::from_millis(900),
             REQUEST_ID,
         )
@@ -334,7 +694,7 @@ async fn rejects_a_grant_that_expires_while_resolving_across_a_second_boundary()
 #[tokio::test]
 async fn concurrent_resolutions_keep_credentials_and_contexts_isolated() {
     let web = FakeWeb::start(|request| async move {
-        let key = request.headers()[header::AUTHORIZATION].to_str().unwrap();
+        let key = request.headers()[AUTHORIZATION].to_str().unwrap();
         match key {
             "Bearer gw_test_alice" => {
                 tokio::time::sleep(Duration::from_millis(20)).await;
@@ -350,24 +710,34 @@ async fn concurrent_resolutions_keep_credentials_and_contexts_isolated() {
         control_plane.resolve_at(
             "gw_test_alice",
             ApiFormat::OpenAiResponses,
+            "primary:gpt-4.1",
+            0,
             NOW_TIME,
             REQUEST_ID
         ),
         control_plane.resolve_at(
             "gw_test_bob",
             ApiFormat::OpenAiResponses,
+            "primary:gpt-4.1",
+            0,
             NOW_TIME,
             REQUEST_ID
         ),
     );
     let alice = alice.unwrap();
     let bob = bob.unwrap();
-    assert_eq!(alice.attribution().project_id(), "project-alice");
+    assert_eq!(
+        alice.attribution().project_id().map(ProjectId::as_str),
+        Some("project-alice")
+    );
     assert!(matches!(
         alice.connection().credential(),
         ProviderCredential::Bearer("token-alice")
     ));
-    assert_eq!(bob.attribution().project_id(), "project-bob");
+    assert_eq!(
+        bob.attribution().project_id().map(ProjectId::as_str),
+        Some("project-bob")
+    );
     assert!(matches!(
         bob.connection().credential(),
         ProviderCredential::Bearer("token-bob")
@@ -380,6 +750,7 @@ fn anthropic_success(provider_key: &str) -> Value {
     body["connection"] = json!({
         "id": "connection-anthropic",
         "provider": "anthropic",
+        "provider_model": "claude-sonnet-4-5",
         "api_format": "anthropic.messages",
         "base_url": "https://api.anthropic.com/v1",
         "auth": {"type": "x-api-key", "header": "x-api-key", "value": provider_key}
@@ -393,7 +764,7 @@ async fn resolves_anthropic_messages_with_the_native_credential_scheme() {
     let web = FakeWeb::start(|request| async move {
         assert_eq!(
             to_bytes(request.into_body(), 1024).await.unwrap(),
-            r#"{"apiFormat":"anthropic.messages"}"#
+            r#"{"apiFormat":"anthropic.messages","model":"primary:claude-sonnet-4-5","requestBytes":0}"#
         );
         response(anthropic_success("private-anthropic-key"))
     })
@@ -404,6 +775,8 @@ async fn resolves_anthropic_messages_with_the_native_credential_scheme() {
         .resolve_at(
             GATEWAY_KEY,
             ApiFormat::AnthropicMessages,
+            "primary:claude-sonnet-4-5",
+            0,
             NOW_TIME,
             REQUEST_ID,
         )
@@ -443,7 +816,7 @@ async fn chat_completions_resolve_only_an_openai_connection_for_that_format() {
         async move {
             assert_eq!(
                 to_bytes(request.into_body(), 1024).await.unwrap(),
-                r#"{"apiFormat":"openai.chat-completions"}"#
+                r#"{"apiFormat":"openai.chat-completions","model":"primary:gpt-4.1","requestBytes":0}"#
             );
             response(body)
         }
@@ -454,6 +827,8 @@ async fn chat_completions_resolve_only_an_openai_connection_for_that_format() {
         .resolve_at(
             GATEWAY_KEY,
             ApiFormat::OpenAiChatCompletions,
+            "primary:gpt-4.1",
+            0,
             NOW_TIME,
             REQUEST_ID,
         )
@@ -499,16 +874,11 @@ async fn rejects_connections_whose_provider_format_origin_and_credential_disagre
     let mutations = [
         ("/connection/provider", json!("openai")),
         ("/connection/api_format", json!("openai.responses")),
-        ("/connection/base_url", json!("https://api.openai.com/v1")),
-        ("/connection/base_url", json!("http://api.anthropic.com/v1")),
         (
             "/connection/base_url",
-            json!("https://api.anthropic.com.attacker.example/v1"),
+            json!("https://user:secret@proxy.example/v1"),
         ),
-        (
-            "/connection/base_url",
-            json!("https://api.anthropic.com/v1/"),
-        ),
+        ("/connection/base_url", json!("ftp://proxy.example/v1")),
         (
             "/connection/auth",
             json!({"type": "Bearer", "token": "provider-key"}),
@@ -541,6 +911,396 @@ async fn rejects_connections_whose_provider_format_origin_and_credential_disagre
     .await;
 }
 
+fn bedrock_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
+    let mut body = success("project-1", "unused");
+    body["connection"] = json!({
+        "id": "connection-bedrock",
+        "provider": "bedrock",
+        "provider_model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        "api_format": api_format,
+        "base_url": base_url,
+        "auth": auth
+    });
+    body["attribution"]["provider_connection_id"] = json!("connection-bedrock");
+    body
+}
+
+#[tokio::test]
+async fn bedrock_connections_only_reach_the_regional_runtime_path_of_their_format() {
+    let bearer = json!({"type": "Bearer", "token": "bedrock-key"});
+    let x_api_key = json!({"type": "x-api-key", "header": "x-api-key", "value": "bedrock-key"});
+    for (api_format, base_url, auth) in [
+        (
+            ApiFormat::OpenAiResponses,
+            "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1",
+            bearer.clone(),
+        ),
+        (
+            ApiFormat::AnthropicMessages,
+            "https://bedrock-runtime.us-gov-west-1.amazonaws.com/anthropic/v1",
+            x_api_key.clone(),
+        ),
+    ] {
+        let body = bedrock_success(api_format.as_str(), base_url, &auth);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(
+                GATEWAY_KEY,
+                api_format,
+                "bedrock:model",
+                0,
+                NOW_TIME,
+                REQUEST_ID,
+            )
+            .await
+            .unwrap();
+        assert_eq!(context.connection().provider().as_str(), "bedrock");
+        assert_eq!(context.connection().base_url(), base_url);
+    }
+
+    // Wrong path for the format, wrong credential scheme, or a host outside AWS.
+    for (base_url, auth) in [
+        (
+            "https://bedrock-runtime.us-east-1.amazonaws.com/anthropic/v1",
+            &bearer,
+        ),
+        (
+            "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1",
+            &x_api_key,
+        ),
+        (
+            "https://bedrock-runtime.attacker.example/x.amazonaws.com/openai/v1",
+            &bearer,
+        ),
+        (
+            "https://bedrock-runtime.us-east-1.attacker.amazonaws.com/openai/v1",
+            &bearer,
+        ),
+        (
+            "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1/",
+            &bearer,
+        ),
+        (
+            "http://bedrock-runtime.us-east-1.amazonaws.com/openai/v1",
+            &bearer,
+        ),
+    ] {
+        assert_invalid_context_for(
+            bedrock_success("openai.responses", base_url, auth),
+            ApiFormat::OpenAiResponses,
+        )
+        .await;
+    }
+}
+
+fn openrouter_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
+    let mut body = bedrock_success(api_format, base_url, auth);
+    body["connection"]["provider"] = json!("openrouter");
+    body
+}
+
+#[tokio::test]
+async fn openrouter_connections_serve_every_format_with_bearer_auth_from_their_base_url() {
+    const OPENROUTER: &str = "https://openrouter.ai/api/v1";
+    const OPENROUTER_EU: &str = "https://eu.openrouter.ai/api/v1";
+    let bearer = json!({"type": "Bearer", "token": "openrouter-key"});
+    for api_format in [
+        ApiFormat::OpenAiResponses,
+        ApiFormat::OpenAiChatCompletions,
+        ApiFormat::AnthropicMessages,
+    ] {
+        let body = openrouter_success(api_format.as_str(), OPENROUTER, &bearer);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(
+                GATEWAY_KEY,
+                api_format,
+                "openrouter:model",
+                0,
+                NOW_TIME,
+                REQUEST_ID,
+            )
+            .await
+            .unwrap();
+        assert_eq!(context.connection().provider().as_str(), "openrouter");
+        assert_eq!(context.connection().base_url(), OPENROUTER);
+        assert!(!context.connection().has_custom_base_url());
+    }
+
+    let web = FakeWeb::start(move |_| async move {
+        response(openrouter_success(
+            "openai.chat-completions",
+            OPENROUTER_EU,
+            &json!({"type": "Bearer", "token": "openrouter-key"}),
+        ))
+    })
+    .await;
+    let context = web
+        .control_plane()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiChatCompletions,
+            "openrouter:model",
+            0,
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap();
+    assert_eq!(context.connection().base_url(), OPENROUTER_EU);
+    assert!(context.connection().has_custom_base_url());
+
+    let x_api_key = json!({"type": "x-api-key", "header": "x-api-key", "value": "openrouter-key"});
+    for (base_url, auth) in [
+        (OPENROUTER, &x_api_key),
+        ("ftp://eu.openrouter.ai/api/v1", &bearer),
+        ("https://user:pass@eu.openrouter.ai/api/v1", &bearer),
+    ] {
+        assert_invalid_context_for(
+            openrouter_success("anthropic.messages", base_url, auth),
+            ApiFormat::AnthropicMessages,
+        )
+        .await;
+    }
+}
+
+fn xai_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
+    let mut body = bedrock_success(api_format, base_url, auth);
+    body["connection"]["provider"] = json!("xai");
+    body
+}
+
+#[tokio::test]
+async fn xai_connections_serve_the_openai_formats_from_its_hosted_api_with_bearer_auth() {
+    const XAI: &str = "https://api.x.ai/v1";
+    let bearer = json!({"type": "Bearer", "token": "xai-key"});
+    for api_format in [ApiFormat::OpenAiResponses, ApiFormat::OpenAiChatCompletions] {
+        let body = xai_success(api_format.as_str(), XAI, &bearer);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(GATEWAY_KEY, api_format, "xai:grok", 0, NOW_TIME, REQUEST_ID)
+            .await
+            .unwrap();
+        assert_eq!(context.connection().provider().as_str(), "xai");
+        assert_eq!(context.connection().base_url(), XAI);
+    }
+
+    let x_api_key = json!({"type": "x-api-key", "header": "x-api-key", "value": "xai-key"});
+    for (api_format, base_url, auth) in [
+        (ApiFormat::AnthropicMessages, XAI, &x_api_key),
+        (ApiFormat::AnthropicMessages, XAI, &bearer),
+        (
+            ApiFormat::OpenAiResponses,
+            "https://us.api.x.ai/v1",
+            &bearer,
+        ),
+        (
+            ApiFormat::OpenAiResponses,
+            "https://proxy.example/v1",
+            &bearer,
+        ),
+    ] {
+        assert_invalid_context_for(xai_success(api_format.as_str(), base_url, auth), api_format)
+            .await;
+    }
+}
+
+fn azure_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
+    let mut body = bedrock_success(api_format, base_url, auth);
+    body["connection"]["provider"] = json!("azure");
+    body
+}
+
+#[tokio::test]
+async fn azure_connections_reach_their_resource_on_the_path_of_their_format() {
+    const RESOURCE: &str = "https://contoso.services.ai.azure.com";
+    let openai = format!("{RESOURCE}/openai/v1");
+    let anthropic = format!("{RESOURCE}/anthropic/v1");
+    let bearer = json!({"type": "Bearer", "token": "azure-key"});
+    let x_api_key = json!({"type": "x-api-key", "header": "x-api-key", "value": "azure-key"});
+    for (api_format, base_url, auth) in [
+        (ApiFormat::OpenAiResponses, &openai, &bearer),
+        (ApiFormat::OpenAiChatCompletions, &openai, &bearer),
+        (ApiFormat::OpenAiEmbeddings, &openai, &bearer),
+        (ApiFormat::AnthropicMessages, &anthropic, &x_api_key),
+    ] {
+        let body = azure_success(api_format.as_str(), base_url, auth);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(
+                GATEWAY_KEY,
+                api_format,
+                "azure:my-deployment",
+                0,
+                NOW_TIME,
+                REQUEST_ID,
+            )
+            .await
+            .unwrap();
+        assert_eq!(context.connection().provider().as_str(), "azure");
+        assert_eq!(context.connection().base_url(), base_url.as_str());
+        assert!(context.connection().has_custom_base_url());
+    }
+
+    // Decisions, the other family's path, the wrong credential scheme, or a
+    // URL that is not a plain endpoint.
+    for (api_format, base_url, auth) in [
+        (ApiFormat::OpenAiDecisions, openai.clone(), &bearer),
+        (ApiFormat::OpenAiResponses, anthropic.clone(), &bearer),
+        (ApiFormat::AnthropicMessages, openai.clone(), &x_api_key),
+        (ApiFormat::OpenAiResponses, openai.clone(), &x_api_key),
+        (ApiFormat::AnthropicMessages, anthropic.clone(), &bearer),
+        (ApiFormat::OpenAiResponses, RESOURCE.to_owned(), &bearer),
+        (
+            ApiFormat::OpenAiResponses,
+            format!("{openai}?api-version=preview"),
+            &bearer,
+        ),
+    ] {
+        assert_invalid_context_for(
+            azure_success(api_format.as_str(), &base_url, auth),
+            api_format,
+        )
+        .await;
+    }
+}
+
+fn google_ai_studio_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
+    let mut body = bedrock_success(api_format, base_url, auth);
+    body["connection"]["provider"] = json!("google_ai_studio");
+    body
+}
+
+#[tokio::test]
+async fn google_ai_studio_connections_serve_chat_completions_and_embeddings_with_bearer_auth() {
+    const GOOGLE_AI_STUDIO: &str = "https://generativelanguage.googleapis.com/v1beta/openai";
+    let bearer = json!({"type": "Bearer", "token": "gemini-key"});
+    for api_format in [
+        ApiFormat::OpenAiChatCompletions,
+        ApiFormat::OpenAiEmbeddings,
+    ] {
+        let body = google_ai_studio_success(api_format.as_str(), GOOGLE_AI_STUDIO, &bearer);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(
+                GATEWAY_KEY,
+                api_format,
+                "gemini:gemini-3.5-flash",
+                0,
+                NOW_TIME,
+                REQUEST_ID,
+            )
+            .await
+            .unwrap();
+        assert_eq!(context.connection().provider().as_str(), "google_ai_studio");
+        assert_eq!(context.connection().base_url(), GOOGLE_AI_STUDIO);
+    }
+
+    let x_api_key = json!({"type": "x-api-key", "header": "x-api-key", "value": "gemini-key"});
+    for (api_format, base_url, auth) in [
+        (
+            ApiFormat::OpenAiChatCompletions,
+            GOOGLE_AI_STUDIO,
+            &x_api_key,
+        ),
+        (ApiFormat::OpenAiResponses, GOOGLE_AI_STUDIO, &bearer),
+        (ApiFormat::AnthropicMessages, GOOGLE_AI_STUDIO, &x_api_key),
+        (
+            ApiFormat::OpenAiChatCompletions,
+            "https://generativelanguage.googleapis.com/v1beta/openai/",
+            &bearer,
+        ),
+        (
+            ApiFormat::OpenAiChatCompletions,
+            "https://proxy.example/v1",
+            &bearer,
+        ),
+    ] {
+        assert_invalid_context_for(
+            google_ai_studio_success(api_format.as_str(), base_url, auth),
+            api_format,
+        )
+        .await;
+    }
+}
+
+fn vercel_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
+    let mut body = bedrock_success(api_format, base_url, auth);
+    body["connection"]["provider"] = json!("vercel");
+    body
+}
+
+#[tokio::test]
+async fn vercel_connections_serve_every_format_from_its_hosted_api_with_bearer_auth() {
+    const VERCEL: &str = "https://ai-gateway.vercel.sh/v1";
+    let bearer = json!({"type": "Bearer", "token": "vck-key"});
+    for api_format in [
+        ApiFormat::OpenAiResponses,
+        ApiFormat::OpenAiChatCompletions,
+        ApiFormat::OpenAiDecisions,
+        ApiFormat::AnthropicMessages,
+    ] {
+        let body = vercel_success(api_format.as_str(), VERCEL, &bearer);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(
+                GATEWAY_KEY,
+                api_format,
+                "vercel:anthropic/claude-sonnet-5",
+                0,
+                NOW_TIME,
+                REQUEST_ID,
+            )
+            .await
+            .unwrap();
+        assert_eq!(context.connection().provider().as_str(), "vercel");
+        assert_eq!(context.connection().base_url(), VERCEL);
+    }
+
+    let x_api_key = json!({"type": "x-api-key", "header": "x-api-key", "value": "vck-key"});
+    for (base_url, auth) in [
+        (VERCEL, &x_api_key),
+        ("https://ai-gateway.vercel.sh/v1/", &bearer),
+        ("https://proxy.example/v1", &bearer),
+    ] {
+        assert_invalid_context_for(
+            vercel_success("anthropic.messages", base_url, auth),
+            ApiFormat::AnthropicMessages,
+        )
+        .await;
+    }
+}
+
 #[tokio::test]
 async fn rejects_incompatible_or_incomplete_execution_contexts() {
     let mutations = [
@@ -552,28 +1312,46 @@ async fn rejects_incompatible_or_incomplete_execution_contexts() {
         ("/ingestion_mode", json!({"usage": null})),
         ("/connection/provider", json!("anthropic")),
         ("/connection/api_format", json!("openai.chatcompletions")),
-        ("/connection/base_url", json!("https://attacker.example/v1")),
-        (
-            "/connection/base_url",
-            json!("https://api.openai.com.attacker.example/v1"),
-        ),
-        ("/connection/base_url", json!("http://api.openai.com/v1")),
+        ("/connection/base_url", json!("api.openai.com/v1")),
+        ("/connection/base_url", json!("file:///etc/passwd")),
         (
             "/connection/base_url",
             json!("https://api.openai.com/v1?redirect=elsewhere"),
         ),
+        (
+            "/connection/base_url",
+            json!("https://proxy.example/v1#part"),
+        ),
+        (
+            "/connection/extra_headers",
+            json!({"authorization": "Bearer other"}),
+        ),
+        ("/connection/extra_headers", json!({"Host": "elsewhere"})),
+        (
+            "/connection/extra_headers",
+            json!({"proxy-anything": "value"}),
+        ),
+        ("/connection/extra_headers", json!({"bad header": "value"})),
+        (
+            "/connection/extra_headers",
+            json!({"x-team": "bad\r\nvalue"}),
+        ),
+        ("/connection/extra_headers", json!({"x-team": 42})),
         ("/connection/auth/type", json!("Basic")),
         ("/connection/auth/token", json!("")),
         ("/connection/auth/token", json!("bad\r\nheader")),
         ("/connection/id", json!("")),
+        ("/connection/provider_model", json!("")),
         ("/attribution/project_id", json!("")),
         ("/attribution/provider_connection_id", json!("")),
+        ("/attribution/user_id", json!("")),
+        ("/attribution/user_id", json!(42)),
         (
             "/attribution/key_metadata",
             json!({"nested": {"key": "value"}}),
         ),
         ("/attribution/key_metadata", json!({"null": null})),
-        ("/ingestion_mode", json!("none")),
+        ("/ingestion_mode", json!("off")),
         ("/ingestion/access_token", json!("")),
         ("/ingestion/token_type", json!("Basic")),
         ("/ingestion/expires_at", json!(NOW)),
@@ -594,9 +1372,105 @@ async fn rejects_incompatible_or_incomplete_execution_contexts() {
         body.as_object_mut().unwrap().remove(field);
         assert_invalid_context(body).await;
     }
+}
+
+#[tokio::test]
+async fn accepts_custom_base_urls_and_extra_headers() {
+    let mut body = success("project-1", "provider-token");
+    body["connection"]["base_url"] = json!("http://llm-proxy.example:8080/openai/v1");
+    body["connection"]["extra_headers"] = json!({"x-team": "research", "api-key": "proxy"});
+    let web = FakeWeb::start(move |_| {
+        let body = body.clone();
+        async move { response(body) }
+    })
+    .await;
+    let context = web
+        .control_plane()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            "primary:provider-model",
+            0,
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        context.connection().base_url(),
+        "http://llm-proxy.example:8080/openai/v1"
+    );
+    assert_eq!(
+        context.connection().extra_headers().collect::<Vec<_>>(),
+        [("api-key", "proxy"), ("x-team", "research")]
+    );
+}
+
+#[tokio::test]
+async fn accepts_unknown_response_fields_outside_provider_auth() {
     let mut body = success("project-1", "provider-token");
     body["unexpected"] = json!(true);
-    assert_invalid_context(body).await;
+    body["connection"]["unexpected"] = json!({"nested": true});
+    body["attribution"]["unexpected"] = json!("value");
+    body["ingestion"]["unexpected"] = json!(1);
+    body["attribution"]["key_name"] = json!("CI key");
+    body["attribution"]["user_name"] = json!("Alice");
+    body["attribution"]["user_email"] = json!("alice@example.com");
+    let web = FakeWeb::start(move |_| {
+        let body = body.clone();
+        async move { response(body) }
+    })
+    .await;
+    let context = web
+        .control_plane()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            "primary:gpt-4.1",
+            0,
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap();
+    let attribution = context.attribution();
+    assert_eq!(attribution.key_name(), Some("CI key"));
+    assert_eq!(attribution.user_id(), Some("user-1"));
+    assert_eq!(attribution.user_name(), Some("Alice"));
+    assert_eq!(attribution.user_email(), Some("alice@example.com"));
+}
+
+#[tokio::test]
+async fn treats_missing_or_blank_key_snapshots_as_absent() {
+    for value in [None, Some(json!("")), Some(json!("  ")), Some(Value::Null)] {
+        let mut body = success("project-1", "provider-token");
+        if let Some(value) = value {
+            for field in ["key_name", "user_name", "user_email"] {
+                body["attribution"][field] = value.clone();
+            }
+        }
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(
+                GATEWAY_KEY,
+                ApiFormat::OpenAiResponses,
+                "primary:gpt-4.1",
+                0,
+                NOW_TIME,
+                REQUEST_ID,
+            )
+            .await
+            .unwrap();
+        let attribution = context.attribution();
+        assert_eq!(attribution.key_name(), None);
+        assert_eq!(attribution.user_name(), None);
+        assert_eq!(attribution.user_email(), None);
+    }
 }
 
 #[tokio::test]
@@ -640,12 +1514,95 @@ async fn rejects_ingestion_tokens_that_authorize_a_different_tenant() {
             .resolve_at(
                 GATEWAY_KEY,
                 ApiFormat::OpenAiResponses,
+                "primary:gpt-4.1",
+                0,
                 NOW_TIME,
                 REQUEST_ID
             )
             .await
             .is_ok()
     );
+}
+
+#[tokio::test]
+async fn resolves_none_mode_without_an_ingestion_grant_or_project() {
+    let mut body = success("project-1", "provider-token");
+    body["ingestion_mode"] = json!("none");
+    body["ingestion"] = Value::Null;
+    body["attribution"]["project_id"] = Value::Null;
+    let web = FakeWeb::start(move |_| {
+        let body = body.clone();
+        async move { response(body) }
+    })
+    .await;
+    let context = web
+        .control_plane()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            "primary:gpt-4.1",
+            0,
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap();
+    assert_eq!(context.ingestion_mode(), IngestionMode::None);
+    assert!(context.ingestion().is_none());
+    assert!(context.attribution().project_id().is_none());
+}
+
+#[tokio::test]
+async fn resolves_keys_that_are_not_bound_to_a_user() {
+    let unbound: fn(&mut Value) = |body| body["attribution"]["user_id"] = Value::Null;
+    let predates_field: fn(&mut Value) = |body| {
+        body["attribution"]
+            .as_object_mut()
+            .unwrap()
+            .remove("user_id");
+    };
+    for strip in [unbound, predates_field] {
+        let mut body = success("project-1", "provider-token");
+        strip(&mut body);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(
+                GATEWAY_KEY,
+                ApiFormat::OpenAiResponses,
+                "primary:gpt-4.1",
+                0,
+                NOW_TIME,
+                REQUEST_ID,
+            )
+            .await
+            .unwrap();
+        assert!(context.attribution().user_id().is_none());
+    }
+}
+
+#[tokio::test]
+async fn delivering_modes_require_an_ingestion_grant_and_project() {
+    for mode in ["usage", "full"] {
+        let mut body = success("project-1", "provider-token");
+        body["ingestion_mode"] = json!(mode);
+        body["ingestion"] = Value::Null;
+        assert_invalid_context(body).await;
+
+        let mut body = success("project-1", "provider-token");
+        body["ingestion_mode"] = json!(mode);
+        body["attribution"]["project_id"] = Value::Null;
+        assert_invalid_context(body).await;
+    }
+    // A grant sent alongside NONE must still be bound to the attributed tenant.
+    let mut body = success("project-1", "provider-token");
+    body["ingestion_mode"] = json!("none");
+    body["attribution"]["project_id"] = json!("project-2");
+    assert_invalid_context(body).await;
 }
 
 async fn assert_invalid_context(body: Value) {
@@ -660,7 +1617,14 @@ async fn assert_invalid_context_for(body: Value, api_format: ApiFormat) {
     .await;
     let result = web
         .control_plane()
-        .resolve_at(GATEWAY_KEY, api_format, NOW_TIME, REQUEST_ID)
+        .resolve_at(
+            GATEWAY_KEY,
+            api_format,
+            "primary:provider-model",
+            0,
+            NOW_TIME,
+            REQUEST_ID,
+        )
         .await;
     assert!(matches!(result, Err(ResolutionError::InvalidResponse)));
     assert_eq!(web.calls(), 1);
@@ -677,6 +1641,8 @@ async fn rejects_malformed_json_without_exposing_response_contents() {
         .resolve_at(
             GATEWAY_KEY,
             ApiFormat::OpenAiResponses,
+            "primary:gpt-4.1",
+            0,
             NOW_TIME,
             REQUEST_ID,
         )
@@ -713,4 +1679,24 @@ fn web_configuration_rejects_unsafe_or_ambiguous_urls() {
     ] {
         assert!(ControlPlaneConfig::new(url, SERVICE_KEY).is_ok());
     }
+}
+
+#[test]
+fn plain_http_web_configuration_only_relaxes_the_https_requirement() {
+    assert!(ControlPlaneConfig::with_plain_http("http://web.example", SERVICE_KEY).is_ok());
+    for url in [
+        "ftp://web.example",
+        "http://user:password@web.example",
+        "http://web.example?query=true",
+        "http://web.example#fragment",
+    ] {
+        assert!(matches!(
+            ControlPlaneConfig::with_plain_http(url, SERVICE_KEY),
+            Err(ResolutionError::Configuration)
+        ));
+    }
+    assert!(matches!(
+        ControlPlaneConfig::with_plain_http("http://web.example", " "),
+        Err(ResolutionError::Configuration)
+    ));
 }

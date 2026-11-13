@@ -5,7 +5,7 @@ import {
   createStructuredPublicApiRateLimitError,
   structuredPublicApiErrorContract,
   toStructuredPublicApiError,
-} from "@/src/features/public-api/server";
+} from "@/src/features/public-api/server/structuredPublicApiErrorContract";
 
 describe("structured public api error contract", () => {
   it("uses one contract marker", () => {
@@ -56,6 +56,7 @@ describe("structured public api error contract", () => {
         publicKey: "pk-test",
         isIngestionSuspended: false,
         isInAppAgentKey: false,
+        accessAuditLogEnabled: false,
       },
       consumedPoints: 11,
       isFirstInDuration: false,

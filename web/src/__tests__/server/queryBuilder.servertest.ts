@@ -5,6 +5,10 @@ import {
   validateQuery,
   type QueryType,
 } from "@langfuse/shared/query";
+import {
+  AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY,
+  AI_GATEWAY_SERVICE_NAME,
+} from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import {
   createTrace,
@@ -4068,15 +4072,13 @@ describe("queryBuilder", () => {
         true,
       );
 
-      expect(sql).toContain("ARRAY JOIN");
-      expect(sql).toContain(
-        "mapKeys(events_observations.cost_details) AS costType",
-      );
-      expect(sql).toContain(
-        "mapValues(events_observations.cost_details) AS cost_value",
-      );
+      expect(sql).toMatch(/\barray join\b/i);
+      expect(sql).toMatch(/mapKeys\(\w+\.cost_details\) as costType\b/i);
+      expect(sql).toMatch(/mapValues\(\w+\.cost_details\) as cost_value\b/i);
       // ARRAY JOIN must appear before WHERE
-      expect(sql.indexOf("ARRAY JOIN")).toBeLessThan(sql.indexOf("WHERE"));
+      expect(sql.search(/\barray join\b/i)).toBeLessThan(
+        sql.search(/\bwhere\b/i),
+      );
       // No inline arrayJoin() function call — must use clause form
       expect(sql).not.toMatch(/arrayJoin\(mapKeys/);
       // ARRAY JOIN already aliases the key; re-emitting `costType AS costType`
@@ -4213,11 +4215,10 @@ describe("queryBuilder", () => {
           true,
         );
 
-        expect(sql).toContain("WITH FILL");
+        expect(sql).toMatch(/\bwith fill\b/i);
         expect(sql).toContain("time_dimension");
         // GROUP BY parts may be newline-separated in the generated SQL
-        expect(sql).toContain("GROUP BY costType");
-        expect(sql).toMatch(/GROUP BY costType[\s,]+time_dimension/);
+        expect(sql).toMatch(/\bgroup by costType[\s,]+time_dimension\b/i);
 
         const result = await executeQuery(
           projectId,
@@ -4440,6 +4441,106 @@ describe("queryBuilder", () => {
         ),
       ).rejects.toThrow("Only one pairExpand dimension is supported per query");
     });
+  });
+
+  describe("AI gateway attribution (v2)", () => {
+    const itWithEventsTable =
+      env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
+
+    itWithEventsTable(
+      "attributes user-tied keys to their owner and leaves service keys out",
+      async () => {
+        const projectId = randomUUID();
+        const gatewayEvent = (params: {
+          keyId: string;
+          ownerUserId?: string;
+          userId?: string;
+        }) =>
+          createEvent({
+            project_id: projectId,
+            type: "GENERATION",
+            start_time: Date.now() * 1000,
+            service_name: AI_GATEWAY_SERVICE_NAME,
+            ingestion_api_key: params.keyId,
+            user_id: params.userId ?? null,
+            metadata_names: params.ownerUserId
+              ? [AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY]
+              : [],
+            metadata_values: params.ownerUserId ? [params.ownerUserId] : [],
+          });
+        await createEventsCh([
+          gatewayEvent({ keyId: "key-a1", ownerUserId: "user-a" }),
+          // A second key of the same owner, e.g. one revoked since.
+          gatewayEvent({ keyId: "key-a2", ownerUserId: "user-a" }),
+          // A service key whose caller claims to be user-a.
+          gatewayEvent({ keyId: "service-key", userId: "user-a" }),
+          // SDK traffic into the same project.
+          createEvent({
+            project_id: projectId,
+            type: "GENERATION",
+            start_time: Date.now() * 1000,
+            user_id: "user-a",
+            ingestion_api_key: "pk-lf-sdk",
+          }),
+        ]);
+
+        const result = await executeQuery(
+          projectId,
+          {
+            view: "observations",
+            dimensions: [{ field: "aiGatewayKeyOwnerUserId" }],
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [
+              {
+                column: "aiGatewayKeyOwnerUserId",
+                operator: "is not null",
+                value: "",
+                type: "null",
+              },
+            ],
+            timeDimension: null,
+            fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+            toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+            orderBy: null,
+          },
+          "v2",
+          true,
+        );
+
+        expect(
+          Object.fromEntries(
+            result.map((row) => [
+              String(row["aiGatewayKeyOwnerUserId"]),
+              Number(row["count_count"]),
+            ]),
+          ),
+        ).toEqual({ "user-a": 2 });
+
+        const [keyFiltered] = await executeQuery(
+          projectId,
+          {
+            view: "observations",
+            dimensions: [],
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [
+              {
+                column: "aiGatewayKeyId",
+                operator: "any of",
+                value: ["key-a1", "service-key"],
+                type: "stringOptions",
+              },
+            ],
+            timeDimension: null,
+            fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+            toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+            orderBy: null,
+          },
+          "v2",
+          true,
+        );
+        expect(Number(keyFiltered["count_count"])).toBe(2);
+      },
+    );
   });
 });
 
@@ -4836,9 +4937,9 @@ describe("query builder measure-aggregation validation", () => {
     const result = await queryBuilder.build(query, randomUUID());
 
     expect(result.query).toContain("as entity_dimension");
-    expect(result.query).toContain("GROUP BY entity_dimension");
+    expect(result.query).toMatch(/\bgroup by entity_dimension\b/i);
     expect(result.query).not.toContain("time_dimension");
-    expect(result.query).not.toContain("WITH FILL");
+    expect(result.query).not.toMatch(/\bwith fill\b/i);
   });
 
   it("should include declared relation for relation-backed entity dimensions", async () => {
@@ -5284,7 +5385,7 @@ describe("query builder measure-aggregation validation", () => {
         randomUUID(),
       );
 
-      expect(sql).toContain("FROM events_full events_observations");
+      expect(sql).toMatch(/\bfrom events_full\b/i);
       expect(sql).not.toContain("events_core");
     });
 

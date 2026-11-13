@@ -14,20 +14,24 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
-import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
+import { LangfuseWordmark } from "@/src/components/design-system/LangfuseWordmark/LangfuseWordmark";
 import { signIn, useSession } from "next-auth/react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
-import { RequestResetPasswordEmailButton } from "@/src/features/auth-credentials/components/ResetPasswordButton";
+import { RequestResetPasswordEmailButton } from "@/src/features/auth-credentials/components/RequestResetPasswordEmailButton";
 import { TRPCClientError } from "@trpc/client";
 import Link from "next/link";
 import { ErrorPage } from "@/src/components/error-page";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { passwordSchema } from "@/src/features/auth";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
-import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials/lib/credentialsUtils";
-import { getDemoTargetPath } from "@/src/features/onboarding/lib/demoCallbackRedirect";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { passwordSchema } from "@/src/features/auth/lib/signupSchema";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import {
+  PASSWORD_RESET_EMAIL_CODE_MAX_AGE_SECONDS,
+  PASSWORD_SETUP_EMAIL_STORAGE_KEY,
+  SIGNUP_EMAIL_CODE_MAX_AGE_SECONDS,
+} from "@/src/features/auth-credentials/lib/credentialsUtils";
+import { getOnboardingTargetPath } from "@/src/features/onboarding/lib/demoCallbackRedirect";
 import { env } from "@/src/env.mjs";
 import { TURNSTILE_ACTIONS } from "@/src/features/auth/constants";
 import {
@@ -73,9 +77,16 @@ export function ResetPasswordPage({
 
   const isSetMode =
     intent === "setup" || session.data?.user?.hasPassword === false;
+  const codeMinutesValid =
+    (isSetMode
+      ? SIGNUP_EMAIL_CODE_MAX_AGE_SECONDS
+      : PASSWORD_RESET_EMAIL_CODE_MAX_AGE_SECONDS) / 60;
   const setupTargetPath =
     isSetMode && router.isReady
-      ? getDemoTargetPath(router.query.targetPath)
+      ? getOnboardingTargetPath({
+          targetPath: router.query.targetPath,
+          isLangfuseCloud,
+        })
       : undefined;
   const setupPasswordPath = setupTargetPath
     ? `/auth/setup-password?targetPath=${encodeURIComponent(setupTargetPath)}`
@@ -128,6 +139,7 @@ export function ResetPasswordPage({
         email: effectiveEmail,
         token: values.token,
         password: values.password,
+        intent,
       });
 
       if (isSetMode) {
@@ -135,7 +147,11 @@ export function ResetPasswordPage({
       }
 
       let target = setupTargetPath ?? "/";
-      if (isSetMode && isLangfuseCloud && region !== "DEV") {
+      // Self-hosted: only a new sign-up, which lands on the setup-password page; /onboarding forwards on when the step is off.
+      const goesThroughOnboarding = isLangfuseCloud
+        ? isSetMode && region !== "DEV"
+        : intent === "setup";
+      if (goesThroughOnboarding) {
         target = setupTargetPath
           ? `/onboarding?targetPath=${encodeURIComponent(setupTargetPath)}`
           : "/onboarding";
@@ -196,7 +212,7 @@ export function ResetPasswordPage({
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <Link href="/">
             <div className="mx-auto w-fit">
-              <LangfuseIcon />
+              <LangfuseWordmark />
             </div>
           </Link>
           <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
@@ -206,7 +222,11 @@ export function ResetPasswordPage({
             <div className="mt-2 flex justify-center">
               <Button asChild variant="ghost">
                 <Link href="/auth/sign-in">
-                  <ArrowLeft className="icon-base text-icon-foreground mr-2" />
+                  <ArrowLeft
+                    size="base"
+                    color="default"
+                    __rawClassName="mr-2"
+                  />
                   Back to sign in
                 </Link>
               </Button>
@@ -238,7 +258,8 @@ export function ResetPasswordPage({
                   <>
                     <p className="text-muted-foreground text-sm">
                       Enter the 6-digit code from your email together with your
-                      new password. The code is valid for 3 minutes.
+                      new password. The code is valid for {codeMinutesValid}{" "}
+                      minutes.
                     </p>
                     <FormField
                       control={form.control}
@@ -322,48 +343,53 @@ export function ResetPasswordPage({
                         {submitLabel}
                       </Button>
                     </div>
+                    {formError ? (
+                      <div className="text-destructive text-center text-sm font-bold">
+                        {formError}
+                      </div>
+                    ) : null}
+                    <div className="flex flex-col">
+                      <RequestResetPasswordEmailButton
+                        email={effectiveEmail}
+                        callbackUrl={isSetMode ? setupPasswordPath : undefined}
+                        onEmailSent={() => {
+                          setCodeRequested(true);
+                          setTurnstileToken(undefined);
+                          setTurnstileAction(TURNSTILE_ACTIONS.login);
+                        }}
+                        label="Send another code"
+                        variant="secondary"
+                        sharedTurnstile={
+                          turnstileSiteKey
+                            ? {
+                                token: turnstileToken,
+                                action: turnstileAction,
+                                onPreparePasswordReset: () => {
+                                  setTurnstileToken(undefined);
+                                  setTurnstileAction(
+                                    TURNSTILE_ACTIONS.passwordReset,
+                                  );
+                                },
+                                onRejectToken: () => {
+                                  turnstileRef.current?.reset();
+                                },
+                              }
+                            : undefined
+                        }
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-col">
                     <RequestResetPasswordEmailButton
                       email={effectiveEmail}
                       callbackUrl={isSetMode ? setupPasswordPath : undefined}
-                      onEmailSent={() => {
-                        setCodeRequested(true);
-                        setTurnstileToken(undefined);
-                        setTurnstileAction(TURNSTILE_ACTIONS.login);
-                      }}
-                      label="Send another code"
-                      sharedTurnstile={
-                        turnstileSiteKey
-                          ? {
-                              token: turnstileToken,
-                              action: turnstileAction,
-                              onPreparePasswordReset: () => {
-                                setTurnstileToken(undefined);
-                                setTurnstileAction(
-                                  TURNSTILE_ACTIONS.passwordReset,
-                                );
-                              },
-                              onRejectToken: () => {
-                                turnstileRef.current?.reset();
-                              },
-                            }
-                          : undefined
-                      }
+                      onEmailSent={() => setCodeRequested(true)}
                     />
-                  </>
-                ) : (
-                  <RequestResetPasswordEmailButton
-                    email={effectiveEmail}
-                    callbackUrl={isSetMode ? setupPasswordPath : undefined}
-                    onEmailSent={() => setCodeRequested(true)}
-                  />
+                  </div>
                 )}
               </form>
             </Form>
-            {formError ? (
-              <div className="text-destructive text-center text-sm font-bold">
-                {formError}
-              </div>
-            ) : null}
             {isSuccess && (
               <div className="text-center text-sm font-bold">
                 {successMessage}
