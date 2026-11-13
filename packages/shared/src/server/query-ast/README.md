@@ -286,6 +286,7 @@ and it is where tenancy is enforced:
    name (if not) — so `scores AS traces` joined to `traces AS t` still scopes
    both. It then identity-stamps the tree (`WeakSet`); a copied
    `langfuseTenancy` property is not a valid stamp.
+   Only inner and left joins take the scope in their ON clause; every other join type (RIGHT, FULL, …) on a tenanted table must be scoped in WHERE or behind a subquery, else it throws `UnscopedRelationError`, and every cross join throws it, since ClickHouse has no `CROSS JOIN … ON`.
 3. `DedupLoweringPlugin` applies the table's declared read idiom
    (`none` / `limitBy` / `final`). `events_core` and `events_full` are
    `none` — immutable at read time, so the pass does not inject LIMIT BY or
