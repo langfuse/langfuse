@@ -262,7 +262,7 @@ describe("ExperimentsAggregationQueryBuilder", () => {
       .buildWithParams();
 
     expect(query).toContain(
-      "anyIf(e.experiment_description, e.span_id = e.experiment_item_root_span_id) as experiment_description",
+      "anyIf(e.experiment_description, (e.span_id = e.experiment_item_root_span_id and e.experiment_description != '')) as experiment_description",
     );
   });
 });

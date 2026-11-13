@@ -466,7 +466,10 @@ const experimentAggregationSelects = scopedToEvents(
       anyValue(eb.ref("e.experiment_name")).as("experiment_name"),
       anyIf(
         eb.ref("e.experiment_description"),
-        eb("e.span_id", "=", eb.ref("e.experiment_item_root_span_id")),
+        eb.and([
+          eb("e.span_id", "=", eb.ref("e.experiment_item_root_span_id")),
+          eb("e.experiment_description", "!=", literal("")),
+        ]),
       ).as("experiment_description"),
       nullIf(anyValue(eb.ref("e.experiment_dataset_id")), literal("")).as(
         "experiment_dataset_id",
