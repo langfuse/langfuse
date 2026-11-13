@@ -7,6 +7,7 @@ import {
   useDetailPageLists,
 } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { isOpenDialogPresent } from "@/src/features/scores/lib/keyboardShortcuts";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { cn } from "@/src/utils/tailwind";
 import { ArrowDown, ArrowUp } from "@langfuse/icons";
@@ -118,6 +119,8 @@ export const DetailPageNav = (props: {
       if (event.metaKey || event.ctrlKey) {
         return;
       }
+      // An open dialog owns the keyboard. Leaving the page would drop its draft.
+      if (isOpenDialogPresent()) return;
 
       if (event.key === "k" && previousPageEntry) {
         pulseShortcut("previous");

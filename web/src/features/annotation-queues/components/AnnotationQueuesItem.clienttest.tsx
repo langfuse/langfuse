@@ -8,6 +8,7 @@ import {
 import { StrictMode, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { vi } from "vitest";
+import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import { AnnotationQueuesItem } from "./AnnotationQueuesItem";
 
 function render(ui: ReactNode) {
@@ -16,7 +17,9 @@ function render(ui: ReactNode) {
   });
   const rendered = renderWithTestingLibrary(ui, {
     wrapper: ({ children }) => (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      <QueryClientProvider client={client}>
+        <DetailPageListsProvider>{children}</DetailPageListsProvider>
+      </QueryClientProvider>
     ),
   });
   return { ...rendered, queryClient: client };
