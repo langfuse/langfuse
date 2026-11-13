@@ -173,6 +173,7 @@ vi.mock("./AutomaticProcessingDialogController", () => ({
     children: (control: { openDialog: () => void }) => ReactNode;
   }) => children({ openDialog: state.openAutomaticProcessing }),
 }));
+vi.mock("./useTopicMapCost", () => ({ useTopicMapCost: () => null }));
 vi.mock("./CurrentTopics", () => ({
   useCurrentTopics: (input: {
     running: boolean;
