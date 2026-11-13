@@ -126,7 +126,9 @@ describe("KeyValueFilterBuilder", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Add condition" }));
+    // String mode starts on a blank row. The first key does not wait on
+    // Add condition.
+    expect(screen.getByPlaceholderText("Key")).toHaveValue("");
     fireEvent.change(screen.getByPlaceholderText("Key"), {
       target: { value: "draft-key" },
     });
