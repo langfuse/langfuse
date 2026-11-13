@@ -1771,7 +1771,7 @@ model TraceMedia {
   origin    MediaAssociationOrigin @default(UNKNOWN)
 
   @@unique([projectId, traceId, mediaId, field])
-  @@index([projectId, mediaId])
+  @@index([projectId, mediaId, createdAt])
   @@map("trace_media")
 }
 
@@ -1787,7 +1787,7 @@ model ObservationMedia {
   origin        MediaAssociationOrigin @default(UNKNOWN)
 
   @@unique([projectId, traceId, observationId, mediaId, field])
-  @@index([projectId, mediaId])
+  @@index([projectId, mediaId, createdAt])
   @@map("observation_media")
 }
 
