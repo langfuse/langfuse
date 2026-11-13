@@ -151,8 +151,11 @@ core never changes. The pipeline:
    around embedded media tokens; JSON-string arrays of tool shapes parse into
    tool parts. Sibling fields fold in: `tool_calls` (+
    `additional_kwargs.tool_calls`), `invalid_tool_calls` (flagged), Anthropic
-   `thinking` arrays, OpenAI `refusal`/`audio`/`annotations`, Responses
-   reasoning `summary`/`encrypted_content`, `finish_reason` (message-level,
+   `thinking` arrays, OpenAI-compatible assistant `reasoning_content` and
+   `reasoning` strings (including LiteLLM's `provider_specific_fields.reasoning`,
+   deduplicated against identical reasoning and existing thinking),
+   OpenAI `refusal`/`audio`/`annotations`, Responses reasoning
+   `summary`/`encrypted_content`, `finish_reason` (message-level,
    envelope-level, or `response_metadata`). The part parser itself
    recognizes, in order: shared typed blocks (text, reasoning), the
    provider-declared typed blocks (OpenAI, Anthropic, AI-SDK, LangChain block
