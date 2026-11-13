@@ -372,6 +372,19 @@ describe("tenancy injection", () => {
     );
   });
 
+  it("accepts a RIGHT join whose joined table WHERE scopes", () => {
+    const db = getClickhouseKysely();
+    const qb = db
+      .selectFrom(db.selectFrom("traces").select(["id", "project_id"]).as("s"))
+      .rightJoin("scores", (join) => join.onRef("scores.trace_id", "=", "s.id"))
+      .where("scores.project_id", "=", projectId)
+      .select("scores.value");
+
+    expect(compileClickhouseQuery(qb, projectId).sql).toMatchInlineSnapshot(
+      `"select scores.value from (select id, project_id from traces where traces.project_id = {p1:String}) as s right join scores on scores.trace_id = s.id where scores.project_id = {p1:String}"`,
+    );
+  });
+
   it("rejects every cross join, tenanted or not", () => {
     // ClickHouse has no `CROSS JOIN … ON`, so there is nowhere to inject.
     const db = getClickhouseKysely();
