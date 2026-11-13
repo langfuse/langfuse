@@ -6,7 +6,7 @@ import {
 } from "@/src/features/ai-gateway/server/provider/bedrock";
 import {
   GatewayVertexConfigSchema,
-  vertexAccessTokens,
+  getVertexAccessToken,
   vertexOpenAICompatibleBaseUrl,
 } from "@/src/features/ai-gateway/server/provider/vertex";
 
@@ -305,7 +305,7 @@ export async function getGatewayUpstreamSecret(params: {
     return decodeBedrockApiKey(params.credential);
   }
   if (params.provider === "VERTEX") {
-    return vertexAccessTokens.getAccessToken(params.credential);
+    return getVertexAccessToken(params.credential);
   }
   return params.credential;
 }

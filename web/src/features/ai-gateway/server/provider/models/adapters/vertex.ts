@@ -1,9 +1,9 @@
-import { gaxios } from "google-auth-library";
+import { VertexTokenExchangeError } from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
 
 import {
   GatewayVertexConfigSchema,
-  vertexAccessTokens,
+  getVertexAccessToken,
   vertexPublisherModelsUrl,
 } from "@/src/features/ai-gateway/server/provider/vertex";
 import { requestJson, standardHttpError } from "./shared";
@@ -42,7 +42,7 @@ export const vertexModelDiscoveryAdapter: ModelDiscoveryAdapter = {
     }
     let token: string;
     try {
-      token = await vertexAccessTokens.getAccessToken(credential);
+      token = await getVertexAccessToken(credential);
     } catch (error) {
       return { success: false, error: tokenExchangeError(error) };
     }
@@ -94,9 +94,9 @@ export const vertexModelDiscoveryAdapter: ModelDiscoveryAdapter = {
 // Only an answer from Google rejects the key; an unreachable token endpoint
 // must not mark the connection as errored.
 function tokenExchangeError(error: unknown): ModelDiscoveryError {
-  if (!(error instanceof gaxios.GaxiosError)) return "unauthorized";
-  const status = error.response?.status;
-  if (status === undefined) return "timeout";
+  if (!(error instanceof VertexTokenExchangeError)) return "unauthorized";
+  const { status } = error;
+  if (status === null) return "timeout";
   if (status === 429) return "rate_limited";
   return status >= 500 ? "provider_error" : "unauthorized";
 }

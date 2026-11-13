@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { encrypt } from "@langfuse/shared/encryption";
-import type * as GoogleAuthLibrary from "google-auth-library";
-import { gaxios } from "google-auth-library";
+import type * as SharedServer from "@langfuse/shared/src/server";
+import { VertexTokenExchangeError } from "@langfuse/shared/src/server";
 import type { Redis } from "ioredis";
 
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
@@ -26,13 +26,11 @@ vi.mock("@/src/features/ai-gateway/server/provider/getGatewayFetch", () => ({
   getGatewayFetch: vi.fn(),
 }));
 const getVertexAccessToken = vi.hoisted(() =>
-  vi.fn(async () => ({ token: "vertex-access-token" })),
+  vi.fn(async () => "vertex-access-token"),
 );
-vi.mock("google-auth-library", async (importOriginal) => ({
-  ...(await importOriginal<typeof GoogleAuthLibrary>()),
-  JWT: class {
-    getAccessToken = getVertexAccessToken;
-  },
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof SharedServer>()),
+  generateVertexAccessTokenForServiceAccount: getVertexAccessToken,
 }));
 
 const openAiModels = [
@@ -284,20 +282,8 @@ describe("AI Gateway model discovery", () => {
   });
 
   it("treats a Vertex AI key Google rejects as unauthorized and an unreachable Google as retryable", async () => {
-    const tokenError = (status?: number) =>
-      new gaxios.GaxiosError(
-        "token exchange failed",
-        {
-          url: new URL("https://oauth2.googleapis.com/token"),
-          headers: new Headers(),
-        },
-        status === undefined
-          ? undefined
-          : (Object.assign(new Response(null, { status }), {
-              config: {},
-              data: {},
-            }) as never),
-      );
+    const tokenError = (status: number | null) =>
+      new VertexTokenExchangeError("token exchange failed", status);
     const fetchCatalogError = async (error: Error) => {
       getVertexAccessToken.mockRejectedValueOnce(error);
       const result = await vertexModelDiscoveryAdapter.fetchCatalog({
@@ -311,7 +297,7 @@ describe("AI Gateway model discovery", () => {
     };
 
     expect(await fetchCatalogError(tokenError(400))).toBe("unauthorized");
-    expect(await fetchCatalogError(tokenError())).toBe("timeout");
+    expect(await fetchCatalogError(tokenError(null))).toBe("timeout");
   });
 
   it("lists Bedrock models under every OpenAI route they serve and Claude only under Messages", () => {
