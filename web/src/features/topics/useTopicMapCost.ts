@@ -34,6 +34,8 @@ export function useTopicMapCost({
         : undefined,
     refetchInterval: running ? 15_000 : false,
     enabled: Boolean(ruleId || analysisId),
+    // A secondary number: a failure hides the label instead of toasting.
+    meta: { silentAllErrors: true },
   });
   return cost.data ?? null;
 }
