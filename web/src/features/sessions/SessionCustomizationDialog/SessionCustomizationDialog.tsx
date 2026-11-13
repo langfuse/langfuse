@@ -3,7 +3,7 @@ import { Controller, useForm, useWatch } from "react-hook-form";
 import { type FilterState } from "@langfuse/shared";
 import { type RouterOutputs } from "@/src/utils/api";
 import { ListTree, Sparkles } from "@langfuse/icons";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { Form } from "@/src/components/design-system/Form/Form";
@@ -221,17 +221,13 @@ export function SessionCustomizationDialog({
                   ).map(({ label, icon: Icon, filter }) => (
                     <Button
                       key={label}
-                      type="button"
+                      text={label}
+                      icon={Icon}
                       variant="outline"
-                      size="sm"
-                      className="aria-pressed:border-primary aria-pressed:bg-primary/5 flex h-8 items-center gap-2 text-sm"
                       aria-pressed={hasPreset(filterInput.filters, filter)}
                       disabled={filterInput.invalid}
                       onClick={() => handlePresetToggle(filter)}
-                    >
-                      <Icon size="base" />
-                      {label}
-                    </Button>
+                    />
                   ))}
                 </div>
                 <p className="text-muted-foreground text-sm">
