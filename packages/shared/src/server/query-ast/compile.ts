@@ -254,6 +254,12 @@ export function renderClickhouseSelections<O>(
   return Object.fromEntries(rendered) as Record<keyof O & string, string>;
 }
 
+/**
+ * SQL text of a relation-free fragment. Runs none of {@link compilerPasses}:
+ * the fragment has no FROM of its own for them to scope, route or dedup (the
+ * raw-SQL query it is spliced into owns that), and one with a subquery or raw
+ * relation throws here.
+ */
 function renderNode(node: OperationNode): string {
   assertRelationFree(node);
   return new ClickHouseQueryCompiler().compileExpression(node);
