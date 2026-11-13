@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { matchesGatewayModelPatterns } from "@/src/features/ai-gateway/fns/gatewayModelPatterns";
+import {
+  describeGatewayModelPattern,
+  matchesGatewayModelPatterns,
+} from "@/src/features/ai-gateway/fns/gatewayModelPatterns";
 
 const models = [
   "openai:gpt-5",
@@ -31,5 +34,25 @@ describe("matchesGatewayModelPatterns", () => {
 
   it("ignores case, like the pattern suggestions", () => {
     expect(allowed(["*GPT-5*", "-OpenAI:*Mini"])).toEqual(["openai:gpt-5"]);
+  });
+
+  it("describes what each pattern does", () => {
+    expect(
+      [
+        "-openai:*",
+        "openai:gpt-5",
+        "anthropic:*opus*",
+        "*mini*",
+        "open*:o3",
+        "*",
+      ].map(describeGatewayModelPattern),
+    ).toEqual([
+      "Exclude all models from the openai connection",
+      "Include gpt-5 from the openai connection",
+      "Include models matching *opus* from the anthropic connection",
+      "Include models matching *mini* from any connection",
+      "Include models matching open*:o3",
+      "Include all models",
+    ]);
   });
 });

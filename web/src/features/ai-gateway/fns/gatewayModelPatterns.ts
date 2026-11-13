@@ -14,6 +14,32 @@ export function toTypedGatewayModelPattern(text: string) {
     : `${prefix}*${term}*`;
 }
 
+/** Whether a pattern excludes models instead of including them. */
+export function isGatewayModelExcludePattern(pattern: string) {
+  return pattern.startsWith(EXCLUDE_PREFIX);
+}
+
+/** A sentence describing what a pattern does, e.g. "Exclude all models from the openai connection". */
+export function describeGatewayModelPattern(pattern: string) {
+  const isExclude = isGatewayModelExcludePattern(pattern);
+  const verb = isExclude ? "Exclude" : "Include";
+  const term = isExclude ? pattern.slice(EXCLUDE_PREFIX.length) : pattern;
+  return `${verb} ${describeGatewayModelPatternTerm(term)}`;
+}
+
+function describeGatewayModelPatternTerm(term: string) {
+  if (term === "*") return "all models";
+  const separator = term.indexOf(":");
+  if (separator === -1) return `models matching ${term} from any connection`;
+  const connection = term.slice(0, separator);
+  const model = term.slice(separator + 1);
+  if (connection.includes("*")) return `models matching ${term}`;
+  const source = `from the ${connection} connection`;
+  if (model === "*") return `all models ${source}`;
+  if (model.includes("*")) return `models matching ${model} ${source}`;
+  return `${model} ${source}`;
+}
+
 /** Adds the comma-separated patterns typed in the models input, skipping blanks and duplicates. */
 export function addGatewayModelPatterns(
   patterns: readonly string[],
@@ -44,10 +70,10 @@ export function matchesGatewayModelPatterns(
   const slug = modelSlug.toLowerCase();
   const lowerCasePatterns = patterns.map((pattern) => pattern.toLowerCase());
   const includes = lowerCasePatterns.filter(
-    (pattern) => !pattern.startsWith(EXCLUDE_PREFIX),
+    (pattern) => !isGatewayModelExcludePattern(pattern),
   );
   const excludes = lowerCasePatterns
-    .filter((pattern) => pattern.startsWith(EXCLUDE_PREFIX))
+    .filter(isGatewayModelExcludePattern)
     .map((pattern) => pattern.slice(EXCLUDE_PREFIX.length));
   const isIncluded =
     includes.length === 0 ||
