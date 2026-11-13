@@ -385,8 +385,9 @@ describe("tenancy injection", () => {
     );
   });
 
-  it("rejects every cross join, tenanted or not", () => {
-    // ClickHouse has no `CROSS JOIN … ON`, so there is nowhere to inject.
+  it("rejects every join type but inner, left, right and full, tenanted or not", () => {
+    // ClickHouse has no `CROSS JOIN … ON`, so there is nowhere to inject, and
+    // no lateral join at all.
     const db = getClickhouseKysely();
     const sub = () =>
       db.selectFrom("traces").select(["id", "project_id"]).as("s");
@@ -398,12 +399,19 @@ describe("tenancy injection", () => {
       .selectFrom("traces as t")
       .crossJoin(sub())
       .select("t.id");
+    const lateral = db
+      .selectFrom("traces as t")
+      .crossJoinLateral(sub())
+      .select("t.id");
 
     expect(() => compileClickhouseQuery(tenanted, projectId)).toThrow(
       UnscopedRelationError,
     );
     expect(() => compileClickhouseQuery(subqueryOnly, projectId)).toThrow(
       UnscopedRelationError,
+    );
+    expect(() => compileClickhouseQuery(lateral, projectId)).toThrow(
+      "LateralCrossJoin is rejected",
     );
   });
 

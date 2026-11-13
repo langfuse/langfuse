@@ -13,6 +13,7 @@ import {
   TableNode,
   ValueNode,
   WhereNode,
+  type JoinType,
   type KyselyPlugin,
   type OperationNode,
   type PluginTransformQueryArgs,
@@ -34,11 +35,22 @@ import { SelectRewriteTransformer } from "./transformer";
 const PROJECT_ID_COLUMN = "project_id";
 
 /**
- * Join types whose ON clause drops the joined table's non-matching rows, so a
- * project condition there scopes the table. Cross joins are rejected outright:
- * ClickHouse has no `CROSS JOIN … ON`.
+ * The join types the pass accepts. Every other type throws: a cross join has
+ * no ON clause to scope (ClickHouse has no `CROSS JOIN … ON`), and lateral,
+ * apply and USING joins are not ClickHouse SQL.
  */
-const ON_SCOPABLE_JOINS: ReadonlySet<string> = new Set([
+const ALLOWED_JOINS: ReadonlySet<JoinType> = new Set([
+  "InnerJoin",
+  "LeftJoin",
+  "RightJoin",
+  "FullJoin",
+]);
+
+/**
+ * Join types whose ON clause drops the joined table's non-matching rows, so a
+ * project condition there scopes the table.
+ */
+const ON_SCOPABLE_JOINS: ReadonlySet<JoinType> = new Set([
   "InnerJoin",
   "LeftJoin",
 ]);
@@ -120,7 +132,7 @@ function injectSelect(
     assertRelationAllowed(relation);
   }
   for (const { join, relation } of joinRelations) {
-    assertNotCrossJoin(join);
+    assertJoinTypeAllowed(join);
     assertRelationAllowed(relation);
   }
 
@@ -191,10 +203,11 @@ function assertScopableInOn(
   }
 }
 
-function assertNotCrossJoin(join: JoinNode): void {
-  if (join.joinType === "CrossJoin") {
+/** Throws for every join type outside {@link ALLOWED_JOINS}. */
+function assertJoinTypeAllowed(join: JoinNode): void {
+  if (!ALLOWED_JOINS.has(join.joinType)) {
     throw new UnscopedRelationError(
-      "Cross joins are rejected: ClickHouse has no CROSS JOIN ... ON, so the tenancy pass has nowhere to scope the joined relation. Use an inner join with an explicit ON condition instead.",
+      `${join.joinType} is rejected: only inner, left, right and full joins are accepted. A cross join has no ON clause the tenancy pass can scope, and lateral, apply and USING joins are not ClickHouse SQL. Use an inner join with an explicit ON condition instead.`,
     );
   }
 }
