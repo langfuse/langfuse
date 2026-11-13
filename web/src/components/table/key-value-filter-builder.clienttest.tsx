@@ -203,4 +203,25 @@ describe("KeyValueFilterBuilder", () => {
       "less than or equals",
     ]);
   });
+
+  it("offers numeric equals only on a row that already carries one", () => {
+    render(
+      <KeyValueFilterBuilder
+        mode="string"
+        numericValues
+        activeFilters={[
+          { key: "attempt", operator: "=", value: "2", valueType: "number" },
+        ]}
+        onChange={noop}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("combobox", { name: /equals \(number\)/ }),
+    );
+
+    expect(
+      screen.getAllByRole("option").map((option) => option.textContent),
+    ).toContain("equals (number)");
+  });
 });
