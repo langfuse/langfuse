@@ -35,12 +35,12 @@ const PROJECT_ID_COLUMN = "project_id";
 
 /**
  * Join types whose ON clause drops the joined table's non-matching rows, so a
- * project condition there scopes the table.
+ * project condition there scopes the table. Cross joins are rejected outright:
+ * ClickHouse has no `CROSS JOIN … ON`.
  */
 const ON_SCOPABLE_JOINS: ReadonlySet<string> = new Set([
   "InnerJoin",
   "LeftJoin",
-  "CrossJoin",
 ]);
 
 /**
@@ -109,7 +109,8 @@ function injectSelect(
   for (const relation of fromRelations) {
     assertRelationAllowed(relation);
   }
-  for (const { relation } of joinRelations) {
+  for (const { join, relation } of joinRelations) {
+    assertNotCrossJoin(join);
     assertRelationAllowed(relation);
   }
 
@@ -176,6 +177,14 @@ function assertScopableInOn(
   if (!ON_SCOPABLE_JOINS.has(join.joinType)) {
     throw new UnscopedRelationError(
       `${join.joinType} on tenanted table "${relation.alias ?? relation.tableName}" cannot be scoped in its ON clause: it keeps rows of other projects. Scope the table in a subquery, or filter its project_id in WHERE.`,
+    );
+  }
+}
+
+function assertNotCrossJoin(join: JoinNode): void {
+  if (join.joinType === "CrossJoin") {
+    throw new UnscopedRelationError(
+      "Cross joins are rejected: ClickHouse has no CROSS JOIN ... ON, so the tenancy pass has nowhere to scope the joined relation. Use an inner join with an explicit ON condition instead.",
     );
   }
 }

@@ -372,6 +372,28 @@ describe("tenancy injection", () => {
     );
   });
 
+  it("rejects every cross join, tenanted or not", () => {
+    // ClickHouse has no `CROSS JOIN … ON`, so there is nowhere to inject.
+    const db = getClickhouseKysely();
+    const sub = () =>
+      db.selectFrom("traces").select(["id", "project_id"]).as("s");
+    const tenanted = db
+      .selectFrom(sub())
+      .crossJoin("scores")
+      .select("scores.value");
+    const subqueryOnly = db
+      .selectFrom("traces as t")
+      .crossJoin(sub())
+      .select("t.id");
+
+    expect(() => compileClickhouseQuery(tenanted, projectId)).toThrow(
+      UnscopedRelationError,
+    );
+    expect(() => compileClickhouseQuery(subqueryOnly, projectId)).toThrow(
+      UnscopedRelationError,
+    );
+  });
+
   it("does not count a bare project_id that a SELECT alias shadows as coverage", () => {
     // ClickHouse resolves a bare name to a SELECT alias before a table column.
     const qb = getClickhouseKysely()
