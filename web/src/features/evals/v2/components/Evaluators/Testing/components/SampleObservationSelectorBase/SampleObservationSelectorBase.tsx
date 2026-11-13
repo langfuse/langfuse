@@ -609,7 +609,7 @@ export function SampleObservationSelectorBase(
       <section
         className={
           showTraceDetail
-            ? "flex flex-col gap-1 px-4 py-2"
+            ? "bg-secondary flex flex-col gap-1 px-4 py-2"
             : "flex flex-col gap-2"
         }
       >

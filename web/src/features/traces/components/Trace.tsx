@@ -81,8 +81,8 @@ export type TraceProps = {
    */
   preferredObservationId?: string | null;
   /**
-   * Embedded sample view. "messages" opens the transcript and keeps the trace
-   * header metrics. "observation" opens the span with its input and output
+   * Embedded sample view. "messages" opens the transcript. "observation" opens
+   * the span. Both hide the metrics row and start with input and output
    * collapsed. Unset on the standalone trace page.
    */
   presentation?: TracePresentation;
@@ -141,7 +141,7 @@ export function Trace(props: TraceProps | TraceLoadingProps) {
 
   return (
     <TracePresentationProvider presentation={presentation}>
-      <IOSectionCollapsedProvider collapsed={presentation === "observation"}>
+      <IOSectionCollapsedProvider collapsed={presentation != null}>
         <ViewPreferencesProvider traceContext={traceContext}>
           <SelectionProvider
             defaultObservationId={defaultObservationId}

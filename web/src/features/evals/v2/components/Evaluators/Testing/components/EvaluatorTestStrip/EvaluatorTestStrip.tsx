@@ -100,7 +100,7 @@ export function EvaluatorTestStrip({
 
   return (
     <div className="flex flex-col">
-      <div className="flex items-center justify-between gap-3 px-3 py-2">
+      <div className="flex h-12 items-center justify-between gap-3 px-6">
         <button
           type="button"
           className="inline-flex items-center gap-1 text-sm"

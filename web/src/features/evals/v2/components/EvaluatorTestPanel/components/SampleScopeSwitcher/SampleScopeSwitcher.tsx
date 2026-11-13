@@ -1,5 +1,3 @@
-import { FlaskConical } from "@langfuse/icons";
-
 import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import type { EvaluatorSampleScope } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
@@ -16,7 +14,6 @@ export function SampleScopeSwitcher({
 }) {
   return (
     <div className="flex min-w-0 items-center gap-2">
-      <FlaskConical size="base" />
       <h2 className="font-bold whitespace-nowrap">Test with</h2>
       <Tabs
         value={scope}
