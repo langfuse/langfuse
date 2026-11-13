@@ -482,7 +482,9 @@ export class LlmConnectionService {
     return {
       data: data.map((connection) => ({
         ...connection,
-        availableModels: getConnectionAvailableModels(connection),
+        availableModels: getConnectionAvailableModels(connection, {
+          includeDecisionModels: params.includeDecisionModels,
+        }),
       })),
     };
   }
