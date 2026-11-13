@@ -107,7 +107,8 @@ cleanup_migrations() {
 trap cleanup_migrations 0
 
 # Construct the database URL
-DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true"
+CLICKHOUSE_PASSWORD_ENCODED=$(node -e 'process.stdout.write(encodeURIComponent(process.argv[1]))' "$CLICKHOUSE_PASSWORD")
+DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD_ENCODED}&database=${CLICKHOUSE_DB}&x-multi-statement=true"
 if [ "$CLICKHOUSE_MIGRATION_SSL" = true ] ; then
   DATABASE_URL="${DATABASE_URL}&secure=true&skip_verify=true"
 fi
