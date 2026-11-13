@@ -23,8 +23,36 @@ const DiscoveryDocSchema = z.object({
   userinfo_endpoint: z.string().optional(),
 });
 
-/** validateSsoConfig checks at save time that the IdP's OIDC discovery doc is reachable, well formed, and reports the configured issuer. */
+/** validateSsoConfig rejects SSO configs whose sign-in would fail or fetch internal addresses. */
 export async function validateSsoConfig(
+  payload: SsoProviderSchema,
+): Promise<void> {
+  if (payload.authProvider === "github-enterprise")
+    return validateGithubEnterpriseBaseUrl(payload);
+  return validateOidcDiscoveryDocument(payload);
+}
+
+/** validateGithubEnterpriseBaseUrl rejects base URLs that target internal addresses. */
+async function validateGithubEnterpriseBaseUrl(
+  payload: GithubEnterprisePayload,
+): Promise<void> {
+  if (!payload.authConfig) return;
+  const { baseUrl } = payload.authConfig.enterprise;
+  try {
+    // token, user and emails endpoints all derive from this host
+    await validateWebhookURL(baseUrl, discoveryWhitelistFromEnv(), {
+      allowedPorts: "any",
+    });
+  } catch {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: `GitHub Enterprise base URL "${baseUrl}" must be reachable from the public internet.`,
+    });
+  }
+}
+
+/** validateOidcDiscoveryDocument checks the IdP's discovery doc is reachable, well formed, public, and reports the configured issuer. */
+async function validateOidcDiscoveryDocument(
   payload: SsoProviderSchema,
 ): Promise<void> {
   const issuer = getDiscoveryIssuer(payload);
@@ -206,3 +234,8 @@ function prefixError(prefix: string, error: TRPCError): TRPCError {
 
 /** DiscoveryDoc is the slice of the OIDC discovery document the validators inspect. */
 type DiscoveryDoc = z.infer<typeof DiscoveryDocSchema>;
+
+type GithubEnterprisePayload = Extract<
+  SsoProviderSchema,
+  { authProvider: "github-enterprise" }
+>;

@@ -1057,6 +1057,58 @@ describe("ssoConfigRouter.save — IdP discovery validation", () => {
     }
   });
 
+  describe("GitHub Enterprise", () => {
+    it.each([
+      ["loopback literal", "https://127.0.0.1"],
+      ["cloud metadata literal", "https://169.254.169.254"],
+      ["RFC1918 literal", "https://10.0.0.1"],
+      ["localhost", "https://localhost"],
+      ["embedded URL credentials", "https://user:pass@example.com"],
+    ])("rejects an internal base URL: %s", async (_label, baseUrl) => {
+      const { org, caller } = await prepare();
+      const domain = `ghe-ssrf-${uuidv4().slice(0, 8)}.com`;
+      await addVerifiedDomain(org.id, domain);
+
+      await expect(
+        caller.ssoConfig.save({
+          orgId: org.id,
+          payload: gitHubEnterprisePayload(domain, baseUrl),
+        }),
+      ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+
+      const row = await prisma.ssoConfig.findUnique({ where: { domain } });
+      expect(row).toBeNull();
+    });
+
+    it("saves a public base URL without fetching it", async () => {
+      const { org, caller } = await prepare();
+      const domain = `ghe-public-${uuidv4().slice(0, 8)}.com`;
+      await addVerifiedDomain(org.id, domain);
+      fetchMock.mockClear();
+
+      const result = await caller.ssoConfig.save({
+        orgId: org.id,
+        payload: gitHubEnterprisePayload(domain, "https://example.com"),
+      });
+
+      expect(result.domain).toBe(domain);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    function gitHubEnterprisePayload(domain: string, baseUrl: string) {
+      return {
+        domain,
+        authProvider: "github-enterprise" as const,
+        authConfig: {
+          clientId: "ghe-client",
+          clientSecret: "ghe-secret",
+          enterprise: { baseUrl },
+          allowDangerousEmailAccountLinking: false,
+        },
+      };
+    }
+  });
+
   it("skips discovery for OAuth-only providers (github)", async () => {
     const { org, caller } = await prepare();
     const domain = `github-skip-${uuidv4().slice(0, 8)}.com`;
