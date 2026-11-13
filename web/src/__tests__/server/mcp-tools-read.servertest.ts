@@ -838,13 +838,12 @@ describe("MCP Read Tools", () => {
             adapter: LLMAdapter.Anthropic,
             scope: "organization",
             availableModels: ["claude-custom"],
+            decisionModels: [],
           }),
           expect.objectContaining({
             provider: googleProvider,
-            availableModels: [
-              ...supportedModels[LLMAdapter.GoogleAIStudio],
-              "gemini-decision-1",
-            ],
+            availableModels: supportedModels[LLMAdapter.GoogleAIStudio],
+            decisionModels: ["gemini-decision-1"],
           }),
         ]),
       );
