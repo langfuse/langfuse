@@ -1,11 +1,11 @@
 import type { ComponentProps } from "react";
 
-import { CreateGatewayApiKeyDialog } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/CreateGatewayApiKeyDialog";
+import { GatewayApiKeyDialog } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/GatewayApiKeyDialog";
 import { useGatewayEnabledModels } from "@/src/features/ai-gateway/hooks/useGatewayEnabledModels";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 
-type ConnectedCreateGatewayApiKeyDialogProps = Omit<
-  ComponentProps<typeof CreateGatewayApiKeyDialog>,
+type ConnectedGatewayApiKeyDialogProps = Omit<
+  ComponentProps<typeof GatewayApiKeyDialog>,
   "enabledModels"
 > & {
   organizationId: string;
@@ -14,18 +14,18 @@ type ConnectedCreateGatewayApiKeyDialogProps = Omit<
 };
 
 /** Loads the enabled models for the preview only while the dialog is open, and only for members who may see them. */
-export function ConnectedCreateGatewayApiKeyDialog({
+export function ConnectedGatewayApiKeyDialog({
   organizationId,
   isOpen,
   ...props
-}: ConnectedCreateGatewayApiKeyDialogProps) {
+}: ConnectedGatewayApiKeyDialogProps) {
   const { showModels } = useGatewaySettingsAccess(organizationId);
   const enabledModels = useGatewayEnabledModels(organizationId, {
     enabled: showModels && isOpen,
   });
 
   return (
-    <CreateGatewayApiKeyDialog
+    <GatewayApiKeyDialog
       {...props}
       enabledModels={showModels ? enabledModels : undefined}
     />

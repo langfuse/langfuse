@@ -1,7 +1,9 @@
 import type { OrderByState } from "@langfuse/shared";
-import type { Prisma, PrismaClient } from "@langfuse/shared/src/db";
+import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import { escapeSqlLikePattern } from "@langfuse/shared/src/server";
 import { orgBoundApiKeyScopes } from "@langfuse/shared/src/server/auth/apiKeys";
+
+import type { GatewayMetadata } from "@/src/features/ai-gateway/server/provider/registry";
 
 const GATEWAY_API_KEY_SELECT = {
   metadata: true,
@@ -118,6 +120,43 @@ export class GatewayApiKeyRepository {
     return this.prisma.gatewayApiKeyAssociation.findFirst({
       where: { apiKeyId: params.apiKeyId, apiKey: gatewayApiKeyWhere(params) },
       select: GATEWAY_API_KEY_SELECT,
+    });
+  }
+
+  /**
+   * Writes only while the key is still in scope and its patterns are the ones
+   * the editor loaded, so a connection rename committed in between is not
+   * overwritten. Returns whether a row was written.
+   */
+  async updateGatewayApiKey(params: {
+    organizationId: string;
+    ownerUserId?: string;
+    apiKeyId: string;
+    name: string;
+    metadata: GatewayMetadata;
+    allowedModels: string[] | null;
+    previousAllowedModels: string[] | null;
+  }) {
+    return this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.gatewayApiKeyAssociation.updateMany({
+        where: {
+          apiKeyId: params.apiKeyId,
+          apiKey: gatewayApiKeyWhere(params),
+          allowedModels: {
+            equals: params.previousAllowedModels ?? Prisma.DbNull,
+          },
+        },
+        data: {
+          metadata: params.metadata,
+          allowedModels: params.allowedModels ?? Prisma.DbNull,
+        },
+      });
+      if (count === 0) return false;
+      await tx.apiKey.update({
+        where: { id: params.apiKeyId },
+        data: { note: params.name },
+      });
+      return true;
     });
   }
 }

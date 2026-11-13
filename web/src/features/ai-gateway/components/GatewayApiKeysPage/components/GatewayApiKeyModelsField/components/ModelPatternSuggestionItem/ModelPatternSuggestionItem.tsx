@@ -7,7 +7,7 @@ import {
   type IconComponent,
 } from "@langfuse/icons";
 
-import type { GatewayModelPatternSuggestion } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/components/GatewayApiKeyModelsField/types/gatewayModelPatternSuggestion";
+import type { GatewayModelPatternSuggestion } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyModelsField/types/gatewayModelPatternSuggestion";
 import { CommandItem } from "@/src/components/ui/command";
 import { providerIcons } from "@/src/features/ai-gateway/constants/providerIcons";
 import { cn } from "@/src/utils/tailwind";

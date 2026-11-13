@@ -2,7 +2,7 @@ import { useState, type ComponentProps, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { ConnectedCreateGatewayApiKeyDialog } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/ConnectedCreateGatewayApiKeyDialog/ConnectedCreateGatewayApiKeyDialog";
+import { ConnectedGatewayApiKeyDialog } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/ConnectedGatewayApiKeyDialog/ConnectedGatewayApiKeyDialog";
 import { GeneratedKeyDialog } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/GeneratedKeyDialog/GeneratedKeyDialog";
 import { GeneratedKeyContent } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/GeneratedKeyContent";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -38,7 +38,7 @@ export function CreateGatewayApiKeyDialogController({
   const reset = () => setGeneratedSecretKey(null);
 
   const submit: ComponentProps<
-    typeof ConnectedCreateGatewayApiKeyDialog
+    typeof ConnectedGatewayApiKeyDialog
   >["onSubmit"] = async ({ expiryPreset, metadataCount, ...input }) => {
     try {
       const created = await create.mutateAsync({
@@ -81,9 +81,11 @@ export function CreateGatewayApiKeyDialogController({
             />
           </GeneratedKeyDialog>
         ) : (
-          <ConnectedCreateGatewayApiKeyDialog
+          <ConnectedGatewayApiKeyDialog
             organizationId={organizationId}
             isOpen={isOpen}
+            title="Create gateway key"
+            submitLabel="Create key"
             canIssueServiceAccountKeys={canIssueServiceAccountKeys}
             errorMessage={
               create.isError

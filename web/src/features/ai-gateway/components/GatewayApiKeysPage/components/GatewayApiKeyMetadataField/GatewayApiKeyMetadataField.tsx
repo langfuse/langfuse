@@ -6,19 +6,25 @@ import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/Cust
 import { FormField } from "@/src/components/design-system/FormField/FormField";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Input } from "@/src/components/design-system/Input/Input";
-import type { CreateGatewayApiKeyFormValues } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/types/createGatewayApiKeyFormSchema";
+import type { EditableGatewayApiKeyFields } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/types/editableGatewayApiKeyFieldsSchema";
 
 const EMPTY_METADATA_FIELD = { key: "", value: "" };
 
-type GatewayApiKeyMetadataFieldProps = {
-  control: Control<CreateGatewayApiKeyFormValues>;
+type GatewayApiKeyMetadataFieldProps<
+  TFieldValues extends EditableGatewayApiKeyFields,
+> = {
+  control: Control<TFieldValues>;
 };
 
-export function GatewayApiKeyMetadataField({
-  control,
-}: GatewayApiKeyMetadataFieldProps) {
+export function GatewayApiKeyMetadataField<
+  TFieldValues extends EditableGatewayApiKeyFields,
+>({ control }: GatewayApiKeyMetadataFieldProps<TFieldValues>) {
+  // Control is invariant in its form values, so a form that holds more fields
+  // than these is narrowed to the slice this field edits.
+  const editableControl =
+    control as unknown as Control<EditableGatewayApiKeyFields>;
   const { fields, append, remove } = useFieldArray({
-    control,
+    control: editableControl,
     name: "metadata",
   });
   const handleAdd = () => append(EMPTY_METADATA_FIELD);
@@ -47,7 +53,7 @@ export function GatewayApiKeyMetadataField({
               {fields.map((metadataField, index) => (
                 <MetadataRow
                   key={metadataField.id}
-                  control={control}
+                  control={editableControl}
                   index={index}
                   onRemove={remove}
                 />
@@ -71,7 +77,7 @@ function MetadataRow({
   index,
   onRemove,
 }: {
-  control: Control<CreateGatewayApiKeyFormValues>;
+  control: Control<EditableGatewayApiKeyFields>;
   index: number;
   onRemove: (index: number) => void;
 }) {

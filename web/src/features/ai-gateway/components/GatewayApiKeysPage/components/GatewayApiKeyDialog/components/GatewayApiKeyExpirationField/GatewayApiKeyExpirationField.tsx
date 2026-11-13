@@ -5,15 +5,17 @@ import { Form } from "@/src/components/design-system/Form/Form";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { localDateInputValue } from "@/src/features/apiKey/fns/localDateInputValue";
 import { gatewayApiKeyExpirationOptions } from "@/src/features/ai-gateway/constants/gatewayApiKeyExpirationOptions";
-import { ExpirationPresetOption } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/components/GatewayApiKeyExpirationField/components/ExpirationPresetOption/ExpirationPresetOption";
-import type { CreateGatewayApiKeyFormValues } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/types/createGatewayApiKeyFormSchema";
+import { ExpirationPresetOption } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/components/GatewayApiKeyExpirationField/components/ExpirationPresetOption/ExpirationPresetOption";
+import type { GatewayApiKeyFormValues } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/types/gatewayApiKeyFormSchema";
 
 type GatewayApiKeyExpirationFieldProps = {
-  control: Control<CreateGatewayApiKeyFormValues>;
+  control: Control<GatewayApiKeyFormValues>;
+  disabled: boolean;
 };
 
 export function GatewayApiKeyExpirationField({
   control,
+  disabled,
 }: GatewayApiKeyExpirationFieldProps) {
   const radioName = useId();
 
@@ -25,6 +27,7 @@ export function GatewayApiKeyExpirationField({
             id={field.id}
             role="radiogroup"
             aria-label="Expiration"
+            aria-disabled={disabled || undefined}
             className="flex flex-wrap gap-2"
           >
             {gatewayApiKeyExpirationOptions.map((option) => (
@@ -34,12 +37,13 @@ export function GatewayApiKeyExpirationField({
                 value={option.value}
                 label={option.label}
                 checked={field.value === option.value}
+                disabled={disabled}
                 onSelect={field.onChange}
               />
             ))}
           </div>
           {field.value === "custom" ? (
-            <CustomExpirationInput control={control} />
+            <CustomExpirationInput control={control} disabled={disabled} />
           ) : null}
         </div>
       )}
@@ -49,8 +53,10 @@ export function GatewayApiKeyExpirationField({
 
 function CustomExpirationInput({
   control,
+  disabled,
 }: {
-  control: Control<CreateGatewayApiKeyFormValues>;
+  control: Control<GatewayApiKeyFormValues>;
+  disabled: boolean;
 }) {
   const { field, fieldState } = useController({
     control,
@@ -69,6 +75,7 @@ function CustomExpirationInput({
             onChange={field.onChange}
             onBlur={field.onBlur}
             ref={field.ref}
+            disabled={disabled}
             error={!!fieldState.error}
             aria-invalid={!!fieldState.error}
           />

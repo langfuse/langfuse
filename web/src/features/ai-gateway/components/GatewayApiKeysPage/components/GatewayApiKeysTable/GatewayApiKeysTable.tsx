@@ -1,4 +1,4 @@
-import { Trash } from "@langfuse/icons";
+import { Pencil, Trash } from "@langfuse/icons";
 import { formatDistanceToNowStrict } from "date-fns";
 
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
@@ -52,6 +52,7 @@ type GatewayApiKeysLastUsedState =
 export function GatewayApiKeysTable({
   data,
   lastUsed,
+  onEdit,
   onRevoke,
   pagination,
   search,
@@ -60,6 +61,7 @@ export function GatewayApiKeysTable({
 }: Pick<TableProps<GatewayApiKey>, "orderBy" | "setOrderBy"> & {
   data: AsyncTableData<GatewayApiKey[]>;
   lastUsed: GatewayApiKeysLastUsedState;
+  onEdit: (apiKey: GatewayApiKey) => void;
   onRevoke: (apiKeyId: string) => void;
   pagination: PaginationBarProps;
   search: { value: string; onChange: (value: string) => void };
@@ -110,18 +112,6 @@ export function GatewayApiKeysTable({
       getPrefix: (expiresAt) =>
         isApiKeyExpired(expiresAt) ? "Expired on " : null,
     }),
-    createTableColumn<GatewayApiKey, string[]>({
-      accessorFn: (row) => parseGatewayAllowedModels(row.allowedModels),
-      id: "allowedModels",
-      header: "Models",
-      sensitive: true,
-      hideBelowMd: true,
-      enableResizing: false,
-      loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
-      renderCell: (patterns) => (
-        <GatewayApiKeyModelsCell patterns={patterns ?? null} />
-      ),
-    }),
     createTableColumn<GatewayApiKey, Date>({
       accessorFn: (row) => row.lastUsedAt,
       id: "lastUsedAt",
@@ -150,6 +140,18 @@ export function GatewayApiKeysTable({
         );
       },
     }),
+    createTableColumn<GatewayApiKey, string[]>({
+      accessorFn: (row) => parseGatewayAllowedModels(row.allowedModels),
+      id: "allowedModels",
+      header: "Models",
+      sensitive: true,
+      hideBelowMd: true,
+      enableResizing: false,
+      loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
+      renderCell: (patterns) => (
+        <GatewayApiKeyModelsCell patterns={patterns ?? null} />
+      ),
+    }),
     createBadgeListTableColumn<GatewayApiKey>({
       accessorFn: (row) => getMetadataEntries(row.metadata),
       id: "metadata",
@@ -167,6 +169,13 @@ export function GatewayApiKeysTable({
       orderBy={orderBy}
       setOrderBy={setOrderBy}
       actions={(row) => [
+        {
+          id: "edit",
+          type: "item",
+          title: "Edit key",
+          icon: Pencil,
+          onClick: () => onEdit(row),
+        },
         {
           id: "revoke",
           type: "item",

@@ -7,6 +7,7 @@ import { GatewayApiKeysTable } from "./GatewayApiKeysTable";
 
 const meta = preview.meta({ component: GatewayApiKeysTable });
 
+const onEdit = fn();
 const onRevoke = fn();
 const onPageChange = fn();
 
@@ -57,6 +58,7 @@ const manyApiKeys = Array.from({ length: 30 }, (_, index) => ({
 
 const actions = {
   lastUsed: { status: "success", isTracked: true },
+  onEdit,
   onRevoke,
   pagination: {
     mode: "offset",
@@ -67,12 +69,12 @@ const actions = {
   search: { value: "", onChange: fn() },
 } satisfies Pick<
   ComponentProps<typeof GatewayApiKeysTable>,
-  "lastUsed" | "onRevoke" | "pagination" | "search"
+  "lastUsed" | "onEdit" | "onRevoke" | "pagination" | "search"
 >;
 
 const lastUsedCell = (canvas: {
   getAllByRole: (role: "row") => HTMLElement[];
-}) => canvas.getAllByRole("row")[1]!.querySelectorAll("td")[6]!;
+}) => canvas.getAllByRole("row")[1]!.querySelectorAll("td")[5]!;
 
 export const LastUsedLoading = meta.story({
   name: "(Test) Last used shows a skeleton while loading",
@@ -202,10 +204,10 @@ export const RestrictedModels = meta.story({
   },
   play: async ({ canvas }) => {
     const rows = canvas.getAllByRole("row");
-    await expect(rows[1]!.querySelectorAll("td")[5]).toHaveTextContent(
+    await expect(rows[1]!.querySelectorAll("td")[6]).toHaveTextContent(
       "All models",
     );
-    await expect(rows[2]!.querySelectorAll("td")[5]).toHaveTextContent(
+    await expect(rows[2]!.querySelectorAll("td")[6]).toHaveTextContent(
       "anthropic:*+1",
     );
   },
