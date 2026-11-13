@@ -274,7 +274,10 @@ describe("AI gateway provider registry", () => {
       },
     } as unknown as PrismaClient;
     const service = new GatewayModelsService(prisma, redis);
-    const context = { organizationId: "org-1" } as GatewayApiKeyAuthContext;
+    const context = {
+      organizationId: "org-1",
+      keyAllowedModels: null,
+    } as GatewayApiKeyAuthContext;
 
     const messages = await service.list({
       context,
@@ -332,7 +335,10 @@ describe("AI gateway provider registry", () => {
     try {
       await expect(
         new GatewayModelsService(prisma, redis).list({
-          context: { organizationId: "org-1" } as GatewayApiKeyAuthContext,
+          context: {
+            organizationId: "org-1",
+            keyAllowedModels: null,
+          } as GatewayApiKeyAuthContext,
           apiFormat: "openai.responses",
         }),
       ).rejects.toThrow("Gateway model discovery is temporarily unavailable");

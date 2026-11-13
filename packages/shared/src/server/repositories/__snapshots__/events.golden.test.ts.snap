@@ -2598,7 +2598,8 @@ exports[`golden: events filtered streams family > getEventsStreamForEval cutoff=
     e.experiment_item_expected_output AS experiment_item_expected_output,
     mapFromArrays(e.experiment_item_metadata_names, e.experiment_item_metadata_values) AS experiment_item_metadata,
     input,
-    output
+    output,
+    toString(e.start_time) AS cursor_start_time
 FROM events_full AS e
 WHERE (e.project_id = {param1:String})
     AND ((e.project_id = {param2:String}) AND (e.type IN ({param3:Array(String)})) AND (e.start_time < {param4:DateTime64(3, 'UTC')}))
@@ -2606,7 +2607,8 @@ WHERE (e.project_id = {param1:String})
 ORDER BY
     e.project_id DESC,
     toStartOfMinute(e.start_time) DESC,
-    e.start_time DESC
+    e.start_time DESC,
+    e.span_id DESC
 LIMIT 1 BY
     e.span_id,
     e.project_id
@@ -2670,7 +2672,8 @@ exports[`golden: events filtered streams family > getEventsStreamForEval cutoff=
     e.experiment_item_expected_output AS experiment_item_expected_output,
     mapFromArrays(e.experiment_item_metadata_names, e.experiment_item_metadata_values) AS experiment_item_metadata,
     input,
-    output
+    output,
+    toString(e.start_time) AS cursor_start_time
 FROM events_full AS e
 WHERE (e.project_id = {param1:String})
     AND ((e.project_id = {param2:String}) AND (e.type IN ({param3:Array(String)})))
@@ -2678,7 +2681,8 @@ WHERE (e.project_id = {param1:String})
 ORDER BY
     e.project_id DESC,
     toStartOfMinute(e.start_time) DESC,
-    e.start_time DESC
+    e.start_time DESC,
+    e.span_id DESC
 LIMIT 1 BY
     e.span_id,
     e.project_id

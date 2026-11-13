@@ -18,9 +18,12 @@ import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
 import { GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS } from "@/src/features/ai-gateway/constants/gatewayApiKeyLastUsed";
 import { GatewayApiKeysEmptyState } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/components/GatewayApiKeysEmptyState/GatewayApiKeysEmptyState";
+import { GatewayApiKeyModelsCell } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/components/GatewayApiKeyModelsCell/GatewayApiKeyModelsCell";
+import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
 
 type GatewayApiKey = {
   metadata: unknown;
+  allowedModels: unknown;
   apiKey: {
     id: string;
     publicKey: string;
@@ -106,6 +109,18 @@ export function GatewayApiKeysTable({
       emptyValue: "No expiration",
       getPrefix: (expiresAt) =>
         isApiKeyExpired(expiresAt) ? "Expired on " : null,
+    }),
+    createTableColumn<GatewayApiKey, string[]>({
+      accessorFn: (row) => parseGatewayAllowedModels(row.allowedModels),
+      id: "allowedModels",
+      header: "Models",
+      sensitive: true,
+      hideBelowMd: true,
+      enableResizing: false,
+      loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
+      renderCell: (patterns) => (
+        <GatewayApiKeyModelsCell patterns={patterns ?? null} />
+      ),
     }),
     createTableColumn<GatewayApiKey, Date>({
       accessorFn: (row) => row.lastUsedAt,

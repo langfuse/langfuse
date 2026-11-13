@@ -255,6 +255,8 @@ export { EXPORT_FIELD_GROUPS } from "./domain/export-field-groups";
 export { type ExportFieldGroup } from "./domain/export-field-groups";
 export { getObservationFieldGroups } from "./domain/export-field-groups";
 export { getScoreFieldGroups } from "./domain/export-field-groups";
+export { EventsStreamCursorSchema } from "./domain/eventsStreamCursor";
+export { type EventsStreamCursor } from "./domain/eventsStreamCursor";
 export { ObservationType } from "./domain/observations";
 export { ObservationTypeDomain } from "./domain/observations";
 export { ObservationLevel } from "./domain/observations";

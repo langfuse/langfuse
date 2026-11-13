@@ -1005,8 +1005,9 @@ fn openrouter_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
 }
 
 #[tokio::test]
-async fn openrouter_connections_serve_every_format_from_its_hosted_api_with_bearer_auth() {
+async fn openrouter_connections_serve_every_format_with_bearer_auth_from_their_base_url() {
     const OPENROUTER: &str = "https://openrouter.ai/api/v1";
+    const OPENROUTER_EU: &str = "https://eu.openrouter.ai/api/v1";
     let bearer = json!({"type": "Bearer", "token": "openrouter-key"});
     for api_format in [
         ApiFormat::OpenAiResponses,
@@ -1033,13 +1034,37 @@ async fn openrouter_connections_serve_every_format_from_its_hosted_api_with_bear
             .unwrap();
         assert_eq!(context.connection().provider().as_str(), "openrouter");
         assert_eq!(context.connection().base_url(), OPENROUTER);
+        assert!(!context.connection().has_custom_base_url());
     }
+
+    let web = FakeWeb::start(move |_| async move {
+        response(openrouter_success(
+            "openai.chat-completions",
+            OPENROUTER_EU,
+            &json!({"type": "Bearer", "token": "openrouter-key"}),
+        ))
+    })
+    .await;
+    let context = web
+        .control_plane()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiChatCompletions,
+            "openrouter:model",
+            0,
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap();
+    assert_eq!(context.connection().base_url(), OPENROUTER_EU);
+    assert!(context.connection().has_custom_base_url());
 
     let x_api_key = json!({"type": "x-api-key", "header": "x-api-key", "value": "openrouter-key"});
     for (base_url, auth) in [
         (OPENROUTER, &x_api_key),
-        ("https://openrouter.ai/api/v1/", &bearer),
-        ("https://proxy.example/api/v1", &bearer),
+        ("ftp://eu.openrouter.ai/api/v1", &bearer),
+        ("https://user:pass@eu.openrouter.ai/api/v1", &bearer),
     ] {
         assert_invalid_context_for(
             openrouter_success("anthropic.messages", base_url, auth),

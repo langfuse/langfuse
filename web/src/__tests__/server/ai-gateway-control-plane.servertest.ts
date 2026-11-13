@@ -2660,6 +2660,58 @@ describe("AI gateway control plane", () => {
     expect(allowAll.allowedModels).toBeNull();
   });
 
+  it("enforces key model patterns and keeps them through a connection rename", async () => {
+    configureGatewayJwtSigning();
+    const { caller, org, project } = await prepare();
+    await caller.aiGateway.updateConfig({
+      orgId: org.id,
+      defaultIngestionProjectId: project.id,
+      ingestionMode: "FULL",
+    });
+    const connection = await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "OpenAI",
+      provider: "OPENAI",
+      credential: "sk-test-openai",
+    });
+    const gatewayKey = await caller.aiGateway.createApiKey({
+      orgId: org.id,
+      name: "Restricted key",
+      metadata: {},
+      allowedModels: ["OpenAI:gpt-4o*", "-*mini"],
+    });
+    const request = {
+      fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
+      apiFormat: "openai.responses" as const,
+    };
+
+    await expect(
+      authenticateRequest({ ...request, model: "OpenAI:gpt-4o" }),
+    ).resolves.toMatchObject({ connection: { id: connection.id } });
+    await expect(
+      authenticateRequest({ ...request, model: "OpenAI:gpt-4o-mini" }),
+    ).rejects.toMatchObject({ status: 403, code: "model_not_allowed" });
+
+    await caller.aiGateway.updateConnection({
+      orgId: org.id,
+      id: connection.id,
+      name: "OpenAI-EU",
+    });
+
+    await expect(
+      prisma.gatewayApiKeyAssociation.findUnique({
+        where: { apiKeyId: gatewayKey.id },
+        select: { allowedModels: true },
+      }),
+    ).resolves.toEqual({ allowedModels: ["OpenAI-EU:gpt-4o*", "-*mini"] });
+    await expect(
+      authenticateRequest({ ...request, model: "OpenAI-EU:gpt-4o" }),
+    ).resolves.toMatchObject({ connection: { id: connection.id } });
+    await expect(
+      authenticateRequest({ ...request, model: "OpenAI-EU:gpt-4o-mini" }),
+    ).rejects.toMatchObject({ status: 403, code: "model_not_allowed" });
+  });
+
   it("rejects stale concurrent model allowlist updates", async () => {
     const { caller, org } = await prepare();
     const connection = await caller.aiGateway.createConnection({

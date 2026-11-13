@@ -19,6 +19,7 @@ import {
   validateLlmConnectionBaseURL,
 } from "@langfuse/shared/src/server";
 import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import { GatewayApiKeyRepository } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyRepository";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { GATEWAY_CONNECTION_NAME_ERRORS } from "@/src/features/ai-gateway/constants/gatewayConnection";
@@ -27,7 +28,7 @@ import {
   getAzureResource,
   getAzureResourceEndpoint,
 } from "@/src/features/ai-gateway/fns/azureResource";
-import { isGatewayApiFamily } from "@/src/features/ai-gateway/fns/isGatewayApiFamily";
+import { supportsCustomEndpoint } from "@/src/features/ai-gateway/fns/supportsCustomEndpoint";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import {
@@ -71,13 +72,17 @@ const BEDROCK_FAILURE_DESCRIPTIONS: Record<ModelDiscoveryError, string> = {
 export class GatewayProviderService {
   private readonly repository: GatewayProviderRepository;
   private readonly modelCatalogService: GatewayModelCatalogService;
+  private readonly apiKeyRepository: GatewayApiKeyRepository;
 
   constructor(
     private readonly prisma: PrismaClient,
     private readonly validateCredential: CredentialValidator = validateGatewayCredential,
     modelCatalogService?: GatewayModelCatalogService,
+    apiKeyRepository?: GatewayApiKeyRepository,
   ) {
     this.repository = new GatewayProviderRepository(prisma);
+    this.apiKeyRepository =
+      apiKeyRepository ?? new GatewayApiKeyRepository(prisma);
     this.modelCatalogService =
       modelCatalogService ?? new GatewayModelCatalogService(prisma);
   }
@@ -268,18 +273,34 @@ export class GatewayProviderService {
 
     let updated;
     try {
-      updated = await this.repository.updateConnection({
-        organizationId: params.organizationId,
-        id: params.id,
-        name,
-        status: params.credential ? "ENABLED" : params.status,
-        encryptedCredential: params.credential
-          ? encrypt(toStoredCredential(existing.provider, params.credential))
-          : undefined,
-        displaySecret: params.credential
-          ? toDisplaySecret(existing.provider, params.credential)
-          : undefined,
-        ...(isEndpointChanged ? toStoredEndpoint(endpoint) : {}),
+      updated = await this.prisma.$transaction(async (tx) => {
+        const connection = await this.repository.updateConnection(
+          {
+            organizationId: params.organizationId,
+            id: params.id,
+            name,
+            previousName: existing.name,
+            status: params.credential ? "ENABLED" : params.status,
+            encryptedCredential: params.credential
+              ? encrypt(
+                  toStoredCredential(existing.provider, params.credential),
+                )
+              : undefined,
+            displaySecret: params.credential
+              ? toDisplaySecret(existing.provider, params.credential)
+              : undefined,
+            ...(isEndpointChanged ? toStoredEndpoint(endpoint) : {}),
+          },
+          tx,
+        );
+        if (name !== undefined) {
+          await this.apiKeyRepository.renameConnectionInModelPatterns(tx, {
+            organizationId: params.organizationId,
+            previousName: existing.name,
+            name,
+          });
+        }
+        return connection;
       });
     } catch (error) {
       rethrowConnectionMutationError(error);
@@ -570,6 +591,14 @@ function rethrowConnectionMutationError(error: unknown): never {
   ) {
     throw new InvalidRequestError(GATEWAY_CONNECTION_NAME_ERRORS.duplicate);
   }
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2025"
+  ) {
+    throw new LangfuseConflictError(
+      "This connection was changed in the meantime. Reload it and try again.",
+    );
+  }
   throw error;
 }
 
@@ -605,9 +634,10 @@ type ConnectionEndpoint = {
   extraHeaders: Record<string, string> | null;
 };
 
-// Bedrock only reaches its regional AWS endpoints, and OpenRouter, xAI and
-// Vercel their single hosted API; compatible proxies use an OpenAI connection
-// with a base URL. Azure always needs the endpoint of the customer's resource.
+// Bedrock only reaches its regional AWS endpoints, and xAI, Vercel and Google
+// AI Studio their single hosted API; compatible proxies use an OpenAI
+// connection with a base URL. Azure always needs the endpoint of the
+// customer's resource.
 async function parseConnectionEndpoint(
   params: ConnectionEndpoint & {
     provider: GatewayProvider;
@@ -619,7 +649,7 @@ async function parseConnectionEndpoint(
       ? params.extraHeaders
       : null;
   if (
-    !isGatewayApiFamily(params.provider) &&
+    !supportsCustomEndpoint(params.provider) &&
     params.provider !== "AZURE" &&
     (params.baseURL || extraHeaders)
   ) {
@@ -793,10 +823,10 @@ async function validateGatewayCredential(
   const check = definition.credentialCheck;
   if ("path" in check) {
     return checkCredentialEndpoint({
-      url: new URL(`${definition.baseUrl}${check.path}`),
+      url: new URL(`${params.baseURL ?? definition.baseUrl}${check.path}`),
       credential: params.credential,
-      baseURL: null,
-      extraHeaders: null,
+      baseURL: params.baseURL,
+      extraHeaders: params.extraHeaders,
       usable: check.usable,
     });
   }

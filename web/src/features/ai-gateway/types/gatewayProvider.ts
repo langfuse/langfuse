@@ -29,3 +29,6 @@ export type GatewayApiFamily = Exclude<
   | "GOOGLE_AI_STUDIO"
   | "VERTEX"
 >;
+
+/** Providers whose connections may set a custom base URL and extra headers. */
+export type GatewayCustomEndpointProvider = GatewayApiFamily | "OPENROUTER";

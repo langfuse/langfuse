@@ -19,7 +19,14 @@ const mocks = vi.hoisted(() => {
     getObservationStream: vi.fn(emptyStream),
     findEvaluationRules: vi.fn(),
     findEvaluators: vi.fn(),
-    processBatchedObservationEval: vi.fn().mockResolvedValue(undefined),
+    processBatchedObservationEval: vi.fn(
+      async (params: {
+        rowLimit: number;
+        openObservationStream: (resume: { rowLimit: number }) => unknown;
+      }) => {
+        await params.openObservationStream({ rowLimit: params.rowLimit });
+      },
+    ),
   };
 });
 

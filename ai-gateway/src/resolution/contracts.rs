@@ -114,15 +114,16 @@ impl Provider {
         )
     }
 
-    // OpenAI and Anthropic connections may point at a compatible proxy, and Azure
-    // at the customer's resource, which Web validated on save; the transport's
+    // OpenAI and Anthropic connections may point at a compatible proxy, OpenRouter
+    // connections at another OpenRouter endpoint such as its EU one, and Azure at
+    // the customer's resource, which Web validated on save; the transport's
     // outbound policy still decides whether the destination is reachable. Azure
     // serves each format family under its own path. Bedrock and Vertex AI only
-    // ever target their regional endpoints, and OpenRouter, xAI, Vercel and Google
-    // AI Studio their single hosted API.
+    // ever target their regional endpoints, and xAI, Vercel and Google AI Studio
+    // their single hosted API.
     fn allows_base_url(self, api_format: ApiFormat, base_url: &str) -> bool {
         match self {
-            Self::OpenAi | Self::Anthropic => valid_custom_base_url(base_url),
+            Self::OpenAi | Self::Anthropic | Self::OpenRouter => valid_custom_base_url(base_url),
             Self::Azure => {
                 let path = match api_format {
                     ApiFormat::AnthropicMessages => AZURE_ANTHROPIC_PATH,
@@ -134,7 +135,6 @@ impl Provider {
                 valid_custom_base_url(base_url) && base_url.ends_with(path)
             }
             Self::Bedrock => bedrock::allows_runtime_base_url(api_format, base_url),
-            Self::OpenRouter => base_url == OPENROUTER_BASE_URL,
             Self::Xai => base_url == XAI_BASE_URL,
             Self::Vercel => base_url == VERCEL_BASE_URL,
             Self::GoogleAiStudio => base_url == GOOGLE_AI_STUDIO_BASE_URL,
@@ -277,9 +277,9 @@ impl ProviderConnection {
         let official = match self.provider {
             Provider::OpenAi => OPENAI_BASE_URL,
             Provider::Anthropic => ANTHROPIC_BASE_URL,
+            Provider::OpenRouter => OPENROUTER_BASE_URL,
             Provider::Azure => return true,
             Provider::Bedrock
-            | Provider::OpenRouter
             | Provider::Xai
             | Provider::Vercel
             | Provider::GoogleAiStudio

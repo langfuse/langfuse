@@ -32,7 +32,6 @@ type NewScanForm = {
 export function NewAnalysisDialog({
   projectId,
   facets,
-  initialFilter,
   liveDisabledReason,
   onStarted,
   onRuleCreated,
@@ -40,7 +39,6 @@ export function NewAnalysisDialog({
 }: {
   projectId: string;
   facets: TopicFacet[];
-  initialFilter: FilterState;
   liveDisabledReason?: string;
   onStarted: (analysis: { executionId: string }) => void;
   onRuleCreated: (ruleId: string) => void;
@@ -50,9 +48,10 @@ export function NewAnalysisDialog({
   const form = useForm<NewScanForm>({
     defaultValues: {
       name: null,
-      filter: initialFilter,
+      filter: [],
       facetIds: facets.map(({ id }) => id),
-      live: false,
+      // Live unless the project is at its live scan limit.
+      live: !liveDisabledReason,
       samplingPercent: 100,
     },
   });
@@ -60,9 +59,11 @@ export function NewAnalysisDialog({
     name: editedName,
     filter,
     facetIds,
-    live,
+    live: liveChecked,
     samplingPercent,
   } = form.watch();
+  // The live limit can load after the form starts live; then it's a one-off scan.
+  const live = liveChecked && !liveDisabledReason;
   const setFilter = (next: FilterState) => form.setValue("filter", next);
   // Setup's window: its preview, its backfill, and the summaries a scan groups.
   const range = dayWindow(TOPIC_SETUP_BACKFILL_DAYS, now);
@@ -115,7 +116,7 @@ export function NewAnalysisDialog({
 
   async function submit(values: NewScanForm) {
     const label = values.name?.trim() || suggestedName;
-    if (values.live) {
+    if (live) {
       const rule = await createRule.mutateAsync({
         projectId,
         name: label,

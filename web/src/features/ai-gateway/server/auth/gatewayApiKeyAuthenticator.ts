@@ -65,15 +65,22 @@ export class GatewayApiKeyAuthenticator {
       params.model,
       context.connections,
       params.apiFormat,
+      context.keyAllowedModels,
     );
     if (!route) {
       throw new GatewayControlPlaneError("Invalid gateway model", 400);
     }
+    // A key's patterns only narrow what the admin enabled, and a denial reads
+    // the same either way.
     if (
       route.connection &&
       !isGatewayModelAllowed(
         route.connection.allowedModels,
         route.providerModel,
+        {
+          connectionName: route.connection.name,
+          allowedModels: context.keyAllowedModels,
+        },
       )
     ) {
       throw new GatewayControlPlaneError(
@@ -165,6 +172,9 @@ export class GatewayApiKeyAuthenticator {
       userName: row.user?.name || null,
       userEmail: row.user?.email || null,
       keyMetadata: toKeyMetadata(row.gatewayAssociation?.metadata),
+      keyAllowedModels: parseGatewayAllowedModels(
+        row.gatewayAssociation?.allowedModels ?? null,
+      ),
       ingestionProjectId: projectIsUsable
         ? (gatewayConfig?.defaultIngestionProjectId ?? null)
         : null,

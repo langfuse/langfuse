@@ -248,9 +248,9 @@ export function providerSupportsApiFormat(
 // Completions on an OpenAI-compatible endpoint of the key's project in the
 // connection's location.
 // Throws if a Bedrock or Vertex AI connection has no valid config or an Azure
-// connection has no endpoint. OpenAI and Anthropic connections may override
-// the official base URL; OpenRouter, xAI, Vercel and Google AI Studio never
-// store one.
+// connection has no endpoint. OpenAI, Anthropic and OpenRouter connections may
+// override the official base URL; xAI, Vercel and Google AI Studio never store
+// one.
 export function getGatewayUpstream(params: {
   provider: GatewayProviderName;
   apiFormat: GatewayApiFormat;

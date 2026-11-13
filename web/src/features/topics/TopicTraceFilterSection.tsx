@@ -1,6 +1,9 @@
 import { useId, useState } from "react";
 import { type ColumnDef } from "@tanstack/react-table";
-import type { FilterState } from "@langfuse/shared";
+import {
+  traceTranscriptFilterDefinition,
+  type FilterState,
+} from "@langfuse/shared";
 import { TOPICS_RULE_FILTER_HINT } from "@langfuse/shared/topics";
 import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { Table } from "@/src/components/design-system/table/Table";
@@ -112,6 +115,7 @@ export function TopicTraceFilterSection({
               filterState={filters}
               onChange={onFiltersChange}
               queryOnlyColumnIds={topicsFilterQueryOnlyColumnIds}
+              operators={traceTranscriptFilterDefinition.operators}
             />
             {model.error ? (
               <p className="text-destructive text-xs">{model.error}</p>

@@ -69,8 +69,8 @@ function NewScanStory({
   initialFacetIds = facets.map(({ id }) => id),
   starting = false,
   errors = [],
-  initialLive = false,
   liveDisabledReason,
+  initialLive = !liveDisabledReason,
 }: {
   counts?: Counts | null;
   initialFacetIds?: string[];
@@ -150,13 +150,15 @@ const meta = preview.meta({
   ],
 });
 
-export const Ready = meta.story({});
+export const Live = meta.story({ name: "Live scan" });
 
-export const Counting = meta.story({ args: { counts: null } });
+export const OneOff = meta.story({
+  name: "One-off scan",
+  args: { initialLive: false },
+});
 
-export const Live = meta.story({
-  name: "Live scan",
-  args: { initialLive: true },
+export const Counting = meta.story({
+  args: { counts: null, initialLive: false },
 });
 
 export const LiveLimitReached = meta.story({
@@ -173,6 +175,7 @@ export const NotEnoughTraces = meta.story({
       minimumTraceCount: 50,
       ready: false,
     },
+    initialLive: false,
   },
 });
 
@@ -188,9 +191,25 @@ export const NothingToLookFor = meta.story({
   args: { initialFacetIds: [] },
   play: async () => {
     const body = within(document.body);
-    const start = await body.findByRole("button", { name: "Start scan" });
+    const start = await body.findByRole("button", { name: "Start live scan" });
     await expect(start).toBeDisabled();
     await userEvent.click(body.getByRole("checkbox", { name: "Intent" }));
     await expect(start).toBeEnabled();
+  },
+});
+
+export const OnlyLiveOperators = meta.story({
+  name: "(Test) The filter builder offers only operators live scans support",
+  play: async () => {
+    const body = within(document.body);
+    // The story's filter is `type any of GENERATION`; `none of` can't be saved.
+    const operator = (await body.findAllByRole("combobox")).find(
+      (element) => element.textContent === "any of",
+    );
+    await userEvent.click(operator!);
+    const options = await body.findAllByRole("option");
+    await expect(options.map((option) => option.textContent)).toEqual([
+      "any of",
+    ]);
   },
 });
