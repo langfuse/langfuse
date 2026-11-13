@@ -250,6 +250,42 @@ describe("useEventsSearchBar.commit", () => {
     ]);
   });
 
+  it("keeps a hidden numeric metadata equality when its key's visible comparison is unchanged", () => {
+    const equality: FilterState[number] = {
+      column: "metadata",
+      type: "numberObject",
+      key: "attempt",
+      operator: "=",
+      value: 3,
+    };
+    const { result, setFilterState } = setup({
+      filterState: [
+        equality,
+        {
+          column: "metadata",
+          type: "numberObject",
+          key: "attempt",
+          operator: ">",
+          value: 2,
+        },
+      ],
+      searchQuery: null,
+    });
+
+    act(() =>
+      result.current.store
+        .getState()
+        .actions.setDraft("metadata.attempt:>2 level:ERROR"),
+    );
+    act(() => {
+      result.current.commit("enter");
+    });
+
+    expect(setFilterState).toHaveBeenCalledWith(
+      expect.arrayContaining([equality]),
+    );
+  });
+
   it("fully replaces hidden filters when a query preset is picked", () => {
     const hiddenFilter: FilterState = [
       {

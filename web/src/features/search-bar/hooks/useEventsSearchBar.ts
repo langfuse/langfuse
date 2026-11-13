@@ -283,7 +283,11 @@ export function useEventsSearchBar({
   /** Preserve hidden filters unless the same target, column, and key is edited. */
   const mergeWithSkipped = useCallback(
     (filters: FilterState): FilterState =>
-      mergeSkippedFilters(filters, skippedFiltersRef.current),
+      mergeSkippedFilters(
+        filters,
+        skippedFiltersRef.current,
+        appliedStateRef.current.filters,
+      ),
     [],
   );
 
@@ -477,15 +481,34 @@ export function useEventsSearchBar({
   return { store, commit, applyFilters, resetDraft };
 }
 
+/**
+ * `filters` plus the hidden filters in `skippedFilters`. A hidden filter is
+ * dropped only when the commit edits its target, column, and key: `filters`
+ * holds a different set on that identity than the bar showed in `previous`.
+ */
 function mergeSkippedFilters(
   filters: FilterState,
   skippedFilters: FilterState,
+  previous: FilterState,
 ): FilterState {
-  const producedKeys = new Set(filters.map((f) => filterIdentity(f)));
-  const preserved = skippedFilters.filter(
-    (f) => !producedKeys.has(filterIdentity(f)),
-  );
+  const hidden = new Set(skippedFilters);
+  const shown = groupByIdentity(previous.filter((f) => !hidden.has(f)));
+  const produced = groupByIdentity(filters);
+  const preserved = skippedFilters.filter((f) => {
+    const identity = filterIdentity(f);
+    const next = produced.get(identity);
+    return next === undefined || isEqual(next, shown.get(identity) ?? []);
+  });
   return preserved.length > 0 ? [...filters, ...preserved] : filters;
+}
+
+function groupByIdentity(filters: FilterState): Map<string, FilterState> {
+  const groups = new Map<string, FilterState>();
+  for (const filter of filters) {
+    const identity = filterIdentity(filter);
+    groups.set(identity, [...(groups.get(identity) ?? []), filter]);
+  }
+  return groups;
 }
 
 function filterIdentity(filter: FilterState[number]): string {
