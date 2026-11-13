@@ -8,11 +8,12 @@ import {
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  getNewestTopicClusteringSummaries,
   loadTopicTranscript,
   selectTopicTraceRows,
+  summarizedTopicMatchesQuery,
   writeTopicSummaries,
 } from "@langfuse/shared/topics/server";
-import { matchRefitWindow } from "./refitFilter";
 
 const selection = {
   filter: [],
@@ -94,7 +95,7 @@ describe("Topics trace selection", () => {
     expect(Number(preview[0].matchedTraceCount)).toBe(2);
   });
 
-  it("keeps a refit to summarized traces that meet the rule's filter, beyond the newest week", async () => {
+  it("loads the newest summaries of traces that meet a rule's filter, filtering before the limit", async () => {
     await createEventsCh(
       [
         ["trace-unmatched", "2026-09-23T09:30:00Z", "plan"],
@@ -145,31 +146,43 @@ describe("Topics trace selection", () => {
         metadata: {},
       })),
     );
-    const from = new Date("2026-09-01T00:00:00.000Z");
+    const facet = { facetId: "facet", version: 1 };
+    const timeRange = {
+      from: new Date("2026-09-01T00:00:00.000Z"),
+      to: selection.to,
+    };
 
-    const matched = await matchRefitWindow({
+    const summaries = await getNewestTopicClusteringSummaries(
       projectId,
-      ruleId: "rule",
-      runId: "run",
-      facet: { facetId: "facet", version: 1 },
-      filter: [
-        {
-          column: "name",
-          type: "stringOptions",
-          operator: "any of",
-          value: ["fetch_context"],
-        },
-      ],
-      timeRange: { from, to: selection.to },
-    });
+      facet,
+      { embeddingModel: "embed", embeddingDimensions: 2 },
+      timeRange,
+      { maxRows: 3, maxBytes: 1_000_000 },
+      (slice) =>
+        summarizedTopicMatchesQuery(
+          {
+            projectId,
+            facet,
+            filter: [
+              {
+                column: "name",
+                type: "stringOptions",
+                operator: "any of",
+                value: ["fetch_context"],
+              },
+            ],
+            ...slice,
+          },
+          prisma,
+        ),
+    );
 
-    expect([...matched.traceIds].sort()).toEqual([
-      "trace-earlier",
-      "trace-long",
+    // The newest summary does not match; the oldest match is past the limit.
+    expect(summaries.map(({ traceId }) => traceId)).toEqual([
       "trace-new",
       "trace-old",
+      "trace-long",
     ]);
-    expect(matched.timeRange).toEqual({ from, to: selection.to });
   });
 
   it("filters latest matching environments before counting and limiting", async () => {
