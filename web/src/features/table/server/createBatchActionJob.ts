@@ -86,7 +86,10 @@ export const createBatchActionJob = async ({
   query,
   targetId,
   useEventsTableOverride,
-}: CreateBatchActionJob) => {
+}: CreateBatchActionJob): Promise<{
+  /** Set for trace deletes: rows at or after it are not deleted. */
+  cutoffCreatedAt?: Date;
+}> => {
   // Whether the action reads from the events table is determined at the
   // call site (useEventsTableOverride) or inferred from the user's v4 beta
   // flag; the decision is snapshotted into the query at dispatch time.
@@ -186,7 +189,7 @@ export const createBatchActionJob = async ({
       userId: session.user.id,
     });
 
-    return;
+    return { cutoffCreatedAt };
   }
 
   const batchActionQueue = BatchActionQueue.getInstance();
@@ -237,5 +240,5 @@ export const createBatchActionJob = async ({
     userId: session.user.id,
   });
 
-  return;
+  return {};
 };

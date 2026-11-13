@@ -17,6 +17,12 @@ import { traceTopicRows } from "@/src/features/topics/trace/trace-topic-rows";
 import { useMemo } from "react";
 
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
+import { PendingTraceDeletionBanner } from "@/src/features/traces/components/PendingTraceDeletionBanner";
+import { usePendingTraceDeletions } from "@/src/features/traces/usePendingTraceDeletions";
+import {
+  traceDeleteCandidateFromObservation,
+  traceDeleteCandidateFromTrace,
+} from "@/src/features/traces/pendingTraceDeletionMatch";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import { useTraceTopicFacets } from "@/src/features/topics/trace/useTraceTopicFacets";
 import { PlusIcon, SquarePen, MessageSquare } from "@langfuse/icons";
@@ -88,6 +94,21 @@ function LoadedTraceHeader({
   const tags = sessionTraces
     ? [...new Set(sessionTraces.flatMap((entry) => entry.tags))]
     : trace.tags;
+  const pendingTraceDeletions = usePendingTraceDeletions(trace.projectId);
+  // The notice speaks about one trace, so the multi-trace session header never shows it.
+  const scheduledForDeletion = useMemo(
+    () =>
+      !sessionTraces &&
+      pendingTraceDeletions.isTracePending(trace.id, {
+        traces: [traceDeleteCandidateFromTrace(trace)],
+        events: observations.flatMap((observation) => {
+          if (observation.traceId !== trace.id) return [];
+          const candidate = traceDeleteCandidateFromObservation(observation);
+          return candidate ? [candidate] : [];
+        }),
+      }),
+    [pendingTraceDeletions, trace, observations, sessionTraces],
+  );
   const metrics: HeaderMetric[] = [];
   if (sessionTraces)
     metrics.push({
@@ -214,6 +235,9 @@ function LoadedTraceHeader({
           {...configuredHeader}
           metrics={metrics}
           isPlaceholderData={isPlaceholderData}
+          notice={
+            scheduledForDeletion ? <PendingTraceDeletionBanner /> : undefined
+          }
         />
       )}
     </ConnectedTraceHeaderWorkflowActions>

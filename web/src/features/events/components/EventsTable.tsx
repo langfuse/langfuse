@@ -164,7 +164,12 @@ import { api } from "@/src/utils/api";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/AddObservationsToDatasetDialog";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import {
+  markTraceQueryPendingDeletion,
+  markTracesPendingDeletion,
+} from "@/src/features/traces/pendingTraceDeletions";
+import { usePendingTraceDeletions } from "@/src/features/traces/usePendingTraceDeletions";
+import { traceDeleteCandidateFromEventsRow } from "@/src/features/traces/pendingTraceDeletionMatch";
 import { MobileFullTextSearch } from "@/src/features/events/components/MobileFullTextSearch";
 import { CategoryPresetChips } from "@/src/features/events/components/CategoryPresetChips";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
@@ -1118,14 +1123,6 @@ export default function ObservationsEventsTable({
   });
 
   const traceDeleteMutation = api.traces.deleteMany.useMutation({
-    onSuccess: () => {
-      showSuccessToast({
-        operation: "trace.bulk_delete",
-        title: "Traces deleted",
-        description:
-          "Selected traces will be deleted. Traces are removed asynchronously and may continue to be visible for up to 15 minutes.",
-      });
-    },
     onSettled: () => {
       utils.events.all.invalidate();
       utils.events.countAll.invalidate();
@@ -1161,7 +1158,7 @@ export default function ObservationsEventsTable({
     // delete with nothing resolvable is a no-op.
     if (!selectAll && selectedTraceIds.length === 0) return;
 
-    await traceDeleteMutation.mutateAsync({
+    const { cutoffCreatedAt } = await traceDeleteMutation.mutateAsync({
       projectId,
       traceIds: selectedTraceIds,
       query: {
@@ -1176,6 +1173,28 @@ export default function ObservationsEventsTable({
       },
       isBatchAction: selectAll,
     });
+    if (selectAll && cutoffCreatedAt) {
+      markTraceQueryPendingDeletion(projectId, {
+        source: "events",
+        filter: filterState,
+        searchQuery: searchQuery || undefined,
+        searchType,
+        cutoffCreatedAt,
+      });
+    }
+    // The loaded page is hidden by id too, which covers queries that cannot
+    // be evaluated in the browser.
+    const pageTraceIds = [
+      ...new Set(
+        (observations.rows ?? []).flatMap((observation) =>
+          observation.traceId ? [observation.traceId] : [],
+        ),
+      ),
+    ];
+    markTracesPendingDeletion(
+      projectId,
+      selectAll ? pageTraceIds : selectedTraceIds,
+    );
     setSelectedRows({});
   };
 
@@ -1842,6 +1861,19 @@ export default function ObservationsEventsTable({
     };
   }, [peekNavigationProps, showPeekPanel]);
 
+  const pendingTraceDeletions = usePendingTraceDeletions(projectId);
+  const pendingTraceIds = useMemo(
+    () =>
+      pendingTraceDeletions.hiddenTraceIds(
+        "events",
+        (observations.rows ?? []).flatMap((observation) => {
+          const candidate = traceDeleteCandidateFromEventsRow(observation);
+          return candidate ? [candidate] : [];
+        }),
+      ),
+    [pendingTraceDeletions, observations.rows],
+  );
+
   const rows: EventsTableRow[] = useMemo(() => {
     const result =
       observations.status === "success" && observations.rows
@@ -1912,6 +1944,12 @@ export default function ObservationsEventsTable({
 
     return result;
   }, [observations]);
+
+  const visibleRows = useMemo(
+    () =>
+      rows.filter((row) => !row.traceId || !pendingTraceIds.has(row.traceId)),
+    [rows, pendingTraceIds],
+  );
 
   const selectedObservationIds = useMemo(() => {
     const rowIds = new Set(observations.rows?.map((o) => o.id));
@@ -2419,7 +2457,7 @@ export default function ObservationsEventsTable({
                       : {
                           isLoading: false,
                           isError: false,
-                          data: rows,
+                          data: visibleRows,
                         }
                 }
                 noResultsMessage={

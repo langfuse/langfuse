@@ -206,6 +206,7 @@ import {
 } from "../../eventsTable";
 import { OBSERVATIONS_TO_TRACE_INTERVAL_DAYS } from "./constants";
 import type { TraceDeleteBatchActionCursor } from "../../features/batchAction/types";
+import { traceDeleteCutoffFilter } from "../../features/batchAction/traceDeletePredicate";
 import {
   findUiColumnMapping,
   type UiColumnMappings,
@@ -889,12 +890,7 @@ export const getTraceDeleteCursorPageFromEvents = async (props: {
     projectId: props.projectId,
     filter: [
       ...props.filter,
-      {
-        column: "startTime",
-        operator: "<" as const,
-        value: props.cutoffCreatedAt,
-        type: "datetime" as const,
-      },
+      traceDeleteCutoffFilter("events", props.cutoffCreatedAt),
     ],
     searchQuery: props.searchQuery,
     searchType: props.searchType,
