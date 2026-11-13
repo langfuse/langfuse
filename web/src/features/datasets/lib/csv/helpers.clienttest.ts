@@ -1,7 +1,59 @@
 import { describe, expect, it } from "vitest";
-import { parseCsvClient, parseValue } from "./helpers";
+import { parseColumns, parseCsvClient, parseValue } from "./helpers";
 
 describe("CSV dataset parsing", () => {
+  it("preserves quoted text whitespace in previews and imported values", async () => {
+    const input = "  keep me  ";
+    const expectedOutput = "\n  expected output  \n";
+    const file = new File(
+      [
+        '"  input  "," expected_output ",unquoted,empty,blank,number,json,boolean,null\n' +
+          `"${input}","${expectedOutput}",  trimmed  ,,"  "," 42 "," {""answer"":42} "," FALSE "," NULL "\n`,
+      ],
+      "whitespace.csv",
+      { type: "text/csv" },
+    );
+    const importedRows: unknown[] = [];
+
+    const preview = await parseCsvClient(file, {
+      collectSamples: true,
+      processor: {
+        onRow: (row, headers) => {
+          const headerMap = new Map(
+            headers.map((header, index) => [header, index]),
+          );
+          importedRows.push(parseColumns(headers, row, headerMap));
+        },
+      },
+    });
+
+    expect(preview.previewRows[0].slice(0, 2)).toEqual([input, expectedOutput]);
+    expect(preview.columns.slice(0, 2)).toEqual([
+      { name: "input", samples: [input], inferredType: "string" },
+      {
+        name: "expected_output",
+        samples: [expectedOutput],
+        inferredType: "string",
+      },
+    ]);
+    expect(
+      preview.columns.slice(2).map((column) => column.inferredType),
+    ).toEqual(["string", "null", "null", "number", "json", "boolean", "null"]);
+    expect(importedRows).toEqual([
+      {
+        input,
+        expected_output: expectedOutput,
+        unquoted: "trimmed",
+        empty: null,
+        blank: null,
+        number: 42,
+        json: { answer: 42 },
+        boolean: false,
+        null: null,
+      },
+    ]);
+  });
+
   it("preserves unsafe integer values as strings", () => {
     expect(parseValue("107505301260286111")).toBe("107505301260286111");
     expect(parseValue('{"input_number":107505301260286111}')).toEqual({

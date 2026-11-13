@@ -19,7 +19,7 @@ const PREVIEW_FILE_SIZE_BYTES = 1024 * 1024 * 2; // 2MB
 // Shared parser configuration
 const getParserConfig = (options: ParseOptions) => ({
   skip_empty_lines: true,
-  trim: true,
+  trim: true, // Whitespace inside quoted fields is part of the value.
   bom: true,
   ...(options.isPreview ? { to: MAX_PREVIEW_ROWS + 1 } : {}),
   quote: '"',
@@ -56,11 +56,10 @@ const createParser = async (
       (options.isPreview && currentRowIndex <= MAX_PREVIEW_ROWS)
     ) {
       // Data rows
-      const sanitizedRow = row.map((value) => value.trim());
-      previewRows.push(sanitizedRow);
+      previewRows.push(row);
 
       if (options.collectSamples) {
-        sanitizedRow.forEach((value, colIndex) => {
+        row.forEach((value, colIndex) => {
           const header = headerRow[colIndex];
           const samples = columnSamples.get(header) ?? [];
           samples.push(value);
@@ -68,7 +67,7 @@ const createParser = async (
         });
       }
       if (options.processor?.onRow) {
-        await options.processor.onRow(sanitizedRow, headerRow, currentRowIndex);
+        await options.processor.onRow(row, headerRow, currentRowIndex);
       }
     }
   });
@@ -171,30 +170,30 @@ function inferColumnType(samples: string[]): ColumnType {
 }
 
 function inferTypeFromValue(value: string): ColumnType {
-  if (!value || value.toLowerCase() === "null") return "null";
-
   const parsed = parseValue(value);
+  if (parsed === null) return "null";
   if (Array.isArray(parsed)) return "array";
-  if (typeof parsed === "object" && parsed !== null) return "json";
+  if (typeof parsed === "object") return "json";
   return typeof parsed as ColumnType;
 }
 
 // Helper to parse a single value
 export function parseValue(value: string): Prisma.JsonValue {
-  if (value === "" || value.toLowerCase() === "null") return null;
+  const trimmedValue = value.trim();
+  if (trimmedValue === "" || trimmedValue.toLowerCase() === "null") return null;
 
-  const parsed = parseJsonPrioritised(value);
+  const parsed = parseJsonPrioritised(trimmedValue);
   if (
     parsed !== undefined &&
-    (parsed !== value || isJsonNumberLiteral(value))
+    (parsed !== trimmedValue || isJsonNumberLiteral(trimmedValue))
   ) {
     return parsed as Prisma.JsonValue;
   }
 
-  if (value.toLowerCase() === "true") return true;
-  if (value.toLowerCase() === "false") return false;
+  if (trimmedValue.toLowerCase() === "true") return true;
+  if (trimmedValue.toLowerCase() === "false") return false;
 
-  const numericValue = Number(value);
+  const numericValue = Number(trimmedValue);
   if (
     Number.isFinite(numericValue) &&
     Math.abs(numericValue) <= Number.MAX_SAFE_INTEGER
