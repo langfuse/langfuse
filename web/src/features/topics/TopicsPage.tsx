@@ -554,10 +554,11 @@ function TopicsWorkspaceContent({
               !showSetupProgress &&
               !landingRun &&
               modelSettings.automaticProcessing.state.status === "on";
-            // A later rule's setup keeps the header, so other maps stay reachable.
+            // A setup keeps the header while other maps exist, so they stay reachable.
             const setupInline =
               showSetupProgress &&
               Boolean(
+                maps.data?.analyses.length ||
                 maps.data?.rules.some(
                   (rule) => rule.id !== setupRuleId && rule.lastRefitAt,
                 ),
@@ -838,7 +839,14 @@ function TopicsWorkspaceContent({
                         widthStorageKey="topicsPeekViewWidthFraction"
                       />
                       {showBuilding && selectedRule ? (
-                        <TopicRuleBuildingState rule={selectedRule} />
+                        <TopicRuleBuildingState
+                          rule={selectedRule}
+                          mapBuilt={Boolean(
+                            ruleSetup.data?.facets.some(
+                              (facet) => facet.runStatus === "completed",
+                            ),
+                          )}
+                        />
                       ) : null}
                       {analysisState &&
                       analysisId &&
