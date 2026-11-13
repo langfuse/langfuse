@@ -44,7 +44,11 @@ describe("raw SQL checks", () => {
     ],
     [
       "a keyword split by empty raw SQL",
-      where(sql`t.id in (sel${sql.raw("")}ect 1)`),
+      where(sql`t.id = (1 fr${sql.raw("")}om scores)`),
+    ],
+    [
+      "a keyword split around an sql.id name",
+      where(sql`t.id = (1 fr${sql.id("om")} scores)`),
     ],
     ...["from", "join", "union", "intersect", "except", "settings", "into"].map(
       (keyword): [string, Query] => [

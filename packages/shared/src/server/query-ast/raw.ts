@@ -73,10 +73,9 @@ function rawText(node: RawNode): string {
 function parameterText(node: OperationNode): string {
   if (RawNode.is(node)) return rawText(node);
   const name = nameText(node);
-  // Any other name is no plain identifier, which the compiler rejects.
-  return name !== undefined && PLAIN_NAME.test(name)
-    ? ` ${name} `
-    : ` ${OPAQUE} `;
+  // Spliced as written, so `fr${sql.id("om")}` reads `from`. Any other name
+  // is no plain identifier, which the compiler rejects.
+  return name !== undefined && PLAIN_NAME.test(name) ? name : ` ${OPAQUE} `;
 }
 
 /** `sql.id("x")` → `x`, `sql.ref("t.x")` → `t.x`. */
