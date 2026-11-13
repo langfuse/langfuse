@@ -25,11 +25,7 @@ type TopicAction = {
 
 const NO_WRITE_ACCESS = "You need permission to edit Topics.";
 
-function createDisabledReason(
-  canWrite: boolean,
-  state: AutomaticProcessingState,
-) {
-  if (!canWrite) return NO_WRITE_ACCESS;
+function createDisabledReason(state: AutomaticProcessingState) {
   if (state.status === "unconfigured") return "Set up Topics first.";
   return undefined;
 }
@@ -55,7 +51,7 @@ export function prepareTopicsActions({
   menuOnly: boolean;
   onConfigure: () => void;
   onHistory: () => void;
-  /** Opens New map and New snapshot; absent where neither can start. */
+  /** Opens New map and New snapshot; hidden without write access. */
   onNewMap?: () => void;
   onNewSnapshot?: () => void;
   /** Why no further map can be created, e.g. the project's limit. */
@@ -101,16 +97,19 @@ export function prepareTopicsActions({
     checked: showUnassigned,
     onCheckedChange: onShowUnassignedChange,
   } as const;
-  const disabledReason = createDisabledReason(canWrite, state);
-  const newMap = onNewMap
-    ? {
-        onSelect: onNewMap,
-        disabledReason: disabledReason ?? mapDisabledReason,
-      }
-    : null;
-  const newSnapshot = onNewSnapshot
-    ? { onSelect: onNewSnapshot, disabledReason }
-    : null;
+  // Without write access, creating is hidden rather than disabled.
+  const disabledReason = createDisabledReason(state);
+  const newMap =
+    onNewMap && canWrite
+      ? {
+          onSelect: onNewMap,
+          disabledReason: disabledReason ?? mapDisabledReason,
+        }
+      : null;
+  const newSnapshot =
+    onNewSnapshot && canWrite
+      ? { onSelect: onNewSnapshot, disabledReason }
+      : null;
   if (newSnapshot)
     menu.unshift({
       id: "new-snapshot",
