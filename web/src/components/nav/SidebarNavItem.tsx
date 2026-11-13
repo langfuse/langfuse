@@ -54,60 +54,37 @@ function RowContent({
   );
 }
 
-/** A rail entry reveals only its own row, with one keyboard target and no layout shift. */
+/** Collapsed navigation uses the standard label tooltip. */
 function RailEntry({
   label,
   isCollapsed,
   children,
-  renderExpandedRow,
 }: {
   label: string;
   isCollapsed: boolean;
   children: ComponentProps<typeof FloatingController>["children"];
-  renderExpandedRow: (close: () => void) => ReactNode;
 }) {
-  const [previewIntent, setPreviewIntent] = useState(false);
+  const [open, setOpen] = useState(false);
   return (
     <FloatingController
-      open={isCollapsed && previewIntent}
-      onOpenChange={setPreviewIntent}
+      enabled={isCollapsed}
+      open={open}
+      onOpenChange={setOpen}
       role="tooltip"
       placement="right"
-      sideOffset={-40}
-      openDelay={100}
-      closeDelay={100}
-      hideWhenDetached
+      openDelay={150}
+      closeDelay={0}
+      hoverableContent={false}
       renderContent={(props) => (
         <div
           {...props}
-          aria-label={label}
-          data-sidebar-item-preview=""
-          className="bg-sidebar text-sidebar-foreground max-w-xs min-w-40 rounded-md border shadow-md"
+          className="bg-popover text-popover-foreground pointer-events-none overflow-hidden rounded-md border px-3 py-1.5 text-sm font-bold shadow-md"
         >
-          {renderExpandedRow(() => setPreviewIntent(false))}
+          {label}
         </div>
       )}
     >
-      {({ getTriggerProps, setPositionReference }) =>
-        children({
-          setPositionReference,
-          getTriggerProps: (props) =>
-            getTriggerProps({
-              ...props,
-              onMouseLeave: (event) => {
-                props?.onMouseLeave?.(event);
-                // There is no floating surface for safePolygon in expanded mode.
-                // Keep keyboard focus intent until the real trigger blurs.
-                if (
-                  !isCollapsed &&
-                  !event.currentTarget.matches(":focus-visible")
-                ) {
-                  setPreviewIntent(false);
-                }
-              },
-            }),
-        })
-      }
+      {children}
     </FloatingController>
   );
 }
@@ -135,28 +112,7 @@ function SidebarNavLink({
     "aria-current": isActive ? ("page" as const) : undefined,
   };
   return (
-    <RailEntry
-      isCollapsed={isCollapsed}
-      label={content.label}
-      renderExpandedRow={(close) => (
-        <Link
-          {...linkProps}
-          tabIndex={-1}
-          onPointerDown={(event) => event.preventDefault()}
-          aria-hidden="true"
-          onClick={() => {
-            close();
-            onClick?.();
-          }}
-          className={cn(
-            rowVariants({ interaction: "interactive" }),
-            styles.row,
-          )}
-        >
-          <RowContent {...content} isCollapsed={false} />
-        </Link>
-      )}
-    >
+    <RailEntry isCollapsed={isCollapsed} label={content.label}>
       {({ getTriggerProps, setPositionReference }) => (
         <Link
           {...linkProps}
@@ -196,31 +152,6 @@ function SidebarNavButton({
     <RailEntry
       isCollapsed={isCollapsed}
       label={buttonProps["aria-label"] ?? label}
-      renderExpandedRow={(close) => (
-        <button
-          type="button"
-          tabIndex={-1}
-          onPointerDown={(event) => event.preventDefault()}
-          aria-hidden="true"
-          disabled={buttonProps.disabled}
-          onClick={(event) => {
-            close();
-            buttonProps.onClick?.(event);
-          }}
-          className={cn(
-            rowVariants({ interaction: "interactive" }),
-            styles.row,
-          )}
-        >
-          <RowContent
-            leading={leading}
-            label={label}
-            isLabelBold={isLabelBold}
-            trailing={trailing}
-            isCollapsed={false}
-          />
-        </button>
-      )}
     >
       {({ getTriggerProps, setPositionReference }) => (
         <button

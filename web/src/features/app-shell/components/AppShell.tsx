@@ -5,6 +5,7 @@ import {
   type AppNavigation,
 } from "@/src/components/nav/AppNavigationProvider";
 import { ShellSidebar } from "@/src/features/app-shell/components/ShellSidebar";
+import { SidebarExpansionToggle } from "@/src/features/app-shell/components/SidebarExpansionToggle";
 import {
   AppShellSidebarProvider,
   useAppShellSidebar,
@@ -25,7 +26,7 @@ function AppShellFrame({
   const session = useSession();
   const [navigation] = useState<AppNavigation>(() => ({
     shell: "next",
-    SidebarControl: null,
+    SidebarControl: SidebarExpansionToggle,
     openMobileNavigation: () => setMobileOpen(true),
     closeTransientNavigation: close,
   }));

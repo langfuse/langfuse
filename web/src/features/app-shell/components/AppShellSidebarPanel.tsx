@@ -1,9 +1,7 @@
-import Link from "next/link";
 import motion from "./sidebarMotion.module.css";
 import { cn } from "@/src/utils/tailwind";
 import { SidebarVersionButton } from "./SidebarVersionButton";
 import { useRouter } from "next/router";
-import { LangfuseLogo } from "@/src/components/design-system/LangfuseLogo/LangfuseLogo";
 import { type RouteGroup } from "@/src/components/layouts/routes";
 import { type NavigationItem } from "@/src/components/layouts/utilities/routes";
 import {
@@ -14,14 +12,13 @@ import { type UserNavigationItem } from "@/src/components/nav/UserMenuItems";
 import { SidebarVersionMenu } from "./SidebarVersionMenu";
 import { useSidebarNotificationState } from "@/src/components/nav/useSidebarNotificationState";
 import { useSidebarVersionState } from "@/src/components/nav/useSidebarVersionState";
-import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { env } from "@/src/env.mjs";
 import { SidebarAccountButton } from "@/src/features/app-shell/components/SidebarAccountButton";
 import { SidebarDemoNotice } from "@/src/features/app-shell/components/SidebarDemoNotice";
 import { SidebarNavigation } from "@/src/features/app-shell/components/SidebarNavigation";
 import { SidebarOverviewLink } from "@/src/features/app-shell/components/SidebarOverviewLink";
 import { SidebarPanel } from "@/src/features/app-shell/components/SidebarPanel";
-import { SidebarExpansionToggle } from "@/src/features/app-shell/components/SidebarExpansionToggle";
+import { SidebarOrganizationHeader } from "@/src/features/app-shell/components/SidebarOrganizationHeader";
 import {
   SidebarUserMenu,
   type SidebarUser,
@@ -71,7 +68,6 @@ export function AppShellSidebarPanel({
     typeof router.query.projectId === "string"
       ? router.query.projectId
       : undefined;
-  const uiCustomization = useUiCustomization();
   const versionState = useSidebarVersionState({ isLangfuseCloud });
   const notificationState = useSidebarNotificationState();
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(routerProjectId);
@@ -87,27 +83,7 @@ export function AppShellSidebarPanel({
 
   return (
     <SidebarPanel>
-      <SidebarPanel.Header>
-        <span className={motion.control}>
-          <SidebarExpansionToggle />
-        </span>
-        <div
-          className={cn(motion.brand, motion.label)}
-          data-sidebar-expanded-only=""
-          inert={isCollapsed}
-        >
-          <Link
-            href="/"
-            aria-label="Langfuse home"
-            className={motion.brandLink}
-          >
-            <LangfuseLogo
-              logoLightModeHref={uiCustomization?.logoLightModeHref}
-              logoDarkModeHref={uiCustomization?.logoDarkModeHref}
-            />
-          </Link>
-        </div>
-      </SidebarPanel.Header>
+      <SidebarOrganizationHeader />
       <SidebarPanel.Section>
         <div className="flex flex-col gap-1">
           <SidebarWorkspaceSwitcher />

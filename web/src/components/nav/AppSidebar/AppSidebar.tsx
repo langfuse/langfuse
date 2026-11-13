@@ -185,7 +185,7 @@ type AppSidebarProps = {
   canCreateProjects: boolean;
 };
 
-export function AppSidebar({
+function AppSidebarRoot({
   navItems,
   secondaryNavItems,
   user,
@@ -302,6 +302,10 @@ export function AppSidebar({
     </Sidebar>
   );
 }
+
+export const AppSidebar = Object.assign(AppSidebarRoot, {
+  OrganizationSwitcher: SidebarOrganizationSwitcher,
+});
 
 /** Plans whose badge has a shorter form for when the full one would truncate the org name. */
 const SHORT_PLAN_LABELS: Partial<Record<Plan, string>> = {
