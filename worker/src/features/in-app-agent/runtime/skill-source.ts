@@ -133,11 +133,7 @@ export class InAppAgentSkillSource implements SkillSource {
     );
     if (this.config.tag) {
       try {
-        const catalogue = await this.skillsApi.list(
-          { tag: this.config.tag, limit: 100 },
-          this.requestOptions(),
-        );
-        for (const entry of catalogue.data) {
+        for (const entry of await this.listHostedCatalogue()) {
           if (entry.productionVersion === null) continue;
           entries.add(entry.name);
         }
@@ -155,6 +151,29 @@ export class InAppAgentSkillSource implements SkillSource {
         type: "directory",
       }),
     );
+  }
+
+  /**
+   * Read every page of the tagged skill catalogue. A single request only sees
+   * the first page, so an unpublished first page (no production version) would
+   * otherwise hide every later published skill from the agent's discovery tree.
+   */
+  private async listHostedCatalogue(): Promise<
+    Array<{ name: string; productionVersion: number | null }>
+  > {
+    const entries: Array<{ name: string; productionVersion: number | null }> =
+      [];
+    for (let page = 1; ; page++) {
+      this.config.signal?.throwIfAborted();
+      const catalogue = await this.skillsApi.list(
+        { tag: this.config.tag!, page, limit: 100 },
+        this.requestOptions(),
+      );
+      entries.push(...catalogue.data);
+      if (!catalogue.meta.hasNextPage || catalogue.data.length === 0) {
+        return entries;
+      }
+    }
   }
 
   private async getSkill(name: string): Promise<SkillVersionResponse | null> {
