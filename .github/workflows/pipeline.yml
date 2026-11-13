@@ -173,7 +173,7 @@ jobs:
             ai_gateway:
               - 'ai-gateway/**'
               - 'packages/shared/prisma/migrations/**/*gateway*/**'
-              - 'web/src/__e2e__/**/*.gatewaye2e.{ts,tsx}'
+              - 'web/src/__e2e__/ai-gateway/**'
               - 'web/src/features/ai-gateway/**'
               - 'web/src/features/public-api/server/createAuthedProjectAPIRoute.ts'
               - 'web/src/pages/api/internal/ai-gateway/**'
@@ -1643,7 +1643,7 @@ jobs:
       - pre-job
       - ai-gateway-filter
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.ai-gateway-filter.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'))) }}
-    name: test-ai-gateway-e2e (node24, pg15)
+    name: test-ai-gateway-e2e
     env:
       NODE_ENV: test
     steps:
@@ -1740,6 +1740,10 @@ jobs:
         env:
           LANGFUSE_LLM_CONNECTION_OPENAI_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_OPENAI_KEY }}
           LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY }}
+          LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY }}
+          LANGFUSE_LLM_CONNECTION_BEDROCK_REGION: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_REGION }}
+          LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY }}
+          LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY }}
 
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix

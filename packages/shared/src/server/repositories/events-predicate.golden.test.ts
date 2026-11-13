@@ -78,13 +78,12 @@ type Raw = Compiled | { error: string };
 const PLACEHOLDER = /\{[A-Za-z_][A-Za-z0-9_]*\s*:\s*([^}]+)\}/g;
 
 const PROJECT_ID = "golden-project";
-const TENANCY_PREFIX =
-  /^e\.project_id = \{(\w+):String\} and e\.is_deleted = 0 and /;
+const TENANCY_PREFIX = /^e\.project_id = \{(\w+):String\} and /;
 
 /**
- * `compiled` minus the project and soft-delete conjuncts the compiler passes
- * put first, which the raw-SQL builders it is compared with omit. Throws
- * unless they lead the SQL and bind `PROJECT_ID`.
+ * `compiled` minus the project conjunct the tenancy pass puts first, which
+ * the raw-SQL builders it is compared with omit. Throws unless it leads the
+ * SQL and binds `PROJECT_ID`.
  */
 const withoutTenancy = (compiled: Compiled): Compiled => {
   const match = TENANCY_PREFIX.exec(compiled.sql);

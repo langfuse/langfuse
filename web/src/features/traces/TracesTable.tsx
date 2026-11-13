@@ -67,6 +67,7 @@ import { useLiveTableDateRange } from "@/src/hooks/useLiveTableDateRange";
 import { usePendingRowIds } from "@/src/components/table/hooks/usePendingRowIds";
 import {
   isLiveTailTimeSort,
+  paginationWindowResetKey,
   usePaginationWindowPin,
 } from "@/src/components/table/hooks/usePaginationWindowPin";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
@@ -295,9 +296,9 @@ function TracesTableInternal({
   });
   const { selectAll, setSelectAll } = useSelectAll(projectId, "traces");
 
-  // Facets describe the whole window; only the paged row/count queries need the
-  // upper bound pinned, so that offset paging does not repeat or skip rows while
-  // the window keeps taking in newly ingested ones.
+  // Facets describe the live window. Row and count queries freeze both bounds
+  // once the reader leaves page 1, so offset paging does not repeat, skip, or
+  // recount rows while the window keeps taking in newly ingested ones.
   const dateRangeFilter: FilterState = toTimestampFilter(dateRange);
   const {
     range: rowsDateRange,
@@ -306,7 +307,15 @@ function TracesTableInternal({
   } = usePaginationWindowPin(
     dateRange,
     limitRows ? 0 : paginationState.pageIndex,
-    { enabled: isLiveTailTimeSort(orderByState, "timestamp") },
+    {
+      enabled: isLiveTailTimeSort(orderByState, "timestamp"),
+      resetKey: paginationWindowResetKey({
+        orderBy: orderByState,
+        pageSize: paginationState.pageSize,
+        timeRange,
+        externalRange: externalDateRange,
+      }),
+    },
   );
   const rowsDateRangeFilter: FilterState = toTimestampFilter(rowsDateRange);
   const userIdFilter: FilterState = userId
@@ -407,8 +416,20 @@ function TracesTableInternal({
   const isSidebarFilterLoading =
     traceFilterOptionsResponse.isPending || environmentFilterOptions.isPending;
 
-  const { viewControllersRef, onExplicitFilterStateChange } =
-    useTableViewFilterChange();
+  const {
+    viewControllersRef,
+    onExplicitFilterStateChange: onViewFilterStateChange,
+  } = useTableViewFilterChange();
+
+  const onExplicitFilterStateChange = useCallback<
+    typeof onViewFilterStateChange
+  >(
+    (change) => {
+      onViewFilterStateChange(change);
+      if (change.origin === "user") resetPin();
+    },
+    [onViewFilterStateChange, resetPin],
+  );
 
   const queryFilterOptions: UseSidebarFilterStateOptions = useMemo(() => {
     const baseOptions = {
@@ -1602,9 +1623,9 @@ function TracesTableInternal({
                           typeof updater === "function"
                             ? updater(paginationState)
                             : updater;
-                        // Leaving page 1 freezes the paged set at the newest row
-                        // still on screen, so page 2 continues where this page
-                        // ends even if rows keep arriving.
+                        // Leaving page 1 freezes both bounds at the newest row
+                        // still on screen. Later pages pass their own top row;
+                        // the hook keeps the page-1 snapshot.
                         pinOnLeavingFirstPage(
                           next.pageIndex,
                           rows[0]?.timestamp,

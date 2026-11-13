@@ -694,8 +694,7 @@ export function eventsObservationsMeasure(name: string): MeasureEntry {
  * Join condition of the view's `scores` relation. `liveScoresOnly` also drops
  * score tombstones (`scores.is_deleted = 0`), for a join without `FINAL`:
  * unmerged older live versions of a deleted score still match, and
- * projects that skip score dedup never rewrite scores. `scores` declares no
- * soft-delete column, so no pass adds it.
+ * projects that skip score dedup never rewrite scores.
  */
 export const eventsObservationsScoresJoin = (
   eb: ObservationsWithScoresBuilder,

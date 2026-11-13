@@ -341,13 +341,12 @@ const compileEventsRowConditions = ({
     searchQuery,
     searchType,
   });
-  const options = { includeDeleted: true };
   const events =
     predicate.children.length > 0
-      ? compileEventsPredicate(predicate, projectId, options)
+      ? compileEventsPredicate(predicate, projectId)
       : undefined;
   const compiledSearch = search
-    ? compileEventsSearch(search, projectId, options)
+    ? compileEventsSearch(search, projectId)
     : undefined;
   return {
     events,

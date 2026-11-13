@@ -17,23 +17,32 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { FieldHeader } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/FieldHeader";
-import { bedrockRegionGroups } from "@/src/features/ai-gateway/constants/bedrockRegions";
+import type { RegionGroup } from "@/src/features/ai-gateway/types/regionGroup";
 import { cn } from "@/src/utils/tailwind";
 
-const regions = bedrockRegionGroups.flatMap((group) => group.regions);
-
-export type BedrockRegionFieldProps = {
+export type RegionFieldProps = {
+  id: string;
+  label: string;
+  description: string;
+  groups: RegionGroup[];
   value: string;
   onChange: (region: string) => void;
 };
 
-export function BedrockRegionField({
+/** Picks the cloud region a connection sends its requests to. */
+export function RegionField({
+  id,
+  label,
+  description,
+  groups,
   value,
   onChange,
-}: BedrockRegionFieldProps) {
+}: RegionFieldProps) {
   const [open, setOpen] = useState(false);
   const listId = useId();
-  const selectedRegion = regions.find((region) => region.value === value);
+  const selectedRegion = groups
+    .flatMap((group) => group.regions)
+    .find((region) => region.value === value);
 
   const handleSelect = (region: string) => {
     onChange(region);
@@ -42,15 +51,11 @@ export function BedrockRegionField({
 
   return (
     <div>
-      <FieldHeader
-        htmlFor="gateway-bedrock-region"
-        label="AWS region"
-        description="Requests go to Bedrock in this region. It can't be changed after saving."
-      />
+      <FieldHeader htmlFor={id} label={label} description={description} />
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
-            id="gateway-bedrock-region"
+            id={id}
             type="button"
             role="combobox"
             aria-expanded={open}
@@ -81,7 +86,7 @@ export function BedrockRegionField({
             <CommandInput placeholder="Search regions" />
             <CommandList id={listId}>
               <CommandEmpty>No matching region</CommandEmpty>
-              {bedrockRegionGroups.map((group) => (
+              {groups.map((group) => (
                 <CommandGroup
                   key={group.label}
                   heading={group.label}

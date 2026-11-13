@@ -8,10 +8,9 @@
  *     (`ArrayJoinNode` / `LimitByNode` / `WithFillNode`) onto the select node
  *     during query transformation; the ClickHouse compiler renders them.
  *   - `$call` helpers ({@link arrayJoin}, {@link limitBy}, {@link withFill},
- *     {@link useFinal}, {@link includeDeleted})
- *     that apply those plugins while extending the builder's output row type,
- *     so produced aliases are type-checked and misspelled references are
- *     compile errors.
+ *     {@link useFinal}) that apply those plugins while extending the builder's
+ *     output row type, so produced aliases are type-checked and misspelled
+ *     references are compile errors.
  *   - Typed expression helpers ({@link mapKeys}, {@link metadataValue},
  *     {@link medianExact}, …) that build ClickHouse aggregates, map/array
  *     function calls and `metadata[key]` subscripts as real, parameter-bound
@@ -1502,49 +1501,4 @@ export function useFinal(tables: ReadonlyArray<keyof ClickHouseDatabase>) {
   return <DB, TB extends keyof DB, O>(
     qb: SelectQueryBuilder<DB, TB, O>,
   ): SelectQueryBuilder<DB, TB, O> => qb.withPlugin(new FinalPlugin(names));
-}
-
-/**
- * Read soft-deleted rows too: `qb.$call(includeDeleted())`. Applies to this
- * select's FROM/JOIN relations only; nested selects are still filtered. A
- * select that reads no soft-delete table fails to compile.
- */
-export function includeDeleted() {
-  return <DB, TB extends keyof DB, O>(
-    qb: SelectQueryBuilder<DB, TB, O>,
-  ): SelectQueryBuilder<DB, TB, O> =>
-    qb.withPlugin(new SoftDeleteMarkerPlugin("includeDeleted"));
-}
-
-/**
- * Drop soft-deleted rows after this select's ORDER BY / LIMIT / LIMIT BY
- * instead of before: `qb.$call(softDeleteAfterLimit())`. For a latest-version
- * pick, where a deletion is a newer version with the flag set; filtering
- * first would return the older live version. Compiles to
- * `select latest.<output>, … from (<this select, flag added>) as latest where
- * latest.<flag> = 0`. The select reads exactly one soft-delete table, has a
- * LIMIT or LIMIT BY, has no GROUP BY or set operation, names every output (no
- * `*`, unaliased expressions), and does not select the flag itself.
- */
-export function softDeleteAfterLimit() {
-  return <DB, TB extends keyof DB, O>(
-    qb: SelectQueryBuilder<DB, TB, O>,
-  ): SelectQueryBuilder<DB, TB, O> =>
-    qb.withPlugin(new SoftDeleteMarkerPlugin("softDeleteAfterLimit"));
-}
-
-/** Sets a soft-delete marker on the select; the soft-delete pass reads it. */
-class SoftDeleteMarkerPlugin implements KyselyPlugin {
-  constructor(
-    private readonly marker: "includeDeleted" | "softDeleteAfterLimit",
-  ) {}
-
-  transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
-    if (args.node.kind !== "SelectQueryNode") return args.node;
-    return { ...args.node, [this.marker]: true } as RootOperationNode;
-  }
-
-  async transformResult(args: PluginTransformResultArgs) {
-    return args.result;
-  }
 }

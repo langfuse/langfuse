@@ -1,9 +1,9 @@
 import { expect, it } from "vitest";
-import type { ExecutionIssue, Transcript } from "@langfuse/shared/src/server";
+import type { ExecutionIssue, Transcript } from "./types";
 import {
   prepareAssembledTopicTranscript,
   renderStoredTopicText,
-} from "./assembledTranscript";
+} from "./topics-model-input";
 
 it("keeps canonical conversation evidence without provenance or opaque payloads", () => {
   const answer = "Useful answer. ".repeat(1_000);

@@ -602,7 +602,7 @@ describe("three-part references", () => {
 describe("compileClickhouseCondition", () => {
   const events = () => getClickhouseKysely().selectFrom("events as e");
 
-  it("compiles the WHERE with what tenancy and soft-delete inject, typing binds from the FROM relation", () => {
+  it("compiles the WHERE with what tenancy injects, typing binds from the FROM relation", () => {
     expect(
       compileClickhouseCondition(
         events().where("e.prompt_version", "=", 3).where("e.name", "=", "x"),
@@ -610,7 +610,7 @@ describe("compileClickhouseCondition", () => {
         "f_",
       ),
     ).toEqual({
-      sql: "e.project_id = {f_1:String} and e.is_deleted = 0 and e.prompt_version = {f_2:UInt16} and e.name = {f_3:String}",
+      sql: "e.project_id = {f_1:String} and e.prompt_version = {f_2:UInt16} and e.name = {f_3:String}",
       params: { f_1: projectId, f_2: 3, f_3: "x" },
       requiresEventsFull: false,
     });

@@ -8,6 +8,7 @@ const HERO_PROVIDER_ORDER: GatewayProvider[] = [
   "XAI",
   "VERCEL",
   "AZURE",
+  "VERTEX",
 ];
 
 /** The providers the setup banner shows, in display order, with whether each is connected. */

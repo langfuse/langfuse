@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import { isOpenAIDecisionModel } from "@langfuse/shared";
+import { isTextAdapterDecisionModel } from "@langfuse/shared";
 
 import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
 import { buildScoreOutputDefinition } from "@/src/features/evals/v2/fns/scoreOutput/buildScoreOutputDefinition";
@@ -40,7 +40,7 @@ export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
       return buildDecisionModelStateFields({
         stateKeys:
           params.selectedModel != null &&
-          isOpenAIDecisionModel(params.selectedModel.model)
+          isTextAdapterDecisionModel(params.selectedModel.model)
             ? ["input"]
             : params.stateKeys,
         variableFields: params.variableFields,
