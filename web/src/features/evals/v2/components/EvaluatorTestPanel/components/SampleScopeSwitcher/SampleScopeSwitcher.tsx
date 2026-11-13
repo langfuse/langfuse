@@ -43,7 +43,7 @@ export function SampleScopeSwitcher({
           )}
         </Tabs.List>
       </Tabs>
-      {scope === "trace" ? <FeatureReleaseStatus status="beta" /> : null}
+      {scope === "trace" ? <FeatureReleaseStatus status="internal" /> : null}
     </div>
   );
 }
