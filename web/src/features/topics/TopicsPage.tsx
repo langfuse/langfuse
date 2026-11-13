@@ -313,9 +313,20 @@ function TopicsWorkspaceContent({
   const maps = api.topics.maps.useQuery(
     { projectId },
     {
+      // A rule whose setup built its map polls until the map's refit shows.
       refetchInterval: (query) =>
         query.state.data?.analyses.some((analysis) => busy(analysis.status)) ||
-        query.state.data?.rules.some((rule) => rule.refresh.running)
+        query.state.data?.rules.some(
+          (rule) =>
+            rule.refresh.running ||
+            (!rule.lastRefitAt &&
+              setupBuiltMap(
+                utils.topics.ruleSetupStatus.getData({
+                  projectId,
+                  ruleId: rule.id,
+                }),
+              )),
+        )
           ? 3000
           : false,
     },
@@ -416,13 +427,18 @@ function TopicsWorkspaceContent({
     running,
     modelSettings.automaticProcessing.state.status === "on",
   );
+  const awaitingSetupMap =
+    selectedRule !== undefined &&
+    !selectedRule.lastRefitAt &&
+    setupBuiltMap(ruleSetup.data);
   const results = useCurrentTopics({
     projectId,
-    // Setup and refresh fits are no executions; polling through them refetches once they finish.
+    // Setup and refresh fits are no executions; poll through them until their map shows.
     running:
       running ||
       Boolean(setup?.active) ||
-      Boolean(selectedRule?.refresh?.running),
+      Boolean(selectedRule?.refresh?.running) ||
+      awaitingSetupMap,
     pollForSummaries: modelSettings.automaticProcessing.state.status === "on",
     refreshAfter: Math.max(refreshAfter, refitAfter),
     ruleId: selectedRule?.id,
@@ -558,7 +574,7 @@ function TopicsWorkspaceContent({
             const setupInline =
               showSetupProgress &&
               Boolean(
-                maps.data?.analyses.length ||
+                (maps.data?.analyses.length ?? 0) > 0 ||
                 maps.data?.rules.some(
                   (rule) => rule.id !== setupRuleId && rule.lastRefitAt,
                 ),
@@ -606,8 +622,10 @@ function TopicsWorkspaceContent({
               </>
             );
             // Only once results loaded; loading and errors stay with CurrentTopics.
+            // Setup's outcome decides the copy, so it waits for the status.
             const showBuilding =
               shownResults.data !== undefined &&
+              ruleSetup.data !== undefined &&
               !shownResults.error &&
               !showOnboarding &&
               !showSetupProgress &&
@@ -841,11 +859,7 @@ function TopicsWorkspaceContent({
                       {showBuilding && selectedRule ? (
                         <TopicRuleBuildingState
                           rule={selectedRule}
-                          mapBuilt={Boolean(
-                            ruleSetup.data?.facets.some(
-                              (facet) => facet.runStatus === "completed",
-                            ),
-                          )}
+                          mapBuilt={awaitingSetupMap}
                         />
                       ) : null}
                       {analysisState &&
@@ -1037,4 +1051,12 @@ function snapshotProgress(
       total: execution.progress.length,
     },
   };
+}
+
+function setupBuiltMap(
+  setup: RouterOutputs["topics"]["ruleSetupStatus"] | undefined,
+) {
+  return Boolean(
+    setup?.facets.some((facet) => facet.runStatus === "completed"),
+  );
 }
