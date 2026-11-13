@@ -29,6 +29,8 @@ const ruleColumns = new Set(
   traceTranscriptFilterDefinition.columns.map((column) => column.id),
 );
 // Rules match at ingestion, so they only offer the trace-transcript filter fields.
+// Lookup stays on the full rule registry so an out-of-list filter (e.g. from
+// Ask AI) shows as a token that validation flags, instead of hiding.
 export const topicsFilterRegistry = {
   ...RULE_FIELD_REGISTRY,
   fields: RULE_FIELD_REGISTRY.fields.filter((field) =>
@@ -36,6 +38,19 @@ export const topicsFilterRegistry = {
   ),
   columns: RULE_FIELD_REGISTRY.columns.filter((column) =>
     ruleColumns.has(column.id),
+  ),
+  // Live scans reject negated filters, so no `-env:dev` example.
+  searchExamples: [
+    "level:ERROR",
+    "env:prod",
+    "tags:billing",
+    "type:GENERATION",
+  ],
+  aiContextFields: RULE_FIELD_REGISTRY.aiContextFields.filter(
+    ({ observedOptionsKey }) =>
+      ruleColumns.has(
+        observedOptionsKey === "traceTags" ? "tags" : observedOptionsKey,
+      ),
   ),
   filterStateErrors: (filters: FilterState) => {
     const error = topicRuleFilterError(filters);

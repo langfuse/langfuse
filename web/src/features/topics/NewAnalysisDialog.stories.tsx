@@ -197,3 +197,19 @@ export const NothingToLookFor = meta.story({
     await expect(start).toBeEnabled();
   },
 });
+
+export const OnlyLiveOperators = meta.story({
+  name: "(Test) The filter builder offers only operators live scans support",
+  play: async () => {
+    const body = within(document.body);
+    // The story's filter is `type any of GENERATION`; `none of` can't be saved.
+    const operator = (await body.findAllByRole("combobox")).find(
+      (element) => element.textContent === "any of",
+    );
+    await userEvent.click(operator!);
+    const options = await body.findAllByRole("option");
+    await expect(options.map((option) => option.textContent)).toEqual([
+      "any of",
+    ]);
+  },
+});
