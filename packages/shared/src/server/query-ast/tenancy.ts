@@ -113,6 +113,11 @@ class TenancyInjectionTransformer extends SelectRewriteTransformer {
 }
 
 /**
+ * Scopes each tenanted FROM table in WHERE, and each tenanted join table in
+ * WHERE or, for an inner or left join, in ON. Throws for a join type or
+ * relation source the pass does not accept, and for a right or full join on a
+ * tenanted table that WHERE does not scope.
+ *
  * Kysely keeps the FROM relations in `node.from.froms` and each join in
  * `node.joins`: a `JoinNode` holds the join type, the joined relation (`table`)
  * and its `on` condition. Below, `join` is that `JoinNode` and `relation` its
