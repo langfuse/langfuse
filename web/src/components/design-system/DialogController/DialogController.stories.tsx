@@ -112,7 +112,9 @@ export const FreshContentOnOpen = meta.story({
       "data-state",
       "open",
     );
-    await expect(body.getByRole("textbox", { name: "Draft" })).toBeVisible();
+    await waitFor(() =>
+      expect(body.getByRole("textbox", { name: "Draft" })).toBeVisible(),
+    );
     expect(body.getByRole("textbox", { name: "Draft" })).toHaveValue("updated");
     await userEvent.click(
       body.getByRole("button", { name: "Close from content" }),
