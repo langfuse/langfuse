@@ -1,7 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import type { FilterState } from "@langfuse/shared";
-import { applyKeyedFilterEntries } from "@/src/features/filters/lib/sidebar-filter-actions";
+import {
+  applyKeyedFilterEntries,
+  isStringKeyValueTextEntry,
+} from "@/src/features/filters/lib/sidebar-filter-actions";
 import { KeyValueFilterBuilder } from "./KeyValueFilterBuilder";
 
 const noop = () => {};
@@ -46,7 +49,7 @@ function MetadataBuilderHarness() {
           setFilters((current) =>
             applyKeyedFilterEntries(current, "metadata", {
               kind: "stringObject",
-              entries,
+              entries: entries.filter(isStringKeyValueTextEntry),
             }),
           )
         }

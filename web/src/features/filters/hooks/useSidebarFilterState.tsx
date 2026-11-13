@@ -50,6 +50,7 @@ import {
   deriveOperatorChange,
   hasMultipleFilterTargets,
   hasEmptyCheckboxSelection,
+  isStringKeyValueTextEntry,
   removeColumnFiltersOfType,
   removeTextFilterEntry,
   stringFacetRowsOf,
@@ -1732,11 +1733,17 @@ export function useSidebarFilterPresentation(
             disabledReason: disableState.reason,
             numericValues,
             onChange: (filters: StringKeyValueFilterEntry[]) =>
-              updateKeyedFilter(facet.column, {
-                kind: "stringObject",
-                entries: filters,
-                numericValues,
-              }),
+              updateKeyedFilter(
+                facet.column,
+                numericValues
+                  ? { kind: "stringObject", numericValues, entries: filters }
+                  : {
+                      kind: "stringObject",
+                      // The builder offers numeric operators only with
+                      // `numericValues`, so this keeps every row.
+                      entries: filters.filter(isStringKeyValueTextEntry),
+                    },
+              ),
             onReset: () =>
               resetKeyedFilter(
                 facet.column,

@@ -16,6 +16,7 @@ import {
   buildOnlySelection,
   clearCategoricalColumn,
   deriveOperatorChange,
+  isStringKeyValueTextEntry,
   numericRowText,
   removeColumnFiltersOfType,
   removeTextFilterEntry,
@@ -837,11 +838,12 @@ describe("keyed facet transitions", () => {
         value: 2.5,
       },
     ]);
-    // A text-only facet leaves numberObject filters alone and writes none.
+    // A text-only facet takes text rows only and leaves numberObject filters
+    // alone.
     expect(
       applyKeyedFilterEntries(current, "metadata", {
         kind: "stringObject",
-        entries,
+        entries: entries.filter(isStringKeyValueTextEntry),
       }),
     ).toEqual([
       current[0],

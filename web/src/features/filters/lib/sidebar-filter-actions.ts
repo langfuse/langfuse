@@ -96,16 +96,18 @@ export type BooleanKeyValueFilterEntry = {
 //   `numericValues`): key="attempt", operator=">", value="2". The value stays
 //   the typed text; it becomes a `numberObject` filter once it parses as a
 //   finite number.
+type StringKeyValueTextEntry = {
+  target?: string;
+  key: string;
+  valueType?: undefined;
+  // Every stringObject operator: a filter written outside the facet (URL,
+  // search bar) can carry `starts with` / `ends with`.
+  operator: (typeof filterOperators.stringObject)[number];
+  value: string;
+};
+
 export type StringKeyValueFilterEntry =
-  | {
-      target?: string;
-      key: string;
-      valueType?: undefined;
-      // Every stringObject operator: a filter written outside the facet (URL,
-      // search bar) can carry `starts with` / `ends with`.
-      operator: (typeof filterOperators.stringObject)[number];
-      value: string;
-    }
+  | StringKeyValueTextEntry
   | {
       target?: string;
       key: string;
@@ -113,6 +115,10 @@ export type StringKeyValueFilterEntry =
       operator: NumericKeyValueFilterEntry["operator"];
       value: string;
     };
+
+export const isStringKeyValueTextEntry = (
+  entry: StringKeyValueFilterEntry,
+): entry is StringKeyValueTextEntry => entry.valueType !== "number";
 
 /** `value` as a finite number, or null when it is blank or does not parse. */
 export const parseNumericEntryValue = (value: string): number | null => {
@@ -733,6 +739,7 @@ export function removeColumnFiltersOfType(
  * filtered out here, not persisted. A `stringObject` update with
  * `numericValues` owns the column's `numberObject` filters too: its numeric
  * rows replace them, and a numeric row whose value does not parse is a draft.
+ * Without `numericValues` the entries are text rows only.
  */
 export function applyKeyedFilterEntries(
   current: FilterState,
@@ -743,8 +750,13 @@ export function applyKeyedFilterEntries(
     | { kind: "booleanObject"; entries: BooleanKeyValueFilterEntry[] }
     | {
         kind: "stringObject";
+        numericValues?: false;
+        entries: StringKeyValueTextEntry[];
+      }
+    | {
+        kind: "stringObject";
+        numericValues: true;
         entries: StringKeyValueFilterEntry[];
-        numericValues?: boolean;
       },
 ): FilterState {
   const without = removeColumnFiltersOfType(
@@ -801,8 +813,8 @@ export function applyKeyedFilterEntries(
     case "stringObject":
       return [
         ...without,
-        ...update.entries.flatMap((entry) =>
-          stringFacetRowToFilters(column, entry, update.numericValues ?? false),
+        ...update.entries.flatMap((entry: StringKeyValueFilterEntry) =>
+          stringFacetRowToFilters(column, entry),
         ),
       ];
   }
@@ -811,18 +823,17 @@ export function applyKeyedFilterEntries(
 /**
  * One string facet row as its filter: `[]` for a draft (no key, no value, or
  * a numeric value that does not parse), a `numberObject` filter for a numeric
- * row on a `numericValues` facet, a `stringObject` filter otherwise.
+ * row, a `stringObject` filter otherwise.
  */
 function stringFacetRowToFilters(
   column: string,
   entry: StringKeyValueFilterEntry,
-  numericValues: boolean,
 ): FilterState {
   if (!entry.key) return [];
   const target = entry.target ? { target: entry.target } : {};
   if (entry.valueType === "number") {
     const value = parseNumericEntryValue(entry.value);
-    if (!numericValues || value === null) return [];
+    if (value === null) return [];
     return [
       {
         column,
