@@ -52,6 +52,10 @@ const { envMock, prismaMock, loggerMock, fetchMock } = vi.hoisted(() => {
         update: vi.fn(async (): Promise<unknown> => ({})),
         upsert: vi.fn(async (): Promise<unknown> => ({})),
       },
+      sessionView: {
+        findMany: vi.fn(async (): Promise<unknown[]> => []),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
       projectMembership: {
         create: vi.fn(async (args: { data: unknown }) => args.data),
       },

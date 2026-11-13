@@ -232,6 +232,7 @@ export const userAccountRouter = createTRPCRouter({
         const revokedKeys = await deleteUserBoundApiKeys(tx, { userId });
 
         // Delete the user (cascade will handle related records)
+        await tx.sessionView.deleteMany({ where: { createdBy: userId } });
         await tx.user.delete({
           where: { id: userId },
         });

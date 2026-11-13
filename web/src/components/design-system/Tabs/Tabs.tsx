@@ -133,9 +133,11 @@ type TabsListProps = {
   gap?: "none" | "sm" | "lg";
   layout?: "default" | "full" | "packed";
 } & (
-  | { variant: "inset"; size: TabsInsetSize; overflow?: never }
+  | { variant: "inset"; size: TabsInsetSize; overflow?: never; divider?: never }
   | {
       variant: "underline";
+      /** Omit the list divider when its containing bar already draws one. */
+      divider?: "line" | "none";
       size?: never;
       /**
        * `menu`: shows the `Tabs.Trigger` children that fit, the active one
@@ -158,6 +160,7 @@ function TabsList({
   gap,
   layout,
   overflow,
+  divider,
   size,
   variant,
 }: TabsListProps) {
@@ -258,7 +261,10 @@ function TabsList({
     );
   }
 
-  const className = tabsListVariants({ gap, layout, look, size });
+  const className = cn(
+    tabsListVariants({ gap, layout, look, size }),
+    divider === "none" && "border-b-0",
+  );
 
   if (!inRoot) {
     return (
@@ -335,7 +341,9 @@ function TabsTrigger(props: TabsTriggerProps) {
   const list = React.use(TabsListContext) ?? { look: "underline" as const };
   const { children, count, disabled, icon, internal, label, title, tooltip } =
     props;
-  const className = tabsTriggerVariants({ look: list.look, size: list.size });
+  const className = cn(
+    tabsTriggerVariants({ look: list.look, size: list.size }),
+  );
   const nativeTitle = tooltip ? undefined : (labelText(label, count) ?? title);
   const content = (
     <TabsTriggerContent
