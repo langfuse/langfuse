@@ -1,73 +1,49 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 
-/**
- * How the unpinned sidebar is currently shown as an overlay:
- * - `hover`: opened by the pointer; closes shortly after the pointer leaves.
- * - `keyboard`: opened by a shortcut or the keyboard; stays until it is
- *   dismissed (Escape, click outside, focus leaving, navigation).
- */
-export type SidebarPeek = "closed" | "hover" | "keyboard";
-
 export type SidebarLayout = "desktop" | "mobile";
 
 export type SidebarStoreState = {
-  /** Docked next to the content and pushing it, persisted per browser. */
-  isPinned: boolean;
-  peek: SidebarPeek;
+  /** Desktop preference: full navigation when true, a persistent icon rail otherwise. */
+  isExpanded: boolean;
   isMobileOpen: boolean;
   isSwitcherOpen: boolean;
   actions: {
-    /** The pointer reached the left edge or the sidebar handle. */
-    pointerEnterTrigger: () => void;
-    pointerLeaveTrigger: () => void;
-    pointerEnterPanel: () => void;
-    pointerLeavePanel: () => void;
-    /** Opens the overlay without hover intent, e.g. a tap or the keyboard. */
-    openOverlay: (peek: Exclude<SidebarPeek, "closed">) => void;
-    close: () => void;
-    /** Escape, a click outside, or focus leaving: closes unless a menu or the switcher it owns is open. */
-    dismiss: () => void;
-    /** Keeps the overlay open while a menu it owns is open. Returns the release. */
-    hold: () => () => void;
-    setPinned: (isPinned: boolean) => void;
-    /** Mod+B: hides a pinned sidebar, otherwise toggles the overlay (or the mobile sheet). */
+    setExpanded: (isExpanded: boolean) => void;
+    /** Mod+B toggles desktop expansion or the mobile navigation menu. */
     toggleFromShortcut: (layout: SidebarLayout) => void;
     setMobileOpen: (isOpen: boolean) => void;
-    /** Reveals the sidebar wherever it is hidden and opens the workspace switcher in it. */
+    /** Opens the workspace switcher without changing desktop expansion. */
     openSwitcher: (layout: SidebarLayout) => void;
     setSwitcherOpen: (isOpen: boolean) => void;
-    dispose: () => void;
+    /** Closes transient navigation while preserving the desktop preference. */
+    close: () => void;
   };
 };
 
 export type SidebarStore = StoreApi<SidebarStoreState>;
 
-type PinnedStorage = Pick<Storage, "getItem" | "setItem">;
+type SidebarStorage = Pick<Storage, "getItem" | "setItem">;
 
-/** Hover intent on the edge: long enough to ignore a pointer sweeping past it. */
-export const SIDEBAR_OPEN_DELAY_MS = 100;
-/** Grace period after the pointer leaves, so a slip or a move into a menu does not close it. */
-export const SIDEBAR_CLOSE_DELAY_MS = 300;
-
-export const SIDEBAR_PINNED_STORAGE_KEY = "langfuse:sidebar:pinned:v1";
-/** The previous sidebar's expanded/collapsed flag; a collapsed sidebar becomes an unpinned one. */
+/** Reuses the shell preview preference: pinned becomes expanded, unpinned becomes the rail. */
+export const SIDEBAR_EXPANDED_STORAGE_KEY = "langfuse:sidebar:pinned:v1";
+/** The classic sidebar's expanded/collapsed preference seeds the first shell visit. */
 const LEGACY_SIDEBAR_STATE_STORAGE_KEY = "sidebar:state";
 
-function readPinned(storage: PinnedStorage | null): boolean {
-  if (!storage) return true;
+function readExpanded(storage: SidebarStorage | null): boolean {
+  if (!storage) return false;
   try {
     const stored =
-      storage.getItem(SIDEBAR_PINNED_STORAGE_KEY) ??
+      storage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY) ??
       storage.getItem(LEGACY_SIDEBAR_STATE_STORAGE_KEY);
-    return stored === null ? true : JSON.parse(stored) !== false;
+    return stored !== null && JSON.parse(stored) === true;
   } catch {
-    return true;
+    return false;
   }
 }
 
-function writePinned(storage: PinnedStorage | null, isPinned: boolean) {
+function writeExpanded(storage: SidebarStorage | null, isExpanded: boolean) {
   try {
-    storage?.setItem(SIDEBAR_PINNED_STORAGE_KEY, JSON.stringify(isPinned));
+    storage?.setItem(SIDEBAR_EXPANDED_STORAGE_KEY, JSON.stringify(isExpanded));
   } catch {
     // Private browsing or a full quota: the preference just does not persist.
   }
@@ -76,157 +52,45 @@ function writePinned(storage: PinnedStorage | null, isPinned: boolean) {
 export function createSidebarStore({
   storage,
 }: {
-  storage: PinnedStorage | null;
+  storage: SidebarStorage | null;
 }): SidebarStore {
-  let openTimer: ReturnType<typeof setTimeout> | undefined;
-  let closeTimer: ReturnType<typeof setTimeout> | undefined;
-  let isPointerInPanel = false;
-  let holdCount = 0;
-  // Closing unmounts every menu the overlay owns, so their holds end with it;
-  // a late release from a previous opening must not count against a new one.
-  let holdGeneration = 0;
-  // Set when the overlay was opened only to show the switcher, so closing the
-  // switcher also closes the overlay instead of leaving it behind.
-  let isPeekOwnedBySwitcher = false;
-
-  const cancelOpen = () => {
-    clearTimeout(openTimer);
-    openTimer = undefined;
-  };
-  const cancelClose = () => {
-    clearTimeout(closeTimer);
-    closeTimer = undefined;
-  };
-
   return createStore<SidebarStoreState>((set, get) => {
-    const close = () => {
-      cancelOpen();
-      cancelClose();
-      isPointerInPanel = false;
-      isPeekOwnedBySwitcher = false;
-      holdCount = 0;
-      holdGeneration += 1;
-      if (get().peek === "closed" && !get().isSwitcherOpen) return;
-      set({ peek: "closed", isSwitcherOpen: false });
+    const setExpanded = (isExpanded: boolean) => {
+      if (get().isExpanded === isExpanded) return;
+      writeExpanded(storage, isExpanded);
+      set({ isExpanded });
     };
-
-    const scheduleClose = () => {
-      const { peek, isSwitcherOpen } = get();
-      if (peek !== "hover" || isSwitcherOpen || holdCount > 0) return;
-      if (isPointerInPanel) return;
-      cancelClose();
-      closeTimer = setTimeout(close, SIDEBAR_CLOSE_DELAY_MS);
-    };
-
-    const openOverlay = (peek: Exclude<SidebarPeek, "closed">) => {
-      cancelOpen();
-      cancelClose();
-      if (get().isPinned || get().peek === peek) return;
-      set({ peek });
+    const setMobileOpen = (isMobileOpen: boolean) => {
+      set({
+        isMobileOpen,
+        isSwitcherOpen: isMobileOpen && get().isSwitcherOpen,
+      });
     };
 
     return {
-      isPinned: readPinned(storage),
-      peek: "closed",
+      isExpanded: readExpanded(storage),
       isMobileOpen: false,
       isSwitcherOpen: false,
       actions: {
-        pointerEnterTrigger: () => {
-          if (get().isPinned) return;
-          cancelClose();
-          if (get().peek !== "closed" || openTimer !== undefined) return;
-          openTimer = setTimeout(() => {
-            openTimer = undefined;
-            openOverlay("hover");
-          }, SIDEBAR_OPEN_DELAY_MS);
-        },
-        pointerLeaveTrigger: () => {
-          cancelOpen();
-          scheduleClose();
-        },
-        pointerEnterPanel: () => {
-          isPointerInPanel = true;
-          cancelClose();
-        },
-        pointerLeavePanel: () => {
-          isPointerInPanel = false;
-          scheduleClose();
-        },
-        openOverlay,
-        close,
-        dismiss: () => {
-          if (get().isSwitcherOpen || holdCount > 0) return;
-          close();
-        },
-        hold: () => {
-          holdCount += 1;
-          cancelClose();
-          const generation = holdGeneration;
-          let isReleased = false;
-          return () => {
-            if (isReleased || generation !== holdGeneration) return;
-            isReleased = true;
-            holdCount -= 1;
-            scheduleClose();
-          };
-        },
-        setPinned: (isPinned) => {
-          if (get().isPinned === isPinned) return;
-          cancelOpen();
-          cancelClose();
-          isPeekOwnedBySwitcher = false;
-          writePinned(storage, isPinned);
-          // The replacement overlay confirms whether the pointer is still
-          // inside it; otherwise unpinning leaves after the hover grace period.
-          isPointerInPanel = false;
-          set({ isPinned, peek: isPinned ? "closed" : "hover" });
-          if (!isPinned) scheduleClose();
-        },
+        setExpanded,
         toggleFromShortcut: (layout) => {
-          if (layout === "mobile") {
-            set({ isMobileOpen: !get().isMobileOpen });
-            return;
-          }
-          if (get().isPinned) {
-            writePinned(storage, false);
-            set({ isPinned: false, peek: "closed", isSwitcherOpen: false });
-            return;
-          }
-          if (get().peek === "closed") openOverlay("keyboard");
-          else close();
+          if (layout === "mobile") setMobileOpen(!get().isMobileOpen);
+          else setExpanded(!get().isExpanded);
         },
-        setMobileOpen: (isMobileOpen) => {
-          if (get().isMobileOpen === isMobileOpen) return;
+        setMobileOpen,
+        openSwitcher: (layout) => {
           set({
-            isMobileOpen,
-            isSwitcherOpen: isMobileOpen && get().isSwitcherOpen,
+            isSwitcherOpen: true,
+            ...(layout === "mobile" ? { isMobileOpen: true } : {}),
           });
         },
-        openSwitcher: (layout) => {
-          if (layout === "mobile") {
-            set({ isMobileOpen: true, isSwitcherOpen: true });
-            return;
-          }
-          if (!get().isPinned && get().peek === "closed") {
-            openOverlay("keyboard");
-            isPeekOwnedBySwitcher = true;
-          }
-          set({ isSwitcherOpen: true });
-        },
         setSwitcherOpen: (isSwitcherOpen) => {
-          if (get().isSwitcherOpen === isSwitcherOpen) return;
-          set({ isSwitcherOpen });
-          if (isSwitcherOpen) {
-            cancelClose();
-          } else if (isPeekOwnedBySwitcher) {
-            close();
-          } else {
-            scheduleClose();
-          }
+          if (get().isSwitcherOpen !== isSwitcherOpen) set({ isSwitcherOpen });
         },
-        dispose: () => {
-          cancelOpen();
-          cancelClose();
+        close: () => {
+          if (get().isMobileOpen || get().isSwitcherOpen) {
+            set({ isMobileOpen: false, isSwitcherOpen: false });
+          }
         },
       },
     };

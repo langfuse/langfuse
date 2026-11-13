@@ -1,8 +1,9 @@
 import { SidebarNavItem } from "@/src/components/nav/SidebarNavItem";
 
-export function CloudStatusMenu() {
+export function CloudStatusMenu({ isCollapsed }: { isCollapsed: boolean }) {
   return (
     <SidebarNavItem
+      isCollapsed={isCollapsed}
       href="https://status.langfuse.com"
       isActive={false}
       opensInNewTab

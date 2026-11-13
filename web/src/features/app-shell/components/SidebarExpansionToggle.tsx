@@ -1,39 +1,40 @@
-import { PanelLeftClose, Pin } from "@langfuse/icons";
+import { PanelLeftClose, PanelLeftOpen } from "@langfuse/icons";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { APP_SIDEBAR_ID } from "@/src/features/app-shell/constants/sidebarDom";
 import {
   useAppShellSidebar,
   useAppShellSidebarActions,
 } from "@/src/features/app-shell/contexts/AppShellSidebarProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
-/** Docks the floating sidebar, or hides a docked one so it only opens on hover. */
-export function SidebarPinToggle() {
-  const isPinned = useAppShellSidebar((state) => state.isPinned);
-  const { setPinned } = useAppShellSidebarActions();
+/** The expansion control stays in the sidebar header in both desktop layouts. */
+export function SidebarExpansionToggle() {
+  const isExpanded = useAppShellSidebar((state) => state.isExpanded);
+  const { setExpanded } = useAppShellSidebarActions();
   const capture = usePostHogClientCapture();
-  const label = isPinned ? "Hide sidebar" : "Keep sidebar open";
-
+  const label = isExpanded ? "Collapse sidebar" : "Expand sidebar";
   return (
     <Tooltip
       label={label}
-      shortcut={isPinned ? { keys: ["Mod", "B"] } : undefined}
-      placement="bottom"
+      shortcut={{ keys: ["Mod", "B"] }}
+      placement="right"
       hoverableContent={false}
     >
       {({ getTriggerProps }) => (
         <span {...getTriggerProps()} className="inline-flex">
           <IconButton
-            icon={isPinned ? PanelLeftClose : Pin}
+            icon={isExpanded ? PanelLeftClose : PanelLeftOpen}
             label={label}
             size="sm"
-            aria-pressed={isPinned}
+            aria-expanded={isExpanded}
+            aria-controls={APP_SIDEBAR_ID}
             onClick={() => {
-              capture("app_shell:sidebar_pin_toggled", {
-                isPinned: !isPinned,
+              capture("app_shell:sidebar_expansion_toggled", {
+                isExpanded: !isExpanded,
                 source: "button",
               });
-              setPinned(!isPinned);
+              setExpanded(!isExpanded);
             }}
           />
         </span>

@@ -5,7 +5,7 @@ import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvi
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 
-export const SupportButton = () => {
+export const SupportButton = ({ isCollapsed }: { isCollapsed: boolean }) => {
   const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
   const { setOpen: setMigrationPanelOpen } = useV4MigrationPanel();
   const { setOpen: setAiAgentOpen } = useInAppAiAgent();
@@ -13,6 +13,7 @@ export const SupportButton = () => {
 
   return (
     <SidebarNavItem.Button
+      isCollapsed={isCollapsed}
       leading={<LifeBuoy size="base" />}
       label="Support"
       onClick={() => {

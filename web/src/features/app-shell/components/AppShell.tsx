@@ -6,14 +6,11 @@ import {
 } from "@/src/components/nav/AppNavigationProvider";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { ShellSidebar } from "@/src/features/app-shell/components/ShellSidebar";
-import { SidebarHandle } from "@/src/features/app-shell/components/SidebarHandle";
 import {
   AppShellSidebarProvider,
-  useAppShellSidebar,
   useAppShellSidebarActions,
 } from "@/src/features/app-shell/contexts/AppShellSidebarProvider";
 import { useRecordRecentProject } from "@/src/features/app-shell/hooks/useRecordRecentProject";
-import { useSidebarEdgeHover } from "@/src/features/app-shell/hooks/useSidebarEdgeHover";
 import { useSidebarShortcuts } from "@/src/features/app-shell/hooks/useSidebarShortcuts";
 
 function AppShellFrame({
@@ -24,21 +21,16 @@ function AppShellFrame({
   children: ReactNode;
 }) {
   const isMobile = useIsMobile();
-  const isPinned = useAppShellSidebar((state) => state.isPinned);
   const { setMobileOpen, close } = useAppShellSidebarActions();
   const session = useSession();
   const [navigation] = useState<AppNavigation>(() => ({
     shell: "next",
-    SidebarControl: SidebarHandle,
+    SidebarControl: null,
     openMobileNavigation: () => setMobileOpen(true),
-    closeTransientNavigation: () => {
-      close();
-      setMobileOpen(false);
-    },
+    closeTransientNavigation: close,
   }));
 
   useSidebarShortcuts(isMobile ? "mobile" : "desktop");
-  useSidebarEdgeHover(!isMobile && !isPinned);
   useRecordRecentProject(session.data?.user?.id ?? "anonymous");
 
   return (
@@ -55,9 +47,8 @@ function AppShellFrame({
 }
 
 /**
- * The app shell with one sidebar. Pinned, the sidebar is docked and pushes
- * the content. Unpinned, it is hidden and opens as an overlay from the left
- * edge, the header handle, or Mod+B. On small screens it is a drawer.
+ * Desktop navigation stays docked as either full navigation or an icon rail.
+ * Small screens open the same navigation through a full-width menu.
  */
 export function AppShell({
   sidebar,

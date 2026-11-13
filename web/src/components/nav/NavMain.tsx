@@ -13,13 +13,14 @@ import Link from "next/link";
 import { type ReactNode } from "react";
 import {
   ROUTE_GROUP_BADGES,
+  type Route,
   type RouteGroup,
 } from "@/src/components/layouts/routes";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 export type NavMainItem = {
   title: string;
-  menuNode?: ReactNode;
+  menuNode?: Route["menuNode"];
   url: string;
   icon?: IconComponent;
   isActive?: boolean;
@@ -79,7 +80,7 @@ export function NavMain({
 }
 
 function NavMainEntry({ item }: { item: NavMainItem }) {
-  if (item.menuNode) return item.menuNode;
+  if (item.menuNode) return item.menuNode({ isCollapsed: false });
   if (item.disabledReason) {
     // The disabled button takes no pointer or focus events, so a focusable
     // wrapper carries the reason in every sidebar state.

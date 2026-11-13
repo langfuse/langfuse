@@ -23,7 +23,7 @@ function browserStorage(): Storage | null {
   }
 }
 
-/** Query-only router transitions (filters, pagination) keep the overlay and switcher open. */
+/** Query-only router transitions (filters, pagination) keep transient navigation open. */
 function isPathChange(url: string) {
   return (
     new URL(url, window.location.origin).pathname !== window.location.pathname
@@ -37,19 +37,16 @@ export function AppShellSidebarProvider({ children }: { children: ReactNode }) {
     createSidebarStore({ storage: browserStorage() }),
   );
 
-  // Navigation leaves the overlay, the mobile sheet, and the switcher behind
-  // on the previous page; the Next.js router is the external system here.
+  // The Next.js router closes transient navigation when leaving the page.
   useEffect(() => {
-    const { close, setMobileOpen } = store.getState().actions;
+    const { close } = store.getState().actions;
     const handleRouteChangeStart = (url: string) => {
       if (!isPathChange(url)) return;
       close();
-      setMobileOpen(false);
     };
     router.events.on("routeChangeStart", handleRouteChangeStart);
     return () => {
       router.events.off("routeChangeStart", handleRouteChangeStart);
-      store.getState().actions.dispose();
     };
   }, [router.events, store]);
 

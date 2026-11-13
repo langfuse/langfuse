@@ -7,9 +7,8 @@ const SIDEBAR_TOGGLE_SHORTCUT_KEY = "b";
 const WORKSPACE_SWITCHER_SHORTCUT_KEY = "o";
 
 /**
- * App-wide shortcuts of the shell: Mod+B shows or hides the sidebar, Mod+O
- * opens the project and organization switcher (revealing the sidebar first if
- * it is hidden).
+ * Mod+B toggles desktop expansion or the mobile menu. Mod+O opens the
+ * workspace switcher without expanding the desktop rail.
  */
 export function useSidebarShortcuts(layout: SidebarLayout) {
   const { toggleFromShortcut, openSwitcher } = useAppShellSidebarActions();

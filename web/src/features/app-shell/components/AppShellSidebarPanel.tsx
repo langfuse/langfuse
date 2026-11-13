@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Info } from "@langfuse/icons";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { useRouter } from "next/router";
 import { LangfuseLogo } from "@/src/components/design-system/LangfuseLogo/LangfuseLogo";
 import { type RouteGroup } from "@/src/components/layouts/routes";
@@ -19,8 +21,7 @@ import { SidebarDemoNotice } from "@/src/features/app-shell/components/SidebarDe
 import { SidebarNavigation } from "@/src/features/app-shell/components/SidebarNavigation";
 import { SidebarOverviewLink } from "@/src/features/app-shell/components/SidebarOverviewLink";
 import { SidebarPanel } from "@/src/features/app-shell/components/SidebarPanel";
-import { SidebarPinToggle } from "@/src/features/app-shell/components/SidebarPinToggle";
-import { SidebarSheetClose } from "@/src/features/app-shell/components/SidebarSheetClose";
+import { SidebarExpansionToggle } from "@/src/features/app-shell/components/SidebarExpansionToggle";
 import {
   SidebarUserMenu,
   type SidebarUser,
@@ -64,6 +65,7 @@ export function AppShellSidebarPanel({
   isLangfuseCloud: boolean;
 }) {
   const surface = useSidebarSurface();
+  const isCollapsed = surface === "rail";
   const router = useRouter();
   const routerProjectId =
     typeof router.query.projectId === "string"
@@ -86,26 +88,38 @@ export function AppShellSidebarPanel({
   return (
     <SidebarPanel>
       <SidebarPanel.Header>
-        <Link
-          href="/"
-          aria-label="Langfuse home"
-          className="flex shrink-0 items-center"
-        >
-          <LangfuseLogo
-            logoLightModeHref={uiCustomization?.logoLightModeHref}
-            logoDarkModeHref={uiCustomization?.logoDarkModeHref}
-          />
-        </Link>
-        <div className="ml-auto flex min-w-0 items-center overflow-hidden">
-          <VersionMenu state={versionState}>
-            {({ Trigger, triggerProps }) => (
-              <Trigger asChild>
-                <VersionBadge state={versionState} {...triggerProps} />
-              </Trigger>
-            )}
-          </VersionMenu>
-        </div>
-        {surface === "sheet" ? <SidebarSheetClose /> : <SidebarPinToggle />}
+        {isCollapsed ? (
+          <SidebarExpansionToggle />
+        ) : (
+          <>
+            <Link
+              href="/"
+              aria-label="Langfuse home"
+              className="flex shrink-0 items-center"
+            >
+              <LangfuseLogo
+                logoLightModeHref={uiCustomization?.logoLightModeHref}
+                logoDarkModeHref={uiCustomization?.logoDarkModeHref}
+              />
+            </Link>
+            <div
+              className={
+                surface === "sheet"
+                  ? "mr-9 ml-auto flex min-w-0 items-center overflow-hidden"
+                  : "ml-auto flex min-w-0 items-center overflow-hidden"
+              }
+            >
+              <VersionMenu state={versionState}>
+                {({ Trigger, triggerProps }) => (
+                  <Trigger asChild>
+                    <VersionBadge state={versionState} {...triggerProps} />
+                  </Trigger>
+                )}
+              </VersionMenu>
+            </div>
+            {surface === "docked" && <SidebarExpansionToggle />}
+          </>
+        )}
       </SidebarPanel.Header>
       <SidebarPanel.Section>
         <div className="flex flex-col gap-1">
@@ -113,7 +127,7 @@ export function AppShellSidebarPanel({
           <SidebarOverviewLink />
         </div>
       </SidebarPanel.Section>
-      {isDemoProject ? (
+      {isDemoProject && !isCollapsed ? (
         <SidebarPanel.Section>
           <SidebarDemoNotice />
         </SidebarPanel.Section>
@@ -124,7 +138,7 @@ export function AppShellSidebarPanel({
           items={withoutWorkspaceBlockRoutes(mainNavigation)}
         />
         <SidebarPanel.Spacer />
-        {activeNotifications.length > 0 ? (
+        {activeNotifications.length > 0 && !isCollapsed ? (
           <div className="px-2">
             <SidebarNotifications
               state={notificationState}
@@ -135,6 +149,22 @@ export function AppShellSidebarPanel({
         <SidebarNavigation label="More" items={secondaryNavigation} />
       </SidebarPanel.Body>
       <SidebarPanel.Footer>
+        {isCollapsed && (
+          <div className="mb-1 flex justify-center">
+            <VersionMenu state={versionState}>
+              {({ Trigger, triggerProps }) => (
+                <Trigger asChild>
+                  <IconButton
+                    icon={Info}
+                    label="Version and updates"
+                    size="sm"
+                    {...triggerProps}
+                  />
+                </Trigger>
+              )}
+            </VersionMenu>
+          </div>
+        )}
         <SidebarUserMenu
           user={user}
           items={userMenuItems}
@@ -142,7 +172,7 @@ export function AppShellSidebarPanel({
         >
           {({ Trigger }) => (
             <Trigger asChild>
-              <SidebarAccountButton user={user} />
+              <SidebarAccountButton user={user} isCollapsed={isCollapsed} />
             </Trigger>
           )}
         </SidebarUserMenu>

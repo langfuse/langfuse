@@ -1,3 +1,4 @@
+import { useSidebarSurface } from "@/src/features/app-shell/contexts/SidebarSurfaceProvider";
 import { useRouter } from "next/router";
 import { LayoutGrid } from "@langfuse/icons";
 import { SidebarNavItem } from "@/src/components/nav/SidebarNavItem";
@@ -14,10 +15,12 @@ const OVERVIEW_PATHNAMES = new Set([
  */
 export function SidebarOverviewLink() {
   const router = useRouter();
+  const isCollapsed = useSidebarSurface() === "rail";
   const { organization } = useQueryProjectOrOrganization();
 
   return (
     <SidebarNavItem
+      isCollapsed={isCollapsed}
       href={
         organization ? `/organization/${organization.id}` : "/organizations"
       }

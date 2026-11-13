@@ -1,3 +1,5 @@
+import { GatewayLaunchBanner } from "@/src/features/ai-gateway/components/GatewayLaunch/GatewayLaunchBanner";
+import { AgentToolsBanner } from "@/src/features/developer-tools/components/AgentToolsBanner";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { StringParam, useQueryParams, withDefault } from "use-query-params";
@@ -15,6 +17,7 @@ import {
 import { NoOrganizationState } from "@/src/features/projects-overview/components/NoOrganizationState";
 import { OrganizationActions } from "@/src/features/projects-overview/components/OrganizationActions";
 import { OrganizationOverviewSection } from "@/src/features/projects-overview/components/OrganizationOverviewSection";
+import { useOrganizationOverviewBanner } from "@/src/features/projects-overview/hooks/useOrganizationOverviewBanner";
 import { OrganizationSignals } from "@/src/features/projects-overview/components/OrganizationSignals";
 import { ProjectGrid } from "@/src/features/projects-overview/components/ProjectGrid";
 import {
@@ -79,7 +82,10 @@ export function ProjectsOverviewPage() {
     typeof router.query.organizationId === "string"
       ? router.query.organizationId
       : null;
-  const { organizations, isSessionLoading } = useProjectsOverview();
+  const banner = useOrganizationOverviewBanner(organizationId);
+  const { organizations, isSessionLoading } = useProjectsOverview(
+    router.isReady ? organizationId : undefined,
+  );
   const [query, setQuery] = useQueryParams({
     search: withDefault(StringParam, ""),
     status: withDefault(StringParam, "all"),
@@ -88,7 +94,7 @@ export function ProjectsOverviewPage() {
   const status = isStatusFilter(query.status) ? query.status : "all";
   const notice = isLandingNotice(query.notice) ? query.notice : null;
 
-  if (isSessionLoading) {
+  if (isSessionLoading || !router.isReady) {
     return (
       <ContainerPage headerProps={{ title: "Overview" }}>
         <div className="flex flex-col gap-3">
@@ -99,9 +105,7 @@ export function ProjectsOverviewPage() {
     );
   }
 
-  const scoped = organizationId
-    ? organizations.filter((organization) => organization.id === organizationId)
-    : organizations;
+  const scoped = organizations;
   const singleOrganization = organizationId ? scoped[0] : null;
   if (organizationId && !singleOrganization) {
     return (
@@ -143,6 +147,10 @@ export function ProjectsOverviewPage() {
       }}
     >
       <div className="flex flex-col gap-6 pb-10">
+        {banner.kind === "gateway" ? (
+          <GatewayLaunchBanner target={banner.target} userId={banner.userId} />
+        ) : null}
+        {banner.kind === "agent-tools" ? <AgentToolsBanner /> : null}
         {notice ? (
           <LandingNoticeCallout
             notice={notice}

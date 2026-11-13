@@ -1,4 +1,6 @@
 import { useId } from "react";
+import { useSidebarSurface } from "@/src/features/app-shell/contexts/SidebarSurfaceProvider";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { SidebarNavItem } from "@/src/components/nav/SidebarNavItem";
 import { type RouteGroup } from "@/src/components/layouts/routes";
 import { type NavigationItem } from "@/src/components/layouts/utilities/routes";
@@ -18,25 +20,66 @@ function NavigationItemLabel({ label }: { label: NavigationItem["label"] }) {
   );
 }
 
-function NavigationList({ items }: { items: NavigationItem[] }) {
+function NavigationEntry({
+  item,
+  isCollapsed,
+}: {
+  item: NavigationItem;
+  isCollapsed: boolean;
+}) {
+  if (item.menuNode) return item.menuNode({ isCollapsed });
+  if (item.disabledReason) {
+    return (
+      <Tooltip
+        label={item.disabledReason}
+        placement="right"
+        hoverableContent={false}
+      >
+        {({ getTriggerProps }) => (
+          <span
+            {...getTriggerProps()}
+            tabIndex={0}
+            aria-label={`${item.title}: ${item.disabledReason}`}
+            className="block opacity-50"
+          >
+            <SidebarNavItem.Button
+              isCollapsed={isCollapsed}
+              disabled
+              leading={item.icon ? <item.icon size="base" /> : null}
+              label={item.title}
+            />
+          </span>
+        )}
+      </Tooltip>
+    );
+  }
+  return (
+    <SidebarNavItem
+      isCollapsed={isCollapsed}
+      href={item.url}
+      isActive={item.isActive}
+      opensInNewTab={item.newTab === true}
+      leading={item.icon ? <item.icon size="base" /> : null}
+      label={item.title}
+      trailing={
+        item.label ? <NavigationItemLabel label={item.label} /> : undefined
+      }
+    />
+  );
+}
+
+function NavigationList({
+  items,
+  isCollapsed,
+}: {
+  items: NavigationItem[];
+  isCollapsed: boolean;
+}) {
   return (
     <ul className="flex flex-col gap-0.5">
       {items.map((item) => (
         <li key={`${item.title}:${item.url}`}>
-          {item.menuNode ?? (
-            <SidebarNavItem
-              href={item.url}
-              isActive={item.isActive}
-              opensInNewTab={item.newTab === true}
-              leading={item.icon ? <item.icon size="base" /> : null}
-              label={item.title}
-              trailing={
-                item.label ? (
-                  <NavigationItemLabel label={item.label} />
-                ) : undefined
-              }
-            />
-          )}
+          <NavigationEntry item={item} isCollapsed={isCollapsed} />
         </li>
       ))}
     </ul>
@@ -46,20 +89,26 @@ function NavigationList({ items }: { items: NavigationItem[] }) {
 function NavigationGroup({
   title,
   items,
+  isCollapsed,
 }: {
   title: string;
   items: NavigationItem[];
+  isCollapsed: boolean;
 }) {
   const headingId = useId();
   return (
     <div role="group" aria-labelledby={headingId}>
       <div
         id={headingId}
-        className="text-sidebar-foreground/70 px-2 pt-2 pb-0.5 text-xs font-bold"
+        className={
+          isCollapsed
+            ? "mx-2 my-2 border-t"
+            : "text-sidebar-foreground/70 px-2 pt-2 pb-0.5 text-xs font-bold"
+        }
       >
-        {title}
+        <span className={isCollapsed ? "sr-only" : undefined}>{title}</span>
       </div>
-      <NavigationList items={items} />
+      <NavigationList items={items} isCollapsed={isCollapsed} />
     </div>
   );
 }
@@ -76,13 +125,19 @@ export function SidebarNavigation({
   label: string;
   items: GroupedNavigationItems;
 }) {
+  const isCollapsed = useSidebarSurface() === "rail";
   return (
     <nav aria-label={label} className="flex flex-col px-2">
       {items.ungrouped.length > 0 ? (
-        <NavigationList items={items.ungrouped} />
+        <NavigationList items={items.ungrouped} isCollapsed={isCollapsed} />
       ) : null}
       {Object.entries(items.grouped ?? {}).map(([group, groupItems]) => (
-        <NavigationGroup key={group} title={group} items={groupItems} />
+        <NavigationGroup
+          key={group}
+          title={group}
+          items={groupItems}
+          isCollapsed={isCollapsed}
+        />
       ))}
     </nav>
   );

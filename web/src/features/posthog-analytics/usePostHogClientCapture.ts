@@ -489,6 +489,7 @@ const events = {
   // whether they switch back to the classic shell (`variant`).
   app_shell: [
     "sidebar_pin_toggled",
+    "sidebar_expansion_toggled",
     "workspace_switcher_opened",
     "workspace_switcher_selected",
     "variant_switched",

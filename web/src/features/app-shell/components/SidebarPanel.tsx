@@ -1,3 +1,4 @@
+import { useSidebarSurface } from "@/src/features/app-shell/contexts/SidebarSurfaceProvider";
 import { type ReactNode } from "react";
 import {
   APP_SHELL_CHROME_ROW_CLASS,
@@ -11,12 +12,14 @@ function SidebarPanelRoot({ children }: { children: ReactNode }) {
 
 /** Same height and divider as the page header's first row, so the two line up when docked. */
 function SidebarPanelHeader({ children }: { children: ReactNode }) {
+  const surface = useSidebarSurface();
   return (
     <div
       data-testid={APP_SHELL_CHROME_ROW_TEST_ID}
       className={cn(
         APP_SHELL_CHROME_ROW_CLASS,
-        "min-w-0 shrink-0 gap-1 pr-2 pl-3",
+        "min-w-0 shrink-0 gap-1",
+        surface === "rail" ? "justify-center px-2" : "pr-2 pl-3",
       )}
     >
       {children}
@@ -48,7 +51,7 @@ function SidebarPanelFooter({ children }: { children: ReactNode }) {
   );
 }
 
-/** Layout slots of the sidebar panel; the same panel renders docked, floating, and in the mobile drawer. */
+/** Layout slots of the sidebar panel; the same panel renders expanded, in the icon rail, and in the mobile menu. */
 export const SidebarPanel = Object.assign(SidebarPanelRoot, {
   Header: SidebarPanelHeader,
   Section: SidebarPanelSection,

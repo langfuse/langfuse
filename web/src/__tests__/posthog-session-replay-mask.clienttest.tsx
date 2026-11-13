@@ -105,6 +105,7 @@ describe("PostHog session replay privacy", () => {
   it("blocks sidebar account identity including native tooltip attributes", () => {
     render(
       <SidebarAccountButton
+        isCollapsed
         user={{
           name: "private-account-name",
           email: "private-account@example.com",

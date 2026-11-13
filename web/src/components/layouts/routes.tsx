@@ -78,7 +78,7 @@ export type Route = {
     | "ai-gateway"
     | "gateway-ingestion-project";
   title: string;
-  menuNode?: ReactNode;
+  menuNode?: (props: { isCollapsed: boolean }) => ReactNode;
   featureFlag?: Flag;
   label?: string | ReactNode;
   projectRbacScopes?: ProjectScope[]; // array treated as OR
@@ -116,7 +116,9 @@ export const ROUTES: Route[] = [
     title: "Go to...",
     href: "", // Empty pathname since this is a dropdown
     icon: Search,
-    menuNode: <CommandMenuTrigger />,
+    menuNode: ({ isCollapsed }) => (
+      <CommandMenuTrigger isCollapsed={isCollapsed} />
+    ),
     section: RouteSection.Main,
   },
   {
@@ -342,7 +344,9 @@ export const ROUTES: Route[] = [
     href: "",
     show: ({ isLangfuseCloud, hasActiveCloudIncident }) =>
       isLangfuseCloud && hasActiveCloudIncident,
-    menuNode: <CloudStatusMenu />,
+    menuNode: ({ isCollapsed }) => (
+      <CloudStatusMenu isCollapsed={isCollapsed} />
+    ),
   },
   {
     title: V4_PREVIEW_LABEL,
@@ -358,7 +362,9 @@ export const ROUTES: Route[] = [
     }) =>
       canRecoverV4 ||
       (canToggleV4 && (!v4UpgradeUiAvailable || forceV3Experience)),
-    menuNode: <V4SidebarToggle />,
+    menuNode: ({ isCollapsed }) => (
+      <V4SidebarToggle isCollapsed={isCollapsed} />
+    ),
   },
   {
     title: "Upgrade plan",
@@ -395,14 +401,16 @@ export const ROUTES: Route[] = [
     title: "Book a call",
     section: RouteSection.Secondary,
     href: "",
-    menuNode: <BookACallButton />,
+    menuNode: ({ isCollapsed }) => (
+      <BookACallButton isCollapsed={isCollapsed} />
+    ),
   },
   {
     title: "Support",
     icon: LifeBuoy,
     section: RouteSection.Secondary,
     href: "", // Empty pathname since this is a dropdown
-    menuNode: <SupportButton />,
+    menuNode: ({ isCollapsed }) => <SupportButton isCollapsed={isCollapsed} />,
   },
 ];
 
@@ -444,12 +452,13 @@ function TopicsInternalBadge() {
   ) : null;
 }
 
-function CommandMenuTrigger() {
+function CommandMenuTrigger({ isCollapsed }: { isCollapsed: boolean }) {
   const { setOpen } = useCommandMenu();
   const capture = usePostHogClientCapture();
 
   return (
     <SidebarNavItem.Button
+      isCollapsed={isCollapsed}
       onClick={() => {
         capture("cmd_k_menu:opened", {
           source: "main_navigation",

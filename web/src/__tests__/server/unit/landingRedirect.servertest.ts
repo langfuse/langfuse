@@ -91,6 +91,26 @@ describe("resolveLandingDestination", () => {
       expect(destination).toBe("/project/fresh/traces");
     });
 
+    it("ignores a remembered demo project when a new user still needs onboarding", async () => {
+      const decision = await resolve({
+        organizations: [
+          {
+            id: "demo-org",
+            projects: [project("demo")],
+            canCreateProjects: false,
+            canOpen: true,
+          },
+        ],
+        rememberedProjectIds: ["demo"],
+        hasPendingSignupOnboarding: async () => true,
+      });
+
+      expect(decision).toEqual({
+        destination: "/onboarding",
+        shouldForgetRememberedProject: false,
+      });
+    });
+
     it("shows the overview with a note and forgets it once it was deleted or access was removed", async () => {
       expect(
         await resolve({
@@ -307,6 +327,32 @@ describe("getLandingServerSideProps for /", () => {
 
     expect(result).toEqual(redirectTo("/project/p2"));
     expect(readLastVisitedProjectMock).not.toHaveBeenCalled();
+  });
+
+  it("ignores a demo cookie and reads the user's remembered own project", async () => {
+    const base = makeSession(["p1", "p2"]);
+    getServerAuthSessionMock.mockResolvedValue({
+      ...base,
+      user: {
+        ...base.user,
+        organizations: [
+          ...base.user.organizations,
+          {
+            id: "demo-org",
+            role: "VIEWER",
+            projects: [{ id: "demo", hasTraces: true }],
+          },
+        ],
+      },
+    });
+    readLastVisitedProjectMock.mockResolvedValue("p2");
+
+    const result = await getLandingServerSideProps(
+      makeCtx({ cookie: cookieFor("demo") }).ctx,
+    );
+
+    expect(result).toEqual(redirectTo("/project/p2"));
+    expect(readLastVisitedProjectMock).toHaveBeenCalledWith("user-1");
   });
 
   it("ignores a cookie another user set in this browser and uses the per-user record", async () => {

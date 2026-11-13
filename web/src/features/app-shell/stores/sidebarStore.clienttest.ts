@@ -1,8 +1,6 @@
 import {
   createSidebarStore,
-  SIDEBAR_CLOSE_DELAY_MS,
-  SIDEBAR_OPEN_DELAY_MS,
-  SIDEBAR_PINNED_STORAGE_KEY,
+  SIDEBAR_EXPANDED_STORAGE_KEY,
 } from "@/src/features/app-shell/stores/sidebarStore";
 
 function memoryStorage(initial: Record<string, string> = {}) {
@@ -21,288 +19,70 @@ function setup(initial: Record<string, string> = {}) {
   return { storage, store, actions: store.getState().actions };
 }
 
-beforeEach(() => {
-  vi.useFakeTimers();
-});
-
-afterEach(() => {
-  vi.useRealTimers();
-});
-
-describe("pinned preference", () => {
-  it("starts pinned without a stored preference", () => {
-    expect(setup().store.getState().isPinned).toBe(true);
-  });
-
-  it("carries over a collapsed legacy sidebar as unpinned", () => {
-    const { store } = setup({ "sidebar:state": "false" });
-    expect(store.getState().isPinned).toBe(false);
-  });
-
-  it("prefers its own key over the legacy one and persists changes", () => {
-    const { store, storage, actions } = setup({
-      "sidebar:state": "false",
-      [SIDEBAR_PINNED_STORAGE_KEY]: "true",
-    });
-    expect(store.getState().isPinned).toBe(true);
-
-    actions.setPinned(false);
-    expect(storage.getItem(SIDEBAR_PINNED_STORAGE_KEY)).toBe("false");
-    expect(createSidebarStore({ storage }).getState().isPinned).toBe(false);
-  });
-
-  it("falls back to pinned when storage is unavailable", () => {
-    expect(createSidebarStore({ storage: null }).getState().isPinned).toBe(
-      true,
+describe("desktop expansion preference", () => {
+  it("starts as an icon rail without a stored preference or available storage", () => {
+    expect(setup().store.getState().isExpanded).toBe(false);
+    expect(createSidebarStore({ storage: null }).getState().isExpanded).toBe(
+      false,
     );
   });
-});
 
-describe("hover overlay", () => {
-  const unpinned = () =>
-    setup({ [SIDEBAR_PINNED_STORAGE_KEY]: JSON.stringify(false) });
-
-  it("opens after the pointer rests on the trigger", () => {
-    const { store, actions } = unpinned();
-
-    actions.pointerEnterTrigger();
-    vi.advanceTimersByTime(SIDEBAR_OPEN_DELAY_MS - 1);
-    expect(store.getState().peek).toBe("closed");
-
-    vi.advanceTimersByTime(1);
-    expect(store.getState().peek).toBe("hover");
+  it("carries over collapsed classic and unpinned preview preferences as a rail", () => {
+    expect(
+      setup({ "sidebar:state": "false" }).store.getState().isExpanded,
+    ).toBe(false);
+    expect(
+      setup({ "langfuse:sidebar:pinned:v1": "false" }).store.getState()
+        .isExpanded,
+    ).toBe(false);
   });
 
-  it("ignores a pointer sweeping past the trigger", () => {
-    const { store, actions } = unpinned();
+  it("prefers the shell preference and persists explicit expansion", () => {
+    const { store, storage, actions } = setup({
+      "sidebar:state": "false",
+      [SIDEBAR_EXPANDED_STORAGE_KEY]: "true",
+    });
+    expect(store.getState().isExpanded).toBe(true);
 
-    actions.pointerEnterTrigger();
-    vi.advanceTimersByTime(SIDEBAR_OPEN_DELAY_MS / 2);
-    actions.pointerLeaveTrigger();
-    vi.runAllTimers();
+    actions.setExpanded(false);
+    expect(storage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY)).toBe("false");
+    expect(createSidebarStore({ storage }).getState().isExpanded).toBe(false);
 
-    expect(store.getState().peek).toBe("closed");
+    actions.setExpanded(true);
+    expect(createSidebarStore({ storage }).getState().isExpanded).toBe(true);
   });
 
-  it("closes after the pointer leaves, unless it comes back in time", () => {
-    const { store, actions } = unpinned();
-    actions.openOverlay("hover");
-    actions.pointerEnterPanel();
-
-    actions.pointerLeavePanel();
-    vi.advanceTimersByTime(SIDEBAR_CLOSE_DELAY_MS - 1);
-    actions.pointerEnterPanel();
-    vi.runAllTimers();
-    expect(store.getState().peek).toBe("hover");
-
-    actions.pointerLeavePanel();
-    vi.advanceTimersByTime(SIDEBAR_CLOSE_DELAY_MS);
-    expect(store.getState().peek).toBe("closed");
-  });
-
-  it("stays open while a menu it owns is held, then closes once released", () => {
-    const { store, actions } = unpinned();
-    actions.openOverlay("hover");
-    actions.pointerEnterPanel();
-
-    const release = actions.hold();
-    actions.pointerLeavePanel();
-    vi.runAllTimers();
-    expect(store.getState().peek).toBe("hover");
-
-    release();
-    release();
-    vi.advanceTimersByTime(SIDEBAR_CLOSE_DELAY_MS);
-    expect(store.getState().peek).toBe("closed");
-  });
-
-  it("drops holds when it closes, so a late release cannot affect the next opening", () => {
-    const { store, actions } = unpinned();
-    actions.openOverlay("hover");
-    const staleRelease = actions.hold();
-    actions.close();
-
-    actions.openOverlay("hover");
-    const release = actions.hold();
-    staleRelease();
-    actions.pointerLeavePanel();
-    vi.runAllTimers();
-    expect(store.getState().peek).toBe("hover");
-
-    release();
-    vi.advanceTimersByTime(SIDEBAR_CLOSE_DELAY_MS);
-    expect(store.getState().peek).toBe("closed");
-  });
-
-  it("closes the next hover after dismissal unmounts the panel under the pointer", () => {
-    const { store, actions } = unpinned();
-    actions.openOverlay("hover");
-    actions.pointerEnterPanel();
-    actions.dismiss();
-
-    actions.pointerEnterTrigger();
-    vi.advanceTimersByTime(SIDEBAR_OPEN_DELAY_MS);
-    actions.pointerLeaveTrigger();
-    vi.advanceTimersByTime(SIDEBAR_CLOSE_DELAY_MS);
-
-    expect(store.getState().peek).toBe("closed");
-  });
-
-  it("stays open while the switcher is open", () => {
-    const { store, actions } = unpinned();
-    actions.openOverlay("hover");
-    actions.setSwitcherOpen(true);
-
-    actions.pointerLeavePanel();
-    vi.runAllTimers();
-    expect(store.getState().peek).toBe("hover");
-
-    actions.setSwitcherOpen(false);
-    vi.advanceTimersByTime(SIDEBAR_CLOSE_DELAY_MS);
-    expect(store.getState().peek).toBe("closed");
-  });
-
-  it("ignores a dismissal while a menu or the switcher it owns is open", () => {
-    const { store, actions } = unpinned();
-    actions.openOverlay("keyboard");
-
-    const release = actions.hold();
-    actions.dismiss();
-    expect(store.getState().peek).toBe("keyboard");
-    release();
-
-    actions.setSwitcherOpen(true);
-    actions.dismiss();
-    expect(store.getState().peek).toBe("keyboard");
-    actions.setSwitcherOpen(false);
-
-    actions.dismiss();
-    expect(store.getState().peek).toBe("closed");
-  });
-
-  it("does not open while pinned", () => {
-    const { store, actions } = setup();
-
-    actions.pointerEnterTrigger();
-    vi.runAllTimers();
-    actions.openOverlay("keyboard");
-
-    expect(store.getState().peek).toBe("closed");
-  });
-});
-
-describe("pinning", () => {
-  it("keeps an unpinned sidebar under the pointer until the pointer leaves", () => {
-    const { store, actions } = setup();
-
-    actions.setPinned(false);
-    actions.pointerEnterPanel();
-    expect(store.getState()).toMatchObject({ isPinned: false, peek: "hover" });
-    vi.runAllTimers();
-    expect(store.getState().peek).toBe("hover");
-
-    actions.pointerLeavePanel();
-    vi.advanceTimersByTime(SIDEBAR_CLOSE_DELAY_MS);
-    expect(store.getState().peek).toBe("closed");
-  });
-
-  it("closes after unpinning when the replacement panel receives no pointer entry", () => {
-    const { store, actions } = setup();
-
-    actions.setPinned(false);
-    vi.advanceTimersByTime(SIDEBAR_CLOSE_DELAY_MS);
-
-    expect(store.getState().peek).toBe("closed");
-  });
-
-  it("docks the overlay when pinned from it", () => {
-    const { store, actions } = setup({ [SIDEBAR_PINNED_STORAGE_KEY]: "false" });
-    actions.openOverlay("hover");
-
-    actions.setPinned(true);
-
-    expect(store.getState()).toMatchObject({ isPinned: true, peek: "closed" });
-  });
-});
-
-describe("keyboard", () => {
-  it("toggles the overlay with the shortcut and ignores the pointer leaving", () => {
-    const { store, actions } = setup({ [SIDEBAR_PINNED_STORAGE_KEY]: "false" });
-
-    actions.toggleFromShortcut("desktop");
-    expect(store.getState().peek).toBe("keyboard");
-    actions.pointerEnterPanel();
-    actions.pointerLeavePanel();
-    vi.runAllTimers();
-    expect(store.getState().peek).toBe("keyboard");
-
-    actions.toggleFromShortcut("desktop");
-    expect(store.getState().peek).toBe("closed");
-  });
-
-  it("hides a pinned sidebar with the shortcut and remembers it", () => {
+  it("toggles desktop expansion with the shortcut and remembers it", () => {
     const { store, storage, actions } = setup();
 
     actions.toggleFromShortcut("desktop");
+    expect(store.getState().isExpanded).toBe(true);
+    expect(storage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY)).toBe("true");
 
-    expect(store.getState()).toMatchObject({ isPinned: false, peek: "closed" });
-    expect(storage.getItem(SIDEBAR_PINNED_STORAGE_KEY)).toBe("false");
-  });
-
-  it("toggles the mobile sheet instead of the overlay on small screens", () => {
-    const { store, actions } = setup();
-
-    actions.toggleFromShortcut("mobile");
-    expect(store.getState()).toMatchObject({
-      isMobileOpen: true,
-      peek: "closed",
-    });
-
-    actions.toggleFromShortcut("mobile");
-    expect(store.getState().isMobileOpen).toBe(false);
+    actions.toggleFromShortcut("desktop");
+    expect(store.getState().isExpanded).toBe(false);
+    expect(storage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY)).toBe("false");
   });
 });
 
-describe("workspace switcher", () => {
-  it("reveals a hidden sidebar for the switcher and hides it again afterwards", () => {
-    const { store, actions } = setup({ [SIDEBAR_PINNED_STORAGE_KEY]: "false" });
+describe("transient navigation", () => {
+  it("opens the desktop switcher from the rail without expanding it", () => {
+    const { store, actions } = setup({
+      [SIDEBAR_EXPANDED_STORAGE_KEY]: "false",
+    });
 
     actions.openSwitcher("desktop");
     expect(store.getState()).toMatchObject({
-      peek: "keyboard",
+      isExpanded: false,
       isSwitcherOpen: true,
+      isMobileOpen: false,
     });
 
     actions.setSwitcherOpen(false);
-    expect(store.getState()).toMatchObject({
-      peek: "closed",
-      isSwitcherOpen: false,
-    });
+    expect(store.getState().isExpanded).toBe(false);
   });
 
-  it("leaves a sidebar the user opened alone when the switcher closes", () => {
-    const { store, actions } = setup({ [SIDEBAR_PINNED_STORAGE_KEY]: "false" });
-    actions.toggleFromShortcut("desktop");
-
-    actions.openSwitcher("desktop");
-    actions.setSwitcherOpen(false);
-
-    expect(store.getState().peek).toBe("keyboard");
-  });
-
-  it("only opens the switcher when the sidebar is pinned", () => {
-    const { store, actions } = setup();
-
-    actions.openSwitcher("desktop");
-
-    expect(store.getState()).toMatchObject({
-      isPinned: true,
-      peek: "closed",
-      isSwitcherOpen: true,
-    });
-  });
-
-  it("opens the mobile sheet with the switcher, and closing the sheet closes both", () => {
+  it("opens the mobile menu with the switcher and closes both together", () => {
     const { store, actions } = setup();
 
     actions.openSwitcher("mobile");
@@ -318,15 +98,37 @@ describe("workspace switcher", () => {
     });
   });
 
-  it("closes with the overlay on navigation", () => {
-    const { store, actions } = setup({ [SIDEBAR_PINNED_STORAGE_KEY]: "false" });
-    actions.openSwitcher("desktop");
+  it("toggles the mobile menu without changing desktop expansion", () => {
+    const { store, storage, actions } = setup();
+
+    actions.toggleFromShortcut("mobile");
+    expect(store.getState()).toMatchObject({
+      isMobileOpen: true,
+      isExpanded: false,
+    });
+    actions.setSwitcherOpen(true);
+    actions.toggleFromShortcut("mobile");
+    expect(store.getState()).toMatchObject({
+      isMobileOpen: false,
+      isSwitcherOpen: false,
+      isExpanded: false,
+    });
+    expect(storage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY)).toBeNull();
+  });
+
+  it("closes transient navigation while retaining the desktop preference", () => {
+    const { store, storage, actions } = setup({
+      [SIDEBAR_EXPANDED_STORAGE_KEY]: "false",
+    });
+    actions.openSwitcher("mobile");
 
     actions.close();
 
     expect(store.getState()).toMatchObject({
-      peek: "closed",
+      isExpanded: false,
+      isMobileOpen: false,
       isSwitcherOpen: false,
     });
+    expect(storage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY)).toBe("false");
   });
 });

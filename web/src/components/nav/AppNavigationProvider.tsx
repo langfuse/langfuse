@@ -19,10 +19,10 @@ import {
  */
 export type AppNavigation = {
   shell: "classic" | "next";
-  /** Desktop header control that reveals or toggles the sidebar. */
-  SidebarControl: ComponentType;
+  /** Optional desktop page-header control; shells with their own expansion control omit it. */
+  SidebarControl: ComponentType | null;
   openMobileNavigation: () => void;
-  /** Hides the sidebar wherever it is shown only temporarily: the overlay or the mobile sheet. */
+  /** Closes temporary navigation, such as the workspace switcher or mobile menu. */
   closeTransientNavigation: () => void;
 };
 

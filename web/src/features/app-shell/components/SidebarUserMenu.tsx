@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import {
   UserMenuItems,
@@ -12,14 +12,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { useAppShellSidebarActions } from "@/src/features/app-shell/contexts/AppShellSidebarProvider";
 
 export type SidebarUser = { name: string; email: string; avatar: string };
 
-/**
- * The account menu at the bottom of the sidebar. While it is open it holds
- * the floating sidebar open, so moving into the menu does not close it.
- */
+/** The account menu at the bottom of the sidebar. */
 export function SidebarUserMenu({
   user,
   items,
@@ -31,31 +27,8 @@ export function SidebarUserMenu({
   side: "right" | "top";
   children: (control: { Trigger: typeof DropdownMenuTrigger }) => ReactNode;
 }) {
-  const { hold } = useAppShellSidebarActions();
-  const releaseHoldRef = useRef<(() => void) | null>(null);
-  const releaseHold = () => {
-    releaseHoldRef.current?.();
-    releaseHoldRef.current = null;
-  };
-  // The menu can unmount while open, e.g. when one of its links navigates.
-  useEffect(
-    () => () => {
-      releaseHoldRef.current?.();
-      releaseHoldRef.current = null;
-    },
-    [],
-  );
-
   return (
-    <DropdownMenu
-      onOpenChange={(isOpen) => {
-        if (isOpen) {
-          if (releaseHoldRef.current === null) releaseHoldRef.current = hold();
-        } else {
-          releaseHold();
-        }
-      }}
-    >
+    <DropdownMenu>
       {children({ Trigger: DropdownMenuTrigger })}
       <DropdownMenuContent
         className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"

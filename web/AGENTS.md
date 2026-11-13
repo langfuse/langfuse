@@ -22,8 +22,9 @@
 - Public eval APIs: `src/pages/api/public/v2/{evaluators,evaluation-rules}/*`
 - Feature modules: `src/features/*`
 - Topics: read [`src/features/topics/README.md`](src/features/topics/README.md) before changing access, result queries, run controls, or map interactions.
-- App shell preview (one sidebar with hover overlay and pinning, workspace
-  switcher, per-browser classic/new switch): `src/features/app-shell`, owner
+- App shell (persistent icon rail with per-entry hover labels, explicit
+  expansion, full-width mobile navigation, workspace switcher and per-browser
+  classic/new switch): `src/features/app-shell`, owner
   map in its `README.md`. `/` redirects to the last-used project through
   `src/features/projects/server/getLandingServerSideProps.ts`; the projects
   overview lives at `/organizations` and `/organization/[organizationId]`
@@ -133,7 +134,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
   must be installed, ask the user before doing so.
 - When you surface a score in the UI, always show its level
   (trace/observation/session/experiment) with the `<ScoreTag>` component
-    (`src/components/ScoreTag.tsx`) and its global color coding (see the
+  (`src/components/ScoreTag.tsx`) and its global color coding (see the
   ScoreTag Storybook story).
 - Tailwind is the default styling layer; use the shared palette and globals in
   `src/styles/globals.css`.

@@ -2,9 +2,9 @@ import { createContext, useContext, type ReactNode } from "react";
 
 /**
  * Where the one sidebar panel is currently rendered. The panel content is the
- * same everywhere; only a few controls differ (pin vs. close).
+ * same everywhere; only presentation and the expand/close controls differ.
  */
-export type SidebarSurface = "docked" | "overlay" | "sheet";
+export type SidebarSurface = "docked" | "rail" | "sheet";
 
 const SidebarSurfaceContext = createContext<SidebarSurface>("docked");
 

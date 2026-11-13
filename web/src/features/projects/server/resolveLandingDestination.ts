@@ -77,13 +77,28 @@ export async function resolveLandingDestination({
   demoOrganizationId,
   hasPendingSignupOnboarding,
 }: LandingInput): Promise<LandingDecision> {
+  // The shared demo is a destination only when no personal workspace or
+  // onboarding flow is available, even if it was the last project opened.
+  const ownOrganizations = organizations.filter(
+    (organization) => organization.id !== demoOrganizationId,
+  );
+  const demoProjectIds = new Set(
+    organizations
+      .filter((organization) => organization.id === demoOrganizationId)
+      .flatMap((organization) =>
+        organization.projects.map((project) => project.id),
+      ),
+  );
   const readableProjects = new Map(
-    organizations.flatMap((organization) =>
+    ownOrganizations.flatMap((organization) =>
       organization.projects.map((project) => [project.id, project] as const),
     ),
   );
   const remembered = rememberedProjectIds
-    .filter((projectId): projectId is string => projectId !== null)
+    .filter(
+      (projectId): projectId is string =>
+        projectId !== null && !demoProjectIds.has(projectId),
+    )
     .map((projectId) => readableProjects.get(projectId));
   const rememberedProject = remembered.find((project) => project !== undefined);
   if (rememberedProject) {
@@ -94,11 +109,6 @@ export async function resolveLandingDestination({
   }
   const isRememberedProjectGone = remembered.length > 0;
 
-  // The demo organization is shared by everyone; it must not stand in for a
-  // user's own workspace, or new users would never reach project creation.
-  const ownOrganizations = organizations.filter(
-    (organization) => organization.id !== demoOrganizationId,
-  );
   const ownProjects = ownOrganizations.flatMap(
     (organization) => organization.projects,
   );

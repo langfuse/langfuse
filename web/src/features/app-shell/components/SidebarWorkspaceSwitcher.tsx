@@ -1,4 +1,5 @@
-import { ChevronsUpDown } from "@langfuse/icons";
+import { cn } from "@/src/utils/tailwind";
+import { Building2, ChevronsUpDown } from "@langfuse/icons";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { WorkspaceGlyph } from "@/src/features/app-shell/components/WorkspaceGlyph";
 import { WorkspaceSwitcherPopover } from "@/src/features/app-shell/components/WorkspaceSwitcherPopover";
@@ -12,11 +13,12 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 
 /**
  * The sidebar's organization and project block. It is the switcher's home:
- * Mod+O opens this same popover, revealing the sidebar first when hidden.
+ * Mod+O opens this same popover from the rail, expanded sidebar, or mobile menu.
  */
 export function SidebarWorkspaceSwitcher() {
   const { organization, project } = useQueryProjectOrOrganization();
   const surface = useSidebarSurface();
+  const isCollapsed = surface === "rail";
   const isOpen = useAppShellSidebar((state) => state.isSwitcherOpen);
   const { setSwitcherOpen } = useAppShellSidebarActions();
   const capture = usePostHogClientCapture();
@@ -41,12 +43,23 @@ export function SidebarWorkspaceSwitcher() {
           <button
             type="button"
             aria-label={`Switch project or organization. Current: ${title}`}
-            className="ph-no-capture group/switcher border-sidebar-border bg-background hover:bg-sidebar-accent focus-visible:ring-sidebar-ring data-[state=open]:bg-sidebar-accent flex w-full min-w-0 items-center gap-2 rounded-md border px-2 py-1.5 text-left outline-hidden transition-colors focus-visible:ring-2"
+            className={cn(
+              "ph-no-capture group/switcher hover:bg-sidebar-accent focus-visible:ring-sidebar-ring data-[state=open]:bg-sidebar-accent flex w-full min-w-0 items-center rounded-md text-left outline-hidden transition-colors focus-visible:ring-2",
+              isCollapsed
+                ? "h-9 justify-center"
+                : "border-sidebar-border bg-background gap-2 border px-2 py-1.5",
+            )}
           >
             {glyph ? (
               <WorkspaceGlyph id={glyph.id} name={glyph.name} size="md" />
-            ) : null}
-            <span className="flex min-w-0 flex-1 flex-col">
+            ) : (
+              <Building2 size="base" />
+            )}
+            <span
+              className={
+                isCollapsed ? "sr-only" : "flex min-w-0 flex-1 flex-col"
+              }
+            >
               <span
                 className="text-muted-foreground truncate text-xs leading-4"
                 title={subtitle}
@@ -60,10 +73,16 @@ export function SidebarWorkspaceSwitcher() {
                 {title}
               </span>
             </span>
-            <span className="hidden group-hover/switcher:inline-flex group-focus-visible/switcher:inline-flex">
+            <span
+              className={
+                isCollapsed
+                  ? "hidden"
+                  : "hidden group-hover/switcher:inline-flex group-focus-visible/switcher:inline-flex"
+              }
+            >
               <KeyboardShortcut keys={["Mod", "O"]} size="sm" />
             </span>
-            <ChevronsUpDown size="base" color="default" />
+            {!isCollapsed && <ChevronsUpDown size="base" color="default" />}
           </button>
         </Trigger>
       )}

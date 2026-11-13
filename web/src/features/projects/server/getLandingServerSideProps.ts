@@ -84,8 +84,10 @@ export async function getLandingServerSideProps(
     }),
   }));
   const isReadable = (projectId: string) =>
-    organizations.some((organization) =>
-      organization.projects.some((project) => project.id === projectId),
+    organizations.some(
+      (organization) =>
+        organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID &&
+        organization.projects.some((project) => project.id === projectId),
     );
   const browserProjectId = projectIdFromCookie({
     cookie: readProjectCookie(ctx.req.cookies ?? {}),

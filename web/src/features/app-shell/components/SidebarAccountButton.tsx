@@ -1,3 +1,4 @@
+import { cn } from "@/src/utils/tailwind";
 import { type ComponentProps } from "react";
 import { ChevronsUpDown } from "@langfuse/icons";
 import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
@@ -6,15 +7,20 @@ import { type SidebarUser } from "@/src/features/app-shell/components/SidebarUse
 /** The signed-in user's row; rendered under the account menu's `Trigger asChild`. */
 export function SidebarAccountButton({
   user,
+  isCollapsed,
   ...buttonProps
-}: { user: SidebarUser } & Omit<
+}: { user: SidebarUser; isCollapsed: boolean } & Omit<
   ComponentProps<"button">,
   "children" | "className" | "style" | "type"
 >) {
   return (
     <button
       type="button"
-      className="ph-no-capture hover:bg-sidebar-accent data-[state=open]:bg-sidebar-accent focus-visible:ring-sidebar-ring flex h-11 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left outline-hidden transition-colors focus-visible:ring-2"
+      aria-label={`Account menu for ${user.name || user.email}`}
+      className={cn(
+        "ph-no-capture hover:bg-sidebar-accent data-[state=open]:bg-sidebar-accent focus-visible:ring-sidebar-ring flex w-full min-w-0 items-center rounded-md text-left outline-hidden transition-colors focus-visible:ring-2",
+        isCollapsed ? "h-9 justify-center" : "h-11 gap-2 px-2",
+      )}
       {...buttonProps}
     >
       <Avatar
@@ -25,7 +31,11 @@ export function SidebarAccountButton({
         email={user.email}
         aria-hidden
       />
-      <span className="grid min-w-0 flex-1 text-sm leading-tight">
+      <span
+        className={
+          isCollapsed ? "sr-only" : "grid min-w-0 flex-1 text-sm leading-tight"
+        }
+      >
         <span className="text-foreground truncate font-bold" title={user.name}>
           {user.name}
         </span>
@@ -36,7 +46,7 @@ export function SidebarAccountButton({
           {user.email}
         </span>
       </span>
-      <ChevronsUpDown size="base" color="default" />
+      {!isCollapsed && <ChevronsUpDown size="base" color="default" />}
     </button>
   );
 }

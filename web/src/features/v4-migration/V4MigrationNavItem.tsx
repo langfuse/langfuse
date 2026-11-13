@@ -21,8 +21,10 @@ export function useV4MigrationNavItemProject() {
 
 export function V4MigrationNavItem({
   project,
+  isCollapsed,
 }: {
   project: { id: string; name: string };
+  isCollapsed: boolean;
 }) {
   const openMigrationPanel = useOpenV4MigrationPanel();
   const appNavigation = useAppNavigation();
@@ -43,6 +45,7 @@ export function V4MigrationNavItem({
 
   return (
     <SidebarNavItem.Button
+      isCollapsed={isCollapsed}
       onClick={handleClick}
       leading={
         <span className="inline-flex size-2 rounded-full bg-orange-400" />

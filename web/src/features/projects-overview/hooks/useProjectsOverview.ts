@@ -10,13 +10,15 @@ import { api } from "@/src/utils/api";
 const OVERVIEW_STALE_TIME_MS = 60_000;
 
 /**
- * Reads the overview for every organization of the user, one batched read
- * per organization plus the v4 readiness signals, and prepares what the page
- * renders. Sections fill in as their organization's read resolves.
+ * Reads activity, usage and v4 readiness only for the organizations displayed
+ * by the page. A null id selects all organizations; undefined waits for the route.
  */
-export function useProjectsOverview() {
+export function useProjectsOverview(organizationId: string | null | undefined) {
   const session = useSession();
-  const organizations = session.data?.user?.organizations ?? [];
+  const organizations = (session.data?.user?.organizations ?? []).filter(
+    (organization) =>
+      organizationId === null || organization.id === organizationId,
+  );
   const isV4MigrationShown = useV4UpgradeUiEnabled();
   // Relative ages are read against the time the page opened, so cards do not
   // re-sort or re-word on every render.

@@ -19,7 +19,9 @@ import {
   V4_PREVIEW_DESCRIPTION,
 } from "@/src/features/events/lib/v4PreviewLabel";
 
-export function V4SidebarToggle() {
+export function V4SidebarToggle({ isCollapsed }: { isCollapsed: boolean }) {
+  const toggleId = useId();
+  const descriptionId = useId();
   const { canToggleV4 } = useReadPath();
   // A locked toggle is only shown in the sidebar for one-way recovery.
   const label = canToggleV4 ? V4_PREVIEW_LABEL : "Enable V4";
@@ -41,41 +43,55 @@ export function V4SidebarToggle() {
 
   return (
     <>
-      <SidebarNavItem.Row>
-        <div className="flex min-w-0 flex-1 items-center gap-2 group-data-[collapsible=icon]:hidden">
-          <ZapIcon size="base" />
-          <Label
-            htmlFor="v4-beta-toggle"
-            className="block min-w-0 flex-1 cursor-pointer truncate text-sm font-normal"
-            title={label}
-          >
-            {label}
-          </Label>
-        </div>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="flex shrink-0">
-              <Switch
-                id="v4-beta-toggle"
-                size="sm"
-                checked={isChecked}
-                onCheckedChange={handleSidebarToggle}
-                disabled={isLoading}
-                aria-label={
-                  canToggleV4 ? `Toggle ${V4_PREVIEW_LABEL}` : "Enable V4"
-                }
-                aria-describedby="v4-preview-sidebar-description"
-              />
-            </div>
-          </TooltipTrigger>
-          <TooltipContent side="right" className="max-w-xs text-xs">
-            {description}
-          </TooltipContent>
-        </Tooltip>
-        <span id="v4-preview-sidebar-description" className="sr-only">
-          {description}
-        </span>
-      </SidebarNavItem.Row>
+      {isCollapsed ? (
+        <SidebarNavItem.Button
+          id={toggleId}
+          isCollapsed
+          leading={<ZapIcon size="base" />}
+          label={label}
+          trailing={<span className="text-xs">{isChecked ? "On" : "Off"}</span>}
+          aria-label={`${label}: ${isChecked ? "On" : "Off"}`}
+          aria-describedby={descriptionId}
+          disabled={isLoading}
+          onClick={() => handleSidebarToggle(!isChecked)}
+        />
+      ) : (
+        <SidebarNavItem.Row>
+          <div className="flex min-w-0 flex-1 items-center gap-2 group-data-[collapsible=icon]:hidden">
+            <ZapIcon size="base" />
+            <Label
+              htmlFor={toggleId}
+              className="block min-w-0 flex-1 cursor-pointer truncate text-sm font-normal"
+              title={label}
+            >
+              {label}
+            </Label>
+          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex shrink-0">
+                <Switch
+                  id={toggleId}
+                  size="sm"
+                  checked={isChecked}
+                  onCheckedChange={handleSidebarToggle}
+                  disabled={isLoading}
+                  aria-label={
+                    canToggleV4 ? `Toggle ${V4_PREVIEW_LABEL}` : "Enable V4"
+                  }
+                  aria-describedby={descriptionId}
+                />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="right" className="max-w-xs text-xs">
+              {description}
+            </TooltipContent>
+          </Tooltip>
+        </SidebarNavItem.Row>
+      )}
+      <span id={descriptionId} className="sr-only">
+        {description}
+      </span>
       <V4IntroDialog
         open={showIntroDialog}
         onConfirm={confirmIntroDialog}
