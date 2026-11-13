@@ -74,6 +74,7 @@ import {
   analysisTopicResults,
   currentTopicResults,
   listTopicTraces,
+  topicMapCost,
   traceFacetResults,
 } from "./currentResults";
 import {
@@ -378,6 +379,20 @@ export const topicsRouter = createTRPCRouter({
     .query(({ input }) =>
       currentTopicResults(input.projectId, undefined, {
         ruleId: input.ruleId,
+      }),
+    ),
+  /** Approximate summary cost of a rule's or analysis's maps so far. */
+  mapCost: topicsProcedure
+    .input(
+      projectInput.extend({
+        ruleId: topicIdSchema.optional(),
+        analysisId: topicIdSchema.optional(),
+      }),
+    )
+    .query(({ input }) =>
+      topicMapCost(input.projectId, {
+        ruleId: input.ruleId,
+        analysisId: input.analysisId,
       }),
     ),
   /** One page of a facet's traces; filters and paging run in ClickHouse. */

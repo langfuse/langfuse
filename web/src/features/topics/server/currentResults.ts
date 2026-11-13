@@ -9,6 +9,7 @@ import {
   type TopicTimeRange,
 } from "@langfuse/shared/topics";
 import {
+  getTopicMapCost,
   getTopicResultCounts,
   listCurrentTopicSummaries,
   OBSERVATIONS_TO_TRACE_INTERVAL_DAYS,
@@ -307,6 +308,24 @@ export async function analysisTopicResults(
     },
     facets: await facetMapCounts(projectId, maps),
   };
+}
+
+/** Approximate model cost of the summaries behind a rule's or analysis's maps, over the windows the page counts. */
+export async function topicMapCost(projectId: string, scope: TopicMapScope) {
+  const maps = await resolveFacetMaps(
+    projectId,
+    scope,
+    await listTopicFacets(projectId),
+  );
+  return getTopicMapCost({
+    projectId,
+    maps: maps.map(({ facet, run, window, membersOnly }) => ({
+      facetId: facet.id,
+      window,
+      runId: run?.id ?? null,
+      membersOnly,
+    })),
+  });
 }
 
 /** Current result per trace, facet and rule map for a few traces, resolved independently of execution batches. */

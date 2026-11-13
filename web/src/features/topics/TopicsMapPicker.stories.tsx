@@ -139,10 +139,14 @@ function MapSwitcher({ initial }: { initial: TopicMapSelection }) {
         />
       </div>
       {selectedRule ? (
-        <TopicMapStrip.Rule rule={selectedRule} now={now} />
+        <TopicMapStrip.Rule
+          rule={selectedRule}
+          now={now}
+          cost={selectedRule.lastRefitAt ? 1.84 : null}
+        />
       ) : null}
       {selectedAnalysis ? (
-        <TopicMapStrip.Analysis analysis={selectedAnalysis} />
+        <TopicMapStrip.Analysis analysis={selectedAnalysis} cost={0.0042} />
       ) : null}
       {selectedRule?.enabled !== false && selectedRule?.lastRefitAt === null ? (
         <TopicRuleBuildingState rule={selectedRule} />

@@ -741,6 +741,7 @@ export {
 } from "./repositories/topic-setup-events";
 export { getTopicSetupTraceNames } from "./repositories/topic-setup-events";
 export {
+  getTopicMapCost,
   getTopicResultCounts,
   type TopicResultCounts,
   listCurrentTopicAssignments,
