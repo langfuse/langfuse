@@ -655,6 +655,107 @@ export async function getTopicClusteringSummaries(
   return summaries;
 }
 
+// Each step resolves the latest version of every summary in its slice.
+const NEWEST_SUMMARIES_TIMEOUT_SECONDS = 60;
+// How far back from the window's end each step reaches.
+const NEWEST_SUMMARIES_STEP_DAYS = [7, 14, 30];
+
+/**
+ * The newest compatible summaries, newest first, up to the limits, read back in
+ * 7/14/30-day steps; a later step's failure keeps the steps already read.
+ */
+export async function getNewestTopicClusteringSummaries(
+  projectId: string,
+  facet: TopicFacetRef,
+  embeddingConfig: TopicEmbeddingConfig,
+  timeRange: TopicTimeRange,
+  limits: { maxRows: number; maxBytes: number },
+  traces?: (slice: TopicTimeRange) => Promise<TopicCohortTraces>,
+): Promise<TopicSummary[]> {
+  // Vector bytes plus a 2 KB allowance for text; reading enforces the real size.
+  const rowBytes = embeddingConfig.embeddingDimensions * 8 + 2048;
+  const summaries: TopicSummary[] = [];
+  let bytes = 0;
+  let to = timeRange.to;
+  for (const days of NEWEST_SUMMARIES_STEP_DAYS) {
+    // The last step reaches the window's start, which setup can set earlier.
+    const from =
+      days === NEWEST_SUMMARIES_STEP_DAYS.at(-1)
+        ? timeRange.from
+        : new Date(
+            Math.max(
+              timeRange.from.getTime(),
+              timeRange.to.getTime() - days * 86_400_000,
+            ),
+          );
+    const limit = Math.min(
+      limits.maxRows - summaries.length,
+      Math.floor((limits.maxBytes - bytes) / rowBytes),
+    );
+    if (from >= to || limit < 1) break;
+    const loaded = summaries.length;
+    try {
+      const sliceTraces = await traces?.({ from, to });
+      const newestKeysSql = `${clusteringSummariesSql(
+        "trace_id, unit_start_time, processed_at",
+        "trace_id, unit_start_time, processed_at, processing_state, embedding_model, environment",
+        sliceTraces && { traces: sliceTraces },
+      )}
+        ORDER BY unit_start_time DESC, trace_id LIMIT {limit:UInt64}`;
+      for await (const row of queryClickhouseStream<SummaryRow>({
+        query: `SELECT ${summaryColumns} FROM topic_facet_summaries
+          WHERE project_id = {projectId:String} AND ${unitTimeFilterSql}
+            AND ${clusteringSummaryScopeSql}
+            AND (trace_id, unit_start_time, processed_at) IN (${newestKeysSql})
+          ORDER BY unit_start_time DESC, trace_id
+          LIMIT 1 BY ${sourceKeySql}`,
+        params: {
+          ...sliceTraces?.params,
+          projectId,
+          facetId: facet.facetId,
+          facetVersion: facet.version,
+          ...embeddingConfig,
+          ...timeRangeParams({ from, to }),
+          internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+          publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+          limit,
+        },
+        tags: { route: "topics-newest-clustering-summaries", projectId },
+        // A background read: keep it off the primary and bound its CPU.
+        preferredClickhouseService: "EventsReadOnly",
+        // The client must outlast the server limit for the timeout to be reported as one.
+        clickhouseConfigs: {
+          request_timeout: (NEWEST_SUMMARIES_TIMEOUT_SECONDS + 15) * 1000,
+        },
+        clickhouseSettings: {
+          max_threads: 2,
+          max_execution_time: NEWEST_SUMMARIES_TIMEOUT_SECONDS,
+          timeout_overflow_mode: "throw",
+        },
+      })) {
+        const { embedding, ...fields } = row;
+        bytes += embedding.length * 8 + JSON.stringify(fields).length * 2 + 256;
+        if (bytes > limits.maxBytes) return summaries;
+        summaries.push(summaryResult(row));
+      }
+    } catch (error) {
+      if (to === timeRange.to) throw error;
+      // The message carries the ClickHouse query ID.
+      logger.warn("Topics newest summaries stopped early", {
+        projectId,
+        facetId: facet.facetId,
+        days,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      break;
+    }
+    // A full step may have left newer summaries in its slice; older ones must not follow.
+    if (summaries.length - loaded === limit) break;
+    to = from;
+  }
+  return summaries;
+}
+
 export async function hasTopicEmbeddings(projectId: string): Promise<boolean> {
   const rows = await queryClickhouse<{ found: number }>({
     query: `SELECT 1 AS found FROM topic_facet_summaries
@@ -800,7 +901,7 @@ export async function getTopicSummaryCounts(
 
 /**
  * Approximate distinct traces per facet with a complete summary at the facet
- * version and embedding, for setup's reuse and capacity decisions. Unlike
+ * version and embedding, for setup's reuse and fit-size decisions. Unlike
  * getTopicSummaryCounts, a re-summarized trace is not resolved to its latest
  * result, and the rule's traces filter the scan itself, so memory stays flat.
  */
@@ -840,48 +941,6 @@ export async function getTopicSetupSummaryCounts(
     facetId,
     count: Number(rows.find((row) => row.facetId === facetId)?.count ?? 0),
   }));
-}
-
-/**
- * Start of the newest `limit` complete summaries of a facet in the window, by
- * minute, and how many were found. Reads in sorting-key order, so the cost
- * follows `limit`, not the window.
- */
-export async function getTopicNewestSummariesStart(
-  projectId: string,
-  facet: TopicFacetRef,
-  embeddingConfig: TopicEmbeddingConfig,
-  timeRange: TopicTimeRange,
-  limit: number,
-): Promise<{ start: Date | null; count: number }> {
-  const [row] = await queryClickhouse<{ start: string; count: string }>({
-    query: `SELECT toUnixTimestamp(min(minute)) * 1000 AS start, count() AS count FROM (
-        SELECT toStartOfMinute(unit_start_time) AS minute
-        FROM topic_facet_summaries
-        WHERE project_id = {projectId:String} AND ${unitTimeFilterSql}
-          AND facet_id = {facetId:String} AND facet_version = {facetVersion:UInt32}
-          AND trace_id != '' AND processing_state = 'complete'
-          AND embedding_model = {embeddingModel:String}
-          AND length(embedding) = {embeddingDimensions:UInt32}
-          AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
-          AND environment != {publicLlmJudgeEnvironment:String}
-        ORDER BY project_id DESC, minute DESC
-        LIMIT {limit:UInt32}
-      )`,
-    params: {
-      projectId,
-      ...timeRangeParams(timeRange),
-      facetId: facet.facetId,
-      facetVersion: facet.version,
-      ...embeddingConfig,
-      internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
-      limit,
-    },
-    tags: { route: "topics-newest-summaries", projectId },
-  });
-  const count = Number(row?.count ?? 0);
-  return { start: count ? new Date(Number(row.start)) : null, count };
 }
 
 /**
