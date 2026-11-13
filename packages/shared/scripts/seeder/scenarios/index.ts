@@ -12,6 +12,7 @@ import { incidentSessionScenario } from "./incident-session";
 import { longSessionScenario } from "./long-session";
 import { manyTracesScenario } from "./many-traces";
 import { outlierTrafficScenario } from "./outlier-traffic";
+import { scoreDistributionsScenario } from "./score-distributions";
 import { scoredTracesScenario } from "./scored-traces";
 import { sessionShapesScenario } from "./session-shapes";
 import { sessionThreadsScenario } from "./session-threads";
@@ -39,6 +40,7 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "long-session": longSessionScenario,
   "many-traces": manyTracesScenario,
   "outlier-traffic": outlierTrafficScenario,
+  "score-distributions": scoreDistributionsScenario,
   "scored-traces": scoredTracesScenario,
   "session-shapes": sessionShapesScenario,
   "session-threads": sessionThreadsScenario,

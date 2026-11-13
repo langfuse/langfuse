@@ -5,10 +5,17 @@
  */
 
 import type { RouterOutputs } from "@/src/utils/api";
+import { numberFormatter } from "@/src/utils/numbers";
 import {
   generateNumericHeatmapData,
   generateConfusionMatrixData,
 } from "@/src/features/score-analytics/lib/heatmap-utils";
+
+/** At most one decimal, without trailing zeros. Signed zero renders as 0. */
+export function formatDistributionDecimal(value: number): string {
+  const formatted = numberFormatter(value, 0, 1);
+  return formatted === "-0" ? "0" : formatted;
+}
 
 // Type aliases for cleaner code
 type ConfusionMatrixRow = {
@@ -267,18 +274,18 @@ export function transformHeatmapData(params: {
  * Generate bin labels for numeric scores
  *
  * Creates formatted bin labels for histogram display.
- * Adjusts precision based on range magnitude.
+ * Uses at most one decimal without trailing zeros.
  *
  * @param params - Configuration object
  * @param params.min - Minimum value in range
  * @param params.max - Maximum value in range
  * @param params.nBins - Number of bins (usually 10)
- * @returns Array of formatted bin labels (e.g., "[0.0, 0.1)", "[0.1, 0.2)")
+ * @returns Array of formatted bin labels (e.g., "0 - 0.1", "0.1 - 0.2")
  *
  * @example
  * ```typescript
  * const labels = generateBinLabels({ min: 0, max: 1, nBins: 4 });
- * // Returns: ['[0.0, 0.2)', '[0.2, 0.5)', '[0.5, 0.8)', '[0.8, 1.0)']
+ * // Returns: ['0 - 0.3', '0.3 - 0.5', '0.5 - 0.8', '0.8 - 1']
  * ```
  */
 export function generateBinLabels(params: {
@@ -292,31 +299,38 @@ export function generateBinLabels(params: {
   return Array.from({ length: nBins }, (_, i) => {
     const start = min + i * binWidth;
     const end = min + (i + 1) * binWidth;
-    return formatBinLabel(start, end);
+    return `${formatDistributionDecimal(start)} - ${formatDistributionDecimal(end)}`;
   });
 }
 
-/**
- * Format a bin label for display
- * Private helper function
- *
- * @param start - Start of the range
- * @param end - End of the range
- * @returns Formatted label string
- *
- * @internal
- */
-function formatBinLabel(start: number, end: number): string {
-  const range = Math.abs(end - start);
-  let precision: number;
+export function buildNumericDistributionChartData(params: {
+  distribution1: Array<{ binIndex: number; count: number }>;
+  distribution2?: Array<{ binIndex: number; count: number }>;
+  binLabels: string[];
+}): {
+  data: Array<{ key: string; values: Record<string, number> }>;
+  labelForKey: (key: string) => string;
+} {
+  const { distribution1, distribution2, binLabels } = params;
+  const comparison = distribution2 !== undefined;
+  const countByBin = new Map(
+    distribution2?.map((item) => [item.binIndex, item.count]),
+  );
+  const labelByKey = new Map<string, string>();
+  const data = [...distribution1]
+    .sort((left, right) => left.binIndex - right.binIndex)
+    .map((item) => {
+      const label = binLabels[item.binIndex] ?? `Bin ${item.binIndex}`;
+      // The chart key is the bin index. Rounded labels may repeat.
+      const key = `bin-${item.binIndex}`;
+      labelByKey.set(key, label);
+      const values: Record<string, number> = { score1: item.count };
+      if (comparison) values.score2 = countByBin.get(item.binIndex) ?? 0;
+      return { key, values };
+    });
 
-  if (range >= 1) {
-    precision = 1;
-  } else if (range >= 0.1) {
-    precision = 2;
-  } else {
-    precision = 3;
-  }
-
-  return `${start.toFixed(precision)} - ${end.toFixed(precision)}`;
+  return {
+    data,
+    labelForKey: (key) => labelByKey.get(key) ?? key,
+  };
 }
