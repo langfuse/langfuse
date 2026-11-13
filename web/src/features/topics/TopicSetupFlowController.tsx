@@ -25,7 +25,6 @@ import {
   type TopicSetupDraft,
   type TopicSetupQuestion,
 } from "./topic-setup-flow";
-import { suggestTopicRuleName } from "./topic-maps";
 
 export function TopicSetupFlowController({
   canWrite,
@@ -233,9 +232,7 @@ function TopicSetupSession({
       ),
       filter: draft.filter,
       traceIdleMs: draft.waitMinutes * 60_000,
-      ...(savedRuleId
-        ? { ruleId: savedRuleId }
-        : { name: suggestTopicRuleName(draft.filter) }),
+      ...(savedRuleId ? { ruleId: savedRuleId } : { name: "Default" }),
     });
     if (saved) setSavedRuleId(saved.id);
     return saved?.id ?? savedRuleId;

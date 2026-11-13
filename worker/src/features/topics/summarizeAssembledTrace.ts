@@ -76,6 +76,8 @@ type AssembledTraceInput = {
   facets: TopicFacet[];
   // Tags the attempt's metrics so retries are separable from first attempts.
   attempt?: "first" | "retry";
+  /** The snapshot that seeded the trace; stored on its summaries. */
+  executionId?: string;
 };
 
 export type TopicsFailedStage = "summary" | "embedding";
@@ -169,7 +171,10 @@ async function summarizeEnabledTrace(
       summaryModel: config.summaryModel!,
       embeddingModel,
       triggerType: "automatic",
-      metadata: { input: "topics-text" },
+      // A snapshot's summaries carry its ID, for its progress and cost.
+      metadata: input.executionId
+        ? { input: "topics-text", executionId: input.executionId }
+        : { input: "topics-text" },
     }),
   );
   const summarized = await summarizeTraceFacets({

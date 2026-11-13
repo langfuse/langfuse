@@ -4,6 +4,7 @@ import {
   TOPICS_ANALYSIS_MIN_TRACES,
   TOPICS_ANALYSIS_SAMPLING_SEED,
   TOPICS_SLICE_MAX_TRACES,
+  type TopicSnapshotSummarize,
   type TopicAnalysisConfig,
   type TopicExecutionSummary,
   type TopicFacetRef,
@@ -14,6 +15,7 @@ import {
   countTopicCohortTraces,
   createTopicExecution,
   enqueueTopicExecution,
+  enqueueTopicSnapshotSetup,
   getTopicRuleRefits,
   getTopicSummaryCounts,
   getTopicsModels,
@@ -22,6 +24,7 @@ import {
   readTopicExecutionSummary,
   topicAnalysisCohort,
 } from "@langfuse/shared/topics/server";
+import { countUnsummarizedTopicTraces } from "./traceSelection";
 
 type Filter = TopicRule["filter"];
 type AnalysisExecution = TopicExecutionSummary & {
@@ -101,7 +104,7 @@ export async function previewTopicAnalysis(input: {
     }),
     embeddingConfig(input.projectId),
   ]);
-  const [matchedTraceCount, counts] = await Promise.all([
+  const [matchedTraceCount, counts, unsummarizedCount] = await Promise.all([
     countTopicCohortTraces(input.projectId, cohort.traces),
     getTopicSummaryCounts(
       input.projectId,
@@ -110,10 +113,12 @@ export async function previewTopicAnalysis(input: {
       input.timeRange,
       cohort,
     ),
+    countUnsummarizedTopicTraces({ ...input, embeddingConfig: config }),
   ]);
   const summarizedCount = Math.min(...counts.map(({ count }) => count));
   return {
     matchedTraceCount,
+    unsummarizedCount,
     capped: summarizedCount >= TOPICS_SLICE_MAX_TRACES,
     summarized: counts,
     summarizedCount,
@@ -122,7 +127,10 @@ export async function previewTopicAnalysis(input: {
   };
 }
 
-/** Starts a one-off clustering run over a summarized slice. */
+/**
+ * Starts a snapshot: a one-off clustering run over a summarized slice. With
+ * `summarize`, its controller first summarizes up to that many more traces.
+ */
 export async function startTopicAnalysis(
   input: {
     projectId: string;
@@ -130,14 +138,19 @@ export async function startTopicAnalysis(
     filter: Filter;
     timeRange: TopicTimeRange;
     facets: TopicFacetRef[];
+    summarize?: TopicSnapshotSummarize;
   },
   userId: string,
 ) {
   const preview = await previewTopicAnalysis(input);
-  if (!preview.ready)
+  const extra = input.summarize
+    ? Math.min(input.summarize.limit, preview.unsummarizedCount)
+    : 0;
+  if (preview.summarizedCount + extra < TOPICS_ANALYSIS_MIN_TRACES)
     throw new InvalidRequestError(
-      `A scan needs at least ${TOPICS_ANALYSIS_MIN_TRACES} summarized traces in this slice.`,
+      `A snapshot needs at least ${TOPICS_ANALYSIS_MIN_TRACES} summarized traces in this slice.`,
     );
+  const summarize = extra > 0 ? input.summarize : undefined;
   const requestId = randomUUID();
   const execution = await createTopicExecution(
     {
@@ -152,12 +165,15 @@ export async function startTopicAnalysis(
         label: input.label,
         filter: input.filter,
         seed: TOPICS_ANALYSIS_SAMPLING_SEED,
+        ...(summarize ? { summarize } : {}),
       },
     },
     createHash("sha256").update(requestId).digest("hex"),
     userId,
   );
   if (execution.status === "queued")
-    await enqueueTopicExecution(input.projectId, execution.id);
+    await (summarize
+      ? enqueueTopicSnapshotSetup(input.projectId, execution.id)
+      : enqueueTopicExecution(input.projectId, execution.id));
   return { id: execution.id };
 }

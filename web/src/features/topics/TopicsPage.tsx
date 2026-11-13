@@ -44,7 +44,11 @@ import { AutomaticProcessingDialogController } from "./AutomaticProcessingDialog
 import { ConfigureTopicsDialogController } from "./ConfigureTopicsDialogController";
 import { TopicSetupFlowController } from "./TopicSetupFlowController";
 import { TopicSetupNotice } from "./TopicSetupNotice";
-import { topicRuleSetupProgress, topicSetupStage } from "./topic-setup-flow";
+import {
+  topicRuleSetupProgress,
+  topicSetupStage,
+  type TopicSetupStage,
+} from "./topic-setup-flow";
 import { TopicSetupProgressView } from "./TopicSetupProgressView";
 import { CurrentTopics, useCurrentTopics } from "./CurrentTopics";
 import { TopicsActionsMenu } from "./TopicsActionsMenu";
@@ -458,15 +462,15 @@ function TopicsWorkspaceContent({
     openAutomaticProcessing(true);
   }
 
+  const mapLimitReason =
+    (maps.data?.rules.length ?? 0) >= TOPICS_MAX_RULES
+      ? `A project can have at most ${TOPICS_MAX_RULES} maps.`
+      : undefined;
   const workspace = (
     <TopicSliceDialogController
       projectId={projectId}
       facets={facets.data ?? []}
-      liveDisabledReason={
-        (maps.data?.rules.length ?? 0) >= TOPICS_MAX_RULES
-          ? `A project can have at most ${TOPICS_MAX_RULES} live scans.`
-          : undefined
-      }
+      mapDisabledReason={mapLimitReason}
       onAnalysisStarted={(executionId) =>
         selectMap({ kind: "analysis", id: executionId })
       }
@@ -601,7 +605,9 @@ function TopicsWorkspaceContent({
                 canWrite && selectedRule && !showOnboarding
                   ? () => openSliceDialog({ kind: "rule", rule: selectedRule })
                   : undefined,
-              onNewAnalysis: () => openSliceDialog({ kind: "analysis" }),
+              onNewMap: () => openSliceDialog({ kind: "map" }),
+              onNewSnapshot: () => openSliceDialog({ kind: "snapshot" }),
+              mapDisabledReason: mapLimitReason,
               showUnassigned,
               onShowUnassignedChange: setShowUnassigned,
             });
@@ -615,7 +621,10 @@ function TopicsWorkspaceContent({
                   onSelect={selectMap}
                   usePreviewTopics={usePreviewTopics}
                   processingOn={automaticProcessing.state.status === "on"}
-                  newScan={actions.newScan}
+                  create={{
+                    map: actions.newMap,
+                    snapshot: actions.newSnapshot,
+                  }}
                 />
               ) : null;
             return (
@@ -779,7 +788,24 @@ function TopicsWorkspaceContent({
                       {showBuilding && selectedRule ? (
                         <TopicRuleBuildingState rule={selectedRule} />
                       ) : null}
-                      {analysisState && analysisId ? (
+                      {analysisState &&
+                      analysisId &&
+                      analysisResults.data &&
+                      busy(analysisState.status) ? (
+                        <TopicSetupProgressView
+                          variant="snapshot"
+                          {...snapshotProgress(
+                            analysisResults.data.execution,
+                            facets.data ?? [],
+                          )}
+                          retrying={false}
+                          canRetry={false}
+                          onViewDetails={() => openExecution(analysisId)}
+                        />
+                      ) : null}
+                      {analysisState &&
+                      analysisId &&
+                      !busy(analysisState.status) ? (
                         <TopicAnalysisState
                           status={analysisState.status}
                           outcome={analysisState.outcome}
@@ -913,8 +939,44 @@ function ExecutionPanel({
 }
 
 function startBlockedReason(running: boolean, automaticOn: boolean) {
-  if (running) return "Scan is running. Topics appear here when it finishes.";
+  if (running)
+    return "Snapshot is running. Topics appear here when it finishes.";
   if (automaticOn)
     return "Automatic processing is on. Topics appear here as traces are summarized.";
   return null;
+}
+
+/** A busy snapshot's stage and per-facet counts for the progress view. */
+function snapshotProgress(
+  execution: {
+    phase: string;
+    progress: {
+      facetId: string;
+      outcome: string;
+      requested: number;
+      complete: number;
+    }[];
+  },
+  facets: { id: string; name: string }[],
+) {
+  const stages: Record<string, TopicSetupStage> = {
+    summarizing: "summarizing",
+    naming: "naming",
+  };
+  const stage = stages[execution.phase] ?? "grouping";
+  return {
+    stage,
+    facets: execution.progress.map((facet) => ({
+      key: facet.facetId,
+      name:
+        facets.find(({ id }) => id === facet.facetId)?.name ?? facet.facetId,
+      complete: facet.complete,
+      requested: facet.requested,
+    })),
+    fits: {
+      done: execution.progress.filter((facet) => facet.outcome !== "pending")
+        .length,
+      total: execution.progress.length,
+    },
+  };
 }

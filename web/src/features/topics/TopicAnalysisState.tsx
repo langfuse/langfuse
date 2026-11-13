@@ -4,7 +4,7 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { TopicsCenteredState } from "./TopicsCenteredState";
 import { busy } from "./topic-run-labels";
 
-/** A one-off scan's question that has no topics yet, or won't get any. */
+/** A snapshot's question that has no topics yet, or won't get any. */
 export function TopicAnalysisState({
   status,
   outcome,
@@ -12,7 +12,7 @@ export function TopicAnalysisState({
   onViewRun,
 }: {
   status: TopicExecutionStatus;
-  /** The question's outcome in this scan, once the run has reached it. */
+  /** The question's outcome in this snapshot, once the run has reached it. */
   outcome?: string | null;
   traceCount: number;
   onViewRun: () => void;
@@ -39,14 +39,14 @@ function analysisState(
   if (outcome === "insufficient_data")
     return {
       icon,
-      title: "Not enough traces in this scan",
-      body: "This question had too few summarized traces to group. Start a new scan with a wider filter or time range.",
+      title: "Not enough traces in this snapshot",
+      body: "This question had too few summarized traces to group. Create a new snapshot with a wider filter or time range.",
     };
   if (outcome === "no_applicable_summaries")
     return {
       icon,
       title: "Nothing to group for this question",
-      body: "None of the scanned traces applied to this question.",
+      body: "None of the traces in this snapshot applied to this question.",
     };
   if (outcome === "no_topics")
     return {
@@ -57,8 +57,8 @@ function analysisState(
   if (outcome === "failed" || status === "failed")
     return {
       icon: <CircleAlert size="lg" color="destructive" aria-hidden />,
-      title: "This scan failed",
-      body: "Open the run for details, or start a new scan.",
+      title: "This snapshot failed",
+      body: "Open the run for details, or create a new snapshot.",
     };
   if (busy(status))
     return {
@@ -70,11 +70,11 @@ function analysisState(
       body:
         status === "queued"
           ? "The scan is queued. Topics appear here when it finishes."
-          : "Topics appear here when the scan finishes.",
+          : "Topics appear here when the snapshot finishes.",
     };
   return {
     icon,
-    title: "No topics in this scan",
+    title: "No topics in this snapshot",
     body: "Open the run for details.",
   };
 }

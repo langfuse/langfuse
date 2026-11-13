@@ -18,6 +18,7 @@ import {
   topicsModelSettingsSchema,
   topicsSetupSchema,
   topicRuleFilterError,
+  topicSnapshotSummarizeSchema,
   type TopicExecutionSummary,
   type TopicFacetRef,
 } from "@langfuse/shared/topics";
@@ -417,10 +418,11 @@ export const topicsRouter = createTRPCRouter({
     .input(
       analysisFilterInput.extend({
         label: z.string().trim().min(1).max(100),
+        summarize: topicSnapshotSummarizeSchema.optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      // One-off scans accept only filters a live scan could save.
+      // Snapshots accept only filters a map could save.
       const filterError = topicRuleFilterError(input.filter);
       if (filterError) throw new InvalidRequestError(filterError);
       await requireFacetVersions(input.projectId, input.facets);
@@ -747,7 +749,7 @@ export const topicsRouter = createTRPCRouter({
           "Process past traces with a trace filter instead of a rule.",
         );
       if (input.operation === "update" && input.analysis)
-        throw new InvalidRequestError("Start scans with New scan.");
+        throw new InvalidRequestError("Create snapshots with New snapshot.");
       await requireFacetVersions(input.projectId, input.facets);
       const resolvedInput = await resolveTopicTraceSelection(input, ctx.prisma);
       const configuredInput = topicExecutionInputSchema.parse({

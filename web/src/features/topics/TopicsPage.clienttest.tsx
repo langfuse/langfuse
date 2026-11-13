@@ -526,19 +526,20 @@ it.each([
   },
 );
 
-it("puts New scan first in the menu with the scan actions", async () => {
+it("puts New map and New snapshot first in the menu", async () => {
   withSummaries();
   render(<TopicsPage />, { wrapper: LayerProvider });
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   const items = await screen.findAllByRole("menuitem");
   expect(items.map((item) => item.textContent)).toEqual([
-    "New scan",
+    "New map",
+    "New snapshot",
     "History",
     "Settings",
   ]);
 });
 
-it("shows Edit scan as a header button for a selected live scan", async () => {
+it("shows Edit map as a header button for a selected map", async () => {
   withSummaries();
   state.maps = {
     rules: [
@@ -557,10 +558,10 @@ it("shows Edit scan as a header button for a selected live scan", async () => {
     analyses: [],
   };
   render(<TopicsPage />, { wrapper: LayerProvider });
-  expect(screen.getByRole("button", { name: "Edit scan" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Edit map" })).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   const items = await screen.findAllByRole("menuitem");
-  expect(items.map((item) => item.textContent)).not.toContain("Edit scan");
+  expect(items.map((item) => item.textContent)).not.toContain("Edit map");
 });
 
 it.each([

@@ -9,6 +9,7 @@ import {
 import {
   getEnabledTopicsModels,
   isTopicsProjectEnabled,
+  readTopicExecutionSummary,
   isValidTopicSummary,
   listTopicFacets,
   listTopicRules,
@@ -93,13 +94,28 @@ function matchedRules(
   return settings.rules.filter((rule) => ruleIds.has(rule.id));
 }
 
-/** Facets the matched rules select, in listing order; a retry restricts them to its unfinished facets. */
+/** Facets a snapshot selected, or null when it no longer summarizes. */
+async function snapshotFacetIds(
+  projectId: string,
+  executionId: string,
+): Promise<string[] | null> {
+  const execution = await readTopicExecutionSummary(projectId, executionId);
+  if (execution?.input.operation !== "update" || execution.status === "failed")
+    return null;
+  return execution.input.facets.map(({ facetId }) => facetId);
+}
+
+/** Facets the matched rules or the snapshot select, in listing order; a retry restricts them to its unfinished facets. */
 function selectFacets(
   event: TopicsTraceEventType,
   rules: TopicRule[],
   settings: ProjectSettings,
+  snapshotFacets: string[] = [],
 ): TopicFacet[] {
-  const selected = new Set(rules.flatMap((rule) => rule.facetIds));
+  const selected = new Set([
+    ...rules.flatMap((rule) => rule.facetIds),
+    ...snapshotFacets,
+  ]);
   const pending = event.facetIds && new Set(event.facetIds);
   return settings.facets.filter(
     (facet) =>
@@ -232,7 +248,11 @@ async function processEvent(
   const models = settings.models;
   if (!models) return { outcome: "disabled" };
   const rules = matchedRules(event, settings);
-  const facets = selectFacets(event, rules, settings);
+  const snapshotFacets = event.batchActionId
+    ? await snapshotFacetIds(projectId, event.batchActionId)
+    : [];
+  if (snapshotFacets === null) return { outcome: "stale" };
+  const facets = selectFacets(event, rules, settings, snapshotFacets);
   if (facets.length === 0) return { outcome: "stale" };
 
   const inputs = await readInputs(event);
@@ -253,6 +273,7 @@ async function processEvent(
       models,
       facets,
       attempt: deps.attempt ? "retry" : "first",
+      executionId: event.batchActionId,
     });
     if (result.outcome === "disabled") return { outcome: "disabled" };
     rows = result.rows;

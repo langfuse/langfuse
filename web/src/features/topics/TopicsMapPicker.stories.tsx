@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
 import { TopicsMapPicker, type UsePreviewTopics } from "./TopicsMapPicker";
@@ -35,6 +35,13 @@ const condition = (column: string, value: string) => ({
 const overview: TopicMapsOverview = {
   rules: [
     rule({}),
+    // Listed before active maps, so the picker's sort is visible.
+    rule({
+      id: "rule-legacy",
+      name: "Legacy RAG",
+      filter: [condition("traceName", "rag-v1")],
+      enabled: false,
+    }),
     rule({
       id: "rule-support",
       name: "Support agent",
@@ -51,12 +58,6 @@ const overview: TopicMapsOverview = {
       filter: [condition("traceName", "checkout-assistant")],
       sampling: 0.5,
       lastRefitAt: null,
-    }),
-    rule({
-      id: "rule-legacy",
-      name: "Legacy RAG",
-      filter: [condition("traceName", "rag-v1")],
-      enabled: false,
     }),
   ],
   analyses: [
@@ -136,6 +137,10 @@ function MapSwitcher({ initial }: { initial: TopicMapSelection }) {
           onSelect={setSelection}
           usePreviewTopics={useStoryPreviewTopics}
           processingOn
+          create={{
+            map: { onSelect: fn() },
+            snapshot: { onSelect: fn() },
+          }}
         />
       </div>
       {selectedRule ? (
@@ -196,14 +201,14 @@ const openPicker = async (canvasElement: HTMLElement) => {
 };
 
 export const TestSwitchesMaps = meta.story({
-  name: "(Test) Switches between live and past scans",
+  name: "(Test) Switches between maps and snapshots",
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     let picker = await openPicker(canvasElement);
     await expect(
       picker.getByRole("button", { name: /Support agent/ }),
     ).toBeVisible();
-    await expect(picker.getByText("Past scans")).toBeVisible();
+    await expect(picker.getByText("Snapshots")).toBeVisible();
     await userEvent.click(
       picker.getByRole("button", { name: /Refund complaints/ }),
     );
@@ -219,5 +224,25 @@ export const TestSwitchesMaps = meta.story({
     await expect(
       canvas.getByRole("heading", { name: "Building first topics" }),
     ).toBeVisible();
+  },
+});
+
+export const TestPausedLast = meta.story({
+  name: "(Test) Paused maps sort below active ones",
+  play: async ({ canvasElement }) => {
+    const picker = await openPicker(canvasElement);
+    const names = picker
+      .getAllByRole("button")
+      .map((button) => button.textContent ?? "")
+      .filter((text) =>
+        [
+          "All traces",
+          "Support agent",
+          "Checkout assistant",
+          "Legacy RAG",
+        ].some((name) => text.startsWith(name)),
+      )
+      .map((text) => text.split(/\d| ·/)[0]!.trim());
+    await expect(names.at(-1)).toMatch(/^Legacy RAG/);
   },
 });

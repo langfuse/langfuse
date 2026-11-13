@@ -38,6 +38,7 @@ export function TopicSetupProgressView({
   retrying,
   stage,
   waiting = false,
+  variant = "setup",
 }: TopicSetupProgressViewProps) {
   const failed = stage === "failed";
   const animate = !failed && !waiting;
@@ -55,7 +56,10 @@ export function TopicSetupProgressView({
   const processed = counted.processed;
   const percent =
     counted.requested === 0 ? 0 : (processed / counted.requested) * 100;
-  const copy = progressCopy(failed, waiting);
+  const copy =
+    variant === "snapshot"
+      ? snapshotCopy(failed)
+      : progressCopy(failed, waiting);
   const piles: TopicPile[] = PILE_SLOTS.map((pile, index) => ({
     ...pile,
     detail: "",
@@ -69,7 +73,9 @@ export function TopicSetupProgressView({
           {copy.title}
         </h2>
         <p className="text-muted-foreground text-sm text-pretty">
-          {failed && !canRetry ? NO_RETRY_DETAIL : copy.detail}
+          {failed && !canRetry && variant === "setup"
+            ? NO_RETRY_DETAIL
+            : copy.detail}
         </p>
         {copy.note && (
           <p className="text-muted-foreground text-sm">{copy.note}</p>
@@ -143,7 +149,7 @@ function pileFill(slots: number, pileIndex: number, tick: number) {
   );
 }
 
-const NO_RETRY_DETAIL = "Topics could not start. Start a new scan instead.";
+const NO_RETRY_DETAIL = "Topics could not start. Create a new map instead.";
 
 function progressCopy(
   failed: boolean,
@@ -168,7 +174,27 @@ function progressCopy(
   };
 }
 
+function snapshotCopy(failed: boolean): {
+  title: string;
+  detail: string;
+  note?: string;
+} {
+  if (failed)
+    return {
+      title: "The snapshot did not finish",
+      detail: "Open the run for details, or create a new snapshot.",
+    };
+  return {
+    title: "Building your snapshot",
+    detail:
+      "Runs in the background, so your topics will be here when you're back.",
+    note: "Usually takes 5–10 minutes with summarizing, 1–2 without.",
+  };
+}
+
 type TopicSetupProgressViewProps = {
+  /** Setup builds a map's first topics; a snapshot is built once. */
+  variant?: "setup" | "snapshot";
   facets: TopicSetupProgressFacet[];
   /** Fits finished while topics are built; without it the bar stays full. */
   fits?: { done: number; total: number };

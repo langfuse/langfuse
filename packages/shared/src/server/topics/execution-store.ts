@@ -26,6 +26,20 @@ type BatchMetadata = {
   inputHash: string;
   requestHash: string;
   progressVersion?: number;
+  /** A snapshot's traces seeded for summarizing, kept until its fit starts. */
+  summarizing?: TopicSnapshotSummarizing;
+};
+/** Seeded traces and the settle clock of a snapshot that summarizes before it groups. */
+export type TopicSnapshotSummarizing = {
+  startedAt: string;
+  /** Earliest first event of a seeded trace; summary counts start here. */
+  from: string;
+  traceIds: string[];
+  /** When the settled count last grew; null before the first summary. */
+  grewAt: string | null;
+  settled: number;
+  /** Consecutive failed ticks; the snapshot fails after a few. */
+  failedTicks: number;
 };
 type BatchRow = Prisma.BatchActionGetPayload<object>;
 const statuses = {
@@ -259,7 +273,11 @@ export async function createTopicExecution(
                 }
               : inputSettings,
           facets,
-          phase: "queued",
+          // A snapshot that summarizes first waits for its controller, not the update queue.
+          phase:
+            input.operation === "update" && input.analysis?.summarize
+              ? "summarizing"
+              : "queued",
           inputHash: hash(input),
           requestHash,
         } satisfies BatchMetadata),
@@ -384,6 +402,36 @@ export async function writeTopicExecution(
         failedCount,
         finishedAt: terminal ? (current.finishedAt ?? new Date()) : null,
         log: execution.error,
+      },
+    });
+  });
+}
+
+export async function readTopicSnapshotSummarizing(
+  projectId: string,
+  executionId: string,
+): Promise<TopicSnapshotSummarizing | null> {
+  const row = await storedExecution(projectId, executionId);
+  return row ? (batchMetadata(row).summarizing ?? null) : null;
+}
+
+/** Saves a snapshot's seeded traces and settle clock beside its progress. */
+export async function writeTopicSnapshotSummarizing(
+  projectId: string,
+  executionId: string,
+  summarizing: TopicSnapshotSummarizing,
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    await lockExecution(tx, projectId, executionId);
+    const current = await storedExecution(projectId, executionId, tx);
+    if (!current) throw new Error("Topics execution does not exist.");
+    await tx.batchAction.update({
+      where: { projectId, id: executionId },
+      data: {
+        config: json({
+          ...batchMetadata(current),
+          summarizing,
+        } satisfies BatchMetadata),
       },
     });
   });
