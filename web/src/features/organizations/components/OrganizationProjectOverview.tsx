@@ -1,3 +1,5 @@
+import { GatewayLaunchBanner } from "@/src/features/ai-gateway/components/GatewayLaunch/GatewayLaunchBanner";
+import { AgentToolsBanner } from "@/src/features/developer-tools/components/AgentToolsBanner";
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   LockIcon,
@@ -17,10 +19,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { StringParam, useQueryParams } from "use-query-params";
-import {
-  hasOrganizationAccess,
-  useHasOrganizationAccess,
-} from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { env } from "@/src/env.mjs";
 import { type ReactNode } from "react";
 import { useRouter } from "next/router";
@@ -28,7 +27,6 @@ import { useSession } from "next-auth/react";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { type Session } from "next-auth";
-import { AgentToolsBanner } from "@/src/features/developer-tools/components/AgentToolsBanner";
 import { V4MigrationProjectChip } from "@/src/features/v4-migration/V4MigrationProjectChip";
 import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
@@ -36,13 +34,11 @@ import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeU
 import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
 import { ErrorPage } from "@/src/components/error-page";
-import { GatewayLaunchBanner } from "@/src/features/ai-gateway/components/GatewayLaunch/GatewayLaunchBanner";
-import { useGatewayLaunchTarget } from "@/src/features/ai-gateway/hooks/useGatewayLaunchEligibility";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
-import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 import { gatewayOnlyLanding } from "@/src/features/organizations/utils/gatewayOnlyLanding";
 import { OrganizationSettingsTile } from "@/src/features/organizations/components/OrganizationSettingsTile/OrganizationSettingsTile";
 import { useGatewayMemberStatus } from "@/src/features/organizations/hooks/useGatewayMemberStatus";
+import { useOrganizationOverviewBanner } from "@/src/features/projects-overview/hooks/useOrganizationOverviewBanner";
 import { DemoOrganizationTile } from "@/src/features/organizations/components/DemoOrganizationTile";
 
 const lastTraceLabel = (lastTraceAt: Date | string | null | undefined) =>
@@ -314,36 +310,11 @@ export const OrganizationProjectOverview = () => {
   const router = useRouter();
   const queryOrgId = router.query.organizationId;
   const session = useSession();
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
   const organizations = session.data?.user?.organizations;
   const [{ search }] = useQueryParams({ search: StringParam });
   const landing = gatewayOnlyLanding(session.data, queryOrgId);
   const org = organizations?.find((item) => item.id === queryOrgId);
-  const gatewayLaunchCandidates =
-    org &&
-    org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID &&
-    getContextualFeatureFlags(session.data?.user, {
-      organizationId: org.id,
-    })?.aiGateway === true &&
-    hasOrganizationAccess({
-      session: session.data,
-      organizationId: org.id,
-      scope: "gateway:invoke",
-    })
-      ? [
-          {
-            organizationId: org.id,
-            organizationName: org.name,
-            canManage: hasOrganizationAccess({
-              session: session.data,
-              organizationId: org.id,
-              scope: "gateway:manage",
-            }),
-          },
-        ]
-      : [];
-  const gatewayLaunchTarget = useGatewayLaunchTarget(gatewayLaunchCandidates);
-  const userId = session.data?.user?.id;
+  const banner = useOrganizationOverviewBanner(org?.id ?? null);
 
   if (landing && !landing.canUseGateway) {
     return (
@@ -371,27 +342,19 @@ export const OrganizationProjectOverview = () => {
     <SingleOrganizationPage
       org={org}
       search={search ?? undefined}
-      banner={pageBanner({
-        v4UpgradeUiEnabled,
-        gatewayBanner:
-          gatewayLaunchTarget && userId ? (
-            <GatewayLaunchBanner target={gatewayLaunchTarget} userId={userId} />
-          ) : null,
-      })}
+      banner={
+        <>
+          {banner.kind === "gateway" ? (
+            <GatewayLaunchBanner
+              target={banner.target}
+              userId={banner.userId}
+            />
+          ) : null}
+          {banner.kind === "agent-tools" ? <AgentToolsBanner /> : null}
+        </>
+      }
     />
   );
-};
-
-/** One banner at a time: the gateway launch, else the agent-tools pitch. */
-const pageBanner = ({
-  v4UpgradeUiEnabled,
-  gatewayBanner,
-}: {
-  v4UpgradeUiEnabled: boolean;
-  gatewayBanner: ReactNode;
-}): ReactNode => {
-  if (gatewayBanner) return gatewayBanner;
-  return v4UpgradeUiEnabled ? null : <AgentToolsBanner />;
 };
 
 type Organization = NonNullable<Session["user"]>["organizations"][number];

@@ -1,0 +1,213 @@
+.surface,
+.gutter {
+  --sidebar-expanded-width: 14rem;
+  --sidebar-motion-duration: 360ms;
+  --sidebar-motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --sidebar-label-duration: 160ms;
+  --sidebar-label-delay: 0ms;
+  --sidebar-label-opacity: 0;
+  --sidebar-label-offset: -6px;
+  inline-size: 3.5rem;
+  transition: inline-size var(--sidebar-motion-duration)
+    var(--sidebar-motion-ease);
+}
+
+.surface {
+  overflow: visible;
+}
+
+.gutter {
+  flex: 0 0 auto;
+  pointer-events: none;
+}
+
+.surface[data-sidebar-mode="expanded"],
+.gutter[data-sidebar-mode="expanded"] {
+  --sidebar-label-delay: 90ms;
+  --sidebar-label-opacity: 1;
+  --sidebar-label-offset: 0px;
+  inline-size: var(--sidebar-expanded-width);
+}
+
+.surface[data-sidebar-mode="mobile"] {
+  --sidebar-presence-duration: 260ms;
+  --sidebar-motion-duration: 0ms;
+  --sidebar-label-duration: 0ms;
+  --sidebar-label-delay: 0ms;
+  --sidebar-label-opacity: 1;
+  --sidebar-label-offset: 0px;
+  inline-size: 100%;
+  border-inline-end-width: 0;
+  opacity: 1;
+  translate: 0;
+  visibility: visible;
+  transition:
+    translate var(--sidebar-presence-duration) var(--sidebar-motion-ease),
+    opacity var(--sidebar-presence-duration) ease,
+    visibility 0s;
+}
+
+.surface[data-sidebar-mode="mobile"][data-mobile-open="false"] {
+  opacity: 0;
+  pointer-events: none;
+  translate: -24px 0;
+  visibility: hidden;
+  transition-delay: 0s, 0s, var(--sidebar-presence-duration);
+}
+
+.gutter[data-sidebar-mode="mobile"] {
+  inline-size: 0;
+  transition-duration: 0ms;
+}
+
+.label {
+  opacity: var(--sidebar-label-opacity, 1);
+  transform: translateX(var(--sidebar-label-offset, 0px));
+  transition:
+    opacity var(--sidebar-label-duration, 0ms) ease
+      var(--sidebar-label-delay, 0ms),
+    transform var(--sidebar-motion-duration, 0ms)
+      var(--sidebar-motion-ease, ease);
+}
+
+.brand {
+  display: flex;
+  min-inline-size: 0;
+  flex: 1;
+  align-items: center;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.brandLink {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  padding-inline: 0.5rem;
+}
+
+.control {
+  display: flex;
+  flex: 0 0 2.5rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.workspace,
+.account,
+.version {
+  display: flex;
+  inline-size: 100%;
+  min-inline-size: 0;
+  align-items: center;
+  overflow: hidden;
+  border-radius: 0.375rem;
+  text-align: start;
+}
+
+.workspace,
+.account {
+  block-size: 2.75rem;
+}
+
+.workspace {
+  box-shadow: inset 0 0 0 1px
+    hsl(var(--sidebar-border) / var(--sidebar-label-opacity, 1));
+  transition: box-shadow var(--sidebar-motion-duration, 0ms)
+    var(--sidebar-motion-ease, ease);
+}
+
+.version {
+  block-size: 2.25rem;
+}
+
+.iconLane {
+  position: relative;
+  display: flex;
+  flex: 0 0 2.5rem;
+  block-size: 100%;
+  align-items: center;
+  justify-content: center;
+}
+
+.identity {
+  display: flex;
+  inline-size: calc(var(--sidebar-expanded-width, 14rem) - 5rem);
+  min-inline-size: 0;
+  flex-shrink: 0;
+  flex-direction: column;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.surface[data-sidebar-mode="mobile"] .identity {
+  inline-size: auto;
+  flex: 1;
+}
+
+.statusDot {
+  position: absolute;
+  inset-block-start: 0.5rem;
+  inset-inline-end: 0.375rem;
+}
+
+.chevron {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  padding-inline: 0.25rem;
+}
+
+.groupHeading {
+  position: relative;
+  block-size: 1.75rem;
+  overflow: hidden;
+}
+
+.groupHeading::before {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline: 0.5rem;
+  border-block-start: 1px solid hsl(var(--border));
+  content: "";
+  opacity: calc(1 - var(--sidebar-label-opacity, 1));
+  transition: opacity var(--sidebar-label-duration, 0ms) ease;
+}
+
+.groupCaption {
+  display: flex;
+  block-size: 100%;
+  align-items: center;
+  gap: 0.5rem;
+  padding-inline: 0.5rem;
+  white-space: nowrap;
+}
+
+.expandedSection {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+.expandedSection[data-collapsed="true"] {
+  grid-template-rows: 0fr;
+}
+
+.expandedSection {
+  transition: grid-template-rows var(--sidebar-motion-duration, 0ms)
+    var(--sidebar-motion-ease, ease);
+}
+
+.sectionContent {
+  min-block-size: 0;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .surface[data-sidebar-mode],
+  .gutter[data-sidebar-mode] {
+    --sidebar-motion-duration: 0ms;
+    --sidebar-label-duration: 0ms;
+    --sidebar-label-delay: 0ms;
+    --sidebar-presence-duration: 0ms;
+  }
+}

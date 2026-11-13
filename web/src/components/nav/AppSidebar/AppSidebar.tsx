@@ -62,7 +62,10 @@ import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownM
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
 import { assertUnreachable } from "@/src/utils/types";
 import { nextCompactPlanBadge } from "./compactPlanBadge";
-import { SIDEBAR_NOTIFICATIONS, type SidebarNotification } from "./utils";
+import {
+  SIDEBAR_NOTIFICATIONS,
+  type SidebarNotification,
+} from "@/src/components/nav/sidebarNotificationDefinitions";
 import { useOrgProjectSwitchPaths } from "@/src/features/projects/hooks";
 import {
   APP_SHELL_CHROME_ROW_CLASS,
@@ -182,7 +185,7 @@ type AppSidebarProps = {
   canCreateProjects: boolean;
 };
 
-export function AppSidebar({
+function AppSidebarRoot({
   navItems,
   secondaryNavItems,
   user,
@@ -299,6 +302,10 @@ export function AppSidebar({
     </Sidebar>
   );
 }
+
+export const AppSidebar = Object.assign(AppSidebarRoot, {
+  OrganizationSwitcher: SidebarOrganizationSwitcher,
+});
 
 /** Plans whose badge has a shorter form for when the full one would truncate the org name. */
 const SHORT_PLAN_LABELS: Partial<Record<Plan, string>> = {
@@ -753,7 +760,7 @@ const DemoBadge = () => {
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip="Your Langfuse organizations">
-              <Link href="/">
+              <Link href="/organizations">
                 <Grid2X2 size="base" />
                 <span>Your Langfuse orgs</span>
               </Link>

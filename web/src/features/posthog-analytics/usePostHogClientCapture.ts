@@ -483,6 +483,17 @@ const events = {
     "agent_setup_instructions_copied",
   ],
   cmd_k_menu: ["opened", "search_entered", "navigated"],
+  // New app shell preview. Answers whether people keep the sidebar pinned or
+  // rely on the hover overlay, how they reach the workspace switcher
+  // (`source`), what they pick in it (`kind`, `section`, `hasQuery`), and
+  // whether they switch back to the classic shell (`variant`).
+  app_shell: [
+    "sidebar_pin_toggled",
+    "sidebar_expansion_toggled",
+    "workspace_switcher_opened",
+    "workspace_switcher_selected",
+    "variant_switched",
+  ],
   spend_alert: ["created", "updated", "deleted"],
   // Launch surfaces answer "which entry point and state lead people into
   // gateway setup or key creation?" Props are state enums and counts only.

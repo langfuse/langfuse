@@ -1,12 +1,7 @@
-/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @repo/component-file-structure */
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Label } from "@/src/components/ui/label";
-import { SidebarMenuButton } from "@/src/components/ui/sidebar";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { SidebarNavItem } from "@/src/components/nav/SidebarNavItem";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useV4PreviewToggle } from "@/src/features/events/hooks/useV4PreviewToggle";
 import { V4IntroDialog } from "@/src/features/events/components/V4IntroDialog";
@@ -19,7 +14,9 @@ import {
   V4_PREVIEW_DESCRIPTION,
 } from "@/src/features/events/lib/v4PreviewLabel";
 
-export function V4SidebarToggle() {
+export function V4SidebarToggle({ isCollapsed }: { isCollapsed: boolean }) {
+  const toggleId = useId();
+  const descriptionId = useId();
   const { canToggleV4 } = useReadPath();
   // A locked toggle is only shown in the sidebar for one-way recovery.
   const label = canToggleV4 ? V4_PREVIEW_LABEL : "Enable V4";
@@ -41,46 +38,21 @@ export function V4SidebarToggle() {
 
   return (
     <>
-      <SidebarMenuButton
-        asChild
-        className="justify-between gap-1.5 group-data-[collapsible=icon]:justify-center"
-      >
-        <div>
-          <div className="flex min-w-0 flex-1 items-center gap-2 group-data-[collapsible=icon]:hidden">
-            <ZapIcon size="base" />
-            <Label
-              htmlFor="v4-beta-toggle"
-              className="block min-w-0 flex-1 cursor-pointer truncate text-sm font-normal"
-              title={label}
-            >
-              {label}
-            </Label>
-          </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex shrink-0">
-                <Switch
-                  id="v4-beta-toggle"
-                  size="sm"
-                  checked={isChecked}
-                  onCheckedChange={handleSidebarToggle}
-                  disabled={isLoading}
-                  aria-label={
-                    canToggleV4 ? `Toggle ${V4_PREVIEW_LABEL}` : "Enable V4"
-                  }
-                  aria-describedby="v4-preview-sidebar-description"
-                />
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="right" className="max-w-xs text-xs">
-              {description}
-            </TooltipContent>
-          </Tooltip>
-          <span id="v4-preview-sidebar-description" className="sr-only">
-            {description}
-          </span>
-        </div>
-      </SidebarMenuButton>
+      <SidebarNavItem.Button
+        id={toggleId}
+        isCollapsed={isCollapsed}
+        leading={<ZapIcon size="base" />}
+        label={label}
+        trailing={<span className="text-xs">{isChecked ? "On" : "Off"}</span>}
+        aria-label={`${label}: ${isChecked ? "On" : "Off"}`}
+        aria-describedby={descriptionId}
+        aria-pressed={isChecked}
+        disabled={isLoading}
+        onClick={() => handleSidebarToggle(!isChecked)}
+      />
+      <span id={descriptionId} className="sr-only">
+        {description}
+      </span>
       <V4IntroDialog
         open={showIntroDialog}
         onConfirm={confirmIntroDialog}

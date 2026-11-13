@@ -1,0 +1,32 @@
+.mobileClose {
+  display: none;
+  order: 3;
+  flex: 0 0 2rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.logo {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  order: 1;
+  flex: 0 0 2.5rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.selector {
+  display: flex;
+  order: 2;
+  min-inline-size: 0;
+  flex: 0 0 calc(var(--sidebar-expanded-width, 14rem) - 3.5rem);
+}
+
+:global([data-sidebar-mode="mobile"]) .mobileClose {
+  display: flex;
+}
+
+:global([data-sidebar-mode="mobile"]) .selector {
+  flex: 1 1 auto;
+}

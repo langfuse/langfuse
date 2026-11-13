@@ -1,29 +1,8 @@
-import { type GetServerSideProps } from "next";
+import { getLandingServerSideProps } from "@/src/features/projects/server/getLandingServerSideProps";
 
-import { NoOrganizationPage } from "@/src/features/organizations/components/NoOrganizationPage";
-import { OrganizationLandingService } from "@/src/features/organizations/server/organizationLandingService";
-import { getServerAuthSession } from "@/src/server/auth";
-import {
-  getRequestOrigin,
-  readProjectCookie,
-} from "@/src/server/utils/cookies";
+export const getServerSideProps = getLandingServerSideProps;
 
+/** Signed-in users are redirected server-side; signed-out users are sent to sign-in by the app layout. */
 export default function Home() {
-  return <NoOrganizationPage />;
+  return null;
 }
-
-export const getServerSideProps: GetServerSideProps = async (ctx) => {
-  const session = await getServerAuthSession({ req: ctx.req, res: ctx.res });
-  if (!session?.user) return { props: {} };
-
-  const cookie = readProjectCookie(ctx.req.cookies ?? {});
-  const lastProjectId =
-    cookie && cookie.origin === getRequestOrigin(ctx.req)
-      ? cookie.projectId
-      : null;
-  const destination = new OrganizationLandingService(session).landingPath(
-    lastProjectId,
-  );
-  if (!destination) return { props: {} };
-  return { redirect: { destination, permanent: false } };
-};

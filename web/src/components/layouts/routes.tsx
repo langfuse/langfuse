@@ -36,7 +36,8 @@ import { SupportButton } from "@/src/components/nav/SupportButton";
 import { V4SidebarToggle } from "@/src/features/events/components/V4SidebarToggle";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { BookACallButton } from "@/src/components/nav/BookACallButton";
-import { SidebarMenuButton } from "@/src/components/ui/sidebar";
+import { SidebarNavItem } from "@/src/components/nav/SidebarNavItem";
+import { useAppNavigation } from "@/src/components/nav/AppNavigationProvider";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -70,9 +71,15 @@ export const ROUTE_GROUP_BADGES: Partial<Record<RouteGroup, ReactNode>> = {
 };
 
 export type Route = {
-  id?: "v4-migration" | "ai-gateway" | "gateway-ingestion-project";
+  /** Lets a shell find a specific entry, e.g. to render it elsewhere. */
+  id?:
+    | "v4-migration"
+    | "organizations-overview"
+    | "organization-overview"
+    | "ai-gateway"
+    | "gateway-ingestion-project";
   title: string;
-  menuNode?: ReactNode;
+  menuNode?: (props: { isCollapsed: boolean }) => ReactNode;
   featureFlag?: Flag;
   label?: string | ReactNode;
   projectRbacScopes?: ProjectScope[]; // array treated as OR
@@ -110,10 +117,21 @@ export const ROUTES: Route[] = [
     title: "Go to...",
     href: "", // Empty pathname since this is a dropdown
     icon: Search,
-    menuNode: <CommandMenuTrigger />,
+    menuNode: ({ isCollapsed }) => (
+      <CommandMenuTrigger isCollapsed={isCollapsed} />
+    ),
     section: RouteSection.Main,
   },
   {
+    id: "organizations-overview",
+    title: "Organizations",
+    href: "/organizations",
+    icon: Grid2X2,
+    show: ({ organization }) => organization === undefined,
+    section: RouteSection.Main,
+  },
+  {
+    id: "organization-overview",
     title: "Projects",
     href: "/organization/[organizationId]",
     icon: Grid2X2,
@@ -327,7 +345,9 @@ export const ROUTES: Route[] = [
     href: "",
     show: ({ isLangfuseCloud, hasActiveCloudIncident }) =>
       isLangfuseCloud && hasActiveCloudIncident,
-    menuNode: <CloudStatusMenu />,
+    menuNode: ({ isCollapsed }) => (
+      <CloudStatusMenu isCollapsed={isCollapsed} />
+    ),
   },
   {
     title: V4_PREVIEW_LABEL,
@@ -343,7 +363,9 @@ export const ROUTES: Route[] = [
     }) =>
       canRecoverV4 ||
       (canToggleV4 && (!v4UpgradeUiAvailable || forceV3Experience)),
-    menuNode: <V4SidebarToggle />,
+    menuNode: ({ isCollapsed }) => (
+      <V4SidebarToggle isCollapsed={isCollapsed} />
+    ),
   },
   {
     title: "Upgrade plan",
@@ -380,14 +402,16 @@ export const ROUTES: Route[] = [
     title: "Book a call",
     section: RouteSection.Secondary,
     href: "",
-    menuNode: <BookACallButton />,
+    menuNode: ({ isCollapsed }) => (
+      <BookACallButton isCollapsed={isCollapsed} />
+    ),
   },
   {
     title: "Support",
     icon: LifeBuoy,
     section: RouteSection.Secondary,
     href: "", // Empty pathname since this is a dropdown
-    menuNode: <SupportButton />,
+    menuNode: ({ isCollapsed }) => <SupportButton isCollapsed={isCollapsed} />,
   },
 ];
 
@@ -429,25 +453,28 @@ function TopicsInternalBadge() {
   ) : null;
 }
 
-function CommandMenuTrigger() {
+function CommandMenuTrigger({ isCollapsed }: { isCollapsed: boolean }) {
   const { setOpen } = useCommandMenu();
+  const appNavigation = useAppNavigation();
   const capture = usePostHogClientCapture();
 
   return (
-    <SidebarMenuButton
+    <SidebarNavItem.Button
+      isCollapsed={isCollapsed}
       onClick={() => {
         capture("cmd_k_menu:opened", {
           source: "main_navigation",
         });
+        appNavigation?.closeTransientNavigation();
         setOpen(true);
       }}
-      className="whitespace-nowrap"
-    >
-      <Search size="base" />
-      Go to...
-      <span className="-mr-px ml-auto hidden md:inline-flex">
-        <KeyboardShortcut keys={["Mod", "K"]} />
-      </span>
-    </SidebarMenuButton>
+      leading={<Search size="base" />}
+      label="Go to..."
+      trailing={
+        <span className="hidden md:inline-flex">
+          <KeyboardShortcut keys={["Mod", "K"]} />
+        </span>
+      }
+    />
   );
 }

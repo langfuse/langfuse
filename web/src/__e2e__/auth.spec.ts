@@ -85,7 +85,7 @@ test("Unauthenticated user should not be redirected to non-relative URLs after l
     `/auth/sign-in?targetPath=${encodeURIComponent(nonRelativeUrl)}`,
   );
 
-  // Lands on the home page, not on the non-relative targetPath
+  // Lands where `/` sends a signed-in user, not on the non-relative targetPath
   await signIn(page);
 
   // Verify we're logged in
