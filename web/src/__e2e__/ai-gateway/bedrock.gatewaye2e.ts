@@ -13,7 +13,7 @@ import {
 const API_FORMAT = "anthropic.messages";
 // The EU inference profile the CI account may call; Bedrock serves Anthropic
 // models on Messages only.
-const MODEL = "eu.anthropic.claude-sonnet-4-5-20250929-v1:0";
+const MODEL = "eu.anthropic.claude-haiku-4-5-20251001-v1:0";
 
 const skip = missingLocalEnv(
   "LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY",
@@ -42,7 +42,7 @@ describe.skipIf(skip)("AI gateway Bedrock end-to-end", () => {
         headers: { "anthropic-version": "2023-06-01" },
         providerModel: MODEL,
         // Bedrock reports the Claude model, not the inference profile.
-        responseModel: "claude-sonnet-4-5-20250929",
+        responseModel: "claude-haiku-4-5-20251001",
       });
     },
     COMPLETION_TIMEOUT_MS,
