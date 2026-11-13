@@ -397,6 +397,431 @@ function buildReplayCase(params: ReplayCase) {
   };
 }
 
+const providerKeys = {
+  ai: [
+    "ai.settings.maxSteps",
+    "ai.settings.maxRetries",
+    "ai.settings.mode",
+    "ai.prompt.toolChoice",
+    "ai.model.provider",
+    "gen_ai.request.max_tokens",
+    "gen_ai.response.finish_reasons",
+    "gen_ai.finishReason",
+    "gen_ai.system",
+    "ai.prompt.messages",
+    "ai.prompt",
+    "ai.toolCall.args",
+    "ai.toolCall.result",
+    "ai.result.text",
+    "ai.response.object",
+    "ai.response.toolCalls",
+    "ai.result.toolCalls",
+    "ai.response.text",
+    "ai.result.object",
+    "ai.response.providerMetadata",
+    "gen_ai.input.messages",
+    "gen_ai.output.messages",
+  ],
+  "genkit-tracer": ["genkit:input", "genkit:output", "gen_ai.input.messages"],
+  "@flue/opentelemetry": [
+    "flue.turn.input",
+    "flue.tool.arguments",
+    "flue.task.prompt",
+    "flue.workflow.payload",
+    "flue.turn.output",
+    "flue.tool.result",
+    "flue.task.result",
+    "flue.operation.result",
+    "flue.workflow.result",
+  ],
+  "pydantic-ai": [
+    "pydantic_ai.all_messages",
+    "final_result",
+    "gen_ai.system_instructions",
+    "prompt",
+    "all_messages_events",
+  ],
+  other: [
+    "mlflow.spanInputs",
+    "traceloop.entity.input",
+    "input.value",
+    "mlflow.spanOutputs",
+    "traceloop.entity.output",
+    "output.value",
+    "input",
+    "output",
+    "gcp.vertex.agent.llm_request",
+    "gcp.vertex.agent.llm_response",
+    "gcp.vertex.agent.tool_call_args",
+    "gcp.vertex.agent.tool_response",
+    "lk.input_text",
+    "lk.pii.input_text",
+    "lk.user_transcript",
+    "lk.pii.user_transcript",
+    "lk.chat_ctx",
+    "lk.pii.chat_ctx",
+    "lk.function_tool.output",
+    "lk.pii.function_tool.output",
+    "lk.response.text",
+    "lk.pii.response.text",
+    "tool_arguments",
+    "tool_response",
+    "anthropic.tool_result.content",
+    "gen_ai.prompt.0.content",
+    "gen_ai.completion.0.content",
+    "llm.input_messages.0.message.content",
+    "llm.output_messages.0.message.content",
+    "gen_ai.tool.call.arguments",
+    "gen_ai.tool.call.result",
+  ],
+} as const;
+
+const commonProviderKeys = [
+  "langfuse.observation.model.parameters",
+  "llm.invocation_parameters",
+  "model_config",
+  "gen_ai.request.temperature",
+  "gen_ai.request.service_tier",
+  "gen_ai.tool.name",
+  "genkit:name",
+  "logfire.msg",
+  "ai.toolCall.name",
+  "langfuse.trace.tags",
+  "langfuse.tags",
+  "langfuse.observation.metadata.langfuse_tags",
+  "langfuse.trace.metadata.langfuse_tags",
+  "ai.telemetry.metadata.tags",
+  "tag.tags",
+] as const;
+
+type ProviderScope = keyof typeof providerKeys;
+
+type ProviderReplaySeed = {
+  scope: ProviderScope;
+  events?: {
+    name: string;
+    attributes?: ProviderReplaySeed["sources"] | null;
+  }[];
+  sources: { key: string; value: Json }[];
+  toolMetadata: {
+    root: boolean;
+    attributes: "none" | "object" | "stringified" | "invalidStringified";
+    name: Json;
+  };
+};
+
+const providerValueArbitrary = fc.oneof(
+  { withCrossShrink: true },
+  fc.constantFrom(
+    null,
+    "",
+    "false",
+    "0",
+    "null",
+    "[]",
+    "{}",
+    "{broken",
+    "not-json",
+  ),
+  fc
+    .record({
+      role: fc.constantFrom("user", "assistant", "tool"),
+      content: fc.string({ maxLength: 12, unit: "grapheme" }),
+    })
+    .map((message) => JSON.stringify([message])),
+  fc
+    .record({
+      name: fc.string({ minLength: 1, maxLength: 8, unit: "grapheme" }),
+      arguments: recursiveJsonArbitrary(1, 2),
+    })
+    .map((call) => JSON.stringify([call])),
+  recursiveJsonArbitrary(1, 2).map((value) => JSON.stringify(value)),
+  fc.string({ maxLength: 18, unit: "grapheme" }),
+);
+
+const providerMetadataEntryArbitrary = fc.oneof(
+  fc.constantFrom(null, false, 0, ""),
+  fc.record({
+    serviceTier: fc.option(
+      fc.constantFrom(null, "", "priority", "flex", false, 1),
+      {
+        nil: undefined,
+      },
+    ),
+    usageMetadata: fc.option(
+      fc.record({
+        trafficType: fc.constantFrom(null, "ON_DEMAND_FLEX", "flex", 1),
+      }),
+      { nil: undefined },
+    ),
+  }),
+);
+const providerMetadataValueArbitrary = fc.oneof(
+  fc.constant("{broken"),
+  fc.constantFrom(
+    JSON.stringify({ openai: { serviceTier: "priority" } }),
+    JSON.stringify({ googleVertex: { serviceTier: "flex" } }),
+    JSON.stringify({
+      vertex: { usageMetadata: { trafficType: "ON_DEMAND_FLEX" } },
+    }),
+    JSON.stringify({ google: { serviceTier: "flex" } }),
+  ),
+  fc
+    .record({
+      openai: fc.option(providerMetadataEntryArbitrary, { nil: undefined }),
+      googleVertex: fc.option(providerMetadataEntryArbitrary, {
+        nil: undefined,
+      }),
+      vertex: fc.option(providerMetadataEntryArbitrary, { nil: undefined }),
+      google: fc.option(providerMetadataEntryArbitrary, { nil: undefined }),
+    })
+    .map(JSON.stringify),
+);
+
+function providerSourceValueArbitrary(key: string): Arbitrary<Json> {
+  if (key === "genkit:input" || key === "genkit:output") {
+    return recursiveJsonArbitrary(2, 3).map((config) =>
+      JSON.stringify(
+        key === "genkit:input" ? { config } : { request: { config } },
+      ),
+    );
+  }
+  if (key === "ai.response.providerMetadata") {
+    return providerMetadataValueArbitrary;
+  }
+  if (key === "gen_ai.request.service_tier") {
+    return fc.constantFrom("request-tier", "priority", "standard");
+  }
+  if (key === "langfuse.observation.model.parameters") {
+    return fc.constantFrom(
+      JSON.stringify({ service_tier: "explicit-tier" }),
+      JSON.stringify({ temperature: 0.5 }),
+    );
+  }
+  if (
+    key === "langfuse.trace.tags" ||
+    key === "langfuse.tags" ||
+    key.endsWith("metadata.langfuse_tags") ||
+    key === "ai.telemetry.metadata.tags" ||
+    key === "tag.tags"
+  ) {
+    return fc.constantFrom(
+      "[draft], prod",
+      "[broken",
+      "fallback-tag",
+      '["prod", "blue"]',
+      "",
+      "\uFEFF[draft],\uFEFFprod",
+    );
+  }
+  if (
+    key === "gen_ai.tool.name" ||
+    key === "genkit:name" ||
+    key === "logfire.msg" ||
+    key === "ai.toolCall.name"
+  ) {
+    return fc.stringMatching(/^[a-z]{0,8}$/);
+  }
+  return providerValueArbitrary;
+}
+
+const providerReplayArbitrary: Arbitrary<ProviderReplaySeed> = fc
+  .constantFrom(...(Object.keys(providerKeys) as ProviderScope[]))
+  .chain((scope) =>
+    fc.record({
+      scope: fc.constant(scope),
+      events: fc.array(
+        fc.record({
+          name: fc.constantFrom(
+            "gen_ai.content.prompt",
+            "gen_ai.content.completion",
+            "gen_ai.client.inference.operation.details",
+            "gen_ai.system.message",
+            "gen_ai.user.message",
+            "gen_ai.assistant.message",
+            "gen_ai.tool.message",
+            "gen_ai.choice",
+            "unrelated",
+          ),
+          attributes: fc.oneof(
+            fc.constant(undefined),
+            fc.constant(null),
+            fc.array(
+              fc.record({
+                key: fc.constantFrom(
+                  "content",
+                  "role",
+                  "gen_ai.event.content",
+                  "gen_ai.input.messages",
+                  "gen_ai.output.messages",
+                  "gen_ai.prompt.0.content",
+                  "gen_ai.completion.0.content",
+                  "gen_ai.tool.call.arguments",
+                  "gen_ai.tool.call.result",
+                ),
+                value: fc.oneof(
+                  { weight: 3, arbitrary: providerValueArbitrary },
+                  { weight: 1, arbitrary: recursiveJsonArbitrary(2, 3) },
+                ),
+              }),
+              { maxLength: 4 },
+            ),
+          ),
+        }),
+        { maxLength: 6 },
+      ),
+      sources: fc.array(
+        fc
+          .constantFrom(...providerKeys[scope], ...commonProviderKeys)
+          .chain((key) =>
+            fc.record({
+              key: fc.constant(key),
+              // SDK examples bias generation; every key also receives arbitrary
+              // AnyValue data and JSON text, including scalars and arrays.
+              value: fc.oneof(
+                { weight: 3, arbitrary: providerSourceValueArbitrary(key) },
+                { weight: 1, arbitrary: recursiveJsonArbitrary(2, 3) },
+                {
+                  weight: 1,
+                  arbitrary: recursiveJsonArbitrary(2, 3).map(JSON.stringify),
+                },
+              ),
+            }),
+          ),
+        { maxLength: 8 },
+      ),
+      toolMetadata: fc.record({
+        root: fc.boolean(),
+        attributes: fc.constantFrom(
+          ...(["none", "object", "stringified", "invalidStringified"] as const),
+        ),
+        name: fc.oneof(
+          { weight: 3, arbitrary: fc.stringMatching(/^[a-z]{1,8}$/) },
+          { weight: 1, arbitrary: recursiveJsonArbitrary(1, 2) },
+        ),
+      }),
+    }),
+  );
+
+function providerAnyValue(value: Json): Record<string, unknown> {
+  if (value === null) return {};
+  if (typeof value === "string") return { stringValue: value };
+  if (typeof value === "number") {
+    return Number.isSafeInteger(value)
+      ? { intValue: String(value) }
+      : { doubleValue: value };
+  }
+  if (typeof value === "boolean") return { boolValue: value };
+  return Array.isArray(value)
+    ? { arrayValue: { values: value.map(providerAnyValue) } }
+    : {
+        kvlistValue: {
+          values: Object.entries(value).map(([key, value]) =>
+            providerAttribute(key, value),
+          ),
+        },
+      };
+}
+
+function providerAttribute(key: string, value: Json) {
+  return { key, value: providerAnyValue(value) };
+}
+
+function providerMetadataAttribute(seed: ProviderReplaySeed) {
+  const { root, attributes, name } = seed.toolMetadata;
+  if (!root && attributes === "none") return undefined;
+  const definition = { name };
+  const movedTools =
+    attributes === "none"
+      ? {}
+      : {
+          attributes:
+            attributes === "object"
+              ? { "ai.prompt.tools": [definition] }
+              : JSON.stringify({
+                  "ai.prompt.tools":
+                    attributes === "stringified"
+                      ? [definition]
+                      : JSON.stringify({ name: "invalid" }),
+                }),
+        };
+  return providerAttribute(
+    "langfuse.observation.metadata",
+    JSON.stringify({
+      ...(root ? { tools: [definition] } : {}),
+      ...movedTools,
+    }),
+  );
+}
+
+function buildProviderReplay(seeds: ProviderReplaySeed[]): Buffer {
+  const replay = buildReplayCase({
+    traceId: paddedHex(3n, 32),
+    idEncoding: "string",
+    spanIdBase: BigInt(seeds.length + 8),
+    baseTimeMillis: 1_700_000_000_000,
+    spanSeeds: seeds.map((_, orderKey) => ({ ...minimalSpan, orderKey })),
+  });
+  const resource = replay.resourceSpans[0]!;
+  const spans = resource.scopeSpans![0]!.spans!;
+  // Omit explicit input/output fields so provider fallbacks are exercised.
+  const resourceSpans = seeds.map((seed, index) => {
+    const metadata = providerMetadataAttribute(seed);
+    const attributes = seed.sources.map(({ key, value }) =>
+      providerAttribute(key, value),
+    );
+    if (
+      seed.sources.some(({ key }) => key === "ai.response.providerMetadata")
+    ) {
+      // Explicit counts isolate field extraction from the TS provider-usage
+      // parser's error fallback when response metadata is malformed.
+      attributes.push(
+        providerAttribute("langfuse.observation.usage_details", '{"input":7}'),
+      );
+    }
+    if (metadata) attributes.push(metadata);
+    return {
+      resource: resource.resource,
+      scopeSpans: [
+        {
+          scope: { name: seed.scope, version: "1.0.0" },
+          spans: [
+            {
+              ...spans[index]!,
+              attributes,
+              events: seed.events?.map(({ name, attributes }) => ({
+                name,
+                attributes:
+                  attributes?.map(({ key, value }) =>
+                    providerAttribute(key, value),
+                  ) ?? attributes,
+              })),
+            },
+          ],
+        },
+      ],
+    };
+  });
+  return Buffer.from(JSON.stringify(resourceSpans));
+}
+
+async function assertProviderReplayParity(
+  seeds: ProviderReplaySeed[],
+): Promise<void> {
+  const comparison = await runOtelReplayComparison({
+    bytes: buildProviderReplay(seeds),
+    projectId: `${PROJECT_PREFIX}-provider-${seeds.length}`,
+    fileKey: FILE_KEY,
+    mediaUploadEnabled: true,
+  });
+  expectRawNativeParity(comparison);
+  expect(
+    [comparison.originalTs, comparison.earlyTs, comparison.earlyRust].map(
+      ({ storedRows }) => storedRows.length,
+    ),
+  ).toEqual([seeds.length, seeds.length, seeds.length]);
+}
+
 function persistedMillis(value: unknown): number {
   if (typeof value !== "string") {
     throw new Error(
@@ -713,6 +1138,199 @@ const directedCases: ReplayCase[] = [
   },
 ];
 
+function aiProviderSeed(
+  sources: ProviderReplaySeed["sources"],
+): ProviderReplaySeed {
+  return {
+    scope: "ai",
+    sources,
+    toolMetadata: { root: false, attributes: "none", name: "tool" },
+  };
+}
+
+const directedProviderExamples: ProviderReplaySeed[][] = [
+  ...[
+    ["gen_ai.content.prompt", "gen_ai.content.completion"],
+    ["gen_ai.content.completion", "unrelated", "gen_ai.content.prompt"],
+    ["gen_ai.content.prompt", "gen_ai.user.message", "gen_ai.choice"],
+    ["gen_ai.content.prompt", "gen_ai.client.inference.operation.details"],
+  ].map((names) =>
+    [false, true].map((explicit) => ({
+      ...aiProviderSeed(
+        explicit
+          ? [{ key: "langfuse.observation.input", value: "explicit" }]
+          : [],
+      ),
+      scope: "other" as const,
+      events: names.map((name, index) => ({
+        name,
+        attributes: [
+          {
+            key: name.endsWith(".details")
+              ? "gen_ai.input.messages"
+              : "content",
+            value: `message-${index}`,
+          },
+        ],
+      })),
+    })),
+  ),
+  ...[undefined, null, [], [{ key: "content", value: "hello" }]].map(
+    (attributes) =>
+      ["gen_ai.content.prompt", "gen_ai.content.completion"].map((name) => ({
+        ...aiProviderSeed([
+          { key: "gen_ai.input.messages", value: "fallback" },
+        ]),
+        scope: "other" as const,
+        // The first matching event decides the side, even when a later duplicate has attributes.
+        events: [
+          { name, attributes },
+          { name, attributes: [{ key: "content", value: "later" }] },
+        ],
+      })),
+  ),
+  ...["gen_ai.prompt", "llm.input_messages"].map((prefix) =>
+    ["_x", ".0..y", ".__proto__.x", ".10001.content"].map((suffix) => ({
+      ...aiProviderSeed([
+        { key: prefix + suffix, value: "ignored" },
+        { key: "gen_ai.input.messages", value: "fallback" },
+      ]),
+      scope: "other" as const,
+    })),
+  ),
+  ...[
+    ["0.6000", "1.5000", "0.9999"],
+    ["0.6000", "1.5000", "2.3996"],
+    ["0.10000", "named.content"],
+    ["0.18446744073709551615.role", "0.999999999999999999999.role", "0.role"],
+  ].map((paths) =>
+    ["gen_ai.prompt", "llm.output_messages"].map((prefix) => ({
+      ...aiProviderSeed(
+        paths.map((path, index) => ({
+          key: `${prefix}.${path}`,
+          value: `message-${index}`,
+        })),
+      ),
+      scope: "other" as const,
+    })),
+  ),
+  ...[true, 7, [1, "hello"]].map((value) => [
+    {
+      ...aiProviderSeed([
+        { key: "lk.pii.instructions", value },
+        { key: "lk.user_input", value },
+      ]),
+      scope: "other" as const,
+    },
+  ]),
+  ...[false, 0, ""].map((value) =>
+    [
+      "gen_ai.prompt",
+      "gen_ai.completion",
+      "llm.input_messages",
+      "llm.output_messages",
+    ].map((key) => ({
+      ...aiProviderSeed([{ key, value }]),
+      scope: "other" as const,
+    })),
+  ),
+  [
+    "gen_ai.prompt.0.content",
+    "gen_ai.completion.0.content",
+    "llm.input_messages.0.message.content",
+    "llm.output_messages.0.message.content",
+  ].map((key) => ({
+    ...aiProviderSeed([{ key, value: false }]),
+    scope: "other" as const,
+  })),
+  ...[null, false, true, 0, 1, "", "text", "😀", [], [1], [1, 2], {}].flatMap(
+    (value) =>
+      [
+        "langfuse.observation.model.parameters",
+        "llm.invocation_parameters",
+        "model_config",
+      ].map((key) =>
+        (Object.keys(providerKeys) as ProviderScope[]).flatMap((scope) =>
+          [value, JSON.stringify(value)].map((input) => ({
+            ...aiProviderSeed([
+              { key, value: input },
+              { key: "gen_ai.request.temperature", value: "0.5" },
+            ]),
+            scope,
+          })),
+        ),
+      ),
+  ),
+  ...[null, false, 0, 7, "", ["a", null, 1], { name: "nested" }].map((value) =>
+    ["gen_ai.tool.name", "genkit:name", "logfire.msg", "ai.toolCall.name"].map(
+      (key) => aiProviderSeed([{ key, value }]),
+    ),
+  ),
+  [
+    aiProviderSeed([
+      { key: "langfuse.observation.model.parameters", value: '"\\ud800"' },
+    ]),
+  ],
+  ...[null, false, 0, 5e-324, true, "", [], [1], { name: "nested" }].map(
+    (name) =>
+      ["none", "object", "stringified"].map((attributes) => ({
+        scope: "other" as const,
+        sources: [],
+        toolMetadata: {
+          root: true,
+          attributes:
+            attributes as ProviderReplaySeed["toolMetadata"]["attributes"],
+          name,
+        },
+      })),
+  ),
+  [aiProviderSeed([{ key: "tag.tags", value: "" }])],
+  [
+    {
+      scope: "ai",
+      sources: [
+        { key: "gen_ai.input.messages", value: "" },
+        { key: "gen_ai.output.messages", value: "response" },
+      ],
+      toolMetadata: { root: false, attributes: "object", name: "a" },
+    },
+  ],
+  ...[
+    { google: { serviceTier: "flex" } },
+    { vertex: { usageMetadata: { trafficType: "ON_DEMAND_FLEX" } } },
+    { googleVertex: {}, vertex: { serviceTier: "flex" } },
+    { googleVertex: false, vertex: { serviceTier: "flex" } },
+  ].map((metadata) => [
+    aiProviderSeed([
+      { key: "ai.response.providerMetadata", value: JSON.stringify(metadata) },
+      { key: "gen_ai.request.service_tier", value: "request-tier" },
+    ]),
+  ]),
+  [
+    aiProviderSeed([
+      { key: "genkit:name", value: "genkit-name" },
+      { key: "logfire.msg", value: "logfire-name" },
+      { key: "langfuse.trace.tags", value: "[draft], prod" },
+      { key: "langfuse.tags", value: "fallback-tag" },
+    ]),
+  ],
+  [
+    aiProviderSeed([
+      {
+        key: "ai.response.providerMetadata",
+        value: JSON.stringify({
+          openai: { serviceTier: null },
+          googleVertex: { serviceTier: "priority" },
+        }),
+      },
+      {
+        key: "langfuse.observation.model.parameters",
+        value: JSON.stringify({ service_tier: "explicit-tier" }),
+      },
+    ]),
+  ],
+];
+
 async function assertReplayPersists(params: ReplayCase): Promise<void> {
   const replay = buildReplayCase(params);
   const comparison = await runOtelReplayComparison({
@@ -784,5 +1402,21 @@ describe(
         );
       },
     );
+
+    it("keeps provider fallback and serialized-value parity", async () => {
+      const seed = randomInt(2 ** 31);
+      process.stderr.write(`OTEL provider replay seed=${seed}\n`);
+      await fc.assert(
+        fc.asyncProperty(
+          fc.array(providerReplayArbitrary, { minLength: 1, maxLength: 6 }),
+          assertProviderReplayParity,
+        ),
+        {
+          seed,
+          numRuns: 256,
+          examples: directedProviderExamples.map((example) => [example]),
+        },
+      );
+    });
   },
 );

@@ -1,6 +1,10 @@
 import "./helpers/otelReplaySetup";
 import { describe, expect, it } from "vitest";
 import type { ResourceSpan } from "@langfuse/shared/src/server";
+import {
+  createModelParametersBatch,
+  modelParametersFixtures,
+} from "../../../packages/shared/src/server/otel/OtelIngestionProcessor.modelParameters.fixtures";
 import { vercelAiSdkMixedToolMessagesFixture } from "../../../packages/shared/src/utils/normalized-io/conventions/providers/ai-sdk/fixtures";
 import { langgraphProductionShapeFixture } from "../../../packages/shared/src/utils/normalized-io/conventions/providers/langchain/fixtures";
 import { pydanticAiProductionShapeFixture } from "../../../packages/shared/src/utils/normalized-io/conventions/providers/pydantic-ai/fixtures";
@@ -45,7 +49,44 @@ type ProviderCase = {
   expectedModelParameters?: Record<string, string | number>;
   stringRepairs?: Record<string, string>;
   numericRepairs: Record<string, string>;
+  sdkName?: string;
+  sdkVersion?: string;
 };
+
+const modelParameterCases: ProviderCase[] = modelParametersFixtures.map(
+  (modelParametersFixture) => {
+    const scopeSpan = createModelParametersBatch(modelParametersFixture)[0]
+      .scopeSpans?.[0];
+    if (!scopeSpan) {
+      throw new Error(
+        `Model parameter fixture has no scope span: ${modelParametersFixture.name}`,
+      );
+    }
+
+    return {
+      name: `Model parameters: ${modelParametersFixture.name}`,
+      fixture: {
+        name: modelParametersFixture.name,
+        otel: { scopeSpan, resourceAttributes: {} },
+        spanIO: { input: "", output: "" },
+      },
+      expectedObservationType: "GENERATION",
+      expectedModelName: modelParametersFixture.expectedModelName,
+      expectedUsageDetails:
+        modelParametersFixture.scopeName === "ai"
+          ? { input: 0, output: 0 }
+          : {},
+      expectedFinalUsageDetails:
+        modelParametersFixture.scopeName === "ai"
+          ? { input: 0, output: 0, total: 0 }
+          : {},
+      expectedModelParameters: modelParametersFixture.expectedModelParameters,
+      numericRepairs: {},
+      sdkName: modelParametersFixture.sdkName,
+      sdkVersion: modelParametersFixture.sdkVersion,
+    };
+  },
+);
 
 const providerCases: ProviderCase[] = [
   {
@@ -163,6 +204,7 @@ const providerCases: ProviderCase[] = [
       "gen_ai.request.choice.count": "1",
     },
   },
+  ...modelParameterCases,
 ];
 
 function cloneId(id: Span["traceId"]): Span["traceId"] {
@@ -353,6 +395,8 @@ describe("OTEL replay provider corpus", { retry: 0, timeout: 120_000 }, () => {
         stringRepairs,
         toolDefinitionsAttribute,
         addToolDefinitionsToInput,
+        sdkName,
+        sdkVersion,
       } = providerCase;
       const resourceSpans = buildResourceSpans(
         fixture,
@@ -368,6 +412,8 @@ describe("OTEL replay provider corpus", { retry: 0, timeout: 120_000 }, () => {
         bytes: Buffer.from(JSON.stringify(resourceSpans)),
         projectId: `otel-replay-${name.toLowerCase().replaceAll(" ", "-")}`,
         mediaUploadEnabled: true,
+        sdkName,
+        sdkVersion,
       });
 
       for (const result of [

@@ -375,43 +375,51 @@ fn valid_skill_file_path(path: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
 
     #[test]
-    fn scans_literal_cat_arguments_and_bounds_unique_resources() {
-        let available = [SkillAvailableInput {
-            name: "alpha".into(),
-            version: None,
-        }];
-        for (command, expected) in [
-            (
-                "cat '/skills/alpha/SKILL.md' \"/skills/alpha/guide.md\"",
-                vec!["SKILL.md", "guide.md"],
-            ),
-            ("cat ; cat /skills/alpha/SKILL.md", vec!["SKILL.md"]),
-            ("cat /skills/alpha/../other", vec![]),
-        ] {
-            let resources = get_skill_resources_from_command(Some(command), &available);
-            assert_eq!(
-                resources
-                    .iter()
-                    .map(|item| item.file_path.as_str())
-                    .collect::<Vec<_>>(),
-                expected
-            );
-        }
-        let command = format!(
-            "cat {}",
-            (0..110)
-                .map(|i| format!("/skills/alpha/{i}.md"))
-                .collect::<Vec<_>>()
-                .join(" ")
-        );
-        assert_eq!(
-            get_skill_resources_from_command(Some(&command), &available).len(),
-            MAX_SKILLS_PER_OBSERVATION
-        );
-        assert!(get_skill_resources_from_command(Some(&command), &[]).is_empty());
+    fn repeated_cat_scanning_remains_bounded() {
         // The first `cat` starts argument mode; the remaining 511 `cat` words become filenames.
         assert_eq!(cat_file_paths(&"cat ".repeat(512)).count(), 511);
+    }
+
+    proptest! {
+        #[test]
+        fn cat_commands_preserve_unique_resource_order_and_limit_lookups(
+            name in prop_oneof!["[a-z]{1,5}", Just("工具".to_owned())],
+            catalog_size in 0usize..4,
+            unique_prefix in prop_oneof![Just(0usize), Just(1), Just(99), Just(100), Just(101)],
+            candidates in prop::collection::vec((0usize..4, 0usize..16, 0u8..4, 0usize..3, 0usize..4), 0..32),
+        ) {
+            let available = (0..catalog_size).map(|index| SkillAvailableInput {
+                name: format!("{name}-{index}"), version: None,
+            }).collect::<Vec<_>>();
+            let prefix = (0..unique_prefix).map(|file| (0, file, 0, file % 3, file % 4));
+            let mut command = String::from("cat ");
+            let mut expected = Vec::new();
+            for (ordinal, (skill, file, kind, quote, separator)) in prefix.chain(candidates).enumerate() {
+                let skill_name = format!("{name}-{skill}");
+                let file_name = if quote == 0 { format!("file{file}.md") } else { format!("file {file}.md") };
+                let path = match kind {
+                    0 => format!("/skills/{skill_name}/{file_name}"),
+                    1 => format!("/skills/{skill_name}/../{file_name}"),
+                    2 => format!("/skills/{skill_name}/{skill_name}/{file_name}"),
+                    _ => format!("/unknown/{file_name}"),
+                };
+                if ordinal > 0 {
+                    command.push_str([" ", "; cat ", "\ncat ", "\t"][separator]);
+                }
+                let delimiter = ["", "'", "\""][quote];
+                command.push_str(&format!("{delimiter}{path}{delimiter}"));
+                // Valid paths are constructed above; the expected values never call the parser.
+                let resource = (skill_name, file_name);
+                if kind == 0 && skill < catalog_size && !expected.contains(&resource) && expected.len() < 100 {
+                    expected.push(resource);
+                }
+            }
+            prop_assert!(command.len() <= MAX_SKILL_TOOL_ARGS_JSON_BYTES);
+            let actual = get_skill_resources_from_command(Some(&command), &available);
+            prop_assert_eq!(actual.into_iter().map(|item| (item.skill_name, item.file_path)).collect::<Vec<_>>(), expected);
+        }
     }
 }
