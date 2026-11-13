@@ -15121,13 +15121,22 @@ components:
     unstableDashboardWidgetChartConfig:
       title: unstableDashboardWidgetChartConfig
       type: object
-      description: |-
+      description: >-
         Chart-specific widget configuration.
 
+
         `type` must match the top-level `chartType`.
+
         `row_limit` applies to total-value charts and pivot tables.
+
         `bins` applies to histograms.
+
         `defaultSort` applies to pivot tables.
+
+        `colorThresholds` applies to number tiles. Thresholds use raw metric
+
+        values before display formatting; empty or invalid values remain
+        neutral.
       properties:
         type:
           $ref: '#/components/schemas/unstableDashboardWidgetChartType'
@@ -15143,8 +15152,43 @@ components:
         defaultSort:
           $ref: '#/components/schemas/unstableDashboardWidgetDefaultSort'
           nullable: true
+        colorThresholds:
+          $ref: '#/components/schemas/unstableDashboardWidgetColorThresholds'
+          nullable: true
       required:
         - type
+    unstableDashboardWidgetColorThresholds:
+      title: unstableDashboardWidgetColorThresholds
+      type: object
+      description: >-
+        Colour a number tile green when healthy, amber for warning, and red for
+
+        critical. Comparisons are strict: equality remains in the less severe
+        band.
+
+        For higher-is-better, critical must be below warning. For
+        lower-is-better,
+
+        critical must be above warning. Both thresholds must be finite numbers.
+      properties:
+        direction:
+          $ref: '#/components/schemas/unstableDashboardWidgetThresholdDirection'
+        warning:
+          type: number
+          format: double
+        critical:
+          type: number
+          format: double
+      required:
+        - direction
+        - warning
+        - critical
+    unstableDashboardWidgetThresholdDirection:
+      title: unstableDashboardWidgetThresholdDirection
+      type: string
+      enum:
+        - higher-is-better
+        - lower-is-better
     unstableDashboardWidgetDefaultSort:
       title: unstableDashboardWidgetDefaultSort
       type: object
@@ -15183,6 +15227,9 @@ components:
           nullable: true
         defaultSort:
           $ref: '#/components/schemas/unstableDashboardWidgetDefaultSort'
+          nullable: true
+        colorThresholds:
+          $ref: '#/components/schemas/unstableDashboardWidgetColorThresholds'
           nullable: true
     unstableCreateDashboardWidgetRequest:
       title: unstableCreateDashboardWidgetRequest

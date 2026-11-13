@@ -437,6 +437,8 @@ export * from "./utils/s3Uri";
 export * from "./features/analytics-integrations";
 export {
   ChartConfigSchema,
+  NumberColorThresholdsSchema,
+  type NumberColorThresholds,
   DimensionSchema,
   MetricSchema,
 } from "./server/services/DashboardService/types";

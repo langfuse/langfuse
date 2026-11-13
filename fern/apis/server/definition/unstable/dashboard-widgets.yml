@@ -261,6 +261,8 @@ types:
       `row_limit` applies to total-value charts and pivot tables.
       `bins` applies to histograms.
       `defaultSort` applies to pivot tables.
+      `colorThresholds` applies to number tiles. Thresholds use raw metric
+      values before display formatting; empty or invalid values remain neutral.
     properties:
       type:
         type: DashboardWidgetChartType
@@ -272,6 +274,27 @@ types:
         type: optional<integer>
       defaultSort:
         type: optional<DashboardWidgetDefaultSort>
+      colorThresholds:
+        type: optional<DashboardWidgetColorThresholds>
+
+  DashboardWidgetColorThresholds:
+    docs: |
+      Colour a number tile green when healthy, amber for warning, and red for
+      critical. Comparisons are strict: equality remains in the less severe band.
+      For higher-is-better, critical must be below warning. For lower-is-better,
+      critical must be above warning. Both thresholds must be finite numbers.
+    properties:
+      direction:
+        type: DashboardWidgetThresholdDirection
+      warning:
+        type: double
+      critical:
+        type: double
+
+  DashboardWidgetThresholdDirection:
+    enum:
+      - higher-is-better
+      - lower-is-better
 
   DashboardWidgetDefaultSort:
     properties:
@@ -300,6 +323,8 @@ types:
         type: optional<integer>
       defaultSort:
         type: optional<DashboardWidgetDefaultSort>
+      colorThresholds:
+        type: optional<DashboardWidgetColorThresholds>
 
   CreateDashboardWidgetRequest:
     properties:

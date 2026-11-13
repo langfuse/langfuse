@@ -25,8 +25,12 @@ import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { Button } from "@/src/components/ui/button";
 import { AlertCircle } from "@langfuse/icons";
 import { BigNumber } from "@/src/features/widgets/chart-library/BigNumber";
+import { prepareBigNumber } from "./prepareBigNumber";
 import { PivotTable } from "@/src/features/widgets/chart-library/PivotTable";
-import { type OrderByState } from "@langfuse/shared";
+import {
+  type NumberColorThresholds,
+  type OrderByState,
+} from "@langfuse/shared";
 
 const DEFAULT_METRIC_THEME = {
   light: "hsl(var(--chart-1))",
@@ -85,6 +89,7 @@ const ChartComponent = ({
     defaultSort?: OrderByState;
     show_value_labels?: boolean;
     show_data_point_dots?: boolean;
+    colorThresholds?: NumberColorThresholds;
   };
   config?: ChartProps["config"];
   sortState?: OrderByState | null;
@@ -266,10 +271,15 @@ const ChartComponent = ({
           />
         );
       case "NUMBER": {
+        const presentation = prepareBigNumber(
+          renderedData,
+          chartConfig?.colorThresholds,
+        );
+        if (!presentation)
+          return emptyState ?? <NoDataOrLoading isLoading={isLoading} />;
         return (
           <BigNumber
-            data={renderedData}
-            config={resolvedConfig}
+            presentation={presentation}
             metricFormatter={metricFormatter}
           />
         );

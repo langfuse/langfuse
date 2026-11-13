@@ -1,7 +1,23 @@
-/* eslint-disable @repo/no-style-props */
 import React, { useLayoutEffect, useRef, useState, useMemo } from "react";
+import { cva } from "class-variance-authority";
 import { cn } from "@/src/utils/tailwind";
-import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import { type MetricFormatterFunction } from "./chart-props";
+import { type BigNumberPresentation } from "./prepareBigNumber";
+
+const bigNumberVariants = cva(
+  "flex h-full w-full flex-col items-center justify-center rounded-md",
+  {
+    variants: {
+      color: {
+        green:
+          "bg-green-50 text-green-800 dark:bg-green-950/40 dark:text-green-300",
+        amber:
+          "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
+        red: "bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-300",
+      },
+    },
+  },
+);
 
 // This should ideally be read based on the actual font sizes defined in Tailwind
 const baseFontSizeLookup = {
@@ -42,27 +58,21 @@ const getAffixFontSize = (size: FontSizeClass) => {
   return affixFontSizeLookup[size];
 };
 
-export const BigNumber: React.FC<ChartProps> = ({
-  data,
-  className,
+export const BigNumber = ({
+  presentation,
   metricFormatter,
-}: ChartProps & { className?: string }) => {
+}: {
+  presentation: BigNumberPresentation;
+  metricFormatter?: MetricFormatterFunction;
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLSpanElement>(null);
   const [fontSize, setFontSize] = useState<FontSizeClass>("text-6xl");
   const [maxCharacters, setMaxCharacters] = useState<number>();
 
-  const calculatedMetric = useMemo(() => {
-    // Show the sum of all metrics, or just the first metric if only one
-    if (data.length === 1) {
-      return typeof data[0].metric === "number" ? data[0].metric : 0;
-    }
-
-    return data.reduce((acc, d) => {
-      const metric = typeof d.metric === "number" ? d.metric : 0;
-      return acc + metric;
-    }, 0);
-  }, [data]);
+  const calculatedMetric = presentation.value;
+  const status = presentation.status;
+  const hasStatus = status !== null;
 
   const displayValue = useMemo(() => {
     return metricFormatter
@@ -91,7 +101,7 @@ export const BigNumber: React.FC<ChartProps> = ({
       const containerWidth = container.clientWidth;
       const containerHeight = container.clientHeight;
       const availableWidth = containerWidth * 0.95; // Use more width (was 0.9)
-      const availableHeight = containerHeight * 0.9; // Use more height (was 0.8)
+      const availableHeight = containerHeight * 0.9 - (hasStatus ? 28 : 0);
 
       // Start with a large font size and scale down
       let selectedFontSize: FontSizeClass = "text-sm";
@@ -141,54 +151,56 @@ export const BigNumber: React.FC<ChartProps> = ({
     }
 
     return () => resizeObserver.disconnect();
-  }, [calculatedMetric, metricFormatter]);
+  }, [calculatedMetric, metricFormatter, hasStatus]);
 
   return (
-    <div
-      ref={containerRef}
-      className={cn(
-        "flex h-full w-full flex-col items-center justify-center",
-        className,
-      )}
-    >
-      <div className="flex items-baseline justify-center gap-1">
-        {displayValue.prefix && (
+    <div className="ph-no-capture h-full w-full">
+      <div
+        ref={containerRef}
+        className={bigNumberVariants({ color: status?.color })}
+      >
+        <div className="flex items-baseline justify-center gap-1">
+          {displayValue.prefix && (
+            <span
+              className={cn(
+                "text-muted-foreground font-bold",
+                getAffixFontSize(fontSize),
+              )}
+            >
+              {displayValue.negative && (
+                <span
+                  className={cn(
+                    "text-foreground font-bold tracking-tight",
+                    fontSize,
+                  )}
+                >
+                  -
+                </span>
+              )}
+              {displayValue.prefix}
+            </span>
+          )}
           <span
-            className={cn(
-              "text-muted-foreground font-bold",
-              getAffixFontSize(fontSize),
-            )}
+            ref={textRef}
+            className={cn("text-center font-bold tracking-tight", fontSize)}
+            title={calculatedMetric.toString()}
           >
-            {displayValue.negative && (
-              <span
-                className={cn(
-                  "text-foreground font-bold tracking-tight",
-                  fontSize,
-                )}
-              >
-                -
-              </span>
-            )}
-            {displayValue.prefix}
+            {displayValue.negative && !displayValue.prefix ? "-" : ""}
+            {displayValue.main}
           </span>
-        )}
-        <span
-          ref={textRef}
-          className={cn("text-center font-bold tracking-tight", fontSize)}
-          title={calculatedMetric.toString()}
-        >
-          {displayValue.negative && !displayValue.prefix ? "-" : ""}
-          {displayValue.main}
-        </span>
-        {displayValue.suffix && (
-          <span
-            className={cn(
-              "text-muted-foreground font-bold",
-              getAffixFontSize(fontSize),
-            )}
-          >
-            {displayValue.suffix}
-          </span>
+          {displayValue.suffix && (
+            <span
+              className={cn(
+                "text-muted-foreground font-bold",
+                getAffixFontSize(fontSize),
+              )}
+            >
+              {displayValue.suffix}
+            </span>
+          )}
+        </div>
+        {status && (
+          <span className="mt-2 text-sm font-bold">{status.label}</span>
         )}
       </div>
     </div>
