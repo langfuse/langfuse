@@ -217,8 +217,9 @@ describeWithClickhouseLocal("dedup pass alone: one row per key", () => {
       ["3.33"],
     ],
     [
-      // A scalar max() alone collapses versions; its OVER makes it read
-      // every row, so the pass must lower it.
+      // Known gap: a scalar max() is not lowered, so on this fixture it reads
+      // t3's stale `x`. Its OVER makes it read every row, so the pass lowers
+      // it.
       "a window aggregate",
       db
         .selectFrom("traces as t")
