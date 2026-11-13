@@ -25,7 +25,11 @@ describe("AI gateway Azure end-to-end", () => {
   it(
     "lists and completes the deployment, ingested with cost",
     async () => {
-      await expectListedAndIngested(chatCompletionRequest(deployment));
+      // Azure reports the deployed model, whatever the deployment is named.
+      await expectListedAndIngested({
+        ...chatCompletionRequest(deployment),
+        responseModel: null,
+      });
     },
     COMPLETION_TIMEOUT_MS,
   );

@@ -106,8 +106,14 @@ type CompletionRequest = {
   path: string;
   body: Record<string, unknown>;
   headers?: Record<string, string>;
-  /** The model the provider reports; a dated snapshot of it also matches. */
+  /** The model the request addresses on the connection. */
   providerModel: string;
+  /**
+   * The model the provider reports, when it names it differently from
+   * `providerModel`; a dated snapshot of it also matches. `null` when only the
+   * provider knows it, as for an Azure deployment.
+   */
+  responseModel?: string | null;
 };
 
 type GatewayE2eSuite = {
@@ -365,7 +371,13 @@ export async function completeAndExpectIngested(input: CompletionRequest) {
   const text = await response.text();
   expect(response.status, text).toBe(200);
   const payload = JSON.parse(text) as { model?: string; usage?: unknown };
-  expectRequestedProviderModel(payload.model, providerModel);
+  const responseModel =
+    input.responseModel === undefined ? providerModel : input.responseModel;
+  if (responseModel === null) {
+    expect(payload.model, text).toEqual(expect.any(String));
+  } else {
+    expectRequestedProviderModel(payload.model, responseModel);
+  }
   expect(payload.model).not.toContain(`${suite.connection.name}:`);
   const expectedUsage = expectedProvidedUsage(apiFormat, payload.usage);
 
@@ -580,8 +592,18 @@ async function addProviderConnection({ models, ...spec }: ConnectionSpec) {
   createdConnectionId = created.id;
   expect(created.status).toBe(GatewayConnectionStatus.ENABLED);
 
+  // Azure validates the key on a route it may list, then discovers
+  // deployments on one it may not, so check the catalog as well.
+  const catalog = await suite.admin.caller.aiGateway.getConnectionModels({
+    orgId: ORGANIZATION_ID,
+    id: created.id,
+  });
+  expect(catalog.success, JSON.stringify(catalog)).toBe(true);
   let { updatedAt } = created;
-  if (created.modelListingDenied) {
+  if (
+    created.modelListingDenied ||
+    (catalog.success && catalog.modelListingDenied)
+  ) {
     for (const model of models) {
       ({ updatedAt } =
         await suite.admin.caller.aiGateway.addConnectionCustomModel({

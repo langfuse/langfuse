@@ -35,6 +35,8 @@ describe("AI gateway Bedrock end-to-end", () => {
         },
         headers: { "anthropic-version": "2023-06-01" },
         providerModel: MODEL,
+        // Bedrock reports the Claude model, not the inference profile.
+        responseModel: "claude-sonnet-4-5-20250929",
       });
     },
     COMPLETION_TIMEOUT_MS,
