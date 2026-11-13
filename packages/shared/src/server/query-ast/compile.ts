@@ -58,13 +58,19 @@ export type ClickhouseCompilable = {
  * not enough). The runtime `requireProjectId` guard remains as
  * defense-in-depth for the one case the type cannot express (an empty
  * `projectId`) and for callers reaching this through an `any` boundary.
+ *
+ * `paramPrefix` names the placeholders (`<prefix>1`, `<prefix>2`, …). Pass
+ * one when the SQL is spliced into a query that binds its own parameters;
+ * the rules of {@link compileClickhouseCondition} apply.
  */
 export function compileClickhouseQuery(
   query: ClickhouseCompilable,
   projectId: string,
+  paramPrefix?: string,
 ): CompiledClickhouseQuery {
+  if (paramPrefix !== undefined) assertParamPrefix(paramPrefix);
   const stamped = applyCompilerPasses(query, projectId);
-  const compiler = new ClickHouseQueryCompiler();
+  const compiler = new ClickHouseQueryCompiler(paramPrefix);
   const compiled = compiler.compileQuery(stamped, createQueryId());
   return {
     sql: compiled.sql,
