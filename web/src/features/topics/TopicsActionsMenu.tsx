@@ -18,6 +18,8 @@ export function TopicsActionsMenu({
         <HeaderActionMenuRow
           label="Edit map"
           icon={<Pencil size="base" color="default" />}
+          disabled={Boolean(actions.editRun.disabledReason)}
+          disabledReason={actions.editRun.disabledReason}
           onClick={() => {
             closeMenu();
             actions.editRun?.onSelect();

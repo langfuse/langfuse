@@ -539,8 +539,12 @@ it("puts New map and New snapshot first in the menu", async () => {
   ]);
 });
 
-it("shows Edit map as a header button for a selected map", async () => {
+it.each([
+  { access: "with topics:CUD", canWrite: true },
+  { access: "without topics:CUD", canWrite: false },
+])("shows Edit map as a header button $access", async ({ canWrite }) => {
   withSummaries();
+  state.canWrite = canWrite;
   state.maps = {
     rules: [
       {
@@ -558,7 +562,8 @@ it("shows Edit map as a header button for a selected map", async () => {
     analyses: [],
   };
   render(<TopicsPage />, { wrapper: LayerProvider });
-  expect(screen.getByRole("button", { name: "Edit map" })).toBeTruthy();
+  const editMap = screen.getByRole("button", { name: "Edit map" });
+  expect(editMap).toHaveProperty("disabled", !canWrite);
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   const items = await screen.findAllByRole("menuitem");
   expect(items.map((item) => item.textContent)).not.toContain("Edit map");

@@ -69,7 +69,7 @@ function analysisState(
         : "Grouping traces into topics",
       body:
         status === "queued"
-          ? "The scan is queued. Topics appear here when it finishes."
+          ? "The snapshot is queued. Topics appear here when it finishes."
           : "Topics appear here when the snapshot finishes.",
     };
   return {

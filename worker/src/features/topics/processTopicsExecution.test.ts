@@ -283,6 +283,25 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
             a.traceId < b.traceId ? -1 : a.traceId > b.traceId ? 1 : 0,
           ),
     ),
+    getNewestTopicClusteringSummaries: async (
+      projectId: string,
+      facet: TopicFacetRef,
+      embeddingConfig: TopicEmbeddingConfig,
+      timeRange: TopicTimeRange,
+    ) =>
+      [...state.summaries.values()]
+        .filter(
+          (row) =>
+            row.projectId === projectId &&
+            row.facetId === facet.facetId &&
+            row.facetVersion === facet.version &&
+            row.traceId !== null &&
+            row.state === "complete" &&
+            row.embeddingModel === embeddingConfig.embeddingModel &&
+            row.embedding.length === embeddingConfig.embeddingDimensions &&
+            inTimeRange(row, timeRange),
+        )
+        .sort((a, b) => b.unitStartTime.localeCompare(a.unitStartTime)),
     getTopicRun: async (_project: string, id: string) =>
       state.runs.get(id) ?? null,
     readTopicRunTraceIds: async (

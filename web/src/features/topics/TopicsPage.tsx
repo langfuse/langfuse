@@ -602,7 +602,7 @@ function TopicsWorkspaceContent({
               onConfigure: openConfigure,
               onHistory: openHistory,
               onEditRun:
-                canWrite && selectedRule && !showOnboarding
+                selectedRule && !showOnboarding
                   ? () => openSliceDialog({ kind: "rule", rule: selectedRule })
                   : undefined,
               onNewMap: () => openSliceDialog({ kind: "map" }),

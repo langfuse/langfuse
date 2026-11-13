@@ -28,6 +28,7 @@ export function TopicsResultsViewSelect({
             key={option.value}
             value={option.value}
             label={option.label}
+            internal={"internalOnly" in option}
           />
         ))}
       </Tabs.List>
