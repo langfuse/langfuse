@@ -15,7 +15,10 @@ mod columns;
 
 use columns::ToolColumns;
 
-use super::attributes::{javascript_json_stringify, JsonParseCache, ParsedJson};
+use super::attributes::{
+    is_js_truthy, javascript_json_stringify, javascript_number_to_string, javascript_string,
+    JsonParseCache, ParsedJson,
+};
 use super::types::JsonObject;
 use super::value::{JsString, Value};
 
@@ -86,8 +89,7 @@ fn is_definition_like(
     let parsed = parse_if_string(value, parse_cache);
     definition_data(&parsed)
         .and_then(|data| data.get("name"))
-        .and_then(Value::as_str)
-        .is_some_and(|name| !name.is_empty())
+        .is_some_and(is_js_truthy)
         || (allow_provider_without_name
             && parsed
                 .as_object()
@@ -119,15 +121,14 @@ fn dedupe_definitions(
     values: impl IntoIterator<Item = Value>,
     parse_cache: &mut JsonParseCache,
 ) -> Vec<Value> {
-    let mut names = std::collections::HashSet::<JsString>::new();
+    let mut names = std::collections::HashSet::<(u8, JsString)>::new();
     values
         .into_iter()
         .filter(|value| {
             let parsed = parse_if_string(value, parse_cache);
             definition_data(&parsed)
                 .and_then(|data| data.get("name"))
-                .and_then(string_value_js)
-                .filter(|name| !name.is_empty())
+                .and_then(definition_name_identity)
                 .map(|name| names.insert(name))
                 .unwrap_or(true)
         })
@@ -363,6 +364,30 @@ fn string_value_js(value: &Value) -> Option<JsString> {
         Value::Null | Value::Bool(_) | Value::Number(_) | Value::Array(_) | Value::Object(_) => {
             None
         }
+    }
+}
+
+fn definition_name_js(value: &Value) -> Option<JsString> {
+    if !is_js_truthy(value) {
+        return None;
+    }
+    match value {
+        Value::String(value) => Some(value.clone()),
+        _ => Some(javascript_string(value).into()),
+    }
+}
+
+// Match JavaScript Set equality for primitive names; separately parsed arrays and objects retain
+// identity semantics and therefore intentionally return no deduplication key.
+fn definition_name_identity(value: &Value) -> Option<(u8, JsString)> {
+    if !is_js_truthy(value) {
+        return None;
+    }
+    match value {
+        Value::String(value) => Some((0, value.clone())),
+        Value::Number(value) => Some((1, javascript_number_to_string(value).into())),
+        Value::Bool(true) => Some((2, JsString::default())),
+        Value::Null | Value::Bool(false) | Value::Array(_) | Value::Object(_) => None,
     }
 }
 
@@ -677,6 +702,33 @@ mod tests {
             assert_eq!(
                 Value::parse(&normalized.tools.tool_definitions["weather"]).unwrap()["parameters"],
                 json!(expected)
+            );
+        }
+        for (name, expected_key) in [
+            (json!(5e-324), "5e-324"),
+            (json!([]), ""),
+            (json!({"provider": "tool"}), "[object Object]"),
+        ] {
+            let normalized = normalize(None, None, json!({"tools": [{"name": name}]}));
+            assert_eq!(
+                normalized
+                    .tools
+                    .tool_definitions
+                    .keys()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>(),
+                [expected_key]
+            );
+        }
+        for (tools, expected_len) in [
+            (json!([{"name": 5e-324}, {"name": 5e-324}]), 1),
+            (json!([{"name": 5e-324}, {"name": "5e-324"}]), 2),
+            (json!([{"name": []}, {"name": []}]), 2),
+        ] {
+            let normalized = normalize(None, None, json!({"tools": tools}));
+            assert_eq!(
+                normalized.input.unwrap()["tools"].as_array().unwrap().len(),
+                expected_len
             );
         }
         let input = Value::parse(r#"{"tools":[{"name":"\ud800"},{"name":"\udc00"}]}"#).unwrap();
