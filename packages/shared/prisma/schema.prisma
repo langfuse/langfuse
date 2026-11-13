@@ -1725,6 +1725,8 @@ model BatchAction {
   processedCount Int?    @map("processed_count")
   failedCount    Int?    @map("failed_count")
   log            String?
+  // Last row a resumable batch action finished, written with the counts.
+  cursor         Json?
 
   @@index([projectId, userId])
   @@index([status])
