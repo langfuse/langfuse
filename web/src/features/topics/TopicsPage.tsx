@@ -27,6 +27,7 @@ import {
 import { useTopicPipelineForm } from "./TopicPipelineForm";
 import { ManualTopicsFormContent } from "./ManualTopicsFormContent";
 import { cn } from "@/src/utils/tailwind";
+import { useIsHandheld } from "@/src/hooks/use-mobile";
 import { TopicsFacetTabs } from "./TopicsFacetTabs";
 import { TopicsMobileControls } from "./TopicsMobileControls";
 import { resolveTopicFacetId } from "./topic-facet-selection";
@@ -204,6 +205,7 @@ function TopicsWorkspaceContent({
 }: TopicsWorkspaceContentProps) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [resultsView, setResultsView] = useTopicsResultsView();
+  const isHandheld = useIsHandheld();
   const [showUnassigned, setShowUnassigned] = useSessionStorage(
     `topics-show-unassigned:${projectId}`,
     true,
@@ -555,13 +557,16 @@ function TopicsWorkspaceContent({
                     />
                   </span>
                 )}
-                <span className="text-muted-foreground flex shrink-0 items-center gap-2 text-sm whitespace-nowrap">
-                  Visualize as
-                  <TopicsResultsViewSelect
-                    value={resultsView}
-                    onValueChange={setResultsView}
-                  />
-                </span>
+                {/* Handheld results always show the treemap under their own Visualize tab. */}
+                {!isHandheld && (
+                  <span className="text-muted-foreground flex shrink-0 items-center gap-2 text-sm whitespace-nowrap">
+                    Visualize as
+                    <TopicsResultsViewSelect
+                      value={resultsView}
+                      onValueChange={setResultsView}
+                    />
+                  </span>
+                )}
               </>
             );
             // Only once results loaded; loading and errors stay with CurrentTopics.
