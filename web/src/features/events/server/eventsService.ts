@@ -8,11 +8,8 @@ import {
   type FilterState,
 } from "@langfuse/shared";
 import {
-  getDistinctTraceCursorFromEvents,
   getObservationsCountsFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
-  getRootObservationsForTraceIdsFromEvents,
-  OBSERVATIONS_TO_TRACE_INTERVAL_DAYS,
   getCategoricalScoresGroupedByName,
   getEventsFilterOptionsForColumns,
   getEventsFilterOptionValuesPage,
@@ -31,10 +28,6 @@ import {
   type ClickhouseQueryOpts,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import {
-  matchingTraceRootLowerBound,
-  orderRootsByMatchedTraceIds,
-} from "@/src/features/events/server/matchingTraceRoots";
 type TimeFilter = z.infer<typeof timeFilter>;
 
 const TRACE_SCORE_SCOPE_FILTER: FilterCondition[] = [
@@ -313,10 +306,20 @@ export async function getEventListCursor(
   };
 }
 
-async function attachEventListScores<
-  T extends { id: string; traceId: string | null; startTime: Date },
->(projectId: string, observations: T[]) {
-  if (observations.length === 0) return observations;
+async function getEventListPage(
+  params: GetObservationsListBaseParams,
+  queryOpts: Parameters<typeof getObservationsWithModelDataFromEventsTable>[0],
+) {
+  const fetchedObservations =
+    await getObservationsWithModelDataFromEventsTable(queryOpts);
+  const hasMore = fetchedObservations.length > params.limit;
+  const observations = hasMore
+    ? fetchedObservations.slice(0, params.limit)
+    : fetchedObservations;
+
+  if (observations.length === 0) {
+    return { observations, hasMore };
+  }
 
   const traceIds = Array.from(
     new Set(
@@ -347,7 +350,7 @@ async function attachEventListScores<
 
   const [scores, traceScores] = await Promise.all([
     getScoresForObservations({
-      projectId,
+      projectId: params.projectId,
       observationIds: observations.map((observation) => observation.id),
       minTimestamp: minStartTime,
       excludeMetadata: true,
@@ -356,7 +359,7 @@ async function attachEventListScores<
     }),
     traceIds.length > 0
       ? getScoresForTraces({
-          projectId,
+          projectId: params.projectId,
           traceIds,
           timestamp: minTraceTimestamp,
           excludeMetadata: true,
@@ -409,9 +412,9 @@ async function attachEventListScores<
     }
   }
 
-  return observations.map((observation) => {
+  const observationsWithScores = observations.map((observation) => {
     const observationScores = scoresByObservationId.get(observation.id) ?? [];
-    const traceLevelScores = observation.traceId
+    const traceScores = observation.traceId
       ? (scoresByTraceId.get(observation.traceId) ?? [])
       : [];
     return {
@@ -421,86 +424,13 @@ async function attachEventListScores<
       // score (e.g. CSAT) shows in the one "Scores" column — matching the
       // level-agnostic score filter (LFE-10596). aggregateScores groups by
       // name/source/dataType, so a score present at both levels merges cleanly.
-      scores: aggregateScores([...observationScores, ...traceLevelScores]),
+      scores: aggregateScores([...observationScores, ...traceScores]),
       // Trace-only aggregate, retained for callers that need the breakdown.
-      traceScores: aggregateScores(traceLevelScores),
+      traceScores: aggregateScores(traceScores),
     };
   });
-}
 
-async function getEventListPage(
-  params: GetObservationsListBaseParams,
-  queryOpts: Parameters<typeof getObservationsWithModelDataFromEventsTable>[0],
-) {
-  const fetchedObservations =
-    await getObservationsWithModelDataFromEventsTable(queryOpts);
-  const hasMore = fetchedObservations.length > params.limit;
-  const observations = hasMore
-    ? fetchedObservations.slice(0, params.limit)
-    : fetchedObservations;
-
-  return {
-    observations: await attachEventListScores(params.projectId, observations),
-    hasMore,
-  };
-}
-
-/**
- * Traces that have a span matching the filters, rendered as each trace's root.
- * Step 1 is the filtered cursor scan (`LIMIT 1 BY trace_id`). Step 2 loads
- * roots for those ids with start_time widened by the observations-to-trace
- * interval. The cursor stays on the step-1 span, not the root row.
- */
-export async function getMatchingTraceRootsCursor(
-  params: GetObservationsCursorListParams & {
-    windowFrom?: Date;
-    windowTo?: Date;
-  },
-) {
-  const scanned = await getDistinctTraceCursorFromEvents({
-    projectId: params.projectId,
-    filter: params.filter,
-    searchQuery: params.searchQuery,
-    searchType: params.searchType,
-    limit: params.limit + 1,
-    cursor: params.cursor,
-  });
-  const hasMore = scanned.length > params.limit;
-  const page = hasMore ? scanned.slice(0, params.limit) : scanned;
-  const traceIds = page.map((row) => row.traceId);
-  const anchor =
-    params.windowFrom ??
-    (page.length > 0
-      ? new Date(Math.min(...page.map((row) => row.startTime.getTime())))
-      : undefined);
-  const roots =
-    traceIds.length === 0 || anchor === undefined
-      ? []
-      : await getRootObservationsForTraceIdsFromEvents({
-          projectId: params.projectId,
-          traceIds,
-          startTimeFrom: matchingTraceRootLowerBound(
-            anchor,
-            OBSERVATIONS_TO_TRACE_INTERVAL_DAYS,
-          ),
-          startTimeTo: params.windowTo,
-          limit: traceIds.length,
-        });
-  const ordered = orderRootsByMatchedTraceIds(traceIds, roots);
-  const boundary = page.at(-1);
-
-  return {
-    observations: await attachEventListScores(params.projectId, ordered),
-    hasMore,
-    nextCursor:
-      hasMore && boundary
-        ? {
-            lastStartTimeTo: boundary.startTime,
-            lastTraceId: boundary.traceId,
-            lastId: boundary.id,
-          }
-        : undefined,
-  };
+  return { observations: observationsWithScores, hasMore };
 }
 
 /**
