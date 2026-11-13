@@ -555,7 +555,7 @@ export class OtelIngestionProcessor {
                     span.name,
                   );
                 // AI SDK agent spans carry aggregate usage duplicating their
-                // child model-call spans — skip model/usage/cost for them.
+                // child model-call spans â skip model/usage/cost for them.
                 // Also Claude Managed Agent create_session spans have a model logged
                 // but no usage
                 const skipModelUsageAndCost = this.shouldSkipModelUsageAndCost(
@@ -804,7 +804,7 @@ export class OtelIngestionProcessor {
           // Process all events normally first
           const allEvents = resourceSpans.flatMap((resourceSpan) => {
             if (!resourceSpan) return [];
-            return this.processResourceSpan(resourceSpan);
+            return this.processResourceSpan(resourceSpan, resourceSpans);
           });
 
           // Filter out redundant shallow trace events
@@ -835,14 +835,12 @@ export class OtelIngestionProcessor {
             throw error;
           }
 
-          // Log error but don't throw to avoid breaking the ingestion pipeline
-          logger.error("Error processing OTEL spans:", {
+          logger.error('Error processing OTEL spans:', {
             error,
             ...this.getConversionFailureLogContext(resourceSpans),
           });
           traceException(error, span);
-
-          return [];
+          throw error;
         }
       },
     );
@@ -966,6 +964,7 @@ export class OtelIngestionProcessor {
 
   private processResourceSpan(
     resourceSpan: ResourceSpan,
+    resourceSpans: ResourceSpan[] = [resourceSpan],
   ): IngestionEventType[] {
     const resourceAttributes = this.extractResourceAttributes(resourceSpan);
     const events: IngestionEventType[] = [];
@@ -980,14 +979,25 @@ export class OtelIngestionProcessor {
       }
 
       for (const span of scopeSpan?.spans ?? []) {
-        const spanEvents = this.processSpan(
-          span,
-          scopeSpan,
-          resourceAttributes,
-          scopeAttributes,
-          isLangfuseSDKSpans,
-        );
-        events.push(...spanEvents);
+        try {
+          const spanEvents = this.processSpan(
+            span,
+            scopeSpan,
+            resourceAttributes,
+            scopeAttributes,
+            isLangfuseSDKSpans,
+          );
+          events.push(...spanEvents);
+        } catch (error) {
+          if (error instanceof ForbiddenError) {
+            throw error;
+          }
+          logger.error('Error processing OTEL spans:', {
+            error,
+            ...this.getConversionFailureLogContext(resourceSpans),
+          });
+          traceException(error);
+        }
       }
     }
 
@@ -1486,7 +1496,7 @@ export class OtelIngestionProcessor {
         return this.parseId(span.spanId?.data ?? span.spanId);
       }
     } catch {
-      // Intentionally swallowed — return "unknown" below
+      // Intentionally swallowed â return "unknown" below
     }
     return "unknown";
   }
@@ -1560,7 +1570,7 @@ export class OtelIngestionProcessor {
 
   /**
    * Logs details about spans that exceed the size threshold.
-   * Does NOT reject — just logs for observability.
+   * Does NOT reject â just logs for observability.
    */
   private logOversizedSpan(
     span: any,
@@ -2370,7 +2380,7 @@ export class OtelIngestionProcessor {
       return { input, output, filteredAttributes };
     }
 
-    // Pydantic AI agent/root span: all_messages → input, final_result → output
+    // Pydantic AI agent/root span: all_messages â input, final_result â output
     if (instrumentationScopeName === "pydantic-ai") {
       input = attributes["pydantic_ai.all_messages"] ?? null;
       output = attributes["final_result"] ?? null;
@@ -3640,10 +3650,10 @@ export class OtelIngestionProcessor {
     return [];
   }
 
-  // One increment per dropped attribute VALUE: deduped per drop scope —
+  // One increment per dropped attribute VALUE: deduped per drop scope â
   // the span object for span attributes (shared across both worker
   // pipelines) or the per-resourceSpan attributes object for resource
-  // attributes — on (attribute key, reason). Distinct spans/resourceSpans
+  // attributes â on (attribute key, reason). Distinct spans/resourceSpans
   // in one job count separately; the first-seen domain wins the tag.
   private recordMetadataDropped(
     reason: string,
@@ -3683,7 +3693,7 @@ export class OtelIngestionProcessor {
   }
 
   // Sub-classifies a JSON.parse failure by the failing string's shape,
-  // reading only bounded head/tail windows — never re-parses or copies the
+  // reading only bounded head/tail windows â never re-parses or copies the
   // (possibly multi-MB) value, and never logs its content. Slicing first
   // keeps the trim/regex work off the full string.
   private classifyParseFailure(value: string): string {
@@ -3691,7 +3701,7 @@ export class OtelIngestionProcessor {
     if (head.length === 0) {
       return "empty";
     }
-    // Python `str(dict)` / `str(list)` — single-quoted, or bare True/False/None.
+    // Python `str(dict)` / `str(list)` â single-quoted, or bare True/False/None.
     if (/^[{[]\s*'/.test(head) || /^(True|False|None)\b/.test(head)) {
       return "python_repr";
     }
@@ -4028,13 +4038,20 @@ export class OtelIngestionProcessor {
 
     const traceIds: Set<string> = new Set();
     if (Array.isArray(resourceSpans)) {
-      resourceSpans.forEach((resourceSpan) => {
+      for (const resourceSpan of resourceSpans) {
         for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
           for (const span of scopeSpan?.spans ?? []) {
-            traceIds.add(this.parseId(span.traceId?.data ?? span.traceId));
+            try {
+              traceIds.add(this.parseId(span.traceId?.data ?? span.traceId));
+            } catch (error) {
+              logger.warn(
+                'Failed to parse traceId in getSeenTracesSet:',
+                error,
+              );
+            }
           }
         }
-      });
+      }
     }
 
     try {
@@ -4060,11 +4077,8 @@ export class OtelIngestionProcessor {
 
       return seenTraceIds;
     } catch (error) {
-      // Redis error will be captured by parent span, just log and continue
-      logger.error("Redis operation failed in getSeenTracesSet:", error);
-
-      // Return empty set to continue processing (fail-safe behavior)
-      return new Set();
+      logger.error('Redis operation failed in getSeenTracesSet:', error);
+      throw error;
     }
   }
 
