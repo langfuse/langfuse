@@ -88,7 +88,7 @@ describe("systemRoleAccessRights", () => {
     ]);
   });
 
-  it("grants INGEST exactly the ingestion project actions", () => {
+  it("grants INGEST exactly the application project actions", () => {
     expect(systemRoleAccessRights.INGEST.policies).toEqual([
       {
         resourceKind: "project",
@@ -98,6 +98,8 @@ describe("systemRoleAccessRights", () => {
           "scores:save",
           "media:create",
           "project:read",
+          "prompts:read",
+          "skills:read",
         ],
       },
     ]);

@@ -112,7 +112,7 @@ export const systemRoleAccessRights: Record<SystemRole, SystemRoleDefinition> =
       name: "Member",
       description: "Work within the organization and its projects.",
       policies: userRoleAccessRights("MEMBER"),
-      tags: ["principal:user"],
+      tags: ["principal:user", "principal:apiKey"],
     },
     VIEWER: {
       id: "VIEWER",
@@ -147,14 +147,17 @@ export const systemRoleAccessRights: Record<SystemRole, SystemRoleDefinition> =
     },
     INGEST: {
       id: "INGEST",
-      name: "Ingestion",
-      description: "Create scores and traces from application telemetry.",
+      name: "Application",
+      description:
+        "Send traces and scores, and fetch prompts and skills, from a deployed application.",
       policies: [
         allow("project", [
           "traces:create",
           "scores:save",
           "media:create",
           "project:read",
+          "prompts:read",
+          "skills:read",
         ]),
       ],
       tags: ["principal:apiKey"],
