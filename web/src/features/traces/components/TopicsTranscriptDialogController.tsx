@@ -1,48 +1,30 @@
-import { type ReactNode } from "react";
+import { type ComponentProps } from "react";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Codeblock } from "@/src/components/design-system/Codeblock/Codeblock";
-import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
-import { api } from "@/src/utils/api";
+import {
+  InternalTranscriptDialogController,
+  type TranscriptSource,
+} from "@/src/features/traces/components/InternalTranscriptDialogController";
+import { useTopicsTranscript } from "@/src/features/traces/hooks/useTopicsTranscript";
 
-type TopicsTranscriptSource = {
-  projectId: string;
-  traceId: string;
-  timestamp: Date;
-};
-
-export function TopicsTranscriptDialogController({
-  children,
-  ...source
-}: TopicsTranscriptSource & {
-  children: (control: { openDialog: (() => void) | undefined }) => ReactNode;
-}) {
-  const internalFeaturesEnabled = useInternalFeaturesEnabled();
-  if (!internalFeaturesEnabled) {
-    return children({ openDialog: undefined });
-  }
-
+export function TopicsTranscriptDialogController(
+  props: Omit<
+    ComponentProps<typeof InternalTranscriptDialogController>,
+    "title" | "renderInspector"
+  >,
+) {
   return (
-    <DialogController<TopicsTranscriptSource>
-      renderDialog={({ state }) => (
-        <Dialog title="Topics transcript" size="lg" closeOnInteractionOutside>
-          <Dialog.Body>
-            <div className="ph-no-capture flex flex-col gap-4">
-              <TopicsTranscriptInspector {...state} />
-            </div>
-          </Dialog.Body>
-        </Dialog>
-      )}
-    >
-      {({ openDialog }) => children({ openDialog: () => openDialog(source) })}
-    </DialogController>
+    <InternalTranscriptDialogController
+      {...props}
+      title="Topics transcript"
+      renderInspector={(source) => <TopicsTranscriptInspector {...source} />}
+    />
   );
 }
 
-function TopicsTranscriptInspector(source: TopicsTranscriptSource) {
-  const query = api.events.topicsTranscriptByTraceId.useQuery(source);
+function TopicsTranscriptInspector(source: TranscriptSource) {
+  const query = useTopicsTranscript(source);
 
   if (query.error) {
     return (
