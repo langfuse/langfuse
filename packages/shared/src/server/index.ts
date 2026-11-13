@@ -711,6 +711,7 @@ export { getExperimentItemsCountFromEvents } from "./repositories/experiments";
 export { getExperimentItemsFilterOptions } from "./repositories/experiments";
 export { getExperimentScoreOptions } from "./repositories/experiments";
 export { getExperimentItemsFromEvents } from "./repositories/experiments";
+export { getExperimentsStartTime } from "./repositories/experiments";
 export { type ExperimentOutputData } from "./repositories/experiments";
 export { type ExperimentItemBatchIO } from "./repositories/experiments";
 export { getExperimentItemsBatchIO } from "./repositories/experiments";

@@ -63,7 +63,10 @@ import {
   convertClickhouseScoreToDomain,
   ScoreAggregation,
 } from "./scores_converters";
-import { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./constants";
+import {
+  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
+  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_HOURS,
+} from "./constants";
 import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
@@ -497,7 +500,7 @@ const scoresForExperimentItemsQuery = (
             .select((eb) => eb.fn.min("e.start_time").as("min_start_time"))
             .where("e.experiment_id", "in", experimentIds)
             .where("e.experiment_id", "!=", literal("")),
-          interval(1, "hour"),
+          interval(SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_HOURS, "hour"),
         ]),
       ),
     )
