@@ -27,7 +27,7 @@ function Strip({
       {controls && (
         <span className="hidden items-center gap-3 md:flex">{controls}</span>
       )}
-      <span className="ml-auto flex items-center gap-6">
+      <span className="ml-auto flex flex-wrap items-center justify-end gap-x-6 gap-y-1">
         {trailing && (
           <span className="text-muted-foreground whitespace-nowrap">
             {trailing}
