@@ -212,6 +212,45 @@ describe("compileLangfuseMediaMessages", () => {
     fetchSpy.mockRestore();
   });
 
+  it("sends Bedrock media bytes inline when URL transport is selected", async () => {
+    mediaStorageMocks.findUnique.mockResolvedValueOnce({
+      uploadHttpStatus: 200,
+      contentType: "image/jpeg",
+      bucketName: "media",
+      bucketPath: "project-1/image-1.jpeg",
+      contentLength: 3n,
+    });
+    mediaStorageMocks.getSignedUrl.mockResolvedValueOnce(
+      "https://signed.example/image-1",
+    );
+    mediaStorageMocks.downloadBytes.mockResolvedValueOnce(
+      new Uint8Array([1, 2, 3]),
+    );
+
+    const result = await compileLangfuseMediaMessages({
+      projectId: "project-1",
+      messages: [userMessage(imageRef)],
+      adapter: LLMAdapter.Bedrock,
+      transport: "url",
+    });
+
+    expect(result.providerMessages).toEqual([
+      {
+        role: "user",
+        content: [
+          {
+            type: "file",
+            data: new Uint8Array([1, 2, 3]),
+            mediaType: "image/jpeg",
+          },
+        ],
+      },
+    ]);
+    expect(mediaStorageMocks.downloadBytes).toHaveBeenCalledWith(
+      "project-1/image-1.jpeg",
+    );
+  });
+
   it("rejects declared inline media above the byte limit before download", async () => {
     const fetchMedia = vi.fn();
 
