@@ -534,7 +534,7 @@ function TopicsWorkspaceContent({
             const hasStrip =
               (!showOnboarding && selectedRule !== undefined) ||
               selectedAnalysis !== undefined;
-            // Rendered in both the strip and the handheld row, so the label wraps the switch instead of an id.
+            // Below md only the page menu's Show unassigned row carries this setting.
             const unassignedSwitch = (
               <label className="text-muted-foreground flex shrink-0 items-center gap-2 text-sm whitespace-nowrap">
                 <Switch
@@ -677,7 +677,6 @@ function TopicsWorkspaceContent({
                             onSelectFacet={traceFilters.selectFacet}
                           />
                         )}
-                        {hasStrip && unassignedSwitch}
                       </div>
                     )}
                     <TopicSetupNotice
