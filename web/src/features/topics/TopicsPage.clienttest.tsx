@@ -538,8 +538,12 @@ it("puts New scan first in the menu with the scan actions", async () => {
   ]);
 });
 
-it("shows Edit scan as a header button for a selected live scan", async () => {
+it.each([
+  { access: "with topics:CUD", canWrite: true },
+  { access: "without topics:CUD", canWrite: false },
+])("shows Edit scan as a header button $access", async ({ canWrite }) => {
   withSummaries();
+  state.canWrite = canWrite;
   state.maps = {
     rules: [
       {
@@ -557,7 +561,8 @@ it("shows Edit scan as a header button for a selected live scan", async () => {
     analyses: [],
   };
   render(<TopicsPage />, { wrapper: LayerProvider });
-  expect(screen.getByRole("button", { name: "Edit scan" })).toBeTruthy();
+  const editScan = screen.getByRole("button", { name: "Edit scan" });
+  expect(editScan).toHaveProperty("disabled", !canWrite);
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   const items = await screen.findAllByRole("menuitem");
   expect(items.map((item) => item.textContent)).not.toContain("Edit scan");
