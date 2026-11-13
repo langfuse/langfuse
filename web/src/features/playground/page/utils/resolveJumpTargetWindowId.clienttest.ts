@@ -27,7 +27,10 @@ const caches = (
   entries: Record<string, (ChatMessage | PlaceholderMessage)[]>,
 ) => ({
   openWindowIds: Object.keys(entries),
-  getCachedMessages: (windowId: string) => entries[windowId],
+  getCachedState: (windowId: string) => {
+    const messages = entries[windowId];
+    return messages ? { messages } : undefined;
+  },
 });
 
 describe("resolveJumpTargetWindowId", () => {
@@ -37,8 +40,8 @@ describe("resolveJumpTargetWindowId", () => {
       resolveJumpTargetWindowId({
         stableWindowId,
         openWindowIds: ["some-other-window"],
-        incomingMessages,
-        getCachedMessages: () => editedPrompt,
+        incomingState: { messages: incomingMessages },
+        getCachedState: () => ({ messages: editedPrompt }),
       }),
     ).toBe(stableWindowId);
 
@@ -47,7 +50,7 @@ describe("resolveJumpTargetWindowId", () => {
     expect(
       resolveJumpTargetWindowId({
         stableWindowId,
-        incomingMessages,
+        incomingState: { messages: incomingMessages },
         ...caches({ [stableWindowId]: storedPrompt }),
       }),
     ).toBe(stableWindowId);
@@ -57,8 +60,8 @@ describe("resolveJumpTargetWindowId", () => {
       resolveJumpTargetWindowId({
         stableWindowId,
         openWindowIds: [stableWindowId],
-        incomingMessages,
-        getCachedMessages: () => undefined,
+        incomingState: { messages: incomingMessages },
+        getCachedState: () => undefined,
       }),
     ).toBe(stableWindowId);
   });
@@ -68,7 +71,7 @@ describe("resolveJumpTargetWindowId", () => {
 
     const siblingId = resolveJumpTargetWindowId({
       stableWindowId,
-      incomingMessages,
+      incomingState: { messages: incomingMessages },
       ...caches(edited),
     });
 
@@ -77,12 +80,47 @@ describe("resolveJumpTargetWindowId", () => {
     expect(
       resolveJumpTargetWindowId({
         stableWindowId,
-        incomingMessages,
+        incomingState: { messages: incomingMessages },
         ...caches({
           ...edited,
           [`${stableWindowId}-def`]: storedPrompt,
           [siblingId]: storedPrompt,
         }),
+      }),
+    ).toBe(siblingId);
+  });
+
+  it("preserves edited variable values and reuses an equivalent sibling", () => {
+    const promptVariables = [{ name: "topic", value: "logging", isUsed: true }];
+    const editedState = {
+      messages: storedPrompt,
+      promptVariables: [{ name: "topic", value: "edited draft", isUsed: true }],
+    };
+    const incomingState = { messages: incomingMessages, promptVariables };
+    const siblingId = resolveJumpTargetWindowId({
+      stableWindowId,
+      openWindowIds: [stableWindowId],
+      incomingState,
+      getCachedState: () => editedState,
+    });
+
+    expect(siblingId).toMatch(new RegExp(`^${stableWindowId}-${UUID}$`));
+    expect(
+      resolveJumpTargetWindowId({
+        stableWindowId,
+        openWindowIds: [stableWindowId, siblingId],
+        incomingState,
+        getCachedState: (windowId) =>
+          windowId === stableWindowId
+            ? editedState
+            : {
+                messages: storedPrompt,
+                promptVariables: promptVariables.map(({ name, value }) => ({
+                  name,
+                  value,
+                  isUsed: false,
+                })),
+              },
       }),
     ).toBe(siblingId);
   });
