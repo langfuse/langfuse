@@ -16,6 +16,7 @@ changing how it emits SQL.
   references (`a.b.c`), so later passes read a qualifier as its relation.
 - `ctes.ts` — the second pass: rejects CTE and FROM/JOIN names that could
   mean two relations, so later passes read every registry name as its table.
+- `shadowing.ts` — the third pass: rejects an expression alias, ARRAY JOIN alias or lambda parameter named like a FROM/JOIN relation or CTE, and a FROM/JOIN alias named like a registry column, so `t.project_id` always reads relation `t`.
 - `tenancy.ts` — the tenancy injection pass.
 - `schema.ts` — the physical table registry: one `defineTable` declaration per relation drives the Kysely row types (`ClickHouseDatabase`), the runtime column-type map (`COLUMN_DATA_TYPES`), the tenanted-table set (`TENANTED_TABLES`), and the per-table dedup specs (`DEDUP_SPECS`) — instead of hand-maintained tables that drift.
 - `compiler.ts` / `transformer.ts` / `dialect.ts` / `nodes.ts` — the dialect.
@@ -276,7 +277,7 @@ and it is where tenancy is enforced:
    `tupleArrayField` for a tuple field). `CteNamePlugin` then rejects the CTE
    names the rules above forbid; it runs before every pass but the first. A
    FROM/JOIN name that resolves to no registry table or CTE in scope, a schema-qualified name, and a name two FROM/JOIN items of one select share, throw `UnscopedRelationError`; naming errors throw
-   `QueryCompileError`.
+   `QueryCompileError`. `NameShadowingPlugin` then rejects names ClickHouse could resolve before a relation (see `shadowing.ts`) with `UnscopedRelationError`. A root that is not a select (delete, update, insert) throws `QueryCompileError` before any pass runs.
 2. `TenancyInjectionPlugin` walks every FROM/JOIN and injects
    `project_id = {projectId}` on each tenanted physical table, unless the tree
    already carries a predicate that _proves_ that scope: the equality's value

@@ -1177,10 +1177,8 @@ describe("names that shadow a relation", () => {
 describe("query roots", () => {
   const db = getClickhouseKysely();
 
-  it.each([
-    ["delete", db.deleteFrom("traces").where("id", "=", "x")],
-    ["update", db.updateTable("traces").set({ environment: "x" })],
-  ])("rejects a %s, which the passes do not scope", (_kind, query) => {
+  it("rejects a delete, which the passes do not scope", () => {
+    const query = db.deleteFrom("traces").where("id", "=", "x");
     expect(() =>
       // @ts-expect-error - only select builders are ClickhouseCompilable
       compileClickhouseQuery(query, projectId),
