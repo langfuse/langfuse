@@ -1,7 +1,7 @@
 import type { Kysely } from "kysely";
 import { describe, expect, it } from "vitest";
 
-import type { ClickhouseCompilable } from "./compile";
+import { compileClickhouseQuery, type ClickhouseCompilable } from "./compile";
 import { DedupLoweringPlugin } from "./dedup";
 import { getClickhouseKysely } from "./dialect";
 import { limitBy, useFinal } from "./extensions";
@@ -230,5 +230,39 @@ describe("per-table dedup lowering", () => {
     );
     expect(sql.toLowerCase()).not.toContain("limit 1 by");
     expect(sql.toLowerCase()).not.toMatch(/\bfinal\b/);
+  });
+});
+
+// Every compile pass: the project scope lands inside the dedup wrap, before
+// LIMIT BY picks one version per key, so another project's newer version of a
+// shared key cannot hide this project's row.
+describe("dedup lowering with every compile pass", () => {
+  it.each([
+    [
+      "a row read",
+      "traces" as const,
+      () => getClickhouseKysely().selectFrom("traces as t").select("t.id"),
+      "select t.id from traces as t where t.project_id = {p1:String} order by t.event_ts desc limit 1 by t.id",
+    ],
+    [
+      "a wrapped aggregate",
+      "scores" as const,
+      () =>
+        getClickhouseKysely()
+          .selectFrom("scores as s")
+          .select((eb) => eb.fn.countAll().as("n")),
+      "select count(*) as n from (select * from scores as s where s.project_id = {p1:String} order by s.event_ts desc limit 1 by s.id) as s",
+    ],
+  ])("scopes %s before LIMIT BY", (_shape, table, build, expected) => {
+    DEDUP_SPECS[table] = {
+      strategy: "limitBy",
+      key: ["id"],
+      version: "event_ts",
+    };
+    try {
+      expect(compileClickhouseQuery(build(), "proj-1").sql).toBe(expected);
+    } finally {
+      delete DEDUP_SPECS[table];
+    }
   });
 });
