@@ -1402,7 +1402,7 @@ describe("batch export test suite", () => {
     expect(rows[0].traceId).toBe(traces[1].id);
   });
 
-  it("should export dataset items", async () => {
+  it("should export dataset items with filters and scoped search", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
     // Create dataset 1
@@ -1433,7 +1433,7 @@ describe("batch export test suite", () => {
       {
         id: randomUUID(),
         datasetId,
-        input: { question: "What is AI?" },
+        input: { question: "What is AI?", context: "Learning" },
         expectedOutput: { answer: "Artificial Intelligence" },
         metadata: { category: "tech" },
         sourceTraceId: undefined,
@@ -1526,6 +1526,36 @@ describe("batch export test suite", () => {
         }),
       ]),
     );
+
+    const filteredStream = await getDatabaseReadStreamPaginated({
+      projectId,
+      tableName: BatchExportTableName.DatasetItems,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [
+        {
+          type: "stringOptions",
+          operator: "any of",
+          column: "datasetId",
+          value: [datasetId],
+        },
+        {
+          type: "stringOptions",
+          operator: "any of",
+          column: "status",
+          value: [DatasetStatus.ACTIVE],
+        },
+      ],
+      searchQuery: "Learning",
+      searchType: ["output"],
+      orderBy: { column: "createdAt", order: "DESC" },
+    });
+
+    const filteredRows: any[] = [];
+    for await (const chunk of filteredStream) {
+      filteredRows.push(chunk);
+    }
+
+    expect(filteredRows.map((row) => row.id)).toEqual([datasetItems[2].id]);
   });
 
   it("should export dataset items with source relationships", async () => {
