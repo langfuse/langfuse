@@ -3,14 +3,13 @@ import { type ColumnDef } from "@tanstack/react-table";
 import {
   ArrowUp,
   ArrowDown,
-  EllipsisVertical,
   Pencil,
   Pin,
   PinOff,
   Trash2,
 } from "@langfuse/icons";
 import { type RouterOutputs } from "@/src/utils/api";
-import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { type DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
@@ -156,100 +155,75 @@ const columns: ColumnDef<SessionViewRow>[] = [
       );
     },
   },
-  {
-    // The inline actions do not fit next to the name on narrow screens.
-    id: "actionsMenu",
-    header: "",
-    sensitive: true,
-    headerClassName: "md:hidden",
-    cellClassName: "md:hidden",
-    enableResizing: false,
-    size: 48,
-    cell: ({ row }) => {
-      const view = row.original;
-      const items: ComponentProps<typeof DropdownMenu>["items"] = [
-        ...(view.onSetDefaultPin
-          ? [
-              {
-                type: "item" as const,
-                id: "default-pin",
-                title: view.isPinnedByDefaultForProject
-                  ? "Remove default pin"
-                  : "Pin by default",
-                icon: view.isPinnedByDefaultForProject ? PinOff : Pin,
-                onClick: view.onSetDefaultPin,
-              },
-            ]
-          : []),
-        ...(view.onMoveUp
-          ? [
-              {
-                type: "item" as const,
-                id: "move-up",
-                title: "Move up",
-                icon: ArrowUp,
-                onClick: view.onMoveUp,
-              },
-            ]
-          : []),
-        ...(view.onMoveDown
-          ? [
-              {
-                type: "item" as const,
-                id: "move-down",
-                title: "Move down",
-                icon: ArrowDown,
-                onClick: view.onMoveDown,
-              },
-            ]
-          : []),
-        ...(view.showEditActions && view.id !== "messages"
-          ? [
-              {
-                type: "item" as const,
-                id: "edit",
-                title: "Edit",
-                icon: Pencil,
-                disabled: !view.canEdit
-                  ? { reason: "Only the creator can edit this view." }
-                  : undefined,
-                onClick: view.onEdit,
-              },
-              {
-                type: "item" as const,
-                id: "delete",
-                title: "Delete",
-                icon: Trash2,
-                variant: "destructive" as const,
-                disabled: !view.canEdit
-                  ? { reason: "Only the creator can delete this view." }
-                  : undefined,
-                onClick: view.onDelete,
-              },
-            ]
-          : []),
-      ];
-      if (items.length === 0) return null;
-      return (
-        <div className="ml-auto flex">
-          <DropdownMenu
-            ariaLabel={`${view.name} actions`}
-            items={items}
-            placement="bottom-end"
-          >
-            {({ getTriggerProps }) => (
-              <IconButton
-                icon={EllipsisVertical}
-                label={`${view.name} actions`}
-                {...getTriggerProps()}
-              />
-            )}
-          </DropdownMenu>
-        </div>
-      );
-    },
-  },
 ];
+
+/** The inline action column's actions, as a menu for screens where it is hidden. */
+function getViewActions(
+  view: SessionViewRow,
+): ComponentProps<typeof DropdownMenu>["items"] {
+  return [
+    ...(view.onSetDefaultPin
+      ? [
+          {
+            type: "item" as const,
+            id: "default-pin",
+            title: view.isPinnedByDefaultForProject
+              ? "Remove default pin"
+              : "Pin by default",
+            icon: view.isPinnedByDefaultForProject ? PinOff : Pin,
+            onClick: view.onSetDefaultPin,
+          },
+        ]
+      : []),
+    ...(view.onMoveUp
+      ? [
+          {
+            type: "item" as const,
+            id: "move-up",
+            title: "Move up",
+            icon: ArrowUp,
+            onClick: view.onMoveUp,
+          },
+        ]
+      : []),
+    ...(view.onMoveDown
+      ? [
+          {
+            type: "item" as const,
+            id: "move-down",
+            title: "Move down",
+            icon: ArrowDown,
+            onClick: view.onMoveDown,
+          },
+        ]
+      : []),
+    ...(view.showEditActions && view.id !== "messages"
+      ? [
+          {
+            type: "item" as const,
+            id: "edit",
+            title: "Edit",
+            icon: Pencil,
+            disabled: !view.canEdit
+              ? { reason: "Only the creator can edit this view." }
+              : undefined,
+            onClick: view.onEdit,
+          },
+          {
+            type: "item" as const,
+            id: "delete",
+            title: "Delete",
+            icon: Trash2,
+            variant: "destructive" as const,
+            disabled: !view.canEdit
+              ? { reason: "Only the creator can delete this view." }
+              : undefined,
+            onClick: view.onDelete,
+          },
+        ]
+      : []),
+  ];
+}
 
 function SessionManageViewsList({
   views,
@@ -355,6 +329,8 @@ function SessionManageViewsList({
           data={data}
           noResultsMessage={noResultsMessage}
           columns={columns}
+          actions={getViewActions}
+          actionsVisibility="belowMd"
           topBorder={false}
         />
       </div>
