@@ -3,7 +3,10 @@ import {
   BinaryOperationNode,
   ColumnNode,
   FunctionNode,
+  IdentifierNode,
   OperatorNode,
+  ParensNode,
+  RawNode,
   ReferenceNode,
   type KyselyPlugin,
   type OperationNode,
@@ -149,15 +152,48 @@ export function assertAllowedCalls(root: OperationNode): void {
     }
     if (
       BinaryOperationNode.is(node) &&
-      OperatorNode.is(node.operator) &&
-      IN_OPERATOR.test(node.operator.operator) &&
-      (ReferenceNode.is(node.rightOperand) || ColumnNode.is(node.rightOperand))
+      IN_OPERATOR.test(nameText(node.operator)?.trim() ?? "") &&
+      nameText(node.rightOperand) !== undefined
     ) {
       throw new UnscopedRelationError(
         "A column reference on the right of IN is rejected: ClickHouse reads a bare name there as a table, unscoped. Compare against a value list, a parameter, or a subquery.",
       );
     }
   });
+}
+
+/**
+ * The text of a node that holds only names, as ClickHouse reads it: `scores`
+ * for `scores`, `sql.ref("scores")`, `sql.id("scores")`, `sql.raw("scores")`
+ * or `(scores)`, and `in` for an operator. Undefined once anything else, such
+ * as a value or a subquery, is part of it.
+ */
+function nameText(node: OperationNode): string | undefined {
+  if (OperatorNode.is(node)) return node.operator;
+  if (IdentifierNode.is(node)) return node.name;
+  if (ColumnNode.is(node)) return node.column.name;
+  if (ReferenceNode.is(node)) {
+    const column = ColumnNode.is(node.column) ? node.column.column.name : "*";
+    return node.table
+      ? `${node.table.table.identifier.name}.${column}`
+      : column;
+  }
+  if (ParensNode.is(node)) {
+    const inner = nameText(node.node);
+    return inner === undefined ? undefined : `(${inner})`;
+  }
+  if (!RawNode.is(node)) return undefined;
+  let text = node.sqlFragments[0] ?? "";
+  for (const [i, parameter] of node.parameters.entries()) {
+    const part = nameText(parameter);
+    if (part === undefined) return undefined;
+    text += part + (node.sqlFragments[i + 1] ?? "");
+  }
+  // Raw text of brackets and spaces around one name still reads that name.
+  return /^[\s(]*[A-Za-z_][A-Za-z0-9_.]*[\s)]*$/.test(text) ||
+    IN_OPERATOR.test(text.trim())
+    ? text
+    : undefined;
 }
 
 function functionName(node: OperationNode): string | undefined {

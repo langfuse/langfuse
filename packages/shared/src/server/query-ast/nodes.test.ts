@@ -1277,22 +1277,18 @@ describe("names the compiler writes verbatim", () => {
   it.each(["columns ", "tuple(s.comment), length", "default.f"])(
     "rejects the function name %j",
     (name) => {
-      expect(() =>
-        compileClickhouseQuery(
-          db
-            .selectFrom("scores as s")
-            .select((eb) => eb.fn<string>(name, [eb.val("x")]).as("x")),
-          projectId,
-        ),
-      ).toThrow(QueryCompileError);
-      expect(() =>
-        compileClickhouseQuery(
-          db
-            .selectFrom("scores as s")
-            .select((eb) => eb.fn.agg<string>(name, [eb.val("x")]).as("x")),
-          projectId,
-        ),
-      ).toThrow(QueryCompileError);
+      const eb = expressionBuilder<ClickHouseDatabase, "scores">();
+      const compile =
+        (expression: { toOperationNode(): OperationNode }) => () =>
+          new ClickHouseQueryCompiler().compileExpression(
+            expression.toOperationNode(),
+          );
+      expect(compile(eb.fn<string>(name, [eb.val("x")]))).toThrow(
+        `Function name "${name}" is not a plain identifier`,
+      );
+      expect(compile(eb.fn.agg<string>(name, [eb.val("x")]))).toThrow(
+        `Aggregate function name "${name}" is not a plain identifier`,
+      );
     },
   );
 

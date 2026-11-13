@@ -1,5 +1,7 @@
 import {
   ExpressionWrapper,
+  sql,
+  type ExpressionBuilder,
   IdentifierNode,
   ValueNode,
   createQueryId,
@@ -7,7 +9,7 @@ import {
 } from "kysely";
 import { describe, expect, it } from "vitest";
 
-import { renderClickhouseExpression } from "./compile";
+import { compileClickhouseQuery, renderClickhouseExpression } from "./compile";
 import { getClickhouseKysely } from "./dialect";
 import { QueryCompileError, UnscopedRelationError } from "./errors";
 import { FunctionAllowlistPlugin } from "./functions";
@@ -15,6 +17,7 @@ import { ParametricAggregateNode, asOperationNode } from "./nodes";
 import type { ClickHouseDatabase } from "./schema";
 
 const db = getClickhouseKysely();
+type Eb = ExpressionBuilder<ClickHouseDatabase, "traces">;
 const check = (query: { toOperationNode(): unknown }) => () =>
   new FunctionAllowlistPlugin().transformQuery({
     node: query.toOperationNode() as never,
@@ -59,13 +62,40 @@ describe("function allowlist", () => {
     expect(check(query)).toThrow('Function "sequenceMatch"');
   });
 
-  it("rejects a column reference on the right of IN, which reads a table", () => {
+  it.each([
+    ["eb.ref", (eb: Eb) => eb("traces.id", "in", eb.ref("scores" as never))],
+    ["sql.ref", (eb: Eb) => eb("traces.id", "in", sql.ref("scores") as never)],
+    ["sql.id", (eb: Eb) => eb("traces.id", "in", sql.id("scores") as never)],
+    ["sql.raw", (eb: Eb) => eb("traces.id", "in", sql.raw("scores") as never)],
+    [
+      "brackets",
+      (eb: Eb) =>
+        eb("traces.id", "in", eb.parens(eb.ref("scores" as never)) as never),
+    ],
+    [
+      "a raw operator",
+      (eb: Eb) =>
+        eb("traces.id", sql`not in` as never, sql.ref("scores") as never),
+    ],
+  ])(
+    "rejects a name on the right of IN (%s), which reads a table",
+    (_shape, condition) => {
+      const query = db
+        .selectFrom("traces")
+        .select("id")
+        .where((eb) => condition(eb));
+      expect(check(query)).toThrow(UnscopedRelationError);
+      expect(check(query)).toThrow("A column reference on the right of IN");
+    },
+  );
+
+  it("runs inside compileClickhouseQuery", () => {
     const query = db
       .selectFrom("traces as t")
-      .select("t.id")
-      .where((eb) => eb("t.id", "in", eb.ref("scores" as never)));
-    expect(check(query)).toThrow(UnscopedRelationError);
-    expect(check(query)).toThrow("A column reference on the right of IN");
+      .select((eb) => eb.fn("joinGet", [eb.ref("t.id")]).as("x"));
+    expect(() => compileClickhouseQuery(query, "proj-1")).toThrow(
+      'Function "joinGet" is not on the allowlist',
+    );
   });
 
   it("checks a rendered expression too", () => {
