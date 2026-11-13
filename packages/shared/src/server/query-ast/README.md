@@ -102,13 +102,15 @@ must carry the `.golden.test.ts` suffix to run there.
   declare `softDelete` in the registry (`events_core`, `events_full`) get
   `is_deleted = 0` on every FROM/JOIN. A latest-version read (ordered by
   version, then `LIMIT 1` or `LIMIT 1 BY`) marks itself
-  `$call(softDeleteAfterLimit())`, so a deletion (a newer row with the flag
-  set) wins the pick and is dropped after it, instead of an older live
-  version. A select that must see deleted rows opts out with
+  `$call(softDeleteAfterLimit())`, so a tombstone (a newer row with the
+  flag set) wins the pick and is dropped after it, instead of an older live
+  version. A select that must see tombstones opts out with
   `$call(includeDeleted())`. Reads without a version pick (lists,
   aggregates) filter each row on its own: like an updated row under dedup
-  `none`, a deleted row's older live version stays visible until a merge
-  collapses the versions.
+  `none`, a tombstoned row's older live version stays visible until a merge
+  collapses the versions. No writer sets `is_deleted = 1` today: deletions
+  are lightweight `DELETE FROM`s, which ClickHouse hides from every read on
+  its own, so the flag guards only against future tombstone writes.
 - **Dedup is declared per table and must be an existing production idiom.**
   `events_core` and `events_full` are `none` (immutable at read time — no
   LIMIT BY, no FINAL).

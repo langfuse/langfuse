@@ -1519,7 +1519,7 @@ export function includeDeleted() {
 /**
  * Drop soft-deleted rows after this select's ORDER BY / LIMIT / LIMIT BY
  * instead of before: `qb.$call(softDeleteAfterLimit())`. For a latest-version
- * pick, where a deletion is a newer version with the flag set; filtering
+ * pick, where a tombstone is a newer version with the flag set; filtering
  * first would return the older live version. Compiles to
  * `select latest.<output>, … from (<this select, flag added>) as latest where
  * latest.<flag> = 0`. The select reads exactly one soft-delete table, has a
