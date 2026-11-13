@@ -205,7 +205,9 @@ export const AllowedModelsPreview = meta.story({
     );
     const modelsInput = screen.getByRole("combobox", { name: "Models" });
 
-    expect(screen.getByText("All enabled models")).toBeVisible();
+    await waitFor(() =>
+      expect(screen.getByText("All enabled models")).toBeVisible(),
+    );
     expect(
       screen.getByText(
         "Allowed models: all enabled models, including ones added later",
