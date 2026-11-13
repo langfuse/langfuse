@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   type ComponentProps,
+  type ReactNode,
 } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -43,11 +44,11 @@ type MobileTopicsViewProps = {
   selectedTraceId: string | null;
   onSelectTrace: (traceId: string | null) => void;
   onOpenTrace: (traceId: string) => void;
-  onGenerateTopics: () => void;
-  canGenerateTopics: boolean;
   isV4: boolean;
   useTraces: UseTopicTraces;
   showUnassigned: boolean;
+  /** Shown under an empty topic list. */
+  emptyActions?: ReactNode;
 };
 
 /** Local navigation only; query data and persisted filters stay with the caller. */
@@ -64,11 +65,10 @@ export function MobileTopicsView({
   selectedTraceId,
   onSelectTrace,
   onOpenTrace,
-  onGenerateTopics,
-  canGenerateTopics,
   isV4,
   useTraces,
   showUnassigned,
+  emptyActions,
 }: MobileTopicsViewProps) {
   const [navigation, setNavigation] = useState({
     view,
@@ -193,11 +193,9 @@ export function MobileTopicsView({
             onSelectTopic={selectTopic}
             onShowAllTraces={showAllTraces}
           />
-          {facet.topics.length === 0 && canGenerateTopics && (
-            <div className="shrink-0 border-t p-3">
-              <Button text="Generate topics" onClick={onGenerateTopics} />
-            </div>
-          )}
+          {facet.topics.length === 0 && emptyActions ? (
+            <div className="shrink-0 border-t p-3">{emptyActions}</div>
+          ) : null}
         </Tabs.Content>
         <Tabs.Content value="traces" layout="fill">
           <section
