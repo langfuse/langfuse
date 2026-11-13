@@ -16,15 +16,18 @@ const toProbabilities = (value: unknown): Record<string, number> =>
 
 function readDecisionDetails(metadata: unknown) {
   if (!isRecord(metadata)) return null;
-  const details = metadata[LLMAdapter.OpenAI] ?? metadata[LLMAdapter.TypeSafe];
+  const details =
+    metadata[LLMAdapter.OpenAI] ??
+    metadata[LLMAdapter.GoogleAIStudio] ??
+    metadata[LLMAdapter.TypeSafe];
   return isRecord(details) ? details : null;
 }
 
 /**
  * Reads the scores of a decision-model test run into one row per question.
  * Values come from the score itself. Distributions and confidence come from
- * the provider namespace the executor writes (`openai` or `typesafe`). The
- * question text comes from the request that was sent.
+ * the provider namespace the executor writes (`openai`, `google-ai-studio`, or
+ * `typesafe`). The question text comes from the request that was sent.
  */
 export function toDecisionModelResults(
   response: Record<string, unknown>,

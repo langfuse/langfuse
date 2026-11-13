@@ -77,6 +77,20 @@ minimumReleaseAgeExclude:
   - "@ag-ui/core@1.0.4"
   - "@ag-ui/encoder@1.0.4"
   - "@ag-ui/proto@1.0.4"
+  # AI SDK release with native Gemini Decisions support; the set shares one provider
+  # version and clears the five-day window on November 16.
+  - ai@7.0.170
+  - "@ai-sdk/amazon-bedrock@5.0.139"
+  - "@ai-sdk/anthropic@4.0.102"
+  - "@ai-sdk/azure@4.0.123"
+  - "@ai-sdk/deepseek@3.0.84"
+  - "@ai-sdk/gateway@4.0.143"
+  - "@ai-sdk/google@4.0.118"
+  - "@ai-sdk/google-vertex@5.0.138"
+  - "@ai-sdk/openai@4.0.115"
+  - "@ai-sdk/openai-compatible@3.0.90"
+  - "@ai-sdk/provider-utils@5.0.79"
+  - "@ai-sdk/typesafe-ai@3.0.38"
 # Drop exceptions for versions no longer in the lockfile during writable installs.
 minimumReleaseAgeExcludePrune: true
 # Reject recent releases whose publishing trust is weaker than earlier versions.

@@ -57,10 +57,8 @@ export async function loadTraceTranscript(
   const filters =
     context === "session" ? sessionTraceFilterSchema.parse(filter ?? []) : [];
   if (context === "session" && filters.length > 0) {
-    const observationFilters = filters.filter((filter) =>
-      ["name", "type", "level", "metadata", "isRootObservation"].includes(
-        filter.column,
-      ),
+    const observationFilters = filters.filter(
+      (filter) => filter.column !== "traceName",
     );
     const content = await getObservationsForTraceFromEventsTable({
       ...source,

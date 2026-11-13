@@ -7,6 +7,4 @@
 
 ### Testing
 
-- When changing the core flow or model provider-specifics: ensure that the end-to-end test suite
-  remains valid: `web/src/__e2e__/ai-gateway.gatewaye2e.ts`. Vitest starts the built binary and
-  sends model listing, client errors, and slugless completions through it.
+- When changing the core flow or model provider-specifics: ensure that the end-to-end test suite remains valid: one suite per provider in `web/src/__e2e__/ai-gateway/`, all run by the single `test-ai-gateway-e2e` CI job. Each suite adds the provider connection, starts the built binary, lists models, and checks that completions are ingested with model, usage and cost. Shared setup lives in `gatewayE2eHarness.ts`.
