@@ -396,6 +396,18 @@ const SAFARI_ADDMORE_CLICK_RE =
   /^(?:undefined|null) is not an object \(evaluating 'addMore\.click(?:\(\))?'\)$/;
 
 /**
+ * posthog-js `request.ts` abort reason. The SDK builds
+ * "PostHog request timed out" plus an optional " after <n>ms" suffix
+ * and the rejection surfaces as `AbortError`. Duration varies with
+ * `request_timeout_ms` (Cloud default 3000). Whole-message only — an app
+ * error that quotes the phrase is longer and is KEPT.
+ *
+ * Stored without a trailing period because {@link coreMessage} strips one.
+ */
+const POSTHOG_REQUEST_TIMEOUT_RE =
+  /^PostHog request timed out(?: after \d+ms)?$/;
+
+/**
  * Match {@link SAFARI_ADDMORE_CLICK_RE} without {@link coreMessage}.
  * `coreMessage` strips a trailing `(…)` parenthetical — that clause *is*
  * WebKit's signature here, so stripping it would miss the real event.
@@ -591,6 +603,30 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
       exceptionType === "AbortError" &&
       (exceptionValue.includes("signal is aborted") ||
         exceptionValue.includes("The operation was aborted"))
+    ) {
+      return true;
+    }
+
+    // posthog-js aborts its own ingest fetch after request_timeout_ms
+    // and rejects with this vendor-namespaced AbortError. The promise is
+    // not awaited by app code, so Sentry's onunhandledrejection handler
+    // mints a new issue (LANGFUSE-64C / LANGFUSE-5ZD). Analytics
+    // telemetry failing is not a Langfuse app bug — PostHog retries and
+    // the page already works. Same class as the `[PostHog.js]` console
+    // notices already dropped above.
+    //
+    // Requires AbortError + whole-message match + a browser global
+    // handler so:
+    //  - an app-captured exception that quotes the phrase is KEPT;
+    //  - a TypeError / other type with the same text is KEPT;
+    //  - a longer app message that merely mentions the phrase is KEPT;
+    //  - a generic "Request timed out after 3000ms" is KEPT.
+    const posthogTimeoutMechanism = exception?.mechanism?.type;
+    if (
+      exceptionType === "AbortError" &&
+      typeof posthogTimeoutMechanism === "string" &&
+      posthogTimeoutMechanism.startsWith("auto.browser.global_handlers") &&
+      POSTHOG_REQUEST_TIMEOUT_RE.test(coreMessage(exceptionValue))
     ) {
       return true;
     }
