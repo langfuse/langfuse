@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { prisma, type Prisma } from "../../db";
+import { lockTransactionKey } from "../transactionLock";
 import { getTopicProcessingMapIds } from "./postgres";
 import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { BatchActionStatus } from "../../features/batchAction/types";
@@ -52,7 +53,7 @@ async function lockExecution(
   projectId: string,
   executionId: string,
 ) {
-  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`topics:${projectId}:${executionId}`}, 0))`;
+  await lockTransactionKey(tx, `topics:${projectId}:${executionId}`);
   await tx.$queryRaw`SELECT id FROM batch_actions WHERE project_id = ${projectId} AND id = ${executionId} FOR UPDATE`;
 }
 

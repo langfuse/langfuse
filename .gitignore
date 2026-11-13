@@ -49,6 +49,7 @@ yarn-error.log*
 !.env.dev.example
 !.env.dev-azure.example
 !.env.dev-redis-cluster.example
+!.env.dev-cockroachdb.example
 !.env.prod.example
 !.env.test.example
 !.env.dev-oci.example

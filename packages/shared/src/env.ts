@@ -61,6 +61,11 @@ const EnvSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   NEXTAUTH_URL: z.url().optional(),
+  // Database behind DATABASE_URL. Selects the migration runner and the
+  // engine-specific SQL in a few runtime paths.
+  LANGFUSE_POSTGRES_ENGINE: z
+    .enum(["postgresql", "cockroachdb"])
+    .default("postgresql"),
   // Internal Topics PoC controls; not a supported self-hosting configuration.
   LANGFUSE_TOPICS_ENABLED: z.enum(["true", "false"]).default("false"),
   LANGFUSE_TOPICS_ENABLED_PROJECT_IDS: z

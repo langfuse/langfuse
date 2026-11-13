@@ -157,7 +157,7 @@ export function tableColumnsToSqlFilter(
     ) {
       // Key presence, mirroring the ClickHouse `has`/`mapContains` semantics.
       // COALESCE handles a NULL column (no metadata at all) as "key absent".
-      const keyExists = Prisma.sql`COALESCE(jsonb_exists(${filterAndColumn.internalColumn}::jsonb, ${filter.key}), false)`;
+      const keyExists = Prisma.sql`COALESCE(${filterAndColumn.internalColumn}::jsonb ? ${filter.key}, false)`;
       return filter.operator === "is set"
         ? keyExists
         : Prisma.sql`NOT ${keyExists}`;
