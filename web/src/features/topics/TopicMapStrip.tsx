@@ -1,4 +1,5 @@
 import { type ReactNode } from "react";
+import { cn } from "@/src/utils/tailwind";
 import {
   topicRuleFreshness,
   topicWindowLabel,
@@ -16,7 +17,13 @@ function Strip({
   options?: ReactNode;
 }) {
   return (
-    <div className="ph-no-capture flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-2 text-sm">
+    // Controls and options move to the handheld row below md, leaving only the status line.
+    <div
+      className={cn(
+        "ph-no-capture shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-2 text-sm",
+        trailing ? "flex" : "hidden md:flex",
+      )}
+    >
       {controls && (
         <span className="hidden items-center gap-3 md:flex">{controls}</span>
       )}
