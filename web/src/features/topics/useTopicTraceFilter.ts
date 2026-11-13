@@ -17,7 +17,6 @@ import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearc
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
-import { createFieldRegistry } from "@/src/features/search-bar/lib/fields";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import {
   toObservedOptions,
@@ -30,8 +29,9 @@ const ruleColumns = new Set(
   traceTranscriptFilterDefinition.columns.map((column) => column.id),
 );
 // Rules match at ingestion, so they only offer the trace-transcript filter fields.
-// Rebuilt rather than spread so field lookup only resolves those fields.
-export const topicsFilterRegistry = createFieldRegistry({
+// Lookup stays on the full rule registry so an out-of-list filter (e.g. from
+// Ask AI) shows as a token that validation flags, instead of hiding.
+export const topicsFilterRegistry = {
   ...RULE_FIELD_REGISTRY,
   fields: RULE_FIELD_REGISTRY.fields.filter((field) =>
     ruleColumns.has(field.filterColumn ?? field.id),
@@ -56,7 +56,7 @@ export const topicsFilterRegistry = createFieldRegistry({
     const error = topicRuleFilterError(filters);
     return error ? [error] : [];
   },
-});
+};
 export const topicsFilterQueryOnlyColumnIds = topicsFilterRegistry.fields
   .filter((field) => field.directFilter === false)
   .map((field) => field.filterColumn ?? field.id);
