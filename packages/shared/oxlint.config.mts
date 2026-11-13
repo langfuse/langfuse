@@ -1,6 +1,13 @@
 import baseConfig from "@repo/oxlint-config";
 import type { OxlintConfig } from "oxlint";
 
+const nextAuthValueImport = {
+  regex: "^next-auth(/|$)",
+  allowTypeImports: true,
+  message:
+    "next-auth is a devDependency of @langfuse/shared, so `pnpm deploy --prod` leaves it out of the worker image. Use `import type`; a value import crashes the worker at startup.",
+};
+
 const config: OxlintConfig = {
   ...baseConfig,
   overrides: [
@@ -40,14 +47,23 @@ const config: OxlintConfig = {
           "error",
           {
             patterns: [
+              nextAuthValueImport,
               {
-                regex: "^next-auth(/|$)",
-                allowTypeImports: true,
+                regex: "(^|/)query-ast/passHarness$|^\\./passHarness$",
                 message:
-                  "next-auth is a devDependency of @langfuse/shared, so `pnpm deploy --prod` leaves it out of the worker image. Use `import type`; a value import crashes the worker at startup.",
+                  "passHarness is test-only: it skips compiler passes and stamps the tree as tenancy-scoped, so SQL rendered through it can read other projects' rows.",
               },
             ],
           },
+        ],
+      },
+    },
+    {
+      files: ["**/*.test.ts"],
+      rules: {
+        "no-restricted-imports": [
+          "error",
+          { patterns: [nextAuthValueImport] },
         ],
       },
     },
