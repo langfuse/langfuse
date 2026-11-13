@@ -12,15 +12,13 @@ import {
   getCurrentSpan,
   instrumentAsync,
   isInternalEvalEnvironment,
+  prepareAssembledTopicTranscript,
+  renderStoredTopicText,
+  TOPICS_TEXT_VERSION,
   type ExecutionIssue,
   type Transcript,
 } from "@langfuse/shared/src/server";
 import { context as otelContext } from "@opentelemetry/api";
-import {
-  prepareAssembledTopicTranscript,
-  renderStoredTopicText,
-  TOPICS_TEXT_VERSION,
-} from "./assembledTranscript";
 import { TopicMetrics, type TopicResult } from "./metrics";
 import {
   embedTopicSummaries,

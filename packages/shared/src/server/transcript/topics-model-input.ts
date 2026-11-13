@@ -1,15 +1,12 @@
-import { stableJsonStringify, type Observation } from "@langfuse/shared";
-import {
-  redactModelPayload,
-  renderTranscript,
-  topicsTranscriptConfig,
-  type ExecutionIssue,
-  type Transcript,
-} from "@langfuse/shared/src/server";
+import type { Observation } from "../../domain/observations";
+import { stableJsonStringify } from "../../utils/json";
 import type {
   NormalizedMessage,
   NormalizedMessagePart,
-} from "@langfuse/shared/src/utils/normalized-io";
+} from "../../utils/normalized-io";
+import { redactModelPayload, renderTranscript } from "./topics-renderer";
+import { topicsTranscriptConfig } from "./topics-renderer-config";
+import type { ExecutionIssue, Transcript } from "./types";
 
 const redactInlineMedia = (text: string): string =>
   text.replace(/data:[^:;,\s]+;base64,[A-Za-z0-9+/=_-]+/g, "[media omitted]");

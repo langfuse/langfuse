@@ -349,6 +349,7 @@ enum GatewayProvider {
   VERCEL           @map("vercel")
   AZURE            @map("azure")
   GOOGLE_AI_STUDIO @map("google_ai_studio")
+  VERTEX           @map("vertex")
 }
 
 enum GatewayConnectionStatus {

@@ -4,6 +4,7 @@ import {
   instrumentAsync,
   isInternalEvalEnvironment,
   logger,
+  TOPICS_TEXT_VERSION,
   traceException,
 } from "@langfuse/shared/src/server";
 import {
@@ -79,7 +80,6 @@ import {
 import { matchTopicContinuity } from "./continuity";
 import { createEventLoopYielder } from "./event-loop";
 import { TopicMetrics } from "./metrics";
-import { TOPICS_TEXT_VERSION } from "./assembledTranscript";
 import { splitTopicModelUsage } from "./summaryResult";
 import { matchedSummaries, matchRefitWindow } from "./refitFilter";
 

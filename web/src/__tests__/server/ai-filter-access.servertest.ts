@@ -65,7 +65,7 @@ async function prepare(projectRole: Role) {
           ],
         },
       ],
-      featureFlags: testFeatureFlags({ templateFlag: false, searchBar: true }),
+      featureFlags: testFeatureFlags({ templateFlag: false }),
     },
     environment: {
       enableExperimentalFeatures: false,

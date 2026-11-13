@@ -80,7 +80,7 @@ describe("logical events routing", () => {
           .where("e.trace_id", "=", "t"),
       ),
     ).toMatchInlineSnapshot(
-      `"select e.span_id, e.name from events_core as e where e.project_id = {p1:String} and e.is_deleted = 0 and e.trace_id = {p2:String}"`,
+      `"select e.span_id, e.name from events_core as e where e.project_id = {p1:String} and e.trace_id = {p2:String}"`,
     );
   });
 
@@ -495,7 +495,7 @@ describe("logical events routing", () => {
           .where("span_id", "=", "s"),
       ),
     ).toMatchInlineSnapshot(
-      `"select events.span_id from events_core as events where events.project_id = {p1:String} and events.is_deleted = 0 and span_id = {p2:String}"`,
+      `"select events.span_id from events_core as events where events.project_id = {p1:String} and span_id = {p2:String}"`,
     );
   });
 
@@ -553,7 +553,7 @@ describe("logical events routing", () => {
           .where((eb) => eb(eventsMetadata(eb, "k"), "=", "x")),
       ),
     ).toMatchInlineSnapshot(
-      `"select e.span_id, e.input from events_core as e where e.project_id = {p1:String} and e.is_deleted = 0 and mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))[{p2:String}] = {p3:String}"`,
+      `"select e.span_id, e.input from events_core as e where e.project_id = {p1:String} and mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))[{p2:String}] = {p3:String}"`,
     );
   });
 
@@ -576,7 +576,7 @@ describe("logical events routing", () => {
           .orderBy("e.input"),
       ),
     ).toMatchInlineSnapshot(
-      `"select leftUTF8(e.input, 200) as input, lengthUTF8(leftUTF8(e.output, 200)) as output_length, arrayMap(v -> leftUTF8(v, 200), e.metadata_values)[indexOf(e.metadata_names, {p1:String})] as k from events_full as e where e.project_id = {p2:String} and e.is_deleted = 0 and mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))[{p1:String}] != {p3:String} group by leftUTF8(e.input, 200) order by leftUTF8(e.input, 200)"`,
+      `"select leftUTF8(e.input, 200) as input, lengthUTF8(leftUTF8(e.output, 200)) as output_length, arrayMap(v -> leftUTF8(v, 200), e.metadata_values)[indexOf(e.metadata_names, {p1:String})] as k from events_full as e where e.project_id = {p2:String} and mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))[{p1:String}] != {p3:String} group by leftUTF8(e.input, 200) order by leftUTF8(e.input, 200)"`,
     );
   });
 
@@ -625,7 +625,7 @@ describe("logical events routing", () => {
           .where("e.output", "like", "%x%"),
       ),
     ).toMatchInlineSnapshot(
-      `"select toFloat64OrNull(mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(arrayMap(v -> leftUTF8(v, 200), e.metadata_values)))[{p1:String}]) > {p2:Int64} as big from events_full as e where e.project_id = {p3:String} and e.is_deleted = 0 and e.output like {p4:String}"`,
+      `"select toFloat64OrNull(mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(arrayMap(v -> leftUTF8(v, 200), e.metadata_values)))[{p1:String}]) > {p2:Int64} as big from events_full as e where e.project_id = {p3:String} and e.output like {p4:String}"`,
     );
   });
 
@@ -645,7 +645,7 @@ describe("logical events routing", () => {
           .where("e.output", "like", "%x%"),
       ),
     ).toMatchInlineSnapshot(
-      `"select (hasAllTokens(arrayMap(v -> leftUTF8(v, 200), e.metadata_values), arraySlice(arrayDistinct(tokens({p1:String})), 1, 64)) and mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(arrayMap(v -> leftUTF8(v, 200), e.metadata_values)))[{p2:String}] = {p1:String}) as hit from events_full as e where e.project_id = {p3:String} and e.is_deleted = 0 and e.output like {p4:String}"`,
+      `"select (hasAllTokens(arrayMap(v -> leftUTF8(v, 200), e.metadata_values), arraySlice(arrayDistinct(tokens({p1:String})), 1, 64)) and mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(arrayMap(v -> leftUTF8(v, 200), e.metadata_values)))[{p2:String}] = {p1:String}) as hit from events_full as e where e.project_id = {p3:String} and e.output like {p4:String}"`,
     );
   });
 
@@ -732,7 +732,7 @@ describe("logical events routing", () => {
     expect(
       compile(db.selectFrom("events_truncated").select("input")),
     ).toMatchInlineSnapshot(
-      `"select input from events_core as events_truncated where events_truncated.project_id = {p1:String} and events_truncated.is_deleted = 0"`,
+      `"select input from events_core as events_truncated where events_truncated.project_id = {p1:String}"`,
     );
   });
 

@@ -19,6 +19,7 @@ const CREDENTIAL_SOURCES = {
   VERCEL: "API key from vercel.com",
   AZURE: "Resource name and API key from ai.azure.com",
   GOOGLE_AI_STUDIO: "API key from aistudio.google.com",
+  VERTEX: "Service account key and location",
 } satisfies Record<GatewayProvider, string>;
 
 export type GatewayNoProvidersEmptyStateProps = {

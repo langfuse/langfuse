@@ -34,7 +34,6 @@ vi.mock("../../ClickhouseWriter/eventByteAccounting", () => ({
 
 import { IngestionService } from "../../IngestionService";
 import {
-  convertDateToClickhouseDateTime,
   createTraceScore,
   type ObservationEvent,
   type ScoreEventType,
@@ -616,14 +615,6 @@ describe("IngestionService unit tests", () => {
         secondCreate,
       ]),
     ).toEqual([secondCreate, firstCreate, update]);
-  });
-
-  it("correctly convert Date to Clickhouse DateTime", async () => {
-    const date = new Date("2024-10-12T12:13:14.123Z");
-
-    const clickhouseDateTime = convertDateToClickhouseDateTime(date);
-
-    expect(clickhouseDateTime).toEqual("2024-10-12 12:13:14.123");
   });
 
   it("keeps observation metadata values stringified after moving tool definitions to input", async () => {

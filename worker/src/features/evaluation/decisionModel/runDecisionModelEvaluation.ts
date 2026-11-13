@@ -19,9 +19,8 @@ import {
   executeDecisionModelEvaluator,
   instrumentAsync,
   isAllowedDecisionModel,
-  LLMAdapter,
-  OPENAI_DECISION_MODEL_IDS,
   logger,
+  unsupportedDecisionModelMessage,
   type ExtractedVariable,
 } from "@langfuse/shared/src/server";
 import { UnrecoverableError } from "../../../errors/UnrecoverableError";
@@ -126,9 +125,11 @@ export async function runDecisionModelEvaluation({
         )
       ) {
         modelConfigError =
-          modelConfig.config.apiKey.adapter === LLMAdapter.OpenAI
-            ? `Model "${modelConfig.config.model}" is not supported for decision models. Use ${OPENAI_DECISION_MODEL_IDS.join(", ")}.`
-            : `Connection "${modelConfig.config.provider}" is not a decision-model connection`;
+          unsupportedDecisionModelMessage(
+            modelConfig.config.apiKey.adapter,
+            modelConfig.config.model,
+          ) ??
+          `Connection "${modelConfig.config.provider}" is not a decision-model connection`;
       }
       if (!modelConfig.valid || modelConfigError !== null) {
         const blockReason = getBlockReasonForInvalidModelConfig({

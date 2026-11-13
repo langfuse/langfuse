@@ -517,6 +517,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "jlens-regress"
+version = "0.32.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f062083f96cb6db615dc4b1018dbfff61deca30e75b31c36e2b5d4f1bdf254d"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "js-sys"
 version = "0.3.104"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -542,6 +551,7 @@ dependencies = [
  "hstr",
  "indexmap",
  "jiter",
+ "jlens-regress",
  "memchr",
  "metrics",
  "metrics-exporter-dogstatsd",

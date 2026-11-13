@@ -1,11 +1,8 @@
+import type { RegionGroup } from "@/src/features/ai-gateway/types/regionGroup";
+
 // AWS regions offering the Bedrock runtime in the `amazonaws.com` partition.
 // Model access still varies by region; testing the key confirms it.
-type BedrockRegionGroup = {
-  label: string;
-  regions: { value: string; label: string }[];
-};
-
-export const bedrockRegionGroups: BedrockRegionGroup[] = [
+export const bedrockRegionGroups: RegionGroup[] = [
   {
     label: "US & Canada",
     regions: [
