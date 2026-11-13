@@ -132,6 +132,14 @@ export type FieldRegistry = {
   filterStateErrors?: (filters: FilterState) => readonly string[];
   /** Whether this view exposes metadata.<key> filters. */
   metadata: boolean;
+  /**
+   * Whether `metadata.<key>:>n` (and `<`, `>=`, `<=`) lower to numeric
+   * `numberObject` filters. Only for views whose server compiles filters
+   * through the events predicate source; legacy filter paths reject
+   * `numberObject` on metadata. Applies to the `metadata.` root only, not to
+   * `metadataNamespaces`.
+   */
+  numericMetadata: boolean;
   /** Additional metadata roots mapped to their backend FilterState columns. */
   metadataNamespaces?: Readonly<Record<string, string>>;
   /** Keyed option roots (`topics.<facet>:<value>`) mapped to categoryOptions columns. */
@@ -298,6 +306,11 @@ export function fieldRegistryFromColumns(
   });
 }
 
+/**
+ * `registry` plus fields for `columns`, for a view built on another view's
+ * grammar. `numericMetadata` is not inherited: the extended view's server
+ * (evaluator filters) may still reject numeric metadata filters.
+ */
 export function extendFieldRegistryWithColumns(
   registry: FieldRegistry,
   columns: readonly ColumnDefinition[],
@@ -333,6 +346,7 @@ export function extendFieldRegistryWithColumns(
   });
 }
 
+/** `registry` with labeled options on `fieldId`; same view, same grammar. */
 export function withFieldOptions(
   registry: FieldRegistry,
   fieldId: string,
@@ -364,6 +378,7 @@ export function withFieldOptions(
     columns: registry.columns,
     predicateSource: registry.predicateSource,
     metadata: registry.metadata,
+    numericMetadata: registry.numericMetadata,
     metadataNamespaces: registry.metadataNamespaces,
     keyedOptionNamespaces: registry.keyedOptionNamespaces,
     scores: registry.scores,
@@ -501,7 +516,14 @@ function isKeyedScoreColumn(column: string): boolean {
 export type FieldRef =
   | { type: "field"; field: FieldDef }
   | { type: "searchScope"; id: string; scope: SearchScope }
-  | { type: "metadata"; key: string; namespace?: string; column?: string }
+  | {
+      type: "metadata";
+      key: string;
+      namespace?: string;
+      column?: string;
+      /** The registry's `numericMetadata`, on the `metadata.` root. */
+      numeric?: boolean;
+    }
   | { type: "scores"; key: string; level: "observation" | "trace" }
   | { type: "keyedOptions"; key: string; namespace: string; column: string }
   | { type: "pseudo"; id: typeof HAS_KEY | "in" };
@@ -520,6 +542,7 @@ export function createFieldRegistry({
   columns,
   predicateSource = null,
   metadata,
+  numericMetadata = false,
   metadataNamespaces,
   keyedOptionNamespaces,
   scores,
@@ -543,6 +566,7 @@ export function createFieldRegistry({
   columns: readonly ColumnDefinition[];
   predicateSource?: PredicateSource | null;
   metadata: boolean;
+  numericMetadata?: boolean;
   metadataNamespaces?: Readonly<Record<string, string>>;
   keyedOptionNamespaces?: Readonly<Record<string, string>>;
   scores: boolean;
@@ -593,6 +617,7 @@ export function createFieldRegistry({
     filterStateErrors,
     targeting,
     metadata,
+    numericMetadata,
     metadataNamespaces,
     keyedOptionNamespaces,
     scores,
@@ -630,6 +655,7 @@ export const EVENTS_FIELD_REGISTRY = createFieldRegistry({
   columns: eventsTableCols,
   predicateSource: eventsPredicateSource,
   metadata: true,
+  numericMetadata: true,
   scores: true,
   traceScores: true,
   allowFreeText: true,
@@ -703,6 +729,12 @@ export function effectiveSearchType(
   return [...(searchType ?? registry.defaultSearchType)];
 }
 
+/**
+ * `name` as a field reference, tried in order: a metadata namespace, a keyed
+ * option namespace, `metadata.<key>` (numeric with `numericMetadata`), a
+ * score path, `has` / `in`, a search scope, then a field id or alias. Null
+ * for an unknown name or a dot path without a key.
+ */
 function resolveFromRegistry(
   name: string,
   registry: FieldRegistry,
@@ -733,7 +765,10 @@ function resolveFromRegistry(
   }
   if (registry.metadata && lower.startsWith(METADATA_PREFIX)) {
     const key = unquote(name.slice(METADATA_PREFIX.length)).value;
-    return key.length > 0 ? { type: "metadata", key } : null;
+    if (key.length === 0) return null;
+    return registry.numericMetadata
+      ? { type: "metadata", key, numeric: true }
+      : { type: "metadata", key };
   }
   if (registry.traceScores) {
     for (const prefix of TRACE_SCORE_PREFIXES) {
@@ -848,9 +883,9 @@ export function operatorIssue(
       }
       return null;
     case "metadata":
-      // stringObject filters support string ops only; there is no numeric
-      // metadata filter in the current contract.
-      if (COMPARISONS.has(op)) {
+      // Comparisons lower to numberObject filters, which only views with
+      // `numericMetadata` accept; everywhere else metadata matches text.
+      if (COMPARISONS.has(op) && ref.numeric !== true) {
         return `metadata filters match text — ${op} comparisons are not supported`;
       }
       return null;
@@ -929,6 +964,11 @@ export function negationIssue(
   }
   if (op === "^" || op === "$") {
     return `negation of ${label(op)} is not representable in the Langfuse filter contract`;
+  }
+  if (ref.type === "metadata" && COMPARISONS.has(op)) {
+    // An inverted comparison would drop rows whose value is missing or not a
+    // number, which the negation keeps.
+    return `negated comparisons on metadata are not representable — use the opposite comparison (e.g. ${refName(ref)}:<=n)`;
   }
   if (op === "exact" || op === "=") {
     if (ref.type === "metadata") {

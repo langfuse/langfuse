@@ -35,6 +35,9 @@ state remain canonical; both editors update the same state.
   `statusMessage:chat` bare (contains default), `statusMessage:=chat` exact
   (quote a literal `*`, e.g. `statusMessage:"a*b"`). `name:`/`id:` work the same
   way (bare = contains, `:=` = exact) but still suggest observed values.
+- `metadata.attempt:>2` compares a metadata value as a number (`<`, `>=`,
+  `<=` too) on registries with `numericMetadata` (Events); `metadata.k:v`
+  stays a text match, and a negated comparison is rejected
 - `metadata.region:eu`, `scores.accuracy:>0.8` — `scores.` is level-agnostic
   (matches a score at observation OR trace level, LFE-10596). The legacy
   `traceScores.` namespace (trace-only) still parses/lowers so saved queries

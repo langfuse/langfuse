@@ -62,6 +62,12 @@ interface BooleanKeyValueFacet extends BaseFacet {
 interface StringKeyValueFacet extends BaseFacet {
   type: "stringKeyValue";
   keyOptions?: string[];
+  /**
+   * Also offers numeric comparisons (`numberObject` filters on the column).
+   * Only for views whose server compiles filters through the events predicate
+   * source; legacy filter paths reject `numberObject` on metadata.
+   */
+  numericValues?: boolean;
 }
 
 export type Facet =

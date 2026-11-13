@@ -16,9 +16,12 @@ import {
   buildOnlySelection,
   clearCategoricalColumn,
   deriveOperatorChange,
+  numericRowText,
   removeColumnFiltersOfType,
   removeTextFilterEntry,
+  stringFacetRowsOf,
   type SidebarFilterActionContext,
+  type StringKeyValueFilterEntry,
 } from "./sidebar-filter-actions";
 
 // The exclusion/complement gestures (LFE-10717) are covered end-to-end in
@@ -795,6 +798,81 @@ describe("keyed facet transitions", () => {
         value: "",
       },
     ]);
+  });
+
+  it("writes numeric metadata rows as numberObject filters only on a numeric facet", () => {
+    const current: FilterState = [
+      {
+        column: "metadata",
+        type: "numberObject",
+        operator: "<",
+        key: "old",
+        value: 1,
+      },
+    ];
+    const entries: StringKeyValueFilterEntry[] = [
+      { key: "env", operator: "=", value: "prod" },
+      { key: "attempt", valueType: "number", operator: ">", value: "2.5" },
+      { key: "draft", valueType: "number", operator: ">", value: "abc" },
+    ];
+    expect(
+      applyKeyedFilterEntries(current, "metadata", {
+        kind: "stringObject",
+        entries,
+        numericValues: true,
+      }),
+    ).toEqual([
+      {
+        column: "metadata",
+        type: "stringObject",
+        operator: "=",
+        key: "env",
+        value: "prod",
+      },
+      {
+        column: "metadata",
+        type: "numberObject",
+        operator: ">",
+        key: "attempt",
+        value: 2.5,
+      },
+    ]);
+    // A text-only facet leaves numberObject filters alone and writes none.
+    expect(
+      applyKeyedFilterEntries(current, "metadata", {
+        kind: "stringObject",
+        entries,
+      }),
+    ).toEqual([
+      current[0],
+      {
+        column: "metadata",
+        type: "stringObject",
+        operator: "=",
+        key: "env",
+        value: "prod",
+      },
+    ]);
+  });
+
+  it("keeps the typed text of a numeric metadata row through its round trip", () => {
+    const typed = (value: string) => {
+      const applied = applyKeyedFilterEntries([], "metadata", {
+        kind: "stringObject",
+        entries: [
+          { key: "attempt", valueType: "number", operator: ">", value },
+        ],
+        numericValues: true,
+      });
+      const [row] = stringFacetRowsOf(applied, "metadata", true);
+      return numericRowText(row!.value, value);
+    };
+    expect(typed("2.")).toBe("2.");
+    expect(typed("0.0")).toBe("0.0");
+    expect(typed("1e3")).toBe("1e3");
+    // A value changed outside the row (URL, search bar) wins over stale text.
+    expect(numericRowText("3", "2.")).toBe("3");
+    expect(numericRowText("3", undefined)).toBe("3");
   });
 
   it("filters numeric and boolean drafts by their empty-value sentinel", () => {

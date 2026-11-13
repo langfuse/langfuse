@@ -365,8 +365,24 @@ export const topicsFilterFacet = {
   label: "Topics",
 };
 
+/**
+ * The events table's sidebar config. Its metadata facet also offers numeric
+ * comparisons: the events table compiles filters through the events
+ * predicate source. `observationEventsFilterConfig` itself, which the
+ * sessions and users sidebars reuse, keeps the text-only facet: the users
+ * and sessions list servers build filters with `createFilterFromFilterState`,
+ * which rejects `numberObject` on metadata.
+ */
 export function getObservationEventsFilterConfig(
   omittedFilter: ObservationEventsOmittableFilterColumn[] = [],
 ): FilterConfig {
-  return omitFilterFacets(observationEventsFilterConfig, omittedFilter);
+  const config = omitFilterFacets(observationEventsFilterConfig, omittedFilter);
+  return {
+    ...config,
+    facets: config.facets.map((facet) =>
+      facet.type === "stringKeyValue" && facet.column === "metadata"
+        ? { ...facet, numericValues: true }
+        : facet,
+    ),
+  };
 }

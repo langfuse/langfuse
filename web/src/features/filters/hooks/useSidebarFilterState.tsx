@@ -52,6 +52,7 @@ import {
   hasEmptyCheckboxSelection,
   removeColumnFiltersOfType,
   removeTextFilterEntry,
+  stringFacetRowsOf,
   type BooleanKeyValueFilterEntry,
   type KeyValueFilterEntry,
   type KeyedFilterKind,
@@ -292,6 +293,8 @@ export interface StringKeyValueUIFilter extends BaseUIFilter {
   keyDetails?: Record<string, string>;
   /** Offered key → its observed values, for the value input's suggestions. */
   valueOptions?: Record<string, string[]>;
+  /** The facet's `numericValues`: rows may also compare numbers. */
+  numericValues?: boolean;
   onChange: (filters: StringKeyValueFilterEntry[]) => void;
 }
 
@@ -1338,7 +1341,7 @@ export function useSidebarFilterPresentation(
   );
 
   const resetKeyedFilter = useCallback(
-    (column: string, kind: KeyedFilterKind) => {
+    (column: string, kind: KeyedFilterKind | readonly KeyedFilterKind[]) => {
       const next = removeColumnFiltersOfType(filterState, column, kind);
       setFilterState(next);
       if (next.length < filterState.length) {
@@ -1689,31 +1692,11 @@ export function useSidebarFilterPresentation(
 
         // Handle stringKeyValue filters
         if (facet.type === "stringKeyValue") {
-          // Extract all stringObject filters for this column from filterState
-          const stringFilters = filterState.filter(
-            (f) => f.column === facet.column && f.type === "stringObject",
-          ) as Array<{
-            target?: string;
-            column: string;
-            type: "stringObject";
-            operator:
-              | "="
-              | "contains"
-              | "does not contain"
-              | "is set"
-              | "is not set";
-            key: string;
-            value: string;
-          }>;
-
-          // Convert to StringKeyValueFilterEntry array
-          const activeFilters: StringKeyValueFilterEntry[] = stringFilters.map(
-            (f) => ({
-              key: f.key,
-              ...(f.target ? { target: f.target } : {}),
-              operator: f.operator,
-              value: f.value,
-            }),
+          const numericValues = facet.numericValues ?? false;
+          const activeFilters = stringFacetRowsOf(
+            filterState,
+            facet.column,
+            numericValues,
           );
 
           const isActive = activeFilters.length > 0;
@@ -1747,12 +1730,20 @@ export function useSidebarFilterPresentation(
             isActive,
             isDisabled: disableState.isDisabled,
             disabledReason: disableState.reason,
+            numericValues,
             onChange: (filters: StringKeyValueFilterEntry[]) =>
               updateKeyedFilter(facet.column, {
                 kind: "stringObject",
                 entries: filters,
+                numericValues,
               }),
-            onReset: () => resetKeyedFilter(facet.column, "stringObject"),
+            onReset: () =>
+              resetKeyedFilter(
+                facet.column,
+                numericValues
+                  ? ["stringObject", "numberObject"]
+                  : "stringObject",
+              ),
           };
         }
 

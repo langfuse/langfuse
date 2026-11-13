@@ -233,8 +233,8 @@ function samples(
   }
 }
 
-// `numberObject` on metadata has no FilterState counterpart, so `samples`
-// returns none; it runs in clickhouse local instead, one row per operator:
+// `samples` returns none for `numberObject` on metadata, so these cases run
+// in clickhouse local, one row per operator:
 // `[op, value, matching span ids]` over the rows of "numeric metadata
 // conditions".
 const NUMERIC_METADATA_CASES = [
@@ -252,8 +252,7 @@ const loweredFields = eventsPredicateSource.fields.filter(
 );
 
 // Every lowered field × accepted condition type × operator × sample value,
-// plus `null` on every field. `numberObject` on metadata has no FilterState
-// counterpart; its tests are below.
+// plus `null` on every field. `numberObject` on metadata is tested below.
 const conditionCases: [string, FilterStateCondition][] = loweredFields.flatMap(
   (field) => [
     ...Object.entries(field.operators).flatMap(([type, operators]) =>
