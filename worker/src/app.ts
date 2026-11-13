@@ -114,6 +114,7 @@ import { InAppAgentRetentionCleaner } from "./features/in-app-agent-retention-cl
 import { BatchTraceDeletionCleaner } from "./features/batch-trace-deletion-cleaner";
 import { BatchProjectMediaCleaner } from "./features/batch-project-media-cleaner";
 import { BatchProjectBlobCleaner } from "./features/batch-project-blob-cleaner";
+import { TraceBatchInputCleaner } from "./features/trace-batch-input-cleaner";
 import { QueueMetricsRunner } from "./features/queue-metrics-runner";
 import { MonitorRunner } from "./features/monitor-runner";
 import { DeletedMaskCleaner } from "./features/deleted-mask-cleaner";
@@ -897,6 +898,15 @@ if (
 ) {
   batchProjectBlobCleaner = new BatchProjectBlobCleaner();
   batchProjectBlobCleaner.start();
+}
+
+// Deletes trace-batch inputs older than the retention window. Objects are not
+// blob references, so project deletion and bucket lifecycle are not required.
+export let traceBatchInputCleaner: TraceBatchInputCleaner | null = null;
+
+if (env.LANGFUSE_TRACE_BATCH_INPUT_CLEANER_ENABLED === "true") {
+  traceBatchInputCleaner = new TraceBatchInputCleaner();
+  traceBatchInputCleaner.start();
 }
 
 // Batch trace deletion cleaner for supplementary trace deletion

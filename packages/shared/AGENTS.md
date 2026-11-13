@@ -108,7 +108,10 @@
   stay ISO strings. The writer skips envelopes over 1,000,000 UTF-16
   units; the reader validates the stored version and restores message dates, and
   throws `UnsupportedTraceBatchInputVersionError` for a newer version, which
-  callers treat as retryable. Same-revision PUTs may overwrite.
+  callers treat as retryable. Same-revision PUTs may overwrite. Objects live
+  under `TRACE_BATCH_INPUT_PREFIX` for `TRACE_BATCH_INPUT_RETENTION_MS` (three
+  days). The worker trace-batch input cleaner deletes expired objects; trace
+  and project deletion do not.
   `src/server/traceBatch/versions/v1.ts` freezes the complete envelope, including
   transcript and trace context, without importing live schemas; `serialization.ts` owns the typed
   transcript adapters and `storage-schema.ts` only probes the version. Compatible

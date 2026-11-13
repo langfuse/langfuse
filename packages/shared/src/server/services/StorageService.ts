@@ -331,6 +331,11 @@ async function storageBodyToBytes(body: unknown): Promise<Uint8Array> {
   return bytes;
 }
 
+type StorageFilePage = {
+  files: { file: string; createdAt: Date }[];
+  continuationToken?: string;
+};
+
 export interface StorageService {
   uploadFile(params: UploadFile): Promise<void>;
 
@@ -354,6 +359,15 @@ export interface StorageService {
   downloadBytes(path: string): Promise<Uint8Array>;
 
   listFiles(prefix: string): Promise<{ file: string; createdAt: Date }[]>;
+
+  /**
+   * One page of `listFiles`. `continuationToken` resumes after the previous
+   * page; it is absent when the listing is finished.
+   */
+  listFilePage(params: {
+    prefix: string;
+    continuationToken?: string;
+  }): Promise<StorageFilePage>;
 
   getSignedUrl(
     fileName: string,
@@ -742,6 +756,43 @@ class AzureBlobStorageService implements StorageService {
     }
   }
 
+  public async listFilePage(params: {
+    prefix: string;
+    continuationToken?: string;
+  }): Promise<StorageFilePage> {
+    try {
+      await this.createContainerIfNotExists();
+      const page = await this.client
+        .listBlobsFlat({ prefix: params.prefix })
+        .byPage({
+          continuationToken: params.continuationToken,
+          maxPageSize: env.LANGFUSE_S3_LIST_MAX_KEYS,
+        })
+        .next();
+      if (page.done || !page.value) return { files: [] };
+
+      const files: StorageFilePage["files"] = [];
+      for (const blob of page.value.segment.blobItems) {
+        if (blob.name.startsWith(params.prefix)) {
+          files.push({
+            file: blob.name,
+            createdAt: blob.properties?.createdOn ?? new Date(),
+          });
+        }
+      }
+      return {
+        files,
+        continuationToken: page.value.continuationToken || undefined,
+      };
+    } catch (err) {
+      logger.error(
+        `Failed to list files from Azure Blob Storage ${params.prefix}`,
+        err,
+      );
+      handleStorageError(err, "list files from Azure Blob Storage");
+    }
+  }
+
   public async getSignedUrl(
     fileName: string,
     ttlSeconds: number,
@@ -1123,6 +1174,44 @@ class S3StorageService implements StorageService {
     }
   }
 
+  public async listFilePage(params: {
+    prefix: string;
+    continuationToken?: string;
+  }): Promise<StorageFilePage> {
+    try {
+      const response = await this.client.send(
+        new ListObjectsV2Command({
+          Bucket: this.bucketName,
+          Prefix: params.prefix,
+          MaxKeys: env.LANGFUSE_S3_LIST_MAX_KEYS,
+          ContinuationToken: params.continuationToken,
+        }),
+      );
+      return {
+        files:
+          response.Contents?.flatMap((file) =>
+            file.Key
+              ? [
+                  {
+                    file: file.Key,
+                    createdAt: file.LastModified ?? new Date(),
+                  },
+                ]
+              : [],
+          ) ?? [],
+        continuationToken: response.IsTruncated
+          ? response.NextContinuationToken
+          : undefined,
+      };
+    } catch (err) {
+      this.logClientFailure(
+        `Failed to list files from S3 ${params.prefix}`,
+        err,
+      );
+      handleStorageError(err, "list files from S3");
+    }
+  }
+
   public async getSignedUrl(
     fileName: string,
     ttlSeconds: number,
@@ -1393,6 +1482,33 @@ class GoogleCloudStorageService implements StorageService {
     } catch (err) {
       logger.error(
         `Failed to list files from Google Cloud Storage ${prefix}`,
+        err,
+      );
+      handleStorageError(err, "list files from Google Cloud Storage");
+    }
+  }
+
+  public async listFilePage(params: {
+    prefix: string;
+    continuationToken?: string;
+  }): Promise<StorageFilePage> {
+    try {
+      const [files, nextQuery] = await this.bucket.getFiles({
+        prefix: params.prefix,
+        maxResults: env.LANGFUSE_S3_LIST_MAX_KEYS,
+        pageToken: params.continuationToken,
+        autoPaginate: false,
+      });
+      return {
+        files: files.map((file) => ({
+          file: file.name,
+          createdAt: new Date(file.metadata.timeCreated ?? new Date()),
+        })),
+        continuationToken: nextQuery.pageToken || undefined,
+      };
+    } catch (err) {
+      logger.error(
+        `Failed to list files from Google Cloud Storage ${params.prefix}`,
         err,
       );
       handleStorageError(err, "list files from Google Cloud Storage");
@@ -1919,6 +2035,52 @@ class OCIObjectStorageService implements StorageService {
     } catch (err) {
       logger.error(
         `Failed to list files from OCI Object Storage  ${prefix}`,
+        err,
+      );
+      handleStorageError(err, "list files from OCI Object Storage ");
+    }
+  }
+
+  public async listFilePage(params: {
+    prefix: string;
+    continuationToken?: string;
+  }): Promise<StorageFilePage> {
+    try {
+      const { client, namespaceName } = await this.getClientAndNamespace();
+      const req: objectstorage.requests.ListObjectsRequest = {
+        namespaceName,
+        bucketName: this.bucketName,
+        prefix: params.prefix,
+        fields: "name,timeCreated",
+        limit: env.LANGFUSE_S3_LIST_MAX_KEYS,
+        start: params.continuationToken,
+      };
+      const resp = await client.listObjects(req);
+      const listed = (resp as any).listObjects as
+        | {
+            objects?: Array<{ name?: string; timeCreated?: Date | string }>;
+            nextStartWith?: string;
+          }
+        | undefined;
+      return {
+        files:
+          listed?.objects?.flatMap((obj) =>
+            obj.name
+              ? [
+                  {
+                    file: obj.name,
+                    createdAt: obj.timeCreated
+                      ? new Date(obj.timeCreated as any)
+                      : new Date(),
+                  },
+                ]
+              : [],
+          ) ?? [],
+        continuationToken: listed?.nextStartWith || undefined,
+      };
+    } catch (err) {
+      logger.error(
+        `Failed to list files from OCI Object Storage  ${params.prefix}`,
         err,
       );
       handleStorageError(err, "list files from OCI Object Storage ");

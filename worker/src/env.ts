@@ -784,6 +784,21 @@ const EnvSchema = z.object({
     .positive()
     .default(10_000), // Max items (media files) to process per batch
 
+  // Trace-batch input cleaner. Lists the event-upload prefix and deletes
+  // objects older than the three-day retention window. Off until enabled so
+  // workers do not list the bucket by default.
+  LANGFUSE_TRACE_BATCH_INPUT_CLEANER_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_TRACE_BATCH_INPUT_CLEANER_INTERVAL_MS: z.coerce
+    .number()
+    .positive()
+    .default(3_600_000), // Pause after a full pass of the prefix
+  LANGFUSE_TRACE_BATCH_INPUT_CLEANER_BATCH_SIZE: z.coerce
+    .number()
+    .positive()
+    .default(1000), // Expired objects deleted per run
+
   // Batch Trace Deletion Cleaner configuration
   LANGFUSE_BATCH_TRACE_DELETION_CLEANER_ENABLED: z
     .enum(["true", "false"])

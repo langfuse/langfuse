@@ -186,6 +186,8 @@ export { type Thread } from "./transcript/types";
 export { type Transcript } from "./transcript/types";
 export { createTraceBatchInputStorage } from "./traceBatch/storage";
 export { TRACE_BATCH_INPUT_MAX_CHARACTERS } from "./traceBatch/storage";
+export { TRACE_BATCH_INPUT_PREFIX } from "./traceBatch/storage";
+export { TRACE_BATCH_INPUT_RETENTION_MS } from "./traceBatch/storage";
 export { UnsupportedTraceBatchInputVersionError } from "./traceBatch/storage";
 export { type TraceBatchInputReference } from "./traceBatch/storage";
 export { type TraceBatchInputData } from "./traceBatch/storage";
