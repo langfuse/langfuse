@@ -5402,8 +5402,136 @@ describe("query builder measure-aggregation validation", () => {
     );
   });
 
+  describe("v2 score trace joins", () => {
+    it.each([
+      ["scores-numeric", "NUMERIC", [2, 8], [3, 7]],
+      ["scores-boolean", "BOOLEAN", [0, 1], [0, 1]],
+      ["scores-categorical", "CATEGORICAL", [0, 1], [0, 1]],
+      ["scores-listable-count", "TEXT", [0, 0], [0, 0]],
+    ] as const)(
+      "%s includes native app roots and counts each score once with dual-write roots",
+      async (view, dataType, nativeValues, dualWriteValues) => {
+        const projectId = randomUUID();
+        const nativeTraceId = randomUUID();
+        const dualWriteTraceId = randomUUID();
+        const timestamp = new Date();
+        const tag = "score-root-regression";
+        const eventDefaults = {
+          project_id: projectId,
+          start_time: timestamp,
+          tags: [tag],
+        };
+
+        await createEventsCh([
+          // Native ingestion can preserve an upstream parent without creating
+          // a synthetic parentless event. Its app root still owns trace data.
+          createEvent({
+            ...eventDefaults,
+            trace_id: nativeTraceId,
+            name: "native-root",
+            trace_name: "",
+            parent_span_id: "external-parent",
+            is_app_root: true,
+          }),
+          createEvent({
+            ...eventDefaults,
+            trace_id: dualWriteTraceId,
+            trace_name: "dual-write-root",
+            parent_span_id: "",
+            is_app_root: false,
+          }),
+          createEvent({
+            ...eventDefaults,
+            trace_id: dualWriteTraceId,
+            trace_name: "dual-write-root",
+            parent_span_id: "external-parent",
+            is_app_root: true,
+          }),
+        ]);
+        await createScoresCh(
+          (
+            [
+              [nativeTraceId, nativeValues],
+              [dualWriteTraceId, dualWriteValues],
+            ] as const
+          ).flatMap(([traceId, values]) =>
+            values.map((value) =>
+              createTraceScore({
+                project_id: projectId,
+                trace_id: traceId,
+                timestamp,
+                data_type: dataType,
+                value,
+                string_value: String(value),
+              }),
+            ),
+          ),
+        );
+
+        const hasValue = view === "scores-numeric" || view === "scores-boolean";
+        const metrics: QueryType["metrics"] = [
+          { measure: "count", aggregation: "count" },
+          { measure: "count", aggregation: "sum" },
+          ...(hasValue
+            ? ([
+                { measure: "value", aggregation: "sum" },
+                { measure: "value", aggregation: "avg" },
+              ] as const)
+            : []),
+        ];
+        const result = await executeQuery(
+          projectId,
+          {
+            view,
+            dimensions: [{ field: "traceName" }],
+            metrics,
+            filters: [
+              {
+                column: "tags",
+                operator: "any of",
+                value: [tag],
+                type: "arrayOptions",
+              },
+            ],
+            timeDimension: null,
+            fromTimestamp: new Date(timestamp.getTime() - 60_000).toISOString(),
+            toTimestamp: new Date(timestamp.getTime() + 60_000).toISOString(),
+            orderBy: [{ field: "traceName", direction: "asc" }],
+          },
+          "v2",
+        );
+
+        expect(
+          result.map((row) => ({
+            traceName: row.traceName,
+            count: Number(row.count_count),
+            sum: Number(row.sum_count),
+            ...(hasValue
+              ? {
+                  sumValue: Number(row.sum_value),
+                  avgValue: Number(row.avg_value),
+                }
+              : {}),
+          })),
+        ).toEqual(
+          ["dual-write-root", "native-root"].map((traceName) => ({
+            traceName,
+            count: 2,
+            sum: 2,
+            ...(hasValue
+              ? {
+                  sumValue: view === "scores-numeric" ? 10 : 1,
+                  avgValue: view === "scores-numeric" ? 5 : 0.5,
+                }
+              : {}),
+          })),
+        );
+      },
+    );
+  });
+
   describe("useFinal flag on events_core joins", () => {
-    it("should join the parentless trace event without FINAL in v2 scores-numeric view", async () => {
+    it("should join trace roots without FINAL in v2 scores-numeric view", async () => {
       const projectId = randomUUID();
       const builder = new QueryBuilder(undefined, "v2");
       const { query: compiledQuery } = await builder.build(
@@ -5427,7 +5555,9 @@ describe("query builder measure-aggregation validation", () => {
       expect(compiledQuery).not.toContain(
         "JOIN events_core AS events_traces FINAL",
       );
-      expect(compiledQuery).toContain("AND events_traces.parent_span_id = ''");
+      expect(compiledQuery).toContain(
+        "AND (events_traces.parent_span_id = '' OR events_traces.is_app_root = true)",
+      );
       // scores base CTE should still use FINAL
       expect(compiledQuery).toContain("scores scores_numeric FINAL");
     });

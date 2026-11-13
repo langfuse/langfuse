@@ -1020,13 +1020,10 @@ const createScoreTableRelations = (
   return {
     events_traces: {
       name: "events_core",
-      // Legacy and dual-write ingestion materialize a parentless synthetic
-      // trace event and propagate trace metadata to it. Native V4 may not, but
-      // its app roots come from newer SDKs and are expected to carry trace_name.
-      // A semantic-root join can match both rows in dual-write data and
-      // multiply scores for little fallback value.
-      joinConditionSql:
-        "ON scores.trace_id = events_traces.trace_id AND scores.project_id = events_traces.project_id AND events_traces.parent_span_id = ''",
+      // Native ingestion may only have an app root with an upstream parent.
+      // The per-score aggregation deduplicates matches when dual-write data
+      // also includes a parentless synthetic trace event.
+      joinConditionSql: `ON scores.trace_id = events_traces.trace_id AND scores.project_id = events_traces.project_id AND ${eventsTableIsRootObservationSqlForAlias("events_traces")}`,
       timeDimension: "start_time",
       useFinal: false,
     },
@@ -1060,7 +1057,8 @@ function scoresNumericViewBase(version: "v1" | "v2"): ViewDeclarationType {
     measures: {
       count: {
         sql: "@@AGG1@@(1)",
-        aggs: { agg1: "count" },
+        // Each score contributes once, even when multiple event roots join.
+        aggs: { agg1: version === "v2" ? "any" : "count" },
         alias: "count",
         type: "integer",
         description: "Total number of scores.",
@@ -1111,7 +1109,7 @@ function scoresCategoricalViewBase(version: "v1" | "v2"): ViewDeclarationType {
     measures: {
       count: {
         sql: "@@AGG1@@(1)",
-        aggs: { agg1: "count" },
+        aggs: { agg1: version === "v2" ? "any" : "count" },
         alias: "count",
         type: "integer",
         description: "Total number of scores.",
@@ -1152,7 +1150,7 @@ function scoresBooleanViewBase(version: "v1" | "v2"): ViewDeclarationType {
     measures: {
       count: {
         sql: "@@AGG1@@(1)",
-        aggs: { agg1: "count" },
+        aggs: { agg1: version === "v2" ? "any" : "count" },
         alias: "count",
         type: "integer",
         description: "Total number of scores.",
@@ -1228,7 +1226,7 @@ function scoresListableCountViewBase(
     measures: {
       count: {
         sql: "@@AGG1@@(1)",
-        aggs: { agg1: "count" },
+        aggs: { agg1: version === "v2" ? "any" : "count" },
         alias: "count",
         type: "integer",
         description: "Total number of scores across every listable score type.",
