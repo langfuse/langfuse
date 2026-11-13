@@ -1494,9 +1494,14 @@ describe("AI gateway control plane", () => {
             routesByProvider,
           )) {
             for (const [route, call] of Object.entries(providerRoutes)) {
+              // A rejected credential check also answers BAD_REQUEST, so only
+              // the base URL validation message proves the URL was refused.
               const code = await call(testCase.endpoint).then(
                 () => "OK",
-                (error: { code?: string }) => error.code ?? "UNKNOWN",
+                (error: { code?: string; message?: string }) =>
+                  error.message?.startsWith("Invalid base URL")
+                    ? (error.code ?? "UNKNOWN")
+                    : `${error.code ?? "UNKNOWN"} (${error.message})`,
               );
               if (code !== testCase.code) {
                 outcomes.push(`${provider} ${route} ${testCase.name}: ${code}`);
