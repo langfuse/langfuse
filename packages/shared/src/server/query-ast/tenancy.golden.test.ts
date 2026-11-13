@@ -198,7 +198,8 @@ if (!clickhouseLocalAvailable()) {
 
 // Both projects hold trace `t1`, so a join on the trace id pairs rows across
 // projects unless each side is scoped; `t2` and `t3` exist in the other
-// project only.
+// project only. Trace `proj-a` pairs only with the other project's
+// observation, which the `where other column` scope matches.
 const TENANCY_FIXTURE = `
   CREATE TABLE traces (
     id String,
@@ -211,10 +212,12 @@ const TENANCY_FIXTURE = `
     project_id String
   ) ENGINE = Memory;
   INSERT INTO traces (id, project_id) VALUES
-    ('t1', '${projectId}'), ('t1', '${otherProject}'), ('t2', '${otherProject}');
+    ('t1', '${projectId}'), ('t1', '${otherProject}'), ('t2', '${otherProject}'),
+    ('${projectId}', '${projectId}');
   INSERT INTO observations (trace_id, project_id) VALUES
     ('t1', '${projectId}'), ('t1', '${otherProject}'),
-    ('t2', '${otherProject}'), ('t3', '${otherProject}');
+    ('t2', '${otherProject}'), ('t3', '${otherProject}'),
+    ('${projectId}', '${otherProject}');
 `;
 
 /**
