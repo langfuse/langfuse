@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
   LEGACY_PUBLIC_API_OBSERVATIONS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
@@ -216,16 +215,17 @@ export default withMiddlewares(
           },
         );
 
+        let latencySeconds = -1;
+        if (includeMetrics) {
+          latencySeconds = latencyMs !== undefined ? latencyMs / 1000 : 0;
+        }
+
         return {
           ...trace,
           externalId: null,
           metadata: includeIO ? trace.metadata : {},
           scores: includeScores ? validatedScores : [],
-          latency: includeMetrics
-            ? latencyMs !== undefined
-              ? latencyMs / 1000
-              : 0
-            : -1,
+          latency: latencySeconds,
           observations: includeObservations ? outObservations : [],
           htmlPath: `/project/${auth.scope.projectId}/traces/${traceId}`,
           totalCost: includeMetrics
