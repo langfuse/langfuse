@@ -385,13 +385,11 @@ describe("evaluation rule v2 tRPC", () => {
       include: { organization: true },
     });
     const original = {
-      enabled: sharedEnv.LANGFUSE_TOPICS_ENABLED,
-      projectIds: sharedEnv.LANGFUSE_TOPICS_ENABLED_PROJECT_IDS,
+      projectIds: sharedEnv.LANGFUSE_TRACE_EVALS_ENABLED_PROJECT_IDS,
       region: sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
     };
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = "true";
     (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED_PROJECT_IDS = [projectId];
+    (sharedEnv as any).LANGFUSE_TRACE_EVALS_ENABLED_PROJECT_IDS = [projectId];
     try {
       const session = {
         expires: "1",
@@ -473,8 +471,7 @@ describe("evaluation rule v2 tRPC", () => {
       });
       expect(log?.after).toContain("120000");
     } finally {
-      (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = original.enabled;
-      (sharedEnv as any).LANGFUSE_TOPICS_ENABLED_PROJECT_IDS =
+      (sharedEnv as any).LANGFUSE_TRACE_EVALS_ENABLED_PROJECT_IDS =
         original.projectIds;
       (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = original.region;
       await prisma.tracingReadinessSettings.deleteMany({
