@@ -531,13 +531,17 @@ async function clusterFacet(
   attempt: TopicRun | null,
   previous: TopicRun | null,
 ) {
+  // A snapshot fits the summaries it has: below the standard minimum it clusters a small sample.
+  const exploratory = scope.analysis
+    ? summaries.length < topicClusterSettings(false).minimumCount
+    : scope.exploratory;
   const numericConfig = {
-    ...topicClusterSettings(scope.exploratory, scope.minimumTraceCount),
+    ...topicClusterSettings(exploratory, scope.minimumTraceCount),
     numericVersion: TOPICS_NUMERIC_VERSION,
   };
   const config = {
     ...numericConfig,
-    exploratory: scope.exploratory,
+    exploratory,
     embeddingModel: scope.embeddingConfig.embeddingModel!,
     dimensions: scope.embeddingConfig.embeddingDimensions,
     classifierVersion: "original-cosine-loo95-rival05-eps1e-12-v2",
@@ -719,7 +723,7 @@ async function clusterFacet(
         candidateTopics: candidates,
         previousMemberships,
         candidateMemberships,
-        exploratory: scope.exploratory,
+        exploratory,
         compatibleEmbeddingSpace: compatiblePrevious,
       });
     }

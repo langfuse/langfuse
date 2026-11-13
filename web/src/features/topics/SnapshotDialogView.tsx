@@ -1,5 +1,5 @@
 import { useId, type ReactNode } from "react";
-import { Camera, Clock, Info, Layers, Sparkles } from "@langfuse/icons";
+import { Camera, Clock, Layers, Sparkles } from "@langfuse/icons";
 import { type TopicFacet } from "@langfuse/shared/topics";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
@@ -291,7 +291,6 @@ function SnapshotSummary({
       </div>
     );
   const grouped = preview.summarizedCount + extra;
-  const smallSample = grouped < preview.minimumTraceCount;
   if (grouped < preview.smallSampleMinimumTraceCount)
     return (
       <div className="bg-light-yellow text-dark-yellow rounded-md px-4 py-2.5 text-sm">
@@ -312,13 +311,6 @@ function SnapshotSummary({
           ? `~${count(grouped)} traces will be grouped (${count(preview.summarizedCount)} summarized + up to ${count(extra)} new)`
           : `${count(grouped)} summarized traces will be grouped`}
       </span>
-      {smallSample ? (
-        <span className="flex items-center gap-2">
-          <Info size="base" aria-hidden="true" />
-          We recommend at least {count(preview.minimumTraceCount)}; with fewer,
-          topics are smaller and less stable.
-        </span>
-      ) : null}
       {extra > 0 ? (
         <span className="flex items-center gap-2">
           <Sparkles size="base" aria-hidden="true" />

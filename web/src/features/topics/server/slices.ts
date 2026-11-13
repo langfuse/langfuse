@@ -163,8 +163,8 @@ export async function startTopicAnalysis(
       facets: input.facets,
       embeddingConfig: await embeddingConfig(input.projectId),
       timeRange: input.timeRange,
-      // Below the recommended count, the fit uses small-sample clustering.
-      exploratory: grouped < TOPICS_ANALYSIS_MIN_TRACES,
+      // The fit picks small-sample clustering from the summaries it loads.
+      exploratory: false,
       analysis: {
         label: input.label,
         filter: input.filter,

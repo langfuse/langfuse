@@ -172,11 +172,6 @@ export const TooFewTraces = meta.story({
   args: { counts: { summarizedCount: 6, unsummarizedCount: 0 } },
 });
 
-export const SmallSample = meta.story({
-  name: "Small sample below 100",
-  args: { counts: { summarizedCount: 0, unsummarizedCount: 49 } },
-});
-
 export const Counting = meta.story({ args: { counts: null } });
 
 export const StartFailed = meta.story({
@@ -188,7 +183,7 @@ export const StartFailed = meta.story({
 });
 
 export const StartRules = meta.story({
-  name: "(Test) Create needs a name; below 100 it starts as a small sample",
+  name: "(Test) Create needs a name and starts below 100 summaries",
   args: { counts: { summarizedCount: 42, unsummarizedCount: 880 } },
   play: async () => {
     const body = within(document.body);
@@ -203,11 +198,8 @@ export const StartRules = meta.story({
       "Billing questions",
     );
     await expect(create).toBeEnabled();
-    // 42 summaries alone still start, with a recommendation for 100.
+    // 42 summaries alone still start; the fit clusters them as a small sample.
     await userEvent.click(toggle);
     await expect(create).toBeEnabled();
-    await expect(
-      body.getByText(/We recommend at least 100/),
-    ).toBeInTheDocument();
   },
 });
