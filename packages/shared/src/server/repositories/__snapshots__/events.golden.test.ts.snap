@@ -2862,6 +2862,9 @@ exports[`golden: events metadata map and session resolution > getTraceBatchEvent
       "param1": [
         "golden-project",
       ],
+      "param10": [
+        1767225720000,
+      ],
       "param2": [
         "golden-trace",
       ],
@@ -2873,21 +2876,19 @@ exports[`golden: events metadata map and session resolution > getTraceBatchEvent
           ],
         },
       ],
-      "param4": 1764547080000,
-      "param5": 1767225720000,
-      "param6": [
+      "param4": "golden-project",
+      "param5": 1764547080000,
+      "param6": 1767225720000,
+      "param7": [
         "golden-project",
       ],
-      "param7": [
+      "param8": [
         [
           "golden-trace",
         ],
       ],
-      "param8": [
-        1764547080000,
-      ],
       "param9": [
-        1767225720000,
+        1764547080000,
       ],
     },
     "route": "unknown",
@@ -2918,9 +2919,8 @@ WHERE (e.project_id IN ({param1:Array(String)}))
     AND (xxHash32(e.trace_id) IN (
         SELECT arrayJoin(arrayMap(id -> xxHash32(id), {param2:Array(String)}))
     ))
-    AND (e.start_time >= fromUnixTimestamp64Milli({param4:Int64}))
-    AND (e.start_time <= fromUnixTimestamp64Milli({param5:Int64}))
-    AND (arrayExists((group_project_id, group_trace_ids, min_ms, max_ms) -> ((e.project_id = group_project_id) AND has(group_trace_ids, e.trace_id) AND ((e.start_time >= fromUnixTimestamp64Milli(min_ms)) AND (e.start_time <= fromUnixTimestamp64Milli(max_ms)))), {param6:Array(String)}, {param7:Array(Array(String))}, {param8:Array(Int64)}, {param9:Array(Int64)}))
+    AND ((e.project_id = {param4:String}) AND (e.start_time >= fromUnixTimestamp64Milli({param5:Int64})) AND (e.start_time <= fromUnixTimestamp64Milli({param6:Int64})))
+    AND (arrayExists((group_project_id, group_trace_ids, min_ms, max_ms) -> ((e.project_id = group_project_id) AND has(group_trace_ids, e.trace_id) AND ((e.start_time >= fromUnixTimestamp64Milli(min_ms)) AND (e.start_time <= fromUnixTimestamp64Milli(max_ms)))), {param7:Array(String)}, {param8:Array(Array(String))}, {param9:Array(Int64)}, {param10:Array(Int64)}))
 ORDER BY
     e.project_id ASC,
     e.trace_id ASC",

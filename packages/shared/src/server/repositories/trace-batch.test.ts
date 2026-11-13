@@ -25,13 +25,17 @@ describe("trace batch query controls", () => {
 
   it("bounds 10,000-trace HTTP parameters for distinct projects and identical windows", async () => {
     vi.mocked(queryClickhouseStream).mockImplementation(async function* () {});
-    for (const sharedWindow of [false, true]) {
-      const projectId = randomUUID();
+    // Distinct projects, one shared window, and per-project windows near the budget.
+    for (const shape of ["distinct", "shared", "projectWindows"] as const) {
+      const projectIds = Array.from({ length: 64 }, () => randomUUID());
       const members = Array.from({ length: 10_000 }, (_, index) => ({
-        projectId: sharedWindow ? projectId : randomUUID(),
+        projectId:
+          shape === "distinct"
+            ? randomUUID()
+            : projectIds[shape === "shared" ? 0 : index % 64],
         traceId: randomUUID(),
-        minStart: 1_000 + (sharedWindow ? 0 : index),
-        maxStart: 2_000 + (sharedWindow ? 0 : index),
+        minStart: 1_000 + (shape === "shared" ? 0 : index),
+        maxStart: 2_000 + (shape === "shared" ? 0 : index),
       }));
       for await (const _ of getTraceBatchEventStream({ traces: members })) {
         throw new Error("Unexpected row");
@@ -41,7 +45,8 @@ describe("trace batch query controls", () => {
       expect(sent.clickhouseConfigs).toEqual({
         compression: { response: true },
       });
-      expect(Buffer.byteLength(sent.query)).toBeLessThan(262_144);
+      // Multipart params send the SQL as one 128 KiB form part.
+      expect(Buffer.byteLength(sent.query)).toBeLessThan(131_072);
       expect(Object.keys(sent.params ?? {}).length).toBeLessThan(1_000);
       for (const value of Object.values(sent.params ?? {})) {
         // UUID strings require no transport escaping; JSON conservatively includes

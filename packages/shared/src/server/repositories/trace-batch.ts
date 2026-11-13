@@ -28,8 +28,9 @@ export type TraceBatchEventRow = {
 
 const TRACE_QUERY_BUFFER_MS = 2 * 60_000;
 // Chunk sizes keep a 10,000-trace job with UUID-sized IDs under ClickHouse's
-// default 1,000 HTTP fields and 128 KiB per field. Unrolling one predicate per
-// window would also exceed default max_query_size.
+// default 1,000 HTTP fields (http_max_fields) and 128 KiB per field. Unrolling
+// one predicate per window would also exceed the 128 KiB SQL body part.
+const MAX_QUERY_PARAMS = 1_000;
 const TIME_GROUP_PARAM_CHUNK_SIZE = 50;
 const TRACE_ID_PARAM_CHUNK_SIZE = 2_000;
 const TRACE_PAIR_PARAM_CHUNK_SIZE = 1_000;
@@ -49,6 +50,44 @@ type TraceBatchEventStreamProps = {
     minStart: number;
     maxStart: number;
   }>;
+};
+
+// Per-project prunable windows, so one wide trace can't widen its neighbours' scans.
+// Falls back to one batch window when the windows would exceed the parameter budget.
+const buildReadWindow = (
+  traces: TraceBatchEventStreamProps["traces"],
+  otherParamCount: number,
+): { predicate: string; params: Record<string, unknown> } => {
+  const windows = new Map<string, { min: number; max: number }>();
+  for (const { projectId, minStart, maxStart } of traces) {
+    const window = windows.get(projectId);
+    windows.set(projectId, {
+      min: Math.min(window?.min ?? minStart, minStart),
+      max: Math.max(window?.max ?? maxStart, maxStart),
+    });
+  }
+  if (otherParamCount + 3 * windows.size >= MAX_QUERY_PARAMS)
+    return {
+      predicate:
+        "e.start_time >= fromUnixTimestamp64Milli({batchMinStart: Int64}) AND e.start_time <= fromUnixTimestamp64Milli({batchMaxStart: Int64})",
+      params: {
+        batchMinStart:
+          Math.min(...traces.map(({ minStart }) => minStart)) -
+          TRACE_QUERY_BUFFER_MS,
+        batchMaxStart:
+          Math.max(...traces.map(({ maxStart }) => maxStart)) +
+          TRACE_QUERY_BUFFER_MS,
+      },
+    };
+  // Plain per-project comparisons, unlike arrayExists, are usable for key analysis.
+  const params: Record<string, unknown> = {};
+  const branches = [...windows].map(([projectId, { min, max }], index) => {
+    params[`w${index}p`] = projectId;
+    params[`w${index}l`] = min - TRACE_QUERY_BUFFER_MS;
+    params[`w${index}u`] = max + TRACE_QUERY_BUFFER_MS;
+    return `(e.project_id = {w${index}p: String} AND e.start_time >= fromUnixTimestamp64Milli({w${index}l: Int64}) AND e.start_time <= fromUnixTimestamp64Milli({w${index}u: Int64}))`;
+  });
+  return { predicate: `(${branches.join(" OR ")})`, params };
 };
 
 const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
@@ -137,6 +176,13 @@ const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
     );
     return `(e.project_id, e.trace_id) IN {${name}: Array(Tuple(String, String))}`;
   });
+  const readWindow = buildReadWindow(
+    props.traces,
+    [timeGroupParams, projectParams, traceIdParams, pairParams].reduce(
+      (count, params) => count + Object.keys(params).length,
+      0,
+    ),
+  );
   const builder = new EventsQueryBuilder({ projectId: NoProjectId })
     .selectRaw(
       "e.project_id",
@@ -169,18 +215,8 @@ const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
     // Equality filters add this primary-key hash condition automatically; IN
     // needs it explicitly. The exact IDs above also exclude hash collisions.
     .whereRaw(`(${hashPredicates.join(" OR ")})`)
-    // Keep one shared outer window for partition/granule pruning.
-    .whereRaw(
-      "e.start_time >= fromUnixTimestamp64Milli({batchMinStart: Int64}) AND e.start_time <= fromUnixTimestamp64Milli({batchMaxStart: Int64})",
-      {
-        batchMinStart:
-          Math.min(...props.traces.map(({ minStart }) => minStart)) -
-          TRACE_QUERY_BUFFER_MS,
-        batchMaxStart:
-          Math.max(...props.traces.map(({ maxStart }) => maxStart)) +
-          TRACE_QUERY_BUFFER_MS,
-      },
-    )
+    // Outer window for partition/granule pruning.
+    .whereRaw(readWindow.predicate, readWindow.params)
     // Batch companions must not widen another trace's required coverage.
     // Identical project/time windows share one ID list; repeated pair intervals
     // remain separate OR branches and therefore return each matching row once.
