@@ -23,6 +23,7 @@ import {
   encrypt,
   decrypt,
   generateWebhookSecret,
+  generateWebhookSignature,
 } from "@langfuse/shared/encryption";
 import { TRPCError } from "@trpc/server";
 import { type MockInstance } from "vitest";
@@ -149,6 +150,108 @@ describe("automations trpc", () => {
       where: {
         id: { in: __orgIds },
       },
+    });
+  });
+
+  describe("automations.sendWebhookTestEvent", () => {
+    it("signs a sample for the saved trigger and keeps delivery out of execution history", async () => {
+      const { project, caller } = await prepare();
+      const destination = "https://hooks.example.com/webhook";
+      const trigger = await prisma.trigger.create({
+        data: {
+          projectId: project.id,
+          eventSource: TriggerEventSource.Prompt,
+          eventActions: ["updated"],
+          filter: [],
+          status: JobConfigState.ACTIVE,
+        },
+      });
+      const { secretKey, displaySecretKey } = generateWebhookSecret();
+      const action = await prisma.action.create({
+        data: {
+          projectId: project.id,
+          type: "WEBHOOK",
+          config: {
+            type: "WEBHOOK",
+            url: destination,
+            apiVersion: { prompt: "v1" },
+            secretKey: encrypt(secretKey),
+            displaySecretKey,
+            requestHeaders: {
+              "X-Test-Token": { secret: true, value: encrypt("test-token") },
+            },
+          },
+        },
+      });
+      const automation = await prisma.automation.create({
+        data: {
+          projectId: project.id,
+          name: "Test delivery",
+          triggerId: trigger.id,
+          actionId: action.id,
+        },
+      });
+      const input = { projectId: project.id, automationId: automation.id };
+
+      const resolve4 = vi.spyOn(dns, "resolve4").mockResolvedValue(["8.8.8.8"]);
+      const resolve6 = vi.spyOn(dns, "resolve6").mockResolvedValue([]);
+      const lookup = vi
+        .spyOn(dns, "lookup")
+        .mockResolvedValue([{ address: "8.8.8.8", family: 4 }] as never);
+      const fetchMock = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(new Response("receiver content", { status: 422 }));
+
+      try {
+        const { project: otherProject, caller: otherCaller } = await prepare();
+        await expect(
+          otherCaller.automations.sendWebhookTestEvent({
+            projectId: otherProject.id,
+            automationId: automation.id,
+          }),
+        ).rejects.toMatchObject({ code: "NOT_FOUND" });
+        expect(fetchMock).not.toHaveBeenCalled();
+
+        await expect(
+          caller.automations.sendWebhookTestEvent(input),
+        ).resolves.toEqual({
+          status: 422,
+          ok: false,
+          durationMs: expect.any(Number),
+        });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        const [url, request] = fetchMock.mock.calls[0];
+        expect(url).toBe(destination);
+        const headers = new Headers(request?.headers);
+        const body = String(request?.body);
+        expect(JSON.parse(body)).toMatchObject({
+          id: expect.stringMatching(/^test-/),
+          type: "prompt-version",
+          action: "updated",
+          prompt: { projectId: project.id, name: "webhook-test" },
+        });
+        expect(headers.get("x-test-token")).toBe("test-token");
+        const signatureHeader = headers.get("x-langfuse-signature");
+        const timestamp = Number(/^t=(\d+),/.exec(signatureHeader ?? "")?.[1]);
+        expect(Number.isFinite(timestamp)).toBe(true);
+        expect(signatureHeader).toBe(
+          `t=${timestamp},v1=${generateWebhookSignature(body, timestamp, secretKey)}`,
+        );
+        await expect(
+          caller.automations.sendWebhookTestEvent(input),
+        ).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(
+          await prisma.automationExecution.count({
+            where: { automationId: automation.id },
+          }),
+        ).toBe(0);
+      } finally {
+        fetchMock.mockRestore();
+        resolve4.mockRestore();
+        resolve6.mockRestore();
+        lookup.mockRestore();
+      }
     });
   });
 

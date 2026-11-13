@@ -16,6 +16,7 @@ import Header from "@/src/components/layouts/header";
 import { SettingsTableCard } from "@/src/components/layouts/SettingsTableCard";
 import { DeleteAutomationDialogController } from "./DeleteAutomationDialogController";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 interface AutomationDetailsProps {
   projectId: string;
@@ -39,6 +40,16 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
     "tab",
     withDefault(StringParam, "executions"),
   );
+  const canTestWebhook = useHasProjectAccess({
+    projectId,
+    scope: "automations:CUD",
+  });
+  const testWebhook = api.automations.sendWebhookTestEvent.useMutation({
+    meta: { silentAllErrors: true },
+  });
+  const isCurrentWebhookTest =
+    testWebhook.variables?.projectId === projectId &&
+    testWebhook.variables?.automationId === automationId;
 
   const { data: automation, isLoading } =
     api.automations.getAutomation.useQuery(
@@ -129,6 +140,20 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
             }
             actionButtons={
               <div className="flex gap-2">
+                {canTestWebhook && automation.action.type === "WEBHOOK" && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={testWebhook.isPending}
+                    onClick={() =>
+                      testWebhook.mutate({ projectId, automationId })
+                    }
+                  >
+                    {isCurrentWebhookTest && testWebhook.isPending
+                      ? "Sending test event…"
+                      : "Send test event"}
+                  </Button>
+                )}
                 <Button variant="outline" onClick={handleEdit}>
                   <Edit size="base" color="default" __rawClassName="mr-2" />
                   Edit
@@ -153,6 +178,17 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
               </div>
             }
           />
+
+          {canTestWebhook &&
+            automation.action.type === "WEBHOOK" &&
+            isCurrentWebhookTest && (
+              <div role="status" className="text-muted-foreground text-sm">
+                {testWebhook.error
+                  ? testWebhook.error.message
+                  : testWebhook.data &&
+                    `${testWebhook.data.ok ? "Test event delivered" : "Test event rejected"} (HTTP ${testWebhook.data.status}, ${testWebhook.data.durationMs} ms).`}
+              </div>
+            )}
 
           {!isFailureBannerDismissed &&
             failureData &&

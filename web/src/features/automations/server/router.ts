@@ -9,6 +9,7 @@ import {
   JobConfigState,
   singleFilterList,
   isWebhookActionConfig,
+  isWebhookAction,
   TriggerEventSource,
   TriggerEventSourceSchema,
   ProjectNotificationEventTypeSchema,
@@ -24,13 +25,16 @@ import {
   convertActionToDomain,
   getAutomations,
   getAutomationById,
+  getActionByIdWithSecrets,
   getConsecutiveAutomationFailures,
   getViewablePrivateSlackChannelIds,
   maskPrivateSlackChannel,
   logger,
+  redis,
 } from "@langfuse/shared/src/server";
 import { generateWebhookSecret, encrypt } from "@langfuse/shared/encryption";
 import { processWebhookActionConfig } from "./webhookHelpers";
+import { sendWebhookTestEvent } from "./webhookTestEvent";
 import { processGitHubDispatchActionConfig } from "./githubDispatchHelpers";
 import {
   processPagerDutyActionConfig,
@@ -58,6 +62,66 @@ const UpdateAutomationInputSchema = CreateAutomationInputSchema.extend({
 });
 
 export const automationsRouter = createTRPCRouter({
+  sendWebhookTestEvent: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), automationId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const { projectId, automationId } = input;
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId,
+        scope: "automations:CUD",
+      });
+
+      const automation = await getAutomationById(input);
+      if (!automation || automation.action.type !== "WEBHOOK") {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Webhook automation not found.",
+        });
+      }
+
+      if (!redis) {
+        throw new TRPCError({
+          code: "SERVICE_UNAVAILABLE",
+          message: "Webhook testing is temporarily unavailable.",
+        });
+      }
+      const acquired = await redis.set(
+        `webhook-test:${projectId}`,
+        "1",
+        "EX",
+        15,
+        "NX",
+      );
+      if (!acquired) {
+        throw new TRPCError({
+          code: "TOO_MANY_REQUESTS",
+          message: "Wait a few seconds before sending another test event.",
+        });
+      }
+
+      try {
+        const action = await getActionByIdWithSecrets({
+          projectId,
+          actionId: automation.action.id,
+        });
+        if (!action || !isWebhookAction(action)) {
+          throw new Error("Webhook configuration unavailable");
+        }
+        return await sendWebhookTestEvent({
+          config: action.config,
+          trigger: automation.trigger,
+          projectId,
+        });
+      } catch {
+        throw new TRPCError({
+          code: "BAD_GATEWAY",
+          message:
+            "Could not deliver the test event. Check the destination and try again.",
+        });
+      }
+    }),
+
   // Get automations that were recently auto-disabled due to failures
   getCountOfConsecutiveFailures: protectedProjectProcedure
     .input(
