@@ -25,6 +25,7 @@ import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 
 const DAY_MS = 86_400_000;
+const RECENT_FIT_MS = 3_600_000;
 // Bounds the burst after a deploy or outage, when every project's slot is due at once.
 const MAX_REFITS_PER_TICK = 5;
 // Projects refit at a stable offset within this many minutes after the hour.
@@ -168,6 +169,18 @@ async function refitRuleFacet({
       await enqueueTopicRuleRefit(projectId, runId, NIGHTLY_REFIT_PRIORITY);
     return false;
   }
+  // A fit started from an hour before the slot on, such as a manual refresh, stands in for this slot's fit.
+  const recent = await prisma.topicClusteringRun.findFirst({
+    where: {
+      projectId,
+      ruleId,
+      facetId: facet.facetId,
+      status: { in: ["pending", "running", "completed"] },
+      createdAt: { gte: new Date(slot.getTime() - RECENT_FIT_MS) },
+    },
+    select: { id: true },
+  });
+  if (recent) return false;
   // A fit still open from an earlier slot was interrupted; this slot replaces it.
   await prisma.topicClusteringRun.updateMany({
     where: {

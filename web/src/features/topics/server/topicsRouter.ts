@@ -55,6 +55,7 @@ import {
   getTopicExecutionQueueState,
   getEnabledTopicsModels,
   readTopicRuleSetup,
+  startTopicRuleRefresh,
   startTopicRuleSetup,
 } from "@langfuse/shared/topics/server";
 import {
@@ -649,6 +650,15 @@ export const topicsRouter = createTRPCRouter({
         return null;
       return startTopicRuleSetup(input.projectId, input.ruleId);
     }),
+  /** Refits the rule's map now; the maps overview reports its progress and cooldown. */
+  refreshRuleMap: topicsWriteProcedure
+    .input(projectInput.extend({ ruleId: topicIdSchema }))
+    .mutation(({ input }) =>
+      startTopicRuleRefresh({
+        projectId: input.projectId,
+        ruleId: input.ruleId,
+      }),
+    ),
   ruleSetupStatus: topicsProcedure
     .input(projectInput.extend({ ruleId: topicIdSchema }))
     .query(({ input }) => readTopicRuleSetup(input.projectId, input.ruleId)),

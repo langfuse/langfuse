@@ -1756,8 +1756,12 @@ export async function processTopicRuleRefit({
             projectId,
             embeddingConfig,
             timeRange,
-            // Setup stores these on the run; nightly refits never do.
-            exploratory: run.config.exploratory === true,
+            // Setup stores these on the run; nightly refits never do. A manual
+            // refresh falls back to small-sample mode below the standard minimum.
+            exploratory:
+              run.config.exploratory === true ||
+              (run.config.refresh === true &&
+                summaries.length < topicClusterSettings(false).minimumCount),
             provisional: run.config.provisional === true,
             ruleId,
             batchActionId: null,

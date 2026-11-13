@@ -1,5 +1,5 @@
 /* eslint-disable react/no-unstable-nested-components */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronLeft } from "@langfuse/icons";
 import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -53,7 +53,10 @@ import {
 import { TopicSetupProgressView } from "./TopicSetupProgressView";
 import { CurrentTopics, useCurrentTopics } from "./CurrentTopics";
 import { TopicsActionsMenu } from "./TopicsActionsMenu";
-import { prepareTopicsActions } from "./prepare-topics-actions";
+import {
+  prepareTopicsActions,
+  refreshMapDisabledReason,
+} from "./prepare-topics-actions";
 import { TopicsWorkspaceGate } from "./TopicsWorkspaceGate";
 import { useTopicTraceFilters } from "./useTopicTraceFilters";
 import { TopicRunDetails } from "./TopicRunDetails";
@@ -311,7 +314,8 @@ function TopicsWorkspaceContent({
     { projectId },
     {
       refetchInterval: (query) =>
-        query.state.data?.analyses.some((analysis) => busy(analysis.status))
+        query.state.data?.analyses.some((analysis) => busy(analysis.status)) ||
+        query.state.data?.rules.some((rule) => rule.refresh.running)
           ? 3000
           : false,
     },
@@ -325,6 +329,30 @@ function TopicsWorkspaceContent({
     mapSelection?.kind === "rule"
       ? maps.data?.rules.find((rule) => rule.id === mapSelection.id)
       : undefined;
+  // A refit (refresh or nightly) is no execution; its completion shows as a new lastRefitAt.
+  const lastRefitAt = selectedRule?.lastRefitAt
+    ? Date.parse(selectedRule.lastRefitAt)
+    : 0;
+  const [listedRefit, setListedRefit] = useState<{
+    ruleId: string;
+    at: number;
+  } | null>(null);
+  if (selectedRule && listedRefit?.ruleId !== selectedRule.id)
+    setListedRefit({ ruleId: selectedRule.id, at: lastRefitAt });
+  const refitAfter =
+    listedRefit?.ruleId === selectedRule?.id && listedRefit?.at !== lastRefitAt
+      ? lastRefitAt
+      : 0;
+  const refreshAvailableAt = selectedRule?.refresh.availableAt;
+  const [, setCooldownEnded] = useState<string | null>(null);
+  useEffect(() => {
+    if (!refreshAvailableAt) return;
+    const timer = setTimeout(
+      () => setCooldownEnded(refreshAvailableAt),
+      Math.max(0, Date.parse(refreshAvailableAt) - Date.now()),
+    );
+    return () => clearTimeout(timer);
+  }, [refreshAvailableAt]);
   const selectedAnalysis =
     mapSelection?.kind === "analysis"
       ? maps.data?.analyses.find((analysis) => analysis.id === mapSelection.id)
@@ -390,10 +418,13 @@ function TopicsWorkspaceContent({
   );
   const results = useCurrentTopics({
     projectId,
-    // Setup fits are no executions; polling through them refetches once they finish.
-    running: running || Boolean(setup?.active),
+    // Setup and refresh fits are no executions; polling through them refetches once they finish.
+    running:
+      running ||
+      Boolean(setup?.active) ||
+      Boolean(selectedRule?.refresh?.running),
     pollForSummaries: modelSettings.automaticProcessing.state.status === "on",
-    refreshAfter,
+    refreshAfter: Math.max(refreshAfter, refitAfter),
     ruleId: selectedRule?.id,
     enabled: !analysisId,
   });
@@ -609,6 +640,23 @@ function TopicsWorkspaceContent({
               onEditRun:
                 selectedRule && !showOnboarding
                   ? () => openSliceDialog({ kind: "rule", rule: selectedRule })
+                  : undefined,
+              refreshMap:
+                selectedRule && !showOnboarding
+                  ? {
+                      onSelect: () =>
+                        openSliceDialog({
+                          kind: "refresh",
+                          rule: selectedRule,
+                        }),
+                      disabledReason: refreshMapDisabledReason({
+                        canWrite,
+                        state: automaticProcessing.state,
+                        rule: selectedRule,
+                        setupActive: Boolean(setup?.active),
+                        now: Date.now(),
+                      }),
+                    }
                   : undefined,
               onNewMap: () => openSliceDialog({ kind: "map" }),
               onNewSnapshot: () => openSliceDialog({ kind: "snapshot" }),

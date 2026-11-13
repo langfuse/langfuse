@@ -1,9 +1,11 @@
+import { type TopicRuleMap } from "./topic-maps";
 import {
   CalendarRange,
   Eye,
   History,
   Pencil,
   Plus,
+  RefreshCw,
   Settings,
   type IconComponent,
 } from "@langfuse/icons";
@@ -15,7 +17,7 @@ export type AutomaticProcessingState =
   | { status: "paused"; shortLabel: string };
 
 type TopicAction = {
-  id: "edit" | "new-map" | "new-snapshot" | "configure" | "history";
+  id: "edit" | "new-map" | "new-snapshot" | "refresh" | "configure" | "history";
   label: string;
   icon: IconComponent;
   onSelect: () => void;
@@ -27,6 +29,38 @@ const NO_WRITE_ACCESS = "You need permission to edit Topics.";
 
 function createDisabledReason(state: AutomaticProcessingState) {
   if (state.status === "unconfigured") return "Set up Topics first.";
+  return undefined;
+}
+
+const minutesUntil = (ms: number) => Math.max(1, Math.ceil(ms / 60_000));
+
+/** Why the selected map can't be refreshed now; undefined when it can. */
+export function refreshMapDisabledReason({
+  canWrite,
+  state,
+  rule,
+  setupActive,
+  now,
+}: {
+  canWrite: boolean;
+  state: AutomaticProcessingState;
+  rule: Pick<TopicRuleMap, "enabled" | "refresh">;
+  setupActive: boolean;
+  now: number;
+}) {
+  if (!canWrite) return NO_WRITE_ACCESS;
+  if (state.status === "paused") return "Topics is paused.";
+  if (state.status !== "on")
+    return "Turn on automatic processing to refresh this map.";
+  if (rule.enabled === false)
+    return "Turn on live updates to refresh this map.";
+  if (setupActive) return "This map's first topics are still being built.";
+  if (rule.refresh.running) return "This map is being refreshed.";
+  const availableAt = rule.refresh.availableAt
+    ? Date.parse(rule.refresh.availableAt)
+    : 0;
+  if (availableAt > now)
+    return `Refreshed recently. Available again in ${minutesUntil(availableAt - now)} min.`;
   return undefined;
 }
 
@@ -42,6 +76,7 @@ export function prepareTopicsActions({
   onNewSnapshot,
   mapDisabledReason,
   onEditRun,
+  refreshMap,
   showUnassigned,
   onShowUnassignedChange,
 }: {
@@ -58,6 +93,8 @@ export function prepareTopicsActions({
   mapDisabledReason?: string;
   /** Opens the selected map's settings; absent for snapshots. */
   onEditRun?: () => void;
+  /** Refreshes the selected map; absent for snapshots. */
+  refreshMap?: { onSelect: () => void; disabledReason?: string };
   showUnassigned: boolean;
   onShowUnassignedChange: (show: boolean) => void;
 }) {
@@ -72,6 +109,14 @@ export function prepareTopicsActions({
       icon: Pencil,
       disabledReason: editDisabledReason,
       onSelect: onEditRun,
+    });
+  if (refreshMap)
+    menu.push({
+      id: "refresh",
+      label: "Refresh map",
+      icon: RefreshCw,
+      disabledReason: refreshMap.disabledReason,
+      onSelect: refreshMap.onSelect,
     });
   menu.push(
     {
