@@ -4,6 +4,7 @@
 
 import type { ComposerSegment } from "@/src/features/search-bar/lib/composer-segments";
 import type { FieldRegistry } from "@/src/features/search-bar/lib/fields";
+import type { CompareOp } from "@/src/features/search-bar/lib/ast";
 
 /** Per-view: the examples have to name fields the view actually has. */
 export function composerPlaceholder(registry: FieldRegistry): string {
@@ -29,11 +30,11 @@ export { optionDomId } from "@/src/components/design-system/QueryInput/QueryInpu
  */
 export function deactivationReason(
   segment: ComposerSegment,
-  fieldReason?: (field: string) => string | null,
+  fieldReason?: (field: string, op?: CompareOp) => string | null,
   freeTextReason?: string | null,
 ): string | null {
   if (segment.kind === "filter")
-    return fieldReason?.(segment.displayField) ?? null;
+    return fieldReason?.(segment.displayField, segment.op) ?? null;
   if (segment.kind === "freeText") return freeTextReason ?? null;
   return null;
 }

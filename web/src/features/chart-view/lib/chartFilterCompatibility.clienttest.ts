@@ -268,6 +268,15 @@ describe("chartSearchFieldReason", () => {
   it("deactivates the has: presence pseudo-field (null-checks aren't charted)", () => {
     expect(chartSearchFieldReason("has")).toMatch(/is set/i);
   });
+
+  it("deactivates a numeric metadata comparison but not a metadata text match", () => {
+    expect(chartSearchFieldReason("metadata.attempt", undefined, ">")).toMatch(
+      /this field/i,
+    );
+    expect(
+      chartSearchFieldReason("metadata.attempt", undefined, "="),
+    ).toBeNull();
+  });
 });
 
 describe("classifyChartFilters", () => {
