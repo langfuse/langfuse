@@ -84,6 +84,10 @@ export class TenancyInjectionPlugin implements KyselyPlugin {
   }
 }
 
+/**
+ * Visits every select in the tree, subqueries and CTE bodies included, and
+ * scopes that select's own FROM and JOIN relations.
+ */
 class TenancyInjectionTransformer extends SelectRewriteTransformer {
   constructor(private readonly projectId: string) {
     super();
@@ -96,6 +100,12 @@ class TenancyInjectionTransformer extends SelectRewriteTransformer {
   }
 }
 
+/**
+ * Kysely keeps the FROM relations in `node.from.froms` and each join in
+ * `node.joins`: a `JoinNode` holds the join type, the joined relation (`table`)
+ * and its `on` condition. Below, `join` is that `JoinNode` and `relation` its
+ * joined relation, classified.
+ */
 function injectSelect(
   node: ClickHouseSelectQueryNode,
   projectId: string,
