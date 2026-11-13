@@ -6,6 +6,7 @@ const VERTEX_AI_AUTH_SCOPES = [
   "https://www.googleapis.com/auth/cloud-platform",
 ];
 const MAX_CACHED_SERVICE_ACCOUNT_CLIENTS = 1_000;
+const TOKEN_EXCHANGE_TIMEOUT_MS = 3_000;
 
 let googleAuth: GoogleAuth | undefined;
 let projectIdPromise: Promise<string> | undefined;
@@ -80,16 +81,28 @@ export async function generateVertexAccessTokenFromADC(): Promise<
 /**
  * OAuth access token for a service account key. One client is kept per key,
  * so a token is reused until shortly before it expires and concurrent
- * requests share one refresh.
+ * requests share one refresh. Only keys that produced a token are kept, and
+ * the least recently used key is dropped first.
  */
 export async function generateVertexAccessTokenForServiceAccount(key: {
   client_email: string;
   private_key: string;
 }): Promise<string> {
+  const cacheKey = createHash("sha256")
+    .update(key.client_email)
+    .update("\0")
+    .update(key.private_key)
+    .digest("hex");
+  const client = serviceAccountClients.get(cacheKey) ?? newJWTClient(key);
+
   let token: string | null | undefined;
   try {
-    ({ token } = await getServiceAccountClient(key).getAccessToken());
+    ({ token } = await client.getAccessToken());
+    if (!token) throw new Error("Google returned no access token");
   } catch (error) {
+    if (serviceAccountClients.get(cacheKey) === client) {
+      serviceAccountClients.delete(cacheKey);
+    }
     if (error instanceof gaxios.GaxiosError) {
       throw new VertexTokenExchangeError(
         error.message,
@@ -98,33 +111,24 @@ export async function generateVertexAccessTokenForServiceAccount(key: {
     }
     throw error;
   }
-  if (!token) throw new Error("Google returned no access token");
-  return token;
-}
 
-function getServiceAccountClient(key: {
-  client_email: string;
-  private_key: string;
-}) {
-  const cacheKey = createHash("sha256")
-    .update(key.client_email)
-    .update("\0")
-    .update(key.private_key)
-    .digest("hex");
-  const cached = serviceAccountClients.get(cacheKey);
-  if (cached) return cached;
-
-  // Built from the email and private key only, so a key's `token_uri` and
-  // `universe_domain` cannot redirect the token exchange.
-  const client = new JWT({
-    email: key.client_email,
-    key: key.private_key,
-    scopes: VERTEX_AI_AUTH_SCOPES,
-  });
-  if (serviceAccountClients.size >= MAX_CACHED_SERVICE_ACCOUNT_CLIENTS) {
+  serviceAccountClients.delete(cacheKey);
+  serviceAccountClients.set(cacheKey, client);
+  if (serviceAccountClients.size > MAX_CACHED_SERVICE_ACCOUNT_CLIENTS) {
     const oldest = serviceAccountClients.keys().next().value;
     if (oldest !== undefined) serviceAccountClients.delete(oldest);
   }
-  serviceAccountClients.set(cacheKey, client);
-  return client;
+  return token;
+}
+
+// Built from the email and private key only, so a key's `token_uri` and
+// `universe_domain` cannot redirect the token exchange. The timeout stays below
+// the 5s the gateway waits for `/resolve`.
+function newJWTClient(key: { client_email: string; private_key: string }) {
+  return new JWT({
+    email: key.client_email,
+    key: key.private_key,
+    scopes: VERTEX_AI_AUTH_SCOPES,
+    transporterOptions: { timeout: TOKEN_EXCHANGE_TIMEOUT_MS },
+  });
 }

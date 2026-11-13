@@ -60,11 +60,6 @@ export const vertexModelDiscoveryAdapter: ModelDiscoveryAdapter = {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!result.success) return result;
-      // Vertex answers a project or location that can't use it with a 4xx.
-      const { status } = result.response;
-      if (status >= 400 && status < 500 && status !== 429) {
-        return { success: false, error: "unauthorized" };
-      }
       const error = standardHttpError(result.response);
       if (error) return { success: false, error };
       const parsed = publisherModelsSchema.safeParse(result.value);

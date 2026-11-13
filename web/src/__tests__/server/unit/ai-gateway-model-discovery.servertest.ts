@@ -298,6 +298,19 @@ describe("AI Gateway model discovery", () => {
 
     expect(await fetchCatalogError(tokenError(400))).toBe("unauthorized");
     expect(await fetchCatalogError(tokenError(null))).toBe("timeout");
+
+    const listingError = async (status: number) => {
+      const result = await vertexModelDiscoveryAdapter.fetchCatalog({
+        credential: JSON.stringify(vertexServiceAccountKey),
+        config: { location: "global" },
+        baseURL: null,
+        extraHeaders: {},
+        fetcher: async () => Response.json({}, { status }),
+      });
+      return result.success ? null : result.error;
+    };
+    expect(await listingError(403)).toBe("unauthorized");
+    expect(await listingError(404)).toBe("provider_error");
   });
 
   it("lists Bedrock models under every OpenAI route they serve and Claude only under Messages", () => {

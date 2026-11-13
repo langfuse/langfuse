@@ -12,11 +12,20 @@ export const GatewayVertexConfigSchema = z
   .strict();
 export type GatewayVertexConfig = z.infer<typeof GatewayVertexConfigSchema>;
 
+export class UnsupportedVertexProjectIdError extends Error {
+  constructor() {
+    super(
+      "The service account key's project ID may only contain lowercase letters, digits and hyphens",
+    );
+    this.name = "UnsupportedVertexProjectIdError";
+  }
+}
+
 /** Throws unless the credential is a service account key for a project the gateway can address. */
 export function parseVertexServiceAccountKey(credential: string) {
   const key = GCPServiceAccountKeySchema.parse(JSON.parse(credential));
   if (!VERTEX_SEGMENT_PATTERN.test(key.project_id)) {
-    throw new Error("Unsupported Google Cloud project ID");
+    throw new UnsupportedVertexProjectIdError();
   }
   return key;
 }

@@ -139,9 +139,7 @@
   AI SDK-native LLM execution helpers (`generateLLMText`, `streamLLMText`, and
   `embedLLMText`), `isInternalEvalEnvironment` for shared eval/Topics exclusions,
   Bedrock default-credential provider auth
-  (`createDefaultBedrockProviderAuth`), Vertex AI access tokens from the
-  deployment's credentials or a service account key (`vertexAuth.ts`), and
-  server test utilities. Langfuse AI
+  (`createDefaultBedrockProviderAuth`), Vertex AI access tokens from the deployment's credentials or a service account key (`vertexAuth.ts`), and server test utilities. Langfuse AI
   callers select their local profile through `getLangfuseAIAwsProfile`;
   generic Bedrock auth only uses an explicitly supplied profile or the normal
   AWS credential chain.

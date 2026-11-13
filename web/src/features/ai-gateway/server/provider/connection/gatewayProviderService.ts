@@ -44,6 +44,7 @@ import {
 import {
   GatewayVertexConfigSchema,
   parseVertexServiceAccountKey,
+  UnsupportedVertexProjectIdError,
 } from "@/src/features/ai-gateway/server/provider/vertex";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import type { GatewayCustomModel } from "@/src/features/ai-gateway/fns/parseGatewayCustomModels";
@@ -739,9 +740,11 @@ function toDisplaySecret(provider: GatewayProvider, credential: string) {
 function parseVertexCredential(credential: string) {
   try {
     return JSON.stringify(parseVertexServiceAccountKey(credential));
-  } catch {
+  } catch (error) {
     throw new InvalidRequestError(
-      "Paste a Google Cloud service account key in JSON format",
+      error instanceof UnsupportedVertexProjectIdError
+        ? error.message
+        : "Paste a Google Cloud service account key in JSON format",
     );
   }
 }
