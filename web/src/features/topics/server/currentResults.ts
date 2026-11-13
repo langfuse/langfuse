@@ -12,7 +12,9 @@ import {
   getTopicMapCost,
   getTopicResultCounts,
   listCurrentTopicSummaries,
+  logger,
   OBSERVATIONS_TO_TRACE_INTERVAL_DAYS,
+  traceException,
   type TopicAssignmentStatus,
   type TopicResultCondition,
   type TopicResultCursor,
@@ -179,18 +181,22 @@ async function ruleMap(
   return serving?.ruleId ? null : serving;
 }
 
-/** Topic and status counts per facet map, aggregated in ClickHouse. */
-async function facetMapCounts(projectId: string, maps: FacetMap[]) {
-  // Facets whose maps share a cohort window share one count query.
+/** Facet maps sharing a cohort window, so each window needs one ClickHouse query. */
+function groupByWindow(maps: FacetMap[]) {
   const groups = new Map<string, FacetMap[]>();
   for (const map of maps) {
     const key = `${map.window.from.getTime()}:${map.window.to.getTime()}`;
     groups.set(key, [...(groups.get(key) ?? []), map]);
   }
+  return [...groups.values()];
+}
+
+/** Topic and status counts per facet map, aggregated in ClickHouse. */
+async function facetMapCounts(projectId: string, maps: FacetMap[]) {
   const countsByFacet = new Map(
     (
       await Promise.all(
-        [...groups.values()].map((group) =>
+        groupByWindow(maps).map((group) =>
           getTopicResultCounts({
             projectId,
             window: group[0].window,
@@ -310,18 +316,36 @@ export async function analysisTopicResults(
   };
 }
 
-/** Approximate model cost of the summaries behind a rule's or analysis's maps, over the windows the page counts. */
+/**
+ * Approximate model cost of the summaries behind a rule's or analysis's maps,
+ * over the windows the page counts; null when none is priced or ClickHouse fails.
+ */
 export async function topicMapCost(projectId: string, scope: TopicMapScope) {
   const maps = await resolveFacetMaps(
     projectId,
     scope,
     await listTopicFacets(projectId),
   );
+  // A members-only map without a completed run has no traces yet.
+  const priced = maps.filter((map) => !map.membersOnly || map.run);
+  const costs = await Promise.all(
+    groupByWindow(priced).map((group) => windowCost(projectId, group)),
+  ).catch((error: unknown) => {
+    traceException(error);
+    logger.warn("Failed to estimate Topics map cost", { projectId, error });
+    return [];
+  });
+  return costs.some((cost) => cost.priced > 0)
+    ? costs.reduce((sum, cost) => sum + cost.cost, 0)
+    : null;
+}
+
+function windowCost(projectId: string, group: FacetMap[]) {
   return getTopicMapCost({
     projectId,
-    maps: maps.map(({ facet, run, window, membersOnly }) => ({
+    window: group[0].window,
+    maps: group.map(({ facet, run, membersOnly }) => ({
       facetId: facet.id,
-      window,
       runId: run?.id ?? null,
       membersOnly,
     })),

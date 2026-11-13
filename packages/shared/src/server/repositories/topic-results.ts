@@ -11,8 +11,6 @@ import {
   unitTimeFilterSql,
 } from "../topics/clickhouse";
 import { getPublishedTopicRunIds } from "../topics/postgres";
-import { traceException } from "../instrumentation";
-import { logger } from "../logger";
 import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
@@ -767,66 +765,46 @@ export async function getTopicResultCounts(input: {
 }
 
 /**
- * Approximate model cost of the summaries behind a set of facet maps, or null
- * when none is priced. A members-only map counts the summaries its run
- * assigned; other maps count every summary in their window. Summaries shared
- * by several maps count toward each, and unmerged retry rows can overcount.
+ * Approximate model cost of the summaries behind facet maps sharing one window,
+ * with the number of priced summaries. A members-only map counts the summaries
+ * its run assigned; other maps count every summary in the window. Summaries
+ * shared by several maps count toward each, and unmerged retry rows can overcount.
  */
 export async function getTopicMapCost(input: {
   projectId: string;
-  maps: {
-    facetId: string;
-    window: TopicTimeRange;
-    runId: string | null;
-    membersOnly: boolean;
-  }[];
-}): Promise<number | null> {
-  const maps = input.maps.filter((map) => !map.membersOnly || map.runId);
-  const groups = new Map<string, typeof maps>();
-  for (const map of maps) {
-    const key = `${map.window.from.getTime()}:${map.window.to.getTime()}`;
-    groups.set(key, [...(groups.get(key) ?? []), map]);
-  }
+  window: TopicTimeRange;
+  maps: { facetId: string; runId: string | null; membersOnly: boolean }[];
+}): Promise<{ cost: number; priced: number }> {
   const scope = `project_id = {projectId:String} AND ${unitTimeFilterSql}
     AND trace_id != '' AND facet_id IN {facetIds:Array(String)}
     AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
     AND environment != {publicLlmJudgeEnvironment:String}`;
-  const rows = await Promise.all(
-    [...groups.values()].map(async (group) => {
-      const [row] = await queryClickhouse<{ cost: string; priced: string }>({
-        ...READ_OPTIONS,
-        query: `SELECT sum(cost_details['total']) AS cost, count() AS priced
-          FROM topic_facet_summaries
-          WHERE ${scope} AND mapContains(cost_details, 'total')
-            AND (NOT has({memberFacetIds:Array(String)}, facet_id)
-              OR (facet_id, trace_id, unit_start_time, processed_at) IN (
-                SELECT facet_id, trace_id, unit_start_time, summary_processed_at
-                FROM topic_assignments
-                WHERE ${scope} AND clustering_run_id != ''
-                  AND clustering_run_id = {runIds:Array(String)}[indexOf({facetIds:Array(String)}, facet_id)]))`,
-        params: {
-          projectId: input.projectId,
-          facetIds: group.map((map) => map.facetId),
-          runIds: group.map((map) => map.runId ?? ""),
-          memberFacetIds: group
-            .filter((map) => map.membersOnly)
-            .map((map) => map.facetId),
-          internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-          publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
-          ...timeRangeParams(group[0].window),
-        },
-        tags: { route: "topics-map-cost", projectId: input.projectId },
-      });
-      return row;
-    }),
-  ).catch((error: unknown) => {
-    traceException(error);
-    logger.warn("Failed to estimate Topics map cost", {
+  // ClickHouse builds an IN set even when no row needs it, so it is added only for members-only maps.
+  const membersFilter = input.maps.some((map) => map.membersOnly)
+    ? `AND (NOT has({memberFacetIds:Array(String)}, facet_id)
+        OR (facet_id, trace_id, unit_start_time, processed_at) IN (
+          SELECT facet_id, trace_id, unit_start_time, summary_processed_at
+          FROM topic_assignments
+          WHERE ${scope} AND clustering_run_id != ''
+            AND clustering_run_id = {runIds:Array(String)}[indexOf({facetIds:Array(String)}, facet_id)]))`
+    : "";
+  const [row] = await queryClickhouse<{ cost: string; priced: string }>({
+    ...READ_OPTIONS,
+    query: `SELECT sum(cost_details['total']) AS cost, count() AS priced
+      FROM topic_facet_summaries
+      WHERE ${scope} AND mapContains(cost_details, 'total') ${membersFilter}`,
+    params: {
       projectId: input.projectId,
-      error,
-    });
-    return [];
+      facetIds: input.maps.map((map) => map.facetId),
+      runIds: input.maps.map((map) => map.runId ?? ""),
+      memberFacetIds: input.maps
+        .filter((map) => map.membersOnly)
+        .map((map) => map.facetId),
+      internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+      ...timeRangeParams(input.window),
+    },
+    tags: { route: "topics-map-cost", projectId: input.projectId },
   });
-  if (!rows.some((row) => Number(row?.priced ?? 0) > 0)) return null;
-  return rows.reduce((sum, row) => sum + Number(row?.cost ?? 0), 0);
+  return { cost: Number(row?.cost ?? 0), priced: Number(row?.priced ?? 0) };
 }

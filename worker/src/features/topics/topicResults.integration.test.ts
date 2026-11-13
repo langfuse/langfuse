@@ -598,15 +598,17 @@ describe("current Topics results with several rules sharing a facet", () => {
   });
 
   it("costs each rule's map by the summaries it assigned, counting shared ones in each", async () => {
-    const cost = (runId: string | null, membersOnly: boolean) =>
-      getTopicMapCost({
-        projectId,
-        maps: [{ facetId, window, runId, membersOnly }],
-      });
+    const cost = async (runId: string | null, membersOnly: boolean) =>
+      (
+        await getTopicMapCost({
+          projectId,
+          window,
+          maps: [{ facetId, runId, membersOnly }],
+        })
+      ).cost;
     expect(await cost(runIds[0], true)).toBeCloseTo(0.5);
     // Billing's map holds an older summary of the second trace, not the one costed.
     expect(await cost(runIds[1], true)).toBeCloseTo(0.3);
     expect(await cost(null, false)).toBeCloseTo(0.5);
-    expect(await cost(null, true)).toBeNull();
   });
 });
