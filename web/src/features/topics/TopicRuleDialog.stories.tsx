@@ -63,7 +63,6 @@ type StoryProps = {
   dailyTraces?: number | null;
   saving?: boolean;
   saveError?: string | null;
-  readOnlyReason?: string;
 };
 
 function EditScanStory({
@@ -76,7 +75,6 @@ function EditScanStory({
   dailyTraces = 1,
   saving = false,
   saveError = null,
-  readOnlyReason,
 }: StoryProps) {
   const [name, setName] = useState(initialName);
   const [filter, setFilter] = useState(initialFilter);
@@ -119,7 +117,6 @@ function EditScanStory({
       onSamplingPercentChange={setSamplingPercent}
       dailyTraces={dailyTraces}
       canSave={traceFilterState.ready && facetIds.length > 0}
-      readOnlyReason={readOnlyReason}
       saving={saving}
       saveError={saveError}
       onSave={fn()}
@@ -197,25 +194,6 @@ export const NothingToLookFor = meta.story({
     await expect(save).toBeDisabled();
     await userEvent.click(body.getByRole("checkbox", { name: "Intent" }));
     await expect(save).toBeEnabled();
-  },
-});
-
-export const ReadOnly = meta.story({
-  name: "(Test) Without edit permission the scan is view only",
-  args: { readOnlyReason: "You need permission to edit Topics." },
-  play: async () => {
-    const body = within(document.body);
-    await expect(
-      await body.findByText("View only. You need permission to edit Topics."),
-    ).toBeVisible();
-    await expect(
-      body.getByRole("textbox", { name: "Scan name" }),
-    ).toBeDisabled();
-    await expect(body.getByRole("checkbox", { name: "Intent" })).toBeDisabled();
-    await expect(body.getByRole("switch")).toBeDisabled();
-    await expect(
-      body.getByRole("button", { name: "Save changes" }),
-    ).toBeDisabled();
   },
 });
 

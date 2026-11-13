@@ -109,8 +109,8 @@ export function TopicRuleDialog({
       samplingPercent={samplingPercent}
       onSamplingPercentChange={(next) => form.setValue("samplingPercent", next)}
       dailyTraces={dailyTraces}
-      canSave={traceFilter.ready && facetIds.length > 0}
-      readOnlyReason={
+      canSave={canWrite && traceFilter.ready && facetIds.length > 0}
+      saveDisabledReason={
         canWrite ? undefined : "You need permission to edit Topics."
       }
       saving={save.isPending || setEnabled.isPending}
