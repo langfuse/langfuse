@@ -15,8 +15,10 @@ import {
   type TopicEmbeddingBatch,
   type TopicEmbeddingRef,
 } from "@langfuse/shared/topics/server";
-import { assembleTranscript } from "@langfuse/shared/src/server";
-import { TOPICS_TEXT_VERSION } from "./assembledTranscript";
+import {
+  assembleTranscript,
+  TOPICS_TEXT_VERSION,
+} from "@langfuse/shared/src/server";
 import {
   topicExecutionInputSchema,
   topicSourceKey,

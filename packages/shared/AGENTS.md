@@ -91,6 +91,10 @@
   non-null transcript; `Transcript` itself stays conversational.
   `schema.ts` owns the current transcript shape; `types.ts` infers its output
   types. Message/part types come from `src/utils/normalized-io/schema.ts`.
+  `topics-model-input.ts` owns what the Topics summarizer receives
+  (`renderStoredTopicText`, `prepareAssembledTopicTranscript`,
+  `TOPICS_TEXT_VERSION`); the worker and the internal trace "Show topics
+  transcript" dialog share it.
 
 - `src/server/traceBatch`: versioned input storage through the server barrel.
   `createTraceBatchInputStorage()` returns the `TraceBatchInputStorage` interface
