@@ -32,6 +32,26 @@ describe("widget filter mappings", () => {
       ]);
     },
   );
+
+  it.each([["traces"], ["observations"]] as const)(
+    "round-trips the %s ingestionApiKey filter between editor and query view space",
+    (view) => {
+      const canonicalFilter = {
+        column: "ingestionApiKey",
+        type: "stringOptions" as const,
+        operator: "any of" as const,
+        value: ["pk-lf-test"],
+      };
+      const editorFilter = { ...canonicalFilter, column: "Ingestion API Key" };
+
+      expect(mapWidgetUiTableFilterToView(view, [editorFilter])).toEqual([
+        canonicalFilter,
+      ]);
+      expect(mapViewFilterToUiTableFilter(view, [canonicalFilter])).toEqual([
+        editorFilter,
+      ]);
+    },
+  );
 });
 
 describe("displayNameForFilterColumn", () => {
@@ -45,6 +65,7 @@ describe("displayNameForFilterColumn", () => {
     ["level", "Status"],
     ["Level", "Status"],
     ["Status", "Status"],
+    ["ingestionApiKey", "Ingestion API Key"],
   ])("resolves %s to %s", (column, expected) => {
     expect(displayNameForFilterColumn(column)).toBe(expected);
   });
