@@ -33,6 +33,7 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   getEventListCursor,
+  getMatchingTraceRootsCursor,
   getEventFilterNumericRange,
   getEventFilterOptions,
   getEventFilterValuePage,
@@ -1035,6 +1036,78 @@ describe("Clickhouse Events Repository Test", () => {
           ),
         ).size,
       ).toBe(30);
+    });
+
+    it("lists the root of each trace that has a matching span, one page at a time", async () => {
+      const name = `matching-trace-roots-${randomUUID()}`;
+      const now = Date.now();
+      const traces = [0, 1].map((index) => ({
+        traceId: randomUUID(),
+        rootId: randomUUID(),
+        rootStart: now - 60_000 - index * 10_000,
+      }));
+      const child = (traceId: string, parentId: string, startTime: number) => {
+        const id = randomUUID();
+        return createEvent({
+          id,
+          span_id: id,
+          project_id: projectId,
+          trace_id: traceId,
+          parent_span_id: parentId,
+          type: "SPAN",
+          name,
+          start_time: startTime,
+        });
+      };
+
+      await createEventsCh([
+        ...traces.map((trace) =>
+          createEvent({
+            id: trace.rootId,
+            span_id: trace.rootId,
+            project_id: projectId,
+            trace_id: trace.traceId,
+            parent_span_id: "",
+            type: "SPAN",
+            name: `root-${name}`,
+            start_time: trace.rootStart,
+          }),
+        ),
+        child(traces[0].traceId, traces[0].rootId, now - 1_000),
+        child(traces[0].traceId, traces[0].rootId, now - 2_000),
+        child(traces[1].traceId, traces[1].rootId, now - 3_000),
+      ]);
+
+      const input = {
+        projectId,
+        filter: [
+          {
+            column: "name",
+            type: "string" as const,
+            operator: "=" as const,
+            value: name,
+          },
+        ],
+        searchType: [],
+        limit: 1,
+      };
+      const firstPage = await getMatchingTraceRootsCursor(input);
+      expect(firstPage.observations.map(({ id }) => id)).toEqual([
+        traces[0].rootId,
+      ]);
+      expect(firstPage.nextCursor).toBeDefined();
+
+      const secondPage = await getMatchingTraceRootsCursor({
+        ...input,
+        limit: 25,
+        cursor: firstPage.nextCursor,
+      });
+      // The second matching span of the first trace is still in the scan, so
+      // its root comes back again and the list dedupes it by id.
+      expect(
+        Array.from(new Set(secondPage.observations.map(({ id }) => id))),
+      ).toEqual([traces[0].rootId, traces[1].rootId]);
+      expect(secondPage.nextCursor).toBeUndefined();
     });
 
     it("should return release field in the result set", async () => {

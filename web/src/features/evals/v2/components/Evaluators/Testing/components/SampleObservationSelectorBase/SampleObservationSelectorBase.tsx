@@ -199,16 +199,6 @@ function suppressedRetarget(
   return resolved;
 }
 
-/** First matching observation per trace, in match order. */
-function matchingTraces(observations: SampleObservation[]) {
-  const seen = new Set<string>();
-  return observations.filter((observation) => {
-    if (!observation.traceId || seen.has(observation.traceId)) return false;
-    seen.add(observation.traceId);
-    return true;
-  });
-}
-
 function selectorLayoutClassName(showTraceDetail: boolean) {
   if (showTraceDetail) {
     return "flex min-h-0 flex-1 flex-col overflow-hidden";
@@ -370,22 +360,36 @@ export function SampleObservationSelectorBase(
     },
     registry: searchRegistry,
   });
-  // listCursor always reads in the events table's stable start_time DESC tuple
-  // order, so it takes no orderBy.
+  // Both lists read in the events table's stable start_time DESC tuple order,
+  // so they take no orderBy. Trace scope lists the root of each matching trace.
   const listMatches = showMatches || showTraceDetail;
-  const observationQuery = api.events.listCursor.useInfiniteQuery(
+  const matchTraces = sampleScope === "trace";
+  const listInput = {
+    projectId,
+    filter: effectiveFilters,
+    searchQuery,
+    searchType,
+    limit: PAGE_SIZE,
+  };
+  const observationListQuery = api.events.listCursor.useInfiniteQuery(
+    listInput,
     {
-      projectId,
-      filter: effectiveFilters,
-      searchQuery,
-      searchType,
-      limit: PAGE_SIZE,
-    },
-    {
-      enabled: listMatches,
+      enabled: listMatches && !matchTraces,
       getNextPageParam: (lastPage) => lastPage.nextCursor,
     },
   );
+  const traceRootsQuery = api.events.listMatchingTraceRoots.useInfiniteQuery(
+    {
+      ...listInput,
+      windowFrom: timeRange?.from,
+      windowTo: timeRange?.to,
+    },
+    {
+      enabled: listMatches && matchTraces,
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
+    },
+  );
+  const observationQuery = matchTraces ? traceRootsQuery : observationListQuery;
   const observationPages = useMemo(
     () =>
       dedupeObservationPages(
@@ -718,11 +722,7 @@ export function SampleObservationSelectorBase(
           <EvaluatorSampleDetail
             projectId={projectId}
             sampleScope={sampleScope}
-            observations={
-              sampleScope === "trace"
-                ? matchingTraces(matchingObservations)
-                : matchingObservations
-            }
+            observations={matchingObservations}
             selectedObservationId={selectedObservationId}
             selectedObservation={selectedObservation}
             filterState={filterState}

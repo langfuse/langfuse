@@ -507,6 +507,8 @@ export { getObservationsWithModelDataFromEventsTable } from "./repositories/even
 export { getObservationMetricsForPromptsFromEvents } from "./repositories/events";
 export { getObservationsWithPromptNameFromEvents } from "./repositories/events";
 export { getTraceDeleteCursorPageFromEvents } from "./repositories/events";
+export { getDistinctTraceCursorFromEvents } from "./repositories/events";
+export { getRootObservationsForTraceIdsFromEvents } from "./repositories/events";
 export { getObservationByIdFromEventsTable } from "./repositories/events";
 export { getTraceByIdFromEventsTable } from "./repositories/events";
 

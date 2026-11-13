@@ -13,7 +13,10 @@ import {
   getContextualFeatureFlags,
   hasInternalAccess,
 } from "@/src/features/feature-flags/utils";
-import { canUseTraceTranscriptEvals } from "@/src/features/evals/server/traceTranscriptEvalsAccess";
+import {
+  canUseTraceTranscriptEvals,
+  throwIfTraceTranscriptEvalsUnavailable,
+} from "@/src/features/evals/server/traceTranscriptEvalsAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -41,6 +44,7 @@ import { EventsCursorTableOptions, EventsTableOptions } from "./types";
 import {
   getEventList,
   getEventListCursor,
+  getMatchingTraceRootsCursor,
   getEventCount,
   getEventFilterOptions,
   getEventMetadataValues,
@@ -82,6 +86,11 @@ const GetEventsCursorInput = EventsCursorTableOptions.safeExtend({
       lastId: zodSchema.string(),
     })
     .optional(),
+});
+
+const GetMatchingTraceRootsInput = GetEventsCursorInput.safeExtend({
+  windowFrom: zodSchema.date().optional(),
+  windowTo: zodSchema.date().optional(),
 });
 
 export type EventBatchIOOutput = {
@@ -287,6 +296,56 @@ export const eventsRouter = createTRPCRouter({
             searchType: input.searchType,
             limit: input.limit,
             cursor: input.cursor,
+          });
+          audit.refs(observationRefs(events.observations));
+          audit.count(events.observations.length);
+          return events;
+        },
+      );
+    },
+  ),
+  listMatchingTraceRoots: auditedQuery(
+    protectedProjectProcedure.input(GetMatchingTraceRootsInput),
+    { resourceType: "observation", action: "list" },
+    async ({ input, ctx, audit }) => {
+      throwIfTraceTranscriptEvalsUnavailable(
+        ctx.session,
+        ctx.session.projectId,
+      );
+
+      const { filterState, hasNoMatches } = await applyCommentFilters({
+        filterState: input.filter ?? [],
+        prisma: ctx.prisma,
+        projectId: ctx.session.projectId,
+        objectType: "OBSERVATION",
+      });
+
+      if (hasNoMatches) {
+        return {
+          observations: [],
+          hasMore: false,
+          nextCursor: undefined,
+        };
+      }
+
+      return instrumentAsync(
+        { name: "get-matching-trace-roots-trpc" },
+        async (span) => {
+          addAttributesToSpan({
+            span,
+            input,
+            orderBy: { column: "startTime", order: "DESC" },
+          });
+
+          const events = await getMatchingTraceRootsCursor({
+            projectId: ctx.session.projectId,
+            filter: filterState,
+            searchQuery: input.searchQuery ?? undefined,
+            searchType: input.searchType,
+            limit: input.limit,
+            cursor: input.cursor,
+            windowFrom: input.windowFrom,
+            windowTo: input.windowTo,
           });
           audit.refs(observationRefs(events.observations));
           audit.count(events.observations.length);
