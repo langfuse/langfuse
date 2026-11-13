@@ -18,6 +18,7 @@ import { authorize } from "@/src/features/rbac/authorize";
 import { ForbiddenError, Role } from "@langfuse/shared";
 import { OrganizationId } from "@langfuse/shared/rbac";
 import { prisma, type Prisma } from "@langfuse/shared/src/db";
+import { userEmailQuerySchema } from "@/src/ee/features/admin-api/server/userEmailQuery";
 
 // Schema for request body validation
 const MembershipSchema = z.object({
@@ -30,15 +31,26 @@ const DeleteMembershipSchema = z.object({
   userId: z.string(),
 });
 
-// GET - Retrieve all organization memberships
+/**
+ * handleGetMemberships lists the memberships of an organization, optionally
+ * filtered to the user matching the `email` query param.
+ */
 export async function handleGetMemberships(
   req: NextApiRequest,
   res: NextApiResponse,
   orgId: string,
 ) {
+  const query = userEmailQuerySchema.safeParse(req.query);
+  if (!query.success) {
+    return res.status(400).json({ error: "Invalid email" });
+  }
+
   const memberships = await prisma.organizationMembership.findMany({
     where: {
       orgId: orgId,
+      ...(query.data.email !== undefined && {
+        user: { email: query.data.email },
+      }),
     },
     include: {
       user: {

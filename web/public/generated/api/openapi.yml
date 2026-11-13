@@ -4054,7 +4054,17 @@ paths:
       operationId: organizations_getOrganizationMemberships
       tags:
         - Organizations
-      parameters: []
+      parameters:
+        - name: email
+          in: query
+          description: >-
+            Only return the membership of the user with this email
+            (case-insensitive). Returns an empty list if no member of the
+            organization matches.
+          required: false
+          schema:
+            type: string
+            nullable: true
       responses:
         '200':
           description: ''
