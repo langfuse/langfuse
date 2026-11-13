@@ -283,7 +283,7 @@ const conditionCases: [string, FilterStateCondition][] = loweredFields.flatMap(
 // reads events_full for every input/output filter. `is not empty` ignores its
 // sample value, so every sample matches.
 const CORE_WHERE_LEGACY_READS_FULL =
-  /^(input|output) (string = ""|string is not empty .*|null is null|null is not null)$/;
+  /^(input|output) (string = ""|string is not empty .*)$/;
 
 describeWithClickhouse("events predicate lowering vs FilterList", () => {
   it.each(compared(conditionCases.map(([name, filter]) => [name, [filter]])))(

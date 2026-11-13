@@ -631,6 +631,7 @@ export class NullFilter implements Filter {
   public operator: (typeof filterOperators)["null"][number];
   public tablePrefix?: string;
   public emptyEqualsNull?: boolean;
+  public emptyArrayEqualsNull?: boolean;
 
   constructor(opts: {
     clickhouseTable: string;
@@ -638,12 +639,15 @@ export class NullFilter implements Filter {
     operator: (typeof filterOperators)["null"][number];
     tablePrefix?: string;
     emptyEqualsNull?: boolean;
+    /** The field is an array, which ClickHouse never stores as NULL. */
+    emptyArrayEqualsNull?: boolean;
   }) {
     this.clickhouseTable = opts.clickhouseTable;
     this.field = opts.field;
     this.operator = opts.operator;
     this.tablePrefix = opts.tablePrefix;
     this.emptyEqualsNull = opts.emptyEqualsNull;
+    this.emptyArrayEqualsNull = opts.emptyArrayEqualsNull;
   }
 
   apply(): ClickhouseFilter {
@@ -661,6 +665,16 @@ export class NullFilter implements Filter {
           this.operator === "is null"
             ? `empty(${metadataNames})`
             : `notEmpty(${metadataNames})`,
+        params: {},
+      };
+    }
+
+    if (this.emptyArrayEqualsNull) {
+      return {
+        query:
+          this.operator === "is null"
+            ? `empty(${fieldWithPrefix})`
+            : `notEmpty(${fieldWithPrefix})`,
         params: {},
       };
     }
@@ -882,8 +896,12 @@ export const metadataFilterCanPruneEventsFull = (
 // (events_core_mv). A filter must read events_full when truncation could change
 // its result: input/output always (truncated, and events_core lacks the I/O FTS
 // indices); metadata only when the operator/value is truncation-sensitive.
+// Null filters only test emptiness, which truncation preserves.
 const filterRequiresEventsFull = (filter: Filter): boolean => {
-  if (!isFtsEventsTable(filter.clickhouseTable)) {
+  if (
+    !isFtsEventsTable(filter.clickhouseTable) ||
+    filter instanceof NullFilter
+  ) {
     return false;
   }
   if (isFtsTextField(filter.field)) {
