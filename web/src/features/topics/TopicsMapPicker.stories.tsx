@@ -151,7 +151,7 @@ function MapSwitcher({ initial }: { initial: TopicMapSelection }) {
         <TopicMapStrip.Analysis analysis={selectedAnalysis} />
       ) : null}
       {selectedRule?.enabled !== false && selectedRule?.lastRefitAt === null ? (
-        <TopicRuleBuildingState rule={selectedRule} />
+        <TopicRuleBuildingState rule={selectedRule} mapBuilt={false} />
       ) : (
         <div className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
           Topics of the selected map
