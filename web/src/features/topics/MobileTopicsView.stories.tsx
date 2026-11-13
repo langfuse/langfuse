@@ -134,8 +134,6 @@ const defaultArgs: ComponentProps<typeof MobileTopicsView> = {
   onSearchQueryChange: fn(),
   onSelectTrace: fn(),
   onOpenTrace: fn(),
-  onGenerateTopics: fn(),
-  canGenerateTopics: true,
   useTraces: staticTopicTraces(rows),
   showUnassigned: true,
 };

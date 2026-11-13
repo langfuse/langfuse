@@ -33,8 +33,6 @@ type MobileTopicsViewProps = {
   selectedTraceId: string | null;
   onSelectTrace: (traceId: string | null) => void;
   onOpenTrace: (traceId: string) => void;
-  onGenerateTopics: () => void;
-  canGenerateTopics: boolean;
   isV4: boolean;
   useTraces: UseTopicTraces;
   showUnassigned: boolean;
@@ -53,8 +51,6 @@ export function MobileTopicsView({
   selectedTraceId,
   onSelectTrace,
   onOpenTrace,
-  onGenerateTopics,
-  canGenerateTopics,
   isV4,
   useTraces,
   showUnassigned,
@@ -174,11 +170,6 @@ export function MobileTopicsView({
             onSelectTopic={selectTopic}
             onShowAllTraces={showAllTraces}
           />
-          {facet.topics.length === 0 && canGenerateTopics && (
-            <div className="shrink-0 border-t p-3">
-              <Button text="Generate topics" onClick={onGenerateTopics} />
-            </div>
-          )}
         </Tabs.Content>
         <Tabs.Content value="traces" layout="fill">
           <section
