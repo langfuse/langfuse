@@ -561,7 +561,8 @@ it.each([
     analyses: [],
   };
   render(<TopicsPage />, { wrapper: LayerProvider });
-  expect(screen.getByRole("button", { name: "Edit scan" })).toBeTruthy();
+  const editScan = screen.getByRole("button", { name: "Edit scan" });
+  expect(editScan).toHaveProperty("disabled", !canWrite);
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   const items = await screen.findAllByRole("menuitem");
   expect(items.map((item) => item.textContent)).not.toContain("Edit scan");
