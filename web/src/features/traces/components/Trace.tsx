@@ -19,6 +19,12 @@ import { useSelectedObservation } from "@/src/features/traces/hooks/useSelectedO
 import { SearchProvider } from "@/src/features/traces/contexts/SearchProvider";
 import { JsonExpansionProvider } from "@/src/features/traces/contexts/JsonExpansionProvider";
 import {
+  TracePresentationProvider,
+  useTracePresentation,
+  type TracePresentation,
+} from "@/src/features/traces/contexts/TracePresentationProvider";
+import { IOSectionCollapsedProvider } from "@/src/components/ui/IOSectionCollapsedProvider";
+import {
   TraceGraphDataProvider,
   useTraceGraphData,
 } from "@/src/features/traces/contexts/TraceGraphDataProvider";
@@ -34,7 +40,7 @@ import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useTraceComments } from "@/src/features/traces/hooks/useTraceComments";
 import { TraceGraphView } from "@/src/features/traces/components/TraceGraphView/TraceGraphView";
 
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/router";
 import { getCommentDrawerInitialStateFromUrl } from "@/src/features/comments/CommentDrawerController";
 import { TraceReviewPanelProvider } from "@/src/features/traces/contexts/TraceReviewPanelProvider";
@@ -74,8 +80,12 @@ export type TraceProps = {
    * wins, so a caller that sets the query param keeps control of later clicks.
    */
   preferredObservationId?: string | null;
-  /** Shows the Messages tab even when the internal preview gate is off. */
-  showMessages?: boolean;
+  /**
+   * Embedded sample view. "messages" opens the transcript and keeps the trace
+   * header metrics. "observation" opens the span with its input and output
+   * collapsed. Unset on the standalone trace page.
+   */
+  presentation?: TracePresentation;
 };
 
 const DESKTOP_LAYOUTS = {
@@ -120,6 +130,8 @@ export function Trace(props: TraceProps | TraceLoadingProps) {
   const observations = props.isLoading === true ? null : props.observations;
   const preferredObservationId =
     props.isLoading === true ? null : (props.preferredObservationId ?? null);
+  const presentation =
+    props.isLoading === true ? null : (props.presentation ?? null);
   const defaultObservationId = useMemo(
     () =>
       preferredObservationId ??
@@ -128,19 +140,26 @@ export function Trace(props: TraceProps | TraceLoadingProps) {
   );
 
   return (
-    <ViewPreferencesProvider traceContext={traceContext}>
-      <SelectionProvider
-        defaultObservationId={defaultObservationId}
-        isMobile={isMobile}
-        expandDetailOnMount={desktopLayout.expandDetailOnMount}
-      >
-        {props.isLoading === true ? (
-          <TraceLoading desktopLayout={desktopLayout} header={props.header} />
-        ) : (
-          <TraceWithSelection {...props} desktopLayout={desktopLayout} />
-        )}
-      </SelectionProvider>
-    </ViewPreferencesProvider>
+    <TracePresentationProvider presentation={presentation}>
+      <IOSectionCollapsedProvider collapsed={presentation === "observation"}>
+        <ViewPreferencesProvider traceContext={traceContext}>
+          <SelectionProvider
+            defaultObservationId={defaultObservationId}
+            isMobile={isMobile}
+            expandDetailOnMount={desktopLayout.expandDetailOnMount}
+          >
+            {props.isLoading === true ? (
+              <TraceLoading
+                desktopLayout={desktopLayout}
+                header={props.header}
+              />
+            ) : (
+              <TraceWithSelection {...props} desktopLayout={desktopLayout} />
+            )}
+          </SelectionProvider>
+        </ViewPreferencesProvider>
+      </IOSectionCollapsedProvider>
+    </TracePresentationProvider>
   );
 }
 
@@ -159,7 +178,6 @@ function TraceWithSelection({
   isPlaceholderData = false,
   desktopLayout,
   context,
-  showMessages = false,
   header,
 }: Pick<
   TraceProps,
@@ -171,7 +189,6 @@ function TraceWithSelection({
   | "truncatedAtObservations"
   | "isPlaceholderData"
   | "context"
-  | "showMessages"
   | "header"
 > & {
   desktopLayout: DesktopLayout;
@@ -308,7 +325,6 @@ function TraceWithSelection({
               <JsonExpansionProvider>
                 <TraceContent
                   desktopLayout={desktopLayout}
-                  showMessages={showMessages}
                   header={header}
                   sessionError={
                     scopeToSession && sessionQuery.isError
@@ -343,23 +359,35 @@ function TraceWithSelection({
  */
 function TraceContent({
   desktopLayout,
-  showMessages = false,
   header,
   sessionError,
 }: {
   desktopLayout: DesktopLayout;
-  showMessages?: boolean;
   sessionError: { onRetry: () => void } | null;
 } & Pick<TraceProps, "header">) {
   const isMobile = useIsMobile();
   const { isGraphViewAvailable } = useTraceGraphData();
   const { isPlaceholderData, sessionTraces } = useTraceData();
+  const presentation = useTracePresentation();
   const [traceView, setTraceView] = useQueryParam("traceView", StringParam);
+  const [embeddedView, setEmbeddedView] = useState<"messages" | "trace">(
+    presentation === "messages" ? "messages" : "trace",
+  );
+  const [seenPresentation, setSeenPresentation] = useState(presentation);
+  if (presentation !== seenPresentation) {
+    setSeenPresentation(presentation);
+    setEmbeddedView(presentation === "messages" ? "messages" : "trace");
+  }
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const { isV4 } = useReadPath();
-  const showMessagesTab = showMessages || (isV4 && internalFeaturesEnabled);
-  const activeView =
-    showMessagesTab && traceView === "messages" ? "messages" : "trace";
+  const showMessagesTab =
+    presentation === "messages" || (isV4 && internalFeaturesEnabled);
+  const activeView = traceTab({
+    presentation,
+    showMessagesTab,
+    embeddedView,
+    traceView,
+  });
   const stale = staleProps(isPlaceholderData);
   const sessionErrorBanner = sessionError ? (
     <SessionErrorBanner onRetry={sessionError.onRetry} />
@@ -382,8 +410,15 @@ function TraceContent({
           <Tabs
             value={activeView}
             onValueChange={(value) => {
-              if (value === "messages") setTraceView("messages", "pushIn");
-              if (value === "trace") setTraceView(undefined, "pushIn");
+              const next = value === "messages" ? "messages" : "trace";
+              if (presentation) {
+                setEmbeddedView(next);
+                return;
+              }
+              setTraceView(
+                next === "messages" ? "messages" : undefined,
+                "pushIn",
+              );
             }}
             layout="fill"
           >
@@ -426,6 +461,22 @@ function TraceContent({
 
 const traceContentClassName =
   "flex h-full w-full min-w-0 flex-col overflow-hidden";
+
+function traceTab({
+  presentation,
+  showMessagesTab,
+  embeddedView,
+  traceView,
+}: {
+  presentation: TracePresentation | null;
+  showMessagesTab: boolean;
+  embeddedView: "messages" | "trace";
+  traceView: string | null | undefined;
+}) {
+  if (!showMessagesTab) return "trace";
+  if (presentation) return embeddedView;
+  return traceView === "messages" ? "messages" : "trace";
+}
 
 function TraceLoading({
   desktopLayout,

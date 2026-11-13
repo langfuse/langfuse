@@ -22,7 +22,7 @@ export function TraceDetailBody({
   isPlaceholderData = false,
   layout,
   preferredObservationId,
-  showMessages,
+  presentation,
   header,
 }: {
   trace: TraceDetailData | undefined;
@@ -30,7 +30,7 @@ export function TraceDetailBody({
   keySuffix?: string;
   layout?: TraceProps["layout"];
   preferredObservationId?: string | null;
-  showMessages?: boolean;
+  presentation?: TraceProps["presentation"];
   header: TraceProps["header"];
   /** Observation cap this trace was loaded under, when it hit it. */
   truncatedAtObservations?: number;
@@ -58,7 +58,7 @@ export function TraceDetailBody({
       context={context}
       layout={layout}
       preferredObservationId={preferredObservationId}
-      showMessages={showMessages}
+      presentation={presentation}
       header={header}
       truncatedAtObservations={truncatedAtObservations}
       isPlaceholderData={isPlaceholderData}

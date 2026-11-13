@@ -2,6 +2,7 @@
 /* eslint-disable @repo/no-style-props */
 import { useCallback, useMemo, useRef, useState, type UIEvent } from "react";
 import {
+  CircleAlert,
   Database,
   FlaskConical,
   ListTree,
@@ -111,6 +112,22 @@ const EXAMPLES = [
   },
 ] as const;
 
+const TRACE_EXAMPLES = [
+  EXAMPLES.find((example) => example.label === "Experiments")!,
+  {
+    label: "Errors",
+    icon: CircleAlert,
+    filters: [
+      {
+        column: "level",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["ERROR"],
+      },
+    ] satisfies FilterState,
+  },
+];
+
 function timeFilters(range: AbsoluteTimeRange | null): FilterState {
   if (!range) return [];
   return [
@@ -192,7 +209,7 @@ function matchingTraces(observations: SampleObservation[]) {
 
 function selectorLayoutClassName(showTraceDetail: boolean) {
   if (showTraceDetail) {
-    return "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden px-6 pt-2";
+    return "flex min-h-0 flex-1 flex-col overflow-hidden";
   }
   return "flex shrink-0 flex-col gap-6";
 }
@@ -242,6 +259,7 @@ export function SampleObservationSelectorBase(
   );
   const datasetOptions = useMemo(() => datasets.data ?? [], [datasets.data]);
   const examples = useMemo(() => {
+    if (sampleScope === "trace") return TRACE_EXAMPLES;
     const firstDataset = datasetOptions[0];
     return firstDataset
       ? [
@@ -260,7 +278,7 @@ export function SampleObservationSelectorBase(
           },
         ]
       : EXAMPLES;
-  }, [datasetOptions]);
+  }, [datasetOptions, sampleScope]);
   const retainedSelectionId = useRef<string | null>(null);
   const setFilters = (
     next: FilterState | ((current: FilterState) => FilterState),
@@ -590,7 +608,9 @@ export function SampleObservationSelectorBase(
     <div className={selectorLayoutClassName(showTraceDetail)}>
       <section
         className={
-          showTraceDetail ? "flex flex-col gap-1" : "flex flex-col gap-2"
+          showTraceDetail
+            ? "flex flex-col gap-1 px-4 py-2"
+            : "flex flex-col gap-2"
         }
       >
         {showTraceDetail ? (
@@ -672,7 +692,7 @@ export function SampleObservationSelectorBase(
       </section>
 
       {showTraceDetail ? (
-        <div className="-mx-6 flex min-h-0 flex-1 flex-col border-t">
+        <div className="flex min-h-0 flex-1 flex-col border-t">
           <div
             ref={
               retainedIsListed || detailSelectionToReconcile !== undefined

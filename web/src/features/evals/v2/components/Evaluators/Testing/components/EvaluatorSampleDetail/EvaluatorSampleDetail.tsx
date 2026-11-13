@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { ArrowDown, ArrowUp } from "@langfuse/icons";
+import { ChevronLeft, ChevronRight } from "@langfuse/icons";
 import type { FilterState } from "@langfuse/shared";
 import { StringParam, useQueryParam } from "use-query-params";
 
@@ -47,12 +47,8 @@ function sampleFromSpan(span: SpanProperties): SampleObservation {
   } as SampleObservation;
 }
 
-function sampleCountLabel(count: number) {
-  return count === 1 ? "1 sample" : `${count} samples`;
-}
-
 /**
- * One trace on screen. The sample count and up/down arrows sit at the far
+ * One trace on screen. The sample count and left/right arrows sit at the far
  * right of the trace header. Observation scope opens the matched span and
  * marks the other spans the current filters match. Trace scope opens Messages.
  */
@@ -97,7 +93,6 @@ export function EvaluatorSampleDetail({
   }, [entries, setDetailPageList]);
 
   const [, setObservation] = useQueryParam("observation", StringParam);
-  const [, setTraceView] = useQueryParam("traceView", StringParam);
   const intentRef = useRef<string | null>(null);
   const viewIntent = sampleViewIntent(sampleScope, selected);
 
@@ -144,18 +139,23 @@ export function EvaluatorSampleDetail({
   const selectSample = (observation: SampleObservation) => {
     onSelect(observation);
   };
+  const sampleIndex = observations.findIndex(
+    (observation) => observation.id === selected.id,
+  );
+  const samplePosition = sampleIndex >= 0 ? sampleIndex + 1 : 1;
   const sampleControls = (
     <div className="flex shrink-0 items-center gap-2">
       <span
         className="text-sm tabular-nums"
-        aria-label={sampleCountLabel(observations.length)}
+        aria-label={`${samplePosition} of ${observations.length}`}
       >
-        {observations.length}
+        {samplePosition}/{observations.length}
       </span>
       {observations.length > 1 ? (
         <DetailPageNav
           currentId={selected.id}
           listKey={SAMPLE_LIST_KEY}
+          orientation="horizontal"
           path={() => ""}
           onNavigate={(entry) => {
             const next = observations.find(
@@ -169,18 +169,18 @@ export function EvaluatorSampleDetail({
           <Button
             type="button"
             variant="outline"
-            aria-label="Navigate up"
+            aria-label="Previous sample"
             disabled
           >
-            <ArrowUp size="base" color="default" />
+            <ChevronLeft size="base" color="default" />
           </Button>
           <Button
             type="button"
             variant="outline"
-            aria-label="Navigate down"
+            aria-label="Next sample"
             disabled
           >
-            <ArrowDown size="base" color="default" />
+            <ChevronRight size="base" color="default" />
           </Button>
         </div>
       )}
@@ -199,13 +199,10 @@ export function EvaluatorSampleDetail({
           return;
         }
         intentRef.current = viewIntent;
-        if (sampleScope === "trace") {
-          setTraceView("messages", "replaceIn");
-          setObservation(undefined, "replaceIn");
-          return;
-        }
-        setTraceView(undefined, "replaceIn");
-        setObservation(selected.id, "replaceIn");
+        setObservation(
+          sampleScope === "observation" ? selected.id : undefined,
+          "replaceIn",
+        );
       }}
     >
       <div className="min-h-0 flex-1">
@@ -216,7 +213,7 @@ export function EvaluatorSampleDetail({
           <TraceDetailBody
             trace={detail.data}
             context="peek"
-            showMessages
+            presentation={sampleScope === "trace" ? "messages" : "observation"}
             preferredObservationId={
               sampleScope === "observation" ? selected.id : null
             }
