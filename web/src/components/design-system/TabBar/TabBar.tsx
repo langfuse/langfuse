@@ -1,4 +1,4 @@
-import { type ComponentProps } from "react";
+import { type ComponentProps, useEffect, useRef } from "react";
 import { Plus, Settings2, EllipsisVertical } from "@langfuse/icons";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -29,9 +29,10 @@ export function TabBar({
   createAction?: { label: string; onClick: () => void };
   manageAction?: { label: string; onClick: () => void };
 }) {
+  const scrollerRef = useRevealActiveTab();
   return (
     <div className="@container/tab-bar flex shrink-0 items-center border-b px-2">
-      <div className="min-w-0 overflow-x-auto">
+      <div ref={scrollerRef} className="min-w-0 overflow-x-auto">
         <Tabs.List variant="underline" divider="none" aria-label={label}>
           {tabs.map(({ menu, noCapture, ...tab }) => (
             <div
@@ -115,4 +116,43 @@ export function TabBar({
       )}
     </div>
   );
+}
+
+/**
+ * Scrolls the overflowing tab row so the selected tab and its menu button are
+ * visible, including tabs selected programmatically or added off-screen.
+ */
+function useRevealActiveTab() {
+  const scrollerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+
+    let revealedTab: Element | null = null;
+    const reveal = () => {
+      const tab = scroller.querySelector('[role="tab"][data-state="active"]');
+      if (!tab || tab === revealedTab) return;
+      revealedTab = tab;
+      const item = (tab.parentElement ?? tab).getBoundingClientRect();
+      const bounds = scroller.getBoundingClientRect();
+      if (item.left < bounds.left) {
+        scroller.scrollLeft -= bounds.left - item.left;
+      } else if (item.right > bounds.right) {
+        scroller.scrollLeft += item.right - bounds.right;
+      }
+    };
+
+    reveal();
+    const observer = new MutationObserver(reveal);
+    observer.observe(scroller, {
+      attributes: true,
+      attributeFilter: ["data-state"],
+      childList: true,
+      subtree: true,
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  return scrollerRef;
 }
