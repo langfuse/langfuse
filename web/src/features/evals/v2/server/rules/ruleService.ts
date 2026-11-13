@@ -60,8 +60,8 @@ export type RuleAuditEvent = {
   ruleId: string;
 };
 
-type RuleServiceUpdateInput = UpdateRuleInput & {
-  targetObject?: EvalTargetObject;
+type RuleServiceUpdateInput = Omit<UpdateRuleInput, "targetObject"> & {
+  targetObject?: EvalTargetObject | typeof TopicsTargetObject;
 };
 
 export class RuleService {
@@ -437,10 +437,14 @@ export class RuleService {
         })
           ? EvalTargetObject.EXPERIMENT
           : currentTargetObject;
-      const normalized = normalizeEvaluationRuleTarget({
-        targetObject: input.targetObject ?? inheritedTargetObject,
-        filter: effectiveFilter,
-      });
+      const explicitTarget = input.targetObject;
+      const normalized =
+        explicitTarget === TopicsTargetObject
+          ? { targetObject: TopicsTargetObject, filter: effectiveFilter }
+          : normalizeEvaluationRuleTarget({
+              targetObject: explicitTarget ?? inheritedTargetObject,
+              filter: effectiveFilter,
+            });
       const filter = isLegacyEvalTarget(currentTargetObject)
         ? currentFilter
         : this.validateRuleFilters(normalized.targetObject, normalized.filter);
@@ -454,11 +458,22 @@ export class RuleService {
       });
       if (input.evaluatorMappings) {
         this.assertLegacyRuleAssignmentsWritable(current.targetObject);
-        input.evaluatorMappings = await this.prepareModernAssignments({
-          prisma,
-          projectId: input.projectId,
-          assignments: input.evaluatorMappings,
-        });
+        if (normalized.targetObject === TopicsTargetObject) {
+          await this.assertTraceTranscriptAssignments({
+            prisma,
+            projectId: input.projectId,
+            assignments: input.evaluatorMappings.map((assignment) => ({
+              evaluatorId: assignment.evaluatorId,
+              variableMapping: assignment.variableMapping ?? [],
+            })),
+          });
+        } else {
+          input.evaluatorMappings = await this.prepareModernAssignments({
+            prisma,
+            projectId: input.projectId,
+            assignments: input.evaluatorMappings,
+          });
+        }
       }
       await repository.updateRule({
         prisma,
@@ -474,11 +489,18 @@ export class RuleService {
           assignments: input.evaluatorMappings,
         });
       }
-      const updated = await repository.findRule({
-        prisma,
-        projectId: input.projectId,
-        ruleId: input.ruleId,
-      });
+      const updated =
+        normalized.targetObject === TopicsTargetObject
+          ? await repository.findWrittenRule({
+              prisma,
+              projectId: input.projectId,
+              ruleId: input.ruleId,
+            })
+          : await repository.findRule({
+              prisma,
+              projectId: input.projectId,
+              ruleId: input.ruleId,
+            });
       if (!updated)
         throw new LangfuseNotFoundError("Evaluation rule not found");
       return updated;

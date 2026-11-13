@@ -177,6 +177,8 @@ export type SampleObservationSelectorBaseProps = {
   /** "detail" shows one sample in the trace view instead of the table. */
   samplePresentation?: "table" | "detail";
   sampleScope?: "trace" | "observation";
+  /** Trace transcript rules keep the filter and do not list matching traces. */
+  showMatches?: boolean;
 };
 
 function suppressedRetarget(
@@ -240,6 +242,7 @@ export function SampleObservationSelectorBase(
     mapObservedOptions,
     samplePresentation = "table",
     sampleScope = "observation",
+    showMatches = true,
   } = props;
   const showTraceDetail = samplePresentation === "detail";
   const activeRegistry = registry ?? EVENTS_FIELD_REGISTRY;
@@ -369,6 +372,7 @@ export function SampleObservationSelectorBase(
   });
   // listCursor always reads in the events table's stable start_time DESC tuple
   // order, so it takes no orderBy.
+  const listMatches = showMatches || showTraceDetail;
   const observationQuery = api.events.listCursor.useInfiniteQuery(
     {
       projectId,
@@ -377,7 +381,10 @@ export function SampleObservationSelectorBase(
       searchType,
       limit: PAGE_SIZE,
     },
-    { getNextPageParam: (lastPage) => lastPage.nextCursor },
+    {
+      enabled: listMatches,
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
+    },
   );
   const observationPages = useMemo(
     () =>
@@ -691,7 +698,7 @@ export function SampleObservationSelectorBase(
         ) : null}
       </section>
 
-      {showTraceDetail ? (
+      {showTraceDetail && (
         <div className="flex min-h-0 flex-1 flex-col border-t">
           <div
             ref={
@@ -724,7 +731,8 @@ export function SampleObservationSelectorBase(
             onRetarget={retargetSample}
           />
         </div>
-      ) : (
+      )}
+      {!showTraceDetail && showMatches && (
         <section className="flex min-h-0 flex-col gap-2">
           <SectionHeader
             title="Matching observations"

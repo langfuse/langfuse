@@ -599,6 +599,41 @@ describe("RuleService", () => {
         "Evaluation rule not found",
       );
     });
+
+    it("writes the transcript target on an existing rule and keeps it out of the list", async () => {
+      const service = createService();
+      const rule = await service.create(createInput(), null);
+      const variableMapping = [
+        {
+          templateVariable: "output",
+          selectedColumnId: "threads",
+          jsonSelector: null,
+        },
+      ];
+
+      const updated = await service.update({
+        projectId,
+        ruleId: rule.id,
+        targetObject: TopicsTargetObject,
+        evaluatorMappings: [
+          { evaluatorId: defaultEvaluatorId, variableMapping },
+        ],
+      });
+
+      expect(updated.targetObject).toBe(TopicsTargetObject);
+      await expect(
+        prisma.evaluationRule.findUniqueOrThrow({
+          where: { id: rule.id },
+          select: { targetObject: true },
+        }),
+      ).resolves.toEqual({ targetObject: TopicsTargetObject });
+      await expect(
+        service.list({ projectId, page: 1, limit: 50 }),
+      ).resolves.toEqual({ rules: [], totalItems: 0 });
+      await expect(service.get(projectId, rule.id)).rejects.toThrow(
+        "Evaluation rule not found",
+      );
+    });
   });
 
   describe("get and update", () => {

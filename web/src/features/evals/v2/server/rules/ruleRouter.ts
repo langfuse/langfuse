@@ -1,3 +1,4 @@
+import { TopicsTargetObject } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -193,6 +194,12 @@ export const ruleRouter = createTRPCRouter({
         projectId: ctx.session.projectId,
         scope: "evaluationRule:CUD",
       });
+      if (input.targetObject === TopicsTargetObject) {
+        throwIfTraceTranscriptEvalsUnavailable(
+          ctx.session,
+          ctx.session.projectId,
+        );
+      }
       return serviceForContext(ctx).update({
         ...input,
         projectId: ctx.session.projectId,

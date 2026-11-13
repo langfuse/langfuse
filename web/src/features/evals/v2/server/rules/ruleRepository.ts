@@ -36,8 +36,8 @@ const MAX_REUSABLE_FILTER_CANDIDATES = 20;
 
 /**
  * Topics rules and trace transcript rules stay out of the rule list, the
- * public API and MCP; trace transcript rules are only written by
- * `createTraceTranscriptRule`.
+ * public API and MCP. Trace transcript rules are written by
+ * `createTraceTranscriptRule` and by a gated update of an existing rule.
  */
 const visibleRuleWhere = {
   assignments: { none: { evaluator: { type: EvalTemplateType.FACET } } },
@@ -354,6 +354,21 @@ export function findRule(params: {
   });
 }
 
+/** The row just written, including a trace transcript target the list hides. */
+export function findWrittenRule(params: {
+  prisma: RulePrisma;
+  projectId: string;
+  ruleId: string;
+}) {
+  return params.prisma.evaluationRule.findFirst({
+    where: {
+      id: params.ruleId,
+      projectId: params.projectId,
+    },
+    include: ruleInclude,
+  });
+}
+
 export async function findActiveRuleWithMatchingFilterAndSampling(params: {
   prisma: PrismaClient;
   projectId: string;
@@ -418,8 +433,8 @@ export function createRule(params: {
 
 export function updateRule(params: {
   prisma: RulePrisma;
-  input: UpdateRuleInput;
-  targetObject?: EvalTargetObject;
+  input: Omit<UpdateRuleInput, "targetObject">;
+  targetObject?: EvalTargetObject | typeof TopicsTargetObject;
   filter?: Prisma.InputJsonValue;
 }) {
   return params.prisma.evaluationRule.update({
