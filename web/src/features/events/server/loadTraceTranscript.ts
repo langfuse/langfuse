@@ -7,6 +7,7 @@ import {
   normalizeIO,
   type Transcript,
 } from "@langfuse/shared/src/server";
+import { deepParseJson } from "@langfuse/shared/src/utils/json";
 import { sessionTraceFilterSchema, type FilterState } from "@langfuse/shared";
 import {
   toolCallPart,
@@ -157,13 +158,20 @@ export async function loadTraceTranscript(
         id: root.id,
         startTime: root.startTime,
         fetchWithInputOutput: true,
+        renderingProps: { truncated: false, shouldJsonParse: false },
       });
       if (rootWithContent) {
         const { messages } = normalizeIO({
           kind: "io",
           io: {
-            input: rootWithContent.input,
-            output: rootWithContent.output,
+            input: deepParseJson(rootWithContent.input, {
+              maxSize: 300_000,
+              maxDepth: 2,
+            }),
+            output: deepParseJson(rootWithContent.output, {
+              maxSize: 300_000,
+              maxDepth: 2,
+            }),
             metadata: rootWithContent.metadata,
           },
         });
