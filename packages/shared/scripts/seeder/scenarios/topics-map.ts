@@ -113,22 +113,18 @@ const AWAITING = 4;
 const DIMENSIONS = 16;
 const ISSUES_APPLICABLE = 60;
 const SECOND_RULE_TRACES = 48;
+// Rules are found again by name, so the prefix keeps re-runs off the project's own rules.
 const RULE_NAMES = [
-  "All traces",
-  "Enterprise workspaces on the annual plan with SSO enabled",
+  "Seed: all traces",
+  "Seed: enterprise workspaces on the annual plan with SSO enabled",
 ] as const;
+const SECOND_RULE_TAGS = ["enterprise", "annual-plan", "sso"];
 const SECOND_RULE_FILTER: FilterState = [
   {
     column: "tags",
     type: "arrayOptions",
     operator: "any of",
-    value: ["enterprise", "annual-plan", "sso"],
-  },
-  {
-    column: "environment",
-    type: "stringOptions",
-    operator: "any of",
-    value: ["production"],
+    value: SECOND_RULE_TAGS,
   },
 ];
 const REQUEST_DETAILS = [
@@ -177,6 +173,8 @@ export const topicsMapScenario: ScenarioDefinition = {
       events: traceCount * 2,
       rules: RULE_NAMES.length,
       maps: 3,
+      summaries: traceCount * 2,
+      assignments: assignedCount + ISSUES_APPLICABLE + SECOND_RULE_TRACES,
     };
     const summary = {
       scenario: "topics-map",
@@ -213,7 +211,11 @@ export const topicsMapScenario: ScenarioDefinition = {
         user_id: `${ctx.idPrefix}-user-${index % 9}`,
         public: false,
         bookmarked: false,
-        tags: ["seed", "topics-map"],
+        tags: [
+          "seed",
+          "topics-map",
+          ...(index < SECOND_RULE_TRACES ? SECOND_RULE_TAGS : []),
+        ],
         metadata: { scenario: "topics-map" },
         input: JSON.stringify([{ role: "user", content: requests[index] }]),
         output: JSON.stringify([
@@ -453,7 +455,11 @@ export const topicsMapScenario: ScenarioDefinition = {
       await writeTopicAssignments(assignments);
     }
 
-    const queryParams = { projectId: ctx.projectId, traceIds };
+    const queryParams = {
+      projectId: ctx.projectId,
+      traceIds,
+      runIds: maps.map((map) => map.runId),
+    };
     const verified: Record<string, number> = {
       traces: await countRows(
         "traces",
@@ -483,6 +489,18 @@ export const topicsMapScenario: ScenarioDefinition = {
           status: "completed",
         },
       }),
+      summaries: await countRows(
+        "topic_facet_summaries",
+        "project_id = {projectId: String} AND trace_id IN {traceIds: Array(String)}",
+        queryParams,
+        "uniqExact(facet_id, trace_id)",
+      ),
+      assignments: await countRows(
+        "topic_assignments",
+        "project_id = {projectId: String} AND clustering_run_id IN {runIds: Array(String)}",
+        queryParams,
+        "uniqExact(clustering_run_id, trace_id)",
+      ),
     };
     for (const [entity, expected] of Object.entries(counts)) {
       if (verified[entity] !== expected) {

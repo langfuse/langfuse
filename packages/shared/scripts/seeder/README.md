@@ -157,7 +157,7 @@ Use `--batch discovery`, summarize those traces, then update topics with **Small
 pnpm run seed -- topics-map
 ```
 
-`topics-map` skips the models: it writes summaries, two rules ("All traces" and a long-named filtered rule) and completed Intent and Issues maps with 2D coordinates, so the treemap, list and map views render right away. Topic sizes range from 34 traces down to 2, and the map includes long topic names, outliers and four traces awaiting a map. The project still needs Topics enabled (`LANGFUSE_TOPICS_ENABLED`, `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`, a cloud region and the Topics feature flag for the user).
+`topics-map` skips the models: it writes summaries, two rules (an unfiltered one and a long-named rule whose tag filter matches its 48 traces, both named `Seed: …` so existing rules are never overwritten) and completed Intent and Issues maps with 2D coordinates, so the treemap, list and map views render right away. Topic sizes range from 34 traces down to 2, and the map includes long topic names, outliers and four traces awaiting a map. The project still needs Topics enabled (`LANGFUSE_TOPICS_ENABLED`, `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`, a cloud region and the Topics feature flag for the user).
 
 ## The contract (additive-only)
 
