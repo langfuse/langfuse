@@ -62,6 +62,9 @@ describe("raw SQL checks", () => {
       where(sql`t.id not in ${sql.ref("scores")}`),
     ],
     ["a quoted table name after IN", where(sql`t.id in "scores"`)],
+    ["a bracketed table name after IN", where(sql`t.id in (scores)`)],
+    ["a table name in an in() call", where(sql`in(t.id, scores)`)],
+    ["a heredoc string", where(sql`t.id = $$'$$) or (1 = 1 or $$'$$ = ''`)],
     [
       "a function outside the allowlist",
       where(sql`dictGet('d', 'x', t.id) = 1`),

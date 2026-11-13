@@ -20,10 +20,10 @@ import { walkNodes } from "./nodes";
  * - a table reference parameter (`sql.table`);
  * - raw text that escapes its slot or reads a relation. The text is checked
  *   with nested raw SQL and `sql.id` / `sql.ref` names spliced in, as
- *   ClickHouse reads it: a comment (`--`, `#`, `/*`), `;`, unbalanced
- *   brackets or quotes, a relation keyword (`select`, `from`, `join`,
+ *   ClickHouse reads it: a comment (`--`, `#`, `/*`), `;`, `$` (heredoc
+ *   strings), unbalanced brackets or quotes, a relation keyword (`select`, `from`, `join`,
  *   `union`, `intersect`, `except`, `settings`, `into`), a name after `in`
- *   (`id in scores` reads the table), or a call of a function outside the
+ *   (`id in scores`, `id in (scores)` and `in(id, scores)` read the table), or a call of a function outside the
  *   allowlist in `functions.ts`.
  */
 export function assertRawSqlSafe(root: unknown): void {
@@ -100,6 +100,26 @@ const RELATION_KEYWORDS = new Set([
   "into",
 ]);
 
+/**
+ * Whether the right side of an `in` holds a bare name: `in scores`,
+ * `in (scores)`, or the call `in(t.id, scores)`. Function calls and values
+ * inside the brackets, as in `in (?, lower(?))`, are no name.
+ */
+function namesAfterIn(rest: string): boolean {
+  const right = rest.trimStart();
+  if (/^[a-z_]/.test(right)) return true;
+  if (!/^[([]/.test(right)) return false;
+  let depth = 0;
+  let end = 0;
+  while (end < right.length) {
+    if (right[end] === "(" || right[end] === "[") depth++;
+    if (right[end] === ")" || right[end] === "]") depth--;
+    end++;
+    if (depth === 0) break;
+  }
+  return /[a-z_][a-z0-9_.]*\b(?!\s*\()/.test(right.slice(0, end));
+}
+
 /** Words before `(` that are SQL syntax, not a function call. */
 const NON_FUNCTION_WORDS = new Set(["and", "or", "not", "in", "as", "is"]);
 
@@ -136,6 +156,8 @@ function assertRawText(text: string): void {
       reject("it holds a comment, which can swallow the injected scope");
     }
     if (char === ";") reject("it holds a statement separator");
+    // `$$…$$` / `$tag$…$tag$` is a ClickHouse string this lexer does not model.
+    if (char === "$") reject("it holds a heredoc string");
     if (char === "(" || char === "[") depth++;
     if (char === ")" || char === "]") depth--;
     if (depth < 0) reject("it closes a bracket it did not open");
@@ -150,8 +172,10 @@ function assertRawText(text: string): void {
       reject(`"${match[0]}" introduces a relation`);
     }
   }
-  if (/(^|[^a-z0-9_.])in\s+[a-z_]/.test(words)) {
-    reject("a name after IN is read as a table");
+  for (const match of words.matchAll(/(?<![a-z0-9_.])in\b/g)) {
+    if (namesAfterIn(words.slice(match.index + 2))) {
+      reject("a name after IN is read as a table");
+    }
   }
   for (const match of code.matchAll(/([A-Za-z_][A-Za-z0-9_]*)\s*\(/g)) {
     const name = match[1];
