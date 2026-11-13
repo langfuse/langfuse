@@ -325,9 +325,12 @@ function TopicsWorkspaceContent({
       ? maps.data?.analyses.find((analysis) => analysis.id === mapSelection.id)
       : undefined;
   const analysisId = mapSelection?.kind === "analysis" ? mapSelection.id : null;
-  const mapCost = useTopicMapCost(projectId, {
+  const mapCost = useTopicMapCost({
+    projectId,
     ruleId: selectedRule?.id,
     analysisId: selectedAnalysis?.id,
+    running: running || busy(selectedAnalysis?.status ?? ""),
+    refreshAfter,
   });
   // Onboarding has no selection yet; the first rule is the one setup created.
   const setupRuleId = analysisId
