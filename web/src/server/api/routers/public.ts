@@ -31,8 +31,9 @@ export const publicRouter = createTRPCRouter({
         env.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH !== "true",
     })),
   checkUpdate: publicProcedure.query(async () => {
-    // Skip update check on Langfuse Cloud
+    // Skip update check on Langfuse Cloud or when explicitly disabled
     if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return null;
+    if (env.LANGFUSE_DISABLE_UPDATE_CHECK === "true") return null;
 
     let body;
     try {
