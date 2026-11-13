@@ -218,7 +218,7 @@ export function RulesTable({
   );
   const costs = api.evalsV2.rules.costByRuleIds.useQuery(
     { projectId, ruleIds },
-    { enabled: ruleIds.length > 0, meta: { silentHttpCodes: [503] } },
+    { enabled: ruleIds.length > 0, meta: { silentHttpCodes: [422, 503] } },
   );
   const deleteMany = api.evalsV2.rules.deleteMany.useMutation({
     onError: (error) => trpcErrorToast(error, "evaluator_rule.delete"),
