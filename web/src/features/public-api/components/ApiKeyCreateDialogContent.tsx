@@ -42,6 +42,7 @@ const DEFAULT_ROLE: SystemRole = "ADMIN";
 /** apiKeyRoleNames renames user roles to be more api-key friendly. */
 const apiKeyRoleNames: Record<string, string> = {
   Admin: "Full access",
+  Member: "Developer",
 };
 
 /** ApiKeyCreateValues is the resolved create-form payload the button forwards to the create mutation. */
