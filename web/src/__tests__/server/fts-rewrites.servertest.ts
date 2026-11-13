@@ -244,6 +244,23 @@ maybeEventsTable("FTS filter rewrites", () => {
     },
   );
 
+  it.each(["42", "true", "1.0"])(
+    "keeps the metadata token prefilter for JSON-encoded `%s` equality",
+    (value) => {
+      const filter = new StringObjectFilter({
+        clickhouseTable: "events_core",
+        field: "metadata",
+        operator: "=",
+        key: "topic",
+        value,
+        tablePrefix: "e",
+      }).apply();
+
+      expect(filter.query).toContain("hasAllTokens(e.metadata_values,");
+      expect(Object.values(filter.params)).toContain(JSON.stringify(value));
+    },
+  );
+
   it.each(
     Array.from(FTS_EVENTS_TABLES).flatMap((table) =>
       NGRAM_METADATA_TEST_OPERATORS.map((operator) => ({ table, operator })),
