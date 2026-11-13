@@ -63,6 +63,7 @@ const ALLOWED_FUNCTIONS: ReadonlySet<string> = new Set([
   "lengthUTF8",
   "like",
   "lower",
+  "map",
   "mapExists",
   "mapFilter",
   "mapFromArrays",
@@ -124,6 +125,10 @@ const ALLOWED_FUNCTIONS: ReadonlySet<string> = new Set([
   "uniqIf",
 ]);
 
+export function isAllowedFunction(name: string): boolean {
+  return ALLOWED_FUNCTIONS.has(name);
+}
+
 /** `in`, `not in`, `global in`, `global not in`, any case. */
 const IN_OPERATOR = /(^|\s)in$/i;
 
@@ -147,7 +152,7 @@ export class FunctionAllowlistPlugin implements KyselyPlugin {
 export function assertAllowedCalls(root: OperationNode): void {
   walkNodes(root, (node) => {
     const name = functionName(node);
-    if (name !== undefined && !ALLOWED_FUNCTIONS.has(name)) {
+    if (name !== undefined && !isAllowedFunction(name)) {
       throw new QueryCompileError(
         `Function "${name}" is not on the allowlist in functions.ts: a ClickHouse function can read a table or server state the tenancy pass cannot scope. Use a helper from extensions.ts, or add the name there once you checked it reads no relation.`,
       );

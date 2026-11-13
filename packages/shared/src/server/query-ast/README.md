@@ -302,12 +302,15 @@ and it is where tenancy is enforced:
    present, so `qb.compile()` without the plugin also fails. Value binds take
    their ClickHouse type from the compared column's registry entry when one is
    in scope (`scores.value > 1` → `{p:Float64}`).
-5. Raw-SQL table sources (``selectFrom(sql`...`)``), raw fragments embedding
-   a `SELECT`/`FROM`/`JOIN` in SELECT/WHERE, and a `sql.table(...)` reference
-   inside raw SQL in any position throw `UnscopedRelationError`, as
-   does any FROM/JOIN source that is neither a table reference nor a subquery
-   (table functions such as `remote()`, `clusterAllReplicas()`, `merge()`).
-   Kysely's own keyword fragments (`asc`/`desc`) are not relations.
+5. Raw-SQL table sources (``selectFrom(sql`...`)``) throw
+   `UnscopedRelationError`, as does any FROM/JOIN source that is neither a
+   table reference nor a subquery (table functions such as `remote()`,
+   `clusterAllReplicas()`, `merge()`). Raw SQL elsewhere is for what the
+   builder cannot express, and only as a self-contained expression
+   (`assertRawSqlSafe`, `raw.ts`). `modifyFront`/`modifyEnd`, `sql.table(...)`,
+   comments, `;`, unbalanced brackets or quotes, relation keywords, a name
+   after `in`, and functions outside the allowlist are rejected. Nested raw
+   SQL and `sql.id`/`sql.ref` names are spliced in before the check.
 
 Every pass and the compiler read a FROM/JOIN item through `describeRelation`
 (`relations.ts`): it peels one FINAL and then one alias, so `scores as s final`
