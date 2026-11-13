@@ -526,13 +526,14 @@ it.each([
   },
 );
 
-it("puts New scan first in the menu with the scan actions", async () => {
+it("puts New map and New snapshot first in the menu", async () => {
   withSummaries();
   render(<TopicsPage />, { wrapper: LayerProvider });
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   const items = await screen.findAllByRole("menuitem");
   expect(items.map((item) => item.textContent)).toEqual([
-    "New scan",
+    "New map",
+    "New snapshot",
     "History",
     "Settings",
   ]);
@@ -541,7 +542,7 @@ it("puts New scan first in the menu with the scan actions", async () => {
 it.each([
   { access: "with topics:CUD", canWrite: true },
   { access: "without topics:CUD", canWrite: false },
-])("shows Edit scan as a header button $access", async ({ canWrite }) => {
+])("shows Edit map as a header button $access", async ({ canWrite }) => {
   withSummaries();
   state.canWrite = canWrite;
   state.maps = {
@@ -561,11 +562,20 @@ it.each([
     analyses: [],
   };
   render(<TopicsPage />, { wrapper: LayerProvider });
-  const editScan = screen.getByRole("button", { name: "Edit scan" });
-  expect(editScan).toHaveProperty("disabled", !canWrite);
+  const editMap = screen.getByRole("button", { name: "Edit map" });
+  expect(editMap).toHaveProperty("disabled", !canWrite);
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   const items = await screen.findAllByRole("menuitem");
-  expect(items.map((item) => item.textContent)).not.toContain("Edit scan");
+  expect(items.map((item) => item.textContent)).not.toContain("Edit map");
+  // Every action stays visible; without write access it is disabled with a reason.
+  for (const label of ["New map", "New snapshot"]) {
+    const item = items.find((candidate) => candidate.textContent === label);
+    expect(item).toBeDefined();
+    expect(item!.getAttribute("aria-disabled")).toBe(canWrite ? null : "true");
+    expect(item!.getAttribute("title")).toBe(
+      canWrite ? null : "You need permission to edit Topics.",
+    );
+  }
 });
 
 it.each([

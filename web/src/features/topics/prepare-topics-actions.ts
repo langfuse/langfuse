@@ -1,4 +1,5 @@
 import {
+  CalendarRange,
   Eye,
   History,
   Pencil,
@@ -14,7 +15,7 @@ export type AutomaticProcessingState =
   | { status: "paused"; shortLabel: string };
 
 type TopicAction = {
-  id: "edit" | "new-analysis" | "configure" | "history";
+  id: "edit" | "new-map" | "new-snapshot" | "configure" | "history";
   label: string;
   icon: IconComponent;
   onSelect: () => void;
@@ -24,16 +25,12 @@ type TopicAction = {
 
 const NO_WRITE_ACCESS = "You need permission to edit Topics.";
 
-function newAnalysisDisabledReason(
-  canWrite: boolean,
-  state: AutomaticProcessingState,
-) {
-  if (!canWrite) return NO_WRITE_ACCESS;
+function createDisabledReason(state: AutomaticProcessingState) {
   if (state.status === "unconfigured") return "Set up Topics first.";
   return undefined;
 }
 
-/** One action policy for the Edit scan button and both overflow-menu presentations. */
+/** One action policy for the Edit map button and both overflow-menu presentations. */
 export function prepareTopicsActions({
   automaticProcessing,
   canWrite,
@@ -41,7 +38,9 @@ export function prepareTopicsActions({
   menuOnly,
   onConfigure,
   onHistory,
-  onNewAnalysis,
+  onNewMap,
+  onNewSnapshot,
+  mapDisabledReason,
   onEditRun,
   showUnassigned,
   onShowUnassignedChange,
@@ -52,9 +51,12 @@ export function prepareTopicsActions({
   menuOnly: boolean;
   onConfigure: () => void;
   onHistory: () => void;
-  /** Starts a one-off analysis; absent where none can start. */
-  onNewAnalysis?: () => void;
-  /** Opens the selected live run's settings; absent for past runs. */
+  /** Opens New map and New snapshot; disabled without write access. */
+  onNewMap?: () => void;
+  onNewSnapshot?: () => void;
+  /** Why no further map can be created, e.g. the project's limit. */
+  mapDisabledReason?: string;
+  /** Opens the selected map's settings; absent for snapshots. */
   onEditRun?: () => void;
   showUnassigned: boolean;
   onShowUnassignedChange: (show: boolean) => void;
@@ -62,11 +64,11 @@ export function prepareTopicsActions({
   const { state } = automaticProcessing;
   const editDisabledReason = canWrite ? undefined : NO_WRITE_ACCESS;
   const menu: TopicAction[] = [];
-  // Handheld headers show only the menu, so it carries Edit scan there.
+  // Handheld headers show only the menu, so it carries Edit map there.
   if (onEditRun && menuOnly)
     menu.push({
       id: "edit",
-      label: "Edit scan",
+      label: "Edit map",
       icon: Pencil,
       disabledReason: editDisabledReason,
       onSelect: onEditRun,
@@ -95,19 +97,35 @@ export function prepareTopicsActions({
     checked: showUnassigned,
     onCheckedChange: onShowUnassignedChange,
   } as const;
-  const newAnalysis = onNewAnalysis
+  const newMap = onNewMap
     ? {
-        onSelect: onNewAnalysis,
-        disabledReason: newAnalysisDisabledReason(canWrite, state),
+        onSelect: onNewMap,
+        disabledReason: !canWrite
+          ? NO_WRITE_ACCESS
+          : (createDisabledReason(state) ?? mapDisabledReason),
       }
     : null;
-  if (newAnalysis)
+  const newSnapshot = onNewSnapshot
+    ? {
+        onSelect: onNewSnapshot,
+        disabledReason: !canWrite
+          ? NO_WRITE_ACCESS
+          : createDisabledReason(state),
+      }
+    : null;
+  if (newSnapshot)
     menu.unshift({
-      id: "new-analysis",
-      label: "New scan",
+      id: "new-snapshot",
+      label: "New snapshot",
+      icon: CalendarRange,
+      ...newSnapshot,
+    });
+  if (newMap)
+    menu.unshift({
+      id: "new-map",
+      label: "New map",
       icon: Plus,
-      disabledReason: newAnalysis.disabledReason,
-      onSelect: newAnalysis.onSelect,
+      ...newMap,
     });
   const editRun =
     onEditRun && !menuOnly
@@ -115,7 +133,8 @@ export function prepareTopicsActions({
       : null;
   return {
     editRun,
-    newScan: newAnalysis,
+    newMap,
+    newSnapshot,
     menu,
     display,
   };

@@ -6,7 +6,7 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
-import { NewAnalysisDialogView } from "./NewAnalysisDialogView";
+import { NewMapDialogView } from "./NewMapDialogView";
 import { TopicSliceFields } from "./TopicSliceFields";
 import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
 import {
@@ -50,37 +50,22 @@ const tracePreview: TopicTracePreview = {
   traces,
 };
 
-type Counts = {
-  matchedTraceCount: number;
-  summarizedCount: number;
-  minimumTraceCount: number;
-  ready: boolean;
-};
-
-const enoughTraces: Counts = {
-  matchedTraceCount: 412,
-  summarizedCount: 388,
-  minimumTraceCount: 50,
-  ready: true,
-};
-
-function NewScanStory({
-  counts = enoughTraces,
+function NewMapStory({
+  initialName = "",
+  initialFilter = [],
   initialFacetIds = facets.map(({ id }) => id),
-  starting = false,
   errors = [],
-  liveDisabledReason,
-  initialLive = !liveDisabledReason,
+  disabledReason,
 }: {
-  counts?: Counts | null;
+  initialName?: string;
+  initialFilter?: FilterState;
   initialFacetIds?: string[];
-  starting?: boolean;
   errors?: string[];
-  initialLive?: boolean;
-  liveDisabledReason?: string;
+  disabledReason?: string;
 }) {
-  const [name, setName] = useState("All generations");
-  const [filter, setFilter] = useState(generations);
+  const [name, setName] = useState(initialName);
+  // Filters always start empty; nothing is carried over from the open map.
+  const [filter, setFilter] = useState(initialFilter);
   const [facetIds, setFacetIds] = useState(initialFacetIds);
   // The query editor's Ask AI needs tRPC, which stories don't provide.
   const [mode, setMode] = useState<EvaluatorFilterExperience>("builder");
@@ -92,10 +77,9 @@ function NewScanStory({
     mode,
     onModeChange: setMode,
   });
-  const [live, setLive] = useState(initialLive);
   const [samplingPercent, setSamplingPercent] = useState(25);
   return (
-    <NewAnalysisDialogView
+    <NewMapDialogView
       name={name}
       onNameChange={setName}
       filterField={
@@ -115,20 +99,17 @@ function NewScanStory({
       facets={facets}
       facetIds={facetIds}
       onFacetIdsChange={setFacetIds}
-      live={live}
-      onLiveChange={setLive}
-      liveDisabledReason={liveDisabledReason}
+      disabledReason={disabledReason}
       samplingField={
         <TopicSliceFields.Sampling
           value={samplingPercent}
           onChange={setSamplingPercent}
           dailyTraces={1_240}
-          tooltip="Share of new matching traces this scan analyzes."
+          tooltip="Share of new matching traces this map analyzes."
         />
       }
-      preview={counts}
-      canStart={Boolean(counts?.ready) && facetIds.length > 0}
-      starting={starting}
+      canStart={name.trim().length > 0 && facetIds.length > 0}
+      starting={false}
       errors={errors}
       onStart={fn()}
     />
@@ -136,7 +117,7 @@ function NewScanStory({
 }
 
 const meta = preview.meta({
-  component: NewScanStory,
+  component: NewMapStory,
   parameters: { layout: "fullscreen" },
   decorators: [
     (Story) => (
@@ -150,48 +131,33 @@ const meta = preview.meta({
   ],
 });
 
-export const Live = meta.story({ name: "Live scan" });
+export const Default = meta.story({ name: "New map" });
 
-export const OneOff = meta.story({
-  name: "One-off scan",
-  args: { initialLive: false },
+export const LimitReached = meta.story({
+  name: "Map limit reached",
+  args: { disabledReason: "A project can have at most 5 maps." },
 });
-
-export const Counting = meta.story({
-  args: { counts: null, initialLive: false },
-});
-
-export const LiveLimitReached = meta.story({
-  name: "Live scan limit reached",
-  args: { liveDisabledReason: "A project can have at most 5 live scans." },
-});
-
-export const NotEnoughTraces = meta.story({
-  name: "Not enough summarized traces",
-  args: {
-    counts: {
-      matchedTraceCount: 22,
-      summarizedCount: 16,
-      minimumTraceCount: 50,
-      ready: false,
-    },
-    initialLive: false,
-  },
-});
-
-export const Starting = meta.story({ args: { starting: true } });
 
 export const StartFailed = meta.story({
   name: "Start failed",
-  args: { errors: ["Couldn’t start the scan. Try again."] },
+  args: {
+    initialName: "Support agent",
+    errors: ["Couldn’t create the map. Try again."],
+  },
 });
 
 export const NothingToLookFor = meta.story({
-  name: "(Test) Start stays disabled without anything to look for",
+  name: "(Test) Create needs a name and something to look for",
   args: { initialFacetIds: [] },
   play: async () => {
     const body = within(document.body);
-    const start = await body.findByRole("button", { name: "Start live scan" });
+    const start = await body.findByRole("button", {
+      name: "Create map",
+    });
+    await userEvent.type(
+      body.getByRole("textbox", { name: "Map name" }),
+      "Support agent",
+    );
     await expect(start).toBeDisabled();
     await userEvent.click(body.getByRole("checkbox", { name: "Intent" }));
     await expect(start).toBeEnabled();
@@ -199,7 +165,8 @@ export const NothingToLookFor = meta.story({
 });
 
 export const OnlyLiveOperators = meta.story({
-  name: "(Test) The filter builder offers only operators live scans support",
+  name: "(Test) The filter builder offers only operators maps support",
+  args: { initialFilter: generations },
   play: async () => {
     const body = within(document.body);
     // The story's filter is `type any of GENERATION`; `none of` can't be saved.

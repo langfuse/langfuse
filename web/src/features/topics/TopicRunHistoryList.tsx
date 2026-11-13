@@ -102,7 +102,10 @@ function ActiveRun({
     total,
     ...run.facets.map((facet) => facet.counts.complete),
   );
-  const showProgress = run.input.operation === "process" && total > 0;
+  // A snapshot shows a bar only while it summarizes its traces.
+  const showProgress =
+    (run.input.operation === "process" || run.phase === "summarizing") &&
+    total > 0;
   return (
     <div
       role="status"

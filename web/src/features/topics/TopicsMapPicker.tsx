@@ -1,6 +1,13 @@
 import { useState, type ReactNode } from "react";
-import { Check, Plus, Search } from "@langfuse/icons";
+import {
+  CalendarRange,
+  Check,
+  Plus,
+  Search,
+  type IconComponent,
+} from "@langfuse/icons";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { FloatingController } from "@/src/components/design-system/FloatingController/FloatingController";
 import { cn } from "@/src/utils/tailwind";
@@ -20,7 +27,7 @@ import {
 
 const TOP_TOPICS = 3;
 
-/** Switches between live maps and past runs, previewing the hovered one. */
+/** Switches between maps and snapshots, previewing the hovered one. */
 export function TopicsMapPicker({
   projectId,
   overview,
@@ -29,7 +36,7 @@ export function TopicsMapPicker({
   onSelect,
   usePreviewTopics,
   processingOn,
-  newScan,
+  create,
 }: {
   projectId: string;
   overview: TopicMapsOverview;
@@ -40,8 +47,8 @@ export function TopicsMapPicker({
   usePreviewTopics: UsePreviewTopics;
   /** Automatic analysis is on for the project; live runs show Paused otherwise. */
   processingOn: boolean;
-  /** Opens the New scan dialog; absent where none can start. */
-  newScan?: { onSelect: () => void; disabledReason?: string } | null;
+  /** Footer entries for New map and New snapshot; null hides one. */
+  create?: { map: CreateEntry | null; snapshot: CreateEntry | null };
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -56,9 +63,10 @@ export function TopicsMapPicker({
       : undefined;
   const selectedName = selectedRule?.name ?? selectedAnalysis?.label ?? "";
   const query = search.trim().toLowerCase();
-  const rules = overview.rules.filter((rule) =>
-    rule.name.toLowerCase().includes(query),
-  );
+  // Paused maps sort below active ones; order is otherwise kept.
+  const rules = overview.rules
+    .filter((rule) => rule.name.toLowerCase().includes(query))
+    .sort((a, b) => Number(a.enabled === false) - Number(b.enabled === false));
   const analyses = overview.analyses.filter((analysis) =>
     analysis.label.toLowerCase().includes(query),
   );
@@ -129,7 +137,7 @@ export function TopicsMapPicker({
                 ))}
               </Section>
               {analyses.length > 0 && (
-                <Section label="Past scans" divider>
+                <Section label="Snapshots" divider>
                   {analyses.map((analysis) => (
                     <MapRow
                       key={analysis.id}
@@ -155,23 +163,24 @@ export function TopicsMapPicker({
                 </p>
               )}
             </div>
-            {newScan && (
-              <div
-                className="mt-auto border-t p-1.5"
-                title={newScan.disabledReason}
-              >
-                <button
-                  type="button"
-                  disabled={Boolean(newScan.disabledReason)}
-                  onClick={() => {
-                    changeOpen(false);
-                    newScan.onSelect();
-                  }}
-                  className="hover:bg-accent focus-visible:bg-accent flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Plus size="base" color="default" aria-hidden />
-                  New scan
-                </button>
+            {create && (create.map || create.snapshot) && (
+              <div className="mt-auto flex flex-col border-t p-1.5">
+                {create.map && (
+                  <CreateButton
+                    entry={create.map}
+                    icon={Plus}
+                    label="New map"
+                    onChosen={() => changeOpen(false)}
+                  />
+                )}
+                {create.snapshot && (
+                  <CreateButton
+                    entry={create.snapshot}
+                    icon={CalendarRange}
+                    label="New snapshot"
+                    onChosen={() => changeOpen(false)}
+                  />
+                )}
               </div>
             )}
           </div>
@@ -208,7 +217,7 @@ export function TopicsMapPicker({
           className={cn(
             "ph-no-capture text-foreground hover:bg-accent focus-visible:ring-ring inline-flex h-7 max-w-72 min-w-0 items-center gap-1.5 rounded-md border pr-2 text-xs font-bold focus-visible:ring-2 focus-visible:outline-hidden",
             // A leading badge sits closer to the border than plain text.
-            selectedRule ? "pl-1" : "pl-2",
+            selectedRule || selectedAnalysis ? "pl-1" : "pl-2",
           )}
         >
           {selectedRule && (
@@ -216,6 +225,7 @@ export function TopicsMapPicker({
               paused={!processingOn || selectedRule.enabled === false}
             />
           )}
+          {selectedAnalysis && <SnapshotBadge />}
           <span className="truncate" title={selectedName}>
             {selectedName}
           </span>
@@ -226,7 +236,55 @@ export function TopicsMapPicker({
   );
 }
 
-/** A live run's state: LIVE, or Paused when stopped. */
+type CreateEntry = { onSelect: () => void; disabledReason?: string };
+
+function CreateButton({
+  entry,
+  icon: Icon,
+  label,
+  onChosen,
+}: {
+  entry: CreateEntry;
+  icon: IconComponent;
+  label: string;
+  onChosen: () => void;
+}) {
+  const button = (
+    <button
+      type="button"
+      disabled={Boolean(entry.disabledReason)}
+      onClick={() => {
+        onChosen();
+        entry.onSelect();
+      }}
+      className="hover:bg-accent focus-visible:bg-accent flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      <Icon size="base" color="default" aria-hidden />
+      {label}
+    </button>
+  );
+  if (!entry.disabledReason) return button;
+  return (
+    // Disabled buttons fire no pointer events, so the tooltip listens on a wrapper.
+    <Tooltip label={entry.disabledReason}>
+      {({ getTriggerProps }) => (
+        <span
+          {...getTriggerProps()}
+          className="flex w-full cursor-not-allowed [&>button]:pointer-events-none"
+        >
+          {button}
+        </span>
+      )}
+    </Tooltip>
+  );
+}
+
+/** A snapshot's badge: a fixed map that never updates. */
+function SnapshotBadge() {
+  return <Badge text="SNAPSHOT" size="sm" color="info" />;
+}
+
+/** A map's state: LIVE, or PAUSED when stopped. */
 function LiveBadge({ paused }: { paused: boolean }) {
   return paused ? (
     <Badge text="PAUSED" size="sm" color="filled" />
@@ -401,7 +459,7 @@ function AnalysisPreview({
   const top = topTopicsOf(results, facetId);
   return (
     <div className="flex flex-col gap-4">
-      <PreviewHeader name={analysis.label} />
+      <PreviewHeader name={analysis.label} badge={<SnapshotBadge />} />
       <PreviewRows
         rows={[
           ["Filter", <FilterValue key="filter" filter={analysis.filter} />],

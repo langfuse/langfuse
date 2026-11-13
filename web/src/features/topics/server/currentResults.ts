@@ -301,9 +301,17 @@ export async function analysisTopicResults(
     execution: {
       id: execution.id,
       status: execution.status,
+      phase: execution.phase,
       createdAt: execution.createdAt,
       timeRange: execution.input.timeRange,
       ...execution.input.analysis,
+      // Per-facet progress while the snapshot summarizes and groups.
+      progress: execution.facets.map((facet) => ({
+        facetId: facet.facetId,
+        outcome: facet.outcome,
+        requested: facet.counts.requested,
+        complete: facet.counts.complete,
+      })),
     },
     facets: await facetMapCounts(projectId, maps),
   };

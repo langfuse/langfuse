@@ -198,14 +198,15 @@ export const NothingToLookFor = meta.story({
 });
 
 export const PauseHidesSample = meta.story({
-  name: "(Test) Turning off auto-analyze hides the sample rate",
+  name: "(Test) Turning off live updates pauses the map and hides the sample rate",
   play: async () => {
     const body = within(document.body);
     await body.findByRole("spinbutton", { name: "Sampling rate percent" });
-    await userEvent.click(body.getByRole("switch"));
+    await userEvent.click(body.getByRole("switch", { name: "Live updates" }));
     await expect(
       body.queryByRole("spinbutton", { name: "Sampling rate percent" }),
     ).toBeNull();
     await expect(body.queryByText("LIVE")).toBeNull();
+    await expect(body.getByText("PAUSED")).toBeInTheDocument();
   },
 });

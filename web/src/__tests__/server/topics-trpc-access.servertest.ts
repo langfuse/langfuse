@@ -191,20 +191,26 @@ describe("Topics tRPC access", () => {
     });
 
     await expect(viewer.facets({ projectId })).resolves.toHaveLength(before);
-    // Inputs carry only projectId: the topics:CUD check must run before any handler work.
-    for (const write of [
-      viewer.saveFacet,
-      viewer.saveRule,
-      viewer.testModelSettings,
-      viewer.saveSetup,
-      viewer.setAutomaticProcessing,
-      viewer.startSetup,
-      viewer.trigger,
-      viewer.retry,
-    ])
-      await expect(write({ projectId } as never)).rejects.toMatchObject({
-        code: "FORBIDDEN",
-      });
+    // Every Topics mutation, so a new one cannot skip topics:CUD. Inputs carry
+    // only projectId: the check must run before any handler work.
+    const procedures = appRouter._def.procedures as unknown as Record<
+      string,
+      { _def: { type: string } }
+    >;
+    const mutations = Object.entries(procedures).flatMap(([path, procedure]) =>
+      path.startsWith("topics.") && procedure._def.type === "mutation"
+        ? [path.slice("topics.".length)]
+        : [],
+    );
+    expect(mutations).toEqual(
+      expect.arrayContaining(["saveRule", "startAnalysis", "startRuleSetup"]),
+    );
+    for (const name of mutations)
+      await expect(
+        (viewer as unknown as Record<string, (input: unknown) => unknown>)[
+          name
+        ]!({ projectId }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
 
     expect(
       await prisma.evaluator.count({ where: { projectId, type: "FACET" } }),

@@ -18,6 +18,7 @@ import {
   topicsModelSettingsSchema,
   topicsSetupSchema,
   topicRuleFilterError,
+  topicSnapshotSummarizeSchema,
   type TopicExecutionSummary,
   type TopicFacetRef,
 } from "@langfuse/shared/topics";
@@ -27,6 +28,10 @@ import {
   readTopicExecutionSummary,
   readTopicExecutionTraceErrors,
   getTopicExecutionCosts,
+  enqueueTopicSnapshotSetup,
+  readTopicSnapshotSummarizing,
+  writeTopicExecution,
+  writeTopicSnapshotSummarizing,
   getTopicSummaryCounts,
   listTopicExecutions,
   listTopicFacets,
@@ -95,9 +100,14 @@ const resultInput = projectInput.extend({
   ),
 });
 const mapInput = projectInput.extend({ runId: topicIdSchema });
+// Snapshots offer 7 or 14 days; longer windows risk an out-of-memory fit.
+const SNAPSHOT_MAX_WINDOW_MS = 14 * 86_400_000;
 const analysisFilterInput = projectInput.extend({
   filter: topicRuleConfigSchema.shape.filter,
-  timeRange: resultInput.shape.timeRange,
+  timeRange: topicTimeRangeSchema.refine(
+    ({ from, to }) => to.getTime() - from.getTime() <= SNAPSHOT_MAX_WINDOW_MS,
+    "Select a time range of at most 14 days.",
+  ),
   facets: z.array(topicFacetRefSchema).min(1),
 });
 const tracesInput = projectInput.extend({
@@ -417,10 +427,11 @@ export const topicsRouter = createTRPCRouter({
     .input(
       analysisFilterInput.extend({
         label: z.string().trim().min(1).max(100),
+        summarize: topicSnapshotSummarizeSchema.optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      // One-off scans accept only filters a live scan could save.
+      // Snapshots accept only filters a map could save.
       const filterError = topicRuleFilterError(input.filter);
       if (filterError) throw new InvalidRequestError(filterError);
       await requireFacetVersions(input.projectId, input.facets);
@@ -747,7 +758,7 @@ export const topicsRouter = createTRPCRouter({
           "Process past traces with a trace filter instead of a rule.",
         );
       if (input.operation === "update" && input.analysis)
-        throw new InvalidRequestError("Start scans with New scan.");
+        throw new InvalidRequestError("Create snapshots with New snapshot.");
       await requireFacetVersions(input.projectId, input.facets);
       const resolvedInput = await resolveTopicTraceSelection(input, ctx.prisma);
       const configuredInput = topicExecutionInputSchema.parse({
@@ -791,6 +802,27 @@ export const topicsRouter = createTRPCRouter({
         throw new InvalidRequestError(
           "Only failed or interrupted executions can be resumed.",
         );
+      // A snapshot that never seeded its traces summarizes first, through its setup.
+      const summarizing =
+        execution.input.operation === "update" &&
+        execution.input.analysis?.summarize
+          ? await readTopicSnapshotSummarizing(input.projectId, execution.id)
+          : undefined;
+      if (summarizing !== undefined && !summarizing?.traceIds) {
+        if (summarizing)
+          await writeTopicSnapshotSummarizing(input.projectId, execution.id, {
+            ...summarizing,
+            failedTicks: 0,
+          });
+        await writeTopicExecution({
+          ...execution,
+          status: "queued",
+          phase: "summarizing",
+          error: null,
+        });
+        await enqueueTopicSnapshotSetup(input.projectId, execution.id);
+        return;
+      }
       await enqueueTopicExecution(input.projectId, execution.id);
     }),
   map: topicsProcedure
