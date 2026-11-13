@@ -27,7 +27,7 @@ import {
   getAzureResource,
   getAzureResourceEndpoint,
 } from "@/src/features/ai-gateway/fns/azureResource";
-import { isGatewayApiFamily } from "@/src/features/ai-gateway/fns/isGatewayApiFamily";
+import { supportsCustomEndpoint } from "@/src/features/ai-gateway/fns/supportsCustomEndpoint";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import {
@@ -587,9 +587,10 @@ type ConnectionEndpoint = {
   extraHeaders: Record<string, string> | null;
 };
 
-// Bedrock only reaches its regional AWS endpoints, and OpenRouter, xAI and
-// Vercel their single hosted API; compatible proxies use an OpenAI connection
-// with a base URL. Azure always needs the endpoint of the customer's resource.
+// Bedrock only reaches its regional AWS endpoints, and xAI, Vercel and Google
+// AI Studio their single hosted API; compatible proxies use an OpenAI
+// connection with a base URL. Azure always needs the endpoint of the
+// customer's resource.
 async function parseConnectionEndpoint(
   params: ConnectionEndpoint & {
     provider: GatewayProvider;
@@ -601,7 +602,7 @@ async function parseConnectionEndpoint(
       ? params.extraHeaders
       : null;
   if (
-    !isGatewayApiFamily(params.provider) &&
+    !supportsCustomEndpoint(params.provider) &&
     params.provider !== "AZURE" &&
     (params.baseURL || extraHeaders)
   ) {
@@ -729,10 +730,10 @@ async function validateGatewayCredential(
   const check = definition.credentialCheck;
   if ("path" in check) {
     return checkCredentialEndpoint({
-      url: new URL(`${definition.baseUrl}${check.path}`),
+      url: new URL(`${params.baseURL ?? definition.baseUrl}${check.path}`),
       credential: params.credential,
-      baseURL: null,
-      extraHeaders: null,
+      baseURL: params.baseURL,
+      extraHeaders: params.extraHeaders,
       usable: check.usable,
     });
   }

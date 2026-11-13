@@ -38,7 +38,7 @@ import {
   isAzureResourceName,
 } from "@/src/features/ai-gateway/fns/azureResource";
 import { getAvailableGatewayProviders } from "@/src/features/ai-gateway/fns/getAvailableGatewayProviders";
-import { isGatewayApiFamily } from "@/src/features/ai-gateway/fns/isGatewayApiFamily";
+import { supportsCustomEndpoint } from "@/src/features/ai-gateway/fns/supportsCustomEndpoint";
 import { isGatewayConnectionNameError } from "@/src/features/ai-gateway/fns/isGatewayConnectionNameError";
 import { isGatewayHipaaNoticeVisible } from "@/src/features/ai-gateway/fns/isGatewayHipaaNoticeVisible";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
@@ -140,8 +140,8 @@ export function ProviderDialogController({
   };
 
   /**
-   * Bedrock, OpenRouter, xAI and Vercel have no custom endpoint, and Azure
-   * only the endpoint of its resource and project.
+   * Bedrock, xAI, Vercel and Google AI Studio have no custom endpoint, and
+   * Azure only the endpoint of its resource and project.
    * When editing, a blank header value keeps the stored value, so those rows
    * are sent; a new connection has no stored values and drops them.
    */
@@ -154,7 +154,7 @@ export function ProviderDialogController({
           : null,
       };
     }
-    if (!isGatewayApiFamily(selectedProvider)) {
+    if (!supportsCustomEndpoint(selectedProvider)) {
       return {};
     }
     const headers = extraHeaders.filter(
@@ -388,7 +388,7 @@ export function ProviderDialogController({
                 hasSavedKey={Boolean(selectedConnection)}
                 onCredentialChange={setCredential}
               />
-              {isGatewayApiFamily(dialogProvider) ? (
+              {supportsCustomEndpoint(dialogProvider) ? (
                 <AdvancedSettings
                   provider={dialogProvider}
                   baseURL={baseURL}
