@@ -128,6 +128,49 @@ describe("createAiSdkTelemetryCapture", () => {
     await expect(capture!.flush()).resolves.toBeUndefined();
   });
 
+  it("records the provider response model when it differs from the requested model", async () => {
+    const capture = createAiSdkTelemetryCapture({ traceSinkParams });
+    const integration = (capture!.telemetry as any).integrations[0];
+
+    integration.onLanguageModelCallStart({
+      callId: "call-1",
+      provider: "openai",
+      modelId: "gpt-4o",
+    } as any);
+    integration.onLanguageModelCallEnd({
+      callId: "call-1",
+      provider: "openai",
+      // OpenAI resolves the alias to a dated snapshot in its response.
+      modelId: "gpt-4o-2024-08-06",
+      finishReason: { unified: "stop", raw: "stop" },
+      usage: { inputTokens: 3, outputTokens: 5, totalTokens: 8 },
+      content: [{ type: "text", text: "answer" }],
+      responseId: "resp-1",
+    } as any);
+
+    await capture!.flush();
+
+    const resourceSpans = publishToOtelIngestionQueue.mock.calls[0][0];
+    const spans = resourceSpans.flatMap((rs: any) =>
+      rs.scopeSpans.flatMap((ss: any) => ss.spans),
+    );
+    const generationSpan = spans.find((span: any) =>
+      span.attributes.some(
+        (attribute: any) => attribute.key === "gen_ai.operation.name",
+      ),
+    );
+    expect(generationSpan).toBeDefined();
+
+    const attributes = Object.fromEntries(
+      generationSpan.attributes.map((attribute: any) => [
+        attribute.key,
+        attribute.value.stringValue ?? attribute.value,
+      ]),
+    );
+    expect(attributes["gen_ai.request.model"]).toBe("gpt-4o");
+    expect(attributes["gen_ai.response.model"]).toBe("gpt-4o-2024-08-06");
+  });
+
   it("marks the root span as errored via setRootError", async () => {
     const capture = createAiSdkTelemetryCapture({
       traceSinkParams,
