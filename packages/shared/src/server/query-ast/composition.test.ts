@@ -247,40 +247,48 @@ describe("builder plugins alone", () => {
     ["FINAL", (qb) => qb.$call(useFinal(["scores"])), /scores as s final/],
   ];
 
-  // Each position pins the clause to its select: the root select has no
-  // subquery to hold it, and in the FROM subquery it sits before `) as sub`.
+  // Each position returns the SQL of its select, so the clause is pinned to
+  // it: the root select has no subquery, and the FROM subquery is everything
+  // between `from (` and `) as sub`.
   const positions: [
     string,
     (qb: JoinedRead) => ClickhouseCompilable,
-    (emitted: RegExp) => RegExp,
+    (sql: string) => string,
   ][] = [
     [
       "the root select",
       (qb) => qb,
-      (emitted) => new RegExp(`^(?!.*\\(select ).*${emitted.source}`),
+      (sql) => {
+        expect(sql).not.toContain("(select ");
+        return sql;
+      },
     ],
     [
       "a FROM subquery",
       (qb) => db.selectFrom(qb.as("sub")).select("sub.span_id"),
-      (emitted) =>
-        new RegExp(
-          `^select sub\\.span_id from \\(select .*${emitted.source}.*\\) as sub$`,
-        ),
+      (sql) => {
+        const head = "select sub.span_id from (";
+        const tail = ") as sub";
+        expect(sql.startsWith(head)).toBe(true);
+        expect(sql.endsWith(tail)).toBe(true);
+        return sql.slice(head.length, -tail.length);
+      },
     ],
   ];
 
   const cases = compilerPasses(projectId).flatMap((pass) =>
     clauses.flatMap(([clause, attach, emitted]) =>
       positions.map(
-        ([position, place, at]) =>
+        ([position, place, selectSql]) =>
           [
             pass.constructor.name,
             clause,
             position,
             pass,
             attach,
-            at(emitted),
+            emitted,
             place,
+            selectSql,
           ] as const,
       ),
     ),
@@ -288,9 +296,10 @@ describe("builder plugins alone", () => {
 
   it.each(cases)(
     "%s alone keeps %s in %s",
-    (_name, _clause, _position, pass, attach, emitted, place) => {
+    (_name, _clause, _position, pass, attach, emitted, place, selectSql) => {
       const query = place(attach(joinedRead()));
-      expect(renderPassOutput(applyPassOnly(query, pass)).sql).toMatch(emitted);
+      const { sql } = renderPassOutput(applyPassOnly(query, pass));
+      expect(selectSql(sql)).toMatch(emitted);
     },
   );
 
