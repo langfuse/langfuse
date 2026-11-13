@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
-import { Radio } from "@langfuse/icons";
+import { Clock, Layers, Radio, Sparkles } from "@langfuse/icons";
 import { type TopicFacet } from "@langfuse/shared/topics";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Input } from "@/src/components/design-system/Input/Input";
+import { TOPIC_SETUP_BACKFILL_LIMIT } from "./topic-setup-flow";
 import { TopicSliceFields } from "./TopicSliceFields";
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
 
@@ -57,10 +58,28 @@ export function NewMapDialogView({
               {disabledReason} Create a snapshot instead.
             </div>
           ) : (
-            <div className="bg-light-blue text-dark-blue flex items-center gap-2 rounded-md px-4 py-2.5 text-sm">
-              <Radio size="base" aria-hidden="true" />
-              Analyzes new matching traces as they arrive and refits nightly.
-              Your first topics appear in a few minutes.
+            <div className="bg-light-blue text-dark-blue flex flex-col gap-1.5 rounded-md px-4 py-2.5 text-sm">
+              <span className="flex items-center gap-2">
+                <Layers size="base" aria-hidden="true" />
+                First map from up to{" "}
+                {TOPIC_SETUP_BACKFILL_LIMIT.toLocaleString("en-US")} recent
+                matching traces; existing summaries are reused
+              </span>
+              <span className="flex items-center gap-2">
+                <Sparkles size="base" aria-hidden="true" />
+                Summarizes only the missing ones, at this sampling rate, for{" "}
+                {facetIds.length} selected{" "}
+                {facetIds.length === 1 ? "facet" : "facets"}
+              </span>
+              <span className="flex items-center gap-2">
+                <Clock size="base" aria-hidden="true" />
+                Usually ready in 3–5 minutes.
+              </span>
+              <span className="flex items-center gap-2">
+                <Radio size="base" aria-hidden="true" />
+                Then analyzes new matching traces as they arrive and refits
+                nightly.
+              </span>
             </div>
           )}
           {errors.map((message) => (
