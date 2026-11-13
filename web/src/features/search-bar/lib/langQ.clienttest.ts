@@ -6,7 +6,10 @@ import {
   removeToken,
   tidyQueryText,
 } from "@/src/features/search-bar/lib/edits";
-import { validateQuery } from "@/src/features/search-bar/lib/validate";
+import {
+  MAX_QUERY_LENGTH,
+  validateQuery,
+} from "@/src/features/search-bar/lib/validate";
 
 /** Structural copy without spans, for deep-equal comparisons. */
 function strip(node: ASTNode | null): unknown {
@@ -31,6 +34,39 @@ function strip(node: ASTNode | null): unknown {
 }
 
 describe("langQ parser", () => {
+  it("bounds diagnostic work for a large number of separate terms", () => {
+    const input = "bad:1 ".repeat(10000).trim();
+    const result = validateQuery(input);
+    expect(result.ast).toBeNull();
+    expect(result.valid).toBe(false);
+    expect(result.diagnostics).toEqual([
+      {
+        from: 0,
+        to: input.length,
+        severity: "error",
+        message: "Query has too many terms (max 1024)",
+      },
+    ]);
+  });
+
+  it("rejects excessive expression nesting without overflowing the stack", () => {
+    for (const input of [
+      `${"(".repeat(300)}level:ERROR${")".repeat(300)}`,
+      `${"NOT ".repeat(300)}level:ERROR`,
+      `${"NOT (".repeat(300)}level:ERROR${")".repeat(300)}`,
+    ]) {
+      const result = validateQuery(input);
+      expect(result.valid).toBe(false);
+      expect(result.ast).toBeNull();
+      expect(result.diagnostics).toEqual([
+        expect.objectContaining({
+          severity: "error",
+          message: "Query nesting is too deep (max 128 levels)",
+        }),
+      ]);
+    }
+  });
+
   it("resolves aliases to canonical field ids", () => {
     const r = parse("env:prod apiKey:pk-lf-test");
     expect(r.valid).toBe(true);
@@ -503,8 +539,15 @@ describe("validateQuery", () => {
   });
 
   it("caps query length", () => {
-    const long = `name:${"a".repeat(2100)}`;
-    expect(validateQuery(long).valid).toBe(false);
+    const boundary = `name:${"a".repeat(MAX_QUERY_LENGTH - "name:".length)}`;
+    expect(validateQuery(boundary).valid).toBe(true);
+    const oversized = validateQuery(`${boundary}a`);
+    expect(oversized.valid).toBe(false);
+    expect(
+      oversized.diagnostics.some((diagnostic) =>
+        diagnostic.message.startsWith("Query is too long"),
+      ),
+    ).toBe(true);
   });
 
   it("flags a bare comma in a group with a single diagnostic, not a doubled one", () => {

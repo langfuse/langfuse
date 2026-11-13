@@ -157,55 +157,87 @@ describe("applySelection", () => {
       target: "run-b",
     },
   ] satisfies FilterState)(
-    "replaces an emptied positive selection with exclusions for $column ($operator)",
+    "clears an emptied positive selection for $column ($operator)",
     (filter) => {
-      const { column, type, value } = filter;
-      const current: FilterState = [filter];
-      const empty = applyCheckboxSelection(ctx, current, column, []);
-      expect(empty).toEqual([
-        {
-          column,
-          type,
-          operator: "none of",
-          value: column === "tags" ? ["a", "b"] : ["prod", "dev", "test"],
-          target: "run-b",
-        },
-      ]);
-      expect(
-        empty.every((filter) => singleFilter.safeParse(filter).success),
-      ).toBe(true);
-      expect(decodeFiltersGeneric(encodeFiltersGeneric(empty))).toEqual(empty);
-      expect(applyCheckboxSelection(ctx, empty, column, value)).toEqual([
-        {
-          column,
-          type,
-          operator: "none of",
-          value: column === "tags" ? ["b"] : ["dev", "test"],
-          target: "run-b",
-        },
-      ]);
-      expect(clearCategoricalColumn(empty, column)).toEqual([]);
+      const other: FilterState = [
+        { column: "bookmarked", type: "boolean", operator: "=", value: true },
+      ];
+      const current: FilterState = [...other, filter];
+      expect(applyCheckboxSelection(ctx, current, filter.column, [])).toEqual(
+        other,
+      );
     },
   );
 
-  it.each(["env", "tags"])(
-    "keeps empty %s selections valid when options are blank or unavailable",
-    (column) => {
-      const type = column === "tags" ? "arrayOptions" : "stringOptions";
-      for (const options of [[], [""]]) {
-        const empty = applyCheckboxSelection(
-          { ...ctx, options: { [column]: options } },
-          [{ column, type, operator: "any of", value: [""] }],
-          column,
-          [],
-        );
-        expect(empty).toEqual([
-          { column, type, operator: "none of", value: [""] },
-        ]);
-        expect(
-          empty.every((filter) => singleFilter.safeParse(filter).success),
-        ).toBe(true);
-      }
+  it("preserves separate conditions and only resets an exact legacy empty pair", () => {
+    const positive: FilterState[number] = {
+      column: "tags",
+      type: "arrayOptions",
+      operator: "any of",
+      value: ["a"],
+    };
+    const exclusion: FilterState[number] = {
+      column: "tags",
+      type: "arrayOptions",
+      operator: "none of",
+      value: ["b"],
+    };
+    const compound = [positive, exclusion];
+    expect(applyCheckboxSelection(ctx, compound, "tags", [])).toBe(compound);
+
+    // any of [a] together with none of [a] is one empty selection, not an
+    // exclusion to keep.
+    const emptyPair: FilterState = [
+      positive,
+      {
+        column: "tags",
+        type: "arrayOptions",
+        operator: "none of",
+        value: ["a"],
+      },
+    ];
+    expect(applyCheckboxSelection(ctx, emptyPair, "tags", [])).toEqual([]);
+  });
+
+  it.each([
+    [
+      {
+        column: "env",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["prod"],
+      },
+      {
+        column: "env",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["dev"],
+      },
+    ],
+    [{ column: "env", type: "null", operator: "is null", value: "" }],
+    [{ column: "env", type: "string", operator: "starts with", value: "pr" }],
+    [
+      {
+        column: "env",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["prod"],
+      },
+      { column: "env", type: "string", operator: "contains", value: "pr" },
+    ],
+  ] satisfies FilterState[])(
+    "refuses lossy categorical mutations for %j",
+    (...current) => {
+      expect(applySelection(ctx, current, "env", ["prod"])).toBe(current);
+      expect(applyCheckboxSelection(ctx, current, "env", ["prod"])).toBe(
+        current,
+      );
+      expect(buildOnlySelection(ctx, current, "env", "prod")).toBeNull();
+      expect(deriveOperatorChange(ctx, current, "env")).toBeNull();
+      expect(addTextFilterEntry(current, "env", "contains", "x")).toBeNull();
+      expect(removeTextFilterEntry(current, "env", "contains", "pr")).toBe(
+        current,
+      );
     },
   );
 
@@ -346,7 +378,7 @@ describe("applySelection", () => {
     ).toEqual([]);
   });
 
-  it("removes the filter when every option is selected implicitly", () => {
+  it("preserves a positive filter when every loaded option is selected", () => {
     const current: FilterState = [
       {
         column: "env",
@@ -357,7 +389,7 @@ describe("applySelection", () => {
     ];
     expect(
       applySelection(ctx, current, "env", ["prod", "dev", "test"]),
-    ).toEqual([]);
+    ).toEqual([{ ...current[0], value: ["prod", "dev", "test"] }]);
   });
 
   it("persists an explicit keep-everything override for the managed env column", () => {

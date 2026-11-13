@@ -1,5 +1,6 @@
 import { useState, type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { page } from "vitest/browser";
 import preview from "../../../../.storybook/preview";
 import {
   QueryInput,
@@ -10,6 +11,7 @@ import { WORD_JOINER } from "../QueryTokens/QueryTokens.constants";
 import { Dialog } from "../Dialog/Dialog";
 import { DialogController } from "../DialogController/DialogController";
 import { Button } from "../Button/Button";
+import { selectionOffsets } from "../internal/QueryInput/fns/queryInputDom";
 
 const meta = preview.meta({
   component: (
@@ -484,7 +486,247 @@ export const TestCompletionEdit = meta.story({
     await userEvent.keyboard("{Enter}");
     await expect(args.onCommit).toHaveBeenCalledWith("status:=open ", "enter");
     await expect(input).toHaveTextContent("status:=open");
-    await userEvent.keyboard("{ControlOrMeta>}z{/ControlOrMeta}");
-    await expect(input).toHaveTextContent("status");
+    await userEvent.keyboard("{Meta>}z{/Meta}");
+    await expect(input).toHaveTextContent(/^status$/);
   },
 });
+
+export const TestPreviewEscapeInDialog = TestControlledSelection.extend({
+  name: "(Test) Escape dismisses the token preview before its dialog",
+  args: {
+    value: "status:=open",
+    tokens: previewTokens.map((token) => ({
+      ...token,
+      explanation: { subject: "Status", predicate: "is open" },
+    })),
+  },
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(
+      within(canvasElement).getByRole("button", { name: "Open dialog" }),
+    );
+    const dialog = await body.findByRole("dialog", { name: "Query dialog" });
+    const input = within(dialog).getByRole("combobox");
+    await userEvent.click(input);
+    await userEvent.keyboard("{Escape}");
+    await userEvent.hover(within(dialog).getByTestId("search-bar-token"));
+    await body.findByTestId("search-bar-token-tooltip");
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(
+        body.queryByTestId("search-bar-token-tooltip"),
+      ).not.toBeInTheDocument(),
+    );
+    await expect(dialog).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(body.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+  },
+});
+
+function collectionArgs(
+  values: string[],
+  compact: boolean,
+): Pick<ComponentProps<typeof QueryInput>, "value" | "tokens"> {
+  const source = `(${values.join(" OR ")})`;
+  const value = `status:${source} @baseline`;
+  return {
+    value,
+    tokens: [
+      {
+        ...previewTokens[0]!,
+        raw: value,
+        to: value.length,
+        explanation: { subject: "Status", predicate: `is ${values[0]}` },
+        collection: {
+          compact,
+          atom: {
+            from: "status:".length,
+            to: "status:".length + source.length,
+            raw: source,
+          },
+          label: `Status any of ${values.length} values`,
+          previewLabel: `Status ${values.length} values`,
+          values,
+          groups: [
+            {
+              noWrap: true,
+              parts: [
+                { text: "status", tone: "field" },
+                { text: ":", tone: "muted" },
+              ],
+            },
+            { noWrap: true, parts: [{ text: values[0]!, tone: "value" }] },
+            { noWrap: true, parts: [{ text: " @baseline", tone: "target" }] },
+          ],
+        },
+      },
+    ],
+  };
+}
+
+export const TestCollectionPreviewHover = TestPreviewEscapeInDialog.extend({
+  name: "(Test) Collection preview stays hoverable and dismisses before its dialog",
+  args: {
+    ...collectionArgs(["open", "pending", "closed"], true),
+    onEditToken: fn(),
+    completions: {
+      autoHighlight: false,
+      loading: false,
+      options: [
+        {
+          id: "owner",
+          label: "owner:=me",
+          edit: { next: "owner:=me", caret: 9, keepOpen: false },
+          onApplied: fn(),
+        },
+      ],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const viewport = { width: window.innerWidth, height: window.innerHeight };
+    await page.viewport(320, 220);
+    try {
+      const body = within(canvasElement.ownerDocument.body);
+      await userEvent.click(
+        within(canvasElement).getByRole("button", { name: "Open dialog" }),
+      );
+      const dialog = await body.findByRole("dialog", { name: "Query dialog" });
+      const input = within(dialog).getByRole("combobox");
+      await userEvent.click(input);
+      await body.findByRole("listbox");
+      const collection = within(dialog).getByRole("button", {
+        name: "Edit Status any of 3 values",
+      });
+      await userEvent.hover(collection);
+      const preview = await body.findByTestId("search-bar-token-tooltip");
+      const expectInsideViewport = () => {
+        const bounds = preview.getBoundingClientRect();
+        expect(bounds.top).toBeGreaterThanOrEqual(0);
+        expect(bounds.left).toBeGreaterThanOrEqual(0);
+        expect(bounds.bottom).toBeLessThanOrEqual(window.innerHeight);
+        expect(bounds.right).toBeLessThanOrEqual(window.innerWidth);
+      };
+      await waitFor(expectInsideViewport);
+      await page.viewport(320, 120);
+      await waitFor(expectInsideViewport);
+      await page.viewport(320, 220);
+      const outside = within(dialog).getByRole("button", { name: "Close" });
+      outside.focus();
+      await userEvent.hover(
+        within(dialog).getByRole("button", {
+          name: "Edit Status any of 3 values",
+        }),
+      );
+      const tooltip = await body.findByTestId("search-bar-token-tooltip");
+      await userEvent.hover(tooltip);
+      await expect(tooltip).toBeVisible();
+      await expect(outside).toHaveFocus();
+      await userEvent.keyboard("{Escape}");
+      await waitFor(() =>
+        expect(
+          body.queryByTestId("search-bar-token-tooltip"),
+        ).not.toBeInTheDocument(),
+      );
+      await expect(dialog).toBeVisible();
+      await userEvent.keyboard("{Escape}");
+      await waitFor(() =>
+        expect(body.queryByRole("dialog")).not.toBeInTheDocument(),
+      );
+    } finally {
+      await page.viewport(viewport.width, viewport.height);
+    }
+  },
+});
+
+export const TestCollectionSourceNavigation = TestCollectionPreviewHover.extend(
+  {
+    name: "(Test) Collection values preserve editable key navigation and source copying",
+    args: {
+      ...collectionArgs(
+        [`open-${"a".repeat(90)}`, `pending-${"b".repeat(90)}`],
+        false,
+      ),
+    },
+    play: async ({ canvasElement, args }) => {
+      const atom = args.tokens[0]?.collection?.atom;
+      if (atom === undefined) throw new Error("Expected a values-only atom");
+      const viewport = { width: window.innerWidth, height: window.innerHeight };
+      await page.viewport(320, 600);
+      try {
+        const canvas = within(canvasElement);
+        const body = within(canvasElement.ownerDocument.body);
+        await userEvent.click(
+          canvas.getByRole("button", { name: "Open dialog" }),
+        );
+        const dialog = await body.findByRole("dialog", {
+          name: "Query dialog",
+        });
+        const input = within(dialog).getByRole("combobox");
+        const collection = within(dialog).getByRole("button", {
+          name: "Edit Status any of 2 values",
+        });
+        await expect(collection).toHaveTextContent(atom.raw);
+        await expect(collection.getBoundingClientRect().height).toBeGreaterThan(
+          Number.parseFloat(getComputedStyle(collection).lineHeight),
+        );
+        await expect(input.scrollWidth).toBeLessThanOrEqual(input.clientWidth);
+        await expect(
+          collection.getBoundingClientRect().right,
+        ).toBeLessThanOrEqual(input.getBoundingClientRect().right);
+        await userEvent.click(input);
+        const range = document.createRange();
+        range.setStart(input, 0);
+        range.collapse(true);
+        window.getSelection()?.removeAllRanges();
+        window.getSelection()?.addRange(range);
+
+        await userEvent.keyboard("{ArrowRight}");
+        await expect(input).toHaveFocus();
+        await expect(selectionOffsets(input)).toEqual({ start: 1, end: 1 });
+        for (let index = 1; index < "status:".length; index++)
+          await userEvent.keyboard("{ArrowRight}");
+        await expect(input).toHaveFocus();
+        await userEvent.keyboard("{ArrowRight}");
+        await expect(collection).toHaveFocus();
+
+        const valuesClipboard = new DataTransfer();
+        collection.dispatchEvent(
+          new ClipboardEvent("copy", {
+            bubbles: true,
+            cancelable: true,
+            clipboardData: valuesClipboard,
+          }),
+        );
+        await expect(valuesClipboard.getData("text/plain")).toBe(atom.raw);
+        await userEvent.keyboard("{ArrowLeft}");
+        await expect(input).toHaveFocus();
+        await expect(selectionOffsets(input)).toEqual({
+          start: atom.from,
+          end: atom.from,
+        });
+        await userEvent.keyboard("{ArrowRight}{ArrowRight}");
+        await expect(input).toHaveFocus();
+        await expect(selectionOffsets(input)).toEqual({
+          start: atom.to,
+          end: atom.to,
+        });
+        await userEvent.keyboard("{ArrowLeft}");
+        await expect(collection).toHaveFocus();
+        await userEvent.keyboard("{Meta>}a{/Meta}");
+        const queryClipboard = new DataTransfer();
+        input.dispatchEvent(
+          new ClipboardEvent("copy", {
+            bubbles: true,
+            cancelable: true,
+            clipboardData: queryClipboard,
+          }),
+        );
+        await expect(queryClipboard.getData("text/plain")).toBe(args.value);
+      } finally {
+        await page.viewport(viewport.width, viewport.height);
+      }
+    },
+  },
+);

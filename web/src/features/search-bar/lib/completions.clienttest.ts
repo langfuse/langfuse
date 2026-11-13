@@ -1121,6 +1121,44 @@ describe("applyPick", () => {
   const spanLocal = (o: CompletionOption | undefined) =>
     o as Exclude<CompletionOption, { kind: "recent" | "preset" }>;
 
+  it("replaces only the active value in a large incomplete group", () => {
+    const values = Array.from(
+      { length: 600 },
+      (_, index) => `value-${String(index).padStart(3, "0")}`,
+    );
+    const query = `name:(${values.join(" OR ")}`;
+    const activeValue = values[300]!;
+    const from = query.indexOf(activeValue);
+    const to = from + activeValue.length;
+    const replacement = `${activeValue}-replacement`;
+    const completion = plan(query, to, {
+      observed: { name: [{ value: replacement }] },
+    });
+    expect(completion).toMatchObject({ from, to, keepOpenOnPick: true });
+    const option = flattenOptions(completion).find(
+      (candidate) =>
+        candidate.kind === "value" && candidate.value === replacement,
+    );
+    expect(option).toBeDefined();
+    const result = applyPick(spanLocal(option), query, completion!);
+    expect(result.next).toBe(
+      query.slice(0, from) + replacement + query.slice(to),
+    );
+  });
+
+  it("preserves values and companions while completing a replacement key prefix", () => {
+    const query = ':("first value" OR second OR third) level:ERROR';
+    const completion = plan(query, 0);
+    const prefix = flattenOptions(completion).find(
+      (option) => option.kind === "field" && option.fieldId === "metadata.",
+    );
+    expect(prefix).toBeDefined();
+    const result = applyPick(spanLocal(prefix), query, completion!);
+    expect(result.next).toBe(`metadata.${query}`);
+    expect(result.caret).toBe("metadata.".length);
+    expect(result.keepOpen).toBe(true);
+  });
+
   it("keeps the caret INSIDE the block after picking a numeric operator", () => {
     // LFE-10501 BUG A. Picking `>` for a numeric field must not append a
     // trailing space and jump the caret outside the filter — an operator

@@ -200,7 +200,7 @@ export function resolveCheckboxOperator(params: {
 }
 
 /** A single checkbox selection cannot represent conditions for different targets. */
-export function hasMultipleFilterTargets(
+function hasMultipleFilterTargets(
   filters: FilterState,
   column: string,
 ): boolean {
@@ -211,6 +211,48 @@ export function hasMultipleFilterTargets(
         .map((filter) => filter.target),
     ).size > 1
   );
+}
+
+/** A categorical sidebar edits one membership predicate, or its text mode. */
+export function categoricalFilterEditingReason(
+  current: FilterState,
+  column: string,
+): string | undefined {
+  if (hasMultipleFilterTargets(current, column)) {
+    return "Edit filters for different targets individually in the filter bar.";
+  }
+  const conditions = current.filter((filter) => filter.column === column);
+  const checkboxConditions = conditions.filter(
+    (filter) =>
+      filter.type === "stringOptions" || filter.type === "arrayOptions",
+  );
+  if (conditions.length === 0) return undefined;
+  if (conditions.length === 1 && checkboxConditions.length === 1)
+    return undefined;
+  if (
+    conditions.every(
+      (filter) =>
+        filter.type === "string" &&
+        (filter.operator === "contains" ||
+          filter.operator === "does not contain"),
+    )
+  )
+    return undefined;
+
+  // The legacy empty selection is an any-of and none-of of the same set.
+  // Its checkbox reset clears both halves as one selection.
+  const [first, second] = checkboxConditions;
+  if (
+    conditions.length === 2 &&
+    first &&
+    second &&
+    hasEmptyCheckboxSelection(conditions, column) &&
+    first.value.every((value) => second.value.includes(value)) &&
+    second.value.every((value) => first.value.includes(value))
+  )
+    return undefined;
+
+  return "Edit these conditions in the filter bar.";
 }
 
 /**
@@ -242,6 +284,11 @@ export function applySelection(
 
   const facet = ctx.facets.find((f) => f.column === column);
   if (!facet) return current;
+  if (
+    facet.type === "categorical" &&
+    categoricalFilterEditingReason(current, column)
+  )
+    return current;
 
   const colDef = ctx.columnDefinitions.find(
     (c) => c.id === column || c.name === column,
@@ -300,13 +347,27 @@ export function applySelection(
     colType === "arrayOptions" ? "arrayOptions" : "stringOptions";
 
   if (operator === undefined && values.length === 0) {
+    // Unchecking the last value of a positive selection (Only, or any-of /
+    // all-of) returns to the implicit-all default. Turning that empty
+    // selection into `none of` every loaded value is a different gesture:
+    // it is what unchecking from the all-checked default, or from an active
+    // exclusion, means. Unlisted values may still match those exclusions;
+    // this is not match-nothing.
+    const positiveSelection =
+      (existingFilter?.type === "stringOptions" ||
+        existingFilter?.type === "arrayOptions") &&
+      (existingFilter.operator === "any of" ||
+        existingFilter.operator === "all of");
+    if (positiveSelection) {
+      // An exact legacy empty pair is also one selection; both halves reset.
+      return other;
+    }
+
     const previousValues =
       existingFilter?.type === "stringOptions" ||
       existingFilter?.type === "arrayOptions"
         ? existingFilter.value
         : [];
-    // Exclude unchecked options, including values no longer in the loaded
-    // option list. Unlisted values may still match; this is not match-nothing.
     const excludedValues = [
       ...new Set([...availableValues, ...previousValues]),
     ];
@@ -343,6 +404,11 @@ export function applySelection(
       existingFilter?.type === "stringOptions" &&
       existingFilter.operator === "none of" &&
       !isManagedEnvironmentColumn);
+  const preservePositiveOperator =
+    (existingFilter?.type === "stringOptions" ||
+      existingFilter?.type === "arrayOptions") &&
+    (existingFilter.operator === "any of" ||
+      existingFilter.operator === "all of");
 
   if (operator !== undefined) {
     // Explicit operator provided (e.g., from "Only" button or operator toggle) - use as-is
@@ -357,10 +423,11 @@ export function applySelection(
       return other;
     }
   } else {
-    // If all items are selected, remove the filter.
-    // (only for implicit/checkbox-based selection, not when operator is explicitly set)
+    // All loaded options need not be every value in this column. An explicit
+    // positive membership set stays finite when all loaded options are checked.
     if (
       !preserveNoneOfOperator &&
+      !preservePositiveOperator &&
       values.length > 0 &&
       values.length === availableValues.length &&
       availableValues.every((v) => values.includes(v))
@@ -462,6 +529,13 @@ export function applyCheckboxSelection(
   operator?: CheckboxOperator,
 ): FilterState {
   if (hasMultipleFilterTargets(current, column)) return current;
+  if (
+    ctx.facets.some(
+      (facet) => facet.column === column && facet.type === "categorical",
+    ) &&
+    categoricalFilterEditingReason(current, column)
+  )
+    return current;
   const withoutTextFilters = current.filter(
     (f) =>
       !(
@@ -502,6 +576,11 @@ export function buildOnlySelection(
 ): { values: string[]; operator?: CheckboxOperator } | null {
   const facet = ctx.facets.find((f) => f.column === column);
   if (!facet) return null;
+  if (
+    facet.type === "categorical" &&
+    categoricalFilterEditingReason(current, column)
+  )
+    return null;
 
   // Boolean facets take the plain single-value path (no operator).
   if (facet.type === "boolean") {
@@ -537,6 +616,7 @@ export function deriveOperatorChange(
   current: FilterState,
   column: string,
 ): { values: string[]; fromOperator?: string } | null {
+  if (categoricalFilterEditingReason(current, column)) return null;
   const existingFilter = current.find((f) => f.column === column);
   if (!existingFilter) {
     // Without selected values there is no valid persisted filter yet.
@@ -627,7 +707,8 @@ export function addTextFilterEntry(
   operator: TextFilterOperator,
   value: string,
 ): FilterState | null {
-  if (!value.trim() || hasMultipleFilterTargets(current, column)) return null;
+  if (!value.trim() || categoricalFilterEditingReason(current, column))
+    return null;
   const target = current.find((filter) => filter.column === column)?.target;
 
   const withoutCheckboxFilters = current.filter(
@@ -657,7 +738,7 @@ export function removeTextFilterEntry(
   operator: TextFilterOperator,
   value: string,
 ): FilterState {
-  if (hasMultipleFilterTargets(current, column)) return current;
+  if (categoricalFilterEditingReason(current, column)) return current;
   return current.filter(
     (f) =>
       !(

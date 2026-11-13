@@ -46,6 +46,17 @@ import {
   QUERY_LABEL_COLORS,
 } from "../QueryTokens/QueryTokens.constants";
 import { QueryTokens } from "../QueryTokens/QueryTokens";
+import {
+  textFromRoot,
+  selectionOffsets,
+  logicalOffsetForDomPosition,
+  domPositionForLogicalOffset,
+  setSelectionRange,
+  snapOffsetAcrossAtoms,
+  expandRangeAcrossAtoms,
+  sourceAtomAtOffset,
+  sourceAtomForNode,
+} from "../internal/QueryInput/fns/queryInputDom";
 import { optionDomId } from "../internal/QueryInput/fns/optionDomId";
 export { optionDomId } from "../internal/QueryInput/fns/optionDomId";
 
@@ -82,7 +93,6 @@ const suggestionIcons = {
 // Word joiners give the DOM caret boundaries
 // between pills without changing the query text; stripped before the text
 // reaches the model or clipboard.
-const WORD_JOINER_RE = new RegExp(WORD_JOINER, "g");
 
 // Shared by the visible tooltip and its screen-reader description, so a
 // deactivated token reads the same either way.
@@ -97,8 +107,46 @@ const isLowSurrogate = (code: number) => code >= 0xdc00 && code <= 0xdfff;
 
 type LogicalRange = { start: number; end: number };
 
-function textFromRoot(root: HTMLElement): string {
-  return (root.textContent ?? "").replace(WORD_JOINER_RE, "");
+function positionTokenTooltip({
+  anchor,
+  size,
+  viewport,
+  preferAbove,
+  hoverable,
+}: {
+  anchor: DOMRect;
+  size: { width: number; height: number };
+  viewport: { left: number; top: number; width: number; height: number };
+  preferAbove: boolean;
+  hoverable: boolean;
+}) {
+  const padding = 8;
+  const bridge = hoverable ? 6 : 0;
+  const gap = hoverable ? 0 : 6;
+  const maxWidth = Math.max(0, Math.min(360, viewport.width - 32));
+  const maxHeight = Math.max(0, viewport.height - padding * 2 - bridge);
+  const width = Math.min(size.width, maxWidth);
+  const height = Math.min(size.height, maxHeight + bridge);
+  const roomAbove = anchor.top - viewport.top - padding - gap;
+  const roomBelow =
+    viewport.top + viewport.height - padding - anchor.bottom - gap;
+  const above = preferAbove
+    ? height <= roomAbove || roomAbove >= roomBelow
+    : height > roomBelow && roomAbove > roomBelow;
+  const top = above ? anchor.top - gap - height : anchor.bottom + gap;
+  return {
+    left: Math.max(
+      viewport.left + padding,
+      Math.min(anchor.left, viewport.left + viewport.width - padding - width),
+    ),
+    top: Math.max(
+      viewport.top + padding,
+      Math.min(top, viewport.top + viewport.height - padding - height),
+    ),
+    above,
+    maxWidth,
+    maxHeight,
+  };
 }
 
 // IME composition (Korean, Chinese, Japanese) inserts a text node the
@@ -115,100 +163,6 @@ function stripUnmanagedRootChildren(root: HTMLElement): boolean {
     }
   }
   return removed;
-}
-
-function rawOffsetForLogicalOffset(
-  text: string,
-  logicalOffset: number,
-): number {
-  if (logicalOffset <= 0) return 0;
-  let logical = 0;
-  for (let raw = 0; raw < text.length; raw++) {
-    if (text[raw] === WORD_JOINER) continue;
-    logical++;
-    if (logical === logicalOffset) return raw + 1;
-  }
-  return text.length;
-}
-
-function logicalOffsetForDomPosition(
-  root: HTMLElement,
-  container: Node,
-  offset: number,
-): number {
-  const probe = document.createRange();
-  probe.selectNodeContents(root);
-  probe.setEnd(container, offset);
-  return probe.toString().replace(WORD_JOINER_RE, "").length;
-}
-
-function selectionOffsets(root: HTMLElement): LogicalRange {
-  const selection = window.getSelection();
-  if (selection === null || selection.rangeCount === 0) {
-    const end = textFromRoot(root).length;
-    return { start: end, end };
-  }
-  const range = selection.getRangeAt(0);
-  if (
-    !root.contains(range.startContainer) ||
-    !root.contains(range.endContainer)
-  ) {
-    const end = textFromRoot(root).length;
-    return { start: end, end };
-  }
-  return {
-    start: logicalOffsetForDomPosition(
-      root,
-      range.startContainer,
-      range.startOffset,
-    ),
-    end: logicalOffsetForDomPosition(root, range.endContainer, range.endOffset),
-  };
-}
-
-function domPositionForLogicalOffset(
-  root: HTMLElement,
-  offset: number,
-): { node: Node; offset: number } {
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  let seen = 0;
-  let node = walker.nextNode();
-  let lastText: Text | null = null;
-  while (node !== null) {
-    const text = node.textContent ?? "";
-    const logicalLength = text.replace(WORD_JOINER_RE, "").length;
-    if (logicalLength > 0) {
-      if (offset <= seen + logicalLength) {
-        return { node, offset: rawOffsetForLogicalOffset(text, offset - seen) };
-      }
-      lastText = node as Text;
-    }
-    seen += logicalLength;
-    node = walker.nextNode();
-  }
-  if (lastText !== null) {
-    return { node: lastText, offset: lastText.textContent?.length ?? 0 };
-  }
-  return { node: root, offset: root.childNodes.length };
-}
-
-function setSelectionRange(
-  root: HTMLElement,
-  start: number,
-  end: number,
-): void {
-  const length = textFromRoot(root).length;
-  const from = Math.max(0, Math.min(start, length));
-  const to = Math.max(0, Math.min(end, length));
-  const anchor = domPositionForLogicalOffset(root, from);
-  const focus = from === to ? anchor : domPositionForLogicalOffset(root, to);
-  const selection = window.getSelection();
-  if (selection === null) return;
-  const range = document.createRange();
-  range.setStart(anchor.node, anchor.offset);
-  range.setEnd(focus.node, focus.offset);
-  selection.removeAllRanges();
-  selection.addRange(range);
 }
 
 function replaceRange(
@@ -316,6 +270,22 @@ function isPastTextEnd(root: HTMLElement, x: number, y: number): boolean {
   return y >= lastRect.top - 2 && x > lastRect.right + 2;
 }
 
+function scrollCaretIntoView(root: HTMLElement) {
+  const selection = window.getSelection();
+  if (selection === null || selection.rangeCount === 0) return;
+  const range = selection.getRangeAt(0);
+  if (!root.contains(range.endContainer)) return;
+  const rects = range.getClientRects();
+  const caretRect = rects[rects.length - 1];
+  if (caretRect === undefined) return;
+  const bounds = root.getBoundingClientRect();
+  if (caretRect.bottom > bounds.bottom) {
+    root.scrollTop += caretRect.bottom - bounds.bottom;
+  } else if (caretRect.top < bounds.top) {
+    root.scrollTop -= bounds.top - caretRect.top;
+  }
+}
+
 function useLatest<T>(value: T) {
   const ref = React.useRef(value);
   React.useLayoutEffect(() => {
@@ -405,7 +375,7 @@ function QueryInputSurface({
     <InputControl
       contentLayout="none"
       height="auto"
-      focusTarget={readOnly ? "self" : "within"}
+      focusTarget={readOnly ? "self" : "field"}
       error={error}
     >
       <Slot
@@ -444,6 +414,8 @@ function QueryInputEditor({
   areEquivalent,
   controller,
   completions,
+  onEditToken,
+  tokenEditor,
   size = "default",
 }: {
   inputId?: string;
@@ -462,6 +434,8 @@ function QueryInputEditor({
   areEquivalent: (left: string, right: string) => boolean;
   controller: ReturnType<typeof useQueryInputController>;
   completions: QueryCompletionPlan | null;
+  onEditToken?: (token: QueryToken, anchor: HTMLButtonElement) => void;
+  tokenEditor?: { from: number; popupId: string };
 }) {
   const id = React.useId();
   const listboxId = `${id}-suggestions`;
@@ -480,8 +454,13 @@ function QueryInputEditor({
     null,
   );
   const [editorFocused, setEditorFocused] = React.useState(false);
+  const [focusedTokenId, setFocusedTokenId] = React.useState<string | null>(
+    null,
+  );
+  const [tooltipDismissed, setTooltipDismissed] = React.useState(false);
   const rootRef = React.useRef<HTMLDivElement>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const tooltipRef = React.useRef<HTMLDivElement>(null);
   // Selection to restore after the next reprojection of a controlled edit.
   const pendingSelectionRef = React.useRef<LogicalRange | null>(null);
   // Bumped after IME composition so token spans remount instead of keeping
@@ -650,7 +629,8 @@ function QueryInputEditor({
     if (document.activeElement !== root) return;
     pendingSelectionRef.current = null;
     setSelectionRange(root, pending.start, pending.end);
-    setSelectionSnapshot(pending);
+    setSelectionSnapshot(selectionOffsets(root));
+    scrollCaretIntoView(root);
   }, [draft, tokensGeneration, setSelectionSnapshot]);
 
   // Mirror the native selection. Read-only: this effect never moves the
@@ -694,8 +674,10 @@ function QueryInputEditor({
       const root = rootRef.current;
       if (root === null) return;
       const offsets = selectionOffsets(root);
-      const from = Math.min(offsets.start, offsets.end);
-      const to = Math.max(offsets.start, offsets.end);
+      const { from, to } = expandRangeAcrossAtoms(root, {
+        from: offsets.start,
+        to: offsets.end,
+      });
       const current = draftRef.current;
       const next = replaceRange(current, from, to, insert);
       // Plain single-character typing at a collapsed caret coalesces into one
@@ -714,6 +696,8 @@ function QueryInputEditor({
 
   const applyTextDeletion = React.useCallback(
     (range: { from: number; to: number }) => {
+      const root = rootRef.current;
+      if (root !== null) range = expandRangeAcrossAtoms(root, range);
       if (range.from === range.to) return;
       setDraftWithSelection(
         replaceRange(draftRef.current, range.from, range.to, ""),
@@ -778,6 +762,7 @@ function QueryInputEditor({
             root,
             target.startContainer,
             target.startOffset,
+            "backward",
           );
           const to = logicalOffsetForDomPosition(
             root,
@@ -904,21 +889,139 @@ function QueryInputEditor({
     [onRemoveToken, setAutocompleteOpen, setHighlightedOptionId],
   );
 
+  // The token holding a collapsed caret — the keyboard counterpart to hover.
+  // Not at the trailing insertion point, where the user is appending, not
+  // editing. Every segment kind qualifies: an operator explains itself on the
+  // caret path exactly as it does on hover (it just can't be removed, below).
+  const caretSegment =
+    editorFocused && selectionCollapsed && caret < draft.length
+      ? (segments.find((s) => s.from <= caret && caret <= s.to) ?? null)
+      : null;
+  // The remove affordance targets the hovered token, or the caret token — but
+  // only an editable one, since operators/parens have nothing to remove.
+  const focusTokenId = caretSegment?.editable === true ? caretSegment.id : null;
+  const removeTargetId = hoveredTokenId ?? focusedTokenId ?? focusTokenId;
+  const removeTarget =
+    segments.find((s) => s.editable && s.id === removeTargetId) ?? null;
+  // The hovered/caret token's diagnostic, shown as a styled per-token tooltip
+  // once diagnostics are revealed — replaces the native title.
+  // Shown even while the suggestions popover is open (you still need to see why
+  // the block is red); the tooltip flips ABOVE the block then, so it doesn't
+  // collide with the popover that drops BELOW the bar (see the render below).
+  const errorTarget =
+    !tooltipDismissed && showTokenDiagnostics && removeTarget?.error !== null
+      ? removeTarget
+      : null;
+
+  // Plain-language explanation of a token, in the same slot — an
+  // error wins it. Hover always explains; the caret path only while the popover
+  // is closed, so it never stacks a tooltip over the suggestions you are typing
+  // against.
+  const explainTarget = (() => {
+    if (tooltipDismissed) return null;
+    if (errorTarget !== null) return null;
+    if (hoveredTokenId !== null) {
+      return segments.find((segment) => segment.id === hoveredTokenId) ?? null;
+    }
+    if (focusedTokenId !== null) {
+      return segments.find((segment) => segment.id === focusedTokenId) ?? null;
+    }
+    if (plan === null) return caretSegment;
+    return null;
+  })();
+  const explainTargetId = explainTarget?.id ?? null;
+  const collectionPreview =
+    onEditToken !== undefined && explainTarget?.collection !== undefined;
+  const explanation = (() => {
+    if (onEditToken !== undefined && explainTarget?.collection !== undefined) {
+      return { subject: explainTarget.collection.previewLabel, predicate: "" };
+    }
+    return explainTarget?.explanation ?? null;
+  })();
+  // Measured separately from the remove target: an operator token explains
+  // itself but is not editable, so it never has a remove X to anchor to.
+  const tooltipTargetId = (() => {
+    if (errorTarget !== null) {
+      return errorTarget.id;
+    }
+    if (explanation !== null) {
+      return explainTargetId;
+    }
+    return null;
+  })();
+  const focusEditorAt = (offset: number) => {
+    const root = rootRef.current;
+    if (root === null) return;
+    pendingSelectionRef.current = null;
+    root.focus();
+    setSelectionRange(root, offset, offset);
+    setSelectionSnapshot({ start: offset, end: offset });
+    setHoveredTokenId(null);
+    setAutocompleteOpen(false);
+    setHighlightedOptionId(null);
+    scrollCaretIntoView(root);
+  };
+
   const onKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
     if (event.nativeEvent.isComposing) return;
+    if (event.key !== "Escape") setTooltipDismissed(false);
+    const collectionButton =
+      event.target instanceof Element
+        ? event.target.closest("[data-query-collection]")
+        : null;
+    const collectionRoot = rootRef.current;
+    const collectionAtom =
+      collectionRoot !== null && collectionButton !== null
+        ? sourceAtomForNode(collectionRoot, collectionButton)
+        : null;
 
     if (
       (event.metaKey || event.ctrlKey) &&
       (event.key === "z" || event.key === "Z")
     ) {
       event.preventDefault();
+      if (collectionAtom !== null) focusEditorAt(collectionAtom.to);
       if (event.shiftKey) redo();
       else undo();
       return;
     }
     if ((event.metaKey || event.ctrlKey) && event.key === "y") {
       event.preventDefault();
+      if (collectionAtom !== null) focusEditorAt(collectionAtom.to);
       redo();
+      return;
+    }
+
+    if (collectionButton !== null) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "a") {
+        const root = rootRef.current;
+        if (root !== null) {
+          event.preventDefault();
+          focusEditorAt(0);
+          setSelectionRange(root, 0, draft.length);
+          setSelectionSnapshot({ start: 0, end: draft.length });
+        }
+        return;
+      }
+      if (event.key === "Escape") {
+        if (!tooltipDismissed && tooltipTargetId !== null)
+          event.preventDefault();
+        setTooltipDismissed(true);
+      } else if (
+        (event.key === "ArrowLeft" || event.key === "ArrowRight") &&
+        !event.shiftKey &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey
+      ) {
+        if (collectionAtom !== null) {
+          event.preventDefault();
+          focusEditorAt(
+            event.key === "ArrowLeft" ? collectionAtom.from : collectionAtom.to,
+          );
+        }
+      }
+      // Enter, Space, and Tab retain the native button behavior.
       return;
     }
 
@@ -958,16 +1061,21 @@ function QueryInputEditor({
             )
           : collapsedBase;
       const base = event.shiftKey ? focusBase : collapsedBase;
-      const target =
+      const direction = event.key === "ArrowLeft" ? "backward" : "forward";
+      const target = snapOffsetAcrossAtoms(
+        root,
         event.key === "ArrowLeft"
           ? previousSearchWordBoundary(draft, base)
-          : nextSearchWordBoundary(draft, base);
+          : nextSearchWordBoundary(draft, base),
+        direction,
+      );
       if (event.shiftKey && selection !== null && selection.rangeCount > 0) {
         const position = domPositionForLogicalOffset(root, target);
         selection.extend(position.node, position.offset);
       } else {
         setSelectionRange(root, target, target);
       }
+      scrollCaretIntoView(root);
       return;
     }
 
@@ -1018,6 +1126,20 @@ function QueryInputEditor({
         event.key === "ArrowLeft"
           ? Math.max(0, end - 1)
           : Math.min(draft.length, end + 1);
+      const collection = sourceAtomAtOffset(root, target);
+      if (collection !== null) {
+        const button = collection.element.querySelector<HTMLButtonElement>(
+          "[data-query-collection]",
+        );
+        if (button !== null && !button.disabled) {
+          event.preventDefault();
+          pendingSelectionRef.current = null;
+          button.focus();
+          setAutocompleteOpen(false);
+          setHighlightedOptionId(null);
+          return;
+        }
+      }
       // Step over a whole non-BMP character (emoji, supplementary CJK): offsets
       // count UTF-16 code units, so a ±1 step can land BETWEEN a surrogate pair.
       // Native arrow movement is grapheme-aware; restore that for the common
@@ -1037,9 +1159,15 @@ function QueryInputEditor({
       ) {
         target += 1;
       }
+      target = snapOffsetAcrossAtoms(
+        root,
+        target,
+        event.key === "ArrowLeft" ? "backward" : "forward",
+      );
       if (target === end) return; // at an edge — native no-op
       event.preventDefault();
       setSelectionRange(root, target, target);
+      scrollCaretIntoView(root);
       return;
     }
 
@@ -1064,6 +1192,8 @@ function QueryInputEditor({
     }
 
     if (event.key === "Escape") {
+      if (!tooltipDismissed && tooltipTargetId !== null) event.preventDefault();
+      setTooltipDismissed(true);
       if (autocompleteOpen) {
         event.preventDefault();
         setAutocompleteOpen(false);
@@ -1109,6 +1239,16 @@ function QueryInputEditor({
   };
 
   const onCopy = (event: React.ClipboardEvent<HTMLElement>) => {
+    if (event.target instanceof Element) {
+      const source = event.target
+        .closest("[data-query-source]")
+        ?.getAttribute("data-query-source");
+      if (source !== undefined && source !== null) {
+        event.preventDefault();
+        event.clipboardData.setData("text/plain", source);
+        return;
+      }
+    }
     const root = rootRef.current;
     if (root === null) return;
     const { start, end } = selectionOffsets(root);
@@ -1121,6 +1261,13 @@ function QueryInputEditor({
   };
 
   const onCut = (event: React.ClipboardEvent<HTMLElement>) => {
+    if (
+      event.target instanceof Element &&
+      event.target.closest("[data-query-collection]")
+    ) {
+      event.preventDefault();
+      return;
+    }
     const root = rootRef.current;
     if (root === null) return;
     const { start, end } = selectionOffsets(root);
@@ -1134,6 +1281,11 @@ function QueryInputEditor({
 
   const onPaste = (event: React.ClipboardEvent<HTMLElement>) => {
     event.preventDefault();
+    if (
+      event.target instanceof Element &&
+      event.target.closest("[data-query-collection]")
+    )
+      return;
     // Collapse only line-breaking whitespace/tabs (single-line surface);
     // preserve spaces inside quoted values (e.g. pasting `name:"a  b"`).
     const clean = event.clipboardData
@@ -1142,7 +1294,13 @@ function QueryInputEditor({
     applyTextInsert(clean);
   };
 
-  const onFocus = () => {
+  const onFocus = (event: React.FocusEvent<HTMLElement>) => {
+    hasInteractedRef.current = true;
+    if (event.target !== event.currentTarget) {
+      setEditorFocused(false);
+      setAutocompleteOpen(false);
+      return;
+    }
     setEditorFocused(true);
     hasInteractedRef.current = true;
     // A draft was set while the editor was blurred (an external structured
@@ -1153,13 +1311,20 @@ function QueryInputEditor({
     if (root !== null && pending !== null) {
       pendingSelectionRef.current = null;
       setSelectionRange(root, pending.start, pending.end);
-      setSelectionSnapshot(pending);
+      setSelectionSnapshot(selectionOffsets(root));
+      scrollCaretIntoView(root);
     }
     setAutocompleteOpen(true);
   };
 
-  const onBlur = () => {
+  const onBlur = (event: React.FocusEvent<HTMLElement>) => {
     setEditorFocused(false);
+    setFocusedTokenId(null);
+    if (event.currentTarget.contains(event.relatedTarget)) {
+      setAutocompleteOpen(false);
+      return;
+    }
+    setHoveredTokenId(null);
     commit();
     setAutocompleteOpen(false);
   };
@@ -1231,52 +1396,22 @@ function QueryInputEditor({
     const target = event.target instanceof Element ? event.target : null;
     if (target?.closest("[data-overlay-remove]")) return; // keep the X alive under the pointer
     const token = target?.closest("[data-segment-id]");
-    setHoveredTokenId(token?.getAttribute("data-segment-id") ?? null);
+    const id = token?.getAttribute("data-segment-id") ?? null;
+    if (id !== hoveredTokenId) setTooltipDismissed(false);
+    setHoveredTokenId(id);
   };
 
-  // The token holding a collapsed caret — the keyboard counterpart to hover.
-  // Not at the trailing insertion point, where the user is appending, not
-  // editing. Every segment kind qualifies: an operator explains itself on the
-  // caret path exactly as it does on hover (it just can't be removed, below).
-  const caretSegment =
-    editorFocused && selectionCollapsed && caret < draft.length
-      ? (segments.find((s) => s.from <= caret && caret <= s.to) ?? null)
-      : null;
-  // The remove affordance targets the hovered token, or the caret token — but
-  // only an editable one, since operators/parens have nothing to remove.
-  const focusTokenId = caretSegment?.editable === true ? caretSegment.id : null;
-  const removeTargetId = hoveredTokenId ?? focusTokenId;
-  const removeTarget =
-    segments.find((s) => s.editable && s.id === removeTargetId) ?? null;
-  // The hovered/caret token's diagnostic, shown as a styled per-token tooltip
-  // once diagnostics are revealed — replaces the native title.
-  // Shown even while the suggestions popover is open (you still need to see why
-  // the block is red); the tooltip flips ABOVE the block then, so it doesn't
-  // collide with the popover that drops BELOW the bar (see the render below).
-  const errorTarget =
-    showTokenDiagnostics && removeTarget?.error !== null ? removeTarget : null;
-
-  // Plain-language explanation of a token (LFE-14447), in the same slot — an
-  // error wins it. Hover always explains; the caret path only while the popover
-  // is closed, so it never stacks a tooltip over the suggestions you are typing
-  // against.
-  const explainTarget = (() => {
-    if (errorTarget !== null) return null;
-    if (hoveredTokenId !== null) {
-      return segments.find((segment) => segment.id === hoveredTokenId) ?? null;
-    }
-    if (plan === null) return caretSegment;
-    return null;
-  })();
-  const explainTargetId = explainTarget?.id ?? null;
-  const explanation = explainTarget === null ? null : explainTarget.explanation;
   const explainDeactivatedReason =
     explainTarget === null ? null : explainTarget.inactiveReason;
   // Keyboard/AT path: the caret token's explanation, read through the combobox's
   // description regardless of the popover — including the "not applied" note,
   // which the visible tooltip also carries.
-  const caretExplanation =
-    caretSegment === null ? null : caretSegment.explanation;
+  const caretExplanation = (() => {
+    if (onEditToken !== undefined && caretSegment?.collection !== undefined) {
+      return { subject: caretSegment.collection.label, predicate: "" };
+    }
+    return caretSegment?.explanation ?? null;
+  })();
   const caretDeactivatedReason =
     caretSegment === null ? null : caretSegment.inactiveReason;
   const caretHelp =
@@ -1305,63 +1440,106 @@ function QueryInputEditor({
     left: number;
     top: number;
   } | null>(null);
-  // Anchors for the per-token tooltip — left edge of the token, plus its
-  // bottom (default placement, just under the block) and top (used to flip the
-  // tooltip ABOVE the block while the suggestions popover is open below). These
-  // are VIEWPORT coordinates (not container-relative): the tooltip portals to
-  // document.body and is positioned `fixed`, so it reads the token's own
-  // getClientRects() directly. The bar's band is sticky (it doesn't scroll out
-  // from under the token), so a fixed anchor stays put; it re-measures on draft
-  // change and the container ResizeObserver below, same as the X button.
-  const [tooltipPosition, setTooltipPosition] = React.useState<{
-    left: number;
-    belowTop: number;
-    aboveTop: number;
-  } | null>(null);
+  // The portaled tooltip uses viewport coordinates and its measured size.
+  // Suggestions prefer the opposite side, subject to available viewport space.
+  const [tooltipPosition, setTooltipPosition] = React.useState<ReturnType<
+    typeof positionTokenTooltip
+  > | null>(null);
+  const preferTooltipAbove = plan !== null;
   const removeTargetIdActual = removeTarget?.id ?? null;
-  // Measured separately from the remove target: an operator token explains
-  // itself but is not editable, so it never has a remove X to anchor to.
-  const tooltipTargetId = (() => {
-    if (errorTarget !== null) {
-      return errorTarget.id;
-    }
-    if (explanation !== null) {
-      return explainTargetId;
-    }
-    return null;
-  })();
+  const collectionRemoveTarget =
+    onEditToken !== undefined && removeTarget?.collection !== undefined;
   const measurePositions = React.useCallback(() => {
     const root = rootRef.current;
     const container = containerRef.current;
-    const rectsOf = (id: string | null): DOMRectList | null => {
-      if (root === null || id === null) return null;
+    const rectsOf = (id: string | null): DOMRect[] => {
+      if (root === null || id === null) return [];
       const el = root.querySelector(`[data-segment-id="${CSS.escape(id)}"]`);
-      return el === null ? null : el.getClientRects();
+      const anchor = el?.querySelector("[data-query-collection]") ?? el;
+      const bounds = root.getBoundingClientRect();
+      return anchor === null
+        ? []
+        : Array.from(anchor.getClientRects()).filter(
+            (rect) => rect.bottom > bounds.top && rect.top < bounds.bottom,
+          );
     };
 
     const removeRects = rectsOf(removeTargetIdActual);
-    const lastRect = removeRects?.[removeRects.length - 1] ?? null;
+    const lastRect = removeRects[removeRects.length - 1] ?? null;
     if (container === null || lastRect === null) {
       setRemovePosition(null);
     } else {
       const containerRect = container.getBoundingClientRect();
-      setRemovePosition({
-        left: lastRect.right - containerRect.left - 6,
-        top: lastRect.top - containerRect.top - 8,
-      });
+      const next = {
+        left:
+          lastRect.right -
+          containerRect.left -
+          (collectionRemoveTarget ? 6 : 10),
+        top: lastRect.top - containerRect.top - 12,
+      };
+      setRemovePosition((previous) =>
+        previous?.left === next.left && previous.top === next.top
+          ? previous
+          : next,
+      );
     }
 
-    const tooltipRect = rectsOf(tooltipTargetId)?.[0] ?? null;
-    setTooltipPosition(
-      tooltipRect === null
-        ? null
-        : {
-            left: tooltipRect.left,
-            belowTop: tooltipRect.bottom + 6,
-            aboveTop: tooltipRect.top,
-          },
+    const tooltipRect = rectsOf(tooltipTargetId)[0] ?? null;
+    if (tooltipRect === null) {
+      setTooltipPosition(null);
+      return;
+    }
+    const viewport = window.visualViewport;
+    const next = positionTokenTooltip({
+      anchor: tooltipRect,
+      size: tooltipRef.current?.getBoundingClientRect() ?? {
+        width: 0,
+        height: 0,
+      },
+      viewport: {
+        left: viewport?.offsetLeft ?? 0,
+        top: viewport?.offsetTop ?? 0,
+        width: viewport?.width ?? window.innerWidth,
+        height: viewport?.height ?? window.innerHeight,
+      },
+      preferAbove: preferTooltipAbove,
+      hoverable: collectionPreview,
+    });
+    setTooltipPosition((previous) =>
+      previous !== null &&
+      previous.left === next.left &&
+      previous.top === next.top &&
+      previous.above === next.above &&
+      previous.maxHeight === next.maxHeight &&
+      previous.maxWidth === next.maxWidth
+        ? previous
+        : next,
     );
-  }, [removeTargetIdActual, tooltipTargetId]);
+  }, [
+    collectionPreview,
+    collectionRemoveTarget,
+    preferTooltipAbove,
+    removeTargetIdActual,
+    tooltipTargetId,
+  ]);
+
+  const attachTooltip = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      tooltipRef.current = node;
+      if (node === null) return;
+      measurePositions();
+      const observer =
+        typeof ResizeObserver === "undefined"
+          ? null
+          : new ResizeObserver(measurePositions);
+      observer?.observe(node);
+      return () => {
+        observer?.disconnect();
+        tooltipRef.current = null;
+      };
+    },
+    [measurePositions],
+  );
 
   // Re-measure when a target or the draft text changes.
   React.useLayoutEffect(() => {
@@ -1378,8 +1556,103 @@ function QueryInputEditor({
     if (container === null || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(() => measurePositions());
     observer.observe(container);
-    return () => observer.disconnect();
+    window.addEventListener("resize", measurePositions);
+    window.addEventListener("scroll", measurePositions, true);
+    window.visualViewport?.addEventListener("resize", measurePositions);
+    window.visualViewport?.addEventListener("scroll", measurePositions);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measurePositions);
+      window.removeEventListener("scroll", measurePositions, true);
+      window.visualViewport?.removeEventListener("resize", measurePositions);
+      window.visualViewport?.removeEventListener("scroll", measurePositions);
+    };
   }, [measurePositions, removeTargetIdActual, tooltipTargetId]);
+
+  // Include the visual gap in the collection preview's hover area so the
+  // pointer can travel from the token into the portaled content.
+  const tokenTooltip =
+    tooltipPosition === null ? null : (
+      <div
+        ref={attachTooltip}
+        onMouseLeave={
+          collectionPreview
+            ? (event) => {
+                if (
+                  event.relatedTarget instanceof Node &&
+                  containerRef.current?.contains(event.relatedTarget)
+                )
+                  return;
+                setHoveredTokenId(null);
+              }
+            : undefined
+        }
+        style={{
+          left: tooltipPosition.left,
+          top: tooltipPosition.top,
+          maxWidth: tooltipPosition.maxWidth,
+        }}
+        className={cn(
+          "fixed w-max",
+          collectionPreview
+            ? [
+                "pointer-events-auto",
+                tooltipPosition.above ? "pb-1.5" : "pt-1.5",
+              ]
+            : "pointer-events-none",
+        )}
+      >
+        <div
+          role="tooltip"
+          data-testid="search-bar-token-tooltip"
+          style={{ maxHeight: tooltipPosition.maxHeight }}
+          className={cn(
+            "ph-no-capture bg-popover rounded-md border",
+            "overflow-x-hidden overflow-y-auto px-2 py-1 font-sans text-xs leading-snug break-words shadow-md",
+            errorTarget !== null
+              ? "border-destructive/40 text-destructive"
+              : "border-border text-popover-foreground",
+          )}
+        >
+          {errorTarget !== null ? (
+            errorTarget.error
+          ) : (
+            <>
+              <span className="font-bold">{explanation?.subject}</span>
+              {/* A boolean token's phrase IS the whole explanation — no
+                      predicate, so no dangling space before the period. */}
+              {explanation?.predicate !== "" && <> {explanation?.predicate}</>}
+              {onEditToken !== undefined &&
+                explainTarget?.collection !== undefined && (
+                  <div className="mt-1 border-t pt-1">
+                    <ul className="flex flex-col gap-1 font-mono">
+                      {explainTarget.collection.values
+                        .slice(0, 6)
+                        .map((value, index) => (
+                          <li key={index} title="" className="truncate">
+                            {value || "(empty)"}
+                          </li>
+                        ))}
+                    </ul>
+                    <span className="text-muted-foreground mt-1 block">
+                      {explainTarget.collection.values.length > 6 &&
+                        `${explainTarget.collection.values.length - 6} more values. `}
+                      {explainTarget.error !== null
+                        ? "Choose a valid field to edit values"
+                        : "Click to edit"}
+                    </span>
+                  </div>
+                )}
+              {explainDeactivatedReason !== null && (
+                <span className="text-muted-foreground block pt-0.5">
+                  {notAppliedNote(explainDeactivatedReason)}
+                </span>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    );
 
   return (
     <div
@@ -1398,7 +1671,15 @@ function QueryInputEditor({
         <div
           data-testid="search-bar-surface"
           data-composer-text={draft}
-          onMouseLeave={() => setHoveredTokenId(null)}
+          onMouseLeave={(event) => {
+            if (
+              collectionPreview &&
+              event.relatedTarget instanceof Node &&
+              tooltipRef.current?.contains(event.relatedTarget)
+            )
+              return;
+            setHoveredTokenId(null);
+          }}
         >
           {draft.length === 0 && (
             <div
@@ -1447,7 +1728,9 @@ function QueryInputEditor({
               autoCapitalize="none"
               inputMode="text"
               data-testid="search-bar-input"
-              className="ph-no-capture caret-[hsl(var(--foreground))] outline-none"
+              data-input-control-field
+              className="ph-no-capture max-h-24 overflow-y-auto caret-[hsl(var(--foreground))] outline-none"
+              onScroll={measurePositions}
               onInput={(event) => {
                 if (!(event.nativeEvent as InputEvent).isComposing)
                   syncFromDom();
@@ -1466,6 +1749,18 @@ function QueryInputEditor({
               onBlur={onBlur}
               onClick={onRootClick}
               onMouseOver={onRootMouseOver}
+              onFocusCapture={(event) => {
+                const target =
+                  event.target instanceof Element
+                    ? event.target.closest("[data-query-source]")
+                    : null;
+                setTooltipDismissed(false);
+                setFocusedTokenId(
+                  target
+                    ?.closest("[data-segment-id]")
+                    ?.getAttribute("data-segment-id") ?? null,
+                );
+              }}
             >
               <React.Fragment key={tokensGeneration}>
                 <QueryTokens
@@ -1473,6 +1768,22 @@ function QueryInputEditor({
                   tokens={segments}
                   highlightedTokenId={
                     explanation !== null ? explainTargetId : errorTarget?.id
+                  }
+                  tokenEditor={tokenEditor}
+                  helpId={`${id}-collection-help`}
+                  onActivateToken={
+                    onEditToken === undefined
+                      ? undefined
+                      : (id, anchor) => {
+                          const token = segments.find(
+                            (segment) => segment.id === id,
+                          );
+                          if (token === undefined) return;
+                          hasInteractedRef.current = true;
+                          setAutocompleteOpen(false);
+                          setHoveredTokenId(null);
+                          onEditToken(token, anchor);
+                        }
                   }
                 />
               </React.Fragment>
@@ -1523,6 +1834,12 @@ function QueryInputEditor({
           )}
         </div>
       </QueryInputSurface>
+      {onEditToken !== undefined && (
+        <span id={`${id}-collection-help`} className="sr-only">
+          Press Enter or Space to edit values. Use Left and Right Arrow to
+          return to the query.
+        </span>
+      )}
 
       {showGlobalDiagnostics && (
         <div className="absolute top-1/2 right-2 flex -translate-y-1/2 items-center gap-1">
@@ -1561,58 +1878,22 @@ function QueryInputEditor({
         </QueryInputSuggestions>
       )}
 
-      {/* Per-token tooltip — the error diagnostic, or the token's plain-language
-          explanation. The "tooltip" <Layer> renders it on a body-level container
-          so it escapes the page header's overflow:hidden clip and z-50 stacking
-          context when it flips above the bar — an in-flow z-index can't win
-          against either. `fixed` + viewport anchors. pointer-events-none so
-          moving onto it doesn't change the hovered token (which would flicker it
-          away). */}
       {(errorTarget !== null || explanation !== null) &&
-        tooltipPosition !== null && (
+        tokenTooltip !== null && (
           <Layer name="tooltip">
-            <div
-              role="tooltip"
-              data-testid="search-bar-token-tooltip"
-              style={
-                plan !== null
-                  ? {
-                      left: tooltipPosition.left,
-                      top: tooltipPosition.aboveTop,
-                      transform: "translateY(calc(-100% - 6px))",
-                    }
-                  : {
-                      left: tooltipPosition.left,
-                      top: tooltipPosition.belowTop,
-                    }
-              }
-              className={cn(
-                "ph-no-capture pointer-events-none fixed max-w-[min(360px,calc(100vw-32px))]",
-                "bg-popover rounded-md border",
-                "px-2 py-1 font-sans text-xs leading-snug shadow-md",
-                errorTarget !== null
-                  ? "border-destructive/40 text-destructive"
-                  : "border-border text-popover-foreground",
-              )}
-            >
-              {errorTarget !== null ? (
-                errorTarget.error
-              ) : (
-                <>
-                  <span className="font-bold">{explanation?.subject}</span>
-                  {/* A boolean token's phrase IS the whole explanation — no
-                      predicate, so no dangling space before the period. */}
-                  {explanation?.predicate !== "" && (
-                    <> {explanation?.predicate}</>
-                  )}
-                  {explainDeactivatedReason !== null && (
-                    <span className="text-muted-foreground block pt-0.5">
-                      {notAppliedNote(explainDeactivatedReason)}
-                    </span>
-                  )}
-                </>
-              )}
-            </div>
+            {collectionPreview ? (
+              <DismissableLayer
+                asChild
+                onEscapeKeyDown={(event) => {
+                  event.preventDefault();
+                  setTooltipDismissed(true);
+                }}
+              >
+                {tokenTooltip}
+              </DismissableLayer>
+            ) : (
+              tokenTooltip
+            )}
           </Layer>
         )}
     </div>
@@ -1816,17 +2097,16 @@ function RemoveTokenButton({
   position: { left: number; top: number };
   onRemove: (segment: QueryToken) => void;
 }) {
+  const label = `Remove ${segment.collection?.label ?? segment.raw}`;
   return (
     <button
       type="button"
       data-overlay-remove
-      aria-label={`Remove ${segment.raw}`}
-      title={`Remove ${segment.raw}`}
+      aria-label={label}
       style={{ left: position.left, top: position.top }}
       className={cn(
-        "absolute z-20 inline-flex h-4 w-4 items-center justify-center rounded-sm",
-        "border-border bg-background text-muted-foreground border shadow-sm",
-        "hover:bg-accent hover:text-foreground focus:ring-ring focus:ring-1 focus:outline-none",
+        "group/remove absolute z-20 inline-flex h-6 w-6 items-center justify-center rounded-sm",
+        "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
       )}
       onMouseDown={(event) => event.preventDefault()}
       onClick={(event) => {
@@ -1834,7 +2114,9 @@ function RemoveTokenButton({
         onRemove(segment);
       }}
     >
-      <X size="sm" aria-hidden="true" />
+      <span className="border-border bg-background text-muted-foreground group-hover/remove:bg-accent group-hover/remove:text-foreground inline-flex h-4 w-4 items-center justify-center rounded-sm border shadow-sm">
+        <X size="sm" aria-hidden="true" />
+      </span>
     </button>
   );
 }

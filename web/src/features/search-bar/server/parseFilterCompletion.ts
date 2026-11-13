@@ -15,6 +15,34 @@ import { planCommit } from "../lib/commit";
 import { filterStateToQueryText } from "../lib/filter-state-to-query";
 import type { ObservedScoreNames } from "../lib/observed-options";
 
+// Refinement replaces applied state: never recover an earlier balanced
+// fragment or keep only valid siblings from an incomplete replacement.
+export function parseRefinedFilters(
+  completion: string,
+  scoreNames?: ObservedScoreNames,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+) {
+  const trimmed = completion.trim();
+  const fenced = /^```(?:json)?\s*\n?([\s\S]*?)\n?```$/i.exec(trimmed);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fenced?.[1] ?? trimmed);
+  } catch {
+    return null;
+  }
+  const raw = Array.isArray(parsed)
+    ? parsed
+    : (parsed as { filters?: unknown } | null)?.filters;
+  const complete = singleFilter.array().safeParse(raw);
+  if (!complete.success) return null;
+  const result = parseGeneratedFilters(
+    JSON.stringify(complete.data),
+    scoreNames,
+    registry,
+  );
+  return result.droppedCount > 0 ? null : result;
+}
+
 // Mirrors COMPATIBLE_FILTER_TYPES in
 // packages/shared/src/server/queries/clickhouse-sql/filterTypeCompatibility.ts —
 // the column-type → allowed-filter-type map that `events.all` enforces (and

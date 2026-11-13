@@ -3,6 +3,7 @@ import { useMemo, type ComponentProps } from "react";
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import type { ManagedEnvironmentPolicyConfig } from "@/src/features/filters/lib/managedEnvironmentPolicy";
 
 import { scoresFieldRegistry } from "@/src/features/scores/constants/scoresSearchRegistry";
 
@@ -11,6 +12,7 @@ export function ScoresSearchBar({
   isV4,
   filterConfig,
   filterState,
+  managedEnvironmentPolicy,
   setFilterState,
   filterOptions,
   isLoading,
@@ -21,6 +23,7 @@ export function ScoresSearchBar({
   isV4: boolean;
   filterConfig: FilterConfig;
   filterState: FilterState;
+  managedEnvironmentPolicy?: ManagedEnvironmentPolicyConfig;
   setFilterState: (filters: FilterState) => void;
   filterOptions: Parameters<typeof toObservedOptions>[0];
   isLoading: boolean;
@@ -38,6 +41,7 @@ export function ScoresSearchBar({
       tableName="scores"
       isV4={isV4}
       filterState={filterState}
+      managedEnvironmentPolicy={managedEnvironmentPolicy}
       setFilterState={setFilterState}
       observed={observed}
       registry={registry}

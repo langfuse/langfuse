@@ -5,6 +5,32 @@ import { describe, expect, it } from "vitest";
 import { parse, serialize } from "./langQ";
 import { semanticDiagnostics, validateQuery } from "./validate";
 
+describe("validateQuery — large value groups", () => {
+  it("accepts a hundred IDs in one value group", () => {
+    const values = Array.from(
+      { length: 100 },
+      (_, index) =>
+        `${index.toString(16).padStart(8, "0")}-aaaa-4bbb-8ccc-dddddddddddd`,
+    );
+    expect(validateQuery(`id:(${values.join(" OR ")})`).valid).toBe(true);
+  });
+
+  it("keeps URL-backed search text bounded across search scopes", () => {
+    const phrase = "x".repeat(2048);
+    for (const prefix of ["", "content:", "all:", "in:id "]) {
+      expect(validateQuery(`${prefix}${phrase}`).valid).toBe(true);
+      const result = validateQuery(`${prefix}${phrase}x`);
+      expect(result.valid).toBe(false);
+      expect(result.diagnostics).toContainEqual({
+        from: 0,
+        to: prefix.length + phrase.length + 1,
+        severity: "error",
+        message: "Search text is too long (2049 chars, max 2048)",
+      });
+    }
+  });
+});
+
 function warnings(query: string): string[] {
   const { ast } = parse(query);
   return semanticDiagnostics(ast, query.length)

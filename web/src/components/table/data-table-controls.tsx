@@ -1,6 +1,5 @@
 /* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 /* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
-import { Button as DsButton } from "@/src/components/design-system/Button/Button";
 import {
   type default as React,
   createContext,
@@ -23,7 +22,6 @@ import {
   facetNameRank,
   getFacetSummary,
   getFacetSummaryValue,
-  rankFacetOptions,
   rankFacetsByName,
 } from "@/src/features/filters/lib/facet-display";
 import {
@@ -36,7 +34,6 @@ import {
 import { useMediaQuery } from "react-responsive";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { cn } from "@/src/utils/tailwind";
-import { compactNumberFormatter } from "@/src/utils/numbers";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import {
   Check,
@@ -68,7 +65,6 @@ import {
 } from "@/src/components/ui/input-command";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Button } from "@/src/components/ui/button";
 import {
   Tooltip,
@@ -78,7 +74,6 @@ import {
 import { Slider } from "@/src/components/ui/Slider";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import { Skeleton } from "@/src/components/ui/skeleton";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import type {
   UIFilter,
@@ -92,6 +87,7 @@ import type {
 } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { KeyValueFilterBuilder } from "@/src/components/table/KeyValueFilterBuilder";
 import { FacetHeader } from "@/src/components/table/FacetHeader";
+import { CategoricalFilterSelect } from "@/src/features/filters/components/CategoricalFilterSelect";
 import {
   Popover,
   PopoverContent,
@@ -556,6 +552,7 @@ export function DataTableControls({
           onTextFilterRemove={filter.onTextFilterRemove}
           isDisabled={facetDisabled}
           disabledReason={facetDisabledReason}
+          conditionCount={filter.conditionCount}
         />
       );
     }
@@ -1299,6 +1296,7 @@ interface BaseFacetProps {
 }
 
 interface CategoricalFacetProps extends BaseFacetProps {
+  conditionCount?: number;
   /** Color-coded icon of the single value the summary names (renderIcon). */
   summaryIcon?: React.ReactNode;
   /** v3-vs-v4 analytics dimension of the surface (Rule 4). */
@@ -1404,6 +1402,7 @@ interface FilterAccordionItemProps {
   isActive?: boolean;
   isDisabled?: boolean;
   disabledReason?: string;
+  readOnly?: boolean;
   onReset?: () => void;
 }
 
@@ -1418,6 +1417,7 @@ function FilterAccordionItem({
   isActive,
   isDisabled,
   disabledReason,
+  readOnly,
   onReset,
 }: FilterAccordionItemProps) {
   return (
@@ -1491,7 +1491,7 @@ function FilterAccordionItem({
           disabled={isDisabled}
           className={cn(
             "m-0 min-w-0 border-0 p-0",
-            isDisabled && "pointer-events-none opacity-60",
+            isDisabled && !readOnly && "pointer-events-none opacity-60",
           )}
         >
           {children}
@@ -1502,6 +1502,7 @@ function FilterAccordionItem({
 }
 
 export function CategoricalFacet({
+  conditionCount,
   label,
   tooltip,
   help,
@@ -1579,395 +1580,53 @@ export function CategoricalFacet({
       isActive={isActive}
       isDisabled={isDisabled}
       disabledReason={disabledReason}
+      readOnly={conditionCount !== undefined}
       onReset={onReset}
     >
-      <div className="flex flex-col">
-        {/* Tab switcher - only show when text filtering is supported */}
-        {onTextFilterAdd && (
-          <FilterModeTabs mode={filterMode} onModeChange={handleModeChange} />
-        )}
-
-        {/* SELECT MODE: checkboxes with optional counts */}
-        {filterMode === "select" && (
-          <CategoricalSelectContent
-            filterKey={filterKey}
-            loading={loading}
-            options={options}
-            counts={counts}
-            displayByValue={displayByValue}
-            value={value}
-            onChange={onChange}
-            onOnlyChange={onOnlyChange}
-            renderIcon={renderIcon}
-            renderOptionSuffix={renderOptionSuffix}
-            getOptionTitle={getOptionTitle}
-            operator={operator}
-            onOperatorChange={onOperatorChange}
-          />
-        )}
-
-        {/* TEXT MODE: Contains/Does Not Contain filters */}
-        {filterMode === "text" && onTextFilterAdd && (
-          <div className="py-1">
-            <TextFilterSection
-              allFilters={textFilters ?? []}
-              onAdd={onTextFilterAdd}
-              onRemove={onTextFilterRemove}
-            />
-          </div>
-        )}
-      </div>
-    </FilterAccordionItem>
-  );
-}
-
-// Values shown per facet before "Show more values" gates the rest.
-const MAX_VISIBLE_OPTIONS = 12;
-// Each "Show more values" click reveals this many additional values.
-const SHOW_MORE_INCREMENT = 50;
-
-// Select-mode body of a categorical facet. A separate stateful child so its
-// transient list UI state (value search, "show more") lives inside the
-// accordion content and unmounts — and therefore resets — when the facet is
-// collapsed (Radix unmounts closed content), instead of a reset effect in
-// the always-mounted facet wrapper.
-function CategoricalSelectContent({
-  filterKey,
-  loading,
-  options,
-  counts,
-  displayByValue,
-  value,
-  onChange,
-  onOnlyChange,
-  renderIcon,
-  renderOptionSuffix,
-  getOptionTitle,
-  operator,
-  onOperatorChange,
-}: Pick<
-  CategoricalFacetProps,
-  | "filterKey"
-  | "loading"
-  | "options"
-  | "counts"
-  | "displayByValue"
-  | "value"
-  | "onChange"
-  | "onOnlyChange"
-  | "renderIcon"
-  | "renderOptionSuffix"
-  | "getOptionTitle"
-  | "operator"
-  | "onOperatorChange"
->) {
-  // "Show more values" reveals the next PORTION (it does what it says — not
-  // expand-everything: value lists can run to 1000+ user IDs); "Show fewer
-  // values" collapses back to the cap. Resets by unmounting on collapse.
-  const [visibleCount, setVisibleCount] = useState(MAX_VISIBLE_OPTIONS);
-  const handleShowFewerValues = () => {
-    setVisibleCount(MAX_VISIBLE_OPTIONS);
-  };
-  const handleShowMoreValues = () => {
-    setVisibleCount((current) => current + SHOW_MORE_INCREMENT);
-  };
-  const [searchQuery, setSearchQuery] = useState("");
-  const { tableName = "data" } = useContext(ControlsContext) ?? {};
-  const visibleOptionValues = Array.from(
-    new Set([...options, ...value.filter((option) => option.length > 0)]),
-  );
-  const hasMoreOptions = visibleOptionValues.length > MAX_VISIBLE_OPTIONS;
-
-  // Filter options by search query (raw value and display label), ranked the
-  // way the search bar ranks its completions: prefix matches before
-  // substring matches, instead of plain unordered substring filtering.
-  const filteredOptions = searchQuery
-    ? rankFacetOptions(visibleOptionValues, searchQuery, displayByValue)
-    : visibleOptionValues;
-
-  // Order the applied filter to the top of the list so it is immediately
-  // visible — without scrolling or expanding "Show more" — even when its
-  // value sits far down a long list (LFE-10494). The rows carrying the
-  // applied filter are the CHECKED values for a positive selection, but the
-  // UNCHECKED (excluded) values for a `none of` filter: under the
-  // checked=kept display model the checked set is the complement of the
-  // exclusions (LFE-10717), and pinning that complement would sink the
-  // just-unchecked row below the cap.
-  //
-  // Two guards keep this honest:
-  //   1. Only reorder long lists (more options than the cap) that carry a real,
-  //      strict-subset selection. `value` mirrors the hook's
-  //      `computeSelectedValues`, which reports EVERY option as "selected" when
-  //      no filter is applied (and the kept complement for `none of`).
-  //      Requiring a strict subset skips that all-selected default — otherwise
-  //      the whole list would be treated as pinned — and leaves short lists
-  //      untouched.
-  //   2. The visible-count cap is applied to the COMBINED ordered list, so even
-  //      a large pinned set (many selected values, or many exclusions) can
-  //      never render the entire list; "Show more" still gates the overflow.
-  const selectedSet = new Set(value);
-  const pinnedSet =
-    operator === "none of"
-      ? new Set(
-          visibleOptionValues.filter((option) => !selectedSet.has(option)),
-        )
-      : selectedSet;
-  // While searching, rankFacetOptions owns the order (prefix matches first);
-  // pinning checked rows above better matches would fight it.
-  const pinApplied =
-    !searchQuery &&
-    hasMoreOptions &&
-    value.length > 0 &&
-    value.length < visibleOptionValues.length;
-  const orderedOptions = pinApplied
-    ? [
-        ...filteredOptions.filter((option) => pinnedSet.has(option)),
-        ...filteredOptions.filter((option) => !pinnedSet.has(option)),
-      ]
-    : filteredOptions;
-
-  const visibleOptions = orderedOptions.slice(0, visibleCount);
-  const canShowMore = orderedOptions.length > visibleCount;
-  const canShowFewer = visibleCount > MAX_VISIBLE_OPTIONS;
-
-  // Split the visible slice so a separator can mark where the pinned rows
-  // end. When not pinning, everything renders in natural order (no divider).
-  const visiblePinnedOptions = pinApplied
-    ? visibleOptions.filter((option) => pinnedSet.has(option))
-    : [];
-  const visibleRemainingOptions = pinApplied
-    ? visibleOptions.filter((option) => !pinnedSet.has(option))
-    : visibleOptions;
-
-  const renderOption = (option: string) => {
-    const displayLabel = displayByValue?.get(option) ?? option;
-    return (
-      <FilterValueCheckbox
-        key={option}
-        id={`${filterKey}-${option}`}
-        label={displayLabel}
-        title={getOptionTitle?.(option, displayLabel)}
-        icon={renderIcon?.(option)}
-        suffix={renderOptionSuffix?.(option)}
-        count={counts.get(option) || 0}
-        checked={value.includes(option)}
-        onCheckedChange={(checked) => {
-          const newValues = checked
-            ? [...value, option]
-            : value.filter((v: string) => v !== option);
-          onChange(newValues);
-        }}
-        onLabelClick={onOnlyChange ? () => onOnlyChange(option) : undefined}
-        totalSelected={value.length}
-      />
-    );
-  };
-
-  return (
-    <div className="px-3">
-      {/* Any of / All of / None of operator toggle for arrayOptions filters
-
-          This toggle appears for multi-valued array columns (arrayOptions)
-          like tags. It switches between the supported array matching modes:
-          - Any of: match items with ANY selected value (OR logic)
-          - All of: match items with ALL selected values (AND logic)
-          - None of: exclude items carrying any UNCHECKED value (the filter
-            stores the exclusions; checkboxes show the kept complement,
-            LFE-10717)
-
-          Toggling between modes carries the stored value list over, so
-          any-of "match a or b" becomes none-of "exclude a and b" — the
-          checked set visually flips to its complement.
-
-          None-of mode usually engages by itself: unchecking a value from
-          the all-checked default persists `none of [value]`. The toggle
-          remains for converting an existing selection or persisting an
-          operator preference before any values are selected. Other
-          filter types (stringOptions, boolean, numeric) don't get this
-          toggle because these array-specific modes are not semantically
-          meaningful there.
-
-          Currently enabled for:
-          - Traces: tags
-          - Sessions: userIds, tags
-          - Prompts: labels, tags
-          - Monitors: tags
-      */}
-      {onOperatorChange && (
-        <div className="mb-2">
-          <Tabs
-            value={operator ?? "any of"}
-            onValueChange={(newOperator) =>
-              onOperatorChange(newOperator as "any of" | "all of" | "none of")
-            }
-          >
-            <Tabs.List variant="inset" layout="full" size="sm">
-              <Tabs.Trigger value="any of" label="Any of" />
-              <Tabs.Trigger value="all of" label="All of" />
-              {/* Without a persisted selection, switching to "none of" is a
-                  deliberate no-op in the state model (an empty exclusion
-                  would persist a vacuous filter — LFE-10717), which used to
-                  read as a broken button. Disable it and say why; it
-                  enables as soon as any selection exists, and NONE mode
-                  engages by itself when a value is unchecked. */}
-              <Tooltip delayDuration={80}>
-                <TooltipTrigger asChild>
-                  <span className="w-full min-w-0">
-                    <Tabs.Trigger
-                      value="none of"
-                      disabled={operator === undefined}
-                      label="None of"
-                    />
-                  </span>
-                </TooltipTrigger>
-                {operator === undefined && (
-                  <TooltipContent className="max-w-64 text-xs">
-                    Nothing to exclude yet — uncheck a value to exclude it, or
-                    select values first.
-                  </TooltipContent>
-                )}
-              </Tooltip>
-            </Tabs.List>
-          </Tabs>
-        </div>
-      )}
-
-      {/* Loading / Empty / Options */}
-      {loading ? (
-        <>
-          {[1, 2].map((i) => (
-            <div key={i} className="relative flex items-center">
-              <div className="flex min-w-0 flex-1 items-center rounded-md px-2 py-0.5">
-                <Skeleton className="h-3.5 w-3.5 rounded-sm" />
-                <div className="flex min-w-0 flex-1 items-center pr-1 pl-2">
-                  <Skeleton className="h-3 w-24" />
-                  <Skeleton className="ml-auto h-3 w-8" />
-                </div>
-              </div>
-            </div>
-          ))}
-        </>
-      ) : visibleOptionValues.length === 0 ? (
-        // px-2 on top of the outer px-3 = the checkbox rows' inset, so empty
-        // states don't stick to the panel edge.
-        <div className="text-muted-foreground px-2 py-1 text-xs">
-          {filterKey === "sessionId" ? (
-            <span>
-              Sessions group {tableName} together, which is useful for tracing
-              multi-step workflows.{" "}
-              <a
-                href="https://langfuse.com/docs/observability/features/sessions"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-foreground underline"
-              >
-                See docs
-              </a>{" "}
-              to learn how to add sessions to your {tableName}.
-            </span>
-          ) : filterKey === "name" ? (
-            <span>No {tableName} names found in the given time range.</span>
-          ) : filterKey === "tags" ? (
-            <span>
-              Tags let you filter {tableName} according to custom categories
-              (e.g. feature flags).{" "}
-              <a
-                href="https://langfuse.com/docs/observability/features/tags"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-foreground underline"
-              >
-                See docs
-              </a>{" "}
-              to learn how to add tags to your {tableName}.
-            </span>
-          ) : (
-            "No options found"
-          )}
-        </div>
+      {conditionCount !== undefined ? (
+        <p className="text-muted-foreground px-3 py-1 text-xs">
+          {disabledReason}
+        </p>
       ) : (
-        <>
-          {/* Search box for many options */}
-          {hasMoreOptions && (
-            <div className="mb-2">
-              <div className="relative">
-                <Search
-                  size="base"
-                  color="muted"
-                  __rawClassName="absolute top-1/2 left-2 -translate-y-1/2"
-                />
-                <Input
-                  placeholder="Filter values"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-8 pl-7 font-mono text-xs"
-                />
-              </div>
-            </div>
+        <div className="flex flex-col">
+          {/* Tab switcher - only show when text filtering is supported */}
+          {onTextFilterAdd && (
+            <FilterModeTabs mode={filterMode} onModeChange={handleModeChange} />
           )}
 
-          {/* Checkbox list */}
-          {filteredOptions.length === 0 ? (
-            <div className="text-muted-foreground py-1 text-center text-sm">
-              No matches found
-            </div>
-          ) : (
-            <>
-              {/* Applied-filter rows (selected, or excluded under
-                        `none of`), pinned to the top (long lists only) */}
-              {visiblePinnedOptions.map(renderOption)}
-
-              {/* Separator between the pinned rows and the rest */}
-              {visiblePinnedOptions.length > 0 &&
-                visibleRemainingOptions.length > 0 && (
-                  <div
-                    className="border-border/60 mx-3 my-1 border-t"
-                    aria-hidden
-                  />
-                )}
-
-              {/* Remaining options, capped */}
-              {visibleRemainingOptions.map(renderOption)}
-              {(canShowMore || canShowFewer) && (
-                <div className="mt-1 flex flex-col items-start gap-1 py-1 pl-2">
-                  {canShowFewer && (
-                    <DsButton
-                      variant="text"
-                      size="sm"
-                      text="Show fewer values"
-                      onClick={handleShowFewerValues}
-                    />
-                  )}
-                  {canShowMore && (
-                    <DsButton
-                      variant="text"
-                      size="sm"
-                      text="Show more values"
-                      onClick={handleShowMoreValues}
-                    />
-                  )}
-                </div>
-              )}
-            </>
+          {/* SELECT MODE: checkboxes with optional counts */}
+          {filterMode === "select" && (
+            <CategoricalFilterSelect
+              tableName={tableName}
+              filterKey={filterKey}
+              loading={loading}
+              options={options}
+              counts={counts}
+              displayByValue={displayByValue}
+              value={value}
+              onChange={onChange}
+              onOnlyChange={onOnlyChange}
+              renderIcon={renderIcon}
+              renderOptionSuffix={renderOptionSuffix}
+              getOptionTitle={getOptionTitle}
+              operator={operator}
+              onOperatorChange={onOperatorChange}
+            />
           )}
-          {filterKey === "environment" &&
-          visibleOptionValues.length === 1 &&
-          visibleOptionValues[0]?.toLowerCase() === "default" ? (
-            <div className="text-muted-foreground mt-2 px-2 text-xs">
-              <a
-                href="https://langfuse.com/docs/observability/features/environments"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-foreground underline"
-              >
-                See docs
-              </a>{" "}
-              on how to add environments to your {tableName}.
+
+          {/* TEXT MODE: Contains/Does Not Contain filters */}
+          {filterMode === "text" && onTextFilterAdd && (
+            <div className="py-1">
+              <TextFilterSection
+                allFilters={textFilters ?? []}
+                onAdd={onTextFilterAdd}
+                onRemove={onTextFilterRemove}
+              />
             </div>
-          ) : null}
-        </>
+          )}
+        </div>
       )}
-    </div>
+    </FilterAccordionItem>
   );
 }
 
@@ -2578,98 +2237,6 @@ function TextFilterSection({
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-interface FilterValueCheckboxProps {
-  id: string;
-  label: string;
-  title?: string;
-  icon?: React.ReactNode;
-  suffix?: React.ReactNode;
-  count: number;
-  checked?: boolean;
-  onCheckedChange?: (checked: boolean) => void;
-  onLabelClick?: () => void; // For "only this" behavior
-  totalSelected?: number;
-  disabled?: boolean;
-}
-
-function FilterValueCheckbox({
-  id,
-  label,
-  title,
-  icon,
-  suffix,
-  count,
-  checked = false,
-  onCheckedChange,
-  onLabelClick,
-  totalSelected,
-  disabled = false,
-}: FilterValueCheckboxProps) {
-  // Show "All" when clicking would reverse selection (only one item selected)
-  const labelText = checked && totalSelected === 1 ? "All" : "Only";
-
-  // Display placeholder for empty strings to ensure clickable area
-  const displayLabel = label === "" ? "(empty)" : label;
-  const displayTitle = title ?? (label === "" ? "(empty)" : label);
-
-  return (
-    <div
-      className={cn(
-        "relative flex items-center",
-        disabled && "cursor-not-allowed opacity-50",
-      )}
-    >
-      {/* One hover tint for the whole row, same inset as the header box above. */}
-      <div className="hover:bg-accent flex min-w-0 flex-1 items-center rounded-md px-2 py-0.5 transition-colors">
-        <Checkbox
-          id={id}
-          checked={checked}
-          onCheckedChange={onCheckedChange}
-          disabled={disabled}
-          size="sm"
-        />
-
-        {/* Label area: clicking selects only this value */}
-        <div
-          className={cn(
-            "group/label flex min-w-0 flex-1 cursor-pointer items-center self-stretch pr-1 pl-2",
-            disabled && "pointer-events-none",
-          )}
-          onClick={onLabelClick}
-        >
-          {icon ? <span className="mr-2">{icon}</span> : null}
-          <span
-            className={cn(
-              "text-foreground-secondary min-w-0 truncate text-xs",
-              !suffix && "flex-1",
-              label === "" && "text-muted-foreground italic",
-            )}
-            title={displayTitle}
-          >
-            {displayLabel}
-          </span>
-          {suffix ? <span className="shrink-0 pl-1">{suffix}</span> : null}
-
-          {/* "Only" or "All" indicator when hovering label. shrink-0 +
-              whitespace-nowrap: appearing may only re-truncate the label —
-              never widen the row. */}
-          {onLabelClick && !disabled && (
-            <span className="text-muted-foreground hidden shrink-0 pl-1 text-xs whitespace-nowrap group-hover/label:block">
-              {labelText}
-            </span>
-          )}
-
-          {count > 0 ? (
-            <span className="text-muted-foreground ml-auto w-7 shrink-0 pl-1 text-right text-xs">
-              {compactNumberFormatter(count, 0)}
-            </span>
-          ) : null}
-        </div>
-      </div>
     </div>
   );
 }

@@ -216,7 +216,9 @@ export const Exclusions = meta.story({
     await expect(canvas.getByRole("status")).toHaveTextContent("2 of 4 traces");
     await userEvent.hover(canvas.getByTestId("search-bar-token"));
     await userEvent.click(
-      await canvas.findByRole("button", { name: /Remove -assignment/ }),
+      await canvas.findByRole("button", {
+        name: "Remove Assignment state none of 2 values",
+      }),
     );
     await waitFor(() =>
       expect(canvas.getByRole("status")).toHaveTextContent("4 of 4 traces"),

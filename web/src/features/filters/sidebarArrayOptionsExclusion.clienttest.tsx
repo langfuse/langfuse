@@ -26,11 +26,8 @@ import {
   type CategoricalUIFilter,
 } from "./hooks/useSidebarFilterState";
 import type { FilterConfig } from "./lib/filter-config";
-import {
-  encodeFiltersGeneric,
-  decodeFiltersGeneric,
-  singleFilter,
-} from "@langfuse/shared";
+import type { FilterState } from "@langfuse/shared";
+import { getFacetSummary } from "./lib/facet-display";
 
 // The hook calls useQueryParam unconditionally even for the "memory" state
 // location used here; stub it out so no QueryParamProvider is needed.
@@ -170,13 +167,206 @@ const NAME_OPTIONS = {
   name: ["checkout", "search", "chat"],
 };
 
-describe("deselecting the last checkbox", () => {
+const MANY_NAMES = Array.from({ length: 40 }, (_, index) => `span-${index}`);
+
+describe("categorical conditions outside the sidebar editor", () => {
   it.each([
-    [TAGS_FILTER_CONFIG, TAG_OPTIONS, "tags", "tag-1"],
-    [NAME_FILTER_CONFIG, NAME_OPTIONS, "name", "checkout"],
+    [
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["checkout"],
+      },
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["search"],
+      },
+    ],
+    [{ column: "name", type: "null", operator: "is not null", value: "" }],
+    [
+      {
+        column: "name",
+        type: "string",
+        operator: "starts with",
+        value: "check",
+      },
+    ],
+    [
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["checkout"],
+      },
+      { column: "name", type: "string", operator: "contains", value: "check" },
+    ],
+  ] satisfies FilterState[])(
+    "keeps every applied condition visible and unchanged: %j",
+    (...conditions) => {
+      const { result } = renderHook(() =>
+        useSidebarFilterState(NAME_FILTER_CONFIG, NAME_OPTIONS, {
+          stateLocation: "memory",
+        }),
+      );
+      const facet = () => result.current.filters[0] as CategoricalUIFilter;
+      act(() => result.current.setFilterState(conditions));
+      expect(facet().isActive).toBe(true);
+      expect(facet().isDisabled).toBe(true);
+      expect(getFacetSummary(facet())).toBe(
+        `${conditions.length} condition${conditions.length === 1 ? "" : "s"}`,
+      );
+      act(() => facet().onChange(["chat"]));
+      act(() => facet().onOnlyChange?.("chat"));
+      act(() => facet().onOnlyChange?.("checkout"));
+      act(() => facet().onTextFilterAdd?.("contains", "chat"));
+      act(() => facet().onTextFilterRemove?.("contains", "check"));
+      expect(result.current.filterState).toEqual(conditions);
+      act(() => facet().onReset());
+      expect(result.current.filterState).toEqual([]);
+      expect(facet().isDisabled).toBe(false);
+    },
+  );
+
+  it("keeps text-only filtering editable and switches to a checkbox selection on apply", () => {
+    const { result } = renderHook(() =>
+      useSidebarFilterState(NAME_FILTER_CONFIG, NAME_OPTIONS, {
+        stateLocation: "memory",
+      }),
+    );
+    const facet = () => result.current.filters[0] as CategoricalUIFilter;
+    act(() => facet().onTextFilterAdd?.("contains", "check"));
+    act(() => facet().onTextFilterAdd?.("does not contain", "old"));
+    expect(facet().isDisabled).toBe(false);
+    act(() => facet().onOnlyChange?.("chat"));
+    expect(result.current.filterState).toEqual([
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["chat"],
+      },
+    ]);
+  });
+});
+
+describe("deselecting the last checkbox", () => {
+  it("keeps managed-environment All distinct from resetting hidden-environment defaults", () => {
+    const config: FilterConfig = {
+      tableName: "traces",
+      columnDefinitions: [
+        {
+          id: "environment",
+          name: "Environment",
+          type: "stringOptions",
+          internal: "environment",
+          options: [],
+        },
+      ],
+      facets: [
+        { type: "categorical", column: "environment", label: "Environment" },
+      ],
+    };
+    const hidden = "langfuse-evaluation";
+    const values = ["production", "staging", hidden];
+    const { result } = renderHook(() =>
+      useSidebarFilterState(
+        config,
+        { environment: values },
+        {
+          stateLocation: "memory",
+          implicitDefaultConfig: { hiddenEnvironments: [hidden] },
+        },
+      ),
+    );
+    const facet = () => result.current.filters[0] as CategoricalUIFilter;
+    act(() => facet().onOnlyChange?.(hidden));
+    act(() => facet().onOnlyChange?.(hidden));
+    expect(result.current.explicitFilterState).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "any of",
+        value: values,
+      },
+    ]);
+    expect(facet().value).toEqual(values);
+    act(() => facet().onReset());
+    expect(result.current.explicitFilterState).toEqual([]);
+    expect(facet().value).toEqual(["production", "staging"]);
+  });
+
+  it.each([
+    {
+      config: NAME_FILTER_CONFIG,
+      values: NAME_OPTIONS.name,
+      column: "name",
+      operator: "any of",
+    },
+    {
+      config: TAGS_FILTER_CONFIG,
+      values: TAG_OPTIONS.tags,
+      column: "tags",
+      operator: "any of",
+    },
+    {
+      config: TAGS_FILTER_CONFIG,
+      values: TAG_OPTIONS.tags,
+      column: "tags",
+      operator: "all of",
+    },
   ] as const)(
-    "keeps an empty categorical selection active (%s)",
-    (config, options, column, value) => {
+    "keeps a finite positive set when all loaded $column options are checked ($operator)",
+    ({ config, values: allValues, column, operator }) => {
+      const loadedValues = allValues.slice(0, 2);
+      const { result, rerender } = renderHook(
+        ({ available }: { available: Record<string, string[]> }) =>
+          useSidebarFilterState(config, available, { stateLocation: "memory" }),
+        { initialProps: { available: { [column]: loadedValues } } },
+      );
+      const facet = () => result.current.filters[0] as CategoricalUIFilter;
+      act(() => facet().onOnlyChange?.(loadedValues[0]));
+      if (operator === "all of")
+        act(() => facet().onOperatorChange?.(operator));
+      act(() => facet().onChange(loadedValues));
+      expect(result.current.filterState).toEqual([
+        expect.objectContaining({ column, operator, value: loadedValues }),
+      ]);
+      expect(facet().isActive).toBe(true);
+      expect(getFacetSummary(facet())).toBe("2 selected");
+
+      rerender({ available: { [column]: allValues } });
+      expect(facet().value).toEqual(loadedValues);
+      // The explicit All affordance on a singleton clears the finite set.
+      act(() => facet().onChange([loadedValues[0]]));
+      act(() => facet().onOnlyChange?.(loadedValues[0]));
+      expect(result.current.filterState).toEqual([]);
+      expect(facet().value).toEqual(allValues);
+    },
+  );
+
+  it.each([
+    {
+      label: "tags",
+      config: TAGS_FILTER_CONFIG,
+      options: TAG_OPTIONS,
+      column: "tags",
+      value: "tag-1",
+      allValues: TAG_OPTIONS.tags,
+    },
+    {
+      label: "name",
+      config: NAME_FILTER_CONFIG,
+      options: { name: MANY_NAMES },
+      column: "name",
+      value: MANY_NAMES[0],
+      allValues: MANY_NAMES,
+    },
+  ])(
+    "clears an Only selection when its last value is unchecked ($label)",
+    ({ config, options, column, value, allValues }) => {
       const { result } = renderHook(() =>
         useSidebarFilterState(config, options, { stateLocation: "memory" }),
       );
@@ -185,28 +375,20 @@ describe("deselecting the last checkbox", () => {
           (filter): filter is CategoricalUIFilter => filter.column === column,
         )!;
       act(() => facet().onOnlyChange?.(value));
+      expect(result.current.filterState).toEqual([
+        expect.objectContaining({
+          column,
+          operator: "any of",
+          value: [value],
+        }),
+      ]);
+      // Unchecking that last kept value is "back to all", not "exclude every
+      // loaded value". A high-cardinality name list must not become a none-of
+      // of the whole option list.
       act(() => facet().onChange([]));
-      expect(facet().value).toEqual([]);
-      expect(facet().isActive).toBe(true);
-      const emptySelection = result.current.filterState;
-      expect(
-        emptySelection.every(
-          (filter) => singleFilter.safeParse(filter).success,
-        ),
-      ).toBe(true);
-      act(() =>
-        result.current.setFilterState(
-          decodeFiltersGeneric(encodeFiltersGeneric(emptySelection)),
-        ),
-      );
-      expect(result.current.filterState).toEqual(emptySelection);
-      expect(facet().value).toEqual([]);
-      expect(facet().isActive).toBe(true);
-      act(() => facet().onChange([value]));
-      expect(facet().value).toEqual([value]);
-      act(() => facet().onReset?.());
-      expect(facet().isActive).toBe(false);
       expect(result.current.filterState).toEqual([]);
+      expect(facet().value).toEqual(allValues);
+      expect(facet().isActive).toBe(false);
     },
   );
 
