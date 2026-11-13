@@ -157,57 +157,48 @@ describe("applySelection", () => {
       target: "run-b",
     },
   ] satisfies FilterState)(
-    "replaces an emptied positive selection with exclusions for $column ($operator)",
+    "clears an emptied positive selection for $column ($operator)",
     (filter) => {
-      const { column, type, value } = filter;
-      const current: FilterState = [filter];
-      const empty = applyCheckboxSelection(ctx, current, column, []);
-      expect(empty).toEqual([
-        {
-          column,
-          type,
-          operator: "none of",
-          value: column === "tags" ? ["a", "b"] : ["prod", "dev", "test"],
-          target: "run-b",
-        },
-      ]);
-      expect(
-        empty.every((filter) => singleFilter.safeParse(filter).success),
-      ).toBe(true);
-      expect(decodeFiltersGeneric(encodeFiltersGeneric(empty))).toEqual(empty);
-      expect(applyCheckboxSelection(ctx, empty, column, value)).toEqual([
-        {
-          column,
-          type,
-          operator: "none of",
-          value: column === "tags" ? ["b"] : ["dev", "test"],
-          target: "run-b",
-        },
-      ]);
-      expect(clearCategoricalColumn(empty, column)).toEqual([]);
+      const other: FilterState = [
+        { column: "bookmarked", type: "boolean", operator: "=", value: true },
+      ];
+      const current: FilterState = [...other, filter];
+      expect(applyCheckboxSelection(ctx, current, filter.column, [])).toEqual(
+        other,
+      );
     },
   );
 
-  it.each(["env", "tags"])(
-    "keeps empty %s selections valid when options are blank or unavailable",
-    (column) => {
-      const type = column === "tags" ? "arrayOptions" : "stringOptions";
-      for (const options of [[], [""]]) {
-        const empty = applyCheckboxSelection(
-          { ...ctx, options: { [column]: options } },
-          [{ column, type, operator: "any of", value: [""] }],
-          column,
-          [],
-        );
-        expect(empty).toEqual([
-          { column, type, operator: "none of", value: [""] },
-        ]);
-        expect(
-          empty.every((filter) => singleFilter.safeParse(filter).success),
-        ).toBe(true);
-      }
-    },
-  );
+  it("keeps a companion exclusion when a positive selection is cleared", () => {
+    const positive: FilterState[number] = {
+      column: "tags",
+      type: "arrayOptions",
+      operator: "any of",
+      value: ["a"],
+    };
+    const exclusion: FilterState[number] = {
+      column: "tags",
+      type: "arrayOptions",
+      operator: "none of",
+      value: ["b"],
+    };
+    expect(
+      applyCheckboxSelection(ctx, [positive, exclusion], "tags", []),
+    ).toEqual([exclusion]);
+
+    // any of [a] together with none of [a] is one empty selection, not an
+    // exclusion to keep.
+    const emptyPair: FilterState = [
+      positive,
+      {
+        column: "tags",
+        type: "arrayOptions",
+        operator: "none of",
+        value: ["a"],
+      },
+    ];
+    expect(applyCheckboxSelection(ctx, emptyPair, "tags", [])).toEqual([]);
+  });
 
   it("keeps all managed environments unchecked and allows reselecting one", () => {
     const managedCtx: SidebarFilterActionContext = {

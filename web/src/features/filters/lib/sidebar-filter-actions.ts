@@ -300,13 +300,31 @@ export function applySelection(
     colType === "arrayOptions" ? "arrayOptions" : "stringOptions";
 
   if (operator === undefined && values.length === 0) {
+    // Unchecking the last value of a positive selection (Only, or any-of /
+    // all-of) returns to the implicit-all default. Turning that empty
+    // selection into `none of` every loaded value is a different gesture:
+    // it is what unchecking from the all-checked default, or from an active
+    // exclusion, means. Unlisted values may still match those exclusions;
+    // this is not match-nothing.
+    const positiveSelection =
+      (existingFilter?.type === "stringOptions" ||
+        existingFilter?.type === "arrayOptions") &&
+      (existingFilter.operator === "any of" ||
+        existingFilter.operator === "all of");
+    if (positiveSelection) {
+      // Drop only this positive filter. A companion exclusion on the same
+      // column (for example `tags:a -tags:b`) stays. The legacy empty pair
+      // (any of X and none of those same values) is one empty selection,
+      // so both halves go.
+      if (hasEmptyCheckboxSelection(current, column)) return other;
+      return current.filter((filter) => filter !== existingFilter);
+    }
+
     const previousValues =
       existingFilter?.type === "stringOptions" ||
       existingFilter?.type === "arrayOptions"
         ? existingFilter.value
         : [];
-    // Exclude unchecked options, including values no longer in the loaded
-    // option list. Unlisted values may still match; this is not match-nothing.
     const excludedValues = [
       ...new Set([...availableValues, ...previousValues]),
     ];
