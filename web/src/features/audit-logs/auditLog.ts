@@ -29,6 +29,7 @@ type AuditableResource =
   | "dataset"
   | "datasetRun"
   | "datasetRunItem"
+  | "experiment"
   | "trace"
   | "project"
   | "observation"

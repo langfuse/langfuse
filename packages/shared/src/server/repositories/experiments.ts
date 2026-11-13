@@ -1635,3 +1635,50 @@ export const getExperimentNamesFromEvents = async (props: {
     startTime: parseClickhouseUTCDateTimeFormat(row.startTime),
   }));
 };
+
+/**
+ * Distinct (experiment id, trace id) pairs for a bounded delete.
+ *
+ * `limit` is the caller's cap plus one so a truncated page means the selection
+ * is too large to delete. `events_core` is read on the writable node: a lagging
+ * events replica must not hide traces the delete is about to remove.
+ * `experiment_id` is not in the table sort key; `idx_experiment_id` is the
+ * bloom skip index for this predicate. No FINAL — events_core does not need it.
+ */
+export const listExperimentTracePairs = async (props: {
+  projectId: string;
+  experimentIds: string[];
+  limit: number;
+}): Promise<Array<{ experimentId: string; traceId: string }>> => {
+  if (props.experimentIds.length === 0 || props.limit <= 0) return [];
+
+  const rows = await queryClickhouse<{
+    experiment_id: string;
+    trace_id: string;
+  }>({
+    query: `
+      SELECT
+        experiment_id,
+        trace_id
+      FROM events_core
+      WHERE project_id = {projectId: String}
+        AND experiment_id IN ({experimentIds: Array(String)})
+        AND experiment_id != ''
+        AND is_deleted = 0
+      GROUP BY experiment_id, trace_id
+      LIMIT {limit: UInt32}
+    `,
+    params: {
+      projectId: props.projectId,
+      experimentIds: props.experimentIds,
+      limit: props.limit,
+    },
+    tags: { projectId: props.projectId },
+    preferredClickhouseService: "ReadWrite",
+  });
+
+  return rows.map((row) => ({
+    experimentId: row.experiment_id,
+    traceId: row.trace_id,
+  }));
+};
