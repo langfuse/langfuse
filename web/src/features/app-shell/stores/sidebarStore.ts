@@ -176,10 +176,11 @@ export function createSidebarStore({
           cancelClose();
           isPeekOwnedBySwitcher = false;
           writePinned(storage, isPinned);
-          // Unpinning is done from the sidebar itself, so it stays visible as
-          // a hover overlay under the pointer and leaves with the pointer.
-          isPointerInPanel = !isPinned;
+          // The replacement overlay confirms whether the pointer is still
+          // inside it; otherwise unpinning leaves after the hover grace period.
+          isPointerInPanel = false;
           set({ isPinned, peek: isPinned ? "closed" : "hover" });
+          if (!isPinned) scheduleClose();
         },
         toggleFromShortcut: (layout) => {
           if (layout === "mobile") {

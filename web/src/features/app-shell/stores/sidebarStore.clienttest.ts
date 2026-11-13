@@ -196,12 +196,22 @@ describe("pinning", () => {
     const { store, actions } = setup();
 
     actions.setPinned(false);
+    actions.pointerEnterPanel();
     expect(store.getState()).toMatchObject({ isPinned: false, peek: "hover" });
     vi.runAllTimers();
     expect(store.getState().peek).toBe("hover");
 
     actions.pointerLeavePanel();
     vi.advanceTimersByTime(SIDEBAR_CLOSE_DELAY_MS);
+    expect(store.getState().peek).toBe("closed");
+  });
+
+  it("closes after unpinning when the replacement panel receives no pointer entry", () => {
+    const { store, actions } = setup();
+
+    actions.setPinned(false);
+    vi.advanceTimersByTime(SIDEBAR_CLOSE_DELAY_MS);
+
     expect(store.getState().peek).toBe("closed");
   });
 

@@ -1,4 +1,4 @@
-import { useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Layer } from "@/src/components/design-system/Layer/Layer";
 import {
   Sheet,
@@ -15,9 +15,8 @@ import {
 import { SidebarSurfaceProvider } from "@/src/features/app-shell/contexts/SidebarSurfaceProvider";
 import { useOverlayDismiss } from "@/src/features/app-shell/hooks/useOverlayDismiss";
 import { useOverlayFocus } from "@/src/features/app-shell/hooks/useOverlayFocus";
+import { useOverlayHover } from "@/src/features/app-shell/hooks/useOverlayHover";
 import { type SidebarPeek } from "@/src/features/app-shell/stores/sidebarStore";
-
-const isHoverPointer = (event: PointerEvent) => event.pointerType !== "touch";
 
 /** Pinned: part of the layout, pushing the content like a classic sidebar. */
 function DockedSidebar({ children }: { children: ReactNode }) {
@@ -45,10 +44,10 @@ function OverlaySidebar({
   const overlayRef = useRef<HTMLDivElement>(null);
   const [popoverContainer, setPopoverContainer] =
     useState<HTMLDivElement | null>(null);
-  const { pointerEnterPanel, pointerLeavePanel, dismiss } =
-    useAppShellSidebarActions();
+  const { dismiss } = useAppShellSidebarActions();
   useOverlayDismiss(overlayRef, dismiss);
   useOverlayFocus(overlayRef, peek === "keyboard");
+  useOverlayHover(overlayRef);
 
   return (
     <Layer name="panel">
@@ -59,12 +58,6 @@ function OverlaySidebar({
             animation must not become the containing block of those menus. */}
         <div
           ref={overlayRef}
-          onPointerEnter={(event) => {
-            if (isHoverPointer(event)) pointerEnterPanel();
-          }}
-          onPointerLeave={(event) => {
-            if (isHoverPointer(event)) pointerLeavePanel();
-          }}
           onBlur={(event) => {
             // Tabbing past the last entry hands focus back to the page.
             const next = event.relatedTarget;

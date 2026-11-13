@@ -10,17 +10,17 @@ can be compared with the classic shell.
 
 ## Owner map
 
-| Concern                                                         | Owner                                                                                                                    |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Pinned, overlay, drawer and switcher state; hover timing; holds | `stores/sidebarStore.ts` (per mount, created by `contexts/AppShellSidebarProvider.tsx`)                                  |
-| Which surface renders the panel                                 | `components/ShellSidebar.tsx` (docked aside, overlay in the `panel` layer, `Sheet` on mobile)                            |
-| Page chrome contract shared with classic                        | `components/nav/AppNavigationProvider.tsx` (`SidebarControl`, open/close of transient navigation)                        |
-| Panel content                                                   | `components/AppShellSidebarPanel.tsx`, composed from `SidebarPanel` slots                                                |
-| Navigation items                                                | `ROUTES` in `components/layouts/routes.tsx`, filtered by `useFilteredNavigation` (RBAC, entitlements, flags)             |
-| Edge hover, shortcuts, overlay dismissal and focus              | `hooks/useSidebarEdgeHover.ts`, `hooks/useSidebarShortcuts.ts`, `hooks/useOverlayDismiss.ts`, `hooks/useOverlayFocus.ts` |
-| Workspace switcher lists                                        | `fns/buildSwitcherSections.ts`, `fns/scoreSwitcherMatch.ts`, `hooks/useWorkspaceSwitcher.ts`                             |
-| Recent projects                                                 | `hooks/useRecentProjects.ts` (local storage per user), recorded by `hooks/useRecordRecentProject.ts`                     |
-| Last-used project on `/`                                        | `features/projects/server/getLandingServerSideProps.ts` and `resolveLandingDestination.ts`                               |
+| Concern                                                         | Owner                                                                                                                                                |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pinned, overlay, drawer and switcher state; hover timing; holds | `stores/sidebarStore.ts` (per mount, created by `contexts/AppShellSidebarProvider.tsx`)                                                              |
+| Which surface renders the panel                                 | `components/ShellSidebar.tsx` (docked aside, overlay in the `panel` layer, `Sheet` on mobile)                                                        |
+| Page chrome contract shared with classic                        | `components/nav/AppNavigationProvider.tsx` (`SidebarControl`, open/close of transient navigation)                                                    |
+| Panel content                                                   | `components/AppShellSidebarPanel.tsx`, composed from `SidebarPanel` slots                                                                            |
+| Navigation items                                                | `ROUTES` in `components/layouts/routes.tsx`, filtered by `useFilteredNavigation` (RBAC, entitlements, flags)                                         |
+| Edge/overlay hover, shortcuts, dismissal and focus              | `hooks/useSidebarEdgeHover.ts`, `hooks/useOverlayHover.ts`, `hooks/useSidebarShortcuts.ts`, `hooks/useOverlayDismiss.ts`, `hooks/useOverlayFocus.ts` |
+| Workspace switcher lists                                        | `fns/buildSwitcherSections.ts`, `fns/scoreSwitcherMatch.ts`, `hooks/useWorkspaceSwitcher.ts`                                                         |
+| Recent projects                                                 | `hooks/useRecentProjects.ts` (local storage per user), recorded by `hooks/useRecordRecentProject.ts`                                                 |
+| Last-used project on `/`                                        | `features/projects/server/getLandingServerSideProps.ts` and `resolveLandingDestination.ts`                                                           |
 
 ## Behavior
 
