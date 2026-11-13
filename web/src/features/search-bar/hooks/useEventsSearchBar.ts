@@ -339,7 +339,19 @@ export function useEventsSearchBar({
     (filters: FilterState) => {
       const { setFilterState, setSearchQuery, setSearchType } =
         applyRef.current;
-      const committedFilters = mergeWithSkipped(filters);
+      // The AI filter contract has no numeric metadata comparison, so the
+      // result never carries one: keep them like hidden filters.
+      const numericMetadata = appliedStateRef.current.filters.filter(
+        (f) =>
+          f.type === "numberObject" &&
+          registry.numericMetadata &&
+          registry.columnIdOf(f.column) === "metadata",
+      );
+      const committedFilters = mergeSkippedFilters(
+        filters,
+        [...new Set([...skippedFiltersRef.current, ...numericMetadata])],
+        appliedStateRef.current.filters,
+      );
       beginCommit({
         filters: committedFilters,
         query: null,
@@ -351,7 +363,7 @@ export function useEventsSearchBar({
         setSearchType([...registry.defaultSearchType]);
       }
     },
-    [beginCommit, mergeWithSkipped, registry],
+    [beginCommit, registry],
   );
 
   // The committed text at the last render — the dedup baseline so a blur that

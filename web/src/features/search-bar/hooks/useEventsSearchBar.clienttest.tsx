@@ -325,6 +325,22 @@ describe("useEventsSearchBar.applyFilters", () => {
     expect(setSearchQuery).toHaveBeenCalledWith(null);
   });
 
+  it("keeps a numeric metadata comparison the AI result cannot carry", () => {
+    const comparison: FilterState[number] = {
+      column: "metadata",
+      type: "numberObject",
+      key: "latency_ms",
+      operator: ">",
+      value: 200,
+    };
+    const { result, setFilterState } = setup({
+      filterState: [comparison],
+      searchQuery: null,
+    });
+    act(() => result.current.applyFilters(NEW_FILTERS));
+    expect(setFilterState).toHaveBeenCalledWith([...NEW_FILTERS, comparison]);
+  });
+
   it("resets a non-default searchType to the default on apply", () => {
     const { result, setSearchType } = setup({ searchType: ["id"] });
     act(() => result.current.applyFilters(NEW_FILTERS));
