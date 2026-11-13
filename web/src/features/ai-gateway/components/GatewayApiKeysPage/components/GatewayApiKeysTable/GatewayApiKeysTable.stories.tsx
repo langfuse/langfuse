@@ -74,7 +74,7 @@ const actions = {
 
 const lastUsedCell = (canvas: {
   getAllByRole: (role: "row") => HTMLElement[];
-}) => canvas.getAllByRole("row")[1]!.querySelectorAll("td")[6]!;
+}) => canvas.getAllByRole("row")[1]!.querySelectorAll("td")[5]!;
 
 export const LastUsedLoading = meta.story({
   name: "(Test) Last used shows a skeleton while loading",
@@ -204,10 +204,10 @@ export const RestrictedModels = meta.story({
   },
   play: async ({ canvas }) => {
     const rows = canvas.getAllByRole("row");
-    await expect(rows[1]!.querySelectorAll("td")[5]).toHaveTextContent(
+    await expect(rows[1]!.querySelectorAll("td")[6]).toHaveTextContent(
       "All models",
     );
-    await expect(rows[2]!.querySelectorAll("td")[5]).toHaveTextContent(
+    await expect(rows[2]!.querySelectorAll("td")[6]).toHaveTextContent(
       "anthropic:*+1",
     );
   },

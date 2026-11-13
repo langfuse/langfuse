@@ -112,18 +112,6 @@ export function GatewayApiKeysTable({
       getPrefix: (expiresAt) =>
         isApiKeyExpired(expiresAt) ? "Expired on " : null,
     }),
-    createTableColumn<GatewayApiKey, string[]>({
-      accessorFn: (row) => parseGatewayAllowedModels(row.allowedModels),
-      id: "allowedModels",
-      header: "Models",
-      sensitive: true,
-      hideBelowMd: true,
-      enableResizing: false,
-      loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
-      renderCell: (patterns) => (
-        <GatewayApiKeyModelsCell patterns={patterns ?? null} />
-      ),
-    }),
     createTableColumn<GatewayApiKey, Date>({
       accessorFn: (row) => row.lastUsedAt,
       id: "lastUsedAt",
@@ -151,6 +139,18 @@ export function GatewayApiKeysTable({
           </span>
         );
       },
+    }),
+    createTableColumn<GatewayApiKey, string[]>({
+      accessorFn: (row) => parseGatewayAllowedModels(row.allowedModels),
+      id: "allowedModels",
+      header: "Models",
+      sensitive: true,
+      hideBelowMd: true,
+      enableResizing: false,
+      loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
+      renderCell: (patterns) => (
+        <GatewayApiKeyModelsCell patterns={patterns ?? null} />
+      ),
     }),
     createBadgeListTableColumn<GatewayApiKey>({
       accessorFn: (row) => getMetadataEntries(row.metadata),
