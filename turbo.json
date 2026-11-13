@@ -241,6 +241,7 @@
     "@langfuse/native#build": {
       "dependsOn": [],
       "cache": false,
+      "inputs": ["$TURBO_DEFAULT$", "!index.js", "!index.d.ts"],
       "outputs": []
     }
   }
