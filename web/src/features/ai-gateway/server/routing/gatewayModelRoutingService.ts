@@ -1,6 +1,4 @@
-import { formatGatewayModelSlug } from "@/src/features/ai-gateway/fns/formatGatewayModelSlug";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
-import { matchesGatewayModelPatterns } from "@/src/features/ai-gateway/fns/matchesGatewayModelPatterns";
 import { isOpenAiEmbeddingModel } from "@/src/features/ai-gateway/fns/isOpenAiEmbeddingModel";
 import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider/registry";
 
@@ -80,11 +78,10 @@ function findImplicitConnection<Connection extends GatewayRouteConnection>(
     if (connection.provider !== provider) continue;
     if (!firstProviderConnection) firstProviderConnection = connection;
     if (
-      isGatewayModelAllowed(connection.allowedModels, model) &&
-      matchesGatewayModelPatterns(
-        keyAllowedModels,
-        formatGatewayModelSlug(connection.name, model),
-      )
+      isGatewayModelAllowed(connection.allowedModels, model, {
+        connectionName: connection.name,
+        allowedModels: keyAllowedModels,
+      })
     ) {
       return connection;
     }

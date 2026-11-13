@@ -5,7 +5,7 @@ import { FormField } from "@/src/components/design-system/FormField/FormField";
 import { AllowedModelsPreview } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/components/GatewayApiKeyModelsField/components/AllowedModelsPreview/AllowedModelsPreview";
 import { ModelPatternsInput } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/components/GatewayApiKeyModelsField/components/ModelPatternsInput/ModelPatternsInput";
 import type { CreateGatewayApiKeyFormValues } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/types/createGatewayApiKeyFormSchema";
-import { matchesGatewayModelPatterns } from "@/src/features/ai-gateway/fns/matchesGatewayModelPatterns";
+import { matchesGatewayModelPatterns } from "@/src/features/ai-gateway/fns/gatewayModelPatterns";
 import type { GatewayEnabledModel } from "@/src/features/ai-gateway/types/gatewayEnabledModel";
 
 const PATTERN_HELP = [

@@ -19,6 +19,7 @@ import {
   validateLlmConnectionBaseURL,
 } from "@langfuse/shared/src/server";
 import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import { GatewayApiKeyService } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyService";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { GATEWAY_CONNECTION_NAME_ERRORS } from "@/src/features/ai-gateway/constants/gatewayConnection";
@@ -52,6 +53,7 @@ import { requestJson } from "../models/adapters/shared";
 export class GatewayProviderService {
   private readonly repository: GatewayProviderRepository;
   private readonly modelCatalogService: GatewayModelCatalogService;
+  private readonly apiKeyService: GatewayApiKeyService;
 
   constructor(
     private readonly prisma: PrismaClient,
@@ -59,6 +61,7 @@ export class GatewayProviderService {
     modelCatalogService?: GatewayModelCatalogService,
   ) {
     this.repository = new GatewayProviderRepository(prisma);
+    this.apiKeyService = new GatewayApiKeyService(prisma);
     this.modelCatalogService =
       modelCatalogService ?? new GatewayModelCatalogService(prisma);
   }
@@ -249,19 +252,34 @@ export class GatewayProviderService {
 
     let updated;
     try {
-      updated = await this.repository.updateConnection({
-        organizationId: params.organizationId,
-        id: params.id,
-        name,
-        previousName: existing.name,
-        status: params.credential ? "ENABLED" : params.status,
-        encryptedCredential: params.credential
-          ? encrypt(toStoredCredential(existing.provider, params.credential))
-          : undefined,
-        displaySecret: params.credential
-          ? getDisplaySecretKey(params.credential)
-          : undefined,
-        ...(isEndpointChanged ? toStoredEndpoint(endpoint) : {}),
+      updated = await this.prisma.$transaction(async (tx) => {
+        const connection = await this.repository.updateConnection(
+          {
+            organizationId: params.organizationId,
+            id: params.id,
+            name,
+            previousName: existing.name,
+            status: params.credential ? "ENABLED" : params.status,
+            encryptedCredential: params.credential
+              ? encrypt(
+                  toStoredCredential(existing.provider, params.credential),
+                )
+              : undefined,
+            displaySecret: params.credential
+              ? getDisplaySecretKey(params.credential)
+              : undefined,
+            ...(isEndpointChanged ? toStoredEndpoint(endpoint) : {}),
+          },
+          tx,
+        );
+        if (name !== undefined) {
+          await this.apiKeyService.renameConnectionInModelPatterns(tx, {
+            organizationId: params.organizationId,
+            previousName: existing.name,
+            name,
+          });
+        }
+        return connection;
       });
     } catch (error) {
       rethrowConnectionMutationError(error);

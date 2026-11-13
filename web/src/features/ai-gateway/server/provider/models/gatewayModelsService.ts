@@ -7,7 +7,6 @@ import { formatGatewayModelSlug } from "@/src/features/ai-gateway/fns/formatGate
 import { getBedrockModelApiFormats } from "@/src/features/ai-gateway/fns/getBedrockModelApiFormats";
 import { isGatewayApiFamily } from "@/src/features/ai-gateway/fns/isGatewayApiFamily";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
-import { matchesGatewayModelPatterns } from "@/src/features/ai-gateway/fns/matchesGatewayModelPatterns";
 import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import {
@@ -83,12 +82,10 @@ export class GatewayModelsService {
           return catalog.models
             .filter(
               (model) =>
-                isGatewayModelAllowed(allowedModels, model.id) &&
-                matchesGatewayModelPatterns(
-                  params.context.keyAllowedModels,
-                  formatGatewayModelSlug(connection.name, model.id),
-                ) &&
-                modelMatchesApiFormat(model, params.apiFormat),
+                isGatewayModelAllowed(allowedModels, model.id, {
+                  connectionName: connection.name,
+                  allowedModels: params.context.keyAllowedModels,
+                }) && modelMatchesApiFormat(model, params.apiFormat),
             )
             .map(({ apiFormats: _apiFormats, ...model }) => ({
               ...model,

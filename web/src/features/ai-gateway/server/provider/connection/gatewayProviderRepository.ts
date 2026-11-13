@@ -150,40 +150,33 @@ export class GatewayProviderRepository {
     return toSafeConnection(connection);
   }
 
-  async updateConnection(params: {
-    organizationId: string;
-    id: string;
-    name?: string;
-    encryptedCredential?: string;
-    displaySecret?: string;
-    baseURL?: string | null;
-    extraHeaders?: string | null;
-    extraHeaderKeys?: string[];
-    status?: GatewayConnectionStatus;
-    /** Set with `name` to carry key model patterns over to the new name. */
-    previousName?: string;
-  }) {
+  async updateConnection(
+    params: {
+      organizationId: string;
+      id: string;
+      name?: string;
+      encryptedCredential?: string;
+      displaySecret?: string;
+      baseURL?: string | null;
+      extraHeaders?: string | null;
+      extraHeaderKeys?: string[];
+      status?: GatewayConnectionStatus;
+      /** Matching it makes a concurrent rename fail with P2025 instead of leaving key model patterns on a stale name. */
+      previousName?: string;
+    },
+    client: Prisma.TransactionClient = this.prisma,
+  ) {
     const { organizationId, id, previousName, ...data } = params;
-    return this.prisma.$transaction(async (tx) => {
-      // Matching the previous name makes a concurrent rename fail with P2025 instead of leaving key patterns on a stale name.
-      const connection = await tx.gatewayAiConnection.update({
-        where: {
-          id,
-          organizationId,
-          ...(previousName !== undefined && { name: previousName }),
-        },
-        data,
-        select: safeConnectionSelect,
-      });
-      if (data.name !== undefined && previousName !== undefined) {
-        await renameConnectionInGatewayKeyModelPatterns(tx, {
-          organizationId,
-          previousName,
-          name: data.name,
-        });
-      }
-      return toSafeConnection(connection);
+    const connection = await client.gatewayAiConnection.update({
+      where: {
+        id,
+        organizationId,
+        ...(previousName !== undefined && { name: previousName }),
+      },
+      data,
+      select: safeConnectionSelect,
     });
+    return toSafeConnection(connection);
   }
 
   async updateAllowedModels(params: {
@@ -249,45 +242,4 @@ export class GatewayProviderRepository {
     });
     return connection !== null;
   }
-}
-
-/**
- * Key model patterns name connections, so a rename would otherwise silently
- * drop access. Patterns that start with `previousName:` or `-previousName:`
- * (ignoring case, like the matcher) move to the new name; wildcard prefixes
- * stay as typed. One statement, so a concurrent rename of another connection
- * rewrites the committed array instead of overwriting it.
- */
-async function renameConnectionInGatewayKeyModelPatterns(
-  tx: Prisma.TransactionClient,
-  params: { organizationId: string; previousName: string; name: string },
-) {
-  const include = `${params.previousName}:`;
-  const exclude = `-${include}`;
-  await tx.$executeRaw`
-    UPDATE gateway_api_key_associations AS a
-    SET allowed_models = (
-      SELECT jsonb_agg(
-        CASE
-          WHEN lower(left(e.pattern, char_length(${include}::text))) = lower(${include}::text)
-            THEN ${`${params.name}:`}::text || substr(e.pattern, char_length(${include}::text) + 1)
-          WHEN lower(left(e.pattern, char_length(${exclude}::text))) = lower(${exclude}::text)
-            THEN ${`-${params.name}:`}::text || substr(e.pattern, char_length(${exclude}::text) + 1)
-          ELSE e.pattern
-        END
-        ORDER BY e.position
-      )
-      FROM jsonb_array_elements_text(a.allowed_models) WITH ORDINALITY AS e(pattern, position)
-    )
-    FROM api_keys AS k
-    WHERE k.id = a.api_key_id
-      AND k.organization_id = ${params.organizationId}
-      AND jsonb_typeof(a.allowed_models) = 'array'
-      AND EXISTS (
-        SELECT 1
-        FROM jsonb_array_elements_text(a.allowed_models) AS p(pattern)
-        WHERE lower(left(p.pattern, char_length(${include}::text))) = lower(${include}::text)
-          OR lower(left(p.pattern, char_length(${exclude}::text))) = lower(${exclude}::text)
-      )
-  `;
 }

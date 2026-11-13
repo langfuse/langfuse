@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { matchesGatewayModelPatterns } from "@/src/features/ai-gateway/fns/matchesGatewayModelPatterns";
+import { matchesGatewayModelPatterns } from "@/src/features/ai-gateway/fns/gatewayModelPatterns";
 
 const models = [
   "openai:gpt-5",

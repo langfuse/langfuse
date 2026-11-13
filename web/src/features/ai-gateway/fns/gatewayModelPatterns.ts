@@ -1,6 +1,36 @@
 const EXCLUDE_PREFIX = "-";
 
 /**
+ * The pattern for typed text: wrapped in `*` unless it already names a
+ * connection or uses a wildcard, keeping a leading `-`. Null for blank text.
+ */
+export function toTypedGatewayModelPattern(text: string) {
+  const trimmed = text.trim();
+  const prefix = trimmed.startsWith(EXCLUDE_PREFIX) ? EXCLUDE_PREFIX : "";
+  const term = trimmed.slice(prefix.length);
+  if (!term) return null;
+  return term.includes("*") || term.includes(":")
+    ? `${prefix}${term}`
+    : `${prefix}*${term}*`;
+}
+
+/** Adds the comma-separated patterns typed in the models input, skipping blanks and duplicates. */
+export function addGatewayModelPatterns(
+  patterns: readonly string[],
+  draft: string,
+) {
+  return [
+    ...new Set([
+      ...patterns,
+      ...draft.split(",").flatMap((text) => {
+        const pattern = toTypedGatewayModelPattern(text);
+        return pattern === null ? [] : [pattern];
+      }),
+    ]),
+  ];
+}
+
+/**
  * Whether a gateway key's model patterns allow a `connection:model` slug.
  * `*` matches any characters; a leading `-` excludes. Matching ignores case.
  * Without include patterns, every model not excluded is allowed. Null allows
