@@ -378,6 +378,38 @@ describe("AI SDK Adapter", () => {
       expect(typeof result.data?.[0].content).toBe("string");
       expect(result.data?.[0].content).toContain("temperature");
     });
+
+    it("should stringify rich tool result payloads that carry reserved message fields", () => {
+      const input = {
+        messages: [
+          {
+            role: "tool",
+            tool_call_id: "call_123",
+            content: {
+              name: "Alice",
+              role: "admin",
+              email: "a@x.io",
+              tool_call_id: "garbage",
+            },
+          },
+        ],
+      };
+
+      const result = normalizeInput(input, { framework: "aisdk" });
+
+      expect(result.success).toBe(true);
+      expect(result.data?.[0].role).toBe("tool");
+      expect(result.data?.[0].tool_call_id).toBe("call_123");
+      // Colliding payload stays visible as a JSON string instead of
+      // overwriting the message identity
+      expect(typeof result.data?.[0].content).toBe("string");
+      expect(JSON.parse(result.data?.[0].content ?? "{}")).toEqual({
+        name: "Alice",
+        role: "admin",
+        email: "a@x.io",
+        tool_call_id: "garbage",
+      });
+    });
   });
 
   describe("mixed content", () => {

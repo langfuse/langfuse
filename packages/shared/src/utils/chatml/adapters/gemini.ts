@@ -4,6 +4,7 @@ import {
   stringifyToolResultContent,
   isRichToolResult,
   getNestedProperty,
+  richToolResultOverwritesMessageFields,
 } from "../helpers";
 import { z } from "zod";
 
@@ -336,7 +337,10 @@ function normalizeGeminiMessage(msg: unknown): Record<string, unknown> {
     normalized.content !== null &&
     !Array.isArray(normalized.content)
   ) {
-    if (isRichToolResult(normalized.content)) {
+    if (
+      isRichToolResult(normalized.content) &&
+      !richToolResultOverwritesMessageFields(normalized.content)
+    ) {
       // Rich object: spread for table rendering
       const { content, ...rest } = normalized;
       return { ...rest, ...content };
