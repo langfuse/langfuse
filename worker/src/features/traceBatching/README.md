@@ -378,19 +378,19 @@ failures mark the `trace-batch-store-inputs` span as failed. Neither outcome sto
 Topics. The span records outcome and JSON length without transcript content;
 there are no additional outcome counters.
 
-Deploy with writes disabled. Before enabling, configure and verify an enabled
-bucket lifecycle rule for the full `<prefix>trace-batch/trace/` path, matching
-span-eval retention, including noncurrent versions where applicable. A rule for
-`evals/` alone does not cover this path. Enable on a small worker rollout and
-check storage spans, size-skip logs, S3 failures and Topics latency. Roll back by
-disabling writes. Existing Topics processing continues to use in-memory inputs;
-future consumers that require files must schedule only after a successful PUT.
+Deploy with writes disabled. Enable on a small worker rollout and check storage
+spans, size-skip logs, S3 failures and Topics latency. Roll back by disabling
+writes. Existing Topics processing continues to use in-memory inputs; future
+consumers that require files must schedule only after a successful PUT.
 
 Like temporary span-eval inputs, these objects have no ingestion deletion
-references. Trace/project deletion and per-project retention do not immediately
-remove them; bucket expiry is the accepted cleanup mechanism, and the deletion
-paths are intentionally not extended. The lifecycle rule above remains the
-precondition for enabling writes.
+references. Trace and project deletion do not remove them. They expire after
+three days (`TRACE_BATCH_INPUT_RETENTION_MS`). The trace-batch input cleaner
+lists `<prefix>trace-batch/trace/` with the shared event-upload client and
+deletes older objects. It starts when
+`LANGFUSE_TRACE_BATCH_INPUT_CLEANER_ENABLED=true`. A bucket lifecycle rule on
+that prefix, including noncurrent versions, remains a useful backstop. A rule
+for `evals/` alone does not cover this path.
 
 ## Per-trace transcripts
 

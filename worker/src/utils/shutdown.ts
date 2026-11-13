@@ -17,6 +17,7 @@ import {
   inAppAgentRetentionCleaner,
   batchProjectMediaCleaner,
   batchProjectBlobCleaner,
+  traceBatchInputCleaner,
   batchTraceDeletionCleaner,
   traceDeleteBatchActionRunner,
   inAppAgentIntegrityRunner,
@@ -76,6 +77,9 @@ const runDrainAndClose = async () => {
 
   // Stop batch project blob cleaner
   batchProjectBlobCleaner?.stop();
+
+  // Stop trace-batch input cleaner
+  traceBatchInputCleaner?.stop();
 
   // Stop batch trace deletion cleaner
   batchTraceDeletionCleaner?.stop();
