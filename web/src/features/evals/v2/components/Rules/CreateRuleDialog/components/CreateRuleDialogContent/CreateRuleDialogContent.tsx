@@ -29,7 +29,7 @@ import { useProject } from "@/src/features/projects/hooks";
 import { prepareNameForSave } from "@/src/features/evals/v2/fns/prepareNameForSave";
 import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
 import { traceTranscriptAssignments } from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
-import { useCanViewTraceTranscriptsEvals } from "@/src/features/evals/hooks/useCanViewTraceTranscriptsEvals";
+import { useCanViewTraceTranscriptsEvals } from "@/src/features/evals/transcriptEvalsAccess";
 import type { RuleScope } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleFilterStep";
 import { resolveInitialRuleFilters } from "./resolveInitialRuleFilters";
 
