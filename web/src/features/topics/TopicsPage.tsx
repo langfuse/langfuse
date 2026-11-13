@@ -462,7 +462,6 @@ function TopicsWorkspaceContent({
     <TopicSliceDialogController
       projectId={projectId}
       facets={facets.data ?? []}
-      canWrite={canWrite}
       liveDisabledReason={
         (maps.data?.rules.length ?? 0) >= TOPICS_MAX_RULES
           ? `A project can have at most ${TOPICS_MAX_RULES} live scans.`
