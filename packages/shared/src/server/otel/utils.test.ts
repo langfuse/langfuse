@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   flattenJsonToPathArrays,
   getOtelIdRejectionReason,
+  normalizeOtelDateTime,
   validateOtelSpanIds,
 } from "./utils";
+import { stringDateTime } from "../ingestion/types";
 
 const TRACE_ID = "bb14c33c23138873afcc5e6f3c2b5f61"; // 16 bytes
 const SPAN_ID = "cb00000daff4e5ae"; // 8 bytes
@@ -384,4 +386,55 @@ describe("flattenJsonToPathArrays", () => {
       });
     },
   );
+});
+
+describe("normalizeOtelDateTime", () => {
+  it.each([
+    {
+      case: "date-only string",
+      input: "2025-01-01",
+      expected: "2025-01-01T00:00:00.000Z",
+    },
+    {
+      case: "full ISO-8601 string in UTC",
+      input: "2025-10-01T08:45:26.112Z",
+      expected: "2025-10-01T08:45:26.112Z",
+    },
+    {
+      case: "high-precision microsecond ISO string",
+      input: "2025-10-01T08:45:26.112648Z",
+      expected: "2025-10-01T08:45:26.112Z",
+    },
+    {
+      case: "ISO string with positive timezone offset",
+      input: "2025-01-01T12:00:00+02:00",
+      expected: "2025-01-01T10:00:00.000Z",
+    },
+    {
+      case: "space-separated datetime string",
+      input: "2025-01-01 12:00:00Z",
+      expected: "2025-01-01T12:00:00.000Z",
+    },
+  ])(
+    "normalizes $case to ISO format accepted by stringDateTime schema",
+    ({ input, expected }) => {
+      const result = normalizeOtelDateTime(input);
+      expect(result).toBe(expected);
+      expect(stringDateTime.safeParse(result).success).toBe(true);
+    },
+  );
+
+  it.each([
+    { case: "invalid text", input: "not-a-date" },
+    { case: "empty string", input: "" },
+    { case: "null", input: null },
+    { case: "undefined", input: undefined },
+    { case: "number timestamp", input: 1700000000000 },
+    { case: "boolean", input: true },
+    { case: "empty object", input: {} },
+    { case: "array", input: ["2025-01-01"] },
+  ])("returns null for non-date or invalid input ($case)", ({ input }) => {
+    const result = normalizeOtelDateTime(input);
+    expect(result).toBeNull();
+  });
 });

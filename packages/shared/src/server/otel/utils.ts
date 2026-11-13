@@ -2,6 +2,17 @@ export function isValidDateString(dateString: string): boolean {
   return !isNaN(new Date(dateString).getTime());
 }
 
+/**
+ * Accepts what `isValidDateString` accepts and returns the ISO-8601 date-time string
+ * with timezone offset required by downstream ingestion schemas (such as `stringDateTime`).
+ * Returns null if the value is not a valid date string or cannot produce a finite timestamp.
+ */
+export function normalizeOtelDateTime(value: unknown): string | null {
+  if (typeof value !== "string" || !isValidDateString(value)) return null;
+  const ms = new Date(value).getTime();
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+}
+
 export type OtelIdRejectionReason = "absent" | "not_an_id";
 
 /**
