@@ -4930,9 +4930,9 @@
   {
     "id": "daf8fbc2-52d3-4782-9dd0-b34d56046703",
     "modelName": "claude-sonnet-5-5",
-    "matchPattern": "(?i)^((anthropic\\/)?claude-sonnet-5-5|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-sonnet-5-5(-v1(:0)?)?)$",
+    "matchPattern": "(?i)^((anthropic\\/)?claude-sonnet-5-5|global\\.anthropic\\.claude-sonnet-5-5(-v1(:0)?)?)$",
     "createdAt": "2026-09-29T00:00:00.000Z",
-    "updatedAt": "2026-10-13T00:00:00.000Z",
+    "updatedAt": "2026-11-13T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -5077,9 +5077,9 @@
   {
     "id": "dbd69017-f8ff-4ac2-8cc3-044381a0e744",
     "modelName": "claude-haiku-5-5",
-    "matchPattern": "(?i)^((anthropic\\/)?claude-haiku-5-5|(eu\\.|us\\.|ca\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-haiku-5-5(-v1(:0)?)?)$",
+    "matchPattern": "(?i)^((anthropic\\/)?claude-haiku-5-5|global\\.anthropic\\.claude-haiku-5-5(-v1(:0)?)?)$",
     "createdAt": "2026-10-07T00:00:00.000Z",
-    "updatedAt": "2026-11-05T00:00:00.000Z",
+    "updatedAt": "2026-11-13T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -9880,6 +9880,95 @@
         "conditions": [],
         "prices": {
           "input": 0.12e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "73c88968-796f-4a2b-8dae-a72ae10d7f63",
+    "modelName": "anthropic.claude-sonnet-5-5",
+    "matchPattern": "(?i)^((eu\\.|us\\.|ca\\.|apac\\.|au\\.|jp\\.)?anthropic\\.claude-sonnet-5-5(-v1(:0)?)?)$",
+    "createdAt": "2026-11-13T00:00:00.000Z",
+    "updatedAt": "2026-11-13T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": "claude",
+    "pricingTiers": [
+      {
+        "id": "73c88968-796f-4a2b-8dae-a72ae10d7f63_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 2.2e-6,
+          "input_tokens": 2.2e-6,
+          "output": 11e-6,
+          "output_tokens": 11e-6,
+          "cache_creation_input_tokens": 2.75e-6,
+          "input_cache_creation": 2.75e-6,
+          "input_cache_creation_5m": 2.75e-6,
+          "input_cache_creation_1h": 4.4e-6,
+          "cache_read_input_tokens": 0.11e-6,
+          "input_cached_tokens": 0.11e-6,
+          "input_cache_read": 0.11e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "03609174-8912-4f9d-94ef-bb6fb14d8d7c",
+    "modelName": "anthropic.claude-haiku-5-5",
+    "matchPattern": "(?i)^((eu\\.|us\\.|ca\\.|apac\\.|au\\.|jp\\.)?anthropic\\.claude-haiku-5-5(-v1(:0)?)?)$",
+    "createdAt": "2026-11-13T00:00:00.000Z",
+    "updatedAt": "2026-11-13T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": "claude",
+    "pricingTiers": [
+      {
+        "id": "03609174-8912-4f9d-94ef-bb6fb14d8d7c_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.11e-6,
+          "input_tokens": 0.11e-6,
+          "output": 0.55e-6,
+          "output_tokens": 0.55e-6,
+          "cache_creation_input_tokens": 0.1375e-6,
+          "input_cache_creation": 0.1375e-6,
+          "input_cache_creation_5m": 0.1375e-6,
+          "input_cache_creation_1h": 0.22e-6,
+          "cache_read_input_tokens": 0.011e-6,
+          "input_cached_tokens": 0.011e-6,
+          "input_cache_read": 0.011e-6
+        }
+      },
+      {
+        "id": "1ac7df56-2844-401f-8423-190a32d3443d",
+        "name": "Large Context (>100K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "(input|prompt|cached)",
+            "operator": "gt",
+            "value": 100000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 0.55e-6,
+          "input_tokens": 0.55e-6,
+          "output": 2.75e-6,
+          "output_tokens": 2.75e-6,
+          "cache_creation_input_tokens": 0.6875e-6,
+          "input_cache_creation": 0.6875e-6,
+          "input_cache_creation_5m": 0.6875e-6,
+          "input_cache_creation_1h": 1.1e-6,
+          "cache_read_input_tokens": 0.055e-6,
+          "input_cached_tokens": 0.055e-6,
+          "input_cache_read": 0.055e-6
         }
       }
     ]
