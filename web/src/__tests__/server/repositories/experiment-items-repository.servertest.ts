@@ -4,6 +4,8 @@ import {
   createScoresCh,
   getExperimentItemsFromEvents,
   getExperimentItemsCountFromEvents,
+  getExperimentsStartTime,
+  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_HOURS,
   getExperimentItemsBatchIO,
   getExperimentMetricsFromEvents,
   createTraceScore,
@@ -152,6 +154,90 @@ describe("Clickhouse Experiment Items Repository Test", () => {
       // THEN: Item should be returned
       expect(result).toHaveLength(1);
       expect(result[0].itemId).toBe(item1Id);
+    });
+
+    it("should bound score filters by the experiment start minus the score lookback", async () => {
+      const baselineExpId = randomUUID();
+      const itemId = randomUUID();
+      const traceId = randomUUID();
+      const rootId = randomUUID();
+      const lookbackMs =
+        SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_HOURS * 60 * 60 * 1000;
+      const startTimeMs = Date.now() - 24 * 60 * 60 * 1000;
+      const scoreTimes = {
+        "too-old": startTimeMs - lookbackMs - 60 * 60 * 1000,
+        "in-lookback": startTimeMs - lookbackMs / 2,
+      };
+
+      await createEventsCh([
+        createExperimentEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          span_id: rootId,
+          experimentId: baselineExpId,
+          experimentName: "baseline-exp",
+          itemId,
+          experimentItemRootSpanId: rootId,
+          start_time: startTimeMs * 1000,
+        }),
+      ]);
+      await createScoresCh(
+        Object.entries(scoreTimes).flatMap(([name, timeMs]) =>
+          [null, rootId].map((observationId) =>
+            createTraceScore({
+              project_id: projectId,
+              trace_id: traceId,
+              observation_id: observationId,
+              name,
+              value: 1,
+              data_type: "NUMERIC",
+              timestamp: timeMs,
+              created_at: timeMs,
+              updated_at: timeMs,
+              event_ts: timeMs,
+            }),
+          ),
+        ),
+      );
+
+      const experimentsStartTime = await getExperimentsStartTime({
+        projectId,
+        experimentIds: [baselineExpId],
+      });
+      expect(experimentsStartTime?.getTime()).toBe(startTimeMs);
+
+      const queryItems = (scoreName: string, columns: string[]) =>
+        getExperimentItemsFromEvents({
+          projectId,
+          baseExperimentId: baselineExpId,
+          compExperimentIds: [],
+          filterByExperiment: [
+            {
+              experimentId: baselineExpId,
+              filters: columns.map(
+                (column) =>
+                  ({
+                    column,
+                    type: "numberObject",
+                    key: scoreName,
+                    operator: ">",
+                    value: 0.5,
+                  }) as FilterCondition,
+              ),
+            },
+          ],
+          experimentsStartTime,
+          limit: 10,
+          offset: 0,
+        });
+
+      for (const column of ["trace_scores_avg", "obs_scores_avg"]) {
+        expect(await queryItems("too-old", [column]), column).toHaveLength(0);
+      }
+      // Both CTEs mounted at once must each keep the lookback.
+      expect(
+        await queryItems("in-lookback", ["trace_scores_avg", "obs_scores_avg"]),
+      ).toHaveLength(1);
     });
 
     it("should filter items by root observation numeric scores", async () => {

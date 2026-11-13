@@ -266,6 +266,8 @@ exports[`golden: scores.getScoresForExperimentItems > experimentIds set 1`] = `
       "exp-a",
       "exp-b",
     ],
+    "param3": "2026-01-01 00:00:00.000",
+    "param4": "2025-12-31 23:00:00.000",
   },
   "sql": "SELECT
     s.id AS id,
@@ -302,10 +304,12 @@ FROM
     WHERE (e.project_id = {param1:String})
         AND (e.experiment_id IN ({param2:Array(String)}))
         AND (e.experiment_id != '')
+        AND (e.start_time >= {param3:DateTime64(6)})
 ) AS e
 INNER JOIN scores AS s
 FINAL ON (e.trace_id = s.trace_id) AND (e.project_id = s.project_id) AND (s.project_id = {param1:String})
-WHERE s.data_type IN ('NUMERIC', 'BOOLEAN', 'CATEGORICAL')
+WHERE (s.data_type IN ('NUMERIC', 'BOOLEAN', 'CATEGORICAL'))
+    AND (s.timestamp >= {param4:DateTime64(3)})
 ORDER BY s.event_ts DESC
 LIMIT 1 BY
     s.id,

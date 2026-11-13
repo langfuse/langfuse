@@ -617,7 +617,10 @@ export { clickhouseCompliantRandomCharacters } from "./repositories/clickhouse";
 export { OBSERVATIONS_TO_TRACE_INTERVAL_DAYS } from "./repositories/constants";
 export { OBSERVATIONS_TO_TRACE_INTERVAL } from "./repositories/constants";
 export { TRACE_TO_OBSERVATIONS_INTERVAL } from "./repositories/constants";
-export { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./repositories/constants";
+export {
+  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
+  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_HOURS,
+} from "./repositories/constants";
 export { isStorableTraceSessionId } from "./repositories/trace-sessions";
 export { storableTraceSessionIds } from "./repositories/trace-sessions";
 export { getPublicSessionsFilter } from "./repositories/trace-sessions";
@@ -716,6 +719,7 @@ export { getExperimentItemsCountFromEvents } from "./repositories/experiments";
 export { getExperimentItemsFilterOptions } from "./repositories/experiments";
 export { getExperimentScoreOptions } from "./repositories/experiments";
 export { getExperimentItemsFromEvents } from "./repositories/experiments";
+export { getExperimentsStartTime } from "./repositories/experiments";
 export { type ExperimentOutputData } from "./repositories/experiments";
 export { type ExperimentItemBatchIO } from "./repositories/experiments";
 export { getExperimentItemsBatchIO } from "./repositories/experiments";
