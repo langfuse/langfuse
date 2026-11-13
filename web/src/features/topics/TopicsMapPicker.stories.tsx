@@ -23,6 +23,7 @@ const rule = (
   createdAt: hoursAgo(24 * 30),
   updatedAt: hoursAgo(24 * 30),
   lastRefitAt: hoursAgo(3),
+  refresh: { availableAt: null, running: false },
   ...overrides,
 });
 const condition = (column: string, value: string) => ({

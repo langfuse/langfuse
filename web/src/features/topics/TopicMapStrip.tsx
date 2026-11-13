@@ -39,7 +39,7 @@ function Strip({
   );
 }
 
-/** The selected live map's controls; a status line only while paused or building. */
+/** The selected live map's controls and when its map was last fitted or refreshed. */
 function TopicRuleStrip({
   rule,
   now,
@@ -66,7 +66,8 @@ function TopicRuleStrip({
 }
 
 function ruleTrailing(rule: TopicRuleMap, now: number, mapShown: boolean) {
-  if (rule.enabled === false || (!rule.lastRefitAt && !mapShown))
+  if (rule.refresh.running) return "Refreshing map…";
+  if (rule.enabled === false || rule.lastRefitAt || !mapShown)
     return topicRuleFreshness(rule, now);
   return "";
 }
