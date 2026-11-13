@@ -694,10 +694,19 @@ export const experimentsRouter = createTRPCRouter({
         ),
       );
 
+      // A score can't predate the experiment run it scores, so the earliest
+      // run start bounds both score lookups.
+      const startTimes = items.flatMap((item) =>
+        item.experiments.map((run) => run.startTime.getTime()),
+      );
+      const minStartTime =
+        startTimes.length > 0 ? new Date(Math.min(...startTimes)) : undefined;
+
       const [observationScores, traceScores] = await Promise.all([
         getScoresForObservations({
           projectId: input.projectId,
           observationIds,
+          minTimestamp: minStartTime,
           excludeMetadata: true,
           includeHasMetadata: true,
           preferredClickhouseService: "ReadOnly",
@@ -705,6 +714,7 @@ export const experimentsRouter = createTRPCRouter({
         getScoresForTraces({
           projectId: input.projectId,
           traceIds,
+          timestamp: minStartTime,
           level: "trace",
           excludeMetadata: true,
           includeHasMetadata: true,

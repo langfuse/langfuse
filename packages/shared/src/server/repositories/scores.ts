@@ -86,6 +86,7 @@ import { compileClickhouseQuery } from "../query-ast/compile";
 import { shouldSkipScoresDedup } from "../queries/clickhouse-sql/query-options";
 import { getClickhouseKysely } from "../query-ast/dialect";
 import {
+  interval,
   limitBy,
   literal,
   mapKeys,
@@ -482,6 +483,23 @@ const scoresForExperimentItemsQuery = (
       "s.data_type",
       "in",
       AGGREGATABLE_SCORE_TYPES.map((t) => literal(t)),
+    )
+    // A score can't predate the experiment it scores: bound s.timestamp by
+    // the experiments' earliest start (minus the usual clock-skew slack) so
+    // the scores scan doesn't cover the project's whole history.
+    .where((eb) =>
+      eb(
+        "s.timestamp",
+        ">=",
+        eb.fn<Date>("minus", [
+          eb
+            .selectFrom("events as e")
+            .select((eb) => eb.fn.min("e.start_time").as("min_start_time"))
+            .where("e.experiment_id", "in", experimentIds)
+            .where("e.experiment_id", "!=", literal("")),
+          interval(1, "hour"),
+        ]),
+      ),
     )
     .orderBy("s.event_ts", "desc")
     .$call(
