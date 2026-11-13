@@ -674,10 +674,9 @@ describe("Slack Integration", () => {
           teamName: "Test Team",
         });
 
-        // 🔒 CRITICAL: Ensure audit log doesn't expose encrypted bot token
-        expect(JSON.stringify(beforeData)).not.toContain("xoxb-");
-        // But encrypted token should be in the audit log for recovery purposes
-        expect(beforeData).toHaveProperty("botToken");
+        expect(auditLog?.before).not.toContain("xoxb-");
+        expect(auditLog?.before).not.toContain(integration.botToken);
+        expect(beforeData).not.toHaveProperty("botToken");
       });
 
       it("should handle missing integration gracefully", async () => {
