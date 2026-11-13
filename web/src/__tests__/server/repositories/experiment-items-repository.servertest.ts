@@ -5,6 +5,7 @@ import {
   getExperimentItemsFromEvents,
   getExperimentItemsCountFromEvents,
   getExperimentsStartTime,
+  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_HOURS,
   getExperimentItemsBatchIO,
   getExperimentMetricsFromEvents,
   createTraceScore,
@@ -155,13 +156,18 @@ describe("Clickhouse Experiment Items Repository Test", () => {
       expect(result[0].itemId).toBe(item1Id);
     });
 
-    it("should ignore scores older than the experiment start in score filters", async () => {
+    it("should bound score filters by the experiment start minus the score lookback", async () => {
       const baselineExpId = randomUUID();
       const itemId = randomUUID();
       const traceId = randomUUID();
       const rootId = randomUUID();
+      const lookbackMs =
+        SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_HOURS * 60 * 60 * 1000;
       const startTimeMs = Date.now() - 24 * 60 * 60 * 1000;
-      const tooOldMs = startTimeMs - 2 * 60 * 60 * 1000;
+      const scoreTimes = {
+        "too-old": startTimeMs - lookbackMs - 60 * 60 * 1000,
+        "in-lookback": startTimeMs - lookbackMs / 2,
+      };
 
       await createEventsCh([
         createExperimentEvent({
@@ -176,19 +182,21 @@ describe("Clickhouse Experiment Items Repository Test", () => {
         }),
       ]);
       await createScoresCh(
-        [null, rootId].map((observationId) =>
-          createTraceScore({
-            project_id: projectId,
-            trace_id: traceId,
-            observation_id: observationId,
-            name: "too-old",
-            value: 1,
-            data_type: "NUMERIC",
-            timestamp: tooOldMs,
-            created_at: tooOldMs,
-            updated_at: tooOldMs,
-            event_ts: tooOldMs,
-          }),
+        Object.entries(scoreTimes).flatMap(([name, timeMs]) =>
+          [null, rootId].map((observationId) =>
+            createTraceScore({
+              project_id: projectId,
+              trace_id: traceId,
+              observation_id: observationId,
+              name,
+              value: 1,
+              data_type: "NUMERIC",
+              timestamp: timeMs,
+              created_at: timeMs,
+              updated_at: timeMs,
+              event_ts: timeMs,
+            }),
+          ),
         ),
       );
 
@@ -198,23 +206,24 @@ describe("Clickhouse Experiment Items Repository Test", () => {
       });
       expect(experimentsStartTime?.getTime()).toBe(startTimeMs);
 
-      for (const column of ["trace_scores_avg", "obs_scores_avg"]) {
-        const result = await getExperimentItemsFromEvents({
+      const queryItems = (scoreName: string, columns: string[]) =>
+        getExperimentItemsFromEvents({
           projectId,
           baseExperimentId: baselineExpId,
           compExperimentIds: [],
           filterByExperiment: [
             {
               experimentId: baselineExpId,
-              filters: [
-                {
-                  column,
-                  type: "numberObject",
-                  key: "too-old",
-                  operator: ">",
-                  value: 0.5,
-                } as FilterCondition,
-              ],
+              filters: columns.map(
+                (column) =>
+                  ({
+                    column,
+                    type: "numberObject",
+                    key: scoreName,
+                    operator: ">",
+                    value: 0.5,
+                  }) as FilterCondition,
+              ),
             },
           ],
           experimentsStartTime,
@@ -222,8 +231,13 @@ describe("Clickhouse Experiment Items Repository Test", () => {
           offset: 0,
         });
 
-        expect(result, column).toHaveLength(0);
+      for (const column of ["trace_scores_avg", "obs_scores_avg"]) {
+        expect(await queryItems("too-old", [column]), column).toHaveLength(0);
       }
+      // Both CTEs mounted at once must each keep the lookback.
+      expect(
+        await queryItems("in-lookback", ["trace_scores_avg", "obs_scores_avg"]),
+      ).toHaveLength(1);
     });
 
     it("should filter items by root observation numeric scores", async () => {
