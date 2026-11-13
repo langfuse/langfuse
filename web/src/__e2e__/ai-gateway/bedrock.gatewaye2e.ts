@@ -41,8 +41,8 @@ describe.skipIf(skip)("AI gateway Bedrock end-to-end", () => {
         },
         headers: { "anthropic-version": "2023-06-01" },
         providerModel: MODEL,
-        // Bedrock reports the Claude model, not the inference profile.
-        responseModel: "claude-haiku-4-5-20251001",
+        // Bedrock reports the model without the profile's region prefix.
+        responseModel: "anthropic.claude-haiku-4-5-20251001-v1:0",
       });
     },
     COMPLETION_TIMEOUT_MS,
