@@ -756,6 +756,7 @@ describe("MCP Read Tools", () => {
       const sharedProvider = `shared-${nanoid()}`;
       const orgOnlyProvider = `org-only-${nanoid()}`;
       const otherOrgProvider = `other-org-${nanoid()}`;
+      const googleProvider = `google-${nanoid()}`;
       const connection = (
         owner: { projectId: string } | { organizationId: string },
         data: {
@@ -801,13 +802,21 @@ describe("MCP Read Tools", () => {
         { organizationId: otherSetup.orgId },
         { provider: otherOrgProvider, adapter: LLMAdapter.OpenAI },
       );
+      await connection(
+        { organizationId: setup.orgId },
+        {
+          provider: googleProvider,
+          adapter: LLMAdapter.GoogleAIStudio,
+          withDefaultModels: true,
+        },
+      );
 
       const result = (await handleListLlmConnections({}, setup.context)) as {
         data: Array<Record<string, unknown>>;
       };
 
       expect(result.data.map((c) => c.provider).sort()).toEqual(
-        [orgOnlyProvider, sharedProvider].sort(),
+        [googleProvider, orgOnlyProvider, sharedProvider].sort(),
       );
       expect(result.data).toEqual(
         expect.arrayContaining([
@@ -829,6 +838,12 @@ describe("MCP Read Tools", () => {
             adapter: LLMAdapter.Anthropic,
             scope: "organization",
             availableModels: ["claude-custom"],
+            decisionModels: [],
+          }),
+          expect.objectContaining({
+            provider: googleProvider,
+            availableModels: supportedModels[LLMAdapter.GoogleAIStudio],
+            decisionModels: ["gemini-decision-1"],
           }),
         ]),
       );
