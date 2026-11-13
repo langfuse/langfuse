@@ -22,11 +22,13 @@ type TopicAction = {
   badge?: string;
 };
 
+const NO_WRITE_ACCESS = "You need permission to edit Topics.";
+
 function newAnalysisDisabledReason(
   canWrite: boolean,
   state: AutomaticProcessingState,
 ) {
-  if (!canWrite) return "You need permission to edit Topics.";
+  if (!canWrite) return NO_WRITE_ACCESS;
   if (state.status === "unconfigured") return "Set up Topics first.";
   return undefined;
 }
@@ -52,12 +54,13 @@ export function prepareTopicsActions({
   onHistory: () => void;
   /** Starts a one-off analysis; absent where none can start. */
   onNewAnalysis?: () => void;
-  /** Edits the selected live run; absent for past runs or without write access. */
+  /** Opens the selected live run's settings; absent for past runs. */
   onEditRun?: () => void;
   showUnassigned: boolean;
   onShowUnassignedChange: (show: boolean) => void;
 }) {
   const { state } = automaticProcessing;
+  const editDisabledReason = canWrite ? undefined : NO_WRITE_ACCESS;
   const menu: TopicAction[] = [];
   // Handheld headers show only the menu, so it carries Edit scan there.
   if (onEditRun && menuOnly)
@@ -65,6 +68,7 @@ export function prepareTopicsActions({
       id: "edit",
       label: "Edit scan",
       icon: Pencil,
+      disabledReason: editDisabledReason,
       onSelect: onEditRun,
     });
   menu.push(
@@ -105,7 +109,10 @@ export function prepareTopicsActions({
       disabledReason: newAnalysis.disabledReason,
       onSelect: newAnalysis.onSelect,
     });
-  const editRun = onEditRun && !menuOnly ? { onSelect: onEditRun } : null;
+  const editRun =
+    onEditRun && !menuOnly
+      ? { onSelect: onEditRun, disabledReason: editDisabledReason }
+      : null;
   return {
     editRun,
     newScan: newAnalysis,

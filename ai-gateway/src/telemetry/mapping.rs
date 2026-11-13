@@ -410,10 +410,12 @@ fn usage_attributes(
     provider_metadata: Option<&Value>,
 ) -> Vec<Value> {
     let mut projected = usage_projection(api_format, usage);
-    if api_format == ApiFormat::OpenAiChatCompletions
-        && metadata.get("provider").and_then(Value::as_str) == Some("xai")
-    {
-        projected = projected.map(xai_chat_usage);
+    if api_format == ApiFormat::OpenAiChatCompletions {
+        match metadata.get("provider").and_then(Value::as_str) {
+            Some("xai") => projected = projected.map(xai_chat_usage),
+            Some("google_ai_studio" | "vertex") => projected = projected.map(gemini_chat_usage),
+            _ => {}
+        }
     }
     let usage_details = projected
         .map(|projected| attribute("langfuse.observation.usage_details", projected.to_string()));
@@ -561,6 +563,20 @@ fn xai_chat_usage(mut usage: Value) -> Value {
         .unwrap_or(0);
     if let Some(completion) = usage.get("completion_tokens").and_then(Value::as_u64) {
         usage["completion_tokens"] = json!(completion + reasoning);
+    }
+    usage
+}
+
+/// Google's `completion_tokens` leaves out thinking tokens, which it bills as
+/// output; only `total_tokens` counts them. Vertex AI's OpenAI-compatible
+/// endpoint serves the same Gemini models; where the counts already add up,
+/// usage passes through unchanged.
+/// <https://discuss.ai.google.dev/t/gemini-3-6-flash-openai-compatible-token-limits-response-fields-and-auth-keys/183372>
+fn gemini_chat_usage(mut usage: Value) -> Value {
+    let count = |key: &str| usage.get(key).and_then(Value::as_u64).unwrap_or(0);
+    let (prompt, total) = (count("prompt_tokens"), count("total_tokens"));
+    if total > prompt + count("completion_tokens") {
+        usage["completion_tokens"] = json!(total - prompt);
     }
     usage
 }
@@ -1445,6 +1461,30 @@ mod tests {
                 "completion_tokens_details": {"reasoning_tokens": 142, "audio_tokens": 0, "accepted_prediction_tokens": 0, "rejected_prediction_tokens": 0},
             })
         );
+    }
+
+    #[test]
+    fn gemini_chat_completions_usage_counts_thinking_as_output() {
+        for provider in ["google_ai_studio", "vertex"] {
+            let mut facts = facts();
+            facts.api_format = ApiFormat::OpenAiChatCompletions;
+            facts.metadata["provider"] = json!(provider);
+            facts.inference.usage_details = Some(json!({
+                "prompt_tokens": 15, "completion_tokens": 18, "total_tokens": 175,
+            }));
+            let attrs = attributes(&span(facts, &context()));
+            let usage: Value = serde_json::from_str(
+                attrs["langfuse.observation.usage_details"]
+                    .as_str()
+                    .unwrap(),
+            )
+            .unwrap();
+            assert_eq!(
+                usage,
+                json!({"prompt_tokens": 15, "completion_tokens": 160, "total_tokens": 175}),
+                "{provider}"
+            );
+        }
     }
 
     #[test]

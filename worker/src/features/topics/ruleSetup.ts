@@ -34,9 +34,8 @@ import type {
   TopicRun,
 } from "@langfuse/shared/topics";
 import { resolveTraceIdleMs } from "../traceBatching/traceBatchReadiness";
-import { isTraceDispatchEnabled } from "../traceBatching/traceBatchSampling";
 import { seedTraceDispatch } from "../traceBatching/traceRuleRecording";
-import { currentRuleMap, estimateFitWindow } from "./nightlyRefit";
+import { currentRuleMap } from "./nightlyRefit";
 
 export const TOPIC_RULE_SETUP_TICK_MS = 15_000;
 const DAY_MS = 86_400_000;
@@ -47,6 +46,8 @@ const STALL_MS = 60_000;
 const STANDARD_FIT_MINIMUM = 100;
 // Events-dispatch caches a project's rules for 15 s; earlier, a pod may drop the new rule.
 const SEED_DELAY_MS = 20_000;
+// Spreads seeded dispatch so up to SETUP_TRACES summaries do not hit the LLM at once.
+const SEED_SPREAD_MS = 60_000;
 // Summaries date from a trace's first event, which can precede the window.
 const SPAN_MARGIN_MS = 5 * 60_000;
 // Fails visibly before the setup keys expire after an hour.
@@ -195,12 +196,6 @@ async function selectAndSeed(
     })),
   );
   const open = setup.facets.filter((facet) => facet.state !== "has_map");
-  const dispatch = isTraceDispatchEnabled();
-  if (open.length && !dispatch)
-    logger.warn("Topics rule setup skips seeding without trace dispatch", {
-      projectId,
-      ruleId: rule.id,
-    });
   let seeded: string[] = [];
   for (const days of open.length ? TOPIC_SETUP_WINDOW_DAYS : []) {
     setup.days = days;
@@ -228,8 +223,6 @@ async function selectAndSeed(
       break;
     }
     const shortfall = SETUP_TRACES - fewest;
-    // Without trace dispatch nothing would pick seeds up; fit what exists.
-    if (!dispatch) continue;
     // Every unsummarized match up to the shortfall; a random sample of it beyond.
     seeded = await getTopicSetupTraceIds({
       projectId,
@@ -278,7 +271,13 @@ async function selectAndSeed(
           (previous.find(({ facetId }) => facetId === facet.facetId)
             ?.complete ?? 0),
       );
-    await seedTraceDispatch(projectId, bounds, [rule.id], SEED_DELAY_MS);
+    await seedTraceDispatch(
+      projectId,
+      bounds,
+      [rule.id],
+      SEED_DELAY_MS,
+      SEED_SPREAD_MS,
+    );
   }
   setup.seededCount = seeded.length;
   for (const facet of open)
@@ -342,7 +341,7 @@ async function fitSettledFacets(
 async function startFit(
   setup: TopicRuleSetup,
   facet: TopicRuleSetupFacet,
-  { rule, embeddingConfig }: SetupContext,
+  { embeddingConfig }: SetupContext,
   now: Date,
 ) {
   const ref = { facetId: facet.facetId, version: facet.facetVersion };
@@ -366,45 +365,8 @@ async function startFit(
     await enqueueTopicRuleRefit(setup.projectId, run.id);
 
   async function createFit() {
-    const from = fitFrom(setup, now);
-    let smallSample =
+    const smallSample =
       facet.existingCount + facet.completeCount < STANDARD_FIT_MINIMUM;
-    // A standard fit stays within the clustering capacity, as nightly refits do.
-    const sized = smallSample
-      ? null
-      : await estimateFitWindow(setup.projectId, ref, embeddingConfig, {
-          from,
-          to: now,
-        });
-    const embedding = {
-      embeddingModel: embeddingConfig.embeddingModel,
-      dimensions: embeddingConfig.embeddingDimensions,
-    };
-    // No window fits the capacity: skip, as the nightly refit does, which ends setup in the building state.
-    if (!smallSample && !sized)
-      return createTopicRun({
-        id,
-        projectId: setup.projectId,
-        facetId: facet.facetId,
-        facetVersion: facet.facetVersion,
-        ruleId: setup.ruleId,
-        status: "skipped",
-        config: embedding,
-      });
-    const window = {
-      from: new Date(Math.max(from.getTime(), sized?.from.getTime() ?? 0)),
-      to: now,
-    };
-    // Capacity counts every summary, but the refit keeps only the rule's matches.
-    if (!smallSample && rule.filter.length && window.from > from)
-      smallSample =
-        (await ruleSummaryCount(
-          setup.projectId,
-          rule,
-          ref,
-          embeddingConfig,
-          window,
-        )) < STANDARD_FIT_MINIMUM;
     return createTopicRun({
       id,
       projectId: setup.projectId,
@@ -412,10 +374,12 @@ async function startFit(
       facetVersion: facet.facetVersion,
       ruleId: setup.ruleId,
       config: {
-        ...embedding,
+        embeddingModel: embeddingConfig.embeddingModel,
+        dimensions: embeddingConfig.embeddingDimensions,
+        // The fit loads the newest of the rule's summaries in this window.
         timeRange: {
-          from: window.from.toISOString(),
-          to: window.to.toISOString(),
+          from: fitFrom(setup, now).toISOString(),
+          to: now.toISOString(),
         },
         ...(smallSample ? { exploratory: true } : {}),
         // The nightly refit then picks up seeded summaries that finish later.
@@ -426,29 +390,6 @@ async function startFit(
       },
     });
   }
-}
-
-/** Complete summaries in the window of traces the rule's filter matches. */
-async function ruleSummaryCount(
-  projectId: string,
-  rule: TopicRule,
-  facet: TopicFacetRef,
-  embeddingConfig: TopicEmbeddingConfig,
-  window: { from: Date; to: Date },
-) {
-  const matching = await topicMatchingTraceIdsQuery(
-    { projectId, filter: rule.filter, ...window },
-    prisma,
-  );
-  if (!matching) return 0;
-  const [{ count }] = await getTopicSetupSummaryCounts(
-    projectId,
-    [facet],
-    embeddingConfig,
-    window,
-    matching,
-  );
-  return count;
 }
 
 /** Copies each fit's status; re-enqueues a pending one, whose job may have been lost. */

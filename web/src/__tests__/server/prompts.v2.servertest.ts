@@ -2293,6 +2293,41 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
     });
   });
 
+  it("should remove labels listed in removeLabels and keep the others", async () => {
+    const { projectId: newProjectId, auth: newAuth } =
+      await createOrgProjectAndApiKey();
+
+    const prompt = await prisma.prompt.create({
+      data: {
+        name: "prompt-1",
+        projectId: newProjectId,
+        version: 1,
+        labels: ["latest", "candidate", "staging"],
+        createdBy: "user-test",
+        prompt: "prompt-1",
+      },
+    });
+
+    const response = await makeAPICall(
+      "PATCH",
+      `${baseURI}/prompt-1/versions/1`,
+      {
+        newLabels: ["production"],
+        removeLabels: ["candidate"],
+      },
+      newAuth,
+    );
+
+    expect(response.status).toBe(200);
+
+    const updatedPrompt = await prisma.prompt.findUnique({
+      where: { id: prompt.id },
+    });
+    expect(updatedPrompt?.labels.sort()).toEqual(
+      ["latest", "production", "staging"].sort(),
+    );
+  });
+
   it("trying to set 'latest' label results in 400 error", async () => {
     const { projectId: newProjectId, auth: newAuth } =
       await createOrgProjectAndApiKey();

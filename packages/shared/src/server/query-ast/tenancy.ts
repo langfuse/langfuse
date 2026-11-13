@@ -13,6 +13,7 @@ import {
   TableNode,
   ValueNode,
   WhereNode,
+  type JoinType,
   type KyselyPlugin,
   type OperationNode,
   type PluginTransformQueryArgs,
@@ -32,6 +33,27 @@ import { TENANTED_TABLES } from "./schema";
 import { SelectRewriteTransformer } from "./transformer";
 
 const PROJECT_ID_COLUMN = "project_id";
+
+/**
+ * The join types the pass accepts. Every other type throws: a cross join has
+ * no ON clause to scope (ClickHouse has no `CROSS JOIN … ON`), and lateral,
+ * apply and USING joins are not ClickHouse SQL.
+ */
+const ALLOWED_JOINS: ReadonlySet<JoinType> = new Set([
+  "InnerJoin",
+  "LeftJoin",
+  "RightJoin",
+  "FullJoin",
+]);
+
+/**
+ * Join types whose ON clause drops the joined table's non-matching rows, so a
+ * project condition there scopes the table.
+ */
+const ON_SCOPABLE_JOINS: ReadonlySet<JoinType> = new Set([
+  "InnerJoin",
+  "LeftJoin",
+]);
 
 /**
  * Identity-based stamp. A copied `langfuseTenancy` property on a cloned node
@@ -74,6 +96,10 @@ export class TenancyInjectionPlugin implements KyselyPlugin {
   }
 }
 
+/**
+ * Visits every select in the tree, subqueries and CTE bodies included, and
+ * scopes that select's own FROM and JOIN relations.
+ */
 class TenancyInjectionTransformer extends SelectRewriteTransformer {
   constructor(private readonly projectId: string) {
     super();
@@ -86,6 +112,17 @@ class TenancyInjectionTransformer extends SelectRewriteTransformer {
   }
 }
 
+/**
+ * Scopes each tenanted FROM table in WHERE, and each tenanted join table in
+ * WHERE or, for an inner or left join, in ON. Throws for more than one FROM
+ * item, for a join type or relation source the pass does not accept, and for a
+ * right or full join on a tenanted table that WHERE does not scope.
+ *
+ * Kysely keeps the FROM relations in `node.from.froms` and each join in
+ * `node.joins`: a `JoinNode` holds the join type, the joined relation (`table`)
+ * and its `on` condition. Below, `join` is that `JoinNode` and `relation` its
+ * joined relation, classified.
+ */
 function injectSelect(
   node: ClickHouseSelectQueryNode,
   projectId: string,
@@ -96,62 +133,123 @@ function injectSelect(
     relation: classifyRelation(join.table),
   }));
 
+  assertSingleFrom(fromRelations);
   for (const relation of fromRelations) {
     assertRelationAllowed(relation);
   }
-  for (const { relation } of joinRelations) {
+  for (const { join, relation } of joinRelations) {
+    assertJoinTypeAllowed(join);
     assertRelationAllowed(relation);
   }
 
-  const isTenantedTable = (
-    r: ScopedRelation,
-  ): r is Extract<ScopedRelation, { kind: "table" }> =>
-    r.kind === "table" && TENANTED_TABLES.has(r.tableName);
-
-  const tenantedFrom = fromRelations.filter(isTenantedTable);
-
-  let where = node.where;
-  for (const table of tenantedFrom) {
-    if (!predicateCovers(where?.where, table, projectId)) {
-      const predicate = projectIdPredicate(table, projectId);
-      // Prepend: the tenancy scope is the leading WHERE predicate, so its bound
-      // value keeps a stable (first) parameter position regardless of the other
-      // predicates a caller wrote.
-      where = where
-        ? WhereNode.create(
-            AndNode.create(predicate, bracketForAnd(where.where)),
-          )
-        : WhereNode.create(predicate);
-    }
-  }
-
-  const joins = joinRelations.map(({ join, relation }) => {
-    if (!isTenantedTable(relation)) {
-      return join;
-    }
-    const onExpr = join.on?.on;
-    if (
-      predicateCovers(onExpr, relation, projectId) ||
-      predicateCovers(where?.where, relation, projectId)
-    ) {
-      return join;
-    }
-    // `on <caller on> and <alias>.project_id = {projectId}`
-    const predicate = projectIdPredicate(relation, projectId);
-    if (!join.on) {
-      return JoinNode.createWithOn(join.joinType, join.table, predicate);
-    }
-    return {
-      ...join,
-      on: OnNode.create(AndNode.create(bracketForAnd(join.on.on), predicate)),
-    };
-  });
+  const where = scopeFromInWhere(
+    node.where,
+    fromRelations.filter(isTenantedTable),
+    projectId,
+  );
+  const joins = joinRelations.map(({ join, relation }) =>
+    scopeJoin(join, relation, where, projectId),
+  );
 
   return {
     ...node,
     ...(where ? { where } : {}),
     ...(joins.length ? { joins } : {}),
   };
+}
+
+function isTenantedTable(
+  r: ScopedRelation,
+): r is Extract<ScopedRelation, { kind: "table" }> {
+  return r.kind === "table" && TENANTED_TABLES.has(r.tableName);
+}
+
+/**
+ * Prepends `<alias>.project_id = {projectId}` to WHERE for each tenanted FROM
+ * table WHERE does not scope yet.
+ */
+function scopeFromInWhere(
+  where: WhereNode | undefined,
+  tenantedFrom: Extract<ScopedRelation, { kind: "table" }>[],
+  projectId: string,
+): WhereNode | undefined {
+  let scoped = where;
+  for (const table of tenantedFrom) {
+    if (!predicateCovers(scoped?.where, table, projectId)) {
+      const predicate = projectIdPredicate(table, projectId);
+      // Prepend: the tenancy scope is the leading WHERE predicate, so its bound
+      // value keeps a stable (first) parameter position regardless of the other
+      // predicates a caller wrote.
+      scoped = scoped
+        ? WhereNode.create(
+            AndNode.create(predicate, bracketForAnd(scoped.where)),
+          )
+        : WhereNode.create(predicate);
+    }
+  }
+  return scoped;
+}
+
+/**
+ * Returns the join unchanged when its relation is not a tenanted table, or
+ * when WHERE or its own ON already scopes it; else ANDs
+ * `<alias>.project_id = {projectId}` into its ON. Throws when the table needs
+ * an ON scope its join type cannot give.
+ */
+function scopeJoin(
+  join: JoinNode,
+  relation: ScopedRelation,
+  where: WhereNode | undefined,
+  projectId: string,
+): JoinNode {
+  if (!isTenantedTable(relation)) return join;
+  if (predicateCovers(where?.where, relation, projectId)) return join;
+  assertScopableInOn(join, relation);
+  if (predicateCovers(join.on?.on, relation, projectId)) return join;
+  // `on <caller on> and <alias>.project_id = {projectId}`
+  const predicate = projectIdPredicate(relation, projectId);
+  if (!join.on) {
+    return JoinNode.createWithOn(join.joinType, join.table, predicate);
+  }
+  return {
+    ...join,
+    on: OnNode.create(AndNode.create(bracketForAnd(join.on.on), predicate)),
+  };
+}
+
+/**
+ * Throws for every join type outside {@link ON_SCOPABLE_JOINS}: a right or
+ * full join keeps the joined table's unmatched rows, so a project condition in
+ * its ON clause scopes nothing. It does not read WHERE; {@link scopeJoin} calls
+ * it only for a table WHERE does not scope.
+ */
+function assertScopableInOn(
+  join: JoinNode,
+  relation: Extract<ScopedRelation, { kind: "table" }>,
+): void {
+  if (!ON_SCOPABLE_JOINS.has(join.joinType)) {
+    throw new UnscopedRelationError(
+      `${join.joinType} on tenanted table "${relation.alias ?? relation.tableName}" cannot be scoped in its ON clause: it keeps rows of other projects. Scope the table in a subquery, or filter its project_id in WHERE.`,
+    );
+  }
+}
+
+/** Throws for every join type outside {@link ALLOWED_JOINS}. */
+function assertJoinTypeAllowed(join: JoinNode): void {
+  if (!ALLOWED_JOINS.has(join.joinType)) {
+    throw new UnscopedRelationError(
+      `${join.joinType} is rejected: only inner, left, right and full joins are accepted. A cross join has no ON clause the tenancy pass can scope, and lateral, apply and USING joins are not ClickHouse SQL. Use an inner join with an explicit ON condition instead.`,
+    );
+  }
+}
+
+/** Throws for a comma FROM list, which ClickHouse reads as a cross join. */
+function assertSingleFrom(fromRelations: ScopedRelation[]): void {
+  if (fromRelations.length > 1) {
+    throw new UnscopedRelationError(
+      `A select with ${fromRelations.length} FROM items is rejected: ClickHouse reads \`from a, b\` as a cross join. Use an inner join with an explicit ON condition instead.`,
+    );
+  }
 }
 
 function assertRelationAllowed(relation: ScopedRelation): void {

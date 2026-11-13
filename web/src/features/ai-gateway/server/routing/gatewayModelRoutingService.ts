@@ -7,6 +7,8 @@ export class GatewayModelRoutingService {
     model: string,
     connections: readonly Connection[],
     apiFormat?: GatewayApiFormat,
+    /** The calling key's model patterns; implicit routing skips connections they deny. */
+    keyAllowedModels: readonly string[] | null = null,
   ): { connection: Connection | null; providerModel: string } | null {
     const modelSlug = parseGatewayModelSlug(model);
     const explicitConnection = modelSlug
@@ -23,7 +25,12 @@ export class GatewayModelRoutingService {
 
     if (model.startsWith("ft:")) {
       return {
-        connection: findImplicitConnection(model, connections, "OPENAI"),
+        connection: findImplicitConnection(
+          model,
+          connections,
+          "OPENAI",
+          keyAllowedModels,
+        ),
         providerModel: model,
       };
     }
@@ -49,7 +56,12 @@ export class GatewayModelRoutingService {
     if (!provider) return null;
 
     return {
-      connection: findImplicitConnection(model, connections, provider),
+      connection: findImplicitConnection(
+        model,
+        connections,
+        provider,
+        keyAllowedModels,
+      ),
       providerModel: model,
     };
   }
@@ -59,12 +71,18 @@ function findImplicitConnection<Connection extends GatewayRouteConnection>(
   model: string,
   connections: readonly Connection[],
   provider: "OPENAI" | "ANTHROPIC",
+  keyAllowedModels: readonly string[] | null,
 ) {
   let firstProviderConnection: Connection | null = null;
   for (const connection of connections) {
     if (connection.provider !== provider) continue;
     if (!firstProviderConnection) firstProviderConnection = connection;
-    if (isGatewayModelAllowed(connection.allowedModels, model)) {
+    if (
+      isGatewayModelAllowed(connection.allowedModels, model, {
+        connectionName: connection.name,
+        allowedModels: keyAllowedModels,
+      })
+    ) {
       return connection;
     }
   }

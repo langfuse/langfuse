@@ -36,18 +36,19 @@ const responseSchema = z.object({
 // OpenRouter has no model status field: `endpoints` says which routes serve a
 // model and `expiration_date` when it may be removed.
 export const openRouterModelDiscoveryAdapter: ModelDiscoveryAdapter = {
-  async fetchCatalog({ credential, extraHeaders, fetcher }) {
+  async fetchCatalog({ credential, baseURL, extraHeaders, fetcher }) {
     const definition = getGatewayProviderDefinition("OPENROUTER");
+    const apiBaseUrl = baseURL ?? definition.baseUrl;
     const headers = { ...extraHeaders, Authorization: `Bearer ${credential}` };
     const [result, embeddings] = await Promise.all([
       requestJson({
         fetcher,
-        url: new URL(`${definition.baseUrl}${definition.modelsPath}`),
+        url: new URL(`${apiBaseUrl}${definition.modelsPath}`),
         headers,
       }),
       requestJson({
         fetcher,
-        url: new URL(`${definition.baseUrl}${EMBEDDINGS_MODELS_PATH}`),
+        url: new URL(`${apiBaseUrl}${EMBEDDINGS_MODELS_PATH}`),
         headers,
         timeoutMs: EMBEDDINGS_TIMEOUT_MS,
       }),

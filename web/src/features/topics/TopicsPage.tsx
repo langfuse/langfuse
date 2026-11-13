@@ -64,6 +64,7 @@ import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { TopicsMapPicker, type UsePreviewTopics } from "./TopicsMapPicker";
 import { TopicMapStrip } from "./TopicMapStrip";
 import { TopicRuleBuildingState } from "./TopicRuleBuildingState";
+import { TopicAnalysisState } from "./TopicAnalysisState";
 import { TopicSliceDialogController } from "./TopicSliceDialogController";
 
 const loadingPage = (
@@ -573,6 +574,21 @@ function TopicsWorkspaceContent({
               selectedRule.enabled !== false &&
               !selectedRule.lastRefitAt &&
               !shownFacets.some((facet) => facet.map);
+            // A scan's question without topics shows where the scan stands, not the live-map empty state;
+            // a no-topics result still has a completed map with no topics.
+            const analysisFacet = shownFacets.find(
+              (facet) => facet.facetId === headerFacetId,
+            );
+            const analysisState =
+              analysisId &&
+              analysisResults.data &&
+              !analysisResults.error &&
+              !analysisFacet?.map?.topics.length
+                ? {
+                    status: analysisResults.data.execution.status,
+                    outcome: analysisFacet?.outcome,
+                  }
+                : null;
             const actions = prepareTopicsActions({
               automaticProcessing,
               canWrite,
@@ -582,15 +598,10 @@ function TopicsWorkspaceContent({
               onConfigure: openConfigure,
               onHistory: openHistory,
               onEditRun:
-                canWrite && selectedRule && !showOnboarding
+                selectedRule && !showOnboarding
                   ? () => openSliceDialog({ kind: "rule", rule: selectedRule })
                   : undefined,
-              onNewAnalysis: () =>
-                openSliceDialog({
-                  kind: "analysis",
-                  filter:
-                    selectedAnalysis?.filter ?? selectedRule?.filter ?? [],
-                }),
+              onNewAnalysis: () => openSliceDialog({ kind: "analysis" }),
               showUnassigned,
               onShowUnassignedChange: setShowUnassigned,
             });
@@ -768,24 +779,35 @@ function TopicsWorkspaceContent({
                       {showBuilding && selectedRule ? (
                         <TopicRuleBuildingState rule={selectedRule} />
                       ) : null}
-                      {!showOnboarding && !showBuilding && !setupInline && (
-                        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-                          <CurrentTopics
-                            projectId={projectId}
-                            scope={scope}
-                            result={shownResults}
-                            selectedFacetId={selectedFacetId}
-                            view={resultsView}
-                            traceFilters={traceFilters}
-                            tracePanelRef={setTracePanel}
-                            onGenerateTopics={openTopicGeneration}
-                            canGenerateTopics={
-                              canWrite && !running && configured
-                            }
-                            showUnassigned={showUnassigned}
-                          />
-                        </div>
-                      )}
+                      {analysisState && analysisId ? (
+                        <TopicAnalysisState
+                          status={analysisState.status}
+                          outcome={analysisState.outcome}
+                          traceCount={selectedAnalysis?.traceCount ?? 0}
+                          onViewRun={() => openExecution(analysisId)}
+                        />
+                      ) : null}
+                      {!showOnboarding &&
+                        !showBuilding &&
+                        !setupInline &&
+                        !analysisState && (
+                          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                            <CurrentTopics
+                              projectId={projectId}
+                              scope={scope}
+                              result={shownResults}
+                              selectedFacetId={selectedFacetId}
+                              view={resultsView}
+                              traceFilters={traceFilters}
+                              tracePanelRef={setTracePanel}
+                              onGenerateTopics={openTopicGeneration}
+                              canGenerateTopics={
+                                canWrite && !running && configured
+                              }
+                              showUnassigned={showUnassigned}
+                            />
+                          </div>
+                        )}
                       {facets.error && (
                         <TopicsErrorMessage message={facets.error.message} />
                       )}

@@ -110,6 +110,9 @@ function TopicGridContent({
         }
         traces={traces}
         totalCount={selectedTopic?.count ?? facet.counts.total}
+        tracingTopic={
+          selectedTopic ? { facet, name: selectedTopic.name } : undefined
+        }
         peekView={peekView}
         tracePanelRef={tracePanelRef}
         headerRef={headerRef}

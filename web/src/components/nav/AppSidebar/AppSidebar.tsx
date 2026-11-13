@@ -1,5 +1,4 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
 "use client";
 
 import * as React from "react";
@@ -19,6 +18,7 @@ import {
 } from "@/src/components/ui/sidebar";
 import Link from "next/link";
 import { LangfuseLogo } from "@/src/components/design-system/LangfuseLogo/LangfuseLogo";
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { type RouteGroup } from "@/src/components/layouts/routes";
 import {
   ArrowUp10,
@@ -47,7 +47,9 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
-import { planLabels, type Plan } from "@langfuse/shared";
+import { isCloudPlan, planLabels, type Plan } from "@langfuse/shared";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { env } from "@/src/env.mjs";
 import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import {
   Card,
@@ -59,6 +61,7 @@ import {
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
 import { assertUnreachable } from "@/src/utils/types";
+import { nextCompactPlanBadge } from "./compactPlanBadge";
 import { SIDEBAR_NOTIFICATIONS, type SidebarNotification } from "./utils";
 import { useOrgProjectSwitchPaths } from "@/src/features/projects/hooks";
 import {
@@ -219,15 +222,45 @@ export function AppSidebar({
             "min-w-0 gap-1.5 pr-2 pl-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
           )}
         >
-          <Link href="/" className="flex items-center">
-            <LangfuseLogo
-              logoLightModeHref={logo.lightModeHref}
-              logoDarkModeHref={logo.darkModeHref}
-            />
-          </Link>
-          <div className="ml-auto flex shrink-0 items-center group-data-[collapsible=icon]:hidden">
-            <VersionLabel state={versionState} version={version} />
-          </div>
+          {organization && !isMobile && (
+            <>
+              <Link
+                href={`/organization/${organization.id}`}
+                aria-label={`${organization.name} projects`}
+                className="ph-no-capture relative z-10 -ml-1 flex shrink-0 items-center group-data-[collapsible=icon]:ml-0"
+              >
+                {logo.lightModeHref && logo.darkModeHref ? (
+                  <>
+                    <img
+                      src={logo.lightModeHref}
+                      alt="Logo"
+                      className="mr-1 size-7 object-contain group-data-[collapsible=icon]:mr-0 dark:hidden"
+                    />
+                    <img
+                      src={logo.darkModeHref}
+                      alt="Logo"
+                      className="mr-1 hidden size-7 object-contain group-data-[collapsible=icon]:mr-0 dark:block"
+                    />
+                  </>
+                ) : (
+                  <LangfuseIcon size={24} />
+                )}
+              </Link>
+              <SidebarOrganizationSwitcher
+                organization={organization}
+                organizations={organizations}
+                canCreateOrganizations={canCreateOrganizations}
+              />
+            </>
+          )}
+          {!(organization && !isMobile) && (
+            <Link href="/" className="flex items-center">
+              <LangfuseLogo
+                logoLightModeHref={logo.lightModeHref}
+                logoDarkModeHref={logo.darkModeHref}
+              />
+            </Link>
+          )}
         </div>
         {showDemoBadge && <DemoBadge />}
       </SidebarHeader>
@@ -254,10 +287,144 @@ export function AppSidebar({
         <NavMain items={secondaryNavItems} />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={user} items={userMenuItems} isMobile={isMobile} />
+        <NavUser
+          user={user}
+          items={userMenuItems}
+          isMobile={isMobile}
+          versionState={versionState}
+          version={version}
+        />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
+  );
+}
+
+/** Plans whose badge has a shorter form for when the full one would truncate the org name. */
+const SHORT_PLAN_LABELS: Partial<Record<Plan, string>> = {
+  "cloud:enterprise": "ENT",
+};
+
+/**
+ * Switches the plan badge to its short label while the full one would
+ * truncate the org name, and back once there is room for it again.
+ */
+function useCompactPlanBadge(hasShortLabel: boolean, name: string) {
+  const nameRef = React.useRef<HTMLSpanElement>(null);
+  const badgeRef = React.useRef<HTMLSpanElement>(null);
+  const chevronRef = React.useRef<HTMLSpanElement>(null);
+  const fullBadgeWidth = React.useRef(0);
+  const compactRef = React.useRef(false);
+  const [compact, setCompact] = React.useState(false);
+
+  React.useLayoutEffect(() => {
+    const nameEl = nameRef.current;
+    const badgeEl = badgeRef.current;
+    const chevronEl = chevronRef.current;
+    if (!hasShortLabel || !nameEl || !badgeEl || !chevronEl) {
+      if (compactRef.current) {
+        compactRef.current = false;
+        setCompact(false);
+      }
+      return;
+    }
+    const update = () => {
+      const parent = nameEl.parentElement;
+      const gapPx = parent
+        ? Number.parseFloat(getComputedStyle(parent).columnGap) || 0
+        : 0;
+      const freeSpace =
+        chevronEl.getBoundingClientRect().left -
+        badgeEl.getBoundingClientRect().right;
+      const next = nextCompactPlanBadge({
+        compact: compactRef.current,
+        nameScrollWidth: nameEl.scrollWidth,
+        nameClientWidth: nameEl.clientWidth,
+        freeSpace,
+        fullBadgeWidth: fullBadgeWidth.current,
+        currentBadgeWidth: badgeEl.offsetWidth,
+        gapPx,
+      });
+      if (next === compactRef.current) return;
+      // Record the full badge before the short label replaces it.
+      if (!compactRef.current) fullBadgeWidth.current = badgeEl.offsetWidth;
+      compactRef.current = next;
+      setCompact(next);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(nameEl);
+    if (nameEl.parentElement) observer.observe(nameEl.parentElement);
+    return () => observer.disconnect();
+  }, [hasShortLabel, name]);
+
+  return { nameRef, badgeRef, chevronRef, compact };
+}
+
+function SidebarOrganizationSwitcher({
+  organization,
+  organizations,
+  canCreateOrganizations,
+}: {
+  organization: { id: string; name: string };
+  organizations: OrganizationOption[] | null;
+  canCreateOrganizations: boolean;
+}) {
+  const { getOrgPath } = useOrgProjectSwitchPaths();
+  const plan = organizations?.find((org) => org.id === organization.id)?.plan;
+  const showPlan =
+    plan !== undefined &&
+    isCloudPlan(plan) &&
+    organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID;
+  const shortPlanLabel = plan ? SHORT_PLAN_LABELS[plan] : undefined;
+  const { nameRef, badgeRef, chevronRef, compact } = useCompactPlanBadge(
+    shortPlanLabel !== undefined,
+    organization.name,
+  );
+
+  return (
+    <div className="flex min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+      <OrganizationDropdownMenu
+        {...(organizations
+          ? { state: "loaded", organizations }
+          : { state: "loading" })}
+        canCreateOrganizations={canCreateOrganizations}
+        getOrgPath={getOrgPath}
+        currentOrganizationId={organization.id}
+      >
+        {({ getTriggerProps }) => (
+          <button
+            type="button"
+            className="text-primary -ml-3.5 flex h-6 min-w-0 flex-1 items-center gap-1.5 py-0 pr-2 pl-3 text-sm"
+            {...getTriggerProps()}
+          >
+            <span
+              ref={nameRef}
+              className="ph-no-capture min-w-0 truncate py-0.5 leading-none font-medium"
+              title={organization.name}
+            >
+              {organization.name}
+            </span>
+            {plan && showPlan && (
+              <span ref={badgeRef} className="flex shrink-0">
+                <Badge
+                  color="filled"
+                  size="sm"
+                  text={
+                    compact && shortPlanLabel
+                      ? shortPlanLabel
+                      : planLabels[plan].toUpperCase()
+                  }
+                />
+              </span>
+            )}
+            <span ref={chevronRef} className="ml-auto flex shrink-0">
+              <DropdownIndicator direction="up-down" size="sm" color="muted" />
+            </span>
+          </button>
+        )}
+      </OrganizationDropdownMenu>
+    </div>
   );
 }
 
@@ -287,6 +454,7 @@ function MobileNavSwitcher({
                 : { state: "loading" })}
               canCreateOrganizations={canCreateOrganizations}
               getOrgPath={getOrgPath}
+              currentOrganizationId={organization.id}
             >
               {({ getTriggerProps }) => (
                 <SidebarMenuButton {...getTriggerProps()}>
@@ -318,6 +486,7 @@ function MobileNavSwitcher({
                   : { state: "loading" })}
                 canCreateProjects={canCreateProjects}
                 getProjectPath={getProjectPath}
+                currentProjectId={project.id}
               >
                 {({ getTriggerProps }) => (
                   <SidebarMenuButton {...getTriggerProps()}>
@@ -437,11 +606,18 @@ function NavUser({
   user,
   items,
   isMobile,
+  versionState,
+  version,
 }: {
   user: SidebarUser;
   items: UserNavigationItem[];
   isMobile: boolean;
+  versionState: SidebarVersionState;
+  version: string;
 }) {
+  const versionDetails = getVersionDetails(versionState, version);
+  const versionStatusDot = getVersionStatusDot(versionDetails);
+
   const renderMenuItem = (item: UserNavigationItem) => {
     if (item.type === "submenu") {
       return (
@@ -495,8 +671,11 @@ function NavUser({
                 <span className="truncate font-bold" title={user.name}>
                   {user.name}
                 </span>
-                <span className="truncate text-xs" title={user.email}>
-                  {user.email}
+                <span className="text-muted-foreground flex min-w-0 items-center gap-1 text-xs">
+                  <span className="truncate" title={versionDetails.text}>
+                    {versionDetails.text}
+                  </span>
+                  {versionStatusDot && <AttentionDot {...versionStatusDot} />}
                 </span>
               </div>
             </SidebarMenuButton>
@@ -526,6 +705,21 @@ function NavUser({
                 </div>
               </div>
             </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <span className="flex items-center gap-1.5">
+                  {versionDetails.text}
+                  {versionStatusDot && <AttentionDot {...versionStatusDot} />}
+                </span>
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <VersionMenuItems
+                  state={versionState}
+                  details={versionDetails}
+                />
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>{items.map(renderMenuItem)}</DropdownMenuGroup>
           </DropdownMenuContent>
@@ -593,181 +787,160 @@ const AttentionDot = ({
   />
 );
 
-const VersionLabel = ({
-  state,
-  version,
-}: {
-  state: SidebarVersionState;
-  version: string;
-}) => {
+type VersionDetails = {
+  text: string;
+  selfHostedPlanLabel: { short: string; long: string } | null;
+  backgroundMigrationStatus: string | null;
+  update: {
+    updateType: "major" | "minor" | "patch";
+    latestRelease: string;
+  } | null;
+};
+
+const getVersionDetails = (
+  state: SidebarVersionState,
+  version: string,
+): VersionDetails => {
   const selfHostedPlanLabel =
     state.deployment === "self-hosted"
       ? selfHostedPlanLabels[state.plan]
       : null;
-  const backgroundMigrationStatus =
-    state.deployment === "self-hosted" &&
-    state.migration.status === "in-progress"
-      ? state.migration.phase
-      : null;
-  const update =
-    state.deployment === "self-hosted" &&
-    state.release.status === "update-available"
-      ? state.release
-      : null;
-  const versionText = `${version}${
-    selfHostedPlanLabel ? ` ${selfHostedPlanLabel.short}` : ""
-  }`;
-
-  // Radix returns focus to the trigger when the menu closes, and the browser
-  // treats that programmatic focus as `:focus-visible`, so the Button's
-  // `focus-visible:ring-2` ring is left showing on the badge after a
-  // mouse-driven open/close. Keyboard users must keep that ring, so the focus
-  // restore is suppressed only for an interaction that never used the keyboard.
-  //
-  // `pointerOnly` therefore has to be cleared by a key press anywhere in the
-  // interaction, not only on the trigger: the menu is portalled, so once it is
-  // open every key event lands on the content instead. A mouse-opened menu
-  // closed with Escape or Enter is a keyboard interaction and must get focus
-  // back on the trigger.
-  const pointerOnly = React.useRef(false);
-  const noteKeyboardUse = () => {
-    pointerOnly.current = false;
+  return {
+    text: `${version}${selfHostedPlanLabel ? ` ${selfHostedPlanLabel.short}` : ""}`,
+    selfHostedPlanLabel,
+    backgroundMigrationStatus:
+      state.deployment === "self-hosted" &&
+      state.migration.status === "in-progress"
+        ? state.migration.phase
+        : null,
+    update:
+      state.deployment === "self-hosted" &&
+      state.release.status === "update-available"
+        ? state.release
+        : null,
   };
+};
+
+const getVersionStatusDot = (
+  details: VersionDetails,
+): React.ComponentProps<typeof AttentionDot> | null => {
+  const { update, backgroundMigrationStatus } = details;
+  if (backgroundMigrationStatus) {
+    return { label: "Background migration running", tone: "migration" };
+  }
+  if (update) {
+    return {
+      label: `New ${update.updateType} version available`,
+      tone: update.updateType,
+    };
+  }
+  return null;
+};
+
+const VersionMenuItems = ({
+  state,
+  details,
+}: {
+  state: SidebarVersionState;
+  details: VersionDetails;
+}) => {
+  const { selfHostedPlanLabel, backgroundMigrationStatus, update } = details;
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="xs"
-          className="text-muted-foreground h-5 translate-y-px gap-1 py-0 text-[0.625rem] leading-none"
-          onPointerDown={() => {
-            pointerOnly.current = true;
-          }}
-          onKeyDown={noteKeyboardUse}
+    <>
+      {update ? (
+        <>
+          <DropdownMenuLabel>
+            New {update.updateType} version: {update.latestRelease}
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+        </>
+      ) : state.deployment === "self-hosted" ? (
+        <>
+          <DropdownMenuLabel>This is the latest release</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+        </>
+      ) : null}
+      {selfHostedPlanLabel && (
+        <>
+          <DropdownMenuLabel className="flex items-center font-normal">
+            <BadgeCheck size="base" __rawClassName="mr-2" />
+            {selfHostedPlanLabel.long}
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+        </>
+      )}
+      <DropdownMenuItem asChild>
+        <Link
+          href="https://github.com/langfuse/langfuse/releases"
+          target="_blank"
         >
-          <span className="whitespace-nowrap">{versionText}</span>
-          {update && !backgroundMigrationStatus && (
-            <AttentionDot
-              label={`New ${update.updateType} version available`}
-              tone={update.updateType}
-            />
-          )}
-          {backgroundMigrationStatus && (
-            <AttentionDot
-              label="Background migration running"
-              tone="migration"
-            />
-          )}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        onClick={(e) => e.stopPropagation()}
-        // Both hooks are needed: Radix's DismissableLayer handles Escape before
-        // it reaches the content's own onKeyDown, while onKeyDown covers the
-        // arrow/Enter/typeahead keys used to pick an item.
-        onKeyDown={noteKeyboardUse}
-        onEscapeKeyDown={noteKeyboardUse}
-        onCloseAutoFocus={(event) => {
-          if (!pointerOnly.current) return;
-          pointerOnly.current = false;
-          event.preventDefault();
-        }}
-      >
-        {update ? (
-          <>
-            <DropdownMenuLabel>
-              New {update.updateType} version: {update.latestRelease}
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-          </>
-        ) : state.deployment === "self-hosted" ? (
-          <>
-            <DropdownMenuLabel>This is the latest release</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-          </>
-        ) : null}
-        {selfHostedPlanLabel && (
-          <>
-            <DropdownMenuLabel className="flex items-center font-normal">
-              <BadgeCheck size="base" __rawClassName="mr-2" />
-              {selfHostedPlanLabel.long}
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-          </>
-        )}
+          <SiGithub size="base" color="default" __rawClassName="mr-2" />
+          Releases
+        </Link>
+      </DropdownMenuItem>
+      {state.deployment === "self-hosted" && (
         <DropdownMenuItem asChild>
-          <Link
-            href="https://github.com/langfuse/langfuse/releases"
-            target="_blank"
-          >
-            <SiGithub size="base" color="default" __rawClassName="mr-2" />
-            Releases
+          <Link href="/background-migrations">
+            <ArrowUp10 size="base" color="default" __rawClassName="mr-2" />
+            Background migrations
+            {backgroundMigrationStatus && (
+              <span className="ml-2 inline-flex">
+                <AttentionDot
+                  label="Background migration running"
+                  tone="migration"
+                />
+              </span>
+            )}
           </Link>
         </DropdownMenuItem>
-        {state.deployment === "self-hosted" && (
+      )}
+      <DropdownMenuItem asChild>
+        <Link href="https://langfuse.com/changelog" target="_blank">
+          <Newspaper size="base" color="default" __rawClassName="mr-2" />
+          Changelog
+        </Link>
+      </DropdownMenuItem>
+      <DropdownMenuItem asChild>
+        <Link href="https://langfuse.com/roadmap" target="_blank">
+          <Map size="base" color="default" __rawClassName="mr-2" />
+          Roadmap
+        </Link>
+      </DropdownMenuItem>
+      {state.deployment === "self-hosted" && (
+        <DropdownMenuItem asChild>
+          <Link href="https://langfuse.com/pricing-self-host" target="_blank">
+            <Info size="base" color="default" __rawClassName="mr-2" />
+            Compare versions
+          </Link>
+        </DropdownMenuItem>
+      )}
+      {update && (
+        <>
+          <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
-            <Link href="/background-migrations">
-              <ArrowUp10 size="base" color="default" __rawClassName="mr-2" />
-              Background migrations
-              {backgroundMigrationStatus && (
+            <Link
+              href="https://langfuse.com/docs/deployment/self-host#update"
+              target="_blank"
+            >
+              <HardDriveDownload
+                size="base"
+                color="default"
+                __rawClassName="mr-2"
+              />
+              Update
+              {!backgroundMigrationStatus && (
                 <span className="ml-2 inline-flex">
                   <AttentionDot
-                    label="Background migration running"
-                    tone="migration"
+                    label="Update available"
+                    tone={update.updateType}
                   />
                 </span>
               )}
             </Link>
           </DropdownMenuItem>
-        )}
-        <DropdownMenuItem asChild>
-          <Link href="https://langfuse.com/changelog" target="_blank">
-            <Newspaper size="base" color="default" __rawClassName="mr-2" />
-            Changelog
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="https://langfuse.com/roadmap" target="_blank">
-            <Map size="base" color="default" __rawClassName="mr-2" />
-            Roadmap
-          </Link>
-        </DropdownMenuItem>
-        {state.deployment === "self-hosted" && (
-          <DropdownMenuItem asChild>
-            <Link href="https://langfuse.com/pricing-self-host" target="_blank">
-              <Info size="base" color="default" __rawClassName="mr-2" />
-              Compare versions
-            </Link>
-          </DropdownMenuItem>
-        )}
-        {update && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link
-                href="https://langfuse.com/docs/deployment/self-host#update"
-                target="_blank"
-              >
-                <HardDriveDownload
-                  size="base"
-                  color="default"
-                  __rawClassName="mr-2"
-                />
-                Update
-                {!backgroundMigrationStatus && (
-                  <span className="ml-2 inline-flex">
-                    <AttentionDot
-                      label="Update available"
-                      tone={update.updateType}
-                    />
-                  </span>
-                )}
-              </Link>
-            </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </>
+      )}
+    </>
   );
 };

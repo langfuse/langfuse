@@ -11,6 +11,7 @@ import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatew
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import {
   type GatewayApiFormat,
+  gatewayApiFormats,
   gatewayProviders,
   providerSupportsApiFormat,
 } from "@/src/features/ai-gateway/server/provider/registry";
@@ -39,7 +40,7 @@ export class GatewayModelsService {
     const connections = await this.repository.getConnections({
       organizationId: params.context.organizationId,
       providers: gatewayProviders.filter((provider) =>
-        providerSupportsApiFormat(provider, params.apiFormat),
+        providerListsModelsFor(provider, params.apiFormat),
       ) as GatewayProvider[],
     });
     const results = await Promise.all(
@@ -81,8 +82,10 @@ export class GatewayModelsService {
           return catalog.models
             .filter(
               (model) =>
-                isGatewayModelAllowed(allowedModels, model.id) &&
-                modelMatchesApiFormat(model, params.apiFormat),
+                isGatewayModelAllowed(allowedModels, model.id, {
+                  connectionName: connection.name,
+                  allowedModels: params.context.keyAllowedModels,
+                }) && modelMatchesApiFormat(model, params.apiFormat),
             )
             .map(({ apiFormats: _apiFormats, ...model }) => ({
               ...model,
@@ -93,6 +96,22 @@ export class GatewayModelsService {
         .sort(compareModels),
     };
   }
+}
+
+// Like `modelMatchesApiFormat`: OpenAI listings arrive as `openai.responses`,
+// so a provider serving only Chat Completions must still be listed.
+function providerListsModelsFor(
+  provider: (typeof gatewayProviders)[number],
+  apiFormat: GatewayApiFormat,
+) {
+  if (apiFormat === "anthropic.messages") {
+    return providerSupportsApiFormat(provider, apiFormat);
+  }
+  return gatewayApiFormats.some(
+    (format) =>
+      format !== "anthropic.messages" &&
+      providerSupportsApiFormat(provider, format),
+  );
 }
 
 function modelMatchesApiFormat(
@@ -110,7 +129,7 @@ function modelMatchesApiFormat(
 }
 
 // The gateway renders and validates entries by API family, so Bedrock,
-// OpenRouter, xAI and Vercel models are reported as the family whose route serves them.
+// OpenRouter, xAI, Vercel and Google AI Studio models are reported as the family whose route serves them.
 function toCatalogFamily(
   provider: GatewayModelCatalogEntry["provider"],
   apiFormat: GatewayApiFormat,

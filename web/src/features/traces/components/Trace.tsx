@@ -45,6 +45,7 @@ import { staleProps } from "@/src/features/traces/fns/staleProps";
 import { cn } from "@/src/utils/tailwind";
 import { SkeletonGroup } from "@/src/components/ui/skeleton";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { TabBar } from "@/src/components/design-system/TabBar/TabBar";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
@@ -371,13 +372,13 @@ function TraceContent({
             }}
             layout="fill"
           >
-            <Tabs.List variant="underline">
-              <Tabs.Trigger
-                value="trace"
-                label={sessionTraces ? "Session" : "Trace"}
-              />
-              <Tabs.Trigger value="messages" label="Messages" internal />
-            </Tabs.List>
+            <TabBar
+              label="Trace views"
+              tabs={[
+                { value: "trace", label: sessionTraces ? "Session" : "Trace" },
+                { value: "messages", label: "Messages", internal: true },
+              ]}
+            />
             <Tabs.Content value="trace" layout="fill">
               {sessionErrorBanner}
               {panels}

@@ -1,12 +1,11 @@
 import { type ReactNode } from "react";
-import type { FilterState } from "@langfuse/shared";
 import type { TopicFacet, TopicRule } from "@langfuse/shared/topics";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { NewAnalysisDialog } from "./NewAnalysisDialog";
 import { TopicRuleDialog } from "./TopicRuleDialog";
 
 export type TopicSliceDialog =
-  | { kind: "analysis"; filter: FilterState }
+  | { kind: "analysis" }
   | { kind: "rule"; rule: TopicRule };
 
 /**
@@ -38,7 +37,6 @@ export function TopicSliceDialogController({
           <NewAnalysisDialog
             projectId={projectId}
             facets={facets}
-            initialFilter={state.filter}
             liveDisabledReason={liveDisabledReason}
             onStarted={({ executionId }) => onAnalysisStarted(executionId)}
             onRuleCreated={onRuleCreated}

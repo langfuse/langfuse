@@ -76,6 +76,8 @@ model User {
   dashboardUpdated          Dashboard[]                 @relation("UpdatedByUser")
   tableViewPresetCreated    TableViewPreset[]           @relation("CreatedByUser")
   tableViewPresetUpdated    TableViewPreset[]           @relation("UpdatedByUser")
+  sessionViewsCreated       SessionView[]
+  sessionViewPinOverrides   SessionViewPinOverride[]
   monitorsCreated           Monitor[]                   @relation("CreatedByUser")
   monitorsUpdated           Monitor[]                   @relation("UpdatedByUser")
   topicConfigsCreated       TopicConfig[]               @relation("CreatedByUser")
@@ -204,6 +206,8 @@ model Project {
   Dashboard                         Dashboard[]
   DashboardWidget                   DashboardWidget[]
   TableViewPreset                   TableViewPreset[]
+  sessionViews                      SessionView[]
+  sessionViewPinOverrides           SessionViewPinOverride[]
   actions                           Action[]
   triggers                          Trigger[]
   automationExecutions              AutomationExecution[]
@@ -337,12 +341,15 @@ enum GatewayIngestionMode {
 }
 
 enum GatewayProvider {
-  OPENAI     @map("openai")
-  ANTHROPIC  @map("anthropic")
-  BEDROCK    @map("bedrock")
-  OPENROUTER @map("openrouter")
-  XAI        @map("xai")
-  VERCEL     @map("vercel")
+  OPENAI           @map("openai")
+  ANTHROPIC        @map("anthropic")
+  BEDROCK          @map("bedrock")
+  OPENROUTER       @map("openrouter")
+  XAI              @map("xai")
+  VERCEL           @map("vercel")
+  AZURE            @map("azure")
+  GOOGLE_AI_STUDIO @map("google_ai_studio")
+  VERTEX           @map("vertex")
 }
 
 enum GatewayConnectionStatus {
@@ -389,9 +396,11 @@ model GatewayAiConnection {
 }
 
 model GatewayApiKeyAssociation {
-  apiKeyId String @id @map("api_key_id")
-  apiKey   ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
-  metadata Json   @default("{}") @db.JsonB
+  apiKeyId      String @id @map("api_key_id")
+  apiKey        ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  metadata      Json   @default("{}") @db.JsonB
+  // Model patterns this key may call (`*` wildcard, `-` excludes); null allows every enabled model.
+  allowedModels Json?  @map("allowed_models") @db.JsonB
 
   @@map("gateway_api_key_associations")
 }
@@ -533,10 +542,10 @@ model LlmApiKeys {
   organizationId String?       @map("organization_id")
   organization   Organization? @relation("OrganizationLlmApiKeys", fields: [organizationId], references: [id], onDelete: Cascade)
 
-  DefaultLlmModel DefaultLlmModel[] @relation("LlmApiKeyId")
-  topicSummaryConfigs    TopicConfig[] @relation("TopicConfigSummaryLlmApiKey")
-  topicEmbeddingConfigs  TopicConfig[] @relation("TopicConfigEmbeddingLlmApiKey")
-  topicClusteringConfigs TopicConfig[] @relation("TopicConfigClusteringLlmApiKey")
+  DefaultLlmModel        DefaultLlmModel[] @relation("LlmApiKeyId")
+  topicSummaryConfigs    TopicConfig[]     @relation("TopicConfigSummaryLlmApiKey")
+  topicEmbeddingConfigs  TopicConfig[]     @relation("TopicConfigEmbeddingLlmApiKey")
+  topicClusteringConfigs TopicConfig[]     @relation("TopicConfigClusteringLlmApiKey")
 
   @@unique([projectId, provider])
   @@unique([organizationId, provider])
@@ -1001,15 +1010,15 @@ model SkillFile {
 }
 
 model SkillBlob {
-  id         String    @id @default(cuid())
-  createdAt  DateTime  @default(now()) @map("created_at")
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
 
   projectId String  @map("project_id")
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   sha256Hash    String @map("sha_256_hash") @db.Char(44)
   contentType   String @map("content_type")
-  contentLength Int @map("content_length")
+  contentLength Int    @map("content_length")
   content       String @db.Text
 
   files SkillFile[]
@@ -1169,7 +1178,7 @@ model Evaluator {
 
   name            String
   type            EvalTemplateType
-  isBuiltIn       Boolean              @default(false) @map("is_built_in")
+  isBuiltIn       Boolean               @default(false) @map("is_built_in")
   description     String?
   createdByUserId String?               @map("created_by_user_id")
   createdByUser   User?                 @relation("EvaluatorCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
@@ -1429,7 +1438,7 @@ model TopicConfig {
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   // Kill switch for automatic trace processing; facet rules are kept while off.
-  enabled Boolean @default(false)
+  enabled      Boolean               @default(false)
   // Same columns as Evaluator, set when a configured connection is no longer valid.
   blockedAt    DateTime?             @map("blocked_at")
   blockReason  EvaluatorBlockReason? @map("block_reason")
@@ -1505,7 +1514,7 @@ model PosthogIntegration {
   // True while the integration is exporting history (new, re-enabled, or export
   // mode reset), so the export staleness gauge can separate it from steady
   // state. Cleared by the worker once a run lands within an hour of its start.
-  backfill               Boolean                          @default(true)
+  backfill Boolean @default(true)
 
   // Last deterministic customer-config fault (bad hostname) that disabled the
   // integration. Written by the worker, surfaced in the integration settings
@@ -1529,7 +1538,7 @@ model MixpanelIntegration {
   // True while the integration is exporting history (new, re-enabled, or export
   // mode reset), so the export staleness gauge can separate it from steady
   // state. Cleared by the worker once a run lands within an hour of its start.
-  backfill                      Boolean                          @default(true)
+  backfill Boolean @default(true)
 
   @@map("mixpanel_integrations")
 }
@@ -1575,7 +1584,7 @@ model BlobStorageIntegration {
   // True while the integration is exporting history (new, re-enabled, or export
   // mode reset), so the export staleness gauge can separate it from steady
   // state. Cleared by the worker once a run lands within an hour of its start.
-  backfill     Boolean   @default(true)
+  backfill Boolean @default(true)
 
   // Error tracking
   lastError   String?   @map("last_error")
@@ -1723,6 +1732,8 @@ model BatchAction {
   processedCount Int?    @map("processed_count")
   failedCount    Int?    @map("failed_count")
   log            String?
+  // Last row a resumable batch action finished, written with the counts.
+  cursor         Json?
 
   @@index([projectId, userId])
   @@index([status])
@@ -1971,6 +1982,55 @@ model TableViewPreset {
 
   @@unique([projectId, tableName, name])
   @@map("table_view_presets")
+}
+
+enum SessionViewMode {
+  conversational
+  list
+}
+
+enum SessionUnmatchedTraces {
+  show
+  hide
+}
+
+model SessionView {
+  isPinnedByDefaultForProject Boolean                  @default(false) @map("is_pinned_by_default_for_project")
+  pins                        SessionViewPinOverride[]
+  id                          String                   @id @default(cuid())
+  projectId                   String                   @map("project_id")
+  project                     Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name                        String
+  filters                     Json
+  viewMode                    SessionViewMode          @map("view_mode")
+  unmatchedTraces             SessionUnmatchedTraces   @map("unmatched_traces")
+  createdBy                   String?                  @map("created_by")
+  createdByUser               User?                    @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  createdAt                   DateTime                 @default(now()) @map("created_at")
+  updatedAt                   DateTime                 @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([projectId, name])
+  @@unique([projectId, id])
+  @@map("session_views")
+}
+
+model SessionViewPinOverride {
+  id        String       @id @default(cuid())
+  projectId String       @map("project_id")
+  project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String       @map("user_id")
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Null identifies the built-in Messages view.
+  viewId    String?      @map("view_id")
+  view      SessionView? @relation(fields: [projectId, viewId], references: [projectId, id], onDelete: Cascade)
+  isPinned  Boolean      @default(true) @map("is_pinned")
+  position  Int
+
+  // A partial unique index in the migration enforces one Messages override per user/project.
+  @@unique([projectId, userId, viewId])
+  @@index([userId])
+  @@index([projectId, viewId])
+  @@map("session_view_pin_overrides")
 }
 
 model DefaultView {

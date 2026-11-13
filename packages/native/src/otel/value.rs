@@ -8,17 +8,15 @@
 //! Serde builds values directly through `FastValue` and `FastValueVisitor`.
 //! `BytesVisitor` accepts Serde's decoded bytes for `JsString`, preserving surrogates.
 //! On failure, `CompatibilityParser` lets Jiter traverse JSON and borrows Serde
-//! `RawValue` tokens where Jiter cannot decode them. The enclosing batch retry is
-//! coordinated by `events::process_to_events`; malformed JSON still fails.
+//! `RawValue` tokens where Jiter cannot decode them. `input::JsonField` applies this
+//! decoding to each dynamic field independently; malformed JSON still fails.
 //!
 //! ```text
-//! input::JsonField -> deserialize_fast -> FastValue / FastValueVisitor -> Value
-//!
-//! attributes::JsonParseCache -> parse_js_string --+
-//! input::JsonField on envelope retry ------------+-> Value::parse / parse
-//!                                                    |-- FastValue -> Value
-//!                                                    `-- on error:
-//!                                                         CompatibilityParser -> Value
+//! input::JsonField -> parse_field -----------------+
+//! attributes::JsonParseCache -> parse_js_string ---+-> Value::parse / parse
+//!                                                     |-- FastValue -> Value
+//!                                                     `-- on decoding error:
+//!                                                          CompatibilityParser -> Value
 //! ```
 //!
 //! Parsers borrow input while decoding; returned values own their strings and

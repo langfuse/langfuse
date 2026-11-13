@@ -5,13 +5,9 @@ import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 const COPY = {
   variables: {
     title: "Map variables to data",
-    description:
-      "Choose how observation fields populate each variable in your evaluation prompt. The live preview fills in real data so you can verify the mapping.",
   },
   state: {
     title: "Build the state",
-    description:
-      "Choose which observation fields the decision model sees, as one JSON object. The live preview shows the exact object sent.",
   },
 } as const;
 
@@ -31,7 +27,6 @@ export function VariableMappingStep({
     <Stepper
       number={2}
       title={COPY[variant].title}
-      description={COPY[variant].description}
       open={open}
       onOpenChange={onOpenChange}
     >

@@ -10,6 +10,7 @@ import {
   GitBranch,
   TriangleAlert,
   Plus,
+  Sparkles,
   Terminal,
   Trash,
   Zap,
@@ -59,6 +60,8 @@ import {
   skillsFilterConfig,
 } from "../constants/skillsFilterConfig";
 import { ImportSkillsDialog } from "./ImportSkillsDialog";
+import { useSkillHaloActions } from "./useSkillHaloActions";
+import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { InstallSkillDialog } from "./InstallSkillDialog";
 import { useSkillInstallOptions } from "../hooks/useSkillInstallOptions";
 import {
@@ -161,6 +164,8 @@ function SkillsHeaderActions({
   closeMenu,
 }: SkillsHeaderActionsProps) {
   const capture = usePostHogClientCapture();
+  const isHaloVisible = useIsInAppAgentLauncherVisible();
+  const { createSkill, isRunning: isHaloRunning } = useSkillHaloActions();
   const canReadAutomations = useHasProjectAccess({
     projectId,
     scope: "automations:read",
@@ -222,7 +227,7 @@ function SkillsHeaderActions({
               {
                 type: "item",
                 id: "create",
-                title: "Create from scratch",
+                title: "Create manually",
                 icon: Plus,
                 href: `/project/${projectId}/skills/new`,
                 onAfterNavigate: () => {
@@ -230,6 +235,27 @@ function SkillsHeaderActions({
                   capture("skills:new_form_open");
                 },
               },
+              ...(isHaloVisible
+                ? [
+                    {
+                      type: "item" as const,
+                      id: "create-with-halo",
+                      title: "Create with Halo",
+                      tooltip:
+                        "Halo asks what you need and writes the skill with you.",
+                      icon: Sparkles,
+                      disabled: isHaloRunning
+                        ? {
+                            reason: "Halo is still working on another request.",
+                          }
+                        : undefined,
+                      onClick: () => {
+                        closeMenu?.();
+                        createSkill().catch(() => undefined);
+                      },
+                    },
+                  ]
+                : []),
               {
                 type: "item",
                 id: "import",

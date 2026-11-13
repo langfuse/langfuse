@@ -9,8 +9,8 @@ import { NoProvidersDiagram } from "./components/NoProvidersDiagram";
 export function GatewayNoProvidersReadOnlyEmptyState() {
   return (
     <GatewayPlaceholder.Frame
-      title="No providers yet"
-      description="Ask your organization admin to add a provider so the gateway can route requests."
+      title="No connections yet"
+      description="Ask your organization admin to add a connection so the gateway can route requests."
     >
       <GatewayPlaceholder.Actions>
         <Button

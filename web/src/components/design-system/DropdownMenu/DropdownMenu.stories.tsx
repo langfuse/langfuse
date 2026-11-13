@@ -341,6 +341,10 @@ export const TestDisabledAction = meta.story({
       "title",
       "You don't have permission to edit this item.",
     );
+    await expect(within(menuItem).getByText("Edit")).toHaveAttribute(
+      "title",
+      "You don't have permission to edit this item.",
+    );
 
     await userEvent.click(body.getByRole("button", { name: "Edit" }));
     await expect(onDisabledAction).not.toHaveBeenCalled();

@@ -162,8 +162,16 @@ export { toEvalRecord } from "./normalized-io/projections/eval-record";
 export { toToolColumns } from "./normalized-io/projections/tool-call-columns";
 export { orderObservations } from "./transcript/ordering";
 export { assembleTranscript } from "./transcript/transcript";
-export { renderTranscript } from "./transcript/topics-renderer";
+export {
+  redactModelPayload,
+  renderTranscript,
+} from "./transcript/topics-renderer";
 export { renderTranscriptFromObservations } from "./transcript/topics-renderer";
+export {
+  prepareAssembledTopicTranscript,
+  renderStoredTopicText,
+  TOPICS_TEXT_VERSION,
+} from "./transcript/topics-model-input";
 export { transcriptBlockTypes } from "./transcript/topics-renderer";
 export { renderGenericTranscript } from "./transcript/generic-renderer";
 export { topicsTranscriptConfig } from "./transcript/topics-renderer-config";
