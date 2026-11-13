@@ -260,6 +260,13 @@ impl ExtractedMedia {
         }
     }
 
+    pub(crate) fn source_allocation(&self) -> Option<(*const String, usize)> {
+        match &self.storage {
+            MediaStorage::Source { bytes, .. } => Some((Arc::as_ptr(bytes), bytes.capacity())),
+            MediaStorage::Owned(_) => None,
+        }
+    }
+
     fn encoded_data(&self) -> Result<Cow<'_, [u8]>, MediaDecodeError> {
         let mut value = Cow::Borrowed(self.original_data());
         for _ in 0..self.json_decode_layers {

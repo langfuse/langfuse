@@ -108,6 +108,20 @@ impl Default for OwnedEvent {
 }
 
 impl OwnedEvent {
+    pub(crate) fn retained_bytes(&self) -> usize {
+        std::mem::size_of::<Self>() - std::mem::size_of::<crate::native_schema::OtelStorageRow>()
+            + self.row.retained_bytes()
+            + crate::native_memory::retained_size(&self.prompt_version_lookup)
+            + crate::native_memory::retained_size(&self.model_parameters)
+            + crate::native_memory::retained_size(&self.provided_usage_details)
+            + crate::native_memory::retained_size(&self.provided_cost_details)
+            + crate::native_memory::retained_size(&self.input)
+            + crate::native_memory::retained_size(&self.output)
+            + crate::native_memory::retained_size(&self.metadata)
+            + crate::native_memory::retained_size(&self.skills_available)
+            + crate::native_memory::retained_size(&self.skills_resource_loaded)
+    }
+
     pub fn into_storage(
         mut self,
         enrichment: EnrichmentResult,

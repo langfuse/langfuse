@@ -8,7 +8,6 @@
 /// Rust-only encoder for prepared v4 `events_full` rows.
 pub mod native_codec;
 mod native_columns;
-mod native_js;
 mod native_memory;
 mod native_owned;
 pub mod native_schema;
@@ -59,20 +58,11 @@ pub struct PreparedEventIds {
 #[napi]
 pub struct PreparedEvent {
     row: Arc<native_schema::PreparedEventRow>,
+    memory: Arc<native_memory::NativeMemory>,
 }
 
 #[napi]
 impl PreparedEvent {
-    /// Read a storage-ready row into owned Rust fields. JSON-valued String columns such as
-    /// `model_parameters` must already be serialized by TypeScript. ClickHouse computes
-    /// `event_bytes` after insertion. This constructor never serializes the JS row.
-    #[napi(constructor, ts_args_type = "row: object")]
-    pub fn new(row: Unknown<'_>) -> Result<Self> {
-        let row = native_schema::PreparedEventRow::from_js(row)
-            .map_err(|error| Error::from_reason(format!("prepared event: {error}")))?;
-        Ok(Self { row: Arc::new(row) })
-    }
-
     #[napi(getter)]
     pub fn ids(&self) -> PreparedEventIds {
         PreparedEventIds {
@@ -106,6 +96,7 @@ pub struct PreparedEventColumn {
 pub struct EncodeClickhouseEventsTask {
     rows: Vec<Arc<native_schema::PreparedEventRow>>,
     max_rows_per_block: usize,
+    _memory: Vec<Arc<native_memory::NativeMemory>>,
 }
 
 impl Task for EncodeClickhouseEventsTask {
@@ -167,6 +158,7 @@ pub fn encode_clickhouse_events(
 ) -> Result<AsyncTask<EncodeClickhouseEventsTask>> {
     let max_rows_per_block = checked_max_rows_per_block(max_rows_per_block)?;
     let mut prepared_rows = Vec::with_capacity(rows.len() as usize);
+    let mut memory = Vec::with_capacity(rows.len() as usize);
     // napi's Array is a JS handle with indexed access, not a Rust slice with an iterator.
     // Retain each immutable Rust row for the background task before leaving the JS thread:
     // Arc::clone increments a reference count without copying fields, and keeps the row alive
@@ -176,11 +168,13 @@ pub fn encode_clickhouse_events(
             .get::<ClassInstance<'_, PreparedEvent>>(index)?
             .ok_or_else(|| Error::from_reason(format!("missing row at index {index}")))?;
         prepared_rows.push(Arc::clone(&event.row));
+        memory.push(Arc::clone(&event.memory));
     }
 
     Ok(AsyncTask::new(EncodeClickhouseEventsTask {
         rows: prepared_rows,
         max_rows_per_block,
+        _memory: memory,
     }))
 }
 
