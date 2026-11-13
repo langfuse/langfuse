@@ -1,7 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { type Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
-import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { V4SidebarToggle } from "./V4SidebarToggle";
 
 vi.mock("next/router", () => ({
@@ -18,29 +17,32 @@ vi.mock("@/src/utils/api", () => ({
   },
 }));
 
-it("opens the intro from the collapsed row and retains it while expanding the same toggle", () => {
+it("preserves the toggle button and intro workflow while changing sidebar layout", () => {
   localStorage.removeItem("v4-beta-intro-dialog-seen");
   const session = {
     user: { v4BetaEnabled: false, canToggleV4: true },
   } as Session;
   const toggle = (isCollapsed: boolean) => (
     <SessionProvider session={session}>
-      <TooltipProvider>
-        <V4SidebarToggle isCollapsed={isCollapsed} />
-      </TooltipProvider>
+      <V4SidebarToggle isCollapsed={isCollapsed} />
     </SessionProvider>
   );
   const { rerender } = render(toggle(true));
 
-  expect(screen.queryByRole("switch")).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "V4 preview: Off" }));
+  const toggleButton = screen.getByRole("button", { name: "V4 preview: Off" });
+  expect(toggleButton).toHaveAttribute("aria-pressed", "false");
+  fireEvent.click(toggleButton);
   expect(
     screen.getByRole("dialog", { name: "Welcome to a faster Langfuse" }),
   ).toBeVisible();
 
   rerender(toggle(false));
 
-  expect(screen.getAllByRole("switch", { hidden: true })).toHaveLength(1);
+  expect(toggleButton).toBeInTheDocument();
+  expect(toggleButton).toHaveAttribute("aria-pressed", "false");
+  expect(
+    screen.queryByRole("switch", { hidden: true }),
+  ).not.toBeInTheDocument();
   expect(
     screen.getByRole("dialog", { name: "Welcome to a faster Langfuse" }),
   ).toBeVisible();

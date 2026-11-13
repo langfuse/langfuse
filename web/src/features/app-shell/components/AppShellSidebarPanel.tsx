@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Info } from "@langfuse/icons";
-import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import motion from "./sidebarMotion.module.css";
+import { cn } from "@/src/utils/tailwind";
+import { SidebarVersionButton } from "./SidebarVersionButton";
 import { useRouter } from "next/router";
 import { LangfuseLogo } from "@/src/components/design-system/LangfuseLogo/LangfuseLogo";
 import { type RouteGroup } from "@/src/components/layouts/routes";
@@ -10,8 +11,7 @@ import {
   getActiveSidebarNotifications,
 } from "@/src/components/nav/SidebarNotifications";
 import { type UserNavigationItem } from "@/src/components/nav/UserMenuItems";
-import { VersionBadge } from "@/src/components/nav/VersionBadge";
-import { VersionMenu } from "@/src/components/nav/VersionMenu";
+import { SidebarVersionMenu } from "./SidebarVersionMenu";
 import { useSidebarNotificationState } from "@/src/components/nav/useSidebarNotificationState";
 import { useSidebarVersionState } from "@/src/components/nav/useSidebarVersionState";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
@@ -65,7 +65,7 @@ export function AppShellSidebarPanel({
   isLangfuseCloud: boolean;
 }) {
   const surface = useSidebarSurface();
-  const isCollapsed = surface === "rail";
+  const isCollapsed = surface === "collapsed";
   const router = useRouter();
   const routerProjectId =
     typeof router.query.projectId === "string"
@@ -88,36 +88,25 @@ export function AppShellSidebarPanel({
   return (
     <SidebarPanel>
       <SidebarPanel.Header>
-        {!isCollapsed && (
+        <span className={motion.control}>
+          <SidebarExpansionToggle />
+        </span>
+        <div
+          className={cn(motion.brand, motion.label)}
+          data-sidebar-expanded-only=""
+          inert={isCollapsed}
+        >
           <Link
             href="/"
             aria-label="Langfuse home"
-            className="flex shrink-0 items-center"
+            className={motion.brandLink}
           >
             <LangfuseLogo
               logoLightModeHref={uiCustomization?.logoLightModeHref}
               logoDarkModeHref={uiCustomization?.logoDarkModeHref}
             />
           </Link>
-        )}
-        {!isCollapsed && (
-          <div
-            className={
-              surface === "sheet"
-                ? "mr-9 ml-auto flex min-w-0 items-center overflow-hidden"
-                : "ml-auto flex min-w-0 items-center overflow-hidden"
-            }
-          >
-            <VersionMenu state={versionState}>
-              {({ Trigger, triggerProps }) => (
-                <Trigger asChild>
-                  <VersionBadge state={versionState} {...triggerProps} />
-                </Trigger>
-              )}
-            </VersionMenu>
-          </div>
-        )}
-        {surface !== "sheet" && <SidebarExpansionToggle />}
+        </div>
       </SidebarPanel.Header>
       <SidebarPanel.Section>
         <div className="flex flex-col gap-1">
@@ -125,52 +114,61 @@ export function AppShellSidebarPanel({
           <SidebarOverviewLink />
         </div>
       </SidebarPanel.Section>
-      {isDemoProject && !isCollapsed ? (
-        <SidebarPanel.Section>
-          <SidebarDemoNotice />
-        </SidebarPanel.Section>
-      ) : null}
+      {isDemoProject && (
+        <div
+          className={motion.expandedSection}
+          data-collapsed={isCollapsed}
+          data-sidebar-expanded-only=""
+          inert={isCollapsed}
+        >
+          <div className={cn(motion.sectionContent, motion.label)}>
+            <SidebarPanel.Section>
+              <SidebarDemoNotice />
+            </SidebarPanel.Section>
+          </div>
+        </div>
+      )}
       <SidebarPanel.Body>
         <SidebarNavigation
           label="Main"
           items={withoutWorkspaceBlockRoutes(mainNavigation)}
         />
         <SidebarPanel.Spacer />
-        {activeNotifications.length > 0 && !isCollapsed ? (
-          <div className="px-2">
-            <SidebarNotifications
-              state={notificationState}
-              activeNotifications={activeNotifications}
-            />
+        {activeNotifications.length > 0 && (
+          <div
+            className={motion.expandedSection}
+            data-collapsed={isCollapsed}
+            data-sidebar-expanded-only=""
+            inert={isCollapsed}
+          >
+            <div className={cn(motion.sectionContent, motion.label)}>
+              <div className="px-2">
+                <SidebarNotifications
+                  state={notificationState}
+                  activeNotifications={activeNotifications}
+                />
+              </div>
+            </div>
           </div>
-        ) : null}
+        )}
         <SidebarNavigation label="More" items={secondaryNavigation} />
       </SidebarPanel.Body>
       <SidebarPanel.Footer>
-        {isCollapsed && (
-          <div className="mb-1 flex justify-center">
-            <VersionMenu state={versionState}>
-              {({ Trigger, triggerProps }) => (
-                <Trigger asChild>
-                  <IconButton
-                    icon={Info}
-                    label="Version and updates"
-                    size="sm"
-                    {...triggerProps}
-                  />
-                </Trigger>
-              )}
-            </VersionMenu>
-          </div>
-        )}
+        <SidebarVersionMenu state={versionState}>
+          {({ Trigger, triggerProps }) => (
+            <Trigger asChild>
+              <SidebarVersionButton state={versionState} {...triggerProps} />
+            </Trigger>
+          )}
+        </SidebarVersionMenu>
         <SidebarUserMenu
           user={user}
           items={userMenuItems}
-          side={surface === "sheet" ? "top" : "right"}
+          side={surface === "mobile" ? "top" : "right"}
         >
           {({ Trigger }) => (
             <Trigger asChild>
-              <SidebarAccountButton user={user} isCollapsed={isCollapsed} />
+              <SidebarAccountButton user={user} />
             </Trigger>
           )}
         </SidebarUserMenu>

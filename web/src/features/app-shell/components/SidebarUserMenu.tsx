@@ -13,6 +13,11 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 
+import {
+  useAppShellSidebar,
+  useAppShellSidebarActions,
+} from "@/src/features/app-shell/contexts/AppShellSidebarProvider";
+
 export type SidebarUser = { name: string; email: string; avatar: string };
 
 /** The account menu at the bottom of the sidebar. */
@@ -27,8 +32,13 @@ export function SidebarUserMenu({
   side: "right" | "top";
   children: (control: { Trigger: typeof DropdownMenuTrigger }) => ReactNode;
 }) {
+  const open = useAppShellSidebar((state) => state.activeMenu === "account");
+  const { setActiveMenu } = useAppShellSidebarActions();
   return (
-    <DropdownMenu>
+    <DropdownMenu
+      open={open}
+      onOpenChange={(isOpen) => setActiveMenu(isOpen ? "account" : null)}
+    >
       {children({ Trigger: DropdownMenuTrigger })}
       <DropdownMenuContent
         className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"

@@ -1,4 +1,3 @@
-import { useSidebarSurface } from "@/src/features/app-shell/contexts/SidebarSurfaceProvider";
 import { type ReactNode } from "react";
 import {
   APP_SHELL_CHROME_ROW_CLASS,
@@ -7,19 +6,21 @@ import {
 import { cn } from "@/src/utils/tailwind";
 
 function SidebarPanelRoot({ children }: { children: ReactNode }) {
-  return <div className="flex h-full min-h-0 w-full flex-col">{children}</div>;
+  return (
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
+      {children}
+    </div>
+  );
 }
 
 /** Same height and divider as the page header's first row, so the two line up when docked. */
 function SidebarPanelHeader({ children }: { children: ReactNode }) {
-  const surface = useSidebarSurface();
   return (
     <div
       data-testid={APP_SHELL_CHROME_ROW_TEST_ID}
       className={cn(
         APP_SHELL_CHROME_ROW_CLASS,
-        "min-w-0 shrink-0 gap-1",
-        surface === "rail" ? "justify-center px-2" : "pr-2 pl-3",
+        "min-w-0 shrink-0 overflow-hidden px-2",
       )}
     >
       {children}

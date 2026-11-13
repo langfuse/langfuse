@@ -15,7 +15,7 @@ const OVERVIEW_PATHNAMES = new Set([
  */
 export function SidebarOverviewLink() {
   const router = useRouter();
-  const isCollapsed = useSidebarSurface() === "rail";
+  const isCollapsed = useSidebarSurface() === "collapsed";
   const { organization } = useQueryProjectOrOrganization();
 
   return (

@@ -4,10 +4,10 @@ import {
   AppNavigationProvider,
   type AppNavigation,
 } from "@/src/components/nav/AppNavigationProvider";
-import { useIsMobile } from "@/src/hooks/use-mobile";
 import { ShellSidebar } from "@/src/features/app-shell/components/ShellSidebar";
 import {
   AppShellSidebarProvider,
+  useAppShellSidebar,
   useAppShellSidebarActions,
 } from "@/src/features/app-shell/contexts/AppShellSidebarProvider";
 import { useRecordRecentProject } from "@/src/features/app-shell/hooks/useRecordRecentProject";
@@ -20,7 +20,7 @@ function AppShellFrame({
   sidebar: ReactNode;
   children: ReactNode;
 }) {
-  const isMobile = useIsMobile();
+  const isMobile = useAppShellSidebar((state) => state.isMobile);
   const { setMobileOpen, close } = useAppShellSidebarActions();
   const session = useSession();
   const [navigation] = useState<AppNavigation>(() => ({

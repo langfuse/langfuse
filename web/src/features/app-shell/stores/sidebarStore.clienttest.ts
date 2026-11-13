@@ -15,16 +15,17 @@ function memoryStorage(initial: Record<string, string> = {}) {
 
 function setup(initial: Record<string, string> = {}) {
   const storage = memoryStorage(initial);
-  const store = createSidebarStore({ storage });
+  const store = createSidebarStore({ storage, isMobile: false });
   return { storage, store, actions: store.getState().actions };
 }
 
 describe("desktop expansion preference", () => {
   it("starts as an icon rail without a stored preference or available storage", () => {
     expect(setup().store.getState().isExpanded).toBe(false);
-    expect(createSidebarStore({ storage: null }).getState().isExpanded).toBe(
-      false,
-    );
+    expect(
+      createSidebarStore({ storage: null, isMobile: false }).getState()
+        .isExpanded,
+    ).toBe(false);
   });
 
   it("carries over collapsed classic and unpinned preview preferences as a rail", () => {
@@ -46,10 +47,14 @@ describe("desktop expansion preference", () => {
 
     actions.setExpanded(false);
     expect(storage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY)).toBe("false");
-    expect(createSidebarStore({ storage }).getState().isExpanded).toBe(false);
+    expect(
+      createSidebarStore({ storage, isMobile: false }).getState().isExpanded,
+    ).toBe(false);
 
     actions.setExpanded(true);
-    expect(createSidebarStore({ storage }).getState().isExpanded).toBe(true);
+    expect(
+      createSidebarStore({ storage, isMobile: false }).getState().isExpanded,
+    ).toBe(true);
   });
 
   it("toggles desktop expansion with the shortcut and remembers it", () => {
@@ -74,7 +79,7 @@ describe("transient navigation", () => {
     actions.openSwitcher("desktop");
     expect(store.getState()).toMatchObject({
       isExpanded: false,
-      isSwitcherOpen: true,
+      activeMenu: "workspace",
       isMobileOpen: false,
     });
 
@@ -88,32 +93,100 @@ describe("transient navigation", () => {
     actions.openSwitcher("mobile");
     expect(store.getState()).toMatchObject({
       isMobileOpen: true,
-      isSwitcherOpen: true,
+      activeMenu: "workspace",
     });
 
     actions.setMobileOpen(false);
     expect(store.getState()).toMatchObject({
       isMobileOpen: false,
-      isSwitcherOpen: false,
+      activeMenu: null,
     });
   });
 
   it("toggles the mobile menu without changing desktop expansion", () => {
     const { store, storage, actions } = setup();
 
+    actions.setActiveMenu("account");
     actions.toggleFromShortcut("mobile");
     expect(store.getState()).toMatchObject({
       isMobileOpen: true,
       isExpanded: false,
+      activeMenu: null,
     });
     actions.setSwitcherOpen(true);
     actions.toggleFromShortcut("mobile");
     expect(store.getState()).toMatchObject({
       isMobileOpen: false,
-      isSwitcherOpen: false,
+      activeMenu: null,
       isExpanded: false,
     });
     expect(storage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY)).toBeNull();
+  });
+
+  it("releases account and version menus when their mobile parent closes", () => {
+    const { store, storage, actions } = setup({
+      [SIDEBAR_EXPANDED_STORAGE_KEY]: "true",
+    });
+
+    for (const menu of ["account", "version"] as const) {
+      for (const close of [actions.close, () => actions.setMobileOpen(false)]) {
+        actions.setMobileOpen(true);
+        actions.setActiveMenu(menu);
+        expect(store.getState().activeMenu).toBe(menu);
+
+        close();
+
+        expect(store.getState()).toMatchObject({
+          activeMenu: null,
+          isMobileOpen: false,
+          isExpanded: true,
+        });
+        expect(storage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY)).toBe("true");
+      }
+    }
+  });
+
+  it("closes child menus atomically across viewport breakpoints and retains expansion", () => {
+    const { store, storage, actions } = setup({
+      [SIDEBAR_EXPANDED_STORAGE_KEY]: "true",
+    });
+
+    actions.setActiveMenu("account");
+    const desktop = store.getState();
+    actions.setViewport(false);
+    expect(store.getState()).toBe(desktop);
+
+    const transitions: Array<{
+      isMobile: boolean;
+      isMobileOpen: boolean;
+      activeMenu: string | null;
+    }> = [];
+    const unsubscribe = store.subscribe(
+      ({ isMobile, isMobileOpen, activeMenu }) => {
+        transitions.push({ isMobile, isMobileOpen, activeMenu });
+      },
+    );
+
+    actions.setViewport(true);
+    expect(transitions).toEqual([
+      { isMobile: true, isMobileOpen: false, activeMenu: null },
+    ]);
+    expect(store.getState().isExpanded).toBe(true);
+
+    actions.setMobileOpen(true);
+    actions.setActiveMenu("version");
+    const mobile = store.getState();
+    actions.setViewport(true);
+    expect(store.getState()).toBe(mobile);
+
+    transitions.length = 0;
+    actions.setViewport(false);
+    expect(transitions).toEqual([
+      { isMobile: false, isMobileOpen: false, activeMenu: null },
+    ]);
+    expect(store.getState().isExpanded).toBe(true);
+    expect(storage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY)).toBe("true");
+    unsubscribe();
   });
 
   it("closes transient navigation while retaining the desktop preference", () => {
@@ -127,7 +200,7 @@ describe("transient navigation", () => {
     expect(store.getState()).toMatchObject({
       isExpanded: false,
       isMobileOpen: false,
-      isSwitcherOpen: false,
+      activeMenu: null,
     });
     expect(storage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY)).toBe("false");
   });

@@ -14,6 +14,7 @@ import {
 } from "@/src/features/app-shell/stores/sidebarStore";
 
 const AppShellSidebarContext = createContext<SidebarStore | null>(null);
+const MOBILE_VIEWPORT_QUERY = "(max-width: 767px)";
 
 function browserStorage(): Storage | null {
   try {
@@ -34,8 +35,24 @@ function isPathChange(url: string) {
 export function AppShellSidebarProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [store] = useState(() =>
-    createSidebarStore({ storage: browserStorage() }),
+    createSidebarStore({
+      storage: browserStorage(),
+      isMobile:
+        typeof window !== "undefined" &&
+        window.matchMedia(MOBILE_VIEWPORT_QUERY).matches,
+    }),
   );
+
+  // Native media-query events own viewport transitions and their menu cleanup.
+  useEffect(() => {
+    const media = window.matchMedia(MOBILE_VIEWPORT_QUERY);
+    const { setViewport } = store.getState().actions;
+    const handleChange = (event: MediaQueryListEvent) =>
+      setViewport(event.matches);
+    media.addEventListener("change", handleChange);
+    setViewport(media.matches);
+    return () => media.removeEventListener("change", handleChange);
+  }, [store]);
 
   // The Next.js router closes transient navigation when leaving the page.
   useEffect(() => {

@@ -1,3 +1,5 @@
+import motion from "./sidebarMotion.module.css";
+import { cn } from "@/src/utils/tailwind";
 import { useId } from "react";
 import { useSidebarSurface } from "@/src/features/app-shell/contexts/SidebarSurfaceProvider";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
@@ -103,16 +105,17 @@ function NavigationGroup({
   const headingId = useId();
   return (
     <div role="group" aria-labelledby={headingId}>
-      <div
-        id={headingId}
-        className={
-          isCollapsed
-            ? "mx-2 my-2 border-t"
-            : "text-sidebar-foreground/70 flex items-center gap-2 px-2 pt-2 pb-0.5 text-xs font-bold"
-        }
-      >
-        <span className={isCollapsed ? "sr-only" : undefined}>{title}</span>
-        {!isCollapsed && ROUTE_GROUP_BADGES[title as RouteGroup]}
+      <div id={headingId} className={motion.groupHeading}>
+        <span
+          className={cn(
+            "text-sidebar-foreground/70 text-xs font-bold",
+            motion.groupCaption,
+            motion.label,
+          )}
+        >
+          {title}
+          {ROUTE_GROUP_BADGES[title as RouteGroup]}
+        </span>
       </div>
       <NavigationList items={items} isCollapsed={isCollapsed} />
     </div>
@@ -131,9 +134,9 @@ export function SidebarNavigation({
   label: string;
   items: GroupedNavigationItems;
 }) {
-  const isCollapsed = useSidebarSurface() === "rail";
+  const isCollapsed = useSidebarSurface() === "collapsed";
   return (
-    <nav aria-label={label} className="flex flex-col px-2">
+    <nav aria-label={label} className="flex min-w-14 flex-col px-2">
       {items.ungrouped.length > 0 ? (
         <NavigationList items={items.ungrouped} isCollapsed={isCollapsed} />
       ) : null}

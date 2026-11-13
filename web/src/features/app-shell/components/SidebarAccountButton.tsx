@@ -1,3 +1,4 @@
+import motion from "./sidebarMotion.module.css";
 import { cn } from "@/src/utils/tailwind";
 import { type ComponentProps } from "react";
 import { ChevronsUpDown } from "@langfuse/icons";
@@ -7,9 +8,8 @@ import { type SidebarUser } from "@/src/features/app-shell/components/SidebarUse
 /** The signed-in user's row; rendered under the account menu's `Trigger asChild`. */
 export function SidebarAccountButton({
   user,
-  isCollapsed,
   ...buttonProps
-}: { user: SidebarUser; isCollapsed: boolean } & Omit<
+}: { user: SidebarUser } & Omit<
   ComponentProps<"button">,
   "children" | "className" | "style" | "type"
 >) {
@@ -18,24 +18,22 @@ export function SidebarAccountButton({
       type="button"
       aria-label={`Account menu for ${user.name || user.email}`}
       className={cn(
-        "ph-no-capture hover:bg-sidebar-accent data-[state=open]:bg-sidebar-accent focus-visible:ring-sidebar-ring flex w-full min-w-0 items-center rounded-md text-left outline-hidden transition-colors focus-visible:ring-2",
-        isCollapsed ? "h-9 justify-center" : "h-11 gap-2 px-2",
+        "ph-no-capture hover:bg-sidebar-accent data-[state=open]:bg-sidebar-accent focus-visible:ring-sidebar-ring rounded-md outline-hidden transition-colors focus-visible:ring-2",
+        motion.account,
       )}
       {...buttonProps}
     >
-      <Avatar
-        size="md"
-        shape="rounded"
-        src={user.avatar}
-        displayName={user.name}
-        email={user.email}
-        aria-hidden
-      />
-      <span
-        className={
-          isCollapsed ? "sr-only" : "grid min-w-0 flex-1 text-sm leading-tight"
-        }
-      >
+      <span className={motion.iconLane}>
+        <Avatar
+          size="md"
+          shape="rounded"
+          src={user.avatar}
+          displayName={user.name}
+          email={user.email}
+          aria-hidden
+        />
+      </span>
+      <span className={cn(motion.identity, motion.label)}>
         <span className="text-foreground truncate font-bold" title={user.name}>
           {user.name}
         </span>
@@ -46,7 +44,9 @@ export function SidebarAccountButton({
           {user.email}
         </span>
       </span>
-      {!isCollapsed && <ChevronsUpDown size="base" color="default" />}
+      <span className={cn(motion.chevron, motion.label)}>
+        <ChevronsUpDown size="base" color="default" />
+      </span>
     </button>
   );
 }

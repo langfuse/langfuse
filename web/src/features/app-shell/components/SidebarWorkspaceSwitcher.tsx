@@ -1,6 +1,6 @@
+import motion from "./sidebarMotion.module.css";
 import { cn } from "@/src/utils/tailwind";
 import { Building2, ChevronsUpDown } from "@langfuse/icons";
-import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { WorkspaceGlyph } from "@/src/features/app-shell/components/WorkspaceGlyph";
 import { WorkspaceSwitcherPopover } from "@/src/features/app-shell/components/WorkspaceSwitcherPopover";
 import {
@@ -18,8 +18,9 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 export function SidebarWorkspaceSwitcher() {
   const { organization, project } = useQueryProjectOrOrganization();
   const surface = useSidebarSurface();
-  const isCollapsed = surface === "rail";
-  const isOpen = useAppShellSidebar((state) => state.isSwitcherOpen);
+  const isOpen = useAppShellSidebar(
+    (state) => state.activeMenu === "workspace",
+  );
   const { setSwitcherOpen } = useAppShellSidebarActions();
   const capture = usePostHogClientCapture();
 
@@ -36,7 +37,7 @@ export function SidebarWorkspaceSwitcher() {
         }
         setSwitcherOpen(nextIsOpen);
       }}
-      side={surface === "sheet" ? "bottom" : "right"}
+      side={surface === "mobile" ? "bottom" : "right"}
     >
       {({ Trigger }) => (
         <Trigger asChild>
@@ -44,22 +45,18 @@ export function SidebarWorkspaceSwitcher() {
             type="button"
             aria-label={`Switch project or organization. Current: ${title}`}
             className={cn(
-              "ph-no-capture group/switcher hover:bg-sidebar-accent focus-visible:ring-sidebar-ring data-[state=open]:bg-sidebar-accent flex w-full min-w-0 items-center rounded-md text-left outline-hidden transition-colors focus-visible:ring-2",
-              isCollapsed
-                ? "h-9 justify-center"
-                : "border-sidebar-border bg-background gap-2 border px-2 py-1.5",
+              "ph-no-capture hover:bg-sidebar-accent focus-visible:ring-sidebar-ring data-[state=open]:bg-sidebar-accent rounded-md outline-hidden transition-colors focus-visible:ring-2",
+              motion.workspace,
             )}
           >
-            {glyph ? (
-              <WorkspaceGlyph id={glyph.id} name={glyph.name} size="md" />
-            ) : (
-              <Building2 size="base" />
-            )}
-            <span
-              className={
-                isCollapsed ? "sr-only" : "flex min-w-0 flex-1 flex-col"
-              }
-            >
+            <span className={motion.iconLane}>
+              {glyph ? (
+                <WorkspaceGlyph id={glyph.id} name={glyph.name} size="md" />
+              ) : (
+                <Building2 size="base" />
+              )}
+            </span>
+            <span className={cn(motion.identity, motion.label)}>
               <span
                 className="text-muted-foreground truncate text-xs leading-4"
                 title={subtitle}
@@ -73,16 +70,9 @@ export function SidebarWorkspaceSwitcher() {
                 {title}
               </span>
             </span>
-            <span
-              className={
-                isCollapsed
-                  ? "hidden"
-                  : "hidden group-hover/switcher:inline-flex group-focus-visible/switcher:inline-flex"
-              }
-            >
-              <KeyboardShortcut keys={["Mod", "O"]} size="sm" />
+            <span className={cn(motion.chevron, motion.label)}>
+              <ChevronsUpDown size="base" color="default" />
             </span>
-            {!isCollapsed && <ChevronsUpDown size="base" color="default" />}
           </button>
         </Trigger>
       )}

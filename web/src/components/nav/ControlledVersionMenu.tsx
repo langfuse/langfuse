@@ -27,11 +27,15 @@ import {
  * Release, plan, and resource links behind the version badge. The caller
  * renders the badge through `Trigger asChild` and spreads `triggerProps` on it.
  */
-export function VersionMenu({
+export function ControlledVersionMenu({
   state,
   children,
+  open,
+  onOpenChange,
 }: {
   state: SidebarVersionState;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   children: (control: {
     Trigger: typeof DropdownMenuTrigger;
     triggerProps: { onPointerDown: () => void; onKeyDown: () => void };
@@ -57,7 +61,7 @@ export function VersionMenu({
   };
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={onOpenChange}>
       {children({
         Trigger: DropdownMenuTrigger,
         triggerProps: {

@@ -1,0 +1,55 @@
+.row {
+  overflow: hidden;
+}
+
+.leading {
+  display: flex;
+  flex: 0 0 40px;
+  align-self: stretch;
+  align-items: center;
+  justify-content: center;
+}
+
+.content {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  padding-inline-end: 8px;
+  opacity: 1;
+  transform: translateX(0);
+  transition-property: opacity, transform;
+  transition-duration:
+    var(--sidebar-label-duration, 0ms), var(--sidebar-motion-duration, 0ms);
+  transition-timing-function: var(--sidebar-motion-ease, ease);
+  transition-delay: var(--sidebar-label-delay, 0ms), 0ms;
+}
+
+.row[data-collapsed="true"] .content {
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-8px);
+  transition-delay: 0ms;
+}
+
+.label {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trailing {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row,
+  .content {
+    transition: none;
+  }
+}

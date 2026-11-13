@@ -1,12 +1,12 @@
 import { createContext, useContext, type ReactNode } from "react";
 
 /**
- * Where the one sidebar panel is currently rendered. The panel content is the
- * same everywhere; only presentation and the expand/close controls differ.
+ * The layout of the one persistent sidebar surface. Its content stays mounted
+ * when desktop expansion or the viewport changes.
  */
-export type SidebarSurface = "docked" | "rail" | "sheet";
+export type SidebarSurface = "collapsed" | "expanded" | "mobile";
 
-const SidebarSurfaceContext = createContext<SidebarSurface>("docked");
+const SidebarSurfaceContext = createContext<SidebarSurface>("collapsed");
 
 export function SidebarSurfaceProvider({
   surface,

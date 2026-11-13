@@ -1,20 +1,27 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 
 export type SidebarLayout = "desktop" | "mobile";
+type SidebarMenu = "workspace" | "account" | "version";
 
 export type SidebarStoreState = {
   /** Desktop preference: full navigation when true, a persistent icon rail otherwise. */
   isExpanded: boolean;
+  /** Current viewport; independent of the saved desktop expansion preference. */
+  isMobile: boolean;
   isMobileOpen: boolean;
-  isSwitcherOpen: boolean;
+  activeMenu: SidebarMenu | null;
   actions: {
     setExpanded: (isExpanded: boolean) => void;
+    /** A breakpoint transition closes every transient navigation surface atomically. */
+    setViewport: (isMobile: boolean) => void;
     /** Mod+B toggles desktop expansion or the mobile navigation menu. */
     toggleFromShortcut: (layout: SidebarLayout) => void;
     setMobileOpen: (isOpen: boolean) => void;
     /** Opens the workspace switcher without changing desktop expansion. */
     openSwitcher: (layout: SidebarLayout) => void;
     setSwitcherOpen: (isOpen: boolean) => void;
+    /** The persistent sidebar has at most one open child menu. */
+    setActiveMenu: (menu: SidebarMenu | null) => void;
     /** Closes transient navigation while preserving the desktop preference. */
     close: () => void;
   };
@@ -51,8 +58,10 @@ function writeExpanded(storage: SidebarStorage | null, isExpanded: boolean) {
 
 export function createSidebarStore({
   storage,
+  isMobile,
 }: {
   storage: SidebarStorage | null;
+  isMobile: boolean;
 }): SidebarStore {
   return createStore<SidebarStoreState>((set, get) => {
     const setExpanded = (isExpanded: boolean) => {
@@ -63,16 +72,29 @@ export function createSidebarStore({
     const setMobileOpen = (isMobileOpen: boolean) => {
       set({
         isMobileOpen,
-        isSwitcherOpen: isMobileOpen && get().isSwitcherOpen,
+        activeMenu: null,
       });
+    };
+
+    const setActiveMenu = (activeMenu: SidebarMenu | null) => {
+      if (get().activeMenu !== activeMenu) set({ activeMenu });
     };
 
     return {
       isExpanded: readExpanded(storage),
+      isMobile,
       isMobileOpen: false,
-      isSwitcherOpen: false,
+      activeMenu: null,
       actions: {
         setExpanded,
+        setViewport: (nextIsMobile) => {
+          if (get().isMobile === nextIsMobile) return;
+          set({
+            isMobile: nextIsMobile,
+            isMobileOpen: false,
+            activeMenu: null,
+          });
+        },
         toggleFromShortcut: (layout) => {
           if (layout === "mobile") setMobileOpen(!get().isMobileOpen);
           else setExpanded(!get().isExpanded);
@@ -80,16 +102,18 @@ export function createSidebarStore({
         setMobileOpen,
         openSwitcher: (layout) => {
           set({
-            isSwitcherOpen: true,
+            activeMenu: "workspace",
             ...(layout === "mobile" ? { isMobileOpen: true } : {}),
           });
         },
-        setSwitcherOpen: (isSwitcherOpen) => {
-          if (get().isSwitcherOpen !== isSwitcherOpen) set({ isSwitcherOpen });
+        setActiveMenu,
+        setSwitcherOpen: (isOpen) => {
+          if (isOpen) setActiveMenu("workspace");
+          else if (get().activeMenu === "workspace") setActiveMenu(null);
         },
         close: () => {
-          if (get().isMobileOpen || get().isSwitcherOpen) {
-            set({ isMobileOpen: false, isSwitcherOpen: false });
+          if (get().isMobileOpen || get().activeMenu !== null) {
+            set({ isMobileOpen: false, activeMenu: null });
           }
         },
       },

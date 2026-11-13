@@ -3,9 +3,10 @@ import Link from "next/link";
 import { cva } from "class-variance-authority";
 import { FloatingController } from "@/src/components/design-system/FloatingController/FloatingController";
 import { cn } from "@/src/utils/tailwind";
+import styles from "./SidebarNavItem.module.css";
 
 const rowVariants = cva(
-  "text-sidebar-foreground flex h-11 w-full min-w-0 items-center gap-2 md:h-9 rounded-md px-2 text-left text-sm whitespace-nowrap transition-colors",
+  "text-sidebar-foreground flex h-11 w-full min-w-0 items-center rounded-md text-left text-sm whitespace-nowrap transition-colors md:h-9",
   {
     variants: {
       interaction: {
@@ -29,21 +30,26 @@ function RowContent({
   label,
   isLabelBold,
   trailing,
-}: RowContentProps) {
+  isCollapsed,
+  leadingRef,
+}: RowContentProps & {
+  isCollapsed: boolean;
+  leadingRef?: Ref<HTMLSpanElement>;
+}) {
   return (
     <>
-      <span className="flex size-3.5 shrink-0 items-center justify-center">
+      <span ref={leadingRef} className={styles.leading} aria-hidden="true">
         {leading}
       </span>
-      <span
-        title={label}
-        className={cn("min-w-0 flex-1 truncate", isLabelBold && "font-bold")}
-      >
-        {label}
+      <span className={styles.content} aria-hidden={isCollapsed}>
+        <span
+          title={label}
+          className={cn(styles.label, isLabelBold && "font-bold")}
+        >
+          {label}
+        </span>
+        {trailing ? <span className={styles.trailing}>{trailing}</span> : null}
       </span>
-      {trailing ? (
-        <span className="flex shrink-0 items-center">{trailing}</span>
-      ) : null}
     </>
   );
 }
@@ -60,12 +66,11 @@ function RailEntry({
   children: ComponentProps<typeof FloatingController>["children"];
   renderExpandedRow: (close: () => void) => ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const [previewIntent, setPreviewIntent] = useState(false);
   return (
     <FloatingController
-      enabled={isCollapsed}
-      open={open}
-      onOpenChange={setOpen}
+      open={isCollapsed && previewIntent}
+      onOpenChange={setPreviewIntent}
       role="tooltip"
       placement="right"
       sideOffset={-40}
@@ -79,22 +84,26 @@ function RailEntry({
           data-sidebar-item-preview=""
           className="bg-sidebar text-sidebar-foreground max-w-xs min-w-40 rounded-md border shadow-md"
         >
-          {renderExpandedRow(() => setOpen(false))}
+          {renderExpandedRow(() => setPreviewIntent(false))}
         </div>
       )}
     >
-      {({ getTriggerProps }) =>
+      {({ getTriggerProps, setPositionReference }) =>
         children({
+          setPositionReference,
           getTriggerProps: (props) =>
             getTriggerProps({
               ...props,
-              onBlur: (event) => {
-                props?.onBlur?.(event);
-                if (!isCollapsed) setOpen(false);
-              },
               onMouseLeave: (event) => {
                 props?.onMouseLeave?.(event);
-                if (!isCollapsed) setOpen(false);
+                // There is no floating surface for safePolygon in expanded mode.
+                // Keep keyboard focus intent until the real trigger blurs.
+                if (
+                  !isCollapsed &&
+                  !event.currentTarget.matches(":focus-visible")
+                ) {
+                  setPreviewIntent(false);
+                }
               },
             }),
         })
@@ -141,32 +150,29 @@ function SidebarNavLink({
           }}
           className={cn(
             rowVariants({ interaction: "interactive" }),
-            "gap-0 px-0 pr-3",
+            styles.row,
           )}
         >
-          <span className="flex h-9 w-10 shrink-0 items-center justify-center">
-            {content.leading}
-          </span>
-          <span
-            className={cn("flex-1 pr-3", content.isLabelBold && "font-bold")}
-          >
-            {content.label}
-          </span>
-          {content.trailing}
+          <RowContent {...content} isCollapsed={false} />
         </Link>
       )}
     >
-      {({ getTriggerProps }) => (
+      {({ getTriggerProps, setPositionReference }) => (
         <Link
           {...linkProps}
           {...getTriggerProps({ ref, onClick })}
           aria-label={isCollapsed ? content.label : undefined}
+          data-collapsed={isCollapsed}
           className={cn(
             rowVariants({ interaction: "interactive" }),
-            isCollapsed && "h-9 w-10 justify-center gap-0 px-0",
+            styles.row,
           )}
         >
-          {isCollapsed ? content.leading : <RowContent {...content} />}
+          <RowContent
+            {...content}
+            isCollapsed={isCollapsed}
+            leadingRef={setPositionReference}
+          />
         </Link>
       )}
     </RailEntry>
@@ -203,39 +209,38 @@ function SidebarNavButton({
           }}
           className={cn(
             rowVariants({ interaction: "interactive" }),
-            "gap-0 px-0 pr-3",
+            styles.row,
           )}
         >
-          <span className="flex h-9 w-10 shrink-0 items-center justify-center">
-            {leading}
-          </span>
-          <span className={cn("flex-1 pr-3", isLabelBold && "font-bold")}>
-            {label}
-          </span>
-          {trailing}
+          <RowContent
+            leading={leading}
+            label={label}
+            isLabelBold={isLabelBold}
+            trailing={trailing}
+            isCollapsed={false}
+          />
         </button>
       )}
     >
-      {({ getTriggerProps }) => (
+      {({ getTriggerProps, setPositionReference }) => (
         <button
           {...getTriggerProps({ ...buttonProps, ref })}
           type="button"
           aria-label={buttonProps["aria-label"] ?? label}
+          data-collapsed={isCollapsed}
           className={cn(
             rowVariants({ interaction: "interactive" }),
-            isCollapsed && "h-9 w-10 justify-center gap-0 px-0",
+            styles.row,
           )}
         >
-          {isCollapsed ? (
-            leading
-          ) : (
-            <RowContent
-              leading={leading}
-              label={label}
-              isLabelBold={isLabelBold}
-              trailing={trailing}
-            />
-          )}
+          <RowContent
+            leading={leading}
+            label={label}
+            isLabelBold={isLabelBold}
+            trailing={trailing}
+            isCollapsed={isCollapsed}
+            leadingRef={setPositionReference}
+          />
         </button>
       )}
     </RailEntry>
@@ -244,7 +249,9 @@ function SidebarNavButton({
 
 function SidebarNavRow({ children }: { children: ReactNode }) {
   return (
-    <div className={rowVariants({ interaction: "static" })}>{children}</div>
+    <div className={cn(rowVariants({ interaction: "static" }), "gap-2 px-2")}>
+      {children}
+    </div>
   );
 }
 

@@ -21,6 +21,14 @@ export function useSidebarShortcuts(layout: SidebarLayout) {
       const key = event.key.toLowerCase();
       if (key === SIDEBAR_TOGGLE_SHORTCUT_KEY) {
         event.preventDefault();
+        if (
+          layout === "desktop" &&
+          document.activeElement?.closest("[data-sidebar-expanded-only]")
+        ) {
+          document
+            .querySelector<HTMLElement>("[data-sidebar-expansion-control]")
+            ?.focus();
+        }
         toggleFromShortcut(layout);
       } else if (key === WORKSPACE_SWITCHER_SHORTCUT_KEY) {
         event.preventDefault();
