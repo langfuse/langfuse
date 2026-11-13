@@ -3,6 +3,12 @@
   "build": {
     "dockerfile": "Dockerfile"
   },
+  "features": {
+    "ghcr.io/devcontainers/features/rust:1": {}
+  },
+  "containerEnv": {
+    "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0"
+  },
   "forwardPorts": [3000, 5432, 6379, 8123, 9000],
   "postCreateCommand": "cp .env.dev.example .env && pnpm i"
 }
