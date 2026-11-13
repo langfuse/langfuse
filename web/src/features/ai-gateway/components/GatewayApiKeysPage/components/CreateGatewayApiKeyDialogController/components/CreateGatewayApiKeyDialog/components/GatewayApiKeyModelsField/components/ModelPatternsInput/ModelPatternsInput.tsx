@@ -1,4 +1,10 @@
-import { useState, type FocusEvent, type KeyboardEvent, type Ref } from "react";
+import {
+  useRef,
+  useState,
+  type FocusEvent,
+  type KeyboardEvent,
+  type Ref,
+} from "react";
 import { Command as CommandPrimitive } from "cmdk";
 import { X } from "@langfuse/icons";
 
@@ -31,7 +37,12 @@ type ModelPatternsInputProps = {
   inputRef: Ref<HTMLInputElement>;
 };
 
-/** Pattern chips with an inline input that suggests connections, models and the typed pattern. */
+/**
+ * Pattern chips with an inline input that suggests connections, models and the
+ * typed pattern. With the caret at the start, ArrowLeft and Backspace select a
+ * chip; then ArrowLeft/ArrowRight move, Backspace/Delete remove, and Enter
+ * moves the chip back into the input for editing, like clicking it.
+ */
 export function ModelPatternsInput({
   label,
   describedById,
@@ -44,6 +55,8 @@ export function ModelPatternsInput({
 }: ModelPatternsInputProps) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const anchorRef = useRef<HTMLDivElement>(null);
   const suggestions = getGatewayModelPatternSuggestions(
     query,
     enabledModels,
@@ -71,6 +84,7 @@ export function ModelPatternsInput({
 
   const handleQueryChange = (value: string) => {
     setOpen(true);
+    setActiveIndex(null);
     if (!value.includes(",")) {
       setQuery(value);
       return;
@@ -79,10 +93,69 @@ export function ModelPatternsInput({
     setQuery("");
   };
 
+  const handleEdit = (pattern: string) => {
+    const remaining = patterns.filter((item) => item !== pattern);
+    onPatternsChange(
+      query.trim() ? addGatewayModelPatterns(remaining, query) : remaining,
+    );
+    setQuery(pattern);
+    setActiveIndex(null);
+    setOpen(true);
+    anchorRef.current?.querySelector("input")?.focus();
+  };
+
+  const removeActivePattern = (index: number, nextIndex: number) => {
+    const remaining = patterns.filter((_, itemIndex) => itemIndex !== index);
+    onPatternsChange(remaining);
+    setActiveIndex(
+      nextIndex >= 0 && nextIndex < remaining.length ? nextIndex : null,
+    );
+  };
+
+  const handleActivePatternKeyDown = (
+    event: KeyboardEvent<HTMLInputElement>,
+    index: number,
+  ) => {
+    switch (event.key) {
+      case "ArrowLeft":
+        setActiveIndex(Math.max(0, index - 1));
+        break;
+      case "ArrowRight":
+        setActiveIndex(index + 1 < patterns.length ? index + 1 : null);
+        break;
+      case "Backspace":
+        removeActivePattern(index, Math.max(0, index - 1));
+        break;
+      case "Delete":
+        removeActivePattern(index, index);
+        break;
+      case "Enter":
+        handleEdit(patterns[index] ?? "");
+        break;
+      case "Escape":
+        setActiveIndex(null);
+        break;
+      default:
+        setActiveIndex(null);
+        return;
+    }
+    event.preventDefault();
+  };
+
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Backspace" && query === "" && patterns.length > 0) {
+    if (activeIndex !== null) {
+      handleActivePatternKeyDown(event, activeIndex);
+      return;
+    }
+    const { selectionStart, selectionEnd } = event.currentTarget;
+    const isCaretAtStart = selectionStart === 0 && selectionEnd === 0;
+    if (
+      patterns.length > 0 &&
+      ((event.key === "Backspace" && isCaretAtStart) ||
+        (event.key === "ArrowLeft" && isCaretAtStart))
+    ) {
       event.preventDefault();
-      onPatternsChange(patterns.slice(0, -1));
+      setActiveIndex(patterns.length - 1);
     }
   };
 
@@ -94,6 +167,7 @@ export function ModelPatternsInput({
       onPatternsChange(addGatewayModelPatterns(patterns, query));
     setQuery("");
     setOpen(false);
+    setActiveIndex(null);
     onBlur();
   };
 
@@ -130,6 +204,7 @@ export function ModelPatternsInput({
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverAnchor asChild>
           <div
+            ref={anchorRef}
             data-model-patterns-input
             className="ph-no-capture bg-background ring-offset-background border-input focus-within:ring-ring flex min-h-8 w-full items-center gap-1 rounded-md border py-1 pr-1 pl-1.5 text-sm focus-within:ring-2 focus-within:ring-offset-2"
           >
@@ -140,10 +215,12 @@ export function ModelPatternsInput({
                   remove={{ onRemove: handleClear }}
                 />
               ) : (
-                patterns.map((pattern) => (
+                patterns.map((pattern, index) => (
                   <ModelPatternTag
                     key={pattern}
                     pattern={pattern}
+                    isActive={index === activeIndex}
+                    onEdit={handleEdit}
                     onRemove={handleRemove}
                   />
                 ))

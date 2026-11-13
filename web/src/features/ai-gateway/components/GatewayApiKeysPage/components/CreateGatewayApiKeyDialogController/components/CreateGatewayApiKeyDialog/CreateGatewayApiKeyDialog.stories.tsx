@@ -161,7 +161,10 @@ export const AllowedModelsPreview = meta.story({
     expect(screen.queryByText("claude-sonnet-4-5")).toBeNull();
 
     await userEvent.click(screen.getByRole("button", { name: "View less" }));
-    await userEvent.type(modelsInput, "{Backspace}{Backspace}nothing:*{Enter}");
+    await userEvent.type(
+      modelsInput,
+      "{Backspace}{Backspace}{Backspace}nothing:*{Enter}",
+    );
 
     expect(
       screen.getByText("No enabled models match these patterns."),
@@ -204,5 +207,34 @@ export const SuggestsModelPatterns = meta.story({
       screen.queryByRole("button", { name: "Remove All enabled models" }),
     ).toBeNull();
     expect(modelsInput).toHaveValue("");
+  },
+});
+
+export const EditsModelPatterns = meta.story({
+  name: "(Test) Model pattern chips can be edited with the keyboard",
+  play: async () => {
+    await userEvent.click(
+      await screen.findByRole("button", { name: "More options" }),
+    );
+    const modelsInput = screen.getByRole("combobox", { name: "Models" });
+
+    await userEvent.type(modelsInput, "openai:*{Enter}-*mini*{Enter}");
+    await userEvent.type(modelsInput, "{ArrowLeft}{ArrowLeft}{Enter}");
+
+    expect(modelsInput).toHaveValue("openai:*");
+    expect(screen.queryByRole("button", { name: "Edit openai:*" })).toBeNull();
+
+    await userEvent.type(modelsInput, "{Backspace}gpt-4o,");
+
+    expect(
+      screen.getByRole("button", { name: "Edit openai:gpt-4o" }),
+    ).toBeVisible();
+
+    await userEvent.type(modelsInput, "{ArrowLeft}{Delete}");
+
+    expect(
+      screen.queryByRole("button", { name: "Edit openai:gpt-4o" }),
+    ).toBeNull();
+    expect(screen.getByRole("button", { name: "Edit -*mini*" })).toBeVisible();
   },
 });
