@@ -1,9 +1,12 @@
 import { PricingTierCondition } from "../../features/model-pricing/validation";
+import { logger } from "../logger";
 import type {
   PricingTierMatchAttributes,
   PricingTierMatchResult,
   PricingTierWithPrices,
 } from "./types";
+
+const NON_BMP_CHARACTER_PATTERN = /[\u{10000}-\u{10ffff}]/u;
 
 /**
  * Pricing tier matching algorithm
@@ -40,9 +43,18 @@ function evaluateCondition(
     const regex = new RegExp(condition.usageDetailPattern, flags);
 
     // Find all keys matching the pattern
-    const matchingKeys = Object.keys(usageDetails).filter((key) =>
-      regex.test(key),
-    );
+    const matchingKeys = Object.keys(usageDetails).filter((key) => {
+      if (NON_BMP_CHARACTER_PATTERN.test(key)) {
+        // Log-only: the native bounded matcher cannot handle non-BMP keys.
+        // Keep matching them here until the guard is enforced.
+        logger.warn("Pricing tier usage key contains a non-BMP character", {
+          usageDetailKey: key,
+          usageDetailPattern: condition.usageDetailPattern,
+          caseSensitive: condition.caseSensitive,
+        });
+      }
+      return regex.test(key);
+    });
 
     // Sum values of matching keys
     const sum = matchingKeys.reduce(

@@ -1,7 +1,8 @@
 import { Decimal } from "decimal.js";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { calculateModelUsageCosts } from "./calculateModelUsageCosts";
 import type { ModelWithPrices } from "../ingestion/modelMatch";
+import { logger } from "../logger";
 import type { PricingTierWithPrices } from "./types";
 
 function modelWithPrices(prices: Record<string, number>): ModelWithPrices {
@@ -192,5 +193,62 @@ describe("calculateModelUsageCosts", () => {
       total_cost: 6.02,
       usage_pricing_tier_id: "priority-long",
     });
+  });
+
+  it("logs every non-BMP usage key without changing pricing", () => {
+    const warn = vi.spyOn(logger, "warn").mockImplementation(() => logger);
+    try {
+      const model = modelWithPrices({ input: 0.01 });
+      const usageDetailPattern = "^(input|😀)$";
+      model.pricingTiers.push({
+        ...model.pricingTiers[0],
+        id: "unicode",
+        name: "Unicode",
+        isDefault: false,
+        priority: 1,
+        conditions: [
+          {
+            usageDetailPattern,
+            operator: "eq",
+            value: 150,
+            caseSensitive: false,
+          },
+        ],
+        prices: [
+          { usageType: "input", price: new Decimal(0.04) },
+          { usageType: "😀", price: new Decimal(0.02) },
+        ],
+      });
+      const usageDetails = Object.freeze({
+        input: 100,
+        "😀": 50,
+        "\u{10000}": 1,
+        "\u{10ffff}": 1,
+        entrée: 1,
+        "\uffff": 1,
+        "\ud800": 1,
+        "\udfff": 1,
+      });
+
+      for (let attempt = 0; attempt < 2; attempt++) {
+        expect(calculateModelUsageCosts({ model, usageDetails })).toMatchObject(
+          {
+            cost_details: { input: 4, "😀": 1, total: 5 },
+            total_cost: 5,
+            usage_pricing_tier_id: "unicode",
+          },
+        );
+      }
+
+      const nonBmpKeys = ["😀", "\u{10000}", "\u{10ffff}"];
+      expect(warn.mock.calls).toEqual(
+        [...nonBmpKeys, ...nonBmpKeys].map((usageDetailKey) => [
+          "Pricing tier usage key contains a non-BMP character",
+          { usageDetailKey, usageDetailPattern, caseSensitive: false },
+        ]),
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
