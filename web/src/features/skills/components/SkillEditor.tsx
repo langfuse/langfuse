@@ -969,12 +969,12 @@ function SkillEditActions(props: {
   onEditManually: () => Promise<void>;
   onBeforeHalo?: () => void;
 }) {
-  const noAccess = !props.canEdit ? "You do not have write access" : undefined;
-  if (!props.halo) {
+  // The Halo menu trigger cannot show a reason, so read-only users get the plain button.
+  if (!props.halo || !props.canEdit) {
     return (
       <Button
         disabled={!props.canEdit}
-        title={noAccess}
+        title={!props.canEdit ? "You do not have write access" : undefined}
         onClick={props.onEditManually}
       >
         <Pencil size="base" __rawClassName="mr-1.5" />
@@ -998,7 +998,6 @@ function SkillEditMenu(
   return (
     <DropdownMenu
       ariaLabel="Edit skill"
-      disabled={!props.canEdit}
       items={[
         {
           type: "item",
@@ -1038,7 +1037,6 @@ function SkillEditMenu(
           text={props.hasDraft ? "Resume draft" : "Edit"}
           variant="primary"
           icon={ChevronDown}
-          disabled={!props.canEdit}
           {...getTriggerProps()}
         />
       )}
