@@ -337,6 +337,17 @@ describe("tenancy injection", () => {
     );
   });
 
+  it("injects the project scope into the ON clause of a LEFT join", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("traces as t")
+      .leftJoin("scores as s", (join) => join.onRef("s.trace_id", "=", "t.id"))
+      .select("t.id");
+
+    expect(compileClickhouseQuery(qb, projectId).sql).toMatchInlineSnapshot(
+      `"select t.id from traces as t left join scores as s on s.trace_id = t.id and s.project_id = {p1:String} where t.project_id = {p1:String}"`,
+    );
+  });
+
   it("rejects a RIGHT or FULL join scoped only in ON", () => {
     // The joined table's unmatched rows survive the join, and nothing outside
     // the ON clause filters them: the FROM is a subquery. A caller-written ON
