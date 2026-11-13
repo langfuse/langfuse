@@ -293,7 +293,54 @@ const applyBatchIOStringRendering = (
 type EventsObservationQueryResult = EventsObservationRecordReadType & {
   latency?: string;
   time_to_first_token?: string;
+  /** Present when the row select includes `toolCounts`. ClickHouse UInt64. */
+  tool_definitions_count?: string | number;
+  tool_calls_count?: string | number;
 };
+
+type EventsTableReadOptions = ObservationTableQuery & {
+  /**
+   * When false, the row select uses `baseWithoutTools`: tool call names stay,
+   * tool definition and tool call payloads do not. Defaults to true.
+   */
+  selectToolData?: boolean;
+  /**
+   * Also select `length(tool_definitions)` and `length(tool_calls)` as
+   * `toolDefinitionsCount` / `toolCallsCount`.
+   */
+  selectToolCounts?: boolean;
+};
+
+function toolCountFromColumn(
+  value: string | number | null | undefined,
+): number | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  const count = Number(value);
+  return Number.isFinite(count) ? count : undefined;
+}
+
+function applySelectedToolCounts<
+  T extends {
+    toolDefinitionsCount: number | null;
+    toolCallsCount: number | null;
+  },
+>(observations: T[], records: EventsObservationQueryResult[]): T[] {
+  return observations.map((observation, index) => {
+    const record = records[index];
+    const toolDefinitionsCount = toolCountFromColumn(
+      record?.tool_definitions_count,
+    );
+    const toolCallsCount = toolCountFromColumn(record?.tool_calls_count);
+    if (toolDefinitionsCount === undefined && toolCallsCount === undefined) {
+      return observation;
+    }
+    return {
+      ...observation,
+      ...(toolDefinitionsCount !== undefined ? { toolDefinitionsCount } : {}),
+      ...(toolCallsCount !== undefined ? { toolCallsCount } : {}),
+    };
+  });
+}
 
 /**
  * Extra row fields present when the query ran with an `ioSizeCap`
@@ -689,15 +736,15 @@ export const getObservationsCountsFromEventsTable = async (
 };
 
 export async function getObservationsWithModelDataFromEventsTable(
-  opts: ObservationTableQuery & {
+  opts: EventsTableReadOptions & {
     ioSizeCap: NonNullable<ObservationTableQuery["ioSizeCap"]>;
   },
 ): Promise<Array<FullEventsObservation & ObservationIOSizeFields>>;
 export async function getObservationsWithModelDataFromEventsTable(
-  opts: ObservationTableQuery,
+  opts: EventsTableReadOptions,
 ): Promise<FullEventsObservations>;
 export async function getObservationsWithModelDataFromEventsTable(
-  opts: ObservationTableQuery,
+  opts: EventsTableReadOptions,
 ): Promise<FullEventsObservations> {
   const observationRecords = await getObservationsFromEventsTableInternal<
     EventsObservationQueryResult & Partial<IOSizeCapRowFields>
@@ -714,7 +761,10 @@ export async function getObservationsWithModelDataFromEventsTable(
       null, // V1 path: always enrich all fields
     );
 
-  const enriched = await enrichObservationsWithTraceFields(withModelData);
+  const enriched = applySelectedToolCounts(
+    await enrichObservationsWithTraceFields(withModelData),
+    observationRecords,
+  );
 
   if (!opts.ioSizeCap) return enriched;
 
@@ -967,6 +1017,7 @@ async function getObservationsFromEventsTableInternal<T>(
       | "rows"
       | "trace-delete-cursor";
     selectToolData?: boolean;
+    selectToolCounts?: boolean;
     preferredClickhouseService?: PreferredClickhouseService;
   },
 ): Promise<Array<T>> {
@@ -976,6 +1027,7 @@ async function getObservationsFromEventsTableInternal<T>(
     selectIOAndMetadata,
     selectMetadata,
     selectToolData = true,
+    selectToolCounts = false,
     renderingProps = DEFAULT_RENDERING_PROPS,
     limit,
     offset,
@@ -1025,6 +1077,7 @@ async function getObservationsFromEventsTableInternal<T>(
     queryBuilder.selectFieldSet(
       selectToolData ? "base" : "baseWithoutTools",
       "calculated",
+      ...(selectToolCounts ? (["toolCounts"] as const) : []),
     );
     if (selectIOAndMetadata) {
       if (opts.ioSizeCap) {

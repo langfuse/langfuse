@@ -31,6 +31,7 @@ import {
   type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
 import {
+  getEventList,
   getEventListCursor,
   getEventFilterNumericRange,
   getEventFilterOptions,
@@ -1033,6 +1034,80 @@ describe("Clickhouse Events Repository Test", () => {
           ),
         ).size,
       ).toBe(30);
+    });
+
+    it("returns tool counts without tool payloads", async () => {
+      const name = `tool-counts-${randomUUID()}`;
+      const withToolsId = randomUUID();
+      const emptyToolsId = randomUUID();
+      const storedToolCall = JSON.stringify({ id: "call_1", name: "search" });
+      const filter: FilterCondition[] = [
+        { column: "name", type: "string", operator: "=", value: name },
+      ];
+
+      await createEventsCh([
+        createEvent({
+          id: withToolsId,
+          span_id: withToolsId,
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "GENERATION",
+          name,
+          tool_definitions: { search: "{}", calculator: "{}" },
+          tool_calls: [storedToolCall],
+          tool_call_names: ["search"],
+          start_time: Date.now(),
+        }),
+        createEvent({
+          id: emptyToolsId,
+          span_id: emptyToolsId,
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name,
+          tool_definitions: {},
+          tool_calls: [],
+          tool_call_names: [],
+          start_time: Date.now() - 1_000,
+        }),
+      ]);
+
+      const page = await getEventList({
+        projectId,
+        filter,
+        searchType: [],
+        orderBy: { column: "startTime", order: "DESC" },
+        page: 1,
+        limit: 10,
+      });
+      const withTools = page.observations.find((row) => row.id === withToolsId);
+      const emptyTools = page.observations.find(
+        (row) => row.id === emptyToolsId,
+      );
+
+      expect(withTools?.toolDefinitions).toBeNull();
+      expect(withTools?.toolCalls).toBeNull();
+      expect(withTools?.toolCallNames).toEqual(["search"]);
+      expect(withTools?.toolDefinitionsCount).toBe(2);
+      expect(withTools?.toolCallsCount).toBe(1);
+      expect(emptyTools?.toolDefinitions).toBeNull();
+      expect(emptyTools?.toolCalls).toBeNull();
+      expect(emptyTools?.toolDefinitionsCount).toBe(0);
+      expect(emptyTools?.toolCallsCount).toBe(0);
+
+      const cursorPage = await getEventListCursor({
+        projectId,
+        filter,
+        searchType: [],
+        limit: 10,
+      });
+      const cursorRow = cursorPage.observations.find(
+        (row) => row.id === withToolsId,
+      );
+      expect(cursorRow?.toolDefinitions).toBeNull();
+      expect(cursorRow?.toolCalls).toBeNull();
+      expect(cursorRow?.toolDefinitionsCount).toBe(2);
+      expect(cursorRow?.toolCallsCount).toBe(1);
     });
 
     it("should return release field in the result set", async () => {

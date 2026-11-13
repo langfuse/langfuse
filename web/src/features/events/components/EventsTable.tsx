@@ -1916,12 +1916,8 @@ export default function ObservationsEventsTable({
               userId: observation.userId ?? undefined,
               sessionId: observation.sessionId ?? undefined,
               completionStartTime: observation.completionStartTime ?? undefined,
-              toolDefinitions: observation.toolDefinitions
-                ? Object.keys(observation.toolDefinitions).length
-                : undefined,
-              toolCalls: observation.toolCalls
-                ? observation.toolCalls.length
-                : undefined,
+              toolDefinitions: observation.toolDefinitionsCount ?? undefined,
+              toolCalls: observation.toolCallsCount ?? undefined,
             };
           })
         : [];

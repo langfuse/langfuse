@@ -310,8 +310,14 @@ async function getEventListPage(
   params: GetObservationsListBaseParams,
   queryOpts: Parameters<typeof getObservationsWithModelDataFromEventsTable>[0],
 ) {
-  const fetchedObservations =
-    await getObservationsWithModelDataFromEventsTable(queryOpts);
+  const fetchedObservations = await getObservationsWithModelDataFromEventsTable(
+    {
+      ...queryOpts,
+      // The table renders tool payload sizes, not the payloads.
+      selectToolData: false,
+      selectToolCounts: true,
+    },
+  );
   const hasMore = fetchedObservations.length > params.limit;
   const observations = hasMore
     ? fetchedObservations.slice(0, params.limit)

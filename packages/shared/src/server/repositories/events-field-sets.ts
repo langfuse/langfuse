@@ -49,6 +49,8 @@ const EVENTS_FIELD_ORDER = [
   "toolDefinitions",
   "toolCalls",
   "toolCallNames",
+  "toolDefinitionsCount",
+  "toolCallsCount",
   "usagePricingTierId",
   "usagePricingTierName",
   "input",
@@ -172,6 +174,8 @@ export const FIELD_SETS = {
   io: ["input", "output"],
   metadata: ["metadata"],
   tools: ["toolDefinitions", "toolCalls", "toolCallNames"],
+  // Counts only. length() reads the Map/Array size subcolumn.
+  toolCounts: ["toolDefinitionsCount", "toolCallsCount"],
   trace_context: ["tags", "release", "traceName"],
   model_export: ["providedModelName", "modelId", "modelParameters"],
   eventTs: ["eventTs"],
