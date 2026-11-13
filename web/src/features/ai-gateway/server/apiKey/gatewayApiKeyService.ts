@@ -98,6 +98,8 @@ export class GatewayApiKeyService {
     organizationId: string;
     name: string;
     metadata: GatewayMetadata;
+    /** Null allows every model the admin enabled. */
+    allowedModels?: string[] | null;
     expiresAt?: Date | null;
     /** `user` keys are USER-scoped and also need their creator's roles to allow each call; `serviceAccount` keys belong to the organization. */
     issuedAs: GatewayApiKeyIssuedAs;
@@ -121,6 +123,7 @@ export class GatewayApiKeyService {
           data: {
             apiKeyId: key.id,
             metadata: params.metadata,
+            allowedModels: params.allowedModels ?? Prisma.DbNull,
           },
         });
         return key;
@@ -140,6 +143,7 @@ export class GatewayApiKeyService {
           note: key.note,
           expiresAt: params.expiresAt ?? null,
           issuedAs: params.issuedAs,
+          allowedModels: params.allowedModels,
         },
       },
       this.prisma,

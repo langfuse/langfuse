@@ -19,6 +19,7 @@ import {
   validateLlmConnectionBaseURL,
 } from "@langfuse/shared/src/server";
 import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import { GatewayApiKeyRepository } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyRepository";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { GATEWAY_CONNECTION_NAME_ERRORS } from "@/src/features/ai-gateway/constants/gatewayConnection";
@@ -66,13 +67,17 @@ const BEDROCK_FAILURE_DESCRIPTIONS: Record<ModelDiscoveryError, string> = {
 export class GatewayProviderService {
   private readonly repository: GatewayProviderRepository;
   private readonly modelCatalogService: GatewayModelCatalogService;
+  private readonly apiKeyRepository: GatewayApiKeyRepository;
 
   constructor(
     private readonly prisma: PrismaClient,
     private readonly validateCredential: CredentialValidator = validateGatewayCredential,
     modelCatalogService?: GatewayModelCatalogService,
+    apiKeyRepository?: GatewayApiKeyRepository,
   ) {
     this.repository = new GatewayProviderRepository(prisma);
+    this.apiKeyRepository =
+      apiKeyRepository ?? new GatewayApiKeyRepository(prisma);
     this.modelCatalogService =
       modelCatalogService ?? new GatewayModelCatalogService(prisma);
   }
@@ -263,18 +268,34 @@ export class GatewayProviderService {
 
     let updated;
     try {
-      updated = await this.repository.updateConnection({
-        organizationId: params.organizationId,
-        id: params.id,
-        name,
-        status: params.credential ? "ENABLED" : params.status,
-        encryptedCredential: params.credential
-          ? encrypt(toStoredCredential(existing.provider, params.credential))
-          : undefined,
-        displaySecret: params.credential
-          ? getDisplaySecretKey(params.credential)
-          : undefined,
-        ...(isEndpointChanged ? toStoredEndpoint(endpoint) : {}),
+      updated = await this.prisma.$transaction(async (tx) => {
+        const connection = await this.repository.updateConnection(
+          {
+            organizationId: params.organizationId,
+            id: params.id,
+            name,
+            previousName: existing.name,
+            status: params.credential ? "ENABLED" : params.status,
+            encryptedCredential: params.credential
+              ? encrypt(
+                  toStoredCredential(existing.provider, params.credential),
+                )
+              : undefined,
+            displaySecret: params.credential
+              ? getDisplaySecretKey(params.credential)
+              : undefined,
+            ...(isEndpointChanged ? toStoredEndpoint(endpoint) : {}),
+          },
+          tx,
+        );
+        if (name !== undefined) {
+          await this.apiKeyRepository.renameConnectionInModelPatterns(tx, {
+            organizationId: params.organizationId,
+            previousName: existing.name,
+            name,
+          });
+        }
+        return connection;
       });
     } catch (error) {
       rethrowConnectionMutationError(error);
@@ -564,6 +585,14 @@ function rethrowConnectionMutationError(error: unknown): never {
     error.code === "P2002"
   ) {
     throw new InvalidRequestError(GATEWAY_CONNECTION_NAME_ERRORS.duplicate);
+  }
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2025"
+  ) {
+    throw new LangfuseConflictError(
+      "This connection was changed in the meantime. Reload it and try again.",
+    );
   }
   throw error;
 }

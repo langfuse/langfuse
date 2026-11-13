@@ -10,12 +10,14 @@ import { Form } from "@/src/components/design-system/Form/Form";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { GatewayApiKeyExpirationField } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/components/GatewayApiKeyExpirationField/GatewayApiKeyExpirationField";
 import { GatewayApiKeyMetadataField } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/components/GatewayApiKeyMetadataField/GatewayApiKeyMetadataField";
+import { GatewayApiKeyModelsField } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/components/GatewayApiKeyModelsField/GatewayApiKeyModelsField";
 import type { GatewayApiKeyExpirationPreset } from "@/src/features/ai-gateway/constants/gatewayApiKeyExpirationOptions";
 import { resolveGatewayApiKeyExpiration } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/fns/resolveGatewayApiKeyExpiration";
 import {
   createGatewayApiKeyFormSchema,
   type CreateGatewayApiKeyFormValues,
 } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/CreateGatewayApiKeyDialog/types/createGatewayApiKeyFormSchema";
+import type { GatewayEnabledModels } from "@/src/features/ai-gateway/types/gatewayEnabledModels";
 import type { RouterInputs } from "@/src/utils/api";
 
 const defaultValues: CreateGatewayApiKeyFormValues = {
@@ -24,6 +26,7 @@ const defaultValues: CreateGatewayApiKeyFormValues = {
   expiryPreset: "never",
   customExpiry: "",
   metadata: [],
+  modelPatterns: [],
 };
 
 const issuedAsDescriptions: Record<
@@ -44,6 +47,8 @@ type CreateGatewayApiKeySubmission = Omit<
 
 type CreateGatewayApiKeyDialogProps = {
   canIssueServiceAccountKeys: boolean;
+  /** Previews which models the patterns allow; undefined hides the preview. */
+  enabledModels: GatewayEnabledModels | undefined;
   errorMessage: string | null;
   isSubmitting: boolean;
   onSubmit: (submission: CreateGatewayApiKeySubmission) => void;
@@ -51,6 +56,7 @@ type CreateGatewayApiKeyDialogProps = {
 
 export function CreateGatewayApiKeyDialog({
   canIssueServiceAccountKeys,
+  enabledModels,
   errorMessage,
   isSubmitting,
   onSubmit,
@@ -85,6 +91,8 @@ export function CreateGatewayApiKeyDialog({
       name: values.name.trim(),
       metadata,
       metadataCount: Object.keys(metadata).length,
+      allowedModels:
+        values.modelPatterns.length > 0 ? values.modelPatterns : null,
       expiresAt,
       expiryPreset: values.expiryPreset,
       issuedAs: canIssueServiceAccountKeys ? values.issuedAs : "user",
@@ -135,7 +143,7 @@ export function CreateGatewayApiKeyDialog({
               />
             )}
           </CustomTooltip>
-          <MoreOptions control={form.control} />
+          <MoreOptions control={form.control} enabledModels={enabledModels} />
           {errorMessage !== null ? (
             <Alert variant="destructive">
               <Alert.Title>Gateway key could not be created</Alert.Title>
@@ -181,8 +189,10 @@ function IssuedAsField({
 
 function MoreOptions({
   control,
+  enabledModels,
 }: {
   control: Control<CreateGatewayApiKeyFormValues>;
+  enabledModels: GatewayEnabledModels | undefined;
 }) {
   const contentId = useId();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -205,6 +215,10 @@ function MoreOptions({
         <div id={contentId} className="flex flex-col gap-5 pl-5">
           <GatewayApiKeyExpirationField control={control} />
           <GatewayApiKeyMetadataField control={control} />
+          <GatewayApiKeyModelsField
+            control={control}
+            enabledModels={enabledModels}
+          />
         </div>
       ) : null}
     </div>

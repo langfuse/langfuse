@@ -391,9 +391,11 @@ model GatewayAiConnection {
 }
 
 model GatewayApiKeyAssociation {
-  apiKeyId String @id @map("api_key_id")
-  apiKey   ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
-  metadata Json   @default("{}") @db.JsonB
+  apiKeyId      String @id @map("api_key_id")
+  apiKey        ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  metadata      Json   @default("{}") @db.JsonB
+  // Model patterns this key may call (`*` wildcard, `-` excludes); null allows every enabled model.
+  allowedModels Json?  @map("allowed_models") @db.JsonB
 
   @@map("gateway_api_key_associations")
 }

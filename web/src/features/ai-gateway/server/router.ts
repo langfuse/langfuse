@@ -70,6 +70,14 @@ const allowedModelsSchema = z
   .max(10_000)
   .nullable();
 const customModelSchema = z.string().trim().min(1).max(500);
+/** A key without patterns, or with an empty list, may call every enabled model. */
+const gatewayKeyAllowedModelsSchema = z
+  .array(z.string().trim().min(1).max(500))
+  .max(100)
+  .nullish()
+  .transform((patterns) =>
+    patterns && patterns.length > 0 ? [...new Set(patterns)] : null,
+  );
 
 function requireGatewayAdmin(params: { session: Session; orgId: string }) {
   requireGatewayEnabledForOrganization(params.orgId);
@@ -620,6 +628,7 @@ export const aiGatewayRouter = createTRPCRouter({
       organizationInput.extend({
         name: z.string().trim().min(1, "Gateway keys need a name").max(500),
         metadata: GatewayMetadataSchema.default({}),
+        allowedModels: gatewayKeyAllowedModelsSchema,
         expiresAt: z
           .date()
           .nullish()
@@ -648,6 +657,7 @@ export const aiGatewayRouter = createTRPCRouter({
         organizationId: input.orgId,
         name: input.name,
         metadata: input.metadata,
+        allowedModels: input.allowedModels,
         expiresAt: input.expiresAt,
         issuedAs: input.issuedAs,
         session: ctx.session,
