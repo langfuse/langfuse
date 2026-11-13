@@ -637,16 +637,16 @@ export const dashboardRouter = createTRPCRouter({
         select: { name: true },
       });
 
-      const clonedDashboard = await DashboardService.createDashboard(
-        input.projectId,
-        nextCloneName(
+      const clonedDashboard = await DashboardService.cloneDashboard({
+        projectId: input.projectId,
+        name: nextCloneName(
           sourceDashboard.name,
           existingClones.map((d) => d.name),
         ),
-        sourceDashboard.description,
-        ctx.session.user.id,
-        input.definition ?? sourceDashboard.definition,
-      );
+        description: sourceDashboard.description,
+        definition: input.definition ?? sourceDashboard.definition,
+        userId: ctx.session.user.id,
+      });
 
       if (input.setAsHome) {
         await ctx.prisma.project.update({
