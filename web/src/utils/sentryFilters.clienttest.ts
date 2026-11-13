@@ -609,6 +609,36 @@ describe("isDenylistedNoiseEvent", () => {
       ).toBe(false);
     });
 
+    it("drops a BloggerPemula BASS theme console.error (LANGFUSE-64V)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "[BASS V96.5] 12:00:00 PM [top] - ERROR From BloggerPemula: Error executing function data: Cannot read properties of undefined (reading 'jQuery')",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops a later BASS version on the logentry path", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          logentryEvent(
+            "[BASS V97] 9:00:00 AM [top] - ERROR From BloggerPemula: Error executing function data: boom",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same BASS log when it arrives as an exception value", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "[BASS V96.5] 12:00:00 PM [top] - ERROR From BloggerPemula: Error executing function data: Cannot read properties of undefined (reading 'jQuery')",
+          ),
+        ),
+      ).toBe(true);
+    });
+
     it("drops the @sentry/nextjs '_error.js called with falsy error (…)' artifact", () => {
       // Real shape: captureException(`_error.js called with falsy error (${err})`)
       // → exception event whose value STARTS with the prefix.
@@ -1331,6 +1361,35 @@ describe("isDenylistedNoiseEvent", () => {
     it("keeps an OAuthCallback sign-in error (deliberately not dropped)", () => {
       expect(
         isDenylistedNoiseEvent(exceptionEvent("OAuthCallback error", "Error")),
+      ).toBe(false);
+    });
+
+    it("keeps a first-party jQuery TypeError without the BASS vendor prefix", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Cannot read properties of undefined (reading 'jQuery')",
+            "TypeError",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a [BASS V…] log that is not from BloggerPemula", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent("[BASS V96.5] 12:00:00 PM [top] - ERROR From app: boom"),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a BloggerPemula mention that is not a BASS versioned prefix", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "ERROR From BloggerPemula: Error executing function data: boom",
+          ),
+        ),
       ).toBe(false);
     });
 
