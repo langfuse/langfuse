@@ -17,6 +17,15 @@ const AGGREGATE_CACHE_CREATION_USAGE_TYPES = [
   "cache_creation_input_tokens",
   "input_cache_creation",
 ];
+const TTL_CACHE_WRITE_USAGE_TYPES = new Set([
+  "input_cache_write_30m_tokens",
+  "input_cache_write_12h_tokens",
+]);
+const AGGREGATE_CACHE_WRITE_USAGE_TYPES = [
+  "input_cache_write_tokens",
+  "cache_write_tokens",
+  "input_cache_creation",
+];
 
 type PricingAttributes = { modelParameters?: unknown; metadata?: unknown };
 type CalculatedCosts = {
@@ -110,6 +119,11 @@ function calculateInferredCosts(
     let price = prices.get(usageType);
     if (price == null && TTL_CACHE_CREATION_USAGE_TYPES.has(usageType)) {
       price = AGGREGATE_CACHE_CREATION_USAGE_TYPES.map((key) =>
+        prices.get(key),
+      ).find((value) => value != null);
+    }
+    if (price == null && TTL_CACHE_WRITE_USAGE_TYPES.has(usageType)) {
+      price = AGGREGATE_CACHE_WRITE_USAGE_TYPES.map((key) =>
         prices.get(key),
       ).find((value) => value != null);
     }

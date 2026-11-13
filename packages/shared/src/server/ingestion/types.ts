@@ -150,6 +150,48 @@ function splitAnthropicCacheCreation(
   }
 }
 
+/**
+ * OpenAI Responses API nests cache writes by TTL under `cache_write_tokens_details`.
+ * Store the breakdown into `input_cache_write_30m_tokens` / `input_cache_write_12h_tokens`;
+ * the aggregate `input_cache_write_tokens` keeps only the unattributed remainder
+ * so no write is counted or priced twice.
+ */
+function splitOpenAICacheWriteDetails(
+  details: unknown,
+  result: Record<string, number> & { input: number },
+) {
+  if (typeof details !== "object" || details === null) return;
+
+  const split = details as Record<string, unknown>;
+  const isCount = (value: unknown): value is number =>
+    typeof value === "number" && Number.isInteger(value) && value >= 0;
+
+  const ttl30m = split["ttl_30m_tokens"];
+  const ttl12h = split["ttl_12h_tokens"];
+  if (!isCount(ttl30m) && !isCount(ttl12h)) return;
+
+  let attributed = 0;
+  if (isCount(ttl30m)) {
+    result["input_cache_write_30m_tokens"] = ttl30m;
+    attributed += ttl30m;
+  }
+  if (isCount(ttl12h)) {
+    result["input_cache_write_12h_tokens"] = ttl12h;
+    attributed += ttl12h;
+  }
+
+  if (result["input_cache_write_tokens"] === undefined && attributed > 0) {
+    result.input = Math.max(result.input - attributed, 0);
+  }
+
+  const remainder = (result["input_cache_write_tokens"] ?? 0) - attributed;
+  if (remainder > 0) {
+    result["input_cache_write_tokens"] = remainder;
+  } else {
+    delete result["input_cache_write_tokens"];
+  }
+}
+
 // The OpenAI schemas accept unknown top-level keys: OpenAI-compatible providers
 // add fields such as `cost`, and rejecting those would route the payload to
 // `RawUsageDetails` and lose the normalization. Unknown keys are kept under the
@@ -217,7 +259,15 @@ const OpenAIResponseUsageSchema = z
     output_tokens: z.number().int().nonnegative(),
     total_tokens: z.number().int().nonnegative(),
     input_tokens_details: z
-      .record(z.string(), z.number().int().nonnegative().nullish())
+      .record(
+        z.string(),
+        z
+          .union([
+            z.number().int().nonnegative(),
+            z.record(z.string(), z.number().int().nonnegative().nullish()),
+          ])
+          .nullish(),
+      )
       .nullish(),
     output_tokens_details: z
       .record(z.string(), z.number().int().nonnegative().nullish())
@@ -248,10 +298,21 @@ const OpenAIResponseUsageSchema = z
 
     if (input_tokens_details) {
       for (const [key, value] of Object.entries(input_tokens_details)) {
-        if (value !== null && value !== undefined) {
+        if (typeof value === "number") {
           result[`input_${key}`] = value;
           result.input = Math.max(result.input - (value ?? 0), 0);
         }
+      }
+
+      if (
+        "cache_write_tokens_details" in input_tokens_details &&
+        typeof input_tokens_details.cache_write_tokens_details === "object" &&
+        input_tokens_details.cache_write_tokens_details !== null
+      ) {
+        splitOpenAICacheWriteDetails(
+          input_tokens_details.cache_write_tokens_details,
+          result,
+        );
       }
     }
 
