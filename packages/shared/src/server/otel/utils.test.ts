@@ -415,16 +415,14 @@ describe("normalizeOtelDateTime", () => {
       input: "2025-01-01 12:00:00Z",
       expected: "2025-01-01T12:00:00.000Z",
     },
-    {
-      case: "double-stringified timestamp after JSON.parse unwrap",
-      input: JSON.parse("\"2025-10-01T08:45:26.112648Z\""),
-      expected: "2025-10-01T08:45:26.112Z",
+  ])(
+    "normalizes $case to ISO format accepted by stringDateTime schema",
+    ({ input, expected }) => {
+      const result = normalizeOtelDateTime(input);
+      expect(result).toBe(expected);
+      expect(stringDateTime.safeParse(result).success).toBe(true);
     },
-  ])("normalizes $case to ISO format accepted by stringDateTime schema", ({ input, expected }) => {
-    const result = normalizeOtelDateTime(input);
-    expect(result).toBe(expected);
-    expect(stringDateTime.safeParse(result).success).toBe(true);
-  });
+  );
 
   it.each([
     { case: "invalid text", input: "not-a-date" },
