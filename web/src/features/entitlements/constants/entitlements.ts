@@ -65,6 +65,34 @@ export type EntitlementLimits = Record<
   | false // unlimited
 >;
 
+// Shared by cloud enterprise and the enterprise trial
+const cloudEnterpriseAccess: {
+  entitlements: Entitlement[];
+  entitlementLimits: EntitlementLimits;
+} = {
+  entitlements: [
+    ...cloudAllPlansEntitlements,
+    "rbac-project-roles",
+    "audit-logs",
+    "data-retention",
+    "cloud-multi-tenant-sso",
+    "prompt-protected-labels",
+    "admin-api",
+    "scheduled-blob-exports",
+    "cloud-spend-alerts",
+    "external-media-storage",
+    "storage-iam-role-auth",
+  ],
+  entitlementLimits: {
+    "annotation-queue-count": false,
+    "organization-member-count": false,
+    "data-access-days": false,
+    "model-based-evaluations-count-evaluators": false,
+    "prompt-management-count-prompts": false,
+    "monitor-count": 100,
+  },
+};
+
 export const entitlementAccess: Record<
   Plan,
   {
@@ -129,29 +157,9 @@ export const entitlementAccess: Record<
       "monitor-count": 50,
     },
   },
-  "cloud:enterprise": {
-    entitlements: [
-      ...cloudAllPlansEntitlements,
-      "rbac-project-roles",
-      "audit-logs",
-      "data-retention",
-      "cloud-multi-tenant-sso",
-      "prompt-protected-labels",
-      "admin-api",
-      "scheduled-blob-exports",
-      "cloud-spend-alerts",
-      "external-media-storage",
-      "storage-iam-role-auth",
-    ],
-    entitlementLimits: {
-      "annotation-queue-count": false,
-      "organization-member-count": false,
-      "data-access-days": false,
-      "model-based-evaluations-count-evaluators": false,
-      "prompt-management-count-prompts": false,
-      "monitor-count": 100,
-    },
-  },
+  "cloud:enterprise": cloudEnterpriseAccess,
+  // Same access as Enterprise; the trial differs only in its usage cap.
+  "cloud:enterprise-trial": cloudEnterpriseAccess,
   oss: {
     entitlements: selfHostedAllPlansEntitlements,
     entitlementLimits: {

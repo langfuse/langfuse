@@ -36,6 +36,7 @@ export * from "./services/email/passwordReset/sendResetPasswordVerificationReque
 export * from "./services/email/cloudSpendAlert/sendCloudSpendAlertEmail";
 export * from "./services/email/usageThresholdWarning/sendUsageThresholdWarningEmail";
 export * from "./services/email/usageThresholdSuspension/sendUsageThresholdSuspensionEmail";
+export type { UsageThresholdPlan } from "./services/email/usageThresholdPlan";
 export * from "./services/email/commentMention/sendCommentMentionEmail";
 export * from "./services/email/blobStorageExportFailed/sendBlobStorageExportFailedEmail";
 export * from "./services/email/posthogExportFailed/sendPostHogExportFailedEmail";

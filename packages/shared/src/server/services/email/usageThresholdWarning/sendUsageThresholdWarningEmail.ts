@@ -2,6 +2,10 @@ import { render } from "@react-email/render";
 import { createMailTransport } from "../transport";
 import { UsageThresholdWarningEmailTemplate } from "./UsageThresholdWarningEmailTemplate";
 import { logger } from "../../../logger";
+import {
+  type UsageThresholdPlan,
+  usageThresholdPlanName,
+} from "../usageThresholdPlan";
 import { z } from "zod";
 
 export interface UsageThresholdWarningEmailProps {
@@ -20,6 +24,7 @@ export interface UsageThresholdWarningEmailProps {
   billingUrl: string;
   receiverEmail: string;
   resetDate: string; // ISO date string for when usage resets
+  plan?: UsageThresholdPlan;
 }
 
 export const sendUsageThresholdWarningEmail = async ({
@@ -30,6 +35,7 @@ export const sendUsageThresholdWarningEmail = async ({
   billingUrl,
   receiverEmail,
   resetDate,
+  plan = "free-tier",
 }: UsageThresholdWarningEmailProps) => {
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
     logger.error(
@@ -41,7 +47,7 @@ export const sendUsageThresholdWarningEmail = async ({
   try {
     const mailer = createMailTransport(env.SMTP_CONNECTION_URL);
 
-    const emailSubject = `Langfuse Free Tier: ${organizationName} usage reached ${limit.toLocaleString()} events`;
+    const emailSubject = `Langfuse ${usageThresholdPlanName[plan]}: ${organizationName} usage reached ${limit.toLocaleString()} events`;
     const emailHtml = await render(
       UsageThresholdWarningEmailTemplate({
         organizationName,
@@ -50,6 +56,7 @@ export const sendUsageThresholdWarningEmail = async ({
         billingUrl,
         receiverEmail,
         resetDate,
+        plan,
       }),
     );
 

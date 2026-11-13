@@ -15,6 +15,11 @@ import {
   Column,
   Preview,
 } from "@react-email/components";
+import {
+  type UsageThresholdPlan,
+  UsageThresholdUpgradeSection,
+  usageThresholdPlanPhrase,
+} from "../usageThresholdPlan";
 
 interface UsageThresholdWarningEmailProps {
   organizationName: string;
@@ -23,6 +28,7 @@ interface UsageThresholdWarningEmailProps {
   billingUrl: string;
   receiverEmail: string;
   resetDate: string; // ISO date string
+  plan?: UsageThresholdPlan;
 }
 
 export const UsageThresholdWarningEmailTemplate = ({
@@ -32,6 +38,7 @@ export const UsageThresholdWarningEmailTemplate = ({
   billingUrl,
   receiverEmail,
   resetDate,
+  plan = "free-tier",
 }: UsageThresholdWarningEmailProps) => {
   // Format reset date as "January 15, 2024"
   const formattedResetDate = new Date(resetDate).toLocaleDateString("en-US", {
@@ -67,8 +74,8 @@ export const UsageThresholdWarningEmailTemplate = ({
               <Text className="text-gray-700 text-sm leading-6">
                 Your organization &quot;{organizationName}&quot; has reached{" "}
                 <strong>{currentUsage.toLocaleString()}</strong> events out of
-                your <strong>{limit.toLocaleString()}</strong> event limit for
-                the free tier.
+                your <strong>{limit.toLocaleString()}</strong> event limit for{" "}
+                {usageThresholdPlanPhrase[plan]}.
               </Text>
             </Section>
 
@@ -118,31 +125,7 @@ export const UsageThresholdWarningEmailTemplate = ({
               </Text>
             </Section>
 
-            <Section className="mt-8">
-              <Heading className="text-black text-[18px] font-semibold">
-                Upgrade to Core at only $29/month
-              </Heading>
-              <Text className="text-gray-700 text-sm leading-6">
-                When you upgrade, you can:
-                <br />
-                • Add unlimited number of users
-                <br />
-                • Retain data for 90 days
-                <br />
-                • Access unlimited evaluators
-                <br />• Get support via Email/Chat
-              </Text>
-              <Text className="text-gray-700 text-sm leading-6 mt-4">
-                <strong>Startup Program:</strong> Eligible startups get 50% off
-                for their first year.{" "}
-                <a
-                  href="https://langfuse.com/startups"
-                  className="text-blue-600 underline"
-                >
-                  Learn more →
-                </a>
-              </Text>
-            </Section>
+            <UsageThresholdUpgradeSection plan={plan} />
 
             <Hr className="border border-solid border-[#eaeaea] my-[26px] mx-0 w-full" />
 

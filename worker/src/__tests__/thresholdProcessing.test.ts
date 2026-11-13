@@ -636,4 +636,33 @@ describe("processThresholds", () => {
       expect(result.emailSent).toBe(false);
     });
   });
+
+  describe("enterprise trial", () => {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const trialOrg = (endsInDays: number) =>
+      createMockOrg({
+        cloudConfig: {
+          enterpriseTrial: {
+            startedAt: new Date(Date.now() - DAY_MS).toISOString(),
+            endsAt: new Date(Date.now() + endsInDays * DAY_MS).toISOString(),
+          },
+        },
+      });
+
+    it.each([
+      ["active trial below its warning threshold", 1, 100_000, null],
+      ["active trial at 80% of its cap", 1, 200_000, "WARNING"],
+      ["active trial at its cap", 1, 250_000, "BLOCKED"],
+      ["expired trial at the free-tier threshold", -1, 100_000, "WARNING"],
+    ])(
+      "enforces the trial's own cap: %s",
+      async (_case, endsInDays, usage, expectedState) => {
+        const result = await processThresholds(trialOrg(endsInDays), usage);
+
+        expect(result.updateData.cloudFreeTierUsageThresholdState).toBe(
+          expectedState,
+        );
+      },
+    );
+  });
 });

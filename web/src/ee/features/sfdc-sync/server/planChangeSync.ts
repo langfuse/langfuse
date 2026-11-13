@@ -34,7 +34,8 @@ const SFDC_LIVE_SYNC_STARTED_AT = new Date("2026-07-01T00:00:00Z");
  * push: the override wins plan resolution on both sides of the comparison,
  * so their resolved plan cannot change here — sales owns those SFDC records.
  *
- * When an org created before the live sync leaves Hobby, its current members
+ * When an org created before the live sync leaves an unpaid plan (Hobby, or
+ * the enterprise trial of an org that was on Hobby before), its current members
  * are linked as well, since neither the live sync nor the backfill may ever
  * have linked them. That re-link runs in the background once the account
  * push is acked, so the returned promise does not wait for it.
@@ -86,7 +87,7 @@ export async function syncOrgPlanChangeToSfdc(args: {
   // the Stripe webhook must not wait on per-member Mulesoft calls.
   if (
     accountOk &&
-    planBefore === "cloud:hobby" &&
+    (planBefore === "cloud:hobby" || planBefore === "cloud:enterprise-trial") &&
     orgBeforeUpdate.createdAt < SFDC_LIVE_SYNC_STARTED_AT
   ) {
     const orgId = orgBeforeUpdate.id;

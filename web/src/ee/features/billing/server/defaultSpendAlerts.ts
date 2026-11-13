@@ -16,6 +16,7 @@ import { mapStripeProductIdToPlan } from "@/src/ee/features/billing/utils/stripe
 type PlanWithoutSpendAlerts =
   | "oss"
   | "cloud:hobby"
+  | "cloud:enterprise-trial"
   | "self-hosted:pro"
   | "self-hosted:enterprise"
   | "self-hosted:gov";

@@ -82,4 +82,45 @@ describe("getOrganizationPlanServerSide (cloud)", () => {
   it("resolves an org with no billing state to cloud:hobby", () => {
     expect(getOrganizationPlanServerSide(cloudConfig({}))).toBe("cloud:hobby");
   });
+
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const trial = (endsInDays: number) => ({
+    startedAt: new Date(Date.now() - DAY_MS).toISOString(),
+    endsAt: new Date(Date.now() + endsInDays * DAY_MS).toISOString(),
+  });
+
+  it.each([
+    [
+      "an active trial",
+      { enterpriseTrial: trial(1) },
+      "cloud:enterprise-trial",
+    ],
+    ["an expired trial", { enterpriseTrial: trial(-1) }, "cloud:hobby"],
+    [
+      "an active trial with an unfinished CHB checkout",
+      {
+        enterpriseTrial: trial(1),
+        clickhouse: { organizationId: CHB_ORG_ID },
+      },
+      "cloud:enterprise-trial",
+    ],
+    [
+      "an active trial with a paid CHB plan",
+      {
+        enterpriseTrial: trial(1),
+        clickhouse: { organizationId: CHB_ORG_ID, planCode: "LANGFUSE_PRO" },
+      },
+      "cloud:pro",
+    ],
+    [
+      "an active trial with a paid Stripe plan",
+      {
+        enterpriseTrial: trial(1),
+        stripe: { activeProductId: STRIPE_TEAM_PRODUCT_ID },
+      },
+      "cloud:team",
+    ],
+  ])("resolves an org with %s", (_case, input, expected) => {
+    expect(getOrganizationPlanServerSide(cloudConfig(input))).toBe(expected);
+  });
 });

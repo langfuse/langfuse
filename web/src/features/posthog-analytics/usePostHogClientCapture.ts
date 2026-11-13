@@ -438,6 +438,7 @@ const events = {
     "feature_flag_default_toggled",
     "personal_feature_previews_opened",
     "user_feature_flag_toggled",
+    "enterprise_trial_redeemed",
   ],
   help_popup: ["opened", "href_clicked"],
   navigate_detail_pages: ["button_click_prev_or_next"],
