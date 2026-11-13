@@ -195,17 +195,17 @@ describe("calculateModelUsageCosts", () => {
     });
   });
 
-  it("logs every non-BMP usage key without changing pricing", () => {
+  it("logs non-BMP usage keys once per call without changing pricing", () => {
     const warn = vi.spyOn(logger, "warn").mockImplementation(() => logger);
     try {
       const model = modelWithPrices({ input: 0.01 });
       const usageDetailPattern = "^(input|😀)$";
-      model.pricingTiers.push({
+      const tier: PricingTierWithPrices = {
         ...model.pricingTiers[0],
         id: "unicode",
         name: "Unicode",
         isDefault: false,
-        priority: 1,
+        priority: 2,
         conditions: [
           {
             usageDetailPattern,
@@ -213,12 +213,35 @@ describe("calculateModelUsageCosts", () => {
             value: 150,
             caseSensitive: false,
           },
+          {
+            usageDetailPattern: "^input$",
+            operator: "eq",
+            value: 100,
+            caseSensitive: true,
+          },
         ],
         prices: [
           { usageType: "input", price: new Decimal(0.04) },
           { usageType: "😀", price: new Decimal(0.02) },
         ],
-      });
+      };
+      model.pricingTiers.push(
+        {
+          ...tier,
+          id: "skipped",
+          priority: 1,
+          conditions: [
+            ...tier.conditions,
+            {
+              usageDetailPattern,
+              operator: "eq",
+              value: 151,
+              caseSensitive: false,
+            },
+          ],
+        },
+        tier,
+      );
       const usageDetails = Object.freeze({
         input: 100,
         "😀": 50,
@@ -238,15 +261,12 @@ describe("calculateModelUsageCosts", () => {
             usage_pricing_tier_id: "unicode",
           },
         );
+        expect(warn).toHaveBeenCalledTimes(attempt + 1);
+        expect(warn).toHaveBeenLastCalledWith(
+          "Pricing tier usage keys contain non-BMP characters",
+          { usageDetailKeys: ["😀", "\u{10000}", "\u{10ffff}"] },
+        );
       }
-
-      const nonBmpKeys = ["😀", "\u{10000}", "\u{10ffff}"];
-      expect(warn.mock.calls).toEqual(
-        [...nonBmpKeys, ...nonBmpKeys].map((usageDetailKey) => [
-          "Pricing tier usage key contains a non-BMP character",
-          { usageDetailKey, usageDetailPattern, caseSensitive: false },
-        ]),
-      );
     } finally {
       warn.mockRestore();
     }
