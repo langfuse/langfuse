@@ -1,6 +1,9 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import type { DecisionModelClient } from "../../evals/decisionModelEvaluatorExecution";
-import { toGoogleAIStudioBaseURL } from "../ai-sdk/providers/google";
+import {
+  GOOGLE_API_KEY_HEADER,
+  toGoogleAIStudioBaseURL,
+} from "../ai-sdk/providers/google";
 import { createSecureLlmFetch } from "../secureLlmFetch";
 import { createTextAdapterDecisionModelClient } from "../textAdapterDecisionModelClient";
 
@@ -17,7 +20,10 @@ export function createGoogleDecisionModelClient(params: {
     baseURL: toGoogleAIStudioBaseURL(params.baseURL),
     fetch:
       params.fetchImpl ??
-      createSecureLlmFetch({ logContext: "Google decision model" }),
+      createSecureLlmFetch({
+        logContext: "Google decision model",
+        additionalSensitiveHeaders: [GOOGLE_API_KEY_HEADER],
+      }),
   });
 
   return createTextAdapterDecisionModelClient({

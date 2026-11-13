@@ -1,7 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 import type { DecisionModelRequest } from "../../evals/decisionModelEvaluatorExecution";
 import { createDecisionModelClient } from "../createDecisionModelClient";
+import { createSecureLlmFetch } from "../secureLlmFetch";
 import { LLMAdapter } from "../types";
+
+vi.mock("../secureLlmFetch", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../secureLlmFetch")>();
+  return {
+    ...actual,
+    createSecureLlmFetch: vi.fn(actual.createSecureLlmFetch),
+  };
+});
 
 const request: DecisionModelRequest = {
   state: { input: "I was charged twice." },
@@ -111,5 +120,19 @@ describe("Google AI Studio decision models", () => {
       },
       usage: { inputTokens: 120, outputTokens: 0 },
     });
+  });
+
+  it("strips the API key on cross-origin redirects", () => {
+    createDecisionModelClient({
+      adapter: LLMAdapter.GoogleAIStudio,
+      apiKey: "google-key",
+      model: "gemini-decision-1",
+    });
+
+    expect(vi.mocked(createSecureLlmFetch)).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        additionalSensitiveHeaders: ["X-Goog-Api-Key"],
+      }),
+    );
   });
 });
