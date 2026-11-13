@@ -343,9 +343,10 @@ widening behavior.
 ### Escape hatches and their cost
 
 - `aliasRef("alias")` (`extensions.ts`) — references a SELECT alias that is not a schema column (ClickHouse allows `GROUP BY`/expression reuse of aliases; Kysely's types do not model it), as a column reference node with `.as(…)`. Prefer it to `sql.ref("alias")`, which renders the same reference wrapped in raw SQL. Both are untyped — a typo reaches ClickHouse unchecked. Use sparingly. `db.dynamic.ref("alias")` is the same reference as an unaliased select item (`select costType` beside an `array join … as costType`, where the bare spelling only matches the legacy SQL, since ClickHouse also accepts `costType as costType`).
-- `eb.fn("ch_function", [...])` — arbitrary ClickHouse functions. The name is an
-  unchecked string and the return type defaults to `unknown`; no arity or
-  return checking.
+- `eb.fn("ch_function", [...])` — a ClickHouse function by name. The name must
+  be on `ALLOWED_FUNCTIONS` (`functions.ts`), since a function can read a table
+  or server state. The return type defaults to `unknown`; no arity or return
+  checking.
 - New columns — add them to the table registry in `schema.ts` (one `defineTable`
   entry per relation) as queries need them. That single declaration drives the
   row types, the runtime column-type map, and the tenanted-table set.

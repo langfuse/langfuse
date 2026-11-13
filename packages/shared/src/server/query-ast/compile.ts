@@ -20,6 +20,7 @@ import { DedupLoweringPlugin } from "./dedup";
 import { QueryCompileError } from "./errors";
 import { EventsTableRoutingPlugin } from "./eventsRouting";
 import { PARAM_NAME } from "./extensions";
+import { FunctionAllowlistPlugin, assertAllowedCalls } from "./functions";
 import { FinalTableNode, type ClickHouseSelectQueryNode } from "./nodes";
 import { selectRelations } from "./relations";
 import { SchemaReferencePlugin } from "./schemaReferences";
@@ -84,6 +85,7 @@ export function compilerPasses(projectId: string): KyselyPlugin[] {
     new SchemaReferencePlugin(),
     new CteNamePlugin(),
     new NameShadowingPlugin(),
+    new FunctionAllowlistPlugin(),
     new EventsTableRoutingPlugin(),
     new TenancyInjectionPlugin(requireProjectId(projectId)),
     new DedupLoweringPlugin(),
@@ -266,6 +268,7 @@ export function renderClickhouseSelections<O>(
 
 function renderNode(node: OperationNode): string {
   assertRelationFree(node);
+  assertAllowedCalls(node);
   return new ClickHouseQueryCompiler().compileExpression(node);
 }
 

@@ -152,9 +152,12 @@ describe("tenancy injection", () => {
         )
         .select("t.environment");
 
-      expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
-        UnscopedRelationError,
-      );
+      expect(() =>
+        new TenancyInjectionPlugin(projectId).transformQuery({
+          node: qb.toOperationNode(),
+          queryId: createQueryId(),
+        }),
+      ).toThrow(UnscopedRelationError);
     },
   );
 
@@ -172,9 +175,12 @@ describe("tenancy injection", () => {
         )
         .select("t.id");
 
-      expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
-        UnscopedRelationError,
-      );
+      expect(() =>
+        new TenancyInjectionPlugin(projectId).transformQuery({
+          node: qb.toOperationNode(),
+          queryId: createQueryId(),
+        }),
+      ).toThrow(UnscopedRelationError);
     },
   );
 
