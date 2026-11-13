@@ -3,7 +3,7 @@ import { expect, fn, screen, userEvent, waitFor } from "storybook/test";
 
 import preview from "@/.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { CreateGatewayApiKeyDialog } from "./CreateGatewayApiKeyDialog";
+import { GatewayApiKeyDialog } from "./GatewayApiKeyDialog";
 
 const models = [
   ...[
@@ -41,9 +41,11 @@ const enabledModels = {
 };
 
 const meta = preview.meta({
-  component: CreateGatewayApiKeyDialog,
+  component: GatewayApiKeyDialog,
   parameters: { layout: "fullscreen" },
   args: {
+    title: "Create gateway key",
+    submitLabel: "Create key",
     canIssueServiceAccountKeys: true,
     enabledModels,
     errorMessage: null,
@@ -53,11 +55,11 @@ const meta = preview.meta({
   render: (args) => <OpenDialog {...args} />,
 });
 
-function OpenDialog(props: ComponentProps<typeof CreateGatewayApiKeyDialog>) {
+function OpenDialog(props: ComponentProps<typeof GatewayApiKeyDialog>) {
   return (
     <DialogController<true>
       initialState={() => true}
-      renderDialog={() => <CreateGatewayApiKeyDialog {...props} />}
+      renderDialog={() => <GatewayApiKeyDialog {...props} />}
     >
       {() => null}
     </DialogController>
@@ -76,6 +78,56 @@ export const WithoutModelsPreview = meta.story({
 
 export const WithError = meta.story({
   args: { errorMessage: "Gateway key name already exists." },
+});
+
+const editArgs = {
+  title: "Edit gateway key",
+  submitLabel: "Save changes",
+  disabledFields: ["issuedAs" as const, "expiration" as const],
+  defaultValues: {
+    issuedAs: "serviceAccount" as const,
+    name: "backend-service",
+    expiryPreset: "custom" as const,
+    customExpiry: "2020-01-01",
+    metadata: [{ key: "environment", value: "production" }],
+    modelPatterns: ["openai:*", "-*mini*"],
+  },
+};
+
+export const Edit = meta.story({ args: editArgs });
+
+export const SavesEditableFields = meta.story({
+  name: "(Test) Edit saves only editable fields",
+  args: editArgs,
+  play: async ({ args }) => {
+    const saveButton = await screen.findByRole("button", {
+      name: "Save changes",
+    });
+    await expect(saveButton).toBeDisabled();
+    await expect(
+      screen.getByRole("tab", { name: "Service account" }),
+    ).toBeDisabled();
+    await expect(screen.getByRole("radio", { name: "Custom" })).toBeDisabled();
+    await expect(
+      screen.getByLabelText("Custom expiration date"),
+    ).toBeDisabled();
+
+    const name = screen.getByRole("textbox", { name: /name/i });
+    await userEvent.clear(name);
+    await userEvent.type(name, " search-backend ");
+    await userEvent.click(screen.getByRole("button", { name: "Clear models" }));
+    await userEvent.click(saveButton);
+
+    await waitFor(() =>
+      expect(args.onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "search-backend",
+          metadata: { environment: "production" },
+          allowedModels: null,
+        }),
+      ),
+    );
+  },
 });
 
 export const MoreOptionsExpanded = meta.story({

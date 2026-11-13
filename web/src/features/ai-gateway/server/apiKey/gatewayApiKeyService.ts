@@ -1,6 +1,7 @@
 import {
   ForbiddenError,
   InternalServerError,
+  LangfuseConflictError,
   LangfuseNotFoundError,
   type OrderByState,
 } from "@langfuse/shared";
@@ -157,15 +158,26 @@ export class GatewayApiKeyService {
     organizationId: string;
     ownerUserId?: string;
     apiKeyId: string;
+    name: string;
     metadata: GatewayMetadata;
     allowedModels: string[] | null;
+    previousAllowedModels: string[] | null;
     session: OrgAuthedContext["session"];
   }) {
     const before = await this.repository.getGatewayApiKey(params);
     if (!before) {
       throw new LangfuseNotFoundError("Gateway key not found");
     }
-    const after = await this.repository.updateGatewayApiKey(params);
+    const updated = await this.repository.updateGatewayApiKey(params);
+    const after = await this.repository.getGatewayApiKey(params);
+    if (!after) {
+      throw new LangfuseNotFoundError("Gateway key not found");
+    }
+    if (!updated) {
+      throw new LangfuseConflictError(
+        "The key's models changed since you opened it. Reopen the key and try again.",
+      );
+    }
     const apiKey = await this.prisma.apiKey.findUnique({
       where: { id: params.apiKeyId },
       select: { fastHashedSecretKey: true },

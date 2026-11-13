@@ -2112,12 +2112,18 @@ describe("AI gateway control plane", () => {
     });
     const update = {
       orgId: owner.org.id,
+      name: " Search backend ",
       metadata: { environment: "production" },
       allowedModels: [" anthropic:* ", "-*opus*"],
+      previousAllowedModels: ["openai:*"],
     };
 
     await expect(
-      member.aiGateway.updateApiKey({ ...update, id: ownerKey.id }),
+      member.aiGateway.updateApiKey({
+        ...update,
+        id: ownerKey.id,
+        previousAllowedModels: null,
+      }),
     ).rejects.toThrow("Gateway key not found");
     await expect(
       member.aiGateway.updateApiKey({ ...update, id: memberKey.id }),
@@ -2125,10 +2131,19 @@ describe("AI gateway control plane", () => {
       metadata: { environment: "production" },
       allowedModels: ["anthropic:*", "-*opus*"],
     });
+    // A dialog still holding the patterns it loaded must not overwrite newer ones.
+    await expect(
+      member.aiGateway.updateApiKey({
+        ...update,
+        id: memberKey.id,
+        allowedModels: ["openai:*"],
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
     await member.aiGateway.updateApiKey({
       ...update,
       id: memberKey.id,
       allowedModels: [],
+      previousAllowedModels: ["anthropic:*", "-*opus*"],
     });
 
     const [edited] = (
@@ -2137,6 +2152,7 @@ describe("AI gateway control plane", () => {
     expect(edited).toMatchObject({
       metadata: { environment: "production" },
       allowedModels: null,
+      apiKey: { note: "Search backend" },
     });
   });
 
