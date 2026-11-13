@@ -5,7 +5,10 @@ import {
   applyKeyedFilterEntries,
   isStringKeyValueTextEntry,
 } from "@/src/features/filters/lib/sidebar-filter-actions";
-import { KeyValueFilterBuilder } from "./KeyValueFilterBuilder";
+import {
+  KeyValueFilterBuilder,
+  stringRowOperatorOptions,
+} from "./KeyValueFilterBuilder";
 
 const noop = () => {};
 
@@ -181,50 +184,30 @@ describe("KeyValueFilterBuilder", () => {
   });
 
   it("offers numeric metadata comparisons but no numeric equals", () => {
-    render(
-      <KeyValueFilterBuilder
-        mode="string"
-        numericValues
-        activeFilters={[{ key: "attempt", operator: "=", value: "2" }]}
-        onChange={noop}
-      />,
+    const options = stringRowOperatorOptions(
+      { key: "attempt", operator: "=", value: "2" },
+      true,
     );
 
-    fireEvent.click(screen.getByRole("combobox", { name: /equals/ }));
-
-    expect(
-      screen.getAllByRole("option").map((option) => option.textContent),
-    ).toEqual([
-      "equals",
+    expect(options.map((option) => option.value)).toEqual([
+      "=",
       "contains",
       "does not contain",
       "is set",
       "is not set",
-      "greater than",
-      "less than",
-      "greater than or equals",
-      "less than or equals",
+      "number:>",
+      "number:<",
+      "number:>=",
+      "number:<=",
     ]);
   });
 
   it("offers numeric equals only on a row that already carries one", () => {
-    render(
-      <KeyValueFilterBuilder
-        mode="string"
-        numericValues
-        activeFilters={[
-          { key: "attempt", operator: "=", value: "2", valueType: "number" },
-        ]}
-        onChange={noop}
-      />,
+    const options = stringRowOperatorOptions(
+      { key: "attempt", operator: "=", value: "2", valueType: "number" },
+      true,
     );
 
-    fireEvent.click(
-      screen.getByRole("combobox", { name: /equals \(number\)/ }),
-    );
-
-    expect(
-      screen.getAllByRole("option").map((option) => option.textContent),
-    ).toContain("equals (number)");
+    expect(options.map((option) => option.value)).toContain("number:=");
   });
 });

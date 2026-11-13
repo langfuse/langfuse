@@ -130,7 +130,7 @@ const STRING_AND_NUMERIC_OPERATOR_OPTIONS = [
 ];
 
 /** The string facet operators `filter`'s row offers. */
-const stringRowOperatorOptions = (
+export const stringRowOperatorOptions = (
   filter: StringKeyValueFilterEntry,
   numericValues: boolean,
 ) => {
