@@ -1643,14 +1643,9 @@ jobs:
       - pre-job
       - ai-gateway-filter
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.ai-gateway-filter.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'))) }}
-    name: test-ai-gateway-e2e (${{ matrix.provider }})
+    name: test-ai-gateway-e2e
     env:
       NODE_ENV: test
-    # One job per provider suite in web/src/__e2e__/ai-gateway.
-    strategy:
-      fail-fast: false
-      matrix:
-        provider: [openai, anthropic, azure, bedrock, vertex, google-ai-studio]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1741,19 +1736,17 @@ jobs:
       - name: Check server health
         run: timeout 30 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
       - name: Run AI Gateway end-to-end tests
-        run: pnpm --filter=web run test:e2e:ai-gateway "src/__e2e__/ai-gateway/${MATRIX_PROVIDER}.gatewaye2e.ts"
-        # Each job receives only its own provider's credentials.
+        run: pnpm --filter=web run test:e2e:ai-gateway
         env:
-          MATRIX_PROVIDER: ${{ matrix.provider }}
-          LANGFUSE_LLM_CONNECTION_OPENAI_KEY: ${{ matrix.provider == 'openai' && secrets.LANGFUSE_LLM_CONNECTION_OPENAI_KEY || '' }}
-          LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY: ${{ matrix.provider == 'anthropic' && secrets.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY || '' }}
-          LANGFUSE_LLM_CONNECTION_AZURE_KEY: ${{ matrix.provider == 'azure' && secrets.LANGFUSE_LLM_CONNECTION_AZURE_KEY || '' }}
-          LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL: ${{ matrix.provider == 'azure' && secrets.LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL || '' }}
-          LANGFUSE_LLM_CONNECTION_AZURE_MODEL: ${{ matrix.provider == 'azure' && secrets.LANGFUSE_LLM_CONNECTION_AZURE_MODEL || '' }}
-          LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY: ${{ matrix.provider == 'bedrock' && secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY || '' }}
-          LANGFUSE_LLM_CONNECTION_BEDROCK_REGION: ${{ matrix.provider == 'bedrock' && secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_REGION || '' }}
-          LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY: ${{ matrix.provider == 'vertex' && secrets.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY || '' }}
-          LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY: ${{ matrix.provider == 'google-ai-studio' && secrets.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY || '' }}
+          LANGFUSE_LLM_CONNECTION_OPENAI_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_OPENAI_KEY }}
+          LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY }}
+          LANGFUSE_LLM_CONNECTION_AZURE_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_AZURE_KEY }}
+          LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL: ${{ secrets.LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL }}
+          LANGFUSE_LLM_CONNECTION_AZURE_MODEL: ${{ secrets.LANGFUSE_LLM_CONNECTION_AZURE_MODEL }}
+          LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY }}
+          LANGFUSE_LLM_CONNECTION_BEDROCK_REGION: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_REGION }}
+          LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY }}
+          LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY }}
 
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix
