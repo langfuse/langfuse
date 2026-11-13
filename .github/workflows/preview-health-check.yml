@@ -133,6 +133,7 @@ jobs:
           SLACK_WEBHOOK: ${{ secrets.SLACK_PREVIEW_ALERTS_WEBHOOK_URL }}
           UNHEALTHY: ${{ steps.probe.outputs.unhealthy }}
           TOTAL: ${{ steps.probe.outputs.total }}
+          REPOSITORY: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
@@ -147,7 +148,18 @@ jobs:
           # the fleet. Only the list itself grows, so cap it: a broken ALB would
           # otherwise paste 50 hostnames into the channel.
           count="$(printf '%s' "$UNHEALTHY" | wc -w | tr -d ' ')"
-          shown="$(printf '%s' "$UNHEALTHY" | tr ' ' '\n' | head -10 | paste -sd' ' -)"
+
+          # Link each entry to its pull request, which is where the fix lives —
+          # a broken preview is almost always a failed image build or an unmerged
+          # seeder fix, neither of which you act on from the preview URL. Slack's
+          # <url|label> form keeps the token space-free, so the count and the
+          # truncation below still split this list on whitespace correctly.
+          shown=""
+          for token in $(printf '%s' "$UNHEALTHY" | tr ' ' '\n' | head -10); do
+            number="${token#pr-}"
+            number="${number%%(*}"
+            shown="${shown:+$shown }<https://github.com/${REPOSITORY}/pull/${number}|${token}>"
+          done
           if [ "$count" -gt 10 ]; then
             shown="$shown (+$((count - 10)) more)"
           fi
