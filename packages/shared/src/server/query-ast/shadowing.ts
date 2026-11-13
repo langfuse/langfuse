@@ -4,6 +4,8 @@ import {
   ColumnNode,
   IdentifierNode,
   OperatorNode,
+  RawNode,
+  ReferenceNode,
   SelectQueryNode,
   TupleNode,
   type KyselyPlugin,
@@ -97,8 +99,7 @@ function expressionNames(
   relationAliases: ReadonlySet<OperationNode>,
 ): string[] {
   if (AliasNode.is(node)) {
-    if (relationAliases.has(node) || !IdentifierNode.is(node.alias)) return [];
-    return [node.alias.name];
+    return relationAliases.has(node) ? [] : [boundName(node.alias)];
   }
   // ARRAY JOIN is an extra select field, outside Kysely's node kinds.
   const clause: { kind: string } = node;
@@ -113,9 +114,44 @@ function expressionNames(
     const params = TupleNode.is(node.leftOperand)
       ? node.leftOperand.values
       : [node.leftOperand];
-    return params.flatMap((param) =>
-      ColumnNode.is(param) ? [param.column.name] : [],
-    );
+    return params.map(boundName);
   }
   return [];
+}
+
+const PLAIN_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/**
+ * The name an alias or lambda parameter binds, as ClickHouse reads it: `t`
+ * for `as t`, `as sql.id("t")`, ``as sql`t` `` and the lambda parameter
+ * `sql.ref("t")`. Throws for any other shape, whose name the pass cannot
+ * check.
+ */
+function boundName(node: OperationNode): string {
+  // The compiler rejects an identifier that is not a plain name.
+  if (IdentifierNode.is(node)) return node.name;
+  const name = nameText(node);
+  if (name === undefined || !PLAIN_NAME.test(name)) {
+    throw new UnscopedRelationError(
+      "An alias or lambda parameter must be a plain name: the shadowing check cannot tell which relation another shape would shadow.",
+    );
+  }
+  return name;
+}
+
+/** The text of a name node; raw SQL counts when it holds only names. */
+function nameText(node: OperationNode): string | undefined {
+  if (IdentifierNode.is(node)) return node.name;
+  if (ColumnNode.is(node)) return node.column.name;
+  if (ReferenceNode.is(node) && ColumnNode.is(node.column) && !node.table) {
+    return node.column.column.name;
+  }
+  if (!RawNode.is(node)) return undefined;
+  let text = node.sqlFragments[0] ?? "";
+  for (const [i, parameter] of node.parameters.entries()) {
+    const part = nameText(parameter);
+    if (part === undefined) return undefined;
+    text += part + (node.sqlFragments[i + 1] ?? "");
+  }
+  return text.trim();
 }

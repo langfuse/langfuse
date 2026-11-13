@@ -1,8 +1,12 @@
 import {
   AliasNode,
+  BinaryOperationNode,
   CommonTableExpressionNode,
+  ExpressionWrapper,
   FromNode,
+  OperatorNode,
   SelectQueryNode,
+  ValueNode,
   WithNode,
   createQueryId,
   sql,
@@ -1122,6 +1126,24 @@ describe("names that shadow a relation", () => {
         )
         .selectFrom("x")
         .select("x.value"),
+    ],
+    [
+      "an sql.id alias",
+      db.selectFrom("traces as t").select(fakeScope().as(sql.id("t"))),
+    ],
+    [
+      "an sql.ref lambda parameter",
+      db
+        .selectFrom("traces as t")
+        .select(
+          new ExpressionWrapper(
+            BinaryOperationNode.create(
+              sql.ref("t").toOperationNode(),
+              OperatorNode.create("->"),
+              ValueNode.createImmediate(1),
+            ),
+          ).as("f"),
+        ),
     ],
     [
       "a select alias named like a CTE",
