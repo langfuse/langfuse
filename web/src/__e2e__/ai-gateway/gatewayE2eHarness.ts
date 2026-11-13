@@ -110,10 +110,9 @@ type CompletionRequest = {
   providerModel: string;
   /**
    * The model the provider reports, when it names it differently from
-   * `providerModel`; a dated snapshot of it also matches. `null` when only the
-   * provider knows it, as for an Azure deployment.
+   * `providerModel`; a dated snapshot of it also matches.
    */
-  responseModel?: string | null;
+  responseModel?: string;
 };
 
 type GatewayE2eSuite = {
@@ -377,13 +376,10 @@ export async function completeAndExpectIngested(input: CompletionRequest) {
   const text = await response.text();
   expect(response.status, text).toBe(200);
   const payload = JSON.parse(text) as { model?: string; usage?: unknown };
-  const responseModel =
-    input.responseModel === undefined ? providerModel : input.responseModel;
-  if (responseModel === null) {
-    expect(payload.model, text).toEqual(expect.any(String));
-  } else {
-    expectRequestedProviderModel(payload.model, responseModel);
-  }
+  expectRequestedProviderModel(
+    payload.model,
+    input.responseModel ?? providerModel,
+  );
   expect(payload.model).not.toContain(`${suite.connection.name}:`);
   const expectedUsage = expectedProvidedUsage(apiFormat, payload.usage);
 
