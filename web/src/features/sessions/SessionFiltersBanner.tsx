@@ -16,19 +16,26 @@ export function SessionFiltersBanner({
       role="status"
       className="bg-muted/40 text-muted-foreground flex shrink-0 flex-wrap items-center gap-2 border-b py-1 pr-2 pl-4 text-sm"
     >
-      <span className="flex-1">{message}</span>
-      <Button variant="ghost" size="sm" text="Edit filters" onClick={onEdit} />
-      {onClear && (
+      <span className="min-w-56 flex-1">{message}</span>
+      <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
         <Button
           variant="ghost"
           size="sm"
-          text="Clear filters"
-          onClick={onClear}
+          text="Edit filters"
+          onClick={onEdit}
         />
-      )}
-      {onSave && (
-        <Button variant="ghost" size="sm" text="Save view" onClick={onSave} />
-      )}
+        {onClear && (
+          <Button
+            variant="ghost"
+            size="sm"
+            text="Clear filters"
+            onClick={onClear}
+          />
+        )}
+        {onSave && (
+          <Button variant="ghost" size="sm" text="Save view" onClick={onSave} />
+        )}
+      </div>
     </div>
   );
 }
