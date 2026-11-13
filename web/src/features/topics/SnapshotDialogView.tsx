@@ -10,7 +10,7 @@ import { TopicInlineSelect } from "./TopicInlineSelect";
 import { TopicSliceFields } from "./TopicSliceFields";
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
 
-export type SnapshotSelection = "random" | "latest";
+type SnapshotSelection = "random" | "latest";
 export type SnapshotSummarize = {
   /** Null until toggled, so summarizing turns on by itself when summaries are short. */
   enabled: boolean | null;

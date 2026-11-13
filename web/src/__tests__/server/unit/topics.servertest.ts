@@ -50,13 +50,18 @@ const mocks = vi.hoisted(() => ({
   auditLog: vi.fn(),
 }));
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
-  const { selectTopicTraceRows, topicAnalysisCohort, countTopicCohortTraces } =
-    await importOriginal<typeof topicsServer>();
+  const {
+    selectTopicTraceRows,
+    topicAnalysisCohort,
+    countTopicCohortTraces,
+    topicMatchingTraceIdsQuery,
+  } = await importOriginal<typeof topicsServer>();
   return {
     ...mocks,
     selectTopicTraceRows,
     topicAnalysisCohort,
     countTopicCohortTraces,
+    topicMatchingTraceIdsQuery,
   };
 });
 vi.mock(
