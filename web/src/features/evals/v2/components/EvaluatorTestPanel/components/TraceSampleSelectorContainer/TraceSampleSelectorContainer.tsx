@@ -54,7 +54,7 @@ export function TraceSampleSelectorContainer({
       resolveSelection={resolveSelection}
       getRowClassName={undefined}
       filterDescription="A trace matches when one of its observations matches every filter. The rule you save uses these filters."
-      filterTooltip="These filters choose the sample traces here and the traces the saved rule evaluates."
+      filterTooltip="These filters control which traces you can pick to test with"
       matchingDescription=""
       matchingTooltip=""
       formatCount={(count) => compactNumberFormatter(count)}
