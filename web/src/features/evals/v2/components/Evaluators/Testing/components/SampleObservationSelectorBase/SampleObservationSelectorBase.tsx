@@ -139,13 +139,9 @@ function timeFilters(range: AbsoluteTimeRange | null): FilterState {
 }
 
 /** The loaded matches, for callers that present them without the table. */
-export type SampleObservationMatches = {
+type SampleObservationMatches = {
   observations: SampleObservation[];
   pending: boolean;
-  error: string | null;
-  hasNextPage: boolean;
-  fetchingNextPage: boolean;
-  fetchNextPage: () => void;
 };
 
 export type SampleObservationSelectorBaseProps = {
@@ -171,10 +167,18 @@ export type SampleObservationSelectorBaseProps = {
   matchingTooltip: string;
   formatCount: (count: number) => string;
   mapObservedOptions: MapSampleObservedOptions;
-  filterTitle?: string;
   /** Replaces the matching observations table. */
   renderMatches?: (matches: SampleObservationMatches) => ReactNode;
+  /** "detail" tightens the filter and lets the matches fill the panel. */
+  samplePresentation?: "table" | "detail";
 };
+
+function selectorLayoutClassName(showTraceDetail: boolean) {
+  if (showTraceDetail) {
+    return "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden px-6 pt-2";
+  }
+  return "flex shrink-0 flex-col gap-6";
+}
 
 export function SampleObservationSelectorBase(
   props: SampleObservationSelectorBaseProps,
@@ -199,9 +203,10 @@ export function SampleObservationSelectorBase(
     matchingTooltip,
     formatCount,
     mapObservedOptions,
-    filterTitle = "Filter observations",
     renderMatches,
+    samplePresentation = "table",
   } = props;
+  const showTraceDetail = samplePresentation === "detail";
   const activeRegistry = registry ?? EVENTS_FIELD_REGISTRY;
   const [filterMode, setFilterMode] =
     useLocalStorage<EvaluatorFilterExperience>(
@@ -526,26 +531,45 @@ export function SampleObservationSelectorBase(
     }
   };
 
+  const filterModeControl = (
+    <EvaluatorFilterModeDropdown
+      mode={filterMode}
+      onChange={(mode) => {
+        if (mode === "builder" && searchQuery !== null) {
+          search.applyFilters(filterState);
+        }
+        setFilterMode(mode);
+      }}
+    />
+  );
+
   return (
-    <div className="flex shrink-0 flex-col gap-6">
-      <section className="flex flex-col gap-2">
-        <SectionHeader
-          title={filterTitle}
-          meta={null}
-          description={filterDescription}
-          tooltip={filterTooltip}
-          trailing={
-            <EvaluatorFilterModeDropdown
-              mode={filterMode}
-              onChange={(mode) => {
-                if (mode === "builder" && searchQuery !== null) {
-                  search.applyFilters(filterState);
-                }
-                setFilterMode(mode);
-              }}
+    <div className={selectorLayoutClassName(showTraceDetail)}>
+      <section
+        className={
+          showTraceDetail ? "flex flex-col gap-1" : "flex flex-col gap-2"
+        }
+      >
+        {showTraceDetail ? (
+          <div className="flex items-center gap-2">
+            <SectionHeader
+              title="Filter"
+              meta={null}
+              description={null}
+              tooltip={filterTooltip}
+              trailing={null}
             />
-          }
-        />
+            <div className="ml-auto shrink-0">{filterModeControl}</div>
+          </div>
+        ) : (
+          <SectionHeader
+            title="Filter observations"
+            meta={null}
+            description={filterDescription}
+            tooltip={filterTooltip}
+            trailing={filterModeControl}
+          />
+        )}
         {datasets.isPending ? (
           <Skeleton className="h-10 w-full" />
         ) : filterMode === "query" ? (
@@ -574,14 +598,22 @@ export function SampleObservationSelectorBase(
           />
         )}
         {filterMode === "query" ? (
-          <div className="flex flex-wrap gap-2">
+          <div
+            className={
+              showTraceDetail ? "flex flex-wrap gap-1" : "flex flex-wrap gap-2"
+            }
+          >
             {examples.map((example) => (
               <Button
                 key={example.label}
                 type="button"
                 variant="outline"
                 size="sm"
-                className="flex h-8 items-center gap-2 text-sm"
+                className={
+                  showTraceDetail
+                    ? "gap-1"
+                    : "flex h-8 items-center gap-2 text-sm"
+                }
                 onClick={() => {
                   setFilters((current) =>
                     toggleExampleFilters(current, [...example.filters]),
@@ -597,16 +629,17 @@ export function SampleObservationSelectorBase(
       </section>
 
       {renderMatches ? (
-        <div ref={reconcileSelection}>
+        <div
+          ref={reconcileSelection}
+          className={
+            showTraceDetail
+              ? "-mx-6 flex min-h-0 flex-1 flex-col border-t"
+              : undefined
+          }
+        >
           {renderMatches({
             observations: matchingObservations,
             pending: observationsPending,
-            error: observationsError?.message ?? null,
-            hasNextPage: observationQuery.hasNextPage,
-            fetchingNextPage: observationsFetching,
-            fetchNextPage: () => {
-              observationQuery.fetchNextPage().catch(() => undefined);
-            },
           })}
         </div>
       ) : (

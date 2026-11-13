@@ -921,6 +921,7 @@ export function EvaluatorSetupPage(
           />
         ) : undefined
       }
+      traceDetail={sampleScope === "trace"}
       sampleSelector={
         sampleScope === "trace" ? (
           <TraceSampleSelectorContainer
