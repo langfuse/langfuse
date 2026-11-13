@@ -1,3 +1,4 @@
+import { createSidebarMenuControls } from "@/src/features/app-shell/fns/createSidebarMenuControls";
 import {
   createSidebarStore,
   SIDEBAR_EXPANDED_STORAGE_KEY,
@@ -187,6 +188,39 @@ describe("transient navigation", () => {
     expect(store.getState().isExpanded).toBe(true);
     expect(storage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY)).toBe("true");
     unsubscribe();
+  });
+
+  it("preserves a menu handoff against late close and autofocus callbacks", () => {
+    const { store, actions } = setup();
+
+    for (const menu of ["account", "version"] as const) {
+      const controls = createSidebarMenuControls(store, menu);
+      controls.onOpenChange(true);
+      actions.openSwitcher("desktop");
+
+      controls.onOpenChange(false);
+      const handoff = new Event("closeAutoFocus", { cancelable: true });
+      controls.onCloseAutoFocus(handoff);
+      expect(store.getState().activeMenu).toBe("workspace");
+      expect(handoff.defaultPrevented).toBe(true);
+
+      actions.setSwitcherOpen(false);
+      controls.onOpenChange(true);
+      controls.onOpenChange(false);
+      const escape = new Event("closeAutoFocus", { cancelable: true });
+      controls.onCloseAutoFocus(escape);
+      expect(store.getState().activeMenu).toBeNull();
+      expect(escape.defaultPrevented).toBe(false);
+
+      actions.setViewport(true);
+      actions.setMobileOpen(true);
+      controls.onOpenChange(true);
+      actions.setMobileOpen(false);
+      const parentClose = new Event("closeAutoFocus", { cancelable: true });
+      controls.onCloseAutoFocus(parentClose);
+      expect(parentClose.defaultPrevented).toBe(true);
+      actions.setViewport(false);
+    }
   });
 
   it("closes transient navigation while retaining the desktop preference", () => {

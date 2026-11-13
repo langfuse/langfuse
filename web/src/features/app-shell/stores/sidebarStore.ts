@@ -1,7 +1,7 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 
 export type SidebarLayout = "desktop" | "mobile";
-type SidebarMenu = "workspace" | "account" | "version";
+export type SidebarMenu = "workspace" | "account" | "version";
 
 export type SidebarStoreState = {
   /** Desktop preference: full navigation when true, a persistent icon rail otherwise. */

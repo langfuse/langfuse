@@ -15,8 +15,10 @@ import {
 
 import {
   useAppShellSidebar,
-  useAppShellSidebarActions,
+  useAppShellSidebarStoreApi,
 } from "@/src/features/app-shell/contexts/AppShellSidebarProvider";
+
+import { createSidebarMenuControls } from "@/src/features/app-shell/fns/createSidebarMenuControls";
 
 export type SidebarUser = { name: string; email: string; avatar: string };
 
@@ -33,14 +35,16 @@ export function SidebarUserMenu({
   children: (control: { Trigger: typeof DropdownMenuTrigger }) => ReactNode;
 }) {
   const open = useAppShellSidebar((state) => state.activeMenu === "account");
-  const { setActiveMenu } = useAppShellSidebarActions();
+  const store = useAppShellSidebarStoreApi();
+  const { onOpenChange, onCloseAutoFocus } = createSidebarMenuControls(
+    store,
+    "account",
+  );
   return (
-    <DropdownMenu
-      open={open}
-      onOpenChange={(isOpen) => setActiveMenu(isOpen ? "account" : null)}
-    >
+    <DropdownMenu open={open} onOpenChange={onOpenChange}>
       {children({ Trigger: DropdownMenuTrigger })}
       <DropdownMenuContent
+        onCloseAutoFocus={onCloseAutoFocus}
         className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
         side={side}
         align="end"

@@ -32,10 +32,12 @@ export function ControlledVersionMenu({
   children,
   open,
   onOpenChange,
+  onCloseAutoFocus,
 }: {
   state: SidebarVersionState;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onCloseAutoFocus: (event: Event) => void;
   children: (control: {
     Trigger: typeof DropdownMenuTrigger;
     triggerProps: { onPointerDown: () => void; onKeyDown: () => void };
@@ -79,6 +81,7 @@ export function ControlledVersionMenu({
         onKeyDown={noteKeyboardUse}
         onEscapeKeyDown={noteKeyboardUse}
         onCloseAutoFocus={(event) => {
+          onCloseAutoFocus(event);
           if (!pointerOnly.current) return;
           pointerOnly.current = false;
           event.preventDefault();

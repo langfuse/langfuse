@@ -74,7 +74,7 @@ export function AppShellSidebarProvider({ children }: { children: ReactNode }) {
   );
 }
 
-function useSidebarStoreApi(): SidebarStore {
+export function useAppShellSidebarStoreApi(): SidebarStore {
   const store = useContext(AppShellSidebarContext);
   if (!store) {
     throw new Error(
@@ -87,10 +87,10 @@ function useSidebarStoreApi(): SidebarStore {
 export function useAppShellSidebar<TValue>(
   selector: (state: Omit<SidebarStoreState, "actions">) => TValue,
 ): TValue {
-  return useStore(useSidebarStoreApi(), selector);
+  return useStore(useAppShellSidebarStoreApi(), selector);
 }
 
 /** Stable action references; reading them never re-renders. */
 export function useAppShellSidebarActions(): SidebarStoreState["actions"] {
-  return useSidebarStoreApi().getState().actions;
+  return useAppShellSidebarStoreApi().getState().actions;
 }

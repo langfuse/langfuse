@@ -2,8 +2,10 @@ import { type ComponentProps } from "react";
 import { ControlledVersionMenu } from "@/src/components/nav/ControlledVersionMenu";
 import {
   useAppShellSidebar,
-  useAppShellSidebarActions,
+  useAppShellSidebarStoreApi,
 } from "@/src/features/app-shell/contexts/AppShellSidebarProvider";
+
+import { createSidebarMenuControls } from "@/src/features/app-shell/fns/createSidebarMenuControls";
 
 /** The shell owns this menu so closing navigation also releases its modal state. */
 export function SidebarVersionMenu(
@@ -13,12 +15,7 @@ export function SidebarVersionMenu(
   >,
 ) {
   const open = useAppShellSidebar((state) => state.activeMenu === "version");
-  const { setActiveMenu } = useAppShellSidebarActions();
-  return (
-    <ControlledVersionMenu
-      {...props}
-      open={open}
-      onOpenChange={(isOpen) => setActiveMenu(isOpen ? "version" : null)}
-    />
-  );
+  const store = useAppShellSidebarStoreApi();
+  const controls = createSidebarMenuControls(store, "version");
+  return <ControlledVersionMenu {...props} open={open} {...controls} />;
 }
