@@ -7,6 +7,7 @@ import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
 import { RULE_SAMPLE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 import { env } from "@/src/env.mjs";
+import { TraceRuleIdleTime } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/components/TraceRuleIdleTime/TraceRuleIdleTime";
 import { RuleSamplingSection } from "./RuleSamplingSection";
 
 export type RuleScope = "observation" | "trace";
@@ -92,6 +93,7 @@ export function RuleFilterStep({
           );
         }}
       />
+      {traceTranscript ? <TraceRuleIdleTime projectId={projectId} /> : null}
       <RuleSamplingSection store={store} />
     </Stepper>
   );

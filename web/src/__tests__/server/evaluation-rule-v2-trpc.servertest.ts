@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { Session } from "next-auth";
 import { EvalTargetObject } from "@langfuse/shared";
 import { JobConfigState, prisma, type Prisma } from "@langfuse/shared/src/db";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { appRouter } from "@/src/server/api/root";
@@ -364,6 +365,125 @@ describe("evaluation rule v2 tRPC", () => {
     ).resolves.toMatchObject({
       assignments: [expect.objectContaining({ evaluatorId: first.id })],
     });
+  });
+
+  it("saves the project idle time only inside the trace evals gate and the idle bounds", async () => {
+    await expect(
+      caller.evalsV2.rules.saveTracingReadinessSettings({
+        projectId,
+        traceIdleMs: 120_000,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(
+      await prisma.tracingReadinessSettings.findUnique({
+        where: { projectId },
+      }),
+    ).toBeNull();
+
+    const project = await prisma.project.findUniqueOrThrow({
+      where: { id: projectId },
+      include: { organization: true },
+    });
+    const original = {
+      enabled: sharedEnv.LANGFUSE_TOPICS_ENABLED,
+      projectIds: sharedEnv.LANGFUSE_TOPICS_ENABLED_PROJECT_IDS,
+      region: sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+    };
+    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = "true";
+    (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED_PROJECT_IDS = [projectId];
+    try {
+      const session = {
+        expires: "1",
+        user: {
+          id: userId,
+          name: "Rule tester",
+          canCreateOrganizations: false,
+          organizations: [
+            {
+              id: project.organization.id,
+              name: project.organization.name,
+              role: "OWNER",
+              plan: "cloud:hobby",
+              cloudConfig: undefined,
+              metadata: {},
+              aiFeaturesEnabled: true,
+              aiTelemetryEnabled: false,
+              projects: [
+                {
+                  id: projectId,
+                  name: project.name,
+                  role: "ADMIN",
+                  retentionDays: 30,
+                  deletedAt: null,
+                  hasTraces: false,
+                  metadata: {},
+                  createdAt: project.createdAt.toISOString(),
+                },
+              ],
+            },
+          ],
+          featureFlags: testFeatureFlags({ traceTranscriptEvals: true }),
+          v4BetaEnabled: false,
+        },
+        environment: {
+          enableExperimentalFeatures: false,
+          selfHostedInstancePlan: "cloud:hobby",
+        },
+      } satisfies Session;
+      const gated = appRouter.createCaller({
+        ...createInnerTRPCContext({ session, headers: {} }),
+        prisma,
+      });
+
+      await expect(
+        gated.evalsV2.rules.saveTracingReadinessSettings({
+          projectId,
+          traceIdleMs: 30_000,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      await expect(
+        gated.evalsV2.rules.saveTracingReadinessSettings({
+          projectId,
+          traceIdleMs: 3_600_001,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      expect(
+        await prisma.tracingReadinessSettings.findUnique({
+          where: { projectId },
+        }),
+      ).toBeNull();
+
+      await expect(
+        gated.evalsV2.rules.saveTracingReadinessSettings({
+          projectId,
+          traceIdleMs: 120_000,
+        }),
+      ).resolves.toEqual({ traceIdleMs: 120_000 });
+      await expect(
+        gated.evalsV2.rules.tracingReadinessSettings({ projectId }),
+      ).resolves.toEqual({ traceIdleMs: 120_000 });
+      const log = await prisma.auditLog.findFirst({
+        where: {
+          projectId,
+          resourceType: "project",
+          resourceId: projectId,
+          action: "update",
+        },
+      });
+      expect(log?.after).toContain("120000");
+    } finally {
+      (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = original.enabled;
+      (sharedEnv as any).LANGFUSE_TOPICS_ENABLED_PROJECT_IDS =
+        original.projectIds;
+      (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = original.region;
+      await prisma.tracingReadinessSettings.deleteMany({
+        where: { projectId },
+      });
+      await prisma.auditLog.deleteMany({
+        where: { projectId, resourceType: "project", resourceId: projectId },
+      });
+    }
   });
 
   it("rejects reads and writes for another project", async () => {

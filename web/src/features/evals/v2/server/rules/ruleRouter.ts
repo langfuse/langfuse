@@ -1,4 +1,11 @@
 import { TopicsTargetObject } from "@langfuse/shared";
+import {
+  TRACE_IDLE_MS_MAX,
+  TRACE_IDLE_MS_MIN,
+  getTracingReadinessSettings,
+  saveTracingReadinessSettings as persistTracingReadinessSettings,
+} from "@langfuse/shared/src/server";
+import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -293,5 +300,58 @@ export const ruleRouter = createTRPCRouter({
         ...input,
         projectId: ctx.session.projectId,
       });
+    }),
+
+  tracingReadinessSettings: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(({ ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        scope: "evaluationRule:read",
+      });
+      throwIfTraceTranscriptEvalsUnavailable(
+        ctx.session,
+        ctx.session.projectId,
+      );
+      return getTracingReadinessSettings(ctx.session.projectId);
+    }),
+
+  saveTracingReadinessSettings: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        traceIdleMs: z
+          .number()
+          .int()
+          .min(TRACE_IDLE_MS_MIN)
+          .max(TRACE_IDLE_MS_MAX),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        scope: "evaluationRule:CUD",
+      });
+      throwIfTraceTranscriptEvalsUnavailable(
+        ctx.session,
+        ctx.session.projectId,
+      );
+      const before = await getTracingReadinessSettings(ctx.session.projectId);
+      const saved = await persistTracingReadinessSettings(
+        ctx.session.projectId,
+        { traceIdleMs: input.traceIdleMs },
+        { userId: ctx.session.user.id },
+      );
+      await auditLog({
+        session: ctx.session,
+        resourceType: "project",
+        resourceId: ctx.session.projectId,
+        action: "update",
+        before,
+        after: saved,
+      });
+      return saved;
     }),
 });
