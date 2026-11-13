@@ -848,10 +848,6 @@ export const experimentsRouter = createTRPCRouter({
         scope: "promptExperiments:read",
       });
 
-      const experimentIds = [
-        ...(input.baseExperimentId ? [input.baseExperimentId] : []),
-        ...input.compExperimentIds,
-      ];
       const count = await getExperimentItemsCountFromEvents({
         projectId: input.projectId,
         baseExperimentId: input.baseExperimentId ?? undefined,
@@ -860,10 +856,6 @@ export const experimentsRouter = createTRPCRouter({
         config: {
           requireBaselinePresence: input.itemVisibility === "baseline-only",
         },
-        experimentsStartTime: await getExperimentsStartTime({
-          projectId: input.projectId,
-          experimentIds,
-        }),
       });
 
       return {

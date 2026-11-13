@@ -555,6 +555,8 @@ export const buildScoreRowsCTE = (params: ScoresCTEParams): CTEWithSchema => {
  */
 type ScoresCTEParams = Omit<BaseScoresParams, "level"> & {
   level: BaseScoresParams["level"] | "any";
+  /** Intervals subtracted from `startTimeFrom` in the timestamp bound. */
+  startTimeLookbackIntervals?: readonly string[];
 };
 
 export const buildScoresCTE = (params: ScoresCTEParams): CTEWithSchema => {
@@ -581,7 +583,7 @@ export const buildScoresCTE = (params: ScoresCTEParams): CTEWithSchema => {
     WHERE
       project_id = {projectId: String}
       ${observationFilter}
-      ${params.startTimeFrom ? `AND timestamp >= {startTimeFrom: DateTime64(3)}` : ""}
+      ${scoreTimestampLowerBound(params.startTimeFrom, params.startTimeLookbackIntervals ?? [])}
     GROUP BY
       project_id,
       trace_id,

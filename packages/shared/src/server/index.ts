@@ -612,7 +612,10 @@ export { clickhouseCompliantRandomCharacters } from "./repositories/clickhouse";
 export { OBSERVATIONS_TO_TRACE_INTERVAL_DAYS } from "./repositories/constants";
 export { OBSERVATIONS_TO_TRACE_INTERVAL } from "./repositories/constants";
 export { TRACE_TO_OBSERVATIONS_INTERVAL } from "./repositories/constants";
-export { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./repositories/constants";
+export {
+  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
+  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_HOURS,
+} from "./repositories/constants";
 export { isStorableTraceSessionId } from "./repositories/trace-sessions";
 export { storableTraceSessionIds } from "./repositories/trace-sessions";
 export { getPublicSessionsFilter } from "./repositories/trace-sessions";

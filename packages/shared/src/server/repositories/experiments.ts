@@ -5,9 +5,8 @@ import { env } from "../../env";
 import type { ScoreSourceType } from "../../domain/scores";
 import { type OrderByState } from "../../interfaces/orderBy";
 import { type FilterState } from "../../types";
-import { subHours } from "date-fns";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-import { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_HOURS } from "./constants";
+import { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./constants";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
 import { avgIf, dateDiff, literal } from "../query-ast/extensions";
@@ -235,6 +234,7 @@ const experimentScoreCTE = (params: {
 const experimentItemScoreCTE = (params: {
   projectId: string;
   startTimeFrom?: string | null;
+  startTimeLookbackIntervals?: readonly string[];
   itemRootsCTE: CTEWithSchema;
 }) => {
   const joinedItemScores = new CTEQueryBuilder()
@@ -245,6 +245,7 @@ const experimentItemScoreCTE = (params: {
       ...buildScoresCTE({
         projectId: params.projectId,
         startTimeFrom: params.startTimeFrom,
+        startTimeLookbackIntervals: params.startTimeLookbackIntervals,
         level: "any",
       }),
     })
@@ -659,13 +660,28 @@ type ExperimentItemInput = {
  * Counts items that match the intersection criteria across experiments.
  */
 export const getExperimentItemsCountFromEvents = async (
-  props: ExperimentItemInput,
+  props: Omit<ExperimentItemInput, "experimentsStartTime">,
 ): Promise<number> => {
   const { projectId, config } = props;
+
+  // The start time only bounds score filters; skip the lookup without them.
+  const { hasAgnosticScoreFilters, hasTraceScoreFilters } =
+    buildQualificationPlan(props);
+  const experimentsStartTime =
+    hasAgnosticScoreFilters || hasTraceScoreFilters
+      ? await getExperimentsStartTime({
+          projectId,
+          experimentIds: [
+            ...(props.baseExperimentId ? [props.baseExperimentId] : []),
+            ...props.compExperimentIds,
+          ],
+        })
+      : undefined;
 
   const qualifiedItems = getExperimentItemsFromEventsGeneric({
     ...props,
     config,
+    experimentsStartTime,
     select: "count",
   });
 
@@ -1258,15 +1274,12 @@ const getExperimentItemsFromEventsGeneric = (params: {
         "item_scores_agg",
         experimentItemScoreCTE({
           projectId,
-          // buildScoresCTE applies no lookback of its own, so subtract it here.
+          // Same value as the trace-score CTE below: both bind the
+          // `startTimeFrom` param, and the later CTE's value wins.
           startTimeFrom: experimentsStartTime
-            ? convertDateToClickhouseDateTime(
-                subHours(
-                  experimentsStartTime,
-                  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_HOURS,
-                ),
-              )
+            ? convertDateToClickhouseDateTime(experimentsStartTime)
             : undefined,
+          startTimeLookbackIntervals: [SCORE_TO_TRACE_OBSERVATIONS_INTERVAL],
           itemRootsCTE: {
             ...itemRoots,
             schema: ["project_id", "root_span_id", "trace_id"],
