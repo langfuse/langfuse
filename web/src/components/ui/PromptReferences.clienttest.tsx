@@ -16,4 +16,16 @@ describe("renderRichPromptContent", () => {
       "placeholder",
     ]);
   });
+
+  it("renders variables with surrounding whitespace as valid", () => {
+    const { container } = render(
+      <>{renderRichPromptContent("Hello {{ name }}")}</>,
+    );
+
+    expect(container.textContent).toBe("Hello {{ name }}");
+    const varSpan = container.querySelector("span[dir='ltr']");
+    expect(varSpan).toBeInTheDocument();
+    expect(varSpan).toHaveClass("text-primary-accent");
+    expect(varSpan).not.toHaveClass("text-destructive");
+  });
 });
