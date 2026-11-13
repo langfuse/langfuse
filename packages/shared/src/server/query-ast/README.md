@@ -77,7 +77,8 @@ must carry the `.golden.test.ts` suffix to run there.
   enclosing CTE (a CTE is not in scope inside its own body). Every FROM/JOIN
   name is an unqualified registry table or a CTE in scope; schema-qualified
   names (`default.traces`) are rejected, since the registry describes tables
-  by name only. A CTE body sees only the CTEs declared before it, so
+  by name only. No two FROM/JOIN items of one select share a name (alias, else table name): in `traces join scores as traces`, `traces.` reads only the alias.
+  A CTE body sees only the CTEs declared before it, so
   recursive and cyclic CTEs are out. The passes then read every registry
   name as its table. Rename or reorder the CTEs when the compile rejects
   them; add a physical table to the registry to read it.
@@ -274,8 +275,7 @@ and it is where tenancy is enforced:
    `SchemaReferencePlugin` rejects three-part column references (`a.b.c`; use
    `tupleArrayField` for a tuple field). `CteNamePlugin` then rejects the CTE
    names the rules above forbid; it runs before every pass but the first. A
-   FROM/JOIN name that resolves to no registry table or CTE in scope, and a
-   schema-qualified name, throw `UnscopedRelationError`; naming errors throw
+   FROM/JOIN name that resolves to no registry table or CTE in scope, a schema-qualified name, and a name two FROM/JOIN items of one select share, throw `UnscopedRelationError`; naming errors throw
    `QueryCompileError`.
 2. `TenancyInjectionPlugin` walks every FROM/JOIN and injects
    `project_id = {projectId}` on each tenanted physical table, unless the tree

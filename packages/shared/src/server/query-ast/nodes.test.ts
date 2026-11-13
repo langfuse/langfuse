@@ -472,6 +472,21 @@ describe("tenancy injection", () => {
     expect(matches.length).toBeGreaterThanOrEqual(2);
   });
 
+  it("rejects a select whose FROM and JOIN items share a name", () => {
+    // ClickHouse binds `traces.` to the alias `scores as traces`, so one
+    // `traces.project_id` predicate would leave the physical `traces` unscoped.
+    const qb = getClickhouseKysely()
+      .selectFrom("traces")
+      .innerJoin("scores as traces", (join) =>
+        join.on("traces.trace_id", "=", "t1"),
+      )
+      .select("traces.id");
+
+    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
+      `FROM/JOIN name "traces" names two relations`,
+    );
+  });
+
   describe("CTE names", () => {
     const db = getClickhouseKysely();
     // Knows the CTE names `a` and `b` as tables, so a body can read a name
