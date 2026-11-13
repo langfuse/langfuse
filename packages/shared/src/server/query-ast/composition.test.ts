@@ -247,25 +247,39 @@ describe("builder plugins alone", () => {
     ["FINAL", (qb) => qb.$call(useFinal(["scores"])), /scores as s final/],
   ];
 
-  const positions: [string, (qb: JoinedRead) => ClickhouseCompilable][] = [
-    ["the root select", (qb) => qb],
+  // Each position pins the clause to its select: the root select has no
+  // subquery to hold it, and in the FROM subquery it sits before `) as sub`.
+  const positions: [
+    string,
+    (qb: JoinedRead) => ClickhouseCompilable,
+    (emitted: RegExp) => RegExp,
+  ][] = [
+    [
+      "the root select",
+      (qb) => qb,
+      (emitted) => new RegExp(`^(?!.*\\(select ).*${emitted.source}`),
+    ],
     [
       "a FROM subquery",
       (qb) => db.selectFrom(qb.as("sub")).select("sub.span_id"),
+      (emitted) =>
+        new RegExp(
+          `^select sub\\.span_id from \\(select .*${emitted.source}.*\\) as sub$`,
+        ),
     ],
   ];
 
   const cases = compilerPasses(projectId).flatMap((pass) =>
     clauses.flatMap(([clause, attach, emitted]) =>
       positions.map(
-        ([position, place]) =>
+        ([position, place, at]) =>
           [
             pass.constructor.name,
             clause,
             position,
             pass,
             attach,
-            emitted,
+            at(emitted),
             place,
           ] as const,
       ),
