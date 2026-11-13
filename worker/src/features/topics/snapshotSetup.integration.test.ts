@@ -13,6 +13,7 @@ import {
   enqueueTopicExecution,
   readTopicExecutionSummary,
   readTopicSnapshotSummarizing,
+  writeTopicSnapshotSummarizing,
   writeTopicSummaries,
 } from "@langfuse/shared/topics/server";
 import { tickTopicSnapshotSetup } from "./snapshotSetup";
@@ -146,6 +147,29 @@ describe("Topics snapshot summarizing", () => {
     const dispatchedJobs = add.mock.calls.length;
     expect(await tickTopicSnapshotSetup(projectId, execution.id)).toBe(true);
     expect(add.mock.calls).toHaveLength(dispatchedJobs);
+
+    // A re-seed, as after a lost state write, reuses each trace's revision so the Topics dedup holds.
+    const revisions = () =>
+      add.mock.calls
+        .flatMap(([, job]) =>
+          job.payload.traces.map(
+            (trace: { traceId: string; revision: string }) =>
+              `${trace.traceId}:${trace.revision}`,
+          ),
+        )
+        .sort();
+    const first = revisions();
+    const seededState = await readTopicSnapshotSummarizing(
+      projectId,
+      execution.id,
+    );
+    await writeTopicSnapshotSummarizing(projectId, execution.id, {
+      ...seededState!,
+      traceIds: null,
+    });
+    add.mockClear();
+    expect(await tickTopicSnapshotSetup(projectId, execution.id)).toBe(true);
+    expect(revisions()).toEqual(first);
     const dispatched = add.mock.calls.flatMap(([, job]) => {
       expect(job.payload.batchActionId).toBe(execution.id);
       return job.payload.traces.map(

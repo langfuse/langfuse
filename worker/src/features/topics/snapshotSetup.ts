@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   EventsDispatchQueue,
@@ -24,6 +24,7 @@ import { env } from "../../env";
 import { traceKey } from "../eventsDispatch/traceEvents";
 import { resolveTraceIdleMs } from "../traceBatching/traceBatchReadiness";
 import {
+  getTraceExclusionReason,
   selectTraceBatches,
   toLimit,
   type PendingTrace,
@@ -160,7 +161,7 @@ async function seed(
     traceIds,
     from: timeRange.from,
   });
-  await dispatch(projectId, executionId, bounds, now);
+  const dispatched = await dispatch(projectId, executionId, bounds, now);
   const state: TopicSnapshotSummarizing = {
     startedAt: now.toISOString(),
     from: new Date(
@@ -169,8 +170,8 @@ async function seed(
         ...bounds.map(({ minStart }) => minStart),
       ),
     ).toISOString(),
-    traceIds: bounds.map(({ traceId }) => traceId),
-    seededCount: bounds.length,
+    traceIds: dispatched,
+    seededCount: dispatched.length,
     grewAt: null,
     settled: 0,
     failedTicks: 0,
@@ -196,10 +197,10 @@ async function dispatch(
   bounds: Awaited<ReturnType<typeof getTopicSetupTraceBounds>>,
   now: Date,
 ) {
-  if (!bounds.length) return;
+  if (!bounds.length) return [];
   const queue = EventsDispatchQueue.getInstance();
   if (!queue) throw new Error("Events dispatch queue is unavailable.");
-  const candidates: PendingTrace[] = bounds.map((bound) => ({
+  const all: PendingTrace[] = bounds.map((bound) => ({
     member: traceKey(projectId, bound.traceId),
     due: now.getTime(),
     estimates: { serializedEventBytes: bound.serializedEventBytes },
@@ -208,11 +209,30 @@ async function dispatch(
       traceId: bound.traceId,
       minStart: bound.minStart,
       maxStart: bound.maxStart,
-      // A fresh revision stores this transcript under its own key.
-      revision: randomUUID(),
+      // Stable per snapshot and trace, so a repeated dispatch hits the Topics dedup instead of paying twice.
+      revision: createHash("sha256")
+        .update(JSON.stringify([executionId, bound.traceId]))
+        .digest("hex")
+        .slice(0, 32),
       serializedEventBytes: bound.serializedEventBytes,
     },
   }));
+  // The dispatcher's per-trace limits: too heavy or too old to read safely.
+  const traceLimits = {
+    maxEventUpdates: toLimit(env.LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES),
+    maxSerializedEventBytes: toLimit(
+      env.LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES,
+    ),
+  };
+  const candidates = all.filter(
+    (entry) => !getTraceExclusionReason(entry, traceLimits),
+  );
+  if (candidates.length < all.length)
+    logger.warn("Topics snapshot excluded traces from summarizing", {
+      projectId,
+      executionId,
+      excluded: all.length - candidates.length,
+    });
   const batches = selectTraceBatches(
     candidates,
     env.LANGFUSE_TRACE_BATCH_MAX_SIZE,
@@ -226,7 +246,7 @@ async function dispatch(
       ),
     },
   );
-  const spreadMs = spreadFor(bounds.length);
+  const spreadMs = spreadFor(candidates.length);
   for (const [index, batch] of batches.entries()) {
     const traces = batch.map(({ trace }) => trace);
     const id = createHash("sha256")
@@ -246,6 +266,7 @@ async function dispatch(
       },
     );
   }
+  return candidates.map(({ trace }) => trace.traceId);
 }
 
 /** Counts the seeded traces' summaries; enqueues the fit once enough settled, the count stalled, or the deadline passed. */
