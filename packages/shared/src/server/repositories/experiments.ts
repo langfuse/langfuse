@@ -670,16 +670,15 @@ export const getExperimentItemsCountFromEvents = async (
   // The start time only bounds score filters; skip the lookup without them.
   const { hasAgnosticScoreFilters, hasTraceScoreFilters } =
     buildQualificationPlan(props);
-  const experimentsStartTime =
-    hasAgnosticScoreFilters || hasTraceScoreFilters
-      ? await getExperimentsStartTime({
-          projectId,
-          experimentIds: [
-            ...(props.baseExperimentId ? [props.baseExperimentId] : []),
-            ...props.compExperimentIds,
-          ],
-        })
-      : undefined;
+  let experimentsStartTime: Date | undefined;
+  if (hasAgnosticScoreFilters || hasTraceScoreFilters) {
+    const experimentIds = props.compExperimentIds.slice();
+    if (props.baseExperimentId) experimentIds.unshift(props.baseExperimentId);
+    experimentsStartTime = await getExperimentsStartTime({
+      projectId,
+      experimentIds,
+    });
+  }
 
   const qualifiedItems = getExperimentItemsFromEventsGeneric({
     ...props,
