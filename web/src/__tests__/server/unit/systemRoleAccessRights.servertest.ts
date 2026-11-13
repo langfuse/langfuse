@@ -2,7 +2,6 @@ import { projectRoleAccessRights } from "@langfuse/shared";
 import {
   allOrganizationActions,
   allProjectActions,
-  apiKeyRolesForScope,
   organizationRoleAccessRights,
   systemRoleAccessRights,
   type ProjectAction,
@@ -158,13 +157,6 @@ describe("systemRoleAccessRights", () => {
     expect(viewerProjectActions).toContain("traces:read");
     expect(viewerProjectActions).not.toContain("scores:save");
   });
-
-  it.each(["project", "organization"] as const)(
-    "offers MEMBER when creating a %s api key",
-    (scope) => {
-      expect(apiKeyRolesForScope(scope)).toContain("MEMBER");
-    },
-  );
 
   it("keys every definition by its own id", () => {
     for (const [key, definition] of Object.entries(systemRoleAccessRights)) {
