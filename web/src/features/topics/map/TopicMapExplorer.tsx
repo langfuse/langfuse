@@ -81,6 +81,9 @@ export function TopicMapExplorer({
   const [stageRef, stageSize] = useElementSize<HTMLDivElement>();
   const sectionRef = useRef<HTMLElement>(null);
   const animationRef = useRef(0);
+  // Stays non-zero for the whole gesture, including while a frame is applying.
+  const flightRef = useRef(0);
+  const nextFlightRef = useRef(0);
   const size = {
     width: stageSize?.width || 960,
     height: stageSize?.height || 560,
@@ -104,21 +107,20 @@ export function TopicMapExplorer({
     store.setState({ camera, scope });
   };
   const cancelFlight = () => {
-    const manualFlight = animationRef.current !== 0;
+    const manualFlight = flightRef.current !== 0;
+    flightRef.current = 0;
     cancelAnimationFrame(animationRef.current);
     animationRef.current = 0;
     const state = store.getState();
     const frame = state.frame;
-    if (
+    // The painted camera is world-space, so a subpixel stage resize still
+    // describes the frame the user is looking at.
+    const frameMatches =
+      frame?.model === model && frame.readingTopic === selectedTopic;
+    const canvasFlight =
       state.isMoving &&
-      (manualFlight ||
-        state.scope !== selectedTopic ||
-        state.camera === null) &&
-      frame?.model === model &&
-      frame.readingTopic === selectedTopic &&
-      frame.size.width === size.width &&
-      frame.size.height === size.height
-    )
+      (state.scope !== selectedTopic || state.camera === null);
+    if (frame && frameMatches && (manualFlight || canvasFlight))
       setCamera(frame.camera);
   };
   const flyTo = (target: Camera, scope: string | null, fit = false) => {
@@ -129,10 +131,14 @@ export function TopicMapExplorer({
       setCamera(fit ? null : target, scope);
       return;
     }
+    const flightId = ++nextFlightRef.current;
+    flightRef.current = flightId;
     const started = performance.now();
     const step = (now: number) => {
+      if (flightRef.current !== flightId) return;
       animationRef.current = 0;
       const progress = Math.min(1, (now - started) / 1050);
+      if (flightRef.current !== flightId) return;
       const t = progress ** 3 * (progress * (progress * 6 - 15) + 10);
       setCamera(
         {
@@ -144,10 +150,15 @@ export function TopicMapExplorer({
         },
         scope,
       );
+      if (flightRef.current !== flightId) return;
       if (progress < 1) animationRef.current = requestAnimationFrame(step);
-      else if (fit) setCamera(null, scope);
+      else {
+        flightRef.current = 0;
+        if (fit) setCamera(null, scope);
+      }
     };
     setCamera(start, scope);
+    if (flightRef.current !== flightId) return;
     animationRef.current = requestAnimationFrame(step);
   };
   const chooseZone = (id: string | null) => {
@@ -203,6 +214,7 @@ export function TopicMapExplorer({
     return () => {
       motion.removeEventListener("change", updateMotion);
       document.removeEventListener("fullscreenchange", updateFullscreen);
+      flightRef.current = 0;
       cancelAnimationFrame(animationRef.current);
     };
   }, [store]);

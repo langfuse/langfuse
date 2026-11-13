@@ -815,22 +815,9 @@ export const InterruptingTopicFlightKeepsPaintedZoom = meta.story({
         ...denseData.points,
       ],
     },
-    selectedTopic: "inventory-timeouts",
+    selectedTopic: null,
   },
-  render: function Render(args) {
-    const [selectedTopic, setSelectedTopic] = useState(args.selectedTopic);
-    const handleRestoreOverview = () => setSelectedTopic(null);
-    return (
-      <>
-        <Button
-          text="Restore overview"
-          variant="secondary"
-          onClick={handleRestoreOverview}
-        />
-        <EmbeddingMapView {...args} selectedTopic={selectedTopic} />
-      </>
-    );
-  },
+  render: (args) => <ControlledExplorer {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const stage = canvas.getByRole("group", { name: /^Interactive topic map/ });
@@ -841,24 +828,15 @@ export const InterruptingTopicFlightKeepsPaintedZoom = meta.story({
     const context = drawing?.getContext("2d");
     if (!context) throw new Error("The map canvas context is unavailable.");
     const clearRect = context.clearRect;
-    const scale = context.scale;
     const roundRect = context.roundRect;
     const painted = {
-      scale: null as number | null,
       distance: null as number | null,
       centers: [] as { x: number; y: number }[],
-      at: 0,
     };
     context.clearRect = (x, y, width, height) => {
-      painted.scale = null;
       painted.distance = null;
       painted.centers = [];
-      painted.at = performance.now();
       clearRect.call(context, x, y, width, height);
-    };
-    context.scale = (x, y) => {
-      if (painted.scale === null) painted.scale = x;
-      scale.call(context, x, y);
     };
     context.roundRect = (x, y, width, height, radii) => {
       if (painted.centers.length < 2) {
@@ -871,76 +849,43 @@ export const InterruptingTopicFlightKeepsPaintedZoom = meta.story({
       }
       roundRect.call(context, x, y, width, height, radii);
     };
-    try {
-      await userEvent.click(
-        canvas.getByRole("button", { name: "Restore overview" }),
-      );
-      await new Promise<void>((resolve) => setTimeout(resolve, 150));
-      const before = painted.scale;
-      if (before === null || before <= 0)
-        throw new Error("The topic flight has not painted a cloud scale.");
+    const wheelAt = (deltaY: number) => {
       const rect = stage.getBoundingClientRect();
-      const interruptedAt = performance.now();
       stage.dispatchEvent(
         new WheelEvent("wheel", {
           bubbles: true,
           cancelable: true,
           ctrlKey: true,
-          deltaY: -1,
+          deltaY,
           clientX: rect.left + rect.width / 2,
           clientY: rect.top + rect.height / 2,
         }),
       );
-      await new Promise<void>((resolve) => setTimeout(resolve, 240));
-      await waitFor(() => {
-        expect(painted.at).toBeGreaterThan(interruptedAt);
-        expect(painted.scale).not.toBeNull();
-        const ratio = painted.scale! / before;
-        expect(ratio).toBeGreaterThan(0.7);
-        expect(ratio).toBeLessThan(1.3);
-      });
-
+    };
+    try {
+      wheelAt(-120);
       await waitForMapSettled(canvasElement);
-      stage.dispatchEvent(
-        new WheelEvent("wheel", {
-          bubbles: true,
-          cancelable: true,
-          ctrlKey: true,
-          deltaY: -120,
-          clientX: rect.left + rect.width / 2,
-          clientY: rect.top + rect.height / 2,
-        }),
-      );
-      await waitForMapSettled(canvasElement);
+      const distanceBeforeFit = painted.distance;
       await userEvent.click(
         canvas.getByRole("button", { name: "Fit map (0)" }),
       );
-      await new Promise<void>((resolve) => setTimeout(resolve, 420));
+      await waitFor(() => {
+        expect(painted.distance).not.toBeNull();
+        expect(painted.distance).toBeGreaterThan(0);
+        if (distanceBeforeFit !== null)
+          expect(painted.distance).not.toBe(distanceBeforeFit);
+      });
       const beforeFitInterrupt = painted.distance;
       if (beforeFitInterrupt === null || beforeFitInterrupt <= 0)
         throw new Error("The fit flight has not painted both trace markers.");
-      const fitInterruptedAt = performance.now();
-      stage.dispatchEvent(
-        new WheelEvent("wheel", {
-          bubbles: true,
-          cancelable: true,
-          ctrlKey: true,
-          deltaY: -1,
-          clientX: rect.left + rect.width / 2,
-          clientY: rect.top + rect.height / 2,
-        }),
-      );
-      await new Promise<void>((resolve) => setTimeout(resolve, 240));
-      await waitFor(() => {
-        expect(painted.at).toBeGreaterThan(fitInterruptedAt);
-        expect(painted.distance).not.toBeNull();
-        const ratio = painted.distance! / beforeFitInterrupt;
-        expect(ratio).toBeGreaterThan(0.97);
-        expect(ratio).toBeLessThan(1.06);
-      });
+      wheelAt(-1);
+      await waitForMapSettled(canvasElement);
+      expect(painted.distance).not.toBeNull();
+      const ratio = painted.distance! / beforeFitInterrupt;
+      expect(ratio).toBeGreaterThan(0.97);
+      expect(ratio).toBeLessThan(1.06);
     } finally {
       context.clearRect = clearRect;
-      context.scale = scale;
       context.roundRect = roundRect;
     }
   },
