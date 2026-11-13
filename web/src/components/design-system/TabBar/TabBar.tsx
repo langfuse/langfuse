@@ -120,20 +120,20 @@ export function TabBar({
 
 /**
  * Scrolls the overflowing tab row so the selected tab and its menu button are
- * visible, including tabs selected programmatically or added off-screen.
+ * visible whenever the selection, the tabs, or the row's size change. Scrolling
+ * by hand is left alone until one of those changes.
  */
 function useRevealActiveTab() {
   const scrollerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const scroller = scrollerRef.current;
-    if (!scroller) return;
+    const list = scroller?.querySelector('[role="tablist"]');
+    if (!scroller || !list) return;
 
-    let revealedTab: Element | null = null;
     const reveal = () => {
-      const tab = scroller.querySelector('[role="tab"][data-state="active"]');
-      if (!tab || tab === revealedTab) return;
-      revealedTab = tab;
+      const tab = list.querySelector('[role="tab"][data-state="active"]');
+      if (!tab) return;
       const item = (tab.parentElement ?? tab).getBoundingClientRect();
       const bounds = scroller.getBoundingClientRect();
       if (item.left < bounds.left) {
@@ -144,14 +144,34 @@ function useRevealActiveTab() {
     };
 
     reveal();
-    const observer = new MutationObserver(reveal);
-    observer.observe(scroller, {
+    // Menu triggers inside the row also toggle data-state, so only tab
+    // selection and added or removed tabs count.
+    const mutationObserver = new MutationObserver((mutations) => {
+      if (
+        mutations.some(
+          (mutation) =>
+            mutation.target === list ||
+            (mutation.target instanceof Element &&
+              mutation.target.getAttribute("role") === "tab"),
+        )
+      ) {
+        reveal();
+      }
+    });
+    mutationObserver.observe(list, {
       attributes: true,
       attributeFilter: ["data-state"],
       childList: true,
       subtree: true,
     });
-    return () => observer.disconnect();
+    const resizeObserver =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(reveal);
+    resizeObserver?.observe(scroller);
+    resizeObserver?.observe(list);
+    return () => {
+      mutationObserver.disconnect();
+      resizeObserver?.disconnect();
+    };
   }, []);
 
   return scrollerRef;

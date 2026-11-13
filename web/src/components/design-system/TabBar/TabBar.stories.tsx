@@ -1,3 +1,4 @@
+import { type ComponentProps, useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -125,6 +126,27 @@ export const Wide = Default.extend({
   },
 });
 
+function SavedViewsLoadingLater(props: ComponentProps<typeof TabBar>) {
+  const [loaded, setLoaded] = useState(false);
+  const unsaved = props.tabs.filter((tab) => tab.value === "unsaved");
+  const saved = props.tabs.filter((tab) => tab.value !== "unsaved");
+  return (
+    <>
+      <TabBar
+        {...props}
+        tabs={
+          loaded
+            ? [...saved, { value: "errors", label: "Errors only" }, ...unsaved]
+            : [saved[0]!, ...unsaved]
+        }
+      />
+      <button type="button" onClick={() => setLoaded(true)}>
+        Load saved views
+      </button>
+    </>
+  );
+}
+
 export const SelectedTabRevealed = Default.extend({
   name: "(Test) Selected tab scrolled into view",
   decorators: [
@@ -136,10 +158,13 @@ export const SelectedTabRevealed = Default.extend({
       </div>
     ),
   ],
+  render: (args) => <SavedViewsLoadingLater {...args} />,
   play: async ({ canvasElement }) => {
-    const tab = within(canvasElement).getByRole("tab", {
-      name: "Unsaved view",
-    });
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Load saved views" }),
+    );
+    const tab = canvas.getByRole("tab", { name: "Unsaved view" });
     const scroller = tab.closest('[role="tablist"]')!.parentElement!;
     await expect(scroller.scrollWidth).toBeGreaterThan(scroller.clientWidth);
     // scrollLeft snaps to whole pixels, so allow a subpixel overshoot.
