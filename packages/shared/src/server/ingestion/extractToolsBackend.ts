@@ -2,6 +2,8 @@ import { z } from "zod";
 
 type IngestionJsonValue = string | object | number | boolean | null | undefined;
 
+const JSON_CONTAINER_START = /^\s*[[{]/;
+
 /**
  * Parse input that might be a JSON string or already an object.
  *
@@ -13,6 +15,10 @@ type IngestionJsonValue = string | object | number | boolean | null | undefined;
  */
 function parseIfString(data: unknown): unknown {
   if (typeof data === "string") {
+    // Callers only ever look at objects and arrays, so a string that cannot be
+    // one is returned as is. Plain-text input and output would otherwise reach
+    // a JSON.parse that throws for every ingested span.
+    if (!JSON_CONTAINER_START.test(data)) return data;
     try {
       return JSON.parse(data);
     } catch {
