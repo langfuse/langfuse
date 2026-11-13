@@ -5,11 +5,18 @@ import {
   chatCompletionRequest,
   COMPLETION_TIMEOUT_MS,
   expectListedAndIngested,
+  missingLocalEnv,
   requiredEnv,
   setUpGatewayE2e,
 } from "./gatewayE2eHarness";
 
-describe("AI gateway Azure end-to-end", () => {
+const skip = missingLocalEnv(
+  "LANGFUSE_LLM_CONNECTION_AZURE_KEY",
+  "LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL",
+  "LANGFUSE_LLM_CONNECTION_AZURE_MODEL",
+);
+
+describe.skipIf(skip)("AI gateway Azure end-to-end", () => {
   // Azure requests name a deployment, not a model.
   let deployment = "";
   setUpGatewayE2e(() => {

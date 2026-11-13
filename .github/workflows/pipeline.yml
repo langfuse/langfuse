@@ -173,7 +173,7 @@ jobs:
             ai_gateway:
               - 'ai-gateway/**'
               - 'packages/shared/prisma/migrations/**/*gateway*/**'
-              - 'web/src/__e2e__/**/*.gatewaye2e.{ts,tsx}'
+              - 'web/src/__e2e__/ai-gateway/**'
               - 'web/src/features/ai-gateway/**'
               - 'web/src/features/public-api/server/createAuthedProjectAPIRoute.ts'
               - 'web/src/pages/api/internal/ai-gateway/**'

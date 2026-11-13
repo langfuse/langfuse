@@ -5,6 +5,7 @@ import {
   COMPLETION_TIMEOUT_MS,
   expectListedAndIngested,
   gatewayModelSlug,
+  missingLocalEnv,
   requiredEnv,
   setUpGatewayE2e,
 } from "./gatewayE2eHarness";
@@ -14,7 +15,12 @@ const API_FORMAT = "anthropic.messages";
 // models on Messages only.
 const MODEL = "eu.anthropic.claude-sonnet-4-5-20250929-v1:0";
 
-describe("AI gateway Bedrock end-to-end", () => {
+const skip = missingLocalEnv(
+  "LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY",
+  "LANGFUSE_LLM_CONNECTION_BEDROCK_REGION",
+);
+
+describe.skipIf(skip)("AI gateway Bedrock end-to-end", () => {
   setUpGatewayE2e(() => ({
     provider: GatewayProvider.BEDROCK,
     credential: requiredEnv("LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY"),

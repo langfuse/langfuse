@@ -259,6 +259,11 @@ export function setUpGatewayE2e(
   return suite;
 }
 
+/** Outside CI, a provider suite without its credentials is skipped rather than failed. */
+export function missingLocalEnv(...names: string[]) {
+  return !process.env.CI && names.some((name) => !process.env[name]);
+}
+
 export function requiredEnv(name: string) {
   const value = process.env[name];
   if (!value) {

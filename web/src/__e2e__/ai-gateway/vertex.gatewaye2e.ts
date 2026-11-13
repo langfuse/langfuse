@@ -5,13 +5,16 @@ import {
   chatCompletionRequest,
   COMPLETION_TIMEOUT_MS,
   expectListedAndIngested,
+  missingLocalEnv,
   requiredEnv,
   setUpGatewayE2e,
 } from "./gatewayE2eHarness";
 
 const MODEL = "google/gemini-2.5-flash-lite";
 
-describe("AI gateway Vertex AI end-to-end", () => {
+const skip = missingLocalEnv("LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY");
+
+describe.skipIf(skip)("AI gateway Vertex AI end-to-end", () => {
   setUpGatewayE2e(() => ({
     provider: GatewayProvider.VERTEX,
     credential: requiredEnv("LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY"),

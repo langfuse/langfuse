@@ -11,6 +11,7 @@ import {
   ingestTrace,
   listGatewayModelIds,
   ORGANIZATION_ID,
+  missingLocalEnv,
   requiredEnv,
   setUpGatewayE2e,
   TEST_TIMEOUT_MS,
@@ -102,7 +103,9 @@ const UNAUTHENTICATED_REQUESTS = [
   },
 ] as const;
 
-describe("AI gateway OpenAI end-to-end", () => {
+const skip = missingLocalEnv("LANGFUSE_LLM_CONNECTION_OPENAI_KEY");
+
+describe.skipIf(skip)("AI gateway OpenAI end-to-end", () => {
   const suite = setUpGatewayE2e(() => ({
     provider: GatewayProvider.OPENAI,
     credential: requiredEnv("LANGFUSE_LLM_CONNECTION_OPENAI_KEY"),

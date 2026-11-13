@@ -5,6 +5,7 @@ import {
   COMPLETION_TIMEOUT_MS,
   expectGatewayError,
   expectListedAndIngested,
+  missingLocalEnv,
   requiredEnv,
   setUpGatewayE2e,
   withGatewayApiKey,
@@ -14,7 +15,9 @@ const API_FORMAT = "anthropic.messages";
 const MODEL = "claude-opus-5-5";
 const ANTHROPIC_HEADERS = { "anthropic-version": "2023-06-01" };
 
-describe("AI gateway Anthropic end-to-end", () => {
+const skip = missingLocalEnv("LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY");
+
+describe.skipIf(skip)("AI gateway Anthropic end-to-end", () => {
   const suite = setUpGatewayE2e(() => ({
     provider: GatewayProvider.ANTHROPIC,
     credential: requiredEnv("LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY"),
