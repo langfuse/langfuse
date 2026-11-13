@@ -1,6 +1,9 @@
 import { useMemo } from "react";
 import { useStore } from "zustand";
-import { TRACE_TRANSCRIPT_EVAL_COLUMN } from "@langfuse/shared";
+import {
+  TRACE_TRANSCRIPT_EVAL_COLUMN,
+  projectTranscriptThreadsForMapping,
+} from "@langfuse/shared";
 
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { api } from "@/src/utils/api";
@@ -31,7 +34,11 @@ export function useEvaluatorTraceSample({
   const sourceObject = useMemo(
     () =>
       query.data?.transcript
-        ? { [TRACE_TRANSCRIPT_EVAL_COLUMN]: query.data.transcript.threads }
+        ? {
+            [TRACE_TRANSCRIPT_EVAL_COLUMN]: projectTranscriptThreadsForMapping(
+              query.data.transcript.threads,
+            ),
+          }
         : null,
     [query.data],
   );
