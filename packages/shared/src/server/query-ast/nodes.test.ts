@@ -6,6 +6,7 @@ import {
   WithNode,
   createQueryId,
   sql,
+  expressionBuilder,
   type KyselyPlugin,
   type OperationNode,
   type RawBuilder,
@@ -19,7 +20,9 @@ import { getClickhouseKysely } from "./dialect";
 import { QueryCompileError, UnscopedRelationError } from "./errors";
 import {
   arrayJoin,
+  arrayMap,
   limitBy,
+  literal,
   mapExists,
   mapKeys,
   mapValues,
@@ -33,6 +36,8 @@ import {
   finalTable,
   isClickHouseSelectQueryNode,
 } from "./nodes";
+import { type ClickHouseDatabase } from "./schema";
+import { NameShadowingPlugin } from "./shadowing";
 import { TenancyInjectionPlugin } from "./tenancy";
 import { defineView, fromView } from "./views";
 
@@ -1025,6 +1030,139 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
   it("rejects FINAL on events_core", () => {
     expect(() => useFinal(["events"])).toThrow(QueryCompileError);
     expect(() => useFinal(["events"])).toThrow(/immutable/);
+  });
+});
+
+// ClickHouse reads `t.project_id` from an expression aliased `t`, or from a
+// column `t` of the relation, before it reads relation `t`. A shadowing name
+// would turn the injected tenancy predicate into a read of that expression.
+describe("names that shadow a relation", () => {
+  const db = getClickhouseKysely();
+  // A value whose `project_id` field always equals the bound project.
+  const eb = expressionBuilder<ClickHouseDatabase, never>();
+  const fakeScope = () =>
+    eb.fn("CAST", [
+      eb.fn("tuple", [eb.val(projectId)]),
+      literal("Tuple(project_id String)"),
+    ]);
+  const check = (query: { toOperationNode(): OperationNode }) => () =>
+    new NameShadowingPlugin().transformQuery({
+      node: query.toOperationNode() as SelectQueryNode,
+      queryId: createQueryId(),
+    });
+
+  it.each([
+    [
+      "a select alias named like the FROM alias",
+      db.selectFrom("traces as t").select([fakeScope().as("t"), "t.id"]),
+    ],
+    [
+      "a select alias named like an unaliased FROM table",
+      db.selectFrom("scores").select([fakeScope().as("scores")]),
+    ],
+    [
+      "a select alias named like a JOIN alias",
+      db
+        .selectFrom("traces as t")
+        .innerJoin("scores as s", "s.trace_id", "t.id")
+        .select([fakeScope().as("s")]),
+    ],
+    [
+      "an alias inside WHERE",
+      db
+        .selectFrom("traces as t")
+        .select("t.id")
+        .where((eb) =>
+          eb(
+            eb.fn("tupleElement", [
+              fakeScope().as("t") as never,
+              literal("project_id"),
+            ]),
+            "=",
+            projectId,
+          ),
+        ),
+    ],
+    [
+      "an ARRAY JOIN alias",
+      db
+        .selectFrom("traces as t")
+        .select("t.id")
+        .$call(
+          arrayJoin((eb) => ({
+            t: eb.fn<unknown[]>("array", [fakeScope()]),
+          })),
+        ),
+    ],
+    [
+      "a lambda parameter",
+      db
+        .selectFrom("scores as s")
+        .select((eb) =>
+          arrayMap((v) => v, mapKeys(eb.ref("s.metadata")), "s").as("k"),
+        ),
+    ],
+    [
+      "an alias in a subquery named like the outer relation",
+      db
+        .selectFrom("traces as t")
+        .select((eb) => [
+          eb
+            .selectFrom("scores as s")
+            .select(fakeScope().as("t"))
+            .limit(1)
+            .as("x"),
+        ]),
+    ],
+    [
+      "an alias in a CTE body named like its own relation",
+      db
+        .with("x", (qb) =>
+          qb.selectFrom("scores as s").select([fakeScope().as("s"), "s.value"]),
+        )
+        .selectFrom("x")
+        .select("x.value"),
+    ],
+    [
+      "a select alias named like a CTE",
+      db
+        .with("x", (qb) => qb.selectFrom("scores as s").select("s.value"))
+        .selectFrom("x")
+        .select([fakeScope().as("x")]),
+    ],
+  ])("rejects %s", (_shape, query) => {
+    expect(check(query)).toThrow(UnscopedRelationError);
+    expect(check(query)).toThrow("names both a relation and an expression");
+  });
+
+  it("rejects a FROM alias named like a column", () => {
+    const query = db.selectFrom("traces as metadata").select("metadata.id");
+    expect(check(query)).toThrow(
+      'FROM/JOIN alias "metadata" is also a column name',
+    );
+  });
+
+  it("accepts aliases that name no relation", () => {
+    const query = db
+      .with("x", (qb) => qb.selectFrom("scores as s").select("s.value as v"))
+      .selectFrom("traces as t")
+      .innerJoin("x", "x.v", "t.id")
+      .select([fakeScope().as("scope"), "t.id as id"]);
+    expect(check(query)).not.toThrow();
+  });
+});
+
+describe("query roots", () => {
+  const db = getClickhouseKysely();
+
+  it.each([
+    ["delete", db.deleteFrom("traces").where("id", "=", "x")],
+    ["update", db.updateTable("traces").set({ environment: "x" })],
+  ])("rejects a %s, which the passes do not scope", (_kind, query) => {
+    expect(() =>
+      // @ts-expect-error - only select builders are ClickhouseCompilable
+      compileClickhouseQuery(query, projectId),
+    ).toThrow("Only select queries compile");
   });
 });
 
