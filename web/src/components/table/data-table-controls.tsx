@@ -552,6 +552,7 @@ export function DataTableControls({
           onTextFilterRemove={filter.onTextFilterRemove}
           isDisabled={facetDisabled}
           disabledReason={facetDisabledReason}
+          conditionCount={filter.conditionCount}
         />
       );
     }
@@ -1295,6 +1296,7 @@ interface BaseFacetProps {
 }
 
 interface CategoricalFacetProps extends BaseFacetProps {
+  conditionCount?: number;
   /** Color-coded icon of the single value the summary names (renderIcon). */
   summaryIcon?: React.ReactNode;
   /** v3-vs-v4 analytics dimension of the surface (Rule 4). */
@@ -1400,6 +1402,7 @@ interface FilterAccordionItemProps {
   isActive?: boolean;
   isDisabled?: boolean;
   disabledReason?: string;
+  readOnly?: boolean;
   onReset?: () => void;
 }
 
@@ -1414,6 +1417,7 @@ function FilterAccordionItem({
   isActive,
   isDisabled,
   disabledReason,
+  readOnly,
   onReset,
 }: FilterAccordionItemProps) {
   return (
@@ -1487,7 +1491,7 @@ function FilterAccordionItem({
           disabled={isDisabled}
           className={cn(
             "m-0 min-w-0 border-0 p-0",
-            isDisabled && "pointer-events-none opacity-60",
+            isDisabled && !readOnly && "pointer-events-none opacity-60",
           )}
         >
           {children}
@@ -1498,6 +1502,7 @@ function FilterAccordionItem({
 }
 
 export function CategoricalFacet({
+  conditionCount,
   label,
   tooltip,
   help,
@@ -1575,45 +1580,52 @@ export function CategoricalFacet({
       isActive={isActive}
       isDisabled={isDisabled}
       disabledReason={disabledReason}
+      readOnly={conditionCount !== undefined}
       onReset={onReset}
     >
-      <div className="flex flex-col">
-        {/* Tab switcher - only show when text filtering is supported */}
-        {onTextFilterAdd && (
-          <FilterModeTabs mode={filterMode} onModeChange={handleModeChange} />
-        )}
+      {conditionCount !== undefined ? (
+        <p className="text-muted-foreground px-3 py-1 text-xs">
+          {disabledReason}
+        </p>
+      ) : (
+        <div className="flex flex-col">
+          {/* Tab switcher - only show when text filtering is supported */}
+          {onTextFilterAdd && (
+            <FilterModeTabs mode={filterMode} onModeChange={handleModeChange} />
+          )}
 
-        {/* SELECT MODE: checkboxes with optional counts */}
-        {filterMode === "select" && (
-          <CategoricalFilterSelect
-            tableName={tableName}
-            filterKey={filterKey}
-            loading={loading}
-            options={options}
-            counts={counts}
-            displayByValue={displayByValue}
-            value={value}
-            onChange={onChange}
-            onOnlyChange={onOnlyChange}
-            renderIcon={renderIcon}
-            renderOptionSuffix={renderOptionSuffix}
-            getOptionTitle={getOptionTitle}
-            operator={operator}
-            onOperatorChange={onOperatorChange}
-          />
-        )}
-
-        {/* TEXT MODE: Contains/Does Not Contain filters */}
-        {filterMode === "text" && onTextFilterAdd && (
-          <div className="py-1">
-            <TextFilterSection
-              allFilters={textFilters ?? []}
-              onAdd={onTextFilterAdd}
-              onRemove={onTextFilterRemove}
+          {/* SELECT MODE: checkboxes with optional counts */}
+          {filterMode === "select" && (
+            <CategoricalFilterSelect
+              tableName={tableName}
+              filterKey={filterKey}
+              loading={loading}
+              options={options}
+              counts={counts}
+              displayByValue={displayByValue}
+              value={value}
+              onChange={onChange}
+              onOnlyChange={onOnlyChange}
+              renderIcon={renderIcon}
+              renderOptionSuffix={renderOptionSuffix}
+              getOptionTitle={getOptionTitle}
+              operator={operator}
+              onOperatorChange={onOperatorChange}
             />
-          </div>
-        )}
-      </div>
+          )}
+
+          {/* TEXT MODE: Contains/Does Not Contain filters */}
+          {filterMode === "text" && onTextFilterAdd && (
+            <div className="py-1">
+              <TextFilterSection
+                allFilters={textFilters ?? []}
+                onAdd={onTextFilterAdd}
+                onRemove={onTextFilterRemove}
+              />
+            </div>
+          )}
+        </div>
+      )}
     </FilterAccordionItem>
   );
 }

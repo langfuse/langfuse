@@ -33,7 +33,7 @@ describe("legacy prompt filter decoding", () => {
           ],
           options: { [column]: [value] },
         },
-        [{ column, type, operator: "any of", value: [value] }],
+        [],
         column,
         [],
       );
