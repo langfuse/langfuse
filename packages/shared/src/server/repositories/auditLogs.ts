@@ -9,6 +9,10 @@ import {
   type AuditLogStagingPayload,
 } from "../../domain/auditLogs";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import {
+  parseClickhouseUTCDateTimeFormat,
+  queryClickhouse,
+} from "./clickhouse";
 import type { AuditLogRecordInsertType } from "./definitions";
 
 export type StageAuditLogEventInput = AuditLogEvent & {
@@ -130,6 +134,219 @@ export function convertAuditLogStagingRowToClickhouse(
     user_agent: event.request?.userAgent ?? "",
     request_id: event.request?.requestId ?? "",
   };
+}
+
+/**
+ * One project's audit log, or one organisation's organisation-level events,
+ * which are stored with an empty `project_id`. Project events are matched on
+ * `project_id` alone: each event keeps the `org_id` it was written with, so a
+ * project moved to another organisation keeps its earlier history.
+ */
+type AuditLogScope = { projectId: string } | { orgId: string; projectId: null };
+
+/** An audit log row as the viewer lists it. Empty values are `null`. */
+export type AuditLogEntry = {
+  id: string;
+  timestamp: Date;
+  orgId: string;
+  projectId: string | null;
+  eventKind: AuditLogRecordInsertType["event_kind"];
+  outcome: AuditLogRecordInsertType["outcome"];
+  outcomeReason: string | null;
+  actorType: AuditLogRecordInsertType["actor_type"];
+  userId: string | null;
+  apiKeyId: string | null;
+  actorName: string | null;
+  actorEmail: string | null;
+  userOrgRole: string | null;
+  userProjectRole: string | null;
+  resourceType: string;
+  resourceId: string | null;
+  action: string;
+  surface: string | null;
+  route: string | null;
+  resultCount: number;
+  before: string | null;
+  after: string | null;
+};
+
+/**
+ * An audit log row as the export writes it. It adds the access details,
+ * which the viewer leaves out: one access event can carry thousands of
+ * resource refs.
+ */
+type AuditLogExportEntry = AuditLogEntry & {
+  resourceRefs: string[];
+  params: string | null;
+};
+
+const AUDIT_LOG_ENTRY_COLUMNS = [
+  "id",
+  "timestamp",
+  "org_id",
+  "project_id",
+  "event_kind",
+  "outcome",
+  "outcome_reason",
+  "actor_type",
+  "user_id",
+  "api_key_id",
+  "actor_name",
+  "actor_email",
+  "user_org_role",
+  "user_project_role",
+  "resource_type",
+  "resource_id",
+  "action",
+  "surface",
+  "route",
+  "result_count",
+  "before",
+  "after",
+] as const satisfies readonly (keyof AuditLogRecordInsertType)[];
+
+const AUDIT_LOG_EXPORT_COLUMNS = [
+  ...AUDIT_LOG_ENTRY_COLUMNS,
+  "resource_refs",
+  "params",
+] as const satisfies readonly (keyof AuditLogRecordInsertType)[];
+
+type AuditLogEntryRow = Pick<
+  AuditLogRecordInsertType,
+  (typeof AUDIT_LOG_ENTRY_COLUMNS)[number]
+>;
+
+type AuditLogExportRow = Pick<
+  AuditLogRecordInsertType,
+  (typeof AUDIT_LOG_EXPORT_COLUMNS)[number]
+>;
+
+// Events of users who acted through a support access grant are left out:
+// they record Langfuse staff, not members of the organisation.
+const toScopeFilter = (scope: AuditLogScope) =>
+  scope.projectId !== null
+    ? {
+        condition:
+          "project_id = {projectId: String} AND support_access = false",
+        params: { projectId: scope.projectId },
+        tags: { projectId: scope.projectId },
+      }
+    : {
+        condition:
+          "org_id = {orgId: String} AND project_id = '' AND support_access = false",
+        params: { orgId: scope.orgId },
+        tags: undefined,
+      };
+
+const emptyToNull = (value: string) => (value === "" ? null : value);
+
+const toAuditLogEntry = (row: AuditLogEntryRow): AuditLogEntry => ({
+  id: row.id,
+  timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
+  orgId: row.org_id,
+  projectId: emptyToNull(row.project_id),
+  eventKind: row.event_kind,
+  outcome: row.outcome,
+  outcomeReason: emptyToNull(row.outcome_reason),
+  actorType: row.actor_type,
+  userId: emptyToNull(row.user_id),
+  apiKeyId: emptyToNull(row.api_key_id),
+  actorName: emptyToNull(row.actor_name),
+  actorEmail: emptyToNull(row.actor_email),
+  userOrgRole: emptyToNull(row.user_org_role),
+  userProjectRole: emptyToNull(row.user_project_role),
+  resourceType: row.resource_type,
+  resourceId: emptyToNull(row.resource_id),
+  action: row.action,
+  surface: emptyToNull(row.surface),
+  route: emptyToNull(row.route),
+  resultCount: Number(row.result_count),
+  before: emptyToNull(row.before),
+  after: emptyToNull(row.after),
+});
+
+/** One page of the change and access events of a scope, newest first. */
+export async function getAuditLogs(
+  args: AuditLogScope & { limit: number; offset: number },
+): Promise<AuditLogEntry[]> {
+  const scope = toScopeFilter(args);
+  const rows = await queryClickhouse<AuditLogEntryRow>({
+    query: `
+      SELECT ${AUDIT_LOG_ENTRY_COLUMNS.join(", ")}
+      FROM audit_logs
+      WHERE ${scope.condition}
+      ORDER BY timestamp DESC, id DESC
+      LIMIT {limit: Int32} OFFSET {offset: Int32}
+    `,
+    params: { ...scope.params, limit: args.limit, offset: args.offset },
+    tags: scope.tags,
+  });
+  return rows.map(toAuditLogEntry);
+}
+
+export async function getAuditLogsCount(scope: AuditLogScope): Promise<number> {
+  const { condition, params, tags } = toScopeFilter(scope);
+  const rows = await queryClickhouse<{ count: string }>({
+    query: `
+      SELECT count() AS count
+      FROM audit_logs
+      WHERE ${condition}
+    `,
+    params,
+    tags,
+  });
+  return Number(rows[0]?.count ?? 0);
+}
+
+/**
+ * One page of a project's audit log export: events older than
+ * `timestampBefore`, newest first by `(timestamp, id)`. Pass the last row of
+ * the previous page as `after`.
+ */
+export async function getAuditLogsForExport(args: {
+  projectId: string;
+  limit: number;
+  timestampBefore: Date;
+  after?: { timestamp: Date; id: string };
+}): Promise<AuditLogExportEntry[]> {
+  const scope = toScopeFilter({ projectId: args.projectId });
+  const rows = await queryClickhouse<AuditLogExportRow>({
+    query: `
+      SELECT ${AUDIT_LOG_EXPORT_COLUMNS.join(", ")}
+      FROM audit_logs
+      WHERE ${scope.condition}
+      AND timestamp < {timestampBefore: DateTime64(3)}
+      ${
+        // The plain timestamp bound is redundant with the tuple comparison
+        // but lets ClickHouse prune partitions and the primary key, which it
+        // does not do for a tuple comparison.
+        args.after
+          ? "AND (timestamp, id) < ({afterTimestamp: DateTime64(3)}, {afterId: String}) AND timestamp <= {afterTimestamp: DateTime64(3)}"
+          : ""
+      }
+      ORDER BY timestamp DESC, id DESC
+      LIMIT {limit: Int32}
+    `,
+    params: {
+      ...scope.params,
+      limit: args.limit,
+      timestampBefore: convertDateToClickhouseDateTime(args.timestampBefore),
+      ...(args.after
+        ? {
+            afterTimestamp: convertDateToClickhouseDateTime(
+              args.after.timestamp,
+            ),
+            afterId: args.after.id,
+          }
+        : {}),
+    },
+    tags: scope.tags,
+  });
+  return rows.map((row) => ({
+    ...toAuditLogEntry(row),
+    resourceRefs: row.resource_refs,
+    params: emptyToNull(row.params),
+  }));
 }
 
 /**

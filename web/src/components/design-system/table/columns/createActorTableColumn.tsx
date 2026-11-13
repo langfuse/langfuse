@@ -1,5 +1,5 @@
 import { type RowData } from "@tanstack/react-table";
-import { KeyRound } from "@langfuse/icons";
+import { Bot, KeyRound } from "@langfuse/icons";
 
 import {
   UserTableCell,
@@ -18,6 +18,10 @@ export type TableActor =
   | {
       type: "API_KEY";
       body: { id?: string | null; publicKey?: string | null };
+    }
+  | {
+      type: "SYSTEM";
+      body: { name?: string | null };
     };
 
 export function createActorTableColumn<TData extends RowData>({
@@ -35,6 +39,21 @@ export function createActorTableColumn<TData extends RowData>({
     loadingCell: <UserTableCell variant="loading" presentation={variant} />,
     renderCell: (actor) => {
       if (!actor) return <span>{emptyValue}</span>;
+
+      if (actor.type === "SYSTEM") {
+        const label = actor.body.name ?? "System";
+        return (
+          <span
+            className="flex min-w-0 items-center gap-2"
+            title={`System: ${label}`}
+          >
+            <Bot size="base" color="muted" aria-hidden="true" />
+            <span className="truncate font-mono" title={label}>
+              {label}
+            </span>
+          </span>
+        );
+      }
 
       if (actor.type === "API_KEY") {
         const label = actor.body.publicKey ?? actor.body.id ?? emptyValue;

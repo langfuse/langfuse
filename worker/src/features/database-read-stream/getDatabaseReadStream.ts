@@ -28,6 +28,7 @@ import {
   getTracesByIds,
   getScoresForTraces,
   getDatasetItems,
+  getAuditLogsForExport,
   storableTraceSessionIds,
   type PreferredClickhouseService,
 } from "@langfuse/shared/src/server";
@@ -723,43 +724,42 @@ export const getDatabaseReadStreamPaginated = async ({
     }
 
     case "audit_logs": {
-      const keyset = new TimestampKeyset("DESC");
+      let after: { timestamp: Date; id: string } | undefined;
 
       return new DatabaseReadStream<unknown>(
         async (pageSize: number) => {
-          const after = keyset.after;
-          const auditLogs = await prisma.auditLog.findMany({
-            where: {
-              projectId: projectId,
-              createdAt: {
-                lt: cutoffCreatedAt,
-                ...(after ? { lte: after.timestamp } : {}),
-              },
-              ...(after ? { id: { notIn: after.excludeIds } } : {}),
-            },
-            orderBy: {
-              createdAt: "desc",
-            },
-            take: pageSize,
+          const auditLogs = await getAuditLogsForExport({
+            projectId,
+            limit: pageSize,
+            timestampBefore: cutoffCreatedAt,
+            after,
           });
-          keyset.advance(
-            auditLogs.map((log) => ({ id: log.id, timestamp: log.createdAt })),
-          );
+          const last = auditLogs.at(-1);
+          if (last) after = { timestamp: last.timestamp, id: last.id };
 
           return auditLogs.map((log) => ({
             id: log.id,
-            createdAt: log.createdAt,
-            updatedAt: log.updatedAt,
-            type: log.type,
+            createdAt: log.timestamp,
+            eventKind: log.eventKind,
+            outcome: log.outcome,
+            outcomeReason: log.outcomeReason,
+            type: log.actorType,
             apiKeyId: log.apiKeyId,
             userId: log.userId,
+            actorName: log.actorName,
+            actorEmail: log.actorEmail,
             orgId: log.orgId,
             userOrgRole: log.userOrgRole,
             projectId: log.projectId,
             userProjectRole: log.userProjectRole,
             resourceType: log.resourceType,
             resourceId: log.resourceId,
+            resourceRefs: log.resourceRefs,
             action: log.action,
+            surface: log.surface,
+            route: log.route,
+            params: log.params,
+            resultCount: log.resultCount,
             before: log.before,
             after: log.after,
           }));

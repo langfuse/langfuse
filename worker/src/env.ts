@@ -763,7 +763,8 @@ const EnvSchema = z.object({
 
   // Audit log relay: moves audit_log_staging rows into ClickHouse audit_logs.
   // Runs on Langfuse Cloud and on self-hosted instances with an enterprise
-  // license, where it is on unless disabled here.
+  // license, where it is on unless disabled here. While it is off, staged
+  // events wait in Postgres and are missing from the audit-log viewer.
   LANGFUSE_AUDIT_LOG_RELAY_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_AUDIT_LOG_RELAY_INTERVAL_MS: z.coerce
     .number()
