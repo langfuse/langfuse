@@ -136,54 +136,78 @@ function injectSelect(
     assertRelationAllowed(relation);
   }
 
-  const isTenantedTable = (
-    r: ScopedRelation,
-  ): r is Extract<ScopedRelation, { kind: "table" }> =>
-    r.kind === "table" && TENANTED_TABLES.has(r.tableName);
-
-  const tenantedFrom = fromRelations.filter(isTenantedTable);
-
-  let where = node.where;
-  for (const table of tenantedFrom) {
-    if (!predicateCovers(where?.where, table, projectId)) {
-      const predicate = projectIdPredicate(table, projectId);
-      // Prepend: the tenancy scope is the leading WHERE predicate, so its bound
-      // value keeps a stable (first) parameter position regardless of the other
-      // predicates a caller wrote.
-      where = where
-        ? WhereNode.create(
-            AndNode.create(predicate, bracketForAnd(where.where)),
-          )
-        : WhereNode.create(predicate);
-    }
-  }
-
-  const joins = joinRelations.map(({ join, relation }) => {
-    if (!isTenantedTable(relation)) {
-      return join;
-    }
-    if (predicateCovers(where?.where, relation, projectId)) {
-      return join;
-    }
-    assertScopableInOn(join, relation);
-    if (predicateCovers(join.on?.on, relation, projectId)) {
-      return join;
-    }
-    // `on <caller on> and <alias>.project_id = {projectId}`
-    const predicate = projectIdPredicate(relation, projectId);
-    if (!join.on) {
-      return JoinNode.createWithOn(join.joinType, join.table, predicate);
-    }
-    return {
-      ...join,
-      on: OnNode.create(AndNode.create(bracketForAnd(join.on.on), predicate)),
-    };
-  });
+  const where = scopeFromInWhere(
+    node.where,
+    fromRelations.filter(isTenantedTable),
+    projectId,
+  );
+  const joins = joinRelations.map(({ join, relation }) =>
+    scopeJoin(join, relation, where, projectId),
+  );
 
   return {
     ...node,
     ...(where ? { where } : {}),
     ...(joins.length ? { joins } : {}),
+  };
+}
+
+function isTenantedTable(
+  r: ScopedRelation,
+): r is Extract<ScopedRelation, { kind: "table" }> {
+  return r.kind === "table" && TENANTED_TABLES.has(r.tableName);
+}
+
+/**
+ * Prepends `<alias>.project_id = {projectId}` to WHERE for each tenanted FROM
+ * table WHERE does not scope yet.
+ */
+function scopeFromInWhere(
+  where: WhereNode | undefined,
+  tenantedFrom: Extract<ScopedRelation, { kind: "table" }>[],
+  projectId: string,
+): WhereNode | undefined {
+  let scoped = where;
+  for (const table of tenantedFrom) {
+    if (!predicateCovers(scoped?.where, table, projectId)) {
+      const predicate = projectIdPredicate(table, projectId);
+      // Prepend: the tenancy scope is the leading WHERE predicate, so its bound
+      // value keeps a stable (first) parameter position regardless of the other
+      // predicates a caller wrote.
+      scoped = scoped
+        ? WhereNode.create(
+            AndNode.create(predicate, bracketForAnd(scoped.where)),
+          )
+        : WhereNode.create(predicate);
+    }
+  }
+  return scoped;
+}
+
+/**
+ * Returns the join unchanged when its relation is not a tenanted table, or
+ * when WHERE or its own ON already scopes it; else ANDs
+ * `<alias>.project_id = {projectId}` into its ON. Throws when the table needs
+ * an ON scope its join type cannot give.
+ */
+function scopeJoin(
+  join: JoinNode,
+  relation: ScopedRelation,
+  where: WhereNode | undefined,
+  projectId: string,
+): JoinNode {
+  if (!isTenantedTable(relation)) return join;
+  if (predicateCovers(where?.where, relation, projectId)) return join;
+  assertScopableInOn(join, relation);
+  if (predicateCovers(join.on?.on, relation, projectId)) return join;
+  // `on <caller on> and <alias>.project_id = {projectId}`
+  const predicate = projectIdPredicate(relation, projectId);
+  if (!join.on) {
+    return JoinNode.createWithOn(join.joinType, join.table, predicate);
+  }
+  return {
+    ...join,
+    on: OnNode.create(AndNode.create(bracketForAnd(join.on.on), predicate)),
   };
 }
 
