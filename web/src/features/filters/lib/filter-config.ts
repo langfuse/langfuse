@@ -82,6 +82,17 @@ export type Facet =
 
 export type FilterStateMigration = (filters: FilterState) => FilterState;
 
+/**
+ * Drops numeric metadata comparisons (`numberObject` on `metadata`), for views
+ * whose server rejects them. The events table writes them into the same URL
+ * `filter` param, so a shared link would otherwise fail the whole table.
+ */
+export const dropNumericMetadataFilters: FilterStateMigration = (filters) =>
+  filters.filter(
+    (filter) =>
+      !(filter.column === "metadata" && filter.type === "numberObject"),
+  );
+
 export interface FilterConfig {
   tableName: string;
   columnDefinitions: ColumnDefinition[];

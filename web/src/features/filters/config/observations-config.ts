@@ -1,5 +1,6 @@
 import { observationsTableCols } from "@langfuse/shared";
 import {
+  dropNumericMetadataFilters,
   omitFilterFacets,
   type FilterConfig,
 } from "@/src/features/filters/lib/filter-config";
@@ -21,6 +22,8 @@ export const observationFilterConfig: FilterConfig = {
   tableName: "observations",
 
   columnDefinitions: observationsTableCols,
+
+  migrateFilterState: dropNumericMetadataFilters,
 
   defaultExpanded: ["environment", "name"],
 
