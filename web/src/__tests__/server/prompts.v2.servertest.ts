@@ -3497,6 +3497,83 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
           dependencyFindMany.mockRestore();
         }
       });
+
+      it("splits a level of more than 1,000 rows across queries without dropping any", async () => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        const leafNames = Array.from(
+          { length: 1001 },
+          (_, i) => `leaf-${String(i).padStart(4, "0")}`,
+        );
+        await prisma.prompt.createMany({
+          data: leafNames.map((name) => ({
+            projectId,
+            name,
+            version: 1,
+            type: "text",
+            labels: ["production"],
+            createdBy: "test-user",
+            prompt: name,
+          })),
+        });
+        const root = await prisma.prompt.create({
+          data: {
+            projectId,
+            name: "root",
+            version: 1,
+            type: "text",
+            labels: ["production"],
+            createdBy: "test-user",
+            prompt: leafNames
+              .map(
+                (name) => `@@@langfusePrompt:name=${name}|label=production@@@`,
+              )
+              .join(" "),
+          },
+        });
+        await prisma.promptDependency.createMany({
+          data: leafNames.map((childName) => ({
+            projectId,
+            parentId: root.id,
+            childName,
+            childLabel: "production",
+          })),
+        });
+
+        const promptFindMany = vi.spyOn(prisma.prompt, "findMany");
+        const dependencyFindMany = vi.spyOn(
+          prisma.promptDependency,
+          "findMany",
+        );
+        try {
+          const promptService = new PromptService(prisma, redis);
+          const { resolvedPrompt, graph } =
+            await promptService.buildAndResolvePromptGraph({
+              projectId,
+              parentPrompt: root,
+            });
+
+          const promptCountPerQuery = promptFindMany.mock.calls.map(
+            ([args]) => (args?.where?.OR as unknown[] | undefined)?.length,
+          );
+          const parentCountPerQuery = dependencyFindMany.mock.calls.map(
+            ([args]) =>
+              (args?.where?.parentId as { in?: string[] } | undefined)?.in
+                ?.length,
+          );
+
+          expect(resolvedPrompt).toBe(leafNames.join(" "));
+          expect(graph?.dependencies[root.id].map((edge) => edge.name)).toEqual(
+            leafNames,
+          );
+          // Pins the 1,000-row chunk size: the leaves are fetched in two
+          // prompt queries, and their own dependencies in two more.
+          expect(promptCountPerQuery).toEqual([1000, 1]);
+          expect(parentCountPerQuery).toEqual([1, 1000, 1]);
+        } finally {
+          promptFindMany.mockRestore();
+          dependencyFindMany.mockRestore();
+        }
+      }, 30_000);
     });
   });
 
