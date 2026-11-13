@@ -4,6 +4,7 @@ import { QUERY_LABEL_COLORS } from "@/src/components/design-system/QueryTokens/Q
 import { type ScoreTypeContext } from "../adapter";
 import { deriveComposerSegments } from "../composer-segments";
 import { type FieldRegistry } from "../fields";
+import type { CompareOp } from "../ast";
 import { indexOfOutsideQuotes } from "../langQ";
 import { explainSegment } from "../explain";
 import { deactivationReason } from "../../components/presentation";
@@ -20,7 +21,7 @@ export function deriveQueryTokens({
   scoreTypes: ScoreTypeContext | undefined;
   registry: FieldRegistry;
   showDiagnostics: boolean;
-  fieldReason: ((field: string) => string | null) | undefined;
+  fieldReason: ((field: string, op?: CompareOp) => string | null) | undefined;
   freeTextReason: string | null | undefined;
 }): ComponentProps<typeof QueryTokens>["tokens"] {
   return deriveComposerSegments(draft, scoreTypes, registry).map((segment) => {

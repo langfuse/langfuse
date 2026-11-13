@@ -462,7 +462,8 @@ describe("validateQuery", () => {
       "-latency:2", // negated numeric equality
       "-input:prefix*", // negated starts-with
       "-tags:(a AND b)", // negated all-of
-      "metadata.region:>5", // metadata comparison
+      "-metadata.region:>5", // negated metadata comparison
+      "metadata.region:>eu", // metadata comparison with a non-number
       "-metadata.region:eu", // negated metadata equality
       "latency:(1 OR 2)", // numeric any-of
       "has:(endTime OR userId)", // positive multi-has

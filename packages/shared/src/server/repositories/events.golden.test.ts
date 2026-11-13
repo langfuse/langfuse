@@ -944,21 +944,17 @@ describeWithClickhouse("golden: events row-selection planner family", () => {
     },
   );
 
-  // The legacy type check accepts only `stringObject` on `metadata`, so a
-  // numeric metadata leaf never reaches ClickHouse on this path.
-  it("planner filter=metadata numberObject throws before the read", async () => {
-    await expect(
-      captureRowSelection([
-        {
-          column: "metadata",
-          type: "numberObject",
-          key: "attempt",
-          operator: ">",
-          value: 1,
-        },
-      ]),
-    ).rejects.toThrow(InvalidRequestError);
-    expect(capturedQueries).toHaveLength(0);
+  it("planner filter=metadata numberObject", async () => {
+    await captureRowSelection([
+      {
+        column: "metadata",
+        type: "numberObject",
+        key: "attempt",
+        operator: ">",
+        value: 1,
+      },
+    ]);
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });
 
   it("planner filter=obsScore", async () => {

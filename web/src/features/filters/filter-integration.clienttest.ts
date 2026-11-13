@@ -665,6 +665,44 @@ describe("Retired bookmarked filters (traces + sessions)", () => {
   });
 });
 
+describe("Numeric metadata filters on legacy tables", () => {
+  const textFilter: FilterState = [
+    {
+      column: "metadata",
+      type: "stringObject",
+      key: "region",
+      operator: "=",
+      value: "eu",
+    },
+  ];
+  const sharedLink = encodeFiltersGeneric([
+    ...textFilter,
+    {
+      column: "metadata",
+      type: "numberObject",
+      key: "attempt",
+      operator: ">",
+      value: 2,
+    },
+  ]);
+
+  it.each([
+    ["traces", traceFilterConfig],
+    ["observations", observationFilterConfig],
+  ] as const)(
+    "opens an events-table link on the %s table without its numeric metadata comparison",
+    (_label, config) => {
+      expect(
+        decodeAndNormalizeFilters(
+          sharedLink,
+          config.columnDefinitions,
+          config.migrateFilterState,
+        ),
+      ).toEqual(textFilter);
+    },
+  );
+});
+
 describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
   it("should preserve multiple string contains filters from URL", () => {
     // environment contains "e" AND environment contains "a"
