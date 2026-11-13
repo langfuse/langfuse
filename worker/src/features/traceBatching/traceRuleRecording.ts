@@ -135,18 +135,20 @@ const RECORD_SCRIPT = `
 // Seeds already ingested traces. Unlike recording, bytes come from the stored
 // trace, so the larger value wins, and a later due time is kept.
 // KEYS: pending, due, then one bounds key per member.
-// ARGV: due offset, bounds TTL, pending TTL, rules JSON, then per member: member, min start, max start, revision, bytes.
+// ARGV: bounds TTL, pending TTL, rules JSON, then per member: member, min start, max start, revision, bytes, due offset.
 const SEED_SCRIPT = `
   local pendingKey, dueKey = KEYS[1], KEYS[2]
   local clock = redis.call('TIME')
   local now = clock[1] * 1000 + math.floor(clock[2] / 1000)
-  local due = now + tonumber(ARGV[1])
-  local boundsTtl = tonumber(ARGV[2])
-  local pendingTtl = tonumber(ARGV[3])
-  local seededRules = cjson.decode(ARGV[4])
+  local boundsTtl = tonumber(ARGV[1])
+  local pendingTtl = tonumber(ARGV[2])
+  local seededRules = cjson.decode(ARGV[3])
+  local latestDue = 0
   for key = 3, #KEYS do
-    local i = 5 + (key - 3) * 5
+    local i = 4 + (key - 3) * 6
     local member = ARGV[i]
+    local due = now + tonumber(ARGV[i + 5])
+    latestDue = math.max(latestDue, due)
     local minStart = tonumber(ARGV[i + 1])
     local maxStart = tonumber(ARGV[i + 2])
     local serializedEventBytes = tonumber(ARGV[i + 4])
@@ -183,8 +185,8 @@ const SEED_SCRIPT = `
     redis.call('ZADD', dueKey, 'GT', due, member)
   end
   for _, key in ipairs({ pendingKey, dueKey }) do
-    if redis.call('PEXPIRETIME', key) < due + pendingTtl then
-      redis.call('PEXPIREAT', key, string.format('%.0f', due + pendingTtl))
+    if redis.call('PEXPIRETIME', key) < latestDue + pendingTtl then
+      redis.call('PEXPIREAT', key, string.format('%.0f', latestDue + pendingTtl))
     end
   end
 `;
@@ -451,7 +453,10 @@ export async function recordTraceActivity(
   }
 }
 
-/** Queues already ingested traces for rules, dispatched dueInMs from now unless live activity is due later. */
+/**
+ * Queues already ingested traces for rules, due evenly over [dueInMs, dueInMs + spreadMs)
+ * from now, so their LLM calls do not all start at once; later live activity wins.
+ */
 export async function seedTraceDispatch(
   projectId: string,
   traces: readonly {
@@ -462,18 +467,23 @@ export async function seedTraceDispatch(
   }[],
   ruleIds: readonly string[],
   dueInMs: number,
+  spreadMs = 0,
 ): Promise<void> {
   if (traces.length === 0) return;
   if (!redis) throw new Error("Trace rule recording requires Redis");
   const shards = new Map<
     number,
-    ((typeof traces)[number] & { member: string })[]
+    ((typeof traces)[number] & { member: string; dueOffset: number })[]
   >();
-  for (const trace of traces) {
+  traces.forEach((trace, index) => {
     const member = JSON.stringify([projectId, trace.traceId]);
     const shard = getTraceBatchShard(member);
-    shards.set(shard, [...(shards.get(shard) ?? []), { ...trace, member }]);
-  }
+    const dueOffset = dueInMs + Math.floor((index * spreadMs) / traces.length);
+    shards.set(shard, [
+      ...(shards.get(shard) ?? []),
+      { ...trace, member, dueOffset },
+    ]);
+  });
   for (const [shard, entries] of shards) {
     const { pending, due } = getRecordingKeys(shard);
     for (let offset = 0; offset < entries.length; offset += REDIS_BATCH_SIZE) {
@@ -486,7 +496,6 @@ export async function seedTraceDispatch(
           ...chunk.map(({ member }) => getRecordingBoundsKey(shard, member)),
         ],
         [
-          dueInMs,
           env.LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS,
           env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
           JSON.stringify(ruleIds),
@@ -496,6 +505,7 @@ export async function seedTraceDispatch(
             trace.maxStart,
             randomUUID(),
             trace.serializedEventBytes,
+            trace.dueOffset,
           ]),
         ],
       );
