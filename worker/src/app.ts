@@ -65,13 +65,11 @@ import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseReadSkipCache } from "./utils/clickhouseReadSkipCache";
 import { experimentCreateQueueProcessor } from "./queues/experimentQueue";
 import { traceDeleteProcessor } from "./queues/traceDelete";
-import { traceBatchQueueProcessor } from "./queues/traceBatchQueue";
 import { topicsTraceQueueProcessorBuilder } from "./queues/topicsTraceQueue";
 import { eventsDispatchQueueProcessor } from "./queues/eventsDispatchQueue";
 import { isEventsDispatchEnabled } from "./features/eventsDispatch/eventsDispatch";
 import { TraceBatchDispatcher } from "./features/traceBatching/traceBatching";
 import { TraceBatchMetricsRunner } from "./features/traceBatching/TraceBatchMetricsRunner";
-import { isTraceBatchPipelineEnabled } from "./features/traceBatching/traceBatchSampling";
 import { projectDeleteProcessor } from "./queues/projectDelete";
 import {
   postHogIntegrationProcessingProcessor,
@@ -161,13 +159,13 @@ ClickhouseReadSkipCache.getInstance(prisma)
     logger.error("Error initializing ClickhouseReadSkipCache", err);
   });
 
-// The pipeline mode decides what each role does; every service still opts into its roles.
+// Events dispatch is the dispatcher's only target; every service still opts into its roles.
 const traceBatchDispatcherEnabled =
-  isTraceBatchPipelineEnabled() &&
+  isEventsDispatchEnabled() &&
   env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED === "true";
-const traceBatchConsumerEnabled =
-  isTraceBatchPipelineEnabled() &&
-  env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED === "true";
+const eventsDispatchConsumerEnabled =
+  isEventsDispatchEnabled() &&
+  env.QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED === "true";
 
 export let traceBatchDispatcher: TraceBatchDispatcher | null = null;
 if (traceBatchDispatcherEnabled) {
@@ -175,17 +173,8 @@ if (traceBatchDispatcherEnabled) {
   traceBatchDispatcher.start();
 }
 
-if (traceBatchConsumerEnabled) {
-  WorkerManager.register(QueueName.TraceBatch, traceBatchQueueProcessor, {
-    concurrency: env.LANGFUSE_TRACE_BATCH_CONCURRENCY,
-  });
-}
-
-// Consumed only on worker-cpu, like trace-batch; Topics jobs it enqueues run on the main worker.
-if (
-  isEventsDispatchEnabled() &&
-  env.QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED === "true"
-) {
+// Consumed only on worker-cpu; Topics jobs it enqueues run on the main worker.
+if (eventsDispatchConsumerEnabled) {
   WorkerManager.register(
     QueueName.EventsDispatch,
     eventsDispatchQueueProcessor,
@@ -194,7 +183,7 @@ if (
 }
 
 export let traceBatchMetricsRunner: TraceBatchMetricsRunner | null = null;
-if (traceBatchDispatcherEnabled || traceBatchConsumerEnabled) {
+if (traceBatchDispatcherEnabled || eventsDispatchConsumerEnabled) {
   traceBatchMetricsRunner = new TraceBatchMetricsRunner();
   traceBatchMetricsRunner.start();
 }

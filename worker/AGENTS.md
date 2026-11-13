@@ -33,10 +33,10 @@
   Prompt experiments select observation rules only on their root span. Transcript
   recording preserves Topics' exclusion of internal environments, including prompt
   experiments. The direct internal writer retains its root-only ready callback.
-- Trace batching: `src/features/traceBatching/traceBatching.ts`, `src/features/traceBatching/traceRuleRecording.ts` and `src/queues/traceBatchQueue.ts`. Read `src/features/traceBatching/README.md` before changing mode selection, readiness/Redis state, streaming, transcript capture or metrics. Preserve ingestion error boundaries and revision-guarded enqueue acknowledgement; a failed stream must not assemble its partial final trace. Trace-batch stores each sampled trace's inputs with `createTraceBatchInputStorage().put` and enqueues one `topics-trace-queue` job carrying `{ projectId, traceId, revision, ruleIds }`, deduplicated per revision; it makes no model calls. `src/features/topics/processTopicsTrace.ts` summarizes, embeds and assigns. Storage is required: oversized inputs or failed uploads count the trace as failed instead of enqueueing.
+- Trace batching: `src/features/traceBatching/traceBatching.ts` and `src/features/traceBatching/traceRuleRecording.ts`. Read `src/features/traceBatching/README.md` before changing mode selection, readiness/Redis state, dispatch or metrics. Preserve ingestion error boundaries and revision-guarded enqueue acknowledgement. The dispatcher enqueues ready traces only to `events-dispatch-queue`.
 - Events dispatch: `src/features/eventsDispatch/`, consumed only on
-  worker-cpu, replaces the trace-batch consumer when
-  `LANGFUSE_EVENTS_DISPATCH_ENABLED`. It routes each trace's recorded rule
+  worker-cpu, enabled by `LANGFUSE_EVENTS_DISPATCH_ENABLED`; a failed stream
+  must not assemble its partial final trace. It routes each trace's recorded rule
   IDs to consumers by evaluator type (`consumers.ts`), reads ClickHouse only
   for routed traces, stores the transcript once and enqueues one job per
   consumer; consumers resolve their rule definitions themselves. The

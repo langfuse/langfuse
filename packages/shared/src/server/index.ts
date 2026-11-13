@@ -168,7 +168,6 @@ export {
 } from "./transcript/topics-renderer";
 export { renderTranscriptFromObservations } from "./transcript/topics-renderer";
 export { transcriptBlockTypes } from "./transcript/topics-renderer";
-export { renderGenericTranscript } from "./transcript/generic-renderer";
 export { topicsTranscriptConfig } from "./transcript/topics-renderer-config";
 export { transcriptRenderConfigSchema } from "./transcript/topics-renderer-config";
 export { type TranscriptRenderConfig } from "./transcript/topics-renderer-config";
@@ -203,7 +202,6 @@ export * from "./redis/webhookQueue";
 export * from "./redis/monitorQueue";
 export * from "./redis/inAppAgentRunQueue";
 export * from "./redis/traceDelete";
-export * from "./redis/traceBatch";
 export * from "./redis/sharding";
 export * from "./redis/projectDelete";
 export * from "./redis/scoreDelete";

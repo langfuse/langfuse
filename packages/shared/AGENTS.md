@@ -49,11 +49,9 @@
 - Queue helpers: `src/server/redis/*`
   `getShardIndex` from `src/server/redis/sharding.ts` is exported by the server
   barrel; hash the unit identity when a project can dominate traffic.
-- Internal trace-batch queue: `src/server/redis/traceBatch.ts` (cloud-gated);
-  payloads in `src/server/queues.ts` accept persisted single-project jobs.
-  Full-event streaming reads live in `src/server/repositories/trace-batch.ts`;
-  the worker owns experiment enablement and lifecycle. Reader options control
-  per-query threads/block size and experiment attribution; retain exact tenant
+- Full-event streaming reads for events dispatch live in
+  `src/server/repositories/trace-batch.ts`; the worker owns enablement and
+  lifecycle. Reader options control per-query threads/block size; retain exact tenant
   pairs and per-trace time windows when changing parameter chunking.
   Rows must stay contiguous by project and trace ID so consumers can finish a
   trace at the next pair or successful EOF; time buckets must not precede trace ID.
