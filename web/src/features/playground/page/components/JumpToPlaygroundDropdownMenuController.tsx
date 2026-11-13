@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/router";
+import { TRPCClientError } from "@trpc/client";
 
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
 import {
@@ -20,10 +21,18 @@ import {
 import { getMessagesFingerprint } from "@/src/features/playground/page/utils/messagesFingerprint";
 import { resolveJumpTargetWindowId } from "@/src/features/playground/page/utils/resolveJumpTargetWindowId";
 import {
+  bindRecordedPromptVariables,
+  loadPromptReplay,
+  readRecordedPromptVariables,
+  type PromptReplaySource,
+} from "@/src/features/playground/page/utils/promptReplay";
+import {
   getWindowState,
   setWindowState,
 } from "@/src/features/playground/page/storage/windowStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { captureUnknownError } from "@/src/utils/captureUnknownError";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   ChatMessageRole,
@@ -41,6 +50,7 @@ import {
   isGenerationLike,
   normalizeInput,
   normalizeOutput,
+  extractVariables,
 } from "@langfuse/shared";
 
 import { extractTools } from "@/src/utils/chatml/extractTools";
@@ -101,8 +111,14 @@ export function useJumpToPlayground(
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
+  const utils = api.useUtils();
   const { windowIds, addWindowWithId, clearAllCache } = usePersistedWindowIds();
   const [includeOutput, setIncludeOutput] = useState(false);
+  const [replaySelection, setReplaySelection] = useState<{
+    generationId: string | null;
+    source: PromptReplaySource;
+  }>({ generationId: null, source: "compiled" });
+  const [isPreparingPrompt, setIsPreparingPrompt] = useState(false);
 
   // Generate a stable window ID based on the source data
   const sourceId =
@@ -149,18 +165,109 @@ export function useJumpToPlayground(
     return null;
   }, [prompt, generation, modelToProviderMap, includeOutput]);
   const isAvailable = capturedState !== null;
+  const recordedVariables = readRecordedPromptVariables(
+    generation?.promptId ? generation.metadata : null,
+  );
+  const inputSource =
+    generation?.id === replaySelection.generationId && recordedVariables.success
+      ? replaySelection.source
+      : "compiled";
 
   const handlePlaygroundAction = useCallback(
-    (action: JumpToPlaygroundAction) => {
+    async (action: JumpToPlaygroundAction) => {
       const useFreshPlayground = action === "fresh";
       capture(props.analyticsEventName, {
         playgroundMode: useFreshPlayground ? "fresh" : "add_to_existing",
+        inputSource,
+        variableCount:
+          inputSource !== "compiled" && recordedVariables.success
+            ? Object.keys(recordedVariables.variables).length
+            : 0,
       });
 
       // First, ensure we have state to save
       if (!capturedState) {
         console.warn("No captured state available for playground");
         return;
+      }
+
+      let playgroundState = capturedState;
+      if (inputSource !== "compiled" && generation) {
+        if (!projectId || !generation.promptId || !recordedVariables.success) {
+          showErrorToast(
+            "Prompt replay unavailable",
+            "Link this generation to a prompt and record its promptVariables metadata.",
+            {
+              operation: "playground.replay_prompt",
+              errorOrigin: "frontend",
+              errorCategory: "product_state",
+            },
+          );
+          return;
+        }
+
+        setIsPreparingPrompt(true);
+        try {
+          const replayPrompt = await loadPromptReplay(
+            {
+              projectId,
+              promptId: generation.promptId,
+              source: inputSource,
+            },
+            {
+              getPrompt: (input) => utils.prompts.byId.fetch(input),
+              getVersions: (input) => utils.prompts.allVersions.fetch(input),
+              resolvePrompt: (input) =>
+                utils.prompts.resolvePromptGraph.fetch(input),
+            },
+          );
+          const promptState = replayPrompt ? parsePrompt(replayPrompt) : null;
+          if (!promptState) {
+            showErrorToast(
+              "Prompt replay unavailable",
+              "The selected prompt version is missing or cannot be opened in the Playground.",
+              {
+                operation: "playground.replay_prompt",
+                errorOrigin: "frontend",
+                errorCategory: "product_state",
+              },
+            );
+            return;
+          }
+
+          const variableNames = extractVariables(
+            promptState.messages
+              .map((message) =>
+                "content" in message ? message.content : message.name,
+              )
+              .join("\n"),
+          );
+          playgroundState = {
+            ...capturedState,
+            ...promptState,
+            promptVariables: bindRecordedPromptVariables(
+              variableNames,
+              recordedVariables.variables,
+            ),
+          };
+        } catch (error) {
+          const isTransportError = error instanceof TRPCClientError;
+          if (!isTransportError) {
+            captureUnknownError("playground_prompt_replay", error);
+          }
+          showErrorToast(
+            "Prompt replay failed",
+            "Could not load the prompt. Check your access and that the prompt version is still available.",
+            {
+              operation: "playground.replay_prompt",
+              errorOrigin: isTransportError ? "backend" : "frontend",
+              errorCategory: isTransportError ? "transient" : "internal",
+            },
+          );
+          return;
+        } finally {
+          setIsPreparingPrompt(false);
+        }
       }
 
       let targetWindowId = stableWindowId;
@@ -172,8 +279,8 @@ export function useJumpToPlayground(
         targetWindowId = resolveJumpTargetWindowId({
           stableWindowId,
           openWindowIds: windowIds,
-          incomingMessages: capturedState.messages,
-          getCachedMessages: (windowId) => getWindowState(windowId)?.messages,
+          incomingState: playgroundState,
+          getCachedState: getWindowState,
         });
 
         const addedWindowId = addWindowWithId(targetWindowId);
@@ -189,7 +296,7 @@ export function useJumpToPlayground(
       // Use requestAnimationFrame to ensure the state update has been processed
       requestAnimationFrame(() => {
         try {
-          setWindowState(targetWindowId, capturedState);
+          setWindowState(targetWindowId, playgroundState);
           console.log(
             `Cache saved for existing playground window ${targetWindowId}`,
           );
@@ -207,12 +314,16 @@ export function useJumpToPlayground(
       addWindowWithId,
       capture,
       capturedState,
+      generation,
+      inputSource,
+      recordedVariables,
       clearAllCache,
       projectId,
       props.analyticsEventName,
       router,
       stableWindowId,
       windowIds,
+      utils,
     ],
   );
 
@@ -230,13 +341,27 @@ export function useJumpToPlayground(
       <JumpToPlaygroundMenu
         source="generation"
         includeOutput={includeOutput}
+        disabled={isPreparingPrompt}
         onIncludeOutputChange={setIncludeOutput}
         onPlaygroundAction={handlePlaygroundAction}
+        promptReplay={
+          generation?.promptId
+            ? {
+                source: inputSource,
+                recordedVersion: generation.promptVersion,
+                onSourceChange: (source) =>
+                  setReplaySelection({ generationId: generation.id, source }),
+                unavailableReason: recordedVariables.success
+                  ? undefined
+                  : recordedVariables.reason,
+              }
+            : undefined
+        }
       />
     );
   return {
-    disabled: !isAvailable,
-    title: tooltipMessage,
+    disabled: !isAvailable || isPreparingPrompt,
+    title: isPreparingPrompt ? "Loading prompt for replay" : tooltipMessage,
     menu,
     includeOutput,
     setIncludeOutput,

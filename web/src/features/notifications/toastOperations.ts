@@ -107,6 +107,7 @@ export const applicationToastOperations = [
   "organization_feature_preview.update",
   "organization_role.update",
   "playground.execute",
+  "playground.replay_prompt",
   "playground_schema.prettify",
   "playground_tool.prettify",
   "playground_window.add",
