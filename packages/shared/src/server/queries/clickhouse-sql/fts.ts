@@ -12,7 +12,10 @@ import {
 } from "../../utils/searchText";
 
 export { FTS_MATCH_OPERATOR } from "../../../interfaces/filters";
-export { hasFtsSearchToken } from "../../utils/searchText";
+export {
+  hasFtsSearchToken,
+  shouldUseFtsTokenPrefilter,
+} from "../../utils/searchText";
 
 type StringOperator = (typeof filterOperators)["string"][number];
 export type FtsStringOperator = StringOperator | FtsMatchOperator;
@@ -139,6 +142,12 @@ const ftsTextIndexedSubstringCondition = (
 ): string =>
   `(position(${normalizeFtsTextExpr(fieldExpr)}, ${normalizeFtsTextExpr(valueParam)}) > 0 AND ${ftsTextTokenPredicate(fieldExpr, valueParam)})`;
 
+const ftsTextSubstringCondition = (
+  fieldExpr: string,
+  valueParam: string,
+): string =>
+  `position(${normalizeFtsTextExpr(fieldExpr)}, ${normalizeFtsTextExpr(valueParam)}) > 0`;
+
 const ftsMetadataArrayTokenConjunct = (
   arrayExpr: string,
   valueParam: string,
@@ -172,6 +181,13 @@ const ftsMetadataArrayIndexedSubstringCondition = ({
 }: FtsMetadataArrayConditionContext): string =>
   `${hasKey} AND ${ftsMetadataArrayTokenConjunct(valuesColumn, valueParam)} AND (position(${valueAccessor}, ${valueParam}) > 0)`;
 
+const ftsMetadataArraySubstringCondition = ({
+  hasKey,
+  valueAccessor,
+  valueParam,
+}: FtsMetadataArrayConditionContext): string =>
+  `${hasKey} AND (position(${valueAccessor}, ${valueParam}) > 0)`;
+
 type FtsOperatorDescriptors = {
   [operator in FtsAcceleratedStringOperator]: FtsOperatorDescriptor;
 };
@@ -194,9 +210,14 @@ export const FTS_OPERATOR_DESCRIPTORS = {
         : `${hasKey} AND (${valueAccessor} = ${valueParam})`,
   },
   [FTS_MATCH_OPERATOR]: {
-    textCondition: (fieldExpr, valueParam, _exactCondition, _hasToken) =>
-      ftsTextIndexedSubstringCondition(fieldExpr, valueParam),
-    metadataArrayCondition: ftsMetadataArrayIndexedSubstringCondition,
+    textCondition: (fieldExpr, valueParam, _exactCondition, hasToken) =>
+      hasToken
+        ? ftsTextIndexedSubstringCondition(fieldExpr, valueParam)
+        : ftsTextSubstringCondition(fieldExpr, valueParam),
+    metadataArrayCondition: (ctx) =>
+      ctx.hasToken
+        ? ftsMetadataArrayIndexedSubstringCondition(ctx)
+        : ftsMetadataArraySubstringCondition(ctx),
   },
 } satisfies FtsOperatorDescriptors;
 

@@ -12,6 +12,19 @@
 export const hasFtsSearchToken = (value: string): boolean =>
   /[\p{L}\p{N}]/u.test(value);
 
+// ClickHouse's splitByNonAlpha tokenizer keeps these scripts as one long token,
+// so a token prefilter would drop valid substring matches inside the sentence.
+const FTS_SUBSTRING_FALLBACK_SCRIPTS =
+  /[\p{Script=Thai}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
+
+/**
+ * Whether a `hasAllTokens` index prefilter applies to `value`: it needs a
+ * token and a script the tokenizer can split into words. Other values match
+ * on the exact or substring predicate alone.
+ */
+export const shouldUseFtsTokenPrefilter = (value: string): boolean =>
+  hasFtsSearchToken(value) && !FTS_SUBSTRING_FALLBACK_SCRIPTS.test(value);
+
 /** `hasAllTokens` accepts at most this many search tokens. */
 export const FTS_HAS_ALL_TOKENS_MAX_SEARCH_TOKENS = 64;
 

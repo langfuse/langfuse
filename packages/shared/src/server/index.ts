@@ -301,6 +301,7 @@ export { isFtsMetadataField } from "./queries/clickhouse-sql/fts";
 export { isFtsMetadataTarget } from "./queries/clickhouse-sql/fts";
 export { isFtsTextField } from "./queries/clickhouse-sql/fts";
 export { isFtsTextTarget } from "./queries/clickhouse-sql/fts";
+export { shouldUseFtsTokenPrefilter } from "./queries/clickhouse-sql/fts";
 export { postgresSearchCondition } from "./queries/postgres-sql/search";
 export { convertApiProvidedFilterToClickhouseFilter } from "./queries/public-api-filter-builder";
 export { createPublicApiObservationsColumnMapping } from "./queries/public-api-filter-builder";
