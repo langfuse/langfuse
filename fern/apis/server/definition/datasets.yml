@@ -19,6 +19,18 @@ service:
           limit:
             type: optional<integer>
             docs: limit of items per page
+          fromTimestamp:
+            type: optional<datetime>
+            docs: |
+              Optional ISO-8601 lower bound on the dataset row's `createdAt`.
+              Omit for an open-ended start. Pattern matches
+              `GET /api/public/models`.
+          toTimestamp:
+            type: optional<datetime>
+            docs: |
+              Optional ISO-8601 upper bound on the dataset row's `createdAt`.
+              Omit for an open-ended end. Pattern matches
+              `GET /api/public/models`.
       response: PaginatedDatasets
     get:
       method: GET
