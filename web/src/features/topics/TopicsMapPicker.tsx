@@ -97,7 +97,7 @@ export function TopicsMapPicker({
           aria-label="Topic maps"
           className="ph-no-capture bg-popover text-popover-foreground z-50 flex w-200 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border shadow-md"
         >
-          <div className="flex w-2/5 min-w-0 flex-col border-r">
+          <div className="flex w-full min-w-0 flex-col sm:w-2/5 sm:border-r">
             <label className="flex items-center gap-2 border-b px-4">
               <Search size="base" color="tertiary" aria-hidden />
               <input
@@ -175,7 +175,8 @@ export function TopicsMapPicker({
               </div>
             )}
           </div>
-          <div className="flex w-3/5 min-w-0 flex-col overflow-y-auto p-4">
+          {/* Too narrow on phones, where a tap selects before the preview could help. */}
+          <div className="hidden w-3/5 min-w-0 flex-col overflow-y-auto p-4 sm:flex">
             {shownRule && (
               <RulePreview
                 key={shownRule.id}
