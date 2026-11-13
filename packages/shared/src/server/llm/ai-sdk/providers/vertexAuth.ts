@@ -11,6 +11,9 @@ const TOKEN_EXCHANGE_TIMEOUT_MS = 3_000;
 let googleAuth: GoogleAuth | undefined;
 let projectIdPromise: Promise<string> | undefined;
 const serviceAccountClients = new Map<string, JWT>();
+// Clients whose first token exchange is still running, so concurrent requests
+// for a new key share it without the key entering the cache before it works.
+const pendingServiceAccountClients = new Map<string, JWT>();
 
 /** A failed token exchange; `status` is Google's HTTP status, or null when Google was not reached. */
 export class VertexTokenExchangeError extends Error {
@@ -93,15 +96,24 @@ export async function generateVertexAccessTokenForServiceAccount(key: {
     .update("\0")
     .update(key.private_key)
     .digest("hex");
-  const client = serviceAccountClients.get(cacheKey) ?? newJWTClient(key);
+  let client =
+    serviceAccountClients.get(cacheKey) ??
+    pendingServiceAccountClients.get(cacheKey);
+  if (!client) {
+    client = newJWTClient(key);
+    pendingServiceAccountClients.set(cacheKey, client);
+  }
 
   let token: string | null | undefined;
   try {
     ({ token } = await client.getAccessToken());
     if (!token) throw new Error("Google returned no access token");
   } catch (error) {
-    if (serviceAccountClients.get(cacheKey) === client) {
-      serviceAccountClients.delete(cacheKey);
+    for (const clients of [
+      serviceAccountClients,
+      pendingServiceAccountClients,
+    ]) {
+      if (clients.get(cacheKey) === client) clients.delete(cacheKey);
     }
     if (error instanceof gaxios.GaxiosError) {
       throw new VertexTokenExchangeError(
@@ -112,6 +124,9 @@ export async function generateVertexAccessTokenForServiceAccount(key: {
     throw error;
   }
 
+  if (pendingServiceAccountClients.get(cacheKey) === client) {
+    pendingServiceAccountClients.delete(cacheKey);
+  }
   serviceAccountClients.delete(cacheKey);
   serviceAccountClients.set(cacheKey, client);
   if (serviceAccountClients.size > MAX_CACHED_SERVICE_ACCOUNT_CLIENTS) {
