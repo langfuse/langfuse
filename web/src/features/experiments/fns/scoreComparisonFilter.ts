@@ -100,9 +100,11 @@ export const matchesScoreComparisonFilter = ({
     if (operator !== "differs") return false;
     if (baseline.type !== "CATEGORICAL" || comparison.type !== "CATEGORICAL")
       return false;
+    const baselineValues = [...baseline.values].sort();
+    const comparisonValues = [...comparison.values].sort();
     return (
-      [...baseline.values].sort().join("|") !==
-      [...comparison.values].sort().join("|")
+      baselineValues.length !== comparisonValues.length ||
+      baselineValues.some((value, index) => value !== comparisonValues[index])
     );
   }
 
