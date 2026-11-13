@@ -5,9 +5,11 @@ import {
 import { buildClickHouseLogComment } from "../clickhouse/queryTags";
 import { OBSERVATIONS_TO_TRACE_INTERVAL_DAYS } from "../repositories/constants";
 import {
+  commandClickhouse,
   queryClickhouse,
   queryClickhouseStream,
 } from "../repositories/clickhouse";
+import { env } from "../../env";
 import type {
   TopicAssignment,
   TopicDefinition,
@@ -767,11 +769,27 @@ export async function hasTopicEmbeddings(projectId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+const hasSummariesCacheKey = (projectId: string) =>
+  `langfuse:topics:has-summaries:${projectId}`;
+
+/** A reset shows the empty state at once; the queued delete clears this after removing the rows. */
+export async function markTopicSummariesDeleted(projectId: string) {
+  try {
+    await redis?.set(hasSummariesCacheKey(projectId), "0", "EX", 30);
+  } catch (error) {
+    traceException(error);
+    logger.warn("Failed to cache Topics summary readiness", {
+      projectId,
+      error,
+    });
+  }
+}
+
 /** Project onboarding readiness, cached for 30 minutes when ready and 30 seconds when empty. */
 export async function hasStoredTopicSummaries(
   projectId: string,
 ): Promise<boolean> {
-  const cacheKey = `langfuse:topics:has-summaries:${projectId}`;
+  const cacheKey = hasSummariesCacheKey(projectId);
   try {
     const cached = await redis?.get(cacheKey);
     if (cached === "1") return true;
@@ -1424,4 +1442,76 @@ export async function getTopicTraceUnitTimeRange(
     from: new Date(Number(row.fromMs)),
     to: new Date(Number(row.toMs) + 1),
   };
+}
+
+/**
+ * Deletes a project's Topics rows, or only the topics and assignments of the
+ * given clustering runs. Summaries are per facet and shared across rules, so
+ * only a project-wide delete removes them. Like trace deletion, each delete is
+ * skipped when nothing matches and bounded to the matching partitions.
+ */
+export async function deleteTopicRows({
+  projectId,
+  runIds,
+}: {
+  projectId: string;
+  runIds?: string[];
+}): Promise<void> {
+  if (runIds && !runIds.length) return;
+  const targets: { table: string; time: string; run?: string }[] = runIds
+    ? [
+        { table: "topics", time: "created_at", run: "created_by_run_id" },
+        {
+          table: "topic_assignments",
+          time: "unit_start_time",
+          run: "clustering_run_id",
+        },
+      ]
+    : [
+        { table: "topics", time: "created_at" },
+        { table: "topic_assignments", time: "unit_start_time" },
+        { table: "topic_facet_summaries", time: "unit_start_time" },
+      ];
+  const params = { projectId, runIds };
+  const clickhouseConfigs = {
+    request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+  };
+  await Promise.all(
+    targets.map(async ({ table, time, run }) => {
+      const where = `project_id = {projectId: String}${
+        run ? ` AND ${run} IN ({runIds: Array(String)})` : ""
+      }`;
+      const [bounds] = await queryClickhouse<{
+        min_timestamp: string;
+        max_timestamp: string;
+        count: string;
+      }>({
+        query: `SELECT min(${time}) AS min_timestamp, max(${time}) AS max_timestamp,
+            count() AS count
+          FROM ${table} WHERE ${where}`,
+        params,
+        clickhouseConfigs,
+        tags: { route: "topics-delete", projectId },
+      });
+      if (Number(bounds?.count ?? 0) === 0) return;
+      await commandClickhouse({
+        query: `DELETE FROM ${table} WHERE ${where}
+          AND ${time} >= {minTimestamp: DateTime64(3)}
+          AND ${time} <= {maxTimestamp: DateTime64(3)}`,
+        params: {
+          ...params,
+          minTimestamp: bounds.min_timestamp,
+          maxTimestamp: bounds.max_timestamp,
+        },
+        clickhouseConfigs,
+        // Patch parts disable the summary projection until they are materialized.
+        clickhouseSettings:
+          table === "topic_facet_summaries"
+            ? { lightweight_delete_mode: "alter_update" }
+            : undefined,
+        tags: { route: "topics-delete", projectId },
+      });
+    }),
+  );
+  if (!runIds) await redis?.del(hasSummariesCacheKey(projectId));
 }

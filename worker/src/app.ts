@@ -128,6 +128,7 @@ import {
 } from "./queues/topicsQueue";
 import { topicsEmbeddingQueueProcessor } from "./queues/topicsEmbeddingQueue";
 import { topicsAutomationQueueProcessor } from "./queues/topicsAutomationQueue";
+import { topicsDeleteQueueProcessor } from "./queues/topicsDeleteQueue";
 import { topicsSetupQueueProcessor } from "./queues/topicsSetupQueue";
 import { TopicsNightlyRefitRunner } from "./features/topics/nightlyRefit";
 
@@ -537,6 +538,10 @@ if (isTopicsEnabled()) {
       topicsAutomationQueueProcessor,
       { concurrency: 2 },
     );
+  if (env.QUEUE_CONSUMER_TOPICS_DELETE_QUEUE_IS_ENABLED === "true")
+    WorkerManager.register(QueueName.TopicsDelete, topicsDeleteQueueProcessor, {
+      concurrency: 1,
+    });
   if (env.QUEUE_CONSUMER_TOPICS_UPDATE_QUEUE_IS_ENABLED === "true") {
     // Setup ticks get their own queue so they never wait behind a fit.
     WorkerManager.register(QueueName.TopicsSetup, topicsSetupQueueProcessor, {
