@@ -18,11 +18,26 @@ import {
 import { tickTopicSnapshotSetup } from "./snapshotSetup";
 
 // The fit's queue handoff is not under test; dispatch is asserted at the queue boundary.
-vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
-  enqueueTopicExecution: vi.fn(),
-  isTopicsProjectEnabled: () => true,
-}));
+const counting = vi.hoisted(() => ({ failNext: false }));
+vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("@langfuse/shared/topics/server")>();
+  return {
+    ...original,
+    enqueueTopicExecution: vi.fn(),
+    isTopicsProjectEnabled: () => true,
+    // Lets a test fail the summary count once, right after seeding.
+    countTopicTraceSummaries: async (
+      ...args: Parameters<typeof original.countTopicTraceSummaries>
+    ) => {
+      if (counting.failNext) {
+        counting.failNext = false;
+        throw new Error("Timeout exceeded");
+      }
+      return original.countTopicTraceSummaries(...args);
+    },
+  };
+});
 const add = vi.fn();
 const selection = vi.hoisted(() => ({ failNext: false }));
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
@@ -123,7 +138,14 @@ describe("Topics snapshot summarizing", () => {
       await readTopicSnapshotSummarizing(projectId, execution.id),
     ).toMatchObject({ traceIds: null, failedTicks: 1 });
 
+    // Seeding succeeds but its first count fails; the next tick must not seed again.
+    counting.failNext = true;
     expect(await tickTopicSnapshotSetup(projectId, execution.id)).toBe(true);
+    expect(await tickTopicSnapshotSetup(projectId, execution.id)).toBe(true);
+    expect(add.mock.calls.length).toBeGreaterThan(0);
+    const dispatchedJobs = add.mock.calls.length;
+    expect(await tickTopicSnapshotSetup(projectId, execution.id)).toBe(true);
+    expect(add.mock.calls).toHaveLength(dispatchedJobs);
     const dispatched = add.mock.calls.flatMap(([, job]) => {
       expect(job.payload.batchActionId).toBe(execution.id);
       return job.payload.traces.map(

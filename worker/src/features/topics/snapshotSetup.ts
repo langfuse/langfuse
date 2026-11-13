@@ -36,6 +36,8 @@ const DEADLINE_MS = 8 * 60_000;
 // Spreads dispatch so up to 1,000 summaries reach the provider over about three minutes.
 const SPREAD_MS_PER_TRACE = 180;
 const MAX_SPREAD_MS = 3 * 60_000;
+const spreadFor = (traces: number) =>
+  Math.min(MAX_SPREAD_MS, traces * SPREAD_MS_PER_TRACE);
 const MAX_FAILED_TICKS = 3;
 
 type SnapshotExecution = TopicExecutionSummary & {
@@ -66,12 +68,13 @@ export async function tickTopicSnapshotSetup(
 ): Promise<boolean> {
   const execution = await readTopicExecutionSummary(projectId, executionId);
   if (!summarizingSnapshot(execution)) return false;
-  const state = await readTopicSnapshotSummarizing(projectId, executionId);
+  // The latest saved state, so a failure after seeding never re-seeds and pays twice.
+  let state = await readTopicSnapshotSummarizing(projectId, executionId);
   try {
     if (!isTopicsProjectEnabled(projectId))
       throw new Error("Topics is not enabled for this project.");
-    const seeded = state?.traceIds ? state : await seed(execution, now);
-    return await settle(execution, seeded, now);
+    if (!state?.traceIds) state = await seed(execution, now);
+    return await settle(execution, state, now);
   } catch (error) {
     const failedTicks = (state?.failedTicks ?? 0) + 1;
     const message = error instanceof Error ? error.message : String(error);
@@ -223,7 +226,7 @@ async function dispatch(
       ),
     },
   );
-  const spreadMs = Math.min(MAX_SPREAD_MS, bounds.length * SPREAD_MS_PER_TRACE);
+  const spreadMs = spreadFor(bounds.length);
   for (const [index, batch] of batches.entries()) {
     const traces = batch.map(({ trace }) => trace);
     const id = createHash("sha256")
@@ -274,7 +277,11 @@ async function settle(
   }));
   const done =
     settled >= SETTLED_SHARE * traceIds.length ||
-    (grewAt !== null && now.getTime() - Date.parse(grewAt) >= STALL_MS) ||
+    // A stall counts only once every delayed batch was due.
+    (grewAt !== null &&
+      now.getTime() - Date.parse(state.startedAt) >=
+        spreadFor(state.seededCount) &&
+      now.getTime() - Date.parse(grewAt) >= STALL_MS) ||
     now.getTime() - Date.parse(state.startedAt) >= DEADLINE_MS;
   await writeTopicSnapshotSummarizing(projectId, executionId, {
     ...state,
