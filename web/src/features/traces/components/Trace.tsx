@@ -411,9 +411,16 @@ function TraceContent({
     setEmbeddedView(presentation === "messages" ? "messages" : "trace");
   }
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const traceTranscriptEvalsPreview = useIsFeatureEnabled(
+    "traceTranscriptEvals",
+  );
   const { isV4 } = useReadPath();
+  // Embedded eval panels also show Messages under the trace-level evals preview.
   const showMessagesTab =
-    presentation === "messages" || (isV4 && internalFeaturesEnabled);
+    presentation === "messages" ||
+    (isV4 &&
+      (internalFeaturesEnabled ||
+        (presentation != null && traceTranscriptEvalsPreview)));
   const activeView = traceTab({
     presentation,
     showMessagesTab,
