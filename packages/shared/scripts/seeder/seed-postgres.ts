@@ -78,7 +78,7 @@ async function main() {
       email: "demo@langfuse.com",
       password: await hash("password", 12),
       image: "https://static.langfuse.com/langfuse-dev%2Fexample-avatar.png",
-      featureFlags: ["langfuseTopics"],
+      featureFlags: ["langfuseTopics", "traceTranscriptEvals"],
       v4BetaEnabled: true,
     },
   });
@@ -88,6 +88,13 @@ async function main() {
       NOT: { featureFlags: { has: "langfuseTopics" } },
     },
     data: { featureFlags: { push: "langfuseTopics" } },
+  });
+  await prisma.user.updateMany({
+    where: {
+      id: seedUserId1,
+      NOT: { featureFlags: { has: "traceTranscriptEvals" } },
+    },
+    data: { featureFlags: { push: "traceTranscriptEvals" } },
   });
   const user2 = await prisma.user.upsert({
     where: { id: seedUserId2 },
