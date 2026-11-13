@@ -127,6 +127,39 @@ export const DashboardDefinitionSchema = z.object({
   widgets: z.array(DashboardDefinitionWidgetSchema),
 });
 
+// Write capabilities describe which placement types a client can replace.
+// Omitting them retains the contract of clients predating placement extensions.
+export const DashboardSupportedPlacementTypesSchema = z.array(
+  z.string().min(1),
+);
+export const LEGACY_DASHBOARD_PLACEMENT_TYPES: readonly string[] = [
+  "widget",
+  "preset",
+];
+export const DASHBOARD_SUPPORTED_PLACEMENT_TYPES =
+  DashboardDefinitionWidgetSchema.options.map(
+    (option) => option.shape.type.value,
+  );
+
+export const DashboardPersistedDefinitionSchema = z.preprocess((value) => {
+  const envelope = z.object({ widgets: z.array(z.unknown()) }).safeParse(value);
+  if (!envelope.success) return value;
+  return {
+    widgets: envelope.data.widgets.filter((placement) => {
+      const discriminator = z
+        .object({ type: z.string().min(1) })
+        .safeParse(placement);
+      // Invalid discriminators and malformed known variants still fail strict validation.
+      return (
+        !discriminator.success ||
+        DASHBOARD_SUPPORTED_PLACEMENT_TYPES.some(
+          (type) => type === discriminator.data.type,
+        )
+      );
+    }),
+  };
+}, DashboardDefinitionSchema);
+
 export const OwnerEnum = z.enum(["PROJECT", "LANGFUSE"]);
 
 // Define the dashboard domain object
@@ -139,7 +172,7 @@ export const DashboardDomainSchema = z.object({
   projectId: z.string().nullable(),
   name: z.string(),
   description: z.string(),
-  definition: DashboardDefinitionSchema,
+  definition: DashboardPersistedDefinitionSchema,
   // Persisted filters may predate the `is set` operator and use the legacy
   // metadata `contains ""` key-presence idiom; coerce it before validation.
   filters: singleFilterList.default([]),

@@ -1911,6 +1911,12 @@ describe("MCP Write Tools", () => {
       await expect(
         handleUpdateDashboard({ dashboardId: dashboard.id }, setup.context),
       ).rejects.toThrow(/at least one field/i);
+      await expect(
+        handleUpdateDashboard(
+          { dashboardId: dashboard.id, supportedPlacementTypes: ["widget"] },
+          setup.context,
+        ),
+      ).rejects.toThrow(/at least one field/i);
     });
   });
 
