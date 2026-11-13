@@ -39,7 +39,7 @@ import {
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { useRegenerateTopics } from "./useRegenerateTopics";
-import { useTopicModelSettings } from "./TopicModelSettings";
+import { useTopicSettings } from "./useTopicSettings";
 import { AutomaticProcessingDialogController } from "./AutomaticProcessingDialogController";
 import { ConfigureTopicsDialogController } from "./ConfigureTopicsDialogController";
 import { TopicSetupFlowController } from "./TopicSetupFlowController";
@@ -111,7 +111,7 @@ export default function TopicsPage() {
 function TopicsWorkspace({ projectId }: { projectId: string }) {
   const facets = api.topics.facets.useQuery({ projectId });
   const canWrite = useHasProjectAccess({ projectId, scope: "topics:CUD" });
-  const modelSettings = useTopicModelSettings({
+  const modelSettings = useTopicSettings({
     projectId,
     canWrite,
     facets: facets.data ?? [],
@@ -151,7 +151,7 @@ type TopicsWorkspaceViewProps = {
   projectId: string;
   facets: UseQueryResult<TopicFacet[], { message: string }>;
   canWrite: boolean;
-  modelSettings: ReturnType<typeof useTopicModelSettings>;
+  modelSettings: ReturnType<typeof useTopicSettings>;
   openSetup: () => void;
 };
 

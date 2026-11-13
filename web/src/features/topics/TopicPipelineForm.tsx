@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { api, type RouterInputs } from "@/src/utils/api";
 import { type TopicFacet, type TopicFacetRef } from "@langfuse/shared/topics";
-import { type ConfigureTopicsSettingsInput } from "./TopicModelSettings";
+import { type ConfigureTopicsSettingsInput } from "./useTopicSettings";
 import { type RegenerateTopics } from "./useRegenerateTopics";
 import { type TimeRange } from "@/src/utils/date-range-utils";
 

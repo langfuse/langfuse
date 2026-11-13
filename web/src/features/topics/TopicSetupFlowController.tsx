@@ -8,7 +8,7 @@ import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
-import { type ConfigureTopicsSettingsInput } from "./TopicModelSettings";
+import { type ConfigureTopicsSettingsInput } from "./useTopicSettings";
 import {
   TopicSetupFlowDialog,
   type TopicSetupPastCount,
