@@ -461,13 +461,26 @@ export const experimentsRouter = createTRPCRouter({
         return [];
       }
 
+      // A score can't predate the experiment it scores, so the experiments'
+      // earliest start bounds the item score lookup.
+      const experimentsStartTime = await getExperimentsStartTime({
+        projectId: input.projectId,
+        experimentIds: input.experimentIds,
+      });
+
       // Fetch metrics (cost, latency) and both score types in parallel
       const [metrics, itemScores, experimentScores] = await Promise.all([
         getExperimentMetricsFromEvents({
           projectId: input.projectId,
           experimentIds: input.experimentIds,
         }),
-        getScoresForExperimentItems(input.projectId, input.experimentIds),
+        experimentsStartTime
+          ? getScoresForExperimentItems(
+              input.projectId,
+              input.experimentIds,
+              experimentsStartTime,
+            )
+          : [],
         getScoresForExperiments({
           projectId: input.projectId,
           runIds: input.experimentIds, // experiment_id === dataset_run_id
