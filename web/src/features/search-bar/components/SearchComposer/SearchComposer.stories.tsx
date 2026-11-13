@@ -204,6 +204,7 @@ export const TestCompactGroupEditing = meta.story({
     let dialog = await body.findByRole("dialog", {
       name: "Edit filter values",
     });
+    await expect(within(dialog).queryByRole("status")).not.toBeInTheDocument();
     await expect(group).toHaveAttribute("aria-expanded", "true");
     await expect(group).toHaveAttribute("aria-controls", dialog.id);
     await expect(

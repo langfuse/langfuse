@@ -133,7 +133,7 @@ Filters with more than two values project the value list into a separate collect
 
 `SearchComposer` opens a value-anchored popup with the same `CategoricalFilterSelect` used by the sidebar: checkboxes, observed values and counts, search, Only/All gestures, and array matching modes. Every selection applies immediately. The popup edits only its condition, preserving companion conditions and experiment targets, and remains open when the collection shrinks below the collapse threshold. Stored values remain available when absent from current observations. All query editing stays in the bar; key autocomplete replaces the key without consuming its values. Queries may contain up to 65,536 characters; URL-backed search phrases retain a 2,048-character limit and structured filters use the bounded-URL storage fallback.
 
-The parser also bounds expression nesting to 128 levels and the lexer token count to 1,024. A grouped value list is one token, so these complexity limits keep large membership lists available while rejecting pathological expression trees and diagnostic-heavy input. Excessively complex input remains one editable error region. The picker preserves array matching mode through singleton values and edits an enclosing NOT together with its condition.
+The parser also bounds expression nesting to 128 levels and whole-query token count to 1,024. A grouped value list is one token, so these complexity limits keep large membership lists available while rejecting pathological expression trees and diagnostic-heavy input. Composer projection renders excessively complex input as one editable error region; the raw lexer keeps individual value boundaries for autocomplete inside large groups. The picker preserves array matching mode through singleton values and edits an enclosing NOT together with its condition. Leaves under a compound NOT remain editable text when the picker cannot resolve their owning expression.
 
 Oversized filters use session storage and survive same-tab refreshes; the plain page URL does not carry them. Save a table view to share a large selection across browsers.
 
@@ -344,13 +344,16 @@ traces table). Self-hosted uses Ask AI on this bar only.
   `applyFilters` (it preserves grammar-less `skippedFilters` like a commit, then
   writes `setFilterState`), so on returning to grammar mode `resetTo` re-derives
   the generated filters as editable pills. There is no separate AI→bar sync path.
-- **Refine clears the free-text lane.** When opened with filters present, the
-  bar's full committed text (free text rendered inline) is the refine context
-  sent to the model, which returns the COMPLETE updated `FilterState`. So
-  `applyFilters` also clears `searchQuery` and resets `searchType` to
-  `DEFAULT_SEARCH_TYPE` — anything the model didn't re-emit is dropped, including
-  free text the user asked to remove. Without this, a stale `searchQuery` would
-  survive and `resetTo` would re-derive the dropped text back into the bar.
+- **Refinement is a complete replacement.** Client and server share a preflight
+  budget based on the UTF-8 JSON the model must return, reserving half its
+  2,048-token output allowance for edits and formatting. Manual query editing
+  retains its separate 65,536-character limit. Refinement accepts only a complete
+  JSON array or wrapper; truncated fragments and dropped conditions leave the
+  current filters unchanged. Ordinary generation keeps its existing parser.
+- **Full-text refinement is refused.** The response owns `FilterState` but has
+  no `searchQuery`/`searchType` lanes. The preflight points back to the bar rather
+  than letting `applyFilters` clear search state the model cannot preserve.
+  Cancellation and a changed draft still discard stale AI responses.
 
 ## Metadata key suggestions (client-side observed map)
 

@@ -20,7 +20,17 @@ import { type QueryInput } from "@/src/components/design-system/QueryInput/Query
 import { useStore } from "zustand";
 
 import { type FilterState } from "@langfuse/shared";
-import type { FieldRegistry } from "@/src/features/search-bar/lib/fields";
+import {
+  EVENTS_FIELD_REGISTRY,
+  type FieldRegistry,
+} from "@/src/features/search-bar/lib/fields";
+import {
+  aiRefinementBudgetError,
+  AI_REFINEMENT_INCOMPLETE_MESSAGE,
+  AI_REFINEMENT_BUDGET_MESSAGE,
+  AI_REFINEMENT_FULL_TEXT_MESSAGE,
+} from "../lib/ai-refine-budget";
+import { TRPCClientError } from "@trpc/client";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import type { ObservedScoreNames } from "@/src/features/search-bar/lib/observed-options";
@@ -46,6 +56,7 @@ export function SearchBarAiPrompt({
   dataContext,
   scoreNames,
   registryId = "events",
+  registry = EVENTS_FIELD_REGISTRY,
   onApply,
   onExit,
   size = "default",
@@ -65,6 +76,7 @@ export function SearchBarAiPrompt({
    *  model's returned score keys against these (a misspelled name would
    *  otherwise apply as a dead filter that silently matches nothing). */
   scoreNames?: ObservedScoreNames;
+  registry?: FieldRegistry;
   registryId?: Extract<
     FieldRegistry["id"],
     | "events"
@@ -84,6 +96,7 @@ export function SearchBarAiPrompt({
   const capture = usePostHogClientCapture();
   const [value, setValue] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
+  const errorId = React.useId();
   const inputRef = React.useRef<HTMLInputElement>(null);
   // Set on unmount (e.g. Back clicked mid-generation). `mutateAsync` keeps
   // running after unmount, so we check this before applying — otherwise a
@@ -104,6 +117,12 @@ export function SearchBarAiPrompt({
   // (sidebar/saved view) while AI mode is open. (`s.draft` is a stable ref until
   // it changes, so trimming outside the selector doesn't churn renders.)
   const refineContext = useStore(store, (s) => s.draft).trim();
+  const budgetError = aiRefinementBudgetError(
+    refineContext,
+    registry,
+    scoreNames,
+  );
+  const displayedError = budgetError ?? error;
   const refining = refineContext.length > 0;
   const placeholder = refining
     ? "Refine your filters — e.g. only errors, or drop the env filter"
@@ -131,6 +150,7 @@ export function SearchBarAiPrompt({
     // The sidebar/saved-view selector stay mounted and can change the filters
     // mid-request; the model returns the COMPLETE set based on this snapshot.
     const refine = store.getState().draft.trim();
+    if (aiRefinementBudgetError(refine, registry, scoreNames)) return;
     const refineMode = refine.length > 0;
     // Report prompt length, never prompt text. The host supplies its read path.
     capture("filters:ai_generate_requested", {
@@ -203,19 +223,28 @@ export function SearchBarAiPrompt({
         );
       }
       onExit();
-    } catch {
+    } catch (error) {
       if (cancelledRef.current) return;
-      // Never surface raw server messages: a TRPCClientError is an Error, so its
-      // message could leak internal state, and the tRPC formatter masks 500s to
-      // an unhelpful "we have been notified" string anyway. The auth/precondition
-      // cases are unreachable behind the cloud + aiFeaturesEnabled gate. Show one
-      // generic, actionable message instead.
       capture("filters:ai_generate_failed", {
         tableName,
         refineMode,
         reason: "error",
         isV4,
       });
+      if (
+        error instanceof TRPCClientError &&
+        (error.message === AI_REFINEMENT_INCOMPLETE_MESSAGE ||
+          error.message === AI_REFINEMENT_BUDGET_MESSAGE ||
+          error.message === AI_REFINEMENT_FULL_TEXT_MESSAGE)
+      ) {
+        setError(error.message);
+        return;
+      }
+      // Never surface raw server messages: a TRPCClientError is an Error, so its
+      // message could leak internal state, and the tRPC formatter masks 500s to
+      // an unhelpful "we have been notified" string anyway. The auth/precondition
+      // cases are unreachable behind the cloud + aiFeaturesEnabled gate. Show one
+      // generic, actionable message instead.
       setError("Couldn't reach the AI service. Please try again.");
     }
   };
@@ -227,7 +256,8 @@ export function SearchBarAiPrompt({
           "border-input bg-background rounded-md border px-2",
           size === "large" ? "min-h-9 py-1.25" : "py-0.5",
           "focus-within:ring-ring focus-within:ring-1",
-          error && "border-destructive focus-within:ring-destructive/40",
+          displayedError &&
+            "border-destructive focus-within:ring-destructive/40",
         )}
       >
         {/* Refine context: the filters being refined are shown here AND sent to
@@ -268,6 +298,8 @@ export function SearchBarAiPrompt({
             disabled={pending}
             placeholder={placeholder}
             aria-label="Ask AI to build filters"
+            aria-invalid={displayedError ? true : undefined}
+            aria-describedby={displayedError ? errorId : undefined}
             data-testid="search-bar-ai-input"
             spellCheck={false}
             autoComplete="off"
@@ -309,7 +341,7 @@ export function SearchBarAiPrompt({
             </span>
           ) : (
             <div className="flex shrink-0 items-center gap-1.5">
-              {value.trim().length > 0 && (
+              {value.trim().length > 0 && budgetError === null && (
                 <span className="hidden md:inline-flex">
                   <KeyboardShortcut
                     title="Press Enter to generate"
@@ -325,7 +357,7 @@ export function SearchBarAiPrompt({
                 aria-label="Generate filters"
                 title="Generate filters (Enter)"
                 data-testid="search-bar-ai-submit"
-                disabled={value.trim().length === 0}
+                disabled={value.trim().length === 0 || budgetError !== null}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => submit()}
                 className={cn(
@@ -339,9 +371,13 @@ export function SearchBarAiPrompt({
           )}
         </div>
       </div>
-      {error && (
-        <div className="text-destructive mt-1 px-1 font-sans text-xs">
-          {error}
+      {displayedError && (
+        <div
+          id={errorId}
+          role="status"
+          className="text-destructive mt-1 px-1 font-sans text-xs"
+        >
+          {displayedError}
         </div>
       )}
     </div>

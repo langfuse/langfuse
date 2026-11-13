@@ -21,23 +21,45 @@ import {
 import { parseGeneratedFilters } from "@/src/features/search-bar/server/parseFilterCompletion";
 import { searchBarRouter } from "@/src/features/search-bar/server/router";
 import { MAX_QUERY_LENGTH } from "@/src/features/search-bar/lib/validate";
+import { planCommit } from "@/src/features/search-bar/lib/commit";
 import { z } from "zod";
 
 describe("generateFilter input", () => {
-  it("accepts the complete editor query budget and rejects larger context", () => {
+  it("accepts ordinary refinements and rejects selections beyond the AI response budget", () => {
     const schema = searchBarRouter.generateFilter._def.inputs[0];
     if (!(schema instanceof z.ZodObject))
       throw new Error("Expected the generation input schema");
     const input = {
       projectId: "project",
       prompt: "Refine the existing filters",
-      currentQuery: `name:${"a".repeat(MAX_QUERY_LENGTH - "name:".length)}`,
+      currentQuery: "name:(checkout OR search) level:ERROR",
     };
     expect(schema.safeParse(input).success).toBe(true);
     expect(
-      schema.safeParse({ ...input, currentQuery: `${input.currentQuery}a` })
+      schema.safeParse({ ...input, currentQuery: "refund policy level:ERROR" })
         .success,
     ).toBe(false);
+    const values = Array.from(
+      { length: 120 },
+      (_, index) =>
+        `00000000-0000-4000-8000-${index.toString().padStart(12, "0")}`,
+    );
+    const currentQuery = `id:(${values.join(" OR ")})`;
+    expect(currentQuery.length).toBeLessThan(MAX_QUERY_LENGTH);
+    expect(planCommit(currentQuery).status).toBe("committed");
+    expect(schema.safeParse({ ...input, currentQuery }).success).toBe(false);
+    for (const query of [
+      // Serialized filter objects cost more than their compact query spelling.
+      Array.from({ length: 20 }, () => "level:ERROR").join(" "),
+      // UTF-8 and JSON escaping must be charged, not UTF-16 string length.
+      `name:="${"🙃".repeat(300)}"`,
+      // A partial lowering cannot hide the unsupported condition's payload.
+      `name:checkout unknown:(${values.join(" OR ")})`,
+    ]) {
+      expect(schema.safeParse({ ...input, currentQuery: query }).success).toBe(
+        false,
+      );
+    }
   });
 });
 

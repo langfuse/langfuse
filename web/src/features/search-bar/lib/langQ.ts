@@ -54,7 +54,7 @@ export type LexToken =
   | { type: "term"; raw: string; span: Span };
 
 type Token = LexToken;
-const MAX_QUERY_TOKENS = 1024;
+export const MAX_QUERY_TOKENS = 1024;
 
 /**
  * The raw token stream for `input` (diagnostics discarded). The composer's
@@ -63,12 +63,7 @@ const MAX_QUERY_TOKENS = 1024;
  */
 export function lexTokens(input: string): LexToken[] {
   const throwaway: Diagnostic[] = [];
-  const tokens = lex(input, throwaway);
-  // A query rejected for complexity stays one editable error region instead
-  // of mounting thousands of invalid tokens in the editor.
-  return tokens.length > MAX_QUERY_TOKENS
-    ? [{ type: "term", raw: input, span: { from: 0, to: input.length } }]
-    : tokens;
+  return lex(input, throwaway);
 }
 
 // \s covers Unicode space separators (NBSP & friends) — pastes from

@@ -20,6 +20,7 @@ export function FilterValuesPopover({
   registry,
   scoreTypes,
   observed,
+  canRequestValues = false,
   managedEnvironmentPolicy,
   erroredColumns,
   onApply,
@@ -29,6 +30,7 @@ export function FilterValuesPopover({
   registry: FieldRegistry;
   scoreTypes: ScoreTypeContext | undefined;
   observed: ObservedOptions | undefined;
+  canRequestValues?: boolean;
   managedEnvironmentPolicy?: ManagedEnvironmentPolicyConfig;
   erroredColumns: ReadonlySet<string> | undefined;
   onApply: (previousQuery: string, nextState: TokenFacetState) => boolean;
@@ -57,10 +59,10 @@ export function FilterValuesPopover({
     displayValues.map((option) => [option.value, option.count ?? 0]),
   );
   const pending =
-    observed === undefined ||
-    (requestable &&
-      observed[optionKey] === undefined &&
-      !erroredColumns?.has(optionKey));
+    canRequestValues &&
+    requestable &&
+    observed?.[optionKey] === undefined &&
+    !erroredColumns?.has(optionKey);
   const apply = (action: TokenFacetAction) => {
     const next = applyTokenFacetAction(
       state,

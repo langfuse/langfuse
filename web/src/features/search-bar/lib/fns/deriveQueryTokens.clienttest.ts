@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { deriveQueryTokens } from "./deriveQueryTokens";
 import { EVENTS_FIELD_REGISTRY } from "../fields";
 import * as validation from "../validate";
+import { createTokenFacetState } from "./tokenFacet";
 
 describe("deriveQueryTokens", () => {
   it("keeps a complete value list folded while its key is unknown without hiding value errors", () => {
@@ -188,6 +189,33 @@ describe("deriveQueryTokens", () => {
     expect(group?.summary?.groups[1]?.parts).toEqual([
       { text: "alpha", tone: "value" },
     ]);
+    expect(
+      createTokenFacetState(draft, group!, EVENTS_FIELD_REGISTRY),
+    ).not.toBe(null);
+  });
+
+  it("keeps collections under compound NOT editable when the picker cannot isolate them", () => {
+    for (const draft of [
+      "NOT (name:(alpha OR beta OR gamma) level:ERROR)",
+      "NOT NOT (name:(alpha OR beta OR gamma) level:ERROR)",
+      "NOT (name:(alpha OR beta OR gamma) OR name:delta)",
+    ]) {
+      const tokens = deriveQueryTokens({
+        draft,
+        scoreTypes: undefined,
+        registry: EVENTS_FIELD_REGISTRY,
+        showDiagnostics: false,
+        fieldReason: undefined,
+        freeTextReason: undefined,
+      });
+      const collection = tokens.find((token) => token.raw.startsWith("name:"))!;
+      expect(collection.raw).toBe("name:(alpha OR beta OR gamma)");
+      expect(
+        createTokenFacetState(draft, collection, EVENTS_FIELD_REGISTRY),
+      ).toBe(null);
+      expect(collection.editable).toBe(true);
+      expect(collection.summary).toBeUndefined();
+    }
   });
 
   it.each([

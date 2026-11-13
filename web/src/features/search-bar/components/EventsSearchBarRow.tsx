@@ -174,6 +174,7 @@ function EventsSearchBarRowContent({
     >
       {aiOpen && aiAvailable && aiRegistryId && projectId ? (
         <SearchBarAiPrompt
+          key={`${projectId}:${tableName}:${registry.id}`}
           projectId={projectId}
           tableName={tableName}
           isV4={isV4}
@@ -181,6 +182,7 @@ function EventsSearchBarRowContent({
           dataContext={aiDataContext}
           scoreNames={aiScoreNames}
           registryId={aiRegistryId}
+          registry={registry}
           size={size}
           onApply={onApplyFilters}
           onExit={() => setAiOpen(false)}

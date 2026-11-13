@@ -12,7 +12,12 @@ import { resolveFilterTarget } from "./targeting";
 import type { ScoreTypeContext } from "./adapter";
 import type { ASTNode, CompareOp, FilterNode, Span, TextNode } from "./ast";
 import { EVENTS_FIELD_REGISTRY, type FieldRegistry } from "./fields";
-import { indexOfOutsideQuotes, lexTokens, type Diagnostic } from "./langQ";
+import {
+  indexOfOutsideQuotes,
+  lexTokens,
+  MAX_QUERY_TOKENS,
+  type Diagnostic,
+} from "./langQ";
 import { validateQuery } from "./validate";
 
 export type FilterSegment = {
@@ -32,6 +37,8 @@ export type FilterSegment = {
   negated: boolean;
   /** A separate NOT operator applies to this leaf without belonging to its raw text. */
   inheritedNegation?: boolean;
+  /** A compound NOT cannot be edited as an isolated collection condition. */
+  collectionEditable?: false;
   editable: true;
 };
 
@@ -44,6 +51,7 @@ type FilterPresentation = Pick<
   | "valueOp"
   | "negated"
   | "inheritedNegation"
+  | "collectionEditable"
 >;
 
 type PlainSegment = {
@@ -88,6 +96,7 @@ type Leaf =
       node: FilterNode;
       negated: boolean;
       inheritedNegation: boolean;
+      collectionEditable: boolean;
     }
   | { span: Span; kind: "text"; node: TextNode };
 
@@ -97,6 +106,7 @@ function collectLeaves(
   out: Leaf[],
   registry: FieldRegistry,
   inheritedNegation = false,
+  collectionEditable = true,
 ): void {
   switch (node.kind) {
     case "filter":
@@ -107,6 +117,7 @@ function collectLeaves(
           node,
           negated: false,
           inheritedNegation,
+          collectionEditable,
         });
       return;
     case "text":
@@ -127,15 +138,32 @@ function collectLeaves(
           node: node.child,
           negated: true,
           inheritedNegation,
+          collectionEditable,
         });
         return;
       }
-      collectLeaves(node.child, text, out, registry, !inheritedNegation);
+      collectLeaves(
+        node.child,
+        text,
+        out,
+        registry,
+        !inheritedNegation,
+        collectionEditable &&
+          node.child.kind !== "and" &&
+          node.child.kind !== "or",
+      );
       return;
     case "and":
     case "or":
       for (const c of node.children)
-        collectLeaves(c, text, out, registry, inheritedNegation);
+        collectLeaves(
+          c,
+          text,
+          out,
+          registry,
+          inheritedNegation,
+          collectionEditable,
+        );
       return;
   }
 }
@@ -167,6 +195,7 @@ function filterPresentation(
     valueOp: node.valueOp,
     negated: leaf.negated,
     ...(leaf.inheritedNegation ? { inheritedNegation: true } : {}),
+    ...(!leaf.collectionEditable ? { collectionEditable: false as const } : {}),
     ...(node.target?.span
       ? {
           target: {
@@ -250,8 +279,21 @@ export function deriveComposerSegments(
   for (const leaf of leaves) leafByFrom.set(leaf.span.from, leaf);
 
   const segments: ComposerSegment[] = [];
+  const lexed = lexTokens(draftText);
+  // Complexity-rejected input stays one editable region without changing
+  // the raw token stream used by completion and semantic consumers.
+  const tokens =
+    lexed.length > MAX_QUERY_TOKENS
+      ? [
+          {
+            type: "term" as const,
+            raw: draftText,
+            span: { from: 0, to: draftText.length },
+          },
+        ]
+      : lexed;
   let consumedUntil = -1;
-  for (const token of lexTokens(draftText)) {
+  for (const token of tokens) {
     if (token.span.from < consumedUntil) continue;
     const matchedLeaf = leafByFrom.get(token.span.from);
     const span = matchedLeaf?.kind === "filter" ? matchedLeaf.span : token.span;

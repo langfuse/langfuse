@@ -1,6 +1,34 @@
 import { describe, expect, it } from "vitest";
 
-import { parseGeneratedFilters } from "@/src/features/search-bar/server/parseFilterCompletion";
+import {
+  parseGeneratedFilters,
+  parseRefinedFilters,
+} from "@/src/features/search-bar/server/parseFilterCompletion";
+
+describe("parseRefinedFilters", () => {
+  const filter = {
+    type: "stringOptions",
+    column: "level",
+    operator: "any of",
+    value: ["ERROR"],
+  };
+  it("keeps a complete refinement and rejects truncated or invalid replacements", () => {
+    expect(parseRefinedFilters(JSON.stringify([filter]))?.filters).toEqual([
+      filter,
+    ]);
+    expect(parseRefinedFilters("[]")?.filters).toEqual([]);
+    expect(
+      parseRefinedFilters(
+        `\`\`\`json\n${JSON.stringify({ filters: [filter] })}\n\`\`\``,
+      )?.filters,
+    ).toEqual([filter]);
+    const draftThenTruncated = `${JSON.stringify([filter])}\nUpdated filters:\n[{"type":"stringOptions","column":"name","operator":"any of","value":["unfinished`;
+    expect(parseRefinedFilters(draftThenTruncated)).toBeNull();
+    expect(
+      parseRefinedFilters(JSON.stringify([filter, { type: "not-a-filter" }])),
+    ).toBeNull();
+  });
+});
 
 describe("parseGeneratedFilters", () => {
   it("parses a plain JSON array of v4 filters and derives query text", () => {
