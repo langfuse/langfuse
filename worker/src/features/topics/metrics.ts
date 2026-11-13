@@ -105,6 +105,14 @@ export class TopicMetrics {
       });
   }
 
+  /** Summary input size per format: the rendered text sent, and the JSON projection it replaced. */
+  summaryInputCharacters(format: "text" | "json", characters: number): void {
+    recordDistribution("langfuse.topics.summary_input_characters", characters, {
+      ...this.tags,
+      format,
+    });
+  }
+
   clusteringWorkload(vectors: number, dimensions: number): void {
     const tags = { dimensions: String(dimensions) };
     recordIncrement("langfuse.topics.clustering_vectors", vectors, tags);

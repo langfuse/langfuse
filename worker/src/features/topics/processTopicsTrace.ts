@@ -249,6 +249,7 @@ async function processEvent(
       ...inputs.traceContext,
       traceName: inputs.traceContext.traceName ?? "",
       transcript: inputs.transcript,
+      executionIssues: inputs.executionIssues,
       models,
       facets,
       attempt: deps.attempt ? "retry" : "first",

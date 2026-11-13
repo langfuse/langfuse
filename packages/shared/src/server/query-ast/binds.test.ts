@@ -608,11 +608,11 @@ describe("typed params from the column registry", () => {
   it("binds a raw expression around a sql.ref column by value", () => {
     const { sql } = compile(
       getClickhouseKysely()
-        .selectFrom("events_truncated as e")
-        .select("e.span_id")
-        .where(sql_<number>`length(${sql_.ref("e.input")})`, ">", 5),
+        .selectFrom("traces as t")
+        .select("t.id")
+        .where(sql_<number>`length(${sql_.ref("t.environment")})`, ">", 5),
     );
-    expect(sql).toMatch(/length\(e\.input\) > \{p\d+:Int64\}/);
+    expect(sql).toMatch(/length\(t\.environment\) > \{p\d+:Int64\}/);
   });
 
   describe("columns the compiler can't resolve to a relation", () => {

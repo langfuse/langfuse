@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { Fragment, useLayoutEffect, useRef, useState } from "react";
 import type PageHeader from "@/src/components/layouts/page-header";
 import {
   DropdownMenu,
@@ -684,45 +684,49 @@ function MetricContent({ metric }: { metric: HeaderMetric }) {
               <span className="text-sm font-bold">{metric.title}</span>
               <Metric href={metric.href} value={metric.linkText} />
             </div>
-            {metric.rows.map((row) => (
-              <div
-                key={row.id}
-                className="flex flex-col gap-1.5 border-b py-3 last:border-b-0"
-              >
+            {metric.rows.map((row) => {
+              // Several or captioned values get a line each under the label.
+              const isGrouped =
+                row.values.length > 1 ||
+                row.values.some((value) => value.caption);
+              return (
                 <div
-                  className={cn(
-                    "flex justify-between gap-3",
-                    // A single badge keeps today's centered row.
-                    row.values.length > 1 ? "items-start" : "items-center",
-                  )}
+                  key={row.id}
+                  className="flex flex-col gap-1.5 border-b py-3 last:border-b-0"
                 >
-                  <span className="text-muted-foreground text-sm">
-                    {row.label}
-                  </span>
-                  <div className="flex min-w-0 flex-col items-end gap-1">
+                  <div className="grid grid-cols-[fit-content(45%)_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1.5">
+                    <span
+                      className={cn(
+                        // `anywhere`, unlike `break-word`, lowers the min-content width the column sizes to.
+                        "text-muted-foreground text-sm wrap-anywhere",
+                        isGrouped && "col-span-2",
+                      )}
+                    >
+                      {row.label}
+                    </span>
                     {row.values.map((value) => (
-                      <span
-                        key={`${value.caption ?? ""}:${value.text}`}
-                        className="flex min-w-0 items-center gap-2"
-                      >
-                        {value.caption && (
-                          <span
-                            className="text-muted-foreground truncate text-xs"
-                            title={value.caption}
-                          >
+                      <Fragment key={`${value.caption ?? ""}:${value.text}`}>
+                        {isGrouped && (
+                          <span className="text-muted-foreground text-xs wrap-anywhere">
                             {value.caption}
                           </span>
                         )}
-                        <Badge text={value.text} color={value.color} />
-                      </span>
+                        <span className="flex min-w-0 justify-end">
+                          <Badge
+                            text={value.text}
+                            color={value.color}
+                            shouldWrap
+                          />
+                        </span>
+                      </Fragment>
                     ))}
                   </div>
+                  {row.description && (
+                    <p className="text-sm text-pretty">{row.description}</p>
+                  )}
                 </div>
-                {row.description && (
-                  <p className="text-sm text-pretty">{row.description}</p>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         }
       >

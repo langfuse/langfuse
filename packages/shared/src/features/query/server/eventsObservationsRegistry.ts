@@ -1,16 +1,17 @@
 /**
  * The v2 observations view (`eventsObservationsView` in `../dataModel.ts`) as
  * query-AST expressions: every dimension, measure, pair-expanded value list and
- * the scores join condition, keyed by the view's names. Server-only; names,
- * labels and the other view metadata stay in `dataModel.ts`, which the client
- * imports. Each entry renders the same SQL as the view's `sql` string
+ * the scores join condition, keyed by the view's names, and how a dashboard
+ * filter compares each dimension. Server-only; names, labels and the other
+ * view metadata stay in `dataModel.ts`, which the client imports. Each entry
+ * renders the same SQL as the view's `sql` string
  * (`eventsObservationsRegistry.golden.test.ts`), up to the relation alias.
  *
  * Entries read the view's base relation as `e`, so they share the `e`-scoped
  * expressions of `repositories/events-selects.ts`; the legacy strings call it
  * `events_observations`. Entries pick no table: the query that uses them
- * does, and reads `events_truncated` (always `events_core`) to match the
- * view's `baseCte`.
+ * reads `events_truncated`, and routing picks `events_core` or
+ * `events_full` from its filters.
  */
 import {
   ExpressionWrapper,
@@ -20,18 +21,18 @@ import {
   type ExpressionBuilder,
 } from "kysely";
 
+import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import {
   arrayDistinct,
-  arrayElement,
-  arrayLength,
   countEqual,
+  arrayLength,
   dateDiff,
   formatDateTime,
   ifElse,
-  indexOf,
   isNull,
   literal,
   mapKeys,
+  firstMetadataValue,
   mapValue,
   mapValues,
   nullIf,
@@ -47,6 +48,10 @@ import {
 } from "../../../server/query-ast/extensions";
 import { QueryCompileError } from "../../../server/query-ast/errors";
 import type { ClickHouseDatabase } from "../../../server/query-ast/schema";
+import type {
+  EventsFieldLowering,
+  ScalarFieldLowering,
+} from "../../../server/repositories/events-predicate-fields";
 import {
   eventsIsRootObservation,
   eventsTraceName,
@@ -56,13 +61,14 @@ import {
   AI_GATEWAY_SERVICE_NAME,
 } from "../../ai-gateway/constants";
 
-type ObservationsDb = {
+/** The relations a v2 observations query reads: events as `e`, and `scores`. */
+export type ObservationsDb = {
   e: ClickHouseDatabase["events"];
   scores: ClickHouseDatabase["scores"];
 };
 
 /** Builder of a query that reads the view's base relation as `e`. */
-type ObservationsBuilder = ExpressionBuilder<ObservationsDb, "e">;
+export type ObservationsBuilder = ExpressionBuilder<ObservationsDb, "e">;
 
 /** {@link ObservationsBuilder} with the `scores` relation joined. */
 type ObservationsWithScoresBuilder = ExpressionBuilder<
@@ -71,7 +77,7 @@ type ObservationsWithScoresBuilder = ExpressionBuilder<
 >;
 
 /** Level of a dashboard query: `two` has an inner aggregating select. */
-type QueryLevel = "single" | "two";
+export type QueryLevel = "single" | "two";
 
 /**
  * What a template measure calls where the legacy SQL has a `@@AGGn@@`
@@ -95,19 +101,56 @@ type AggregationSlot<A extends Record<string, TemplateAggregate>> = <
   value: Expression<T>,
 ) => AliasableExpression<T | TemplateAggregateResult<A[K], T>>;
 
-type DimensionEntry = {
-  expression: (eb: ObservationsBuilder) => AliasableExpression<unknown>;
+/** A dimension's row value over `e`. */
+type Read<T> = (eb: ObservationsBuilder) => AliasableExpression<T>;
+
+/** An array dimension's value; a tuple field of an `Array(Tuple(…))` column can be NULL. */
+type StringArray = Array<string | null>;
+
+/**
+ * What a dashboard filter on a dimension compares, as the events predicate
+ * lowering takes it: the expression, or for a `nullIf(col, '')` dimension the
+ * column `col` with `''` and NULL as one value, so an index on `col` still
+ * prunes.
+ */
+type DimensionFilter = ScalarFieldLowering;
+
+/**
+ * A dimension with a non-array value, e.g. `environment`:
+ * `SELECT nullIf(e.environment, '') AS environment`.
+ */
+type ScalarDimension = {
+  array?: undefined;
+  expression: Read<unknown>;
+  filter: DimensionFilter;
+};
+
+/**
+ * A dimension with a `String` array value, which a query can explode into one
+ * row per element, e.g. `toolNames`:
+ * `SELECT arrayJoin(mapKeys(e.tool_definitions)) AS toolNames`.
+ */
+type ArrayDimension = {
+  array: true;
+  expression: Read<StringArray>;
+  /** Absent where the view rejects filters (the pair-expanded dimensions). */
+  filter?: DimensionFilter;
   /**
    * For a dimension over map keys (`costType` = `mapKeys(cost_details)`): the
    * matching values (`mapValues(cost_details)`). The query ARRAY JOINs both
    * arrays side by side, one row per key, with its value as `valueAlias`
-   * (`cost_value`) for the measures that name this dimension.
+   * (`cost_value`) for the measures that name this dimension:
+   * `FROM events_core AS e ARRAY JOIN mapKeys(e.cost_details) AS costType, mapValues(e.cost_details) AS cost_value`;
+   * the SELECT reads `costType`, and the `costByType` measure reads `sum(cost_value)`.
    */
   pairExpand?: {
-    values: (eb: ObservationsBuilder) => AliasableExpression<unknown[]>;
+    values: Read<unknown[]>;
     valueAlias: string;
   };
 };
+
+/** A dimension of the view, told apart by `array`. */
+export type DimensionEntry = ScalarDimension | ArrayDimension;
 
 /**
  * The view's three measure shapes:
@@ -124,7 +167,7 @@ type DimensionEntry = {
  * Consumers tell them apart with `"aggs" in entry` and
  * `"relationTable" in entry`.
  */
-type MeasureEntry =
+export type MeasureEntry =
   | {
       /** Aggregates the slots apply in the inner select of a two-level query. */
       aggs: Record<string, TemplateAggregate>;
@@ -172,8 +215,7 @@ function templateMeasure<A extends Record<string, TemplateAggregate>>(entry: {
  * The slot function of a measure for a query level: `single` returns the row
  * value, and the caller wraps the whole measure in the requested aggregation
  * (`QueryBuilder.translateAggregation` for the string version); `two` applies
- * the slot's aggregate from `aggs` in the inner select. Mirrors the `@@AGGn@@` stripping and
- * substitution in `queryBuilder.ts`.
+ * the slot's aggregate from `aggs` in the inner select.
  */
 export function aggregationSlot<A extends Record<string, TemplateAggregate>>(
   aggs: A,
@@ -237,129 +279,147 @@ const sinceCompletionStart = (
     aggregatedDiff(eb, agg, "agg1", "millisecond", interval),
   );
 
+/**
+ * A string dimension, filtered as it is. `ngramIndexed`: `events_full`
+ * keeps an ngram index on `lower(<col>)`, so string filters add a `lower()`
+ * conjunct it prunes with.
+ */
+const stringDimension = (
+  value: Read<string>,
+  facts: { ngramIndexed?: true } = {},
+): ScalarDimension => ({
+  expression: value,
+  filter: { kind: "string", value, ...facts },
+});
+
+/** `nullIf(column, '')`, filtered on `column` with `''` and NULL as one value. */
+const nullIfEmptyDimension = (
+  column: Read<string>,
+  facts: { ngramIndexed?: true } = {},
+): ScalarDimension => ({
+  expression: (eb) => nullIfEmpty(column(eb)),
+  filter: { kind: "string", value: column, emptyEqualsNull: true, ...facts },
+});
+
+/** A string dimension that can be NULL, filtered as it is. */
+const nullableStringDimension = (
+  value: Read<string | null>,
+): ScalarDimension => ({
+  expression: value,
+  filter: { kind: "nullableString", value },
+});
+
+/** An array dimension, filtered by `arrayOptions`. */
+const arrayDimension = (value: Read<StringArray>): ArrayDimension => ({
+  array: true,
+  expression: value,
+  filter: { kind: "array", value },
+});
+
+/** A number or boolean dimension, filtered as it is. */
+const scalarDimension = (value: Read<unknown>): ScalarDimension => ({
+  expression: value,
+  filter: { kind: "scalar", value },
+});
+
 /** Dimensions of the v2 observations view, keyed by name, in view order. */
 export const EVENTS_OBSERVATIONS_DIMENSIONS = {
-  id: { expression: (eb) => eb.ref("e.span_id") },
-  evaluatorId: {
-    expression: (eb) =>
-      eb.fn.coalesce(
-        nullIfEmpty(eb.ref("e.evaluator_id")),
-        eb.ref("e.evaluation_rule_id"),
-      ),
-  },
-  isEvaluatorTest: {
-    expression: (eb) => eb.ref("e.evaluator_execution_is_test"),
-  },
-  traceId: { expression: (eb) => eb.ref("e.trace_id") },
-  environment: {
-    expression: (eb) => nullIfEmpty(eb.ref("e.environment")),
-  },
-  parentObservationId: {
-    expression: (eb) => nullIfEmpty(eb.ref("e.parent_span_id")),
-  },
-  isRootObservation: {
-    expression: (eb) => toBool(eventsIsRootObservation(eb)),
-  },
-  type: { expression: (eb) => eb.ref("e.type") },
-  name: { expression: (eb) => eb.ref("e.name") },
-  level: { expression: (eb) => eb.ref("e.level") },
-  version: {
-    expression: (eb) => nullIfEmpty(eb.ref("e.version")),
-  },
-  userId: {
-    expression: (eb) => nullIfEmpty(eb.ref("e.user_id")),
-  },
-  sessionId: {
-    expression: (eb) => nullIfEmpty(eb.ref("e.session_id")),
-  },
-  aiGatewayKeyId: {
-    // Ingestion only writes the gateway service name on uploads the gateway
-    // authenticated, and then sets ingestion_api_key to the gateway key id.
-    expression: (eb) =>
-      ifElse(
-        viaAiGateway(eb),
-        nullIfEmpty(eb.ref("e.ingestion_api_key")),
-        literal(null),
-      ),
-  },
-  aiGatewayKeyOwnerUserId: {
-    // The span's user_id is not used: a key without an owner lets its caller
-    // set any user ID. The owner ID comes from metadata the gateway writes,
-    // so it outlives the key's deletion. The first entry of the key wins.
-    expression: (eb) =>
-      ifElse(
-        viaAiGateway(eb),
-        nullIfEmpty(
-          arrayElement(
-            eb.ref("e.metadata_values"),
-            indexOf(
-              eb.ref("e.metadata_names"),
-              literal(AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY),
-            ),
-          ),
+  id: stringDimension((eb) => eb.ref("e.span_id")),
+  evaluatorId: nullableStringDimension((eb) =>
+    eb.fn.coalesce(
+      nullIfEmpty(eb.ref("e.evaluator_id")),
+      eb.ref("e.evaluation_rule_id"),
+    ),
+  ),
+  isEvaluatorTest: scalarDimension((eb) =>
+    eb.ref("e.evaluator_execution_is_test"),
+  ),
+  traceId: stringDimension((eb) => eb.ref("e.trace_id")),
+  environment: nullIfEmptyDimension((eb) => eb.ref("e.environment")),
+  parentObservationId: nullIfEmptyDimension((eb) => eb.ref("e.parent_span_id")),
+  isRootObservation: scalarDimension((eb) =>
+    toBool(eventsIsRootObservation(eb)),
+  ),
+  type: stringDimension((eb) => eb.ref("e.type")),
+  name: stringDimension((eb) => eb.ref("e.name"), { ngramIndexed: true }),
+  level: stringDimension((eb) => eb.ref("e.level")),
+  version: nullIfEmptyDimension((eb) => eb.ref("e.version")),
+  userId: nullIfEmptyDimension((eb) => eb.ref("e.user_id"), {
+    ngramIndexed: true,
+  }),
+  sessionId: nullIfEmptyDimension((eb) => eb.ref("e.session_id"), {
+    ngramIndexed: true,
+  }),
+  // Ingestion only writes the gateway service name on uploads the gateway
+  // authenticated, and then sets ingestion_api_key to the gateway key id.
+  aiGatewayKeyId: nullableStringDimension((eb) =>
+    ifElse(
+      viaAiGateway(eb),
+      nullIfEmpty(eb.ref("e.ingestion_api_key")),
+      literal(null),
+    ),
+  ),
+  // The span's user_id is not used: a key without an owner lets its caller
+  // set any user ID. The owner ID comes from metadata the gateway writes,
+  // so it outlives the key's deletion. The first entry of the key wins.
+  // Routing keeps its `=`, `any of`, `starts with` and `is [not] null`
+  // filters on events_core for short values: every owner-scoped gateway
+  // analytics query carries one.
+  aiGatewayKeyOwnerUserId: nullableStringDimension((eb) =>
+    ifElse(
+      viaAiGateway(eb),
+      nullIfEmpty(
+        firstMetadataValue(
+          eb.ref("e.metadata_names"),
+          eb.ref("e.metadata_values"),
+          literal(AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY),
         ),
-        literal(null),
       ),
-  },
-  tags: { expression: (eb) => eb.ref("e.tags") },
-  release: {
-    expression: (eb) => nullIfEmpty(eb.ref("e.release")),
-  },
-  traceName: { expression: (eb) => eventsTraceName(eb) },
-  traceRelease: {
-    expression: (eb) => nullIfEmpty(eb.ref("e.release")),
-  },
-  traceVersion: {
-    expression: (eb) => nullIfEmpty(eb.ref("e.version")),
-  },
-  providedModelName: {
-    expression: (eb) => nullIfEmpty(eb.ref("e.provided_model_name")),
-  },
-  promptName: {
-    expression: (eb) => nullIfEmpty(eb.ref("e.prompt_name")),
-  },
-  promptVersion: {
-    expression: (eb) => eb.ref("e.prompt_version"),
-  },
-  startTimeMonth: {
-    expression: (eb) =>
-      formatDateTime(eb.ref("e.start_time"), literal("%Y-%m")),
-  },
-  skillNamesAvailable: {
-    expression: (eb) =>
-      arrayDistinct(tupleArrayField(eb.ref("e.skills_available"), "skillName")),
-  },
-  skillsNamesLoaded: {
-    expression: (eb) =>
-      arrayDistinct(
-        tupleArrayField(eb.ref("e.skills_resource_loaded"), "skillName"),
-      ),
-  },
-  skillIdsAvailable: {
-    expression: (eb) =>
-      arrayDistinct(
-        tupleArrayField(eb.ref("e.skills_available"), "langfuseSkillId"),
-      ),
-  },
-  skillIdsLoaded: {
-    expression: (eb) =>
-      arrayDistinct(
-        tupleArrayField(eb.ref("e.skills_resource_loaded"), "langfuseSkillId"),
-      ),
-  },
-  loadedFilePaths: {
-    expression: (eb) =>
-      arrayDistinct(
-        tupleArrayField(eb.ref("e.skills_resource_loaded"), "filePath"),
-      ),
-  },
-  toolNames: {
-    expression: (eb) => mapKeys(eb.ref("e.tool_definitions")),
-  },
-  calledToolNames: {
-    expression: (eb) => arrayDistinct(eb.ref("e.tool_call_names")),
-  },
+      literal(null),
+    ),
+  ),
+  tags: arrayDimension((eb) => eb.ref("e.tags")),
+  release: nullIfEmptyDimension((eb) => eb.ref("e.release")),
+  traceName: nullableStringDimension((eb) => eventsTraceName(eb)),
+  traceRelease: nullIfEmptyDimension((eb) => eb.ref("e.release")),
+  traceVersion: nullIfEmptyDimension((eb) => eb.ref("e.version")),
+  providedModelName: nullIfEmptyDimension((eb) =>
+    eb.ref("e.provided_model_name"),
+  ),
+  promptName: nullIfEmptyDimension((eb) => eb.ref("e.prompt_name")),
+  promptVersion: scalarDimension((eb) => eb.ref("e.prompt_version")),
+  startTimeMonth: stringDimension((eb) =>
+    formatDateTime(eb.ref("e.start_time"), literal("%Y-%m")),
+  ),
+  skillNamesAvailable: arrayDimension((eb) =>
+    arrayDistinct(tupleArrayField(eb.ref("e.skills_available"), "skillName")),
+  ),
+  skillsNamesLoaded: arrayDimension((eb) =>
+    arrayDistinct(
+      tupleArrayField(eb.ref("e.skills_resource_loaded"), "skillName"),
+    ),
+  ),
+  skillIdsAvailable: arrayDimension((eb) =>
+    arrayDistinct(
+      tupleArrayField(eb.ref("e.skills_available"), "langfuseSkillId"),
+    ),
+  ),
+  skillIdsLoaded: arrayDimension((eb) =>
+    arrayDistinct(
+      tupleArrayField(eb.ref("e.skills_resource_loaded"), "langfuseSkillId"),
+    ),
+  ),
+  loadedFilePaths: arrayDimension((eb) =>
+    arrayDistinct(
+      tupleArrayField(eb.ref("e.skills_resource_loaded"), "filePath"),
+    ),
+  ),
+  toolNames: arrayDimension((eb) => mapKeys(eb.ref("e.tool_definitions"))),
+  calledToolNames: arrayDimension((eb) =>
+    arrayDistinct(eb.ref("e.tool_call_names")),
+  ),
   costType: {
+    array: true,
     expression: (eb) => mapKeys(eb.ref("e.cost_details")),
     pairExpand: {
       values: (eb) => mapValues(eb.ref("e.cost_details")),
@@ -367,22 +427,99 @@ export const EVENTS_OBSERVATIONS_DIMENSIONS = {
     },
   },
   usageType: {
+    array: true,
     expression: (eb) => mapKeys(eb.ref("e.usage_details")),
     pairExpand: {
       values: (eb) => mapValues(eb.ref("e.usage_details")),
       valueAlias: "usage_value",
     },
   },
-  experimentName: {
-    expression: (eb) => nullIfEmpty(eb.ref("e.experiment_name")),
-  },
-  experimentDatasetId: {
-    expression: (eb) => nullIfEmpty(eb.ref("e.experiment_dataset_id")),
-  },
-  experimentId: {
-    expression: (eb) => nullIfEmpty(eb.ref("e.experiment_id")),
-  },
+  experimentName: nullIfEmptyDimension((eb) => eb.ref("e.experiment_name")),
+  experimentDatasetId: nullIfEmptyDimension((eb) =>
+    eb.ref("e.experiment_dataset_id"),
+  ),
+  experimentId: nullIfEmptyDimension((eb) => eb.ref("e.experiment_id")),
 } satisfies Record<string, DimensionEntry>;
+
+/** {@link EVENTS_OBSERVATIONS_DIMENSIONS} keyed by any string. */
+const DIMENSIONS_BY_NAME: Readonly<Partial<Record<string, DimensionEntry>>> =
+  EVENTS_OBSERVATIONS_DIMENSIONS;
+
+const isDimension = (name: string) =>
+  Object.hasOwn(EVENTS_OBSERVATIONS_DIMENSIONS, name);
+
+/** The dimension `name`; the caller has checked the view declares it. */
+export function eventsObservationsDimension(name: string): DimensionEntry {
+  const entry = isDimension(name) ? DIMENSIONS_BY_NAME[name] : undefined;
+  if (!entry) {
+    throw new QueryCompileError(
+      `Dimension "${name}" has no entry in EVENTS_OBSERVATIONS_DIMENSIONS.`,
+    );
+  }
+  return entry;
+}
+
+/** An {@link ArrayDimension} with its `pairExpand` values. */
+type PairExpandedDimension = ArrayDimension & {
+  pairExpand: NonNullable<ArrayDimension["pairExpand"]>;
+};
+
+/**
+ * The array dimension `name`, which a query explodes (`explode`) or ARRAY
+ * JOINs with its values (`pairExpand`); the caller has checked the view
+ * declares it so. Throws `QueryCompileError` if the entry disagrees.
+ */
+export function eventsObservationsArrayDimension(
+  name: string,
+  use: "explode",
+): ArrayDimension;
+export function eventsObservationsArrayDimension(
+  name: string,
+  use: "pairExpand",
+): PairExpandedDimension;
+export function eventsObservationsArrayDimension(
+  name: string,
+  use: "explode" | "pairExpand",
+): ArrayDimension {
+  const entry = eventsObservationsDimension(name);
+  if (!entry.array || (use === "pairExpand" && !entry.pairExpand)) {
+    throw new QueryCompileError(
+      `Dimension "${name}" has no ${use === "pairExpand" ? "pairExpand values" : "array value"} in EVENTS_OBSERVATIONS_DIMENSIONS.`,
+    );
+  }
+  return entry;
+}
+
+/**
+ * What a dashboard filter on `column` compares: a dimension's
+ * {@link DimensionEntry.filter}, `name`'s for another `…Name` column (a
+ * score filter sent to this view keeps working), the view's time dimension
+ * `start_time`, or the keyed `metadata`. Throws `InvalidRequestError` for any
+ * other column, and `QueryCompileError` for a dimension without a filter
+ * lowering (the view rejects filters on those before SQL is built).
+ */
+export function eventsObservationsFilterLowering(
+  column: string,
+): EventsFieldLowering {
+  if (column === "start_time") {
+    return { kind: "scalar", value: (eb) => eb.ref("e.start_time") };
+  }
+  if (column === "metadata") return { kind: "metadata" };
+  const name =
+    isDimension(column) || !column.endsWith("Name") ? column : "name";
+  if (!isDimension(name)) {
+    throw new InvalidRequestError(
+      `Invalid filter column ${column}. Must be one of ${Object.keys(EVENTS_OBSERVATIONS_DIMENSIONS)} or start_time`,
+    );
+  }
+  const { filter } = eventsObservationsDimension(name);
+  if (!filter) {
+    throw new QueryCompileError(
+      `Dimension "${name}" has no filter lowering in EVENTS_OBSERVATIONS_DIMENSIONS.`,
+    );
+  }
+  return filter;
+}
 
 /**
  * Measures of the v2 observations view, keyed by name, in view order. The
@@ -536,11 +673,35 @@ export const EVENTS_OBSERVATIONS_MEASURES = {
   },
 } satisfies Record<string, MeasureEntry>;
 
-/** Join condition of the view's `scores` relation. */
+/** {@link EVENTS_OBSERVATIONS_MEASURES} keyed by any string. */
+const MEASURES_BY_NAME: Readonly<Partial<Record<string, MeasureEntry>>> =
+  EVENTS_OBSERVATIONS_MEASURES;
+
+/** The measure `name`; the caller has checked the view declares it. */
+export function eventsObservationsMeasure(name: string): MeasureEntry {
+  const entry = Object.hasOwn(EVENTS_OBSERVATIONS_MEASURES, name)
+    ? MEASURES_BY_NAME[name]
+    : undefined;
+  if (!entry) {
+    throw new QueryCompileError(
+      `Measure "${name}" has no entry in EVENTS_OBSERVATIONS_MEASURES.`,
+    );
+  }
+  return entry;
+}
+
+/**
+ * Join condition of the view's `scores` relation. `liveScoresOnly` also drops
+ * score tombstones (`scores.is_deleted = 0`), for a join without `FINAL`:
+ * unmerged older live versions of a deleted score still match, and
+ * projects that skip score dedup never rewrite scores.
+ */
 export const eventsObservationsScoresJoin = (
   eb: ObservationsWithScoresBuilder,
+  { liveScoresOnly = false }: { liveScoresOnly?: boolean } = {},
 ) =>
   eb.and([
     eb("e.span_id", "=", eb.ref("scores.observation_id")),
     eb("e.project_id", "=", eb.ref("scores.project_id")),
+    ...(liveScoresOnly ? [eb("scores.is_deleted", "=", literal(0))] : []),
   ]);

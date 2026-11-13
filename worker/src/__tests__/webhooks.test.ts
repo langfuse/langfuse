@@ -35,6 +35,7 @@ import { generateWebhookSecret } from "@langfuse/shared/encryption";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { executeWebhook } from "../queues/webhooks";
+import { StaleAlertError } from "@langfuse/shared/monitors/server";
 
 const outboundWhitelistBuilders = vi.hoisted(() => ({
   webhookWhitelistFromEnv: vi.fn(),
@@ -2449,9 +2450,11 @@ describe("Webhook Integration Tests", () => {
       const failureKey = `automation-failures:${projectId}:${automationId}`;
       await redis!.del(failureKey);
 
-      await executeWebhook(buildMonitorAlertInput(alertedAt), {
-        skipValidation: true,
-      });
+      await expect(
+        executeWebhook(buildMonitorAlertInput(alertedAt), {
+          skipValidation: true,
+        }),
+      ).rejects.toThrow(new StaleAlertError("alert_stale"));
 
       expect(webhookServer.getReceivedRequests()).toHaveLength(0);
       expect(await redis!.get(failureKey)).toBeNull();
@@ -2460,9 +2463,11 @@ describe("Webhook Integration Tests", () => {
     it("drops the alert when its monitor was deleted", async () => {
       await prisma.monitor.delete({ where: { id: monitorId } });
 
-      await executeWebhook(buildMonitorAlertInput(alertedAt), {
-        skipValidation: true,
-      });
+      await expect(
+        executeWebhook(buildMonitorAlertInput(alertedAt), {
+          skipValidation: true,
+        }),
+      ).rejects.toThrow(new StaleAlertError("alert_deleted"));
 
       expect(webhookServer.getReceivedRequests()).toHaveLength(0);
     });
@@ -2486,9 +2491,11 @@ describe("Webhook Integration Tests", () => {
         },
       });
 
-      await executeWebhook(buildMonitorAlertInput(alertedAt), {
-        skipValidation: true,
-      });
+      await expect(
+        executeWebhook(buildMonitorAlertInput(alertedAt), {
+          skipValidation: true,
+        }),
+      ).rejects.toThrow(new StaleAlertError("alert_stale"));
 
       expect(webhookServer.getReceivedRequests()).toHaveLength(0);
     });

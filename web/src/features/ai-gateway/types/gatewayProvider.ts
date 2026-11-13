@@ -22,3 +22,6 @@ export type GatewayApiFamily = Exclude<
   GatewayProvider,
   "BEDROCK" | "OPENROUTER" | "XAI" | "VERCEL" | "AZURE" | "GOOGLE_AI_STUDIO"
 >;
+
+/** Providers whose connections may set a custom base URL and extra headers. */
+export type GatewayCustomEndpointProvider = GatewayApiFamily | "OPENROUTER";

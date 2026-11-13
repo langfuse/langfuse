@@ -2,7 +2,12 @@ import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { randomUUID } from "node:crypto";
 import type { Session } from "next-auth";
 import { EvalTargetObject } from "@langfuse/shared";
-import { JobConfigState, prisma, type Prisma } from "@langfuse/shared/src/db";
+import {
+  JobConfigState,
+  prisma,
+  type Prisma,
+  type Role,
+} from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -13,7 +18,59 @@ const orgIds: string[] = [];
 let projectId = "";
 let otherProjectId = "";
 let userId = "";
+let session: Session;
 let caller: ReturnType<typeof appRouter.createCaller>;
+
+function callerFor(callerSession: Session) {
+  const ctx = createInnerTRPCContext({
+    session: callerSession,
+    headers: {},
+  });
+  return appRouter.createCaller({ ...ctx, prisma });
+}
+
+function sessionWithProjectRole(role: Role): Session {
+  const [org] = session.user!.organizations;
+  return {
+    ...session,
+    user: {
+      ...session.user!,
+      organizations: [
+        { ...org, projects: org.projects.map((p) => ({ ...p, role })) },
+      ],
+    },
+  };
+}
+
+function experimentDatasetRule(
+  ruleProjectId: string,
+  name: string,
+  datasetId: string,
+) {
+  return {
+    projectId: ruleProjectId,
+    name,
+    status: JobConfigState.ACTIVE,
+    targetObject: EvalTargetObject.EVENT,
+    filter: [
+      {
+        column: "isExperimentItemRootSpan",
+        type: "boolean",
+        operator: "=",
+        value: true,
+      },
+      {
+        column: "experimentDatasetId",
+        type: "stringOptions",
+        operator: "any of",
+        value: [datasetId],
+      },
+    ],
+    sampling: 1,
+    delay: 0,
+    timeScope: ["NEW"],
+  };
+}
 
 beforeAll(async () => {
   const [first, second] = await Promise.all([
@@ -28,7 +85,7 @@ beforeAll(async () => {
     data: { id: userId, name: "Rule tester", email: `${userId}@test.dev` },
   });
 
-  const session = {
+  session = {
     expires: "1",
     user: {
       id: userId,
@@ -66,8 +123,7 @@ beforeAll(async () => {
       selfHostedInstancePlan: "cloud:hobby",
     },
   } satisfies Session;
-  const ctx = createInnerTRPCContext({ session, headers: {} });
-  caller = appRouter.createCaller({ ...ctx, prisma });
+  caller = callerFor(session);
 });
 
 afterEach(async () => {
@@ -301,6 +357,42 @@ describe("evaluation rule v2 tRPC", () => {
     ]);
   });
 
+  describe("listForExperimentDataset access", () => {
+    it("lists only the caller's rules when another project has a rule for the same dataset", async () => {
+      const datasetId = randomUUID();
+      await prisma.evaluationRule.createMany({
+        data: [
+          experimentDatasetRule(projectId, "Own dataset rule", datasetId),
+          experimentDatasetRule(
+            otherProjectId,
+            "Foreign dataset rule",
+            datasetId,
+          ),
+        ],
+      });
+
+      const rules = await caller.evalsV2.rules.listForExperimentDataset({
+        projectId,
+        datasetId,
+      });
+
+      expect(rules.map(({ name }) => name)).toEqual(["Own dataset rule"]);
+    });
+
+    it("rejects a project member without evaluationRule:read", async () => {
+      const datasetId = randomUUID();
+      await prisma.evaluationRule.create({
+        data: experimentDatasetRule(projectId, "Own dataset rule", datasetId),
+      });
+
+      await expect(
+        callerFor(
+          sessionWithProjectRole("NONE"),
+        ).evalsV2.rules.listForExperimentDataset({ projectId, datasetId }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+  });
+
   it("creates a disabled rule", async () => {
     await expect(
       caller.evalsV2.rules.create({ ...ruleInput(), enabled: false }),
@@ -486,6 +578,12 @@ describe("evaluation rule v2 tRPC", () => {
   it("rejects reads and writes for another project", async () => {
     await expect(
       caller.evalsV2.rules.list({ projectId: otherProjectId }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(
+      caller.evalsV2.rules.listForExperimentDataset({
+        projectId: otherProjectId,
+        datasetId: randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(
       caller.evalsV2.rules.create({

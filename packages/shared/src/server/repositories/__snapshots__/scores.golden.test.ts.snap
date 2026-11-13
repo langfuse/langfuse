@@ -15,30 +15,20 @@ exports[`golden: scores.getAggregatedScoresForPromptsFromEvents > relation=obser
     prompt_events AS
     (
         SELECT
-            latest.project_id,
-            latest.prompt_id,
-            latest.trace_id,
-            latest.span_id
-        FROM
-        (
-            SELECT
-                e.project_id AS project_id,
-                e.prompt_id AS prompt_id,
-                e.trace_id AS trace_id,
-                e.span_id AS span_id,
-                e.is_deleted AS is_deleted
-            FROM events_core AS e
-            WHERE (e.project_id = {param1:String})
-                AND (e.type = 'GENERATION')
-                AND (e.prompt_id IN ({param2:Array(String)}))
-                AND (e.start_time >= {param3:DateTime64(6)})
-                AND (e.start_time <= {param4:DateTime64(6)})
-            ORDER BY e.event_ts DESC
-            LIMIT 1 BY
-                e.span_id,
-                e.project_id
-        ) AS latest
-        WHERE latest.is_deleted = 0
+            e.project_id AS project_id,
+            e.prompt_id AS prompt_id,
+            e.trace_id AS trace_id,
+            e.span_id AS span_id
+        FROM events_core AS e
+        WHERE (e.project_id = {param1:String})
+            AND (e.type = 'GENERATION')
+            AND (e.prompt_id IN ({param2:Array(String)}))
+            AND (e.start_time >= {param3:DateTime64(6)})
+            AND (e.start_time <= {param4:DateTime64(6)})
+        ORDER BY e.event_ts DESC
+        LIMIT 1 BY
+            e.span_id,
+            e.project_id
     )
 SELECT
     e.prompt_id AS prompt_id,
@@ -91,28 +81,18 @@ exports[`golden: scores.getAggregatedScoresForPromptsFromEvents > relation=obser
     prompt_events AS
     (
         SELECT
-            latest.project_id,
-            latest.prompt_id,
-            latest.trace_id,
-            latest.span_id
-        FROM
-        (
-            SELECT
-                e.project_id AS project_id,
-                e.prompt_id AS prompt_id,
-                e.trace_id AS trace_id,
-                e.span_id AS span_id,
-                e.is_deleted AS is_deleted
-            FROM events_core AS e
-            WHERE (e.project_id = {param1:String})
-                AND (e.type = 'GENERATION')
-                AND (e.prompt_id IN ({param2:Array(String)}))
-            ORDER BY e.event_ts DESC
-            LIMIT 1 BY
-                e.span_id,
-                e.project_id
-        ) AS latest
-        WHERE latest.is_deleted = 0
+            e.project_id AS project_id,
+            e.prompt_id AS prompt_id,
+            e.trace_id AS trace_id,
+            e.span_id AS span_id
+        FROM events_core AS e
+        WHERE (e.project_id = {param1:String})
+            AND (e.type = 'GENERATION')
+            AND (e.prompt_id IN ({param2:Array(String)}))
+        ORDER BY e.event_ts DESC
+        LIMIT 1 BY
+            e.span_id,
+            e.project_id
     )
 SELECT
     e.prompt_id AS prompt_id,
@@ -166,29 +146,19 @@ exports[`golden: scores.getAggregatedScoresForPromptsFromEvents > relation=trace
     prompt_events AS
     (
         SELECT
-            latest.project_id,
-            latest.prompt_id,
-            latest.trace_id,
-            latest.span_id
-        FROM
-        (
-            SELECT
-                e.project_id AS project_id,
-                e.prompt_id AS prompt_id,
-                e.trace_id AS trace_id,
-                e.span_id AS span_id,
-                e.is_deleted AS is_deleted
-            FROM events_core AS e
-            WHERE (e.project_id = {param1:String})
-                AND (e.type = 'GENERATION')
-                AND (e.prompt_id IN ({param2:Array(String)}))
-                AND (e.start_time >= {param3:DateTime64(6)})
-            ORDER BY e.event_ts DESC
-            LIMIT 1 BY
-                e.span_id,
-                e.project_id
-        ) AS latest
-        WHERE latest.is_deleted = 0
+            e.project_id AS project_id,
+            e.prompt_id AS prompt_id,
+            e.trace_id AS trace_id,
+            e.span_id AS span_id
+        FROM events_core AS e
+        WHERE (e.project_id = {param1:String})
+            AND (e.type = 'GENERATION')
+            AND (e.prompt_id IN ({param2:Array(String)}))
+            AND (e.start_time >= {param3:DateTime64(6)})
+        ORDER BY e.event_ts DESC
+        LIMIT 1 BY
+            e.span_id,
+            e.project_id
     )
 SELECT
     e.prompt_id AS prompt_id,
@@ -239,28 +209,18 @@ exports[`golden: scores.getAggregatedScoresForPromptsFromEvents > relation=trace
     prompt_events AS
     (
         SELECT
-            latest.project_id,
-            latest.prompt_id,
-            latest.trace_id,
-            latest.span_id
-        FROM
-        (
-            SELECT
-                e.project_id AS project_id,
-                e.prompt_id AS prompt_id,
-                e.trace_id AS trace_id,
-                e.span_id AS span_id,
-                e.is_deleted AS is_deleted
-            FROM events_core AS e
-            WHERE (e.project_id = {param1:String})
-                AND (e.type = 'GENERATION')
-                AND (e.prompt_id IN ({param2:Array(String)}))
-            ORDER BY e.event_ts DESC
-            LIMIT 1 BY
-                e.span_id,
-                e.project_id
-        ) AS latest
-        WHERE latest.is_deleted = 0
+            e.project_id AS project_id,
+            e.prompt_id AS prompt_id,
+            e.trace_id AS trace_id,
+            e.span_id AS span_id
+        FROM events_core AS e
+        WHERE (e.project_id = {param1:String})
+            AND (e.type = 'GENERATION')
+            AND (e.prompt_id IN ({param2:Array(String)}))
+        ORDER BY e.event_ts DESC
+        LIMIT 1 BY
+            e.span_id,
+            e.project_id
     )
 SELECT
     e.prompt_id AS prompt_id,
@@ -340,7 +300,6 @@ FROM
         e.trace_id
     FROM events_core AS e
     WHERE (e.project_id = {param1:String})
-        AND (e.is_deleted = 0)
         AND (e.experiment_id IN ({param2:Array(String)}))
         AND (e.experiment_id != '')
 ) AS e

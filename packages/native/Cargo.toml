@@ -32,6 +32,7 @@ num-traits = "0.2"
 rust_decimal = { version = "1.37.2", default-features = false, features = ["std"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order", "float_roundtrip", "raw_value"] }
+fancy-regex = "0.17"
 hstr = "=4.0.3"
 sha2 = { version = "0.10", features = ["asm"] }
 tracing = "0.1"

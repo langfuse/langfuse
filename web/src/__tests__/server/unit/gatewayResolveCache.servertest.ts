@@ -21,6 +21,7 @@ const context: CachedResolveContext = {
   userName: "Alice",
   userEmail: "alice@example.com",
   keyMetadata: {},
+  keyAllowedModels: null,
   ingestionProjectId: null,
   ingestionMode: null,
   plan: "cloud:hobby",
@@ -118,6 +119,7 @@ describe("GatewayResolveCache", () => {
       apiKeyId: "key-1",
       userId: "user-1",
       keyMetadata: {},
+      keyAllowedModels: null,
       ingestionProjectId: null,
       ingestionMode: null,
       plan: "cloud:hobby",
@@ -141,6 +143,24 @@ describe("GatewayResolveCache", () => {
       userName: null,
       userEmail: null,
     });
+  });
+
+  it("refetches entries cached before key model patterns existed", async () => {
+    const redis = createStatefulRedis();
+    const cache = new GatewayResolveCache(redis);
+    const { keyAllowedModels: _keyAllowedModels, ...withoutPatterns } = context;
+    await cache.set({
+      fastHashedSecretKey: "hashed-key",
+      apiFormat: "openai.responses",
+      context: withoutPatterns as unknown as CachedResolveContext,
+    });
+
+    await expect(
+      cache.get({
+        fastHashedSecretKey: "hashed-key",
+        apiFormat: "openai.responses",
+      }),
+    ).resolves.toBeNull();
   });
 
   it("refetches entries cached before the plan was part of the context", async () => {

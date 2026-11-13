@@ -2,6 +2,8 @@
 
 pub mod attributes;
 pub mod input;
+pub mod metadata;
+pub mod tools;
 pub mod types;
 pub mod value;
 
