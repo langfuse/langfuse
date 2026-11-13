@@ -1,0 +1,4 @@
+interface:
+  display_name: "Integration Trace Model"
+  short_description: "What a coding-agent plugin emits, and why it is wrong"
+  default_prompt: "Use $integration-trace-model to design or debug what a Langfuse coding-agent plugin emits — trace shape, usage and cost, subagents, payload fidelity."
