@@ -353,60 +353,6 @@ mod tests {
     use proptest::prelude::*;
 
     #[test]
-    fn command_resources_match_catalog_and_bound_unique_lookups() {
-        let available = [
-            SkillAvailableInput {
-                name: "alpha".into(),
-                version: None,
-            },
-            SkillAvailableInput {
-                name: "beta".into(),
-                version: None,
-            },
-        ];
-        let mut command = String::from(
-            "cat /skills/alpha/SKILL.md /skills/alpha/SKILL.md \
-             /skills/unknown/missing.md /skills/alpha/../rejected.md \
-             /skills/beta/guide.md",
-        );
-        for index in 0..110 {
-            command.push_str(&format!(" /skills/alpha/generated-{index}.md"));
-        }
-
-        let resources = get_skill_resources_from_command(Some(&command), &available);
-        assert_eq!(resources.len(), MAX_SKILLS_PER_OBSERVATION);
-        assert_eq!(
-            resources
-                .iter()
-                .take(3)
-                .map(|resource| (resource.skill_name.as_str(), resource.file_path.as_str()))
-                .collect::<Vec<_>>(),
-            vec![
-                ("alpha", "SKILL.md"),
-                ("beta", "guide.md"),
-                ("alpha", "generated-0.md"),
-            ]
-        );
-        assert!(resources
-            .iter()
-            .all(|resource| resource.file_path != "rejected.md"));
-        assert!(resources
-            .iter()
-            .all(|resource| resource.skill_name != "unknown"));
-        assert_eq!(
-            resources
-                .iter()
-                .filter(|resource| resource.file_path == "SKILL.md")
-                .count(),
-            1
-        );
-        assert_eq!(
-            resources.last().map(|resource| resource.file_path.as_str()),
-            Some("generated-97.md")
-        );
-    }
-
-    #[test]
     fn command_resource_input_limit_is_preserved() {
         let available = vec![SkillAvailableInput {
             name: "alpha".into(),
@@ -441,5 +387,56 @@ mod tests {
             prop_assert_eq!(loaded.len(), usize::from(valid));
         }
 
+        #[test]
+        fn cat_commands_preserve_unique_resource_order_and_limit_lookups(
+            name in prop_oneof!["[a-z]{1,5}", Just("工具".to_owned())],
+            catalog_size in 0usize..4,
+            wrapped in any::<bool>(),
+            suffix in prop::sample::select(vec!["", " space", "*literal", ";list", "😀"]),
+            trailing_space in "[ \t]{0,2}",
+            unique_prefix in prop_oneof![Just(0usize), Just(1), Just(99), Just(100), Just(101)],
+            candidates in prop::collection::vec((0usize..4, 0usize..16, 0u8..4, 0usize..3, 0usize..4), 0..32),
+        ) {
+            let available = (0..catalog_size).map(|index| SkillAvailableInput {
+                name: format!("{name}-{index}"), version: None,
+            }).collect::<Vec<_>>();
+            let prefix = (0..unique_prefix).map(|file| (0, file, 0, file % 3, file % 4));
+            let mut command = if wrapped { String::new() } else { String::from("cat ") };
+            let mut expected = Vec::new();
+            for (ordinal, (skill, file, kind, quote, separator)) in prefix.chain(candidates).enumerate() {
+                let skill_name = format!("{name}-{skill}");
+                let file_name = if quote == 0 { format!("file{file}.md") } else { format!("file {file}{suffix}.md") };
+                let path = match kind {
+                    0 => format!("/skills/{skill_name}/{file_name}"),
+                    1 => format!("/skills/{skill_name}/../{file_name}"),
+                    2 => format!("/skills/{skill_name}/{skill_name}/{file_name}"),
+                    _ => format!("/unknown/{file_name}"),
+                };
+                // This suite owns catalog filtering and lookup limits. The command utility
+                // separately checks escapes and malformed arguments against the regex contract.
+                let argument = match quote {
+                    0 => path,
+                    1 => format!("'{path}'"),
+                    _ => format!("\"{path}\""),
+                };
+                if wrapped {
+                    if ordinal > 0 { command.push_str(" && "); }
+                    let inner = format!("cat {argument}{trailing_space}");
+                    let outer = if quote == 1 { '"' } else { '\'' };
+                    command.push_str(&format!("bash -lc {outer}{inner}{outer}"));
+                } else {
+                    if ordinal > 0 { command.push_str([" ", "; cat ", "\ncat ", "\t"][separator]); }
+                    command.push_str(&argument);
+                }
+                // Valid paths are constructed above; the expected values never call the parser.
+                let resource = (skill_name, file_name);
+                if kind == 0 && skill < catalog_size && !expected.contains(&resource) && expected.len() < 100 {
+                    expected.push(resource);
+                }
+            }
+            prop_assert!(command.len() <= MAX_SKILL_TOOL_ARGS_JSON_BYTES);
+            let actual = get_skill_resources_from_command(Some(&command), &available);
+            prop_assert_eq!(actual.into_iter().map(|item| (item.skill_name, item.file_path)).collect::<Vec<_>>(), expected);
+        }
     }
 }
