@@ -33,6 +33,7 @@ import {
 import { CorrectionBadge } from "@/src/features/traces/components/CorrectionBadge";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
+import { useObservationEvaluationHints } from "@/src/features/traces/contexts/ObservationEvaluationHintsProvider";
 import {
   selectNodeCorrections,
   selectNodeScores,
@@ -128,6 +129,11 @@ function LoadedSpanContent({
     );
 
   const nodeDisplayName = node.name || `Unnamed ${node.type.toLowerCase()}`;
+  const hints = useObservationEvaluationHints();
+  const observationId =
+    node.type === "TRACE" ? null : (node.observationId ?? node.id);
+  const evaluationHint =
+    observationId && hints ? hints.hintFor(observationId) : null;
 
   return (
     <button
@@ -145,9 +151,36 @@ function LoadedSpanContent({
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         {/* Name and badges row */}
         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-          <span className="shrink truncate text-sm" title={nodeDisplayName}>
+          <span
+            className="min-w-0 shrink truncate text-sm"
+            title={nodeDisplayName}
+          >
             {nodeDisplayName}
           </span>
+          {evaluationHint === "tested" ? (
+            <span className="text-dark-violet flex shrink-0 items-center gap-1.5 text-xs whitespace-nowrap">
+              <span className="bg-dark-violet size-1.5 shrink-0 rounded-full" />
+              This observation will be evaluated.
+            </span>
+          ) : null}
+          {evaluationHint === "also" ? (
+            <span className="text-dark-violet flex shrink-0 items-center gap-1.5 text-xs whitespace-nowrap opacity-60">
+              <span className="bg-dark-violet size-1.5 shrink-0 rounded-full" />
+              Also evaluated.
+            </span>
+          ) : null}
+          {evaluationHint === "skipped" ? (
+            <span
+              className="text-muted-foreground hidden shrink-0 cursor-pointer text-xs whitespace-nowrap group-hover:inline"
+              onClick={(event) => {
+                event.stopPropagation();
+                onSelect?.();
+                if (observationId) hints?.onEvaluateInstead(observationId);
+              }}
+            >
+              Evaluate this observation instead?
+            </span>
+          ) : null}
 
           <div className="flex items-center gap-x-2">
             {/* Comment count */}

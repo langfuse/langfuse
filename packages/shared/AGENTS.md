@@ -29,6 +29,11 @@
 - Eval-rule caches: `src/server/evalJobConfigCache.ts` keeps observation/experiment
   absence (`eventBased`) separate from transcript absence (`traceTranscriptBased`).
   Invalidate through `invalidateProjectEvalConfigCaches` after rule or assignment changes.
+- Trace evals gates: `src/server/evals/traceEvalsConfig.ts` holds the project
+  allowlist (`LANGFUSE_TRACE_EVALS_ENABLED_PROJECT_IDS`) and
+  `src/server/evals/traceEvalsProcessingGate.ts` the cached "has an active
+  judge rule" lookup. Both are parallel copies of the Topics gates and share
+  no state with them; `invalidateProjectEvalConfigCaches` clears the lookup.
 - Transcript assembly: pass the enriched result of `orderObservations` into
   `assembleTranscript`. `currentTurn.nestingLevel` uses the first contributing
   generation after history is split off; it is not the depth of the first

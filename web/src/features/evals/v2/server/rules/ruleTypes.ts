@@ -1,6 +1,7 @@
 import {
   EvalTargetObject,
   observationVariableMappingList,
+  TopicsTargetObject,
   paginationLimitZod,
   singleFilterList,
 } from "@langfuse/shared";
@@ -40,9 +41,15 @@ export const ListRulesSchema = z.object({
   search: z.string().trim().max(200).optional(),
   enabled: z.boolean().optional(),
   targetObjects: z
-    .array(z.enum([EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT]))
+    .array(
+      z.enum([
+        EvalTargetObject.EVENT,
+        EvalTargetObject.EXPERIMENT,
+        TopicsTargetObject,
+      ]),
+    )
     .min(1)
-    .max(2)
+    .max(3)
     .optional(),
   filter: singleFilterList
     .superRefine((filters, ctx) => {
@@ -77,11 +84,31 @@ export const CreateRuleSchema = RuleMetadataSchema.extend({
   evaluatorAssignments: z.array(RuleAssignmentInputSchema).max(100),
 });
 
+/**
+ * Trace transcript rules evaluate a whole trace. Every assignment carries its
+ * own `threads` mapping because evaluator defaults map observation columns.
+ */
+export const CreateTraceTranscriptRuleSchema = RuleMetadataSchema.extend({
+  projectId: z.string(),
+  targetObject: z.literal(TopicsTargetObject),
+  enabled: z.boolean(),
+  evaluatorAssignments: z
+    .array(
+      z.object({
+        evaluatorId: z.string().min(1),
+        variableMapping: observationVariableMappingList.min(1),
+      }),
+    )
+    .min(1)
+    .max(100),
+});
+
 export const UpdateRuleSchema = RuleIdSchema.extend({
   name: RuleMetadataSchema.shape.name.optional(),
   filter: RuleMetadataSchema.shape.filter.optional(),
   sampling: RuleMetadataSchema.shape.sampling.optional(),
   enabled: z.boolean().optional(),
+  targetObject: z.enum([EvalTargetObject.EVENT, TopicsTargetObject]).optional(),
   evaluatorMappings: z.array(RuleAssignmentInputSchema).max(100).optional(),
 });
 
@@ -155,6 +182,9 @@ export const CreateOrAttachFromEvaluatorFiltersSchema = z.object({
 
 export type RuleAssignmentInput = z.infer<typeof RuleAssignmentInputSchema>;
 export type CreateRuleInput = z.infer<typeof CreateRuleSchema>;
+export type CreateTraceTranscriptRuleInput = z.infer<
+  typeof CreateTraceTranscriptRuleSchema
+>;
 export type CreateOrAttachFromEvaluatorFiltersInput = z.infer<
   typeof CreateOrAttachFromEvaluatorFiltersSchema
 >;

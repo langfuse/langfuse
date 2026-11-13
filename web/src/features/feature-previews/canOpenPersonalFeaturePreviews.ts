@@ -13,6 +13,7 @@ export function canOpenPersonalFeaturePreviews({
     isLangfuseCloud ||
     session?.user?.v4BetaEnabled === true ||
     isInternalViewEnabled(session) ||
-    session?.user?.featureFlags.langfuseTopics === true
+    session?.user?.featureFlags.langfuseTopics === true ||
+    session?.user?.featureFlags.traceTranscriptEvals === true
   );
 }

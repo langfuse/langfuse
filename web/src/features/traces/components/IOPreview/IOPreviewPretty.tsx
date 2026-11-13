@@ -34,6 +34,7 @@ import {
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import type { MediaReturnType } from "@/src/features/media/validation";
 import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
+import { useTracePresentation } from "@/src/features/traces/contexts/TracePresentationProvider";
 import {
   hasRenderableChatMessages,
   useIOPreviewParser,
@@ -295,6 +296,7 @@ export function IOPreviewPretty({
   showSystemPrompt,
 }: IOPreviewPrettyProps) {
   const { forcedTheme, resolvedTheme } = useTheme();
+  const collapseIo = useTracePresentation() != null;
   const { statusPresentation, parsedStatusMessage } = useStatusMessage(status);
   const [isSkillsExpanded, setSkillsExpanded] = useState(false);
   const [expandedSkillKey, setExpandedSkillKey] = useState("");
@@ -889,11 +891,12 @@ export function IOPreviewPretty({
                         isOutputMessage={isOutputMessage}
                         contentMode={contentMode}
                         defaultCollapsed={
-                          foldsMiddle
+                          collapseIo ||
+                          (foldsMiddle
                             ? folded
                             : message.role !== "system" &&
                               filteredIndex <
-                                messagesToRender.length - EXPANDED_TAIL_LENGTH
+                                messagesToRender.length - EXPANDED_TAIL_LENGTH)
                         }
                         actions={
                           filteredIndex === lastOutputIndex

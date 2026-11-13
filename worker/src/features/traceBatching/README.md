@@ -11,9 +11,12 @@ each role.
   `{trace-batch:<shard>}` maps.
 - **Trace dispatch** (`LANGFUSE_TRACE_DISPATCH_ENABLED`, default off): moves
   tracking and dispatch to the new maps: ingestion → Redis → dispatcher → batch
-  jobs. A trace is admitted when it passes its project's Topics rule sampling or
-  the experiment sampling (`LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE`); both use
-  the same deterministic trace-ID value.
+  jobs. A trace is admitted when it passes its project's Topics rule sampling,
+  its project's trace evals rule sampling
+  (`LANGFUSE_TRACE_EVALS_ENABLED_PROJECT_IDS`, active judge rules only) or the
+  experiment sampling (`LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE`); all use the
+  same deterministic trace-ID value. Facet rules are recorded only while Topics
+  is active for the project, judge rules only while trace evals are.
 - **Consumer, both modes**: reads ClickHouse only for traces of active Topics
   projects within their rule's sample; those have their transcript stored and
   one `topics-trace-queue` job enqueued. Every other admitted trace ends at the

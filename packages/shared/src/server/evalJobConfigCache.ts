@@ -1,5 +1,6 @@
 import { logger } from "./logger";
 import { redis } from "./";
+import { invalidateTraceEvalsProcessingActive } from "./evals/traceEvalsProcessingGate";
 import { invalidateTopicsProcessingActive } from "./topics/processing-gate";
 
 /**
@@ -92,7 +93,7 @@ export const clearNoEvalConfigsCache = async (
   }
 };
 
-/** Also clears the Topics processing gate, which reads the same rules. */
+/** Also clears the Topics and trace evals processing gates, which read the same rules. */
 export const invalidateProjectEvalConfigCaches = async (
   projectId: string,
 ): Promise<void> => {
@@ -101,5 +102,6 @@ export const invalidateProjectEvalConfigCaches = async (
     clearNoEvalConfigsCache(projectId, "eventBased"),
     clearNoEvalConfigsCache(projectId, "traceTranscriptBased"),
     invalidateTopicsProcessingActive(projectId),
+    invalidateTraceEvalsProcessingActive(projectId),
   ]);
 };

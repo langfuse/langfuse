@@ -94,6 +94,7 @@ import {
   isLangfuseAITracingConfigured,
   shouldSkipScoresDedup,
   isForceV3ExperienceProject,
+  isTraceEvalsProjectEnabled,
 } from "@langfuse/shared/src/server";
 import {
   getOrganizationPlanServerSide,
@@ -1088,6 +1089,9 @@ export async function getAuthOptions(
                                 retentionDays: project.retentionDays,
                                 hasTraces: project.hasTraces,
                                 topicsEnabled: isTopicsProjectEnabled(
+                                  project.id,
+                                ),
+                                traceEvalsEnabled: isTraceEvalsProjectEnabled(
                                   project.id,
                                 ),
                                 scoreEditsDisabled: shouldSkipScoresDedup(
