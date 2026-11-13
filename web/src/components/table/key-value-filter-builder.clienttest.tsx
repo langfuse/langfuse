@@ -176,4 +176,31 @@ describe("KeyValueFilterBuilder", () => {
     expect(screen.queryByDisplayValue("team")).not.toBeInTheDocument();
     expect(screen.getByDisplayValue("draft-key")).toBeInTheDocument();
   });
+
+  it("offers numeric metadata comparisons but no numeric equals", () => {
+    render(
+      <KeyValueFilterBuilder
+        mode="string"
+        numericValues
+        activeFilters={[{ key: "attempt", operator: "=", value: "2" }]}
+        onChange={noop}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("combobox", { name: /equals/ }));
+
+    expect(
+      screen.getAllByRole("option").map((option) => option.textContent),
+    ).toEqual([
+      "equals",
+      "contains",
+      "does not contain",
+      "is set",
+      "is not set",
+      "greater than",
+      "less than",
+      "greater than or equals",
+      "less than or equals",
+    ]);
+  });
 });

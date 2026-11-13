@@ -112,17 +112,37 @@ const STRING_OPERATOR_OPTIONS = Object.entries(STRING_OPERATOR_LABELS).map(
 );
 
 // Numeric rows of a string facet share its operator select, so their option
-// values carry a prefix: text `=` and numeric `=` must stay distinct.
+// values carry a prefix: a numeric `=` row (from a URL) must not read as the
+// text `equals`.
 const NUMERIC_OPTION_PREFIX = "number:";
 type NumericOperator = keyof typeof NUMERIC_OPERATOR_LABELS;
 
+// Metadata equality is the text `equals`: unquoted values cannot tell `2`
+// from `"2"`, so no numeric `=` is offered.
 const STRING_AND_NUMERIC_OPERATOR_OPTIONS = [
   ...STRING_OPERATOR_OPTIONS,
-  ...Object.entries(NUMERIC_OPERATOR_LABELS).map(([value, label]) => ({
-    value: `${NUMERIC_OPTION_PREFIX}${value}`,
-    label: value === "=" ? `${label} (number)` : label,
-  })),
+  ...Object.entries(NUMERIC_OPERATOR_LABELS)
+    .filter(([value]) => value !== "=")
+    .map(([value, label]) => ({
+      value: `${NUMERIC_OPTION_PREFIX}${value}`,
+      label,
+    })),
 ];
+
+/** The string facet operators `filter`'s row offers. */
+const stringRowOperatorOptions = (
+  filter: StringKeyValueFilterEntry,
+  numericValues: boolean,
+) => {
+  if (!numericValues) return STRING_OPERATOR_OPTIONS;
+  // A numeric `=` written outside the facet (URL) still shows as itself.
+  return filter.valueType === "number" && filter.operator === "="
+    ? [
+        ...STRING_AND_NUMERIC_OPERATOR_OPTIONS,
+        { value: `${NUMERIC_OPTION_PREFIX}=`, label: "equals (number)" },
+      ]
+    : STRING_AND_NUMERIC_OPERATOR_OPTIONS;
+};
 
 /** The operator select value of a string facet row. */
 const stringRowOperatorValue = (filter: StringKeyValueFilterEntry): string =>
@@ -581,11 +601,10 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                   value={stringRowOperatorValue(
                     filter as StringKeyValueFilterEntry,
                   )}
-                  options={
-                    numericValues
-                      ? STRING_AND_NUMERIC_OPERATOR_OPTIONS
-                      : STRING_OPERATOR_OPTIONS
-                  }
+                  options={stringRowOperatorOptions(
+                    filter as StringKeyValueFilterEntry,
+                    numericValues,
+                  )}
                   placeholder="Operator"
                   onValueChange={(value) =>
                     handleFilterChange(index, stringRowOperatorUpdate(value))
