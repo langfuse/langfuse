@@ -420,6 +420,9 @@ export const topicsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      // One-off scans accept only filters a live scan could save.
+      const filterError = topicRuleFilterError(input.filter);
+      if (filterError) throw new InvalidRequestError(filterError);
       await requireFacetVersions(input.projectId, input.facets);
       return startTopicAnalysis(input, ctx.session.user.id);
     }),
