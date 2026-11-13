@@ -217,9 +217,10 @@ function scopeJoin(
 }
 
 /**
- * Any other join type (RIGHT, FULL, or one added later) may keep the joined
- * table's unmatched rows, so a project condition in its ON clause scopes
- * nothing. Throws unless the WHERE scopes the table instead.
+ * Throws for every join type outside {@link ON_SCOPABLE_JOINS}: a right or
+ * full join keeps the joined table's unmatched rows, so a project condition in
+ * its ON clause scopes nothing. It does not read WHERE; {@link scopeJoin} calls
+ * it only for a table WHERE does not scope.
  */
 function assertScopableInOn(
   join: JoinNode,
