@@ -1510,6 +1510,26 @@ describe("Topics analyses", () => {
     );
   });
 
+  it("rejects snapshot windows longer than 14 days before reading anything", async () => {
+    const slice = {
+      projectId,
+      filter: [],
+      timeRange: {
+        from: new Date("2026-09-08T00:00:00Z"),
+        to: new Date("2026-09-23T00:00:00Z"),
+      },
+      facets: selectedFacets,
+    };
+    await expect(caller().previewAnalysis(slice)).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+    await expect(
+      caller().startAnalysis({ ...slice, label: "Fifteen days" }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(mocks.getTopicSummaryCounts).not.toHaveBeenCalled();
+    expect(mocks.createTopicExecution).not.toHaveBeenCalled();
+  });
+
   it("previews and starts a snapshot when the unsummarized count fails", async () => {
     const slice = {
       projectId,

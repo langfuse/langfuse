@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { keepPreviousData } from "@tanstack/react-query";
 import type { FilterState } from "@langfuse/shared";
 import { topicRuleFilterError, type TopicFacet } from "@langfuse/shared/topics";
+import { useDebounce } from "@/src/hooks/useDebounce";
 import { api } from "@/src/utils/api";
 import { dayWindow, latestFacetRefs } from "./topic-maps";
 import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
@@ -45,7 +46,20 @@ export function SnapshotDialog({
     },
   });
   const { name, filter, facetIds, windowDays, summarize } = form.watch();
-  const setFilter = (next: FilterState) => form.setValue("filter", next);
+  // A burst of edits fires one preview, which scans events on the replica.
+  const previewFields = () => {
+    const { filter, facetIds, windowDays } = form.getValues();
+    return { filter, facetIds, windowDays };
+  };
+  const [previewInput, setPreviewInput] = useState(previewFields);
+  const schedulePreview = useDebounce(setPreviewInput, 500, false);
+  const previewStale =
+    JSON.stringify(previewInput) !==
+    JSON.stringify({ filter, facetIds, windowDays });
+  const setFilter = (next: FilterState) => {
+    form.setValue("filter", next);
+    schedulePreview(previewFields());
+  };
   const range = dayWindow(windowDays, now);
   const facetRefs = latestFacetRefs(facets, facetIds);
   const utils = api.useUtils();
@@ -58,10 +72,17 @@ export function SnapshotDialog({
     days: windowDays,
   });
   const filterError = topicRuleFilterError(filter);
+  const previewFacets = latestFacetRefs(facets, previewInput.facetIds);
   const counts = api.topics.previewAnalysis.useQuery(
-    { projectId, filter, timeRange: range, facets: facetRefs },
     {
-      enabled: !filterError && facetRefs.length > 0,
+      projectId,
+      filter: previewInput.filter,
+      timeRange: dayWindow(previewInput.windowDays, now),
+      facets: previewFacets,
+    },
+    {
+      enabled:
+        !topicRuleFilterError(previewInput.filter) && previewFacets.length > 0,
       placeholderData: keepPreviousData,
     },
   );
@@ -103,6 +124,7 @@ export function SnapshotDialog({
     facetRefs.length > 0 &&
     preview !== null &&
     !counts.isFetching &&
+    !previewStale &&
     preview.summarizedCount + extra >= preview.smallSampleMinimumTraceCount;
 
   return (
@@ -117,12 +139,18 @@ export function SnapshotDialog({
           kind="snapshot"
           model={traceFilter}
           days={windowDays}
-          onDaysChange={(next) => form.setValue("windowDays", next)}
+          onDaysChange={(next) => {
+            form.setValue("windowDays", next);
+            schedulePreview(previewFields());
+          }}
         />
       }
       facets={facets}
       facetIds={facetIds}
-      onFacetIdsChange={(next) => form.setValue("facetIds", next)}
+      onFacetIdsChange={(next) => {
+        form.setValue("facetIds", next);
+        schedulePreview(previewFields());
+      }}
       preview={preview}
       summarize={summarize}
       onSummarizeChange={(next) => form.setValue("summarize", next)}

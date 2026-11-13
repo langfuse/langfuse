@@ -100,9 +100,14 @@ const resultInput = projectInput.extend({
   ),
 });
 const mapInput = projectInput.extend({ runId: topicIdSchema });
+// Snapshots offer 7 or 14 days; longer windows risk an out-of-memory fit.
+const SNAPSHOT_MAX_WINDOW_MS = 14 * 86_400_000;
 const analysisFilterInput = projectInput.extend({
   filter: topicRuleConfigSchema.shape.filter,
-  timeRange: resultInput.shape.timeRange,
+  timeRange: topicTimeRangeSchema.refine(
+    ({ from, to }) => to.getTime() - from.getTime() <= SNAPSHOT_MAX_WINDOW_MS,
+    "Select a time range of at most 14 days.",
+  ),
   facets: z.array(topicFacetRefSchema).min(1),
 });
 const tracesInput = projectInput.extend({

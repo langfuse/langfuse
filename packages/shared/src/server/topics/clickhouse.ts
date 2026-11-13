@@ -887,6 +887,10 @@ export async function getTopicSummaryCounts(
       publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
     },
     tags: { route: "topics-summary-counts", projectId },
+    // A cohort scans events, so keep it off the primary like the other preview reads.
+    ...(cohort
+      ? { preferredClickhouseService: "EventsReadOnly" as const }
+      : {}),
   });
   return facets.map(({ facetId, version }) => ({
     facetId,
