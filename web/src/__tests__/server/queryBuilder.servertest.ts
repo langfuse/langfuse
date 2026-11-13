@@ -4215,11 +4215,10 @@ describe("queryBuilder", () => {
           true,
         );
 
-        expect(sql).toContain("WITH FILL");
+        expect(sql).toMatch(/\bwith fill\b/i);
         expect(sql).toContain("time_dimension");
         // GROUP BY parts may be newline-separated in the generated SQL
-        expect(sql).toContain("GROUP BY costType");
-        expect(sql).toMatch(/GROUP BY costType[\s,]+time_dimension/);
+        expect(sql).toMatch(/\bgroup by costType[\s,]+time_dimension\b/i);
 
         const result = await executeQuery(
           projectId,
@@ -4940,7 +4939,7 @@ describe("query builder measure-aggregation validation", () => {
     expect(result.query).toContain("as entity_dimension");
     expect(result.query).toMatch(/\bgroup by entity_dimension\b/i);
     expect(result.query).not.toContain("time_dimension");
-    expect(result.query).not.toContain("WITH FILL");
+    expect(result.query).not.toMatch(/\bwith fill\b/i);
   });
 
   it("should include declared relation for relation-backed entity dimensions", async () => {
