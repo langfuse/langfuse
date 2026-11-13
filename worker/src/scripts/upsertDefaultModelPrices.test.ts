@@ -23,7 +23,7 @@ describe("default Bedrock Topics model prices", () => {
     ["us.cohere.embed-v4:0", 0.12e-6, undefined],
     ["eu.cohere.embed-v4:0", 0.12e-6, undefined],
     ["us.anthropic.claude-opus-4-7", 5e-6, 25e-6],
-    ["ca.anthropic.claude-haiku-5-5", 0.1e-6, 0.5e-6],
+    ["ca.anthropic.claude-haiku-5-5", 0.11e-6, 0.55e-6],
   ])("matches and prices %s", (modelName, input, output) => {
     const matches = defaultModelPrices.filter(({ matchPattern }) =>
       // Both catalogue patterns and model names are checked-in test fixtures.
@@ -67,6 +67,78 @@ describe("default Bedrock Topics model prices", () => {
     expect(longContext?.prices.output_reasoning_tokens.toNumber()).toBe(
       0.825e-6,
     );
+  });
+});
+
+describe("Claude 5.5 Bedrock profile prices", () => {
+  it.each([
+    [
+      "global.anthropic.claude-sonnet-5-5-v1:0",
+      2e-6,
+      10e-6,
+      2.5e-6,
+      4e-6,
+      0.1e-6,
+    ],
+    [
+      "us.anthropic.claude-sonnet-5-5-v1:0",
+      2.2e-6,
+      11e-6,
+      2.75e-6,
+      4.4e-6,
+      0.11e-6,
+    ],
+    ["anthropic.claude-sonnet-5-5", 2.2e-6, 11e-6, 2.75e-6, 4.4e-6, 0.11e-6],
+    [
+      "global.anthropic.claude-haiku-5-5-v1:0",
+      0.1e-6,
+      0.5e-6,
+      0.125e-6,
+      0.2e-6,
+      0.01e-6,
+    ],
+    [
+      "ca.anthropic.claude-haiku-5-5-v1:0",
+      0.11e-6,
+      0.55e-6,
+      0.1375e-6,
+      0.22e-6,
+      0.011e-6,
+    ],
+  ])(
+    "prices %s",
+    (modelId, input, output, cacheWrite, cacheWrite1h, cacheRead) => {
+      const matches = defaultModelPrices.filter(({ matchPattern }) =>
+        // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
+        new RegExp(matchPattern.replace(/^\(\?i\)/, ""), "i").test(modelId),
+      );
+      expect(matches).toHaveLength(1);
+      expect(
+        matches[0].pricingTiers.find((tier) => tier.isDefault)?.prices,
+      ).toMatchObject({
+        input,
+        output,
+        input_cache_creation_5m: cacheWrite,
+        input_cache_creation_1h: cacheWrite1h,
+        input_cache_read: cacheRead,
+      });
+    },
+  );
+
+  it("prices Haiku 5.5 long context at the geographic rate", () => {
+    const entry = defaultModelPrices.find(
+      ({ modelName }) => modelName === "anthropic.claude-haiku-5-5",
+    )!;
+    expect(
+      entry.pricingTiers.find((tier) => tier.name === "Large Context (>100K)")
+        ?.prices,
+    ).toMatchObject({
+      input: 0.55e-6,
+      output: 2.75e-6,
+      input_cache_creation_5m: 0.6875e-6,
+      input_cache_creation_1h: 1.1e-6,
+      input_cache_read: 0.055e-6,
+    });
   });
 });
 
