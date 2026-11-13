@@ -1,9 +1,21 @@
-/* eslint-disable @repo/no-style-props */
 import { cn } from "@/src/utils/tailwind";
 import { type MonitorSeverity } from "@langfuse/shared/monitors";
+import { cva, type VariantProps } from "class-variance-authority";
 
 const badgeBaseClassName =
   "inline-flex h-5.25 items-center gap-1.5 rounded-sm border pr-1.5 pl-2 text-xs leading-none font-normal transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2";
+
+const monitorSeverityBadgeLayoutVariants = cva("", {
+  variants: {
+    layout: {
+      default: "w-20 justify-center py-1",
+      inlineEnd: "ml-auto w-auto shrink-0 px-2 py-0.5 text-[10px]",
+    },
+  },
+  defaultVariants: {
+    layout: "default",
+  },
+});
 
 /** severityVariantClassName maps each MonitorSeverity to its base badge chrome. */
 const severityVariantClassName: Record<MonitorSeverity, string> = {
@@ -42,19 +54,18 @@ const severityLabel: Record<MonitorSeverity, string> = {
 /** MonitorSeverityBadge displays the Monitor's severity, including loading states for pending monitors. */
 export function MonitorSeverityBadge({
   severity,
-  className,
+  layout,
 }: {
   severity: MonitorSeverity;
-  className?: string;
+  layout?: VariantProps<typeof monitorSeverityBadgeLayoutVariants>["layout"];
 }) {
   return (
     <div
       className={cn(
         badgeBaseClassName,
         severityVariantClassName[severity],
-        "w-20 justify-center py-1",
+        monitorSeverityBadgeLayoutVariants({ layout }),
         severityClassName[severity],
-        className,
       )}
     >
       {severity === "UNKNOWN" ? (
