@@ -90,3 +90,76 @@ describe("logger trace correlation", () => {
     expect(line.span_id).toBe("00f067aa0ba902b7");
   });
 });
+
+describe("logger credential redaction", () => {
+  const CREDENTIAL = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.a-real-bearer-token";
+
+  // ioredis sets `err.command = { name, args }` on every reply error; for AUTH
+  // the arguments are the username and the credential.
+  const replyError = () =>
+    Object.assign(new Error("WRONGPASS invalid username-password pair"), {
+      name: "ReplyError",
+      command: { name: "auth", args: ["object-id-123", CREDENTIAL] },
+    });
+
+  it("redacts the credential on an error passed as metadata", () => {
+    const line = jsonLine({ error: replyError() });
+
+    expect(JSON.stringify(line)).not.toContain(CREDENTIAL);
+    expect(line.error.command).toEqual({ name: "auth", args: "[REDACTED]" });
+    // The diagnostic value is kept: which command failed, and why.
+    expect(line.error.message).toBe("WRONGPASS invalid username-password pair");
+  });
+
+  it("redacts a credential buried in a cause chain", () => {
+    const line = jsonLine({
+      error: new Error("queue connection lost", { cause: replyError() }),
+    });
+
+    expect(JSON.stringify(line)).not.toContain(CREDENTIAL);
+    expect(line.error.cause.command).toEqual({
+      name: "auth",
+      args: "[REDACTED]",
+    });
+  });
+
+  it("redacts a credential inside an AggregateError", () => {
+    const line = jsonLine({
+      error: new AggregateError([replyError()], "all connections failed"),
+    });
+
+    expect(JSON.stringify(line)).not.toContain(CREDENTIAL);
+    expect(line.error.errors[0].command).toEqual({
+      name: "auth",
+      args: "[REDACTED]",
+    });
+  });
+
+  it("redacts the command the errors format lifts onto the record", () => {
+    // winston's `errors` format copies an Error's own enumerable properties
+    // onto the log record, so the command arrives detached from any Error.
+    const line = jsonLine({
+      command: { name: "auth", args: ["object-id-123", CREDENTIAL] },
+    });
+
+    expect(JSON.stringify(line)).not.toContain(CREDENTIAL);
+    expect(line.command).toEqual({ name: "auth", args: "[REDACTED]" });
+  });
+
+  it("redacts HELLO, which also carries credentials", () => {
+    const line = jsonLine({
+      command: { name: "HELLO", args: ["3", "AUTH", "user", CREDENTIAL] },
+    });
+
+    expect(JSON.stringify(line)).not.toContain(CREDENTIAL);
+    expect(line.command).toEqual({ name: "HELLO", args: "[REDACTED]" });
+  });
+
+  it("leaves other commands intact so failures stay debuggable", () => {
+    const line = jsonLine({
+      command: { name: "get", args: ["api-key:abc"] },
+    });
+
+    expect(line.command).toEqual({ name: "get", args: ["api-key:abc"] });
+  });
+});
