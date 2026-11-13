@@ -34,7 +34,7 @@ export const HeaderActionMenuRow = React.forwardRef<
         "w-full justify-start gap-2 font-normal",
         variant === "destructive" && "text-destructive hover:text-destructive",
         visibleReason &&
-          "h-auto items-start py-1 text-left whitespace-normal [&>svg]:mt-0.5",
+          "h-auto items-start py-1 text-left whitespace-normal [&>svg]:translate-y-0.5",
       )}
       title={disabledReason}
       {...props}
