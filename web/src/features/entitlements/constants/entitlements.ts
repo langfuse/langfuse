@@ -18,6 +18,7 @@ const entitlements = [
   "in-app-agent",
   "self-host-telemetry-opt-out",
   "external-media-storage",
+  "storage-iam-role-auth",
 ] as const;
 export type Entitlement = (typeof entitlements)[number];
 
@@ -44,6 +45,7 @@ const selfHostedEnterpriseEntitlements: Entitlement[] = [
   "prompt-protected-labels",
   "admin-api",
   "external-media-storage",
+  "storage-iam-role-auth",
 ];
 
 // Entitlement Limits: Limits on the number of resources that can be created/used
@@ -139,6 +141,7 @@ export const entitlementAccess: Record<
       "scheduled-blob-exports",
       "cloud-spend-alerts",
       "external-media-storage",
+      "storage-iam-role-auth",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,

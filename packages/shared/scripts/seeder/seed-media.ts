@@ -14,7 +14,7 @@ import { Readable } from "stream";
 
 import { prisma } from "../../src/db";
 import { env } from "../../src/env";
-import { logger, StorageServiceFactory } from "../../src/server";
+import { logger, StorageServiceFactory, storageKeys } from "../../src/server";
 
 // Test file paths (relative to monorepo root)
 const TEST_FILES_DIR = path.join(
@@ -232,8 +232,10 @@ async function uploadAndCreateMediaRecord(
   try {
     const storageClient = StorageServiceFactory.getInstance({
       bucketName: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
-      accessKeyId: env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY,
+      credentials: storageKeys(
+        env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
+        env.LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY,
+      ),
       endpoint: env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT,
       region: env.LANGFUSE_S3_MEDIA_UPLOAD_REGION,
       forcePathStyle: env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE === "true",

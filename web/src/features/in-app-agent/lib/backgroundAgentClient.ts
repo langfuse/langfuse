@@ -1,8 +1,9 @@
 import { AbstractAgent, type RunAgentInput } from "@ag-ui/client";
-import { EventType, type BaseEvent } from "@ag-ui/core";
+import { EventType, type BaseEvent, type Message } from "@ag-ui/core";
 import { Observable } from "rxjs";
 
 import {
+  AgUiMessageSchema,
   InAppAgentRunStatus,
   type AgUiContext,
   type AgUiMessage,
@@ -75,7 +76,9 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
   }) {
     super({
       threadId: config.threadId,
-      initialMessages: config.initialMessages as never,
+      initialMessages: config.initialMessages
+        ? toAgentMessages(config.initialMessages)
+        : undefined,
     });
 
     this.projectId = config.projectId;
@@ -89,8 +92,7 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
     return new Observable<BaseEvent>((subscriber) => {
       const controller = this.resetAbortController();
 
-      const messages = input.messages as unknown as AgUiMessage[];
-      const message = getLastUserMessageContent(messages);
+      const message = getLastUserMessageContent(input.messages);
 
       if (!message) {
         subscriber.error(new Error("A user message is required"));
@@ -99,7 +101,7 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
 
       this.startRun({
         message,
-        context: input.context as unknown as AgUiContext,
+        context: input.context,
       })
         .then(({ runId }) => {
           this.onStatus?.({
@@ -149,6 +151,10 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
   abortRun(): void {
     this.abortController.abort();
     super.abortRun();
+  }
+
+  setPersistedMessages(messages: AgUiMessage[]): void {
+    super.setMessages(toAgentMessages(messages));
   }
 
   // Hydration must set messages and cursor from the same persisted snapshot.
@@ -331,7 +337,28 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
           throw new Error(frame.data.message);
         }
 
-        const event = frame.data.event;
+        let event = frame.data.event;
+        if (
+          event.type === EventType.TOOL_CALL_RESULT &&
+          typeof event.error === "string"
+        ) {
+          const { error, ...toolResult } = event;
+          const metadata = toolResult.metadata;
+          if (
+            metadata !== undefined &&
+            (!metadata ||
+              typeof metadata !== "object" ||
+              Array.isArray(metadata))
+          ) {
+            throw new InvalidWatchFrameError();
+          }
+          // The persisted error is an application field. AG-UI preserves
+          // namespaced metadata through its protocol enforcement boundary.
+          event = {
+            ...toolResult,
+            metadata: { ...metadata, "langfuse.toolError": error },
+          };
+        }
 
         if (
           event.type === EventType.RUN_STARTED &&
@@ -348,12 +375,30 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
 
         this.cursor = frame.data.sequenceNumber;
         this.onCursor?.(this.cursor);
+        if (
+          (event.type === EventType.REASONING_START ||
+            event.type === EventType.REASONING_END) &&
+          event.messageId === undefined
+        ) {
+          // Historical span markers lack IDs. The REASONING_MESSAGE_* events
+          // carry the transcript and loading state independently of these spans.
+          continue;
+        }
         subscriber.next(event as unknown as BaseEvent);
       }
     }
 
     return false;
   }
+}
+
+function toAgentMessages(messages: AgUiMessage[]): Message[] {
+  // The native Message type omits legacy binary shapes in historical rows,
+  // including id-only attachments unsupported by its compatibility middleware.
+  // Preserve the validated transcript bytes here; Halo only creates text input.
+  return messages.map((message) =>
+    AgUiMessageSchema.parse(message),
+  ) as Message[];
 }
 
 function getErrorMessage(error: unknown): string {
@@ -363,7 +408,7 @@ function getErrorMessage(error: unknown): string {
 }
 
 function getLastUserMessageContent(
-  messages: readonly AgUiMessage[],
+  messages: readonly Message[],
 ): string | undefined {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];

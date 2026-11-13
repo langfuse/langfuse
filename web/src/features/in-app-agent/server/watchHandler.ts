@@ -8,7 +8,7 @@ import { z } from "zod";
 
 import { assertInAppAgentAvailable } from "@/src/features/in-app-agent/server/availability";
 import { getServerAuthSessionForRequest } from "@/src/server/auth";
-import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
+import { isProjectMember } from "@/src/server/utils/checkProjectMembership";
 
 const WatchQuerySchema = z.object({
   projectId: z.string().min(1),
@@ -46,7 +46,7 @@ export default async function watchHandler(request: Request) {
 
     const { projectId, conversationId, cursor, openRunId } = query.data;
 
-    if (!isProjectMemberOrAdmin(user, projectId)) {
+    if (!isProjectMember(user, projectId)) {
       throw new ForbiddenError("User is not a member of this project");
     }
 

@@ -35,6 +35,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
   getCurrentSpan: vi.fn(() => undefined),
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   sendBatchExportSuccessEmail: vi.fn(),
+  storageKeys: () => undefined,
   StorageServiceFactory: {
     getInstance: () => ({
       uploadFileBuffered: mocks.uploadFileBuffered,

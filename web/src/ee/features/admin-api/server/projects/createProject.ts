@@ -9,6 +9,7 @@ import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { projectRetentionSchema } from "@/src/features/auth/lib/projectRetentionSchema";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { emitChbProjectEvent } from "@/src/ee/features/billing/server/chb/chbProjectEvents";
+import { createDefaultScoreConfigs } from "@/src/features/projects/server/defaultScoreConfigs";
 
 export async function handleCreateProject(
   req: NextApiRequest,
@@ -89,7 +90,6 @@ export async function handleCreateProject(
       });
     }
 
-    // Create the project
     const project = await prisma.project.create({
       data: {
         name,
@@ -98,6 +98,7 @@ export async function handleCreateProject(
         metadata: parsedMetadata,
       },
     });
+    await createDefaultScoreConfigs(project.id);
 
     // Refresh org-scoped keys' baked projectIds now that a project exists.
     await invalidateCachedOrgApiKeys(scope.orgId);

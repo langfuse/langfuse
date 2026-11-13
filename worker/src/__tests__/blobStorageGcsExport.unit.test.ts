@@ -121,8 +121,7 @@ describe("handleBlobStorageIntegrationProjectJob — GOOGLE_CLOUD_STORAGE", () =
       bucketName: "allowed-bucket",
       useGoogleCloudStorage: true,
       useAzureBlob: false,
-      accessKeyId: undefined,
-      secretAccessKey: undefined,
+      credentials: undefined,
       googleCloudCredentials: undefined,
     });
     expect(uploadCalls.length).toBeGreaterThan(0);
@@ -166,8 +165,7 @@ describe("handleBlobStorageIntegrationProjectJob — GOOGLE_CLOUD_STORAGE", () =
       bucketName: "customer-bucket",
       useGoogleCloudStorage: true,
       googleCloudCredentials: key,
-      accessKeyId: undefined,
-      secretAccessKey: undefined,
+      credentials: undefined,
     });
     expect(uploadCalls.length).toBeGreaterThan(0);
   });

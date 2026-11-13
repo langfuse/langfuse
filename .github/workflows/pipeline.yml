@@ -29,6 +29,9 @@ env:
   # env context in jobs.<job_id>.name, so matrix jobs use matrix.node-version
   # for their display names.
   NODE_VERSION: 24
+  # golang-migrate release installed for ClickHouse migrations. The cache key
+  # and scripts/ci/install-golang-migrate.sh both read this value.
+  GOLANG_MIGRATE_VERSION: v4.19.1
 
   # Disable CI cache restores for fork PRs.
   #
@@ -170,7 +173,7 @@ jobs:
             ai_gateway:
               - 'ai-gateway/**'
               - 'packages/shared/prisma/migrations/**/*gateway*/**'
-              - 'web/src/__e2e__/**/*.gatewaye2e.{ts,tsx}'
+              - 'web/src/__e2e__/ai-gateway/**'
               - 'web/src/features/ai-gateway/**'
               - 'web/src/features/public-api/server/createAuthedProjectAPIRoute.ts'
               - 'web/src/pages/api/internal/ai-gateway/**'
@@ -651,32 +654,27 @@ jobs:
         # the equivalence snapshots. Its output is version-specific, so pin the
         # exact version and regenerate snapshots on any bump; keep in sync with
         # scripts/codex/cloud_services.sh and docker-compose.dev.yml.
-        # continue-on-error + timeout-minutes: a missing binary OR a stalled apt
-        # mirror just skips the tests, never blocks (timeout-minutes bounds a
-        # hang, which continue-on-error alone would not).
-        continue-on-error: true
+        # Fails the job if the install fails: without the binary the
+        # SQL-equivalence suites skip and would pass silently.
         timeout-minutes: 5
         env:
           CLICKHOUSE_VERSION: 26.8.36.3
         run: |
           set -euo pipefail
           sudo mkdir -p /etc/apt/keyrings
-          curl -fsSL https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key \
+          curl -fsSL --retry 5 --retry-all-errors https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key \
             | gpg --dearmor \
             | sudo tee /etc/apt/keyrings/clickhouse.gpg >/dev/null
           echo "deb [signed-by=/etc/apt/keyrings/clickhouse.gpg] https://packages.clickhouse.com/deb stable main" \
             | sudo tee /etc/apt/sources.list.d/clickhouse.list >/dev/null
-          sudo apt-get update
-          sudo apt-get install --allow-downgrades -y \
+          sudo apt-get -o Acquire::Retries=5 update
+          sudo apt-get -o Acquire::Retries=5 install --allow-downgrades -y \
             "clickhouse-common-static=${CLICKHOUSE_VERSION}"
           clickhouse --version
-      - name: run SQL-equivalence tests (non-blocking)
-        # Non-blocking: a snapshot drift or an intentional SQL change emits a
-        # warning but must not fail the job (`|| echo` swallows the exit code).
-        # Make it a required check once the suite has proven stable.
-        run: |
-          pnpm --filter @langfuse/shared run test .golden.test \
-            || echo "::warning title=SQL-equivalence tests failed::Query-AST SQL-equivalence snapshots drifted or the tests failed (non-blocking). Regenerate with: pnpm --filter @langfuse/shared run test .golden.test -u"
+      - name: run SQL-equivalence tests
+        # A snapshot drift fails the job. After an intentional SQL change,
+        # regenerate with: pnpm --filter @langfuse/shared run test .golden.test -u
+        run: pnpm --filter @langfuse/shared run test .golden.test
 
   test-docker-build:
     name: test-docker-build (${{ matrix.component }})
@@ -841,17 +839,23 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Restore golang-migrate cache
+        id: migrate-cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] test-only migrate binary; not part of any artifact build or publishing flow
+        with:
+          path: ~/.cache/golang-migrate/${{ env.GOLANG_MIGRATE_VERSION }}
+          key: golang-migrate-${{ env.GOLANG_MIGRATE_VERSION }}-${{ runner.os }}-${{ runner.arch }}
       - name: Install golang-migrate for Clickhouse migrations in background
-        # Only needed by the "Migrate DB" step, so let the dependency setup
-        # overlap the 1-25s download. "Migrate DB" waits for the marker file.
+        # Only needed by the "Migrate DB" step, so let dependency setup overlap
+        # the install. A cache hit returns immediately; a miss downloads in the
+        # background. "Migrate DB" waits for the marker file.
+        env:
+          MIGRATE_CACHE_HIT: ${{ steps.migrate-cache.outputs.cache-hit }}
         run: |
           (
             set -e
-            curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
-              --output migrate.linux-amd64.tar.gz \
-              https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
-            tar xzf migrate.linux-amd64.tar.gz
-            sudo mv migrate /usr/bin/migrate
+            bash scripts/ci/install-golang-migrate.sh
             touch /tmp/migrate-installed
           ) > /tmp/migrate-install.log 2>&1 &
       - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
@@ -1090,13 +1094,18 @@ jobs:
       - name: install dependencies
         run: |
           pnpm install
+      - name: Restore golang-migrate cache
+        id: migrate-cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] test-only migrate binary; not part of any artifact build or publishing flow
+        with:
+          path: ~/.cache/golang-migrate/${{ env.GOLANG_MIGRATE_VERSION }}
+          key: golang-migrate-${{ env.GOLANG_MIGRATE_VERSION }}-${{ runner.os }}-${{ runner.arch }}
       - name: Install golang-migrate for Clickhouse migrations
+        env:
+          MIGRATE_CACHE_HIT: ${{ steps.migrate-cache.outputs.cache-hit }}
         run: |
-          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
-            --output migrate.linux-amd64.tar.gz \
-            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
-          tar xzf migrate.linux-amd64.tar.gz
-          sudo mv migrate /usr/bin/migrate
+          bash scripts/ci/install-golang-migrate.sh
           which migrate
       - name: Load default env
         run: |
@@ -1150,6 +1159,7 @@ jobs:
         run: pnpm --filter=worker run test:exclude-llm-connections
         env:
           LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: ${{ matrix.deploy-mode == '' && 'http://localhost:4566' || '' }}
+          LANGFUSE_TEST_FLOCI_ENDPOINT: ${{ matrix.deploy-mode == '' && 'http://localhost:4566' || '' }}
 
   tests-fips:
     # Runs the web and worker suites the way a FIPS host would: on the UBI
@@ -1210,13 +1220,18 @@ jobs:
         # its own copy for UBI.
         run: |
           pnpm install
+      - name: Restore golang-migrate cache
+        id: migrate-cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] test-only migrate binary; not part of any artifact build or publishing flow
+        with:
+          path: ~/.cache/golang-migrate/${{ env.GOLANG_MIGRATE_VERSION }}
+          key: golang-migrate-${{ env.GOLANG_MIGRATE_VERSION }}-${{ runner.os }}-${{ runner.arch }}
       - name: Install golang-migrate for Clickhouse migrations
+        env:
+          MIGRATE_CACHE_HIT: ${{ steps.migrate-cache.outputs.cache-hit }}
         run: |
-          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
-            --output migrate.linux-amd64.tar.gz \
-            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
-          tar xzf migrate.linux-amd64.tar.gz
-          sudo mv migrate /usr/bin/migrate
+          bash scripts/ci/install-golang-migrate.sh
           which migrate
       - name: Load default env
         run: |
@@ -1263,11 +1278,12 @@ jobs:
       - name: Run ${{ matrix.suite }} tests under forced FIPS
         env:
           LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: ${{ matrix.suite == 'worker' && 'http://localhost:4566' || '' }}
+          LANGFUSE_TEST_FLOCI_ENDPOINT: ${{ matrix.suite == 'worker' && 'http://localhost:4566' || '' }}
           SUITE: ${{ matrix.suite }}
         run: |
           docker run --rm --network host \
             -e OPENSSL_FORCE_FIPS_MODE=1 \
-            -e CI -e VITEST_MAX_WORKERS -e LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT \
+            -e CI -e VITEST_MAX_WORKERS -e LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT -e LANGFUSE_TEST_FLOCI_ENDPOINT \
             -e PNPM_STORE_DIR=/pnpm-store \
             -v "$(pnpm store path --silent):/pnpm-store" \
             -v "$PWD:/src:ro" \
@@ -1308,13 +1324,12 @@ jobs:
       - name: install dependencies
         run: |
           pnpm install
+      # Download directly. This job holds provider credentials and stays
+      # cache-cold; a shared migrate cache would execute a binary saved by
+      # another job.
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
-            --output migrate.linux-amd64.tar.gz \
-            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
-          tar xzf migrate.linux-amd64.tar.gz
-          sudo mv migrate /usr/bin/migrate
+          bash scripts/ci/install-golang-migrate.sh
           which migrate
       - name: Load default env
         run: |
@@ -1424,15 +1439,20 @@ jobs:
       # The next three downloads/startups have no dependency on the build, so
       # they run in the background and the build overlaps them. Later steps
       # wait on their marker files.
+      - name: Restore golang-migrate cache
+        id: migrate-cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] test-only migrate binary; not part of any artifact build or publishing flow
+        with:
+          path: ~/.cache/golang-migrate/${{ env.GOLANG_MIGRATE_VERSION }}
+          key: golang-migrate-${{ env.GOLANG_MIGRATE_VERSION }}-${{ runner.os }}-${{ runner.arch }}
       - name: Install golang-migrate for Clickhouse migrations in background
+        env:
+          MIGRATE_CACHE_HIT: ${{ steps.migrate-cache.outputs.cache-hit }}
         run: |
           (
             set -e
-            curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
-              --output migrate.linux-amd64.tar.gz \
-              https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
-            tar xzf migrate.linux-amd64.tar.gz
-            sudo mv migrate /usr/bin/migrate
+            bash scripts/ci/install-golang-migrate.sh
             touch /tmp/migrate-installed
           ) > /tmp/migrate-install.log 2>&1 &
       - name: Start dev containers in background
@@ -1549,15 +1569,20 @@ jobs:
       # The next two downloads/startups have no dependency on the build, so
       # they run in the background and the build overlaps them. Later steps
       # wait on their marker files.
+      - name: Restore golang-migrate cache
+        id: migrate-cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] test-only migrate binary; not part of any artifact build or publishing flow
+        with:
+          path: ~/.cache/golang-migrate/${{ env.GOLANG_MIGRATE_VERSION }}
+          key: golang-migrate-${{ env.GOLANG_MIGRATE_VERSION }}-${{ runner.os }}-${{ runner.arch }}
       - name: Install golang-migrate for Clickhouse migrations in background
+        env:
+          MIGRATE_CACHE_HIT: ${{ steps.migrate-cache.outputs.cache-hit }}
         run: |
           (
             set -e
-            curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
-              --output migrate.linux-amd64.tar.gz \
-              https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
-            tar xzf migrate.linux-amd64.tar.gz
-            sudo mv migrate /usr/bin/migrate
+            bash scripts/ci/install-golang-migrate.sh
             touch /tmp/migrate-installed
           ) > /tmp/migrate-install.log 2>&1 &
       - name: Start dev containers in background
@@ -1618,7 +1643,7 @@ jobs:
       - pre-job
       - ai-gateway-filter
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.ai-gateway-filter.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'))) }}
-    name: test-ai-gateway-e2e (node24, pg15)
+    name: test-ai-gateway-e2e
     env:
       NODE_ENV: test
     steps:
@@ -1647,12 +1672,23 @@ jobs:
       - name: Load default env
         run: cp .env.dev.example .env
       - name: Configure gateway signing
+        # Values written to GITHUB_ENV are printed in every later step's env
+        # header, so mask the secrets before they reach GITHUB_ENV. Masks match
+        # single lines, so the PEM body is masked line by line.
         run: |
+          service_key="$(openssl rand -hex 32)"
+          echo "::add-mask::$service_key"
           openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out /tmp/gateway-jwt-private.pem
+          while IFS= read -r line; do
+            case "$line" in
+              "" | -----*) ;;
+              *) echo "::add-mask::$line" ;;
+            esac
+          done < /tmp/gateway-jwt-private.pem
           openssl pkey -in /tmp/gateway-jwt-private.pem -pubout -out /tmp/gateway-jwt-public.pem
           delimiter="GATEWAY_KEY_$(openssl rand -hex 12)"
           {
-            echo "LANGFUSE_AI_GATEWAY_SERVICE_KEY=$(openssl rand -hex 32)"
+            echo "LANGFUSE_AI_GATEWAY_SERVICE_KEY=$service_key"
             echo "LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST=seed-org-id"
             echo "LANGFUSE_AI_GATEWAY_JWT_KEY_ID=ci"
             echo "LANGFUSE_AI_GATEWAY_JWT_ISSUER=langfuse-gateway-ci"
@@ -1664,13 +1700,12 @@ jobs:
             cat /tmp/gateway-jwt-public.pem
             echo "$delimiter"
           } >> "$GITHUB_ENV"
+      # Download directly. This job holds provider credentials and stays
+      # cache-cold; a shared migrate cache would execute a binary saved by
+      # another job.
       - name: Install golang-migrate
         run: |
-          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
-            --output migrate.linux-amd64.tar.gz \
-            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
-          tar xzf migrate.linux-amd64.tar.gz
-          sudo mv migrate /usr/bin/migrate
+          bash scripts/ci/install-golang-migrate.sh
       - name: Start dev containers
         run: |
           docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180
@@ -1705,6 +1740,10 @@ jobs:
         env:
           LANGFUSE_LLM_CONNECTION_OPENAI_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_OPENAI_KEY }}
           LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY }}
+          LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY }}
+          LANGFUSE_LLM_CONNECTION_BEDROCK_REGION: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_REGION }}
+          LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY }}
+          LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY }}
 
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix

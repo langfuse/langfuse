@@ -107,7 +107,7 @@ export function scoreChartDataToDataPoints(
 
 const compareViewMetricUnits = {
   cost: "USD",
-  latency: "millisecond",
+  latency: "milliseconds",
 } as const;
 
 export function getCompareViewChartUnit(metricKey: string): string | undefined {

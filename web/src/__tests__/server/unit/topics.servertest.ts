@@ -1,5 +1,6 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { canViewTopics } from "@/src/features/topics/topicsAccess";
+import { TOPICS_BACKFILL_TRACE_LIMIT } from "@/src/features/topics/backfill-limit";
 import type { Session } from "next-auth";
 import type * as topicsServer from "@langfuse/shared/topics/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,12 +8,15 @@ import {
   topicProcessingConfigSchema,
   topicEmbeddingConfigSchema,
   DEFAULT_TOPIC_FACETS,
+  TOPICS_ANALYSIS_SAMPLING_SEED,
+  TOPICS_SLICE_MAX_TRACES,
   type TopicExecution,
   type TopicExecutionInput,
 } from "@langfuse/shared/topics";
 
 const mocks = vi.hoisted(() => ({
   getTopicResultCounts: vi.fn(),
+  listCurrentTopicSummaries: vi.fn(),
   createTopicExecution: vi.fn(),
   readTopicExecutionSummary: vi.fn(),
   readTopicExecutionTraceErrors: vi.fn(),
@@ -25,6 +29,7 @@ const mocks = vi.hoisted(() => ({
   getLatestFacetSummaries: vi.fn(),
   hasStoredTopicSummaries: vi.fn(),
   getPublishedTopicRun: vi.fn(),
+  getTopicRuleMap: vi.fn(),
   getTopicFacetVersion: vi.fn(),
   createTopicFacet: vi.fn(),
   createTopicFacetVersion: vi.fn(),
@@ -40,13 +45,28 @@ const mocks = vi.hoisted(() => ({
   saveTopicsSetup: vi.fn(),
   setTopicsAutomaticProcessing: vi.fn(),
   enqueueTopicExecution: vi.fn(),
+  enqueueTopicSnapshotSetup: vi.fn(),
+  readTopicSnapshotSummarizing: vi.fn(),
+  writeTopicExecution: vi.fn(),
+  writeTopicSnapshotSummarizing: vi.fn(),
   getTopicExecutionQueueState: vi.fn(),
   queryClickhouse: vi.fn(),
   auditLog: vi.fn(),
 }));
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
-  const { selectTopicTraceRows } = await importOriginal<typeof topicsServer>();
-  return { ...mocks, selectTopicTraceRows };
+  const {
+    selectTopicTraceRows,
+    topicAnalysisCohort,
+    countTopicCohortTraces,
+    topicMatchingTraceIdsQuery,
+  } = await importOriginal<typeof topicsServer>();
+  return {
+    ...mocks,
+    selectTopicTraceRows,
+    topicAnalysisCohort,
+    countTopicCohortTraces,
+    topicMatchingTraceIdsQuery,
+  };
 });
 vi.mock(
   "@langfuse/shared/src/server/repositories/clickhouse",
@@ -58,6 +78,7 @@ vi.mock(
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   getTopicResultCounts: mocks.getTopicResultCounts,
+  listCurrentTopicSummaries: mocks.listCurrentTopicSummaries,
 }));
 vi.mock("@/src/features/audit-logs/auditLog", () => ({
   auditLog: mocks.auditLog,
@@ -67,6 +88,7 @@ vi.mock("@/src/features/posthog-analytics/server/backendActivity", () => ({
 }));
 
 import { topicsRouter } from "@/src/features/topics/server/topicsRouter";
+import {} from "@/src/features/topics/server/slices";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
 const projectId = "project-a";
@@ -97,7 +119,6 @@ function caller(role: "ADMIN" | "VIEWER" = "ADMIN", langfuseTopics = true) {
     expires: "1",
     user: {
       id: "user-a",
-      admin: false,
       featureFlags: testFeatureFlags({ langfuseTopics }),
       organizations: [
         {
@@ -255,6 +276,15 @@ describe("Topics project allowlist", () => {
     ["rules", () => outside().rules({ projectId })],
     ["runs", () => outside().executions({ projectId })],
     ["model settings", () => outside().modelSettings({ projectId })],
+    ["tracing filter options", () => outside().filterOptions({ projectId })],
+    [
+      "tracing column topics",
+      () =>
+        outside().forTraces({
+          projectId,
+          traces: [{ traceId: "trace-a", timestamp: new Date() }],
+        }),
+    ],
   ] as const;
 
   it.each(reads)("hides %s", async (_name, call) => {
@@ -300,13 +330,11 @@ describe("Topics project allowlist", () => {
 
 describe("Topics visibility gate", () => {
   const session = ({
-    admin = false,
     langfuseTopics = true,
     email,
     internalFeatures = true,
     role = "VIEWER",
   }: {
-    admin?: boolean;
     langfuseTopics?: boolean;
     email?: string;
     internalFeatures?: boolean;
@@ -316,7 +344,6 @@ describe("Topics visibility gate", () => {
       expires: "1",
       user: {
         id: "user-a",
-        admin,
         email,
         featureFlags: testFeatureFlags({ langfuseTopics, internalFeatures }),
         organizations: role
@@ -354,14 +381,14 @@ describe("Topics visibility gate", () => {
     ],
     ["a role without topics:read", { role: "NONE" }, true, false],
     [
-      "internal view without the Topics flag",
-      { admin: true, langfuseTopics: false, role: null },
+      "internal view without project membership",
+      { email: "member@clickhouse.com", langfuseTopics: false, role: null },
       true,
-      true,
+      false,
     ],
     [
-      "an admin outside a non-allowlisted project",
-      { admin: true, role: null },
+      "internal view on a non-allowlisted project",
+      { email: "member@clickhouse.com" },
       false,
       false,
     ],
@@ -436,14 +463,16 @@ describe("Topics filtered trace preview", () => {
     expect(request.query).toContain(
       "cityHash64(t.id, {samplingSeed: String}) ASC, t.id ASC",
     );
-    expect(request.query).toContain("e.level IN (");
-    expect(request.query).toContain('e."tags"');
+    expect(request.query).toContain("e.level in (");
+    expect(request.query).toContain("e.tags) = true");
     expect(request.query).toContain("e.start_time >= {");
     expect(request.query).toContain("e.start_time < {");
     expect(request.query).toContain("e.trace_id != ''");
     expect(request.query).not.toMatch(
       /e\.(input|output|is_app_root|parent_span_id)\b|\bFINAL\b|\bSAMPLE\b/,
     );
+    // A trace matches when any of its spans meets the filters, not only the root.
+    expect(request.query).not.toMatch(/is_app_root = true\) = \{/);
     expect(request.params).toMatchObject({
       projectId,
       limit: 20,
@@ -459,7 +488,7 @@ describe("Topics filtered trace preview", () => {
         timestampMs: "1789430400000",
         name: "Agent",
         environment: "default",
-        matchedTraceCount: "1001",
+        matchedTraceCount: String(TOPICS_BACKFILL_TRACE_LIMIT + 1),
       },
     ]);
     const response = await caller().previewTraces({
@@ -480,12 +509,12 @@ describe("Topics filtered trace preview", () => {
       status: "queued",
     }));
     mocks.queryClickhouse.mockResolvedValue(
-      Array.from({ length: 1000 }, (_, index) => ({
+      Array.from({ length: TOPICS_BACKFILL_TRACE_LIMIT }, (_, index) => ({
         id: `trace-${index}`,
         timestampMs: "1789430400000",
         name: "Agent",
         environment: "default",
-        matchedTraceCount: "1001",
+        matchedTraceCount: String(TOPICS_BACKFILL_TRACE_LIMIT + 1),
       })),
     );
     const criteria = {
@@ -506,17 +535,24 @@ describe("Topics filtered trace preview", () => {
     });
     const resolved = mocks.createTopicExecution.mock.calls[0][0];
     expect(resolved.processingConfig.maxInputTokens).toBe(2000);
-    expect(resolved.traceIds).toHaveLength(999);
+    expect(resolved.traceIds).toHaveLength(TOPICS_BACKFILL_TRACE_LIMIT - 1);
     expect(resolved.traceIds[0]).toBe("trace-1");
-    expect(resolved.traceIds.at(-1)).toBe("trace-999");
+    expect(resolved.traceIds.at(-1)).toBe(
+      `trace-${TOPICS_BACKFILL_TRACE_LIMIT - 1}`,
+    );
     expect(mocks.enqueueTopicExecution).toHaveBeenCalledWith(
       projectId,
       "execution-a",
       resolved.traceIds,
     );
     expect(resolved).not.toHaveProperty("selection");
+    expect(mocks.queryClickhouse.mock.calls[0][0].query).not.toMatch(
+      /is_app_root = true\) = \{/,
+    );
     expect(mocks.queryClickhouse.mock.calls[0][0].query).toContain("LIMIT");
-    expect(mocks.queryClickhouse.mock.calls[0][0].params.limit).toBe(1000);
+    expect(mocks.queryClickhouse.mock.calls[0][0].params.limit).toBe(
+      TOPICS_BACKFILL_TRACE_LIMIT,
+    );
     expect(mocks.queryClickhouse.mock.calls[0][0].params.samplingSeed).toBe(
       "sample-seed",
     );
@@ -537,9 +573,12 @@ describe("Topics filtered trace preview", () => {
 
   it("rejects oversized manual backfill selections before querying or creating a run", async () => {
     for (const selectionInput of [
-      { selection: { ...selection, limit: 1001 } },
+      { selection: { ...selection, limit: TOPICS_BACKFILL_TRACE_LIMIT + 1 } },
       {
-        traceIds: Array.from({ length: 1001 }, (_, index) => `trace-${index}`),
+        traceIds: Array.from(
+          { length: TOPICS_BACKFILL_TRACE_LIMIT + 1 },
+          (_, index) => `trace-${index}`,
+        ),
       },
     ]) {
       await expect(
@@ -550,7 +589,9 @@ describe("Topics filtered trace preview", () => {
           facets: selectedFacets,
           ...selectionInput,
         }),
-      ).rejects.toThrow("Select at most 1,000 traces");
+      ).rejects.toThrow(
+        `Select at most ${TOPICS_BACKFILL_TRACE_LIMIT.toLocaleString("en-US")} traces`,
+      );
     }
     await expect(
       caller().previewTraces({ ...selection, limit: 1001 }),
@@ -566,80 +607,27 @@ describe("Topics filtered trace preview", () => {
     expect(mocks.createTopicExecution).not.toHaveBeenCalled();
   });
 
-  it("runs saved rules without creating facet versions and rejects stale or foreign rules", async () => {
-    const rule = {
-      id: "rule-a",
-      projectId,
-      name: "Billing",
-      filter: selection.filter,
-      facetIds: ["facet-a"],
-    };
-    const request = {
-      projectId,
-      requestId: "rule-request",
-      operation: "process" as const,
-      facets: selectedFacets,
-      ruleId: rule.id,
-      selection: {
-        filter: selection.filter,
-        from: selection.from,
-        to: selection.to,
-        limit: selection.limit,
-        sampling: selection.sampling,
-        seed: selection.seed,
-      },
-    };
-    mocks.getTopicRule.mockResolvedValue(null);
-    await expect(caller().trigger(request)).rejects.toThrow(
-      "Topic rule not found in this project",
-    );
-    expect(mocks.getTopicRule).toHaveBeenCalledWith(projectId, rule.id);
-    mocks.getTopicRule.mockResolvedValue({
-      ...rule,
-      filter: [
-        {
-          column: "environment",
-          type: "stringOptions",
-          operator: "any of",
-          value: ["production"],
+  it("rejects processing past traces through a rule before any storage access", async () => {
+    await expect(
+      caller().trigger({
+        projectId,
+        requestId: "rule-request",
+        operation: "process",
+        facets: selectedFacets,
+        ruleId: "rule-a",
+        selection: {
+          filter: selection.filter,
+          from: selection.from,
+          to: selection.to,
+          limit: selection.limit,
+          sampling: selection.sampling,
+          seed: selection.seed,
         },
-      ],
-    });
-    await expect(caller().trigger(request)).rejects.toThrow(
-      "Topic rule changed",
-    );
-    mocks.getTopicRule.mockResolvedValue({
-      ...rule,
-      facetIds: ["other-facet"],
-    });
-    await expect(caller().trigger(request)).rejects.toThrow(
-      "Select the facets attached",
-    );
-    mocks.getTopicRule.mockResolvedValue(rule);
-    mocks.queryClickhouse.mockResolvedValue([
-      {
-        id: "trace-a",
-        timestampMs: "1789430400000",
-        name: "Agent",
-        environment: "default",
-        matchedTraceCount: "1",
-      },
-    ]);
-    await caller().trigger(request);
-    expect(mocks.createTopicExecution.mock.calls[0][0]).toMatchObject({
-      ruleId: rule.id,
-      traceIds: ["trace-a"],
-    });
-    await caller().trigger({
-      ...request,
-      requestId: "rule-request-manual-sampling",
-      selection: { ...request.selection, sampling: "latest", limit: 50 },
-    });
-    expect(mocks.createTopicExecution.mock.calls[1][0]).toMatchObject({
-      ruleId: rule.id,
-      traceIds: ["trace-a"],
-    });
-    expect(mocks.createTopicFacetVersion).not.toHaveBeenCalled();
+      }),
+    ).rejects.toThrow("Process past traces with a trace filter");
+    expect(mocks.getTopicRule).not.toHaveBeenCalled();
+    expect(mocks.queryClickhouse).not.toHaveBeenCalled();
+    expect(mocks.createTopicExecution).not.toHaveBeenCalled();
   });
 
   it("orders latest traces after deduplication and returns an empty preview when no events match", async () => {
@@ -687,17 +675,6 @@ describe("Topics filtered trace preview", () => {
       { ...selection, from: selection.to },
       { ...selection, from: new Date("2025-01-01") },
       { ...selection, projectId: "foreign-project" },
-      {
-        ...selection,
-        filter: [
-          {
-            column: "isRootObservation",
-            type: "boolean" as const,
-            operator: "=" as const,
-            value: true,
-          },
-        ],
-      },
       {
         ...selection,
         filter: [
@@ -1057,6 +1034,36 @@ describe("Topics local execution access and publication", () => {
     );
   });
 
+  it("resumes a snapshot that failed before seeding through its summarizing setup", async () => {
+    const failed = execution();
+    failed.status = "failed";
+    failed.phase = "failed";
+    failed.facets[0]!.outcome = "pending";
+    failed.input.analysis = {
+      label: "Billing",
+      filter: [],
+      seed: "topics-analysis",
+      summarize: { limit: 500, selection: "random" },
+    };
+    mocks.readTopicExecutionSummary.mockResolvedValue(failed);
+    mocks.getTopicExecutionQueueState.mockResolvedValue("missing");
+    mocks.readTopicSnapshotSummarizing.mockResolvedValue({
+      traceIds: null,
+      failedTicks: 3,
+    });
+
+    await caller().retry({ projectId, executionId: failed.id });
+
+    expect(mocks.writeTopicExecution).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "queued", phase: "summarizing" }),
+    );
+    expect(mocks.enqueueTopicSnapshotSetup).toHaveBeenCalledWith(
+      projectId,
+      failed.id,
+    );
+    expect(mocks.enqueueTopicExecution).not.toHaveBeenCalled();
+  });
+
   it("shows a queued retry without overwriting worker-owned journal progress", async () => {
     const interrupted = execution();
     interrupted.status = "failed";
@@ -1154,6 +1161,27 @@ describe("Topics current results", () => {
     mocks.getPublishedTopicRun.mockResolvedValue(null);
     const result = await caller("VIEWER").currentResults({ projectId });
     expect(result.facets.map((facet) => facet.facetId)).toEqual([facetId]);
+  });
+
+  it("shows only the setup rule the setup snapshot before its first refit, never another rule's map", async () => {
+    mocks.listTopicFacets.mockResolvedValue([
+      { id: facetId, name: "Intent", versions: [{ version: facetVersion }] },
+    ]);
+    // Oldest first: setup created rule-setup; rule-new came later.
+    mocks.listTopicRules.mockResolvedValue([
+      { id: "rule-setup", facetIds: [facetId] },
+      { id: "rule-new", facetIds: [facetId] },
+    ] as Awaited<ReturnType<typeof topicsServer.listTopicRules>>);
+    mocks.getTopicRuleMap.mockResolvedValue(null);
+    const mapOf = async (ruleId: string) =>
+      (await caller("VIEWER").currentResults({ projectId, ruleId })).facets[0]
+        ?.map?.runId ?? null;
+
+    mocks.getPublishedTopicRun.mockResolvedValue({ ...run, ruleId: null });
+    expect(await mapOf("rule-setup")).toBe(run.id);
+    expect(await mapOf("rule-new")).toBeNull();
+    mocks.getPublishedTopicRun.mockResolvedValue({ ...run, ruleId: "rule-b" });
+    expect(await mapOf("rule-setup")).toBeNull();
   });
 
   it("counts over the published map's window and names its topics", async () => {
@@ -1258,7 +1286,6 @@ describe("Topics setup", () => {
         embeddingDimensions: 1024,
         clustering: setup.clustering,
         facets: setup.facets,
-        customFacetIds: [],
         filter: setup.filter,
         traceIdleMs: 120_000,
       },
@@ -1274,6 +1301,31 @@ describe("Topics setup", () => {
         }),
       }),
     );
+  });
+
+  it("rejects a filter ingestion cannot match on one observation", async () => {
+    for (const filter of [
+      [
+        {
+          column: "totalCost",
+          type: "number" as const,
+          operator: ">" as const,
+          value: 1,
+        },
+      ],
+      [
+        {
+          column: "name",
+          type: "string" as const,
+          operator: "does not contain" as const,
+          value: "x",
+        },
+      ],
+    ])
+      await expect(
+        caller().saveSetup({ ...setup, filter }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(mocks.saveTopicsSetup).not.toHaveBeenCalled();
   });
 
   it("rejects a setup with every facet turned off", async () => {
@@ -1409,4 +1461,159 @@ describe("Topics write access", () => {
       for (const mock of writeMocks) expect(mock).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("Topics analyses", () => {
+  const condition = (column: string, value: string) => ({
+    column,
+    type: "string" as const,
+    operator: "=" as const,
+    value,
+  });
+
+  it("previews and runs an analysis on the same seeded sample of summarized traces", async () => {
+    const slice = {
+      projectId,
+      filter: [condition("environment", "production")],
+      timeRange,
+      facets: selectedFacets,
+    };
+    mocks.queryClickhouse.mockResolvedValue([{ count: "250" }]);
+    mocks.getTopicSummaryCounts.mockResolvedValue([
+      { facetId, facetVersion, count: 120 },
+    ]);
+    mocks.createTopicExecution.mockResolvedValue({
+      ...execution(),
+      status: "queued",
+    });
+    expect(await caller().previewAnalysis(slice)).toMatchObject({
+      matchedTraceCount: 250,
+      summarizedCount: 120,
+      ready: true,
+    });
+    await caller().startAnalysis({ ...slice, label: "Production" });
+    const sample = {
+      seed: TOPICS_ANALYSIS_SAMPLING_SEED,
+      limit: TOPICS_SLICE_MAX_TRACES,
+    };
+    expect(
+      mocks.getTopicSummaryCounts.mock.calls.map((call) => call[4].sample),
+    ).toEqual([sample, sample]);
+    expect(mocks.getTopicSummaryCounts.mock.calls[0][4].traces.query).toMatch(
+      /^SELECT DISTINCT id FROM \(/,
+    );
+    expect(mocks.createTopicExecution.mock.calls[0][0].analysis.seed).toBe(
+      TOPICS_ANALYSIS_SAMPLING_SEED,
+    );
+    expect(mocks.queryClickhouse.mock.calls[0][0].query).toMatch(
+      /^SELECT count\(\) AS count FROM \(SELECT DISTINCT id FROM/,
+    );
+  });
+
+  it("rejects snapshot windows longer than 14 days before reading anything", async () => {
+    const slice = {
+      projectId,
+      filter: [],
+      timeRange: {
+        from: new Date("2026-09-08T00:00:00Z"),
+        to: new Date("2026-09-23T00:00:00Z"),
+      },
+      facets: selectedFacets,
+    };
+    await expect(caller().previewAnalysis(slice)).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+    await expect(
+      caller().startAnalysis({ ...slice, label: "Fifteen days" }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(mocks.getTopicSummaryCounts).not.toHaveBeenCalled();
+    expect(mocks.createTopicExecution).not.toHaveBeenCalled();
+  });
+
+  it("previews and starts a snapshot when the unsummarized count fails", async () => {
+    const slice = {
+      projectId,
+      filter: [condition("environment", "production")],
+      timeRange,
+      facets: selectedFacets,
+    };
+    // Only the unsummarized-trace scan (it reads last_ts) fails, as on a timeout.
+    mocks.queryClickhouse.mockImplementation(async ({ query }) => {
+      if (query.includes("last_ts")) throw new Error("Timeout exceeded");
+      return [{ count: "250" }];
+    });
+    mocks.getTopicSummaryCounts.mockResolvedValue([
+      { facetId, facetVersion, count: 120 },
+    ]);
+    mocks.createTopicExecution.mockResolvedValue({
+      ...execution(),
+      status: "queued",
+    });
+    expect(await caller().previewAnalysis(slice)).toMatchObject({
+      summarizedCount: 120,
+      unsummarizedCount: null,
+    });
+    await expect(
+      caller().startAnalysis({ ...slice, label: "Production" }),
+    ).resolves.toMatchObject({ id: execution().id });
+  });
+
+  it("serves an analysis from its own run and window, listing only its members", async () => {
+    const base = execution();
+    mocks.readTopicExecutionSummary.mockResolvedValue({
+      ...base,
+      input: {
+        ...base.input,
+        analysis: { label: "Refund errors", filter: [], seed: "seed" },
+      },
+    });
+    mocks.listTopicFacets.mockResolvedValue([
+      { id: facetId, name: "Intent", versions: [{ version: facetVersion }] },
+    ]);
+    mocks.getTopicRun.mockResolvedValue(run);
+    mocks.getTopicResultCounts.mockResolvedValue([
+      {
+        facetId,
+        total: 10,
+        usable: 8,
+        awaiting: 2,
+        assigned: 3,
+        outliers: 1,
+        notApplicable: 0,
+        insufficientInput: 0,
+        topics: [{ topicId: "topic-a", count: 3 }],
+      },
+    ]);
+    mocks.listCurrentTopicSummaries.mockResolvedValue({ rows: [] });
+
+    const { facets } = await caller("VIEWER").analysisResults({
+      projectId,
+      executionId: "execution-a",
+    });
+    expect(mocks.getTopicResultCounts).toHaveBeenCalledWith({
+      projectId,
+      window: timeRange,
+      facets: [{ facetId, version: facetVersion, runId: run.id }],
+    });
+    // Summaries are shared, so traces the analysis never clustered do not count.
+    expect(facets[0].counts).toMatchObject({ total: 4, awaitingMap: 0 });
+
+    await caller("VIEWER").traces({
+      projectId,
+      facetId,
+      analysisId: "execution-a",
+    });
+    expect(mocks.listCurrentTopicSummaries).toHaveBeenCalledWith(
+      expect.objectContaining({
+        window: timeRange,
+        publishedRunIds: [run.id],
+        conditions: [
+          {
+            column: "assignmentStatus",
+            match: { operator: "any of", values: ["assigned", "outlier"] },
+          },
+        ],
+      }),
+    );
+  });
 });

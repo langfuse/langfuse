@@ -1,18 +1,15 @@
 import { useState } from "react";
-import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Input } from "@/src/components/design-system/Input/Input";
 
 type ModernSessionSaveViewDialogContentProps = {
   isSaving: boolean;
-  onCancel: () => void;
   onSave: (viewName: string) => void;
   error?: string;
 };
 
 export function ModernSessionSaveViewDialogContent({
   isSaving,
-  onCancel,
   onSave,
   error,
 }: ModernSessionSaveViewDialogContentProps) {
@@ -20,7 +17,17 @@ export function ModernSessionSaveViewDialogContent({
   const saveView = () => onSave(viewName.trim());
 
   return (
-    <Dialog title="Save as new view">
+    <Dialog
+      title="Save as new view"
+      actions={[
+        {
+          label: "Save view",
+          loading: isSaving,
+          disabled: !viewName.trim() || isSaving,
+          onClick: saveView,
+        },
+      ]}
+    >
       <Dialog.Body>
         <div>
           <label
@@ -47,15 +54,6 @@ export function ModernSessionSaveViewDialogContent({
             {error}
           </p>
         ) : null}
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" text="Cancel" onClick={onCancel} />
-          <Button
-            text="Save view"
-            loading={isSaving}
-            disabled={!viewName.trim()}
-            onClick={saveView}
-          />
-        </div>
       </Dialog.Body>
     </Dialog>
   );

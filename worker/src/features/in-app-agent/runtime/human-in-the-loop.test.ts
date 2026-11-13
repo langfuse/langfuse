@@ -1,9 +1,14 @@
 import { EventType } from "@ag-ui/core";
+import { MastraAgent } from "@ag-ui/mastra";
 import { Agent } from "@mastra/core/agent";
 import type { MastraModelConfig } from "@mastra/core/llm";
 import { describe, expect, it } from "vitest";
 
-import { IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME } from "@langfuse/shared/in-app-agent";
+import {
+  IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
+  parseInAppAgentInterruptEvent,
+  type AgUiEvent,
+} from "@langfuse/shared/in-app-agent";
 import {
   createInAppAgentToolPolicy,
   withInAppAgentToolApproval,
@@ -11,6 +16,8 @@ import {
 import { createManualToolApprovalRunInput } from "./human-in-the-loop";
 import { createQuestionnaireTool } from "./tools";
 import type { AgUiRunAgentInput } from "./types";
+import { normalizeMastraEvent, toMastraRunInput } from "./mastraAdapter";
+import { patchMastraToolErrors } from "./agent";
 
 const approvalRequest = {
   type: "tool_approval_request" as const,
@@ -203,7 +210,7 @@ const emptyUsage = {
 };
 
 // Calls the questionnaire tool once, then stops on the next step.
-async function streamQuestionnaireCall(args: unknown) {
+function createQuestionnaireAgent(args: unknown) {
   let step = 0;
   const respond = async () => {
     const isFirstStep = step++ === 0;
@@ -240,7 +247,7 @@ async function streamQuestionnaireCall(args: unknown) {
     doGenerate: respond,
     doStream: respond,
   } satisfies ScriptedModel;
-  const agent = new Agent({
+  return new Agent({
     id: "questionnaire-approval-probe",
     name: "questionnaire-approval-probe",
     instructions: "probe",
@@ -250,8 +257,10 @@ async function streamQuestionnaireCall(args: unknown) {
       createInAppAgentToolPolicy({}),
     ),
   });
+}
 
-  const result = await agent.stream("ask me");
+async function streamQuestionnaireCall(args: unknown) {
+  const result = await createQuestionnaireAgent(args).stream("ask me");
   const chunks: { type: string; payload?: unknown }[] = [];
   for await (const chunk of result.fullStream) {
     chunks.push(chunk);
@@ -259,6 +268,46 @@ async function streamQuestionnaireCall(args: unknown) {
 
   return chunks;
 }
+
+it("keeps native Mastra approval interrupts resumable by the durable Halo protocol", async () => {
+  const input = {
+    threadId: "conversation-approval",
+    runId: "run-approval",
+    messages: [{ id: "user-1", role: "user" as const, content: "ask me" }],
+    tools: [],
+    context: [],
+    state: {},
+    forwardedProps: {},
+  };
+  const adapter = new MastraAgent({
+    agent: createQuestionnaireAgent(questionnaireRequest.args),
+    resourceId: input.threadId,
+  });
+  patchMastraToolErrors(adapter);
+  const events = await new Promise<AgUiEvent[]>((resolve, reject) => {
+    const collected: AgUiEvent[] = [];
+    adapter.run(toMastraRunInput(input)).subscribe({
+      next(event) {
+        collected.push(...normalizeMastraEvent(event, {}));
+      },
+      complete: () => resolve(collected),
+      error: reject,
+    });
+  });
+
+  const interruptIndex = events.findIndex((event) =>
+    parseInAppAgentInterruptEvent(event),
+  );
+  expect(interruptIndex).toBeGreaterThan(-1);
+  expect(parseInAppAgentInterruptEvent(events[interruptIndex])).toMatchObject({
+    type: "tool_approval_request",
+    toolCallId: "tool-call-3",
+    toolName: IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
+    args: questionnaireRequest.args,
+  });
+  expect(events.at(-1)?.type).toBe(EventType.RUN_FINISHED);
+  expect(interruptIndex).toBeLessThan(events.length - 1);
+});
 
 const questionnaireRequest = {
   type: "tool_approval_request" as const,

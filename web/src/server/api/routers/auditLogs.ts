@@ -9,6 +9,7 @@ import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrga
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { paginationZod } from "@langfuse/shared";
 import { AuditLogRecordType, type AuditLog } from "@langfuse/shared/src/db";
+import { orgBoundApiKeyScopes } from "@langfuse/shared/src/server/auth/apiKeys";
 
 type AuditLogActor =
   | {
@@ -257,7 +258,7 @@ export const auditLogsRouter = createTRPCRouter({
               in: apiKeyIds,
             },
             orgId: input.orgId,
-            scope: "ORGANIZATION",
+            scope: { in: orgBoundApiKeyScopes },
           },
           select: {
             id: true,

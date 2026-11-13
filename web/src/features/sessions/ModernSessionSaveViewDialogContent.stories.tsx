@@ -8,7 +8,6 @@ import { Dialog } from "@/src/components/ui/dialog";
 
 const defaultArgs = {
   isSaving: false,
-  onCancel: fn(),
   onSave: fn(),
 } satisfies ComponentProps<typeof ModernSessionSaveViewDialogContent>;
 

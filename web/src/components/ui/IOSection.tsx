@@ -190,14 +190,18 @@ export function IOSection({
           aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${title}`}
           onClick={toggleCollapsed}
         >
-          <Caret size="base" color="default" aria-hidden />
           {TitleIcon ? (
             <TitleIcon size="base" color="default" aria-hidden />
           ) : null}
-          {title}
+          <span className="min-w-0 truncate" title={title}>
+            {title}
+          </span>
           {count !== undefined ? (
             <Badge color="filled" size="sm" text={String(count)} />
           ) : null}
+          <span className="-ml-1 flex shrink-0 translate-y-px">
+            <Caret size="base" color="default" aria-hidden />
+          </span>
         </button>
         {info ? (
           <div className="flex items-center pl-2">

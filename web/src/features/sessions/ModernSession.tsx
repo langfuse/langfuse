@@ -1,6 +1,8 @@
 import { type ComponentProps } from "react";
 import { ConnectedSessionListBody } from "@/src/features/sessions/ConnectedSessionListBody";
 import { SessionFiltersBanner } from "@/src/features/sessions/SessionFiltersBanner";
+import { SessionViewTabs } from "@/src/features/sessions/SessionViewTabs";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { type FilterState } from "@langfuse/shared";
 
 import { ConnectedModernSessionBodyLegacy } from "@/src/features/sessions/ConnectedModernSessionBodyLegacy";
@@ -13,6 +15,8 @@ import {
 
 type ModernSessionProps = {
   viewMode: "conversational" | "list";
+  viewTabs: ComponentProps<typeof SessionViewTabs>;
+  onSaveView?: () => void;
   customization?: NonNullable<
     ComponentProps<typeof ConnectedModernSessionBodyTimeline>["customization"]
   > & {
@@ -44,6 +48,8 @@ type ModernSessionProps = {
 
 export function ModernSession({
   viewMode,
+  viewTabs,
+  onSaveView,
   customization,
   isTimelineEnabled,
   session,
@@ -72,53 +78,90 @@ export function ModernSession({
     viewLabel,
     onFilterObservationByName,
   };
+  const emptyViewHeading =
+    viewTabs.savedViews.length > 0 ? "Choose a view" : "No pinned views";
+  const filterBannerMessage = (() => {
+    if (viewTabs.value !== "messages" && viewTabs.value !== "unsaved") {
+      return "A custom view is active. Some session data may be hidden.";
+    }
+    if (customization && customization.activeFilterCount > 0) {
+      return "Filters are active. Some session data may be hidden.";
+    }
+    return "You are viewing a custom session view.";
+  })();
 
   return (
     <>
-      {customization && customization.activeFilterCount > 0 && (
-        <SessionFiltersBanner
-          onEdit={customization.onCustomizeView}
-          onClear={customization.onClearFilters}
-        />
-      )}
-      {isTimelineEnabled && viewMode === "list" && (
-        <ConnectedSessionListBody
-          {...sharedBodyProps}
-          traceCommentCounts={traceCommentCounts}
-          filterState={filterState.filter(
-            (filter) => filter.column !== "traceName",
-          )}
-          viewLabel={null}
-          showInlineToolCalls={true}
-          showSystemPrompt={true}
-          onCustomizeView={customization?.onCustomizeView}
-          activeFilterCount={
-            customization?.activeFilterCount ?? filterState.length
-          }
-        />
-      )}
-      {isTimelineEnabled && viewMode === "conversational" && (
-        <ConnectedModernSessionBodyTimeline
-          customization={customization}
-          tracesState={tracesState}
-          projectId={projectId}
-          sessionId={sessionId}
-          openPeek={openPeek}
-          filterState={filterState}
-        />
-      )}
-      {!isTimelineEnabled && (
-        <ModernSessionFilterControls {...filterControlsProps}>
-          {(sidebarFilterControls) => (
-            <ConnectedModernSessionBodyLegacy
+      {isTimelineEnabled && <SessionViewTabs {...viewTabs} />}
+      {isTimelineEnabled && viewTabs.value === "" ? (
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+          <h2 className="text-lg font-bold">{emptyViewHeading}</h2>
+          <p className="text-muted-foreground text-sm">
+            Pin Messages or a saved view to explore this session, or create a
+            custom view.
+          </p>
+          <Button
+            text="Manage views"
+            variant="outline"
+            onClick={viewTabs.onManageViews}
+          />
+        </div>
+      ) : (
+        <>
+          {customization &&
+            (customization.activeFilterCount > 0 ||
+              viewTabs.value !== "messages") && (
+              <SessionFiltersBanner
+                onEdit={customization.onCustomizeView}
+                onClear={
+                  viewTabs.value === "unsaved"
+                    ? customization.onClearFilters
+                    : undefined
+                }
+                onSave={onSaveView}
+                message={filterBannerMessage}
+              />
+            )}
+          {isTimelineEnabled && viewMode === "list" && (
+            <ConnectedSessionListBody
               {...sharedBodyProps}
               traceCommentCounts={traceCommentCounts}
-              showInlineToolCalls={showInlineToolCalls}
-              showSystemPrompt={showSystemPrompt}
-              sidebarFilterControls={sidebarFilterControls}
+              filterState={filterState.filter(
+                (filter) => filter.column !== "traceName",
+              )}
+              viewLabel={null}
+              showInlineToolCalls={true}
+              showSystemPrompt={true}
+              onCustomizeView={customization?.onCustomizeView}
+              activeFilterCount={
+                customization?.activeFilterCount ?? filterState.length
+              }
             />
           )}
-        </ModernSessionFilterControls>
+          {isTimelineEnabled && viewMode === "conversational" && (
+            <ConnectedModernSessionBodyTimeline
+              customization={customization}
+              tracesState={tracesState}
+              projectId={projectId}
+              sessionId={sessionId}
+              openPeek={openPeek}
+              filterState={filterState}
+            />
+          )}
+          {!isTimelineEnabled && (
+            <ModernSessionFilterControls {...filterControlsProps}>
+              {(sidebarFilterControls) => (
+                <ConnectedModernSessionBodyLegacy
+                  {...sharedBodyProps}
+                  traceCommentCounts={traceCommentCounts}
+                  showInlineToolCalls={showInlineToolCalls}
+                  showSystemPrompt={showSystemPrompt}
+                  sidebarFilterControls={sidebarFilterControls}
+                />
+              )}
+            </ModernSessionFilterControls>
+          )}
+        </>
       )}
     </>
   );

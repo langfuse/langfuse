@@ -6,7 +6,6 @@ import { useSession } from "next-auth/react";
 /** The org's access-logging opt-in, including a change still in flight. */
 export function useAccessAuditLogSetting(orgId: string) {
   const { update: updateSession } = useSession();
-  const utils = api.useUtils();
   const organization = useQueryOrganization();
   const hasAccess = useHasOrganizationAccess({
     organizationId: orgId,
@@ -16,8 +15,6 @@ export function useAccessAuditLogSetting(orgId: string) {
   const mutation = api.accessAuditLog.setEnabled.useMutation({
     onSuccess: async () => {
       await updateSession();
-      // Admins resolve org context from this query, not the session
-      await utils.organizations.byId.invalidate();
     },
   });
 

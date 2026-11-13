@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
 import {
+  authenticatedProcedure,
   createTRPCRouter,
   protectedOrganizationProcedure,
   protectedProjectProcedure,
@@ -14,6 +15,8 @@ import {
   getSdkUsageSummaries,
   getTraceLevelEvalSummaries,
 } from "@/src/features/v4/server/v4TransitionService";
+import { getV4MigrationTopBannerState } from "@/src/features/v4-migration/server/v4MigrationTopBannerService";
+import { env } from "@/src/env.mjs";
 
 export const v4TransitionRouter = createTRPCRouter({
   forceV3Experience: protectedProjectProcedure
@@ -154,4 +157,17 @@ export const v4TransitionRouter = createTRPCRouter({
         projectId: input.projectId,
       }),
     ),
+
+  /**
+   * Account-wide legacy v3 top banner for routes without an organization
+   * context. Checks every eligible organization in the authenticated session.
+   */
+  legacyApiBannerState: authenticatedProcedure.query(({ ctx }) =>
+    getV4MigrationTopBannerState({
+      prisma: ctx.prisma,
+      session: ctx.session,
+      demoOrgId: env.NEXT_PUBLIC_DEMO_ORG_ID,
+      isLangfuseCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
+    }),
+  ),
 });

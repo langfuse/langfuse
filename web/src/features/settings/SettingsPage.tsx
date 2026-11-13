@@ -13,7 +13,6 @@ import { useAccountSettingsPages } from "@/src/features/account/AccountSettingsP
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { useOrganizationSettingsPages } from "@/src/features/organizations/OrganizationSettingsPage";
 import { accountSettingsPath } from "@/src/features/settings/accountSettingsPath";
-import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 type SettingsScope = "account" | "organization";
 
@@ -41,11 +40,6 @@ export function SettingsPage({ scope }: SettingsPageProps) {
 
   const activeSlug =
     typeof router.query.page === "string" ? router.query.page : undefined;
-  const fullHeight =
-    scope === "organization" &&
-    (activeSlug === "ai-gateway-models" ||
-      activeSlug === "ai-gateway" ||
-      activeSlug === "ai-gateway-api-keys");
 
   if (scope === "organization" && !organization) {
     return (
@@ -56,19 +50,11 @@ export function SettingsPage({ scope }: SettingsPageProps) {
   }
 
   return (
-    <ContainerPage
-      headerProps={{ title: "Settings" }}
-      extendRight={fullHeight}
-      fullHeight={fullHeight}
-    >
+    <ContainerPage headerProps={{ title: "Settings" }}>
       <PagedSettingsContainer
         activeSlug={activeSlug}
         pages={pages}
-        fullHeight={fullHeight}
         sectionHeaders={organizationSectionHeaders(organization?.id, pages)}
-        sectionBadges={{
-          "AI Gateway": <FeatureReleaseStatus status="beta" />,
-        }}
       />
     </ContainerPage>
   );

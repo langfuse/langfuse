@@ -1,4 +1,5 @@
 /* eslint-disable react/no-unstable-nested-components */
+import { TopicsEmptyState } from "./TopicsEmptyState";
 import { computeSelectedValues, type FilterState } from "@langfuse/shared";
 import {
   useEffect,
@@ -22,7 +23,6 @@ import {
   type TopicTracesResult,
   type UseTopicTraces,
 } from "./facet-topics";
-import { Button } from "@/src/components/design-system/Button/Button";
 import { TopicTraceLoadMore } from "./TopicTraceLoadMore";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -56,8 +56,6 @@ export function CurrentTopicsView({
   peekView,
   tracePanelRef,
   traceFilters,
-  onGenerateTopics,
-  canGenerateTopics,
   useTraces,
   showUnassigned,
 }: CurrentTopicsViewProps) {
@@ -160,22 +158,7 @@ export function CurrentTopicsView({
       ) : null}
     </section>
   );
-  const emptyTopics = (
-    <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-      <h3 className="text-lg font-bold">Find patterns in your summaries</h3>
-      <p className="text-muted-foreground max-w-sm text-sm">
-        Generate topics to group similar summaries and discover recurring themes
-        for this facet. Choose a time range and the facets to include in Manual
-        processing.
-      </p>
-      <Button
-        text="Generate topics"
-        size="sm"
-        disabled={!canGenerateTopics}
-        onClick={onGenerateTopics}
-      />
-    </div>
-  );
+  const emptyTopics = <TopicsEmptyState />;
   const groupsPanel = (
     <section
       aria-label="Topic groups"
@@ -330,8 +313,8 @@ function TopicsOverviewSplit({
         {mapPanel}
       </ResizablePanel>
       <ResizableHandle
-        withHandle
         aria-label="Resize topic map and groups"
+        variant="gap"
         className="my-1"
       />
       <ResizablePanel id="groups" minSize="20%">
@@ -364,8 +347,8 @@ function TopicsWorkspaceSplit({
         {overviewPanel}
       </ResizablePanel>
       <ResizableHandle
-        withHandle
         aria-label="Resize topic overview and traces"
+        variant="gap"
         className="mx-1"
       />
       <ResizablePanel id="traces" minSize="25%">
@@ -545,8 +528,6 @@ type CurrentTraceTableProps = {
 type CurrentTopicsViewProps = {
   projectId: string;
   facet: Facet;
-  onGenerateTopics: () => void;
-  canGenerateTopics: boolean;
   mapResult: ComponentProps<typeof TopicEmbeddingMap>["query"];
   tracePanelRef?: (element: HTMLElement | null) => void;
   traceFilters: {

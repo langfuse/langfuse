@@ -5,10 +5,9 @@ import { TopicEmbeddingMap } from "./TopicEmbeddingMap";
 import { TopicGrid } from "./TopicGrid";
 import { TopicTreemap } from "./TopicTreemap";
 import { prepareTopicGrid } from "./prepare-topic-grid";
-import { type TopicsResultsView } from "./TopicsResultsViewSelect";
 
 type MobileTopicVisualizationProps = {
-  view: TopicsResultsView;
+  view: "treemap" | "map" | "grid";
   facet: Facet;
   treemapTopics: TopicDisplay[];
   mapResult: ComponentProps<typeof TopicEmbeddingMap>["query"];
@@ -22,7 +21,7 @@ type MobileTopicVisualizationProps = {
 function gridMessage(query: MobileTopicVisualizationProps["mapResult"]) {
   if (query.error) return `Grid could not load: ${query.error.message}`;
   if (!query.data) return "Loading grid…";
-  return query.data.reason ?? "This run has no saved embedding projection.";
+  return query.data.reason ?? "This map has no saved embedding projection.";
 }
 
 export function MobileTopicVisualization({

@@ -18,7 +18,7 @@ describe("createInAppAgentToolPolicy", () => {
 
   it("keeps listExperiments available to members", () => {
     const asMember = createInAppAgentToolPolicy({
-      userAccess: { projectRole: "MEMBER", isAdmin: false },
+      userAccess: { projectRole: "MEMBER" },
     });
 
     expect(asMember.available.has("listExperiments")).toBe(true);
@@ -29,7 +29,7 @@ describe("createInAppAgentToolPolicy", () => {
     const grants = ["langfuse_createModel"];
 
     const asOwner = createInAppAgentToolPolicy({
-      userAccess: { projectRole: "OWNER", isAdmin: false },
+      userAccess: { projectRole: "OWNER" },
       alwaysAllowedTools: grants,
     });
 
@@ -37,7 +37,7 @@ describe("createInAppAgentToolPolicy", () => {
     expect(asOwner.autoApproved.has("createModel")).toBe(true);
 
     const asMember = createInAppAgentToolPolicy({
-      userAccess: { projectRole: "MEMBER", isAdmin: false },
+      userAccess: { projectRole: "MEMBER" },
       alwaysAllowedTools: grants,
     });
 
@@ -48,7 +48,7 @@ describe("createInAppAgentToolPolicy", () => {
 
 describe("getInAppAgentToolApprovalSource", () => {
   const ownerPolicy = createInAppAgentToolPolicy({
-    userAccess: { projectRole: "OWNER", isAdmin: false },
+    userAccess: { projectRole: "OWNER" },
     alwaysAllowedTools: ["langfuse_createTextPrompt"],
   });
 

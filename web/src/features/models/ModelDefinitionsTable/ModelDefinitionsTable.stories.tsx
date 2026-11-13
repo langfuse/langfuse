@@ -15,8 +15,6 @@ const model: ModelTableRow = {
   modelName: "example-model",
   matchPattern: "^example-model$",
   prices: { input: 0.000001, output: 0.000002 },
-  tokenizerId: "openai",
-  config: null,
   serverResponse: {
     id: "model-1",
     projectId: null,

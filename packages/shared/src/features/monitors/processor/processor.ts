@@ -35,7 +35,7 @@ import { buildDataWindowPermalink } from "../helpers/buildDataWindowPermalink";
 import { buildPermalink } from "../helpers/buildPermalink";
 import { applyStateMachine, type MonitorCompletion } from "./applyStateMachine";
 import { computeSeverity } from "./computeSeverity";
-import { renderAlertMessage } from "./renderAlertMessage";
+import { buildAlertMessage } from "./buildAlertMessage";
 
 export { monitorEvaluationOffsetMs } from "../types";
 
@@ -395,7 +395,7 @@ function buildAlert(args: {
           filters: prev.filters,
         })
       : undefined,
-    message: renderAlertMessage({ monitor: prev, completion: next }),
+    message: buildAlertMessage({ monitor: prev, completion: next, value }),
     view: prev.view,
     filters: prev.filters,
     window: prev.window,
@@ -429,6 +429,7 @@ function toMonitorWebhookInputs(args: {
       projectId: args.alert.projectId,
       automationId: automation.id,
       executionId,
+      actionType: automation.actionType,
       payload: {
         id: executionId,
         timestamp: args.now,

@@ -66,8 +66,6 @@ const defaultArgs: ComponentProps<typeof TopicTreemapView> = {
   projectId: "storybook-topics",
   facet,
   useTraces: staticTopicTraces(rows),
-  onGenerateTopics: fn(),
-  canGenerateTopics: true,
   peekView: {
     itemType: "TRACE",
     tableName: "topics-topic-traces",

@@ -15,7 +15,7 @@ import {
   type EvaluatorLlmErrorClassification,
 } from "@langfuse/shared/src/server";
 import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
-import { processObservationEval } from "../features/evaluation/observationEval/observationEvalProcessor";
+import { processEval } from "../features/evaluation/observationEval/observationEvalProcessor";
 import { createW3CTraceId } from "../features/utils/utilities";
 import { retryLLMRateLimitError } from "../features/utils/retry-handler";
 import { isUnrecoverableError } from "../errors/UnrecoverableError";
@@ -317,7 +317,7 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
         );
       }
 
-      const outcome = await processObservationEval({
+      const outcome = await processEval({
         event: job.data.payload,
         executionType: EvalTemplateType.LLM_AS_JUDGE,
       });

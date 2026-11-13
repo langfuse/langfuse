@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import preview from "@/.storybook/preview";
 
 const gatewayKeysUrl =
-  "https://cloud.langfuse.com/organization/org-1/settings/ai-gateway-api-keys";
+  "https://cloud.langfuse.com/organization/org-1/ai-gateway/api-keys";
 
 const meta = preview.meta({
   component: GatewayInvitationEmailTemplate,
@@ -32,7 +32,7 @@ const meta = preview.meta({
 export const InviteeWithoutAccount = meta.story({
   args: {
     audience: { kind: "invitee", hasAccount: false },
-    link: `https://cloud.langfuse.com/auth/sign-up?targetPath=${encodeURIComponent("/organization/org-1/settings/ai-gateway-api-keys")}&email=${encodeURIComponent("grace@company.com")}`,
+    link: `https://cloud.langfuse.com/auth/sign-up?targetPath=${encodeURIComponent("/organization/org-1/ai-gateway/api-keys")}&email=${encodeURIComponent("grace@company.com")}`,
   },
 });
 

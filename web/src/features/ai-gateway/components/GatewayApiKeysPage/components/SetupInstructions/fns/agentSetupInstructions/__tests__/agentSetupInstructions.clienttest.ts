@@ -7,6 +7,7 @@ import { formatAgentSetupMarkdown } from "../formatAgentSetupMarkdown";
 const context = {
   gatewayOrigin: "https://gateway.example.com",
   providers: ["ANTHROPIC" as const],
+  apiProviders: ["ANTHROPIC" as const],
 };
 
 describe("agent setup instructions", () => {
@@ -24,10 +25,15 @@ describe("agent setup instructions", () => {
   });
 
   it("falls back to every provider and warns when none is enabled", () => {
-    const api = buildApiInstructions({ ...context, providers: [] });
+    const api = buildApiInstructions({
+      ...context,
+      providers: [],
+      apiProviders: [],
+    });
     const openCodeConfig = buildOpenCodeInstructions({
       ...context,
       providers: [],
+      apiProviders: [],
     }).steps.find((step) => step.language === "json")?.code;
 
     expect(api.warning).toBeDefined();
@@ -37,6 +43,22 @@ describe("agent setup instructions", () => {
     expect(JSON.parse(openCodeConfig ?? "{}").providers).toHaveProperty(
       "openai",
     );
+  });
+
+  it("lists OpenAI models without a warning when only a Chat Completions provider is enabled", () => {
+    const setups = buildAgentSetupInstructions({
+      ...context,
+      providers: [],
+      apiProviders: ["OPENAI"],
+    });
+    const api = setups.find((s) => s.id === "api");
+    const codex = setups.find((s) => s.id === "codex");
+
+    expect(api?.warning).toBeUndefined();
+    expect(api?.steps.map((s) => s.code).join("\n")).toContain(
+      "/openai/v1/models",
+    );
+    expect(codex?.warning).toBeDefined();
   });
 
   it("puts the key placeholder into the commands of every terminal setup", () => {

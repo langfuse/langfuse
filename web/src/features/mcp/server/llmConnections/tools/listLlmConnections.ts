@@ -25,6 +25,7 @@ const LlmConnectionOutput = z
   .extend({
     scope: z.enum(["project", "organization"]),
     availableModels: z.array(z.string()),
+    decisionModels: z.array(z.string()),
     config: LLMConnectionConfigSchema.nullable(),
     authMethod: BedrockAuthMethodSchema.optional(),
   });
@@ -33,7 +34,7 @@ export const [listLlmConnectionsTool, handleListLlmConnections] = defineTool({
   name: "listLlmConnections",
   description: [
     "List the LLM connections usable in the current project, including connections inherited from the organization. A project connection replaces an organization connection with the same provider name.",
-    "`provider` is a user-chosen name, not the vendor; use `adapter` to identify the API (e.g. openai, anthropic, bedrock). Pass `provider` and one of `availableModels` as an evaluator's modelConfig.",
+    "`provider` is a user-chosen name, not the vendor; use `adapter` to identify the API (e.g. openai, anthropic, bedrock). Pass `provider` and one of `availableModels` as an LLM-as-a-judge evaluator's modelConfig, or one of `decisionModels` for a decision-model evaluator.",
     "Returns metadata only, never credentials.",
   ].join(" "),
   action: "llmApiKeys:read",

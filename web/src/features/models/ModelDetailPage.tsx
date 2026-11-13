@@ -11,7 +11,6 @@ import { DeleteModelButton } from "@/src/features/models/components/DeleteModelB
 import { EditModelButton } from "@/src/features/models/components/EditModelButton";
 import { CloneModelButton } from "@/src/features/models/components/CloneModelButton";
 import { TestModelMatchButton } from "@/src/features/models/components/test-match/TestModelMatchButton";
-import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import Link from "next/link";
 import { Button } from "@/src/components/ui/button";
 import { getMaxDecimals } from "@/src/features/models/fns/getMaxDecimals";
@@ -174,24 +173,6 @@ export default function ModelDetailPage() {
                 {isLangfuseModel ? "Langfuse" : "User"}
               </div>
             </div>
-
-            <div>
-              <div className="text-muted-foreground text-sm font-bold">
-                Tokenizer
-              </div>
-              <div className="mt-1 text-sm">{model.tokenizerId || "None"}</div>
-            </div>
-
-            {model.tokenizerId && (
-              <div>
-                <div className="text-muted-foreground text-sm font-bold">
-                  Tokenizer Config
-                </div>
-                <pre className="bg-muted mt-1 rounded p-2 text-sm">
-                  <JSONView json={model.tokenizerConfig} />
-                </pre>
-              </div>
-            )}
           </CardContent>
         </Card>
 

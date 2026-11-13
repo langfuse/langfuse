@@ -52,7 +52,6 @@ const createCaller = async (opts: { v4BetaEnabled?: boolean } = {}) => {
       id: `user-${randomUUID()}`,
       name: "Batch Delete Test User",
       canCreateOrganizations: true,
-      admin: true,
       v4BetaEnabled: opts.v4BetaEnabled ?? false,
       organizations: [
         {

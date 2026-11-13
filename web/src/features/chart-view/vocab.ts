@@ -32,7 +32,7 @@ export interface MetricDef {
   /** The observations-view measure name this metric aggregates over. */
   measure: string;
   /** Passed through to `formatMetric` so axes/tooltips render units. */
-  unit?: "millisecond" | "USD";
+  unit?: "milliseconds" | "USD";
   /** Aggregations that make sense for this metric. */
   aggregations: AggregationFn[];
 }
@@ -48,7 +48,7 @@ export const METRICS: MetricDef[] = [
     key: "latency",
     label: "Latency",
     measure: "latency",
-    unit: "millisecond",
+    unit: "milliseconds",
     aggregations: METRIC_AGGREGATIONS.latency,
   },
   {

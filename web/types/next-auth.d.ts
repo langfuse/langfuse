@@ -23,7 +23,6 @@ declare module "next-auth" {
           email?: PrismaUser["email"];
           emailSupportHash?: string | null;
           image?: PrismaUser["image"];
-          admin?: PrismaUser["admin"];
           v4BetaEnabled?: boolean;
           canToggleV4?: boolean;
           // Whether this deployment shows the v4 migration UI (sidebar pill,
@@ -56,6 +55,7 @@ declare module "next-auth" {
               hasTraces: PrismaProject["hasTraces"];
               topicsEnabled?: boolean; // deployment allowlist, resolved server-side; absent = off
               scoreEditsDisabled?: boolean; // scores are read without dedup, so existing scores stay immutable; absent = off
+              forceV3Experience?: boolean; // LANGFUSE_FORCE_V3_EXPERIENCE allowlist, resolved server-side; absent = off
               metadata: Record<string, unknown>;
               role: Role; // include only projects where user has a role
               createdAt: string; // iso datetime string — JWT does not support Date objects

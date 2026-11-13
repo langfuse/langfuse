@@ -30,7 +30,7 @@ import {
   ZodModelConfig,
   getScoresForObservations,
   getScoresForTraces,
-  traceException,
+  logger,
   getExperimentNamesFromEvents,
   getExperimentItemsFilterOptions,
   getExperimentScoreOptions,
@@ -715,13 +715,15 @@ export const experimentsRouter = createTRPCRouter({
         scores: observationScores,
         dataTypes: AGGREGATABLE_SCORE_TYPES,
         includeHasMetadata: true,
-        onParseError: traceException,
+        onParseError: (error) =>
+          logger.warn("Invalid score omitted from response", { error }),
       });
       const validatedTraceScores = filterAndValidateDbScoreList({
         scores: traceScores,
         dataTypes: AGGREGATABLE_SCORE_TYPES,
         includeHasMetadata: true,
-        onParseError: traceException,
+        onParseError: (error) =>
+          logger.warn("Invalid score omitted from response", { error }),
       });
 
       const scoresByObservationId = new Map<

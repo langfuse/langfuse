@@ -130,6 +130,8 @@ export * from "./utils/DatabaseReadStream";
 export * from "./utils/transforms";
 export * from "./utils/billingCycleHelpers";
 export * from "./utils/compareVersions";
+export * from "./utils/withTransaction";
+export * from "./utils/withSerializableRetry";
 export * from "./otel/utils";
 export * from "./clickhouse/client";
 export {
@@ -160,8 +162,16 @@ export { toEvalRecord } from "./normalized-io/projections/eval-record";
 export { toToolColumns } from "./normalized-io/projections/tool-call-columns";
 export { orderObservations } from "./transcript/ordering";
 export { assembleTranscript } from "./transcript/transcript";
-export { renderTranscript } from "./transcript/topics-renderer";
+export {
+  redactModelPayload,
+  renderTranscript,
+} from "./transcript/topics-renderer";
 export { renderTranscriptFromObservations } from "./transcript/topics-renderer";
+export {
+  prepareAssembledTopicTranscript,
+  renderStoredTopicText,
+  TOPICS_TEXT_VERSION,
+} from "./transcript/topics-model-input";
 export { transcriptBlockTypes } from "./transcript/topics-renderer";
 export { renderGenericTranscript } from "./transcript/generic-renderer";
 export { topicsTranscriptConfig } from "./transcript/topics-renderer-config";
@@ -226,6 +236,7 @@ export * from "./redis/experimentCreateQueue";
 export * from "./redis/dlqRetryQueue";
 export * from "./redis/entityChangeQueue";
 export * from "./redis/topicsTraceQueue";
+export * from "./redis/eventsDispatchQueue";
 export * from "./redis/eventPropagationQueue";
 export * from "./redis/otelProjectTracking";
 export * from "./redis/s3SlowdownTracking";
@@ -314,6 +325,13 @@ export { type SplitQueryBuilder } from "./queries/clickhouse-sql/event-query-bui
 export { OBSERVATION_FIELD_GROUP_FIELD_NAMES } from "./repositories/events-field-sets";
 export { type SessionEventsField } from "./repositories/events-selects";
 export { type SessionEventsMetricsRow } from "./repositories/events-selects";
+export {
+  compileEventsPredicate,
+  compileEventsSearch,
+  lowerEventsPredicate,
+  lowerEventsSearch,
+  type CompiledEventsCondition,
+} from "./repositories/events-predicate";
 export { buildEventsFilterOptionColumnQuery } from "./queries/clickhouse-sql/event-filter-options";
 export { buildEventsFilterOptionsForColumnsQuery } from "./queries/clickhouse-sql/event-filter-options";
 export { buildEventsExactFilterOptionsForColumnsQuery } from "./queries/clickhouse-sql/event-filter-options";
@@ -551,7 +569,10 @@ export { type SdkMetadata } from "./repositories/events";
 export { getLatestSdkVersionInfoFromEvents } from "./repositories/events";
 export { getTracesIdentifierForSessionFromEvents } from "./repositories/events";
 export { getEventsStreamForEval } from "./repositories/events-stream";
-export { getTraceBatchEventStream } from "./repositories/trace-batch";
+export {
+  getTraceBatchEventStream,
+  type TraceBatchEventRow,
+} from "./repositories/trace-batch";
 export { type TableCount } from "./repositories/types";
 export { type DateTrunc } from "./repositories/dashboards";
 export { getScoreAggregate } from "./repositories/dashboards";
@@ -712,8 +733,13 @@ export { deriveAuditLogEventId } from "./repositories/auditLogs";
 export { convertAuditLogStagingRowToClickhouse } from "./repositories/auditLogs";
 export { type BillableEventType } from "./repositories/billable-events";
 export { getBillableUnitCountsByProjectInWindow } from "./repositories/billable-events";
-export { getTopicSetupTraceCounts } from "./repositories/topic-setup-events";
-export { getTopicSetupTraceIds } from "./repositories/topic-setup-events";
+export { getTopicSetupTraceCount } from "./repositories/topic-setup-events";
+export {
+  getTopicSetupTraceBounds,
+  getTopicSetupTraceIds,
+  TOPIC_SETUP_WINDOW_DAYS,
+} from "./repositories/topic-setup-events";
+export { getTopicSetupTraceNames } from "./repositories/topic-setup-events";
 export {
   getTopicResultCounts,
   type TopicResultCounts,

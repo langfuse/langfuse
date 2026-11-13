@@ -36,7 +36,6 @@ const buildSession = (orgId: string, projectId: string): Session => ({
       },
     ],
     featureFlags: {
-      searchBar: false,
       templateFlag: true,
       excludeClickhouseRead: false,
       observationEvals: false,
@@ -44,7 +43,6 @@ const buildSession = (orgId: string, projectId: string): Session => ({
       experimentsV4Enabled: false,
       langfuseTopics: false,
     },
-    admin: true,
   },
   environment: {} as any,
 });

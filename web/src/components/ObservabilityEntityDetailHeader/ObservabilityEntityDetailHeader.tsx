@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { Fragment, useLayoutEffect, useRef, useState } from "react";
 import type PageHeader from "@/src/components/layouts/page-header";
 import {
   DropdownMenu,
@@ -25,6 +25,7 @@ import { IconButton } from "@/src/components/design-system/IconButton/IconButton
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
+import { CorrectionBadge } from "@/src/features/traces/components/CorrectionBadge";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
 import { OverflowCountBadge } from "@/src/components/OverflowCountBadge";
@@ -34,6 +35,7 @@ import { FloatingController } from "@/src/components/design-system/FloatingContr
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { CostBadge } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
+import { UsageCostWarningBadge } from "@/src/features/traces/components/UsageCostWarningBadge";
 
 export type HeaderMetric = {
   id: string;
@@ -65,6 +67,7 @@ export type HeaderMetric = {
           React.ComponentProps<typeof ScoreBadge>,
           "name" | "scores"
         >)
+      | { type: "correction" }
       | {
           type: "cost";
           text: string;
@@ -77,7 +80,8 @@ export type HeaderMetric = {
             typeof BreakdownTooltip
           >["priceSource"];
         }
-      | { type: "missing-cost"; projectId: string }
+      | { type: "missing-cost"; projectId: string; hasUsage: boolean }
+      | { type: "missing-usage"; projectId: string }
       | { type: "model"; model: string; onCreate: () => void }
       | {
           type: "tokens";
@@ -94,9 +98,13 @@ export type HeaderMetric = {
           rows: {
             id: string;
             label: string;
-            value: string;
+            /** One badge per value; a caption names its source when there are several. */
+            values: {
+              text: string;
+              caption?: string;
+              color?: React.ComponentProps<typeof Badge>["color"];
+            }[];
             description?: string;
-            color?: React.ComponentProps<typeof Badge>["color"];
           }[];
         }
     ))
@@ -585,7 +593,21 @@ function MetricChip({ metric }: { metric: HeaderMetric }) {
 
 function MetricContent({ metric }: { metric: HeaderMetric }) {
   if (metric.type === "missing-cost")
-    return <CostBadge variant="missing" projectId={metric.projectId} />;
+    return (
+      <CostBadge
+        variant="missing"
+        projectId={metric.projectId}
+        hasUsage={metric.hasUsage}
+      />
+    );
+  if (metric.type === "missing-usage")
+    return (
+      <UsageCostWarningBadge
+        projectId={metric.projectId}
+        label="usage not submitted"
+        description="No token usage was submitted for this generation. Send token usage and a model name, or submit costs directly."
+      />
+    );
   if (metric.type === "model")
     return (
       <button
@@ -626,6 +648,7 @@ function MetricContent({ metric }: { metric: HeaderMetric }) {
     );
   if (metric.type === "score")
     return <ScoreBadge name={metric.name} scores={metric.scores} />;
+  if (metric.type === "correction") return <CorrectionBadge />;
   if (metric.type === "cost" || metric.type === "tokens")
     return (
       <BreakdownTooltip
@@ -661,22 +684,49 @@ function MetricContent({ metric }: { metric: HeaderMetric }) {
               <span className="text-sm font-bold">{metric.title}</span>
               <Metric href={metric.href} value={metric.linkText} />
             </div>
-            {metric.rows.map((row) => (
-              <div
-                key={row.id}
-                className="flex flex-col gap-1.5 border-b py-3 last:border-b-0"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-muted-foreground text-sm">
-                    {row.label}
-                  </span>
-                  <Badge text={row.value} color={row.color} />
+            {metric.rows.map((row) => {
+              // Several or captioned values get a line each under the label.
+              const isGrouped =
+                row.values.length > 1 ||
+                row.values.some((value) => value.caption);
+              return (
+                <div
+                  key={row.id}
+                  className="flex flex-col gap-1.5 border-b py-3 last:border-b-0"
+                >
+                  <div className="grid grid-cols-[fit-content(45%)_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1.5">
+                    <span
+                      className={cn(
+                        // `anywhere`, unlike `break-word`, lowers the min-content width the column sizes to.
+                        "text-muted-foreground text-sm wrap-anywhere",
+                        isGrouped && "col-span-2",
+                      )}
+                    >
+                      {row.label}
+                    </span>
+                    {row.values.map((value) => (
+                      <Fragment key={`${value.caption ?? ""}:${value.text}`}>
+                        {isGrouped && (
+                          <span className="text-muted-foreground text-xs wrap-anywhere">
+                            {value.caption}
+                          </span>
+                        )}
+                        <span className="flex min-w-0 justify-end">
+                          <Badge
+                            text={value.text}
+                            color={value.color}
+                            shouldWrap
+                          />
+                        </span>
+                      </Fragment>
+                    ))}
+                  </div>
+                  {row.description && (
+                    <p className="text-sm text-pretty">{row.description}</p>
+                  )}
                 </div>
-                {row.description && (
-                  <p className="text-sm text-pretty">{row.description}</p>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         }
       >
@@ -712,6 +762,7 @@ function EntityMetrics({ metrics }: { metrics: readonly HeaderMetric[] }) {
       getKey={(metric) => metric.id}
       isTightItem={(metric) =>
         metric.type === "score" ||
+        metric.type === "correction" ||
         (metric.type === "value" && metric.color === "filled")
       }
       renderItem={(metric) => (

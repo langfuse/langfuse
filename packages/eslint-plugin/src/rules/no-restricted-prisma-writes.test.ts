@@ -15,9 +15,22 @@ const ruleTester = new RuleTester({
 const options = [
   {
     models: {
-      apiKey: ["packages/shared/src/server/auth/apiKeys.ts"],
-      roleAssignment: ["rbac/roleAssignmentService.ts", "*.servertest.ts"],
-      membership: ["*.test.ts"],
+      apiKey: {
+        files: ["packages/shared/src/server/auth/apiKeys.ts"],
+        create: true,
+      },
+      roleAssignment: {
+        files: ["rbac/roleAssignmentService.ts", "*.servertest.ts"],
+        create: true,
+      },
+      membership: { files: ["*.test.ts"], create: true },
+      projectMembership: {
+        files: ["memberships/projectMembershipRepository.ts"],
+        create: true,
+        update: true,
+        delete: true,
+      },
+      auditLog: { files: ["audit/auditLog.ts"], update: true, delete: true },
     },
   },
 ] satisfies [object];
@@ -58,7 +71,24 @@ ruleTester.run("no-restricted-prisma-writes", rule, {
     {
       code: `await prisma.roleAssignment.create({ data });`,
       filename: "/repo/web/src/__tests__/server/roles.servertest.ts",
-      options: [{ models: { roleAssignment: ["*.servertest.ts"] } }],
+      options: [
+        {
+          models: {
+            roleAssignment: { files: ["*.servertest.ts"], create: true },
+          },
+        },
+      ],
+    },
+    {
+      code: `await prisma.projectMembership.findMany({ where });`,
+      options,
+    },
+    { code: `await prisma.auditLog.create({ data });`, options },
+    {
+      code: `await tx.projectMembership.delete({ where });`,
+      filename:
+        "/repo/web/src/features/memberships/projectMembershipRepository.ts",
+      options,
     },
   ],
   invalid: [
@@ -153,7 +183,10 @@ ruleTester.run("no-restricted-prisma-writes", rule, {
       options: [
         {
           models: {
-            roleAssignment: ["a/roleAssignmentService.ts", "b/seed.ts"],
+            roleAssignment: {
+              files: ["a/roleAssignmentService.ts", "b/seed.ts"],
+              create: true,
+            },
           },
         },
       ],
@@ -170,5 +203,38 @@ ruleTester.run("no-restricted-prisma-writes", rule, {
       options,
       errors: [restricted("membership", "create", "an allowed file")],
     },
+    ...[
+      "update",
+      "updateMany",
+      "updateManyAndReturn",
+      "delete",
+      "deleteMany",
+    ].map((method) => ({
+      code: `await tx.projectMembership.${method}({ where });`,
+      options,
+      errors: [
+        restricted(
+          "projectMembership",
+          method,
+          "memberships/projectMembershipRepository.ts",
+        ),
+      ],
+    })),
+    {
+      code: `await tx.projectMembership.upsert({ where, create, update });`,
+      options,
+      errors: [
+        restricted(
+          "projectMembership",
+          "upsert",
+          "memberships/projectMembershipRepository.ts",
+        ),
+      ],
+    },
+    ...["update", "delete", "upsert"].map((method) => ({
+      code: `await prisma.auditLog.${method}({ where });`,
+      options,
+      errors: [restricted("auditLog", method, "audit/auditLog.ts")],
+    })),
   ],
 });

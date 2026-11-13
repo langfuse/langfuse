@@ -1,42 +1,27 @@
 import { randomUUID } from "node:crypto";
-import { Queue, Worker } from "bullmq";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { TopicSummary } from "@langfuse/shared/topics";
 import {
   createTopicFacet,
   createTopicRun,
-  enqueueTopicExecution,
+  enqueueTopicRuleRefit,
+  getEnabledTopicsModels,
   readTopicAssignments,
+  saveTopicRule,
   saveTopicRun,
-  TopicsAutomationQueue,
   writeTopicSummaries,
 } from "@langfuse/shared/topics/server";
-import {
-  createNewRedisInstance,
-  getQueuePrefix,
-  redis,
-  type QueueName,
-  type TQueueJobTypes,
-} from "@langfuse/shared/src/server";
 import { clickhouseClient } from "@langfuse/shared/src/server/clickhouse";
 import { prisma } from "@langfuse/shared/src/db";
 import { processTopicsAutomation } from "./topicsAutomation";
+import { nightlyRefitSlot, scheduleNightlyTopicRefits } from "./nightlyRefit";
+import { env } from "../../env";
 
-// Discovery's queue handoff and model settings are not under test; its execution row is.
+// The refit's queue handoff and model settings are not under test; its run rows are.
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
-  enqueueTopicExecution: vi.fn(),
-  getTopicExecutionQueueState: vi.fn(async () => "missing"),
-  TopicsAutomationQueue: { getInstance: () => ({ add: vi.fn() }) },
-  getEnabledTopicsModels: vi.fn(
-    async (projectIds: string[]) =>
-      new Map(
-        projectIds.map((id) => [
-          id,
-          { embedding: { model: "embed", dimensions: 64 } },
-        ]),
-      ),
-  ),
+  enqueueTopicRuleRefit: vi.fn(),
+  getEnabledTopicsModels: vi.fn(),
 }));
 
 const DIMENSIONS = 64;
@@ -82,34 +67,6 @@ describe("automatic Topics assignment against storage", () => {
     metadata: {},
   });
 
-  async function discoveryBatch(name: string) {
-    const facet = await createTopicFacet({
-      projectId,
-      name,
-      description: "",
-      prompt: "Describe the request.",
-    });
-    const now = Date.now();
-    const rows = Array.from({ length: 100 }, (_, index) =>
-      summary(
-        facet.id,
-        new Date(now - (index + 1) * 60_000).toISOString(),
-        vector(1, index / 100),
-      ),
-    );
-    await writeTopicSummaries(rows);
-    return {
-      projectId,
-      traceIds: [rows[0].traceId!],
-      facets: [{ facetId: facet.id, version: 1 }],
-      embeddingConfig,
-      timeRange: {
-        from: new Date(rows[0].unitStartTime),
-        to: new Date(Date.parse(rows[0].unitStartTime) + 1),
-      },
-    };
-  }
-
   beforeAll(async () => {
     await prisma.organization.create({
       data: {
@@ -134,18 +91,25 @@ describe("automatic Topics assignment against storage", () => {
     await prisma.organization.deleteMany({ where: { id: orgId } });
   });
 
-  it("assigns a batch's stored summaries to the serving map once, even when the job repeats", async () => {
-    const facet = await createTopicFacet({
-      projectId,
-      name: "Assignment",
-      description: "",
-      prompt: "Describe the request.",
-    });
+  async function publishedMap(
+    name: string,
+    owner: { batchActionId?: string; ruleId?: string } = {},
+    existingFacet?: Awaited<ReturnType<typeof createTopicFacet>>,
+  ) {
+    const facet =
+      existingFacet ??
+      (await createTopicFacet({
+        projectId,
+        name,
+        description: "",
+        prompt: "Describe the request.",
+      }));
     const pending = await createTopicRun({
       projectId,
       facetId: facet.id,
       facetVersion: 1,
       config: { embeddingModel: "embed", dimensions: DIMENSIONS },
+      ...owner,
     });
     await saveTopicRun({
       ...pending,
@@ -168,6 +132,11 @@ describe("automatic Topics assignment against storage", () => {
         },
       ],
     });
+    return { facet, pending };
+  }
+
+  it("assigns a batch's stored summaries to the serving map once, even when the job repeats", async () => {
+    const { facet, pending } = await publishedMap("Assignment");
     // The batch window ends 1 ms after its latest summary, as the enqueue computes it.
     const near = summary(facet.id, "2026-10-14T10:00:00.000Z", vector(1, 0.01));
     const far = summary(facet.id, "2026-10-14T10:05:00.000Z", vector(0, 1));
@@ -209,139 +178,174 @@ describe("automatic Topics assignment against storage", () => {
     expect(Number(count)).toBe(2);
   });
 
-  it("starts one discovery when concurrent jobs reach the threshold, and queues it again if its job is lost", async () => {
-    const batch = await discoveryBatch("Discovery");
-
-    const startedAt = new Date();
-
-    await Promise.all([
-      processTopicsAutomation(batch),
-      processTopicsAutomation(batch),
-    ]);
-
-    const executions = await prisma.batchAction.findMany({
-      where: {
+  it("assigns online traces to a snapshot only until its facet version has a continuous map", async () => {
+    const assignOnce = async (unitStartTime: string) => {
+      const row = summary(facet.id, unitStartTime, vector(1, 0.01));
+      await writeTopicSummaries([row]);
+      const timeRange = {
+        from: new Date(unitStartTime),
+        to: new Date(Date.parse(unitStartTime) + 1),
+      };
+      await processTopicsAutomation({
         projectId,
-        userId: "system:topics",
-        createdAt: { gte: startedAt },
-      },
-    });
-    expect(executions).toHaveLength(1);
-    expect(executions[0].status).toBe("QUEUED");
+        traceIds: [row.traceId!],
+        facets: [{ facetId: facet.id, version: 1 }],
+        embeddingConfig,
+        timeRange,
+      });
+      return async (runId: string) =>
+        (
+          await readTopicAssignments(
+            projectId,
+            { facetId: facet.id, version: 1 },
+            [row],
+            runId,
+            timeRange,
+          )
+        ).length;
+    };
+    // A run from before runs had owners ranks like a snapshot.
+    const { facet } = await publishedMap("Snapshot");
+    const { pending: snapshot } = await publishedMap(
+      "Snapshot",
+      { batchActionId: "manual-execution" },
+      facet,
+    );
+    const beforeMap = await assignOnce("2026-10-14T10:00:00.000Z");
+    expect(await beforeMap(snapshot.id)).toBe(1);
 
-    // Its job was lost: the next job queues the same execution again despite its pending run.
-    vi.mocked(enqueueTopicExecution).mockClear();
-    await processTopicsAutomation(batch);
-    expect(vi.mocked(enqueueTopicExecution).mock.calls).toEqual([
-      [projectId, executions[0].id],
-    ]);
+    const { pending: map } = await publishedMap(
+      "Snapshot",
+      { ruleId: "rule" },
+      facet,
+    );
+    await publishedMap("Snapshot", { batchActionId: "later-execution" }, facet);
+    const afterMap = await assignOnce("2026-10-14T11:00:00.000Z");
+    expect(await afterMap(map.id)).toBe(1);
   });
 
-  it("does not start discovery while a fit for the facet is still running", async () => {
-    const batch = await discoveryBatch("Running fit");
-    // A manual Update topics that has not published yet.
-    await createTopicRun({
-      projectId,
-      facetId: batch.facets[0].facetId,
-      facetVersion: 1,
-      config: {},
-    });
-    const startedAt = new Date();
-
-    await processTopicsAutomation(batch);
-
-    expect(
-      await prisma.batchAction.count({
-        where: {
-          projectId,
-          userId: "system:topics",
-          createdAt: { gte: startedAt },
-        },
-      }),
-    ).toBe(0);
-  });
-
-  it("keeps one deferred discovery check and one successor scheduled by an active check", async () => {
+  it("fits each rule facet once per nightly slot, tagged with the rule, and skips a quiet night", async () => {
     const facet = await createTopicFacet({
       projectId,
-      name: "Deferred discovery",
+      name: "Refit",
       description: "",
       prompt: "Describe the request.",
     });
-    const name = `topics-discovery-test-${randomUUID()}`;
-    const connection = createNewRedisInstance();
-    if (!connection || !redis)
-      throw new Error("Redis is required for this test");
-    const options = { connection, prefix: getQueuePrefix(name) };
-    const queue = new Queue<TQueueJobTypes[QueueName.TopicsAutomation]>(
-      name,
-      options,
-    );
-    const worker = new Worker(queue.name, undefined, {
-      ...options,
-      autorun: false,
-    });
-    const queueSpy = vi
-      .spyOn(TopicsAutomationQueue, "getInstance")
-      .mockReturnValue(queue);
-    const gate = vi.spyOn(redis, "set").mockResolvedValue(null);
-    const now = Date.now();
-    const batch = {
+    const rule = await saveTopicRule({
       projectId,
-      traceIds: [randomUUID()],
-      facets: [{ facetId: facet.id, version: 1 }],
-      embeddingConfig,
-      timeRange: { from: new Date(now - 1), to: new Date(now) },
+      facetIds: [facet.id],
+      filter: [],
+    });
+    const now = new Date();
+    await writeTopicSummaries(
+      Array.from({ length: 100 }, (_, index) =>
+        summary(
+          facet.id,
+          new Date(now.getTime() - (index + 1) * 60_000).toISOString(),
+          vector(1, index / 100),
+        ),
+      ),
+    );
+    const schedule = (at: Date) => {
+      vi.mocked(getEnabledTopicsModels).mockResolvedValueOnce(
+        new Map([
+          [
+            projectId,
+            {
+              projectId,
+              embedding: { model: "embed", dimensions: DIMENSIONS },
+            },
+          ],
+        ]) as Awaited<ReturnType<typeof getEnabledTopicsModels>>,
+      );
+      return scheduleNightlyTopicRefits(at);
     };
-    vi.useFakeTimers({ toFake: ["Date"] });
-    try {
-      await queue.waitUntilReady();
-      let minute = 0;
-      const addChecks = async () => {
-        for (let index = 0; index < 2; index++) {
-          vi.setSystemTime(now + minute++ * 60_000);
-          await processTopicsAutomation(batch);
-        }
-      };
-      await addChecks();
-      expect(await queue.getJobCounts("delayed", "wait", "active")).toEqual({
-        delayed: 1,
-        wait: 0,
-        active: 0,
+    const runs = (status: string) =>
+      prisma.topicClusteringRun.findMany({
+        where: { projectId, facetId: facet.id, status },
       });
 
-      const [first] = await queue.getDelayed();
-      await first.promote();
-      const active = await worker.getNextJob("first", { block: false });
-      expect(active?.id).toBe(first.id);
-      await addChecks();
-      await active!.moveToCompleted(null, "first", false);
+    // The rule was saved after today's slot, so the next day's slot fits it first.
+    const later = new Date(now.getTime() + 86_400_000);
+    await expect(schedule(now)).resolves.toBe(0);
+    // A paused rule selects no new traces, so its map is not refit either.
+    const setStatus = (status: "ACTIVE" | "INACTIVE") =>
+      prisma.evaluationRule.update({
+        where: { id: rule.id },
+        data: { status },
+      });
+    await setStatus("INACTIVE");
+    await expect(schedule(later)).resolves.toBe(0);
+    await setStatus("ACTIVE");
+    await expect(schedule(later)).resolves.toBe(1);
+    await expect(schedule(later)).resolves.toBe(0);
+    const [first, ...others] = await runs("pending");
+    expect(others).toEqual([]);
+    expect(first).toMatchObject({ ruleId: rule.id, batchActionId: null });
+    // Nightly fits queue behind a setup's first fit.
+    expect(enqueueTopicRuleRefit).toHaveBeenCalledWith(
+      projectId,
+      first.id,
+      expect.any(Number),
+    );
 
-      const [successor] = await queue.getDelayed();
-      expect(successor.id).not.toBe(first.id);
-      expect(successor.opts.delay).toBe(60_000);
-      await addChecks();
-      expect(await queue.getJobCounts("delayed", "wait", "active")).toEqual({
-        delayed: 1,
-        wait: 0,
-        active: 0,
-      });
-      await successor.promote();
-      const last = await worker.getNextJob("last", { block: false });
-      await last!.moveToCompleted(null, "last", false);
-      expect(await queue.getJobCounts("delayed", "wait", "active")).toEqual({
-        delayed: 0,
-        wait: 0,
-        active: 0,
-      });
-    } finally {
-      vi.useRealTimers();
-      gate.mockRestore();
-      queueSpy.mockRestore();
-      await worker.close(true);
-      await queue.obliterate({ force: true });
-      await queue.close();
-      await connection.quit();
-    }
+    await prisma.topicClusteringRun.update({
+      where: { id: first.id },
+      data: { status: "completed", finishedAt: now },
+    });
+    await expect(
+      schedule(new Date(later.getTime() + 86_400_000)),
+    ).resolves.toBe(0);
+    expect(await runs("skipped")).toEqual([
+      expect.objectContaining({ ruleId: rule.id, batchActionId: null }),
+    ]);
+  });
+
+  it("skips the slot after a fit started from an hour before it, such as a manual refresh", async () => {
+    const facet = await createTopicFacet({
+      projectId,
+      name: "Refresh",
+      description: "",
+      prompt: "Describe the request.",
+    });
+    const rule = await saveTopicRule({
+      projectId,
+      facetIds: [facet.id],
+      filter: [],
+    });
+    const refresh = await createTopicRun({
+      projectId,
+      facetId: facet.id,
+      facetVersion: 1,
+      ruleId: rule.id,
+      config: { embeddingModel: "embed", dimensions: DIMENSIONS },
+    });
+    const slot = nightlyRefitSlot(
+      projectId,
+      new Date(Date.now() + 86_400_000),
+      env.LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC,
+    );
+    await prisma.topicClusteringRun.update({
+      where: { id: refresh.id },
+      data: { createdAt: new Date(slot.getTime() - 30 * 60_000) },
+    });
+    vi.mocked(getEnabledTopicsModels).mockResolvedValueOnce(
+      new Map([
+        [
+          projectId,
+          { projectId, embedding: { model: "embed", dimensions: DIMENSIONS } },
+        ],
+      ]) as Awaited<ReturnType<typeof getEnabledTopicsModels>>,
+    );
+
+    // A later tick of the same slot, more than an hour after the refresh started.
+    await scheduleNightlyTopicRefits(new Date(slot.getTime() + 2 * 3_600_000));
+
+    expect(
+      await prisma.topicClusteringRun.findMany({
+        where: { projectId, facetId: facet.id },
+        select: { id: true, status: true },
+      }),
+    ).toEqual([{ id: refresh.id, status: "pending" }]);
   });
 });

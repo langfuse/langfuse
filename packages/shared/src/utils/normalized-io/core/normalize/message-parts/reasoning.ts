@@ -16,11 +16,16 @@ export function reasoningPart(
 }
 
 /** Universal reasoning-text block: `reasoning`/`reasoning_text`/`summary_text`
- * all carry their payload under one of text/content/thinking/summary. */
+ * all carry their payload under one of text/content/thinking/summary, or
+ * under `reasoning` in LangChain v1 standard blocks. */
 export function normalizeReasoningTextPart(
   value: Record<string, unknown>,
 ): NormalizedMessagePart {
   const reasoning =
-    value.text ?? value.content ?? value.thinking ?? value.summary;
+    value.text ??
+    value.content ??
+    value.thinking ??
+    value.summary ??
+    value.reasoning;
   return reasoningPart(reasoning);
 }

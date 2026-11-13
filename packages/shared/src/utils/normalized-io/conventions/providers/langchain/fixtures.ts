@@ -481,6 +481,144 @@ export const langchainDictToolMessageFixture = {
   },
 } satisfies NormalizedIOFixture;
 
+/**
+ * LangChain v1 standard multimodal blocks as the Langfuse callback handler
+ * records them: `{ role, content: message.content }`, content kept verbatim.
+ * Block shapes from the LangChain multimodal docs, payloads shortened.
+ * https://docs.langchain.com/oss/python/langchain/messages#multimodal
+ */
+export const langchainStandardMultimodalBlocksFixture = {
+  name: "normalizes LangChain v1 standard multimodal content blocks",
+  spanIO: {
+    input: [
+      {
+        role: "user",
+        content: [
+          { type: "image", url: "https://example.com/path/to/image.jpg" },
+          {
+            type: "file",
+            url: "https://example.com/path/to/document.pdf",
+            mime_type: "application/pdf",
+          },
+          {
+            type: "audio",
+            base64: "UklGRiQAAABXQVZF",
+            mime_type: "audio/wav",
+          },
+          { type: "video", file_id: "file-def456" },
+          {
+            type: "image",
+            base64:
+              "@@@langfuseMedia:type=image/png|id=stored-image|source=base64@@@",
+          },
+        ],
+      },
+    ],
+    output: undefined,
+    metadata: undefined,
+  },
+  expected: {
+    messages: [
+      {
+        source: "input",
+        role: "user",
+        parts: [
+          {
+            type: "file",
+            mediaType: "image/*",
+            content: {
+              kind: "url",
+              url: "https://example.com/path/to/image.jpg",
+            },
+          },
+          {
+            type: "file",
+            mediaType: "application/pdf",
+            content: {
+              kind: "url",
+              url: "https://example.com/path/to/document.pdf",
+            },
+          },
+          {
+            type: "file",
+            mediaType: "audio/wav",
+            content: { kind: "base64", data: "UklGRiQAAABXQVZF" },
+          },
+          {
+            type: "file",
+            mediaType: "video/*",
+            content: { kind: "reference", id: "file-def456" },
+          },
+          {
+            type: "file",
+            mediaType: "image/png",
+            content: { kind: "reference", id: "stored-image" },
+            providerMetadata: { source: "base64" },
+          },
+        ],
+      },
+    ],
+    toolDefinitions: [],
+  },
+} satisfies NormalizedIOFixture;
+
+// Standard output serialized with output_version="v1".
+// https://docs.langchain.com/oss/python/langchain/messages#standard-content-blocks
+export const langchainStandardOutputBlocksFixture = {
+  name: "normalizes LangChain reasoning and server-side tools",
+  spanIO: {
+    input: undefined,
+    output: {
+      role: "assistant",
+      content: [
+        { type: "reasoning", reasoning: "Search first." },
+        {
+          type: "server_tool_call",
+          id: "search_1",
+          name: "web_search",
+          args: { query: "weather" },
+        },
+        {
+          type: "server_tool_result",
+          tool_call_id: "search_1",
+          status: "success",
+          output: "Rain.",
+        },
+      ],
+    },
+    metadata: undefined,
+  },
+  expected: {
+    messages: [
+      {
+        source: "output",
+        role: "assistant",
+        parts: [
+          {
+            type: "reasoning",
+            content: { kind: "text", text: "Search first." },
+          },
+          {
+            type: "tool-call",
+            toolCallId: "search_1",
+            toolName: "web_search",
+            input: { query: "weather" },
+            toolType: "server_tool_call",
+            providerExecuted: true,
+          },
+          {
+            type: "tool-result",
+            toolCallId: "search_1",
+            output: { type: "text", value: "Rain." },
+            providerMetadata: { status: "success" },
+          },
+        ],
+      },
+    ],
+    toolDefinitions: [],
+  },
+} satisfies NormalizedIOFixture;
+
 export const langgraphProductionShapeFixture = {
   name: "normalizes an anonymized LangGraph production-shaped span",
   otel: {

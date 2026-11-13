@@ -62,6 +62,7 @@ export * from "./features/entitlements/plans";
 export * from "./interfaces/rate-limits";
 export * from "./tableDefinitions/typeHelpers";
 export * from "./domain/webhooks";
+export * from "./domain/storage-role-auth";
 export * from "./domain/dataset-run-items";
 export * from "./domain/dataset-items";
 export * from "./domain/score-configs";
@@ -189,6 +190,9 @@ export * from "./features/prompts/validation";
 export * from "./features/prompts/types";
 export * from "./features/prompts/constants";
 
+// onboarding
+export * from "./features/onboarding/starterOrganization";
+
 // skills
 export * from "./features/skills/types";
 export * from "./features/skills/trace";
@@ -251,6 +255,8 @@ export { EXPORT_FIELD_GROUPS } from "./domain/export-field-groups";
 export { type ExportFieldGroup } from "./domain/export-field-groups";
 export { getObservationFieldGroups } from "./domain/export-field-groups";
 export { getScoreFieldGroups } from "./domain/export-field-groups";
+export { EventsStreamCursorSchema } from "./domain/eventsStreamCursor";
+export { type EventsStreamCursor } from "./domain/eventsStreamCursor";
 export { ObservationType } from "./domain/observations";
 export { ObservationTypeDomain } from "./domain/observations";
 export { ObservationLevel } from "./domain/observations";
@@ -294,9 +300,14 @@ export { AGGREGATABLE_SCORE_TYPES } from "./domain/scores";
 export { type AggregatableScoreDataType } from "./domain/scores";
 export { type AggregatableScore } from "./domain/scores";
 export { LISTABLE_SCORE_TYPES } from "./domain/scores";
+export { CORRECTION_SCORES_BILLABLE_FROM } from "./domain/scores";
 export { type ListableScoreDataType } from "./domain/scores";
 export { type ListableScore } from "./domain/scores";
 export { TableViewPresetTableName } from "./domain/table-view-presets";
+export {
+  SessionViewInputSchema,
+  SessionViewPreferencesSchema,
+} from "./domain/session-views";
 export { SystemTableViewPresetCategory } from "./domain/table-view-presets";
 export { SYSTEM_TABLE_VIEW_PRESET_CATEGORY_META } from "./domain/table-view-presets";
 export { SYSTEM_TABLE_VIEW_PRESET_CATEGORIES_ORDERED } from "./domain/table-view-presets";

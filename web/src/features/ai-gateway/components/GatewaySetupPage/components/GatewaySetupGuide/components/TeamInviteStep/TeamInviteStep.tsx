@@ -16,7 +16,6 @@ export function TeamInviteStep({ status, ...formProps }: TeamInviteStepProps) {
     <Stepper
       number={3}
       title={TEAM_NOTIFY_COPY.title}
-      size="sm"
       status={status}
       isCollapsible={false}
       description={
@@ -27,7 +26,6 @@ export function TeamInviteStep({ status, ...formProps }: TeamInviteStepProps) {
               {" "}
               <Button
                 variant="text"
-                size="sm"
                 text="About roles"
                 href={TEAM_NOTIFY_COPY.rolesDocsUrl}
               />

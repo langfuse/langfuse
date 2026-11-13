@@ -228,3 +228,79 @@ describe("VerifiedSignupFlow target path", () => {
     },
   );
 });
+
+describe("VerifiedSignupFlow SSO domains", () => {
+  const ssoAuthProviders = { ...FALLBACK_AUTH_PROVIDERS, sso: true };
+
+  beforeEach(() => {
+    signInMock.mockReset();
+    signInMock.mockResolvedValue({ ok: true, error: null });
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+    routerPushMock.mockReset();
+    envState.siteKey = undefined;
+    envState.region = "EU";
+  });
+
+  it("redirects an SSO-enforced email to its provider before asking for a name", async () => {
+    routerState.query = {
+      email: "jane@sso-company.com",
+      targetPath: "/organization/org-1",
+    };
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ providerId: "sso-company.com.okta" }),
+    });
+    render(
+      <SignUpPage
+        authProviders={ssoAuthProviders}
+        runningOnHuggingFaceSpaces={false}
+        signUpDisabled={false}
+        emailVerificationRequired
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    await waitFor(() => {
+      expect(signInMock).toHaveBeenCalledWith("sso-company.com.okta", {
+        callbackUrl: "/organization/org-1",
+      });
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/auth/check-sso");
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      domain: "sso-company.com",
+    });
+  });
+
+  it("continues with email verification when the domain has no SSO", async () => {
+    routerState.query = {};
+    fetchMock.mockImplementation(async (url: string) =>
+      url === "/api/auth/check-sso"
+        ? { ok: false, status: 404, json: async () => ({}) }
+        : { ok: true, json: async () => ({}) },
+    );
+    render(
+      <SignUpPage
+        authProviders={ssoAuthProviders}
+        runningOnHuggingFaceSpaces={false}
+        signUpDisabled={false}
+        emailVerificationRequired
+      />,
+    );
+    await fillSignupForm();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    await waitFor(() => {
+      expect(signInMock).toHaveBeenCalledWith("email", {
+        email: "jane@example.com",
+        callbackUrl: "/auth/setup-password",
+        redirect: false,
+      });
+    });
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      "/api/auth/check-sso",
+      "/api/auth/signup-verify",
+    ]);
+  });
+});

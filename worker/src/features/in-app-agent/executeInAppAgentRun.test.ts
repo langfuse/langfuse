@@ -15,7 +15,8 @@ import {
 } from "@langfuse/shared/rbac";
 import { ResumeForwardedPropsSchema } from "./runtime/types";
 import { env } from "../../env";
-import { LANGFUSE_IN_APP_AGENT_SKILLS } from "./runtime/skills";
+import { InAppAgentSkillSource } from "./runtime/skill-source";
+import { LANGFUSE_HALO_SKILLS } from "@repo/langfuse-skills";
 
 const createConversationId = () => `aconv_${randomUUID()}`;
 const createRunId = () => `arun_${randomUUID()}`;
@@ -65,7 +66,7 @@ type AgentScenario = (ctx: {
     awsProfile?: string;
     langfuseClient?: unknown;
     useLocalPrompt: boolean;
-    skills: Array<{ name: string }>;
+    skillSource: InAppAgentSkillSource;
     langfuseMcp: {
       toolPolicy: {
         available: ReadonlySet<string>;
@@ -361,17 +362,25 @@ describe("executeInAppAgentRun", () => {
     observabilityRef.traceException.mockClear();
   });
 
-  it("passes bundled skills from the loader when no managed tag is configured", async () => {
+  it("passes repository skills when no managed tag is configured", async () => {
     const { projectId, run } = await seedBackgroundRun();
     let selectedSkills: unknown;
     scenarioRef.current = async (params) => {
-      selectedSkills = params.options.skills;
+      selectedSkills = params.options.skillSource;
       await completingScenario(params);
     };
 
     await executeInAppAgentRun({ projectId, runId: run.id });
 
-    expect(selectedSkills).toBe(LANGFUSE_IN_APP_AGENT_SKILLS);
+    expect(selectedSkills).toBeInstanceOf(InAppAgentSkillSource);
+    if (!(selectedSkills instanceof InAppAgentSkillSource))
+      throw new Error("Missing skill source");
+    expect(await selectedSkills.readdir("/skills")).toEqual(
+      LANGFUSE_HALO_SKILLS.map(({ frontmatter }) => ({
+        name: frontmatter.name,
+        type: "directory",
+      })),
+    );
   });
 
   it("does not regenerate the conversation title after executing a user-message run", async () => {

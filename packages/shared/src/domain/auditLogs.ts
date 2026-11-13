@@ -13,11 +13,13 @@ export const AUDIT_LOG_PARAMS_MAX_BYTES = 2048;
 export const AUDIT_LOG_TEXT_MAX_BYTES = 512;
 
 /**
- * Upper bound for `resourceRefs` on one event: twice the largest list page
- * (1000 rows on GET /api/public/v2/observations), so a list can carry an
- * observation ref and a trace ref for every row it returned.
+ * Upper bound for `resourceRefs` on one event. It holds the largest page of
+ * every audited public API list: 100 experiment items with their trace and up
+ * to 50 scores each (5,200 refs), 100 experiments with up to 50 scores each
+ * (5,000), and 1000 observations with their trace and session (3,000). Reads
+ * of one very large trace or session can exceed it.
  */
-export const AUDIT_LOG_RESOURCE_REFS_MAX = 2000;
+export const AUDIT_LOG_RESOURCE_REFS_MAX = 10_000;
 
 /** Ends a value that was cut to its byte limit. Cut `params` are no longer valid JSON. */
 export const AUDIT_LOG_TRUNCATION_MARKER = "...[truncated]";

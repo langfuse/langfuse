@@ -1,17 +1,15 @@
-import { type ReactNode } from "react";
+import { TopicsCenteredState } from "./TopicsCenteredState";
 import { format, isToday, isYesterday } from "date-fns";
 import { CircleAlert, History } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { type RouterOutputs } from "@/src/utils/api";
-import { costFormatter } from "@/src/utils/numbers";
-import { cn } from "@/src/utils/tailwind";
 import {
-  busy,
   executionBadgeTypes,
   executionLabels,
-  operationLabels,
+  formatTopicRunCost,
+  runLabel,
 } from "./topic-run-labels";
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
 
@@ -69,47 +67,6 @@ function problemReason(run: Run) {
   return run.error ?? run.facets.find((f) => f.error)?.error ?? null;
 }
 
-function runDetail(run: Run): { text: string; problem: boolean } | null {
-  if (run.status === "failed" || run.status === "completed_with_errors") {
-    const reason = problemReason(run);
-    if (reason) return { text: reason, problem: true };
-  }
-  if (run.input.operation !== "process") return null;
-  const parts = [`${formatCount(traceCount(run))} traces`];
-  if (run.estimatedCost != null)
-    parts.push(
-      `${busy(run.status) ? "~" : ""}${costFormatter(run.estimatedCost)}`,
-    );
-  return { text: parts.join(" · "), problem: false };
-}
-
-function CenteredState({
-  icon,
-  title,
-  body,
-  children,
-}: {
-  icon: ReactNode;
-  title: string;
-  body: string;
-  children?: ReactNode;
-}) {
-  return (
-    <div className="flex flex-1 items-center justify-center p-6 pb-44">
-      <div className="flex max-w-xs flex-col items-center gap-3 text-center">
-        {icon}
-        <div className="flex flex-col gap-1">
-          <p className="text-sm font-bold">{title}</p>
-          <p className="text-muted-foreground text-sm text-balance break-words">
-            {body}
-          </p>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
-
 /** Live runs only: StatusBadge draws a dot for running and queued, not for finished runs. */
 function StatusDot({ status }: { status: Run["status"] }) {
   const label = executionLabels[status];
@@ -145,7 +102,10 @@ function ActiveRun({
     total,
     ...run.facets.map((facet) => facet.counts.complete),
   );
-  const showProgress = run.input.operation === "process" && total > 0;
+  // A snapshot shows a bar only while it summarizes its traces.
+  const showProgress =
+    (run.input.operation === "process" || run.phase === "summarizing") &&
+    total > 0;
   return (
     <div
       role="status"
@@ -158,11 +118,8 @@ function ActiveRun({
       >
         <span className="flex min-w-0 items-center gap-2 text-sm font-bold">
           <StatusDot status={run.status} />
-          <span
-            className="truncate"
-            title={operationLabels[run.input.operation]}
-          >
-            {operationLabels[run.input.operation]}
+          <span className="truncate" title={runLabel(run.input)}>
+            {runLabel(run.input)}
           </span>
         </span>
         <span className="text-muted-foreground font-mono text-xs">
@@ -184,13 +141,26 @@ function ActiveRun({
           </span>
         </div>
       )}
+      <div className="flex items-center justify-between gap-2.5 text-xs">
+        <span className="text-muted-foreground">
+          {run.input.operation === "process"
+            ? "Estimated cost so far"
+            : "Estimated cost"}
+        </span>
+        <span className="font-mono">
+          {formatTopicRunCost(run.input.operation, run.estimatedCost)}
+        </span>
+      </div>
     </div>
   );
 }
 
 function RunRow({ run, onOpen }: { run: Run; onOpen: (id: string) => void }) {
-  const name = operationLabels[run.input.operation];
-  const detail = runDetail(run);
+  const name = runLabel(run.input);
+  const problem =
+    run.status === "failed" || run.status === "completed_with_errors"
+      ? problemReason(run)
+      : null;
   return (
     <button
       type="button"
@@ -204,17 +174,15 @@ function RunRow({ run, onOpen }: { run: Run; onOpen: (id: string) => void }) {
         <span className="truncate text-sm" title={name}>
           {name}
         </span>
-        {detail && (
-          <span
-            className={cn(
-              "text-xs",
-              detail.problem
-                ? "text-foreground-secondary"
-                : "text-muted-foreground",
-            )}
-          >
-            {detail.text}
+        <span className="text-muted-foreground text-xs">
+          {run.input.operation === "process" &&
+            `${formatCount(traceCount(run))} traces · `}
+          <span className="whitespace-nowrap">
+            Cost: {formatTopicRunCost(run.input.operation, run.estimatedCost)}
           </span>
+        </span>
+        {problem && (
+          <span className="text-foreground-secondary text-xs">{problem}</span>
         )}
       </span>
       <span className="shrink-0">
@@ -228,7 +196,7 @@ function RunRow({ run, onOpen }: { run: Run; onOpen: (id: string) => void }) {
 
 function Empty() {
   return (
-    <CenteredState
+    <TopicsCenteredState
       icon={<History size="lg" color="muted" />}
       title="No runs yet"
       body="Runs show up here as Topics processes your traces."
@@ -244,7 +212,7 @@ function LoadError({
   onRetry: () => void;
 }) {
   return (
-    <CenteredState
+    <TopicsCenteredState
       icon={<CircleAlert size="lg" color="destructive" />}
       title="Couldn’t load run history"
       body={message}
@@ -255,7 +223,7 @@ function LoadError({
         size="sm"
         onClick={onRetry}
       />
-    </CenteredState>
+    </TopicsCenteredState>
   );
 }
 

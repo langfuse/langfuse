@@ -5,13 +5,12 @@
 // browser-only, server-only, database, or Mastra imports.
 
 import type { EventType } from "@ag-ui/core";
+import { ContextSchema } from "@ag-ui/core/schemas";
 import { z } from "zod";
 
-// @ag-ui/core@0.0.52 publishes Zod v3-shaped declarations, but this package
-// uses Zod v4, causing its exported z.infer-based types to resolve as unknown.
-// Duplicate the relevant schemas locally until
-// https://github.com/ag-ui-protocol/ag-ui/pull/1637 is merged, then remove
-// these definitions and use @ag-ui/core directly again.
+// The durable transcript keeps its established message shape: string tool
+// outputs, assistant run IDs, and legacy binary parts in historical rows.
+// Keep parsing compatible; the browser adapts this shape at its AG-UI boundary.
 
 const AgUiBaseMessageSchema = z.object({
   id: z.string(),
@@ -198,10 +197,7 @@ export const AgUiMessageSchema = z.discriminatedUnion("role", [
 
 export type AgUiMessage = z.infer<typeof AgUiMessageSchema>;
 
-export const AgUiContextSchema = z.object({
-  description: z.string(),
-  value: z.string(),
-});
+export const AgUiContextSchema = ContextSchema.strip();
 
 export type AgUiContext = Array<z.infer<typeof AgUiContextSchema>>;
 

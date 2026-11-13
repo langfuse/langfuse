@@ -79,8 +79,7 @@ const createIntegration = (
 
 const prepare = async ({
   projectRole = "ADMIN",
-  admin = true,
-}: { projectRole?: Role; admin?: boolean } = {}) => {
+}: { projectRole?: Role } = {}) => {
   const { project, org } = await createOrgProjectAndApiKey();
 
   const session: Session = {
@@ -94,7 +93,7 @@ const prepare = async ({
           id: org.id,
           name: org.name,
           role: "OWNER",
-          plan: "cloud:hobby",
+          plan: "cloud:team",
           cloudConfig: undefined,
           metadata: {},
           aiFeaturesEnabled: false,
@@ -114,11 +113,10 @@ const prepare = async ({
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin,
     },
     environment: {
       enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:hobby",
+      selfHostedInstancePlan: "cloud:team",
     },
   };
 
@@ -334,7 +332,6 @@ describe("Slack Integration", () => {
         async (projectRole) => {
           const { caller, project } = await prepare({
             projectRole,
-            admin: false,
           });
           await createIntegration(project.id, null);
           mockSlackService.getChannels.mockClear();
@@ -694,7 +691,6 @@ describe("Slack Integration", () => {
       it("should reject MEMBER, who may not manage integrations", async () => {
         const { caller, project } = await prepare({
           projectRole: "MEMBER",
-          admin: false,
         });
         await createIntegration(project.id, null);
         mockSlackService.deleteIntegration.mockClear();

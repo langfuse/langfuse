@@ -74,7 +74,6 @@ function renderAsProjectRole(role: Role) {
   mockSession.data = {
     environment: {},
     user: {
-      admin: false,
       organizations: [{ id: "org-1", projects: [{ id: PROJECT_ID, role }] }],
     },
   };

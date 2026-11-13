@@ -486,12 +486,84 @@ async fn retained_output_is_bounded_without_affecting_the_relay() {
 }
 
 #[tokio::test]
+async fn gateway_billing_outside_usage_is_kept_in_usage_mode() {
+    let mut observer = new_observer("usage").await;
+    record_response(&mut observer, 200, "application/json");
+    // A Vercel Messages reply, trimmed to its usage and billing.
+    let body = json!({
+        "id": "gen_01M72Z8EE19DG85GY1W3AWST3G", "type": "message", "role": "assistant",
+        "content": [{"type": "text", "text": "Hello! How can I help you today?"}],
+        "model": "amazon/nova-2-lite", "stop_reason": "end_turn", "stop_sequence": null,
+        "usage": {"input_tokens": 47, "output_tokens": 12},
+        "provider_metadata": {
+            "bedrock": {"stopSequence": null},
+            "gateway": {
+                "routing": {"modelAttempts": [{"success": true, "providerAttempts": [
+                    {"provider": "bedrock", "credentialType": "system", "success": true, "statusCode": 200},
+                ]}]},
+                "cost": "0.00004851",
+                "inputInferenceCost": "0.00001551",
+                "outputInferenceCost": "0.000033",
+            },
+        },
+    })
+    .to_string();
+    observer.push_bytes(body.as_bytes());
+    observer.end_body();
+    let facts = finalized(&mut observer);
+    assert_eq!(
+        facts.provider_metadata.unwrap()["gateway"]["cost"],
+        "0.00004851"
+    );
+    assert_eq!(facts.usage_details.unwrap()["output_tokens"], 12);
+}
+
+#[tokio::test]
+async fn streamed_gateway_billing_on_message_delta_is_kept() {
+    let mut observer = new_observer("usage").await;
+    record_response(&mut observer, 200, "text/event-stream");
+    // A streamed Vercel Messages reply, trimmed to its usage and billing: the
+    // cost arrives on `message_delta`, after `message_start` reported zero usage.
+    let gateway = json!({
+        "routing": {"modelAttempts": [{"success": true, "providerAttempts": [
+            {"provider": "bedrock", "credentialType": "system", "success": true, "statusCode": 200},
+        ]}]},
+        "cost": "0.00004851",
+    });
+    for chunk in [
+        event(
+            "message_start",
+            json!({"message": {
+                "id": "gen_01M7306ZKS93RHV6H26RJP8N3W", "type": "message", "role": "assistant",
+                "content": [], "model": "amazon/nova-2-lite", "stop_reason": null,
+                "usage": {"input_tokens": 0, "output_tokens": 0},
+            }}),
+        ),
+        event(
+            "message_delta",
+            json!({
+                "delta": {"stop_reason": "end_turn", "stop_sequence": null},
+                "usage": {"input_tokens": 47, "output_tokens": 12},
+                "provider_metadata": {"gateway": gateway},
+            }),
+        ),
+        event("message_stop", json!({})),
+    ] {
+        observer.push_bytes(chunk.as_bytes());
+    }
+    observer.end_body();
+    let facts = finalized(&mut observer);
+    assert_eq!(facts.provider_metadata.unwrap()["gateway"], gateway);
+    assert_eq!(facts.usage_details.unwrap()["output_tokens"], 12);
+}
+
+#[tokio::test]
 async fn finalized_facts_carry_the_anthropic_api_format_and_native_usage() {
     let mut observer = new_observer("usage").await;
     record_response(&mut observer, 200, "text/event-stream");
     observer.push_bytes(text_stream().as_bytes());
     let (api_format, facts) = observer.protocol.take().unwrap().into_facts();
-    assert_eq!(api_format, "anthropic.messages");
+    assert_eq!(api_format, ApiFormat::AnthropicMessages);
     assert_eq!(
         facts.usage_details.unwrap()["cache_read_input_tokens"],
         json!(16399)

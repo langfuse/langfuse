@@ -1,13 +1,24 @@
 import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { costFormatter } from "@/src/utils/numbers";
 import {
   type TopicExecutionStatus,
   type TopicOperation,
 } from "@langfuse/shared/topics";
 
-export const operationLabels: Record<TopicOperation, string> = {
+const operationLabels: Record<TopicOperation, string> = {
   process: "Analyze traces",
   update: "Regenerate topics",
 };
+
+/** A run's name in History: snapshots carry their own name. */
+export function runLabel(input: {
+  operation: TopicOperation;
+  analysis?: { label: string };
+}) {
+  return input.operation === "update" && input.analysis
+    ? `Snapshot · ${input.analysis.label}`
+    : operationLabels[input.operation];
+}
 
 export const executionLabels: Record<TopicExecutionStatus, string> = {
   queued: "Queued",
@@ -28,3 +39,13 @@ export const executionBadgeTypes: Record<TopicExecutionStatus, Status> = {
 
 export const busy = (status: string) =>
   status === "queued" || status === "running";
+
+export function formatTopicRunCost(
+  operation: TopicOperation,
+  estimatedCost: number | null,
+) {
+  if (operation === "update") return "Not tracked";
+  return estimatedCost == null
+    ? "Unavailable"
+    : `~${costFormatter(estimatedCost)}`;
+}

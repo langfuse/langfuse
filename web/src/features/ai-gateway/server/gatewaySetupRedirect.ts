@@ -4,16 +4,17 @@ import { type PrismaClient } from "@langfuse/shared/src/db";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
+import { GATEWAY_PAGE_SLUGS } from "@/src/features/ai-gateway/constants/gatewayPageSlugs";
+import { buildGatewayPagePath } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayPagePath";
 
-const SETUP_GATED_SETTINGS_SLUGS = new Set([
-  "ai-gateway-models",
-  "ai-gateway-api-keys",
-  "ai-gateway-analytics",
+const SETUP_GATED_PAGE_SLUGS = new Set<string>([
+  GATEWAY_PAGE_SLUGS.models,
+  GATEWAY_PAGE_SLUGS.apiKeys,
 ]);
 
 /**
- * Gateway managers cannot open model, API key or analytics settings before an ingestion
- * project is configured; they are sent to the setup page.
+ * Gateway managers cannot open the Models or Gateway keys pages before an
+ * ingestion project is configured; they are sent to the setup on Overview.
  * Other members are not redirected because their Models and API key pages
  * explain the state.
  */
@@ -25,7 +26,7 @@ export async function getGatewaySetupRedirect(params: {
 }): Promise<string | null> {
   const { prisma, session, organizationId, slug } = params;
   if (
-    !SETUP_GATED_SETTINGS_SLUGS.has(slug) ||
+    !SETUP_GATED_PAGE_SLUGS.has(slug) ||
     !isGatewayEnabledForOrganization(organizationId) ||
     !hasOrganizationAccess({
       session,
@@ -39,7 +40,5 @@ export async function getGatewaySetupRedirect(params: {
   const { isConfigured } = await new GatewayConfigService(
     prisma,
   ).getSetupStatus(organizationId);
-  return isConfigured
-    ? null
-    : `/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway`;
+  return isConfigured ? null : buildGatewayPagePath(organizationId);
 }

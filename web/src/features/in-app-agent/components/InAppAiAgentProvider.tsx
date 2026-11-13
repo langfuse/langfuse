@@ -11,7 +11,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import { EventType, type AgentSubscriber } from "@ag-ui/client";
+import type { AgentSubscriber } from "@ag-ui/client";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 
@@ -100,7 +100,8 @@ export type InAppAgentEntryPoint =
   | "command_menu"
   | "dashboard_widget"
   | "v4_migration"
-  | "evaluators_empty_state";
+  | "evaluators_empty_state"
+  | "skill_editor";
 
 function useBackgroundExecutionView(
   session: BackgroundExecutionSession | null,
@@ -717,50 +718,40 @@ function InAppAiAgentProviderInner({
   const sharedAgentSubscriber = useMemo(
     () =>
       ({
-        onEvent: ({ event }) => {
-          if (
-            event.type === EventType.REASONING_MESSAGE_START ||
-            event.type === EventType.TEXT_MESSAGE_START
-          ) {
-            updateLoadingEvent(event.messageId, true);
-            return;
-          }
-
-          if (
-            event.type === EventType.REASONING_MESSAGE_END ||
-            event.type === EventType.TEXT_MESSAGE_END
-          ) {
-            updateLoadingEvent(event.messageId, false);
-            return;
-          }
-
-          if (event.type === EventType.TOOL_CALL_START) {
-            toolCallNamesRef.current.set(event.toolCallId, event.toolCallName);
-            updateLoadingEvent(event.toolCallId, true);
-            return;
-          }
-
-          // TOOL_CALL_END only finishes argument streaming. The tool remains
-          // active until its result arrives.
-          if (event.type === EventType.TOOL_CALL_RESULT) {
-            updateLoadingEvent(event.toolCallId, false);
-            return;
-          }
-
-          if (
-            event.type === EventType.RUN_FINISHED ||
-            event.type === EventType.RUN_ERROR
-          ) {
-            clearLoadingEvents();
-          }
+        onTextMessageStartEvent: ({ event }) => {
+          updateLoadingEvent(event.messageId, true);
+        },
+        onTextMessageEndEvent: ({ event }) => {
+          updateLoadingEvent(event.messageId, false);
+        },
+        onReasoningMessageStartEvent: ({ event }) => {
+          updateLoadingEvent(event.messageId, true);
+        },
+        onReasoningMessageEndEvent: ({ event }) => {
+          updateLoadingEvent(event.messageId, false);
+        },
+        onToolCallStartEvent: ({ event }) => {
+          toolCallNamesRef.current.set(event.toolCallId, event.toolCallName);
+          updateLoadingEvent(event.toolCallId, true);
+        },
+        onRunFinishedEvent: () => {
+          clearLoadingEvents();
         },
         onToolCallResultEvent: ({ event }) => {
+          // TOOL_CALL_END only finishes argument streaming.
+          updateLoadingEvent(event.toolCallId, false);
           const toolCallId = String(event.toolCallId);
           const toolName = toolCallNamesRef.current.get(toolCallId);
           toolCallNamesRef.current.delete(toolCallId);
           if (toolName) {
             performToolSideEffectsForCompletedToolCalls({
-              toolCalls: [{ toolCallId, toolName, toolError: event.error }],
+              toolCalls: [
+                {
+                  toolCallId,
+                  toolName,
+                  toolError: event.metadata?.["langfuse.toolError"],
+                },
+              ],
               handledToolCallIds: handledToolCallIdsRef.current,
               utils,
             }).catch((error: unknown) => {
@@ -772,6 +763,7 @@ function InAppAiAgentProviderInner({
           }
         },
         onRunErrorEvent: ({ event }) => {
+          clearLoadingEvents();
           setError(getInAppAgentError(event));
         },
       }) satisfies AgentSubscriber,

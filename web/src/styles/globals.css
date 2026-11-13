@@ -16,7 +16,7 @@
    text-* size+weight tokens) stays fully font-relative. Adopting a webfont
    later = load it via next/font in a src/styles/fonts.ts (declare its vars on
    :root from _app — next/font CSS is silently dropped in _document), prepend
-   its var to the stacks below, and retune the two weight-role numbers
+   its var to the stacks below, and retune the weight-role numbers
    (history: IBM Plex wanted bold 500, Inter bold 600). The theme-lab panel
    can preview typefaces live without shipping them. Deliberately a plain
    @theme block (not `inline`): preflight reads var(--font-sans) at runtime,
@@ -31,12 +31,14 @@
     var(--font-plex-mono, "IBM Plex Mono"), ui-monospace, SFMono-Regular, Menlo,
     Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
-  /* Weight ROLES — exactly TWO weights exist in this app: regular and bold.
-     Both are font-relative, so components never hardcode numbers.
+  /* Weight ROLES — three weights exist in this app: regular, medium and bold.
+     All are font-relative, so components never hardcode numbers.
      `--font-weight-bold` deliberately overrides Tailwind's built-in bold
-     (700): the `font-bold` utility IS the bold role. font-medium /
-     font-semibold / raw numbers are drift — use font-bold or nothing. */
+     (700): the `font-bold` utility IS the bold role. Medium is for names that
+     identify an entity, e.g. the org and project switchers. font-semibold /
+     raw numbers are drift. */
   --font-weight-regular: 400;
+  --font-weight-medium: 500;
   --font-weight-bold: 600;
 }
 

@@ -15,6 +15,12 @@ import {
   UserId,
 } from "@langfuse/shared/rbac";
 import { assignRole } from "@langfuse/shared/rbac/server";
+import {
+  deleteProjectMembership,
+  saveOrgMembership,
+  saveProjectMembership,
+  updateOrgMembership,
+} from "@langfuse/shared/memberships";
 import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -124,6 +130,29 @@ async function seedOrgScopedKey(orgId: string) {
   return keys;
 }
 
+async function seedUserScopedKey(orgId: string, userId: string) {
+  const { publicKey, secretKey } = await createApiKey(prisma, {
+    tenant: OrganizationId(orgId),
+    scope: UserId(userId),
+    role: SystemRoleId("AI_GATEWAY"),
+    createdBy: UserId(userId),
+  });
+  const fastHash = createShaHash(secretKey, env.SALT!);
+  const keys = cacheKeysFor({ fastHash, publicKey });
+  for (const key of keys) {
+    await setRedisValue(redis, key, "1");
+  }
+  return keys;
+}
+
+async function orgMembershipIdOf(orgId: string, userId: string) {
+  const { id } = await prisma.organizationMembership.findUniqueOrThrow({
+    where: { orgId_userId: { orgId, userId } },
+    select: { id: true },
+  });
+  return id;
+}
+
 async function survivingKeys(keys: string[]) {
   const present: string[] = [];
   for (const key of keys) {
@@ -193,7 +222,6 @@ function makeCaller({
           : [],
       })),
       featureFlags: testFeatureFlags(),
-      admin: false,
     },
     environment: {} as any,
   };
@@ -432,6 +460,69 @@ describe("API-key cache invalidation on project/org lifecycle", () => {
     );
 
     expect(res.statusCode).toBe(200);
+    expect(await survivingKeys(keys)).toEqual([]);
+  });
+});
+
+describe("API-key cache invalidation on membership role changes", () => {
+  beforeEach(async () => {
+    await ensureRedisReady(redis);
+  });
+
+  it.each([
+    { name: "updateOrgMembership", change: updateOrgMembership },
+    { name: "saveOrgMembership", change: saveOrgMembership },
+  ])(
+    "$name evicts the user's USER keys and leaves organization keys cached",
+    async ({ change }) => {
+      const orgId = await createOrg();
+      const user = await createUserInOrgs([orgId]);
+      const userKeys = await seedUserScopedKey(orgId, user.id);
+      const orgKeys = await seedOrgScopedKey(orgId);
+
+      await change(prisma, { orgId, userId: user.id, role: Role.VIEWER });
+
+      expect(await survivingKeys(userKeys)).toEqual([]);
+      expect(await survivingKeys(orgKeys)).toEqual(orgKeys);
+    },
+  );
+
+  it("saveProjectMembership evicts the user's USER keys", async () => {
+    const orgId = await createOrg();
+    const projectId = await createProject(orgId);
+    const user = await createUserInOrgs([orgId]);
+    const keys = await seedUserScopedKey(orgId, user.id);
+
+    await saveProjectMembership(prisma, {
+      orgId,
+      orgMembershipId: await orgMembershipIdOf(orgId, user.id),
+      projectId,
+      userId: user.id,
+      role: Role.VIEWER,
+    });
+
+    expect(await survivingKeys(keys)).toEqual([]);
+  });
+
+  it("deleteProjectMembership evicts the user's USER keys", async () => {
+    const orgId = await createOrg();
+    const projectId = await createProject(orgId);
+    const user = await createUserInOrgs([orgId]);
+    await saveProjectMembership(prisma, {
+      orgId,
+      orgMembershipId: await orgMembershipIdOf(orgId, user.id),
+      projectId,
+      userId: user.id,
+      role: Role.VIEWER,
+    });
+    const keys = await seedUserScopedKey(orgId, user.id);
+
+    await deleteProjectMembership(prisma, {
+      orgId,
+      projectId,
+      userId: user.id,
+    });
+
     expect(await survivingKeys(keys)).toEqual([]);
   });
 });

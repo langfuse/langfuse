@@ -1,9 +1,12 @@
 import { PricingTierCondition } from "../../features/model-pricing/validation";
+import { logger } from "../logger";
 import type {
   PricingTierMatchAttributes,
   PricingTierMatchResult,
   PricingTierWithPrices,
 } from "./types";
+
+const NON_BMP_CHARACTER_PATTERN = /[\u{10000}-\u{10ffff}]/u;
 
 /**
  * Pricing tier matching algorithm
@@ -118,6 +121,17 @@ export function matchPricingTier(
   usageDetails: Record<string, number>,
   attributes: PricingTierMatchAttributes = {},
 ): PricingTierMatchResult | null {
+  const nonBmpUsageDetailKeys = Object.keys(usageDetails).filter((key) =>
+    NON_BMP_CHARACTER_PATTERN.test(key),
+  );
+  if (nonBmpUsageDetailKeys.length > 0) {
+    // Log-only: the native bounded matcher cannot handle non-BMP keys.
+    // Keep matching them here until the guard is enforced.
+    logger.warn("Pricing tier usage keys contain non-BMP characters", {
+      usageDetailKeys: nonBmpUsageDetailKeys,
+    });
+  }
+
   // 1. Filter and sort non-default tiers by priority (ascending)
   const sortedTiers = tiers
     .filter((tier) => !tier.isDefault)

@@ -7,11 +7,25 @@ import {
   ReadResourceRequestSchema,
   RequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import {
-  LANGFUSE_MCP_SKILLS,
-  LANGFUSE_MCP_RESOURCES,
-} from "@repo/langfuse-skills/mcp";
+import { LANGFUSE_SKILLS } from "@repo/langfuse-skills";
 import type { createMcpServer } from "../mcpServer";
+
+const skills = LANGFUSE_SKILLS.map(({ uri, frontmatter, resources }) => ({
+  uri,
+  frontmatter,
+  resources: resources.map(({ uri, digest, size }) => ({
+    uri,
+    digest,
+    size,
+  })),
+}));
+const resources = LANGFUSE_SKILLS.flatMap((skill) =>
+  skill.resources.map((resource) => ({
+    uri: resource.uri,
+    mimeType: resource.mimeType,
+    text: resource.text,
+  })),
+);
 
 const listSchema = RequestSchema.extend({
   method: z.literal("skills/list"),
@@ -38,16 +52,14 @@ export function registerSkillResources(
     if (cursor !== undefined) {
       throw new McpError(ErrorCode.InvalidParams, "Invalid skills cursor");
     }
-    return { ...cache, skills: LANGFUSE_MCP_SKILLS };
+    return { ...cache, skills };
   };
 
   server.setRequestHandler(listSchema, async (request) =>
     list(request.params?.cursor),
   );
   server.setRequestHandler(getSchema, async (request) => {
-    const official = LANGFUSE_MCP_SKILLS.find(
-      (skill) => skill.uri === request.params.uri,
-    );
+    const official = skills.find((skill) => skill.uri === request.params.uri);
     if (!official) throw notFound();
     return { ...cache, skill: official };
   });
@@ -69,7 +81,7 @@ export function registerSkillResources(
   }));
   server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     const uri = request.params.uri;
-    const resource = LANGFUSE_MCP_RESOURCES.find((file) => file.uri === uri);
+    const resource = resources.find((file) => file.uri === uri);
     if (!resource) throw notFound();
     return { ...cache, contents: [resource] };
   });

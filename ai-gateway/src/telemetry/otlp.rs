@@ -15,7 +15,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 
 use super::Grant;
-use crate::resolution::{ControlPlaneConfig, ResolutionError, signing};
+use crate::resolution::{ControlPlaneConfig, HEALTH_PATH, ResolutionError, signing};
 
 const INGESTION_PATH: &str = "/api/public/otel/v1/traces";
 pub(super) const MAX_PAYLOAD_BYTES: usize = 20 * 1024 * 1024;
@@ -25,6 +25,7 @@ const UPLOAD_TIMEOUT: Duration = Duration::from_secs(30);
 pub(super) struct Uploader {
     client: ClientWithMiddleware,
     endpoint: Url,
+    health_endpoint: Url,
     service_key: SecretString,
 }
 
@@ -87,8 +88,14 @@ impl Uploader {
         Ok(Self {
             client: crate::observability::instrument_client(client, "ingestion"),
             endpoint: config.endpoint(INGESTION_PATH),
+            health_endpoint: config.endpoint(HEALTH_PATH),
             service_key: config.service_key().clone(),
         })
+    }
+
+    /// Open a pooled connection to Web so the first export skips connection setup.
+    pub(super) async fn open_connection(&self) -> bool {
+        crate::resolution::open_connection(&self.client, self.health_endpoint.clone()).await
     }
 
     pub(super) async fn export(&self, grant: &Grant, payload: &Payload) -> Result<(), ExportError> {

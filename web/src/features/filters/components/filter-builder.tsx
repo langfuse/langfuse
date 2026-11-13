@@ -455,6 +455,7 @@ export function InlineFilterBuilder({
   onStringObjectKeyChange,
   compact = false,
   subtleAddButton = false,
+  operators,
 }: {
   columns: ColumnDefinitionWithAlert[];
   filterState: FilterState;
@@ -480,6 +481,8 @@ export function InlineFilterBuilder({
   compact?: boolean;
   /** Renders the add action like the subtle prompt-editor "Add message" action. */
   subtleAddButton?: boolean;
+  /** Operators offered per filter type; defaults to every operator. */
+  operators?: FilterOperators;
 }) {
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
@@ -530,18 +533,15 @@ export function InlineFilterBuilder({
         onStringObjectKeyChange={onStringObjectKeyChange}
         compact={compact}
         subtleAddButton={subtleAddButton}
+        operators={operators}
       />
     </div>
   );
 }
 
-const getOperator = (
-  type: NonNullable<WipFilterCondition["type"]>,
-): WipFilterCondition["operator"] => {
-  return filterOperators[type]?.length > 0
-    ? filterOperators[type][0]
-    : undefined;
-};
+type FilterOperators = Partial<
+  Record<keyof typeof filterOperators, readonly string[]>
+>;
 
 /**
  * Returns severity-based styling classes for alert icons and tooltips
@@ -580,6 +580,7 @@ function FilterBuilderForm({
   compact = false,
   subtleAddButton = false,
   aiFilter,
+  operators,
 }: {
   columnIdentifier: ColumnIdentifier;
   columns: ColumnDefinitionWithAlert[];
@@ -602,7 +603,11 @@ function FilterBuilderForm({
   compact?: boolean;
   subtleAddButton?: boolean;
   aiFilter?: AiFilterConfig;
+  operators?: FilterOperators;
 }) {
+  // A type missing from `operators` offers none, like the eval filter definitions.
+  const operatorsFor = (type: keyof typeof filterOperators) =>
+    operators ? (operators[type] ?? []) : filterOperators[type];
   const [showAiFilter, setShowAiFilter] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiError, setAiError] = useState<string | null>(null);
@@ -729,7 +734,7 @@ function FilterBuilderForm({
                       onSelect={(value) => {
                         const col = columns.find((c) => c.id === value);
                         const defaultOperator = col?.type
-                          ? getOperator(col.type)
+                          ? operatorsFor(col.type)[0]
                           : undefined;
 
                         handleFilterChange(
@@ -930,7 +935,7 @@ function FilterBuilderForm({
         </SelectTrigger>
         <SelectContent className="ph-no-capture">
           {filter.type !== undefined
-            ? filterOperators[filter.type].map((option) => (
+            ? operatorsFor(filter.type).map((option) => (
                 <SelectItem key={option} value={option}>
                   {option}
                 </SelectItem>

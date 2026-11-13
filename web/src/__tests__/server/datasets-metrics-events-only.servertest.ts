@@ -58,7 +58,6 @@ maybe("datasets.allDatasetsMetrics in events_only write mode", () => {
       ],
       featureFlags: testFeatureFlags(),
       v4BetaEnabled: true,
-      admin: true,
     },
     environment: {} as any,
   };

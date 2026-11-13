@@ -10,6 +10,7 @@ The [public API adapter](server/publicApi.ts) uses the project gate without a pe
 
 ## Results and maps
 
+- [TopicsMapPicker.tsx](TopicsMapPicker.tsx) switches the page between maps via `?map=rule:<id>` or `?map=analysis:<executionId>` ([topic-maps.ts](topic-maps.ts)). A rule map is live and lists only traces its run assigned; an analysis is a fixed snapshot. [TopicSliceDialogController.tsx](TopicSliceDialogController.tsx) owns the New map and New snapshot dialogs (⋮ menu and map picker) and the Edit map dialog (header button). It also owns Refresh map (⋮ menu, maps only, not snapshots), which calls `topics.refreshRuleMap`; the maps overview reports each rule's `refresh` (running, cooldown) and the strip shows it.
 - [server/currentResults.ts](server/currentResults.ts) separates approximate per-facet/topic counts from paged trace rows. The page has no time picker; each facet's window starts at its published map's cohort start, bounded by `TOPICS_MAX_TIME_RANGE_MS`, and ends now. Without a map it uses the last seven days.
 - Current assignments belong to the published run and must match the current summary's facet version and processing time. An older map's assignment does not make a trace assigned in the current results.
 - [useFacetTopicTraces.ts](useFacetTopicTraces.ts) injects server pagination into the views; stories inject fixture rows. Follow `nextCursor`, including on short pages. Selected traces outside loaded pages can be fetched separately and pinned. Search matches topic names or an exact trace ID, not summary text.
@@ -25,4 +26,4 @@ The [public API adapter](server/publicApi.ts) uses the project gate without a pe
 - Manual request IDs and mutation errors outlive the dialog so retrying an unchanged failed request cannot create a duplicate execution. See [TopicPipelineForm.tsx](TopicPipelineForm.tsx) and [useRegenerateTopics.ts](useRegenerateTopics.ts).
 - [server/traceSelection.ts](server/traceSelection.ts) uses the shared bounded selector for preview and submission. Preview calls no models and is not a snapshot: the server resolves trace IDs again at submission, and source content can change before the worker reads it. Preserve the reviewed time bounds and exclusions; selection predicates match one observation, while processing loads the containing trace.
 
-For setup changes, start with [TopicSetupFlowController.tsx](TopicSetupFlowController.tsx) and [TopicModelSettings.tsx](TopicModelSettings.tsx). For manual runs, start with [ManualTopicsFormContent.tsx](ManualTopicsFormContent.tsx).
+For setup changes, start with [TopicSetupFlowController.tsx](TopicSetupFlowController.tsx) and [useTopicSettings.ts](useTopicSettings.ts). For manual runs, start with [ManualTopicsFormContent.tsx](ManualTopicsFormContent.tsx).

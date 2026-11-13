@@ -1,0 +1,21 @@
+/* Halo: its mark drawn on the raised face, the message's text, each step's object and the result card */
+
+.mark {
+  fill: none;
+  /* On a highlighted block the mark takes the accent's ink, like the hero's name */
+  stroke: var(--illustration-on-hero-ink, var(--illustration-ink));
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.message {
+  fill: var(--illustration-ink);
+}
+.object {
+  fill: var(--illustration-ink-2);
+}
+.result {
+  fill: color-mix(in srgb, var(--illustration-panel) 70%, transparent);
+  stroke: var(--illustration-ink);
+  stroke-width: 1.25;
+}

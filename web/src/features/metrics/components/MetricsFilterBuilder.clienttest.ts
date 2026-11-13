@@ -345,6 +345,25 @@ describe("buildV2FilterColumnsParams", () => {
     ).toBe(false);
   });
 
+  it("boolean score view: suggests boolean score names for Score Name", () => {
+    const params = buildV2FilterColumnsParams({
+      view: "scores-boolean",
+      filterOptions: {
+        scores_avg: ["accuracy"],
+        score_booleans: ["is_helpful", "is_safe"],
+      } as Parameters<typeof buildV2FilterColumnsParams>[0]["filterOptions"],
+      datasets: undefined,
+    });
+    const column = getMetricsFilterColumns(params).find(
+      (c) => c.id === "scoreName",
+    );
+    const values =
+      column?.type === "stringOptions"
+        ? column.options.map((o) => o.value)
+        : [];
+    expect(values).toEqual(["is_helpful", "is_safe"]);
+  });
+
   it("trace-level release/version pair: offered on v1 only", () => {
     expect(getColumn("observations", "traceRelease", "v1")).toMatchObject({
       name: "Trace Release",

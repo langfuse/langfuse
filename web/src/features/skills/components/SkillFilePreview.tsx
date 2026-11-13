@@ -110,7 +110,7 @@ function MarkdownFilePreview({
 
   return (
     <article
-      className="mx-auto flex w-full max-w-4xl flex-col gap-2"
+      className="mx-auto flex w-full max-w-4xl min-w-0 flex-col gap-2"
       onClickCapture={handleFileLinkEvent}
       onAuxClickCapture={handleFileLinkEvent}
       onContextMenuCapture={handleFileLinkEvent}
@@ -134,7 +134,10 @@ function MarkdownFilePreview({
           </dl>
         </section>
       ) : null}
-      <MarkdownView markdown={parsed.body} />
+      <MarkdownView
+        markdown={parsed.body}
+        className="min-w-0 [&_table]:w-full [&_table]:table-fixed [&_td]:align-top [&_td]:wrap-anywhere [&_td]:whitespace-normal [&_th]:align-top [&_th]:wrap-anywhere [&_th]:whitespace-normal"
+      />
     </article>
   );
 }

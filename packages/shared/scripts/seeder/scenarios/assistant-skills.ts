@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { z } from "zod";
 import {
   SkillDescriptionSchema,
+  SkillFilePathSchema,
   SkillNameSchema,
   SkillTagsSchema,
   SkillVersionSchema,
@@ -17,11 +18,16 @@ import {
 } from "./types";
 
 const BundledSkillsSchema = z.object({
-  LANGFUSE_SKILLS: z.array(
+  LANGFUSE_HALO_SKILLS: z.array(
     z.object({
-      name: SkillNameSchema,
-      description: SkillDescriptionSchema,
-      instructions: z.string().min(1),
+      uri: z.string(),
+      frontmatter: z.object({
+        name: SkillNameSchema,
+        description: SkillDescriptionSchema,
+      }),
+      resources: z.array(
+        z.object({ path: SkillFilePathSchema, text: z.string() }),
+      ),
     }),
   ),
 });
@@ -73,43 +79,53 @@ const run = async (
   const bundle: unknown = createRequire(__filename)(
     resolve(__dirname, "../../../../langfuse-skills"),
   );
-  const definitions = BundledSkillsSchema.parse(bundle).LANGFUSE_SKILLS;
+  const { LANGFUSE_HALO_SKILLS } = BundledSkillsSchema.parse(bundle);
+  const definitions = LANGFUSE_HALO_SKILLS.map((skill) => ({
+    name: skill.frontmatter.name,
+    description: skill.frontmatter.description,
+    files: skill.resources.map(({ path, text }) => ({ path, content: text })),
+  }));
   if (params.demo === true) {
+    const name = "local-assistant-check";
+    const description =
+      "Verify hosted assistant skills. Use when asked to run the local assistant check.";
     definitions.push({
-      name: "local-assistant-check",
-      description:
-        "Verify hosted assistant skills. Use when asked to run the local assistant check.",
-      instructions: 'Reply with exactly: "Hosted skills are connected."',
+      name,
+      description,
+      files: [
+        {
+          path: "SKILL.md",
+          content: `---\nname: ${JSON.stringify(name)}\ndescription: ${JSON.stringify(description)}\nlicense: MIT\nmetadata:\n  team: platform\n  stability: stable\n---\n\nReply with exactly: "Hosted skills are connected."\n`,
+        },
+      ],
     });
   }
   if (demoFiles > 0) {
+    const name = "local-many-files";
+    const description =
+      "Synthetic skill for checking file lists and usage layouts.";
     definitions.push({
-      name: "local-many-files",
-      description: "Synthetic skill for checking file lists and usage layouts.",
-      instructions:
-        "Use the reference files as synthetic examples for local UI checks.",
+      name,
+      description,
+      files: [
+        {
+          path: "SKILL.md",
+          content: `---\nname: ${JSON.stringify(name)}\ndescription: ${JSON.stringify(description)}\nlicense: Apache-2.0\nmetadata:\n  team: docs\n  stability: experimental\n---\n\nUse the reference files as synthetic examples for local UI checks.\n`,
+        },
+        ...Array.from({ length: demoFiles - 1 }, (_, index) => ({
+          path: `references/example-${String(index + 1).padStart(3, "0")}.md`,
+          content: `# Example ${index + 1}\n\nSynthetic reference content for local skill layout checks.\n`,
+        })),
+      ],
     });
   }
-  const skills = definitions.map(({ name, description, instructions }) => {
-    const content = `---\nname: ${JSON.stringify(name)}\ndescription: ${JSON.stringify(description)}\n---\n\n${instructions}\n`;
-    const files = [
-      { path: "SKILL.md", content },
-      ...(name === "local-many-files"
-        ? Array.from({ length: demoFiles - 1 }, (_, index) => ({
-            path: `references/example-${String(index + 1).padStart(3, "0")}.md`,
-            content: `# Example ${index + 1}\n\nSynthetic reference content for local skill layout checks.\n`,
-          }))
-        : []),
-    ];
-    return {
-      name,
-      files: files.map(({ path, content }) => ({
-        path,
-        content,
-        sha256Hash: createHash("sha256").update(content).digest("base64"),
-      })),
-    };
-  });
+  const skills = definitions.map(({ name, files }) => ({
+    name,
+    files: files.map((file) => ({
+      ...file,
+      sha256Hash: createHash("sha256").update(file.content).digest("base64"),
+    })),
+  }));
   const links = skills.map(
     ({ name }) => `${ctx.baseUrl}/project/${ctx.projectId}/skills/${name}`,
   );

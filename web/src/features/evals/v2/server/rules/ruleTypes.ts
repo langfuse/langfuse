@@ -135,6 +135,11 @@ export const EvaluatorRulesSchema = z.object({
   evaluatorId: z.string(),
 });
 
+export const ExperimentDatasetRulesSchema = z.object({
+  projectId: z.string(),
+  datasetId: z.string().min(1),
+});
+
 export const SuggestRuleNameSchema = z.object({
   projectId: z.string(),
   filter: RuleMetadataSchema.shape.filter,

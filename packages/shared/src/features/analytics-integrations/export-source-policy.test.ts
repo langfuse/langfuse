@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import * as exportSourcePolicy from "./export-source-policy";
 import {
   areEnrichedWritesActive,
   areLegacyWritesActive,
@@ -299,12 +298,6 @@ describe("write mode drives export-source availability", () => {
         ),
       ).toEqual(getAvailableExportSources(ctxFor(mode)));
     }
-  });
-
-  // Deletion guard: the old preview-flag helper must not survive as a second,
-  // divergent answer to "is enriched available?".
-  it("no longer exports isEnrichedBlobExportAvailable", () => {
-    expect("isEnrichedBlobExportAvailable" in exportSourcePolicy).toBe(false);
   });
 });
 

@@ -10,6 +10,7 @@ import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import { scoreV3Refs } from "@/src/features/audit-logs/server/auditedQuery";
 import {
   listScoresV3ForPublicApi,
   EncodedScoresCursorV3,
@@ -163,9 +164,10 @@ export const [listScoresTool, handleListScores] = defineTool({
     "Score reads are eventually consistent: a score created with createScore may not appear in listScores immediately. If a newly created score is missing, wait briefly and retry.",
   ].join("\n"),
   action: "scores:read",
+  accessAudit: { resourceType: "score", action: "list" },
   baseSchema: ListScoresBaseSchema,
   inputSchema: ListScoresInputSchema,
-  handler: async (input, context) => {
+  handler: async (input, context, audit) => {
     return await runMcpTool({
       spanName: "mcp.scores.list",
       context,
@@ -212,6 +214,8 @@ export const [listScoresTool, handleListScores] = defineTool({
           return url ? { ...score, url } : score;
         });
         span.setAttribute("mcp.result_count", data.length);
+        audit.refs(scoreV3Refs(result.data));
+        audit.count(result.data.length);
 
         return {
           data,

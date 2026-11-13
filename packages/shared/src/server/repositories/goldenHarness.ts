@@ -201,6 +201,36 @@ export function formatSql(sql: string): string {
   return res.stdout.trimEnd();
 }
 
+const BATCH_SEPARATOR = "SELECT 'golden_harness_batch_separator'";
+
+/**
+ * {@link formatSql} for many statements in one `clickhouse format` process,
+ * in input order. A statement must not contain the separator select.
+ */
+export function formatSqlBatch(sqls: readonly string[]): string[] {
+  if (sqls.length === 0) return [];
+  const res = spawnSync(clickhouseBin, ["format", "--multiquery"], {
+    input: sqls.join(`;\n${BATCH_SEPARATOR};\n`) + ";",
+    encoding: "utf8",
+    maxBuffer: 256 * 1024 * 1024,
+  });
+  if (res.error) throw res.error;
+  if (res.status !== 0) {
+    throw new Error(
+      `clickhouse format failed (status ${res.status}): ${res.stderr?.trim()}`,
+    );
+  }
+  const formatted = res.stdout
+    .split(new RegExp(`;\\s*${BATCH_SEPARATOR}\\s*;`))
+    .map((sql) => sql.trim().replace(/\s*;$/, ""));
+  if (formatted.length !== sqls.length) {
+    throw new Error(
+      `clickhouse format returned ${formatted.length} statements for ${sqls.length}.`,
+    );
+  }
+  return formatted;
+}
+
 let localAvailability: boolean | undefined;
 
 /** Whether `clickhouse local` can execute a query on this machine. */

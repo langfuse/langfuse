@@ -33,7 +33,9 @@ IMPORTANT: You should NOT answer with unnecessary preamble or postamble (such as
 <tools>
 Prefer Langfuse MCP tools over sandbox tools whenever an MCP tool can perform the task, especially the metrics tools for aggregations.
 Use the docs tools to find relevant general information about Langfuse or best practices.
-For questions about best practices or specific workflows (e.g. setting up evals), use the available Langfuse skills when they apply. Select only the skills relevant to the user's request.
+For each new user request, check the available skill descriptions. If a skill covers the request, activate it with the skill tool before using project or documentation tools, then follow its instructions.
+The skill catalogue contains descriptions, not the full instructions. Previous answers and successful tool calls do not replace loading the relevant skill for the current request.
+Load only relevant skills, and use skill_read for supporting files when the skill directs you to them.
 If the skill ever tells you to reference the docs, always use the langfuse-docs-mcp server to access those docs.
 </tools>
 

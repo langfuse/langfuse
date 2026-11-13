@@ -690,4 +690,56 @@ describe("Topics transcript renderer", () => {
     ).text;
     expect(withoutIdsText).toContain("[tool lookup #1 ←] Found");
   });
+
+  it("scrubs payload media and opaque blobs like the JSON input and keeps audio transcripts", () => {
+    const at = new Date("2026-01-01T00:00:00.000Z");
+    const message = (
+      role: "user" | "assistant" | "tool",
+      parts: Transcript["threads"][number]["currentTurn"]["messages"][number]["parts"],
+    ) => ({ role, observationId: "g", startTime: at, endTime: at, parts });
+    const transcript = {
+      threads: [
+        {
+          conversationHistory: [],
+          currentTurn: {
+            nestingLevel: 0,
+            observations: [{ id: "g", traceId: "trace" }],
+            messages: [
+              message("user", [{ type: "text", text: "Read the page aloud" }]),
+              message("tool", [
+                {
+                  type: "tool-result",
+                  toolCallId: "1",
+                  toolName: "screenshot",
+                  output: {
+                    type: "json",
+                    value: {
+                      mimeType: "image/png",
+                      data: "iVBORw0KGgo",
+                      signature: "opaque-blob",
+                    },
+                  },
+                },
+              ]),
+              message("assistant", [
+                {
+                  type: "file",
+                  mediaType: "audio/wav",
+                  content: { kind: "base64", data: "UklGR" },
+                  providerMetadata: { transcript: "Prices start at $10." },
+                },
+              ]),
+            ],
+          },
+        },
+      ],
+    } as unknown as Transcript;
+
+    const { text } = renderTranscript(transcript, [], topicsTranscriptConfig);
+    expect(text).toContain('{"mimeType":"image/png","data":"[media omitted]"}');
+    expect(text).not.toContain("iVBORw0KGgo");
+    expect(text).toContain(
+      "[assistant] [audio/wav omitted] transcript: Prices start at $10.",
+    );
+  });
 });

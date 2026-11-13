@@ -50,7 +50,7 @@ describe("Topics MCP tools", () => {
     expect(await topicsFeature.isEnabled(context)).toBe(true);
     expect(mocks.isTopicsProjectEnabled).toHaveBeenCalledWith("project-1");
 
-    const viewer = { projectRole: "VIEWER", isAdmin: false } as const;
+    const viewer = { projectRole: "VIEWER" } as const;
     const withTopics = createInAppAgentToolPolicy({
       userAccess: { ...viewer, topicsAvailable: true },
     });

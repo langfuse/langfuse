@@ -14,8 +14,6 @@ import {
 } from "../../topics";
 
 export const TOPICS_ACTION = "topics";
-// Actor of executions Topics starts on its own, such as automatic discovery.
-export const TOPICS_SYSTEM_USER_ID = "system:topics";
 type BatchMetadata = {
   inputSettings:
     | Extract<TopicExecutionSummary["input"], { operation: "process" }>
@@ -28,6 +26,22 @@ type BatchMetadata = {
   inputHash: string;
   requestHash: string;
   progressVersion?: number;
+  /** A snapshot's seeding state; its trace IDs are dropped once the fit is enqueued. */
+  summarizing?: TopicSnapshotSummarizing;
+};
+/** Seeded traces and the settle clock of a snapshot that summarizes before it groups. */
+export type TopicSnapshotSummarizing = {
+  startedAt: string;
+  /** Earliest first event of a seeded trace; summary counts start here. */
+  from: string;
+  /** Null until seeding succeeds; emptied once the fit is enqueued. */
+  traceIds: string[] | null;
+  seededCount: number;
+  /** When the settled count last grew; null before the first summary. */
+  grewAt: string | null;
+  settled: number;
+  /** Consecutive failed ticks; the snapshot fails after a few. */
+  failedTicks: number;
 };
 type BatchRow = Prisma.BatchActionGetPayload<object>;
 const statuses = {
@@ -227,11 +241,15 @@ export async function createTopicExecution(
           facetId: facet.facetId,
           facetVersion: facet.facetVersion,
           status: "pending",
+          // A manual update is a one-off snapshot of its execution.
+          batchActionId: id,
           config: {
             timeRange: {
               from: input.timeRange.from.toISOString(),
               to: input.timeRange.to.toISOString(),
             },
+            // Analyses never serve, not even before a rule's first refit.
+            ...(input.analysis ? { analysis: true } : {}),
           },
         })),
       });
@@ -257,7 +275,11 @@ export async function createTopicExecution(
                 }
               : inputSettings,
           facets,
-          phase: "queued",
+          // A snapshot that summarizes first waits for its controller, not the update queue.
+          phase:
+            input.operation === "update" && input.analysis?.summarize
+              ? "summarizing"
+              : "queued",
           inputHash: hash(input),
           requestHash,
         } satisfies BatchMetadata),
@@ -302,6 +324,26 @@ export async function listTopicExecutions(
     where: { projectId, actionType: TOPICS_ACTION },
     orderBy: { createdAt: "desc" },
     take: 100,
+  });
+  return batches.map(summaryResult);
+}
+
+/** One-off analysis executions, newest first; each rerun is its own execution. */
+export async function listTopicAnalysisExecutions(
+  projectId: string,
+): Promise<TopicExecutionSummary[]> {
+  topicIdSchema.parse(projectId);
+  const batches = await prisma.batchAction.findMany({
+    where: {
+      projectId,
+      actionType: TOPICS_ACTION,
+      config: {
+        path: ["inputSettings", "analysis", "seed"],
+        string_contains: "",
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 200,
   });
   return batches.map(summaryResult);
 }
@@ -362,6 +404,36 @@ export async function writeTopicExecution(
         failedCount,
         finishedAt: terminal ? (current.finishedAt ?? new Date()) : null,
         log: execution.error,
+      },
+    });
+  });
+}
+
+export async function readTopicSnapshotSummarizing(
+  projectId: string,
+  executionId: string,
+): Promise<TopicSnapshotSummarizing | null> {
+  const row = await storedExecution(projectId, executionId);
+  return row ? (batchMetadata(row).summarizing ?? null) : null;
+}
+
+/** Saves a snapshot's seeded traces and settle clock beside its progress. */
+export async function writeTopicSnapshotSummarizing(
+  projectId: string,
+  executionId: string,
+  summarizing: TopicSnapshotSummarizing,
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    await lockExecution(tx, projectId, executionId);
+    const current = await storedExecution(projectId, executionId, tx);
+    if (!current) throw new Error("Topics execution does not exist.");
+    await tx.batchAction.update({
+      where: { projectId, id: executionId },
+      data: {
+        config: json({
+          ...batchMetadata(current),
+          summarizing,
+        } satisfies BatchMetadata),
       },
     });
   });

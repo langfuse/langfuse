@@ -68,6 +68,7 @@ export interface IOPreviewProps extends ExpansionStateProps {
   status?: ObservationStatusMessage;
   metadata?: Prisma.JsonValue;
   outputCorrection?: ScoreDomain;
+  traceOutputCorrection?: ScoreDomain;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
   parsedInput?: unknown;
   parsedOutput?: unknown;
@@ -118,6 +119,7 @@ export function IOPreview({
   output,
   status,
   outputCorrection,
+  traceOutputCorrection,
   metadata,
   parsedInput,
   parsedOutput,
@@ -195,6 +197,7 @@ export function IOPreview({
     output,
     status,
     outputCorrection,
+    traceOutputCorrection,
     metadata,
     parsedInput,
     parsedOutput,
@@ -261,6 +264,7 @@ export function IOPreview({
           parsedInput={parsedInput}
           parsedOutput={parsedOutput}
           outputCorrection={outputCorrection}
+          traceOutputCorrection={traceOutputCorrection}
           isParsing={isParsing}
           hideIfNull={hideIfNull}
           hideInput={hideInput}
@@ -285,6 +289,7 @@ export function IOPreview({
           output={output}
           status={status}
           outputCorrection={outputCorrection}
+          traceOutputCorrection={traceOutputCorrection}
           parsedInput={parsedInput}
           parsedOutput={parsedOutput}
           isLoading={isLoading}

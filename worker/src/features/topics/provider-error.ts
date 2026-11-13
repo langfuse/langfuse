@@ -93,7 +93,7 @@ export function topicProviderError(
       reason = "invalid_output";
     current = record.cause;
   }
-  // Same pause policy as evaluators; any other authentication failure (e.g. 403) still pauses.
+  // Same pause policy as evaluators; any other authentication failure (e.g. missing AWS credentials) still pauses.
   const blockReason = classifyEvaluatorLlmError(error)?.blockReason;
   const subject = `The ${TOPICS_MODEL_SLOT_DETAILS[model.slot].label.toLowerCase()} model ${model.model} on LLM connection "${model.provider}"`;
   if (

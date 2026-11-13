@@ -1,8 +1,5 @@
-import { type ComponentProps, type ReactNode } from "react";
-import { type SessionSidebar } from "@/src/features/sessions/components/SessionSidebar/SessionSidebar";
-import { Filter, Search } from "@langfuse/icons";
-import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
-import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { type ReactNode } from "react";
+import { Search } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
@@ -16,15 +13,11 @@ import { useElementSize } from "@/src/hooks/useElementSize";
 
 export function SessionViewLayout({
   renderSidebar,
-  customization,
   search,
   isLoading,
   children,
 }: {
   renderSidebar: (onNavigate: () => void) => ReactNode;
-  customization?: NonNullable<
-    ComponentProps<typeof SessionSidebar>["search"]
-  >["customization"];
   search: string;
   isLoading: boolean;
   children: ReactNode;
@@ -65,22 +58,6 @@ export function SessionViewLayout({
               </div>
             )}
           </DialogController>
-          {customization && (
-            <Tooltip
-              label={`Customize view${customization.activeFilterCount > 0 ? ` (${customization.activeFilterCount})` : ""}`}
-            >
-              {({ getTriggerProps }) => (
-                <IconButton
-                  {...getTriggerProps()}
-                  icon={Filter}
-                  size="md"
-                  variant="outline"
-                  label="Customize view"
-                  onClick={customization.onCustomizeView}
-                />
-              )}
-            </Tooltip>
-          )}
         </div>
       )}
       <ResizablePanelGroup

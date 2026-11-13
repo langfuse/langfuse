@@ -219,7 +219,7 @@ export function ManualTopicsDialog({
                 </dl>
                 <div className="ml-auto">
                   <Button
-                    text="Configure Topics"
+                    text="Settings"
                     variant="ghost"
                     size="sm"
                     onClick={onConfigure}

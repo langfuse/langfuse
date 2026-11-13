@@ -1177,7 +1177,6 @@ const inAppAgentMetadata = {
   langfuse_project_id: "project-demo-travel-assistant",
   langfuse_user_email: "redacted",
   langfuse_user_id: "user-demo-analyst",
-  langfuse_user_is_admin: false,
   prompt_name: "demo-in-app-agent-system-prompt",
   prompt_version: 1,
   run_id: "run-demo-error-analysis",

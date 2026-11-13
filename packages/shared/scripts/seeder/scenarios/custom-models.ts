@@ -58,6 +58,99 @@ type ModelDef = {
   usage: Record<string, number>;
 };
 
+type UsageStateFixture = {
+  suffix: string;
+  name: string;
+  modelName: string;
+  parentSuffix: string | null;
+  level: "DEFAULT" | "ERROR";
+  providedUsageDetails: Record<string, number>;
+  usageDetails: Record<string, number>;
+  providedCostDetails: Record<string, number>;
+  costDetails: Record<string, number>;
+  totalCost: number | null;
+};
+
+/**
+ * Small, explicit usage shapes for reviewing the observation header. The
+ * first row is a root GENERATION; the remaining rows are its children so the
+ * same trace covers both direct and aggregated generation metrics.
+ */
+const USAGE_STATE_FIXTURES: UsageStateFixture[] = [
+  {
+    suffix: "usage-root",
+    name: "usage-state-root-inferred",
+    modelName: "seed-usage-state-inferred",
+    parentSuffix: null,
+    level: "DEFAULT",
+    providedUsageDetails: {},
+    usageDetails: { input: 120, output: 30, total: 150 },
+    providedCostDetails: {},
+    costDetails: { input: 0.0012, output: 0.0006, total: 0.0018 },
+    totalCost: 0.0018,
+  },
+  {
+    suffix: "usage-inferred",
+    name: "usage-state-inferred-child",
+    modelName: "seed-usage-state-inferred-child",
+    parentSuffix: "usage-root",
+    level: "DEFAULT",
+    providedUsageDetails: {},
+    usageDetails: { input: 80, output: 20, total: 100 },
+    providedCostDetails: {},
+    costDetails: { input: 0.0008, output: 0.0004, total: 0.0012 },
+    totalCost: 0.0012,
+  },
+  {
+    suffix: "usage-empty",
+    name: "usage-state-empty",
+    modelName: "seed-usage-state-empty",
+    parentSuffix: "usage-root",
+    level: "DEFAULT",
+    providedUsageDetails: {},
+    usageDetails: {},
+    providedCostDetails: {},
+    costDetails: {},
+    totalCost: null,
+  },
+  {
+    suffix: "usage-zero",
+    name: "usage-state-zero-usage",
+    modelName: "seed-usage-state-zero-usage",
+    parentSuffix: "usage-root",
+    level: "DEFAULT",
+    providedUsageDetails: { input: 0, output: 0, total: 0 },
+    usageDetails: { input: 0, output: 0, total: 0 },
+    providedCostDetails: {},
+    costDetails: {},
+    totalCost: null,
+  },
+  {
+    suffix: "cost-zero",
+    name: "usage-state-zero-cost",
+    modelName: "seed-usage-state-zero-cost",
+    parentSuffix: "usage-root",
+    level: "DEFAULT",
+    providedUsageDetails: { input: 10, output: 5, total: 15 },
+    usageDetails: { input: 10, output: 5, total: 15 },
+    providedCostDetails: { total: 0 },
+    costDetails: { total: 0 },
+    totalCost: 0,
+  },
+  {
+    suffix: "usage-error",
+    name: "usage-state-error-empty",
+    modelName: "seed-usage-state-error",
+    parentSuffix: "usage-root",
+    level: "ERROR",
+    providedUsageDetails: {},
+    usageDetails: {},
+    providedCostDetails: {},
+    costDetails: {},
+    totalCost: null,
+  },
+];
+
 const REALTIME_STANDARD_PRICES: Record<string, number> = {
   text_input: 0.000004,
   text_output: 0.000016,
@@ -232,18 +325,27 @@ const run = async (
 ): Promise<SeedSummary> => {
   const startedAt = Date.now();
   const withV4 = params.v4 === true;
+  const withUsageStates = params["usage-states"] === true;
   const traceId = `${ctx.idPrefix}-t0`;
   // Anchored on today's UTC midnight, never the wall clock: these land in
   // ClickHouse ORDER BY keys and a re-run must overwrite in place.
   const traceTimestamp = utcDayStartMs() - 30 * 60 * 1000;
 
-  const generationPlan = [
+  const regularGenerationPlan = [
     ...MODELS.flatMap((model, index) => [
-      { model, suffix: `${index}a` },
-      { model, suffix: `${index}b` },
+      { model, suffix: `${index}a`, fixture: undefined },
+      { model, suffix: `${index}b`, fixture: undefined },
     ]),
-    { model: null, suffix: "unpriced" },
+    { model: null, suffix: "unpriced", fixture: undefined },
   ];
+  const usageStateGenerationPlan = USAGE_STATE_FIXTURES.map((fixture) => ({
+    model: null,
+    suffix: fixture.suffix,
+    fixture,
+  }));
+  const generationPlan = withUsageStates
+    ? [...usageStateGenerationPlan, ...regularGenerationPlan]
+    : regularGenerationPlan;
 
   const modelsSettingsLink = `${ctx.baseUrl}/project/${ctx.projectId}/settings/models`;
   const linksFor = (ids: string[]) => [
@@ -273,7 +375,7 @@ const run = async (
         ),
         traces: 1,
         observations: generationPlan.length,
-        events: withV4 ? generationPlan.length + 1 : 0,
+        events: withV4 ? generationPlan.length + (withUsageStates ? 0 : 1) : 0,
       },
       verified: {},
       links: linksFor(MODELS.map((model) => derivedModelId(ctx, model.key))),
@@ -308,7 +410,7 @@ const run = async (
   });
 
   const observations: ObservationRecordInsertType[] = generationPlan.map(
-    ({ model, suffix }, index) => {
+    ({ model, suffix, fixture }, index) => {
       const startTime =
         traceTimestamp + index * 1200 + jitter(ctx.seed, index, 200);
       const usage = model ? model.usage : UNPRICED_USAGE;
@@ -317,6 +419,14 @@ const run = async (
       const internalModelId = model
         ? (writtenModelIds.get(model.key) ?? null)
         : null;
+      let parentObservationId: string | null = null;
+      if (fixture?.parentSuffix) {
+        parentObservationId = `${traceId}-o${fixture.parentSuffix}`;
+      } else if (withUsageStates && !fixture) {
+        parentObservationId = `${traceId}-o${USAGE_STATE_FIXTURES[0].suffix}`;
+      }
+      const durationMs =
+        fixture && fixture.parentSuffix === null ? 20_000 : 900;
 
       return createObservation({
         id: `${traceId}-o${suffix}`,
@@ -324,27 +434,31 @@ const run = async (
         project_id: ctx.projectId,
         environment: ctx.environment,
         type: "GENERATION",
-        parent_observation_id: null,
-        name: model ? `call-${model.key}` : "call-unpriced-vision",
+        parent_observation_id: parentObservationId,
+        name:
+          fixture?.name ??
+          (model ? `call-${model.key}` : "call-unpriced-vision"),
         start_time: startTime,
-        end_time: startTime + 900,
+        end_time: startTime + durationMs,
         completion_start_time: startTime + 180,
-        level: "DEFAULT",
-        status_message: null,
+        level: fixture?.level ?? "DEFAULT",
+        status_message:
+          fixture?.level === "ERROR" ? "Seeded error fixture" : null,
         input: JSON.stringify({ prompt: "Summarise the call." }),
         output: "The caller asked about pricing.",
-        provided_model_name: model ? model.modelName : UNPRICED_MODEL_NAME,
-        internal_model_id: internalModelId,
+        provided_model_name:
+          fixture?.modelName ?? (model ? model.modelName : UNPRICED_MODEL_NAME),
+        internal_model_id: fixture ? null : internalModelId,
         usage_pricing_tier_id:
-          internalModelId && defaultTier
+          !fixture && internalModelId && defaultTier
             ? `tier-${internalModelId}-${defaultTier.priority}`
             : null,
-        usage_pricing_tier_name: defaultTier?.name ?? null,
-        provided_usage_details: usage,
-        usage_details: usage,
-        provided_cost_details: {},
-        cost_details: costs ?? {},
-        total_cost: costs?.total ?? null,
+        usage_pricing_tier_name: fixture ? null : (defaultTier?.name ?? null),
+        provided_usage_details: fixture?.providedUsageDetails ?? usage,
+        usage_details: fixture?.usageDetails ?? usage,
+        provided_cost_details: fixture?.providedCostDetails ?? {},
+        cost_details: fixture?.costDetails ?? costs ?? {},
+        total_cost: fixture?.totalCost ?? costs?.total ?? null,
         model_parameters: JSON.stringify({ temperature: 0.2 }),
         prompt_id: null,
         prompt_name: null,
@@ -358,7 +472,7 @@ const run = async (
 
   const events: EventRecordInsertType[] = withV4
     ? [
-        traceToEvent(trace),
+        ...(withUsageStates ? [] : [traceToEvent(trace)]),
         ...observations.map((o) => observationToEvent(o, trace)),
       ]
     : [];
@@ -469,6 +583,13 @@ export const customModelsScenario: ScenarioDefinition = {
       default: false,
       description:
         "also mirror the trace/generations into v4 events_full/events_core",
+    },
+    {
+      flag: "usage-states",
+      type: "boolean",
+      default: false,
+      description:
+        "also add root and child generations covering inferred, empty, zero, and error usage/cost states",
     },
   ],
   run,

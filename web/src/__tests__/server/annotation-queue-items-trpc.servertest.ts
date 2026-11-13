@@ -26,7 +26,6 @@ describe("annotation queues trpc", () => {
         id: "user-1",
         name: "Demo User",
         canCreateOrganizations: true,
-        admin: false,
         organizations: [
           {
             id: setup.org.id,

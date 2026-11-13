@@ -44,7 +44,6 @@ const createSession = (params: {
       },
     ],
     featureFlags: testFeatureFlags(),
-    admin: false,
   },
   environment: {} as never,
 });

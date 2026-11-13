@@ -273,8 +273,18 @@ export function ConnectedObservationDetailView({
       ),
     [corrections, traceId, observation.id],
   );
+  // Trace-level CORRECTIONs (null observationId) — do not merge into obs list.
+  const traceCorrections = useMemo(
+    () => corrections.filter((c) => !c.observationId),
+    [corrections],
+  );
 
   const outputCorrection = getMostRecentCorrection(observationCorrections);
+  // Null-obs CORRECTIONs CRUD/view only on the root observation (pass-through).
+  // Child spans keep obs-scoped corrections + tree presence badges only.
+  const traceOutputCorrection = isRoot
+    ? getMostRecentCorrection(traceCorrections)
+    : undefined;
 
   // Fetch and parse observation input/output in background (Web Worker)
   // This combines tRPC fetch + non-blocking JSON parsing
@@ -505,6 +515,7 @@ export function ConnectedObservationDetailView({
                       }
                     : undefined,
                   outputCorrection,
+                  traceOutputCorrection,
                   metadata: observationWithIOCompat.data?.metadata ?? undefined,
                   parsedInput,
                   parsedOutput,

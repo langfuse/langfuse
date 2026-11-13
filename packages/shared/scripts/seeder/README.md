@@ -49,7 +49,7 @@ programmatic calls from the dx seed chain.
 | `scored-traces`     | standalone traces with mixed current/legacy Python and JavaScript SDK attribution, each carrying numeric + categorical scores whose names contain SPACES (e.g. "Rouge Score") at observation and trace level, plus dual-level score names ("confidence", "verdict") present at both levels on the same trace                                                             | `--traces`                                                                                                                                                                                        |
 | `session-shapes`    | diverse v4 session shapes for the session-detail view: a clean multi-turn CHAT session (renders as chat), a coding/AGENT session whose I/O lives on AGENT/TOOL observations with NO GENERATION, a MIXED session, and a MEDIA session whose messages carry langfuseMedia references                                                                                       | `--shape chat\|agent\|mixed\|media\|all`, `--turns`                                                                                                                                               |
 | `annotation-queue`  | two human-annotation queues for the annotate UI: a "core types" queue with one of every score-field render path (categorical toggle/combobox, boolean, ranged/decimal/unranged numeric, text) over fresh trace items, and an "edge cases" queue adding archived/stale/partial scores, comments, and observation/session/deleted/completed items                          | `--core-items`, `--v4` (default true)                                                                                                                                                             |
-| `custom-models`     | project-level model definitions (one tiered with a condition-gated second tier and a usage type priced at 0, one single-tier) plus a trace whose generations link to them, and one generation whose model matches no definition so its badge opens the create dialog                                                                                                     | —                                                                                                                                                                                                 |
+| `custom-models`     | project-level model definitions (one tiered with a condition-gated second tier and a usage type priced at 0, one single-tier) plus a trace whose generations link to them, and one generation whose model matches no definition so its badge opens the create dialog; `--usage-states` adds root/child inferred, empty, zero, and error usage/cost fixtures              | `--usage-states`                                                                                                                                                                                  |
 | `evaluator-gallery` | project-owned code evaluators for gallery pagination and infinite-scroll testing; reconciles deterministic names through the seeded public API key so local and PR preview environments are supported                                                                                                                                                                    | `--count`                                                                                                                                                                                         |
 | `assistant-skills`  | bundled assistant skills imported through the seeded public API key, with production labels and an assistant catalog tag; unchanged versions are reused                                                                                                                                                                                                                  | `--tag`, `--demo`, `--demo-files`                                                                                                                                                                 |
 | `support-agent`     | one demo-grade, fully handcrafted trace: a customer-support copilot resolving a duplicate-charge refund — input guardrail → intent classification → parallel context fan-out (CRM/billing/tickets) → 3-turn ReAct loop (llm.chat + Stripe tools) → drafted reply → output guardrail → send                                                                               | —                                                                                                                                                                                                 |
@@ -87,13 +87,7 @@ With the seeded local web app running, import the checked-in assistant catalog:
 pnpm run seed -- assistant-skills
 ```
 
-This writes `SKILL.md` files through `/api/public/skills` using the synthetic
-seed API key, adds the `in-app-agent` tag, and labels each imported version
-`production`. Re-running reuses unchanged versions. Names match the bundled
-skills, so `--seed` and `--id-prefix` do not create independent copies. The
-scenario verifies the production contents through the API and prints UI links.
-Use `--dry-run` to inspect the catalog without writing, or `--tag <tag>` to
-select a different catalog tag.
+This imports the checked-in Halo `langfuse` skill and its complete text-file tree through `/api/public/skills` using the synthetic seed API key. Its dedicated entrypoint is maintained in `packages/langfuse-skills/halo/langfuse/SKILL.md`; reference files are synced from `langfuse/skills`. MCP serves both original upstream skills independently. Resource contents and paths relative to the skill's `SKILL.md` are preserved. The scenario adds the `in-app-agent` tag and labels each imported version `production`. Re-running reuses unchanged versions. Names match each skill's frontmatter, so `--seed` and `--id-prefix` do not create independent copies. The scenario verifies all production file contents through the API and prints UI links. Use `--dry-run` to inspect the catalog without writing, or `--tag <tag>` to select a different catalog tag.
 
 For a distinct end-to-end check, run `pnpm run seed -- assistant-skills --demo`.
 It also creates an instructions-only `local-assistant-check` skill. Open the
@@ -114,13 +108,9 @@ LANGFUSE_AI_FEATURES_SECRET_KEY=sk-lf-1234567890
 LANGFUSE_IN_APP_AGENT_SKILLS_TAG=in-app-agent
 ```
 
-The keys above are the public synthetic development fixtures. The assistant
-merges tagged production versions from this project with the bundled catalog;
-remote skills take precedence on an exact name match. Edit an imported skill
-in Skills, create a version and assign `production`, then start a new assistant
-run to use it. Leaving the tag setting unset keeps the bundled catalog.
-If managed loading fails, the worker logs a warning and uses the complete
-bundled catalog for that run.
+The keys above are the public synthetic development fixtures. The assistant exposes repository skills and tagged hosted production skills through a read-only Mastra `SkillSource`. Mastra discovers the skills and loads their instructions and references. Hosted manifests take precedence by name; missing, unselected, or failed hosted lookups fall back to repository skills. A failed hosted catalogue request retains the repository catalogue. Leaving the tag unset uses only repository skills and makes no skill API requests.
+
+Selected manifests and file content are cached for each run. Failed content requests can be retried; caller cancellation propagates. Edit an imported skill in Skills, create a version and assign `production`; the next assistant run discovers the updated version. The checked-in catalogue supplies both the seed input and the runtime repository skills.
 
 ### Experiment filter fixture
 
@@ -162,6 +152,12 @@ pnpm run seed -- topics --batch evaluation --id-prefix topics-eval-s42
 The default seeds discovery and held-out assignment traces; `evaluation` adds varied requests and tool outcomes. Both include v4 events and make no model calls. Theme/outcome labels stay out of trace metadata and I/O.
 
 Use `--batch discovery`, summarize those traces, then update topics with **Small sample mode**. Process `--batch assignment` after the map is published to check assignment to existing topics. These processing steps require configured models. The evaluation batch also needs small sample mode for facets with fewer than the normal minimum of applicable summaries. Use `pnpm run seed -- list` for flags.
+
+```bash
+pnpm run seed -- topics-map
+```
+
+`topics-map` skips the models: it writes summaries, two rules (an unfiltered one and a long-named rule whose tag filter matches its 48 traces, both named `Seed: …` so existing rules are never overwritten) and completed Intent and Issues maps with 2D coordinates, so the treemap, list and map views render right away. Topic sizes range from 34 traces down to 2, and the map includes long topic names, outliers and four traces awaiting a map. The project still needs Topics enabled (`LANGFUSE_TOPICS_ENABLED`, `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`, a cloud region and the Topics feature flag for the user).
 
 ## The contract (additive-only)
 
@@ -205,6 +201,7 @@ the wall clock** — otherwise re-runs silently duplicate rows and
 
 - time anchors come from `utcDayStartMs()` (UTC midnight, computed in TS —
   ClickHouse's `today()` is server-timezone)
+- the bulk SQL may end at seed time (`endSeconds`, used by `many-traces`) only by compressing the anchor day's rows into midnight..now, with the anchor at midnight in the ClickHouse server timezone (`serverTimezone()`, not UTC): each row's server-local date stays fixed, so `toDate(...)` keys survive same-day re-runs
 - per-row variation comes from the stateless `jitter(seed, index, max)`
   (scenarios) or salted `xxHash32(number)` columns (bulk SQL); wrap hash
   inputs in `toUInt64` — xxHash32 hashes the binary representation, and a

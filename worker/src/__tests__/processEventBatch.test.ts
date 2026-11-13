@@ -39,6 +39,7 @@ vi.mock("../../../packages/shared/src/server/redis/ingestionQueue", () => ({
 
 vi.mock("../../../packages/shared/src/server/services/StorageService", () => ({
   StorageService: undefined,
+  storageKeys: () => undefined,
   StorageServiceFactory: {
     getInstance: () => ({
       uploadJson: uploadJsonMock,

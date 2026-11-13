@@ -123,10 +123,7 @@ const SUPPRESS_BEARER_TOKEN_ENV_FALLBACK = { apiKey: "" };
  */
 export function createDefaultBedrockProviderAuth(params?: {
   profile?: string;
-}): Pick<
-  Parameters<typeof createAmazonBedrock>[0] & object,
-  "apiKey" | "credentialProvider"
-> {
+}) {
   const profile = params?.profile;
   return {
     credentialProvider: fromNodeProviderChain(profile ? { profile } : {}),

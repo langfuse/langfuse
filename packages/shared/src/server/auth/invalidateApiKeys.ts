@@ -4,7 +4,7 @@ import { logger } from "../logger";
 import { env } from "../../env";
 import type { Cluster, Redis } from "ioredis";
 
-import { type ApiKey } from "../../db";
+import { type ApiKey, type Prisma } from "../../db";
 import {
   API_KEY_CACHE_PATTERN,
   AUTHZ_CONTEXT_CACHE_PATTERN,
@@ -50,6 +50,18 @@ export async function invalidateCachedApiKeys(
     logger.info(`Invalidating API keys in redis for ${identifier}`);
     await safeMultiDel(redisClient, keysToDelete);
   }
+}
+
+/** invalidateCachedUserApiKeys removes the cached credentials of the user's USER keys in orgId, whose policies include the user's roles. */
+export async function invalidateCachedUserApiKeys(
+  prisma: Prisma.TransactionClient,
+  { orgId, userId }: { orgId: string; userId: string },
+  redisClient: Redis | Cluster | null = redis,
+): Promise<void> {
+  const apiKeys = await prisma.apiKey.findMany({
+    where: { orgId, userId, scope: "USER" },
+  });
+  await invalidateCachedApiKeys(apiKeys, `user ${userId}`, redisClient);
 }
 
 /**

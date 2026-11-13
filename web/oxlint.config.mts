@@ -18,7 +18,7 @@ export default defineConfig({
   ],
   // Oxlint settings are global; consuming rules retain their original file scopes.
   settings: {
-    react: { version: "19.2.4" },
+    react: { version: "19.3.1" },
     "import/resolver": { typescript: { project: "./tsconfig.json" } },
     clientTestStoryFiles: [
       ...globSync("src/**/*.stories.{ts,tsx}", { cwd: import.meta.dirname }),

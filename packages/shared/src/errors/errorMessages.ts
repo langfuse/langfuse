@@ -11,6 +11,9 @@ export const RESOURCE_LIMIT_ERROR_MESSAGE = [
   "Please narrow your request by adding more specific filters (e.g., a shorter date range).",
 ].join(" ");
 
+export const RESULT_SIZE_LIMIT_ERROR_MESSAGE =
+  "The query result is too large. Try a shorter date range or add more specific filters.";
+
 /**
  * Hint shown for slow-running chart queries after a short delay
  */

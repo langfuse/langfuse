@@ -58,6 +58,9 @@ async fn run() -> Result<(), Box<dyn Error>> {
         .take()
         .map(|control_plane| InferenceService::new(control_plane, &config))
         .transpose()?;
+    if let Some(inference) = &inference {
+        inference.open_connections().await;
+    }
     let inference_enabled = inference.is_some();
     let telemetry = inference.as_ref().and_then(InferenceService::telemetry);
     let state = if inference_enabled {

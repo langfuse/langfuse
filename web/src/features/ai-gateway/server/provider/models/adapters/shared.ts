@@ -8,13 +8,14 @@ export async function requestJson(params: {
   fetcher: typeof fetch;
   url: URL;
   headers: Record<string, string>;
+  timeoutMs?: number;
 }): Promise<JsonRequestResult> {
   let response: Response;
   try {
     response = await params.fetcher(params.url, {
       method: "GET",
       headers: params.headers,
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.timeout(params.timeoutMs ?? 10_000),
       redirect: "error",
     });
   } catch {

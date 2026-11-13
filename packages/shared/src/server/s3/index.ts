@@ -2,6 +2,7 @@ import { env } from "../../env";
 import {
   StorageService,
   StorageServiceFactory,
+  storageKeys,
 } from "../services/StorageService";
 
 export { S3_DELETE_OBJECTS_CHUNK_SIZE } from "../services/StorageService";
@@ -27,8 +28,10 @@ export const getS3MediaStorageClient = (bucketName: string): StorageService => {
     });
     s3MediaStorageClient = StorageServiceFactory.getInstance({
       bucketName,
-      accessKeyId: env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY,
+      credentials: storageKeys(
+        env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
+        env.LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY,
+      ),
       ...endpoints,
       region: env.LANGFUSE_S3_MEDIA_UPLOAD_REGION,
       forcePathStyle: env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE === "true",
@@ -54,8 +57,10 @@ export function createEventUploadStorageService(
 ): StorageService {
   return StorageServiceFactory.getInstance({
     bucketName,
-    accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-    secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+    credentials: storageKeys(
+      env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
+      env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+    ),
     endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
     region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
     forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",

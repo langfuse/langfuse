@@ -7,7 +7,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { type IoRenderMode } from "@/src/components/table/data-table-io-render-mode-switch";
 import { Button } from "@/src/components/ui/button";
 import { Settings2, Check } from "@langfuse/icons";
 import {
@@ -24,8 +23,6 @@ type ExperimentDisplaySettingsProps = {
   onItemVisibilityChange: (visibility: "baseline-only" | "all") => void;
   hasComparisons: boolean;
   hasBaseline: boolean;
-  ioRenderMode: IoRenderMode;
-  onIoRenderModeChange: (mode: IoRenderMode) => void;
 };
 
 /** A menu row that reads as a radio option. */
@@ -55,7 +52,7 @@ const OptionItem = ({
  * second line is measured against, and whether items missing from the baseline
  * are listed.
  *
- * Comparison settings travel with a shared URL; cell format is stored locally.
+ * Comparison settings travel with a shared URL.
  */
 export function ExperimentDisplaySettings({
   layout,
@@ -66,8 +63,6 @@ export function ExperimentDisplaySettings({
   onItemVisibilityChange,
   hasComparisons,
   hasBaseline,
-  ioRenderMode,
-  onIoRenderModeChange,
 }: ExperimentDisplaySettingsProps) {
   const isItemVisibilityDisabled = !hasComparisons || !hasBaseline;
 
@@ -98,22 +93,6 @@ export function ExperimentDisplaySettings({
           onSelect={() => onLayoutChange("matrix")}
         >
           Score matrix: scores as rows, runs as columns
-        </OptionItem>
-
-        <DropdownMenuSeparator />
-
-        <DropdownMenuLabel>Cell format</DropdownMenuLabel>
-        <OptionItem
-          selected={ioRenderMode === "json"}
-          onSelect={() => onIoRenderModeChange("json")}
-        >
-          JSON
-        </OptionItem>
-        <OptionItem
-          selected={ioRenderMode === "text"}
-          onSelect={() => onIoRenderModeChange("text")}
-        >
-          Formatted
         </OptionItem>
 
         <DropdownMenuSeparator />

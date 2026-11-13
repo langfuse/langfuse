@@ -8,6 +8,7 @@ import {
   type BedrockAuthMethod,
 } from "@/src/features/llm-api-key/types";
 import { getConnectionAvailableModels } from "@/src/features/llm-api-key/availableModels";
+import { decisionModelsByProvider } from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
 import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   BedrockConfigSchema,
@@ -100,6 +101,7 @@ export type SafeLlmConnection = {
 
 type LlmConnectionWithAvailableModels = SafeLlmConnection & {
   availableModels: string[];
+  decisionModels?: string[];
 };
 
 type TestLlmConnectionParams = Omit<
@@ -478,11 +480,17 @@ export class LlmConnectionService {
     includeDecisionModels?: boolean;
   }): Promise<{ data: LlmConnectionWithAvailableModels[] }> {
     const { data } = await this.listEffective(params);
+    const decisionModels = params.includeDecisionModels
+      ? decisionModelsByProvider(data)
+      : null;
 
     return {
       data: data.map((connection) => ({
         ...connection,
         availableModels: getConnectionAvailableModels(connection),
+        ...(decisionModels && {
+          decisionModels: decisionModels.get(connection.provider) ?? [],
+        }),
       })),
     };
   }

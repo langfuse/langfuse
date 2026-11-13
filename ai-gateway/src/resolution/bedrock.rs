@@ -7,6 +7,7 @@ pub(super) fn allows_runtime_base_url(api_format: ApiFormat, base_url: &str) -> 
     let path = match api_format {
         ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => "/openai/v1",
         ApiFormat::AnthropicMessages => "/anthropic/v1",
+        ApiFormat::OpenAiDecisions | ApiFormat::OpenAiEmbeddings => return false,
     };
     base_url
         .strip_prefix("https://bedrock-runtime.")
