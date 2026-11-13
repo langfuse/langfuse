@@ -138,6 +138,39 @@ Requirements
 
 **Note:** You can also simply run Langfuse in a **GitHub Codespace** via the provided devcontainer. To do this, click on the green "Code" button in the top right corner of the repository and select "Open with Codespaces".
 
+### Running on non-default ports
+
+The `*_HOST_PORT` variables in `.env.dev.example` only change the **Docker host
+mapping**. The connection strings the application uses keep pointing at the
+defaults, so moving a service means updating both sides. Otherwise migrations
+and the app fail to connect even though the container is up.
+
+For example, to run Postgres on `5433` and the web app on `3100`:
+
+1. Change the Docker mapping in `.env`: `POSTGRES_HOST_PORT=5433`.
+2. Point the app at it: `DATABASE_URL` and `DIRECT_URL` must both use
+   `localhost:5433`.
+3. Do the same for the other services you remap: `REDIS_HOST_PORT` goes with
+   `REDIS_PORT`, `CLICKHOUSE_HTTP_PORT` / `CLICKHOUSE_NATIVE_PORT` go with
+   `CLICKHOUSE_URL` / `CLICKHOUSE_MIGRATION_URL`, and `MINIO_API_PORT` goes with
+   the `LANGFUSE_S3_*_ENDPOINT` values.
+4. Set `NEXTAUTH_URL` in the root `.env` to `http://localhost:3100`. The
+   app builds callback and asset URLs from `NEXTAUTH_URL`, not from `PORT`;
+   leaving the `.env.dev.example` default of `http://localhost:3000` sends
+   OAuth and Slack callbacks to the old port.
+
+Do **not** put `PORT` in the root `.env`. Both `web` and `worker` load that file
+(`dotenv -e ../.env -- next dev` and `dotenv -e ../.env -- tsx watch ...`), so one
+`PORT` makes them compete for the same port. Override it for a single package
+instead:
+
+```bash
+PORT=3100 pnpm dev:web      # web only
+```
+
+`pnpm dev` starts `web` and `worker` together via `turbo watch dev`; with `PORT`
+unset they use `3000` (Next.js) and `3030` (`worker/src/env.ts`) respectively.
+
 ### Codex Cloud Setup
 
 You can also attach this repository to an OpenAI Codex cloud environment. The
