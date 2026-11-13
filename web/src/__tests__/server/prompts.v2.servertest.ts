@@ -3437,39 +3437,65 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
         return prompt;
       };
 
-      it("fetches the shared dependency once", async () => {
+      it("loads each graph level with one query and records shared edges once", async () => {
         const { projectId } = await createOrgProjectAndApiKey();
-        const shared = await createTextPrompt(projectId, "shared", []);
-        await createTextPrompt(projectId, "left", ["shared"]);
-        await createTextPrompt(projectId, "right", ["shared"]);
+        const leaf = await createTextPrompt(projectId, "leaf", []);
+        const shared = await createTextPrompt(projectId, "shared", ["leaf"]);
+        const left = await createTextPrompt(projectId, "left", ["shared"]);
+        const right = await createTextPrompt(projectId, "right", ["shared"]);
         const root = await createTextPrompt(projectId, "root", [
           "left",
           "right",
         ]);
 
         const promptFindMany = vi.spyOn(prisma.prompt, "findMany");
-        const findMany = vi.spyOn(prisma.promptDependency, "findMany");
-        const promptService = new PromptService(prisma, redis);
-        const { resolvedPrompt } =
-          await promptService.buildAndResolvePromptGraph({
-            projectId,
-            parentPrompt: root,
-          });
-        // One query per prompt node: siblings are fetched together.
-        const fetchedNamesPerQuery = promptFindMany.mock.calls.map(([args]) =>
-          (args?.where?.OR as { name: string }[])
-            .map((dep) => dep.name)
-            .toSorted(),
+        const dependencyFindMany = vi.spyOn(
+          prisma.promptDependency,
+          "findMany",
         );
-        const sharedDependencyFetches = findMany.mock.calls.filter(
-          ([args]) => args?.where?.parentId === shared.id,
-        );
-        promptFindMany.mockRestore();
-        findMany.mockRestore();
+        try {
+          const promptService = new PromptService(prisma, redis);
+          const { resolvedPrompt, graph } =
+            await promptService.buildAndResolvePromptGraph({
+              projectId,
+              parentPrompt: root,
+            });
 
-        expect(resolvedPrompt).toBe("root left shared right shared");
-        expect(fetchedNamesPerQuery).toEqual([["left", "right"], ["shared"]]);
-        expect(sharedDependencyFetches).toHaveLength(1);
+          const promptNamesPerQuery = promptFindMany.mock.calls.map(([args]) =>
+            ((args?.where?.OR as { name: string }[] | undefined) ?? [])
+              .map((dep) => dep.name)
+              .toSorted(),
+          );
+          const parentIdsPerQuery = dependencyFindMany.mock.calls.map(
+            ([args]) =>
+              (
+                (args?.where?.parentId as { in?: string[] } | undefined)?.in ??
+                []
+              ).toSorted(),
+          );
+
+          expect(resolvedPrompt).toBe(
+            "root left shared leaf right shared leaf",
+          );
+          // The leaf level has no dependencies, so it needs no prompt query.
+          expect(parentIdsPerQuery).toEqual([
+            [root.id],
+            [left.id, right.id].toSorted(),
+            [shared.id],
+            [leaf.id],
+          ]);
+          expect(promptNamesPerQuery).toEqual([
+            ["left", "right"],
+            ["shared"],
+            ["leaf"],
+          ]);
+          expect(graph?.dependencies[shared.id]).toEqual([
+            { id: leaf.id, name: "leaf", version: 1 },
+          ]);
+        } finally {
+          promptFindMany.mockRestore();
+          dependencyFindMany.mockRestore();
+        }
       });
     });
   });

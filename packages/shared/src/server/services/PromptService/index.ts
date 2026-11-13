@@ -8,6 +8,7 @@ import {
 } from "../../instrumentation";
 import { escapeRegex } from "./utils";
 import { LangfuseConflictError } from "../../../errors/ConflictError";
+import { InternalServerError } from "../../../errors/InternalServerError";
 import { type Prisma, type PrismaClient, type Prompt } from "../../../db";
 import {
   PromptGraph,
@@ -21,6 +22,8 @@ import {
 import { ParsedPromptDependencyTag } from "../../../features/prompts/parsePromptDependencyTags";
 
 export const MAX_PROMPT_NESTING_DEPTH = 5;
+// Keeps bind parameters per query far below the Postgres limit of 32767.
+const MAX_ROWS_PER_QUERY = 1000;
 type PrismaClientOrTransaction = PrismaClient | Prisma.TransactionClient;
 
 export class PromptService {
@@ -300,6 +303,9 @@ export class PromptService {
     try {
       const { projectId, parentPrompt, dependencies } = params;
 
+      const { promptsByFetchKey, tagsByPromptId, fetchedPromptCount } =
+        await this.loadPromptGraph(projectId, parentPrompt.id, dependencies);
+
       const graph: PromptGraph = {
         root: {
           name: parentPrompt.name,
@@ -309,18 +315,11 @@ export class PromptService {
         dependencies: {},
       };
       const seen = new Set<string>();
-      let resolvedDependencyCount = 0;
-      const fetchedPrompts = new Map<string, Prompt | null>();
-      const fetchedDependencies = new Map<
-        string,
-        ParsedPromptDependencyTag[]
-      >();
 
-      const resolve = async (
+      const resolve = (
         currentPrompt: PartialPrompt,
-        deps: ParsedPromptDependencyTag[] | undefined,
         level: number,
-      ) => {
+      ): PartialPrompt["prompt"] => {
         // Nesting depth check
         if (level >= MAX_PROMPT_NESTING_DEPTH) {
           throw new LangfuseConflictError(
@@ -339,132 +338,84 @@ export class PromptService {
           );
         }
 
-        seen.add(currentPrompt.id);
-
-        // deps can be either passed (if a prompt is created and content was scanned) or retrieved from db
-        let promptDependencies =
-          deps ?? fetchedDependencies.get(currentPrompt.id);
+        // loadPromptGraph loads every prompt reachable below the nesting limit.
+        const promptDependencies = tagsByPromptId.get(currentPrompt.id);
         if (!promptDependencies) {
-          promptDependencies = (
-            await this.prisma.promptDependency.findMany({
-              where: {
-                projectId,
-                parentId: currentPrompt.id,
-              },
-              select: {
-                childName: true,
-                childLabel: true,
-                childVersion: true,
-              },
-            })
-          ).map((dep) => {
-            if (dep.childVersion !== null) {
-              return {
-                name: dep.childName,
-                type: "version",
-                version: dep.childVersion,
-              } as ParsedPromptDependencyTag;
-            }
-
-            if (dep.childLabel !== null) {
-              return {
-                name: dep.childName,
-                type: "label",
-                label: dep.childLabel,
-              } as ParsedPromptDependencyTag;
-            }
-
-            throw new LangfuseConflictError(
-              `Prompt dependency is malformed: ${dep.childName}`,
-            );
-          });
-          fetchedDependencies.set(currentPrompt.id, promptDependencies);
+          throw new InternalServerError(
+            `Prompt dependencies were not loaded for prompt '${currentPrompt.name}' version ${currentPrompt.version}`,
+          );
         }
 
-        if (promptDependencies && promptDependencies.length) {
-          // Instantiate resolved prompt, use stringfied version for regex operations
-          // Do this inside if clause to skip stringify/parse overhead for prompts without dependencies
-          let resolvedPrompt = JSON.stringify(currentPrompt.prompt);
+        // Skip the stringify/parse overhead for prompts without dependencies
+        if (promptDependencies.length === 0) return currentPrompt.prompt;
 
-          const newlyFetched = await this.fetchMissingDependencyPrompts(
-            projectId,
-            promptDependencies,
-            fetchedPrompts,
-          );
-          resolvedDependencyCount += newlyFetched.size;
-          for (const [fetchKey, prompt] of newlyFetched)
-            fetchedPrompts.set(fetchKey, prompt);
+        seen.add(currentPrompt.id);
 
-          for (const dep of promptDependencies) {
-            const depPrompt = fetchedPrompts.get(getDependencyFetchKey(dep));
+        // A prompt shared by several parents is resolved once per path; its
+        // edges are recorded on the first visit only.
+        const recordEdges = graph.dependencies[currentPrompt.id] === undefined;
+        const edges = graph.dependencies[currentPrompt.id] ?? [];
+        graph.dependencies[currentPrompt.id] = edges;
 
-            const logName = `${dep.name} - ${dep.type} ${dep.type === "version" ? dep.version : dep.label}`;
+        // Use the stringified prompt for regex replacements
+        let resolvedPrompt = JSON.stringify(currentPrompt.prompt);
 
-            if (!depPrompt)
-              throw new LangfuseConflictError(
-                `Prompt dependency not found: ${logName}`,
-              );
-            if (depPrompt.type !== "text")
-              throw new LangfuseConflictError(
-                `Prompt dependency is not a text prompt: ${logName}`,
-              );
+        for (const dep of promptDependencies) {
+          const depPrompt = promptsByFetchKey.get(getDependencyFetchKey(dep));
 
-            // side-effect: populate adjacency list to return later as well
-            if (graph.dependencies[currentPrompt.id] === undefined) {
-              graph.dependencies[currentPrompt.id] = [];
-            }
-            graph.dependencies[currentPrompt.id].push({
+          const logName = `${dep.name} - ${dep.type} ${dep.type === "version" ? dep.version : dep.label}`;
+
+          if (!depPrompt)
+            throw new LangfuseConflictError(
+              `Prompt dependency not found: ${logName}`,
+            );
+          if (depPrompt.type !== "text")
+            throw new LangfuseConflictError(
+              `Prompt dependency is not a text prompt: ${logName}`,
+            );
+
+          if (recordEdges) {
+            edges.push({
               id: depPrompt.id,
               name: depPrompt.name,
               version: depPrompt.version,
             });
-
-            // resolve the prompt content recursively
-            const resolvedDepPrompt = await resolve(
-              depPrompt,
-              undefined,
-              level + 1,
-            );
-
-            const versionPattern = `@@@langfusePrompt:name=${escapeRegex(depPrompt.name)}\\|version=${escapeRegex(depPrompt.version)}@@@`;
-            const labelPatterns = depPrompt.labels.map(
-              (label) =>
-                `@@@langfusePrompt:name=${escapeRegex(depPrompt.name)}\\|label=${escapeRegex(label)}@@@`,
-            );
-            const combinedPattern = [versionPattern, ...labelPatterns].join(
-              "|",
-            );
-            const regex = new RegExp(combinedPattern, "g");
-
-            const replaceValue = JSON.stringify(resolvedDepPrompt)
-              .slice(1, -1) // this is necessary to avoid parsing errors as resolved value is unstringified
-              .replace(/\$/g, "$$$$"); // Escape dollar signs in replacement string. $ has special meaning in replace(), so we need to escape it with $$. Since we're in a string that will be used as a replacement, we need to double escape it (hence $$$$)
-
-            resolvedPrompt = resolvedPrompt.replace(regex, replaceValue);
           }
 
-          seen.delete(currentPrompt.id);
+          const resolvedDepPrompt = resolve(depPrompt, level + 1);
 
-          if (level === 0) {
-            recordDistribution(
-              "langfuse.prompts.resolved_length",
-              resolvedPrompt.length,
-            );
-            recordDistribution(
-              "langfuse.prompts.resolved_dependency_count",
-              resolvedDependencyCount,
-            );
-          }
+          const versionPattern = `@@@langfusePrompt:name=${escapeRegex(depPrompt.name)}\\|version=${escapeRegex(depPrompt.version)}@@@`;
+          const labelPatterns = depPrompt.labels.map(
+            (label) =>
+              `@@@langfusePrompt:name=${escapeRegex(depPrompt.name)}\\|label=${escapeRegex(label)}@@@`,
+          );
+          const combinedPattern = [versionPattern, ...labelPatterns].join("|");
+          const regex = new RegExp(combinedPattern, "g");
 
-          return JSON.parse(resolvedPrompt);
+          const replaceValue = JSON.stringify(resolvedDepPrompt)
+            .slice(1, -1) // this is necessary to avoid parsing errors as resolved value is unstringified
+            .replace(/\$/g, "$$$$"); // Escape dollar signs in replacement string. $ has special meaning in replace(), so we need to escape it with $$. Since we're in a string that will be used as a replacement, we need to double escape it (hence $$$$)
+
+          resolvedPrompt = resolvedPrompt.replace(regex, replaceValue);
         }
 
         seen.delete(currentPrompt.id);
 
-        return currentPrompt.prompt;
+        return JSON.parse(resolvedPrompt);
       };
 
-      const resolvedPrompt = await resolve(parentPrompt, dependencies, 0);
+      const resolvedPrompt = resolve(parentPrompt, 0);
+
+      if (graph.dependencies[parentPrompt.id] !== undefined) {
+        recordDistribution(
+          "langfuse.prompts.resolved_length",
+          JSON.stringify(resolvedPrompt).length,
+        );
+        recordDistribution(
+          "langfuse.prompts.resolved_dependency_count",
+          fetchedPromptCount,
+        );
+      }
 
       return {
         graph: Object.keys(graph.dependencies).length > 0 ? graph : null,
@@ -478,42 +429,145 @@ export class PromptService {
   }
 
   /**
-   * Fetches every dependency not yet in `fetchedPrompts` with one query.
-   * Returns the newly fetched prompts by fetch key, null when missing.
+   * Loads every prompt that resolving `rootId` can reach, breadth-first, with
+   * one dependency query and one prompt query per nesting level (more only
+   * past MAX_ROWS_PER_QUERY). Prompts at the last level are loaded but not
+   * expanded, since resolving them exceeds the nesting limit; missing and
+   * non-text prompts are not expanded either, since resolution rejects them.
+   *
+   * `rootDependencies` is passed when a prompt is being created: its tags come
+   * from its content, and it has no stored dependency rows yet.
+   */
+  private async loadPromptGraph(
+    projectId: string,
+    rootId: string,
+    rootDependencies: ParsedPromptDependencyTag[] | undefined,
+  ): Promise<{
+    promptsByFetchKey: Map<string, Prompt | null>;
+    tagsByPromptId: Map<string, ParsedPromptDependencyTag[]>;
+    fetchedPromptCount: number;
+  }> {
+    const promptsByFetchKey = new Map<string, Prompt | null>();
+    const tagsByPromptId = new Map<string, ParsedPromptDependencyTag[]>();
+    if (rootDependencies) tagsByPromptId.set(rootId, rootDependencies);
+    let fetchedPromptCount = 0;
+
+    let frontier = [rootId];
+    for (
+      let level = 0;
+      level < MAX_PROMPT_NESTING_DEPTH && frontier.length > 0;
+      level++
+    ) {
+      const levelTagLists: ParsedPromptDependencyTag[][] = [];
+      const unloadedIds: string[] = [];
+      for (const id of frontier) {
+        const tags = tagsByPromptId.get(id);
+        if (tags) levelTagLists.push(tags);
+        else unloadedIds.push(id);
+      }
+      const loadedTags = await this.fetchDependencyTags(projectId, unloadedIds);
+      for (const [id, tags] of loadedTags) {
+        tagsByPromptId.set(id, tags);
+        levelTagLists.push(tags);
+      }
+
+      const newlyFetched = await this.fetchMissingDependencyPrompts(
+        projectId,
+        levelTagLists.flat(),
+        promptsByFetchKey,
+      );
+      fetchedPromptCount += newlyFetched.size;
+
+      const nextIds = new Set<string>();
+      for (const [fetchKey, prompt] of newlyFetched) {
+        promptsByFetchKey.set(fetchKey, prompt);
+        if (prompt?.type === "text" && !tagsByPromptId.has(prompt.id)) {
+          nextIds.add(prompt.id);
+        }
+      }
+      frontier = Array.from(nextIds);
+    }
+
+    return { promptsByFetchKey, tagsByPromptId, fetchedPromptCount };
+  }
+
+  /**
+   * Fetches the stored dependency tags of the given parent prompts. Every
+   * parent is in the result, with an empty list when it has no dependencies.
+   */
+  private async fetchDependencyTags(
+    projectId: string,
+    parentIds: string[],
+  ): Promise<Map<string, ParsedPromptDependencyTag[]>> {
+    const tagsByParent = new Map<string, ParsedPromptDependencyTag[]>(
+      parentIds.map((id) => [id, []]),
+    );
+    for (let start = 0; start < parentIds.length; start += MAX_ROWS_PER_QUERY) {
+      const rows = await this.prisma.promptDependency.findMany({
+        where: {
+          projectId,
+          parentId: { in: parentIds.slice(start, start + MAX_ROWS_PER_QUERY) },
+        },
+        select: {
+          parentId: true,
+          childName: true,
+          childLabel: true,
+          childVersion: true,
+        },
+      });
+      for (const dep of rows) {
+        tagsByParent.get(dep.parentId)?.push(toDependencyTag(dep));
+      }
+    }
+    return tagsByParent;
+  }
+
+  /**
+   * Fetches every dependency not yet in `promptsByFetchKey`. Returns the newly
+   * fetched prompts by fetch key, null when missing.
    */
   private async fetchMissingDependencyPrompts(
     projectId: string,
     dependencies: ParsedPromptDependencyTag[],
-    fetchedPrompts: ReadonlyMap<string, Prompt | null>,
+    promptsByFetchKey: ReadonlyMap<string, Prompt | null>,
   ): Promise<Map<string, Prompt | null>> {
     const missingDeps = new Map<string, ParsedPromptDependencyTag>();
     for (const dep of dependencies) {
       const fetchKey = getDependencyFetchKey(dep);
-      if (!fetchedPrompts.has(fetchKey)) missingDeps.set(fetchKey, dep);
+      if (!promptsByFetchKey.has(fetchKey)) missingDeps.set(fetchKey, dep);
     }
     const newlyFetched = new Map<string, Prompt | null>();
     if (missingDeps.size === 0) return newlyFetched;
 
-    const rows = await this.prisma.prompt.findMany({
-      where: {
-        projectId,
-        OR: [...missingDeps.values()].map((dep) => ({
-          name: dep.name,
-          ...(dep.type === "version"
-            ? { version: dep.version }
-            : { labels: { has: dep.label } }),
-        })),
-      },
-    });
+    const missing = Array.from(missingDeps.values());
+    const rowsByName = new Map<string, Prompt[]>();
+    for (let start = 0; start < missing.length; start += MAX_ROWS_PER_QUERY) {
+      const rows = await this.prisma.prompt.findMany({
+        where: {
+          projectId,
+          OR: missing.slice(start, start + MAX_ROWS_PER_QUERY).map((dep) => ({
+            name: dep.name,
+            ...(dep.type === "version"
+              ? { version: dep.version }
+              : { labels: { has: dep.label } }),
+          })),
+        },
+      });
+      for (const row of rows) {
+        const sameName = rowsByName.get(row.name) ?? [];
+        sameName.push(row);
+        rowsByName.set(row.name, sameName);
+      }
+    }
     for (const [fetchKey, dep] of missingDeps) {
       // A label points to at most one version of a prompt name.
-      const match = rows.find(
-        (row) =>
-          row.name === dep.name &&
-          (dep.type === "version"
+      const match = rowsByName
+        .get(dep.name)
+        ?.find((row) =>
+          dep.type === "version"
             ? row.version === dep.version
-            : row.labels.includes(dep.label)),
-      );
+            : row.labels.includes(dep.label),
+        );
       newlyFetched.set(fetchKey, match ?? null);
     }
     return newlyFetched;
@@ -544,4 +598,20 @@ function tagPromptCacheOutcome(
 
 function getDependencyFetchKey(dep: ParsedPromptDependencyTag) {
   return `${dep.name}|${dep.type}|${dep.type === "version" ? dep.version : dep.label}`;
+}
+
+function toDependencyTag(dep: {
+  childName: string;
+  childLabel: string | null;
+  childVersion: number | null;
+}): ParsedPromptDependencyTag {
+  if (dep.childVersion !== null) {
+    return { name: dep.childName, type: "version", version: dep.childVersion };
+  }
+  if (dep.childLabel !== null) {
+    return { name: dep.childName, type: "label", label: dep.childLabel };
+  }
+  throw new LangfuseConflictError(
+    `Prompt dependency is malformed: ${dep.childName}`,
+  );
 }
