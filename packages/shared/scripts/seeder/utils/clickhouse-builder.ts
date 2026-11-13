@@ -43,6 +43,35 @@ export class ClickHouseQueryBuilder {
   }
 
   /**
+   * SQL for the epoch-seconds timestamp of the bulk trace at `traceIndexSql`.
+   *
+   * Without `endSeconds`, traces spread back from `anchorSeconds` (a UTC
+   * midnight) over `spreadSeconds`. With it, the window ends at the next UTC
+   * midnight instead and the traces dated on the anchor day are compressed
+   * into [anchorSeconds, endSeconds]: the newest trace sits at `endSeconds`,
+   * yet every row keeps the same UTC date on any same-day re-run, so the
+   * toDate(...) sorting keys stay stable and ReplacingMergeTree overwrites.
+   */
+  private bulkTraceTimestampSql(
+    traceIndexSql: string,
+    tracesCount: number,
+    spreadSeconds: number,
+    anchorSeconds: number,
+    endSeconds?: number,
+  ): string {
+    const step = `intDiv(${traceIndexSql} * ${spreadSeconds}, ${Math.max(tracesCount, 1)})`;
+    if (endSeconds === undefined) {
+      return `(${anchorSeconds} - ${step})`;
+    }
+    const todaySeconds = Math.min(
+      Math.max(Math.floor(endSeconds) - anchorSeconds, 0),
+      86_399,
+    );
+    const base = `(${anchorSeconds + 86_400} - ${step})`;
+    return `if(${base} >= ${anchorSeconds}, ${anchorSeconds} + intDiv((${base} - ${anchorSeconds}) * ${todaySeconds}, 86400), ${base})`;
+  }
+
+  /**
    * Creates INSERT query for trace data using VALUES syntax.
    * Use for: Small datasets, detailed trace objects with all fields populated.
    */
@@ -95,6 +124,8 @@ export class ClickHouseQueryBuilder {
       numberOfDays: number;
       idPrefix?: string;
       anchorSeconds?: number;
+      /** see bulkTraceTimestampSql */
+      endSeconds?: number;
       seed?: number;
     } = { numberOfDays: 1 },
   ): string {
@@ -118,6 +149,13 @@ export class ClickHouseQueryBuilder {
     const anchorSeconds =
       opts.anchorSeconds ?? Math.floor(Date.now() / 86_400_000) * 86_400;
     const seedSalt = (opts.seed ?? 0) >>> 0;
+    const traceTimestamp = this.bulkTraceTimestampSql(
+      "number",
+      count,
+      spreadSeconds,
+      anchorSeconds,
+      opts.endSeconds,
+    );
 
     // Timestamps derive from `number` and anchor to midnight UTC (computed
     // in TS, independent of the ClickHouse server timezone) so same-day
@@ -129,7 +167,7 @@ export class ClickHouseQueryBuilder {
       INSERT INTO traces
       SELECT
         concat('${idPrefix}trace-bulk-', toString(number), '-${idSuffix}') AS id,
-        toDateTime(${anchorSeconds} - intDiv(number * ${spreadSeconds}, ${Math.max(count, 1)})) AS timestamp,
+        toDateTime(${traceTimestamp}) AS timestamp,
         arrayElement(['chat-completion','summarize-document','extract-entities','embed-documents','classify-intent','generate-title','translate-text','moderate-content','rerank-results','answer-question'], 1 + (number % 10)) AS name,
         if(h1 % 10 < 3, concat('${idPrefix}user_', toString(h1 % 1000)), NULL) AS user_id,
         ${this.buildNestedMetadataMapSql(["'generated'", "'bulk'"])} AS metadata,
@@ -177,6 +215,8 @@ export class ClickHouseQueryBuilder {
       numberOfDays: number;
       idPrefix?: string;
       anchorSeconds?: number;
+      /** see bulkTraceTimestampSql */
+      endSeconds?: number;
       seed?: number;
       /** real Postgres prompt rows to link ~10% of generations to; omitted
        * -> prompt columns stay NULL (fabricated ids break the PromptBadge) */
@@ -195,6 +235,13 @@ export class ClickHouseQueryBuilder {
       opts.anchorSeconds ?? Math.floor(Date.now() / 86_400_000) * 86_400;
     const seedSalt = (opts.seed ?? 0) >>> 0;
     const prompts = opts.prompts ?? [];
+    const traceTimestamp = this.bulkTraceTimestampSql(
+      `(number % ${Math.max(tracesCount, 1)})`,
+      tracesCount,
+      spreadSeconds,
+      anchorSeconds,
+      opts.endSeconds,
+    );
 
     // Escape file content if provided
     const escapedHeavyMarkdown = fileContent
@@ -219,9 +266,9 @@ export class ClickHouseQueryBuilder {
         '${escapedEnvironment}' AS environment,
         multiIf(h1 % 100 < 47, 'GENERATION', h1 % 100 < 94, 'SPAN', 'EVENT') AS type,
         if(number < ${tracesCount}, NULL, concat('${idPrefix}obs-bulk-', toString(number - ${tracesCount}), '-${idSuffix}')) AS parent_observation_id,
-        toDateTime(${anchorSeconds} - intDiv((number % ${Math.max(tracesCount, 1)}) * ${spreadSeconds}, ${Math.max(tracesCount, 1)}) + intDiv(number, ${Math.max(tracesCount, 1)}) * 60) AS start_time,
+        toDateTime(${traceTimestamp} + intDiv(number, ${Math.max(tracesCount, 1)}) * 60) AS start_time,
         addMilliseconds(
-          toDateTime(${anchorSeconds} - intDiv((number % ${Math.max(tracesCount, 1)}) * ${spreadSeconds}, ${Math.max(tracesCount, 1)}) + ${Math.max(observationsPerTrace - 1, 0)} * 60),
+          toDateTime(${traceTimestamp} + ${Math.max(observationsPerTrace - 1, 0)} * 60),
           (${Math.max(observationsPerTrace - 1, 0)} - intDiv(number, ${Math.max(tracesCount, 1)})) * 4000 +
           case
             when type = 'GENERATION' then 600 + h2 % 3400
@@ -325,6 +372,8 @@ export class ClickHouseQueryBuilder {
       idPrefix?: string;
       observationsPerTrace?: number;
       anchorSeconds?: number;
+      /** see bulkTraceTimestampSql */
+      endSeconds?: number;
       seed?: number;
     } = { numberOfDays: 1 },
   ): string {
@@ -340,12 +389,19 @@ export class ClickHouseQueryBuilder {
     const anchorSeconds =
       opts.anchorSeconds ?? Math.floor(Date.now() / 86_400_000) * 86_400;
     const seedSalt = (opts.seed ?? 0) >>> 0;
+    const traceTimestamp = this.bulkTraceTimestampSql(
+      `(number % ${Math.max(tracesCount, 1)})`,
+      tracesCount,
+      spreadSeconds,
+      anchorSeconds,
+      opts.endSeconds,
+    );
 
     return `
       INSERT INTO scores
       SELECT
         concat('${idPrefix}score-bulk-', toString(number), '-${idSuffix}') AS id,
-        toDateTime(${anchorSeconds} - intDiv((number % ${Math.max(tracesCount, 1)}) * ${spreadSeconds}, ${Math.max(tracesCount, 1)}) + intDiv(number, ${Math.max(tracesCount, 1)}) * 90) AS timestamp,
+        toDateTime(${traceTimestamp} + intDiv(number, ${Math.max(tracesCount, 1)}) * 90) AS timestamp,
         '${escapedProjectId}' AS project_id,
         '${escapedEnvironment}' AS environment,
         concat('${idPrefix}trace-bulk-', toString(number % ${tracesCount}), '-${idSuffix}') AS trace_id,

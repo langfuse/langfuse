@@ -108,10 +108,20 @@ const run = async (
   );
   // One shared anchor so the three INSERT statements cannot straddle a UTC
   // midnight and anchor observations/scores to a different day than traces.
+  // The newest trace lands at seed time so a fresh seed fills the default
+  // "past 1 day" filter; observations (60s per depth) and scores (90s each)
+  // follow their trace, so the window ends early enough to keep them out of
+  // the future.
+  const nowMs = Date.now();
+  const childLeadSeconds = Math.max(
+    observationsPerTrace * 65,
+    scoresPerTrace * 90,
+  );
   const bulkOpts = {
     numberOfDays: days,
     idPrefix: ctx.idPrefix,
-    anchorSeconds: Math.floor(utcDayStartMs() / 1000),
+    anchorSeconds: Math.floor(utcDayStartMs(nowMs) / 1000),
+    endSeconds: Math.floor(nowMs / 1000) - childLeadSeconds,
     seed: ctx.seed,
   };
   // Link ~10% of generations to REAL prompts — fabricated prompt ids would
@@ -258,7 +268,8 @@ export const manyTracesScenario: ScenarioDefinition = {
       flag: "days",
       type: "number",
       default: 3,
-      description: "spread timestamps over the past N days",
+      description:
+        "spread timestamps over the past N days, newest at seed time",
     },
     {
       flag: "observations-per-trace",

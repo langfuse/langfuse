@@ -7,8 +7,8 @@
  * lands inside recent UI time windows; a re-run on a later day writes a
  * fresh dated copy.
  */
-export const utcDayStartMs = (): number =>
-  Math.floor(Date.now() / 86_400_000) * 86_400_000;
+export const utcDayStartMs = (nowMs: number = Date.now()): number =>
+  Math.floor(nowMs / 86_400_000) * 86_400_000;
 
 /**
  * Stateless per-index jitter for values that land in ClickHouse ORDER BY
