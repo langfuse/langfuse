@@ -48,6 +48,7 @@ type CreateContextOptions = {
 export const createInnerTRPCContext = (opts: CreateContextOptions) => {
   return {
     session: opts.session,
+    authz: opts.session?.authCtx ?? null,
     headers: opts.headers,
     requestSpan: opts.requestSpan,
     prisma,
