@@ -72,6 +72,39 @@ export async function replaceRolesForPrincipal(
   });
 }
 
+/** assignExpiringRole grants or renews a system role that lapses at expiresAt. */
+export async function assignExpiringRole(
+  prisma: Prisma.TransactionClient,
+  ra: Omit<RoleAssignment, "id" | "createdAt" | "updatedAt" | "expiresAt"> & {
+    expiresAt: Date;
+  },
+): Promise<StoredRoleAssignment> {
+  const roleFields = validateRole(ra.roleId);
+  return await withTransaction(prisma, async (tx) => {
+    const ownerAndTenantFields = await validateTenancy(
+      tx,
+      ra.tenantId,
+      ra.ownerId,
+    );
+    return await tx.roleAssignment.upsert({
+      where: {
+        ownerId_principalId_roleId: {
+          ownerId: ra.ownerId,
+          principalId: ra.principalId,
+          roleId: ra.roleId,
+        },
+      },
+      create: {
+        ...ownerAndTenantFields,
+        ...principalFields(ra.principalId),
+        ...roleFields,
+        expiresAt: ra.expiresAt,
+      },
+      update: { expiresAt: ra.expiresAt },
+    });
+  });
+}
+
 /** revokeRolesForPrincipal removes a principal's assignments in a tenant, optionally limited to one owner. */
 export async function revokeRolesForPrincipal(
   prisma: Prisma.TransactionClient,
@@ -84,6 +117,14 @@ export async function revokeRolesForPrincipal(
   await prisma.roleAssignment.deleteMany({
     where: { orgId: untag(tenantId), principalId, ownerId },
   });
+}
+
+/** revokeRoleForPrincipal removes one role from a principal in every tenant. */
+export async function revokeRoleForPrincipal(
+  prisma: Prisma.TransactionClient,
+  { principalId, roleId }: { principalId: PrincipalId; roleId: RoleId },
+): Promise<void> {
+  await prisma.roleAssignment.deleteMany({ where: { principalId, roleId } });
 }
 
 /** revokeUserRoles removes every user's assignments on an owner. */
@@ -110,12 +151,17 @@ export async function transferApiKeyRoles(
   });
 }
 
-/** findRoleAssignments reads a principal's stored assignments. */
+/** findRoleAssignments reads a principal's stored assignments that have not expired. */
 async function findRoleAssignments(
   prisma: Prisma.TransactionClient,
   principalId: PrincipalId,
 ): Promise<StoredRoleAssignment[]> {
-  return await prisma.roleAssignment.findMany({ where: { principalId } });
+  return await prisma.roleAssignment.findMany({
+    where: {
+      principalId,
+      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+    },
+  });
 }
 
 /**
