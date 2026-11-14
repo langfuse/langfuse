@@ -266,20 +266,18 @@ export class ScoresApiService {
     // Skip-dedup projects read scores without FINAL, so a second version of
     // a score id would be counted twice and averaged with the old value.
     // Reject the update here, mirroring the UI guard
-    // (throwIfScoreEditsDisabled). The REST route passes no auditScope, so
-    // look the score up when it was not already fetched above.
+    // (throwIfScoreEditsDisabled). The existence check covers every score
+    // scope and data type, so a rewrite of a session or dataset-run score
+    // cannot slip through as a new score.
     if (auth.scope.projectId && shouldSkipScoresDedup(auth.scope.projectId)) {
-      const existing =
-        existingScore??
-        (await _handleGetScoreById({
-          projectId: auth.scope.projectId,
-          scoreId,
-          scoreScope: this.apiVersion === "v1"? "traces_only": "all",
-          scoreDataTypes:
-            this.apiVersion === "v1"? LISTABLE_SCORE_TYPES: undefined,
-          preferredClickhouseService: "ReadOnly",
-          apiVersion: this.apiVersion,
-        }));
+      const existing = await _handleGetScoreById({
+        projectId: auth.scope.projectId,
+        scoreId,
+        scoreScope: "all",
+        scoreDataTypes: undefined,
+        preferredClickhouseService: "ReadOnly",
+        apiVersion: this.apiVersion,
+      });
       if (existing) {
         throw new LangfuseConflictError(
           "Existing scores cannot be edited in this project.",
