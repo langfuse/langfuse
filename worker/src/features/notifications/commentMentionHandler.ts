@@ -143,6 +143,11 @@ export async function handleCommentMentionNotification(
       );
     })();
 
+    const disabledUserIds = await findUsersWithMentionEmailsDisabled({
+      projectId,
+      userIds: mentionedUserIds,
+    });
+
     // Process each mentioned user
     for (const userId of mentionedUserIds) {
       try {
@@ -161,21 +166,7 @@ export async function handleCommentMentionNotification(
           continue;
         }
 
-        // Check notification preference (default: enabled)
-        // If preference exists and is disabled, skip
-        // If user/project was deleted, the preference won't exist (cascade delete)
-        const preference = await prisma.notificationPreference.findUnique({
-          where: {
-            userId_projectId_channel_type: {
-              userId,
-              projectId,
-              channel: "EMAIL",
-              type: "COMMENT_MENTION",
-            },
-          },
-        });
-
-        if (preference && !preference.enabled) {
+        if (disabledUserIds.has(userId)) {
           logger.info(
             `User ${userId} has disabled email notifications for comment mentions in project ${projectId}. Skipping.`,
           );
@@ -239,4 +230,26 @@ export async function handleCommentMentionNotification(
     );
     throw error;
   }
+}
+
+/**
+ * Loads the comment-mention email opt-outs for all mentioned users in one
+ * query. A user without a preference row has not opted out (default: enabled).
+ */
+async function findUsersWithMentionEmailsDisabled(opts: {
+  projectId: string;
+  userIds: string[];
+}): Promise<Set<string>> {
+  const disabledPreferences = await prisma.notificationPreference.findMany({
+    where: {
+      projectId: opts.projectId,
+      userId: { in: opts.userIds },
+      channel: "EMAIL",
+      type: "COMMENT_MENTION",
+      enabled: false,
+    },
+    select: { userId: true },
+  });
+
+  return new Set(disabledPreferences.map((preference) => preference.userId));
 }
