@@ -44,7 +44,7 @@ export type PrincipalOrganization = {
   aiFeaturesEnabled: boolean;
   aiTelemetryEnabled: boolean;
   featureFlagDefaults: Flags;
-  cloudConfig: CloudConfigSchema | undefined;
+  cloudConfig?: CloudConfigSchema;
   projects: PrincipalProject[];
 };
 

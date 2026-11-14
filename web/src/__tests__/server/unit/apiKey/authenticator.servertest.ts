@@ -67,11 +67,25 @@ const store = (key: ApiKey): ApiKeyRepository =>
 
 const orgRow = {
   id: ORG,
+  name: "Org",
+  metadata: null,
   createdAt: new Date("2026-09-16T00:00:00.000Z"),
   cloudConfig: null,
   cloudFreeTierUsageThresholdState: null,
   accessAuditLogEnabled: false,
-  projects: [{ id: PRJ }],
+  aiFeaturesEnabled: false,
+  aiTelemetryEnabled: false,
+  featureFlagOrgDefaults: [],
+  projects: [
+    {
+      id: PRJ,
+      name: PRJ,
+      retentionDays: null,
+      hasTraces: false,
+      metadata: null,
+      createdAt: new Date("2026-09-16T00:00:00.000Z"),
+    },
+  ],
 } as unknown as OrganizationWithProjects;
 
 const resolver = new ContextResolver(
@@ -156,7 +170,7 @@ describe("Authenticator consolidated context cache", () => {
     const first = await auth.authenticate(bearer(KNOWN_SECRET));
     expect(first.success).toBe(true);
     expect([...redis.map.keys()]).toEqual([
-      `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}v3:bearer:${knownHash}`,
+      `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}v4:bearer:${knownHash}`,
     ]);
 
     const verifySpy = vi.spyOn(verifier, "verify");

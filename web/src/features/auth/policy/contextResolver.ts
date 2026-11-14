@@ -329,7 +329,7 @@ function toPrincipalOrganization(
     aiFeaturesEnabled: org.aiFeaturesEnabled,
     aiTelemetryEnabled: org.aiTelemetryEnabled,
     featureFlagDefaults,
-    cloudConfig,
+    ...(cloudConfig && { cloudConfig }),
     projects: org.projects.map(toPrincipalProject),
   };
 }
