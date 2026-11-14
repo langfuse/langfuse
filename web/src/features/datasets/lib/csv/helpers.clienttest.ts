@@ -1,7 +1,67 @@
-import { describe, expect, it } from "vitest";
-import { parseCsvClient, parseValue } from "./helpers";
+import { describe, expect, it, vi } from "vitest";
+import { parseColumns, parseCsvClient, parseValue } from "./helpers";
 
 describe("CSV dataset parsing", () => {
+  it.each([
+    { headers: "input,input", isPreview: true },
+    { headers: "input, input ", isPreview: true },
+    { headers: "input,input", isPreview: false },
+    { headers: "input, input ", isPreview: false },
+  ])(
+    "rejects duplicate headers '$headers' before processing (preview: $isPreview)",
+    async ({ headers, isPreview }) => {
+      const file = new File([`${headers}\nfirst,second\n`], "duplicate.csv", {
+        type: "text/csv",
+      });
+      const onHeader = vi.fn();
+      const onRow = vi.fn();
+
+      await expect(
+        parseCsvClient(file, {
+          isPreview,
+          collectSamples: true,
+          processor: { onHeader, onRow },
+        }),
+      ).rejects.toThrow(/column names must be unique/i);
+      expect(onHeader).not.toHaveBeenCalled();
+      expect(onRow).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([true, false])(
+    "keeps distinct case-sensitive columns separately mapped (preview: %s)",
+    async (isPreview) => {
+      const file = new File([" input ,Input\nfirst,second\n"], "unique.csv", {
+        type: "text/csv",
+      });
+      let headerMap = new Map<string, number>();
+      const importedValues: unknown[] = [];
+
+      const preview = await parseCsvClient(file, {
+        isPreview,
+        collectSamples: true,
+        processor: {
+          onHeader: (headers) => {
+            headerMap = new Map(
+              headers.map((header, index) => [header, index]),
+            );
+          },
+          onRow: (row) => {
+            importedValues.push(
+              parseColumns(["input", "Input"], row, headerMap),
+            );
+          },
+        },
+      });
+
+      expect(preview.columns).toEqual([
+        { name: "input", samples: ["first"], inferredType: "string" },
+        { name: "Input", samples: ["second"], inferredType: "string" },
+      ]);
+      expect(importedValues).toEqual([{ input: "first", Input: "second" }]);
+    },
+  );
+
   it("preserves unsafe integer values as strings", () => {
     expect(parseValue("107505301260286111")).toBe("107505301260286111");
     expect(parseValue('{"input_number":107505301260286111}')).toEqual({
