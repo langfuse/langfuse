@@ -27,6 +27,7 @@ import { Button } from "@/src/components/ui/button";
 
 const formatRoleLabel = (role: Role) => systemRoleAccessRights[role].name;
 
+/** allRoles lists the membership roles in display order. */
 const allRoles: Role[] = [
   "OWNER",
   "ADMIN",
