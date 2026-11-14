@@ -20,7 +20,7 @@ export function hasOrganizationAccess(p: HasOrganizationAccessParams): boolean {
     .success;
 }
 
-/** HasOrganizationAccessParams checks scope against an explicit role or through the session's policies. */
+/** HasOrganizationAccessParams is an explicit role, or a session and the organizationId whose policies decide scope. */
 type HasOrganizationAccessParams =
   | { role: Role; scope: OrganizationScope }
   | { session: MaybeSession; organizationId: string; scope: OrganizationScope };

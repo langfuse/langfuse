@@ -1,9 +1,9 @@
+import { type InternalServerError } from "@langfuse/shared";
 import {
   type PrismaClient,
   type User,
   prisma as defaultPrisma,
 } from "@langfuse/shared/src/db";
-import { type InternalServerError } from "@langfuse/shared";
 
 import { internalServerError, type ErrorResult, type Success } from "./types";
 

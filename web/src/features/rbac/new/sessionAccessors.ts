@@ -24,22 +24,18 @@ import { type Flags } from "@/src/features/feature-flags/types";
 import { rolesFor } from "./rolesFor";
 import { type PolicySession } from "./sessionCallback";
 
-/** hasSessionUser reports whether the session carries a signed-in user. */
 export function hasSessionUser(session: MaybeSession): boolean {
   return Boolean(getPrincipalUser(session));
 }
 
-/** getSessionUserId is the signed-in user's id. */
 export function getSessionUserId(session: MaybeSession): string | undefined {
   return getPrincipalUser(session)?.id;
 }
 
-/** getSessionUserEmail is the signed-in user's email. */
 export function getSessionUserEmail(session: MaybeSession) {
   return getPrincipalUser(session)?.email;
 }
 
-/** getSessionUserName is the signed-in user's display name. */
 export function getSessionUserName(session: MaybeSession) {
   return getPrincipalUser(session)?.name;
 }
@@ -71,12 +67,10 @@ export function getSessionUserV4UpgradeUiAvailable(session: MaybeSession) {
   return getPrincipalUser(session)?.v4UpgradeUiAvailable;
 }
 
-/** getSessionUserCanCreateOrganizations reports whether the user may create organizations. */
 export function getSessionUserCanCreateOrganizations(session: MaybeSession) {
   return getPrincipalUser(session)?.canCreateOrganizations;
 }
 
-/** getSessionUserHasPassword reports whether the user has set a password. */
 export function getSessionUserHasPassword(session: MaybeSession) {
   return getPrincipalUser(session)?.hasPassword;
 }
@@ -95,7 +89,6 @@ export function getSessionOrganizations(
   return getPrincipalOrganizations(session).map(toSessionOrganization);
 }
 
-/** findSessionOrganization is the user's organization with orgId. */
 export function findSessionOrganization(
   session: MaybeSession,
   orgId: string | undefined,
@@ -103,7 +96,6 @@ export function findSessionOrganization(
   return getSessionOrganizations(session).find((org) => org.id === orgId);
 }
 
-/** findSessionProject is the user's project with projectId. */
 export function findSessionProject(
   session: MaybeSession,
   projectId: string | undefined,
@@ -113,7 +105,6 @@ export function findSessionProject(
   );
 }
 
-/** findSessionProjectOrganization is the user's organization that owns projectId. */
 export function findSessionProjectOrganization(
   session: MaybeSession,
   projectId: string | undefined,
@@ -128,7 +119,6 @@ export function getSessionProjects(session: MaybeSession): SessionProject[] {
   return getSessionOrganizations(session).flatMap((org) => org.projects);
 }
 
-/** getSessionOrganizationRole is the user's role in orgId. */
 export function getSessionOrganizationRole(
   session: MaybeSession,
   orgId: string | undefined,
@@ -176,7 +166,6 @@ function getPrincipalOrganizations(
   return principal.organizations;
 }
 
-/** findPrincipalOrganization is the session's organization with orgId. */
 function findPrincipalOrganization(
   session: MaybeSession,
   orgId: string | undefined,

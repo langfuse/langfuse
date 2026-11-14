@@ -490,7 +490,6 @@ function withoutRole<T extends object>(node: T): T {
   return rest as T;
 }
 
-/** maybeWithoutRole drops the role from a node that may be missing. */
 function maybeWithoutRole<T extends object>(
   node: T | undefined,
 ): T | undefined {
@@ -529,7 +528,7 @@ function outcome(call: () => unknown): unknown {
   }
 }
 
-/** errorName is a thrown value's error class name. */
+/** errorName is a thrown Error's class name, or the typeof of any other thrown value. */
 function errorName(error: unknown): string {
   if (error instanceof Error) return error.name;
   return typeof error;

@@ -22,22 +22,6 @@ export function hasProjectAccess(p: HasProjectAccessParams): boolean {
   return isAuthorizedOnProject(p);
 }
 
-/** isAuthorizedOnProject authorizes scope on a project the session lists among its live projects. */
-function isAuthorizedOnProject({
-  session,
-  projectId,
-  scope,
-}: SessionProjectAccessParams): boolean {
-  const org = findPrincipalProjectOrganization(session, projectId);
-  if (!org || !session?.authCtx) return false;
-  return authorize(
-    session.authCtx,
-    OrganizationId(org.id),
-    scope,
-    ProjectId(projectId),
-  ).success;
-}
-
 /** isDemoProjectLlmRestricted reports whether scope is an LLM operation on the demo project the user may not run outside the internal view. */
 function isDemoProjectLlmRestricted({
   session,
@@ -63,15 +47,31 @@ function isInternalViewEnabled(session: MaybeSession): boolean {
   );
 }
 
-/** SessionProjectAccessParams checks scope on projectId through the session's policies. */
+/** isAuthorizedOnProject authorizes scope on a project the session lists among its live projects. */
+function isAuthorizedOnProject({
+  session,
+  projectId,
+  scope,
+}: SessionProjectAccessParams): boolean {
+  const org = findPrincipalProjectOrganization(session, projectId);
+  if (!org || !session?.authCtx) return false;
+  return authorize(
+    session.authCtx,
+    OrganizationId(org.id),
+    scope,
+    ProjectId(projectId),
+  ).success;
+}
+
+/** HasProjectAccessParams is an explicit role, or a session and the projectId whose policies decide scope. */
+type HasProjectAccessParams = (
+  | { role: Role; scope: ProjectScope }
+  | SessionProjectAccessParams
+) & { forbiddenErrorMessage?: string };
+
+/** SessionProjectAccessParams is a session and the projectId whose policies decide scope. */
 type SessionProjectAccessParams = {
   session: MaybeSession;
   projectId: string;
   scope: ProjectScope;
 };
-
-/** HasProjectAccessParams checks scope against an explicit role or through the session's policies. */
-type HasProjectAccessParams = (
-  | { role: Role; scope: ProjectScope }
-  | SessionProjectAccessParams
-) & { forbiddenErrorMessage?: string };

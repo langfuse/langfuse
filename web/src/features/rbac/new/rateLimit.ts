@@ -1,5 +1,5 @@
 import { ForbiddenError } from "@langfuse/shared";
-import type { ApiAccessScope } from "@langfuse/shared/src/server";
+import { type ApiAccessScope } from "@langfuse/shared/src/server";
 
 import { findSessionProjectOrganization } from "./sessionAccessors";
 import { type PolicySession } from "./sessionCallback";

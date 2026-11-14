@@ -25,20 +25,19 @@ import {
   type RoleGrant,
 } from "@/src/features/rbac/getRolesForPrincipal";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { type Flags } from "@/src/features/feature-flags/types";
 import {
   OrganizationRepository,
   type GetOrganizationResult,
   type OrganizationWithProjects,
 } from "./organizationRepository";
-import { UserRepository, type UserRecord } from "./userRepository";
+import { authorize } from "@/src/features/rbac/authorize";
+import { type Policy, type Role } from "@/src/features/rbac/types";
 import {
   toPrincipalProject,
   toPrincipalUser,
   toUserFeatureFlags,
 } from "./principalAttributes";
-import { authorize } from "@/src/features/rbac/authorize";
-import { type Flags } from "@/src/features/feature-flags/types";
-import { type Policy, type Role } from "@/src/features/rbac/types";
 import {
   internalServerError,
   unauthorizedError,
@@ -49,6 +48,7 @@ import {
   type PrincipalOrganization,
   type Success,
 } from "./types";
+import { UserRepository, type UserRecord } from "./userRepository";
 
 /** ContextResolver materializes an authenticated credential into its `AuthorizationContext`, loading and enriching the org it implies. */
 export class ContextResolver {

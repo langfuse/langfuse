@@ -1,8 +1,8 @@
-import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
 import {
   isForceV3ExperienceProject,
   shouldSkipScoresDedup,
 } from "@langfuse/shared/src/server";
+import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
 
 import { env } from "@/src/env.mjs";
 import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
