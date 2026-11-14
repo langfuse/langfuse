@@ -48,8 +48,8 @@ import {
 import { inviteOrganizationMember } from "@/src/features/rbac/server/inviteOrganizationMember";
 import { isSsoEnforcedForEmail } from "@/src/features/auth-credentials/server/signupApiHandler";
 import {
-  assertOrgOwnershipChange,
-  assertProjectOwnershipChange,
+  assertValidOrgOwnershipChange,
+  assertValidProjectOwnershipChange,
 } from "@/src/features/rbac/server/ownershipChange";
 import { userFeaturePreviewFlags } from "@/src/features/feature-flags/available-flags";
 import { setUserFeaturePreviewWithAuthorization } from "@/src/features/feature-flags/server/organizationFeatureFlags";
@@ -143,7 +143,7 @@ export const membersRouter = createTRPCRouter({
 
       const { deleted, revokedKeys } = await ctx.prisma.$transaction(
         async (tx) => {
-          await assertOrgOwnershipChange({
+          await assertValidOrgOwnershipChange({
             tx,
             session: ctx.session,
             orgId: input.orgId,
@@ -161,16 +161,19 @@ export const membersRouter = createTRPCRouter({
             userId: orgMembership.userId,
             orgId: input.orgId,
           });
+          await auditLog(
+            {
+              session: ctx.session,
+              resourceType: "orgMembership",
+              resourceId: orgMembership.id,
+              action: "delete",
+              before: orgMembership,
+            },
+            tx,
+          );
           return { deleted, revokedKeys };
         },
       );
-      await auditLog({
-        session: ctx.session,
-        resourceType: "orgMembership",
-        resourceId: orgMembership.id,
-        action: "delete",
-        before: orgMembership,
-      });
       await evictRevokedApiKeys(revokedKeys, { session: ctx.session });
 
       // SFDC: remove the org-member bridge.
@@ -270,7 +273,7 @@ export const membersRouter = createTRPCRouter({
       requireGatewayEnabledForRole(input.orgId, input.role);
 
       const updatedMembership = await ctx.prisma.$transaction(async (tx) => {
-        await assertOrgOwnershipChange({
+        await assertValidOrgOwnershipChange({
           tx,
           session: ctx.session,
           orgId: input.orgId,
@@ -484,7 +487,8 @@ export const membersRouter = createTRPCRouter({
         },
       });
 
-      assertProjectOwnershipChange({
+      await assertValidProjectOwnershipChange({
+        tx: ctx.prisma,
         session: ctx.session,
         orgId: input.orgId,
         from: projectMembership?.role,

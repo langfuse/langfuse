@@ -90,7 +90,6 @@ export type Route = {
       | NonNullable<Session["user"]>["organizations"][number]
       | undefined;
     projectId: string | undefined;
-    canReadOrganizationSettings: boolean;
     canViewTopics: boolean;
     visibleGatewayPages: Record<GatewayPageSlug, boolean>;
     isLangfuseCloud: boolean;
@@ -374,8 +373,7 @@ export const ROUTES: Route[] = [
     href: "/organization/[organizationId]/settings",
     icon: Settings,
     section: RouteSection.Secondary,
-    show: ({ organization, canReadOrganizationSettings }) =>
-      showsOrganizationSettings(organization, canReadOrganizationSettings),
+    organizationRbacScope: "organizationSettings:read",
   },
   {
     title: "Book a call",
@@ -391,20 +389,6 @@ export const ROUTES: Route[] = [
     menuNode: <SupportButton />,
   },
 ];
-
-/** Gateway-only members without projects have no settings to open. */
-function showsOrganizationSettings(
-  organization:
-    | NonNullable<Session["user"]>["organizations"][number]
-    | undefined,
-  canReadOrganizationSettings: boolean,
-) {
-  return (
-    !organization ||
-    canReadOrganizationSettings ||
-    organization.projects.length > 0
-  );
-}
 
 function GatewayKeyReminderDot() {
   const router = useRouter();
