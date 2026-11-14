@@ -18,6 +18,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import {
   assignExpiringRole,
+  assignRole,
   getRoleAssignmentsForPrincipal,
 } from "@langfuse/shared/rbac/server";
 import { env } from "@/src/env.mjs";
@@ -350,7 +351,7 @@ describe("support access in the product", () => {
     expect(await readSupportAccess(user.id)).toBeNull();
   });
 
-  it("mirrors a grant as an expiring SUPPORT_VIEWER role until revoked", async () => {
+  it("mirrors a grant as an expiring VIEWER role until revoked", async () => {
     const { email, user, orgId } = await createFixture();
     await grant(email, orgId);
 
@@ -360,7 +361,7 @@ describe("support access in the product", () => {
       expect.objectContaining({
         orgId,
         ownerId: OrganizationId(orgId),
-        systemRole: "SUPPORT_VIEWER",
+        systemRole: "VIEWER",
         expiresAt: expect.any(Date),
       }),
     );
@@ -370,26 +371,42 @@ describe("support access in the product", () => {
 
     expect(
       await getRoleAssignmentsForPrincipal(prisma, UserId(user.id)),
-    ).not.toContainEqual(
-      expect.objectContaining({ systemRole: "SUPPORT_VIEWER" }),
-    );
+    ).not.toContainEqual(expect.objectContaining({ orgId }));
   });
 
-  it("ignores a SUPPORT_VIEWER role once it has expired", async () => {
+  it("ignores an expiring role once it has expired", async () => {
     const { user, orgId } = await createFixture();
     await assignExpiringRole(prisma, {
       tenantId: OrganizationId(orgId),
       ownerId: OrganizationId(orgId),
       principalId: UserId(user.id),
-      roleId: SystemRoleId("SUPPORT_VIEWER"),
+      roleId: SystemRoleId("VIEWER"),
       tags: [],
       expiresAt: new Date(Date.now() - 1000),
     });
 
     expect(
       await getRoleAssignmentsForPrincipal(prisma, UserId(user.id)),
-    ).not.toContainEqual(
-      expect.objectContaining({ systemRole: "SUPPORT_VIEWER" }),
+    ).not.toContainEqual(expect.objectContaining({ orgId }));
+  });
+
+  it("keeps a permanent VIEWER assignment permanent across a grant and revoke", async () => {
+    const { email, user, orgId } = await createFixture();
+    await assignRole(prisma, {
+      tenantId: OrganizationId(orgId),
+      ownerId: OrganizationId(orgId),
+      principalId: UserId(user.id),
+      roleId: SystemRoleId("VIEWER"),
+      tags: [],
+    });
+    await grant(email, orgId);
+    const body = provisionBody({ email, orgId, type: revokeType });
+    await callWebhook(body, `Bearer ${await sign(body)}`);
+
+    expect(
+      await getRoleAssignmentsForPrincipal(prisma, UserId(user.id)),
+    ).toContainEqual(
+      expect.objectContaining({ orgId, systemRole: "VIEWER", expiresAt: null }),
     );
   });
 });

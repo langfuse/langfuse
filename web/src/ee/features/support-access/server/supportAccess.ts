@@ -4,10 +4,8 @@ import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import {
   assignExpiringRole,
-  revokeRoleForPrincipal,
+  revokeExpiringRolesForPrincipal,
 } from "@langfuse/shared/rbac/server";
-
-const supportViewerRoleId = SystemRoleId("SUPPORT_VIEWER");
 
 // users.support_access, e.g.
 // { "<orgId>": { "role": "VIEWER", "expiresAt": "2026-10-27T04:15:37.316Z" } }
@@ -79,7 +77,7 @@ export async function getSupportAccessMemberships(
   });
 }
 
-/** grantSupportAccess records a support grant and mirrors it as an expiring SUPPORT_VIEWER assignment. */
+/** grantSupportAccess records a support grant and mirrors it as an expiring VIEWER assignment. */
 export async function grantSupportAccess(
   userId: string,
   orgId: string,
@@ -100,14 +98,14 @@ export async function grantSupportAccess(
       tenantId: OrganizationId(orgId),
       ownerId: OrganizationId(orgId),
       principalId: UserId(userId),
-      roleId: supportViewerRoleId,
+      roleId: SystemRoleId("VIEWER"),
       tags: [],
       expiresAt,
     });
   });
 }
 
-/** revokeAllSupportAccess clears a user's support grants and their SUPPORT_VIEWER assignments. */
+/** revokeAllSupportAccess clears a user's support grants and their expiring assignments. */
 export async function revokeAllSupportAccess(user: {
   id: string;
   supportAccess: SupportAccess;
@@ -117,9 +115,8 @@ export async function revokeAllSupportAccess(user: {
       where: { id: user.id },
       data: { supportAccess: Prisma.DbNull },
     });
-    await revokeRoleForPrincipal(tx, {
+    await revokeExpiringRolesForPrincipal(tx, {
       principalId: UserId(user.id),
-      roleId: supportViewerRoleId,
     });
   });
   return Object.keys(user.supportAccess);
