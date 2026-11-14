@@ -2487,7 +2487,7 @@ export class OtelIngestionProcessor {
   /**
    * Prepends gen_ai.system_instructions as a {role: "system", content} message,
    * consistent with how gen_ai.system.message events are mapped.
-   * No-ops if messages already contain a system message.
+   * No-ops if system messages already contain the same instructions.
    */
   private prependSystemInstructions(
     input: unknown,
@@ -2496,11 +2496,6 @@ export class OtelIngestionProcessor {
     try {
       const messages = typeof input === "string" ? JSON.parse(input) : input;
       if (!Array.isArray(messages)) return input;
-
-      const hasSystemMessage = messages.some(
-        (msg: Record<string, unknown>) => msg?.role === "system",
-      );
-      if (hasSystemMessage) return input;
 
       let content: string;
       try {
@@ -2522,6 +2517,25 @@ export class OtelIngestionProcessor {
       } catch {
         content = String(systemInstructions);
       }
+
+      const systemContent = messages
+        .filter((msg: Record<string, unknown>) => msg?.role === "system")
+        .map((msg: Record<string, unknown>) => {
+          if (typeof msg.content === "string") return msg.content;
+          const parts = msg.parts ?? msg.content;
+          return Array.isArray(parts)
+            ? parts
+                .map(
+                  (part: Record<string, unknown>) =>
+                    part?.content ?? part?.text,
+                )
+                .join("\n")
+            : "";
+        })
+        .join("\n");
+
+      // Instructions can span system messages and be followed by context updates.
+      if (`\n${systemContent}\n`.includes(`\n${content}\n`)) return input;
 
       const systemMessage = { role: "system", content };
       const merged = [systemMessage, ...messages];
