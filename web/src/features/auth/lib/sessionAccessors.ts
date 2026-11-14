@@ -151,6 +151,9 @@ export type MaybeSession =
   | null
   | undefined;
 
+/** SessionStatus is next-auth's client-side session status, typed here so pure code need not import its React bindings. */
+export type SessionStatus = "authenticated" | "loading" | "unauthenticated";
+
 /** AuthedSession is a session whose user is known to be signed in. */
 type AuthedSession = { user: NonNullable<Session["user"]> };
 

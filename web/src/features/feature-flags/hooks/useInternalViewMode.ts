@@ -1,14 +1,9 @@
 import { useSession } from "next-auth/react";
 
-import {
-  getSessionEnvironment,
-  getSessionUserEmail,
-  type MaybeSession,
-} from "@/src/features/auth/lib/sessionAccessors";
+import { isInternalViewModeAvailable } from "@/src/features/feature-flags/hooks/isInternalViewModeAvailable";
 import { api } from "@/src/utils/api";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
-import { hasInternalAccess } from "../utils";
 import { useInternalFeaturesEnabled } from "./useInternalFeaturesEnabled";
 
 export function useInternalViewMode() {
@@ -37,13 +32,4 @@ export function useInternalViewMode() {
       }
     },
   };
-}
-
-/** isInternalViewModeAvailable reports whether the session's user may switch to the internal view. */
-function isInternalViewModeAvailable(session: MaybeSession): boolean {
-  return hasInternalAccess({
-    email: getSessionUserEmail(session),
-    isExperimentalFeaturesEnabled:
-      getSessionEnvironment(session)?.enableExperimentalFeatures === true,
-  });
 }

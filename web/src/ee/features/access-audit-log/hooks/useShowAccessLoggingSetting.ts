@@ -1,9 +1,6 @@
 import { useSession } from "next-auth/react";
 
-import {
-  getSessionEnvironment,
-  type MaybeSession,
-} from "@/src/features/auth/lib/sessionAccessors";
+import { isAccessLoggingSettingShown } from "@/src/ee/features/access-audit-log/hooks/isAccessLoggingSettingShown";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 
@@ -17,18 +14,5 @@ export function useShowAccessLoggingSetting(): boolean {
     session,
     hasEntitlement,
     internalFeaturesEnabled,
-  );
-}
-
-/** isAccessLoggingSettingShown reports whether the session's deployment lets the org choose access logging. */
-function isAccessLoggingSettingShown(
-  session: MaybeSession,
-  hasEntitlement: boolean,
-  internalFeaturesEnabled: boolean,
-): boolean {
-  return (
-    internalFeaturesEnabled &&
-    hasEntitlement &&
-    getSessionEnvironment(session)?.accessAuditLogMode === "org"
   );
 }

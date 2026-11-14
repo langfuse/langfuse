@@ -1,9 +1,6 @@
-import { type SessionContextValue, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 
-import {
-  findSessionProject,
-  type MaybeSession,
-} from "@/src/features/auth/lib/sessionAccessors";
+import { isAuthenticatedAndProjectMember } from "@/src/features/auth/isAuthenticatedAndProjectMember";
 
 /**
  * Hook to check if the user is authenticated and a member of the project.
@@ -18,14 +15,3 @@ export const useIsAuthenticatedAndProjectMember = (
     projectId,
   );
 };
-
-/** isAuthenticatedAndProjectMember reports whether the authenticated session's user is a member of projectId. */
-function isAuthenticatedAndProjectMember(
-  session: MaybeSession,
-  status: SessionContextValue["status"],
-  projectId: string,
-): boolean {
-  if (projectId === "") return false;
-
-  return status === "authenticated" && !!findSessionProject(session, projectId);
-}

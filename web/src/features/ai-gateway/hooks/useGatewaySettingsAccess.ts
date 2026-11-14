@@ -1,10 +1,6 @@
 import { useSession } from "next-auth/react";
 
-import { gatewayPageAccess } from "@/src/features/ai-gateway/fns/gatewayPageAccess";
-import {
-  getSessionEnvironment,
-  type MaybeSession,
-} from "@/src/features/auth/lib/sessionAccessors";
+import { getGatewaySettingsPageAccess } from "@/src/features/ai-gateway/hooks/getGatewaySettingsPageAccess";
 import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
@@ -60,15 +56,4 @@ export function useGatewaySettingsAccess(organizationId: string | undefined) {
     isRecording: setupStatus.data?.isRecording,
     isSetupStatusPending: setupStatus.isPending,
   };
-}
-
-/** getGatewaySettingsPageAccess is which gateway settings the member sees, given whether the session's deployment runs the gateway. */
-function getGatewaySettingsPageAccess(
-  session: MaybeSession,
-  access: Omit<Parameters<typeof gatewayPageAccess>[0], "aiGatewayDeployed">,
-) {
-  return gatewayPageAccess({
-    ...access,
-    aiGatewayDeployed: getSessionEnvironment(session)?.aiGatewayDeployed,
-  });
 }

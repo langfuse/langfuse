@@ -3,11 +3,8 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 
 import { env } from "@/src/env.mjs";
-import {
-  findSessionOrganization,
-  getSessionEnvironment,
-  type MaybeSession,
-} from "@/src/features/auth/lib/sessionAccessors";
+import { findSessionOrganization } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionV4WriteMode } from "@/src/features/organizations/getSessionV4WriteMode";
 
 /**
  * Hook to get the organization of the current page.
@@ -48,8 +45,3 @@ export const useLangfuseV4WriteMode = () => {
   const session = useSession();
   return getSessionV4WriteMode(session.data);
 };
-
-/** getSessionV4WriteMode is the deployment's v4 write mode, or null when the session does not carry one. */
-function getSessionV4WriteMode(session: MaybeSession) {
-  return getSessionEnvironment(session)?.v4WriteMode ?? null;
-}

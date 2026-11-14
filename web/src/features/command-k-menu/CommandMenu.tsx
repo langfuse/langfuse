@@ -9,7 +9,7 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/src/components/ui/command";
-import { type NextRouter, useRouter } from "next/router";
+import { useRouter } from "next/router";
 import {
   BotMessageSquare,
   ClipboardPen,
@@ -31,7 +31,6 @@ import { useTheme } from "next-themes";
 import { keepPreviousData } from "@tanstack/react-query";
 import { Fragment, useCallback, useEffect, memo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
@@ -51,11 +50,7 @@ import {
   useInAppAiAgent,
   useIsInAppAgentLauncherVisible,
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
-import {
-  getSessionOrganizations,
-  hasSessionUser,
-  type MaybeSession,
-} from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionNavigationItems } from "@/src/features/command-k-menu/getSessionNavigationItems";
 
 type IdNavigationItem = {
   type: "trace_id" | "observation_id";
@@ -1112,65 +1107,6 @@ export const useNavigationItems = () => {
 
   return getSessionNavigationItems(session.data, router);
 };
-
-/** getSessionNavigationItems lists the projects the session's user can switch to from the current route. */
-export function getSessionNavigationItems(
-  session: MaybeSession,
-  router: Pick<NextRouter, "route" | "asPath" | "query">,
-) {
-  const organizations = getSessionOrganizations(session);
-
-  const truncatePathBeforeDynamicSegments = (path: string) => {
-    const allowlistedIds = ["[projectId]", "[organizationId]", "[page]"];
-    const segments = router.route.split("/");
-    const idSegments = segments.filter(
-      (segment) => segment.startsWith("[") && segment.endsWith("]"),
-    );
-    const stopSegment = idSegments.filter((id) => !allowlistedIds.includes(id));
-    if (stopSegment.length === 0) return path;
-    const stopIndex = segments.indexOf(stopSegment[0]);
-    const truncatedPath = path.split("/").slice(0, stopIndex).join("/");
-    return truncatedPath;
-  };
-
-  const getProjectPath = (projectId: string) =>
-    router.query.projectId
-      ? truncatePathBeforeDynamicSegments(router.asPath).replace(
-          router.query.projectId as string,
-          projectId,
-        )
-      : `/project/${projectId}`;
-
-  const allProjectItems = organizations
-    ? organizations
-        .sort((a, b) => {
-          // sort demo org to the bottom
-          const isDemoA = env.NEXT_PUBLIC_DEMO_ORG_ID === a.id;
-          const isDemoB = env.NEXT_PUBLIC_DEMO_ORG_ID === b.id;
-          if (isDemoA) return 1;
-          if (isDemoB) return -1;
-          return a.name.localeCompare(b.name);
-        })
-        .flatMap((org) =>
-          org.projects.map((proj) => ({
-            title: `${org.name} > ${proj.name}`,
-            url: getProjectPath(proj.id),
-            projectId: proj.id,
-            active: router.query.projectId === proj.id,
-            keywords: [
-              "project",
-              org.name.toLowerCase(),
-              proj.name.toLowerCase(),
-            ],
-          })),
-        )
-    : [];
-
-  return {
-    allProjectItems,
-    isLoading: !hasSessionUser(session),
-  };
-}
 
 function useCommandMenuRecents(projectId: string | undefined) {
   const [recentsByProject, setRecentsByProject] = useLocalStorage<

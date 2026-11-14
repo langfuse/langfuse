@@ -64,9 +64,8 @@ import {
   getSessionEnvironment,
   getSessionUserId,
   getSessionUserName,
-  type MaybeSession,
-  type SessionOrganization,
 } from "@/src/features/auth/lib/sessionAccessors";
+import { isInAppAgentLauncherVisibleForSession } from "@/src/features/in-app-agent/components/isInAppAgentLauncherVisibleForSession";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
@@ -1680,23 +1679,5 @@ export function useIsInAppAgentLauncherVisible() {
     isAvailable,
     hasInAppAgentEntitlement,
     organization,
-  );
-}
-
-/** isInAppAgentLauncherVisibleForSession reports whether Assistant entry points show for the session's deployment, availability, entitlement, and organization. */
-function isInAppAgentLauncherVisibleForSession(
-  session: MaybeSession,
-  isAvailable: boolean,
-  hasInAppAgentEntitlement: boolean,
-  organization: SessionOrganization | null | undefined,
-) {
-  const instanceEnabled =
-    getSessionEnvironment(session)?.inAppAgentEnabled ?? false;
-
-  return (
-    instanceEnabled &&
-    isAvailable &&
-    hasInAppAgentEntitlement &&
-    Boolean(organization)
   );
 }

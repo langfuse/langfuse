@@ -3,11 +3,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
-import {
-  findSessionProject,
-  findSessionProjectOrganization,
-  type MaybeSession,
-} from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionProject } from "@/src/features/projects/getSessionProject";
 
 export const useQueryProject = () => {
   const router = useRouter();
@@ -20,24 +16,6 @@ export const useProject = (projectId: string | null) => {
 
   return getSessionProject(session.data, projectId);
 };
-
-/** getSessionProject resolves the user's project with projectId and the organization that owns it. */
-function getSessionProject(session: MaybeSession, projectId: string | null) {
-  const project = findSessionProject(session, projectId ?? undefined);
-  const organization = findSessionProjectOrganization(
-    session,
-    projectId ?? undefined,
-  );
-
-  if (project && organization) {
-    return { project, organization };
-  }
-
-  return {
-    project: null,
-    organization: null,
-  };
-}
 
 export const useQueryProjectOrOrganization = () => {
   const p = useQueryProject();
