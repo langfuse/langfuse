@@ -24,7 +24,7 @@ import {
   type Entitlement,
   type EntitlementLimit,
 } from "@/src/features/entitlements/constants/entitlements";
-import { getSessionPlan as legacyGetSessionPlan } from "@/src/features/entitlements/hooks";
+import { getSessionPlan as legacyGetSessionPlan } from "@/src/features/entitlements/getSessionPlan";
 import { hasEntitlement as legacyHasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { hasEntitlementLimit as legacyHasEntitlementLimit } from "@/src/features/entitlements/server/hasEntitlementLimit";
 import { getInAppAgentApiAccessScope as legacyGetInAppAgentApiAccessScope } from "@/src/features/in-app-agent/server/rateLimit";
