@@ -5,7 +5,11 @@ import {
   type PrismaClient,
   prisma as defaultPrisma,
 } from "@langfuse/shared/src/db";
-import { CloudConfigSchema, type InternalServerError } from "@langfuse/shared";
+import {
+  CloudConfigSchema,
+  type InternalServerError,
+  type UnauthorizedError,
+} from "@langfuse/shared";
 import {
   ApiKeyId,
   OrganizationId,
@@ -15,8 +19,13 @@ import {
   systemRoleAccessRights,
 } from "@langfuse/shared/rbac";
 
-import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
+import {
+  getRoleGrantsForPrincipal,
+  getRolesForPrincipal,
+  type RoleGrant,
+} from "@/src/features/rbac/getRolesForPrincipal";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { type Flags } from "@/src/features/feature-flags/types";
 import {
   OrganizationRepository,
   type GetOrganizationResult,
@@ -25,7 +34,13 @@ import {
 import { authorize } from "@/src/features/rbac/authorize";
 import { type Policy, type Role } from "@/src/features/rbac/types";
 import {
+  toPrincipalProject,
+  toPrincipalUser,
+  toUserFeatureFlags,
+} from "./principalAttributes";
+import {
   internalServerError,
+  unauthorizedError,
   type AuthorizationContext,
   type BoundResource,
   type ErrorResult,
@@ -33,16 +48,23 @@ import {
   type PrincipalOrganization,
   type Success,
 } from "./types";
+import { UserRepository, type UserRecord } from "./userRepository";
 
 /** ContextResolver materializes an authenticated credential into its `AuthorizationContext`, loading and enriching the org it implies. */
 export class ContextResolver {
   constructor(
     private readonly orgs: OrganizationRepository = new OrganizationRepository(),
     private readonly prisma: PrismaClient = defaultPrisma,
+    private readonly users: UserRepository = new UserRepository(),
   ) {}
 
-  /** resolve turns a verified credential into its context, collapsing a missing org to a 500 invariant break. */
-  async resolve(params: ResolveContextParams): Promise<Resolved> {
+  /** resolve turns a verified credential or a signed-in session into its context, collapsing a missing org to a 500 invariant break. */
+  async resolve(params: UserSessionParams): Promise<ResolvedUser>;
+  async resolve(params: ResolveContextParams): Promise<Resolved>;
+  async resolve(
+    params: ResolveContextParams | UserSessionParams,
+  ): Promise<Resolved | ResolvedUser> {
+    if ("kind" in params) return this.resolveUser(params);
     // eslint-disable-next-line @typescript-eslint/no-deprecated -- Compatibility until the next major version.
     if (params.authorization === "admin") {
       return { success: true, context: adminContext() };
@@ -61,6 +83,47 @@ export class ContextResolver {
     };
   }
 
+  /** resolveUser materializes a signed-in session into its user context, rejecting a missing subject, a deleted user or a revoked session as a 401. */
+  private async resolveUser({
+    userId,
+    sessionStartedAt,
+  }: UserSessionParams): Promise<ResolvedUser> {
+    if (!userId) return unauthorizedError();
+    const found = await this.users.getUser(userId);
+    if (!found.success) return found;
+    if (!found.user || !isSessionLive(found.user, sessionStartedAt)) {
+      return unauthorizedError();
+    }
+    const grants = await this.loadGrants(userId);
+    if (!grants.success) return grants;
+    const orgs = await this.orgs.getOrganizationsByIds(
+      grantedOrgIds(grants.grants),
+    );
+    if (!orgs.success) return orgs;
+    return {
+      success: true,
+      context: materializeUser(found.user, grants.grants, orgs.organizations),
+    };
+  }
+
+  /** loadGrants loads the user's role grants, collapsing a database failure to a 500. */
+  private async loadGrants(
+    userId: string,
+  ): Promise<
+    (Success & { grants: RoleGrant[] }) | ErrorResult<InternalServerError>
+  > {
+    try {
+      return {
+        success: true,
+        grants: await getRoleGrantsForPrincipal(this.prisma, UserId(userId)),
+      };
+    } catch (error) {
+      return internalServerError(
+        `failed to load roles for user ${userId}: ${String(error)}`,
+      );
+    }
+  }
+
   /** getPrincipalOrganization loads and derives the key's `PrincipalOrganization`, collapsing a null miss to a 500 invariant break. */
   private async getPrincipalOrganization(
     apiKey: ApiKey,
@@ -77,7 +140,12 @@ export class ContextResolver {
     }
     return {
       success: true,
-      organization: toPrincipalOrganization(found.organization),
+      organization: toPrincipalOrganization(
+        found.organization,
+        getCloudConfig(found.organization),
+        toUserFeatureFlags([], found.organization, false),
+        false,
+      ),
     };
   }
 
@@ -134,6 +202,28 @@ async function materialize(
   return context;
 }
 
+/** materializeUser binds a user's grants into one policy set and lists the orgs it reaches with the live projects it can read. */
+function materializeUser(
+  user: UserRecord,
+  grants: RoleGrant[],
+  orgs: OrganizationWithProjects[],
+): AuthorizationContext {
+  const policies = [toPolicies(grants.map((grant) => grant.role))];
+  const principalUser = toPrincipalUser(user, permanentOrgs(grants, orgs));
+  const organizations = byNewestGrant(grants, orgs).map((org) =>
+    toPrincipalOrganization(
+      readableProjects(org, policies),
+      parseCloudConfig(org),
+      toUserFeatureFlags(user.featureFlags, org, principalUser.v4BetaEnabled),
+      !permanentOrgIds(grants).has(org.id),
+    ),
+  );
+  return {
+    principal: { kind: "user", user: principalUser, organizations },
+    policies,
+  };
+}
+
 /** getPoliciesForApiKey loads one policy set per principal an api key acts as: its user's for a user key, then its own. */
 export async function getPoliciesForApiKey(
   prisma: Prisma.TransactionClient,
@@ -164,7 +254,7 @@ function publicBearerPolicies(
   apiKey: ApiKey,
   org: PrincipalOrganization,
 ): Policy[][] {
-  const tenantId = OrganizationId(org.orgId);
+  const tenantId = OrganizationId(org.id);
   const project = ProjectId(apiKey.projectId!);
   if (!authorize(roleContext, tenantId, "scores:save", project).success) {
     return [];
@@ -215,23 +305,32 @@ function boundResourceFor(
   apiKey: ApiKey,
   org: PrincipalOrganization,
 ): BoundResource {
-  if (apiKey.scope !== "PROJECT") return { orgId: org.orgId };
-  return { orgId: org.orgId, projectId: apiKey.projectId! };
+  if (apiKey.scope !== "PROJECT") return { orgId: org.id };
+  return { orgId: org.id, projectId: apiKey.projectId! };
 }
 
-/** toPrincipalOrganization derives an org's `PrincipalOrganization` caps and liveness from its raw row. */
+/** toPrincipalOrganization derives an org's `PrincipalOrganization` attributes, caps and liveness from its raw row. */
 function toPrincipalOrganization(
   org: OrganizationWithProjects,
+  cloudConfig: CloudConfigSchema | undefined,
+  featureFlagDefaults: Flags,
+  supportAccess: boolean,
 ): PrincipalOrganization {
-  const cloudConfig = getCloudConfig(org);
   return {
-    orgId: org.id,
-    organizationCreatedAt: org.createdAt.toISOString(),
+    id: org.id,
+    createdAt: org.createdAt.toISOString(),
+    name: org.name,
+    metadata: toMetadata(org.metadata),
     plan: getOrganizationPlanServerSide(cloudConfig),
     rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
-    projectIds: org.projects.map((p) => p.id),
     isIngestionSuspended: org.cloudFreeTierUsageThresholdState === "BLOCKED",
     accessAuditLogEnabled: org.accessAuditLogEnabled,
+    supportAccess,
+    aiFeaturesEnabled: org.aiFeaturesEnabled,
+    aiTelemetryEnabled: org.aiTelemetryEnabled,
+    featureFlagDefaults,
+    ...(cloudConfig && { cloudConfig }),
+    projects: org.projects.map(toPrincipalProject),
   };
 }
 
@@ -239,7 +338,89 @@ function toPrincipalOrganization(
 function getCloudConfig(
   org: OrganizationWithProjects,
 ): CloudConfigSchema | undefined {
-  return org.cloudConfig ? CloudConfigSchema.parse(org.cloudConfig) : undefined;
+  if (!org.cloudConfig) return undefined;
+  return CloudConfigSchema.parse(org.cloudConfig);
+}
+
+/** parseCloudConfig reads an org's raw cloud-config json, or undefined when unset or malformed. */
+function parseCloudConfig(
+  org: OrganizationWithProjects,
+): CloudConfigSchema | undefined {
+  return CloudConfigSchema.safeParse(org.cloudConfig).data;
+}
+
+/** toMetadata reads a raw json metadata column as a record, empty when unset. */
+function toMetadata(metadata: unknown): Record<string, unknown> {
+  return (metadata as Record<string, unknown> | null) ?? {};
+}
+
+/** isSessionLive reports whether a session started strictly after the user last revoked their sessions. */
+function isSessionLive(user: UserRecord, sessionStartedAt: Date): boolean {
+  if (user.sessionsExpiredAt === null) return true;
+  return user.sessionsExpiredAt < sessionStartedAt;
+}
+
+/** byNewestGrant orders orgs by the user's newest grant in each, newest first, as memberships were. */
+function byNewestGrant(
+  grants: RoleGrant[],
+  orgs: OrganizationWithProjects[],
+): OrganizationWithProjects[] {
+  const joinedAt = newestGrantAt(grants);
+  return [...orgs].sort(
+    (a, b) => (joinedAt.get(b.id) ?? 0) - (joinedAt.get(a.id) ?? 0),
+  );
+}
+
+/** newestGrantAt maps each org id to the epoch millis of the user's newest grant there. */
+function newestGrantAt(grants: RoleGrant[]): Map<string, number> {
+  const newest = new Map<string, number>();
+  for (const { assignment } of grants) {
+    const at = assignment.createdAt.getTime();
+    newest.set(
+      assignment.orgId,
+      Math.max(newest.get(assignment.orgId) ?? 0, at),
+    );
+  }
+  return newest;
+}
+
+/** grantedOrgIds lists each org a user's grants reach once. */
+function grantedOrgIds(grants: RoleGrant[]): string[] {
+  return [...new Set(grants.map((grant) => grant.assignment.orgId))];
+}
+
+/** permanentOrgIds is the orgs where the user holds a non-expiring grant. */
+function permanentOrgIds(grants: RoleGrant[]): Set<string> {
+  return new Set(
+    grants
+      .filter((grant) => grant.assignment.expiresAt === null)
+      .map((grant) => grant.assignment.orgId),
+  );
+}
+
+/** permanentOrgs keeps the orgs a user reaches through a non-expiring grant. */
+function permanentOrgs(
+  grants: RoleGrant[],
+  orgs: OrganizationWithProjects[],
+): OrganizationWithProjects[] {
+  const permanent = permanentOrgIds(grants);
+  return orgs.filter((org) => permanent.has(org.id));
+}
+
+/** readableProjects narrows an org to the live projects the policies let the user read. */
+function readableProjects(
+  org: OrganizationWithProjects,
+  policies: Policy[][],
+): OrganizationWithProjects {
+  const tenant = OrganizationId(org.id);
+  return {
+    ...org,
+    projects: org.projects.filter(
+      (project) =>
+        authorize({ policies }, tenant, "project:read", ProjectId(project.id))
+          .success,
+    ),
+  };
 }
 
 /** ResolveContextParams is a verified credential: an api key with how it was presented, or the admin key. */
@@ -250,6 +431,18 @@ export type ResolveContextParams =
       apiKey: ApiKey;
     }
   | { authorization: "admin" };
+
+/** UserSessionParams is a signed-in session: the token's subject and when the session started. */
+export type UserSessionParams = {
+  kind: "user";
+  userId: string | undefined;
+  sessionStartedAt: Date;
+};
+
+/** ResolvedUser is the user's context, a 401 for a session that resolves to no live user, or a 500 on a database failure. */
+export type ResolvedUser =
+  | (Success & { context: AuthorizationContext })
+  | ErrorResult<UnauthorizedError | InternalServerError>;
 
 /** Resolved is the materialized context, or a 500 when a verified key's org is missing. */
 export type Resolved =

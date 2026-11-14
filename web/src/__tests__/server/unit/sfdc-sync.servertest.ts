@@ -150,6 +150,7 @@ import { OrganizationId, SystemRoleId } from "@langfuse/shared/rbac";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
 import { type NextApiRequest, type NextApiResponse } from "next";
+import { testPrincipalOrganization } from "@/src/__tests__/fixtures/principal";
 
 // ---- Helpers ----
 
@@ -965,15 +966,11 @@ describe("call site: admin API handleUpdateMembership", () => {
       scope: "ORGANIZATION",
       presentation: "privateKey",
       organizations: [
-        {
-          orgId: "org-1",
-          organizationCreatedAt: ORG_CREATED_AT.toISOString(),
+        testPrincipalOrganization({
+          id: "org-1",
+          createdAt: ORG_CREATED_AT.toISOString(),
           plan: "cloud:team",
-          rateLimitOverrides: [],
-          projectIds: [],
-          isIngestionSuspended: false,
-          accessAuditLogEnabled: false,
-        },
+        }),
       ],
       boundResource: { orgId: "org-1" },
     },

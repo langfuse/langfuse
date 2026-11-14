@@ -9,7 +9,7 @@ import { isInternalViewEnabled } from "@/src/features/feature-flags/utils";
 import { getSessionProjectRole } from "@/src/features/auth/lib/sessionAccessors";
 
 /** Demo LLM operations need Internal view and project permissions. */
-const demoProjectLlmScopes = new Set<ProjectScope>([
+export const demoProjectLlmScopes = new Set<ProjectScope>([
   "playground:execute",
   "topics:CUD",
   "evaluator:CUD",

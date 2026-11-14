@@ -232,7 +232,9 @@ async function lookupProjectOrgId(
 /** ownsProject reports whether the project belongs to one of the key's organizations. */
 const ownsProject = (principal: Principal, projectId: string) =>
   "organizations" in principal &&
-  principal.organizations.some((o) => o.projectIds.includes(projectId));
+  principal.organizations.some((o) =>
+    o.projects.some((project) => project.id === projectId),
+  );
 
 /** getBoundOrgId returns the org an api key is bound to. */
 function getBoundOrgId(context: AuthorizationContext): string | undefined {

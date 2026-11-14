@@ -169,7 +169,9 @@ const contextFor = async (
 
 const ownedProjectIds = (context: AuthorizationContext): string[] =>
   context.principal.kind === "apiKey"
-    ? context.principal.organizations.flatMap((o) => o.projectIds)
+    ? context.principal.organizations.flatMap((o) =>
+        o.projects.map((p) => p.id),
+      )
     : [];
 
 const createUnassignedApiKey = async (scope: "PROJECT" | "ORGANIZATION") => {

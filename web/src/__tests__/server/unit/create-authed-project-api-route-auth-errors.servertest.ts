@@ -138,6 +138,10 @@ vi.mock("@/src/utils/exceptions", () => ({
 }));
 
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import {
+  testPrincipalOrganization,
+  testPrincipalProject,
+} from "@/src/__tests__/fixtures/principal";
 
 describe("createAuthedProjectAPIRoute auth error handling", () => {
   const deprecation = {
@@ -390,14 +394,12 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
             presentation: "privateKey",
             boundResource: { orgId: "org-1", projectId: "project-1" },
             organizations: [
-              {
-                orgId: "org-1",
-                projectIds: ["project-1"],
-                organizationCreatedAt: "2026-09-16T00:00:00.000Z",
+              testPrincipalOrganization({
+                id: "org-1",
+                projects: [testPrincipalProject({ id: "project-1" })],
+                createdAt: "2026-09-16T00:00:00.000Z",
                 plan: "cloud:hobby",
-                rateLimitOverrides: [],
-                isIngestionSuspended: false,
-              },
+              }),
             ],
           },
           policies: [],

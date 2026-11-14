@@ -4,16 +4,17 @@ import { InternalServerError } from "@langfuse/shared";
 
 import { toApiAccessScope } from "@/src/features/public-api/server/toApiAccessScope";
 import { type Principal } from "@/src/features/auth/policy/types";
+import {
+  testPrincipalOrganization,
+  testPrincipalProject,
+  testPrincipalUser,
+} from "@/src/__tests__/fixtures/principal";
 
-const scopeOrg = {
-  orgId: "org_1",
-  organizationCreatedAt: "2026-09-16T00:00:00.000Z",
-  plan: "oss" as const,
-  rateLimitOverrides: [],
-  projectIds: ["prj_1"],
-  isIngestionSuspended: false,
-  accessAuditLogEnabled: false,
-};
+const scopeOrg = testPrincipalOrganization({
+  id: "org_1",
+  createdAt: "2026-09-16T00:00:00.000Z",
+  projects: [testPrincipalProject({ id: "prj_1" })],
+});
 
 const apiKeyPrincipal = (
   scope: "ORGANIZATION" | "PROJECT",
@@ -110,7 +111,7 @@ describe("toApiAccessScope", () => {
   it("500s an unmappable principal kind", () => {
     expect(() =>
       toApiAccessScope(
-        { kind: "user", userId: "u_1", organizations: [] },
+        { kind: "user", user: testPrincipalUser(), organizations: [] },
         { orgId: "org_1", projectId: null },
       ),
     ).toThrow(InternalServerError);

@@ -55,7 +55,7 @@ function authorizePolicySet(
 }
 
 /** matchesResource selects the tenant's policies for resource, preferring exact matches over wildcards. */
-function matchesResource(
+export function matchesResource(
   policies: Policy[],
   tenant: TenantId,
   resource: ResourceId,

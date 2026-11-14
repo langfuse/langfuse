@@ -38,6 +38,25 @@ export function shadowAuthDiff(
   return result;
 }
 
+/** shadowSessionDiff records a session helper whose policy-engine result differs from its legacy result. */
+export function shadowSessionDiff(
+  diff: SessionDiff,
+  telemetry: Telemetry = defaultTelemetry,
+): void {
+  const tags = {
+    surface: "session",
+    helper: diff.helper,
+    result: diff.result,
+    ...diff.tags,
+  };
+  logger.info("Session authorization mismatch", {
+    event: "authz_parity",
+    ...tags,
+    ...diff.ids,
+  });
+  telemetry.increment(parityStat, tags);
+}
+
 /** emitAuthDiff writes the mismatch to logs, metrics, and the active span. */
 function emitAuthDiff(
   tags: Record<string, string | number>,
@@ -99,6 +118,14 @@ type AuthDiffMetadata = {
 
 /** ParityResult is the signal: agreement or which path is stricter. */
 export type ParityResult = "match" | "new_denies" | "new_allows";
+
+/** SessionDiff is one session helper call whose results differ: low-cardinality argument tags for the metric and identifiers for the log. */
+export type SessionDiff = {
+  helper: string;
+  result: "new_allows" | "new_denies" | "mismatch";
+  tags: Record<string, string>;
+  ids: Record<string, string>;
+};
 
 /** LegacyDecision is the legacy path's outcome: it allowed with a resolved scope or denied with a typed error. */
 export type LegacyDecision =

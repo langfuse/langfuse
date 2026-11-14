@@ -21,8 +21,20 @@ export async function getRolesForPrincipal(
   prisma: Prisma.TransactionClient,
   principalId: PrincipalId,
 ): Promise<Role[]> {
+  const grants = await getRoleGrantsForPrincipal(prisma, principalId);
+  return grants.map((grant) => grant.role);
+}
+
+/** getRoleGrantsForPrincipal loads a principal's roles, each with the stored assignment it is bound from. */
+export async function getRoleGrantsForPrincipal(
+  prisma: Prisma.TransactionClient,
+  principalId: PrincipalId,
+): Promise<RoleGrant[]> {
   const assignments = await getRoleAssignmentsForPrincipal(prisma, principalId);
-  return assignments.map(toRole);
+  return assignments.map((assignment) => ({
+    assignment,
+    role: toRole(assignment),
+  }));
 }
 
 /** toRole binds a stored assignment's system role to its tenant and owner. */
@@ -74,3 +86,6 @@ function toPolicy(
     resources: ofKind,
   };
 }
+
+/** RoleGrant is a role together with the stored assignment that binds it. */
+export type RoleGrant = { assignment: RoleAssignment; role: Role };
