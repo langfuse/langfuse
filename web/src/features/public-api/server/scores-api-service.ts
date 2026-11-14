@@ -9,6 +9,7 @@ import {
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   InternalServerError,
+  LangfuseConflictError,
   LISTABLE_SCORE_TYPES,
   type ScoreSourceType,
   type PostScoreBodyV1,
@@ -21,6 +22,7 @@ import {
   processEventBatch,
   QueueJobs,
   ScoreDeleteQueue,
+  shouldSkipScoresDedup,
   type AuthHeaderValidVerificationResultIngestion,
   type IngestionAttribution,
   StringFilter,
@@ -260,6 +262,28 @@ export class ScoresApiService {
           apiVersion: this.apiVersion,
         })
       : undefined;
+
+    // Skip-dedup projects read scores without FINAL, so a second version of
+    // a score id would be counted twice and averaged with the old value.
+    // Reject the update here, mirroring the UI guard
+    // (throwIfScoreEditsDisabled). The existence check covers every score
+    // scope and data type, so a rewrite of a session or dataset-run score
+    // cannot slip through as a new score.
+    if (auth.scope.projectId && shouldSkipScoresDedup(auth.scope.projectId)) {
+      const existing = await _handleGetScoreById({
+        projectId: auth.scope.projectId,
+        scoreId,
+        scoreScope: "all",
+        scoreDataTypes: undefined,
+        preferredClickhouseService: "ReadOnly",
+        apiVersion: this.apiVersion,
+      });
+      if (existing) {
+        throw new LangfuseConflictError(
+          "Existing scores cannot be edited in this project.",
+        );
+      }
+    }
 
     const result = await processEventBatch(
       [toScoreCreateEvent({ ...body, id: scoreId })],

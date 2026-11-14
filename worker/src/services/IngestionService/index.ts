@@ -56,6 +56,7 @@ import {
   hasNoEvalConfigsCache,
   buildClickHouseLogComment,
   sanitizeSdkMetricTagValue,
+  shouldSkipScoresDedup,
   type IngestionAttribution,
 } from "@langfuse/shared/src/server";
 
@@ -753,6 +754,23 @@ export class IngestionService {
       recordIncrement("langfuse.ingestion.score_update", 1, {
         store: clickhouseScoreRecord ? "clickhouse" : "event_log",
       });
+    }
+
+    // Skip-dedup projects read scores without FINAL, so writing a second
+    // version of a score id would double-count it and average it with the old
+    // value. The UI and public API already reject edits for these projects;
+    // drop the update here too so batch ingestion and SDK retries cannot
+    // rewrite a score either. A deleted score is not found by the lookup
+    // above (lightweight deletes hide it), so re-creating one still works.
+    if (shouldSkipScoresDedup(projectId) && clickhouseScoreRecord) {
+      recordIncrement("langfuse.ingestion.score_update_dropped", 1, {
+        store: "clickhouse",
+        projectId,
+      });
+      logger.warn(
+        `Dropping score update for skip-dedup project ${projectId} and score ${entityId}: existing scores cannot be edited in this project.`,
+      );
+      return;
     }
 
     const finalScoreRecord: ScoreRecordInsertType =
