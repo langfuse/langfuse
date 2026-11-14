@@ -388,5 +388,4 @@ describe("support access in the product", () => {
       await getRoleAssignmentsForPrincipal(prisma, UserId(user.id)),
     ).not.toContainEqual(expect.objectContaining({ orgId }));
   });
-
 });
