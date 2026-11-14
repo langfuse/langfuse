@@ -202,9 +202,10 @@ function MobileTopics({
   onOpenTrace: (traceId: string) => void;
 }) {
   const { isV4 } = useReadPath();
-  const [selectedTraceId, setSelectedTraceId] = useSessionStorage<
-    string | null
-  >(`topics-selected-trace:${projectId}`, null);
+  const [selectedTraceId, setSelectedTraceId] = useMobileTraceSelection(
+    projectId,
+    facet.facetId,
+  );
   return (
     <MobileTopicsView
       projectId={projectId}
@@ -307,6 +308,22 @@ type CurrentFacetProps = {
 
 type Facet = RouterOutputs["topics"]["currentResults"]["facets"][number];
 
+function useMobileTraceSelection(projectId: string, facetId: string) {
+  const [selection, setSelection] = useSessionStorage<{
+    facetId: string;
+    traceId: string | null;
+  }>(`topics-mobile-selected-trace:${projectId}`, { facetId, traceId: null });
+  const traceId = selection.facetId === facetId ? selection.traceId : null;
+  if (selection.facetId !== facetId) {
+    setSelection({ facetId, traceId: null });
+  }
+  return [
+    traceId,
+    (nextTraceId: string | null) =>
+      setSelection({ facetId, traceId: nextTraceId }),
+  ] as const;
+}
+
 function useCurrentTopicMap(projectId: string, runId: string | undefined) {
   return api.topics.map.useQuery(
     { projectId, runId: runId ?? "" },
@@ -314,4 +331,4 @@ function useCurrentTopicMap(projectId: string, runId: string | undefined) {
   );
 }
 
-export const __test = { useCurrentTopics };
+export const __test = { useCurrentTopics, useMobileTraceSelection };

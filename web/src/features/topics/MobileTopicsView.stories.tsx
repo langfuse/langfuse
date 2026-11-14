@@ -208,6 +208,21 @@ export const BrowseAndOpenTrace = meta.story({
     await userEvent.click(
       canvas.getByRole("button", { name: "Show all traces" }),
     );
+    await expect(
+      canvas.getByRole("button", { name: "Open trace access-0" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Open trace billing-20" }),
+    ).toBeVisible();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Go to previous page" }),
+    );
+    await expect(
+      canvas.getByRole("button", { name: "Open trace billing-0" }),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: "Open trace access-0" }),
+    ).not.toBeInTheDocument();
     await userEvent.click(
       canvas.getByRole("button", { name: "Go to next page" }),
     );
