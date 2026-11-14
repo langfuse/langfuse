@@ -4,7 +4,6 @@ import { ForbiddenError, Role } from "@langfuse/shared";
 import { type Prisma } from "@langfuse/shared/src/db";
 
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 /** assertOrgOwnershipChange lets a session grant, change or remove an org OWNER only with ownership rights, and never removes the last owner. */
 export async function assertOrgOwnershipChange({
@@ -24,29 +23,29 @@ export async function assertOrgOwnershipChange({
     throwIfNoOrganizationAccess({
       session,
       organizationId: orgId,
-      scope: "organizationMembers:manageOwnership",
+      scope: "organization:manageOwnership",
     });
   }
   if (isOwnershipRemoval(from, to)) await assertOtherOwners(tx, orgId);
 }
 
-/** assertProjectOwnershipChange lets a session grant, change or remove a project OWNER only with project ownership rights. */
+/** assertProjectOwnershipChange lets a session grant, change or remove a project OWNER only with the organization's ownership rights. */
 export function assertProjectOwnershipChange({
   session,
-  projectId,
+  orgId,
   from,
   to,
 }: {
   session: Session;
-  projectId: string;
+  orgId: string;
   from: Role | undefined;
   to?: Role;
 }) {
   if (!isOwnershipChange(from, to)) return;
-  throwIfNoProjectAccess({
+  throwIfNoOrganizationAccess({
     session,
-    projectId,
-    scope: "projectMembers:manageOwnership",
+    organizationId: orgId,
+    scope: "organization:manageOwnership",
   });
 }
 

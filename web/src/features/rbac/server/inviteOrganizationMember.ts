@@ -154,7 +154,7 @@ export async function inviteOrganizationMember({
   if (project && input.projectRole)
     assertProjectOwnershipChange({
       session: ctx.session,
-      projectId: project.id,
+      orgId: input.orgId,
       from: undefined,
       to: input.projectRole,
     });

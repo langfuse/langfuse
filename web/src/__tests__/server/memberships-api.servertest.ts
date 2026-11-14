@@ -705,7 +705,7 @@ describe("Organization membership safeguards", () => {
         (
           [
             ["VIEWER", "organizationMembers:CUD"],
-            ["INGEST", "organizationMembers:manageOwnership"],
+            ["INGEST", "organization:manageOwnership"],
           ] as const
         ).map(([role, action]) => ({
           id: action,
@@ -1239,16 +1239,16 @@ describe("Project membership safeguards", () => {
       policies: [
         (
           [
-            ["VIEWER", "projectMembers:CUD"],
-            ["INGEST", "projectMembers:manageOwnership"],
+            ["VIEWER", "projectMembers:CUD", ProjectId(projectId)],
+            ["INGEST", "organization:manageOwnership", OrganizationId(orgId)],
           ] as const
-        ).map(([role, action]) => ({
+        ).map(([role, action, resource]) => ({
           id: action,
           roleId: SystemRoleId(role),
           tenantId: OrganizationId(orgId),
           effect: "ALLOW",
           actions: [action],
-          resources: [ProjectId(projectId)],
+          resources: [resource],
         })),
       ],
     };

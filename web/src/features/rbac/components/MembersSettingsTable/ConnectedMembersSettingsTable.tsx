@@ -62,19 +62,14 @@ export function ConnectedMembersSettingsTable({
 
   const canManageOrgOwnership = useHasOrganizationAccess({
     organizationId: orgId,
-    scope: "organizationMembers:manageOwnership",
+    scope: "organization:manageOwnership",
   });
 
   const isAiGatewayEnabled = useIsFeatureEnabled("aiGateway", {
     organizationId: orgId,
   });
 
-  // Org owners outrank any project role override they hold.
-  const canManageProjectOwnership =
-    useHasProjectAccess({
-      projectId: project?.id,
-      scope: "projectMembers:manageOwnership",
-    }) || canManageOrgOwnership;
+  const canManageProjectOwnership = canManageOrgOwnership;
 
   const projectRolesEntitlement = useHasEntitlement("rbac-project-roles");
   const [updatingOrgRoleMembershipIds, setUpdatingOrgRoleMembershipIds] =

@@ -141,23 +141,14 @@ export const membersRouter = createTRPCRouter({
           message: "You do not have access to delete organization members",
         });
 
-      await assertOrgOwnershipChange({
-        tx: ctx.prisma,
-        session: ctx.session,
-        orgId: input.orgId,
-        from: orgMembership.role,
-      });
-
-      await auditLog({
-        session: ctx.session,
-        resourceType: "orgMembership",
-        resourceId: orgMembership.id,
-        action: "delete",
-        before: orgMembership,
-      });
-
       const { deleted, revokedKeys } = await ctx.prisma.$transaction(
         async (tx) => {
+          await assertOrgOwnershipChange({
+            tx,
+            session: ctx.session,
+            orgId: input.orgId,
+            from: await lockOrgMembershipRole(tx, orgMembership.id),
+          });
           const deleted = await deleteOrgMembership(tx, {
             orgId: input.orgId,
             userId: orgMembership.userId,
@@ -173,6 +164,13 @@ export const membersRouter = createTRPCRouter({
           return { deleted, revokedKeys };
         },
       );
+      await auditLog({
+        session: ctx.session,
+        resourceType: "orgMembership",
+        resourceId: orgMembership.id,
+        action: "delete",
+        before: orgMembership,
+      });
       await evictRevokedApiKeys(revokedKeys, { session: ctx.session });
 
       // SFDC: remove the org-member bridge.
@@ -276,7 +274,7 @@ export const membersRouter = createTRPCRouter({
           tx,
           session: ctx.session,
           orgId: input.orgId,
-          from: membership.role,
+          from: await lockOrgMembershipRole(tx, membership.id),
           to: input.role,
         });
         const updatedMembership = await updateOrgMembership(tx, {
@@ -488,7 +486,7 @@ export const membersRouter = createTRPCRouter({
 
       assertProjectOwnershipChange({
         session: ctx.session,
-        projectId: input.projectId,
+        orgId: input.orgId,
         from: projectMembership?.role,
         to: input.projectRole ?? undefined,
       });
@@ -605,3 +603,16 @@ export const membersRouter = createTRPCRouter({
       };
     }),
 });
+
+/** lockOrgMembershipRole locks an organization membership for the transaction and returns its current role. */
+async function lockOrgMembershipRole(
+  tx: Prisma.TransactionClient,
+  orgMembershipId: string,
+): Promise<Role | undefined> {
+  const [row] = await tx.$queryRaw<{ role: Role }[]>`
+    SELECT role FROM organization_memberships
+    WHERE id = ${orgMembershipId}
+    FOR UPDATE
+  `;
+  return row?.role;
+}
