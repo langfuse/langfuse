@@ -24,7 +24,7 @@ vi.mock("@langfuse/shared/src/db", () => ({
 }));
 
 vi.mock("@langfuse/shared/rbac/server", () => ({
-  assignExpiringRole: vi.fn(),
+  assignRole: vi.fn(),
   revokeExpiringRolesForPrincipal: vi.fn(),
 }));
 

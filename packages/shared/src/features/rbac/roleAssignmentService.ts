@@ -38,7 +38,7 @@ export async function getRoleAssignmentsForPrincipal(
 /** assignRole persists a system-role assignment in the supplied tenant. */
 export async function assignRole(
   prisma: Prisma.TransactionClient,
-  ra: Omit<RoleAssignment, "id" | "createdAt" | "updatedAt" | "expiresAt">,
+  ra: Omit<RoleAssignment, "id" | "createdAt" | "updatedAt">,
 ): Promise<StoredRoleAssignment> {
   const roleFields = validateRole(ra.roleId);
   return await withTransaction(prisma, async (tx) => {
@@ -52,6 +52,7 @@ export async function assignRole(
         ...ownerAndTenantFields,
         ...principalFields(ra.principalId),
         ...roleFields,
+        expiresAt: ra.expiresAt ?? null,
       },
     });
   });
@@ -72,42 +73,6 @@ export async function replaceRolesForPrincipal(
   });
 }
 
-/** assignExpiringRole grants or renews a system role that lapses at expiresAt, leaving a permanent assignment of the same role untouched. */
-export async function assignExpiringRole(
-  prisma: Prisma.TransactionClient,
-  ra: Omit<RoleAssignment, "id" | "createdAt" | "updatedAt" | "expiresAt"> & {
-    expiresAt: Date;
-  },
-): Promise<StoredRoleAssignment> {
-  const roleFields = validateRole(ra.roleId);
-  return await withTransaction(prisma, async (tx) => {
-    const ownerAndTenantFields = await validateTenancy(
-      tx,
-      ra.tenantId,
-      ra.ownerId,
-    );
-    const key = {
-      ownerId: ra.ownerId,
-      principalId: ra.principalId,
-      roleId: ra.roleId,
-    };
-    const existing = await tx.roleAssignment.findUnique({
-      where: { ownerId_principalId_roleId: key },
-    });
-    if (existing && existing.expiresAt === null) return existing;
-    return await tx.roleAssignment.upsert({
-      where: { ownerId_principalId_roleId: key },
-      create: {
-        ...ownerAndTenantFields,
-        ...principalFields(ra.principalId),
-        ...roleFields,
-        expiresAt: ra.expiresAt,
-      },
-      update: { expiresAt: ra.expiresAt },
-    });
-  });
-}
-
 /** revokeRolesForPrincipal removes a principal's assignments in a tenant, optionally limited to one owner. */
 export async function revokeRolesForPrincipal(
   prisma: Prisma.TransactionClient,
@@ -122,13 +87,13 @@ export async function revokeRolesForPrincipal(
   });
 }
 
-/** revokeExpiringRolesForPrincipal removes a principal's expiring assignments in every tenant. */
+/** revokeExpiringRolesForPrincipal removes a principal's expiring assignments, optionally limited to one owner. */
 export async function revokeExpiringRolesForPrincipal(
   prisma: Prisma.TransactionClient,
-  { principalId }: { principalId: PrincipalId },
+  { principalId, ownerId }: { principalId: PrincipalId; ownerId?: OwnerId },
 ): Promise<void> {
   await prisma.roleAssignment.deleteMany({
-    where: { principalId, expiresAt: { not: null } },
+    where: { principalId, ownerId, expiresAt: { not: null } },
   });
 }
 
