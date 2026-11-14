@@ -25,6 +25,7 @@
  */
 
 import { type NextApiRequest, type NextApiResponse } from "next";
+import { getSkillRequestBodySizeLimit } from "@/src/features/skills/server/skill-request-body-limit";
 import { handleMcpRequest } from "@/src/features/mcp/server/transport";
 import { validateMcpRequestSecurity } from "@/src/features/mcp/server/security";
 import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
@@ -228,7 +229,7 @@ export function getInAppAgentContext(
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: "4.5mb",
+      sizeLimit: getSkillRequestBodySizeLimit(),
     },
   },
 };
