@@ -169,7 +169,8 @@ const normalizeAiSdkToolCall: PartHandler = (value) =>
 // used `result`).
 const normalizeAiSdkToolResult: PartHandler = (value, context) => {
   const raw = value.output ?? value.result;
-  const record = asRecord(raw);
+  // Only `output` carries a typed wrapper; v4 `result` is arbitrary JSON.
+  const record = asRecord(value.output);
   const wrapper =
     record && ("value" in record || record.type === "execution-denied")
       ? record
