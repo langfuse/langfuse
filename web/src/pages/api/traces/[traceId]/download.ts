@@ -32,15 +32,15 @@ function getTraceExportSession(
   }
 
   const email = getSessionUserEmail(session);
-  const organizations = getSessionOrganizations(session);
 
   if (
     !hasSessionUser(session) ||
     typeof email !== "string" ||
-    !Array.isArray(organizations)
+    !Array.isArray(session.user.organizations)
   ) {
     throw new UnauthorizedError("Unauthorized");
   }
+  const organizations = getSessionOrganizations(session);
 
   return {
     user: {
