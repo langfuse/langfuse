@@ -52,7 +52,7 @@ export async function assignRole(
         ...ownerAndTenantFields,
         ...principalFields(ra.principalId),
         ...roleFields,
-        expiresAt: ra.expiresAt ?? null,
+        expiresAt: ra.expiresAt,
       },
     });
   });
