@@ -48,7 +48,7 @@
     "@opentelemetry/exporter-trace-otlp-proto": "^0.220.0",
     "@opentelemetry/instrumentation-aws-sdk": "^0.75.0",
     "@opentelemetry/instrumentation-express": "^0.68.0",
-    "@opentelemetry/instrumentation-http": "^0.220.0",
+    "@opentelemetry/instrumentation-http": "^0.222.0",
     "@opentelemetry/instrumentation-ioredis": "^0.68.0",
     "@opentelemetry/instrumentation-undici": "^0.30.0",
     "@opentelemetry/instrumentation-winston": "^0.64.0",
