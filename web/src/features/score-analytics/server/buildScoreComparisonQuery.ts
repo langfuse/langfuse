@@ -143,7 +143,9 @@ export function buildScoreComparisonQuery(params: {
           ${getClickHouseTimeBucketFunction("timestamp", normalizedInterval)} as ts,
           avg(value) as avg1,
           CAST(NULL AS Nullable(Float64)) as avg2,
-          count() as count
+          count() as count,
+          count() as count1,
+          CAST(NULL AS Nullable(UInt64)) as count2
         FROM score1_filtered
         WHERE value IS NOT NULL
         GROUP BY ts
@@ -174,7 +176,9 @@ export function buildScoreComparisonQuery(params: {
           COALESCE(s1.ts, s2.ts) as ts,
           s1.avg1 as avg1,
           s2.avg2 as avg2,
-          (COALESCE(s1.count1, 0) + COALESCE(s2.count2, 0)) as count
+          (COALESCE(s1.count1, 0) + COALESCE(s2.count2, 0)) as count,
+          s1.count1 as count1,
+          s2.count2 as count2
         FROM score1_time_agg s1
         FULL OUTER JOIN score2_time_agg s2 ON s1.ts = s2.ts
         ORDER BY ts
@@ -270,7 +274,9 @@ export function buildScoreComparisonQuery(params: {
           ${getClickHouseTimeBucketFunction("timestamp1", normalizedInterval)} as ts,
           avg(value1) as avg1,
           CAST(NULL AS Nullable(Float64)) as avg2,
-          count() as count
+          count() as count,
+          count() as count1,
+          CAST(NULL AS Nullable(UInt64)) as count2
         FROM matched_scores
         WHERE value1 IS NOT NULL
         GROUP BY ts
@@ -282,7 +288,9 @@ export function buildScoreComparisonQuery(params: {
           ${getClickHouseTimeBucketFunction("timestamp1", normalizedInterval)} as ts,
           avg(value1) as avg1,
           avg(value2) as avg2,
-          count() as count
+          count() as count,
+          count() as count1,
+          count() as count2
         FROM matched_scores
         GROUP BY ts
         ORDER BY ts
@@ -744,8 +752,8 @@ export function buildScoreComparisonQuery(params: {
       CAST(avg1 AS Nullable(Float64)) as col2,
       CAST(avg2 AS Nullable(Float64)) as col3,
       CAST(count AS Float64) as col4,
-      CAST(NULL AS Nullable(Float64)) as col5,
-      CAST(NULL AS Nullable(Float64)) as col6,
+      CAST(count1 AS Nullable(Float64)) as col5,
+      CAST(count2 AS Nullable(Float64)) as col6,
       CAST(NULL AS Nullable(Float64)) as col7,
       CAST(NULL AS Nullable(Float64)) as col8,
       CAST(NULL AS Nullable(String)) as col9,
@@ -929,8 +937,8 @@ export function buildScoreComparisonQuery(params: {
       CAST(avg1 AS Nullable(Float64)) as col2,
       CAST(avg2 AS Nullable(Float64)) as col3,
       CAST(count AS Float64) as col4,
-      CAST(NULL AS Nullable(Float64)) as col5,
-      CAST(NULL AS Nullable(Float64)) as col6,
+      CAST(count1 AS Nullable(Float64)) as col5,
+      CAST(count2 AS Nullable(Float64)) as col6,
       CAST(NULL AS Nullable(Float64)) as col7,
       CAST(NULL AS Nullable(Float64)) as col8,
       CAST(NULL AS Nullable(String)) as col9,
