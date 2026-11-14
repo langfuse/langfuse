@@ -660,6 +660,75 @@ describe("membersRouter.updateOrgMembership - audit log state capture", () => {
   });
 });
 
+describe("membersRouter - ownership changes", () => {
+  it("requires ownership rights for OWNER and lets admins set any other role", async () => {
+    const { org, project, ownerUser } = await createTestOrg("cloud:team");
+    const admin = await createTestUser();
+    await prisma.organizationMembership.create({
+      data: { userId: admin.id, orgId: org.id, role: Role.ADMIN },
+    });
+    const session = createSession(admin, org, project, "cloud:team", {
+      orgRole: Role.ADMIN,
+      projectRole: Role.ADMIN,
+    });
+    const caller = appRouter.createCaller({
+      ...createInnerTRPCContext({ session, headers: {} }),
+      prisma,
+    });
+    const member = await createTestUser();
+    const memberMembership = await prisma.organizationMembership.create({
+      data: { userId: member.id, orgId: org.id, role: Role.MEMBER },
+    });
+    const ownerMembership =
+      await prisma.organizationMembership.findFirstOrThrow({
+        where: { orgId: org.id, userId: ownerUser.id },
+      });
+
+    await expect(
+      caller.members.updateOrgMembership({
+        orgId: org.id,
+        orgMembershipId: memberMembership.id,
+        role: Role.OWNER,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(
+      caller.members.updateProjectRole({
+        orgId: org.id,
+        orgMembershipId: ownerMembership.id,
+        userId: ownerUser.id,
+        projectId: project.id,
+        projectRole: Role.VIEWER,
+      }),
+    ).resolves.toMatchObject({ userId: ownerUser.id, role: Role.VIEWER });
+  });
+
+  it("lets an org owner grant project OWNER whatever their own project role", async () => {
+    const { org, project, ownerUser } = await createTestOrg("cloud:team");
+    const session = createSession(ownerUser, org, project, "cloud:team", {
+      orgRole: Role.OWNER,
+      projectRole: Role.VIEWER,
+    });
+    const caller = appRouter.createCaller({
+      ...createInnerTRPCContext({ session, headers: {} }),
+      prisma,
+    });
+    const member = await createTestUser();
+    const membership = await prisma.organizationMembership.create({
+      data: { userId: member.id, orgId: org.id, role: Role.MEMBER },
+    });
+
+    await expect(
+      caller.members.updateProjectRole({
+        orgId: org.id,
+        orgMembershipId: membership.id,
+        userId: member.id,
+        projectId: project.id,
+        projectRole: Role.OWNER,
+      }),
+    ).resolves.toMatchObject({ userId: member.id, role: Role.OWNER });
+  });
+});
+
 describe("membersRouter.updateProjectRole - rbac-project-roles entitlement", () => {
   it.each([
     "cloud:hobby",

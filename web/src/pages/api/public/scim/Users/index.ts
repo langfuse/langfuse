@@ -7,7 +7,7 @@ import { z } from "zod";
 import { isBaseError, type Role } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { createOrgMembership } from "@langfuse/shared/memberships";
-import { assertValidOwnershipChange } from "@/src/ee/features/admin-api/server/memberships";
+import { assertValidOrgOwnershipChange } from "@/src/features/rbac/server/ownershipChange";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
@@ -201,7 +201,7 @@ export default async function handler(
         role = parsedRoles.data[0];
       }
 
-      await assertValidOwnershipChange({
+      await assertValidOrgOwnershipChange({
         tx: prisma,
         context: authCheck.ctx,
         orgId: authCheck.scope.orgId,

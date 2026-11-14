@@ -32,9 +32,7 @@ describe("systemRoleAccessRights", () => {
       const actions = systemRoleAccessRights[role].policies
         .filter((policy) => policy.resourceKind === "organization")
         .flatMap((policy) => policy.actions);
-      expect(actions.includes("organizationMembers:manageOwnership")).toBe(
-        expected,
-      );
+      expect(actions.includes("organization:manageOwnership")).toBe(expected);
     },
   );
 

@@ -14,8 +14,10 @@ import {
 } from "@langfuse/shared/memberships";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { throwIfHigherProjectRole } from "@/src/features/rbac/server/throwIfHigherProjectRole";
-import { throwIfHigherRole } from "@/src/features/rbac/server/throwIfHigherRole";
+import {
+  assertValidOrgOwnershipChange,
+  assertValidProjectOwnershipChange,
+} from "@/src/features/rbac/server/ownershipChange";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 
@@ -114,9 +116,12 @@ export async function inviteOrganizationMember({
     });
   }
 
-  throwIfHigherRole({
-    ownRole: ctx.session.orgRole,
-    role: input.orgRole,
+  await assertValidOrgOwnershipChange({
+    tx: ctx.prisma,
+    session: ctx.session,
+    orgId: input.orgId,
+    from: undefined,
+    to: input.orgRole,
   });
   requireGatewayEnabledForRole(input.orgId, input.orgRole);
 
@@ -142,10 +147,12 @@ export async function inviteOrganizationMember({
   });
 
   if (project && input.projectRole)
-    await throwIfHigherProjectRole({
-      orgCtx: ctx,
-      projectId: project.id,
-      projectRole: input.projectRole,
+    await assertValidProjectOwnershipChange({
+      tx: ctx.prisma,
+      session: ctx.session,
+      orgId: input.orgId,
+      from: undefined,
+      to: input.projectRole,
     });
 
   const org = await ctx.prisma.organization.findFirst({
