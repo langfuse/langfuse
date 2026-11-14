@@ -156,10 +156,18 @@ const allEntitlementLimits = Object.keys(
   entitlementAccess.oss.entitlementLimits,
 ) as EntitlementLimit[];
 
+/** maxClaimedKeys bounds the in-process memo of throttle keys this pod has already sent to redis. */
+const maxClaimedKeys = 10_000;
+
+/** claimedKeys maps each throttle key this pod has sent to redis to when its window ends, in epoch millis. */
+const claimedKeys = new Map<string, number>();
+
 /** defaultDeps throttles on redis, builds the session through the policy engine and reports to dogstatsd. */
 const defaultDeps: ShadowSessionDeps = {
   setIfAbsent: async (key, ttlSeconds) => {
+    if (isClaimed(key)) return false;
     if (!redis || redis.status !== "ready") return false;
+    claim(key, ttlSeconds);
     return (await redis.set(key, "1", "EX", ttlSeconds, "NX")) === "OK";
   },
   buildSession: (token, session) => sessionCallback({ session, token }),
@@ -199,12 +207,27 @@ async function compareOnce(
   const policySession = await deps.buildSession(token, legacySession);
   deps.histogram(latencyStat, performance.now() - startedAt);
   const userId = { user_id: token.sub };
-  for (const diff of diffSessions(legacySession, policySession)) {
+  for (const diff of await diffSessions(legacySession, policySession)) {
     shadowSessionDiff(
       { ...diff, ids: { ...userId, ...diff.ids } },
       deps.telemetry,
     );
   }
+}
+
+/** isClaimed reports whether this pod sent key to redis within its throttle window. */
+function isClaimed(key: string): boolean {
+  const until = claimedKeys.get(key);
+  if (until === undefined) return false;
+  if (until > Date.now()) return true;
+  claimedKeys.delete(key);
+  return false;
+}
+
+/** claim remembers key for its throttle window, starting over once the memo is full. */
+function claim(key: string, ttlSeconds: number) {
+  if (claimedKeys.size >= maxClaimedKeys) claimedKeys.clear();
+  claimedKeys.set(key, Date.now() + ttlSeconds * 1000);
 }
 
 /** fingerprint hashes the legacy session's org, role, plan and project role tuples. */
@@ -229,17 +252,26 @@ function roleTuples(
   );
 }
 
-/** diffSessions runs every helper for every argument the sessions imply and keeps the calls whose results differ. */
-function diffSessions(legacy: Session, policy: PolicySession): SessionDiff[] {
-  return [
-    ...sessionChecks(legacy, policy),
-    ...organizationIds(legacy, policy).flatMap((orgId) =>
-      organizationChecks(legacy, policy, orgId),
-    ),
-    ...projectIds(legacy, policy).flatMap((projectId) =>
-      projectChecks(legacy, policy, projectId),
-    ),
-  ].flatMap(toDiff);
+/** diffSessions runs every helper for every argument the sessions imply and keeps the calls whose results differ, yielding the event loop between organizations and projects. */
+async function diffSessions(
+  legacy: Session,
+  policy: PolicySession,
+): Promise<SessionDiff[]> {
+  const diffs = sessionChecks(legacy, policy).flatMap(toDiff);
+  for (const orgId of organizationIds(legacy, policy)) {
+    await yieldToEventLoop();
+    diffs.push(...organizationChecks(legacy, policy, orgId).flatMap(toDiff));
+  }
+  for (const projectId of projectIds(legacy, policy)) {
+    await yieldToEventLoop();
+    diffs.push(...projectChecks(legacy, policy, projectId).flatMap(toDiff));
+  }
+  return diffs;
+}
+
+/** yieldToEventLoop lets queued requests run before the next batch of checks. */
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
 }
 
 /** sessionChecks compares the argument-free accessors. */
