@@ -701,6 +701,32 @@ describe("membersRouter - ownership changes", () => {
       }),
     ).resolves.toMatchObject({ userId: ownerUser.id, role: Role.VIEWER });
   });
+
+  it("lets an org owner grant project OWNER whatever their own project role", async () => {
+    const { org, project, ownerUser } = await createTestOrg("cloud:team");
+    const session = createSession(ownerUser, org, project, "cloud:team", {
+      orgRole: Role.OWNER,
+      projectRole: Role.VIEWER,
+    });
+    const caller = appRouter.createCaller({
+      ...createInnerTRPCContext({ session, headers: {} }),
+      prisma,
+    });
+    const member = await createTestUser();
+    const membership = await prisma.organizationMembership.create({
+      data: { userId: member.id, orgId: org.id, role: Role.MEMBER },
+    });
+
+    await expect(
+      caller.members.updateProjectRole({
+        orgId: org.id,
+        orgMembershipId: membership.id,
+        userId: member.id,
+        projectId: project.id,
+        projectRole: Role.OWNER,
+      }),
+    ).resolves.toMatchObject({ userId: member.id, role: Role.OWNER });
+  });
 });
 
 describe("membersRouter.updateProjectRole - rbac-project-roles entitlement", () => {

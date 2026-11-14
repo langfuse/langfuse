@@ -268,7 +268,7 @@ function assertAuthorizeOwnershipChange(
   const ownershipAccess = authorize(
     context,
     organization,
-    "organizationMembers:manageOwnership",
+    "organization:manageOwnership",
     organization,
   );
   if (!ownershipAccess.success) throw ownershipAccess.error;
