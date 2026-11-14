@@ -3,7 +3,7 @@ import { z } from "zod/v4";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import {
-  assignExpiringRole,
+  assignRole,
   revokeExpiringRolesForPrincipal,
 } from "@langfuse/shared/rbac/server";
 
@@ -94,7 +94,11 @@ export async function grantSupportAccess(
       SET support_access = COALESCE(support_access, '{}'::jsonb)
         || jsonb_build_object(${orgId}::text, ${JSON.stringify(entry)}::jsonb)
       WHERE id = ${userId}`;
-    await assignExpiringRole(tx, {
+    await revokeExpiringRolesForPrincipal(tx, {
+      principalId: UserId(userId),
+      ownerId: OrganizationId(orgId),
+    });
+    await assignRole(tx, {
       tenantId: OrganizationId(orgId),
       ownerId: OrganizationId(orgId),
       principalId: UserId(userId),
