@@ -78,6 +78,8 @@ export type RoleAssignment = {
   roleId: RoleId;
   principalId: PrincipalId;
   tags: string[];
+  /** expiresAt is absent or null for an assignment that never expires. */
+  expiresAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };

@@ -25,4 +25,5 @@ export const roleIcons: Record<SystemRole, IconComponent> = {
   SCORES_INGEST: Star,
   INGEST: Radio,
   AI_GATEWAY: Network,
+  SUPPORT_VIEWER: Eye,
 };

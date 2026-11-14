@@ -15,6 +15,11 @@ import { createResponse } from "node-mocks-http";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { prisma } from "@langfuse/shared/src/db";
+import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import {
+  assignExpiringRole,
+  getRoleAssignmentsForPrincipal,
+} from "@langfuse/shared/rbac/server";
 import { env } from "@/src/env.mjs";
 import { C1_PROVISION_EVENT } from "@/src/ee/features/support-access/server/conductorOnePayload";
 import { conductorOneWebhookHandler } from "@/src/ee/features/support-access/server/conductorOneWebhook";
@@ -343,5 +348,48 @@ describe("support access in the product", () => {
 
     expect(response.body).toMatchObject({ errored: {} });
     expect(await readSupportAccess(user.id)).toBeNull();
+  });
+
+  it("mirrors a grant as an expiring SUPPORT_VIEWER role until revoked", async () => {
+    const { email, user, orgId } = await createFixture();
+    await grant(email, orgId);
+
+    expect(
+      await getRoleAssignmentsForPrincipal(prisma, UserId(user.id)),
+    ).toContainEqual(
+      expect.objectContaining({
+        orgId,
+        ownerId: OrganizationId(orgId),
+        systemRole: "SUPPORT_VIEWER",
+        expiresAt: expect.any(Date),
+      }),
+    );
+
+    const body = provisionBody({ email, orgId, type: revokeType });
+    await callWebhook(body, `Bearer ${await sign(body)}`);
+
+    expect(
+      await getRoleAssignmentsForPrincipal(prisma, UserId(user.id)),
+    ).not.toContainEqual(
+      expect.objectContaining({ systemRole: "SUPPORT_VIEWER" }),
+    );
+  });
+
+  it("ignores a SUPPORT_VIEWER role once it has expired", async () => {
+    const { user, orgId } = await createFixture();
+    await assignExpiringRole(prisma, {
+      tenantId: OrganizationId(orgId),
+      ownerId: OrganizationId(orgId),
+      principalId: UserId(user.id),
+      roleId: SystemRoleId("SUPPORT_VIEWER"),
+      tags: [],
+      expiresAt: new Date(Date.now() - 1000),
+    });
+
+    expect(
+      await getRoleAssignmentsForPrincipal(prisma, UserId(user.id)),
+    ).not.toContainEqual(
+      expect.objectContaining({ systemRole: "SUPPORT_VIEWER" }),
+    );
   });
 });

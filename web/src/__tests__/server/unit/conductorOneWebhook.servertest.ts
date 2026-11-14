@@ -14,12 +14,18 @@ const db = vi.hoisted(() => ({
   organization: { findMany: vi.fn() },
   project: { findFirst: vi.fn() },
   $executeRaw: vi.fn(),
+  $transaction: vi.fn((run: (tx: unknown) => unknown) => run(db)),
 }));
 
 vi.mock("@langfuse/shared/src/db", () => ({
   prisma: db,
   Prisma: { DbNull: "DbNull" },
   Role: { VIEWER: "VIEWER" },
+}));
+
+vi.mock("@langfuse/shared/rbac/server", () => ({
+  assignExpiringRole: vi.fn(),
+  revokeRoleForPrincipal: vi.fn(),
 }));
 
 import { verifyConductorOneRequest } from "@/src/ee/features/support-access/server/conductorOneAuth";

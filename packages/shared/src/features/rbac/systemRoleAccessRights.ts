@@ -173,6 +173,13 @@ export const systemRoleAccessRights: Record<SystemRole, SystemRoleDefinition> =
       policies: [allow("organization", ["gateway:read", "gateway:invoke"])],
       tags: ["principal:user", "principal:apiKey"],
     },
+    SUPPORT_VIEWER: {
+      id: "SUPPORT_VIEWER",
+      name: "Support viewer",
+      description: "Time-bound read-only access for a support engineer.",
+      policies: userRoleAccessRights("VIEWER"),
+      tags: ["principal:user"],
+    },
   };
 
 /** roleHasProjectPolicy reports whether a role grants any project-kind policy. */
