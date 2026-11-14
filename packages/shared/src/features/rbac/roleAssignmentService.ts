@@ -52,6 +52,7 @@ export async function assignRole(
         ...ownerAndTenantFields,
         ...principalFields(ra.principalId),
         ...roleFields,
+        expiresAt: ra.expiresAt,
       },
     });
   });
@@ -60,7 +61,7 @@ export async function assignRole(
 /** replaceRolesForPrincipal revokes all existing roles for a principal on an owner before assigning the principal a new role. */
 export async function replaceRolesForPrincipal(
   prisma: Prisma.TransactionClient,
-  ra: Omit<RoleAssignment, "id" | "createdAt" | "updatedAt">,
+  ra: Omit<RoleAssignment, "id" | "createdAt" | "updatedAt" | "expiresAt">,
 ): Promise<StoredRoleAssignment> {
   return await withTransaction(prisma, async (tx) => {
     await revokeRolesForPrincipal(tx, {
@@ -83,6 +84,16 @@ export async function revokeRolesForPrincipal(
 ): Promise<void> {
   await prisma.roleAssignment.deleteMany({
     where: { orgId: untag(tenantId), principalId, ownerId },
+  });
+}
+
+/** revokeExpiringRolesForPrincipal removes a principal's expiring assignments, optionally limited to one owner. */
+export async function revokeExpiringRolesForPrincipal(
+  prisma: Prisma.TransactionClient,
+  { principalId, ownerId }: { principalId: PrincipalId; ownerId?: OwnerId },
+): Promise<void> {
+  await prisma.roleAssignment.deleteMany({
+    where: { principalId, ownerId, expiresAt: { not: null } },
   });
 }
 
@@ -110,12 +121,17 @@ export async function transferApiKeyRoles(
   });
 }
 
-/** findRoleAssignments reads a principal's stored assignments. */
+/** findRoleAssignments reads a principal's stored assignments that have not expired. */
 async function findRoleAssignments(
   prisma: Prisma.TransactionClient,
   principalId: PrincipalId,
 ): Promise<StoredRoleAssignment[]> {
-  return await prisma.roleAssignment.findMany({ where: { principalId } });
+  return await prisma.roleAssignment.findMany({
+    where: {
+      principalId,
+      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+    },
+  });
 }
 
 /**
