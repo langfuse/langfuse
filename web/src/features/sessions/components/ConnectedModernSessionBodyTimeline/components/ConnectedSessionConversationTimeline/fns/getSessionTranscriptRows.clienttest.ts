@@ -6,6 +6,8 @@ import { getSessionTranscriptRows } from "./getSessionTranscriptRows";
 import { getSessionTranscriptThreads } from "./getSessionTranscriptThreads";
 import { getSessionConversationEntries } from "./getSessionConversationEntries";
 
+// NOTE: this fixture has no user message, so it is not conversational; the
+// legacy tests below only exercise the fallback path.
 const transcript = {
   threads: [
     {
@@ -409,6 +411,216 @@ describe("getSessionTranscriptRows", () => {
     expect(getSessionTranscriptThreads({ threads: [] })).toEqual({
       visibleThreads: [],
       hiddenThreadCount: 0,
+    });
+  });
+});
+
+describe("getSessionTranscriptThreads", () => {
+  type Transcript = NonNullable<
+    RouterOutputs["events"]["transcriptByTraceId"]["transcript"]
+  >;
+  type ThreadMessage =
+    Transcript["threads"][number]["currentTurn"]["messages"][number];
+
+  const message = (
+    role: ThreadMessage["role"],
+    source: ThreadMessage["source"],
+    parts: ThreadMessage["parts"],
+  ): ThreadMessage => ({
+    observationId: "generation",
+    traceId: "trace",
+    startTime: new Date(0),
+    endTime: new Date(1000),
+    role,
+    source,
+    parts,
+  });
+
+  const thread = (
+    nestingLevel: number,
+    messages: ThreadMessage[],
+  ): Transcript["threads"][number] => ({
+    conversationHistory: [],
+    currentTurn: { nestingLevel, observations: [], messages },
+  });
+
+  const guardrailThread = thread(1, [
+    message("user", "input", [
+      { type: "text", text: "What is the capital of France?" },
+    ]),
+    message("assistant", "output", [
+      { type: "data", value: { intent: "general", confidence: 0.95 } },
+    ]),
+  ]);
+
+  const chatThread = thread(3, [
+    message("user", "input", [
+      { type: "text", text: "What is the capital of France?" },
+    ]),
+    message("assistant", "output", [
+      { type: "text", text: "Paris is the capital of France." },
+    ]),
+  ]);
+
+  it("prefers conversational threads over shallower JSON-only threads", () => {
+    expect(
+      getSessionTranscriptThreads({
+        threads: [guardrailThread, chatThread],
+      }),
+    ).toMatchObject({
+      hiddenThreadCount: 1,
+      visibleThreads: [{ threadIndex: 1 }],
+    });
+  });
+
+  it("does not treat a tool-call-only assistant reply as conversational", () => {
+    const routingThread = thread(1, [
+      message("user", "input", [{ type: "text", text: "Route this" }]),
+      message("assistant", "output", [
+        {
+          type: "tool-call",
+          toolName: "route_to_x",
+          toolCallId: "call",
+          input: {},
+        },
+      ]),
+    ]);
+    expect(
+      getSessionTranscriptThreads({
+        threads: [routingThread, chatThread],
+      }),
+    ).toMatchObject({
+      hiddenThreadCount: 1,
+      visibleThreads: [{ threadIndex: 1 }],
+    });
+  });
+
+  it("demotes a JSON-mode chat thread when a text chat thread competes", () => {
+    const jsonChatThread = thread(1, [
+      message("user", "input", [{ type: "text", text: "Reply as JSON." }]),
+      message("assistant", "output", [
+        { type: "data", value: { answer: "Paris" } },
+      ]),
+    ]);
+    expect(
+      getSessionTranscriptThreads({
+        threads: [jsonChatThread, chatThread],
+      }),
+    ).toMatchObject({
+      hiddenThreadCount: 1,
+      visibleThreads: [{ threadIndex: 1 }],
+    });
+  });
+
+  it("shows only the shallowest thread when several threads are conversational", () => {
+    const shallowChatThread = thread(2, [
+      message("user", "input", [
+        { type: "text", text: "What is the capital of France?" },
+      ]),
+      message("assistant", "output", [
+        { type: "text", text: "Paris is the capital of France." },
+      ]),
+    ]);
+    expect(
+      getSessionTranscriptThreads({
+        threads: [guardrailThread, chatThread, shallowChatThread],
+      }),
+    ).toMatchObject({
+      hiddenThreadCount: 2,
+      visibleThreads: [{ threadIndex: 2 }],
+    });
+  });
+
+  it("falls back to the shallowest thread when no thread is conversational", () => {
+    // Pins the fallback branch: with no conversational thread, selection is
+    // exactly today's behavior (shallowest of all threads). It passes with or
+    // without the fix by design — it guards the new branch, not the fix.
+    const routingThread = thread(2, [
+      message("user", "input", [{ type: "text", text: "Route this" }]),
+      message("assistant", "output", [
+        {
+          type: "tool-call",
+          toolName: "route_to_x",
+          toolCallId: "call",
+          input: {},
+        },
+      ]),
+    ]);
+    expect(
+      getSessionTranscriptThreads({
+        threads: [guardrailThread, routingThread],
+      }),
+    ).toMatchObject({
+      hiddenThreadCount: 1,
+      visibleThreads: [{ threadIndex: 0 }],
+    });
+  });
+
+  it("counts replayed conversation history when the current turn has no user message", () => {
+    const historyThread = {
+      ...thread(3, [
+        message("assistant", "output", [
+          { type: "text", text: "Second response." },
+        ]),
+      ]),
+      conversationHistory: [
+        message("user", "input", [{ type: "text", text: "Initial request" }]),
+        message("assistant", "output", [
+          { type: "text", text: "First response" },
+        ]),
+      ],
+    };
+    expect(
+      getSessionTranscriptThreads({
+        threads: [guardrailThread, historyThread],
+      }),
+    ).toMatchObject({
+      hiddenThreadCount: 1,
+      visibleThreads: [{ threadIndex: 1 }],
+    });
+  });
+
+  it("does not let a guardrail win by replaying the same earlier exchange", () => {
+    const sharedHistory = [
+      message("user", "input", [{ type: "text", text: "Initial request" }]),
+      message("assistant", "output", [
+        { type: "text", text: "First response" },
+      ]),
+    ];
+    const guardrailWithHistory = {
+      ...guardrailThread,
+      conversationHistory: sharedHistory,
+    };
+    const chatWithHistory = {
+      ...chatThread,
+      conversationHistory: sharedHistory,
+    };
+    expect(
+      getSessionTranscriptThreads({
+        threads: [guardrailWithHistory, chatWithHistory],
+      }),
+    ).toMatchObject({
+      hiddenThreadCount: 1,
+      visibleThreads: [{ threadIndex: 1 }],
+    });
+  });
+
+  it("does not treat a stringified JSON verdict as a readable reply", () => {
+    const jsonTextThread = thread(1, [
+      message("user", "input", [
+        { type: "text", text: "What is the capital of France?" },
+      ]),
+      message("assistant", "output", [
+        { type: "text", text: '{"intent": "general", "confidence": 0.95}' },
+      ]),
+    ]);
+    expect(
+      getSessionTranscriptThreads({
+        threads: [jsonTextThread, chatThread],
+      }),
+    ).toMatchObject({
+      hiddenThreadCount: 1,
+      visibleThreads: [{ threadIndex: 1 }],
     });
   });
 });

@@ -3307,13 +3307,13 @@ export const NestedThreadsHidden = meta.story({
       canvas.getByLabelText("Session conversation timeline"),
     );
     await expect(
-      sidebar.queryByRole("button", { name: "2 nested threads hidden" }),
+      sidebar.queryByRole("button", { name: "2 threads hidden" }),
     ).not.toBeInTheDocument();
     await expect(
-      sidebar.queryByText("2 nested threads hidden"),
+      sidebar.queryByText("2 threads hidden"),
     ).not.toBeInTheDocument();
     const warnings = await timeline.findAllByRole("button", {
-      name: "2 nested threads hidden",
+      name: "2 threads hidden",
     });
     await expect(warnings).toHaveLength(1);
     for (const surface of [timeline]) {
