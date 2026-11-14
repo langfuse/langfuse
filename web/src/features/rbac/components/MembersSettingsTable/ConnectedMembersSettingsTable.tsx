@@ -8,6 +8,7 @@ import {
   withDefault,
 } from "use-query-params";
 import { type Role } from "@langfuse/shared";
+import { organizationRoleAccessRights } from "@langfuse/shared/rbac";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
@@ -19,7 +20,6 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { CreateProjectMemberDialogController } from "@/src/features/rbac/components/CreateProjectMemberDialogController";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import type { RouterOutput } from "@/src/utils/types";
@@ -353,7 +353,7 @@ export function ConnectedMembersSettingsTable({
 }
 
 function isRole(value: string | null): value is Role {
-  return value !== null && Object.hasOwn(orderedRoles, value);
+  return value !== null && Object.hasOwn(organizationRoleAccessRights, value);
 }
 
 function convertToTableRow(

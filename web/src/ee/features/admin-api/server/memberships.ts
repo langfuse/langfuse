@@ -16,6 +16,11 @@ import {
 } from "@langfuse/shared/memberships";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { authorize } from "@/src/features/rbac/authorize";
+import {
+  assertOtherOwners,
+  isOwnershipChange,
+  isOwnershipRemoval,
+} from "@/src/features/rbac/server/ownershipChange";
 import { ForbiddenError, Role } from "@langfuse/shared";
 import { OrganizationId } from "@langfuse/shared/rbac";
 import { prisma, type Prisma } from "@langfuse/shared/src/db";
@@ -247,12 +252,10 @@ export async function assertValidOwnershipChange({
   from: Role | undefined;
   to?: Role;
 }) {
-  if (from === Role.OWNER || to === Role.OWNER) {
+  if (isOwnershipChange(from, to)) {
     assertAuthorizeOwnershipChange(context, orgId);
   }
-  if (from === Role.OWNER && to !== Role.OWNER) {
-    await assertOtherOwners(tx, orgId);
-  }
+  if (isOwnershipRemoval(from, to)) await assertOtherOwners(tx, orgId);
 }
 
 /** assertAuthorizeOwnershipChange throws unless the context may grant, change, or remove the OWNER role. */
@@ -269,18 +272,4 @@ function assertAuthorizeOwnershipChange(
     organization,
   );
   if (!ownershipAccess.success) throw ownershipAccess.error;
-}
-
-/** assertOtherOwners locks the organization's owner rows and requires another owner before removing ownership. */
-async function assertOtherOwners(tx: Prisma.TransactionClient, orgId: string) {
-  const owners = await tx.$queryRaw<{ id: string }[]>`
-    SELECT id FROM organization_memberships
-    WHERE org_id = ${orgId} AND role = 'OWNER'
-    FOR UPDATE
-  `;
-  if (owners.length < 2) {
-    throw new ForbiddenError(
-      "Cannot remove the last owner of an organization. Assign new owner or delete organization.",
-    );
-  }
 }
