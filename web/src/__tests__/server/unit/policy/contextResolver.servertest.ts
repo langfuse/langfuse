@@ -23,6 +23,7 @@ import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 const ORG = "org_1";
 const PRJ = "prj_1";
 const OTHER_PRJ = "prj_2";
+const OTHER_ORG = "org_2";
 const USER = "user_1";
 const MEMBER_USER = "user_member";
 const ADMIN_USER = "user_admin";
@@ -59,6 +60,7 @@ const orgAssignment = (principal: object, systemRole: string) => ({
   projectId: null,
   orgId: ORG,
   expiresAt: null,
+  createdAt: new Date("2026-02-01T00:00:00.000Z"),
 });
 
 // Backfilled keys receive their legacy role, owned by their project or organization.
@@ -649,6 +651,28 @@ describe("resolves a signed-in user", () => {
       UnauthorizedError,
     );
     expect(prisma.user.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("lists the organization joined most recently first", async () => {
+    const prisma = userPrisma(userRow());
+    const member = { principalId: `user/${MEMBER_USER}`, userId: MEMBER_USER };
+    prisma.organization.findMany = vi
+      .fn()
+      .mockResolvedValue([orgRow(), orgRow({ id: OTHER_ORG, projects: [] })]);
+    prisma.roleAssignment.findMany = vi.fn().mockResolvedValue([
+      orgAssignment(member, "MEMBER"),
+      {
+        ...orgAssignment(member, "MEMBER"),
+        orgId: OTHER_ORG,
+        ownerId: `organization/${OTHER_ORG}`,
+        createdAt: new Date("2026-03-01T00:00:00.000Z"),
+      },
+    ]);
+    const resolved = await resolveUser(prisma, MEMBER_USER);
+    if (!resolved.success) throw resolved.error;
+    expect(resolved.context.principal).toMatchObject({
+      organizations: [{ id: OTHER_ORG }, { id: ORG }],
+    });
   });
 
   it("flags an organization reached only through an expiring grant as support access", async () => {

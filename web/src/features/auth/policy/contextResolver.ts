@@ -210,7 +210,7 @@ function materializeUser(
 ): AuthorizationContext {
   const policies = [toPolicies(grants.map((grant) => grant.role))];
   const principalUser = toPrincipalUser(user, permanentOrgs(grants, orgs));
-  const organizations = orgs.map((org) =>
+  const organizations = byNewestGrant(grants, orgs).map((org) =>
     toPrincipalOrganization(
       readableProjects(org, policies),
       parseCloudConfig(org),
@@ -358,6 +358,30 @@ function toMetadata(metadata: unknown): Record<string, unknown> {
 function isSessionLive(user: UserRecord, sessionStartedAt: Date): boolean {
   if (user.sessionsExpiredAt === null) return true;
   return user.sessionsExpiredAt < sessionStartedAt;
+}
+
+/** byNewestGrant orders orgs by the user's newest grant in each, newest first, as memberships were. */
+function byNewestGrant(
+  grants: RoleGrant[],
+  orgs: OrganizationWithProjects[],
+): OrganizationWithProjects[] {
+  const joinedAt = newestGrantAt(grants);
+  return [...orgs].sort(
+    (a, b) => (joinedAt.get(b.id) ?? 0) - (joinedAt.get(a.id) ?? 0),
+  );
+}
+
+/** newestGrantAt maps each org id to the epoch millis of the user's newest grant there. */
+function newestGrantAt(grants: RoleGrant[]): Map<string, number> {
+  const newest = new Map<string, number>();
+  for (const { assignment } of grants) {
+    const at = assignment.createdAt.getTime();
+    newest.set(
+      assignment.orgId,
+      Math.max(newest.get(assignment.orgId) ?? 0, at),
+    );
+  }
+  return newest;
 }
 
 /** grantedOrgIds lists each org a user's grants reach once. */

@@ -134,6 +134,16 @@ const sessionHelpers: HelperPair[] = [
       byId(legacyAccessors.getSessionProjects(session).map(withoutRole)),
     (session) => byId(policyAccessors.getSessionProjects(session)),
   ],
+  [
+    "getSessionOrganizations:order",
+    (session) => ids(legacyAccessors.getSessionOrganizations(session)),
+    (session) => ids(policyAccessors.getSessionOrganizations(session)),
+  ],
+  [
+    "getSessionProjects:order",
+    (session) => ids(legacyAccessors.getSessionProjects(session)),
+    (session) => ids(policyAccessors.getSessionProjects(session)),
+  ],
 ];
 
 /** allEntitlements is every entitlement some plan grants. */
@@ -500,6 +510,11 @@ function maybeWithoutRole<T extends object>(
 /** byId orders a list by id so lists compare regardless of order. */
 function byId<T extends { id: string }>(items: T[]): T[] {
   return [...items].sort((a, b) => a.id.localeCompare(b.id));
+}
+
+/** ids keeps the ids of items in their returned order, which picks the default project. */
+function ids(items: { id: string }[]): string[] {
+  return items.map((item) => item.id);
 }
 
 /** check runs one helper call on both sessions, capturing a thrown error as its result. */
