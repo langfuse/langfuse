@@ -35,7 +35,7 @@ export const parseVersionString = (
     minor,
     patch,
     tuple: [major, minor, patch],
-    isPreRelease: /[-+]/.test(rawVersion),
+    isPreRelease: rawVersion.split("+")[0].includes("-"),
   };
 };
 

@@ -1086,6 +1086,24 @@ describe("checkHeaderBasedDirectWrite", () => {
 });
 
 describe("checkSdkVersionRequirements (legacy fallback)", () => {
+  it.each([
+    ["4.4.0+build.1", true],
+    ["4.4.0+build-1", true],
+    ["4.4.0-rc.1+build.1", false],
+    ["4.3.9+build.1", false],
+  ] as const)("checks JS SDK version %s → %s", (scopeVersion, expected) => {
+    expect(
+      checkSdkVersionRequirements(
+        {
+          scopeName: "langfuse-sdk",
+          scopeVersion,
+          telemetrySdkLanguage: "js",
+        },
+        true,
+      ),
+    ).toBe(expected);
+  });
+
   it.each<{
     sdkInfo: SdkInfo;
     isExperiment: boolean;

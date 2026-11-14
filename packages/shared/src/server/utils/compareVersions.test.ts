@@ -40,6 +40,19 @@ describe("compareParsedVersions", () => {
 });
 
 describe("compareVersions", () => {
+  it.each(["v1.2.3+build.1", "v1.2.3+build-1"])(
+    "ignores build metadata in %s",
+    (version) => {
+      expect(compareVersions(version, "v1.2.3")).toBeNull();
+      expect(compareVersions("v1.2.3-rc.1", version)).toBe("patch");
+      expect(compareVersions("v1.2.2+build.1", version)).toBe("patch");
+    },
+  );
+
+  it("keeps prereleases below the release when they have build metadata", () => {
+    expect(compareVersions("v1.2.3-rc.1+build-1", "v1.2.3")).toBe("patch");
+  });
+
   it("keeps semantic version update classification behavior", () => {
     expect(compareVersions("v1.2.3", "v1.3.0")).toBe("minor");
     expect(compareVersions("v1.2.3-rc.1", "v1.2.3")).toBe("patch");
