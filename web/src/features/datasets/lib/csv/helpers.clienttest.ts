@@ -44,6 +44,35 @@ describe("CSV dataset parsing", () => {
     expect(parseValue("FALSE")).toBe(false);
   });
 
+  it("waits for each processor callback and stops on the first error", async () => {
+    const file = new File(["input\nfirst\nsecond\nthird\n"], "input.csv", {
+      type: "text/csv",
+    });
+    const error = new Error("Could not process the second row");
+    const completed: string[] = [];
+
+    await expect(
+      parseCsvClient(file, {
+        processor: {
+          onHeader: async () => {
+            await Promise.resolve();
+            completed.push("header");
+          },
+          onRow: async ([value]) => {
+            expect(completed).toEqual(
+              value === "first" ? ["header"] : ["header", "first"],
+            );
+            await Promise.resolve();
+            if (value === "second") throw error;
+            completed.push(value);
+          },
+        },
+      }),
+    ).rejects.toBe(error);
+
+    expect(completed).toEqual(["header", "first"]);
+  });
+
   it("explains the preview truncation when a >2MB file has a quoted cell cut at the preview boundary", async () => {
     const hugeCell = "A".repeat(3 * 1024 * 1024);
     const file = new File([`input\n"${hugeCell}"\n`], "large.csv", {
