@@ -281,7 +281,11 @@ function UserTracking() {
       canCreateOrganizations: getSessionUserCanCreateOrganizations(
         session.data,
       ),
-      organizations: getSessionOrganizations(session.data),
+      organizations: getSessionOrganizations(session.data).map((org) => ({
+        ...org,
+        role: getSessionOrganizationRole(session.data, org.id),
+      })),
+      projects: getIdentifiedProjects(session.data),
       featureFlags: getSessionUserFeatureFlags(session.data),
       hasPassword: getSessionUserHasPassword(session.data),
     });
