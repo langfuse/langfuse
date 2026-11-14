@@ -57,23 +57,49 @@ async function enqueueSkillAutomationAction(
       },
     },
   });
-  await WebhookQueue.getInstance()?.add(QueueName.WebhookQueue, {
-    timestamp: new Date(),
-    id: randomUUID(),
-    name: QueueJobs.WebhookJob,
-    payload: {
-      projectId: event.projectId,
-      automationId,
-      executionId,
-      actionType: automations[0].action.type,
+  try {
+    const queue = WebhookQueue.getInstance();
+    if (!queue) {
+      throw new InternalServerError("WebhookQueue instance is not available");
+    }
+
+    await queue.add(QueueName.WebhookQueue, {
+      timestamp: new Date(),
+      id: randomUUID(),
+      name: QueueJobs.WebhookJob,
       payload: {
-        type: "skill-version",
-        action: event.action,
-        skill: event.skill,
-        ...(event.user ? { user: event.user } : {}),
+        projectId: event.projectId,
+        automationId,
+        executionId,
+        actionType: automations[0].action.type,
+        payload: {
+          type: "skill-version",
+          action: event.action,
+          skill: event.skill,
+          ...(event.user ? { user: event.user } : {}),
+        },
       },
-    },
-  });
+    });
+  } catch (error) {
+    logger.error(
+      `Failed to enqueue webhook job for execution ${executionId}: ${error}`,
+    );
+    try {
+      await prisma.automationExecution.update({
+        where: { id: executionId },
+        data: {
+          status: ActionExecutionStatus.ERROR,
+          error: error instanceof Error ? error.message : "Unknown error",
+          finishedAt: new Date(),
+        },
+      });
+    } catch (updateError) {
+      logger.error(
+        `Failed to update automation execution ${executionId} status to ERROR: ${updateError}`,
+      );
+    }
+    throw error;
+  }
 }
 
 export async function skillVersionProcessor(

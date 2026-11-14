@@ -181,26 +181,52 @@ async function enqueueAutomationAction({
     `Created automation execution ${executionId} for project ${projectId} and action ${actionId}`,
   );
 
-  // Queue to webhook processor (handles both webhook and Slack actions)
-  await WebhookQueue.getInstance()?.add(QueueName.WebhookQueue, {
-    timestamp: new Date(),
-    id: v4(),
-    payload: {
-      projectId,
-      automationId: automations[0].id,
-      executionId,
-      actionType: automations[0].action.type,
+  try {
+    const queue = WebhookQueue.getInstance();
+    if (!queue) {
+      throw new InternalServerError("WebhookQueue instance is not available");
+    }
+
+    // Queue to webhook processor (handles both webhook and Slack actions)
+    await queue.add(QueueName.WebhookQueue, {
+      timestamp: new Date(),
+      id: v4(),
       payload: {
-        action: action as TriggerEventAction,
-        type: "prompt-version",
-        prompt: {
-          ...promptData,
-          prompt: jsonSchemaNullable.parse(promptData.prompt),
-          config: jsonSchemaNullable.parse(promptData.config),
+        projectId,
+        automationId: automations[0].id,
+        executionId,
+        actionType: automations[0].action.type,
+        payload: {
+          action: action as TriggerEventAction,
+          type: "prompt-version",
+          prompt: {
+            ...promptData,
+            prompt: jsonSchemaNullable.parse(promptData.prompt),
+            config: jsonSchemaNullable.parse(promptData.config),
+          },
+          ...(user ? { user } : {}),
         },
-        ...(user ? { user } : {}),
       },
-    },
-    name: QueueJobs.WebhookJob,
-  });
+      name: QueueJobs.WebhookJob,
+    });
+  } catch (error) {
+    logger.error(
+      `Failed to enqueue webhook job for execution ${executionId}: ${error}`,
+    );
+    try {
+      await prisma.automationExecution.update({
+        where: { id: executionId },
+        data: {
+          status: ActionExecutionStatus.ERROR,
+          error: error instanceof Error ? error.message : "Unknown error",
+          finishedAt: new Date(),
+        },
+      });
+    } catch (updateError) {
+      logger.error(
+        `Failed to update automation execution ${executionId} status to ERROR: ${updateError}`,
+      );
+    }
+    throw error;
+  }
 }
