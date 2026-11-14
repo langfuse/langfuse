@@ -55,7 +55,7 @@ const querySchema = z.object({
   startTime: z.coerce.date(),
 });
 
-/** toTraceAccessSession keeps a missing session anonymous and rejects one without a signed-in user who has an email, as the trace download route does. */
+/** toTraceAccessSession keeps a missing session anonymous and rejects one without a signed-in user who has an email. */
 function toTraceAccessSession(
   session: Awaited<ReturnType<typeof getServerAuthSession>>,
 ): TraceExportAccessSession {

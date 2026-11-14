@@ -5,7 +5,6 @@ import {
   type TRPCQueryProcedure,
   type TRPCUnsetMarker,
 } from "@trpc/server";
-import { type MaybeSession } from "@/src/features/rbac/new/sessionAccessors";
 import * as z from "zod";
 
 import {
@@ -20,6 +19,7 @@ import {
   recordTrpcAccess,
   type AccessRead,
 } from "@/src/features/audit-logs/server/recordAccessEvent";
+import { type MaybeSession } from "@/src/features/rbac/new/sessionAccessors";
 
 /** The read a tRPC query performs, recorded as an audit access event. */
 export type AccessAuditMeta = {

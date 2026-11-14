@@ -1,10 +1,11 @@
+import { TRPCError } from "@trpc/server";
+
 import {
   OrganizationId,
   organizationRoleAccessRights,
   type OrganizationScope,
 } from "@langfuse/shared/rbac";
 import { type Role } from "@langfuse/shared/src/db";
-import { TRPCError } from "@trpc/server";
 
 import { authorize } from "@/src/features/rbac/authorize";
 import { hasOwnRole } from "@/src/features/rbac/utils/hasOwnRole";

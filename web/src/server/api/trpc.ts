@@ -440,6 +440,7 @@ const inputOrganizationSchema = z.object({
   orgId: z.string(),
 });
 
+/** enforceIsAuthedAndOrgMember rejects non-members of the input orgId and adds their org role to the session. */
 const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
   const { ctx, next } = opts;
   const session = ctx.session;
@@ -797,7 +798,7 @@ export const adminProcedure = withOtelTracingProcedure
 // Export context types for easier reuse
 // Base context from createTRPCContext
 type TRPCContext = Awaited<ReturnType<typeof createTRPCContext>>;
-// After `enforceUserIsAuthed`: the session resolved to a signed-in user
+/** AuthedSession is the tRPC session once enforceUserIsAuthed resolved it to a signed-in user. */
 export type AuthedSession = NonNullable<TRPCContext["session"]> &
   SignedInSession;
 // After `enforceUserIsAuthedAndProjectMember`: extra fields guaranteed

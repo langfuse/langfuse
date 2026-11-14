@@ -9,10 +9,9 @@ import { type AuthorizationContext } from "@/src/features/auth/policy/types";
  */
 declare module "next-auth" {
   interface Session {
-    // The policy-engine authorization context, null when the token resolves
-    // to no live user.
+    /** authCtx is the policy-engine authorization context, null when the token resolves to no live user. */
     authCtx: AuthorizationContext | null;
-    // DefaultSession's profile is never sent; read the user from authCtx.
+    /** user is never sent; the signed-in user is authCtx's principal. */
     user?: never;
 
     environment: {

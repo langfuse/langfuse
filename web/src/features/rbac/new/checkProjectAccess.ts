@@ -1,7 +1,8 @@
+import { TRPCError } from "@trpc/server";
+
 import { projectRoleAccessRights, type ProjectScope } from "@langfuse/shared";
 import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";
 import { type Role } from "@langfuse/shared/src/db";
-import { TRPCError } from "@trpc/server";
 
 import { env } from "@/src/env.mjs";
 import { INTERNAL_FEATURE_FLAG } from "@/src/features/feature-flags/available-flags";

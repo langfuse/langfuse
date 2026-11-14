@@ -83,7 +83,7 @@ export const testPrincipalUser = (
   ...overrides,
 });
 
-/** testSession is a signed-in session whose policies bind each organization's role, and each project's role where given, with organizations defaulting to the user's flags, overridable per test. */
+/** testSession is a signed-in session whose policies bind the given organization and project roles. */
 export const testSession = ({
   user = {},
   organizations = [],

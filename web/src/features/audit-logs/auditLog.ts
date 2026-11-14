@@ -429,7 +429,7 @@ async function stageInSavepoint(
   await tx.$executeRaw`RELEASE SAVEPOINT audit_log_staging`;
 }
 
-/** sessionActorAccess reads the acting user's roles on the audited org and project, and whether a support grant reaches the org, from the session's policies. */
+/** sessionActorAccess is the acting user's org and project roles and support access on the audited org. */
 function sessionActorAccess(session: SessionActor): UserActorAccess {
   return {
     orgRole: getSessionOrganizationRole(session, session.orgId),
