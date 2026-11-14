@@ -1293,7 +1293,11 @@ describe("Topics setup", () => {
         resourceId: "rule-a",
         action: "create",
         session: expect.objectContaining({
-          user: expect.objectContaining({ id: "user-a" }),
+          authCtx: expect.objectContaining({
+            principal: expect.objectContaining({
+              user: expect.objectContaining({ id: "user-a" }),
+            }),
+          }),
         }),
       }),
     );
