@@ -189,6 +189,7 @@ async function enqueueAutomationAction({
       projectId,
       automationId: automations[0].id,
       executionId,
+      actionType: automations[0].action.type,
       payload: {
         action: action as TriggerEventAction,
         type: "prompt-version",

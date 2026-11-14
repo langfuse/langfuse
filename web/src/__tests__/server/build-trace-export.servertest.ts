@@ -61,14 +61,15 @@ const observationStartTimeFilter = new Date(
 );
 
 const makeSession = (overrides?: {
-  admin?: boolean;
+  supportAccess?: boolean;
   projects?: Array<{ id: string }>;
 }): TraceExportSession => ({
   user: {
     email: "test@example.com",
-    admin: overrides?.admin ?? false,
     organizations: [
       {
+        id: "org-1",
+        supportAccess: overrides?.supportAccess ?? false,
         projects: overrides?.projects ?? [{ id: projectId }],
       },
     ],
@@ -449,11 +450,11 @@ describe("buildTraceExport", () => {
     ).rejects.toBeInstanceOf(UnauthorizedError);
   });
 
-  it("notifies on admin access", async () => {
+  it("notifies on access through a support access grant", async () => {
     await buildTraceExport({
       traceId,
       projectId,
-      session: makeSession({ admin: true, projects: [] }),
+      session: makeSession({ supportAccess: true }),
     });
 
     expect(mockSendAdminAccessWebhook).toHaveBeenCalledWith({
@@ -461,5 +462,15 @@ describe("buildTraceExport", () => {
       projectId,
       orgId: "org-1",
     });
+  });
+
+  it("does not notify on access by a regular member", async () => {
+    await buildTraceExport({
+      traceId,
+      projectId,
+      session: makeSession(),
+    });
+
+    expect(mockSendAdminAccessWebhook).not.toHaveBeenCalled();
   });
 });

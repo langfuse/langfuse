@@ -34,7 +34,7 @@ export function ReadOnlyProvidersTab({
   return (
     <div className="flex flex-col gap-4">
       <p className="text-muted-foreground text-sm">
-        The providers your organization routes gateway requests through.{" "}
+        The connections your organization routes gateway requests through.{" "}
         <TextButton
           variant="text"
           text="About gateway models"

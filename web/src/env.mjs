@@ -755,6 +755,19 @@ export const env = createEnv({
       .int()
       .positive()
       .default(150_000),
+    // Skill Management limits per skill version, enforced by the server only.
+    // Skill versions are sent as JSON through 4.5 MB request bodies on the
+    // tRPC, public API, and MCP routes, which bounds the usable byte limit.
+    LANGFUSE_SKILL_MAX_BYTES: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(1_000_000),
+    LANGFUSE_SKILL_MAX_FILES: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(200),
 
     // Reverse proxies in front of the web container that append the client
     // address to X-Forwarded-For. Audit events take the client IP from the
@@ -767,7 +780,7 @@ export const env = createEnv({
       .default(0),
 
     // Kill switch for staging audit events for the ClickHouse audit_logs table
-    // on Langfuse Cloud. The Postgres audit_logs row is written either way.
+    // (EE). The Postgres audit_logs row is written either way.
     // Read-access events have no Postgres row, so turning it off stops
     // recording them; reads still succeed.
     LANGFUSE_AUDIT_LOG_STAGING_ENABLED: z
@@ -1383,6 +1396,8 @@ export const env = createEnv({
       process.env.LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS,
     LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
       process.env.LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
+    LANGFUSE_SKILL_MAX_BYTES: process.env.LANGFUSE_SKILL_MAX_BYTES,
+    LANGFUSE_SKILL_MAX_FILES: process.env.LANGFUSE_SKILL_MAX_FILES,
     LANGFUSE_TRUSTED_PROXY_COUNT: process.env.LANGFUSE_TRUSTED_PROXY_COUNT,
     LANGFUSE_AUDIT_LOG_STAGING_ENABLED:
       process.env.LANGFUSE_AUDIT_LOG_STAGING_ENABLED,

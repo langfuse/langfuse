@@ -16,7 +16,6 @@ type HasEntitlementParams = {
  * Check if user has access to a specific entitlement based on the session user (to be used server-side).
  */
 export const hasEntitlement = (p: HasEntitlementParams): Boolean => {
-  if (p.sessionUser.admin) return true;
   const org =
     "projectId" in p
       ? p.sessionUser.organizations.find((org) =>

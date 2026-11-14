@@ -43,7 +43,7 @@ fn record_response(observer: &mut ExecutionCapture, status: u16, content_type: &
     observer.record_response(status, &headers);
 }
 
-fn finalized(observer: &mut ExecutionCapture) -> (&'static str, ProviderFacts) {
+fn finalized(observer: &mut ExecutionCapture) -> (ApiFormat, ProviderFacts) {
     observer.protocol.take().unwrap().into_facts()
 }
 
@@ -125,7 +125,7 @@ async fn streamed_text_and_tool_calls_are_rebuilt_into_native_choices() {
     assert!(capture.facts.capture_complete);
     assert_eq!(capture.facts.provider_status.as_deref(), Some("completed"));
     let (api_format, facts) = finalized(&mut observer);
-    assert_eq!(api_format, "openai.chat-completions");
+    assert_eq!(api_format, ApiFormat::OpenAiChatCompletions);
     assert_eq!(
         facts.output,
         Some(json!({"choices": [{

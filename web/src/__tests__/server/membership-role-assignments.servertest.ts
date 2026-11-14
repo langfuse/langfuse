@@ -157,7 +157,6 @@ describe("membership role assignments", () => {
         canCreateOrganizations: true,
         organizations,
         featureFlags: testFeatureFlags(),
-        admin: false,
       } as SessionUser,
       environment: {
         enableExperimentalFeatures: false,

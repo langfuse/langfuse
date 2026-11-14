@@ -4,19 +4,27 @@ import {
   getCustomerDataWarning,
 } from "./getCustomerDataWarning";
 
+// Staff user with a genuine internal membership plus a support access grant
+// (which the session callback adds as a VIEWER membership) on the customer org.
 const viewingCustomerProject = {
   email: "ada@clickhouse.com",
-  isAdmin: true,
   isLangfuseCloud: true,
   projectId: "proj_customer",
   organizationId: null,
-  memberships: [{ id: "org_internal", projects: [{ id: "proj_internal" }] }],
+  memberships: [
+    { id: "org_internal", projects: [{ id: "proj_internal" }] },
+    {
+      id: "org_customer",
+      projects: [{ id: "proj_customer" }],
+      supportAccess: true,
+    },
+  ],
   organizationName: "Acme",
   projectName: "Production",
 };
 
 describe("getCustomerDataWarning", () => {
-  it("shows a project warning for a ClickHouse admin on Cloud who is not a member", () => {
+  it("shows a project warning for a staff user on Cloud viewing through support access", () => {
     expect(getCustomerDataWarning(viewingCustomerProject)).toEqual({
       scope: "project",
       organizationName: "Acme",
@@ -47,33 +55,21 @@ describe("getCustomerDataWarning", () => {
     ).toBeNull();
   });
 
-  it("hides when the staff user is not an admin", () => {
-    expect(
-      getCustomerDataWarning({ ...viewingCustomerProject, isAdmin: false }),
-    ).toBeNull();
-  });
-
-  it("shows for a non-admin staff user viewing through support access", () => {
+  it("hides when the staff user has no support access membership", () => {
     expect(
       getCustomerDataWarning({
         ...viewingCustomerProject,
-        isAdmin: false,
         memberships: [
-          {
-            id: "org_customer",
-            projects: [{ id: "proj_customer" }],
-            supportAccess: true,
-          },
+          { id: "org_internal", projects: [{ id: "proj_internal" }] },
         ],
       }),
-    ).toMatchObject({ scope: "project" });
+    ).toBeNull();
   });
 
   it("shows an organization warning for a support access membership", () => {
     expect(
       getCustomerDataWarning({
         ...viewingCustomerProject,
-        isAdmin: false,
         projectId: null,
         organizationId: "org_customer",
         projectName: null,
@@ -93,27 +89,35 @@ describe("getCustomerDataWarning", () => {
     ).toBeNull();
   });
 
-  it("hides when the admin is a genuine member of the project", () => {
+  it("hides when the staff user is a genuine member of the project", () => {
     expect(
       getCustomerDataWarning({
         ...viewingCustomerProject,
         memberships: [
           { id: "org_customer", projects: [{ id: "proj_customer" }] },
+          { id: "org_other", projects: [], supportAccess: true },
         ],
       }),
     ).toBeNull();
   });
 
-  it("shows when the admin belongs to the organization but not this project", () => {
+  it("shows when the staff user belongs to the organization but not this project", () => {
     expect(
       getCustomerDataWarning({
         ...viewingCustomerProject,
-        memberships: [{ id: "org_customer", projects: [{ id: "proj_other" }] }],
+        memberships: [
+          { id: "org_customer", projects: [{ id: "proj_other" }] },
+          {
+            id: "org_customer",
+            projects: [{ id: "proj_customer" }],
+            supportAccess: true,
+          },
+        ],
       }),
     ).toMatchObject({ scope: "project" });
   });
 
-  it("shows an organization warning when the admin is not a member of the org", () => {
+  it("shows an organization warning when the staff user is not a member of the org", () => {
     expect(
       getCustomerDataWarning({
         ...viewingCustomerProject,
@@ -127,7 +131,7 @@ describe("getCustomerDataWarning", () => {
     });
   });
 
-  it("hides an organization route when the admin is a member", () => {
+  it("hides an organization route when the staff user is a member", () => {
     expect(
       getCustomerDataWarning({
         ...viewingCustomerProject,

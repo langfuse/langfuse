@@ -13,10 +13,10 @@ import { env } from "@/src/env.mjs";
 // import cycle leaves these schemas undefined at module init.
 import {
   GatewayMetadataSchema,
+  GatewayProviderConfigSchema,
   gatewayApiFormats,
   gatewayProviders,
 } from "@/src/features/ai-gateway/server/provider/registry";
-import { GatewayBedrockConfigSchema } from "@/src/features/ai-gateway/server/provider/bedrock";
 
 const CACHE_PREFIX = "ai-gateway:resolve";
 
@@ -35,6 +35,12 @@ export const CachedResolveContext = z.object({
   userName: z.string().nullable().default(null),
   userEmail: z.string().nullable().default(null),
   keyMetadata: GatewayMetadataSchema,
+  /**
+   * Model patterns of the key; null allows every model the admin enabled.
+   * Required, so entries cached before patterns existed are refetched instead
+   * of allowing every model.
+   */
+  keyAllowedModels: z.array(z.string()).nullable(),
   ingestionProjectId: z.string().nullable(),
   ingestionMode: z.enum(["NONE", "USAGE", "FULL"]).nullable(),
   plan: z.custom<Plan>((value) => plans.includes(value as Plan)),
@@ -46,7 +52,7 @@ export const CachedResolveContext = z.object({
       provider: z.enum(gatewayProviders),
       encryptedCredential: z.string(),
       allowedModels: z.array(z.string()).nullable(),
-      config: GatewayBedrockConfigSchema.nullable().default(null),
+      config: GatewayProviderConfigSchema.nullable().default(null),
       baseURL: z.string().nullable().default(null),
       /** Still encrypted; decrypted only when a request resolves to this connection. */
       extraHeaders: z.string().nullable().default(null),

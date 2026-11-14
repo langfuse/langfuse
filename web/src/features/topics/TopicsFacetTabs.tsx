@@ -6,7 +6,7 @@ export function TopicsFacetTabs({
   onSelectFacet,
 }: TopicsFacetTabsProps) {
   return (
-    <div className="ph-no-capture">
+    <div className="ph-no-capture flex text-sm">
       <Tabs value={selectedFacet} onValueChange={onSelectFacet}>
         <Tabs.List variant="inset" size="sm" aria-label="Topics facets">
           {facets.map((facet) => (

@@ -43,6 +43,64 @@ export const LangfuseMark = /* @__PURE__ */ createIcon(
   0,
 );
 
+function RawOpenRouterMark({
+  size: _size,
+  ...props
+}: SVGProps<SVGSVGElement> & { size?: number }) {
+  return (
+    <svg viewBox="0 0 1024 730" fill="currentColor" {...props}>
+      <path d="M795.893 0C915.776 0 1012.95 97.9963 1012.95 218.88C1012.95 339.764 915.776 437.76 795.893 437.76L1011.2 654.869C1038.55 682.447 1019.18 729.6 980.504 729.6H361.77C161.97 729.6 0 566.273 0 364.8C0 163.327 161.97 0 361.77 0L795.893 0ZM361.77 145.92C241.89 145.92 144.708 243.916 144.708 364.8C144.708 485.684 241.89 583.68 361.77 583.68C481.649 583.68 578.831 485.684 578.831 364.8C578.831 243.916 481.649 145.92 361.77 145.92Z" />
+    </svg>
+  );
+}
+
+/** The OpenRouter glyph from openrouter.ai/brand, drawn in the current color. */
+export const OpenRouterMark = /* @__PURE__ */ createIcon(
+  RawOpenRouterMark,
+  "OpenRouterMark",
+  0,
+);
+
+function RawXaiMark({
+  size: _size,
+  ...props
+}: SVGProps<SVGSVGElement> & { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <path d="M6.469 8.776L16.512 23h-4.464L2.005 8.776H6.47zm-.004 7.9l2.233 3.164L6.467 23H2l4.465-6.324zM22 2.582V23h-3.659V7.764L22 2.582zM22 1l-9.952 14.095-2.233-3.163L17.533 1H22z" />
+    </svg>
+  );
+}
+
+/** The xAI logomark (as drawn in lobehub/lobe-icons), in the current color. */
+export const XaiMark = /* @__PURE__ */ createIcon(RawXaiMark, "XaiMark", 0);
+
+function RawAzureMark({
+  size: _size,
+  ...props
+}: SVGProps<SVGSVGElement> & { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" fillRule="evenodd" {...props}>
+      <path
+        d="M18.397 15.296H7.4a.51.51 0 00-.347.882l7.066 6.595c.206.192.477.298.758.298h6.226l-2.706-7.775z"
+        fillOpacity=".75"
+      />
+      <path
+        d="M8.295.857c-.477 0-.9.304-1.053.756L.495 21.605a1.11 1.11 0 001.052 1.466h5.43c.477 0 .9-.304 1.053-.755l1.341-3.975-2.318-2.163a.51.51 0 01.347-.882h3L15.271.857H8.295z"
+        fillOpacity=".5"
+      />
+      <path d="M17.193 1.613a1.11 1.11 0 00-1.052-.756h-7.81.035c.477 0 .9.304 1.052.756l6.748 19.992a1.11 1.11 0 01-1.052 1.466h-.12 7.895a1.11 1.11 0 001.052-1.466L17.193 1.613z" />
+    </svg>
+  );
+}
+
+/** The Microsoft Azure logomark (as drawn in lobehub/lobe-icons), in the current color. */
+export const AzureMark = /* @__PURE__ */ createIcon(
+  RawAzureMark,
+  "AzureMark",
+  0,
+);
+
 export type {
   IconColor,
   IconComponent,

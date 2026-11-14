@@ -7,6 +7,7 @@ import {
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
+import { observationRefs } from "@/src/features/audit-logs/server/auditedQuery";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 import {
   ExpandMetadataKeysSchema,
@@ -43,6 +44,11 @@ export const [getObservationTool, handleGetObservation] = defineTool({
     'Important: if you request metadata explicitly, for example fields: ["id", "metadata"], metadata values are truncated to 200 UTF-8 characters per key unless you also pass expandMetadataKeys with the keys that may need full values.',
   ].join("\n"),
   action: "traces:read",
+  accessAudit: {
+    resourceType: "observation",
+    action: "read",
+    idKey: "observationId",
+  },
   baseSchema: GetObservationBaseSchema,
   inputSchema: GetObservationBaseSchema.refine(
     (input) => {
@@ -57,7 +63,7 @@ export const [getObservationTool, handleGetObservation] = defineTool({
       path: ["toStartTime"],
     },
   ),
-  handler: async (input, context) => {
+  handler: async (input, context, audit) => {
     return await runMcpTool({
       spanName: "mcp.observations.get",
       context,
@@ -115,6 +121,7 @@ export const [getObservationTool, handleGetObservation] = defineTool({
             `Observation ${input.observationId} not found within the supplied period (${input.fromStartTime} to ${input.toStartTime}).`,
           );
         }
+        audit.refs(observationRefs([observation]));
 
         const projectedObservation = projectObservation(
           {

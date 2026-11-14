@@ -21,7 +21,7 @@ const CreateEvaluatorWithoutProjectSchema = CreateEvaluatorSchema.omit({
   projectId: true,
 });
 
-const McpEvaluatorModelConfigSchema = EvaluatorModelConfigSchema.extend({
+export const McpEvaluatorModelConfigSchema = EvaluatorModelConfigSchema.extend({
   modelParams: z
     .object({
       max_tokens: z.number().optional(),

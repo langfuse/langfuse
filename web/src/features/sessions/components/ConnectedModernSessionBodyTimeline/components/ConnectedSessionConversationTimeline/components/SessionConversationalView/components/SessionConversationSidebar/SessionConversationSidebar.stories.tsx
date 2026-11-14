@@ -372,6 +372,37 @@ export const SelectMessagesAndTools = meta.story({
     await expect(args.onSelect).toHaveBeenCalledWith(0, "generation-1", "0:4");
   },
 });
+export const UniformRowHoverArea = meta.story({
+  name: "(Test) Uniform Row Hover Area",
+  args: loadedArgs,
+  play: async ({ canvas }) => {
+    const card = await canvas.findByRole("group", {
+      name: "Configure tracing",
+    });
+    const [firstAssistant, lastRow] = canvas.getAllByRole("button", {
+      name: "Assistant message",
+    });
+    const rows = [
+      canvas.getByRole("button", { name: "System message" }),
+      canvas.getByRole("button", { name: "User message" }),
+      firstAssistant!,
+      canvas.getByRole("button", { name: "tool: search_documentation" }),
+      lastRow!,
+    ];
+    const heights = new Set(
+      rows.map((row) => row.getBoundingClientRect().height),
+    );
+    await expect(heights.size).toBe(1);
+    const cardStyle = getComputedStyle(card);
+    const cardContentBottom =
+      card.getBoundingClientRect().bottom -
+      Number.parseFloat(cardStyle.borderBottomWidth) -
+      Number.parseFloat(cardStyle.paddingBottom);
+    await expect(lastRow!.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      cardContentBottom,
+    );
+  },
+});
 export const SearchAndCollapse = meta.story({
   name: "(Test) Searches and Collapses Turns",
   args: loadedArgs,

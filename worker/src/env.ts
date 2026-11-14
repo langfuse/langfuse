@@ -239,6 +239,13 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(256 * 1024 * 1024),
+  // 04:00 UTC is early morning in Europe and late evening in the Americas.
+  LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(23)
+    .default(4),
   LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE: z.coerce
     .number()
     .int()
@@ -298,7 +305,7 @@ const EnvSchema = z.object({
     .number()
     .int()
     .positive()
-    .default(30_000),
+    .default(60_000),
   LANGFUSE_SECONDARY_OTEL_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z
     .string()
     .optional(),
@@ -755,8 +762,8 @@ const EnvSchema = z.object({
     .default("false"), // Use ON CLUSTER and clusterAllReplicas for cleaner operations
 
   // Audit log relay: moves audit_log_staging rows into ClickHouse audit_logs.
-  // Runs only in cloud deployments (NEXT_PUBLIC_LANGFUSE_CLOUD_REGION set),
-  // where it is on unless disabled here.
+  // Runs on Langfuse Cloud and on self-hosted instances with an enterprise
+  // license, where it is on unless disabled here.
   LANGFUSE_AUDIT_LOG_RELAY_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_AUDIT_LOG_RELAY_INTERVAL_MS: z.coerce
     .number()

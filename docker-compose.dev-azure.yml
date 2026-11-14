@@ -47,8 +47,9 @@ services:
       test: ["CMD", "mc", "ready", "local"]
       interval: 1s
       timeout: 5s
-      retries: 5
-      start_period: 1s
+      retries: 30
+      start_period: 30s
+      start_interval: 1s
     networks:
       - default
 

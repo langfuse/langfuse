@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { deleteSessionViewsWithoutProjectAccess } from "@/src/features/sessions/server/fns/deleteSessionViewsWithoutProjectAccess";
 import { ForbiddenError, InternalServerError } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import {
@@ -98,6 +99,19 @@ export class ProjectService {
         ownerId: ProjectId(projectId),
         newTenantId: OrganizationId(targetOrganizationId),
       });
+      const viewOwners = await tx.sessionView.findMany({
+        where: { projectId, createdBy: { not: null } },
+        distinct: ["createdBy"],
+        select: { createdBy: true },
+      });
+      for (const { createdBy } of viewOwners) {
+        if (createdBy === null) continue;
+        await deleteSessionViewsWithoutProjectAccess(tx, {
+          userId: createdBy,
+          orgId: targetOrganizationId,
+          projectId,
+        });
+      }
     });
 
     // API keys need to be deleted from cache. Otherwise, they will still be valid.

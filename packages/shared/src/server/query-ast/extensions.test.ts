@@ -1,4 +1,14 @@
-import { expressionBuilder, sql, type ExpressionBuilder } from "kysely";
+import {
+  ColumnNode,
+  ExpressionWrapper,
+  IdentifierNode,
+  ReferenceNode,
+  TableNode,
+  ValueNode,
+  expressionBuilder,
+  sql,
+  type ExpressionBuilder,
+} from "kysely";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import {
@@ -8,19 +18,26 @@ import {
   renderClickhouseExpression,
   renderClickhouseSelections,
 } from "./compile";
+import { CteNamePlugin } from "./ctes";
+import { DedupLoweringPlugin } from "./dedup";
 import { getClickhouseKysely } from "./dialect";
 import {
   QueryCompileError,
   TypeCompatibilityError,
   UnscopedRelationError,
 } from "./errors";
+import { EventsTableRoutingPlugin } from "./eventsRouting";
 import {
+  arrayDistinct,
   arrayExists,
+  arrayJoinElements,
   arrayLength,
   arrayMap,
   count,
   countIf,
   firstMetadataValue,
+  histogram,
+  interval,
   latestNonEmpty,
   leftUTF8,
   limitBy,
@@ -33,15 +50,30 @@ import {
   metadataSubstringPrefilter,
   metadataTokenPrefilter,
   metadataValue,
+  quantile,
   startsWith,
+  templateAggregate,
+  toDate,
+  toFloat64,
+  toMonday,
+  toStartOfHour,
+  toStartOfInterval,
+  toStartOfMonth,
+  tupleArrayField,
   tupleElement,
   typedValue,
   uniq,
   uniqIf,
   useFinal,
+  withFill,
 } from "./extensions";
-import { ArrayIndexNode } from "./nodes";
+import {
+  ArrayIndexNode,
+  ParametricAggregateNode,
+  asOperationNode,
+} from "./nodes";
 import type { ClickHouseDatabase } from "./schema";
+import { SchemaReferencePlugin } from "./schemaReferences";
 import { TenancyInjectionPlugin } from "./tenancy";
 import { defineView, fromView } from "./views";
 
@@ -295,6 +327,18 @@ describe("ArrayIndexNode identity", () => {
       ),
     ).toBe(true);
   });
+
+  it("reads its key: a truncated column in the key routes the relation to events_full", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("events as e")
+      .select((eb) => [
+        mapValue(eb.ref("e.usage_details"), eb.ref("e.input")).as("usage"),
+      ]);
+
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    expect(compiled).toContain("e.usage_details[e.input] as usage");
+    expect(compiled).toContain("from events_full as e");
+  });
 });
 
 describe("leftUTF8", () => {
@@ -313,6 +357,82 @@ describe("leftUTF8", () => {
         .selectFrom("events as e")
         .select((eb) => [leftUTF8(eb.ref("e.input"), length).as("input")]),
     ).toThrow(QueryCompileError);
+  });
+});
+
+describe("tupleArrayField", () => {
+  it("reads a named tuple element as a subcolumn and stays on events_core", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("events as e")
+      .select((eb) => [
+        tupleArrayField(eb.ref("e.skills_available"), "skillName").as("names"),
+      ]);
+
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    expect(compiled).toContain("e.skills_available.skillName as names");
+    expect(compiled).toContain("from events_core as e");
+  });
+
+  it("reads its column: a truncated one routes the relation to events_full", () => {
+    // `input` is truncated on events_core; `withTables` adds an Array(Tuple)
+    // type to it so the helper accepts it.
+    const qb = getClickhouseKysely()
+      .withTables<{ events: { input: Array<{ name: string }> } }>()
+      .selectFrom("events as e")
+      .select((eb) => [tupleArrayField(eb.ref("e.input"), "name").as("names")]);
+
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    expect(compiled).toContain("e.input.name as names");
+    expect(compiled).toContain("from events_full as e");
+  });
+
+  it.each([
+    [
+      "not a column reference",
+      "FunctionNode",
+      (eb: ExpressionBuilder<{ e: ClickHouseDatabase["events"] }, "e">) =>
+        arrayDistinct(eb.ref("e.skills_available")),
+    ],
+    [
+      "an unqualified column",
+      "skills_available",
+      (eb: ExpressionBuilder<{ e: ClickHouseDatabase["events"] }, "e">) =>
+        eb.ref("skills_available"),
+    ],
+    [
+      "a star",
+      "e.*",
+      // e.*
+      () =>
+        new ExpressionWrapper<
+          { e: ClickHouseDatabase["events"] },
+          "e",
+          ClickHouseDatabase["events"]["skills_available"]
+        >(ReferenceNode.createSelectAll(TableNode.create("e"))),
+    ],
+    [
+      "a schema-qualified column",
+      "default.e.skills_available",
+      // default.e.skills_available
+      () =>
+        new ExpressionWrapper<
+          { e: ClickHouseDatabase["events"] },
+          "e",
+          ClickHouseDatabase["events"]["skills_available"]
+        >(
+          ReferenceNode.create(
+            ColumnNode.create("skills_available"),
+            TableNode.createWithSchema("default", "e"),
+          ),
+        ),
+    ],
+  ])("rejects %s", (_name, passed, column) => {
+    const build = () =>
+      getClickhouseKysely()
+        .selectFrom("events as e")
+        .select((eb) => [tupleArrayField(column(eb), "skillName").as("names")]);
+    expect(build).toThrow(QueryCompileError);
+    expect(build).toThrow(`, got ${passed}.`);
   });
 });
 
@@ -421,6 +541,16 @@ describe("tupleElement", () => {
     ).toBe("e.skills_available.skillName");
   });
 
+  it("builds a subcolumn of its column: a truncated one routes the relation to events_full", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("events as e")
+      .select((eb) => [tupleElement(eb.ref("e.input"), "name").as("names")]);
+
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    expect(compiled).toContain("e.input.name as names");
+    expect(compiled).toContain("from events_full as e");
+  });
+
   it("reads a map entry's key in mapFilter by position", () => {
     expect(
       renderClickhouseExpression(
@@ -442,10 +572,85 @@ describe("tupleElement", () => {
   });
 });
 
+describe("three-part references", () => {
+  const events = () => getClickhouseKysely().selectFrom("events as e");
+
+  it.each([
+    [
+      // Routing would read `input` as the relation, not `e`.
+      "a tuple field read in the select list",
+      events().select(sql.ref<string>("e.input.name").as("names")),
+    ],
+    [
+      // Rejected by shape alone: tenancy would still scope this join.
+      "a project_id predicate on a relation named like a column",
+      events()
+        .innerJoin(
+          "events as skills_available",
+          "skills_available.span_id",
+          "e.span_id",
+        )
+        .select("e.span_id")
+        .where(sql.ref("e.skills_available.project_id"), "=", projectId),
+    ],
+  ])("rejects %s", (_name, qb) => {
+    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
+      QueryCompileError,
+    );
+    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
+      /use tupleArrayField\(eb\.ref\("e\.(input|skills_available)"\)/,
+    );
+  });
+});
+
+describe("compiler passes in production", () => {
+  const events = () => getClickhouseKysely().selectFrom("events as e");
+
+  // Each pass suite applies its pass alone (passHarness.ts), so only this
+  // test catches a pass dropped from, or reordered in, the production list.
+  // A new pass goes here, in order, next to its own pass-alone suite.
+  it("are the passes the pass suites test, in their order", () => {
+    expect(compilerPasses(projectId).map((pass) => pass.constructor)).toEqual([
+      SchemaReferencePlugin,
+      CteNamePlugin,
+      EventsTableRoutingPlugin,
+      TenancyInjectionPlugin,
+      DedupLoweringPlugin,
+    ]);
+  });
+
+  // An entry point that skipped a pass would leave its effect out.
+  it.each([
+    [
+      "compileClickhouseQuery",
+      () => compileClickhouseQuery(events().select("e.span_id"), projectId),
+    ],
+    [
+      "compileClickhouseCondition",
+      () =>
+        compileClickhouseCondition(
+          events().where("e.name", "=", "x"),
+          projectId,
+          "f_",
+        ),
+    ],
+  ])("%s runs every pass", (_name, compile) => {
+    const spies = compilerPasses(projectId).map((pass) =>
+      vi.spyOn(Object.getPrototypeOf(pass), "transformQuery"),
+    );
+    try {
+      compile();
+      for (const spy of spies) expect(spy).toHaveBeenCalled();
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+    }
+  });
+});
+
 describe("compileClickhouseCondition", () => {
   const events = () => getClickhouseKysely().selectFrom("events as e");
 
-  it("compiles the WHERE with what tenancy and soft-delete inject, typing binds from the FROM relation", () => {
+  it("compiles the WHERE with what tenancy injects, typing binds from the FROM relation", () => {
     expect(
       compileClickhouseCondition(
         events().where("e.prompt_version", "=", 3).where("e.name", "=", "x"),
@@ -453,27 +658,10 @@ describe("compileClickhouseCondition", () => {
         "f_",
       ),
     ).toEqual({
-      sql: "e.project_id = {f_1:String} and e.is_deleted = 0 and e.prompt_version = {f_2:UInt16} and e.name = {f_3:String}",
+      sql: "e.project_id = {f_1:String} and e.prompt_version = {f_2:UInt16} and e.name = {f_3:String}",
       params: { f_1: projectId, f_2: 3, f_3: "x" },
       requiresEventsFull: false,
     });
-  });
-
-  // A pass the condition path skipped would leave its effect out of the splice.
-  it("runs every compiler pass", () => {
-    const spies = compilerPasses(projectId).map((pass) =>
-      vi.spyOn(Object.getPrototypeOf(pass), "transformQuery"),
-    );
-    try {
-      compileClickhouseCondition(
-        events().where("e.name", "=", "x"),
-        projectId,
-        "f_",
-      );
-      for (const spy of spies) expect(spy).toHaveBeenCalled();
-    } finally {
-      for (const spy of spies) spy.mockRestore();
-    }
   });
 
   it("rejects sum() over a String column at the runtime validation pass", () => {
@@ -488,7 +676,7 @@ describe("compileClickhouseCondition", () => {
 
   it.each([
     ["a truncated column on events", "events as e", true],
-    ["a truncated column on events_truncated", "events_truncated as e", false],
+    ["a truncated column on events_truncated", "events_truncated as e", true],
   ] as const)(
     "reports the routing verdict for %s",
     (_name, from, requiresEventsFull) => {
@@ -746,6 +934,18 @@ describe("64-bit results", () => {
       medianExact(eb.ref("e.total_cost")).expressionType,
     ).toEqualTypeOf<number | undefined>();
   });
+
+  it("types a template count or sum as number and any as its value", () => {
+    expectTypeOf(
+      templateAggregate("count", eb.ref("e.name")).expressionType,
+    ).toEqualTypeOf<number | undefined>();
+    expectTypeOf(
+      templateAggregate("sum", eb.ref("e.total_cost")).expressionType,
+    ).toEqualTypeOf<number | undefined>();
+    expectTypeOf(
+      templateAggregate("any", eb.ref("e.name")).expressionType,
+    ).toEqualTypeOf<string | undefined>();
+  });
 });
 
 describe("literal", () => {
@@ -771,5 +971,150 @@ describe("startsWith", () => {
     expect(sql).toMatch(/startsWith\(e\.name, \{p\d+:String\}\)/);
     expect(sql).toContain("startsWith(e.user_id, 'const')");
     expect(Object.values(params)).toContain("caller");
+  });
+});
+
+describe("parametric aggregates", () => {
+  it("inline their parameter before the argument list", () => {
+    const { sql: compiled } = compileClickhouseQuery(
+      getClickhouseKysely()
+        .selectFrom("events as e")
+        .select((eb) => [
+          quantile(0.95, eb.ref("e.total_cost")).as("p95"),
+          histogram(25, toFloat64(eb.ref("e.total_cost"))).as("h"),
+        ]),
+      projectId,
+    );
+    expect(compiled).toContain(
+      "select quantile(0.95)(e.total_cost) as p95, histogram(25)(toFloat64(e.total_cost)) as h from events_core as e",
+    );
+  });
+
+  it("read their argument: a truncated column routes the relation to events_full", () => {
+    const { sql: compiled } = compileClickhouseQuery(
+      getClickhouseKysely()
+        .selectFrom("events as e")
+        .select((eb) => [quantile(0.5, eb.ref("e.input_length")).as("p50")]),
+      projectId,
+    );
+    expect(compiled).toContain("from events_full as e");
+  });
+
+  it("check the function name like any identifier", () => {
+    const named = new ExpressionWrapper<ClickHouseDatabase, "events", number>(
+      asOperationNode(
+        ParametricAggregateNode.create(
+          IdentifierNode.create("quantile(0.5)(1), x"),
+          [],
+          [ValueNode.createImmediate(1)],
+        ),
+      ),
+    );
+    expect(() =>
+      compileClickhouseQuery(
+        getClickhouseKysely()
+          .selectFrom("events as e")
+          .select([named.as("q")]),
+        projectId,
+      ),
+    ).toThrow(
+      'Identifier name "quantile(0.5)(1), x" is not a plain identifier',
+    );
+  });
+
+  it.each([-0.1, 1.1, Number.NaN])("quantile rejects level %s", (level) => {
+    expect(() => quantile(level, literal(1))).toThrow(QueryCompileError);
+  });
+
+  it.each([0, 1.5])("histogram rejects %s bins", (bins) => {
+    expect(() => histogram(bins, literal(1))).toThrow(QueryCompileError);
+  });
+});
+
+describe("withFill", () => {
+  const from = new Date("2026-01-01T00:00:00.000Z");
+  const to = new Date("2026-01-08T00:00:00.000Z");
+  const daily = () =>
+    getClickhouseKysely()
+      .selectFrom("events as e")
+      .select((eb) => [toDate(eb.ref("e.start_time")).as("day")])
+      .groupBy(sql.ref("day"));
+
+  it("fills the last order by item, before limit by and limit", () => {
+    const { sql: compiled } = compileClickhouseQuery(
+      daily()
+        .orderBy(sql.ref("day"), "asc")
+        .$call(
+          withFill({
+            from: toDate(from),
+            to: toDate(to),
+            step: interval(1, "day"),
+          }),
+        )
+        .$call(limitBy({ count: 1, columns: () => [sql.ref("day")] }))
+        .limit(10),
+      projectId,
+    );
+    expect(compiled).toMatch(
+      /order by day asc with fill from toDate\(\{p\d+:DateTime64\(3\)\}\) to toDate\(\{p\d+:DateTime64\(3\)\}\) step toIntervalDay\(1\) limit 1 by day limit \{p\d+:Int64\}$/,
+    );
+  });
+
+  it("reads its bounds: a truncated column routes the relation to events_full", () => {
+    const eb = expressionBuilder<{ e: ClickHouseDatabase["events"] }, "e">();
+    const { sql: compiled } = compileClickhouseQuery(
+      daily()
+        .orderBy(sql.ref("day"), "asc")
+        .$call(
+          withFill({
+            from: eb.ref("e.input_length"),
+            to: toDate(to),
+            step: interval(1, "day"),
+          }),
+        ),
+      projectId,
+    );
+    expect(compiled).toContain("from events_full as e");
+  });
+
+  it("rejects a select without order by", () => {
+    expect(() =>
+      compileClickhouseQuery(
+        daily().$call(
+          withFill({
+            from: toDate(from),
+            to: toDate(to),
+            step: interval(1, "day"),
+          }),
+        ),
+        projectId,
+      ),
+    ).toThrow("WITH FILL fills the last ORDER BY item");
+  });
+});
+
+describe("time buckets", () => {
+  it("render the bucket of a date column and inline an interval", () => {
+    const { sql: compiled } = compileClickhouseQuery(
+      getClickhouseKysely()
+        .selectFrom("events as e")
+        .select((eb) => [
+          toStartOfHour(eb.ref("e.start_time")).as("h"),
+          toMonday(eb.ref("e.start_time")).as("w"),
+          toStartOfMonth(eb.ref("e.start_time")).as("m"),
+          toStartOfInterval(eb.ref("e.start_time"), interval(5, "minute")).as(
+            "five",
+          ),
+          arrayJoinElements(eb.ref("e.tags")).as("tag"),
+        ]),
+      projectId,
+    );
+    expect(compiled).toContain(
+      "select toStartOfHour(e.start_time) as h, toMonday(e.start_time) as w, toStartOfMonth(e.start_time) as m, toStartOfInterval(e.start_time, toIntervalMinute(5)) as five, arrayJoin(e.tags) as tag from",
+    );
+  });
+
+  it.each([0, 1.5])("interval rejects count %s", (count) => {
+    expect(() => interval(count, "day")).toThrow(QueryCompileError);
   });
 });

@@ -4,11 +4,13 @@ use crate::test_support::{
     FakeServer, ingestion_token, resolved_custom_base_url_context, resolved_request_context,
     resolved_request_context_for,
 };
+use crate::{resolution::ControlPlaneConfig, telemetry::Telemetry};
 use axum::{
     body::to_bytes,
     http::{HeaderName, StatusCode},
 };
 use futures_util::{StreamExt, stream};
+use serde_json::{Value, json};
 use std::{convert::Infallible, future::pending, sync::Arc};
 use tokio::sync::Notify;
 
@@ -103,9 +105,8 @@ async fn private_destinations_need_an_operator_exemption() {
 
     // A rejected destination records no generation, since nothing reached the provider.
     let sink = FakeServer::start(|_| async { Response::new(Body::from("{}")) }).await;
-    let telemetry = crate::telemetry::Telemetry::for_test(
-        &crate::resolution::ControlPlaneConfig::new(&sink.url, "service-key").unwrap(),
-    );
+    let telemetry =
+        Telemetry::for_test(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap());
     for origin in [upstream.url.clone(), format!("http://localhost:{port}")] {
         let relay = provider_with_policy(origin, OutboundPolicy::default())
             .with_telemetry(telemetry.clone());
@@ -183,7 +184,7 @@ async fn missing_provider_model_fails_resolution() {
         )
         .await
         .unwrap();
-        let mut body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        let mut body: Value = serde_json::from_slice(&bytes).unwrap();
         body["connection"]
             .as_object_mut()
             .unwrap()
@@ -682,7 +683,6 @@ async fn ingestion_mode_none_relays_without_uploading() {
 #[tokio::test]
 async fn cancelled_and_timed_out_executions_upload_after_provider_context_is_released() {
     use crate::{resolution::ControlPlaneConfig, telemetry::Telemetry};
-    use serde_json::Value;
 
     for cancelled in [true, false] {
         let (sent, mut received) = tokio::sync::mpsc::channel(2);
@@ -847,7 +847,191 @@ async fn compact_posts_compact_path_and_captures_ingestion() {
     assert_eq!(upstream.calls(), 1);
 }
 
-fn assert_completed_upload(payload: &serde_json::Value, streaming: bool) {
+#[tokio::test]
+async fn decisions_records_questions_answers_and_usage() {
+    use crate::{resolution::ControlPlaneConfig, telemetry::Telemetry};
+    use serde_json::{Value, json};
+
+    const DECISION: &[u8] = br#"{"model":"gpt-6-luna","input":"The sky is green.","questions":[{"type":"predicate","name":"false","instructions":"Is the statement false?"}],"prompt_cache_key":"cache-1"}"#;
+    const DECISION_RESPONSE: &str = r#"{"model":"gpt-6-luna","answers":[{"type":"predicate","name":"false","probability":0.98}],"usage":{"input_tokens":40,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":0},"output_tokens":0,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":40}}"#;
+    let (sent, mut received) = tokio::sync::mpsc::channel(2);
+    let sink = FakeServer::start(move |request| {
+        let sent = sent.clone();
+        async move {
+            let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
+            sent.send(crate::test_support::upload_json(&bytes))
+                .await
+                .unwrap();
+            Response::new(Body::from("{}"))
+        }
+    })
+    .await;
+    let telemetry =
+        Telemetry::for_test(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap());
+    let upstream = FakeServer::start(|request| async move {
+        assert_eq!(request.uri(), "/v1/decisions");
+        Response::builder()
+            .header("content-type", "application/json")
+            .body(Body::from(DECISION_RESPONSE))
+            .unwrap()
+    })
+    .await;
+    let relay = provider(&upstream).with_telemetry(telemetry.clone());
+    let response = relay
+        .forward_route(
+            relay.admit(),
+            resolved_request_context_for(ApiFormat::OpenAiDecisions, "provider-secret", "full")
+                .await,
+            &HeaderMap::new(),
+            RequestBody {
+                bytes: Bytes::from_static(DECISION),
+                model_range: model_range(DECISION).unwrap(),
+                streaming: false,
+                reservation: None,
+            },
+            Route::OpenAiDecisions,
+            &mut RequestCorrelation::default(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        to_bytes(response.into_body(), 4096).await.unwrap(),
+        DECISION_RESPONSE
+    );
+    let payload = tokio::time::timeout(Duration::from_secs(1), received.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    let span = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
+    assert_eq!(span["name"], "openai.decisions");
+    let attribute = |key: &str| -> Value {
+        let value = span["attributes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|attribute| attribute["key"] == key)
+            .unwrap()["value"]["stringValue"]
+            .as_str()
+            .unwrap();
+        serde_json::from_str(value).unwrap_or_else(|_| json!(value))
+    };
+    assert_eq!(
+        attribute("langfuse.observation.input"),
+        json!({
+            "input": "The sky is green.",
+            "questions": [{"type": "predicate", "name": "false", "instructions": "Is the statement false?"}],
+        })
+    );
+    assert_eq!(
+        attribute("langfuse.observation.output"),
+        json!([{"type": "predicate", "name": "false", "probability": 0.98}])
+    );
+    assert_eq!(
+        attribute("langfuse.observation.usage_details"),
+        json!({
+            "input_tokens": 40, "output_tokens": 0, "total_tokens": 40,
+            "input_tokens_details": {"cached_tokens": 0, "cache_write_tokens": 0},
+            "output_tokens_details": {"reasoning_tokens": 0},
+        })
+    );
+    assert_eq!(attribute("langfuse.observation.model.name"), "gpt-6-luna");
+    telemetry
+        .shutdown(Instant::now() + Duration::from_secs(1))
+        .await;
+}
+
+#[tokio::test]
+async fn embeddings_records_input_vector_summary_and_usage() {
+    const EMBEDDING: &[u8] = br#"{"model":"text-embedding-3-small","input":["hello","world"],"dimensions":3,"user":"user-1"}"#;
+    const EMBEDDING_RESPONSE: &str = r#"{"object":"list","data":[{"object":"embedding","index":0,"embedding":[0.1,0.2,0.3]},{"object":"embedding","index":1,"embedding":[0.4,0.5,0.6]}],"model":"text-embedding-3-small","usage":{"prompt_tokens":2,"total_tokens":2}}"#;
+    let (sent, mut received) = tokio::sync::mpsc::channel(2);
+    let sink = FakeServer::start(move |request| {
+        let sent = sent.clone();
+        async move {
+            let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
+            sent.send(crate::test_support::upload_json(&bytes))
+                .await
+                .unwrap();
+            Response::new(Body::from("{}"))
+        }
+    })
+    .await;
+    let telemetry =
+        Telemetry::for_test(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap());
+    let upstream = FakeServer::start(|request| async move {
+        assert_eq!(request.uri(), "/v1/embeddings");
+        Response::builder()
+            .header("content-type", "application/json")
+            .body(Body::from(EMBEDDING_RESPONSE))
+            .unwrap()
+    })
+    .await;
+    let relay = provider(&upstream).with_telemetry(telemetry.clone());
+    let response = relay
+        .forward_route(
+            relay.admit(),
+            resolved_request_context_for(ApiFormat::OpenAiEmbeddings, "provider-secret", "full")
+                .await,
+            &HeaderMap::new(),
+            RequestBody {
+                bytes: Bytes::from_static(EMBEDDING),
+                model_range: model_range(EMBEDDING).unwrap(),
+                streaming: false,
+                reservation: None,
+            },
+            Route::OpenAiEmbeddings,
+            &mut RequestCorrelation::default(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        to_bytes(response.into_body(), 4096).await.unwrap(),
+        EMBEDDING_RESPONSE
+    );
+    let payload = tokio::time::timeout(Duration::from_secs(1), received.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    let span = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
+    assert_eq!(span["name"], "openai.embeddings");
+    let attribute = |key: &str| -> Value {
+        let value = span["attributes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|attribute| attribute["key"] == key)
+            .unwrap()["value"]["stringValue"]
+            .as_str()
+            .unwrap();
+        serde_json::from_str(value).unwrap_or_else(|_| json!(value))
+    };
+    assert_eq!(attribute("langfuse.observation.type"), "embedding");
+    assert_eq!(
+        attribute("langfuse.observation.input"),
+        json!(["hello", "world"])
+    );
+    assert_eq!(
+        attribute("langfuse.observation.output"),
+        json!({"dimensions": 3, "count": 2})
+    );
+    assert_eq!(
+        attribute("langfuse.observation.usage_details"),
+        json!({"input": 2})
+    );
+    assert_eq!(
+        attribute("langfuse.observation.model.parameters"),
+        json!({"dimensions": 3})
+    );
+    assert_eq!(
+        attribute("langfuse.observation.model.name"),
+        "text-embedding-3-small"
+    );
+    telemetry
+        .shutdown(Instant::now() + Duration::from_secs(1))
+        .await;
+}
+
+fn assert_completed_upload(payload: &Value, streaming: bool) {
     use serde_json::{Value, json};
 
     let generation = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
@@ -1253,7 +1437,7 @@ async fn chat_completions_rewrite_non_streamed_models() {
     assert_eq!(upstream.calls(), 1);
 }
 
-fn assert_chat_upload(payload: &serde_json::Value, request: &str) {
+fn assert_chat_upload(payload: &Value, request: &str) {
     use serde_json::{Value, json};
 
     let span = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];

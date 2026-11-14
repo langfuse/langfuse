@@ -39,7 +39,6 @@ function caller(userId: string, memberships: [string, string, Role][]) {
     expires: "1",
     user: {
       id: userId,
-      admin: false,
       featureFlags: testFeatureFlags({ langfuseTopics: true }),
       organizations: memberships.map(([orgId, projectId, role]) => ({
         id: orgId,
@@ -192,20 +191,26 @@ describe("Topics tRPC access", () => {
     });
 
     await expect(viewer.facets({ projectId })).resolves.toHaveLength(before);
-    // Inputs carry only projectId: the topics:CUD check must run before any handler work.
-    for (const write of [
-      viewer.saveFacet,
-      viewer.saveRule,
-      viewer.testModelSettings,
-      viewer.saveSetup,
-      viewer.setAutomaticProcessing,
-      viewer.startSetup,
-      viewer.trigger,
-      viewer.retry,
-    ])
-      await expect(write({ projectId } as never)).rejects.toMatchObject({
-        code: "FORBIDDEN",
-      });
+    // Every Topics mutation, so a new one cannot skip topics:CUD. Inputs carry
+    // only projectId: the check must run before any handler work.
+    const procedures = appRouter._def.procedures as unknown as Record<
+      string,
+      { _def: { type: string } }
+    >;
+    const mutations = Object.entries(procedures).flatMap(([path, procedure]) =>
+      path.startsWith("topics.") && procedure._def.type === "mutation"
+        ? [path.slice("topics.".length)]
+        : [],
+    );
+    expect(mutations).toEqual(
+      expect.arrayContaining(["saveRule", "startAnalysis", "startRuleSetup"]),
+    );
+    for (const name of mutations)
+      await expect(
+        (viewer as unknown as Record<string, (input: unknown) => unknown>)[
+          name
+        ]!({ projectId }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
 
     expect(
       await prisma.evaluator.count({ where: { projectId, type: "FACET" } }),
@@ -305,6 +310,26 @@ describe("Topics tRPC access", () => {
         where: { projectId: a.projectId, name: "Hijacked" },
       }),
     ).toBe(0);
+  });
+
+  it("rejects a one-off scan filter that a live scan could not save", async () => {
+    const admin = caller(userId, [[a.orgId, a.projectId, "ADMIN"]]);
+    await expect(
+      admin.startAnalysis({
+        projectId: a.projectId,
+        label: "Slow traces",
+        filter: [
+          { column: "latency", type: "number", operator: ">", value: 10 },
+        ],
+        timeRange: { from: new Date(Date.now() - 86_400_000), to: new Date() },
+        facets: [{ facetId: a.facetId, version: 1 }],
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining(
+        'Filter column "latency" is not supported',
+      ),
+    });
   });
 
   it("rejects first-run setup reads and writes for a project the caller is not a member of", async () => {

@@ -161,6 +161,37 @@ async fn json_and_streaming_capture_equivalent_native_items_and_facts() {
 }
 
 #[tokio::test]
+async fn gateway_billing_outside_usage_is_kept_in_usage_mode() {
+    let mut observer = observer("usage").await;
+    record_response(&mut observer, "text/event-stream");
+    // A streamed Vercel Responses reply, trimmed to its usage and billing:
+    // the cost arrives only on `response.completed`.
+    let created = json!({"type": "response.created", "sequence_number": 0, "response": {
+        "id": "gen_01M73068ZS9J5BCKSY9HJVN969", "status": "in_progress", "output": [],
+        "usage": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+    }});
+    let gateway = json!({
+        "routing": {"modelAttempts": [{"success": true, "providerAttempts": [
+            {"provider": "bedrock", "credentialType": "system", "success": true, "statusCode": 200},
+        ]}]},
+        "cost": "0.00013992",
+    });
+    let completed = json!({"type": "response.completed", "sequence_number": 21, "response": {
+        "id": "gen_01M73068ZS9J5BCKSY9HJVN969", "status": "completed", "output": [],
+        "usage": {"input_tokens": 49, "output_tokens": 45, "total_tokens": 94},
+        "provider_metadata": {"gateway": gateway},
+    }});
+    for event in [created, completed] {
+        let kind = event["type"].as_str().unwrap();
+        observer.push_bytes(format!("event: {kind}\ndata: {event}\n\n").as_bytes());
+    }
+    observer.end_body();
+    let (_, facts) = observer.protocol.take().unwrap().into_facts();
+    assert_eq!(facts.provider_metadata.unwrap()["gateway"], gateway);
+    assert_eq!(facts.usage_details.unwrap()["output_tokens"], 45);
+}
+
+#[tokio::test]
 async fn usage_mode_excludes_content_and_context_credentials() {
     let mut observer = observer("usage").await;
     record_response(&mut observer, "text/event-stream");

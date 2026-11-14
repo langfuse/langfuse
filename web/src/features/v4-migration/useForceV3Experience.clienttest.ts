@@ -22,7 +22,6 @@ describe("useForceV3Experience", () => {
     vi.mocked(useSession).mockReturnValue({
       data: {
         user: {
-          admin: false,
           organizations: [
             {
               id: "org-1",

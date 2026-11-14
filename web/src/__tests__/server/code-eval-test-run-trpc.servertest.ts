@@ -79,7 +79,6 @@ async function prepare() {
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin: true,
     },
     environment: {
       enableExperimentalFeatures: false,

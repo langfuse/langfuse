@@ -44,7 +44,7 @@ import {
 
 const inputStorage = vi.hoisted(() => ({
   put: vi.fn<TraceBatchInputStorage["put"]>(),
-  get: vi.fn<TraceBatchInputStorage["get"]>(),
+  legacyGet: vi.fn<TraceBatchInputStorage["legacyGet"]>(),
 }));
 const topicsQueue = vi.hoisted(() => ({ add: vi.fn() }));
 
@@ -947,18 +947,19 @@ describe("trace batch queue", () => {
     );
   });
 
-  it("passes the session of the newest event that has one, breaking timestamp ties by span ID", async () => {
+  it("passes the session and trace name of the newest event that has one, breaking timestamp ties by span ID", async () => {
     vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
-      for (const [span, eventTs, sessionId] of [
-        ["a", "2026-09-11 00:00:01.000000", "session-old"],
-        ["b", "2026-09-11 00:00:02.000000", "session-new"],
-        ["d", "2026-09-11 00:00:02.000000", "session-tie"],
-        ["c", "2026-09-11 00:00:03.000000", ""],
+      for (const [span, eventTs, sessionId, traceName] of [
+        ["a", "2026-09-11 00:00:01.000000", "session-old", "trace-old"],
+        ["b", "2026-09-11 00:00:02.000000", "session-new", "trace-new"],
+        ["d", "2026-09-11 00:00:02.000000", "session-tie", "trace-tie"],
+        ["c", "2026-09-11 00:00:03.000000", "", ""],
       ])
         yield {
           project_id: "project",
           trace_id: "trace",
           session_id: sessionId,
+          trace_name: traceName,
           environment: `env-${span}`,
           span_id: span,
           parent_span_id: null,
@@ -1004,7 +1005,7 @@ describe("trace batch queue", () => {
           sessionId: "session-tie",
           traceTimestamp: "2026-09-11T00:00:00.000Z",
           environment: "env-c",
-          traceName: "generation-a",
+          traceName: "trace-tie",
         },
       }),
     );

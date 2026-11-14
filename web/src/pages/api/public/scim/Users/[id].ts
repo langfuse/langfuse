@@ -1,5 +1,6 @@
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { deleteSessionViewsWithoutProjectAccess } from "@/src/features/sessions/server/fns/deleteSessionViewsWithoutProjectAccess";
 import {
   createOrgMembership,
   deleteOrgMembership,
@@ -8,6 +9,7 @@ import {
 import {
   deleteUserBoundApiKeys,
   evictRevokedApiKeys,
+  evictUserGatewayResolveCache,
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 import { Prisma, prisma, type User, type Role } from "@langfuse/shared/src/db";
 import { logger, withSerializableRetry } from "@langfuse/shared/src/server";
@@ -103,6 +105,7 @@ async function provisionMembership({
           userId,
           role: targetRole,
         });
+        await deleteSessionViewsWithoutProjectAccess(tx, { userId, orgId });
         return {
           t: "updated" as const,
           before: current,
@@ -117,6 +120,7 @@ async function provisionMembership({
         return { kind: "unchanged", role: result.role };
       }
 
+      await evictUserGatewayResolveCache(prisma, { orgId, userId });
       await auditLog({
         resourceType: "orgMembership",
         resourceId: result.after.id,
@@ -277,6 +281,7 @@ async function deprovisionOrReject(
       });
       await deleteOrgMembership(tx, { orgId, userId });
       const revokedKeys = await deleteUserBoundApiKeys(tx, { userId, orgId });
+      await deleteSessionViewsWithoutProjectAccess(tx, { userId, orgId });
       return { result: "deleted" as const, membership, revokedKeys };
     });
 

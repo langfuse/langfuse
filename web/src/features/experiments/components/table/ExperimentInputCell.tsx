@@ -10,14 +10,12 @@ export function ExperimentInputCell({
   itemId,
   input,
   isLoading,
-  singleLine,
 }: {
   projectId: string;
   datasetId: string | null;
   itemId: string;
   input: string | null | undefined;
   isLoading: boolean;
-  singleLine: boolean;
 }) {
   const router = useRouter();
   const href = datasetId
@@ -50,18 +48,18 @@ export function ExperimentInputCell({
           <ArrowUpRight size="base" aria-hidden />
         </Link>
       ) : null}
-      {/* Display chooses text or JSON. Row height does not. */}
+      {/* JSON tree. Row height does not collapse this cell to one line. */}
       {isLoading ? (
         <ConnectedIOTableCell
           isLoading
           followRowHeight={false}
-          singleLine={singleLine}
+          singleLine={false}
         />
       ) : (
         <ConnectedIOTableCell
           data={input ?? null}
           followRowHeight={false}
-          singleLine={singleLine}
+          singleLine={false}
         />
       )}
     </div>

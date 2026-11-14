@@ -28,7 +28,7 @@ export function TopicEmbeddingMap({
   if (query.data.status !== "ready")
     return (
       <p className="text-muted-foreground rounded-lg border p-4 text-sm">
-        {query.data.reason ?? "This run has no saved embedding projection."}
+        {query.data.reason ?? "This map has no saved embedding projection."}
       </p>
     );
   return (

@@ -51,7 +51,6 @@ const renderGridCell = (
         startTime={new Date("2026-07-30T10:00:00.000Z")}
         observationId="observation-id"
         traceId="trace-id"
-        singleLine={false}
         scores={{
           [observationScoreKey]: {
             type: "NUMERIC",

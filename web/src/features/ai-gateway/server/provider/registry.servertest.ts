@@ -1,3 +1,4 @@
+import dns from "node:dns/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type * as GatewayFetch from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
@@ -7,6 +8,7 @@ import { GatewayModelsService } from "@/src/features/ai-gateway/server/provider/
 import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
 import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
 import {
+  gatewayProviders,
   getGatewayProviderDefinition,
   getGatewayUpstream,
   providerSupportsApiFormat,
@@ -43,12 +45,42 @@ describe("AI gateway provider registry", () => {
     expect(getGatewayProviderDefinition("ANTHROPIC")).toMatchObject({
       baseUrl: "https://api.anthropic.com/v1",
       authType: "x-api-key",
-      validationModel: "claude-haiku-4-5-20251001",
+      credentialCheck: { model: "claude-haiku-4-5-20251001" },
     });
     expect(providerSupportsApiFormat("OPENAI", "openai.responses")).toBe(true);
     expect(providerSupportsApiFormat("ANTHROPIC", "anthropic.messages")).toBe(
       true,
     );
+  });
+
+  it("routes Decisions only to OpenAI and Vercel", () => {
+    expect(
+      gatewayProviders.filter((provider) =>
+        providerSupportsApiFormat(provider, "openai.decisions"),
+      ),
+    ).toEqual(["OPENAI", "VERCEL"]);
+  });
+
+  it("routes Embeddings to OpenAI, Azure, aggregators and Google AI Studio", () => {
+    expect(
+      gatewayProviders.filter((provider) =>
+        providerSupportsApiFormat(provider, "openai.embeddings"),
+      ),
+    ).toEqual(["OPENAI", "OPENROUTER", "VERCEL", "AZURE", "GOOGLE_AI_STUDIO"]);
+  });
+
+  it("rejects xAI keys that are disabled or blocked", () => {
+    const check = getGatewayProviderDefinition("XAI").credentialCheck;
+    if (!("path" in check) || !check.usable) throw new Error("no xAI check");
+    const key = {
+      api_key_blocked: false,
+      api_key_disabled: false,
+      team_blocked: false,
+    };
+    expect(check.usable(key)).toBe(true);
+    expect(check.usable({ ...key, api_key_disabled: true })).toBe(false);
+    expect(check.usable({ ...key, api_key_blocked: true })).toBe(false);
+    expect(check.usable({ ...key, team_blocked: true })).toBe(false);
   });
 
   it("routes Bedrock to the regional runtime path matching the API format", () => {
@@ -59,6 +91,7 @@ describe("AI gateway provider registry", () => {
         apiFormat: "anthropic.messages",
         config,
         baseURL: null,
+        credential: "unused",
       }),
     ).toEqual({
       baseUrl:
@@ -71,6 +104,7 @@ describe("AI gateway provider registry", () => {
         apiFormat: "openai.chat-completions",
         config,
         baseURL: null,
+        credential: "unused",
       }),
     ).toEqual({
       baseUrl: "https://bedrock-runtime.eu-central-1.amazonaws.com/openai/v1",
@@ -82,8 +116,105 @@ describe("AI gateway provider registry", () => {
         apiFormat: "openai.responses",
         config: { region: "evil.example/x" },
         baseURL: null,
+        credential: "unused",
       }),
     ).toThrow();
+  });
+
+  it("stores the Azure resource and project and routes each format to the resource", async () => {
+    const validator = vi.fn().mockRejectedValue(new Error("stop"));
+    const prisma = {
+      gatewayAiConnection: { findMany: vi.fn().mockResolvedValue([]) },
+    } as unknown as PrismaClient;
+    const service = new GatewayProviderService(prisma, validator);
+    const create = (baseURL: string | null) =>
+      service.create({
+        organizationId: "org-1",
+        name: "Azure",
+        provider: "AZURE",
+        credential: "azure-key",
+        baseURL,
+        session,
+      });
+
+    await expect(create(null)).rejects.toThrow("Foundry resource");
+    await expect(
+      create("https://contoso.openai.azure.com/openai/v1"),
+    ).rejects.toThrow("Foundry resource");
+    await expect(
+      create("https://Contoso.services.ai.azure.com/"),
+    ).rejects.toThrow("stop");
+    expect(validator).toHaveBeenCalledWith(
+      expect.objectContaining({
+        baseURL: "https://contoso.services.ai.azure.com",
+      }),
+    );
+    await expect(
+      create("https://contoso.services.ai.azure.com/api/projects/a/b"),
+    ).rejects.toThrow("Foundry resource");
+    await expect(
+      create("https://contoso.services.ai.azure.com/api/projects/my-project/"),
+    ).rejects.toThrow("stop");
+    expect(validator).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        baseURL:
+          "https://contoso.services.ai.azure.com/api/projects/my-project",
+      }),
+    );
+
+    const upstream = (apiFormat: "openai.embeddings" | "anthropic.messages") =>
+      getGatewayUpstream({
+        provider: "AZURE",
+        apiFormat,
+        config: null,
+        baseURL:
+          "https://contoso.services.ai.azure.com/api/projects/my-project",
+        credential: "azure-key",
+      });
+    expect(upstream("openai.embeddings")).toEqual({
+      baseUrl: "https://contoso.services.ai.azure.com/openai/v1",
+      authType: "bearer",
+    });
+    expect(upstream("anthropic.messages")).toEqual({
+      baseUrl: "https://contoso.services.ai.azure.com/anthropic/v1",
+      authType: "x-api-key",
+    });
+  });
+
+  it("checks an Azure key against the resource's models list", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ data: [] }))
+      .mockResolvedValueOnce(new Response("", { status: 502 }));
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const dnsSpies = [
+      vi.spyOn(dns, "resolve4").mockResolvedValue(["20.0.0.1"]),
+      vi.spyOn(dns, "resolve6").mockRejectedValue(new Error("ENODATA")),
+      vi
+        .spyOn(dns, "lookup")
+        .mockResolvedValue([{ address: "20.0.0.1", family: 4 }] as never),
+    ];
+    const service = new GatewayProviderService({} as PrismaClient);
+    const testCredential = () =>
+      service.testCredential({
+        organizationId: "org-1",
+        provider: "AZURE",
+        credential: "azure-key",
+        baseURL: "https://contoso.services.ai.azure.com/api/projects/p",
+      });
+
+    await expect(testCredential()).resolves.toBeDefined();
+    expect(String(fetcher.mock.calls[0]?.[0])).toBe(
+      "https://contoso.services.ai.azure.com/openai/v1/models",
+    );
+    expect(
+      new Headers(fetcher.mock.calls[0]?.[1]?.headers).get("authorization"),
+    ).toBe("Bearer azure-key");
+    // A failing endpoint is a bad connection, not an outage.
+    await expect(testCredential()).rejects.toThrow(
+      "Provider connection test failed",
+    );
+    for (const spy of dnsSpies) spy.mockRestore();
   });
 
   it("validates credentials before persisting a connection", async () => {
@@ -143,7 +274,10 @@ describe("AI gateway provider registry", () => {
       },
     } as unknown as PrismaClient;
     const service = new GatewayModelsService(prisma, redis);
-    const context = { organizationId: "org-1" } as GatewayApiKeyAuthContext;
+    const context = {
+      organizationId: "org-1",
+      keyAllowedModels: null,
+    } as GatewayApiKeyAuthContext;
 
     const messages = await service.list({
       context,
@@ -201,7 +335,10 @@ describe("AI gateway provider registry", () => {
     try {
       await expect(
         new GatewayModelsService(prisma, redis).list({
-          context: { organizationId: "org-1" } as GatewayApiKeyAuthContext,
+          context: {
+            organizationId: "org-1",
+            keyAllowedModels: null,
+          } as GatewayApiKeyAuthContext,
           apiFormat: "openai.responses",
         }),
       ).rejects.toThrow("Gateway model discovery is temporarily unavailable");
@@ -211,7 +348,7 @@ describe("AI gateway provider registry", () => {
     }
   });
 
-  it("reads model lists from an organization and connection scoped cache", async () => {
+  it("reads model lists from an organization and connection scoped cache and labels OpenAI embedding models", async () => {
     const fetcher = vi.fn<typeof fetch>();
     const redis = {
       get: vi.fn().mockResolvedValue(
@@ -221,6 +358,13 @@ describe("AI gateway provider registry", () => {
             provider: "OPENAI",
             canonicalSlug: "gpt-5-mini",
             displayName: "gpt-5-mini",
+            createdAt: "2026-01-01T00:00:00.000Z",
+          },
+          {
+            id: "text-embedding-3-small",
+            provider: "OPENAI",
+            canonicalSlug: "text-embedding-3-small",
+            displayName: "text-embedding-3-small",
             createdAt: "2026-01-01T00:00:00.000Z",
           },
         ]),
@@ -251,10 +395,11 @@ describe("AI gateway provider registry", () => {
     ).resolves.toEqual({
       connectionId: "connection-1",
       success: true,
-      models: ["gpt-5-mini"],
+      models: ["gpt-5-mini", "text-embedding-3-small"],
+      modelApiFormats: { "text-embedding-3-small": ["openai.embeddings"] },
     });
     expect(redis.get).toHaveBeenCalledWith(
-      "ai-gateway:models:org-1:connection-1",
+      "ai-gateway:models:v3:org-1:connection-1",
     );
     expect(fetcher).not.toHaveBeenCalled();
     expect(prisma.gatewayAiConnection.findFirst).not.toHaveBeenCalled();
@@ -372,7 +517,7 @@ describe("AI gateway provider registry", () => {
     ]);
     await vi.waitFor(() =>
       expect(redis.setex).toHaveBeenCalledWith(
-        "ai-gateway:models:org-1:connection-1",
+        "ai-gateway:models:v3:org-1:connection-1",
         300,
         expect.stringContaining('"id":"gpt-5"'),
       ),
@@ -449,6 +594,145 @@ describe("AI gateway provider registry", () => {
       ],
     });
     expect(String(fetcher.mock.calls[1]?.[0])).toContain("after_id=claude-a");
+  });
+
+  it("lists the deployments of the connection's Azure project", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        value: [
+          {
+            name: "chat",
+            type: "ModelDeployment",
+            modelName: "gpt-5-mini",
+            modelPublisher: "OpenAI",
+            capabilities: { chat_completion: "true" },
+          },
+          {
+            name: "embed",
+            type: "ModelDeployment",
+            modelName: "text-embedding-3-small",
+            modelPublisher: "OpenAI",
+            capabilities: { embeddings: "true" },
+          },
+          {
+            name: "claude",
+            type: "ModelDeployment",
+            modelName: "claude-sonnet-4-5",
+            modelPublisher: "Anthropic",
+          },
+          { name: "agent", type: "AgentDeployment" },
+          {
+            name: "connected",
+            type: "ModelDeployment",
+            modelName: "gpt-5",
+            connectionName: "other-resource",
+          },
+        ],
+      }),
+    );
+    const prisma = {
+      gatewayAiConnection: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "connection-1",
+          organizationId: "org-1",
+          provider: "AZURE",
+          baseURL:
+            "https://contoso.services.ai.azure.com/api/projects/my-project",
+          encryptedCredential: encrypt("azure-key"),
+          status: "ENABLED",
+          allowedModels: null,
+          customModels: [],
+        }),
+      },
+    } as unknown as PrismaClient;
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+
+    await expect(
+      new GatewayModelCatalogService(prisma, null).getModelCatalog({
+        organizationId: "org-1",
+        connectionId: "connection-1",
+      }),
+    ).resolves.toMatchObject({
+      success: true,
+      models: [
+        {
+          id: "chat",
+          canonicalSlug: "gpt-5-mini",
+          apiFormats: ["openai.responses", "openai.chat-completions"],
+        },
+        { id: "embed", apiFormats: ["openai.embeddings"] },
+        { id: "claude", apiFormats: ["anthropic.messages"] },
+      ],
+    });
+    expect(String(fetcher.mock.calls[0]?.[0])).toBe(
+      "https://contoso.services.ai.azure.com/api/projects/my-project/deployments?api-version=v1",
+    );
+    expect(fetcher.mock.calls[0]?.[1]?.headers).toMatchObject({
+      "api-key": "azure-key",
+    });
+  });
+
+  it("keeps Azure custom models when the default project can't be listed", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 404 }));
+    const prisma = {
+      gatewayAiConnection: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "connection-1",
+          organizationId: "org-1",
+          provider: "AZURE",
+          baseURL: "https://contoso.services.ai.azure.com",
+          encryptedCredential: encrypt("azure-key"),
+          status: "ENABLED",
+          allowedModels: null,
+          customModels: [{ id: "my-deployment" }],
+        }),
+      },
+    } as unknown as PrismaClient;
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+
+    await expect(
+      new GatewayModelCatalogService(prisma, null).getModelCatalog({
+        organizationId: "org-1",
+        connectionId: "connection-1",
+      }),
+    ).resolves.toMatchObject({
+      success: true,
+      modelListingDenied: true,
+      models: [{ id: "my-deployment" }],
+    });
+  });
+
+  it("reports a revoked Azure key instead of a denied listing", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 401 }));
+    const prisma = {
+      gatewayAiConnection: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "connection-1",
+          organizationId: "org-1",
+          provider: "AZURE",
+          baseURL: "https://contoso.services.ai.azure.com",
+          encryptedCredential: encrypt("azure-key"),
+          status: "ENABLED",
+          allowedModels: null,
+          customModels: [],
+        }),
+      },
+    } as unknown as PrismaClient;
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+
+    await expect(
+      new GatewayModelCatalogService(prisma, null).getModelCatalog({
+        organizationId: "org-1",
+        connectionId: "connection-1",
+      }),
+    ).resolves.toMatchObject({ success: false, error: "unauthorized" });
+    expect(String(fetcher.mock.calls[1]?.[0])).toBe(
+      "https://contoso.services.ai.azure.com/openai/v1/models",
+    );
   });
 
   it("treats malformed provider model responses as failures", async () => {
@@ -531,11 +815,13 @@ describe("AI gateway provider registry", () => {
       models: ["gpt-5", "codex-auto-review"],
     });
     expect(redis.get).not.toHaveBeenCalled();
-    expect(redis.del).toHaveBeenCalledWith(
+    expect(vi.mocked(redis.del).mock.calls.flat(2)).toEqual([
+      "ai-gateway:models:v3:org-1:connection-1",
+      "ai-gateway:models:v2:org-1:connection-1",
       "ai-gateway:models:org-1:connection-1",
-    );
+    ]);
     expect(redis.setex).toHaveBeenCalledWith(
-      "ai-gateway:models:org-1:connection-1",
+      "ai-gateway:models:v3:org-1:connection-1",
       300,
       JSON.stringify({
         models: [

@@ -7,6 +7,7 @@ import {
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  addTagsToCurrentSpan,
   PromptService,
   redis,
   tableColumnsToSqlFilterAndPrefix,
@@ -18,6 +19,12 @@ export const getPromptsMeta = async (
   params: GetPromptsMetaParams,
 ): Promise<PromptsMetaResponse> => {
   const { projectId, page, limit } = params;
+
+  addTagsToCurrentSpan({
+    "langfuse.prompt_list.page": page,
+    "langfuse.prompt_list.limit": limit,
+    "langfuse.prompt_list.offset": limit * (page - 1),
+  });
 
   const promptsMeta = (await prisma.$queryRaw`
     WITH page_names AS MATERIALIZED (
@@ -68,10 +75,12 @@ export const getPromptsMeta = async (
 
   // Page crawls repeat the same full-project count on every page.
   const filterCondition = getPromptsFilterCondition(params);
+  let countSource: "cache" | "computed" = "cache";
   const totalItems = await new PromptService(prisma, redis).getPromptListCount({
     projectId,
     filterKey: JSON.stringify([filterCondition.sql, filterCondition.values]),
     computeCount: async () => {
+      countSource = "computed";
       const [{ count }] = (await prisma.$queryRaw`
           SELECT COUNT(*) AS count
           FROM (
@@ -86,6 +95,12 @@ export const getPromptsMeta = async (
     },
   });
   const totalPages = Math.ceil(totalItems / limit);
+
+  addTagsToCurrentSpan({
+    "langfuse.prompt_list.result_count": promptsMeta.length,
+    "langfuse.prompt_list.total_items": totalItems,
+    "langfuse.prompt_list.count_source": countSource,
+  });
 
   return {
     data: promptsMeta,

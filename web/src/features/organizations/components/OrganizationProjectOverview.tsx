@@ -210,16 +210,6 @@ const OrganizationActionButtons = ({ orgId }: { orgId: string }) => {
 
   return (
     <>
-      {!gatewayOnly && (
-        <Button asChild variant="ghost">
-          <Link
-            href={`/organization/${orgId}/settings`}
-            aria-label="Organization settings"
-          >
-            <Settings size="base" color="default" />
-          </Link>
-        </Button>
-      )}
       {membersViewAccess && (
         <Button asChild variant="ghost">
           <Link href={`/organization/${orgId}/settings/members`}>

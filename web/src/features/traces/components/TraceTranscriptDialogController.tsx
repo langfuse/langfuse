@@ -1,47 +1,29 @@
-import { useSession } from "next-auth/react";
-import { type ReactNode } from "react";
+import { type ComponentProps } from "react";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import {
+  InternalTranscriptDialogController,
+  type TranscriptSource,
+} from "@/src/features/traces/components/InternalTranscriptDialogController";
 import { api } from "@/src/utils/api";
 
-type TraceTranscriptSource = {
-  projectId: string;
-  traceId: string;
-  timestamp: Date;
-};
-
-export function TraceTranscriptDialogController({
-  children,
-  ...source
-}: TraceTranscriptSource & {
-  children: (control: { openDialog: (() => void) | undefined }) => ReactNode;
-}) {
-  const { data: session } = useSession();
-  if (session?.user?.admin !== true) {
-    return children({ openDialog: undefined });
-  }
-
+export function TraceTranscriptDialogController(
+  props: Omit<
+    ComponentProps<typeof InternalTranscriptDialogController>,
+    "title" | "renderInspector"
+  >,
+) {
   return (
-    <DialogController<TraceTranscriptSource>
-      renderDialog={({ state }) => (
-        <Dialog title="Trace transcript" size="lg" closeOnInteractionOutside>
-          <Dialog.Body>
-            <div className="ph-no-capture flex flex-col gap-4">
-              <TraceTranscriptInspector {...state} />
-            </div>
-          </Dialog.Body>
-        </Dialog>
-      )}
-    >
-      {({ openDialog }) => children({ openDialog: () => openDialog(source) })}
-    </DialogController>
+    <InternalTranscriptDialogController
+      {...props}
+      title="Trace transcript"
+      renderInspector={(source) => <TraceTranscriptInspector {...source} />}
+    />
   );
 }
 
-function TraceTranscriptInspector(source: TraceTranscriptSource) {
+function TraceTranscriptInspector(source: TranscriptSource) {
   const query = api.events.transcriptByTraceId.useQuery({
     ...source,
     context: "other",

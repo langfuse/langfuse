@@ -2,6 +2,7 @@
 mod bedrock;
 mod contracts;
 pub(crate) mod signing;
+mod vertex;
 
 pub use contracts::{
     ApiFormat, IngestionGrant, IngestionMode, MetadataValue, OrganizationId, ProjectId, Provider,

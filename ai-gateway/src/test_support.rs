@@ -111,6 +111,18 @@ pub(crate) fn resolution_response_for(
             "base_url": "https://api.openai.com/v1",
             "auth": {"type": "Bearer", "token": provider_secret}
         }),
+        ApiFormat::OpenAiEmbeddings => json!({
+            "id": "connection-1", "name": "Production key", "provider": "openai", "api_format": "openai.embeddings",
+            "provider_model": "provider-model",
+            "base_url": "https://api.openai.com/v1",
+            "auth": {"type": "Bearer", "token": provider_secret}
+        }),
+        ApiFormat::OpenAiDecisions => json!({
+            "id": "connection-1", "name": "Production key", "provider": "openai", "api_format": "openai.decisions",
+            "provider_model": "provider-model",
+            "base_url": "https://api.openai.com/v1",
+            "auth": {"type": "Bearer", "token": provider_secret}
+        }),
         ApiFormat::AnthropicMessages => json!({
             "id": "connection-1", "name": "Production key", "provider": "anthropic", "api_format": "anthropic.messages",
             "provider_model": "provider-model",

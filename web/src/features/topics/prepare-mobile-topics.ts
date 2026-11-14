@@ -5,7 +5,6 @@ import {
   prepareTopicDisplay,
   UNASSIGNED_TOPIC_ID,
 } from "./prepare-topic-display";
-import { type TopicsResultsView } from "./TopicsResultsViewSelect";
 
 function selectedTopicId(filters: FilterState) {
   const filter = filters.length === 1 ? filters[0] : undefined;
@@ -25,7 +24,7 @@ function selectedTopicId(filters: FilterState) {
 /** Results remain complete even when a topic is too small to label on a chart. */
 export function prepareMobileTopics(
   facet: Facet,
-  view: TopicsResultsView,
+  view: "treemap" | "map" | "grid",
   filters: FilterState,
   searchQuery: string | null,
   showUnassigned: boolean,

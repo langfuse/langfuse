@@ -1,9 +1,14 @@
-const { auditLogMock } = vi.hoisted(() => ({
+const { auditLogMock, createDefaultScoreConfigsMock } = vi.hoisted(() => ({
   auditLogMock: vi.fn(),
+  createDefaultScoreConfigsMock: vi.fn(),
 }));
 
 vi.mock("@/src/features/audit-logs/auditLog", () => ({
   auditLog: auditLogMock,
+}));
+
+vi.mock("@/src/features/projects/server/defaultScoreConfigs", () => ({
+  createDefaultScoreConfigs: createDefaultScoreConfigsMock,
 }));
 
 import { type Prisma, Role, SurveyName } from "@langfuse/shared/src/db";
@@ -483,6 +488,8 @@ describe("provisionStarterOrganizationForNewUser", () => {
   beforeEach(() => {
     auditLogMock.mockReset();
     auditLogMock.mockResolvedValue(undefined);
+    createDefaultScoreConfigsMock.mockReset();
+    createDefaultScoreConfigsMock.mockResolvedValue(undefined);
   });
 
   it("locks the user row before checking for existing real organizations", async () => {
@@ -519,6 +526,7 @@ describe("provisionStarterOrganizationForNewUser", () => {
       userName: "Taylor",
     });
 
+    expect(createDefaultScoreConfigsMock).toHaveBeenCalledWith("project-1");
     expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
     expect(tx.organizationMembership.findMany).toHaveBeenCalledWith({
       where: expect.objectContaining({
@@ -579,6 +587,7 @@ describe("provisionStarterOrganizationForNewUser", () => {
     expect(result).toBeNull();
     expect(tx.organization.create).not.toHaveBeenCalled();
     expect(tx.project.create).not.toHaveBeenCalled();
+    expect(createDefaultScoreConfigsMock).not.toHaveBeenCalled();
     expect(auditLogMock).not.toHaveBeenCalled();
   });
 

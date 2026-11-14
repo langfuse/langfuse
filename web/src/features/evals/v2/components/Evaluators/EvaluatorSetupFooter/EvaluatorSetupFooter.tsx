@@ -131,9 +131,7 @@ export function EvaluatorSetupFooter({
           mode="create"
           {...sharedProps}
           onSave={hasValidModel ? onSave : openDialog}
-        >
-          Next: attach a rule to run this evaluator on incoming observations.
-        </EvaluatorSetupFooterView>
+        />
       )}
     </ConfirmationDialogController>
   );

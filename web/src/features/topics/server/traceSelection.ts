@@ -7,6 +7,8 @@ import {
   topicTraceSelectionCriteriaSchema,
   topicTraceSelectionSnapshotSchema,
   TOPICS_MAX_TIME_RANGE_MS,
+  type TopicEmbeddingConfig,
+  type TopicFacetRef,
 } from "@langfuse/shared/topics";
 import {
   prisma as defaultPrisma,
@@ -17,10 +19,12 @@ import {
   topicMatchingTraceIdsQuery,
 } from "@langfuse/shared/topics/server";
 import {
-  getTopicSetupTraceCounts,
+  getTopicSetupTraceCount,
   getTopicSetupTraceIds,
   getTracingReadinessSettings,
+  TOPIC_SETUP_WINDOW_DAYS,
 } from "@langfuse/shared/src/server";
+import { TOPIC_SETUP_BACKFILL_LIMIT } from "../topic-setup-flow";
 
 export const topicTraceSelectionSchema =
   topicTraceSelectionCriteriaSchema.safeExtend({
@@ -108,52 +112,109 @@ export async function resolveTopicTraceSelection(
 
 // Fallback when a project has no stored idle time; the setup flow always saves one.
 const SETUP_DEFAULT_IDLE_MS = 600_000;
-const SETUP_WINDOWS = [1, 7] as const;
 
 async function topicSetupIdleMs(projectId: string) {
   const { traceIdleMs } = await getTracingReadinessSettings(projectId);
   return traceIdleMs ?? SETUP_DEFAULT_IDLE_MS;
 }
 
-/** The rule filter as a 7-day trace subquery; undefined without filters, null when nothing matches. */
+/** The rule filter as a trace subquery over `days`; undefined without filters, null when nothing matches. */
 async function setupMatching(
   projectId: string,
   filter: FilterState,
   now: Date,
+  days: (typeof TOPIC_SETUP_WINDOW_DAYS)[number] = TOPIC_SETUP_WINDOW_DAYS[2],
 ) {
   if (filter.length === 0) return undefined;
   return topicMatchingTraceIdsQuery(
     {
       projectId,
       filter,
-      from: new Date(now.getTime() - SETUP_WINDOWS[1] * 86_400_000),
+      from: new Date(now.getTime() - days * 86_400_000),
       to: now,
     },
     defaultPrisma,
   );
 }
 
-/** Finished traces over 1 and 7 days that the first rule's filter selects. */
+// The wizard's lowest sampling rate.
+const SETUP_MIN_SAMPLING = 0.01;
+
+/**
+ * Finished traces over 7 and 30 days that the rule's filter selects. The 30-day
+ * scan is skipped once 7 days fill the backfill at the lowest sampling rate, so
+ * busy projects read 7 days; then `finished30d` is a lower bound.
+ */
 export async function countTopicSetupTraces(input: {
   projectId: string;
   filter: FilterState;
   now: Date;
 }) {
+  const idleMs = await topicSetupIdleMs(input.projectId);
+  const count = async (days: 7 | 30) => {
+    const matching = await setupMatching(
+      input.projectId,
+      input.filter,
+      input.now,
+      days,
+    );
+    if (matching === null) return 0;
+    return getTopicSetupTraceCount({
+      projectId: input.projectId,
+      idleMs,
+      now: input.now,
+      days,
+      matching,
+    });
+  };
+  const finished7d = await count(7);
+  const finished30d =
+    finished7d * SETUP_MIN_SAMPLING >= TOPIC_SETUP_BACKFILL_LIMIT
+      ? finished7d
+      : await count(30);
+  return { finished7d, finished30d };
+}
+
+/** The setup window that covers a snapshot's time range. */
+const snapshotDays = ({ from, to }: { from: Date; to: Date }) =>
+  TOPIC_SETUP_WINDOW_DAYS.find(
+    (days) => days >= Math.round((to.getTime() - from.getTime()) / 86_400_000),
+  ) ?? TOPIC_SETUP_WINDOW_DAYS[0];
+
+/**
+ * Finished matching traces in a snapshot's window without a stored result for
+ * every facet: what the snapshot could summarize. Finished means idle for twice
+ * the project's wait, as the snapshot's selection uses.
+ */
+export async function countUnsummarizedTopicTraces(input: {
+  projectId: string;
+  filter: FilterState;
+  timeRange: { from: Date; to: Date };
+  facets: TopicFacetRef[];
+  embeddingConfig: TopicEmbeddingConfig;
+}) {
+  const days = snapshotDays(input.timeRange);
   const matching = await setupMatching(
     input.projectId,
     input.filter,
-    input.now,
+    input.timeRange.to,
+    days,
   );
-  if (matching === null) return { finished1d: 0, finished7d: 0 };
-  return getTopicSetupTraceCounts({
+  if (matching === null) return 0;
+  return getTopicSetupTraceCount({
     projectId: input.projectId,
-    idleMs: await topicSetupIdleMs(input.projectId),
-    now: input.now,
+    idleMs: 2 * (await topicSetupIdleMs(input.projectId)),
+    now: input.timeRange.to,
+    days,
     matching,
+    summarized: {
+      facets: input.facets,
+      embeddingConfig: input.embeddingConfig,
+    },
   });
 }
 
-/** Widens from 1 to 7 days until the limit is met, so busy projects scan one day. */
+/** Widens from 7 to 14 and 30 days until the limit is met. */
 export async function selectTopicSetupTraces(input: {
   projectId: string;
   filter: FilterState;
@@ -163,18 +224,19 @@ export async function selectTopicSetupTraces(input: {
 }) {
   const idleMs = await topicSetupIdleMs(input.projectId);
   let traceIds: string[] = [];
-  let days: (typeof SETUP_WINDOWS)[number] = 1;
+  let days: (typeof TOPIC_SETUP_WINDOW_DAYS)[number] = 7;
   const matching = await setupMatching(
     input.projectId,
     input.filter,
     input.now,
   );
   if (matching === null) return { traceIds, days };
-  for (days of SETUP_WINDOWS) {
+  for (days of TOPIC_SETUP_WINDOW_DAYS) {
     traceIds = await getTopicSetupTraceIds({
       ...input,
       idleMs,
       days,
+      seed: input.projectId,
       matching,
     });
     if (traceIds.length >= input.limit) break;

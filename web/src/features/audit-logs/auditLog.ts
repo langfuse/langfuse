@@ -35,6 +35,7 @@ type AuditableResource =
   | "score"
   | "scoreConfig"
   | "model"
+  | "defaultLlmModel"
   | "notificationPreference"
   | "prompt"
   | "promptProtectedLabel"
@@ -175,11 +176,9 @@ export async function auditLog(
   // that have no parallel logger call of their own, and the actor logging added
   // alongside it elsewhere — batch actions, trace deletion — is ungated too.
   const persistRecord = isAuditLogEnabled();
-  // Persisted records are also staged for ClickHouse, on Cloud only: the
-  // worker relay that drains the staging table runs only there.
-  const stageRecord =
-    Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) &&
-    env.LANGFUSE_AUDIT_LOG_STAGING_ENABLED === "true";
+  // Persisted records are also staged for ClickHouse. The worker relay that
+  // drains the staging table runs under the same license condition.
+  const stageRecord = env.LANGFUSE_AUDIT_LOG_STAGING_ENABLED === "true";
 
   const db = prisma ?? _prisma;
   // Defer JSON.stringify(before/after) until we know the record will be

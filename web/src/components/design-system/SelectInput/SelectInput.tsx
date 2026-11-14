@@ -24,6 +24,8 @@ type SelectInputProps<V extends string> = Pick<
 > & {
   placeholder: string;
   search?: { placeholder: string };
+  /** Keeps the portaled option list out of session replay; not applied with `search`. */
+  noCapture?: boolean;
   error?: boolean;
   muted?: boolean;
 };
@@ -35,6 +37,7 @@ function SelectInputInner<V extends string>(
     onValueChange,
     placeholder,
     emptyMessage,
+    noCapture,
     search,
     error,
     muted,
@@ -106,6 +109,7 @@ function SelectInputInner<V extends string>(
       options={options}
       onValueChange={onValueChange}
       emptyMessage={emptyMessage}
+      noCapture={noCapture}
       ref={ref}
       {...triggerProps}
     >

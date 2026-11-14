@@ -5,11 +5,13 @@ import type { Cluster, Redis } from "ioredis";
 import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
 import { formatGatewayModelSlug } from "@/src/features/ai-gateway/fns/formatGatewayModelSlug";
 import { getBedrockModelApiFormats } from "@/src/features/ai-gateway/fns/getBedrockModelApiFormats";
+import { isGatewayApiFamily } from "@/src/features/ai-gateway/fns/isGatewayApiFamily";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import {
   type GatewayApiFormat,
+  gatewayApiFormats,
   gatewayProviders,
   providerSupportsApiFormat,
 } from "@/src/features/ai-gateway/server/provider/registry";
@@ -38,7 +40,7 @@ export class GatewayModelsService {
     const connections = await this.repository.getConnections({
       organizationId: params.context.organizationId,
       providers: gatewayProviders.filter((provider) =>
-        providerSupportsApiFormat(provider, params.apiFormat),
+        providerListsModelsFor(provider, params.apiFormat),
       ) as GatewayProvider[],
     });
     const results = await Promise.all(
@@ -80,10 +82,12 @@ export class GatewayModelsService {
           return catalog.models
             .filter(
               (model) =>
-                isGatewayModelAllowed(allowedModels, model.id) &&
-                modelMatchesApiFormat(model, params.apiFormat),
+                isGatewayModelAllowed(allowedModels, model.id, {
+                  connectionName: connection.name,
+                  allowedModels: params.context.keyAllowedModels,
+                }) && modelMatchesApiFormat(model, params.apiFormat),
             )
-            .map((model) => ({
+            .map(({ apiFormats: _apiFormats, ...model }) => ({
               ...model,
               id: formatGatewayModelSlug(connection.name, model.id),
               provider: toCatalogFamily(model.provider, params.apiFormat),
@@ -94,25 +98,43 @@ export class GatewayModelsService {
   }
 }
 
+// Like `modelMatchesApiFormat`: OpenAI listings arrive as `openai.responses`,
+// so a provider serving only Chat Completions must still be listed.
+function providerListsModelsFor(
+  provider: (typeof gatewayProviders)[number],
+  apiFormat: GatewayApiFormat,
+) {
+  if (apiFormat === "anthropic.messages") {
+    return providerSupportsApiFormat(provider, apiFormat);
+  }
+  return gatewayApiFormats.some(
+    (format) =>
+      format !== "anthropic.messages" &&
+      providerSupportsApiFormat(provider, format),
+  );
+}
+
 function modelMatchesApiFormat(
   model: GatewayModelCatalogEntry,
   apiFormat: GatewayApiFormat,
 ) {
-  if (model.provider !== "BEDROCK") return true;
-  const formats = getBedrockModelApiFormats(model.id);
+  const formats =
+    model.apiFormats ??
+    (model.provider === "BEDROCK" ? getBedrockModelApiFormats(model.id) : null);
+  if (!formats) return true;
   if (apiFormat === "anthropic.messages") return formats.includes(apiFormat);
   // The gateway asks for OpenAI models with `openai.responses` on every OpenAI
   // route, so a model serving only Chat Completions must still be listed.
   return formats.some((format) => format !== "anthropic.messages");
 }
 
-// The gateway renders and validates entries by API family, so Bedrock models
-// are reported as the family whose route serves them.
+// The gateway renders and validates entries by API family, so Bedrock,
+// OpenRouter, xAI, Vercel and Google AI Studio models are reported as the family whose route serves them.
 function toCatalogFamily(
   provider: GatewayModelCatalogEntry["provider"],
   apiFormat: GatewayApiFormat,
 ) {
-  if (provider !== "BEDROCK") return provider;
+  if (isGatewayApiFamily(provider)) return provider;
   return apiFormat === "anthropic.messages" ? "ANTHROPIC" : "OPENAI";
 }
 

@@ -78,6 +78,7 @@ import {
 } from "@/src/features/ai-gateway/server/resolve/resolveService";
 import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { GatewayModelsService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
+import { GatewayModelsResponseSchema } from "@/src/features/ai-gateway/server/provider/registry";
 import { GatewayApiKeyService } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyService";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 import { getGatewaySetupRedirect } from "@/src/features/ai-gateway/server/gatewaySetupRedirect";
@@ -449,6 +450,7 @@ describe("AI gateway control plane", () => {
     expect(setup).toEqual({
       gatewayBaseUrl: expect.any(String),
       providers: ["OPENAI"],
+      apiProviders: ["OPENAI"],
     });
     await expect(
       viewer.aiGateway.getClientSetup({ orgId: owner.org.id }),
@@ -1349,7 +1351,7 @@ describe("AI gateway control plane", () => {
   });
 
   it.skipIf(env.NODE_ENV === "development")(
-    "gates custom endpoints on every route that accepts them",
+    "accepts extra headers and validates base URLs on every route that accepts them",
     async () => {
       const { caller, org } = await prepare();
       type Endpoint = {
@@ -1364,14 +1366,6 @@ describe("AI gateway control plane", () => {
         },
         sharedCloudRegion: sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
       };
-      const setEnvironment = (environment: "production" | "preview") =>
-        Object.assign(env, {
-          NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
-          NEXT_PUBLIC_PREVIEW_PR_URL:
-            environment === "preview"
-              ? "https://pr-1.preview.langfuse.com"
-              : undefined,
-        });
       const privateHostname = "llm.internal.example.com";
       const realDns = {
         resolve4: dns.resolve4,
@@ -1400,7 +1394,10 @@ describe("AI gateway control plane", () => {
       ];
 
       try {
-        setEnvironment("preview");
+        Object.assign(env, {
+          NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+          NEXT_PUBLIC_PREVIEW_PR_URL: undefined,
+        });
         const proxied = await caller.aiGateway.createConnection({
           orgId: org.id,
           name: "OpenAI-proxied",
@@ -1409,77 +1406,79 @@ describe("AI gateway control plane", () => {
           baseURL: "https://93.184.215.14/v1",
           extraHeaders: { "x-team": "research" },
         });
-        const routes = {
+        // Created as OpenAI because creating an OpenRouter connection checks
+        // the credential against openrouter.ai.
+        const openRouter = await caller.aiGateway.createConnection({
+          orgId: org.id,
+          name: "OpenRouter-proxied",
+          provider: "OPENAI",
+          credential: "sk-test",
+        });
+        await prisma.gatewayAiConnection.update({
+          where: { id: openRouter.id },
+          data: { provider: "OPENROUTER" },
+        });
+        const routesFor = (
+          provider: "OPENAI" | "OPENROUTER",
+          connectionId: string,
+        ) => ({
           testConnection: (endpoint: Endpoint) =>
             caller.aiGateway.testConnection({
               orgId: org.id,
-              id: proxied.id,
-              provider: "OPENAI",
+              id: connectionId,
+              provider,
               credential: "sk-test",
               ...endpoint,
             }),
           createConnection: (endpoint: Endpoint) =>
             caller.aiGateway.createConnection({
               orgId: org.id,
-              name: `OpenAI-${randomUUID().slice(0, 8)}`,
-              provider: "OPENAI",
+              name: `${provider}-${randomUUID().slice(0, 8)}`,
+              provider,
               credential: "sk-test",
               ...endpoint,
             }),
           updateConnection: (endpoint: Endpoint) =>
             caller.aiGateway.updateConnection({
               orgId: org.id,
-              id: proxied.id,
+              id: connectionId,
               credential: "sk-test",
               ...endpoint,
             }),
+        });
+        const routes = routesFor("OPENAI", proxied.id);
+        const routesByProvider = {
+          OPENAI: routes,
+          OPENROUTER: routesFor("OPENROUTER", openRouter.id),
         };
         const rejected: Array<{
           name: string;
-          environment: "production" | "preview";
           cloud?: true;
           endpoint: Endpoint;
           code: string;
         }> = [
           {
-            name: "production base URL",
-            environment: "production",
-            endpoint: { baseURL: "https://93.184.215.14/v1" },
-            code: "FORBIDDEN",
-          },
-          {
-            name: "production extra headers",
-            environment: "production",
-            endpoint: { extraHeaders: { "x-team": "research" } },
-            code: "FORBIDDEN",
-          },
-          {
             name: "loopback",
-            environment: "preview",
             endpoint: { baseURL: "https://127.0.0.1/v1" },
             code: "BAD_REQUEST",
           },
           {
             name: "cloud metadata",
-            environment: "preview",
             endpoint: { baseURL: "http://169.254.169.254/v1" },
             code: "BAD_REQUEST",
           },
           {
             name: "hostname resolving to a private address",
-            environment: "preview",
             endpoint: { baseURL: `https://${privateHostname}/v1` },
             code: "BAD_REQUEST",
           },
           {
             name: "embedded credentials",
-            environment: "preview",
             endpoint: { baseURL: "https://user:pass@93.184.215.14/v1" },
             code: "BAD_REQUEST",
           },
           {
             name: "HTTP on Cloud",
-            environment: "preview",
             cloud: true,
             endpoint: { baseURL: "http://93.184.215.14/v1" },
             code: "BAD_REQUEST",
@@ -1488,17 +1487,25 @@ describe("AI gateway control plane", () => {
 
         const outcomes: string[] = [];
         for (const testCase of rejected) {
-          setEnvironment(testCase.environment);
           sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = testCase.cloud
             ? "STAGING"
             : undefined;
-          for (const [route, call] of Object.entries(routes)) {
-            const code = await call(testCase.endpoint).then(
-              () => "OK",
-              (error: { code?: string }) => error.code ?? "UNKNOWN",
-            );
-            if (code !== testCase.code) {
-              outcomes.push(`${route} ${testCase.name}: ${code}`);
+          for (const [provider, providerRoutes] of Object.entries(
+            routesByProvider,
+          )) {
+            for (const [route, call] of Object.entries(providerRoutes)) {
+              // A rejected credential check also answers BAD_REQUEST, so only
+              // the base URL validation message proves the URL was refused.
+              const code = await call(testCase.endpoint).then(
+                () => "OK",
+                (error: { code?: string; message?: string }) =>
+                  error.message?.startsWith("Invalid base URL")
+                    ? (error.code ?? "UNKNOWN")
+                    : `${error.code ?? "UNKNOWN"} (${error.message})`,
+              );
+              if (code !== testCase.code) {
+                outcomes.push(`${provider} ${route} ${testCase.name}: ${code}`);
+              }
             }
           }
         }
@@ -1506,7 +1513,18 @@ describe("AI gateway control plane", () => {
         expect(dns.resolve4).toHaveBeenCalledWith(privateHostname);
 
         sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-        setEnvironment("production");
+        await expect(
+          routes.testConnection({
+            baseURL: null,
+            extraHeaders: { "x-team": "research" },
+          }),
+        ).resolves.toMatchObject({ success: true });
+        await expect(
+          prisma.gatewayAiConnection.findUniqueOrThrow({
+            where: { id: proxied.id },
+            select: { extraHeaderKeys: true },
+          }),
+        ).resolves.toEqual({ extraHeaderKeys: ["x-team"] });
         const cleared = { baseURL: null, extraHeaders: {} };
         await expect(routes.testConnection(cleared)).resolves.toMatchObject({
           success: true,
@@ -1636,6 +1654,11 @@ describe("AI gateway control plane", () => {
           name: "non-ASCII value",
           headers: { "x-team": "recherche-é" },
           message: "must be printable ASCII",
+        },
+        {
+          name: "names differing only by case",
+          headers: { "X-Team": "research", "x-team": "ops" },
+          message: "Duplicate header name",
         },
       ];
 
@@ -1833,10 +1856,7 @@ describe("AI gateway control plane", () => {
       id: connection.id,
       model: "gpt-4.1-mini",
     };
-    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     vi.stubGlobal("fetch", providerFetch);
-    // Custom model tests are only offered in pre-release environments.
-    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING" });
 
     try {
       await expect(
@@ -1864,9 +1884,6 @@ describe("AI gateway control plane", () => {
       expect(providerFetch).toHaveBeenCalledTimes(1);
     } finally {
       vi.unstubAllGlobals();
-      Object.assign(env, {
-        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
-      });
     }
   });
 
@@ -2106,6 +2123,66 @@ describe("AI gateway control plane", () => {
         metadata: {},
       }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("lets members edit metadata and models of only their own keys", async () => {
+    const owner = await prepare();
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const ownerKey = await owner.caller.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Owner key",
+      metadata: {},
+    });
+    const memberKey = await member.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Member key",
+      metadata: { team: "search" },
+      allowedModels: ["openai:*"],
+    });
+    const update = {
+      orgId: owner.org.id,
+      name: " Search backend ",
+      metadata: { environment: "production" },
+      allowedModels: [" anthropic:* ", "-*opus*"],
+      previousAllowedModels: ["openai:*"],
+    };
+
+    await expect(
+      member.aiGateway.updateApiKey({
+        ...update,
+        id: ownerKey.id,
+        previousAllowedModels: null,
+      }),
+    ).rejects.toThrow("Gateway key not found");
+    await expect(
+      member.aiGateway.updateApiKey({ ...update, id: memberKey.id }),
+    ).resolves.toMatchObject({
+      metadata: { environment: "production" },
+      allowedModels: ["anthropic:*", "-*opus*"],
+    });
+    // A dialog still holding the patterns it loaded must not overwrite newer ones.
+    await expect(
+      member.aiGateway.updateApiKey({
+        ...update,
+        id: memberKey.id,
+        allowedModels: ["openai:*"],
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    await member.aiGateway.updateApiKey({
+      ...update,
+      id: memberKey.id,
+      allowedModels: [],
+      previousAllowedModels: ["anthropic:*", "-*opus*"],
+    });
+
+    const [edited] = (
+      await member.aiGateway.listApiKeys({ orgId: owner.org.id })
+    ).data;
+    expect(edited).toMatchObject({
+      metadata: { environment: "production" },
+      allowedModels: null,
+      apiKey: { note: "Search backend" },
+    });
   });
 
   it("lets only gateway managers issue service-account keys", async () => {
@@ -2672,6 +2749,58 @@ describe("AI gateway control plane", () => {
     expect(allowAll.allowedModels).toBeNull();
   });
 
+  it("enforces key model patterns and keeps them through a connection rename", async () => {
+    configureGatewayJwtSigning();
+    const { caller, org, project } = await prepare();
+    await caller.aiGateway.updateConfig({
+      orgId: org.id,
+      defaultIngestionProjectId: project.id,
+      ingestionMode: "FULL",
+    });
+    const connection = await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "OpenAI",
+      provider: "OPENAI",
+      credential: "sk-test-openai",
+    });
+    const gatewayKey = await caller.aiGateway.createApiKey({
+      orgId: org.id,
+      name: "Restricted key",
+      metadata: {},
+      allowedModels: ["OpenAI:gpt-4o*", "-*mini"],
+    });
+    const request = {
+      fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
+      apiFormat: "openai.responses" as const,
+    };
+
+    await expect(
+      authenticateRequest({ ...request, model: "OpenAI:gpt-4o" }),
+    ).resolves.toMatchObject({ connection: { id: connection.id } });
+    await expect(
+      authenticateRequest({ ...request, model: "OpenAI:gpt-4o-mini" }),
+    ).rejects.toMatchObject({ status: 403, code: "model_not_allowed" });
+
+    await caller.aiGateway.updateConnection({
+      orgId: org.id,
+      id: connection.id,
+      name: "OpenAI-EU",
+    });
+
+    await expect(
+      prisma.gatewayApiKeyAssociation.findUnique({
+        where: { apiKeyId: gatewayKey.id },
+        select: { allowedModels: true },
+      }),
+    ).resolves.toEqual({ allowedModels: ["OpenAI-EU:gpt-4o*", "-*mini"] });
+    await expect(
+      authenticateRequest({ ...request, model: "OpenAI-EU:gpt-4o" }),
+    ).resolves.toMatchObject({ connection: { id: connection.id } });
+    await expect(
+      authenticateRequest({ ...request, model: "OpenAI-EU:gpt-4o-mini" }),
+    ).rejects.toMatchObject({ status: 403, code: "model_not_allowed" });
+  });
+
   it("rejects stale concurrent model allowlist updates", async () => {
     const { caller, org } = await prepare();
     const connection = await caller.aiGateway.createConnection({
@@ -2916,7 +3045,7 @@ describe("AI gateway control plane", () => {
         id: connection.id,
         status: "ENABLED",
       }),
-    ).rejects.toThrow("credential update or a successful retry");
+    ).rejects.toThrow("new API key or a successful retry");
     const automaticRefresh = vi.fn<typeof fetch>();
     vi.mocked(getGatewayFetch).mockReturnValue(automaticRefresh);
     await new GatewayModelCatalogService(prisma).refreshAllModels(org.id);
@@ -3328,6 +3457,39 @@ describe("AI gateway control plane", () => {
         ownerNotAllowed,
       );
     });
+
+    it("rejects a cached user-bound key as soon as members.updateOrgMembership demotes its owner", async () => {
+      expect(env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED).toBe("true");
+      const { caller, org, user } = await prepare();
+      const key = await caller.aiGateway.createApiKey({
+        orgId: org.id,
+        name: "User key",
+        metadata: {},
+      });
+      await expect(authenticateKey(key.secretKey)).resolves.toMatchObject({
+        apiKeyId: key.id,
+      });
+      const otherOwner = await prisma.user.create({
+        data: { email: `gateway-owner-${randomUUID()}@example.test` },
+      });
+      cleanupUsers.push(otherOwner.id);
+      await prisma.organizationMembership.create({
+        data: { orgId: org.id, userId: otherOwner.id, role: Role.OWNER },
+      });
+      const membership = await prisma.organizationMembership.findUniqueOrThrow({
+        where: { orgId_userId: { orgId: org.id, userId: user.id } },
+      });
+
+      await caller.members.updateOrgMembership({
+        orgId: org.id,
+        orgMembershipId: membership.id,
+        role: Role.VIEWER,
+      });
+
+      await expect(authenticateKey(key.secretKey)).rejects.toMatchObject(
+        ownerNotAllowed,
+      );
+    });
   });
 
   it("accepts organization keys granted gateway:invoke without a gateway association", async () => {
@@ -3626,6 +3788,71 @@ describe("AI gateway control plane", () => {
       ],
     });
     expect(fetcher).toHaveBeenCalledTimes(3);
+  });
+
+  it("lists Vercel language and decision models in the public response shape", async () => {
+    const { caller, org } = await prepare();
+    const created = await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "Vercel",
+      provider: "OPENAI",
+      credential: "sk-openai",
+    });
+    await prisma.gatewayAiConnection.update({
+      where: { id: created.id },
+      data: { provider: "VERCEL", encryptedCredential: encrypt("vck-test") },
+    });
+    const key = await caller.aiGateway.createApiKey({
+      orgId: org.id,
+      name: "Test key",
+      metadata: {},
+    });
+    const model = (id: string, type: string) => ({
+      id,
+      name: id,
+      type,
+      released: 10,
+    });
+    vi.mocked(getGatewayFetch).mockReturnValue(
+      vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          data: [
+            model("anthropic/claude-sonnet-5", "language"),
+            model("openai/gpt-6-luna-decisions", "decision"),
+          ],
+        }),
+      ),
+    );
+    const context = await new GatewayApiKeyAuthenticator(
+      prisma,
+    ).authenticateModelsRequest({
+      fastHashedSecretKey: createShaHash(key.secretKey, env.SALT),
+      apiFormat: "openai.responses",
+    });
+
+    const listed = await new GatewayModelsService(prisma, null).list({
+      context,
+      apiFormat: "openai.responses",
+    });
+
+    expect(GatewayModelsResponseSchema.parse(listed)).toEqual({
+      data: [
+        {
+          id: "Vercel:anthropic/claude-sonnet-5",
+          provider: "OPENAI",
+          canonicalSlug: "anthropic/claude-sonnet-5",
+          displayName: "anthropic/claude-sonnet-5",
+          createdAt: "1970-01-01T00:00:10.000Z",
+        },
+        {
+          id: "Vercel:openai/gpt-6-luna-decisions",
+          provider: "OPENAI",
+          canonicalSlug: "openai/gpt-6-luna-decisions",
+          displayName: "openai/gpt-6-luna-decisions",
+          createdAt: "1970-01-01T00:00:10.000Z",
+        },
+      ],
+    });
   });
 
   it("returns partial catalogs and fails only when every connection fails", async () => {

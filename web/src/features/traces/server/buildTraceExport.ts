@@ -19,8 +19,9 @@ import { TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD } from "../constants/traceDo
 export type TraceExportSession = {
   user: {
     email: string;
-    admin?: boolean;
     organizations: Array<{
+      id?: string;
+      supportAccess?: boolean;
       projects: Array<{
         id: string;
       }>;
@@ -47,13 +48,13 @@ const getDurationSeconds = (
   return (endTime.getTime() - startTime.getTime()) / 1000;
 };
 
-const hasProjectAccess = (
+const findSessionOrganization = (
   session: TraceExportAccessSession,
   projectId: string,
 ) =>
-  session?.user.organizations.some((organization) =>
+  session?.user.organizations.find((organization) =>
     organization.projects.some((project) => project.id === projectId),
-  ) ?? false;
+  );
 
 const getObservationRecordsForTrace = async (params: {
   traceId: string;
@@ -95,9 +96,9 @@ const getObservationRecordCountForTrace = async (params: {
 
 /**
  * Canonical trace read-authorization used by the session-authed trace download
- * routes: grants access when the trace (or its session) is public, the user is
- * an admin, or the user is a member of the project — and fires the admin-access
- * webhook for admins. Reused by the observation IO streaming route (LFE-11081)
+ * routes: grants access when the trace (or its session) is public or the user
+ * is a member of the project — and fires the admin-access webhook when that
+ * membership is a support access grant. Reused by the observation IO streaming route (LFE-11081)
  * so authorization stays in one place rather than being re-derived per route.
  * Returns the authorized trace (its `timestamp` bounds downstream ClickHouse
  * reads); throws `LangfuseNotFoundError` / `UnauthorizedError` otherwise.
@@ -137,12 +138,11 @@ export async function getAuthorizedTrace(params: {
       : null;
 
   const isSessionPublic = traceSession?.public === true;
-  const isAdmin = session?.user.admin === true;
+  const sessionOrganization = findSessionOrganization(session, projectId);
   const canReadTrace =
     clickhouseTrace.public ||
     isSessionPublic ||
-    isAdmin ||
-    hasProjectAccess(session, projectId);
+    sessionOrganization !== undefined;
 
   if (!canReadTrace) {
     throw new UnauthorizedError(
@@ -150,16 +150,11 @@ export async function getAuthorizedTrace(params: {
     );
   }
 
-  if (isAdmin) {
-    const dbProject = await prisma.project.findFirst({
-      where: { id: projectId, deletedAt: null },
-      select: { orgId: true },
-    });
-
+  if (sessionOrganization?.supportAccess === true) {
     await sendAdminAccessWebhook({
-      email: session.user.email,
+      email: session?.user.email,
       projectId,
-      orgId: dbProject?.orgId,
+      orgId: sessionOrganization.id,
     });
   }
 

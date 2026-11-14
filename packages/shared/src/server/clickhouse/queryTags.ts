@@ -1,4 +1,6 @@
 import { context, createContextKey, propagation } from "@opentelemetry/api";
+import { getProjectSize } from "../projectSize";
+import { queryWindowNone, type QueryWindow } from "./queryWindow";
 
 export const CLICKHOUSE_QUERY_TAG_SCHEMA_VERSION = "1" as const;
 const UNKNOWN_CLICKHOUSE_QUERY_TAG_VALUE = "unknown" as const;
@@ -19,6 +21,7 @@ export type ClickHouseQueryTags = {
   surface?: ClickHouseQuerySurface | (string & {});
   route?: string;
   projectId?: string;
+  queryWindow?: QueryWindow;
   sdkName?: "python" | "javascript";
   sdkVersion?: string;
   userAgent?: string;
@@ -30,6 +33,8 @@ export type NormalizedClickHouseQueryTags = {
   surface: ClickHouseQuerySurface | typeof UNKNOWN_CLICKHOUSE_QUERY_TAG_VALUE;
   route?: string;
   projectId?: string;
+  projectSize: ReturnType<typeof getProjectSize>;
+  queryWindow: QueryWindow;
   sdkName?: "python" | "javascript";
   sdkVersion?: string;
   userAgent?: string;
@@ -101,6 +106,8 @@ export function normalizeClickHouseQueryTags(
       : UNKNOWN_CLICKHOUSE_QUERY_TAG_VALUE,
     ...(normalizedRoute ? { route: normalizedRoute } : {}),
     ...(projectId ? { projectId } : {}),
+    projectSize: taggedProjectSize(projectId),
+    queryWindow: providedTags?.queryWindow ?? queryWindowNone,
     ...(providedTags?.experimentId
       ? { experimentId: providedTags.experimentId }
       : {}),
@@ -116,4 +123,12 @@ export function normalizeClickHouseQueryTags(
 
 export function buildClickHouseLogComment(tags?: ClickHouseQueryTags): string {
   return JSON.stringify(normalizeClickHouseQueryTags(tags));
+}
+
+/** taggedProjectSize sizes the tagged project, or `unknown` when the query has none. */
+function taggedProjectSize(
+  projectId: string | undefined,
+): ReturnType<typeof getProjectSize> {
+  if (!projectId) return "unknown";
+  return getProjectSize(projectId);
 }

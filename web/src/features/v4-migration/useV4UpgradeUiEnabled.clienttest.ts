@@ -21,7 +21,6 @@ const mockSessionAvailability = (v4UpgradeUiAvailable: boolean) => {
   mockUseSession.mockReturnValue({
     data: {
       user: {
-        admin: false,
         featureFlags: testFeatureFlags({ templateFlag: false }),
         v4UpgradeUiAvailable,
       },
@@ -51,11 +50,10 @@ describe("useV4UpgradeUiEnabled", () => {
     expect(result.current).toBe(false);
   });
 
-  it("does not enable the UI for admins or experimental deployments", () => {
+  it("does not enable the UI for experimental deployments", () => {
     mockUseSession.mockReturnValue({
       data: {
         user: {
-          admin: true,
           featureFlags: testFeatureFlags({ templateFlag: false }),
           v4UpgradeUiAvailable: false,
         },
@@ -74,7 +72,6 @@ describe("useV4UpgradeUiEnabled", () => {
     mockUseSession.mockReturnValue({
       data: {
         user: {
-          admin: false,
           featureFlags: testFeatureFlags({ templateFlag: false }),
         },
         environment: { enableExperimentalFeatures: false },

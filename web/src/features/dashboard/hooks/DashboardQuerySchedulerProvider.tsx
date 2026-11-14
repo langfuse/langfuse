@@ -365,6 +365,10 @@ export const useScheduledDashboardExecuteQuery = (
   );
 
   // tRPC path (default)
+  const queryMeta = {
+    ...meta,
+    toastOperation: "dashboard.query" as const,
+  };
   const trpcResult = useQuery<DashboardExecuteQueryOutput, Error>({
     ...reactQueryOptions,
     queryKey: queryCacheKey,
@@ -373,6 +377,7 @@ export const useScheduledDashboardExecuteQuery = (
         ? fetchQuery.fetch(input.query)
         : utils.dashboard.executeQuery.fetch(input, {
             trpc,
+            meta: queryMeta,
           }),
     staleTime: queryOptions.staleTime ?? cachePolicy.staleTime,
     gcTime: queryOptions.gcTime ?? cachePolicy.gcTime,
@@ -380,7 +385,7 @@ export const useScheduledDashboardExecuteQuery = (
     refetchOnReconnect: queryOptions.refetchOnReconnect ?? false,
     refetchOnMount: queryOptions.refetchOnMount ?? false,
     enabled: enabled && canFetch && !useSSE,
-    meta: { ...meta, toastOperation: "dashboard.query" },
+    meta: queryMeta,
   });
 
   // SSE path (opt-in) — same cache key as the tRPC path, so identical widgets
@@ -424,6 +429,6 @@ export const useScheduledDashboardExecuteQuery = (
     fetchStatus: activeResult.fetchStatus,
     isPending: activeResult.isPending,
     progress: useSSE ? sseResult.progress : null,
-    error: useSSE ? sseResult.error : null,
+    error: useSSE ? sseResult.error : (trpcResult.error?.message ?? null),
   };
 };

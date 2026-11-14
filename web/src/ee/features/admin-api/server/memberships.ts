@@ -5,9 +5,11 @@ import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import {
   deleteUserBoundApiKeys,
   evictRevokedApiKeys,
+  evictUserGatewayResolveCache,
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { deleteSessionViewsWithoutProjectAccess } from "@/src/features/sessions/server/fns/deleteSessionViewsWithoutProjectAccess";
 import {
   deleteOrgMembership,
   saveOrgMembership,
@@ -121,7 +123,15 @@ export async function handleUpdateMembership(
       },
       tx,
     );
+    await deleteSessionViewsWithoutProjectAccess(tx, {
+      userId: validatedBody.data.userId,
+      orgId,
+    });
     return after;
+  });
+  await evictUserGatewayResolveCache(prisma, {
+    orgId,
+    userId: membership.userId,
   });
 
   await getSfdcService()?.setUserRole({
@@ -180,6 +190,10 @@ export async function handleDeleteMembership(
       tx,
     );
     const revokedKeys = await deleteUserBoundApiKeys(tx, {
+      userId: validatedBody.data.userId,
+      orgId,
+    });
+    await deleteSessionViewsWithoutProjectAccess(tx, {
       userId: validatedBody.data.userId,
       orgId,
     });

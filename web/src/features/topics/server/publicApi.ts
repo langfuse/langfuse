@@ -22,6 +22,7 @@ import {
   type TopicTimeRange,
 } from "@langfuse/shared/topics";
 import {
+  getCurrentTopicMapRows,
   getPublishedTopicRun,
   getTopicRule,
   getTopicRuns,
@@ -469,13 +470,23 @@ function checkFilterLimits(filter: FilterState) {
   }
 }
 
-/** Published map topics per facet, for resolving topic names. */
+/** Topics of every rule's current map per facet, for resolving topic names. */
 async function publishedTopicsByFacet(projectId: string, facets: TopicFacet[]) {
-  const runs = await Promise.all(
-    facets.map((facet) => getPublishedTopicRun(projectId, facet.id)),
+  const maps = await getCurrentTopicMapRows(
+    projectId,
+    facets.map((facet) => facet.id),
+  );
+  const runs = await getTopicRuns(
+    projectId,
+    maps.map(({ run }) => run.id),
   );
   return new Map(
-    facets.map((facet, index) => [facet.id, runs[index]?.topics ?? []]),
+    facets.map((facet) => [
+      facet.id,
+      runs
+        .filter((run) => run.facetId === facet.id)
+        .flatMap((run) => run.topics),
+    ]),
   );
 }
 
@@ -796,12 +807,31 @@ async function topicNamesForAssignments(
 
 /** Lists the current assignment (assigned or outlier) per trace, facet and rule. */
 export async function listPublicTopicAssignments(params: ResultListParams) {
-  const { facets, scope, window, readerInput } = await prepareResultList(
+  const { facets, window, readerInput } = await prepareResultList(
     params,
     ASSIGNMENT_COLUMNS,
   );
   if (!readerInput) return { window, data: [], meta: resultMeta() };
-  const result = await listCurrentTopicAssignments(readerInput);
+  // Each rule assigns to its own map, so a row's rule is its map's rule, and a
+  // ruleId filter keeps only those maps.
+  const ruleFilters = (params.filter ?? []).flatMap((condition) =>
+    condition.column === "ruleId" && condition.type === "stringOptions"
+      ? [condition]
+      : [],
+  );
+  const maps = (
+    await getCurrentTopicMapRows(params.projectId, readerInput.facetIds)
+  ).filter(({ ruleId }) =>
+    ruleFilters.every(
+      ({ operator, value }) =>
+        (ruleId !== null && value.includes(ruleId)) === (operator === "any of"),
+    ),
+  );
+  const ruleByRun = new Map(maps.map(({ ruleId, run }) => [run.id, ruleId]));
+  const result = await listCurrentTopicAssignments({
+    ...readerInput,
+    publishedRunIds: [...ruleByRun.keys()],
+  });
   const names = await topicNamesForAssignments(
     params.projectId,
     [...facets.values()],
@@ -815,7 +845,7 @@ export async function listPublicTopicAssignments(params: ResultListParams) {
       facetId: row.facetId,
       facetName: facets.get(row.facetId)?.name ?? "",
       facetVersion: row.facetVersion,
-      ruleId: scope.ruleIdsFor(row.facetId)[0] ?? null,
+      ruleId: (row.runId && ruleByRun.get(row.runId)) ?? null,
       status: row.status,
       topic:
         row.topicId && row.topicVersionId

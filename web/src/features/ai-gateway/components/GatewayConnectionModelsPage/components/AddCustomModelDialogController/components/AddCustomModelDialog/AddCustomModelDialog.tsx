@@ -5,10 +5,19 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
 import { Input } from "@/src/components/design-system/Input/Input";
+import {
+  ConnectionSelect,
+  type ConnectionSelectOption,
+} from "@/src/features/ai-gateway/components/ConnectionSelect/ConnectionSelect";
 import type { RouterOutputs } from "@/src/utils/api";
 
 export type AddCustomModelDialogProps = {
-  existingModels: string[];
+  connections: ReadonlyArray<ConnectionSelectOption>;
+  connectionId: string;
+  onConnectionChange: (connectionId: string) => void;
+  /** Models the selected connection already lists; undefined until they load. */
+  existingModels: string[] | undefined;
+  existingModelsFailed: boolean;
   isAdding: boolean;
   isTesting: boolean;
   /** Resolves to whether the model was added; the dialog closes only then. */
@@ -18,7 +27,11 @@ export type AddCustomModelDialogProps = {
 };
 
 export function AddCustomModelDialog({
+  connections,
+  connectionId,
+  onConnectionChange,
   existingModels,
+  existingModelsFailed,
   isAdding,
   isTesting,
   onAdd,
@@ -27,15 +40,21 @@ export function AddCustomModelDialog({
 }: AddCustomModelDialogProps) {
   const [modelId, setModelId] = useState("");
   const [test, setTest] = useState<{
+    connectionId: string;
     model: string;
     result: CustomModelTestResult;
   }>();
   const model = modelId.trim();
-  const isDuplicate = existingModels.includes(model);
-  // A result only applies to the model ID it was sent for.
-  const testResult = test?.model === model ? test.result : undefined;
+  const isDuplicate = existingModels?.includes(model) ?? false;
+  // A result only applies to the connection and model ID it was sent for.
+  const testResult =
+    test?.connectionId === connectionId && test.model === model
+      ? test.result
+      : undefined;
   const addDisabledReason = getAddDisabledReason({
     model,
+    existingModelsLoaded: existingModels !== undefined,
+    existingModelsFailed,
     isDuplicate,
     testSucceeded: testResult?.success === true,
   });
@@ -50,7 +69,7 @@ export function AddCustomModelDialog({
 
   async function handleTest() {
     const result = await onTest(model);
-    if (result) setTest({ model, result });
+    if (result) setTest({ connectionId, model, result });
   }
 
   return (
@@ -72,6 +91,20 @@ export function AddCustomModelDialog({
           Add a model the provider does not list, such as a fine-tuned model or
           an inference profile. Gateway keys can call it once it is enabled.
         </p>
+        <FormField label="Connection">
+          {({ id, inputDescribedById }) => (
+            <ConnectionSelect
+              id={id}
+              aria-describedby={inputDescribedById}
+              placeholder="Select a connection"
+              connections={connections}
+              value={connectionId}
+              // The add mutation's cache updates follow the selected connection.
+              disabled={isAdding}
+              onChange={onConnectionChange}
+            />
+          )}
+        </FormField>
         <FormField
           label="Model ID"
           description={
@@ -98,8 +131,8 @@ export function AddCustomModelDialog({
               }
             >
               {testResult
-                ? "Test this model with your current credential"
-                : "This model hasn't been tested with your credential yet."}
+                ? "Test this model with this connection"
+                : "This model hasn't been tested with this connection yet."}
             </p>
             <Button
               variant="outline"
@@ -119,10 +152,16 @@ export function AddCustomModelDialog({
 
 function getAddDisabledReason(params: {
   model: string;
+  existingModelsLoaded: boolean;
+  existingModelsFailed: boolean;
   isDuplicate: boolean;
   testSucceeded: boolean;
 }) {
   if (params.model.length === 0) return "Enter a model ID.";
+  if (params.existingModelsFailed) {
+    return "This connection's models could not be loaded.";
+  }
+  if (!params.existingModelsLoaded) return "Loading this connection's models.";
   if (params.isDuplicate) return "This model is already listed.";
   if (!params.testSucceeded) return "Send a successful test request first.";
   return undefined;

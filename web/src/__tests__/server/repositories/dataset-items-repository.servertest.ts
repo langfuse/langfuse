@@ -552,6 +552,94 @@ describe("Dataset Items Repository - Versioning Tests", () => {
 
       expect(item).toBeNull();
     });
+
+    it("should return the newest open row when several rows have valid_to IS NULL", async () => {
+      const datasetId = v4();
+      const itemId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
+
+      const olderValidFrom = new Date("2020-01-01T00:00:00.000Z");
+      const newerValidFrom = new Date("2024-06-01T00:00:00.000Z");
+
+      // Two open rows for one id. Upsert only closes the newest, so an older
+      // open row can remain. The by-id read must still return the newest.
+      await prisma.datasetItem.create({
+        data: {
+          id: itemId,
+          projectId,
+          datasetId,
+          input: { version: "stale" },
+          validFrom: olderValidFrom,
+          validTo: null,
+          isDeleted: false,
+        },
+      });
+      await prisma.datasetItem.create({
+        data: {
+          id: itemId,
+          projectId,
+          datasetId,
+          input: { version: "current" },
+          validFrom: newerValidFrom,
+          validTo: null,
+          isDeleted: false,
+        },
+      });
+
+      const item = await getDatasetItemById({
+        projectId,
+        datasetItemId: itemId,
+      });
+
+      expect(item?.input).toEqual({ version: "current" });
+      expect(item?.validFrom).toEqual(newerValidFrom);
+    });
+
+    it("should return null after delete when an older open row remains", async () => {
+      const datasetId = v4();
+      const itemId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
+
+      await prisma.datasetItem.create({
+        data: {
+          id: itemId,
+          projectId,
+          datasetId,
+          input: { version: "stale" },
+          validFrom: new Date("2020-01-01T00:00:00.000Z"),
+          validTo: null,
+          isDeleted: false,
+        },
+      });
+      await prisma.datasetItem.create({
+        data: {
+          id: itemId,
+          projectId,
+          datasetId,
+          input: { version: "current" },
+          validFrom: new Date("2024-06-01T00:00:00.000Z"),
+          validTo: null,
+          isDeleted: false,
+        },
+      });
+
+      await deleteDatasetItem({
+        projectId,
+        datasetItemId: itemId,
+        datasetId,
+      });
+
+      const item = await getDatasetItemById({
+        projectId,
+        datasetItemId: itemId,
+      });
+
+      expect(item).toBeNull();
+    });
   });
 
   describe("getDatasetItems() with version parameter", () => {

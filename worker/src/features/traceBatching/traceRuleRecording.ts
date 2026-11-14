@@ -132,6 +132,65 @@ const RECORD_SCRIPT = `
   return expired
 `;
 
+// Seeds already ingested traces. Unlike recording, bytes come from the stored
+// trace, so the larger value wins, and a later due time is kept.
+// KEYS: pending, due, then one bounds key per member.
+// ARGV: bounds TTL, pending TTL, rules JSON, then per member: member, min start, max start, revision, bytes, due offset.
+const SEED_SCRIPT = `
+  local pendingKey, dueKey = KEYS[1], KEYS[2]
+  local clock = redis.call('TIME')
+  local now = clock[1] * 1000 + math.floor(clock[2] / 1000)
+  local boundsTtl = tonumber(ARGV[1])
+  local pendingTtl = tonumber(ARGV[2])
+  local seededRules = cjson.decode(ARGV[3])
+  local latestDue = 0
+  for key = 3, #KEYS do
+    local i = 4 + (key - 3) * 6
+    local member = ARGV[i]
+    local due = now + tonumber(ARGV[i + 5])
+    latestDue = math.max(latestDue, due)
+    local minStart = tonumber(ARGV[i + 1])
+    local maxStart = tonumber(ARGV[i + 2])
+    local serializedEventBytes = tonumber(ARGV[i + 4])
+    local previousBounds = redis.call('GET', KEYS[key])
+    if previousBounds then
+      local bounds = cmsgpack.unpack(previousBounds)
+      minStart = math.min(minStart, bounds[1])
+      maxStart = math.max(maxStart, bounds[2])
+      serializedEventBytes = math.max(serializedEventBytes, bounds[3])
+    end
+    redis.call('SET', KEYS[key], cmsgpack.pack({
+      minStart, maxStart, serializedEventBytes
+    }), 'PX', boundsTtl)
+
+    -- Keep live selections unless they are expired or incomplete, as recording does.
+    local previousPending = redis.call('HGET', pendingKey, member)
+    local pending = previousPending and cjson.decode(previousPending)
+    local priorDue = tonumber(redis.call('ZSCORE', dueKey, member))
+    if pending and (not previousBounds or not priorDue or priorDue + pendingTtl <= now) then
+      pending = nil
+    end
+    local rules = {}
+    local seen = {}
+    for _, id in ipairs(pending and pending.rules or {}) do
+      if not seen[id] then table.insert(rules, id); seen[id] = true end
+    end
+    for _, id in ipairs(seededRules) do
+      if not seen[id] then table.insert(rules, id); seen[id] = true end
+    end
+    redis.call('HSET', pendingKey, member, cjson.encode({
+      revision = ARGV[i + 3], rules = rules,
+      failed_cnt = pending and pending.failed_cnt or 0
+    }))
+    redis.call('ZADD', dueKey, 'GT', due, member)
+  end
+  for _, key in ipairs({ pendingKey, dueKey }) do
+    if redis.call('PEXPIRETIME', key) < latestDue + pendingTtl then
+      redis.call('PEXPIREAT', key, string.format('%.0f', latestDue + pendingTtl))
+    end
+  end
+`;
+
 // Read readiness, revision and retained bounds atomically before enqueueing.
 // KEYS: due, pending, then one bounds key per member; ARGV: cutoff, pending TTL, then the members.
 export const HYDRATE_RECORDING_SCRIPT = `
@@ -242,6 +301,7 @@ export const RESTORE_RECORDING_SCRIPT = `
 const recordingScriptHashes = new Map(
   [
     RECORD_SCRIPT,
+    SEED_SCRIPT,
     HYDRATE_RECORDING_SCRIPT,
     ACKNOWLEDGE_RECORDING_SCRIPT,
     RESTORE_RECORDING_SCRIPT,
@@ -389,6 +449,66 @@ export async function recordTraceActivity(
       recordIncrement("langfuse.trace_dispatch.expired_traces", expired, {
         source: "ingestion",
       });
+    }
+  }
+}
+
+/**
+ * Queues already ingested traces for rules, due evenly over [dueInMs, dueInMs + spreadMs)
+ * from now, so their LLM calls do not all start at once; later live activity wins.
+ */
+export async function seedTraceDispatch(
+  projectId: string,
+  traces: readonly {
+    traceId: string;
+    minStart: number;
+    maxStart: number;
+    serializedEventBytes: number;
+  }[],
+  ruleIds: readonly string[],
+  dueInMs: number,
+  spreadMs = 0,
+): Promise<void> {
+  if (traces.length === 0) return;
+  if (!redis) throw new Error("Trace rule recording requires Redis");
+  const shards = new Map<
+    number,
+    ((typeof traces)[number] & { member: string; dueOffset: number })[]
+  >();
+  traces.forEach((trace, index) => {
+    const member = JSON.stringify([projectId, trace.traceId]);
+    const shard = getTraceBatchShard(member);
+    const dueOffset = dueInMs + Math.floor((index * spreadMs) / traces.length);
+    shards.set(shard, [
+      ...(shards.get(shard) ?? []),
+      { ...trace, member, dueOffset },
+    ]);
+  });
+  for (const [shard, entries] of shards) {
+    const { pending, due } = getRecordingKeys(shard);
+    for (let offset = 0; offset < entries.length; offset += REDIS_BATCH_SIZE) {
+      const chunk = entries.slice(offset, offset + REDIS_BATCH_SIZE);
+      await evalRecording(
+        SEED_SCRIPT,
+        [
+          pending,
+          due,
+          ...chunk.map(({ member }) => getRecordingBoundsKey(shard, member)),
+        ],
+        [
+          env.LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS,
+          env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
+          JSON.stringify(ruleIds),
+          ...chunk.flatMap((trace) => [
+            trace.member,
+            trace.minStart,
+            trace.maxStart,
+            randomUUID(),
+            trace.serializedEventBytes,
+            trace.dueOffset,
+          ]),
+        ],
+      );
     }
   }
 }

@@ -65,6 +65,7 @@ async function enqueueSkillAutomationAction(
       projectId: event.projectId,
       automationId,
       executionId,
+      actionType: automations[0].action.type,
       payload: {
         type: "skill-version",
         action: event.action,

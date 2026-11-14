@@ -19,7 +19,6 @@ import {
   createScoresCh,
   createEvent,
   createEventsCh,
-  clickhouseClient,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 
@@ -4028,31 +4027,6 @@ describe("queryBuilder", () => {
   describe("pairExpand map expansion (v2)", () => {
     const isEventsTableV2Enabled =
       env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
-    let hasLegacyEventsTable = false;
-
-    const maybeItWithEventsTable = (
-      name: string,
-      testFn: () => Promise<void>,
-    ): void => {
-      isEventsTableV2Enabled(name, async () => {
-        if (!hasLegacyEventsTable) return;
-        await testFn();
-      });
-    };
-
-    beforeAll(async () => {
-      if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") return;
-
-      try {
-        const result = await clickhouseClient().query({
-          query: "EXISTS TABLE default.events",
-          format: "TabSeparated",
-        });
-        hasLegacyEventsTable = (await result.text()).trim() === "1";
-      } catch {
-        hasLegacyEventsTable = false;
-      }
-    });
 
     it("should emit ARRAY JOIN clause for pairExpand dimensions", async () => {
       const projectId = randomUUID();
@@ -4072,15 +4046,13 @@ describe("queryBuilder", () => {
         true,
       );
 
-      expect(sql).toContain("ARRAY JOIN");
-      expect(sql).toContain(
-        "mapKeys(events_observations.cost_details) AS costType",
-      );
-      expect(sql).toContain(
-        "mapValues(events_observations.cost_details) AS cost_value",
-      );
+      expect(sql).toMatch(/\barray join\b/i);
+      expect(sql).toMatch(/mapKeys\(\w+\.cost_details\) as costType\b/i);
+      expect(sql).toMatch(/mapValues\(\w+\.cost_details\) as cost_value\b/i);
       // ARRAY JOIN must appear before WHERE
-      expect(sql.indexOf("ARRAY JOIN")).toBeLessThan(sql.indexOf("WHERE"));
+      expect(sql.search(/\barray join\b/i)).toBeLessThan(
+        sql.search(/\bwhere\b/i),
+      );
       // No inline arrayJoin() function call — must use clause form
       expect(sql).not.toMatch(/arrayJoin\(mapKeys/);
       // ARRAY JOIN already aliases the key; re-emitting `costType AS costType`
@@ -4088,7 +4060,7 @@ describe("queryBuilder", () => {
       expect(sql).not.toMatch(/costType\s+as\s+costType/i);
     });
 
-    maybeItWithEventsTable(
+    isEventsTableV2Enabled(
       "should aggregate cost_details by type correctly",
       async () => {
         const projectId = randomUUID();
@@ -4138,7 +4110,7 @@ describe("queryBuilder", () => {
       },
     );
 
-    maybeItWithEventsTable(
+    isEventsTableV2Enabled(
       "should aggregate usage_details by type correctly",
       async () => {
         const projectId = randomUUID();
@@ -4185,7 +4157,7 @@ describe("queryBuilder", () => {
       },
     );
 
-    maybeItWithEventsTable(
+    isEventsTableV2Enabled(
       "should produce timeseries with costType dimension and WITH FILL",
       async () => {
         const projectId = randomUUID();
@@ -4217,11 +4189,10 @@ describe("queryBuilder", () => {
           true,
         );
 
-        expect(sql).toContain("WITH FILL");
+        expect(sql).toMatch(/\bwith fill\b/i);
         expect(sql).toContain("time_dimension");
         // GROUP BY parts may be newline-separated in the generated SQL
-        expect(sql).toContain("GROUP BY costType");
-        expect(sql).toMatch(/GROUP BY costType[\s,]+time_dimension/);
+        expect(sql).toMatch(/\bgroup by costType[\s,]+time_dimension\b/i);
 
         const result = await executeQuery(
           projectId,
@@ -4246,7 +4217,7 @@ describe("queryBuilder", () => {
       },
     );
 
-    maybeItWithEventsTable(
+    isEventsTableV2Enabled(
       "should respect type filter with pairExpand dimensions",
       async () => {
         const projectId = randomUUID();
@@ -4296,7 +4267,7 @@ describe("queryBuilder", () => {
       },
     );
 
-    maybeItWithEventsTable(
+    isEventsTableV2Enabled(
       "should aggregate cost_details by type correctly via two-level query path",
       async () => {
         // Forces the two-level path by passing useSingleLevelOptimization=false.
@@ -4349,7 +4320,7 @@ describe("queryBuilder", () => {
       },
     );
 
-    maybeItWithEventsTable(
+    isEventsTableV2Enabled(
       "should auto-include costType dimension when only costByType measure is requested",
       async () => {
         // Verifies requiresDimension: the query builder must inject the costType
@@ -4940,9 +4911,9 @@ describe("query builder measure-aggregation validation", () => {
     const result = await queryBuilder.build(query, randomUUID());
 
     expect(result.query).toContain("as entity_dimension");
-    expect(result.query).toContain("GROUP BY entity_dimension");
+    expect(result.query).toMatch(/\bgroup by entity_dimension\b/i);
     expect(result.query).not.toContain("time_dimension");
-    expect(result.query).not.toContain("WITH FILL");
+    expect(result.query).not.toMatch(/\bwith fill\b/i);
   });
 
   it("should include declared relation for relation-backed entity dimensions", async () => {
@@ -5119,27 +5090,10 @@ describe("query builder measure-aggregation validation", () => {
   describe("events_traces traceName filter", () => {
     const isEventsTableV2Enabled =
       env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
-    let hasLegacyEventsTable = false;
-
-    beforeAll(async () => {
-      if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") return;
-
-      try {
-        const result = await clickhouseClient().query({
-          query: "EXISTS TABLE default.events",
-          format: "TabSeparated",
-        });
-        hasLegacyEventsTable = (await result.text()).trim() === "1";
-      } catch {
-        hasLegacyEventsTable = false;
-      }
-    });
 
     isEventsTableV2Enabled(
       "should filter events_traces by traceName using aggregation logic",
       async () => {
-        if (!hasLegacyEventsTable) return;
-
         const projectId = randomUUID();
         const traceId1 = randomUUID();
         const traceId2 = randomUUID();
@@ -5207,8 +5161,6 @@ describe("query builder measure-aggregation validation", () => {
     isEventsTableV2Enabled(
       "should filter events_traces by traceName column via resolveDimension fallback to name filterSql",
       async () => {
-        if (!hasLegacyEventsTable) return;
-
         const projectId = randomUUID();
         const traceId1 = randomUUID();
         const traceId2 = randomUUID();
@@ -5265,8 +5217,6 @@ describe("query builder measure-aggregation validation", () => {
     isEventsTableV2Enabled(
       "should filter events_traces by name filterSql combined with a regular dimension filter",
       async () => {
-        if (!hasLegacyEventsTable) return;
-
         const projectId = randomUUID();
         const traceId1 = randomUUID();
         const traceId2 = randomUUID();
@@ -5388,7 +5338,7 @@ describe("query builder measure-aggregation validation", () => {
         randomUUID(),
       );
 
-      expect(sql).toContain("FROM events_full events_observations");
+      expect(sql).toMatch(/\bfrom events_full\b/i);
       expect(sql).not.toContain("events_core");
     });
 

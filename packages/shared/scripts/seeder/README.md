@@ -153,6 +153,12 @@ The default seeds discovery and held-out assignment traces; `evaluation` adds va
 
 Use `--batch discovery`, summarize those traces, then update topics with **Small sample mode**. Process `--batch assignment` after the map is published to check assignment to existing topics. These processing steps require configured models. The evaluation batch also needs small sample mode for facets with fewer than the normal minimum of applicable summaries. Use `pnpm run seed -- list` for flags.
 
+```bash
+pnpm run seed -- topics-map
+```
+
+`topics-map` skips the models: it writes summaries, two rules (an unfiltered one and a long-named rule whose tag filter matches its 48 traces, both named `Seed: …` so existing rules are never overwritten) and completed Intent and Issues maps with 2D coordinates, so the treemap, list and map views render right away. Topic sizes range from 34 traces down to 2, and the map includes long topic names, outliers and four traces awaiting a map. The project still needs Topics enabled (`LANGFUSE_TOPICS_ENABLED`, `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`, a cloud region and the Topics feature flag for the user).
+
 ## The contract (additive-only)
 
 Scenario names, flag names, JSON summary keys, and exit-code semantics are a
@@ -195,6 +201,7 @@ the wall clock** — otherwise re-runs silently duplicate rows and
 
 - time anchors come from `utcDayStartMs()` (UTC midnight, computed in TS —
   ClickHouse's `today()` is server-timezone)
+- the bulk SQL may end at seed time (`endSeconds`, used by `many-traces`) only by compressing the anchor day's rows into midnight..now, with the anchor at midnight in the ClickHouse server timezone (`serverTimezone()`, not UTC): each row's server-local date stays fixed, so `toDate(...)` keys survive same-day re-runs
 - per-row variation comes from the stateless `jitter(seed, index, max)`
   (scenarios) or salted `xxHash32(number)` columns (bulk SQL); wrap hash
   inputs in `toUInt64` — xxHash32 hashes the binary representation, and a

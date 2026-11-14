@@ -20,6 +20,7 @@ import { runMcpTool } from "../../../core/run-mcp-tool";
 import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
+import { observationRefs } from "@/src/features/audit-logs/server/auditedQuery";
 import {
   ExpandMetadataKeysSchema,
   getMetadataExpansionForProjection,
@@ -133,9 +134,10 @@ export const [listObservationsTool, handleListObservations] = defineTool({
     "All requests must include explicit fromStartTime (inclusive) and toStartTime (exclusive) with 0 < toStartTime - fromStartTime <= 336 hours (14 days), even when scoped by traceId or observation id. This is elapsed time, not a count of calendar dates. For example, 2026-10-01T00:00:00Z to 2026-10-15T00:00:00Z is valid; ending at 2026-10-15T23:59:59Z exceeds the limit. Split longer ranges into adjacent windows, using each window's toStartTime as the next window's fromStartTime. Reuse timestamps from earlier results to narrow the search. Input/output projections support a maximum limit of 50.",
   ].join("\n"),
   action: "traces:read",
+  accessAudit: { resourceType: "observation", action: "list" },
   baseSchema: ListObservationsBaseSchema,
   inputSchema: ListObservationsInputSchema,
-  handler: async (input, context) => {
+  handler: async (input, context, audit) => {
     const projectionFields = getProjectionFields(input.fields);
     const filterColumns = new Set(input.filter?.map((filter) => filter.column));
 
@@ -218,6 +220,8 @@ export const [listObservationsTool, handleListObservations] = defineTool({
 
         const hasMore = items.length > input.limit;
         const dataToReturn = hasMore ? items.slice(0, input.limit) : items;
+        audit.refs(observationRefs(dataToReturn));
+        audit.count(dataToReturn.length);
 
         const data = dataToReturn.map((item) => {
           const projectedObservation = projectObservation(

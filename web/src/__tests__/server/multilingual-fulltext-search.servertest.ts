@@ -114,7 +114,6 @@ describe("multilingual full-text search (issue #11538)", () => {
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin: true,
     },
     environment: {} as any,
   };

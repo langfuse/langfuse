@@ -24,6 +24,8 @@ const ownsExecution = (state: string) =>
     state,
   );
 type TopicsJob = TQueueJobTypes[QueueName.Topics];
+type TopicsUpdateJob = TQueueJobTypes[QueueName.TopicsUpdate];
+type TopicsSetupJob = TQueueJobTypes[QueueName.TopicsSetup];
 const batchJobId = (executionId: string, index: number) =>
   `${executionId}-${index}`;
 const progressKeys = (projectId: string, executionId: string) => {
@@ -40,12 +42,12 @@ const expiredInput = () =>
     "Topics batch inputs or retry state expired. Start a new execution with your trace selection.",
   );
 
-function createTopicsQueue(
-  queueName: QueueName.Topics | QueueName.TopicsUpdate,
-): Queue<TopicsJob> | null {
+function createTopicsQueue<Job extends TopicsUpdateJob | TopicsSetupJob>(
+  queueName: QueueName.Topics | QueueName.TopicsUpdate | QueueName.TopicsSetup,
+): Queue<Job> | null {
   const options = createBullMQQueueOptionsWithRedis(queueName);
   if (!options) return null;
-  const queue = new Queue<TopicsJob>(queueName, {
+  const queue = new Queue<Job>(queueName, {
     ...options,
     defaultJobOptions: {
       attempts: 1,
@@ -65,24 +67,117 @@ export class TopicsQueue {
   }
 }
 export class TopicsUpdateQueue {
-  private static instance: Queue<TopicsJob> | null = null;
-  static getInstance(): Queue<TopicsJob> | null {
+  private static instance: Queue<TopicsUpdateJob> | null = null;
+  static getInstance(): Queue<TopicsUpdateJob> | null {
     if (!isTopicsEnabled()) return null;
     if (!this.instance)
       this.instance = createTopicsQueue(QueueName.TopicsUpdate);
     return this.instance;
   }
 }
+/** The clock of rule setups; each job delays itself while its setup runs. */
+export class TopicsSetupQueue {
+  private static instance: Queue<TopicsSetupJob> | null = null;
+  static getInstance(): Queue<TopicsSetupJob> | null {
+    if (!isTopicsEnabled()) return null;
+    if (!this.instance)
+      this.instance = createTopicsQueue(QueueName.TopicsSetup);
+    return this.instance;
+  }
+}
+// Execution jobs on the update queue share the Topics job shape.
 const executionQueue = (operation: TopicOperation) =>
   operation === "process"
     ? TopicsQueue.getInstance()
-    : TopicsUpdateQueue.getInstance();
+    : (TopicsUpdateQueue.getInstance() as Queue<TopicsJob> | null);
+
+/** Idempotent per run: the job ID is the run ID. A priority runs after unprioritized jobs. */
+export async function enqueueTopicRuleRefit(
+  projectId: string,
+  runId: string,
+  priority?: number,
+): Promise<void> {
+  const queue = TopicsUpdateQueue.getInstance();
+  if (!queue) throw new Error("Topics rule refits require the update queue.");
+  await queue.add(
+    QueueJobs.TopicsRuleRefit,
+    {
+      id: runId,
+      timestamp: new Date(),
+      name: QueueJobs.TopicsRuleRefit,
+      payload: { projectId, runId },
+    },
+    { jobId: runId, priority },
+  );
+}
+
+/** Idempotent per setup: the job ID derives from the rule and the setup's start. */
+export async function enqueueTopicRuleSetup(
+  projectId: string,
+  ruleId: string,
+  startedAt: string,
+): Promise<void> {
+  const queue = TopicsSetupQueue.getInstance();
+  if (!queue) throw new Error("Topics setup requires Redis.");
+  const id = createHash("sha256")
+    .update(JSON.stringify([projectId, ruleId, startedAt]))
+    .digest("hex");
+  await queue.add(
+    QueueJobs.TopicsSetup,
+    {
+      id,
+      timestamp: new Date(),
+      name: QueueJobs.TopicsSetup,
+      payload: { projectId, ruleId },
+    },
+    { jobId: id },
+  );
+}
+
+const snapshotSetupJobId = (projectId: string, executionId: string) =>
+  createHash("sha256")
+    .update(JSON.stringify([projectId, executionId, "snapshot-setup"]))
+    .digest("hex");
+
+/** Idempotent per snapshot: summarizes its traces, then enqueues its update. */
+export async function enqueueTopicSnapshotSetup(
+  projectId: string,
+  executionId: string,
+): Promise<void> {
+  const queue = TopicsSetupQueue.getInstance();
+  if (!queue) throw new Error("Topics setup requires Redis.");
+  const id = snapshotSetupJobId(projectId, executionId);
+  // A resume reuses the ID; a finished earlier job would make the add a no-op.
+  const previous = await queue.getJob(id);
+  if (
+    previous &&
+    ((await previous.isCompleted()) || (await previous.isFailed()))
+  )
+    await previous.remove();
+  await queue.add(
+    QueueJobs.TopicsSetup,
+    {
+      id,
+      timestamp: new Date(),
+      name: QueueJobs.TopicsSetup,
+      payload: { projectId, executionId },
+    },
+    { jobId: id },
+  );
+}
 
 export async function getTopicExecutionQueueState(
   execution: TopicExecutionSummary,
 ) {
   const { projectId, id: executionId } = execution;
   const operation = execution.input.operation;
+  // A snapshot summarizing first has only its setup job until the fit is enqueued.
+  if (operation === "update" && execution.phase === "summarizing") {
+    const job = await TopicsSetupQueue.getInstance()?.getJob(
+      snapshotSetupJobId(projectId, executionId),
+    );
+    return job ? job.getState() : ("missing" as const);
+  }
   const queue = executionQueue(operation);
   if (!queue)
     throw new Error("Topics requires the local development server and Redis.");

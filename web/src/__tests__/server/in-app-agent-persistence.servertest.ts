@@ -127,7 +127,6 @@ describe("in-app agent persistence", () => {
           },
         ],
         featureFlags: testFeatureFlags({ templateFlag: false }),
-        admin: false,
       },
       environment: {} as any,
     };

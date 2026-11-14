@@ -7,28 +7,13 @@ import {
   isIPBlocked,
   isIPAddress,
 } from "../webhooks/ipBlocking";
+import { OutboundUrlValidationError } from "./parse";
 
-export type OutboundUrlValidationErrorCode =
-  | "blocked-hostname"
-  | "blocked-ip"
-  | "dns-lookup-failed"
-  | "host-not-allowed"
-  | "https-required"
-  | "invalid-encoding"
-  | "invalid-syntax"
-  | "port-not-allowed"
-  | "protocol-not-allowed"
-  | "url-credentials-not-allowed";
-
-export class OutboundUrlValidationError extends Error {
-  constructor(
-    readonly code: OutboundUrlValidationErrorCode,
-    message: string,
-  ) {
-    super(message);
-    this.name = "OutboundUrlValidationError";
-  }
-}
+export {
+  OutboundUrlValidationError,
+  parseOutboundUrl,
+  type OutboundUrlValidationErrorCode,
+} from "./parse";
 
 // Prefix of the message thrown on DNS-resolution failure. Exported so consumers
 // can detect this failure by message when the typed `code` is lost — e.g. after
@@ -104,33 +89,6 @@ export async function resolveHost(hostname: string): Promise<string[]> {
     );
   }
   return [...ips];
-}
-
-export function parseOutboundUrl(urlString: string): URL {
-  const trimmedUrl = urlString.trim();
-  assertValidUrlEncoding(trimmedUrl);
-
-  let url: URL;
-  try {
-    // Parse the original URL string so validation uses the same WHATWG URL
-    // semantics as fetch. Decoding the whole URL first can turn encoded data
-    // into delimiters and make validation inspect a different hostname.
-    url = new URL(trimmedUrl);
-  } catch {
-    throw new OutboundUrlValidationError(
-      "invalid-syntax",
-      "Invalid URL syntax",
-    );
-  }
-
-  if (url.username !== "" || url.password !== "") {
-    throw new OutboundUrlValidationError(
-      "url-credentials-not-allowed",
-      "URL credentials are not allowed. Use authentication headers instead.",
-    );
-  }
-
-  return url;
 }
 
 export async function validateOutboundUrlHost({
@@ -249,18 +207,4 @@ export function isDnsCompatibleBucketName(bucketName: string): boolean {
     !IP_SHAPED_BUCKET_NAME.test(bucketName) &&
     !ADJACENT_DOTS.test(bucketName)
   );
-}
-
-function assertValidUrlEncoding(urlString: string): void {
-  // This intentionally checks encoding validity only. Do not parse or validate
-  // the decoded result: decoding the whole URL can turn encoded data into URL
-  // delimiters and make validation inspect a different hostname than fetch.
-  try {
-    decodeURIComponent(urlString);
-  } catch {
-    throw new OutboundUrlValidationError(
-      "invalid-encoding",
-      "Invalid URL encoding",
-    );
-  }
 }

@@ -54,7 +54,9 @@ const controlledAgent = vi.hoisted(() => ({
     submitFeedback: vi.fn(),
   },
 }));
-const sessionUser = vi.hoisted(() => ({ admin: false }));
+const sessionEnvironment = vi.hoisted(() => ({
+  enableExperimentalFeatures: false,
+}));
 const telemetryProjectQuery = vi.hoisted(() => ({
   value: {
     data: { projectId: "ai-features-project" } as
@@ -68,8 +70,8 @@ const telemetryProjectQuery = vi.hoisted(() => ({
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
     data: {
-      user: { ...sessionUser, featureFlags: {}, organizations: [] },
-      environment: { enableExperimentalFeatures: false },
+      user: { featureFlags: {}, organizations: [] },
+      environment: { ...sessionEnvironment },
     },
   }),
 }));
@@ -447,7 +449,7 @@ describe("ControlledInAppAgentWindow internal session menu", () => {
   });
 
   afterEach(() => {
-    sessionUser.admin = false;
+    sessionEnvironment.enableExperimentalFeatures = false;
     controlledAgent.value.selectedConversationId = undefined;
     controlledAgent.value.isSelectedConversationPersisted = false;
     telemetryProjectQuery.value = {
@@ -482,7 +484,7 @@ describe("ControlledInAppAgentWindow internal session menu", () => {
     ).not.toBeInTheDocument();
     external.unmount();
 
-    sessionUser.admin = true;
+    sessionEnvironment.enableExperimentalFeatures = true;
     controlledAgent.value.isSelectedConversationPersisted = false;
     const unpersisted = renderControlledWindow();
 
@@ -513,7 +515,7 @@ describe("ControlledInAppAgentWindow internal session menu", () => {
   });
 
   it("keeps the open-session action inert when the telemetry lookup fails", async () => {
-    sessionUser.admin = true;
+    sessionEnvironment.enableExperimentalFeatures = true;
     controlledAgent.value.selectedConversationId = "aconv_1";
     controlledAgent.value.isSelectedConversationPersisted = true;
     telemetryProjectQuery.value = {

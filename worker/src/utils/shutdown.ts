@@ -27,6 +27,7 @@ import {
   inAppAgentDlqRetryRunner,
   traceBatchDispatcher,
   traceBatchMetricsRunner,
+  topicsNightlyRefitRunner,
 } from "../app";
 
 export const onShutdown: NodeJS.SignalsListener = async (signal) => {
@@ -99,6 +100,7 @@ const runDrainAndClose = async () => {
   }
 
   inAppAgentDlqRetryRunner?.stop();
+  topicsNightlyRefitRunner?.stop();
 
   // Before closeWorkers(), while the registry is still populated (LFE-10388).
   logInFlightBlobExportsOnShutdown();

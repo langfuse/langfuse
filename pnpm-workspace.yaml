@@ -56,6 +56,20 @@ catalog:
 # 5 day delay for new dep upgrades to reduce supply chain attack risk
 minimumReleaseAge: 7200
 minimumReleaseAgeExclude:
+  # Next.js 16.4.6 and its matching tooling clear the five-day window on November 14.
+  - next@16.4.6
+  - "@next/env@16.4.6"
+  - "@next/eslint-plugin-next@16.4.6"
+  - "@next/swc-darwin-arm64@16.4.6"
+  - "@next/swc-darwin-x64@16.4.6"
+  - "@next/swc-linux-arm64-gnu@16.4.6"
+  - "@next/swc-linux-arm64-musl@16.4.6"
+  - "@next/swc-linux-x64-gnu@16.4.6"
+  - "@next/swc-linux-x64-musl@16.4.6"
+  - "@next/swc-win32-arm64-msvc@16.4.6"
+  - "@next/swc-win32-x64-msvc@16.4.6"
+  # CVE-2026-125755: recipient address parsing fix.
+  - nodemailer@10.4.1
   # Security fix for CVE-2026-116592 and related redirect/cache advisories.
   - undici@7.30.2
   # Coordinated protocol upgrade accompanying the Mastra security fix.
@@ -63,6 +77,20 @@ minimumReleaseAgeExclude:
   - "@ag-ui/core@1.0.4"
   - "@ag-ui/encoder@1.0.4"
   - "@ag-ui/proto@1.0.4"
+  # AI SDK release with native Gemini Decisions support; the set shares one provider
+  # version and clears the five-day window on November 16.
+  - ai@7.0.170
+  - "@ai-sdk/amazon-bedrock@5.0.139"
+  - "@ai-sdk/anthropic@4.0.102"
+  - "@ai-sdk/azure@4.0.123"
+  - "@ai-sdk/deepseek@3.0.84"
+  - "@ai-sdk/gateway@4.0.143"
+  - "@ai-sdk/google@4.0.118"
+  - "@ai-sdk/google-vertex@5.0.138"
+  - "@ai-sdk/openai@4.0.115"
+  - "@ai-sdk/openai-compatible@3.0.90"
+  - "@ai-sdk/provider-utils@5.0.79"
+  - "@ai-sdk/typesafe-ai@3.0.38"
 # Drop exceptions for versions no longer in the lockfile during writable installs.
 minimumReleaseAgeExcludePrune: true
 # Reject recent releases whose publishing trust is weaker than earlier versions.
@@ -111,9 +139,6 @@ allowBuilds:
   ssh2: true
   vue-demi: true
 overrides:
-  # Storybook's compatible Vite adapter pins an older Next.js env prerelease.
-  # Keep its env loader aligned with the app until the adapter updates its pin.
-  "vite-plugin-storybook-nextjs@3.3.2>@next/env": 16.4.2
   # React Email requires html-to-text ^9, which pulls in vulnerable deepmerge
   # (CVE-2026-93753). Version 10.0.1 replaces it with patched deepmerge-ts.
   "@react-email/render>html-to-text": 10.0.1
@@ -139,9 +164,13 @@ overrides:
   tar-fs: ^2.1.2
   rollup@^4.0.0: ^4.22.4
   "@types/node-fetch": ^2.6.13
-  "@types/react-dom": 19.2.3
-  fast-xml-builder: 1.1.7
-  glob: ^10.5.0
+  "@types/react-dom": 19.3.0
+  # CVE-2026-118773: an aborted glob walk keeps reading directories. The
+  # advisory's patched range is >=14.0.2, and 13.x has no release in it.
+  # @sentry/nextjs 11.11 declares glob ^14.0.3. Storybook's docgen plugin
+  # still declares ^13; 0.9.x drops glob but rejects TypeScript 7.0, which
+  # this repo uses. Its only call is globSync with absolute/cwd/ignore/nodir.
+  "@joshwooding/vite-plugin-react-docgen-typescript>glob": 14.0.3
   qs: 6.17.0
   path-to-regexp@0.1.12: 0.1.13
   # ReDoS only affects the 8.x line (CVE-2026-4926/-4923, >=8.0.0 <8.4.0).
@@ -178,11 +207,17 @@ overrides:
   # both pin handlebars to exactly 4.7.9, including at their latest releases,
   # so only an override moves it to the patched version.
   handlebars: 4.7.10
+  # CVE-2026-118764 (glob-part amplification) is fixed only in minimatch 11.
+  # eslint, @eslint/config-array, and @typescript-eslint/typescript-estree
+  # still declare ^10 at their latest releases, which resolves to 10.2.6.
+  # Those packages only call Minimatch#match / minimatch(). 3.x and 9.x stay
+  # put: glob 10 and eslint-plugin-react depend on the older APIs.
+  "minimatch@10": 11.0.1
   # next-auth 4.24.x caps its optional nodemailer peer at ^7 but contains no
   # nodemailer imports (we pass a custom sendVerificationRequest); without this
   # pnpm auto-installs a second, unused nodemailer@7 instance for web.
   # Remove once next-auth allows nodemailer ^10.
-  "next-auth>nodemailer": "^10.1.7"
+  "next-auth>nodemailer": "^10.4.1"
 patchedDependencies:
   # focusFirst crashes on null item refs (items unmounting while entry focus
   # runs), e.g. opening a row-actions dropdown while a table re-renders.

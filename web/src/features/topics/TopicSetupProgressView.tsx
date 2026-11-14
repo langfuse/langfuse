@@ -24,7 +24,7 @@ const TICK_MS = 260;
 
 const STAGE_LABEL: Partial<Record<TopicSetupStage, string>> = {
   summarizing: "Summarizing traces",
-  grouping: "Finding similar answers",
+  grouping: "Clustering and identifying topics",
   naming: "Naming topics",
 };
 
@@ -32,11 +32,13 @@ const STAGE_LABEL: Partial<Record<TopicSetupStage, string>> = {
 export function TopicSetupProgressView({
   canRetry,
   facets,
+  fits,
   onViewDetails,
   onRetry,
   retrying,
   stage,
   waiting = false,
+  variant = "setup",
 }: TopicSetupProgressViewProps) {
   const failed = stage === "failed";
   const animate = !failed && !waiting;
@@ -47,9 +49,17 @@ export function TopicSetupProgressView({
     ...facets.map((facet) => facet.complete),
   );
   const summarizing = stage === "summarizing";
-  const processed = summarizing ? complete : requested;
-  const percent = requested === 0 ? 0 : (processed / requested) * 100;
-  const copy = progressCopy(failed, waiting);
+  const counted =
+    stage === "grouping" && fits
+      ? { processed: fits.done, requested: fits.total }
+      : { processed: summarizing ? complete : requested, requested };
+  const processed = counted.processed;
+  const percent =
+    counted.requested === 0 ? 0 : (processed / counted.requested) * 100;
+  const copy =
+    variant === "snapshot"
+      ? snapshotCopy(failed)
+      : progressCopy(failed, waiting);
   const piles: TopicPile[] = PILE_SLOTS.map((pile, index) => ({
     ...pile,
     detail: "",
@@ -63,8 +73,13 @@ export function TopicSetupProgressView({
           {copy.title}
         </h2>
         <p className="text-muted-foreground text-sm text-pretty">
-          {failed && !canRetry ? NO_RETRY_DETAIL : copy.detail}
+          {failed && !canRetry && variant === "setup"
+            ? NO_RETRY_DETAIL
+            : copy.detail}
         </p>
+        {copy.note && (
+          <p className="text-muted-foreground text-sm">{copy.note}</p>
+        )}
       </div>
       {failed ? (
         <div className="flex items-center gap-2">
@@ -97,10 +112,10 @@ export function TopicSetupProgressView({
           </div>
           <div className="text-muted-foreground flex justify-between gap-2 text-xs">
             <span>{STAGE_LABEL[stage]}</span>
-            {requested > 0 && (
+            {counted.requested > 0 && (
               <span className="text-foreground font-mono">
                 {processed.toLocaleString("en-US")} /{" "}
-                {requested.toLocaleString("en-US")}
+                {counted.requested.toLocaleString("en-US")}
               </span>
             )}
           </div>
@@ -134,10 +149,12 @@ function pileFill(slots: number, pileIndex: number, tick: number) {
   );
 }
 
-const NO_RETRY_DETAIL =
-  "Topics could not start. Use Regenerate topics in the menu.";
+const NO_RETRY_DETAIL = "Topics could not start. Create a new map instead.";
 
-function progressCopy(failed: boolean, waiting: boolean) {
+function progressCopy(
+  failed: boolean,
+  waiting: boolean,
+): { title: string; detail: string; note?: string } {
   if (failed)
     return {
       title: "The first analysis did not finish",
@@ -152,12 +169,35 @@ function progressCopy(failed: boolean, waiting: boolean) {
   return {
     title: "Analyzing your traces",
     detail:
-      "Runs in the background. Your topics will be here when you're back.",
+      "Runs in the background, so your topics will be here when you're back.",
+    note: "Usually takes 2–5 minutes.",
+  };
+}
+
+function snapshotCopy(failed: boolean): {
+  title: string;
+  detail: string;
+  note?: string;
+} {
+  if (failed)
+    return {
+      title: "The snapshot did not finish",
+      detail: "Open the run for details, or create a new snapshot.",
+    };
+  return {
+    title: "Building your snapshot",
+    detail:
+      "Runs in the background, so your topics will be here when you're back.",
+    note: "Usually takes 5–10 minutes.",
   };
 }
 
 type TopicSetupProgressViewProps = {
+  /** Setup builds a map's first topics; a snapshot is built once. */
+  variant?: "setup" | "snapshot";
   facets: TopicSetupProgressFacet[];
+  /** Fits finished while topics are built; without it the bar stays full. */
+  fits?: { done: number; total: number };
   stage: TopicSetupStage;
   retrying: boolean;
   canRetry: boolean;

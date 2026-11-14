@@ -246,7 +246,7 @@ describe("generateTopicText", () => {
         )
           ? "other"
           : stopReason,
-        "langfuse.topics.response.text_characters": 0,
+        "langfuse.topics.response.text_characters": text.length,
         "langfuse.topics.response.text_part_count": text ? 1 : 0,
         "langfuse.topics.response.reasoning_part_count": 1,
         "langfuse.topics.response.output_tokens": 4,
@@ -257,7 +257,7 @@ describe("generateTopicText", () => {
     },
   );
 
-  it("clusters with Bedrock Sonnet 5.5 without forcing tool use", async () => {
+  it("clusters with Bedrock Sonnet 5.5 through native structured output", async () => {
     const output = { name: "Account access" };
     const fetch = vi.fn<typeof globalThis.fetch>(async (...args) => {
       const body = (await new Request(...args).json()) as {
@@ -304,11 +304,10 @@ describe("generateTopicText", () => {
       "additionalModelRequestFields.thinking.type",
       "disabled",
     );
+    expect(body).toHaveProperty("system", [{ text: "Name the topic." }]);
     expect(body).toHaveProperty(
-      "system",
-      expect.arrayContaining([
-        expect.objectContaining({ text: expect.stringContaining('"name"') }),
-      ]),
+      "additionalModelRequestFields.output_config.format.type",
+      "json_schema",
     );
     expect(result.output).toEqual(output);
     expect(result.usage).toMatchObject({ inputTokens: 12, outputTokens: 4 });
@@ -369,7 +368,10 @@ describe("generateTopicText", () => {
       });
       expect(result.output).toEqual(output);
       if (modelId.includes("oss")) {
-        expect(body).not.toHaveProperty("additionalModelRequestFields");
+        // gpt-oss cannot disable reasoning, so portable "none" maps to its lowest effort.
+        expect(body).toHaveProperty("additionalModelRequestFields", {
+          reasoning_effort: "low",
+        });
       } else {
         expect(body).toHaveProperty(
           "additionalModelRequestFields.reasoning.effort",
@@ -584,12 +586,8 @@ describe("generateTopicText", () => {
     ["https://EU.API.OPENAI.COM./v1", "gpt-5.6-terra", "none", true],
     [undefined, "gpt-6.1-terra", "low", true],
     ["https://eu.api.openai.com/v1", "gpt-4o", undefined, false],
-    [
-      "https://eu.api.openai.com.example.com/v1",
-      "gpt-6-luna",
-      undefined,
-      false,
-    ],
+    ["https://eu.api.openai.com.example.com/v1", "gpt-6-luna", "none", true],
+    ["https://gateway.example/openai/v1", "Prod:gpt-5-mini", "minimal", true],
   ] as const)(
     "generates and traces Topics on %s / %s",
     async (baseURL, model, reasoning, completionTokens) => {

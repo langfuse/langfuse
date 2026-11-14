@@ -1,3 +1,4 @@
+import type { AuditRequestContext } from "@langfuse/shared";
 import type { ApiAccessScope } from "@langfuse/shared/src/server";
 
 import type { AuthorizationContext } from "@/src/features/auth/policy/types";
@@ -65,6 +66,9 @@ export interface ServerContext {
 
   /** User agent from the MCP client's HTTP request */
   userAgent?: string;
+
+  /** Client IP, User-Agent and request id stored on access audit events */
+  auditRequest?: AuditRequestContext;
 
   /** In-app-agent-specific MCP authorization state. */
   inAppAgent?: InAppAgentContext;

@@ -23,7 +23,6 @@ declare module "next-auth" {
           email?: PrismaUser["email"];
           emailSupportHash?: string | null;
           image?: PrismaUser["image"];
-          admin?: PrismaUser["admin"];
           v4BetaEnabled?: boolean;
           canToggleV4?: boolean;
           // Whether this deployment shows the v4 migration UI (sidebar pill,

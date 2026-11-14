@@ -245,9 +245,7 @@ envs]`, derived into _effective_ state by
     sticky stack around the composer + toolbar). The time-range + refresh
     controls live in the toolbar row below the composer (next to the filter
     toggle and views), via `DataTableToolbar`'s `timeRange`/`refreshConfig`
-    props — same as non-bar mode, not in the page header. The bar is now GA on
-    the v4 tables, so there is no enablement toggle (the retired Feature Preview
-    tile lived in `features/feature-previews/`; see Enablement above).
+    props — same as non-bar mode, not in the page header.
 
 ## Integration (EventsTable)
 

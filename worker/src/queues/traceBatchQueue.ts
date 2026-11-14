@@ -34,6 +34,7 @@ import {
 import {
   newestEvent,
   newestSessionId,
+  newestTraceName,
   toTraceEventObservation,
   traceKey,
   type TraceEventObservation,
@@ -115,7 +116,7 @@ async function storeTraceInputs(
             Math.min(...observations.map((row) => row.startTime.getTime())),
           ).toISOString(),
           environment: newestEvent(observations)!.environment,
-          traceName: observations[0].name,
+          traceName: newestTraceName(observations),
         },
       });
       span.setAttributes({

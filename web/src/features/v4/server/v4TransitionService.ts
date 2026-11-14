@@ -76,7 +76,7 @@ const getAccessibleOrganizationProjectWhere = ({
   return {
     orgId,
     deletedAt: null,
-    ...(session.user?.admin ? {} : { id: { in: projectIds ?? [] } }),
+    id: { in: projectIds ?? [] },
   };
 };
 

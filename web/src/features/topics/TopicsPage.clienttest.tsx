@@ -24,7 +24,7 @@ const state = vi.hoisted(() => ({
   executionId: undefined as string | undefined,
   setQueryParams: vi.fn(),
   currentTopics: vi.fn(),
-  showGenerateCTA: false,
+  showGenerateCTA: true,
   hasStoredSummaries: true,
   resultsDataAvailable: true,
   mobileHeader: false,
@@ -43,7 +43,8 @@ const state = vi.hoisted(() => ({
   rulesError: null as Error | null,
   configurationFailure: null as "settings" | "readiness" | "connections" | null,
   settings: {} as Record<string, unknown>,
-  rules: [] as Array<{ facetIds: string[] }>,
+  rules: [] as Array<{ id?: string; facetIds: string[] }>,
+  maps: undefined as unknown,
   countsPending: false,
   countsFetching: false,
   summaryCountInput: vi.fn(),
@@ -118,6 +119,12 @@ vi.mock("@/src/components/table/peek/hooks/usePeekNavigation", () => ({
 vi.mock("@/src/components/table/peek/TablePeekViewTraceDetail", () => ({
   TablePeekViewTraceDetail: () => null,
 }));
+vi.mock(
+  "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled",
+  () => ({
+    useInternalFeaturesEnabled: () => false,
+  }),
+);
 vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
   useHasProjectAccess: () => state.canWrite,
 }));
@@ -198,7 +205,7 @@ vi.mock("./CurrentTopics", () => ({
       data-refresh-after={result.refreshAfter}
     >
       {state.showGenerateCTA && (
-        <button onClick={onGenerateTopics}>Generate topics</button>
+        <button onClick={onGenerateTopics}>Open topic generation</button>
       )}
     </div>
   ),
@@ -294,6 +301,16 @@ vi.mock("@/src/utils/api", () => ({
         }),
       },
       traceErrors: { useQuery: () => ({}) },
+      maps: { useQuery: () => ({ data: state.maps }) },
+      ruleSetupStatus: { useQuery: () => ({ data: null }) },
+      startRuleSetup: {
+        useMutation: () => ({
+          isPending: false,
+          mutate: vi.fn(),
+          mutateAsync: vi.fn(),
+        }),
+      },
+      analysisResults: { useQuery: () => ({}) },
       retry: {
         useMutation: ({ onSuccess }: { onSuccess: () => void }) => ({
           mutate: (input: unknown) => {
@@ -332,6 +349,7 @@ vi.mock("@/src/utils/api", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  state.maps = undefined;
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-10-09T12:00:00Z"));
   vi.stubGlobal(
@@ -342,7 +360,7 @@ beforeEach(() => {
       disconnect() {}
     },
   );
-  state.showGenerateCTA = false;
+  state.showGenerateCTA = true;
   state.canViewTopics = true;
   state.resultsDataAvailable = true;
   state.mobileHeader = false;
@@ -398,20 +416,12 @@ it("shows Not found instead of the workspace when the Topics gate is closed", ()
   expect(state.currentTopics).not.toHaveBeenCalled();
 });
 
-it("keeps facet, view, and automatic processing reachable with the mobile header", () => {
+it("keeps the question picker reachable with the mobile header", () => {
   state.mobileHeader = true;
   state.resultFacets = [{ facetId: "intent", name: "Intent" }];
   state.rules = [{ facetIds: ["intent"] }];
-  const view = render(<TopicsPage />);
+  render(<TopicsPage />);
   expect(screen.getByRole("combobox", { name: "Topics facet" })).toBeTruthy();
-  expect(screen.getByRole("combobox", { name: "Topics view" })).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: /^Analyze/ }));
-  expect(state.openAutomaticProcessing).toHaveBeenCalledWith(false);
-  state.canWrite = false;
-  view.rerender(<TopicsPage />);
-  expect(
-    screen.getByRole("button", { name: /^Analyze/ }).hasAttribute("disabled"),
-  ).toBe(true);
 });
 
 it("refreshes current results through retry and completion for a selected run outside history", () => {
@@ -467,11 +477,10 @@ const execution = (status: string, operation: "process" | "update") => ({
   input: { operation },
   facets: [],
 });
-/** Opens the manual dialog from the header menu; "process" switches to its summarize tab. */
+/** Opens the manual dialog from the empty state; "process" switches to its summarize tab. */
 async function openManualDialog(operation: "process" | "update" = "update") {
-  fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   fireEvent.click(
-    await screen.findByRole("menuitem", { name: "Regenerate topics" }),
+    await screen.findByRole("button", { name: "Open topic generation" }),
   );
   if (operation === "process")
     fireEvent.mouseDown(
@@ -517,30 +526,57 @@ it.each([
   },
 );
 
-it("shows Analyze in the header while auto-analyze is off and keeps Analyze, regenerate, history and settings in the menu", async () => {
+it("puts New map and New snapshot first in the menu", async () => {
   withSummaries();
   render(<TopicsPage />, { wrapper: LayerProvider });
-  fireEvent.click(screen.getByRole("button", { name: "Analyze" }));
-  expect(state.openAutomaticProcessing).toHaveBeenCalledWith(false);
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   const items = await screen.findAllByRole("menuitem");
   expect(items.map((item) => item.textContent)).toEqual([
-    "AnalyzeOff",
-    "Regenerate topics",
+    "New map",
+    "New snapshot",
     "History",
     "Settings",
   ]);
 });
 
-it("shows a paused auto-analyze status with its short reason", () => {
+it.each([
+  { access: "with topics:CUD", canWrite: true },
+  { access: "without topics:CUD", canWrite: false },
+])("shows Edit map as a header button $access", async ({ canWrite }) => {
   withSummaries();
-  state.settings.blockedAt = "2026-10-09T10:00:00Z";
-  state.settings.blockMessage = "Fix the connection.";
+  state.canWrite = canWrite;
+  state.maps = {
+    rules: [
+      {
+        id: "rule-1",
+        projectId: "project",
+        name: "All generations",
+        filter: [],
+        sampling: 1,
+        facetIds: ["intent"],
+        enabled: true,
+        updatedAt: "2026-11-01T00:00:00Z",
+        lastRefitAt: "2026-11-01T00:00:00Z",
+        refresh: { availableAt: null, running: false },
+      },
+    ],
+    analyses: [],
+  };
   render(<TopicsPage />, { wrapper: LayerProvider });
-  const control = screen.getByRole("button", { name: "Auto-analyze: Paused" });
-  expect(control).toHaveAttribute("title", "Paused");
-  fireEvent.click(control);
-  expect(state.openAutomaticProcessing).toHaveBeenCalledWith(false);
+  const editMap = screen.getByRole("button", { name: "Edit map" });
+  expect(editMap).toHaveProperty("disabled", !canWrite);
+  fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
+  const items = await screen.findAllByRole("menuitem");
+  expect(items.map((item) => item.textContent)).not.toContain("Edit map");
+  // Every action stays visible; without write access it is disabled with a reason.
+  for (const label of ["New map", "New snapshot"]) {
+    const item = items.find((candidate) => candidate.textContent === label);
+    expect(item).toBeDefined();
+    expect(item!.getAttribute("aria-disabled")).toBe(canWrite ? null : "true");
+    expect(item!.getAttribute("title")).toBe(
+      canWrite ? null : "You need permission to edit Topics.",
+    );
+  }
 });
 
 it.each([
@@ -729,6 +765,46 @@ it("regenerates the rule's facets that have summaries, at their latest version, 
   });
 });
 
+it("regenerates the shown rule's facets as a snapshot, without a rule ID", async () => {
+  withSummaries();
+  state.rules = [
+    { id: "rule-oldest", facetIds: ["outcome"] },
+    { id: "rule-shown", facetIds: ["intent"] },
+  ];
+  state.maps = {
+    rules: [
+      {
+        id: "rule-shown",
+        name: "Shown",
+        filter: [],
+        sampling: 1,
+        facetIds: ["intent"],
+        enabled: true,
+        lastRefitAt: "2026-10-09T10:00:00Z",
+        refresh: { availableAt: null, running: false },
+      },
+    ],
+    analyses: [],
+  };
+  render(<TopicsPage />, { wrapper: LayerProvider });
+  await openManualDialog();
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Generate topics" }), {
+    button: 0,
+    ctrlKey: false,
+  });
+  const dialog = screen.getByRole("dialog", { name: "Manual processing" });
+  fireEvent.click(
+    within(dialog).getByRole("button", { name: "Generate topics" }),
+  );
+
+  await waitFor(() =>
+    expect(state.trigger).toHaveBeenCalledWith(
+      expect.objectContaining({ facets: [{ facetId: "intent", version: 2 }] }),
+    ),
+  );
+  expect(state.trigger.mock.calls[0][0]).not.toHaveProperty("ruleId");
+});
+
 it("shows a regenerate failure that settles after the dialog was closed and reopened, and retries with the same requestId", async () => {
   withSummaries();
   let fail: (error: Error) => void = () => {};
@@ -811,9 +887,7 @@ it("hands off from manual processing to Topics model configuration", async () =>
   render(<TopicsPage />, { wrapper: LayerProvider });
   await openManualDialog("process");
   const dialog = screen.getByRole("dialog", { name: "Manual processing" });
-  fireEvent.click(
-    within(dialog).getByRole("button", { name: "Configure Topics" }),
-  );
+  fireEvent.click(within(dialog).getByRole("button", { name: "Settings" }));
   expect(state.openConfigure).toHaveBeenCalledOnce();
   await waitFor(() =>
     expect(
@@ -996,7 +1070,6 @@ it("shows the setup landing until the project's first stored summary exists", ()
   state.hasStoredSummaries = false;
   const view = render(<TopicsPage />, { wrapper: LayerProvider });
   expect(screen.getByRole("button", { name: "Set up topics" })).toBeEnabled();
-  expect(screen.queryByRole("button", { name: /^Analyze/ })).toBeNull();
   expect(screen.queryByTestId("current-topics")).toBeNull();
   state.hasStoredSummaries = true;
   view.rerender(<TopicsPage />);
@@ -1008,7 +1081,9 @@ it("opens generation directly from the empty topics panel", () => {
   withSummaries();
   state.showGenerateCTA = true;
   render(<TopicsPage />, { wrapper: LayerProvider });
-  fireEvent.click(screen.getByRole("button", { name: "Generate topics" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Open topic generation" }),
+  );
   const dialog = within(
     screen.getByRole("dialog", { name: "Manual processing" }),
   );

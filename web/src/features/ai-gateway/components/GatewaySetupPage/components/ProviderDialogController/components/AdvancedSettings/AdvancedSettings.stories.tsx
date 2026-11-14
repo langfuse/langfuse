@@ -41,6 +41,26 @@ export const AddingAHeader = meta.story({
   },
 });
 
+/** OpenRouter connections can use another OpenRouter endpoint, such as its EU one. */
+export const OpenRouterEndpoint = meta.story({
+  name: "(Test) OpenRouter Endpoint",
+  args: {
+    provider: "OPENROUTER",
+    baseURL: "https://eu.openrouter.ai/api/v1",
+    headers: [],
+    storedHeaderKeys: [],
+    isEditing: false,
+  },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Show advanced settings" }),
+    );
+    await expect(
+      canvas.getByText(/OpenRouter default: https:\/\/openrouter\.ai\/api\/v1/),
+    ).toBeVisible();
+  },
+});
+
 /** Stored values are never sent to the browser, so their rows show a mask. */
 export const EditingStoredHeaders = meta.story({
   name: "(Test) Editing Stored Headers",

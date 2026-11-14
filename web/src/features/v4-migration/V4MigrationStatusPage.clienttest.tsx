@@ -38,7 +38,6 @@ vi.mock("next-auth/react", () => ({
     status: "authenticated",
     data: {
       user: {
-        admin: false,
         organizations: [
           {
             id: "org-1",

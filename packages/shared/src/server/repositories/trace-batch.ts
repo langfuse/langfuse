@@ -9,6 +9,7 @@ export type TraceBatchEventRow = {
   trace_id: string;
   session_id: string;
   environment: string;
+  trace_name: string;
   span_id: string;
   parent_span_id: string | null;
   start_time: string;
@@ -142,6 +143,7 @@ const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
       "e.trace_id",
       "e.session_id",
       "e.environment",
+      "e.trace_name",
       "e.span_id",
       "e.parent_span_id",
       "e.start_time",

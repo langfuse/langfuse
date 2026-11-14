@@ -1,6 +1,9 @@
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { buildEvaluatorUrl } from "@langfuse/shared/src/server";
+import {
+  buildEvaluatorUrl,
+  DECISION_MODEL_CONNECTIONS_HINT,
+} from "@langfuse/shared/src/server";
 import { createMcpEvaluatorService } from "../evaluator-service";
 import {
   McpUpdateEvaluatorInput,
@@ -12,7 +15,8 @@ export const [updateEvaluatorTool, handleUpdateEvaluator] = defineTool({
   name: "updateEvaluator",
   description: [
     "Update an evaluator by stable id. Definition changes append an immutable version; name and description changes do not.",
-    "For `LLM_AS_JUDGE`, provide prompt + outputDefinition and optionally modelConfig. For `CODE`, provide sourceCode + sourceCodeLanguage. For `DECISION_MODEL`, provide questions, a modelConfig with provider and model only, and variableMapping entries defining its state. Use an OpenAI connection with an allowlisted decision model (currently `gpt-6-luna`), or a TypeSafe connection.",
+    "For `LLM_AS_JUDGE`, provide prompt + outputDefinition and optionally modelConfig. For `CODE`, provide sourceCode + sourceCodeLanguage. For `DECISION_MODEL`, provide questions, a modelConfig with provider and model only, and variableMapping entries defining its state.",
+    `Use ${DECISION_MODEL_CONNECTIONS_HINT}.`,
     "Call listLlmConnections to find valid modelConfig provider names and models.",
   ].join(" "),
   action: "evaluator:CUD",

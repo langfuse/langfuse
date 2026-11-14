@@ -1,0 +1,35 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`golden: topics trace selection > topicMatchingTraceIdsQuery filter=traceName+native 1`] = `
+[
+  {
+    "fn": "topicMatchingTraceIdsQuery",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-project",
+      "param3": [
+        "GENERATION",
+      ],
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-02 00:00:00.000",
+      "param6": "golden-name",
+    },
+    "route": "unknown",
+    "sql": "SELECT DISTINCT id
+FROM
+(
+    SELECT
+        e.trace_id AS id,
+        e.start_time AS start_time,
+        e.span_id AS span_id,
+        e.event_ts AS event_ts,
+        e.environment AS environment
+    FROM events_core AS e
+    WHERE (e.project_id = {param1:String})
+        AND ((e.project_id = {param2:String}) AND (e.type IN ({param3:Array(String)})) AND (e.start_time >= {param4:DateTime64(3, 'UTC')}) AND (e.start_time < {param5:DateTime64(3, 'UTC')}))
+        AND (nullIf(e.trace_name, '') = {param6:String})
+        AND (e.trace_id != '')
+)",
+  },
+]
+`;

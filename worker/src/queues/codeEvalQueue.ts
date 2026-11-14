@@ -10,7 +10,7 @@ import {
   TQueueJobTypes,
   traceException,
 } from "@langfuse/shared/src/server";
-import { processObservationEval } from "../features/evaluation/observationEval/observationEvalProcessor";
+import { processEval } from "../features/evaluation/observationEval/observationEvalProcessor";
 import { createW3CTraceId } from "../features/utils/utilities";
 import { isUnrecoverableError } from "../errors/UnrecoverableError";
 import {
@@ -46,7 +46,7 @@ export const codeEvalExecutionQueueProcessorBuilder = (
         );
       }
 
-      const outcome = await processObservationEval({
+      const outcome = await processEval({
         event: job.data.payload,
         executionType: EvalTemplateType.CODE,
       });

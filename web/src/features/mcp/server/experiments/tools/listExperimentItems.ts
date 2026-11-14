@@ -8,6 +8,10 @@ import {
   ListExperimentItemsInputSchema,
 } from "../schema";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import {
+  observationRefs,
+  scoreV3Refs,
+} from "@/src/features/audit-logs/server/auditedQuery";
 
 export const [listExperimentItemsTool, handleListExperimentItems] = defineTool({
   name: "listExperimentItems",
@@ -18,9 +22,10 @@ export const [listExperimentItemsTool, handleListExperimentItems] = defineTool({
     "fromStartTime is required. Request io and metadata fields only when needed because they can be large.",
   ].join("\n"),
   action: "experiments:read",
+  accessAudit: { resourceType: "experiment", action: "list" },
   baseSchema: ListExperimentItemsBaseSchema,
   inputSchema: ListExperimentItemsInputSchema,
-  handler: async (input, context) =>
+  handler: async (input, context, audit) =>
     runMcpTool({
       spanName: "mcp.experiment_items.list",
       context,
@@ -45,6 +50,11 @@ export const [listExperimentItemsTool, handleListExperimentItems] = defineTool({
         const parsed = GetExperimentItemsV1Response.parse(result);
 
         span.setAttribute("mcp.result_count", parsed.data.length);
+        audit.refs(observationRefs(parsed.data));
+        audit.refs(
+          scoreV3Refs(parsed.data.flatMap((item) => item.scores ?? [])),
+        );
+        audit.count(parsed.data.length);
 
         return {
           ...parsed,

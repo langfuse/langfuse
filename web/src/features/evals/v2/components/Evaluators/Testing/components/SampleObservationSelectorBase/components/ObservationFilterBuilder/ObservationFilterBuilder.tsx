@@ -1,4 +1,5 @@
 import type { ColumnDefinition, FilterState } from "@langfuse/shared";
+import type { ComponentProps } from "react";
 
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useElementSize } from "@/src/hooks/useElementSize";
@@ -9,11 +10,13 @@ export function ObservationFilterBuilder({
   filterState,
   onChange,
   queryOnlyColumnIds,
+  operators,
 }: {
   columns: ColumnDefinition[];
   filterState: FilterState;
   onChange: (filters: FilterState) => void;
   queryOnlyColumnIds: string[];
+  operators?: ComponentProps<typeof InlineFilterBuilder>["operators"];
 }) {
   const [containerRef, containerSize] = useElementSize<HTMLDivElement>();
   const containerWidth = containerSize?.width;
@@ -38,6 +41,7 @@ export function ObservationFilterBuilder({
         columnsHiddenUnlessSelected={queryOnlyColumnIds}
         compact={isCompact}
         subtleAddButton
+        operators={operators}
         columnsWithCustomSelect={[
           "tags",
           "name",

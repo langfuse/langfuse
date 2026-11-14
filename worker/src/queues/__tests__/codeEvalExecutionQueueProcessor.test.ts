@@ -33,7 +33,7 @@ vi.mock("@langfuse/shared/src/db", () => ({
 vi.mock(
   "../../features/evaluation/observationEval/observationEvalProcessor",
   () => ({
-    processObservationEval: vi.fn(),
+    processEval: vi.fn(),
   }),
 );
 
@@ -82,7 +82,7 @@ vi.mock("../../errors/UnrecoverableError", async () => {
 });
 
 import { prisma } from "@langfuse/shared/src/db";
-import { processObservationEval } from "../../features/evaluation/observationEval/observationEvalProcessor";
+import { processEval } from "../../features/evaluation/observationEval/observationEvalProcessor";
 import {
   recordDistribution,
   recordIncrement,
@@ -136,14 +136,14 @@ describe("codeEvalExecutionQueueProcessor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (isUnrecoverableError as unknown as Mock).mockReturnValue(false);
-    (processObservationEval as Mock).mockResolvedValue("completed");
+    (processEval as Mock).mockResolvedValue("completed");
   });
 
   it("should process code observation evals through the code template gate", async () => {
     const result = await codeEvalExecutionQueueProcessor(createMockJob());
 
     expect(result).toBe(true);
-    expect(processObservationEval).toHaveBeenCalledWith({
+    expect(processEval).toHaveBeenCalledWith({
       event: {
         projectId,
         jobExecutionId,
@@ -185,7 +185,7 @@ describe("codeEvalExecutionQueueProcessor", () => {
     );
 
     vi.mocked(recordIncrement).mockClear();
-    (processObservationEval as Mock).mockResolvedValue("cancelled");
+    (processEval as Mock).mockResolvedValue("cancelled");
     await codeEvalExecutionQueueProcessor(createMockJob());
     expect(recordIncrement).toHaveBeenCalledWith(
       "langfuse.evaluation.execution.terminal",
@@ -200,7 +200,7 @@ describe("codeEvalExecutionQueueProcessor", () => {
       message: "user code failed",
       retryable: false,
     });
-    (processObservationEval as Mock).mockRejectedValue(error);
+    (processEval as Mock).mockRejectedValue(error);
 
     await expect(
       codeEvalExecutionQueueProcessor(createMockJob()),
@@ -218,7 +218,7 @@ describe("codeEvalExecutionQueueProcessor", () => {
     const error = new UnrecoverableError(
       "The evaluator returned an invalid result.",
     );
-    (processObservationEval as Mock).mockRejectedValue(error);
+    (processEval as Mock).mockRejectedValue(error);
     (isUnrecoverableError as unknown as Mock).mockReturnValue(true);
 
     const result = await codeEvalExecutionQueueProcessor(createMockJob());
@@ -243,7 +243,7 @@ describe("codeEvalExecutionQueueProcessor", () => {
 
   it("should persist already-masked internal code eval errors", async () => {
     const error = new UnrecoverableError("An internal error occurred");
-    (processObservationEval as Mock).mockRejectedValue(error);
+    (processEval as Mock).mockRejectedValue(error);
     (isUnrecoverableError as unknown as Mock).mockReturnValue(true);
 
     const result = await codeEvalExecutionQueueProcessor(createMockJob());
@@ -264,7 +264,7 @@ describe("codeEvalExecutionQueueProcessor", () => {
     const error = new UnrecoverableError(
       "Code-based eval execution is not implemented yet",
     );
-    (processObservationEval as Mock).mockRejectedValue(error);
+    (processEval as Mock).mockRejectedValue(error);
     (isUnrecoverableError as unknown as Mock).mockReturnValue(true);
 
     const result = await codeEvalExecutionQueueProcessor(createMockJob());
@@ -287,7 +287,7 @@ describe("codeEvalExecutionQueueProcessor", () => {
 
   it("should rethrow retryable errors without writing ERROR while retries remain", async () => {
     const error = new Error("temporary dispatcher failure");
-    (processObservationEval as Mock).mockRejectedValue(error);
+    (processEval as Mock).mockRejectedValue(error);
 
     await expect(
       codeEvalExecutionQueueProcessor(createMockJob()),
@@ -304,7 +304,7 @@ describe("codeEvalExecutionQueueProcessor", () => {
 
   it("should mark the job as ERROR with a masked message on the final retry attempt", async () => {
     const error = new Error("temporary dispatcher failure");
-    (processObservationEval as Mock).mockRejectedValue(error);
+    (processEval as Mock).mockRejectedValue(error);
 
     await expect(
       codeEvalExecutionQueueProcessor(
@@ -340,7 +340,7 @@ describe("codeEvalExecutionQueueProcessor", () => {
       message: timeoutMessage,
       retryable: false,
     });
-    (processObservationEval as Mock).mockRejectedValue(error);
+    (processEval as Mock).mockRejectedValue(error);
 
     await expect(
       codeEvalExecutionQueueProcessor(createMockJob()),

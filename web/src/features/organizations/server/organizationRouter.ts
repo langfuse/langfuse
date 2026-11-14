@@ -20,7 +20,6 @@ import {
 import { isCloudBillingEnabled } from "@/src/ee/features/billing/utils/isCloudBillingEnabled";
 import { resolveBillingService } from "@/src/ee/features/billing/server/resolveBillingService";
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
-import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
 import { createOrgMembership } from "@langfuse/shared/memberships";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import { featurePreviewFlags } from "@/src/features/feature-flags/available-flags";
@@ -30,30 +29,12 @@ import { parseFlags } from "@/src/features/feature-flags/server/parseFlags";
 import { env } from "@/src/env.mjs";
 
 export const organizationsRouter = createTRPCRouter({
-  // Admin-only fallback for useOrganization: returns the org in the same shape
-  // as session.user.organizations[number], since admins are not members of
-  // customer orgs and have no session entry.
-  byId: protectedOrganizationProcedure
-    .input(z.object({ orgId: z.string() }))
-    .query(async ({ ctx }) => {
-      const organization = await buildAdminOrgContext(ctx);
-      if (!organization) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Organization not found",
-        });
-      }
-      return organization;
-    }),
   lastTraceByProject: protectedOrganizationProcedure
     .input(z.object({ orgId: z.string() }))
     .query(async ({ ctx }) => {
-      const organization =
-        ctx.session.user.admin === true
-          ? await buildAdminOrgContext(ctx)
-          : ctx.session.user.organizations.find(
-              (org) => org.id === ctx.session.orgId,
-            );
+      const organization = ctx.session.user.organizations.find(
+        (org) => org.id === ctx.session.orgId,
+      );
 
       return getLastTraceTimestampsByProjects({
         projectIds: organization?.projects.map((project) => project.id) ?? [],

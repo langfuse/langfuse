@@ -1,9 +1,9 @@
 import {
   isAllowedDecisionModel,
   LLMAdapter,
-  OPENAI_DECISION_MODEL_IDS,
   supportedModels,
   supportsDecisionModels,
+  TEXT_ADAPTER_DECISION_MODEL_IDS,
 } from "@langfuse/shared";
 
 import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
@@ -16,11 +16,10 @@ type DecisionModelConnection = {
 };
 
 function defaultModelsFor(adapter: string): readonly string[] {
-  if (adapter === LLMAdapter.OpenAI) return supportedModels[LLMAdapter.OpenAI];
   if (adapter === LLMAdapter.TypeSafe) {
     return supportedModels[LLMAdapter.TypeSafe];
   }
-  return [];
+  return TEXT_ADAPTER_DECISION_MODEL_IDS[adapter as LLMAdapter] ?? [];
 }
 
 /** Decision models each connection can run, keyed by provider. */
@@ -44,14 +43,15 @@ export function decisionModelsByProvider(
 }
 
 /**
- * OpenAI is the default decision provider. The first allowlisted model a
- * connection actually offers wins. TypeSafe is never chosen for the user.
+ * OpenAI is the default decision provider, then Google AI Studio. The first
+ * allowlisted model a connection actually offers wins. TypeSafe is never
+ * chosen for the user.
  */
 export function preferredDecisionModel(
   connections: readonly DecisionModelConnection[],
 ): JudgeModel | null {
   const modelsByProvider = decisionModelsByProvider(connections);
-  for (const model of OPENAI_DECISION_MODEL_IDS) {
+  for (const model of Object.values(TEXT_ADAPTER_DECISION_MODEL_IDS).flat()) {
     for (const [provider, models] of modelsByProvider) {
       if (models.includes(model)) return { provider, model };
     }
