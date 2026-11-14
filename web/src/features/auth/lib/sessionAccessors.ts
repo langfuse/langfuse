@@ -11,6 +11,11 @@ export function hasSessionUser<T extends MaybeSession>(
   return Boolean(session?.user);
 }
 
+/** hasSessionOrganizationList reports whether a signed-in session carries its organization list, which a malformed session lacks. */
+export function hasSessionOrganizationList(session: MaybeSession): boolean {
+  return Array.isArray(session?.user?.organizations);
+}
+
 /** getSessionUserId is undefined when the session has not loaded or has no user. */
 export function getSessionUserId(session: AuthedSession): string;
 export function getSessionUserId(session: MaybeSession): string | undefined;

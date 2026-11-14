@@ -8,6 +8,7 @@ import { recordInternalApiAccess } from "@/src/features/audit-logs/server/record
 import {
   getSessionOrganizations,
   getSessionUserEmail,
+  hasSessionOrganizationList,
   hasSessionUser,
 } from "@/src/features/auth/lib/sessionAccessors";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
@@ -36,7 +37,7 @@ function getTraceExportSession(
   if (
     !hasSessionUser(session) ||
     typeof email !== "string" ||
-    !Array.isArray(session.user.organizations)
+    !hasSessionOrganizationList(session)
   ) {
     throw new UnauthorizedError("Unauthorized");
   }
