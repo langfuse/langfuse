@@ -110,6 +110,7 @@ import {
 } from "@/src/features/events/lib/v4Rollout";
 import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
 import { isSignupOnboardingEnabled } from "@/src/features/onboarding/server/onboardingService";
+import { shadowSession } from "@/src/features/rbac/new/shadowSession";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -984,7 +985,7 @@ export async function getAuthOptions(
             dualPreviewAvailable,
           });
 
-          return {
+          const legacySession: Session = {
             ...session,
             environment: {
               enableExperimentalFeatures:
@@ -1122,6 +1123,8 @@ export async function getAuthOptions(
                   }
                 : null,
           };
+          shadowSession(token, legacySession).catch(() => undefined);
+          return legacySession;
         });
       },
       async signIn({ user, account, profile, email: emailFlow }) {

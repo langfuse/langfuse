@@ -8,27 +8,67 @@ import {
   UnauthorizedError,
   type ApiKeyScope,
   type CloudConfigRateLimit,
+  type CloudConfigSchema,
   type Plan,
 } from "@langfuse/shared";
 
+import { type Flags } from "@/src/features/feature-flags/types";
 import { type Policy } from "@/src/features/rbac/types";
 
-/** PrincipalOrganization carries an org's static caps and its ingestion-suspension liveness state, enforced at the seam not the PDP. */
+/** PrincipalUser is a signed-in user's profile and the capabilities derived from it at resolve time. */
+export type PrincipalUser = {
+  id: string;
+  email: string | null;
+  name: string | null;
+  image: string | null;
+  createdAt: string;
+  hasPassword: boolean;
+  featureFlags: Flags;
+  v4BetaEnabled: boolean;
+  v4UpgradeUiAvailable: boolean;
+  canToggleV4: boolean;
+  canCreateOrganizations: boolean;
+};
+
+/** PrincipalOrganization carries an org's display attributes, static caps and ingestion-suspension liveness state, enforced at the seam not the PDP. */
 export type PrincipalOrganization = {
-  orgId: string;
-  organizationCreatedAt: string;
+  id: string;
+  createdAt: string;
+  name: string;
+  metadata: Record<string, unknown>;
   plan: Plan;
   rateLimitOverrides: z.infer<typeof CloudConfigRateLimit>;
-  projectIds: string[];
   isIngestionSuspended: boolean;
-  /** Absent on authz contexts cached before the field existed; no org could have opted in then. */
-  accessAuditLogEnabled?: boolean;
+  accessAuditLogEnabled: boolean;
+  supportAccess: boolean;
+  aiFeaturesEnabled: boolean;
+  aiTelemetryEnabled: boolean;
+  featureFlagDefaults: Flags;
+  cloudConfig: CloudConfigSchema | undefined;
+  projects: PrincipalProject[];
+};
+
+/** PrincipalProject is a live project the principal can read, with its display attributes and deployment allowlist flags. */
+export type PrincipalProject = {
+  id: string;
+  name: string;
+  retentionDays: number | null;
+  hasTraces: boolean;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  topicsEnabled: boolean;
+  scoreEditsDisabled: boolean;
+  forceV3Experience: boolean;
 };
 
 /** Principal is an authorized admin, user, or api key, discriminated on kind. */
 export type Principal =
   | { kind: "admin"; userId: string | null }
-  | { kind: "user"; userId: string; organizations: PrincipalOrganization[] }
+  | {
+      kind: "user";
+      user: PrincipalUser;
+      organizations: PrincipalOrganization[];
+    }
   | {
       kind: "apiKey";
       apiKeyId: string;

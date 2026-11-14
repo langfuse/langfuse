@@ -46,7 +46,7 @@ function apiKeyScope(
   const [org] = principal.organizations;
   return {
     orgId: target.orgId,
-    organizationCreatedAt: org.organizationCreatedAt,
+    organizationCreatedAt: org.createdAt,
     projectId: target.projectId,
     plan: org.plan,
     rateLimitOverrides: org.rateLimitOverrides,
@@ -54,7 +54,7 @@ function apiKeyScope(
     publicKey: principal.publicKey,
     isIngestionSuspended: org.isIngestionSuspended,
     isInAppAgentKey: principal.isInAppAgentKey,
-    accessAuditLogEnabled: org.accessAuditLogEnabled ?? false,
+    accessAuditLogEnabled: org.accessAuditLogEnabled,
     accessLevel: apiKeyAccessLevel(principal, target.projectId),
   };
 }

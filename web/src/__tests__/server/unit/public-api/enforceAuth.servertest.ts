@@ -18,6 +18,10 @@ import {
   type AuthorizationContext,
   type BoundResource,
 } from "@/src/features/auth/policy/types";
+import {
+  testPrincipalOrganization,
+  testPrincipalProject,
+} from "@/src/__tests__/fixtures/principal";
 
 const { authSpan } = vi.hoisted(() => ({
   authSpan: { setAttribute: vi.fn() },
@@ -63,15 +67,12 @@ const apiKey = (
     scope: boundResource.projectId ? "PROJECT" : "ORGANIZATION",
     presentation: "privateKey",
     organizations: [
-      {
-        orgId: ORG,
-        projectIds: [PRJ],
-        organizationCreatedAt: "2026-01-01T00:00:00.000Z",
-        plan: "oss",
-        rateLimitOverrides: [],
-        isIngestionSuspended: false,
+      testPrincipalOrganization({
+        id: ORG,
+        projects: [testPrincipalProject({ id: PRJ })],
+        createdAt: "2026-01-01T00:00:00.000Z",
         accessAuditLogEnabled,
-      },
+      }),
     ],
     boundResource,
   },

@@ -5,7 +5,7 @@ import {
   type ApiKey,
   type PrismaClient,
 } from "@langfuse/shared/src/db";
-import { InternalServerError } from "@langfuse/shared";
+import { InternalServerError, UnauthorizedError } from "@langfuse/shared";
 import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
 
 import { authorize } from "@/src/features/rbac/authorize";
@@ -13,6 +13,7 @@ import {
   OrganizationRepository,
   type OrganizationWithProjects,
 } from "@/src/features/auth/policy/organizationRepository";
+import { UserRepository } from "@/src/features/auth/policy/userRepository";
 import {
   ContextResolver,
   type ResolveContextParams,
@@ -28,6 +29,15 @@ const ADMIN_USER = "user_admin";
 const TENANT = OrganizationId(ORG);
 const ORGANIZATION_CREATED_AT = new Date("2026-09-16T00:00:00.000Z");
 
+const projectRow = (id: string) => ({
+  id,
+  name: id,
+  retentionDays: null,
+  hasTraces: false,
+  metadata: null,
+  createdAt: ORGANIZATION_CREATED_AT,
+});
+
 const orgRow = (
   over: Partial<OrganizationWithProjects> = {},
 ): OrganizationWithProjects =>
@@ -36,7 +46,8 @@ const orgRow = (
     createdAt: ORGANIZATION_CREATED_AT,
     cloudConfig: null,
     cloudFreeTierUsageThresholdState: null,
-    projects: [{ id: PRJ }, { id: OTHER_PRJ }],
+    featureFlagOrgDefaults: [],
+    projects: [projectRow(PRJ), projectRow(OTHER_PRJ)],
     ...over,
   }) as unknown as OrganizationWithProjects;
 
@@ -47,6 +58,7 @@ const orgAssignment = (principal: object, systemRole: string) => ({
   ownerId: `organization/${ORG}`,
   projectId: null,
   orgId: ORG,
+  expiresAt: null,
 });
 
 // Backfilled keys receive their legacy role, owned by their project or organization.
@@ -105,6 +117,7 @@ const mockPrisma = (row: OrganizationWithProjects | null): PrismaClient =>
     organization: {
       findUnique: async () => row,
       findFirst: async () => row,
+      findMany: async () => (row ? [row] : []),
     },
     roleAssignment: {
       findMany: async ({ where }: { where: { principalId: string } }) =>
@@ -423,9 +436,7 @@ describe("attribution", () => {
     });
     const org =
       ctx.principal.kind === "apiKey" ? ctx.principal.organizations[0] : null;
-    expect(org?.organizationCreatedAt).toBe(
-      ORGANIZATION_CREATED_AT.toISOString(),
-    );
+    expect(org?.createdAt).toBe(ORGANIZATION_CREATED_AT.toISOString());
   });
 });
 
@@ -558,5 +569,103 @@ describe("role lookup", () => {
       resolver.resolve({ authorization: "privateKey", apiKey: apiKey() }),
     ).rejects.toThrow(failure);
     expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("resolves a signed-in user", () => {
+  const SESSION_STARTED_AT = new Date("2026-10-01T00:00:00.000Z");
+
+  const userRow = (over: object = {}) => ({
+    id: MEMBER_USER,
+    email: "member@example.com",
+    name: "Member",
+    image: null,
+    createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    featureFlags: [],
+    v4BetaEnabled: false,
+    sessionsExpiredAt: null,
+    password: "hash",
+    ...over,
+  });
+
+  const userPrisma = (user: object | null): PrismaClient => {
+    const prisma = mockPrisma(orgRow());
+    (prisma as unknown as { user: object }).user = {
+      findUnique: vi.fn().mockResolvedValue(user),
+    };
+    return prisma;
+  };
+
+  const resolveUser = (prisma: PrismaClient, userId: string | undefined) =>
+    new ContextResolver(
+      new OrganizationRepository(prisma),
+      prisma,
+      new UserRepository(prisma),
+    ).resolve({ kind: "user", userId, sessionStartedAt: SESSION_STARTED_AT });
+
+  it("resolves a live session to the user, their organizations and their policies", async () => {
+    const resolved = await resolveUser(userPrisma(userRow()), MEMBER_USER);
+    if (!resolved.success) throw resolved.error;
+    const { principal } = resolved.context;
+    expect(principal).toMatchObject({
+      kind: "user",
+      user: { id: MEMBER_USER, hasPassword: true },
+      organizations: [
+        {
+          id: ORG,
+          supportAccess: false,
+          projects: [{ id: PRJ }, { id: OTHER_PRJ }],
+        },
+      ],
+    });
+    expect(
+      authorize(resolved.context, TENANT, "prompts:read", ProjectId(PRJ))
+        .success,
+    ).toBe(true);
+  });
+
+  it("rejects a session started before its revocation", async () => {
+    const resolved = await resolveUser(
+      userPrisma(userRow({ sessionsExpiredAt: SESSION_STARTED_AT })),
+      MEMBER_USER,
+    );
+    expect(resolved).toMatchObject({ success: false });
+    expect(!resolved.success && resolved.error).toBeInstanceOf(
+      UnauthorizedError,
+    );
+  });
+
+  it("rejects a session whose user is gone", async () => {
+    const resolved = await resolveUser(userPrisma(null), MEMBER_USER);
+    expect(!resolved.success && resolved.error).toBeInstanceOf(
+      UnauthorizedError,
+    );
+  });
+
+  it("rejects a session without a subject", async () => {
+    const prisma = userPrisma(userRow());
+    const resolved = await resolveUser(prisma, undefined);
+    expect(!resolved.success && resolved.error).toBeInstanceOf(
+      UnauthorizedError,
+    );
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("flags an organization reached only through an expiring grant as support access", async () => {
+    const prisma = userPrisma(userRow());
+    prisma.roleAssignment.findMany = vi.fn().mockResolvedValue([
+      {
+        ...orgAssignment(
+          { principalId: `user/${MEMBER_USER}`, userId: MEMBER_USER },
+          "VIEWER",
+        ),
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    ]);
+    const resolved = await resolveUser(prisma, MEMBER_USER);
+    if (!resolved.success) throw resolved.error;
+    expect(resolved.context.principal).toMatchObject({
+      organizations: [{ id: ORG, supportAccess: true }],
+    });
   });
 });

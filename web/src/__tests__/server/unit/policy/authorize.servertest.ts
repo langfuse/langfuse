@@ -10,6 +10,7 @@ import {
 } from "@langfuse/shared/rbac";
 
 import { authorize } from "@/src/features/rbac/authorize";
+import { rolesFor } from "@/src/features/rbac/new/rolesFor";
 import { type Policy } from "@/src/features/rbac/types";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 
@@ -268,5 +269,20 @@ describe("authorize — every policy set must allow", () => {
       [policy({ actions: ["traces:read"] })],
     ]);
     expect(authorize(c, TENANT, "prompts:read", PRJ).success).toBe(false);
+  });
+});
+
+describe("rolesFor — exact project overrides the wildcard", () => {
+  const roles = ctx([
+    policy({ roleId: SystemRoleId("MEMBER"), resources: [WILDCARD] }),
+    policy({ roleId: SystemRoleId("VIEWER"), resources: [PRJ] }),
+  ]);
+  it("lists the role bound to the exact project", () => {
+    expect(rolesFor(roles, TENANT, PRJ)).toEqual([SystemRoleId("VIEWER")]);
+  });
+  it("falls back to the wildcard role for any other project", () => {
+    expect(rolesFor(roles, TENANT, OTHER_PRJ)).toEqual([
+      SystemRoleId("MEMBER"),
+    ]);
   });
 });
