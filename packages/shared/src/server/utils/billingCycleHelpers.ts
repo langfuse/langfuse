@@ -1,5 +1,10 @@
-import { getDaysInMonth, subMonths } from "date-fns";
 import type { Organization } from "@prisma/client";
+
+function getDaysInMonthUTC(date: Date): number {
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+}
 
 /**
  * Start of day in UTC (00:00:00.000Z)
@@ -65,7 +70,7 @@ export function getBillingCycleStart(
   const refMonth = referenceDate.getUTCMonth();
 
   // Calculate adjusted day for current month (handles 31 → 28/29/30)
-  const daysInRefMonth = getDaysInMonth(
+  const daysInRefMonth = getDaysInMonthUTC(
     new Date(Date.UTC(refYear, refMonth, 1)),
   );
   const adjustedDay = Math.min(dayOfMonth, daysInRefMonth);
@@ -76,8 +81,8 @@ export function getBillingCycleStart(
 
   // If current month's cycle start is after reference date, use previous month
   if (currentMonthCycleStart > referenceDate) {
-    const prevDate = subMonths(new Date(Date.UTC(refYear, refMonth, 1)), 1);
-    const daysInPrevMonth = getDaysInMonth(prevDate);
+    const prevDate = new Date(Date.UTC(refYear, refMonth - 1, 1));
+    const daysInPrevMonth = getDaysInMonthUTC(prevDate);
     return new Date(
       Date.UTC(
         prevDate.getUTCFullYear(),
@@ -123,7 +128,7 @@ export function getBillingCycleEnd(
       1,
     ),
   );
-  const daysInNextMonth = getDaysInMonth(nextMonthDate);
+  const daysInNextMonth = getDaysInMonthUTC(nextMonthDate);
   const adjustedDay = Math.min(dayOfMonth, daysInNextMonth);
 
   return new Date(
@@ -154,8 +159,8 @@ export function getDaysToLookBack(referenceDate: Date): number {
   const refMonth = referenceDate.getUTCMonth();
 
   // Get the previous month
-  const prevMonthDate = subMonths(new Date(Date.UTC(refYear, refMonth, 1)), 1);
+  const prevMonthDate = new Date(Date.UTC(refYear, refMonth - 1, 1));
 
   // Return the number of days in the previous month
-  return getDaysInMonth(prevMonthDate);
+  return getDaysInMonthUTC(prevMonthDate);
 }

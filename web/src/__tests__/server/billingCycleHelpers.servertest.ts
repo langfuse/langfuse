@@ -1,3 +1,6 @@
+import { execFileSync } from "node:child_process";
+import { createRequire } from "node:module";
+import { pathToFileURL } from "node:url";
 import {
   getBillingCycleAnchor,
   getBillingCycleStart,
@@ -380,6 +383,92 @@ describe("endOfDayUTC", () => {
     const result = endOfDayUTC(new Date("2024-12-31T10:00:00Z"));
     expect(result).toEqual(new Date("2024-12-31T23:59:59.999Z"));
   });
+});
+
+describe("billing cycles across process timezones", () => {
+  it.each(["UTC", "America/Los_Angeles", "Asia/Kolkata"])(
+    "keeps UTC month boundaries in %s",
+    (timezone) => {
+      const cases = [
+        [
+          "2026-02-28T12:00:00Z",
+          "2026-02-28T00:00:00.000Z",
+          "2026-03-31T00:00:00.000Z",
+          31,
+        ],
+        [
+          "2024-02-29T00:00:00Z",
+          "2024-02-29T00:00:00.000Z",
+          "2024-03-31T00:00:00.000Z",
+          31,
+        ],
+        [
+          "2024-03-05T10:00:00Z",
+          "2024-02-29T00:00:00.000Z",
+          "2024-03-31T00:00:00.000Z",
+          29,
+        ],
+        [
+          "2025-01-05T10:00:00Z",
+          "2024-12-31T00:00:00.000Z",
+          "2025-01-31T00:00:00.000Z",
+          31,
+        ],
+        [
+          "2024-11-03T10:00:00Z",
+          "2024-10-31T00:00:00.000Z",
+          "2024-11-30T00:00:00.000Z",
+          31,
+        ],
+        [
+          "2024-04-30T00:00:00Z",
+          "2024-04-30T00:00:00.000Z",
+          "2024-05-31T00:00:00.000Z",
+          31,
+        ],
+        [
+          "2026-02-27T23:59:59.999Z",
+          "2026-01-31T00:00:00.000Z",
+          "2026-02-28T00:00:00.000Z",
+          31,
+        ],
+      ] as const;
+      const helperUrl = new URL(
+        "../../../../packages/shared/src/server/utils/billingCycleHelpers.ts",
+        import.meta.url,
+      ).href;
+      const script = `
+        const helperModule = await import(${JSON.stringify(helperUrl)});
+        const { getBillingCycleStart, getBillingCycleEnd, getDaysToLookBack } = helperModule.default ?? helperModule;
+        const org = { cloudBillingCycleAnchor: new Date("2024-01-31T00:00:00Z"), createdAt: new Date("2024-01-01T00:00:00Z") };
+        const references = ${JSON.stringify(cases.map(([reference]) => reference))};
+        const results = references.map((reference) => {
+          const date = new Date(reference);
+          return [getBillingCycleStart(org, date).toISOString(), getBillingCycleEnd(org, date).toISOString(), getDaysToLookBack(date)];
+        });
+        process.stdout.write(JSON.stringify(results));
+      `;
+      const output = execFileSync(
+        process.execPath,
+        [
+          "--import",
+          pathToFileURL(createRequire(import.meta.url).resolve("tsx")).href,
+          "--input-type=module",
+          "-e",
+          script,
+        ],
+        {
+          env: { ...process.env, TZ: timezone },
+          encoding: "utf8",
+          timeout: 5000,
+        },
+      );
+
+      expect(JSON.parse(output)).toEqual(
+        cases.map(([, start, end, lookback]) => [start, end, lookback]),
+      );
+    },
+  );
 });
 
 describe("Organization cloudBillingCycleAnchor persistence", () => {
