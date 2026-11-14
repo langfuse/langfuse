@@ -20,14 +20,14 @@ vi.mock("@/src/server/auth", () => ({
 
 import handler from "@/src/pages/api/project/[projectId]/visit";
 import { type NextApiRequest, type NextApiResponse } from "next";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
-const makeSession = (projectIds: string[]) => ({
-  user: {
+const makeSession = (projectIds: string[]) =>
+  testSession({
     organizations: [
       { id: "org-1", projects: projectIds.map((id) => ({ id })) },
     ],
-  },
-});
+  });
 
 const makeReqRes = (opts: {
   method?: string;

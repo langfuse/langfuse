@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { type RouterOutputs } from "@/src/utils/api";
 import { CommentList } from "./CommentList";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const { useCommentsQuery, composerRenders, accessState } = vi.hoisted(() => ({
   useCommentsQuery: vi.fn(),
@@ -36,7 +37,7 @@ vi.mock("@/src/utils/api", () => ({
   },
 }));
 
-vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
+vi.mock("@/src/features/rbac/new/hooks", () => ({
   useHasProjectAccess: ({ scope }: { scope: string }) =>
     scope === "comments:read" ? accessState.hasReadAccess : true,
 }));
@@ -44,7 +45,7 @@ vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
     status: accessState.sessionStatus,
-    data: { user: { id: "reviewer" } },
+    data: testSession({ user: { id: "reviewer" } }),
   }),
 }));
 

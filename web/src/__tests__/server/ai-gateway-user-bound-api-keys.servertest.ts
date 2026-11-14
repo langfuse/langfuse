@@ -22,6 +22,7 @@ import {
   GatewayResolveCache,
 } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const cleanupOrganizations: string[] = [];
 const cleanupUsers: string[] = [];
@@ -82,29 +83,28 @@ function orgSession(
   org: { id: string; name: string },
   role: Role,
 ): OrgAuthedContext["session"] {
-  const session = {
-    expires: "1",
+  const session = testSession({
     user: {
       id: user.id,
       name: user.name,
       canCreateOrganizations: true,
       featureFlags: testFeatureFlags({ templateFlag: false }),
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role,
-          cloudConfig: undefined,
-          plan: "oss",
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [],
-        },
-      ],
     },
+    organizations: [
+      {
+        id: org.id,
+        name: org.name,
+        role,
+        cloudConfig: undefined,
+        plan: "oss",
+        metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: true,
+        projects: [],
+      },
+    ],
     environment: {} as Session["environment"],
-  } satisfies Session;
+  }) satisfies Session;
   return { ...session, orgId: org.id, orgRole: role };
 }
 

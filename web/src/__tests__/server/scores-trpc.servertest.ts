@@ -28,7 +28,6 @@ vi.mock("@langfuse/shared/src/server", async () => {
 });
 
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
-import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -53,6 +52,7 @@ import { observationScopeFilter } from "@/src/features/filters/config/scores-con
 import { SCORES_FIELD_REGISTRY } from "@/src/features/scores/constants/scoresSearchRegistry";
 import { planCommit } from "@/src/features/search-bar/lib/commit";
 import { randomUUID } from "crypto";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const maybeEvents =
   env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
@@ -72,40 +72,38 @@ describe("scores trpc", () => {
     mockAddBatchAction.mockClear();
     mockGetEventsExactFilterOptionsForColumns.mockClear();
 
-    const session: Session = {
-      expires: "1",
+    const session = testSession({
       user: {
         id: "user-1",
         canCreateOrganizations: true,
         name: "Demo User",
-        organizations: [
-          {
-            id: orgId,
-            name: "Test Organization",
-            role: "OWNER",
-            plan: "cloud:hobby",
-            cloudConfig: undefined,
-            metadata: {},
-            aiFeaturesEnabled: false,
-            aiTelemetryEnabled: true,
-            projects: [
-              {
-                id: projectId,
-                role: "ADMIN",
-                retentionDays: 30,
-                deletedAt: null,
-                name: "Test Project",
-                hasTraces: false,
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        ],
         featureFlags: testFeatureFlags(),
       },
+      organizations: [
+        {
+          id: orgId,
+          name: "Test Organization",
+          role: "OWNER",
+          plan: "cloud:hobby",
+          cloudConfig: undefined,
+          metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: true,
+          projects: [
+            {
+              id: projectId,
+              role: "ADMIN",
+              retentionDays: 30,
+              name: "Test Project",
+              hasTraces: false,
+              metadata: {},
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        },
+      ],
       environment: {} as any,
-    };
+    });
 
     const ctx = createInnerTRPCContext({ session, headers: {} });
     caller = appRouter.createCaller({ ...ctx, prisma });

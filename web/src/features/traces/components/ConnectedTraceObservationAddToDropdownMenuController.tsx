@@ -13,7 +13,7 @@ import {
   type JumpToPlaygroundSourceProps,
   useJumpToPlayground,
 } from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { type AnalyticsData } from "@/src/features/scores/types";
 import { api } from "@/src/utils/api";

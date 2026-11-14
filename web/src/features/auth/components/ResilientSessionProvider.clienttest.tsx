@@ -1,11 +1,12 @@
 import { act, render, screen } from "@testing-library/react";
 import { useContext } from "react";
 import type { MockInstance } from "vitest";
-import type { Session } from "next-auth";
 import { SessionContext, type SessionContextValue } from "next-auth/react";
 import type * as nextAuthReactModule from "next-auth/react";
 
 import { ResilientSessionProvider } from "@/src/features/auth/components/ResilientSessionProvider";
+import { testSession } from "@/src/__tests__/fixtures/principal";
+import { getSessionUserEmail } from "@/src/features/rbac/new/sessionAccessors";
 
 const { useSessionMock } = vi.hoisted(() => ({ useSessionMock: vi.fn() }));
 
@@ -15,7 +16,7 @@ vi.mock("next-auth/react", async (importOriginal) => {
 });
 
 const authenticated = (email: string): SessionContextValue => ({
-  data: { user: { email }, expires: "2999-01-01" } as unknown as Session,
+  data: testSession({ user: { email } }),
   status: "authenticated",
   update: vi.fn(),
 });
@@ -32,7 +33,7 @@ function SessionReadout() {
   return (
     <>
       <span data-testid="session">
-        {`${session?.status}:${session?.data?.user?.email ?? "none"}`}
+        {`${session?.status}:${getSessionUserEmail(session?.data) ?? "none"}`}
       </span>
       <button
         onClick={() => {

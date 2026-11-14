@@ -5,11 +5,13 @@ import {
   getSessionUserId,
   getSessionUserName,
   getSessionUserV4BetaEnabled,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { hasEntitlementLimit } from "@/src/features/entitlements/server/hasEntitlementLimit";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/new/checkProjectAccess";
+import {
+  hasEntitlementLimit,
+  throwIfNoEntitlement,
+} from "@/src/features/rbac/new/entitlements";
 import {
   createTRPCRouter,
   protectedProjectProcedure,

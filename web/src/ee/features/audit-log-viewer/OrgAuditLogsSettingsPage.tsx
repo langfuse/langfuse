@@ -4,7 +4,7 @@ import { AccessLoggingSwitch } from "@/src/ee/features/access-audit-log/componen
 import { useShowAccessLoggingSetting } from "@/src/ee/features/access-audit-log/hooks/useShowAccessLoggingSetting";
 import { ConnectedAuditLogsTable } from "@/src/ee/features/audit-log-viewer/AuditLogsTable/ConnectedAuditLogsTable";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac/new/hooks";
 
 export function OrgAuditLogsSettingsPage(props: { orgId: string }) {
   const hasAccess = useHasOrganizationAccess({

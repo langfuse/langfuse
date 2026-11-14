@@ -10,7 +10,7 @@ import {
   getTraceById,
   getTracesIdentifierForSession,
 } from "@langfuse/shared/src/server";
-import { getSessionUserV4BetaEnabled } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionUserV4BetaEnabled } from "@/src/features/rbac/new/sessionAccessors";
 
 export const validateCommentReferenceObject = async ({
   ctx,

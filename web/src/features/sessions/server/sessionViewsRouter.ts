@@ -6,7 +6,7 @@ import {
   SessionViewInputSchema,
   SessionViewPreferencesSchema,
 } from "@langfuse/shared";
-import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -14,7 +14,7 @@ import {
 import {
   hasProjectAccess,
   throwIfNoProjectAccess,
-} from "@/src/features/rbac/utils/checkProjectAccess";
+} from "@/src/features/rbac/new/checkProjectAccess";
 import { canManageSessionView } from "../fns/canManageSessionView";
 import { lockSessionViewPins } from "./fns/lockSessionViewPins";
 

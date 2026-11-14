@@ -13,7 +13,7 @@ import {
 import { TriangleAlertIcon } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
 
 interface AnnotationDrawerSectionProps {
   item: AnnotationQueueItem & {

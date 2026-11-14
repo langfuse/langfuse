@@ -1,6 +1,5 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Span } from "@opentelemetry/api";
-import type { Session } from "next-auth";
 import * as z from "zod";
 
 vi.mock("@/src/features/posthog-analytics/server/backendActivity", () => ({
@@ -12,6 +11,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const router = createTRPCRouter({
   project: protectedProjectProcedure
@@ -19,36 +19,34 @@ const router = createTRPCRouter({
     .query(() => ({ ok: true })),
 });
 
-const session = {
-  expires: "1",
+const session = testSession({
   user: {
     id: "user-1",
     email: "user@example.com",
     name: "Example User",
     canCreateOrganizations: true,
     featureFlags: testFeatureFlags({ templateFlag: false }),
-    organizations: [
-      {
-        id: "org-1",
-        name: "Example Organization",
-        role: "MEMBER",
-        plan: "cloud:hobby",
-        cloudConfig: undefined,
-        metadata: {},
-        projects: [
-          {
-            id: "project-1",
-            name: "Example Project",
-            role: "MEMBER",
-            retentionDays: 30,
-            deletedAt: null,
-          },
-        ],
-      },
-    ],
   },
+  organizations: [
+    {
+      id: "org-1",
+      name: "Example Organization",
+      role: "MEMBER",
+      plan: "cloud:hobby",
+      cloudConfig: undefined,
+      metadata: {},
+      projects: [
+        {
+          id: "project-1",
+          name: "Example Project",
+          role: "MEMBER",
+          retentionDays: 30,
+        },
+      ],
+    },
+  ],
   environment: {},
-} as Session;
+});
 
 const createRequestSpan = () =>
   ({ setAttribute: vi.fn() }) as unknown as Span & {

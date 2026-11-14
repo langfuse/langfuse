@@ -24,7 +24,7 @@ import { stripeClient as defaultStripeClient } from "@/src/ee/features/billing/u
 import { StripeCatalogue } from "@/src/ee/features/billing/utils/stripeCatalogue";
 import { createStripeClientReference } from "@/src/ee/features/billing/utils/stripeClientReference";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
 
 import {
   makeIdempotencyKey,

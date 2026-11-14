@@ -2,7 +2,7 @@ import {
   findSessionProject,
   type MaybeSession,
   type SessionStatus,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 
 /** isAuthenticatedAndProjectMember is false for an empty projectId or a session that is not authenticated yet. */
 export function isAuthenticatedAndProjectMember(

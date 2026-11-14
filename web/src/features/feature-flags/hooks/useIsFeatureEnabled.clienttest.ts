@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import useIsFeatureEnabled from "./useIsFeatureEnabled";
 import { useInternalFeaturesEnabled } from "./useInternalFeaturesEnabled";
 import { INTERNAL_FEATURE_FLAG } from "../available-flags";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(),
@@ -26,8 +27,7 @@ const mockSession = ({
   unifiedTraceSessionView?: boolean;
 }) => {
   vi.mocked(useSession).mockReturnValue({
-    data: {
-      environment: { enableExperimentalFeatures },
+    data: testSession({
       user: {
         email,
         featureFlags: testFeatureFlags({
@@ -36,15 +36,16 @@ const mockSession = ({
           unifiedTraceSessionView,
           [INTERNAL_FEATURE_FLAG]: internalFeatures,
         }),
-        organizations: [
-          {
-            id: "org-1",
-            featureFlags: testFeatureFlags({ aiGateway, langfuseTopics }),
-            projects: [],
-          },
-        ],
       },
-    },
+      organizations: [
+        {
+          id: "org-1",
+          featureFlagDefaults: testFeatureFlags({ aiGateway, langfuseTopics }),
+          projects: [],
+        },
+      ],
+      environment: { enableExperimentalFeatures },
+    }),
   } as unknown as ReturnType<typeof useSession>);
 };
 

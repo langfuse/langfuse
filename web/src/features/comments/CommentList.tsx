@@ -1,8 +1,8 @@
 import { useRef, type ReactNode } from "react";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Button } from "@/src/components/ui/button";
-import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { type CommentObjectType } from "@langfuse/shared";

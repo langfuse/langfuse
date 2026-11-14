@@ -13,6 +13,11 @@ import {
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import type * as EvaluatorValidationModule from "@/src/features/evals/v2/server/evaluators/evaluatorValidation";
+import {
+  testSession,
+  withSessionRoles,
+  withSessionUser,
+} from "@/src/__tests__/fixtures/principal";
 
 const mocks = vi.hoisted(() => ({
   getEvaluatorDefinitionPreflightError: vi.fn(async () => null),
@@ -44,26 +49,16 @@ let projectId = "";
 let otherProjectId = "";
 let userId = "";
 let caller: ReturnType<typeof appRouter.createCaller>;
-let session: Session & { user: NonNullable<Session["user"]> };
+let session: ReturnType<typeof testSession>;
 
 function createCallerWithProjectRole(
   role: Role,
   { v4BetaEnabled = false }: { v4BetaEnabled?: boolean } = {},
 ) {
-  const roleSession = {
-    ...session,
-    user: {
-      ...session.user,
-      v4BetaEnabled,
-      organizations: session.user.organizations.map((organization) => ({
-        ...organization,
-        projects: organization.projects.map((project) => ({
-          ...project,
-          role,
-        })),
-      })),
-    },
-  };
+  const roleSession = withSessionUser(
+    withSessionRoles(session, { role: "OWNER", projectRole: role }),
+    { v4BetaEnabled },
+  );
   const ctx = createInnerTRPCContext({ session: roleSession, headers: {} });
   return appRouter.createCaller({ ...ctx, prisma });
 }
@@ -93,44 +88,42 @@ beforeAll(async () => {
     data: { id: userId, name: "Evaluator tester", email: `${userId}@test.dev` },
   });
 
-  session = {
-    expires: "1",
+  session = testSession({
     user: {
       id: userId,
       name: "Evaluator tester",
       canCreateOrganizations: false,
-      organizations: [
-        {
-          id: first.org.id,
-          name: first.org.name,
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: true,
-          aiTelemetryEnabled: false,
-          projects: [
-            {
-              id: projectId,
-              name: first.project.name,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              hasTraces: false,
-              metadata: {},
-              createdAt: first.project.createdAt.toISOString(),
-            },
-          ],
-        },
-      ],
       featureFlags: testFeatureFlags(),
       v4BetaEnabled: false,
     },
+    organizations: [
+      {
+        id: first.org.id,
+        name: first.org.name,
+        role: "OWNER",
+        plan: "cloud:hobby",
+        cloudConfig: undefined,
+        metadata: {},
+        aiFeaturesEnabled: true,
+        aiTelemetryEnabled: false,
+        projects: [
+          {
+            id: projectId,
+            name: first.project.name,
+            role: "ADMIN",
+            retentionDays: 30,
+            hasTraces: false,
+            metadata: {},
+            createdAt: first.project.createdAt.toISOString(),
+          },
+        ],
+      },
+    ],
     environment: {
       enableExperimentalFeatures: false,
       selfHostedInstancePlan: "cloud:hobby",
     },
-  } satisfies Session;
+  }) satisfies Session;
   const ctx = createInnerTRPCContext({ session, headers: {} });
   caller = appRouter.createCaller({ ...ctx, prisma });
 });

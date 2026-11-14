@@ -6,7 +6,7 @@ import { DialogController } from "@/src/components/design-system/DialogControlle
 import { env } from "@/src/env.mjs";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { api } from "@/src/utils/api";
 import { type ConfigureTopicsSettingsInput } from "./useTopicSettings";
 import {

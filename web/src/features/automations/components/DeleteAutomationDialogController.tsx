@@ -3,7 +3,7 @@ import type * as React from "react";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { api } from "@/src/utils/api";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { DeleteAutomationDialog } from "./DeleteAutomationDialog";
 
 type DeleteAutomationDialogControllerProps = {

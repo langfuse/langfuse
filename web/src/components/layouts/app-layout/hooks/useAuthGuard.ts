@@ -7,7 +7,7 @@ import { useRouter } from "next/router";
 import { PATH_CONSTANTS } from "../utils/pathClassification";
 import { getSafeRedirectPath, stripBasePath } from "@/src/utils/redirect";
 import type { SessionContextValue } from "next-auth/react";
-import { hasSessionUser } from "@/src/features/auth/lib/sessionAccessors";
+import { hasSessionUser } from "@/src/features/rbac/new/sessionAccessors";
 
 /** Result of auth guard evaluation */
 export type AuthGuardResult =

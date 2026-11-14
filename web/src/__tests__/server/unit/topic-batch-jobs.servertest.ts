@@ -1,3 +1,4 @@
+import { testSession } from "@/src/__tests__/fixtures/principal";
 import {
   ActionId,
   BatchActionType,
@@ -56,11 +57,7 @@ describe("topic filters in batch jobs", () => {
         actionId: ActionId.TraceDelete,
         tableName: BatchExportTableName.Traces,
         actionType: BatchActionType.Delete,
-        session: {
-          user: { id: "user-a" },
-          orgId: "org-a",
-          orgRole: "OWNER",
-        },
+        session: { ...testSession({ user: { id: "user-a" } }), orgId: "org-a" },
         query,
       }),
     ).rejects.toThrow(message);

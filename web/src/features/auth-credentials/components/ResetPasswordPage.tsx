@@ -28,7 +28,7 @@ import { passwordSchema } from "@/src/features/auth/lib/signupSchema";
 import {
   getSessionUserEmail,
   getSessionUserHasPassword,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import {
   PASSWORD_RESET_EMAIL_CODE_MAX_AGE_SECONDS,

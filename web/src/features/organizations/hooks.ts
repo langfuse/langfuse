@@ -3,7 +3,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 
 import { env } from "@/src/env.mjs";
-import { findSessionOrganization } from "@/src/features/auth/lib/sessionAccessors";
+import { findSessionOrganization } from "@/src/features/rbac/new/sessionAccessors";
 import { getSessionV4WriteMode } from "@/src/features/organizations/getSessionV4WriteMode";
 
 /**

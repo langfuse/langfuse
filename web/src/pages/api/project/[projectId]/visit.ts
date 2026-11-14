@@ -4,7 +4,7 @@ import { getServerAuthSession } from "@/src/server/auth";
 import {
   findSessionProject,
   hasSessionUser,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 import {
   getRequestOrigin,
   serializeProjectCookie,

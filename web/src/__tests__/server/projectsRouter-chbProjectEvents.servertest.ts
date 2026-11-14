@@ -1,7 +1,6 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { type Plan, Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -26,6 +25,7 @@ import {
 } from "@langfuse/shared/rbac/server";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 async function createOrg(label: string) {
   const orgId = uuidv4();
@@ -75,41 +75,39 @@ function makeCaller({
   projectId?: string;
   plan?: Plan;
 }) {
-  const session: Session = {
-    expires: "1",
+  const session = testSession({
     user: {
       id: userId,
       canCreateOrganizations: true,
       name: "Test User",
       email: "chb-events@test.com",
-      organizations: orgIds.map((orgId) => ({
-        id: orgId,
-        name: "Test Organization",
-        role: Role.OWNER,
-        plan,
-        cloudConfig: undefined,
-        metadata: {},
-        aiFeaturesEnabled: false,
-        aiTelemetryEnabled: true,
-        projects: projectId
-          ? [
-              {
-                id: projectId,
-                role: Role.OWNER,
-                retentionDays: 0,
-                deletedAt: null,
-                hasTraces: false,
-                name: "Test Project",
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ]
-          : [],
-      })),
       featureFlags: testFeatureFlags(),
     },
+    organizations: orgIds.map((orgId) => ({
+      id: orgId,
+      name: "Test Organization",
+      role: Role.OWNER,
+      plan,
+      cloudConfig: undefined,
+      metadata: {},
+      aiFeaturesEnabled: false,
+      aiTelemetryEnabled: true,
+      projects: projectId
+        ? [
+            {
+              id: projectId,
+              role: Role.OWNER,
+              retentionDays: 0,
+              hasTraces: false,
+              name: "Test Project",
+              metadata: {},
+              createdAt: new Date().toISOString(),
+            },
+          ]
+        : [],
+    })),
     environment: {} as any,
-  };
+  });
   const ctx = createInnerTRPCContext({ session, headers: {} });
   return appRouter.createCaller({ ...ctx, prisma });
 }

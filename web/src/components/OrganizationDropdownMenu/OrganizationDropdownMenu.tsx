@@ -3,7 +3,7 @@ import { Building, PlusIcon, Settings } from "@langfuse/icons";
 import { type ComponentProps, useMemo } from "react";
 import { env } from "@/src/env.mjs";
 import { createOrganizationRoute } from "@/src/features/setup/setupRoutes";
-import { type SessionOrganization } from "@/src/features/auth/lib/sessionAccessors";
+import { type SessionOrganization } from "@/src/features/rbac/new/sessionAccessors";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 
 type Organization = SessionOrganization;

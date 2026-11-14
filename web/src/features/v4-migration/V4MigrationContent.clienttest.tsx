@@ -225,11 +225,8 @@ vi.mock("@/src/features/projects/hooks", () => ({
   }),
 }));
 
-vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
+vi.mock("@/src/features/rbac/new/hooks", () => ({
   useHasProjectAccess: () => mocks.hasApiKeyCreateAccess,
-}));
-
-vi.mock("@/src/features/rbac/utils/checkOrganizationAccess", () => ({
   useHasOrganizationAccess: () => mocks.canUpdateOrgSettings,
 }));
 

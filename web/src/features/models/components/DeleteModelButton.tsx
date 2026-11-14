@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { Button } from "@/src/components/ui/button";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { type GetModelResult } from "@/src/features/models/validation";

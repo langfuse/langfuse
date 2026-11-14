@@ -1,6 +1,6 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/new/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,

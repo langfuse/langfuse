@@ -1,7 +1,10 @@
 import type { PrismaClient } from "@langfuse/shared/src/db";
-import type { Session } from "next-auth";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getV4MigrationTopBannerState } from "@/src/features/v4-migration/server/v4MigrationTopBannerService";
+import {
+  testSession,
+  withSessionOrganizations,
+} from "@/src/__tests__/fixtures/principal";
 
 const mocks = vi.hoisted(() => ({
   bannerStateByOrgId: new Map<
@@ -34,39 +37,30 @@ const warningState = {
   exempt: false,
 };
 
-const session = {
-  user: {
-    organizations: [
-      {
-        id: "org-a",
-        name: "Org A",
-        projects: [{ id: "project-a", name: "Project A", deletedAt: null }],
-      },
-      {
-        id: "org-b",
-        name: "Org B",
-        projects: [{ id: "project-b", name: "Project B", deletedAt: null }],
-      },
-      {
-        id: "org-c",
-        name: "Org C",
-        projects: [
-          { id: "project-c", name: "Project C", deletedAt: null },
-          {
-            id: "project-deleted",
-            name: "Deleted Project",
-            deletedAt: new Date("2026-01-01"),
-          },
-        ],
-      },
-      {
-        id: "demo-org",
-        name: "Demo",
-        projects: [{ id: "demo-project", name: "Demo", deletedAt: null }],
-      },
-    ],
-  },
-} as unknown as Session;
+const session = testSession({
+  organizations: [
+    {
+      id: "org-a",
+      name: "Org A",
+      projects: [{ id: "project-a", name: "Project A" }],
+    },
+    {
+      id: "org-b",
+      name: "Org B",
+      projects: [{ id: "project-b", name: "Project B" }],
+    },
+    {
+      id: "org-c",
+      name: "Org C",
+      projects: [{ id: "project-c", name: "Project C" }],
+    },
+    {
+      id: "demo-org",
+      name: "Demo",
+      projects: [{ id: "demo-project", name: "Demo" }],
+    },
+  ],
+});
 
 const actionNeeded = {
   forceV3Experience: false,
@@ -123,22 +117,9 @@ describe("getV4MigrationTopBannerState", () => {
 
   it("counts actionable projects and excludes forced-v3 projects", async () => {
     const projectIds = ["project-a", "project-ready", "project-partner"];
-    const scopedSession = {
-      ...session,
-      user: {
-        ...session.user!,
-        organizations: [
-          {
-            ...session.user!.organizations[0],
-            projects: projectIds.map((id) => ({
-              id,
-              name: id,
-              deletedAt: null,
-            })),
-          },
-        ],
-      },
-    } as unknown as Session;
+    const scopedSession = withSessionOrganizations(session, ([org]) => [
+      { ...org, projects: projectIds.map((id) => ({ id, name: id })) },
+    ]);
     mocks.getMigrationActionsByProject.mockResolvedValue(
       new Map([
         ["project-a", actionNeeded],

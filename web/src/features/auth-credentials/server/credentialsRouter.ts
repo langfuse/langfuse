@@ -6,7 +6,7 @@ import {
 import { setPasswordWithEmailCode } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { TRPCError } from "@trpc/server";
 import { passwordSchema } from "@/src/features/auth/lib/signupSchema";
-import { getSessionUserEmail } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionUserEmail } from "@/src/features/rbac/new/sessionAccessors";
 
 export const credentialsRouter = createTRPCRouter({
   resetPassword: publicProcedureWithoutTracing

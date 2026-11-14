@@ -6,6 +6,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
 import { describe, expect, it } from "vitest";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 async function createOwnerCaller() {
   const orgId = uuidv4();
@@ -24,30 +25,29 @@ async function createOwnerCaller() {
     data: { userId, orgId, role: Role.OWNER },
   });
 
-  const session: Session = {
-    expires: "1",
+  const session = testSession({
     user: {
       id: userId,
       canCreateOrganizations: true,
       name: "Test User",
       email: "default-scores@test.com",
-      organizations: [
-        {
-          id: orgId,
-          name: "Test Organization",
-          role: Role.OWNER,
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [],
-        },
-      ],
       featureFlags: testFeatureFlags(),
     },
+    organizations: [
+      {
+        id: orgId,
+        name: "Test Organization",
+        role: Role.OWNER,
+        plan: "cloud:hobby",
+        cloudConfig: undefined,
+        metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: true,
+        projects: [],
+      },
+    ],
     environment: {} as Session["environment"],
-  };
+  });
 
   return {
     orgId,

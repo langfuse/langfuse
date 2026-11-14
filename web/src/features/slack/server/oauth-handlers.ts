@@ -10,7 +10,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { prisma } from "@langfuse/shared/src/db";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 import { getProductBaseUrl } from "@/src/utils/base-url";
-import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
 
 // ErrorCode values from @slack/oauth for callbacks that fail because of the
 // client's request — no/invalid `code`/`state` (scanners, expired installs)

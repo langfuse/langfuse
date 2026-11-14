@@ -7,6 +7,7 @@ import {
 } from "@langfuse/shared";
 import { useSessionViewSelection } from "./useSessionViewSelection";
 import { type RouterOutputs } from "@/src/utils/api";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const mocks = vi.hoisted(() => ({
   query: {} as Record<string, string>,
@@ -20,7 +21,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
     status: "authenticated",
-    data: { user: { id: "user" } },
+    data: testSession({ user: { id: "user" } }),
   }),
 }));
 vi.mock("next/router", () => ({ useRouter: () => mocks.router }));

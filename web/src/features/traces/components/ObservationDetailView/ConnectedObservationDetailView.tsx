@@ -64,7 +64,7 @@ import {
   aggregateTraceMetrics,
   getDescendantIds,
 } from "@/src/features/traces/fns/traceAggregation";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { useSession } from "next-auth/react";
 import { ObservationPreview } from "./ObservationPreview";
 import type { IOPreviewPretty } from "../IOPreview/IOPreviewPretty";

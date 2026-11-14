@@ -6,11 +6,9 @@ import {
 import { stringify } from "@langfuse/shared/src/server";
 import { recordInternalApiAccess } from "@/src/features/audit-logs/server/recordAccessEvent";
 import {
-  getSessionOrganizations,
   getSessionUserEmail,
-  hasSessionOrganizationList,
   hasSessionUser,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
   buildTraceExport,
@@ -24,31 +22,18 @@ const querySchema = z.object({
   projectId: z.string().min(1),
 });
 
-/** getTraceExportSession narrows the auth session to what the trace export checks. */
+/** getTraceExportSession keeps a missing session anonymous and rejects one without a signed-in user who has an email. */
 function getTraceExportSession(
   session: Awaited<ReturnType<typeof getServerAuthSession>>,
 ): TraceExportAccessSession {
-  if (!session) {
-    return null;
-  }
-
-  const email = getSessionUserEmail(session);
-
+  if (!session) return null;
   if (
     !hasSessionUser(session) ||
-    typeof email !== "string" ||
-    !hasSessionOrganizationList(session)
+    typeof getSessionUserEmail(session) !== "string"
   ) {
     throw new UnauthorizedError("Unauthorized");
   }
-  const organizations = getSessionOrganizations(session);
-
-  return {
-    user: {
-      email,
-      organizations,
-    },
-  };
+  return session;
 }
 
 const buildDownloadFilename = (traceId: string) => `trace-${traceId}.json`;

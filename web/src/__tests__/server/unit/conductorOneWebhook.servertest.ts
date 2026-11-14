@@ -37,11 +37,7 @@ import {
   type RevokeRequest,
 } from "@/src/ee/features/support-access/server/conductorOnePayload";
 import { provisionSupportAccess } from "@/src/ee/features/support-access/server/provisionSupportAccess";
-import {
-  getActiveSupportAccessGrants,
-  getSupportAccessMemberships,
-  parseSupportAccess,
-} from "@/src/ee/features/support-access/server/supportAccess";
+import { parseSupportAccess } from "@/src/ee/features/support-access/server/supportAccess";
 
 describe("verifyConductorOneRequest", () => {
   const issuer = "clickhouse.conductor.one";
@@ -326,25 +322,7 @@ describe("provisionSupportAccess", () => {
   });
 });
 
-describe("support access in the session", () => {
-  const now = new Date("2026-10-23T12:00:00.000Z");
-  const entry = (expiresAt: string) => ({ role: "VIEWER" as const, expiresAt });
-  const active = entry("2099-01-01T00:00:00.000Z");
-
-  beforeEach(() => vi.clearAllMocks());
-
-  it("returns only unexpired grants", () => {
-    expect(
-      getActiveSupportAccessGrants(
-        {
-          current: entry("2026-10-23T13:00:00.000Z"),
-          expired: entry("2026-10-23T11:59:59.000Z"),
-        },
-        now,
-      ),
-    ).toEqual([{ orgId: "current", role: "VIEWER" }]);
-  });
-
+describe("parseSupportAccess", () => {
   it("parses malformed values or other roles to no grants", () => {
     expect(
       parseSupportAccess({
@@ -353,51 +331,5 @@ describe("support access in the session", () => {
     ).toEqual({});
     expect(parseSupportAccess(null)).toEqual({});
     expect(parseSupportAccess("garbage")).toEqual({});
-  });
-
-  it("adds VIEWER only for orgs the user is not a member of", async () => {
-    db.organization.findMany.mockResolvedValue([{ id: "org-2", projects: [] }]);
-    const memberships = await getSupportAccessMemberships({
-      supportAccess: { "org-1": active, "org-2": active },
-      organizationMemberships: [{ organization: { id: "org-1" } }],
-    });
-    expect(db.organization.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: { in: ["org-2"] } } }),
-    );
-    expect(memberships).toEqual([
-      {
-        organization: { id: "org-2", projects: [] },
-        role: "VIEWER",
-        ProjectMemberships: [],
-        supportAccess: true,
-      },
-    ]);
-  });
-
-  it("gives no access to an org whose grant has expired", async () => {
-    db.organization.findMany.mockResolvedValue([
-      { id: "active", projects: [] },
-    ]);
-    const memberships = await getSupportAccessMemberships({
-      supportAccess: {
-        active,
-        expired: entry(new Date(Date.now() - 1000).toISOString()),
-      },
-      organizationMemberships: [],
-    });
-    expect(db.organization.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: { in: ["active"] } } }),
-    );
-    expect(memberships.map((m) => m.organization.id)).toEqual(["active"]);
-  });
-
-  it("does not query when there is no active grant", async () => {
-    expect(
-      await getSupportAccessMemberships({
-        supportAccess: null,
-        organizationMemberships: [],
-      }),
-    ).toEqual([]);
-    expect(db.organization.findMany).not.toHaveBeenCalled();
   });
 });

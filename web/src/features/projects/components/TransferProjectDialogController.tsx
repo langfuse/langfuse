@@ -4,12 +4,10 @@ import { type ReactNode } from "react";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { TransferProjectDialog } from "@/src/features/projects/components/TransferProjectDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import {
-  hasOrganizationAccess,
-  useHasOrganizationAccess,
-} from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { hasOrganizationAccess } from "@/src/features/rbac/new/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac/new/hooks";
 import { api } from "@/src/utils/api";
-import { getSessionOrganizations } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionOrganizations } from "@/src/features/rbac/new/sessionAccessors";
 import { useSession } from "next-auth/react";
 
 type TransferProjectDialogControllerProps = {

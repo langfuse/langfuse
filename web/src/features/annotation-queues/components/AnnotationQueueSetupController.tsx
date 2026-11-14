@@ -1,7 +1,7 @@
 import { type ReactNode } from "react";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api, type RouterInputs } from "@/src/utils/api";
 import { AnnotationQueueDetails } from "./AnnotationQueueDetails";

@@ -4,7 +4,7 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac/new/hooks";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { StripeCustomerPortalButton } from "./StripeCustomerPortalButton";
 import { BillingSwitchPlanDialog } from "./BillingSwitchPlanDialog";

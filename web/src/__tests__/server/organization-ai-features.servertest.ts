@@ -1,6 +1,5 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { randomUUID } from "crypto";
-import type { Session } from "next-auth";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { prisma } from "@langfuse/shared/src/db";
@@ -8,6 +7,7 @@ import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 describe("organization AI feature settings", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
@@ -163,44 +163,42 @@ async function createCaller() {
     },
   });
 
-  const session: Session = {
-    expires: "1",
+  const session = testSession({
     user: {
       id: user.id,
       email: user.email,
       name: user.name,
       canCreateOrganizations: true,
-      organizations: [
-        {
-          id: organization.id,
-          name: organization.name,
-          role: "OWNER",
-          plan: "self-hosted:enterprise",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [
-            {
-              id: project.id,
-              name: project.name,
-              role: "ADMIN",
-              deletedAt: null,
-              retentionDays: null,
-              hasTraces: false,
-              metadata: {},
-              createdAt: project.createdAt.toISOString(),
-            },
-          ],
-        },
-      ],
       featureFlags: testFeatureFlags({ templateFlag: false }),
     },
+    organizations: [
+      {
+        id: organization.id,
+        name: organization.name,
+        role: "OWNER",
+        plan: "self-hosted:enterprise",
+        cloudConfig: undefined,
+        metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: true,
+        projects: [
+          {
+            id: project.id,
+            name: project.name,
+            role: "ADMIN",
+            retentionDays: null,
+            hasTraces: false,
+            metadata: {},
+            createdAt: project.createdAt.toISOString(),
+          },
+        ],
+      },
+    ],
     environment: {
       enableExperimentalFeatures: false,
       selfHostedInstancePlan: "self-hosted:enterprise",
     },
-  };
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
 

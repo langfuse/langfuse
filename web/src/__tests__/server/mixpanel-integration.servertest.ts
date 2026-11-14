@@ -11,6 +11,7 @@ import {
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { env } from "@/src/env.mjs";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const PRE_CUTOFF = new Date(
@@ -37,12 +38,14 @@ const RACED_PREFLIGHT_CREATED_AT = new Date(
     30 * MS_PER_DAY,
 );
 
-const buildSession = (orgId: string, projectId: string): Session => ({
-  expires: "1",
-  user: {
-    id: "user-1",
-    name: "Demo User",
-    canCreateOrganizations: true,
+const buildSession = (orgId: string, projectId: string): Session =>
+  testSession({
+    user: {
+      id: "user-1",
+      name: "Demo User",
+      canCreateOrganizations: true,
+      featureFlags: testFeatureFlags(),
+    },
     organizations: [
       {
         id: orgId,
@@ -58,7 +61,6 @@ const buildSession = (orgId: string, projectId: string): Session => ({
             id: projectId,
             role: "ADMIN",
             name: "Test Project",
-            deletedAt: null,
             retentionDays: null,
             hasTraces: false,
             metadata: {},
@@ -67,10 +69,8 @@ const buildSession = (orgId: string, projectId: string): Session => ({
         ],
       },
     ],
-    featureFlags: testFeatureFlags(),
-  },
-  environment: {} as any,
-});
+    environment: {} as any,
+  });
 
 describe("Mixpanel Integration delete", () => {
   afterEach(() => {

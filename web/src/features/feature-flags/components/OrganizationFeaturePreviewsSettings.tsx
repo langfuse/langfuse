@@ -2,7 +2,7 @@
 import {
   getSessionEnvironment,
   getSessionUserFeatureFlags,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useState } from "react";

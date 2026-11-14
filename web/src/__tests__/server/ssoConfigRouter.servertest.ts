@@ -7,6 +7,7 @@ import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { Role } from "@langfuse/shared";
 import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 // `validateSsoConfig` does a live OIDC discovery fetch. Default mock returns
 // a valid response that mirrors the issuer; individual tests override.
@@ -62,33 +63,32 @@ function createSession(
   role: Role,
   plan: "cloud:enterprise" | "cloud:hobby",
 ): Session {
-  return {
-    expires: "1",
+  return testSession({
     user: {
       id: user.id,
       email: user.email,
       name: user.name,
       canCreateOrganizations: true,
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role,
-          plan,
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [],
-        },
-      ],
       featureFlags: testFeatureFlags(),
     },
+    organizations: [
+      {
+        id: org.id,
+        name: org.name,
+        role,
+        plan,
+        cloudConfig: undefined,
+        metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: true,
+        projects: [],
+      },
+    ],
     environment: {
       enableExperimentalFeatures: false,
       selfHostedInstancePlan: "cloud:enterprise",
     },
-  };
+  });
 }
 
 async function prepareWithRole(

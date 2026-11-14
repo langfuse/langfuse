@@ -42,8 +42,8 @@ import {
   getSessionUserEmail,
   getSessionUserId,
   getSessionUserName,
-} from "@/src/features/auth/lib/sessionAccessors";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+} from "@/src/features/rbac/new/sessionAccessors";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/new/checkProjectAccess";
 import { checkHasProtectedLabels } from "@/src/features/prompts/server/utils/checkHasProtectedLabels";
 import {
   authorizeProtectedLabelMutation,

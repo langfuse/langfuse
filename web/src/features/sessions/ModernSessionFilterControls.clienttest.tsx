@@ -29,7 +29,7 @@ vi.mock(
     }),
   }),
 );
-vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
+vi.mock("@/src/features/rbac/new/hooks", () => ({
   useHasProjectAccess: () => true,
 }));
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({

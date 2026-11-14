@@ -26,7 +26,7 @@ import {
   getSessionUserFeatureFlags,
   getSessionUserId,
   getSessionUserV4BetaEnabled,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 import {
   deleteUserBoundApiKeys,
   evictRevokedApiKeys,

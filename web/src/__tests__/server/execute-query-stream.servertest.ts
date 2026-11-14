@@ -11,6 +11,7 @@ import {
 import type * as QueryServer from "@langfuse/shared/query/server";
 import type * as SharedServer from "@langfuse/shared/src/server";
 import handler from "../../pages/api/dashboard/execute-query-stream";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const { mockPrepareExecuteQuery, mockQueryClickhouseWithProgress } = vi.hoisted(
   () => ({
@@ -138,20 +139,20 @@ describe("execute-query-stream handler", () => {
     projects?: Array<{ id: string }>;
     v4BetaEnabled?: boolean;
   }) {
-    return {
+    return testSession({
       user: {
         id: "user-1",
         email: "test@example.com",
         v4BetaEnabled: overrides?.v4BetaEnabled ?? true,
-        organizations: [
-          {
-            id: orgId,
-            supportAccess: overrides?.supportAccess ?? false,
-            projects: overrides?.projects ?? [{ id: projectId }],
-          },
-        ],
       },
-    };
+      organizations: [
+        {
+          id: orgId,
+          supportAccess: overrides?.supportAccess ?? false,
+          projects: overrides?.projects ?? [{ id: projectId }],
+        },
+      ],
+    });
   }
 
   function makeBody(queryOverrides?: Record<string, unknown>) {
@@ -348,20 +349,16 @@ describe("execute-query-stream handler", () => {
 
 describe("execute-query-stream backpressure", () => {
   const projectId = "backpressure-project";
-  const session = {
-    user: {
-      id: "user-1",
-      email: "test@example.com",
-      v4BetaEnabled: true,
-      organizations: [
-        {
-          id: "backpressure-org",
-          supportAccess: false,
-          projects: [{ id: projectId }],
-        },
-      ],
-    },
-  };
+  const session = testSession({
+    user: { id: "user-1", email: "test@example.com", v4BetaEnabled: true },
+    organizations: [
+      {
+        id: "backpressure-org",
+        supportAccess: false,
+        projects: [{ id: projectId }],
+      },
+    ],
+  });
   const body = {
     projectId,
     version: "v1" as const,

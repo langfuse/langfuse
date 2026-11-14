@@ -2,7 +2,7 @@ import {
   getSessionEnvironment,
   getSessionUserEmail,
   type MaybeSession,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 import { hasInternalAccess } from "@/src/features/feature-flags/utils";
 
 /** isInternalViewModeAvailable reports whether the session's user, by email and the deployment's experimental-features switch, may switch to the internal view. */

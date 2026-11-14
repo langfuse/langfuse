@@ -5,7 +5,7 @@ import {
   isInternalViewEnabled,
 } from "@/src/features/feature-flags/utils";
 import { useProject } from "@/src/features/projects/hooks";
-import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { hasProjectAccess } from "@/src/features/rbac/new/checkProjectAccess";
 
 type TopicsProject = { id: string; topicsEnabled?: boolean };
 

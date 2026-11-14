@@ -5,6 +5,7 @@ import { LangfuseNotFoundError, UnauthorizedError } from "@langfuse/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import handler from "../../pages/api/traces/[traceId]/download";
 import { TraceDownloadTooLargeError } from "../../features/traces/server/buildTraceExport";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const { mockGetServerAuthSession, mockBuildTraceExport } = vi.hoisted(() => ({
   mockGetServerAuthSession: vi.fn(),
@@ -32,12 +33,12 @@ const createGetMocks = (query: Record<string, string | string[] | undefined>) =>
 describe("GET /api/traces/[traceId]/download", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetServerAuthSession.mockResolvedValue({
-      user: {
-        email: "test@example.com",
+    mockGetServerAuthSession.mockResolvedValue(
+      testSession({
+        user: { email: "test@example.com" },
         organizations: [{ projects: [{ id: projectId }] }],
-      },
-    });
+      }),
+    );
     mockBuildTraceExport.mockResolvedValue({
       scores: [{ id: "score-1", traceId: "trace-1", observationId: null }],
       observations: [{ id: "obs-1", traceId: "trace-1" }],
@@ -63,9 +64,8 @@ describe("GET /api/traces/[traceId]/download", () => {
 
   it("returns 401 for malformed authenticated sessions", async () => {
     mockGetServerAuthSession.mockResolvedValue({
-      user: {
-        email: "test@example.com",
-      },
+      ...testSession({ user: { email: "test@example.com" } }),
+      authCtx: null,
     });
     const { req, res } = createGetMocks({
       traceId: "trace-1",

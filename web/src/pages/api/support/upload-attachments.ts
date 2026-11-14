@@ -4,7 +4,7 @@ import { env } from "@/src/env.mjs";
 import { logger } from "@langfuse/shared/src/server";
 import { uploadPylonAttachment } from "@/src/features/support-chat/pylon/pylonClient";
 import { PYLON_MAX_FILE_SIZE_BYTES } from "@/src/features/support-chat/pylon/pylonConstants";
-import { hasSessionUser } from "@/src/features/auth/lib/sessionAccessors";
+import { hasSessionUser } from "@/src/features/rbac/new/sessionAccessors";
 
 export const config = {
   api: {

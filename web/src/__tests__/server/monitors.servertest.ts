@@ -12,7 +12,6 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { entitlementAccess } from "@/src/features/entitlements/constants/entitlements";
 import { prisma, type Role } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
-import type { Session } from "next-auth";
 import { v4 } from "uuid";
 import {
   MonitorNoDataModeSchema,
@@ -20,6 +19,7 @@ import {
   MonitorStatusSchema,
   MonitorThresholdOperatorSchema,
 } from "@langfuse/shared/monitors";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 type RoleName = keyof typeof Role;
 
@@ -32,12 +32,14 @@ const buildSession = (params: {
   projectId: string;
   projectName: string;
   projectRole: RoleName;
-}): Session => ({
-  expires: "1",
-  user: {
-    id: params.userId,
-    canCreateOrganizations: true,
-    name: "Demo User",
+}) =>
+  testSession({
+    user: {
+      id: params.userId,
+      canCreateOrganizations: true,
+      name: "Demo User",
+      featureFlags: testFeatureFlags({ templateFlag: false }),
+    },
     organizations: [
       {
         id: params.orgId,
@@ -53,7 +55,6 @@ const buildSession = (params: {
             id: params.projectId,
             role: params.projectRole,
             retentionDays: 30,
-            deletedAt: null,
             hasTraces: false,
             name: params.projectName,
             metadata: {},
@@ -62,13 +63,11 @@ const buildSession = (params: {
         ],
       },
     ],
-    featureFlags: testFeatureFlags({ templateFlag: false }),
-  },
-  environment: {
-    enableExperimentalFeatures: false,
-    selfHostedInstancePlan: "cloud:hobby",
-  },
-});
+    environment: {
+      enableExperimentalFeatures: false,
+      selfHostedInstancePlan: "cloud:hobby",
+    },
+  });
 
 const prepare = async (overrides?: { projectRole?: RoleName }) => {
   const { project, org } = await createOrgProjectAndApiKey();
@@ -748,32 +747,32 @@ describe("monitors trpc", () => {
       // Re-issue the session with projectB added so the caller has RBAC
       // access to read it; the procedure itself enforces project-scoped
       // RBAC, not org-scoped.
-      const sessionUser = sessionA.user!;
-      const orgA = sessionUser.organizations[0];
-      const sessionAB = {
-        ...sessionA,
-        user: {
-          ...sessionUser,
-          organizations: [
-            {
-              ...orgA,
-              projects: [
-                ...orgA.projects,
-                {
-                  id: projectB.id,
-                  role: "ADMIN",
-                  retentionDays: 30,
-                  deletedAt: null,
-                  name: projectB.name,
-                  metadata: {},
-                  hasTraces: false,
-                  createdAt: new Date().toISOString(),
-                },
-              ],
-            },
-          ],
-        },
-      } as Session;
+      const [orgA] = sessionA.authCtx.principal.organizations;
+      const sessionAB = testSession({
+        user: sessionA.authCtx.principal.user,
+        organizations: [
+          {
+            ...orgA,
+            role: "OWNER",
+            projects: [
+              ...orgA.projects.map((project) => ({
+                ...project,
+                role: "ADMIN" as const,
+              })),
+              {
+                id: projectB.id,
+                role: "ADMIN",
+                retentionDays: 30,
+                name: projectB.name,
+                metadata: {},
+                hasTraces: false,
+                createdAt: new Date().toISOString(),
+              },
+            ],
+          },
+        ],
+        environment: sessionA.environment,
+      });
       const ctxAB = createInnerTRPCContext({ session: sessionAB, headers: {} });
       const callerAB = appRouter.createCaller({ ...ctxAB, prisma });
 

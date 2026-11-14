@@ -1,3 +1,5 @@
+import { TRPCError } from "@trpc/server";
+
 import { type Plan } from "@langfuse/shared";
 
 import {
@@ -29,6 +31,34 @@ export const hasEntitlementLimit = (
   p: { entitlementLimit: EntitlementLimit } & OrganizationTarget,
 ): number | false =>
   entitlementAccess[targetPlan(p)].entitlementLimits[p.entitlementLimit];
+
+/** throwIfNoEntitlement throws a tRPC FORBIDDEN error when the target organization's plan lacks entitlement. */
+export function throwIfNoEntitlement(
+  p: { entitlement: Entitlement } & OrganizationTarget,
+): void {
+  if (hasEntitlement(p)) return;
+  throw new TRPCError({
+    code: "FORBIDDEN",
+    message:
+      "Unauthorized, user does not have access to entitlement: " +
+      p.entitlement,
+  });
+}
+
+/** throwIfExceedsLimit throws a tRPC FORBIDDEN error when currentUsage reaches the limit the target organization's plan sets. */
+export function throwIfExceedsLimit(
+  p: {
+    entitlementLimit: EntitlementLimit;
+    currentUsage: number;
+  } & OrganizationTarget,
+): void {
+  const limit = hasEntitlementLimit(p);
+  if (limit === false || p.currentUsage < limit) return;
+  throw new TRPCError({
+    code: "FORBIDDEN",
+    message: `Usage (${p.currentUsage}) exceeds the limit (${limit}) for entitlement: ${p.entitlementLimit}`,
+  });
+}
 
 /** getSessionPlan is the plan of the self-hosted instance or of the session organization that owns the page. */
 export function getSessionPlan(

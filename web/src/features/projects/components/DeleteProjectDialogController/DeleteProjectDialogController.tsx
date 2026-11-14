@@ -5,8 +5,10 @@ import { DialogController } from "@/src/components/design-system/DialogControlle
 import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryProject } from "@/src/features/projects/hooks";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  useHasOrganizationAccess,
+  useHasProjectAccess,
+} from "@/src/features/rbac/new/hooks";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { DeleteProjectDialog } from "@/src/features/projects/components/DeleteProjectDialogController/components/DeleteProjectDialog/DeleteProjectDialog";
 

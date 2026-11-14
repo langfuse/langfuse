@@ -37,7 +37,7 @@ import {
   getSessionUserEmail,
   getSessionUserName,
   type MaybeSession,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 
 const displayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(

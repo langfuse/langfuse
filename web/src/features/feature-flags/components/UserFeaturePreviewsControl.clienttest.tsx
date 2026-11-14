@@ -10,6 +10,7 @@ import type { HoverCard } from "@/src/components/design-system/HoverCard/HoverCa
 
 import { UserFeaturePreviewsControl } from "./UserFeaturePreviewsControl";
 import { userFeaturePreviewFlags } from "../available-flags";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
@@ -31,7 +32,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
-    data: { user: { id: "actor" } },
+    data: testSession({ user: { id: "actor" } }),
     update: mocks.updateSession,
   }),
 }));

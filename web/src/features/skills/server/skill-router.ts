@@ -13,11 +13,11 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/new/checkProjectAccess";
 import { SkillService } from "@/src/features/skills/server/skill-service";
 
 import { GetSkillFileContentsInputSchema } from "@/src/features/public-api/types/skills";
-import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
 import { SkillListOrderBySchema } from "../constants/skillsSorting";
 
 const projectInput = z.object({ projectId: z.string() });

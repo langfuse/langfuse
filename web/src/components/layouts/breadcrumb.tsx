@@ -17,13 +17,13 @@ import {
   useQueryProjectOrOrganization,
 } from "@/src/features/projects/hooks";
 import { useSession } from "next-auth/react";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac/new/hooks";
 import {
   findSessionOrganization,
   getSessionOrganizations,
   getSessionUserCanCreateOrganizations,
   hasSessionUser,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 import Link from "next/link";
 import { cn } from "@/src/utils/tailwind";
 import { useOptionalSidebar } from "@/src/components/ui/sidebar";

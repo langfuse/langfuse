@@ -1,6 +1,6 @@
 import * as z from "zod";
 
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { throwIfNoOrganizationAccess } from "@/src/features/rbac/new/checkOrganizationAccess";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,

@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { EvaluatorStatus } from "@/src/features/evals/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api, type RouterOutputs } from "@/src/utils/api";

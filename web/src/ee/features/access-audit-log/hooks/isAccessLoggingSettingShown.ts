@@ -1,7 +1,7 @@
 import {
   getSessionEnvironment,
   type MaybeSession,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 
 /** isAccessLoggingSettingShown reports whether the org may choose access logging, which only the session deployment's "org" mode allows. */
 export function isAccessLoggingSettingShown(

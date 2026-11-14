@@ -7,6 +7,7 @@ import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { SkillService } from "@/src/features/skills/server/skill-service";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const queueAdd = vi.hoisted(() => vi.fn());
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
@@ -32,11 +33,9 @@ describe("SkillService versions", () => {
 
   function sessionActor(role: "ADMIN" | "MEMBER") {
     return {
-      session: {
-        user: {
-          organizations: [{ projects: [{ id: "project", role }] }],
-        },
-      } as ProjectAuthedContext["session"],
+      session: testSession({
+        organizations: [{ projects: [{ id: "project", role }] }],
+      }) as ProjectAuthedContext["session"],
     };
   }
 

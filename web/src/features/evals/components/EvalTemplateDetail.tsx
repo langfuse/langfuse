@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import * as React from "react";
 import { EvalTemplateForm } from "@/src/features/evals/components/EvalTemplateForm";
 import { api } from "@/src/utils/api";

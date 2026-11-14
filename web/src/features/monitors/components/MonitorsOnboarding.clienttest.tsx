@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { type Session } from "next-auth";
 
 import { MonitorsOnboarding } from "./MonitorsOnboarding";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 vi.mock(
   "@/src/features/monitors/automations/ConnectedNewMonitorAutomationDialog",
@@ -23,12 +24,9 @@ const PROJECT_ID = "proj_test123";
 
 /** signIn sets the session user's project role for PROJECT_ID. */
 const signIn = ({ role }: { role: "OWNER" | "VIEWER" }) => {
-  sessionMock.data = {
-    expires: "1",
-    user: {
-      organizations: [{ projects: [{ id: PROJECT_ID, role }] }],
-    },
-  } as unknown as Session;
+  sessionMock.data = testSession({
+    organizations: [{ projects: [{ id: PROJECT_ID, role }] }],
+  });
 };
 
 describe("MonitorsOnboarding", () => {

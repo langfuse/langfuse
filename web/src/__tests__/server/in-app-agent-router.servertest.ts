@@ -1,12 +1,12 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { randomUUID } from "crypto";
-import type { Session } from "next-auth";
 import { describe, expect, it } from "vitest";
 
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 describe("in-app agent router", () => {
   it("soft-deletes an owned conversation", async () => {
@@ -217,44 +217,42 @@ function createCallerForFixture(
   userId: string,
   { email = `${userId}@example.com` }: { email?: string } = {},
 ) {
-  const session: Session = {
-    expires: "1",
+  const session = testSession({
     user: {
       id: userId,
       email,
       name: "In-app Agent Router Test User",
       canCreateOrganizations: true,
-      organizations: [
-        {
-          id: fixture.orgId,
-          name: fixture.orgName,
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: true,
-          aiTelemetryEnabled: true,
-          projects: [
-            {
-              id: fixture.projectId,
-              name: fixture.projectName,
-              role: "ADMIN",
-              deletedAt: null,
-              retentionDays: null,
-              hasTraces: false,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
       featureFlags: testFeatureFlags(),
     },
+    organizations: [
+      {
+        id: fixture.orgId,
+        name: fixture.orgName,
+        role: "OWNER",
+        plan: "cloud:hobby",
+        cloudConfig: undefined,
+        metadata: {},
+        aiFeaturesEnabled: true,
+        aiTelemetryEnabled: true,
+        projects: [
+          {
+            id: fixture.projectId,
+            name: fixture.projectName,
+            role: "ADMIN",
+            retentionDays: null,
+            hasTraces: false,
+            metadata: {},
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      },
+    ],
     environment: {
       enableExperimentalFeatures: false,
       selfHostedInstancePlan: "cloud:enterprise",
     },
-  };
+  });
   const ctx = createInnerTRPCContext({ session, headers: {} });
 
   return appRouter.createCaller({ ...ctx, prisma });

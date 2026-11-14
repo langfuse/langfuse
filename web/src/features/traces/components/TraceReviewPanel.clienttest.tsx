@@ -58,7 +58,7 @@ vi.mock("../contexts/TraceDataProvider", () => ({
 vi.mock("@/src/features/events/hooks/useReadPath", () => ({
   useReadPath: () => ({ isV4: true }),
 }));
-vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
+vi.mock("@/src/features/rbac/new/hooks", () => ({
   useHasProjectAccess: () => true,
 }));
 vi.mock("@/src/features/comments/CommentList", () => ({

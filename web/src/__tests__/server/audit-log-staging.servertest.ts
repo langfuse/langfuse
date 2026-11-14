@@ -34,6 +34,7 @@ import {
   type AuditLogRecordInsertType,
 } from "@langfuse/shared/src/server";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   createDatasetItemForApi,
@@ -371,15 +372,22 @@ describe("audit log staging", () => {
 
       await auditLog({
         session: {
-          user: {
-            id: "user-1",
-            name: "Ada Lovelace",
-            email: "ada@example.com",
-          },
+          ...testSession({
+            user: {
+              id: "user-1",
+              name: "Ada Lovelace",
+              email: "ada@example.com",
+            },
+            organizations: [
+              {
+                id: orgId,
+                role: "ADMIN",
+                projects: [{ id: projectId, role: "MEMBER" }],
+              },
+            ],
+          }),
           orgId,
-          orgRole: "ADMIN",
           projectId,
-          projectRole: "MEMBER",
         },
         resourceType: "prompt",
         resourceId,
@@ -413,25 +421,68 @@ describe("audit log staging", () => {
       });
     });
 
+    it("records the actor's roles from the session's policies", async () => {
+      const { orgId, projectId } = await createOrgProjectAndApiKey();
+      const resourceId = randomUUID();
+      const session = {
+        ...testSession({
+          user: { id: "user-1" },
+          organizations: [
+            {
+              id: orgId,
+              role: "VIEWER",
+              projects: [{ id: projectId, role: "ADMIN" }],
+            },
+          ],
+        }),
+        orgId,
+        orgRole: "OWNER",
+        projectId,
+        projectRole: "OWNER",
+      };
+
+      await auditLog({
+        session,
+        resourceType: "prompt",
+        resourceId,
+        action: "update",
+      });
+
+      const { record, staged } = await findRecordAndStagedEvent(resourceId);
+      expect(record).toMatchObject({
+        userOrgRole: "VIEWER",
+        userProjectRole: "ADMIN",
+      });
+      expect(convertAuditLogStagingRowToClickhouse(staged)).toMatchObject({
+        user_org_role: "VIEWER",
+        user_project_role: "ADMIN",
+      });
+    });
+
     it("marks a change made through a support access grant", async () => {
       const { orgId, projectId } = await createOrgProjectAndApiKey();
       const resourceId = randomUUID();
 
       await auditLog({
         session: {
-          user: {
-            id: "support-user-1",
-            name: "Grace Hopper",
-            email: "grace@example.com",
+          ...testSession({
+            user: {
+              id: "support-user-1",
+              name: "Grace Hopper",
+              email: "grace@example.com",
+            },
             organizations: [
-              { id: randomUUID() },
-              { id: orgId, supportAccess: true },
+              { id: randomUUID(), role: "MEMBER" },
+              {
+                id: orgId,
+                supportAccess: true,
+                role: "VIEWER",
+                projects: [{ id: projectId }],
+              },
             ],
-          },
+          }),
           orgId,
-          orgRole: "VIEWER",
           projectId,
-          projectRole: "VIEWER",
         },
         resourceType: "comment",
         resourceId,
@@ -482,13 +533,13 @@ describe("audit log staging", () => {
       // Per actor: what the Postgres row keeps, and the actor staged for it.
       const cases: {
         actor:
-          | { session: { user: { id: string }; orgId: string } }
+          | { userId: string; orgId: string }
           | { apiKeyId: string; orgId: string };
         record: { userId: string | null; apiKeyId: string | null };
         staged: AuditLogActor;
       }[] = [
         {
-          actor: { session: { user: { id: "stripe-webhook" }, orgId } },
+          actor: { userId: "stripe-webhook", orgId },
           record: { userId: "stripe-webhook", apiKeyId: null },
           staged: { type: "SYSTEM", name: "stripe-webhook" },
         },
@@ -546,7 +597,7 @@ describe("audit log staging", () => {
       const error = vi.spyOn(logger, "error");
 
       await auditLog({
-        session: { user: { id: "user-1" }, orgId },
+        session: { ...testSession({ user: { id: "user-1" } }), orgId },
         resourceType: "prompt",
         resourceId,
         action: "delete",
@@ -573,7 +624,7 @@ describe("audit log staging", () => {
 
         await auditLog(
           {
-            session: { user: { id: "user-1" }, orgId },
+            session: { ...testSession({ user: { id: "user-1" } }), orgId },
             resourceType: "prompt",
             resourceId,
             action: "delete",
@@ -600,7 +651,7 @@ describe("audit log staging", () => {
         prisma.$transaction(async (tx) => {
           await auditLog(
             {
-              session: { user: { id: "user-1" }, orgId },
+              session: { ...testSession({ user: { id: "user-1" } }), orgId },
               resourceType: "prompt",
               resourceId,
               action: "delete",

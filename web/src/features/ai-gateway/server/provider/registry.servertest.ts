@@ -1,4 +1,5 @@
 import dns from "node:dns/promises";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type * as GatewayFetch from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
@@ -18,11 +19,11 @@ import { encrypt } from "@langfuse/shared/encryption";
 import type { Redis } from "ioredis";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 
-const session = {
-  user: { id: "user-1" },
+const session: OrgAuthedContext["session"] = {
+  ...testSession({ user: { id: "user-1" } }),
   orgId: "org-1",
   orgRole: "OWNER",
-} as OrgAuthedContext["session"];
+};
 
 vi.mock(
   "@/src/features/ai-gateway/server/provider/getGatewayFetch",

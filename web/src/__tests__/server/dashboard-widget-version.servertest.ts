@@ -12,12 +12,12 @@ import {
 } from "@langfuse/shared";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import type { Session } from "next-auth";
 import { requiresV2 } from "@langfuse/shared/query";
 import {
   mapLegacyUiTableFilterToView,
   mapWidgetUiTableFilterToView,
 } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 describe("dashboard widget minVersion", () => {
   let projectId: string;
@@ -53,41 +53,39 @@ describe("dashboard widget minVersion", () => {
   });
 
   function makeCaller(v4BetaEnabled = false) {
-    const session: Session = {
-      expires: "1",
+    const session = testSession({
       user: {
         id: userId,
         canCreateOrganizations: true,
         name: "Test User",
-        organizations: [
-          {
-            id: orgId,
-            name: "Test Organization",
-            role: "OWNER",
-            plan: "cloud:hobby",
-            cloudConfig: undefined,
-            metadata: {},
-            aiFeaturesEnabled: false,
-            aiTelemetryEnabled: true,
-            projects: [
-              {
-                id: projectId,
-                role: "ADMIN",
-                retentionDays: 30,
-                deletedAt: null,
-                name: "Test Project",
-                hasTraces: true,
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        ],
         featureFlags: testFeatureFlags(),
         v4BetaEnabled,
       },
+      organizations: [
+        {
+          id: orgId,
+          name: "Test Organization",
+          role: "OWNER",
+          plan: "cloud:hobby",
+          cloudConfig: undefined,
+          metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: true,
+          projects: [
+            {
+              id: projectId,
+              role: "ADMIN",
+              retentionDays: 30,
+              name: "Test Project",
+              hasTraces: true,
+              metadata: {},
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        },
+      ],
       environment: {} as any,
-    };
+    });
     const ctx = createInnerTRPCContext({ session, headers: {} });
     return appRouter.createCaller({ ...ctx, prisma });
   }

@@ -3,7 +3,7 @@ import { isInternalViewEnabled } from "@/src/features/feature-flags/utils";
 import {
   getSessionUserFeatureFlags,
   getSessionUserV4BetaEnabled,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 
 /** Account menu and organization settings share this gate for the personal preview modal. */
 export function canOpenPersonalFeaturePreviews({

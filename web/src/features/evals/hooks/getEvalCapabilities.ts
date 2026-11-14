@@ -2,7 +2,7 @@ import {
   getSessionEnvironment,
   type MaybeSession,
   type SessionStatus,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 import { isNewLegacyEvalAllowed } from "@/src/features/evals/utils/legacyEvalGate";
 
 /** getEvalCapabilities is which eval configuration features the session's deployment and project allow. */

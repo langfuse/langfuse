@@ -14,7 +14,7 @@ import {
   getSessionUserEmail,
   getSessionUserId,
   getSessionUserName,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 import { nanoid } from "nanoid";
 import { logger } from "@langfuse/shared/src/server";
 

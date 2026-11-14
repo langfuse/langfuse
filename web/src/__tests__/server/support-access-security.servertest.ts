@@ -23,6 +23,10 @@ import {
 import { env } from "@/src/env.mjs";
 import { C1_PROVISION_EVENT } from "@/src/ee/features/support-access/server/conductorOnePayload";
 import { conductorOneWebhookHandler } from "@/src/ee/features/support-access/server/conductorOneWebhook";
+import {
+  getSessionOrganizationRole,
+  getSessionOrganizations,
+} from "@/src/features/rbac/new/sessionAccessors";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { getAuthOptions } from "@/src/server/auth";
@@ -160,7 +164,7 @@ async function sessionFor(email: string): Promise<Session> {
     select: { id: true },
   });
   return sessionCallback({
-    session: { expires: "1", user: null } as unknown as Session,
+    session: { expires: "1" } as Session,
     token: { email, sub: id, loginAt: Date.now() },
   });
 }
@@ -256,13 +260,10 @@ describe("support access in the product", () => {
 
     const { session, caller } = await callerFor(email);
 
-    expect(session.user?.organizations).toContainEqual(
-      expect.objectContaining({
-        id: orgId,
-        role: "VIEWER",
-        supportAccess: true,
-      }),
+    expect(getSessionOrganizations(session)).toContainEqual(
+      expect.objectContaining({ id: orgId, supportAccess: true }),
     );
+    expect(getSessionOrganizationRole(session, orgId)).toBe("VIEWER");
     await expect(caller.scoreConfigs.all({ projectId })).resolves.toMatchObject(
       { totalCount: 0 },
     );
@@ -294,7 +295,7 @@ describe("support access in the product", () => {
 
     const { session, caller } = await callerFor(email);
 
-    expect(session.user?.organizations.map((o) => o.id)).not.toContain(
+    expect(getSessionOrganizations(session).map((o) => o.id)).not.toContain(
       other.orgId,
     );
     await expect(
@@ -318,7 +319,9 @@ describe("support access in the product", () => {
 
     const { session, caller } = await callerFor(email);
 
-    expect(session.user?.organizations.map((o) => o.id)).not.toContain(orgId);
+    expect(getSessionOrganizations(session).map((o) => o.id)).not.toContain(
+      orgId,
+    );
     await expect(caller.scoreConfigs.all({ projectId })).rejects.toMatchObject({
       code: "UNAUTHORIZED",
     });

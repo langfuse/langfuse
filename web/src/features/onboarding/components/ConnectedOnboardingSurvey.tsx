@@ -6,7 +6,7 @@ import {
   getSessionOrganizations,
   getSessionUserCanCreateOrganizations,
   getSessionUserEmail,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";

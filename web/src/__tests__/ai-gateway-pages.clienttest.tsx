@@ -4,7 +4,7 @@ import { useSession } from "next-auth/react";
 import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { useGatewayPages } from "@/src/features/ai-gateway/hooks/useGatewayPages";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac/new/hooks";
 import { env } from "@/src/env.mjs";
 import { organizationRoleAccessRights } from "@langfuse/shared/rbac";
 import { Role } from "@langfuse/shared/src/db";
@@ -13,7 +13,7 @@ vi.mock("@/src/features/projects/hooks", () => ({
   useQueryProjectOrOrganization: vi.fn(),
 }));
 
-vi.mock("@/src/features/rbac/utils/checkOrganizationAccess", () => ({
+vi.mock("@/src/features/rbac/new/hooks", () => ({
   useHasOrganizationAccess: vi.fn(),
 }));
 

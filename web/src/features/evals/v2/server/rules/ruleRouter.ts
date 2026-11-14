@@ -1,12 +1,12 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/new/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
   type ProjectAuthedContext,
 } from "@/src/server/api/trpc";
-import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
 import { RuleService } from "./ruleService";
 import {
   CreateOrAttachFromEvaluatorFiltersSchema,

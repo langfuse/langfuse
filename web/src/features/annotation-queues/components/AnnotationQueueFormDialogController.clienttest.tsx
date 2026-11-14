@@ -15,7 +15,7 @@ const { create, update, assign, notify, draft } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
+vi.mock("@/src/features/rbac/new/hooks", () => ({
   useHasProjectAccess: () => true,
 }));
 vi.mock("@/src/features/notifications/showErrorToast", () => ({

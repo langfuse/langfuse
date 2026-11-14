@@ -20,11 +20,7 @@ vi.mock("@/src/components/ui/InfoTooltip/InfoTooltip", () => ({
     <span aria-label={label}>{children}</span>
   ),
 }));
-vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
-  useHasProjectAccess: () => true,
-  useHasOrganizationAccess: () => true,
-}));
-vi.mock("@/src/features/rbac/utils/checkOrganizationAccess", () => ({
+vi.mock("@/src/features/rbac/new/hooks", () => ({
   useHasProjectAccess: () => true,
   useHasOrganizationAccess: () => true,
 }));

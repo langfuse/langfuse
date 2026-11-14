@@ -14,7 +14,7 @@ import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import type { Session } from "next-auth";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 describe("dashboard.executeQuery version contract", () => {
   let projectId: string;
@@ -27,41 +27,39 @@ describe("dashboard.executeQuery version contract", () => {
   });
 
   function makeCaller(options: { v4BetaEnabled: boolean }) {
-    const session: Session = {
-      expires: "1",
+    const session = testSession({
       user: {
         id: "user-1",
         canCreateOrganizations: true,
         name: "Test User",
         v4BetaEnabled: options.v4BetaEnabled,
-        organizations: [
-          {
-            id: orgId,
-            name: "Test Organization",
-            role: "OWNER",
-            plan: "cloud:hobby",
-            cloudConfig: undefined,
-            metadata: {},
-            aiFeaturesEnabled: false,
-            aiTelemetryEnabled: true,
-            projects: [
-              {
-                id: projectId,
-                role: "ADMIN",
-                retentionDays: 30,
-                deletedAt: null,
-                name: "Test Project",
-                hasTraces: true,
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        ],
         featureFlags: testFeatureFlags(),
       },
+      organizations: [
+        {
+          id: orgId,
+          name: "Test Organization",
+          role: "OWNER",
+          plan: "cloud:hobby",
+          cloudConfig: undefined,
+          metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: true,
+          projects: [
+            {
+              id: projectId,
+              role: "ADMIN",
+              retentionDays: 30,
+              name: "Test Project",
+              hasTraces: true,
+              metadata: {},
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        },
+      ],
       environment: {} as any,
-    };
+    });
     const ctx = createInnerTRPCContext({ session, headers: {} });
     return appRouter.createCaller({ ...ctx, prisma });
   }

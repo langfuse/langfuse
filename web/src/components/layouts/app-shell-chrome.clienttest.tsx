@@ -13,6 +13,7 @@ import PageHeader from "@/src/components/layouts/page-header";
 import { AppSidebar } from "@/src/components/nav/AppSidebar/AppSidebar";
 import { SidebarPresenceProvider } from "@/src/components/nav/SidebarPresenceProvider";
 import { SidebarProvider } from "@/src/components/ui/sidebar";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 vi.mock("next/router", () => ({
   useRouter: () => ({
@@ -26,12 +27,10 @@ vi.mock("next/router", () => ({
 
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
-    data: {
-      user: {
-        email: "ada@langfuse.com",
-        organizations: [],
-      },
-    },
+    data: testSession({
+      user: { email: "ada@langfuse.com" },
+      organizations: [],
+    }),
     status: "authenticated",
   }),
 }));

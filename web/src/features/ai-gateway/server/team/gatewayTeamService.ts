@@ -24,7 +24,7 @@ import {
   getSessionUserEmail,
   getSessionUserId,
   getSessionUserName,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 
 const MEMBER_SUGGESTION_LIMIT = 4;
 const GATEWAY_USER_SCOPE = "gateway:invoke";

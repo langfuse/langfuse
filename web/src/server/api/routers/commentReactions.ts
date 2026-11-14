@@ -2,12 +2,12 @@ import { z } from "zod";
 import {
   throwIfNoProjectAccess,
   hasProjectAccess,
-} from "@/src/features/rbac/utils/checkProjectAccess";
+} from "@/src/features/rbac/new/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
 import { TRPCError } from "@trpc/server";
 import { logger } from "@langfuse/shared/src/server";
 

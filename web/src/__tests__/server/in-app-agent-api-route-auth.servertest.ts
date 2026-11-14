@@ -23,6 +23,7 @@ import {
   SystemRoleId,
   UserId,
 } from "@langfuse/shared/rbac";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const authMocks = vi.hoisted(() => ({
   getServerAuthSessionForRequest: vi.fn(),
@@ -361,44 +362,42 @@ function createInAppAgentSession(params: {
   userId: string;
   includeProjectMembership?: boolean;
 }): Session {
-  return {
-    expires: new Date(Date.now() + 60_000).toISOString(),
-    environment: { enableExperimentalFeatures: false },
+  return testSession({
     user: {
       id: params.userId,
       name: "Test User",
       email: "test@example.com",
       image: null,
       featureFlags: testFeatureFlags({ templateFlag: false }),
-      organizations:
-        (params.includeProjectMembership ?? true)
-          ? [
-              {
-                id: params.orgId,
-                name: "Test Org",
-                plan: "cloud:team",
-                role: "OWNER",
-                metadata: {},
-                aiFeaturesEnabled: true,
-                aiTelemetryEnabled: false,
-                cloudConfig: { plan: "Team" },
-                projects: [
-                  {
-                    id: params.projectId,
-                    name: "Test Project",
-                    role: "ADMIN",
-                    retentionDays: 30,
-                    hasTraces: false,
-                    deletedAt: null,
-                    metadata: {},
-                    createdAt: new Date().toISOString(),
-                  },
-                ],
-              },
-            ]
-          : [],
     },
-  } as Session;
+    organizations:
+      (params.includeProjectMembership ?? true)
+        ? [
+            {
+              id: params.orgId,
+              name: "Test Org",
+              plan: "cloud:team",
+              role: "OWNER",
+              metadata: {},
+              aiFeaturesEnabled: true,
+              aiTelemetryEnabled: false,
+              cloudConfig: { plan: "Team" },
+              projects: [
+                {
+                  id: params.projectId,
+                  name: "Test Project",
+                  role: "ADMIN",
+                  retentionDays: 30,
+                  hasTraces: false,
+                  metadata: {},
+                  createdAt: new Date().toISOString(),
+                },
+              ],
+            },
+          ]
+        : [],
+    environment: { enableExperimentalFeatures: false },
+  });
 }
 
 async function withInAppAgentCloudEnv<T>(run: () => Promise<T>): Promise<T> {

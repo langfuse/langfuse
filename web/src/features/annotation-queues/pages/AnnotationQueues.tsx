@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import { AnnotationQueuesTable } from "@/src/features/annotation-queues/components/AnnotationQueuesTable";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import Page from "@/src/components/layouts/Page";
 import { AnnotationQueuesOnboarding } from "@/src/components/onboarding/AnnotationQueuesOnboarding";

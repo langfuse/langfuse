@@ -40,7 +40,7 @@ import { getCommentDrawerInitialStateFromUrl } from "@/src/features/comments/Com
 import { TraceReviewPanelProvider } from "@/src/features/traces/contexts/TraceReviewPanelProvider";
 import { getTraceCommentsDeepLink } from "@/src/features/traces/state/traceReviewPanelStore";
 import { TraceReviewPanel } from "./TraceReviewPanel";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { staleProps } from "@/src/features/traces/fns/staleProps";
 import { cn } from "@/src/utils/tailwind";
 import { SkeletonGroup } from "@/src/components/ui/skeleton";

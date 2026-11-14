@@ -15,6 +15,13 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { isAuditLogEnabled } from "@/src/features/audit-logs/isAuditLogEnabled";
+import {
+  findSessionOrganization,
+  getPrincipalUser,
+  getSessionOrganizationRole,
+  getSessionProjectRole,
+  type AuthedSession,
+} from "@/src/features/rbac/new/sessionAccessors";
 
 type AuditableResource =
   | "annotationQueue"
@@ -78,22 +85,7 @@ export type AuditLogActor =
       projectId?: string;
       projectRole?: Role;
     }
-  | {
-      session: {
-        user: {
-          id: string;
-          name?: string | null;
-          email?: string | null;
-          // The session's organizations. The entry for `orgId` tells whether
-          // the user acts through a support access grant.
-          organizations?: { id: string; supportAccess?: boolean }[];
-        };
-        orgId: string;
-        orgRole?: Role;
-        projectId?: string;
-        projectRole?: Role;
-      };
-    }
+  | { session: SessionActor }
   | {
       apiKeyId: string;
       orgId: string;
@@ -257,23 +249,25 @@ export async function auditLog(
   }
 
   if ("session" in log) {
+    const user = getPrincipalUser(log.session);
+    const access = sessionActorAccess(log.session);
     // Actor telemetry is ungated — see top-of-function comment.
     logAuditEvent(log, {
       type: AuditLogRecordType.USER,
       orgId: log.session.orgId,
       projectId: log.session.projectId,
-      userId: log.session.user.id,
+      userId: user.id,
     });
 
     if (!persistRecord) return;
 
     const record = await db.auditLog.create({
       data: {
-        userId: log.session.user.id,
+        userId: user.id,
         orgId: log.session.orgId,
-        userOrgRole: log.session.orgRole,
+        userOrgRole: access.orgRole,
         projectId: log.session.projectId,
-        userProjectRole: log.session.projectRole,
+        userProjectRole: access.projectRole,
         type: AuditLogRecordType.USER,
         ...makeShared(),
       },
@@ -285,13 +279,7 @@ export async function auditLog(
         log,
         record,
         { orgId: log.session.orgId, projectId: log.session.projectId },
-        toUserActor(log.session.user, {
-          orgRole: log.session.orgRole,
-          projectRole: log.session.projectRole,
-          supportAccess: log.session.user.organizations?.some(
-            (org) => org.id === log.session.orgId && org.supportAccess === true,
-          ),
-        }),
+        toUserActor(user, access),
         db,
       );
     }
@@ -440,3 +428,23 @@ async function stageInSavepoint(
   }
   await tx.$executeRaw`RELEASE SAVEPOINT audit_log_staging`;
 }
+
+/** sessionActorAccess reads the acting user's roles on the audited org and project, and whether a support grant reaches the org, from the session's policies. */
+function sessionActorAccess(session: SessionActor): UserActorAccess {
+  return {
+    orgRole: getSessionOrganizationRole(session, session.orgId),
+    projectRole: getSessionProjectRole(session, session.projectId),
+    supportAccess: findSessionOrganization(session, session.orgId)
+      ?.supportAccess,
+  };
+}
+
+/** SessionActor is a signed-in session acting on orgId, narrowed to projectId for project-level writes. */
+type SessionActor = AuthedSession & { orgId: string; projectId?: string };
+
+/** UserActorAccess is what an audit record states about the acting user's access. */
+type UserActorAccess = {
+  orgRole?: Role;
+  projectRole?: Role;
+  supportAccess?: boolean;
+};

@@ -22,6 +22,7 @@ import {
   getTracesIdentifierForSessionFromEvents,
   validateWebhookURL,
 } from "@langfuse/shared/src/server";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 vi.mock("@langfuse/shared/encryption", async () => {
   const actual = await vi.importActual("@langfuse/shared/encryption");
@@ -67,12 +68,15 @@ const buildSession = ({
   projectId: string;
   projectRole?: "ADMIN" | "MEMBER" | "NONE" | "OWNER" | "VIEWER";
   v4BetaEnabled?: boolean;
-}): Session => ({
-  expires: "1",
-  user: {
-    id: "user-1",
-    name: "Demo User",
-    canCreateOrganizations: true,
+}): Session =>
+  testSession({
+    user: {
+      id: "user-1",
+      name: "Demo User",
+      canCreateOrganizations: true,
+      featureFlags: testFeatureFlags(),
+      v4BetaEnabled,
+    },
     organizations: [
       {
         id: orgId,
@@ -88,7 +92,6 @@ const buildSession = ({
             id: projectId,
             role: projectRole,
             name: "Test Project",
-            deletedAt: null,
             retentionDays: null,
             hasTraces: false,
             metadata: {},
@@ -97,11 +100,8 @@ const buildSession = ({
         ],
       },
     ],
-    featureFlags: testFeatureFlags(),
-    v4BetaEnabled,
-  },
-  environment: {} as any,
-});
+    environment: {} as any,
+  });
 
 type StoredEndpoint = {
   id: string;

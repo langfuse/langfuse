@@ -12,12 +12,16 @@ import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import {
+  testSession,
+  withSessionRoles,
+} from "@/src/__tests__/fixtures/principal";
 
 const orgIds: string[] = [];
 let projectId = "";
 let otherProjectId = "";
 let userId = "";
-let session: Session;
+let session: ReturnType<typeof testSession>;
 let caller: ReturnType<typeof appRouter.createCaller>;
 
 function callerFor(callerSession: Session) {
@@ -29,16 +33,7 @@ function callerFor(callerSession: Session) {
 }
 
 function sessionWithProjectRole(role: Role): Session {
-  const [org] = session.user!.organizations;
-  return {
-    ...session,
-    user: {
-      ...session.user!,
-      organizations: [
-        { ...org, projects: org.projects.map((p) => ({ ...p, role })) },
-      ],
-    },
-  };
+  return withSessionRoles(session, { role: "OWNER", projectRole: role });
 }
 
 function experimentDatasetRule(
@@ -84,44 +79,42 @@ beforeAll(async () => {
     data: { id: userId, name: "Rule tester", email: `${userId}@test.dev` },
   });
 
-  session = {
-    expires: "1",
+  session = testSession({
     user: {
       id: userId,
       name: "Rule tester",
       canCreateOrganizations: false,
-      organizations: [
-        {
-          id: first.org.id,
-          name: first.org.name,
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: true,
-          aiTelemetryEnabled: false,
-          projects: [
-            {
-              id: projectId,
-              name: first.project.name,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              hasTraces: false,
-              metadata: {},
-              createdAt: first.project.createdAt.toISOString(),
-            },
-          ],
-        },
-      ],
       featureFlags: testFeatureFlags(),
       v4BetaEnabled: false,
     },
+    organizations: [
+      {
+        id: first.org.id,
+        name: first.org.name,
+        role: "OWNER",
+        plan: "cloud:hobby",
+        cloudConfig: undefined,
+        metadata: {},
+        aiFeaturesEnabled: true,
+        aiTelemetryEnabled: false,
+        projects: [
+          {
+            id: projectId,
+            name: first.project.name,
+            role: "ADMIN",
+            retentionDays: 30,
+            hasTraces: false,
+            metadata: {},
+            createdAt: first.project.createdAt.toISOString(),
+          },
+        ],
+      },
+    ],
     environment: {
       enableExperimentalFeatures: false,
       selfHostedInstancePlan: "cloud:hobby",
     },
-  } satisfies Session;
+  }) satisfies Session;
   caller = callerFor(session);
 });
 

@@ -5,7 +5,7 @@ import {
   findSessionOrganization,
   getSessionUserCanCreateOrganizations,
   hasSessionUser,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 import { DemoOrganizationTile } from "@/src/features/organizations/components/DemoOrganizationTile";
 import { GetStartedCard } from "@/src/features/organizations/components/GetStartedCard/GetStartedCard";
 

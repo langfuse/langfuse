@@ -71,6 +71,10 @@ import downloadTraceHandler from "@/src/pages/api/traces/[traceId]/download";
 import observationIOFieldHandler from "@/src/pages/api/traces/[traceId]/observations/[observationId]/io/[field]";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import {
+  testSession,
+  type TestOrganization,
+} from "@/src/__tests__/fixtures/principal";
 
 async function setupOrg(accessAuditLogEnabled: boolean) {
   const fixture = await createOrgProjectAndApiKey({ plan: "Enterprise" });
@@ -105,7 +109,7 @@ type SessionParams = {
 };
 
 function userSession(params: SessionParams): Session {
-  const membership: NonNullable<Session["user"]>["organizations"][number] = {
+  const membership: TestOrganization = {
     id: params.orgId,
     name: "Access Audit Org",
     role: params.supportAccess ? Role.VIEWER : Role.MEMBER,
@@ -122,25 +126,23 @@ function userSession(params: SessionParams): Session {
         name: "Access Audit Project",
         role: params.projectRole ?? Role.VIEWER,
         retentionDays: null,
-        deletedAt: null,
         hasTraces: true,
         metadata: {},
         createdAt: new Date().toISOString(),
       },
     ],
   };
-  return {
-    expires: "1",
+  return testSession({
     user: {
       id: params.userId,
       name: "Access Audit Reader",
       email: "reader@example.com",
       canCreateOrganizations: true,
-      organizations: params.member === false ? [] : [membership],
       featureFlags: testFeatureFlags(),
     },
+    organizations: params.member === false ? [] : [membership],
     environment: {} as any,
-  };
+  });
 }
 
 function trpcCaller(params: SessionParams) {

@@ -2,19 +2,19 @@ import { TRPCError } from "@trpc/server";
 import { Prisma, Role } from "@langfuse/shared";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
 import {
   getSfdcService,
   type SetUserRoleInput,
 } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import { createWithinEntitlementLimit } from "@/src/features/entitlements/server/createWithinEntitlementLimit";
-import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { hasEntitlement } from "@/src/features/rbac/new/entitlements";
 import {
   createOrgMembership,
   createProjectMembership,
 } from "@langfuse/shared/memberships";
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoOrganizationAccess } from "@/src/features/rbac/new/checkOrganizationAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/new/checkProjectAccess";
 import {
   assertValidOrgOwnershipChange,
   assertValidProjectOwnershipChange,

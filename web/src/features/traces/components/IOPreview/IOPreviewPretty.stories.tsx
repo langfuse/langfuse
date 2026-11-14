@@ -992,7 +992,7 @@ function ConversationMediaProviders({ children }: { children: ReactNode }) {
     <SessionProvider
       session={{
         expires: "2099-01-01T00:00:00Z",
-        user: null,
+        authCtx: null,
         environment: {
           enableExperimentalFeatures: false,
           selfHostedInstancePlan: null,

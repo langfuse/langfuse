@@ -5,8 +5,10 @@ import { type AsyncTableData } from "@/src/components/design-system/table/Table"
 import { CreateLLMApiKeyDialogController } from "@/src/features/public-api/components/CreateLLMApiKeyDialogController";
 import { UpdateLLMApiKeyDialog } from "@/src/features/public-api/components/UpdateLLMApiKeyDialog";
 import type { LlmConnectionFormOwner } from "@/src/features/public-api/components/CreateLLMApiKeyForm";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  useHasOrganizationAccess,
+  useHasProjectAccess,
+} from "@/src/features/rbac/new/hooks";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import {

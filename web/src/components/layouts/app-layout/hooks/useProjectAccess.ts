@@ -16,7 +16,7 @@ import { useRouter } from "next/router";
 import { useMemo } from "react";
 import type { Session } from "next-auth";
 import { env } from "@/src/env.mjs";
-import { findSessionProject } from "@/src/features/auth/lib/sessionAccessors";
+import { findSessionProject } from "@/src/features/rbac/new/sessionAccessors";
 
 /**
  * Checks if the authenticated user has access to the project specified in the URL.

@@ -9,7 +9,6 @@ import {
   createOrgProjectAndApiKey,
   SLACK_CHANNEL_NOT_FOUND_MESSAGE,
 } from "@langfuse/shared/src/server";
-import type { Session } from "next-auth";
 import { v4 } from "uuid";
 import {
   ActionExecutionStatus,
@@ -26,6 +25,11 @@ import {
 } from "@langfuse/shared/encryption";
 import { TRPCError } from "@trpc/server";
 import { type MockInstance } from "vitest";
+import {
+  testSession,
+  withSessionRoles,
+  withSessionUser,
+} from "@/src/__tests__/fixtures/principal";
 
 // Fake Slack workspace: the bot is in private channels "G_PRIVATE" and archived
 // "G_ARCHIVED". Slack API calls are faked; the access logic is real.
@@ -97,43 +101,41 @@ const __orgIds: string[] = [];
 async function prepare() {
   const { project, org } = await createOrgProjectAndApiKey();
 
-  const session: Session = {
-    expires: "1",
+  const session = testSession({
     user: {
       id: "user-1",
       canCreateOrganizations: true,
       name: "Demo User",
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: false,
-          projects: [
-            {
-              id: project.id,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              hasTraces: false,
-              name: project.name,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
       featureFlags: testFeatureFlags(),
     },
+    organizations: [
+      {
+        id: org.id,
+        name: org.name,
+        role: "OWNER",
+        plan: "cloud:hobby",
+        cloudConfig: undefined,
+        metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: false,
+        projects: [
+          {
+            id: project.id,
+            role: "ADMIN",
+            retentionDays: 30,
+            hasTraces: false,
+            name: project.name,
+            metadata: {},
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      },
+    ],
     environment: {
       enableExperimentalFeatures: false,
       selfHostedInstancePlan: "cloud:hobby",
     },
-  };
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
@@ -342,24 +344,10 @@ describe("automations trpc", () => {
       const { project, session } = await prepare();
 
       // Create a session with limited permissions (VIEWER can read but not create)
-      const limitedSession: Session = {
-        ...session,
-        user: {
-          ...session.user!,
-          organizations: [
-            {
-              ...session.user!.organizations[0],
-              role: "MEMBER",
-              projects: [
-                {
-                  ...session.user!.organizations[0].projects[0],
-                  role: "VIEWER", // VIEWER role can read automations but not create/update/delete
-                },
-              ],
-            },
-          ],
-        },
-      };
+      const limitedSession = withSessionRoles(session, {
+        role: "MEMBER",
+        projectRole: "VIEWER",
+      });
 
       const limitedCtx = createInnerTRPCContext({
         session: limitedSession,
@@ -1100,24 +1088,10 @@ describe("automations trpc", () => {
       const { project, session } = await prepare();
 
       // Create a session with limited permissions
-      const limitedSession: Session = {
-        ...session,
-        user: {
-          ...session.user!,
-          organizations: [
-            {
-              ...session.user!.organizations[0],
-              role: "MEMBER",
-              projects: [
-                {
-                  ...session.user!.organizations[0].projects[0],
-                  role: "VIEWER", // VIEWER role doesn't have automations:CUD scope
-                },
-              ],
-            },
-          ],
-        },
-      };
+      const limitedSession = withSessionRoles(session, {
+        role: "MEMBER",
+        projectRole: "VIEWER",
+      });
 
       const limitedCtx = createInnerTRPCContext({
         session: limitedSession,
@@ -1386,10 +1360,7 @@ describe("automations trpc", () => {
       });
       const otherUserCaller = appRouter.createCaller({
         ...createInnerTRPCContext({
-          session: {
-            ...prepared.session,
-            user: { ...prepared.session.user!, id: "user-2" },
-          },
+          session: withSessionUser(prepared.session, { id: "user-2" }),
           headers: {},
         }),
         prisma,
@@ -2981,24 +2952,10 @@ describe("automations trpc", () => {
       });
 
       // Create a session with limited permissions
-      const limitedSession: Session = {
-        ...session,
-        user: {
-          ...session.user!,
-          organizations: [
-            {
-              ...session.user!.organizations[0],
-              role: "MEMBER",
-              projects: [
-                {
-                  ...session.user!.organizations[0].projects[0],
-                  role: "VIEWER", // VIEWER role doesn't have automations:CUD scope
-                },
-              ],
-            },
-          ],
-        },
-      };
+      const limitedSession = withSessionRoles(session, {
+        role: "MEMBER",
+        projectRole: "VIEWER",
+      });
 
       const limitedCtx = createInnerTRPCContext({
         session: limitedSession,
@@ -3408,25 +3365,11 @@ describe("automations trpc", () => {
     }
 
     // VIEWER holds automations:read, the only scope both read routes require.
-    function viewerCaller(session: Session) {
-      const viewerSession: Session = {
-        ...session,
-        user: {
-          ...session.user!,
-          organizations: [
-            {
-              ...session.user!.organizations[0],
-              role: "MEMBER",
-              projects: [
-                {
-                  ...session.user!.organizations[0].projects[0],
-                  role: "VIEWER",
-                },
-              ],
-            },
-          ],
-        },
-      };
+    function viewerCaller(session: ReturnType<typeof testSession>) {
+      const viewerSession = withSessionRoles(session, {
+        role: "MEMBER",
+        projectRole: "VIEWER",
+      });
 
       return appRouter.createCaller({
         ...createInnerTRPCContext({ session: viewerSession, headers: {} }),
@@ -3521,25 +3464,11 @@ describe("automations trpc", () => {
       return action.config as Record<string, string>;
     }
 
-    function viewerCaller(session: Session) {
-      const viewerSession: Session = {
-        ...session,
-        user: {
-          ...session.user!,
-          organizations: [
-            {
-              ...session.user!.organizations[0],
-              role: "MEMBER",
-              projects: [
-                {
-                  ...session.user!.organizations[0].projects[0],
-                  role: "VIEWER",
-                },
-              ],
-            },
-          ],
-        },
-      };
+    function viewerCaller(session: ReturnType<typeof testSession>) {
+      const viewerSession = withSessionRoles(session, {
+        role: "MEMBER",
+        projectRole: "VIEWER",
+      });
       return appRouter.createCaller({
         ...createInnerTRPCContext({ session: viewerSession, headers: {} }),
         prisma,

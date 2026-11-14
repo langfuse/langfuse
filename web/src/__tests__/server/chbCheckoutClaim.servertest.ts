@@ -14,6 +14,7 @@
  */
 
 import { randomUUID } from "crypto";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 import { parseDbOrg } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
@@ -68,9 +69,11 @@ const service = () => {
   const ctx = {
     prisma,
     session: {
+      ...testSession({
+        user: { id: `user-${randomUUID()}`, email: "owner@example.com" },
+      }),
       orgId,
       orgRole: "OWNER",
-      user: { id: `user-${randomUUID()}`, email: "owner@example.com" },
     },
   } as unknown as OrgAuthedContext;
   return new ChbBillingService(clientMock, ctx);

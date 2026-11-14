@@ -2,7 +2,7 @@ import Page from "@/src/components/layouts/Page";
 import { useRouter } from "next/router";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { Lock, Plus } from "@langfuse/icons";
 import EvalsTemplateTable from "@/src/features/evals/components/EvalsTemplateTable";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";

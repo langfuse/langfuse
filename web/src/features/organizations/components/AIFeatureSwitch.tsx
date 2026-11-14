@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac/new/hooks";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { useEffect, useState } from "react";
@@ -21,7 +21,7 @@ import { Card } from "@/src/components/ui/card";
 import { ExternalLink } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
 import { AIFeatureSettingRow } from "@/src/features/organizations/components/AIFeatureSettingRow";
-import { getSessionEnvironment } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionEnvironment } from "@/src/features/rbac/new/sessionAccessors";
 
 export default function AIFeatureSwitch() {
   const { data: session, update: updateSession } = useSession();

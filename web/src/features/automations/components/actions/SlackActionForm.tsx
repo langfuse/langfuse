@@ -18,7 +18,7 @@ import {
 
 import { SlackTestMessageButton } from "@/src/features/slack/components/SlackTestMessageButton";
 import { useState } from "react";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 
 interface SlackActionFormProps {
   form: UseFormReturn<any>;

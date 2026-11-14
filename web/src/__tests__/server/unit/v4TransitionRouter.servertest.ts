@@ -1,10 +1,11 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
-import type { PrismaClient } from "@langfuse/shared/src/db";
+import type { PrismaClient, Role } from "@langfuse/shared/src/db";
 import { v4TransitionRouter } from "@/src/features/v4/server/v4TransitionRouter";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { queryClickhouse } from "@langfuse/shared/src/server";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 vi.mock("@/src/server/auth", () => ({
   getServerAuthSession: vi.fn(),
@@ -377,52 +378,20 @@ const createCaller = (
     ...(prisma ? { prisma: prisma as unknown as PrismaClient } : {}),
   });
 
-type SessionUser = NonNullable<Session["user"]>;
-type OrganizationRole = SessionUser["organizations"][number]["role"];
-type ProjectRole =
-  SessionUser["organizations"][number]["projects"][number]["role"];
-
-const createSessionWithOrgRole = (role: OrganizationRole): Session => ({
-  ...session,
-  user: {
-    ...session.user!,
-    organizations: session.user!.organizations.map((organization) => ({
-      ...organization,
-      role,
-      projects:
-        role === "NONE"
-          ? organization.projects.filter((project) => project.id === projectId)
-          : organization.projects,
-    })),
-  },
-});
-
-const createSessionWithProjectRole = (role: ProjectRole): Session => ({
-  ...session,
-  user: {
-    ...session.user!,
-    organizations: session.user!.organizations.map((organization) => ({
-      ...organization,
-      projects: organization.projects.map((project) => ({
-        ...project,
-        role,
-      })),
-    })),
-  },
-});
-
-const session: Session = {
-  expires: "1",
-  user: {
-    id: "user-v4-transition",
-    name: "V4 Transition User",
-    email: "v4-transition@example.com",
-    canCreateOrganizations: true,
+const createSessionWithRoles = (orgRole: Role, projectRole: Role) =>
+  testSession({
+    user: {
+      id: "user-v4-transition",
+      name: "V4 Transition User",
+      email: "v4-transition@example.com",
+      canCreateOrganizations: true,
+      featureFlags: testFeatureFlags({ templateFlag: false }),
+    },
     organizations: [
       {
         id: orgId,
         name: "V4 Transition Org",
-        role: "OWNER",
+        role: orgRole,
         plan: "cloud:hobby",
         cloudConfig: undefined,
         metadata: {},
@@ -432,8 +401,7 @@ const session: Session = {
           {
             id: projectId,
             name: "V4 Transition Project",
-            role: "ADMIN",
-            deletedAt: null,
+            role: projectRole,
             retentionDays: null,
             hasTraces: false,
             metadata: {},
@@ -442,8 +410,7 @@ const session: Session = {
           {
             id: secondProjectId,
             name: "Second Project",
-            role: "ADMIN",
-            deletedAt: null,
+            role: projectRole,
             retentionDays: null,
             hasTraces: false,
             metadata: {},
@@ -452,13 +419,35 @@ const session: Session = {
         ],
       },
     ],
-    featureFlags: testFeatureFlags({ templateFlag: false }),
-  },
-  environment: {
-    enableExperimentalFeatures: false,
-    selfHostedInstancePlan: "cloud:hobby",
-  },
+    environment: {
+      enableExperimentalFeatures: false,
+      selfHostedInstancePlan: "cloud:hobby",
+    },
+  });
+
+const createSessionWithOrgRole = (role: Role): Session => {
+  const roleSession = createSessionWithRoles(role, "ADMIN");
+  if (role !== "NONE") return roleSession;
+  const [org] = roleSession.authCtx.principal.organizations;
+  return testSession({
+    user: roleSession.authCtx.principal.user,
+    organizations: [
+      {
+        ...org,
+        role,
+        projects: org.projects
+          .filter((project) => project.id === projectId)
+          .map((project) => ({ ...project, role: "ADMIN" })),
+      },
+    ],
+    environment: roleSession.environment,
+  });
 };
+
+const createSessionWithProjectRole = (role: Role): Session =>
+  createSessionWithRoles("OWNER", role);
+
+const session = createSessionWithRoles("OWNER", "ADMIN");
 
 const accessibleProjectsFindManyArgs = {
   where: {

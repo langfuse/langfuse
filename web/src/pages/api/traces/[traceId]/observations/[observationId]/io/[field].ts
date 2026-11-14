@@ -14,10 +14,9 @@ import {
 } from "@langfuse/shared/src/server";
 import { recordInternalApiAccess } from "@/src/features/audit-logs/server/recordAccessEvent";
 import {
-  getSessionOrganizations,
   getSessionUserEmail,
   hasSessionUser,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
   getAuthorizedTrace,
@@ -56,35 +55,18 @@ const querySchema = z.object({
   startTime: z.coerce.date(),
 });
 
-/**
- * Shape the NextAuth session into the access-session `getAuthorizedTrace`
- * expects. Mirrors the trace download route (`/api/traces/[traceId]/download`):
- * a missing session stays `null` (only public traces are then readable); a
- * malformed session is rejected.
- */
+/** toTraceAccessSession keeps a missing session anonymous and rejects one without a signed-in user who has an email, as the trace download route does. */
 function toTraceAccessSession(
   session: Awaited<ReturnType<typeof getServerAuthSession>>,
 ): TraceExportAccessSession {
-  if (!session) {
-    return null;
-  }
-
-  const email = getSessionUserEmail(session);
-  const organizations = getSessionOrganizations(session);
+  if (!session) return null;
   if (
     !hasSessionUser(session) ||
-    typeof email !== "string" ||
-    !Array.isArray(organizations)
+    typeof getSessionUserEmail(session) !== "string"
   ) {
     throw new UnauthorizedError("Unauthorized");
   }
-
-  return {
-    user: {
-      email,
-      organizations,
-    },
-  };
+  return session;
 }
 
 export default withMiddlewares({

@@ -1,8 +1,8 @@
 import {
   throwIfNoOrganizationAccess,
   hasOrganizationAccess,
-} from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+} from "@/src/features/rbac/new/checkOrganizationAccess";
+import { hasProjectAccess } from "@/src/features/rbac/new/checkProjectAccess";
 import {
   protectedOrganizationProcedure,
   protectedProjectProcedure,
@@ -26,7 +26,7 @@ import {
   getOrganizationFeaturePreviewStatesByUserId,
   getUserFeaturePreviewManagementCapabilities,
 } from "@/src/features/feature-flags/server/organizationFeatureFlags";
-import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
 
 const orgLevelMemberQuery = z.object({
   orgId: z.string(),

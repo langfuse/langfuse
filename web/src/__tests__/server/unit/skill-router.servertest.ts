@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
 import { skillRouter } from "@/src/features/skills/server/skill-router";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
@@ -41,35 +41,10 @@ function createCaller(
   role: "ADMIN" | "MEMBER" | "VIEWER",
   projectId = "project",
 ) {
-  const session: Session = {
-    expires: "1",
+  const session = testSession({
     user: {
       id: "user",
       canCreateOrganizations: false,
-      organizations: [
-        {
-          id: "organization",
-          name: "Organization",
-          role,
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: false,
-          projects: [
-            {
-              id: projectId,
-              name: "Project",
-              role,
-              retentionDays: 30,
-              deletedAt: null,
-              hasTraces: false,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: true,
@@ -79,11 +54,34 @@ function createCaller(
         langfuseTopics: false,
       },
     },
+    organizations: [
+      {
+        id: "organization",
+        name: "Organization",
+        role,
+        plan: "cloud:hobby",
+        cloudConfig: undefined,
+        metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: false,
+        projects: [
+          {
+            id: projectId,
+            name: "Project",
+            role,
+            retentionDays: 30,
+            hasTraces: false,
+            metadata: {},
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      },
+    ],
     environment: {
       enableExperimentalFeatures: false,
       selfHostedInstancePlan: "cloud:hobby",
     },
-  };
+  });
 
   return skillRouter.createCaller(
     createInnerTRPCContext({ session, headers: {} }),
@@ -200,7 +198,11 @@ describe("skill mutation router", () => {
         ...params,
         actor: {
           session: expect.objectContaining({
-            user: expect.objectContaining({ id: "user" }),
+            authCtx: expect.objectContaining({
+              principal: expect.objectContaining({
+                user: expect.objectContaining({ id: "user" }),
+              }),
+            }),
           }),
         },
       });

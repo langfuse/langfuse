@@ -6,7 +6,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   getSessionUserEmail,
   getSessionUserId,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 import { CloudConfigSchema, parseDbOrg } from "@langfuse/shared";
 import {
   getBillingCycleEnd,

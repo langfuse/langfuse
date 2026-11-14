@@ -120,7 +120,9 @@ import {
   getSessionProjectRole,
   getSessionUserEmail,
   getSessionUserId,
-} from "@/src/features/auth/lib/sessionAccessors";
+  hasSessionUser,
+  type AuthedSession as SignedInSession,
+} from "@/src/features/rbac/new/sessionAccessors";
 import { recordBackendActivity } from "@/src/features/posthog-analytics/server/backendActivity";
 
 setUpSuperjson();
@@ -315,22 +317,18 @@ export const publicProcedureWithoutTracing = t.procedure.use(withErrorHandling);
 
 /** Reusable middleware that enforces users are logged in before running the procedure. */
 const enforceUserIsAuthed = t.middleware(({ ctx, next }) => {
-  if (!ctx.session || !ctx.session.user) {
+  const session = ctx.session;
+  if (!hasSessionUser(session)) {
     throw new TRPCError({ code: "UNAUTHORIZED" });
   }
-  return next({
-    ctx: {
-      // infers the `session` as non-nullable
-      session: { ...ctx.session, user: ctx.session.user },
-    },
-  });
+  return next({ ctx: { session } });
 });
 
 /**
  * Protected (authenticated) procedure
  *
  * If you want a query or mutation to ONLY be accessible to logged in users, use this. It verifies
- * the session is valid and guarantees `ctx.session.user` is not null.
+ * the session is valid and guarantees `ctx.session.authCtx` is a signed-in user's context.
  *
  * @see https://trpc.io/docs/procedures
  */
@@ -360,7 +358,8 @@ const trackPosthogActivity = (
 
 const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
   const { ctx, next } = opts;
-  if (!ctx.session || !ctx.session.user) {
+  const session = ctx.session;
+  if (!hasSessionUser(session)) {
     throw new TRPCError({ code: "UNAUTHORIZED" });
   }
 
@@ -373,7 +372,6 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
     });
 
   // check that the user is a member of this project
-  const session = { ...ctx.session, user: ctx.session.user };
   const projectId = parsedInput.data.projectId;
   const sessionOrganization = findSessionProjectOrganization(
     session,
@@ -444,7 +442,8 @@ const inputOrganizationSchema = z.object({
 
 const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
   const { ctx, next } = opts;
-  if (!ctx.session || !ctx.session.user) {
+  const session = ctx.session;
+  if (!hasSessionUser(session)) {
     throw new TRPCError({ code: "UNAUTHORIZED" });
   }
 
@@ -457,7 +456,6 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
     });
   }
 
-  const session = { ...ctx.session, user: ctx.session.user };
   const orgId = result.data.orgId;
   const sessionOrg = findSessionOrganization(session, orgId);
   const orgRole = getSessionOrganizationRole(session, orgId);
@@ -799,10 +797,9 @@ export const adminProcedure = withOtelTracingProcedure
 // Export context types for easier reuse
 // Base context from createTRPCContext
 type TRPCContext = Awaited<ReturnType<typeof createTRPCContext>>;
-// After `enforceUserIsAuthed`: session & user are non-null
-export type AuthedSession = NonNullable<TRPCContext["session"]> & {
-  user: NonNullable<NonNullable<TRPCContext["session"]>["user"]>;
-};
+// After `enforceUserIsAuthed`: the session resolved to a signed-in user
+export type AuthedSession = NonNullable<TRPCContext["session"]> &
+  SignedInSession;
 // After `enforceUserIsAuthedAndProjectMember`: extra fields guaranteed
 export type ProjectAuthedContext = Omit<TRPCContext, "session"> & {
   session: AuthedSession & {

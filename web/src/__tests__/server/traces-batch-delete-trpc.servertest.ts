@@ -15,13 +15,13 @@ vi.mock("@langfuse/shared/src/server", async () => {
 });
 
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
-import type { Session } from "next-auth";
 import { randomUUID } from "crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
 import {
   ActionId,
   AnnotationQueueObjectType,
@@ -31,6 +31,7 @@ import {
   TraceDeleteBatchActionConfigSchema,
 } from "@langfuse/shared";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const traceDeleteQuery = (userId: string) => ({
   filter: [
@@ -46,41 +47,39 @@ const traceDeleteQuery = (userId: string) => ({
 
 const createCaller = async (opts: { v4BetaEnabled?: boolean } = {}) => {
   const { project, org } = await createOrgProjectAndApiKey({ plan: "Team" });
-  const session: Session = {
-    expires: "1",
+  const session = testSession({
     user: {
       id: `user-${randomUUID()}`,
       name: "Batch Delete Test User",
       canCreateOrganizations: true,
       v4BetaEnabled: opts.v4BetaEnabled ?? false,
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: "OWNER",
-          plan: "cloud:team",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: false,
-          projects: [
-            {
-              id: project.id,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              name: project.name,
-              hasTraces: true,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
       featureFlags: testFeatureFlags(),
     },
+    organizations: [
+      {
+        id: org.id,
+        name: org.name,
+        role: "OWNER",
+        plan: "cloud:team",
+        cloudConfig: undefined,
+        metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: false,
+        projects: [
+          {
+            id: project.id,
+            role: "ADMIN",
+            retentionDays: 30,
+            name: project.name,
+            hasTraces: true,
+            metadata: {},
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      },
+    ],
     environment: {} as any,
-  };
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   return {
@@ -115,7 +114,7 @@ describe("traces.deleteMany batch action", () => {
     });
     expect(batchAction).toMatchObject({
       projectId,
-      userId: session.user!.id,
+      userId: getSessionUserId(session),
       actionType: "trace-delete",
       tableName: "traces",
       status: BatchActionStatus.Queued,
@@ -147,7 +146,7 @@ describe("traces.deleteMany batch action", () => {
       data: {
         id: batchActionId,
         projectId,
-        userId: session.user!.id,
+        userId: getSessionUserId(session),
         actionType: "trace-delete",
         tableName: "traces",
         status: BatchActionStatus.Processing,
@@ -199,7 +198,7 @@ describe("traces.deleteMany batch action", () => {
       data: {
         id: batchActionId,
         projectId,
-        userId: session.user!.id,
+        userId: getSessionUserId(session),
         actionType: "trace-delete",
         tableName: "traces",
         status: BatchActionStatus.Completed,
@@ -267,7 +266,7 @@ describe("traces.deleteMany batch action", () => {
       data: {
         id: batchActionId,
         projectId,
-        userId: session.user!.id,
+        userId: getSessionUserId(session),
         actionType: "trace-delete",
         tableName: "traces",
         status: BatchActionStatus.Processing,

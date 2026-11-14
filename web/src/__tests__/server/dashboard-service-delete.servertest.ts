@@ -11,8 +11,8 @@ import {
 import { DashboardWidgetViews, prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import type { Session } from "next-auth";
 import type { TRPCError } from "@trpc/server";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const widgetInput = {
   name: "delete-me",
@@ -27,36 +27,11 @@ const widgetInput = {
 
 async function createOwnerCaller() {
   const { project, org } = await createOrgProjectAndApiKey();
-  const session: Session = {
-    expires: "1",
+  const session = testSession({
     user: {
       id: `widget-delete-user-${uuidv4()}`,
       canCreateOrganizations: true,
       name: "Test User",
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [
-            {
-              id: project.id,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              name: project.name,
-              hasTraces: true,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: true,
@@ -66,11 +41,34 @@ async function createOwnerCaller() {
         langfuseTopics: false,
       },
     },
+    organizations: [
+      {
+        id: org.id,
+        name: org.name,
+        role: "OWNER",
+        plan: "cloud:hobby",
+        cloudConfig: undefined,
+        metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: true,
+        projects: [
+          {
+            id: project.id,
+            role: "ADMIN",
+            retentionDays: 30,
+            name: project.name,
+            hasTraces: true,
+            metadata: {},
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      },
+    ],
     environment: {
       enableExperimentalFeatures: false,
       selfHostedInstancePlan: "cloud:hobby",
     },
-  };
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   return {

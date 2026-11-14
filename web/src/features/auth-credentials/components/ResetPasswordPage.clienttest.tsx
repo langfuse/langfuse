@@ -92,6 +92,7 @@ vi.mock(
 
 import { ResetPasswordPage } from "@/src/features/auth-credentials/components/ResetPasswordPage";
 import ResetPasswordAuthPage from "@/src/features/auth-credentials/ResetPasswordAuthPage";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const submitPasswordForm = ({
   code,
@@ -143,12 +144,9 @@ describe("ResetPasswordPage re-authentication", () => {
   it("re-authenticates after password update while already signed in", async () => {
     useSessionMock.mockReturnValue({
       status: "authenticated",
-      data: {
-        user: {
-          email: "user@example.com",
-          hasPassword: true,
-        },
-      },
+      data: testSession({
+        user: { email: "user@example.com", hasPassword: true },
+      }),
     });
 
     render(
@@ -190,12 +188,9 @@ describe("ResetPasswordPage re-authentication", () => {
   it("re-authenticates after password setup while already signed in", async () => {
     useSessionMock.mockReturnValue({
       status: "authenticated",
-      data: {
-        user: {
-          email: "oauth@example.com",
-          hasPassword: false,
-        },
-      },
+      data: testSession({
+        user: { email: "oauth@example.com", hasPassword: false },
+      }),
     });
 
     render(
@@ -341,7 +336,9 @@ describe("ResetPasswordPage redirect after saving the password", () => {
     routerState.query = { targetPath: "/project/p1/traces" };
     useSessionMock.mockReturnValue({
       status: "authenticated",
-      data: { user: { email: "user@example.com", hasPassword: true } },
+      data: testSession({
+        user: { email: "user@example.com", hasPassword: true },
+      }),
     });
 
     render(
@@ -367,7 +364,9 @@ describe("ResetPasswordPage redirect after saving the password", () => {
   const addPasswordAsExistingUser = async () => {
     useSessionMock.mockReturnValue({
       status: "authenticated",
-      data: { user: { email: "sso@example.com", hasPassword: false } },
+      data: testSession({
+        user: { email: "sso@example.com", hasPassword: false },
+      }),
     });
     render(
       <ResetPasswordPage

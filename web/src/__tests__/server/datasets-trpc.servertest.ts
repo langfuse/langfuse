@@ -3,9 +3,9 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma, type Role } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
-import type { Session } from "next-auth";
 import { v4 } from "uuid";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 vi.mock("@/src/features/audit-logs/isAuditLogEnabled", () => ({
   isAuditLogEnabled: () => true,
@@ -16,43 +16,41 @@ const orgIds: string[] = [];
 async function prepare({ projectRole = "ADMIN" }: { projectRole?: Role } = {}) {
   const { project, org } = await createOrgProjectAndApiKey();
 
-  const session: Session = {
-    expires: "1",
+  const session = testSession({
     user: {
       id: "user-1",
       canCreateOrganizations: true,
       name: "Demo User",
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: "OWNER",
-          plan: "cloud:team",
-          cloudConfig: undefined,
-          metadata: {},
-          projects: [
-            {
-              id: project.id,
-              role: projectRole,
-              retentionDays: 30,
-              deletedAt: null,
-              hasTraces: false,
-              name: project.name,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-        },
-      ],
       featureFlags: testFeatureFlags(),
     },
+    organizations: [
+      {
+        id: org.id,
+        name: org.name,
+        role: "OWNER",
+        plan: "cloud:team",
+        cloudConfig: undefined,
+        metadata: {},
+        projects: [
+          {
+            id: project.id,
+            role: projectRole,
+            retentionDays: 30,
+            hasTraces: false,
+            name: project.name,
+            metadata: {},
+            createdAt: new Date().toISOString(),
+          },
+        ],
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: true,
+      },
+    ],
     environment: {
       enableExperimentalFeatures: false,
       selfHostedInstancePlan: "cloud:team",
     },
-  };
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });

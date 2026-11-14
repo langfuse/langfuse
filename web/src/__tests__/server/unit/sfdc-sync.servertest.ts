@@ -150,7 +150,10 @@ import { OrganizationId, SystemRoleId } from "@langfuse/shared/rbac";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { testPrincipalOrganization } from "@/src/__tests__/fixtures/principal";
+import {
+  testPrincipalOrganization,
+  testSession,
+} from "@/src/__tests__/fixtures/principal";
 
 // ---- Helpers ----
 
@@ -834,33 +837,32 @@ describe("syncOrgPlanChangeToSfdc — plan-change gate for billing updates", () 
 // Exercised end-to-end: call site → real SfdcService → mocked fetch.
 
 function buildOwnerSession(orgId: string): Session {
-  return {
-    expires: "1",
+  return testSession({
     user: {
       id: "owner-user",
       email: "owner@test.com",
       name: "Owner",
       canCreateOrganizations: true,
-      organizations: [
-        {
-          id: orgId,
-          name: "Test Org",
-          role: Role.OWNER,
-          plan: "cloud:team",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [],
-        },
-      ],
       featureFlags: testFeatureFlags(),
     },
+    organizations: [
+      {
+        id: orgId,
+        name: "Test Org",
+        role: Role.OWNER,
+        plan: "cloud:team",
+        cloudConfig: undefined,
+        metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: true,
+        projects: [],
+      },
+    ],
     environment: {
       enableExperimentalFeatures: false,
       selfHostedInstancePlan: "cloud:team",
     },
-  };
+  });
 }
 
 function createOwnerCaller(orgId: string) {

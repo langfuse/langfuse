@@ -17,10 +17,8 @@ import {
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { StringParam, useQueryParams } from "use-query-params";
-import {
-  hasOrganizationAccess,
-  useHasOrganizationAccess,
-} from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { hasOrganizationAccess } from "@/src/features/rbac/new/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac/new/hooks";
 import { env } from "@/src/env.mjs";
 import { type ReactNode } from "react";
 import { useRouter } from "next/router";
@@ -47,7 +45,7 @@ import {
   type SessionOrganization,
   getSessionOrganizations,
   getSessionUserId,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 
 const lastTraceLabel = (lastTraceAt: Date | string | null | undefined) =>
   lastTraceAt

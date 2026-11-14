@@ -9,7 +9,7 @@ import { ApiKeyCreateDialogContent } from "./ApiKeyCreateDialogContent";
 
 const sessionWithRoleSelection = {
   expires: "2999-01-01T00:00:00.000Z",
-  user: null,
+  authCtx: null,
   environment: {
     enableExperimentalFeatures: false,
     selfHostedInstancePlan: null,

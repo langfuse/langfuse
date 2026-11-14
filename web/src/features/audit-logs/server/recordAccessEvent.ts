@@ -26,7 +26,7 @@ import {
   getSessionUserId,
   getSessionUserName,
   type MaybeSession,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { type ServerContext } from "@/src/features/mcp/types";
 

@@ -6,7 +6,7 @@ import {
   hasSessionUser,
   type MaybeSession,
   type SessionOrganization,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 
 const allowlistedIds = ["[projectId]", "[organizationId]", "[page]"];
 

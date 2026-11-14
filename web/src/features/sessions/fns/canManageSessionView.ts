@@ -4,7 +4,7 @@ import {
   getSessionProjectRole,
   getSessionUserId,
   hasSessionUser,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 
 export function canManageSessionView({
   session,

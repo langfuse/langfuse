@@ -6,7 +6,7 @@ import {
 } from "@/src/server/api/trpc";
 import { getVisibleProductModules } from "@/src/ee/features/ui-customization/productModuleSchema";
 import { parseInstanceLinks } from "@/src/ee/features/ui-customization/instanceLinks";
-import { getSessionEnvironment } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionEnvironment } from "@/src/features/rbac/new/sessionAccessors";
 
 // Parsed once per process so invalid configuration warns once, not per query.
 const instanceLinks = parseInstanceLinks(env.LANGFUSE_UI_INSTANCE_LINKS);

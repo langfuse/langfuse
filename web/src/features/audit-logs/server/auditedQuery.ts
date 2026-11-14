@@ -5,7 +5,7 @@ import {
   type TRPCQueryProcedure,
   type TRPCUnsetMarker,
 } from "@trpc/server";
-import { type Session } from "next-auth";
+import { type MaybeSession } from "@/src/features/rbac/new/sessionAccessors";
 import * as z from "zod";
 
 import {
@@ -257,7 +257,7 @@ export async function recordRefusedRead({
 }: {
   path: string;
   ctx: {
-    session: { user?: Session["user"] } | null;
+    session: MaybeSession;
     headers: IncomingHttpHeaders;
   };
   meta: AccessAuditMeta;

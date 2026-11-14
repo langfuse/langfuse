@@ -10,7 +10,7 @@ import * as z from "zod";
 import {
   hasOrganizationAccess,
   throwIfNoOrganizationAccess,
-} from "@/src/features/rbac/utils/checkOrganizationAccess";
+} from "@/src/features/rbac/new/checkOrganizationAccess";
 import {
   type FilterState,
   optionalPaginationZod,
@@ -26,11 +26,11 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
-import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { hasEntitlement } from "@/src/features/rbac/new/entitlements";
 import {
   hasProjectAccess,
   throwIfNoProjectAccess,
-} from "@/src/features/rbac/utils/checkProjectAccess";
+} from "@/src/features/rbac/new/checkProjectAccess";
 import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
 import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
@@ -57,7 +57,7 @@ import {
   getSessionUserEmail,
   getSessionUserId,
   getSessionUserName,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 
 function buildUserSearchFilter(searchQuery: string | undefined | null) {
   if (searchQuery === undefined || searchQuery === null || searchQuery === "") {

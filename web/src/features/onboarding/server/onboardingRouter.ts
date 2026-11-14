@@ -18,7 +18,7 @@ import {
   getSessionUserCanCreateOrganizations,
   getSessionUserEmail,
   getSessionUserId,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 
 export const onboardingRouter = createTRPCRouter({
   status: authenticatedProcedure.query(async ({ ctx }) => {

@@ -1,10 +1,12 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { type Flags } from "@/src/features/feature-flags/types";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 import { OrganizationFeaturePreviewsSettings } from "./OrganizationFeaturePreviewsSettings";
 import { featurePreviewFlags } from "../available-flags";
 import { getFeaturePreviewOptOutFlag } from "../utils";
 import { getOrganizationFeaturePreviewDefaults } from "../fns/getOrganizationFeaturePreviewDefaults";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
@@ -35,15 +37,15 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
-    data: {
+    data: testSession({
+      user: {
+        featureFlags: mocks.userFeatureFlags as Flags,
+        v4BetaEnabled: false,
+      },
       environment: {
         enableExperimentalFeatures: mocks.experimentalFeaturesEnabled,
       },
-      user: {
-        featureFlags: mocks.userFeatureFlags,
-        v4BetaEnabled: false,
-      },
-    },
+    }),
     update: mocks.updateSession,
   }),
 }));

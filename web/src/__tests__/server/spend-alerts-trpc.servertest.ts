@@ -1,4 +1,3 @@
-import type { Session } from "next-auth";
 import { v4 } from "uuid";
 
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
@@ -6,6 +5,7 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
 import { type Plan } from "@langfuse/shared";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const orgIds: string[] = [];
 
@@ -75,32 +75,31 @@ async function prepare(plan: Plan) {
   });
   orgIds.push(org.id);
 
-  const session: Session = {
-    expires: "1",
+  const session = testSession({
     user: {
       id: "user-1",
       canCreateOrganizations: true,
       name: "Demo User",
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: "OWNER",
-          plan,
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [],
-        },
-      ],
       featureFlags: testFeatureFlags({ templateFlag: false }),
     },
+    organizations: [
+      {
+        id: org.id,
+        name: org.name,
+        role: "OWNER",
+        plan,
+        cloudConfig: undefined,
+        metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: true,
+        projects: [],
+      },
+    ],
     environment: {
       enableExperimentalFeatures: false,
       selfHostedInstancePlan: "cloud:hobby",
     },
-  };
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   return { orgId: org.id, caller: appRouter.createCaller({ ...ctx, prisma }) };

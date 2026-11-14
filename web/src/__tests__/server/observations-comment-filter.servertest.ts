@@ -1,5 +1,4 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
-import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -11,6 +10,7 @@ import {
   createObservationsCh,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 describe("Observations Comment Filtering", () => {
   let projectId: string;
@@ -20,40 +20,38 @@ describe("Observations Comment Filtering", () => {
     const setup = await createOrgProjectAndApiKey();
     projectId = setup.projectId;
 
-    const session: Session = {
-      expires: "1",
+    const session = testSession({
       user: {
         id: "user-1",
         canCreateOrganizations: true,
         name: "Demo User",
-        organizations: [
-          {
-            id: setup.orgId,
-            name: "Test Organization",
-            role: "OWNER",
-            plan: "cloud:hobby",
-            cloudConfig: undefined,
-            metadata: {},
-            aiFeaturesEnabled: false,
-            aiTelemetryEnabled: false,
-            projects: [
-              {
-                id: projectId,
-                role: "ADMIN",
-                retentionDays: 30,
-                deletedAt: null,
-                name: "Test Project",
-                hasTraces: true,
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        ],
         featureFlags: testFeatureFlags(),
       },
+      organizations: [
+        {
+          id: setup.orgId,
+          name: "Test Organization",
+          role: "OWNER",
+          plan: "cloud:hobby",
+          cloudConfig: undefined,
+          metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: false,
+          projects: [
+            {
+              id: projectId,
+              role: "ADMIN",
+              retentionDays: 30,
+              name: "Test Project",
+              hasTraces: true,
+              metadata: {},
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        },
+      ],
       environment: {} as any,
-    };
+    });
 
     const ctx = createInnerTRPCContext({ session, headers: {} });
     caller = appRouter.createCaller({ ...ctx, prisma });

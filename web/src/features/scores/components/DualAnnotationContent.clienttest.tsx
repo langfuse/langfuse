@@ -64,7 +64,7 @@ vi.mock("@/src/components/layouts/header", async (importOriginal) => {
   };
 });
 
-vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
+vi.mock("@/src/features/rbac/new/hooks", () => ({
   useHasProjectAccess: () => mocks.hasConfigAccess,
 }));
 vi.mock("@/src/features/notifications/showErrorToast", () => ({

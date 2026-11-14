@@ -29,7 +29,7 @@ import {
 import { useRouter } from "next/router";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
-import { type SessionOrganization } from "@/src/features/auth/lib/sessionAccessors";
+import { type SessionOrganization } from "@/src/features/rbac/new/sessionAccessors";
 import { type OrganizationScope } from "@langfuse/shared/rbac";
 import { SupportButton } from "@/src/components/nav/SupportButton";
 import { V4SidebarToggle } from "@/src/features/events/components/V4SidebarToggle";

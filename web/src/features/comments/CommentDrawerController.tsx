@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 import { useRef, useState, type ReactNode } from "react";
 import { type CommentObjectType } from "@langfuse/shared";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { api } from "@/src/utils/api";
 import {
   useTraceReviewPanelOptional,
