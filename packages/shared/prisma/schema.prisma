@@ -291,7 +291,6 @@ enum SystemRole {
   SCORES_INGEST
   INGEST
   AI_GATEWAY
-  SUPPORT_VIEWER
 }
 
 model RoleAssignment {
