@@ -9,6 +9,7 @@ import { z } from "zod";
 import { assertInAppAgentAvailable } from "@/src/features/in-app-agent/server/availability";
 import { getServerAuthSessionForRequest } from "@/src/server/auth";
 import { isProjectMember } from "@/src/server/utils/checkProjectMembership";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 
 const WatchQuerySchema = z.object({
   projectId: z.string().min(1),
@@ -17,17 +18,17 @@ const WatchQuerySchema = z.object({
   openRunId: z.string().min(1).optional(),
 });
 
+/** watchHandler streams a conversation's frames to its signed-in owner. */
 export default async function watchHandler(request: Request) {
   try {
     const session = await getServerAuthSessionForRequest(request);
 
-    if (!session?.user) {
+    const userId = getSessionUserId(session);
+    if (!session || !userId) {
       throw new UnauthorizedError("Unauthenticated");
     }
 
-    const user = session.user;
-
-    addUserToSpan({ userId: user.id });
+    addUserToSpan({ userId });
 
     const url = new URL(request.url);
     const query = WatchQuerySchema.safeParse({
@@ -46,11 +47,11 @@ export default async function watchHandler(request: Request) {
 
     const { projectId, conversationId, cursor, openRunId } = query.data;
 
-    if (!isProjectMember(user, projectId)) {
+    if (!isProjectMember(session, projectId)) {
       throw new ForbiddenError("User is not a member of this project");
     }
 
-    await assertInAppAgentAvailable({ prisma, projectId, user });
+    await assertInAppAgentAvailable({ prisma, projectId, session });
 
     const conversation = await prisma.inAppAgentConversation.findUnique({
       where: { id_projectId: { id: conversationId, projectId } },
@@ -63,7 +64,7 @@ export default async function watchHandler(request: Request) {
 
     assertOwnedConversation({
       conversation,
-      userId: user.id,
+      userId,
     });
 
     // Everything fallible is done; from here on the response is a stream and

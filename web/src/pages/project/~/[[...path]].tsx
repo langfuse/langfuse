@@ -5,6 +5,10 @@ import {
   type GetServerSidePropsResult,
 } from "next";
 
+import {
+  getSessionProjects,
+  hasSessionUser,
+} from "@/src/features/auth/lib/sessionAccessors";
 import { getServerAuthSession } from "@/src/server/auth";
 import { type Session } from "next-auth";
 import {
@@ -64,7 +68,7 @@ const crossRegionRedirect = (req: SentinelContext) => {
 /** signInRedirect sends the user to sign-in, returning to the sentinel URL afterward. */
 const signInRedirect = async ({ getSession, resolvedUrl }: SentinelContext) => {
   const session = await getSession();
-  if (!session?.user)
+  if (!hasSessionUser(session))
     return redirect(
       `/auth/sign-in?callbackUrl=${encodeURIComponent(resolvedUrl)}`,
     );
@@ -79,8 +83,7 @@ const projectRedirect = async ({
 }: SentinelContext) => {
   const session = await getSession();
   const rest = resolvedUrl.slice(sentinelPathPrefix.length);
-  const projects =
-    session?.user?.organizations.flatMap((org) => org.projects) ?? [];
+  const projects = getSessionProjects(session);
 
   if (cookie && origin && cookie.origin === origin) {
     if (projects.some((p) => p.id === cookie.projectId)) {

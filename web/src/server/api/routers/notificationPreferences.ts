@@ -6,6 +6,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 // Use enums from Prisma types to stay in sync with DB schema
 const NotificationChannelEnum = z.enum(NotificationChannel);
 const NotificationTypeEnum = z.enum(NotificationType);
@@ -31,7 +32,7 @@ export const notificationPreferencesRouter = createTRPCRouter({
         scope: "project:read",
       });
 
-      const userId = ctx.session.user.id;
+      const userId = getSessionUserId(ctx.session);
 
       // Fetch the EMAIL + COMMENT_MENTION preference
       const preference = await ctx.prisma.notificationPreference.findUnique({
@@ -66,7 +67,7 @@ export const notificationPreferencesRouter = createTRPCRouter({
         scope: "project:read",
       });
 
-      const userId = ctx.session.user.id;
+      const userId = getSessionUserId(ctx.session);
 
       // Fetch existing preference for audit log
       const before = await ctx.prisma.notificationPreference.findUnique({

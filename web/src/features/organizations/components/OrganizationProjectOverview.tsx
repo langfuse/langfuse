@@ -27,7 +27,6 @@ import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 import ContainerPage from "@/src/components/layouts/ContainerPage";
-import { type Session } from "next-auth";
 import { AgentToolsBanner } from "@/src/features/developer-tools/components/AgentToolsBanner";
 import { V4MigrationProjectChip } from "@/src/features/v4-migration/V4MigrationProjectChip";
 import { api } from "@/src/utils/api";
@@ -44,6 +43,11 @@ import { gatewayOnlyLanding } from "@/src/features/organizations/utils/gatewayOn
 import { OrganizationSettingsTile } from "@/src/features/organizations/components/OrganizationSettingsTile/OrganizationSettingsTile";
 import { useGatewayMemberStatus } from "@/src/features/organizations/hooks/useGatewayMemberStatus";
 import { DemoOrganizationTile } from "@/src/features/organizations/components/DemoOrganizationTile";
+import {
+  type SessionOrganization,
+  getSessionOrganizations,
+  getSessionUserId,
+} from "@/src/features/auth/lib/sessionAccessors";
 
 const lastTraceLabel = (lastTraceAt: Date | string | null | undefined) =>
   lastTraceAt
@@ -61,7 +65,7 @@ const OrganizationProjectTiles = ({
   org,
   search,
 }: {
-  org: NonNullable<Session["user"]>["organizations"][number];
+  org: SessionOrganization;
   search?: string;
 }) => {
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
@@ -315,14 +319,15 @@ export const OrganizationProjectOverview = () => {
   const queryOrgId = router.query.organizationId;
   const session = useSession();
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
-  const organizations = session.data?.user?.organizations;
   const [{ search }] = useQueryParams({ search: StringParam });
   const landing = gatewayOnlyLanding(session.data, queryOrgId);
-  const org = organizations?.find((item) => item.id === queryOrgId);
+  const org = getSessionOrganizations(session.data).find(
+    (item) => item.id === queryOrgId,
+  );
   const gatewayLaunchCandidates =
     org &&
     org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID &&
-    getContextualFeatureFlags(session.data?.user, {
+    getContextualFeatureFlags(session.data, {
       organizationId: org.id,
     })?.aiGateway === true &&
     hasOrganizationAccess({
@@ -343,7 +348,7 @@ export const OrganizationProjectOverview = () => {
         ]
       : [];
   const gatewayLaunchTarget = useGatewayLaunchTarget(gatewayLaunchCandidates);
-  const userId = session.data?.user?.id;
+  const userId = getSessionUserId(session.data);
 
   if (landing && !landing.canUseGateway) {
     return (
@@ -354,7 +359,7 @@ export const OrganizationProjectOverview = () => {
     );
   }
 
-  if (organizations === undefined) {
+  if (userId === undefined) {
     return "loading...";
   }
 
@@ -394,4 +399,4 @@ const pageBanner = ({
   return v4UpgradeUiEnabled ? null : <AgentToolsBanner />;
 };
 
-type Organization = NonNullable<Session["user"]>["organizations"][number];
+type Organization = SessionOrganization;

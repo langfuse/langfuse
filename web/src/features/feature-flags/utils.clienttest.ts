@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import type { Session } from "next-auth";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -201,17 +202,18 @@ describe("parseFlags", () => {
         },
       ],
     };
+    const session = { user } as unknown as Session;
 
     expect(
-      getContextualFeatureFlags(user, { projectId: "project-a" })
+      getContextualFeatureFlags(session, { projectId: "project-a" })
         ?.sessionViewV2,
     ).toBe(true);
     expect(
-      getContextualFeatureFlags(user, { projectId: "project-b" })
+      getContextualFeatureFlags(session, { projectId: "project-b" })
         ?.sessionViewV2,
     ).toBe(false);
     expect(
-      getContextualFeatureFlags(user, { organizationId: "org-a" })
+      getContextualFeatureFlags(session, { organizationId: "org-a" })
         ?.sessionViewV2,
     ).toBe(true);
   });

@@ -1,5 +1,9 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { env } from "@/src/env.mjs";
+import {
+  findSessionOrganization,
+  getSessionEnvironment,
+} from "@/src/features/auth/lib/sessionAccessors";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 
@@ -19,11 +23,7 @@ const useOrganization = (organizationId: string | null) => {
 
   if (!organizationId) return null;
 
-  return (
-    session.data?.user?.organizations.find(
-      (org) => org.id === organizationId,
-    ) ?? null
-  );
+  return findSessionOrganization(session.data, organizationId) ?? null;
 };
 
 export const useLangfuseCloudRegion = () => {
@@ -44,5 +44,5 @@ export const useLangfuseCloudRegion = () => {
 
 export const useLangfuseV4WriteMode = () => {
   const session = useSession();
-  return session.data?.environment.v4WriteMode ?? null;
+  return getSessionEnvironment(session.data)?.v4WriteMode ?? null;
 };

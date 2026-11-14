@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import {
+  type AuthedSession,
   createTRPCRouter,
   protectedProjectProcedure,
   requireV4Writes,
@@ -9,6 +10,7 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { createWithinEntitlementLimit } from "@/src/features/entitlements/server/createWithinEntitlementLimit";
 import { listLinkedEvaluatorAlerts } from "@/src/features/monitors/server/listLinkedEvaluatorAlerts";
 import { suggestMonitorName } from "@/src/features/monitors/server/suggestMonitorName";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 import {
   CreateMonitorSchema,
   DeleteMonitorSchema,
@@ -25,8 +27,8 @@ const monitorsProcedure = protectedProjectProcedure.use(requireV4Writes);
 
 /** sessionContextFromCtx adapts a tRPC session into a MonitorService SessionContext. */
 const sessionContextFromCtx = (ctx: {
-  session: { user: { id: string } };
-}): SessionContext => ({ userId: ctx.session.user.id });
+  session: AuthedSession;
+}): SessionContext => ({ userId: getSessionUserId(ctx.session) });
 
 export const monitorsRouter = createTRPCRouter({
   create: monitorsProcedure
@@ -42,7 +44,7 @@ export const monitorsRouter = createTRPCRouter({
         prisma: ctx.prisma,
         orgId: ctx.session.orgId,
         entitlementLimit: "monitor-count",
-        sessionUser: ctx.session.user,
+        session: ctx.session,
         countCurrentUsage: (tx) =>
           tx.monitor.count({
             where: { project: { orgId: ctx.session.orgId, deletedAt: null } },

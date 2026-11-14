@@ -21,7 +21,6 @@ declare module "next-auth" {
           id: PrismaUser["id"];
           name?: PrismaUser["name"];
           email?: PrismaUser["email"];
-          emailSupportHash?: string | null;
           image?: PrismaUser["image"];
           v4BetaEnabled?: boolean;
           canToggleV4?: boolean;
@@ -31,7 +30,6 @@ declare module "next-auth" {
           // isV4UpgradeUiAvailable. This is the gate every migration surface
           // reads, via useV4UpgradeUiEnabled; there is no per-user opt-in.
           v4UpgradeUiAvailable?: boolean;
-          emailVerified?: string | null; // iso datetime string, need to stringify as JWT & useSession do not support Date objects
           canCreateOrganizations: boolean; // default true, allowlist can be set via LANGFUSE_ALLOWED_ORGANIZATION_CREATORS
           organizations: {
             id: PrismaOrganization["id"];

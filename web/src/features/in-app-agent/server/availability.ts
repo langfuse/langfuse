@@ -13,11 +13,11 @@ import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlemen
 export async function assertInAppAgentAvailable({
   prisma,
   projectId,
-  user,
+  session,
 }: {
   prisma: PrismaClient;
   projectId: string;
-  user: NonNullable<Session["user"]>;
+  session: Session;
 }) {
   if (!isInAppAgentInstanceEnabled()) {
     throw new BaseError(
@@ -31,7 +31,7 @@ export async function assertInAppAgentAvailable({
   if (
     !hasEntitlement({
       entitlement: "in-app-agent",
-      sessionUser: user,
+      session,
       projectId,
     })
   ) {

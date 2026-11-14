@@ -17,6 +17,7 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { SkillService } from "@/src/features/skills/server/skill-service";
 
 import { GetSkillFileContentsInputSchema } from "@/src/features/public-api/types/skills";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 import { SkillListOrderBySchema } from "../constants/skillsSorting";
 
 const projectInput = z.object({ projectId: z.string() });
@@ -151,7 +152,7 @@ export const skillRouter = createTRPCRouter({
       });
       return new SkillService(prisma).createVersion({
         projectId: input.projectId,
-        createdBy: ctx.session.user.id,
+        createdBy: getSessionUserId(ctx.session),
         input,
         actor: { session: ctx.session },
       });

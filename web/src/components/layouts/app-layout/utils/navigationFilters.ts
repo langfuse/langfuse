@@ -7,25 +7,29 @@ import { type Route } from "@/src/components/layouts/routes";
 import type { NavigationFilterContext } from "./navigationFilters.types";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import type { Session } from "next-auth";
 import { isInternalFeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 import { canViewTopics } from "@/src/features/topics/topicsAccess";
 import { visibleGatewayPages } from "@/src/features/ai-gateway/fns/visibleGatewayPages";
+import {
+  getSessionEnvironment,
+  getSessionUserCanToggleV4,
+  getSessionUserFeatureFlags,
+  getSessionUserV4BetaEnabled,
+  getSessionUserV4UpgradeUiAvailable,
+  type SessionOrganization,
+} from "@/src/features/auth/lib/sessionAccessors";
 /** Organization type from user session (can be null when not in project/org context) */
-type Organization =
-  | NonNullable<Session["user"]>["organizations"][number]
-  | null
-  | undefined;
+type Organization = SessionOrganization | null | undefined;
 
 function canRecoverV4(ctx: NavigationFilterContext): boolean {
   return (
     ctx.isLangfuseCloud &&
     Boolean(ctx.routerProjectId) &&
     ctx.forceV3Experience !== true &&
-    ctx.session?.environment?.v4WriteMode === "dual" &&
-    ctx.session?.user?.canToggleV4 === false &&
-    ctx.session?.user?.v4BetaEnabled === false
+    getSessionEnvironment(ctx.session)?.v4WriteMode === "dual" &&
+    getSessionUserCanToggleV4(ctx.session) === false &&
+    getSessionUserV4BetaEnabled(ctx.session) === false
   );
 }
 
@@ -86,7 +90,8 @@ const filters = {
     if (route.featureFlag === undefined) return route;
 
     if (isInternalFeaturePreviewFlag(route.featureFlag)) {
-      return ctx.session?.user?.featureFlags?.[route.featureFlag] === true
+      return getSessionUserFeatureFlags(ctx.session)?.[route.featureFlag] ===
+        true
         ? route
         : null;
     }
@@ -96,18 +101,19 @@ const filters = {
     }
 
     if (route.featureFlag === "experimentsV4Enabled") {
-      return ctx.session?.user?.v4BetaEnabled === true ? route : null;
+      return getSessionUserV4BetaEnabled(ctx.session) === true ? route : null;
     }
 
     if (route.featureFlag === "v4BetaToggleVisible") {
-      return ctx.session?.user?.canToggleV4 === true || canRecoverV4(ctx)
+      return getSessionUserCanToggleV4(ctx.session) === true ||
+        canRecoverV4(ctx)
         ? route
         : null;
     }
 
     const hasFlag =
       ctx.enableExperimentalFeatures ||
-      getContextualFeatureFlags(ctx.session?.user, {
+      getContextualFeatureFlags(ctx.session, {
         projectId: ctx.routerProjectId,
         organizationId: ctx.routerOrganizationId,
       })?.[route.featureFlag] === true;
@@ -194,11 +200,12 @@ const filters = {
       visibleGatewayPages: gatewayPages,
       isLangfuseCloud: ctx.isLangfuseCloud,
       hasActiveCloudIncident: ctx.hasActiveCloudIncident,
-      canToggleV4: ctx.session?.user?.canToggleV4 === true,
+      canToggleV4: getSessionUserCanToggleV4(ctx.session) === true,
       canRecoverV4: canRecoverV4(ctx),
       forceV3Experience: ctx.forceV3Experience,
-      v4WriteMode: ctx.session?.environment?.v4WriteMode,
-      v4UpgradeUiAvailable: ctx.session?.user?.v4UpgradeUiAvailable === true,
+      v4WriteMode: getSessionEnvironment(ctx.session)?.v4WriteMode,
+      v4UpgradeUiAvailable:
+        getSessionUserV4UpgradeUiAvailable(ctx.session) === true,
     })
       ? route
       : null;

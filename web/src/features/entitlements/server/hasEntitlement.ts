@@ -6,10 +6,14 @@ import {
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { type Plan } from "@langfuse/shared";
+import {
+  findSessionOrganization,
+  findSessionProjectOrganization,
+} from "@/src/features/auth/lib/sessionAccessors";
 
 type HasEntitlementParams = {
   entitlement: Entitlement;
-  sessionUser: NonNullable<Session["user"]>;
+  session: Session;
 } & ({ projectId: string } | { orgId: string });
 
 /**
@@ -18,10 +22,8 @@ type HasEntitlementParams = {
 export const hasEntitlement = (p: HasEntitlementParams): Boolean => {
   const org =
     "projectId" in p
-      ? p.sessionUser.organizations.find((org) =>
-          org.projects.some((proj) => proj.id === p.projectId),
-        )
-      : p.sessionUser.organizations.find((org) => org.id === p.orgId);
+      ? findSessionProjectOrganization(p.session, p.projectId)
+      : findSessionOrganization(p.session, p.orgId);
   const plan = org?.plan ?? "oss";
   return hasEntitlementBasedOnPlan({ plan, entitlement: p.entitlement });
 };

@@ -51,6 +51,10 @@ import {
   useInAppAiAgent,
   useIsInAppAgentLauncherVisible,
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import {
+  getSessionOrganizations,
+  hasSessionUser,
+} from "@/src/features/auth/lib/sessionAccessors";
 
 type IdNavigationItem = {
   type: "trace_id" | "observation_id";
@@ -1105,7 +1109,7 @@ export const useNavigationItems = () => {
   const router = useRouter();
   const session = useSession();
 
-  const organizations = session.data?.user?.organizations;
+  const organizations = getSessionOrganizations(session.data);
 
   const truncatePathBeforeDynamicSegments = (path: string) => {
     const allowlistedIds = ["[projectId]", "[organizationId]", "[page]"];
@@ -1155,7 +1159,7 @@ export const useNavigationItems = () => {
 
   return {
     allProjectItems,
-    isLoading: !organizations,
+    isLoading: !hasSessionUser(session.data),
   };
 };
 

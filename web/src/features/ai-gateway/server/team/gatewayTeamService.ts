@@ -20,6 +20,11 @@ import {
 import { inviteOrganizationMember } from "@/src/features/rbac/server/inviteOrganizationMember";
 import { OrganizationMembersService } from "@/src/features/rbac/server/organizationMembersService";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
+import {
+  getSessionUserEmail,
+  getSessionUserId,
+  getSessionUserName,
+} from "@/src/features/auth/lib/sessionAccessors";
 
 const MEMBER_SUGGESTION_LIMIT = 4;
 const GATEWAY_USER_SCOPE = "gateway:invoke";
@@ -159,8 +164,11 @@ export class GatewayTeamService {
       type: "AI_GATEWAY_INVITATION",
       orgId: organizationId,
       orgName,
-      inviterName: ctx.session.user.name ?? ctx.session.user.email ?? "",
-      inviterEmail: ctx.session.user.email ?? "",
+      inviterName:
+        getSessionUserName(ctx.session) ??
+        getSessionUserEmail(ctx.session) ??
+        "",
+      inviterEmail: getSessionUserEmail(ctx.session) ?? "",
     } as const;
     const emailJobs: GatewayInvitationEmail[] = [];
     const sfdcUserRoles: SetUserRoleInput[] = [];
@@ -185,7 +193,7 @@ export class GatewayTeamService {
       // Typing a member's address means "tell them", so they get the member
       // announcement rather than an "already a member" invitation error.
       if (member) {
-        if (member.id === ctx.session.user.id) continue;
+        if (member.id === getSessionUserId(ctx.session)) continue;
         existingMemberCount += 1;
         if (!member.hasScope) {
           failed.push({
@@ -245,7 +253,7 @@ export class GatewayTeamService {
       const members = await this.members.findMembersWithScope({
         organizationId,
         scope: GATEWAY_USER_SCOPE,
-        excludeUserId: ctx.session.user.id,
+        excludeUserId: getSessionUserId(ctx.session),
       });
       for (const { email, name } of members) {
         const to = email.toLowerCase();

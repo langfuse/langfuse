@@ -1,3 +1,4 @@
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -103,7 +104,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
       // were issued while it was entitled.
       throwIfNoEntitlement({
         entitlement: "admin-api",
-        sessionUser: ctx.session.user,
+        session: ctx.session,
         orgId: input.orgId,
       });
 
@@ -111,7 +112,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
         tenant: OrganizationId(input.orgId),
         scope: OrganizationId(input.orgId),
         role: SystemRoleId(input.role),
-        createdBy: UserId(ctx.session.user.id),
+        createdBy: UserId(getSessionUserId(ctx.session)),
         name: input.name,
         expiresAt: input.expiresAt,
       });

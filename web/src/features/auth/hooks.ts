@@ -1,5 +1,7 @@
 import { useSession } from "next-auth/react";
 
+import { findSessionProject } from "@/src/features/auth/lib/sessionAccessors";
+
 /**
  * Hook to check if the user is authenticated and a member of the project.
  */
@@ -12,8 +14,6 @@ export const useIsAuthenticatedAndProjectMember = (
 
   return (
     session.status === "authenticated" &&
-    !!session.data?.user?.organizations
-      .flatMap((org) => org.projects)
-      .find(({ id }) => id === projectId)
+    !!findSessionProject(session.data, projectId)
   );
 };

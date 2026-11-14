@@ -10,6 +10,11 @@ import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { useAccountSettingsPages } from "@/src/features/account/AccountSettingsPage";
+import {
+  getSessionOrganizations,
+  getSessionUserCanCreateOrganizations,
+  hasSessionUser,
+} from "@/src/features/auth/lib/sessionAccessors";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { useOrganizationSettingsPages } from "@/src/features/organizations/OrganizationSettingsPage";
 import { accountSettingsPath } from "@/src/features/settings/accountSettingsPath";
@@ -64,7 +69,8 @@ export function SettingsPage({ scope }: SettingsPageProps) {
 function OrganizationSectionHeader() {
   const session = useSession();
   const organization = useQueryOrganization();
-  const organizations = session.data?.user?.organizations;
+  const organizations = getSessionOrganizations(session.data);
+  const organizationsLoaded = hasSessionUser(session.data);
 
   return (
     <div className="flex flex-col gap-1">
@@ -73,10 +79,12 @@ function OrganizationSectionHeader() {
       </span>
       {organization ? null : (
         <OrganizationDropdownMenu
-          {...(organizations
+          {...(organizationsLoaded
             ? { state: "loaded", organizations }
             : { state: "loading" })}
-          canCreateOrganizations={!!session.data?.user?.canCreateOrganizations}
+          canCreateOrganizations={
+            !!getSessionUserCanCreateOrganizations(session.data)
+          }
           getOrgPath={accountSettingsPath}
         >
           {({ getTriggerProps }) => (

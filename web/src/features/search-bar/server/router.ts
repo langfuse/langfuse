@@ -37,6 +37,10 @@ import { randomBytes } from "crypto";
 import { z } from "zod";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
+  getSessionUserEmail,
+  getSessionUserId,
+} from "@/src/features/auth/lib/sessionAccessors";
+import {
   MAX_SCORE_NAME_LENGTH,
   MAX_SCORE_NAMES_PER_TYPE,
 } from "../lib/observed-options";
@@ -283,15 +287,15 @@ export const searchBarRouter = createTRPCRouter({
                 feature: "search-bar-filter",
                 projectId: ctx.session.projectId,
                 traceName: "search-bar-filter",
-                userId: ctx.session.user.id,
+                userId: getSessionUserId(ctx.session),
                 metadata: {
-                  langfuse_user_id: ctx.session.user.id,
+                  langfuse_user_id: getSessionUserId(ctx.session),
                   langfuse_project_url: new URL(
                     `project/${encodeURIComponent(ctx.session.projectId)}`,
                     getProductBaseUrl(),
                   ).toString(),
-                  ...(ctx.session.user.email
-                    ? { langfuse_user_email: ctx.session.user.email }
+                  ...(getSessionUserEmail(ctx.session)
+                    ? { langfuse_user_email: getSessionUserEmail(ctx.session) }
                     : {}),
                   langfuse_user_project_role: ctx.session.projectRole,
                   langfuse_cloud_region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,

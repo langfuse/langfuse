@@ -22,6 +22,12 @@ import {
 } from "@/src/features/feature-flags/utils";
 import { advanceSessionsExpiredAtForUser } from "@/src/features/auth/lib/sessionExpiration";
 import {
+  getSessionUserEmail,
+  getSessionUserFeatureFlags,
+  getSessionUserId,
+  getSessionUserV4BetaEnabled,
+} from "@/src/features/auth/lib/sessionAccessors";
+import {
   deleteUserBoundApiKeys,
   evictRevokedApiKeys,
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
@@ -99,7 +105,7 @@ export const userAccountRouter = createTRPCRouter({
       if (
         input.mode === "INTERNAL" &&
         !hasInternalAccess({
-          email: ctx.session.user.email,
+          email: getSessionUserEmail(ctx.session),
           isExperimentalFeaturesEnabled:
             env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
         })
@@ -111,21 +117,21 @@ export const userAccountRouter = createTRPCRouter({
       }
       await setUserFeaturePreview({
         prisma: ctx.prisma,
-        userId: ctx.session.user.id,
+        userId: getSessionUserId(ctx.session),
         flag: INTERNAL_FEATURE_FLAG,
         enabled: input.mode === "INTERNAL",
       });
       return { success: true };
     }),
   checkCanDelete: authenticatedProcedure.query(async ({ ctx }) => {
-    const userId = ctx.session.user.id;
+    const userId = getSessionUserId(ctx.session);
     return checkUserCanBeDeleted(userId, ctx.prisma);
   }),
 
   updateDisplayName: authenticatedProcedure
     .input(updateDisplayNameSchema)
     .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
+      const userId = getSessionUserId(ctx.session);
 
       const updatedUser = await ctx.prisma.user.update({
         where: { id: userId },
@@ -141,7 +147,10 @@ export const userAccountRouter = createTRPCRouter({
     }),
 
   signOutAllSessions: authenticatedProcedure.mutation(async ({ ctx }) => {
-    await advanceSessionsExpiredAtForUser(ctx.session.user.id, ctx.prisma);
+    await advanceSessionsExpiredAtForUser(
+      getSessionUserId(ctx.session),
+      ctx.prisma,
+    );
 
     return { success: true };
   }),
@@ -156,12 +165,12 @@ export const userAccountRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
+      const userId = getSessionUserId(ctx.session);
 
       if (
         isInternalFeaturePreviewFlag(input.flag) &&
         !isInternalViewEnabled(ctx.session) &&
-        !ctx.session.user.featureFlags[input.flag]
+        !getSessionUserFeatureFlags(ctx.session)[input.flag]
       ) {
         throw new ForbiddenError(
           "This feature preview requires Internal view or an existing feature grant.",
@@ -170,7 +179,7 @@ export const userAccountRouter = createTRPCRouter({
 
       const canEnableFeaturePreviews =
         Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) ||
-        ctx.session.user.v4BetaEnabled === true;
+        getSessionUserV4BetaEnabled(ctx.session) === true;
 
       if (
         input.enabled &&
@@ -200,7 +209,7 @@ export const userAccountRouter = createTRPCRouter({
     }),
 
   delete: authenticatedProcedure.mutation(async ({ ctx }) => {
-    const userId = ctx.session.user.id;
+    const userId = getSessionUserId(ctx.session);
 
     // Wrap check and delete in a serializable transaction to prevent race conditions
     // when organization owners are removed concurrently
@@ -314,7 +323,7 @@ export const userAccountRouter = createTRPCRouter({
         }
 
         await ctx.prisma.user.update({
-          where: { id: ctx.session.user.id },
+          where: { id: getSessionUserId(ctx.session) },
           data: { v4BetaEnabled: input.enabled },
         });
 
@@ -326,7 +335,7 @@ export const userAccountRouter = createTRPCRouter({
       }
 
       const userRolloutState = await ctx.prisma.user.findUnique({
-        where: { id: ctx.session.user.id },
+        where: { id: getSessionUserId(ctx.session) },
         select: {
           createdAt: true,
           v4BetaEnabled: true,
@@ -373,7 +382,7 @@ export const userAccountRouter = createTRPCRouter({
       }
 
       await ctx.prisma.user.update({
-        where: { id: ctx.session.user.id },
+        where: { id: getSessionUserId(ctx.session) },
         data: { v4BetaEnabled: input.enabled },
       });
 

@@ -14,6 +14,7 @@ import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { env } from "@/src/env.mjs";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -138,7 +139,7 @@ export function ConnectedMembersSettingsTable({
 
   const deleteMember = api.members.deleteMembership.useMutation({
     onSuccess: (data) => {
-      if (data.userId === session.data?.user?.id) session.update();
+      if (data.userId === getSessionUserId(session.data)) session.update();
       utils.members.invalidate();
     },
   });
@@ -146,7 +147,7 @@ export function ConnectedMembersSettingsTable({
   const updateOrgRole = api.members.updateOrgMembership.useMutation({
     onSuccess: (data) => {
       utils.members.invalidate();
-      if (data.userId === session.data?.user?.id) session.update();
+      if (data.userId === getSessionUserId(session.data)) session.update();
       showSuccessToast({
         operation: "organization_role.update",
         title: "Saved",
@@ -159,7 +160,7 @@ export function ConnectedMembersSettingsTable({
   const updateProjectRole = api.members.updateProjectRole.useMutation({
     onSuccess: (data) => {
       utils.members.invalidate();
-      if (data.userId === session.data?.user?.id) session.update();
+      if (data.userId === getSessionUserId(session.data)) session.update();
       showSuccessToast({
         operation: "project_role.update",
         title: "Saved",
@@ -226,7 +227,7 @@ export function ConnectedMembersSettingsTable({
         <MembersSettingsTable
           orgId={orgId}
           project={project}
-          currentUserId={session.data?.user?.id}
+          currentUserId={getSessionUserId(session.data)}
           hasOrgCudAccess={hasOrgCudAccess}
           hasProjectCudAccess={hasProjectCudAccess}
           canManageOrgOwnership={canManageOrgOwnership}
@@ -239,7 +240,8 @@ export function ConnectedMembersSettingsTable({
           updatingOrgRoleMembershipIds={updatingOrgRoleMembershipIds}
           updatingProjectRoleMembershipIds={updatingProjectRoleMembershipIds}
           onDelete={(member) => {
-            const isCurrentUser = member.meta.userId === session.data?.user?.id;
+            const isCurrentUser =
+              member.meta.userId === getSessionUserId(session.data);
             if (
               !confirm(
                 isCurrentUser
@@ -256,7 +258,7 @@ export function ConnectedMembersSettingsTable({
           }}
           onUpdateOrgRole={(member, role) => {
             if (
-              member.meta.userId === session.data?.user?.id &&
+              member.meta.userId === getSessionUserId(session.data) &&
               !confirm(
                 "Are you sure that you want to change your own organization role?",
               )
@@ -282,7 +284,7 @@ export function ConnectedMembersSettingsTable({
           onUpdateProjectRole={(member, projectRole) => {
             if (!project || projectRole === "AI_GATEWAY") return;
             if (
-              member.meta.userId === session.data?.user?.id &&
+              member.meta.userId === getSessionUserId(session.data) &&
               !confirm(
                 "Are you sure that you want to change your own project role?",
               )

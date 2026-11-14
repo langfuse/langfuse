@@ -34,6 +34,7 @@ import { CrossAccountRoleError } from "@langfuse/shared/src/server/ee/customerRo
 import { createBlobStorageRoleCredentials } from "@langfuse/shared/src/server/ee/storageRoleAuth/blobStorageRoleCredentials";
 import { getCrossAccountRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
 import { canSessionUseStorageRoleAuth } from "@/src/ee/features/storage-role-auth/server/storageRoleAuthEntitlement";
+import { hasSessionUser } from "@/src/features/auth/lib/sessionAccessors";
 import { randomUUID } from "crypto";
 import { decrypt } from "@langfuse/shared/encryption";
 import {
@@ -85,7 +86,7 @@ const assertBlobStorageIntegrationAccess = ({
   session: Session;
   projectId: string;
 }) => {
-  if (!session.user) {
+  if (!hasSessionUser(session)) {
     throw new TRPCError({ code: "UNAUTHORIZED" });
   }
   throwIfNoProjectAccess({
@@ -96,7 +97,7 @@ const assertBlobStorageIntegrationAccess = ({
   throwIfNoEntitlement({
     entitlement: "scheduled-blob-exports",
     projectId,
-    sessionUser: session.user,
+    session,
   });
 };
 
@@ -129,7 +130,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
 
         const deploymentRoleArn = getCrossAccountRoleArn();
         const planIncludesRoleAuth = canSessionUseStorageRoleAuth({
-          sessionUser: ctx.session.user,
+          session: ctx.session,
           projectId: input.projectId,
         });
         return {
@@ -218,7 +219,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           projectId,
           createExportSource,
           canUseRoleAuth: canSessionUseStorageRoleAuth({
-            sessionUser: ctx.session.user,
+            session: ctx.session,
             projectId,
           }),
           data: {

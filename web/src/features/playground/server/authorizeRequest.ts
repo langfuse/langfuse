@@ -1,5 +1,6 @@
 import { getServerAuthSessionForRequest } from "@/src/server/auth";
 import { isProjectMember } from "@/src/server/utils/checkProjectMembership";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 import { ForbiddenError, UnauthorizedError } from "@langfuse/shared";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
@@ -12,13 +13,14 @@ export const authorizeRequestOrThrow = async (
   request: Request,
 ): Promise<AuthorizeRequestResult> => {
   const session = await getServerAuthSessionForRequest(request);
-  if (!session?.user) throw new UnauthorizedError("Unauthenticated");
+  const userId = getSessionUserId(session);
+  if (!session || !userId) throw new UnauthorizedError("Unauthenticated");
 
-  if (!isProjectMember(session.user, projectId))
+  if (!isProjectMember(session, projectId))
     throw new ForbiddenError("User is not a member of this project");
 
   if (!hasProjectAccess({ session, projectId, scope: "playground:execute" }))
     throw new ForbiddenError("Insufficient permissions to execute playground.");
 
-  return { userId: session.user.id };
+  return { userId };
 };

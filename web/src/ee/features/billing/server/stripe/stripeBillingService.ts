@@ -24,6 +24,7 @@ import { stripeClient as defaultStripeClient } from "@/src/ee/features/billing/u
 import { StripeCatalogue } from "@/src/ee/features/billing/utils/stripeCatalogue";
 import { createStripeClientReference } from "@/src/ee/features/billing/utils/stripeClientReference";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 
 import {
   makeIdempotencyKey,
@@ -281,7 +282,7 @@ export class BillingService {
           status: schedule.status,
           idempotencyKey,
           opId,
-          userId: this.ctx.session.user?.id,
+          userId: getSessionUserId(this.ctx.session),
         });
         await client.subscriptionSchedules.release(
           schedule.id,
@@ -406,7 +407,7 @@ export class BillingService {
                 logger.warn(
                   "StripeBillingService.getSubscriptionInfo:stripe.subscription.schedule.nextPhase.item.price.notExpanded",
                   {
-                    userId: this.ctx.session.user?.id,
+                    userId: getSessionUserId(this.ctx.session),
                     customerId: parsedOrg.cloudConfig?.stripe?.customerId,
                     subscriptionId:
                       parsedOrg.cloudConfig?.stripe?.activeSubscriptionId,
@@ -422,7 +423,7 @@ export class BillingService {
                 logger.warn(
                   "StripeBillingService.getSubscriptionInfo:stripe.subscription.schedule.nextPhase.item.price.deleted",
                   {
-                    userId: this.ctx.session.user?.id,
+                    userId: getSessionUserId(this.ctx.session),
                     customerId: parsedOrg.cloudConfig?.stripe?.customerId,
                     subscriptionId:
                       parsedOrg.cloudConfig?.stripe?.activeSubscriptionId,
@@ -519,7 +520,7 @@ export class BillingService {
             logger.error(
               "StripeBillingService.getSubscriptionInfo:failed to check payment method",
               {
-                userId: this.ctx.session.user?.id,
+                userId: getSessionUserId(this.ctx.session),
                 customerId:
                   typeof subscription.customer === "string"
                     ? subscription.customer
@@ -577,7 +578,7 @@ export class BillingService {
           "stripe.customer_id": stripeCustomerId,
           "stripe.subscription_id": stripeSubscriptionId,
           "langfuse.org.id": parsedOrg.id,
-          "langfuse.user.id": this.ctx.session.user.id,
+          "langfuse.user.id": getSessionUserId(this.ctx.session),
         });
 
         try {
@@ -593,7 +594,7 @@ export class BillingService {
             customerId: stripeCustomerId,
             subscriptionId: stripeSubscriptionId,
             orgId: parsedOrg.id,
-            userId: this.ctx.session.user.id,
+            userId: getSessionUserId(this.ctx.session),
             error,
             stripeRequestId: error?.requestId,
             stripeErrorType: error?.type,
@@ -653,7 +654,7 @@ export class BillingService {
         span.setAttributes({
           "stripe.product_id": stripeProductId,
           "langfuse.org.id": parsedOrg.id,
-          "langfuse.user.id": this.ctx.session.user.id,
+          "langfuse.user.id": getSessionUserId(this.ctx.session),
           "stripe.operation": "checkout_create",
         });
 
@@ -730,7 +731,7 @@ export class BillingService {
         logger.info("stripeBillingService.checkout.session.create", {
           customerId: stripeCustomerId,
           productId: stripeProductId,
-          userId: this.ctx.session.user.id,
+          userId: getSessionUserId(this.ctx.session),
         });
 
         try {
@@ -758,7 +759,7 @@ export class BillingService {
             customerId: stripeCustomerId,
             productId: stripeProductId,
             orgId: parsedOrg.id,
-            userId: this.ctx.session.user.id,
+            userId: getSessionUserId(this.ctx.session),
             error,
             stripeRequestId: error?.requestId,
             stripeErrorType: error?.type,
@@ -814,7 +815,7 @@ export class BillingService {
           "stripe.subscription_id": stripeSubscriptionId,
           "stripe.new_product_id": newProductId,
           "langfuse.org.id": parsedOrg.id,
-          "langfuse.user.id": this.ctx.session.user.id,
+          "langfuse.user.id": getSessionUserId(this.ctx.session),
           "stripe.operation": "change_plan",
         });
 
@@ -894,7 +895,7 @@ export class BillingService {
             isLegacy: true,
             idempotencyKey: legacyUpdateKey,
             opId,
-            userId: this.ctx.session.user?.id,
+            userId: getSessionUserId(this.ctx.session),
           });
           await client.subscriptions.update(
             stripeSubscriptionId,
@@ -939,7 +940,7 @@ export class BillingService {
             idempotencyKey: migrateKey,
             orgId: parsedOrg.id,
             opId,
-            userId: this.ctx.session.user.id,
+            userId: getSessionUserId(this.ctx.session),
           });
           await client.subscriptions.migrate(
             stripeSubscriptionId,
@@ -1004,7 +1005,7 @@ export class BillingService {
             isUpgrade: true,
             idempotencyKey: upgradeKey,
             opId,
-            userId: this.ctx.session.user.id,
+            userId: getSessionUserId(this.ctx.session),
           });
           await client.subscriptions.update(
             stripeSubscriptionId,
@@ -1068,7 +1069,7 @@ export class BillingService {
             subscriptionId: stripeSubscriptionId,
             idempotencyKey: createScheduleKey,
             opId,
-            userId: this.ctx.session.user.id,
+            userId: getSessionUserId(this.ctx.session),
           },
         );
         const initialSchedule = await client.subscriptionSchedules.create(
@@ -1120,7 +1121,7 @@ export class BillingService {
           switchAt: currentPeriodEndSec,
           idempotencyKey: updateScheduleKey,
           opId,
-          userId: this.ctx.session.user.id,
+          userId: getSessionUserId(this.ctx.session),
         });
         await client.subscriptionSchedules.update(
           initialSchedule.id,
@@ -1196,7 +1197,7 @@ export class BillingService {
           "stripe.subscription_id": subscriptionId,
           "langfuse.org.id": parsedOrg.id,
           "stripe.operation": "cancel_at_period_end",
-          "langfuse.user.id": this.ctx.session.user.id,
+          "langfuse.user.id": getSessionUserId(this.ctx.session),
         });
 
         const subscription =
@@ -1217,7 +1218,7 @@ export class BillingService {
           subscriptionId,
           idempotencyKey: cancelKey,
           opId,
-          userId: this.ctx.session.user.id,
+          userId: getSessionUserId(this.ctx.session),
         });
 
         try {
@@ -1235,7 +1236,7 @@ export class BillingService {
             {
               subscriptionId,
               orgId: parsedOrg.id,
-              userId: this.ctx.session.user.id,
+              userId: getSessionUserId(this.ctx.session),
               idempotencyKey: cancelKey,
               error,
               stripeRequestId: error?.requestId,
@@ -1292,7 +1293,7 @@ export class BillingService {
         span.setAttributes({
           "stripe.subscription_id": subscriptionId,
           "langfuse.org.id": parsedOrg.id,
-          "langfuse.user.id": this.ctx.session.user.id,
+          "langfuse.user.id": getSessionUserId(this.ctx.session),
           "stripe.operation": "reactivate",
         });
 
@@ -1319,7 +1320,7 @@ export class BillingService {
           subscriptionId,
           idempotencyKey: reactivateKey,
           opId,
-          userId: this.ctx.session.user.id,
+          userId: getSessionUserId(this.ctx.session),
         });
 
         try {
@@ -1334,7 +1335,7 @@ export class BillingService {
           logger.error("stripeBillingService.subscription.reactivate:failed", {
             subscriptionId,
             orgId: parsedOrg.id,
-            userId: this.ctx.session.user.id,
+            userId: getSessionUserId(this.ctx.session),
             idempotencyKey: reactivateKey,
             error,
             stripeRequestId: error?.requestId,
@@ -1401,7 +1402,7 @@ export class BillingService {
         span.setAttributes({
           "stripe.subscription_id": subscriptionId,
           "langfuse.org.id": parsedOrg.id,
-          "langfuse.user.id": this.ctx.session.user?.id ?? "system",
+          "langfuse.user.id": getSessionUserId(this.ctx.session) ?? "system",
           "stripe.operation": "cancel_immediately",
         });
 
@@ -1432,7 +1433,7 @@ export class BillingService {
           orgId,
           idempotencyKey: cancelNowKey,
           opId,
-          userId: this.ctx.session.user?.id,
+          userId: getSessionUserId(this.ctx.session),
         });
 
         try {
@@ -1449,7 +1450,7 @@ export class BillingService {
             subscriptionId,
             customerId,
             orgId: parsedOrg.id,
-            userId: this.ctx.session.user?.id,
+            userId: getSessionUserId(this.ctx.session),
             idempotencyKey: cancelNowKey,
             error,
             stripeRequestId: error?.requestId,
@@ -1503,7 +1504,7 @@ export class BillingService {
         span.setAttributes({
           "stripe.subscription_id": subscriptionId,
           "langfuse.org.id": parsedOrg.id,
-          "langfuse.user.id": this.ctx.session.user.id,
+          "langfuse.user.id": getSessionUserId(this.ctx.session),
           "stripe.operation": "clear_schedule",
         });
 
@@ -1926,7 +1927,7 @@ export class BillingService {
         span.setAttributes({
           "stripe.subscription_id": subscriptionId,
           "langfuse.org.id": parsedOrg.id,
-          "langfuse.user.id": this.ctx.session.user?.id ?? "system",
+          "langfuse.user.id": getSessionUserId(this.ctx.session) ?? "system",
           "stripe.operation": "apply_promotion",
           "stripe.promotion_code": code,
         });
@@ -2013,7 +2014,7 @@ export class BillingService {
           promotionCodeId: promo.id,
           idempotencyKey,
           opId,
-          userId: this.ctx.session.user?.id,
+          userId: getSessionUserId(this.ctx.session),
         });
 
         try {
@@ -2029,7 +2030,7 @@ export class BillingService {
           logger.error(
             "StripeBillingService.applyPromotionCode:stripe.subscription.update.failed",
             {
-              userId: this.ctx.session.user?.id,
+              userId: getSessionUserId(this.ctx.session),
               customerId: subscription.customer,
               subscriptionId,
               orgId: parsedOrg.id,

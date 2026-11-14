@@ -1,7 +1,7 @@
-import { type Session } from "next-auth";
 import { useRouter } from "next/router";
 
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
+import { type SessionOrganization } from "@/src/features/auth/lib/sessionAccessors";
 import { api } from "@/src/utils/api";
 
 /**
@@ -10,10 +10,7 @@ import { api } from "@/src/utils/api";
  * one the user can open.
  */
 export function useGatewayIngestionNavProjectId(
-  organization:
-    | NonNullable<Session["user"]>["organizations"][number]
-    | null
-    | undefined,
+  organization: SessionOrganization | null | undefined,
 ) {
   const router = useRouter();
   const access = useGatewaySettingsAccess(organization?.id);

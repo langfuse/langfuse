@@ -341,7 +341,6 @@ const cloudEnterpriseOrg = (name: string): Partial<AppSidebarProps> => ({
     {
       id: "org-enterprise",
       name,
-      role: "OWNER",
       cloudConfig: undefined,
       plan: "cloud:enterprise",
       metadata: {},

@@ -13,6 +13,12 @@ import {
 import { getServerAuthSession } from "@/src/server/auth";
 import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
 import {
+  findSessionProjectOrganization,
+  getSessionUserEmail,
+  getSessionUserV4BetaEnabled,
+  hasSessionUser,
+} from "@/src/features/auth/lib/sessionAccessors";
+import {
   prepareExecuteQuery,
   toClickhouseQueryOpts,
 } from "@langfuse/shared/query/server";
@@ -72,6 +78,7 @@ const inputSchema = z.object({
   version: viewVersions,
 });
 
+/** handler streams a dashboard query result to a project member. */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -83,7 +90,7 @@ export default async function handler(
   }
 
   const session = await getServerAuthSession({ req, res });
-  if (!session?.user) {
+  if (!hasSessionUser(session)) {
     res.status(401).json({ message: "Unauthorized" });
     return;
   }
@@ -97,26 +104,25 @@ export default async function handler(
   const { projectId, query, version } = parsed.data;
 
   // Verify user is a member of this project (mirrors enforceUserIsAuthedAndProjectMember)
-  const sessionProject = session.user.organizations
-    .flatMap((org) =>
-      org.projects.map((project) => ({ ...project, organization: org })),
-    )
-    .find((project) => project.id === projectId);
+  const sessionOrganization = findSessionProjectOrganization(
+    session,
+    projectId,
+  );
 
-  if (!sessionProject) {
+  if (!sessionOrganization) {
     res.status(403).json({ message: "Not a member of this project" });
     return;
   }
 
-  if (sessionProject.organization.supportAccess === true) {
+  if (sessionOrganization.supportAccess === true) {
     await sendAdminAccessWebhook({
-      email: session.user.email,
+      email: getSessionUserEmail(session),
       projectId,
-      orgId: sessionProject.organization.id,
+      orgId: sessionOrganization.id,
     });
   }
 
-  if (session.user.v4BetaEnabled !== true) {
+  if (getSessionUserV4BetaEnabled(session) !== true) {
     res.status(400).json({
       message: "Streaming is only supported for v4-enabled dashboard queries",
     });

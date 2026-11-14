@@ -1,6 +1,11 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
+  findSessionOrganization,
+  getSessionUserId,
+  getSessionUserV4BetaEnabled,
+} from "@/src/features/auth/lib/sessionAccessors";
+import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
@@ -23,7 +28,7 @@ export const runEvaluationRouter = createTRPCRouter({
 
         if (
           input.evalVersion === "v2" &&
-          ctx.session.user.v4BetaEnabled !== true
+          getSessionUserV4BetaEnabled(ctx.session) !== true
         ) {
           throw new TRPCError({
             code: "BAD_REQUEST",
@@ -43,12 +48,10 @@ export const runEvaluationRouter = createTRPCRouter({
         );
 
         const plan =
-          ctx.session.user.organizations.find(
-            (org) => org.id === ctx.session.orgId,
-          )?.plan ?? null;
+          findSessionOrganization(ctx.session, ctx.session.orgId)?.plan ?? null;
 
         return await service.create(input, {
-          userId: ctx.session.user.id,
+          userId: getSessionUserId(ctx.session),
           plan,
         });
       } catch (e) {

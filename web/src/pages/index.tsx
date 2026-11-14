@@ -7,6 +7,7 @@ import {
   getRequestOrigin,
   readProjectCookie,
 } from "@/src/server/utils/cookies";
+import { hasSessionUser } from "@/src/features/auth/lib/sessionAccessors";
 
 export default function Home() {
   return <NoOrganizationPage />;
@@ -14,7 +15,7 @@ export default function Home() {
 
 export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const session = await getServerAuthSession({ req: ctx.req, res: ctx.res });
-  if (!session?.user) return { props: {} };
+  if (!hasSessionUser(session)) return { props: {} };
 
   const cookie = readProjectCookie(ctx.req.cookies ?? {});
   const lastProjectId =

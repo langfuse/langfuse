@@ -1,6 +1,7 @@
 import { useSession } from "next-auth/react";
 
 import { gatewayPageAccess } from "@/src/features/ai-gateway/fns/gatewayPageAccess";
+import { getSessionEnvironment } from "@/src/features/auth/lib/sessionAccessors";
 import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
@@ -32,7 +33,7 @@ export function useGatewaySettingsAccess(organizationId: string | undefined) {
     gatewayPageAccess({
       organizationId,
       isAiGatewayEnabled,
-      aiGatewayDeployed: session.data?.environment.aiGatewayDeployed,
+      aiGatewayDeployed: getSessionEnvironment(session.data)?.aiGatewayDeployed,
       canManageGateway,
       canReadGateway,
       canInvokeGateway,

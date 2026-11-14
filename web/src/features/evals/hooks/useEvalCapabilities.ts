@@ -5,6 +5,7 @@ import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
 import { isNewLegacyEvalAllowed } from "@/src/features/evals/utils/legacyEvalGate";
+import { getSessionEnvironment } from "@/src/features/auth/lib/sessionAccessors";
 
 export interface EvalCapabilities {
   isNewCompatible: boolean;
@@ -55,7 +56,7 @@ export function useEvalCapabilities(
   // the legacy tables. Use explicit mode checks so we default to hidden while
   // the session is loading, which prevents a flash of legacy options.
   const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const v4WriteMode = session?.environment?.v4WriteMode;
+  const v4WriteMode = getSessionEnvironment(session)?.v4WriteMode;
 
   // Projects forced onto v3 keep legacy evals while legacy tables are written.
   const forceV3Experience = useForceV3Experience(projectId);

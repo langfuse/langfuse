@@ -8,6 +8,7 @@ import { useHasAppSidebar } from "@/src/components/nav/SidebarPresenceProvider";
 import { TopbarAccount } from "@/src/components/nav/TopbarAccount";
 import { InAppAiAgentButton } from "@/src/components/nav/InAppAiAgentButton";
 import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 
 /**
  * Slim mobile top chrome for the minimal-chrome shell: hamburger · centered
@@ -59,7 +60,9 @@ export const MobileTopBar = ({
           so the brand stays centered. */}
       <div className="flex min-w-0 flex-1 items-center justify-end gap-1">
         {isInAppAgentLauncherVisible && <InAppAiAgentButton prominent />}
-        {session.data?.user && <TopbarAccount user={session.data.user} />}
+        {session.data && getSessionUserId(session.data) && (
+          <TopbarAccount session={session.data} />
+        )}
       </div>
     </div>
   );

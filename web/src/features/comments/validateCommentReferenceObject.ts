@@ -10,6 +10,7 @@ import {
   getTraceById,
   getTracesIdentifierForSession,
 } from "@langfuse/shared/src/server";
+import { getSessionUserV4BetaEnabled } from "@/src/features/auth/lib/sessionAccessors";
 
 export const validateCommentReferenceObject = async ({
   ctx,
@@ -26,7 +27,7 @@ export const validateCommentReferenceObject = async ({
       const getObservation = (
         params: Parameters<typeof getObservationByIdFromEventsTable>[0],
       ) =>
-        ctx.session?.user?.v4BetaEnabled === true
+        getSessionUserV4BetaEnabled(ctx.session) === true
           ? getObservationByIdFromEventsTable(params)
           : // eslint-disable-next-line @typescript-eslint/no-deprecated
             getObservationById(params);

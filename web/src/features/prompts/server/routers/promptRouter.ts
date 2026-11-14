@@ -1,5 +1,11 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
+import {
+  getSessionUserEmail,
+  getSessionUserId,
+  getSessionUserName,
+  getSessionUserV4BetaEnabled,
+} from "@/src/features/auth/lib/sessionAccessors";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { hasEntitlementLimit } from "@/src/features/entitlements/server/hasEntitlementLimit";
@@ -277,7 +283,7 @@ export const promptRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const { projectId, promptNames, ...timeWindow } = input;
       if (promptNames.length === 0) return [];
-      const useEventsTable = ctx.session.user.v4BetaEnabled === true;
+      const useEventsTable = getSessionUserV4BetaEnabled(ctx.session) === true;
 
       const getPromptCounts = useEventsTable
         ? getObservationsWithPromptNameFromEvents
@@ -337,11 +343,11 @@ export const promptRouter = createTRPCRouter({
       const prompt = await createPrompt({
         ...input,
         prisma: ctx.prisma,
-        createdBy: ctx.session.user.id,
+        createdBy: getSessionUserId(ctx.session),
         user: {
-          id: ctx.session.user.id,
-          name: ctx.session.user.name ?? null,
-          email: ctx.session.user.email ?? null,
+          id: getSessionUserId(ctx.session),
+          name: getSessionUserName(ctx.session) ?? null,
+          email: getSessionUserEmail(ctx.session) ?? null,
         },
       });
 
@@ -385,12 +391,12 @@ export const promptRouter = createTRPCRouter({
         promptId: input.promptId,
         name: input.name,
         isSingleVersion: input.isSingleVersion,
-        createdBy: ctx.session.user.id,
+        createdBy: getSessionUserId(ctx.session),
         prisma: ctx.prisma,
         user: {
-          id: ctx.session.user.id,
-          name: ctx.session.user.name ?? null,
-          email: ctx.session.user.email ?? null,
+          id: getSessionUserId(ctx.session),
+          name: getSessionUserName(ctx.session) ?? null,
+          email: getSessionUserEmail(ctx.session) ?? null,
         },
       });
 
@@ -439,12 +445,12 @@ export const promptRouter = createTRPCRouter({
         targetPath: input.targetPath,
         isSingleVersion: input.isSingleVersion,
         rewritePromptReferences: input.rewritePromptReferences,
-        createdBy: ctx.session.user.id,
+        createdBy: getSessionUserId(ctx.session),
         prisma: ctx.prisma,
         user: {
-          id: ctx.session.user.id,
-          name: ctx.session.user.name ?? null,
-          email: ctx.session.user.email ?? null,
+          id: getSessionUserId(ctx.session),
+          name: getSessionUserName(ctx.session) ?? null,
+          email: getSessionUserEmail(ctx.session) ?? null,
         },
       });
 
@@ -654,9 +660,9 @@ export const promptRouter = createTRPCRouter({
               await promptService.resolvePrompt(prompt),
               "deleted",
               {
-                id: ctx.session.user.id,
-                name: ctx.session.user.name ?? null,
-                email: ctx.session.user.email ?? null,
+                id: getSessionUserId(ctx.session),
+                name: getSessionUserName(ctx.session) ?? null,
+                email: getSessionUserEmail(ctx.session) ?? null,
               },
             ),
           ),
@@ -814,9 +820,9 @@ export const promptRouter = createTRPCRouter({
           await promptService.resolvePrompt(promptVersion),
           "deleted",
           {
-            id: ctx.session.user.id,
-            name: ctx.session.user.name ?? null,
-            email: ctx.session.user.email ?? null,
+            id: getSessionUserId(ctx.session),
+            name: getSessionUserName(ctx.session) ?? null,
+            email: getSessionUserEmail(ctx.session) ?? null,
           },
         );
       } catch (e) {
@@ -1007,9 +1013,9 @@ export const promptRouter = createTRPCRouter({
               await promptService.resolvePrompt(prompt),
               "updated",
               {
-                id: ctx.session.user.id,
-                name: ctx.session.user.name ?? null,
-                email: ctx.session.user.email ?? null,
+                id: getSessionUserId(ctx.session),
+                name: getSessionUserName(ctx.session) ?? null,
+                email: getSessionUserEmail(ctx.session) ?? null,
               },
             ),
           ),
@@ -1157,9 +1163,9 @@ export const promptRouter = createTRPCRouter({
               await promptService.resolvePrompt(prompt),
               "updated",
               {
-                id: ctx.session.user.id,
-                name: ctx.session.user.name ?? null,
-                email: ctx.session.user.email ?? null,
+                id: getSessionUserId(ctx.session),
+                name: getSessionUserName(ctx.session) ?? null,
+                email: getSessionUserEmail(ctx.session) ?? null,
               },
             ),
           ),
@@ -1312,7 +1318,7 @@ export const promptRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       const { projectId, promptIds, ...timeWindow } = input;
-      const useEventsTable = ctx.session.user.v4BetaEnabled === true;
+      const useEventsTable = getSessionUserV4BetaEnabled(ctx.session) === true;
 
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -1426,7 +1432,7 @@ export const promptRouter = createTRPCRouter({
       throwIfNoEntitlement({
         projectId,
         entitlement: "prompt-protected-labels",
-        sessionUser: ctx.session.user,
+        session: ctx.session,
       });
 
       const protectedLabels = await ctx.prisma.promptProtectedLabels.findMany({
@@ -1454,7 +1460,7 @@ export const promptRouter = createTRPCRouter({
       throwIfNoEntitlement({
         projectId,
         entitlement: "prompt-protected-labels",
-        sessionUser: ctx.session.user,
+        session: ctx.session,
       });
 
       if (label === LATEST_PROMPT_LABEL) {
@@ -1508,7 +1514,7 @@ export const promptRouter = createTRPCRouter({
       throwIfNoEntitlement({
         projectId,
         entitlement: "prompt-protected-labels",
-        sessionUser: ctx.session.user,
+        session: ctx.session,
       });
 
       const protectedLabel = await ctx.prisma.promptProtectedLabels.delete({
@@ -1613,7 +1619,7 @@ export const promptRouter = createTRPCRouter({
 
       const promptLimit = hasEntitlementLimit({
         entitlementLimit: "prompt-management-count-prompts",
-        sessionUser: ctx.session.user,
+        session: ctx.session,
         projectId: input.projectId,
       });
 
@@ -1685,12 +1691,12 @@ export const promptRouter = createTRPCRouter({
             tags: item.tags ?? [],
             labels,
             commitMessage: item.commitMessage ?? null,
-            createdBy: ctx.session.user.id,
+            createdBy: getSessionUserId(ctx.session),
             prisma: ctx.prisma,
             user: {
-              id: ctx.session.user.id,
-              name: ctx.session.user.name ?? null,
-              email: ctx.session.user.email ?? null,
+              id: getSessionUserId(ctx.session),
+              name: getSessionUserName(ctx.session) ?? null,
+              email: getSessionUserEmail(ctx.session) ?? null,
             },
           };
           let createdPrompt;

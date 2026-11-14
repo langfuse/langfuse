@@ -56,7 +56,7 @@ export const externalMediaStorageRouter = createTRPCRouter({
         ...(await service.getRoleAuthAvailability({
           projectId: ctx.session.projectId,
           plan: getSessionPlanForProject({
-            sessionUser: ctx.session.user,
+            session: ctx.session,
             projectId: ctx.session.projectId,
           }),
         })),
@@ -99,7 +99,7 @@ export const externalMediaStorageRouter = createTRPCRouter({
           projectId: ctx.session.projectId,
           values,
           plan: getSessionPlanForProject({
-            sessionUser: ctx.session.user,
+            session: ctx.session,
             projectId: ctx.session.projectId,
           }),
         });

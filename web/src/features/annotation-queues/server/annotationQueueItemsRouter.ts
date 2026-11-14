@@ -28,6 +28,7 @@ import {
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { env } from "@/src/env.mjs";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 
 const isItemLocked = (item: AnnotationQueueItem) => {
   return (
@@ -444,7 +445,7 @@ export const queueItemRouter = createTRPCRouter({
           data: {
             status: AnnotationQueueStatus.COMPLETED,
             completedAt: new Date(),
-            annotatorUserId: ctx.session.user.id,
+            annotatorUserId: getSessionUserId(ctx.session),
           },
         });
 

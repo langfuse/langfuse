@@ -1,4 +1,5 @@
 import { useSession } from "next-auth/react";
+import { findSessionProject } from "@/src/features/auth/lib/sessionAccessors";
 
 /**
  * Whether saved scores in this project are immutable in the UI. Resolved on
@@ -8,8 +9,6 @@ import { useSession } from "next-auth/react";
 export function useScoreEditsDisabled(projectId: string): boolean {
   const session = useSession();
   return (
-    session.data?.user?.organizations
-      .flatMap((org) => org.projects)
-      .find((project) => project.id === projectId)?.scoreEditsDisabled === true
+    findSessionProject(session.data, projectId)?.scoreEditsDisabled === true
   );
 }

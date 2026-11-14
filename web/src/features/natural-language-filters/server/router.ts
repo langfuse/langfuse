@@ -20,6 +20,10 @@ import { env } from "@/src/env.mjs";
 import { CreateNaturalLanguageFilterCompletion } from "./validation";
 import { parseFiltersFromCompletion, getLangfuseClient } from "./utils";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  getSessionUserEmail,
+  getSessionUserId,
+} from "@/src/features/auth/lib/sessionAccessors";
 
 export const naturalLanguageFilterRouter = createTRPCRouter({
   createCompletion: protectedProjectProcedure
@@ -133,11 +137,11 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
                 feature: "natural-language-filter",
                 projectId: ctx.session.projectId,
                 traceName: "natural-language-filter",
-                userId: ctx.session.user.id,
+                userId: getSessionUserId(ctx.session),
                 metadata: {
-                  langfuse_user_id: ctx.session.user.id,
-                  ...(ctx.session.user.email
-                    ? { langfuse_user_email: ctx.session.user.email }
+                  langfuse_user_id: getSessionUserId(ctx.session),
+                  ...(getSessionUserEmail(ctx.session)
+                    ? { langfuse_user_email: getSessionUserEmail(ctx.session) }
                     : {}),
                   langfuse_user_project_role: ctx.session.projectRole,
                   langfuse_cloud_region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,

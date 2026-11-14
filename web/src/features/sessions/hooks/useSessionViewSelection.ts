@@ -8,6 +8,7 @@ import {
   sessionTraceFilterSchema,
 } from "@langfuse/shared";
 import { api, type RouterOutputs } from "@/src/utils/api";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useHistoryEntryRevisit } from "../useHistoryEntryRevisit";
 
@@ -49,7 +50,7 @@ export function useSessionViewSelection({
     "session-selected-views",
     {},
   );
-  const storageKey = `${projectId}:${userSession.data?.user?.id ?? "anonymous"}`;
+  const storageKey = `${projectId}:${getSessionUserId(userSession.data) ?? "anonymous"}`;
   const context = `${storageKey}:${sessionId}`;
   const isHistoryRevisit = useHistoryEntryRevisit(context);
   const savedViews = api.sessionViews.list.useQuery(

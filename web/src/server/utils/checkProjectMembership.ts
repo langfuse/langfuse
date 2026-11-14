@@ -1,11 +1,10 @@
-import { type Session } from "next-auth";
+import {
+  findSessionProject,
+  type MaybeSession,
+} from "@/src/features/auth/lib/sessionAccessors";
 
+/** isProjectMember reports whether the session user can open projectId. */
 export const isProjectMember = (
-  user: Session["user"] | undefined,
+  session: MaybeSession,
   projectId: string,
-): boolean => {
-  if (!user) return false;
-
-  const sessionProjects = user.organizations.flatMap((org) => org.projects);
-  return sessionProjects.some((project) => project.id === projectId);
-};
+): boolean => findSessionProject(session, projectId) !== undefined;

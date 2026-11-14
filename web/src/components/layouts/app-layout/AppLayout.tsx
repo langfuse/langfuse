@@ -29,6 +29,7 @@ import { useAuthGuard } from "./hooks/useAuthGuard";
 import { useProjectAccess } from "./hooks/useProjectAccess";
 import { useFilteredNavigation } from "./hooks/useFilteredNavigation";
 import { useLayoutMetadata } from "./hooks/useLayoutMetadata";
+import { hasSessionUser } from "@/src/features/auth/lib/sessionAccessors";
 
 /**
  * Main layout component
@@ -142,14 +143,14 @@ export function AppLayout(props: PropsWithChildren) {
   // Authenticated layout
   // At this point, all auth guards have passed and session.data is guaranteed to exist
   // The authGuard hook ensures we don't reach here without a valid session
-  if (!sessionData?.user) {
+  if (!hasSessionUser(sessionData)) {
     // This should never happen due to guards above, but TypeScript needs this
     return <LoadingLayout message="Loading" />;
   }
 
   return (
     <AuthenticatedLayout
-      user={sessionData.user}
+      session={sessionData}
       navigation={navigation}
       metadata={metadata}
       onSignOut={signOutCleanly}

@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { z } from "zod";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 import {
   authenticatedProcedure,
   createTRPCRouter,
@@ -647,7 +648,7 @@ export const evalRouter = createTRPCRouter({
         delay: input.delay,
         status: input.status,
         timeScope: input.timeScope,
-        createdByUserId: ctx.session.user?.id ?? null,
+        createdByUserId: getSessionUserId(ctx.session) ?? null,
         reuseEvaluatorFromRuleId: input.sourceRuleId,
         sourceRuleAction: input.sourceRuleAction,
       });
@@ -794,7 +795,7 @@ export const evalRouter = createTRPCRouter({
         projectId: input.projectId,
         name: input.name,
         definition,
-        createdByUserId: ctx.session.user.id,
+        createdByUserId: getSessionUserId(ctx.session),
         intent:
           input.intent === "new-version"
             ? {

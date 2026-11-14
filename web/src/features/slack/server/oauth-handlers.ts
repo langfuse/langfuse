@@ -10,6 +10,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { prisma } from "@langfuse/shared/src/db";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 import { getProductBaseUrl } from "@/src/utils/base-url";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 
 // ErrorCode values from @slack/oauth for callbacks that fail because of the
 // client's request — no/invalid `code`/`state` (scanners, expired installs)
@@ -95,7 +96,8 @@ export async function handleCallback(
           // The session should still be valid from when the user initiated the install
           try {
             const session = await getServerAuthSession({ req, res });
-            if (session?.user?.id) {
+            const userId = getSessionUserId(session);
+            if (userId) {
               // Find the integration that was just created
               const integration = await prisma.slackIntegration.findUnique({
                 where: { projectId },
@@ -108,7 +110,7 @@ export async function handleCallback(
 
               if (integration) {
                 await auditLog({
-                  userId: session.user.id,
+                  userId,
                   orgId: integration.project.orgId,
                   projectId,
                   resourceType: "slackIntegration",

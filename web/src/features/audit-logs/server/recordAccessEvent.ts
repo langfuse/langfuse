@@ -18,6 +18,15 @@ import {
 } from "@/src/features/audit-logs/isAccessAuditLogEnabled";
 import { getAuditRequestContext } from "@/src/features/audit-logs/server/getAuditRequestContext";
 import { toApiKeyActor, toUserActor } from "@/src/features/audit-logs/auditLog";
+import {
+  findSessionProjectOrganization,
+  getSessionOrganizationRole,
+  getSessionProjectRole,
+  getSessionUserEmail,
+  getSessionUserId,
+  getSessionUserName,
+  type MaybeSession,
+} from "@/src/features/auth/lib/sessionAccessors";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { type ServerContext } from "@/src/features/mcp/types";
 
@@ -59,7 +68,7 @@ async function loadAccessAuditOrg(
  * only for orgs that pass the gate.
  */
 async function recordUserAccess(
-  user: Session["user"] | undefined,
+  session: MaybeSession,
   projectId: string,
   read: AccessRead,
   via: {
@@ -68,12 +77,10 @@ async function recordUserAccess(
     remoteAddress?: string;
   },
 ): Promise<void> {
-  if (!user) return;
+  const userId = getSessionUserId(session);
+  if (!userId) return;
 
-  const org = user.organizations.find((o) =>
-    o.projects.some((p) => p.id === projectId),
-  );
-  const project = org?.projects.find((p) => p.id === projectId);
+  const org = findSessionProjectOrganization(session, projectId);
   const supportAccess = org?.supportAccess === true;
   if (!canRecordAccessEvents({ supportAccess })) return;
   // Admins and viewers of public resources read projects outside their session.
@@ -92,11 +99,18 @@ async function recordUserAccess(
     ...read,
     orgId: auditOrg.orgId,
     projectId,
-    actor: toUserActor(user, {
-      orgRole: org?.role,
-      projectRole: project?.role,
-      supportAccess,
-    }),
+    actor: toUserActor(
+      {
+        id: userId,
+        name: getSessionUserName(session),
+        email: getSessionUserEmail(session),
+      },
+      {
+        orgRole: getSessionOrganizationRole(session, org?.id),
+        projectRole: getSessionProjectRole(session, projectId),
+        supportAccess,
+      },
+    ),
     surface: via.surface,
     request: getAuditRequestContext(via.headers, via.remoteAddress),
   });
@@ -164,13 +178,13 @@ async function recordApiKeyAccess(
  */
 export async function recordTrpcAccess(
   ctx: {
-    session: { user?: Session["user"] } | null;
+    session: MaybeSession;
     headers: IncomingHttpHeaders;
   },
   projectId: string,
   read: AccessRead,
 ): Promise<void> {
-  await recordUserAccess(ctx.session?.user, projectId, read, {
+  await recordUserAccess(ctx.session, projectId, read, {
     surface: "trpc",
     headers: ctx.headers,
   });
@@ -185,7 +199,7 @@ export async function recordInternalApiAccess(
   projectId: string,
   read: AccessRead,
 ): Promise<void> {
-  await recordUserAccess(session?.user, projectId, read, {
+  await recordUserAccess(session, projectId, read, {
     surface: "internal-api",
     headers: req.headers,
     remoteAddress: req.socket.remoteAddress,

@@ -33,6 +33,10 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
+import {
+  getSessionUserEmail,
+  getSessionUserName,
+} from "@/src/features/auth/lib/sessionAccessors";
 
 const displayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -77,14 +81,14 @@ function UpdateDisplayName() {
         {form.getValues().name !== "" ? (
           <p className="text-primary mb-4 text-sm">
             Your display name will be updated from &quot;
-            {session?.user?.name ?? ""}
+            {getSessionUserName(session) ?? ""}
             &quot; to &quot;
             <b>{form.watch().name}</b>&quot;.
           </p>
         ) : (
           <p className="text-primary mb-4 text-sm">
             Your display name is currently &quot;
-            <b>{session?.user?.name ?? ""}</b>
+            <b>{getSessionUserName(session) ?? ""}</b>
             &quot;.
           </p>
         )}
@@ -97,7 +101,7 @@ function UpdateDisplayName() {
                 <FormItem>
                   <FormControl>
                     <Input
-                      placeholder={session?.user?.name ?? ""}
+                      placeholder={getSessionUserName(session) ?? ""}
                       {...field}
                       className="flex-1"
                     />
@@ -124,7 +128,7 @@ function UpdateDisplayName() {
 
 function DeleteAccountButton() {
   const { data: session } = useSession();
-  const userEmail = session?.user?.email ?? "";
+  const userEmail = getSessionUserEmail(session) ?? "";
 
   const { data: canDeleteData } = api.userAccount.checkCanDelete.useQuery();
   const deleteAccount = api.userAccount.delete.useMutation();
@@ -298,7 +302,7 @@ type AccountSettingsPage = {
 
 export function useAccountSettingsPages(): AccountSettingsPage[] {
   const { data: session } = useSession();
-  const userEmail = session?.user?.email ?? "";
+  const userEmail = getSessionUserEmail(session) ?? "";
 
   return getAccountSettingsPages({ userEmail });
 }

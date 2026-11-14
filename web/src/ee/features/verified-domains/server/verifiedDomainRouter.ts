@@ -6,6 +6,7 @@ import {
   protectedOrganizationProcedure,
 } from "@/src/server/api/trpc";
 import { resolveTxtFresh } from "@/src/ee/features/verified-domains/server/dnsLookup";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 import { Prisma } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
 import * as z from "zod";
@@ -51,7 +52,7 @@ export const verifiedDomainRouter = createTRPCRouter({
         scope: "organization:update",
       });
       throwIfNoEntitlement({
-        sessionUser: ctx.session.user,
+        session: ctx.session,
         orgId: input.orgId,
         entitlement: VERIFIED_DOMAIN_ENTITLEMENT,
       });
@@ -80,7 +81,7 @@ export const verifiedDomainRouter = createTRPCRouter({
         scope: "organization:update",
       });
       throwIfNoEntitlement({
-        sessionUser: ctx.session.user,
+        session: ctx.session,
         orgId: input.orgId,
         entitlement: VERIFIED_DOMAIN_ENTITLEMENT,
       });
@@ -135,7 +136,7 @@ export const verifiedDomainRouter = createTRPCRouter({
           data: {
             organizationId: input.orgId,
             domain: input.domain,
-            createdByUserId: ctx.session.user.id,
+            createdByUserId: getSessionUserId(ctx.session),
           },
         });
       } catch (error) {
@@ -178,7 +179,7 @@ export const verifiedDomainRouter = createTRPCRouter({
         scope: "organization:update",
       });
       throwIfNoEntitlement({
-        sessionUser: ctx.session.user,
+        session: ctx.session,
         orgId: input.orgId,
         entitlement: VERIFIED_DOMAIN_ENTITLEMENT,
       });
@@ -270,7 +271,7 @@ export const verifiedDomainRouter = createTRPCRouter({
         scope: "organization:update",
       });
       throwIfNoEntitlement({
-        sessionUser: ctx.session.user,
+        session: ctx.session,
         orgId: input.orgId,
         entitlement: VERIFIED_DOMAIN_ENTITLEMENT,
       });

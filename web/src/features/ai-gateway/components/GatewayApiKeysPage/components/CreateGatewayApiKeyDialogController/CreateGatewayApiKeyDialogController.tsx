@@ -2,6 +2,7 @@ import { useState, type ComponentProps, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { getSessionOrganizationRole } from "@/src/features/auth/lib/sessionAccessors";
 import { ConnectedGatewayApiKeyDialog } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/ConnectedGatewayApiKeyDialog/ConnectedGatewayApiKeyDialog";
 import { GeneratedKeyDialog } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/GeneratedKeyDialog/GeneratedKeyDialog";
 import { GeneratedKeyContent } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/GeneratedKeyContent";
@@ -48,9 +49,7 @@ export function CreateGatewayApiKeyDialogController({
       capture("ai_gateway:api_key_created", {
         orgId: organizationId,
         creatorRole:
-          session.data?.user?.organizations.find(
-            (organization) => organization.id === organizationId,
-          )?.role ?? null,
+          getSessionOrganizationRole(session.data, organizationId) ?? null,
         isServiceAccount: input.issuedAs === "serviceAccount",
         hasMetadata: metadataCount > 0,
         metadataCount,

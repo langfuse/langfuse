@@ -1,5 +1,9 @@
 import { useSession } from "next-auth/react";
 import { api } from "@/src/utils/api";
+import {
+  getSessionEnvironment,
+  getSessionUserEmail,
+} from "@/src/features/auth/lib/sessionAccessors";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { hasInternalAccess } from "../utils";
@@ -9,9 +13,9 @@ export function useInternalViewMode() {
   const session = useSession();
   const enabled = useInternalFeaturesEnabled();
   const available = hasInternalAccess({
-    email: session.data?.user?.email,
+    email: getSessionUserEmail(session.data),
     isExperimentalFeaturesEnabled:
-      session.data?.environment.enableExperimentalFeatures === true,
+      getSessionEnvironment(session.data)?.enableExperimentalFeatures === true,
   });
   const mutation = api.userAccount.setViewMode.useMutation({
     onSuccess: async () => {

@@ -17,7 +17,7 @@ export const spendAlertRouter = createTRPCRouter({
       // cloud-billing, not cloud-spend-alerts: a downgraded org can still see its alerts
       throwIfNoEntitlement({
         entitlement: "cloud-billing",
-        sessionUser: ctx.session.user,
+        session: ctx.session,
         orgId: input.orgId,
       });
       throwIfNoOrganizationAccess({
@@ -49,7 +49,7 @@ export const spendAlertRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       throwIfNoEntitlement({
         entitlement: "cloud-spend-alerts",
-        sessionUser: ctx.session.user,
+        session: ctx.session,
         orgId: input.orgId,
       });
       throwIfNoOrganizationAccess({
@@ -90,7 +90,7 @@ export const spendAlertRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       throwIfNoEntitlement({
         entitlement: "cloud-spend-alerts",
-        sessionUser: ctx.session.user,
+        session: ctx.session,
         orgId: input.orgId,
       });
       throwIfNoOrganizationAccess({
@@ -147,7 +147,7 @@ export const spendAlertRouter = createTRPCRouter({
       // cloud-billing, not cloud-spend-alerts: a downgraded org can still remove its alerts
       throwIfNoEntitlement({
         entitlement: "cloud-billing",
-        sessionUser: ctx.session.user,
+        session: ctx.session,
         orgId: input.orgId,
       });
       throwIfNoOrganizationAccess({

@@ -48,21 +48,21 @@ export async function createWithinEntitlementLimit<T>({
   prisma,
   orgId,
   entitlementLimit,
-  sessionUser,
+  session,
   countCurrentUsage,
   create,
 }: {
   prisma: PrismaClient;
   orgId: string;
   entitlementLimit: EntitlementLimit;
-  sessionUser: NonNullable<Session["user"]>;
+  session: Session;
   /** Counts existing usage towards the limit. Must read through `tx`. */
   countCurrentUsage: (tx: Prisma.TransactionClient) => Promise<number>;
   /** Creates the resource. Must write through `tx`. */
   create: (tx: Prisma.TransactionClient) => Promise<T>;
 }): Promise<T> {
   const isUnlimited =
-    hasEntitlementLimit({ entitlementLimit, sessionUser, orgId }) === false;
+    hasEntitlementLimit({ entitlementLimit, session, orgId }) === false;
   if (isUnlimited) return create(prisma);
 
   return prisma.$transaction(async (tx) => {
@@ -70,7 +70,7 @@ export async function createWithinEntitlementLimit<T>({
 
     throwIfExceedsLimit({
       entitlementLimit,
-      sessionUser,
+      session,
       orgId,
       currentUsage: await countCurrentUsage(tx),
     });

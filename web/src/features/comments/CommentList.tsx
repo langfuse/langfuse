@@ -1,6 +1,7 @@
 import { useRef, type ReactNode } from "react";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Button } from "@/src/components/ui/button";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
@@ -119,7 +120,7 @@ function CommentThread({
         objectId={objectId}
         objectType={objectType}
         comments={comments.data}
-        currentUserId={session.data?.user?.id}
+        currentUserId={getSessionUserId(session.data)}
         hasWriteAccess={hasWriteAccess}
         isDrawerOpen={isDrawerOpen}
         containerRef={commentsContainerRef}

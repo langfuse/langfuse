@@ -2,6 +2,10 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 
 import { getServerAuthSession } from "@/src/server/auth";
 import {
+  findSessionProject,
+  hasSessionUser,
+} from "@/src/features/auth/lib/sessionAccessors";
+import {
   getRequestOrigin,
   serializeProjectCookie,
 } from "@/src/server/utils/cookies";
@@ -15,7 +19,7 @@ export default async function handler(
     return res.status(405).json({ message: "Method not allowed" });
 
   const session = await getServerAuthSession({ req, res });
-  if (!session?.user) {
+  if (!hasSessionUser(session)) {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
@@ -24,9 +28,7 @@ export default async function handler(
     return res.status(400).json({ message: "Invalid project id" });
   }
 
-  const isMember = session.user.organizations
-    .flatMap((org) => org.projects)
-    .some((project) => project.id === projectId);
+  const isMember = findSessionProject(session, projectId) !== undefined;
 
   const origin = getRequestOrigin(req);
 

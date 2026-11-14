@@ -1,3 +1,4 @@
+import { getSessionEnvironment } from "@/src/features/auth/lib/sessionAccessors";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 import { useSession } from "next-auth/react";
@@ -11,6 +12,6 @@ export function useShowAccessLoggingSetting(): boolean {
   return (
     internalFeaturesEnabled &&
     hasEntitlement &&
-    session?.environment.accessAuditLogMode === "org"
+    getSessionEnvironment(session)?.accessAuditLogMode === "org"
   );
 }

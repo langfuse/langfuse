@@ -43,7 +43,7 @@ export const ssoConfigRouter = createTRPCRouter({
         scope: "organization:update",
       });
       throwIfNoEntitlement({
-        sessionUser: ctx.session.user,
+        session: ctx.session,
         orgId: input.orgId,
         entitlement: SSO_CONFIG_ENTITLEMENT,
       });
@@ -87,7 +87,7 @@ export const ssoConfigRouter = createTRPCRouter({
         scope: "organization:update",
       });
       throwIfNoEntitlement({
-        sessionUser: ctx.session.user,
+        session: ctx.session,
         orgId: input.orgId,
         entitlement: SSO_CONFIG_ENTITLEMENT,
       });
@@ -200,7 +200,7 @@ export const ssoConfigRouter = createTRPCRouter({
         scope: "organization:update",
       });
       throwIfNoEntitlement({
-        sessionUser: ctx.session.user,
+        session: ctx.session,
         orgId: input.orgId,
         entitlement: SSO_CONFIG_ENTITLEMENT,
       });

@@ -58,6 +58,7 @@ import {
   startTopicRuleRefresh,
   startTopicRuleSetup,
 } from "@langfuse/shared/topics/server";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 import {
   createTRPCRouter,
   protectedProjectProcedureWithoutTracing,
@@ -436,7 +437,7 @@ export const topicsRouter = createTRPCRouter({
       const filterError = topicRuleFilterError(input.filter);
       if (filterError) throw new InvalidRequestError(filterError);
       await requireFacetVersions(input.projectId, input.facets);
-      return startTopicAnalysis(input, ctx.session.user.id);
+      return startTopicAnalysis(input, getSessionUserId(ctx.session));
     }),
   /** Trace header: every facet result of one trace, with its summary. */
   forTrace: topicsProcedure
@@ -485,7 +486,7 @@ export const topicsRouter = createTRPCRouter({
         : null;
       const rule = await saveTopicRule({
         ...input,
-        userId: ctx.session.user.id,
+        userId: getSessionUserId(ctx.session),
       });
       await auditLog({
         session: ctx.session,
@@ -531,7 +532,7 @@ export const topicsRouter = createTRPCRouter({
     .input(topicsSetupSchema.extend({ projectId: topicIdSchema }))
     .mutation(async ({ input: { projectId, ...setup }, ctx }) => {
       const rule = await auditedTopicConfigSave(ctx, projectId, () =>
-        saveTopicsSetup(projectId, setup, ctx.session.user.id),
+        saveTopicsSetup(projectId, setup, getSessionUserId(ctx.session)),
       );
       if (rule)
         await auditLog({
@@ -550,7 +551,11 @@ export const topicsRouter = createTRPCRouter({
         ctx,
         projectId,
         () =>
-          setTopicsAutomaticProcessing(projectId, input, ctx.session.user.id),
+          setTopicsAutomaticProcessing(
+            projectId,
+            input,
+            getSessionUserId(ctx.session),
+          ),
       );
       if (ruleBefore && ruleAfter && ruleBefore.sampling !== ruleAfter.sampling)
         await auditLog({
@@ -734,7 +739,7 @@ export const topicsRouter = createTRPCRouter({
           },
         },
         requestHash,
-        ctx.session.user.id,
+        getSessionUserId(ctx.session),
       );
       if (execution.status === "queued")
         await enqueueTopicExecution(input.projectId, execution.id, traceIds);
@@ -789,7 +794,7 @@ export const topicsRouter = createTRPCRouter({
       const execution = await createTopicExecution(
         configuredInput,
         requestHash,
-        ctx.session.user.id,
+        getSessionUserId(ctx.session),
       );
       if (execution.status === "queued")
         await enqueueTopicExecution(

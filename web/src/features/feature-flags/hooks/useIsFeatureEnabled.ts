@@ -1,4 +1,5 @@
 import { useSession } from "next-auth/react";
+import { getSessionEnvironment } from "@/src/features/auth/lib/sessionAccessors";
 import {
   isInternalFeaturePreviewFlag,
   isInternalFlag,
@@ -20,10 +21,10 @@ export default function useIsFeatureEnabled(
   const session = useSession();
 
   const isExperimentalFeaturesEnabled =
-    session.data?.environment.enableExperimentalFeatures ?? false;
+    getSessionEnvironment(session.data)?.enableExperimentalFeatures ?? false;
 
   const isFeatureEnabledOnUser =
-    getContextualFeatureFlags(session.data?.user, {
+    getContextualFeatureFlags(session.data, {
       projectId,
       organizationId,
     })?.[feature] ?? false;

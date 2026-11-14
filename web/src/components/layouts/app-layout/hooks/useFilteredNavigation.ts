@@ -10,6 +10,11 @@ import {
   useV4MigrationNavItemProject,
 } from "@/src/features/v4-migration/V4MigrationNavItem";
 import type { Session } from "next-auth";
+import {
+  getSessionEnvironment,
+  getSessionUserV4BetaEnabled,
+  type SessionOrganization,
+} from "@/src/features/auth/lib/sessionAccessors";
 import { useEntitlements } from "@/src/features/entitlements/hooks";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
@@ -33,10 +38,7 @@ import { useGatewayIngestionNavProjectId } from "@/src/features/ai-gateway/hooks
 import { useGatewayEntryHref } from "@/src/features/ai-gateway/hooks/useGatewayEntryHref";
 
 /** Organization type from user session (can be null when not in project/org context) */
-type Organization =
-  | NonNullable<Session["user"]>["organizations"][number]
-  | null
-  | undefined;
+type Organization = SessionOrganization | null | undefined;
 
 /** Grouped navigation structure */
 type GroupedNavigation = {
@@ -133,7 +135,7 @@ export function useFilteredNavigation(
       routerOrganizationId,
       session,
       enableExperimentalFeatures:
-        session?.environment?.enableExperimentalFeatures ?? false,
+        getSessionEnvironment(session)?.enableExperimentalFeatures ?? false,
       entitlements,
       uiCustomization,
       isLangfuseCloud,
@@ -171,6 +173,8 @@ export function useFilteredNavigation(
     gatewayEntryHref,
   ]);
 
+  const v4BetaEnabled = getSessionUserV4BetaEnabled(session);
+
   // Map filtered routes to NavigationItems with url and isActive
   // This is O(n) - we map directly over filteredRoutes instead of re-iterating ROUTES
   return useMemo(() => {
@@ -178,7 +182,7 @@ export function useFilteredNavigation(
       const pathname = resolveRoutePathname({
         pathname: route.href,
         legacyPathname: route.legacyPathname,
-        v4Enabled: session?.user?.v4BetaEnabled === true,
+        v4Enabled: v4BetaEnabled === true,
         forceV3Experience,
       });
       const url = pathname
@@ -246,7 +250,7 @@ export function useFilteredNavigation(
     routerOrganizationId,
     router.pathname,
     router.asPath,
-    session?.user?.v4BetaEnabled,
+    v4BetaEnabled,
     forceV3Experience,
     gatewaySetupRequiredReason,
     gatewayIngestionProjectId,

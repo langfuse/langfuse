@@ -40,6 +40,7 @@ import { maskActionForViewer, processSlackActionConfig } from "./slackHelpers";
 import { updateTriggerEventActions } from "./automationService";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 
 const CreateAutomationInputSchema = z.object({
   projectId: z.string(),
@@ -179,7 +180,7 @@ export const automationsRouter = createTRPCRouter({
       const viewablePrivateChannelIds = await getViewablePrivateSlackChannelIds(
         {
           projectId: input.projectId,
-          userId: ctx.session.user.id,
+          userId: getSessionUserId(ctx.session),
           actions: allAutomations.map((automation) => automation.action),
         },
       );
@@ -237,7 +238,7 @@ export const automationsRouter = createTRPCRouter({
         action: await maskActionForViewer({
           action: automation.action,
           projectId: input.projectId,
-          userId: ctx.session.user.id,
+          userId: getSessionUserId(ctx.session),
         }),
       };
     }),
@@ -329,7 +330,7 @@ export const automationsRouter = createTRPCRouter({
         finalActionConfig = await processSlackActionConfig({
           actionConfig: input.actionConfig,
           projectId: input.projectId,
-          userId: ctx.session.user.id,
+          userId: getSessionUserId(ctx.session),
         });
       } else if (input.actionType === "GITHUB_DISPATCH") {
         const githubResult = await processGitHubDispatchActionConfig({
@@ -401,7 +402,7 @@ export const automationsRouter = createTRPCRouter({
         action: await maskActionForViewer({
           action: convertActionToDomain(action),
           projectId: input.projectId,
-          userId: ctx.session.user.id,
+          userId: getSessionUserId(ctx.session),
         }),
         trigger,
         automation,
@@ -445,7 +446,7 @@ export const automationsRouter = createTRPCRouter({
           actionConfig: input.actionConfig,
           existingActionConfig: existingAutomation.action.config,
           projectId: input.projectId,
-          userId: ctx.session.user.id,
+          userId: getSessionUserId(ctx.session),
         });
       } else if (input.actionType === "GITHUB_DISPATCH") {
         const githubResult = await processGitHubDispatchActionConfig({
@@ -533,7 +534,7 @@ export const automationsRouter = createTRPCRouter({
         action: await maskActionForViewer({
           action: convertActionToDomain(action),
           projectId: input.projectId,
-          userId: ctx.session.user.id,
+          userId: getSessionUserId(ctx.session),
         }),
         trigger,
         automation,

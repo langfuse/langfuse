@@ -8,6 +8,7 @@ import {
   hasProjectAccess,
   throwIfNoProjectAccess,
 } from "@/src/features/rbac/utils/checkProjectAccess";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 import {
   TableViewService,
   CreateTableViewPresetsInput,
@@ -40,7 +41,7 @@ export const TableViewPresetsRouter = createTRPCRouter({
       try {
         const view = await TableViewService.createTableViewPresets(
           input,
-          ctx.session.user?.id,
+          getSessionUserId(ctx.session),
         );
 
         return {
@@ -71,7 +72,7 @@ export const TableViewPresetsRouter = createTRPCRouter({
 
       const view = await TableViewService.updateTableViewPresets(
         input,
-        ctx.session.user?.id,
+        getSessionUserId(ctx.session),
       );
 
       return {
@@ -91,7 +92,7 @@ export const TableViewPresetsRouter = createTRPCRouter({
 
       const view = await TableViewService.updateTableViewPresetsName(
         input,
-        ctx.session.user?.id,
+        getSessionUserId(ctx.session),
       );
 
       return {
@@ -217,7 +218,7 @@ export const TableViewPresetsRouter = createTRPCRouter({
 
       return await DefaultViewService.getResolvedDefault({
         ...input,
-        userId: ctx.session.user?.id,
+        userId: getSessionUserId(ctx.session),
       });
     }),
 
@@ -233,7 +234,7 @@ export const TableViewPresetsRouter = createTRPCRouter({
 
       return await DefaultViewService.getDefaultAssignments({
         ...input,
-        userId: ctx.session.user?.id,
+        userId: getSessionUserId(ctx.session),
       });
     }),
 
@@ -277,7 +278,8 @@ export const TableViewPresetsRouter = createTRPCRouter({
         viewId: input.viewId,
         viewName,
         scope: input.scope,
-        userId: input.scope === "user" ? ctx.session.user?.id : undefined,
+        userId:
+          input.scope === "user" ? getSessionUserId(ctx.session) : undefined,
       });
 
       return { success: true };
@@ -300,7 +302,8 @@ export const TableViewPresetsRouter = createTRPCRouter({
 
       await DefaultViewService.clearDefault({
         ...input,
-        userId: input.scope === "user" ? ctx.session.user?.id : undefined,
+        userId:
+          input.scope === "user" ? getSessionUserId(ctx.session) : undefined,
       });
 
       return { success: true };

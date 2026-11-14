@@ -7,9 +7,8 @@ import {
 } from "@langfuse/shared";
 import type { ApiAccessScope } from "@langfuse/shared/src/server";
 
+import { findSessionProjectOrganization } from "@/src/features/auth/lib/sessionAccessors";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
-
-type SessionUser = NonNullable<Session["user"]>;
 
 /**
  * Build the org-scoped rate-limit scope for an in-app agent request.
@@ -23,12 +22,10 @@ type SessionUser = NonNullable<Session["user"]>;
  * `assertInAppAgentRunCapacity`.
  */
 export function getInAppAgentApiAccessScope(
-  user: SessionUser,
+  session: Session,
   projectId: string,
 ): ApiAccessScope {
-  const organization = user.organizations.find((org) =>
-    org.projects.some((project) => project.id === projectId),
-  );
+  const organization = findSessionProjectOrganization(session, projectId);
 
   if (!organization) {
     throw new ForbiddenError("User is not a member of this project");

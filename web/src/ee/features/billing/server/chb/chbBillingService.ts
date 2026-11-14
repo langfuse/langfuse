@@ -3,6 +3,10 @@ import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
 import { type OrgAuthedContext } from "@/src/server/api/trpc";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import {
+  getSessionUserEmail,
+  getSessionUserId,
+} from "@/src/features/auth/lib/sessionAccessors";
 import { CloudConfigSchema, parseDbOrg } from "@langfuse/shared";
 import {
   getBillingCycleEnd,
@@ -260,7 +264,7 @@ export class ChbBillingService {
       });
     }
 
-    const email = this.ctx.session.user.email;
+    const email = getSessionUserEmail(this.ctx.session);
     if (!email) {
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
@@ -285,7 +289,7 @@ export class ChbBillingService {
       chOrganizationId: existingChOrgId,
       idempotencyKey,
       opId,
-      userId: this.ctx.session.user.id,
+      userId: getSessionUserId(this.ctx.session),
     });
 
     const session = await this.client.createCheckoutSession({
@@ -459,7 +463,7 @@ export class ChbBillingService {
       isUpgrade: upgrading,
       idempotencyKey,
       opId,
-      userId: this.ctx.session.user.id,
+      userId: getSessionUserId(this.ctx.session),
     });
 
     try {
@@ -731,7 +735,7 @@ export class ChbBillingService {
       attachedPlanId,
       pendingType: attachedPlan.scheduled.type,
       opId,
-      userId: this.ctx.session.user.id,
+      userId: getSessionUserId(this.ctx.session),
     });
 
     await this.client.clearScheduledChange({
@@ -763,7 +767,7 @@ export class ChbBillingService {
       attachedPlanId: chb.attachedPlanId,
       when,
       opId,
-      userId: this.ctx.session.user.id,
+      userId: getSessionUserId(this.ctx.session),
     });
 
     // An existing pending change (e.g. a scheduled downgrade) would make this
@@ -810,7 +814,7 @@ export class ChbBillingService {
       attachedPlanId: chb.attachedPlanId,
       action,
       opId,
-      userId: this.ctx.session.user.id,
+      userId: getSessionUserId(this.ctx.session),
     });
 
     await this.client.clearScheduledChange({

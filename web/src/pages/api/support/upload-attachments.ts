@@ -4,6 +4,7 @@ import { env } from "@/src/env.mjs";
 import { logger } from "@langfuse/shared/src/server";
 import { uploadPylonAttachment } from "@/src/features/support-chat/pylon/pylonClient";
 import { PYLON_MAX_FILE_SIZE_BYTES } from "@/src/features/support-chat/pylon/pylonConstants";
+import { hasSessionUser } from "@/src/features/auth/lib/sessionAccessors";
 
 export const config = {
   api: {
@@ -26,6 +27,7 @@ type ResponseBody = { attachment_urls: string[] } | { error: string };
 
 const MAX_FILES = 5;
 
+/** handler uploads a signed-in user's support attachments to Pylon. */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ResponseBody>,
@@ -36,7 +38,7 @@ export default async function handler(
   }
 
   const session = await getServerAuthSession({ req, res });
-  if (!session?.user) {
+  if (!hasSessionUser(session)) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 

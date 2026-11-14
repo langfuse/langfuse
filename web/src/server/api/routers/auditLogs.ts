@@ -88,7 +88,7 @@ export const auditLogsRouter = createTRPCRouter({
       // Check if user has access to audit logs feature
       throwIfNoEntitlement({
         entitlement: "audit-logs",
-        sessionUser: ctx.session.user,
+        session: ctx.session,
         projectId: input.projectId,
       });
 
@@ -188,7 +188,7 @@ export const auditLogsRouter = createTRPCRouter({
       // Check if user has access to audit logs feature at org level
       throwIfNoEntitlement({
         entitlement: "audit-logs",
-        sessionUser: ctx.session.user,
+        session: ctx.session,
         orgId: input.orgId,
       });
 

@@ -1,5 +1,9 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
+import {
+  findSessionProject,
+  findSessionProjectOrganization,
+} from "@/src/features/auth/lib/sessionAccessors";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 
@@ -12,21 +16,14 @@ export const useQueryProject = () => {
 export const useProject = (projectId: string | null) => {
   const session = useSession();
 
-  const fromSession = projectId
-    ? session.data?.user?.organizations
-        // map to {project, organization}[]
-        .flatMap((org) =>
-          org.projects.map((project) => ({ project, organization: org })),
-        )
-        // find the project with the matching id
-        .find(({ project }) => project.id === projectId)
-    : null;
+  const project = findSessionProject(session.data, projectId ?? undefined);
+  const organization = findSessionProjectOrganization(
+    session.data,
+    projectId ?? undefined,
+  );
 
-  if (fromSession) {
-    return {
-      project: fromSession.project,
-      organization: fromSession.organization,
-    };
+  if (project && organization) {
+    return { project, organization };
   }
 
   return {

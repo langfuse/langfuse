@@ -156,7 +156,7 @@ export const projectsRouter = createTRPCRouter({
       if (input.retention !== null && input.retention > 0) {
         throwIfNoEntitlement({
           entitlement: "data-retention",
-          sessionUser: ctx.session.user,
+          session: ctx.session,
           projectId: input.projectId,
         });
       }

@@ -26,6 +26,10 @@ import {
   extractUniqueMentionedUserIds,
   sanitizeMentions,
 } from "@/src/features/comments/lib/mentionParser";
+import {
+  getSessionUserId,
+  getSessionUserV4BetaEnabled,
+} from "@/src/features/auth/lib/sessionAccessors";
 
 export const commentsRouter = createTRPCRouter({
   create: protectedProjectProcedure
@@ -98,7 +102,7 @@ export const commentsRouter = createTRPCRouter({
           content: sanitizedContent, // Use sanitized content
           objectId: input.objectId,
           objectType: input.objectType,
-          authorUserId: ctx.session.user.id,
+          authorUserId: getSessionUserId(ctx.session),
           dataField: input.dataField ?? null,
           path: input.path ?? [],
           rangeStart: input.rangeStart ?? [],
@@ -165,7 +169,7 @@ export const commentsRouter = createTRPCRouter({
         });
       }
 
-      if (comment.authorUserId !== ctx.session.user.id) {
+      if (comment.authorUserId !== getSessionUserId(ctx.session)) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Comment author user id does not match provided user id",
@@ -317,7 +321,7 @@ export const commentsRouter = createTRPCRouter({
         scope: "comments:read",
       });
 
-      const clickhouseTraces = ctx.session.user?.v4BetaEnabled
+      const clickhouseTraces = getSessionUserV4BetaEnabled(ctx.session)
         ? await getTracesIdentifierForSessionFromEvents(
             input.projectId,
             input.sessionId,
@@ -356,7 +360,7 @@ export const commentsRouter = createTRPCRouter({
         scope: "comments:read",
       });
 
-      const clickhouseTraces = ctx.session.user?.v4BetaEnabled
+      const clickhouseTraces = getSessionUserV4BetaEnabled(ctx.session)
         ? await getTracesIdentifierForSessionFromEvents(
             input.projectId,
             input.sessionId,

@@ -1,5 +1,9 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
+  getSessionUserId,
+  getSessionUserV4BetaEnabled,
+} from "@/src/features/auth/lib/sessionAccessors";
+import {
   hasProjectAccess,
   throwIfNoProjectAccess,
 } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -200,7 +204,7 @@ export const evaluatorRouter = createTRPCRouter({
         orgId: ctx.session.orgId,
         missingCostMode,
         shouldReadFromObservationsTable:
-          ctx.session.user.v4BetaEnabled !== true,
+          getSessionUserV4BetaEnabled(ctx.session) !== true,
       });
     }),
 
@@ -215,7 +219,7 @@ export const evaluatorRouter = createTRPCRouter({
       const service = serviceForContext(ctx);
       return service.create(
         { ...input, projectId: ctx.session.projectId },
-        ctx.session.user.id,
+        getSessionUserId(ctx.session),
       );
     }),
 
@@ -230,7 +234,7 @@ export const evaluatorRouter = createTRPCRouter({
       const service = serviceForContext(ctx);
       return service.update(
         { ...input, projectId: ctx.session.projectId },
-        ctx.session.user.id,
+        getSessionUserId(ctx.session),
       );
     }),
 
@@ -294,7 +298,7 @@ export const evaluatorRouter = createTRPCRouter({
         traceId: input.traceId,
         startTime: input.startTime,
         shouldReadFromObservationsTable:
-          ctx.session.user.v4BetaEnabled !== true,
+          getSessionUserV4BetaEnabled(ctx.session) !== true,
       });
     }),
 
@@ -309,7 +313,7 @@ export const evaluatorRouter = createTRPCRouter({
       return serviceForContext(ctx).suggestName({
         ...input,
         projectId: ctx.session.projectId,
-        userId: ctx.session.user.id,
+        userId: getSessionUserId(ctx.session),
       });
     }),
 
@@ -324,7 +328,7 @@ export const evaluatorRouter = createTRPCRouter({
       return serviceForContext(ctx).suggestDescription({
         ...input,
         projectId: ctx.session.projectId,
-        userId: ctx.session.user.id,
+        userId: getSessionUserId(ctx.session),
       });
     }),
 });

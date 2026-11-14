@@ -70,7 +70,7 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
   const headers = req.headers;
 
   addUserToSpan({
-    userId: session?.user?.id,
+    userId: getSessionUserId(session),
   });
 
   return createInnerTRPCContext({
@@ -113,6 +113,14 @@ import {
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 import { env } from "@/src/env.mjs";
 import { isBaseError, parseIO } from "@langfuse/shared";
+import {
+  findSessionOrganization,
+  findSessionProjectOrganization,
+  getSessionOrganizationRole,
+  getSessionProjectRole,
+  getSessionUserEmail,
+  getSessionUserId,
+} from "@/src/features/auth/lib/sessionAccessors";
 import { recordBackendActivity } from "@/src/features/posthog-analytics/server/backendActivity";
 
 setUpSuperjson();
@@ -272,7 +280,7 @@ const withOtelInstrumentation = t.middleware(async (opts) => {
 
   const baggageCtx = contextWithLangfuseProps({
     headers: opts.ctx.headers,
-    userId: opts.ctx.session?.user?.id,
+    userId: getSessionUserId(opts.ctx.session),
     projectId: (actualInput as Record<string, string>)?.projectId,
     clickhouse: {
       surface: "trpc",
@@ -365,14 +373,16 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
     });
 
   // check that the user is a member of this project
+  const session = { ...ctx.session, user: ctx.session.user };
   const projectId = parsedInput.data.projectId;
-  const sessionProject = ctx.session.user.organizations
-    .flatMap((org) =>
-      org.projects.map((project) => ({ ...project, organization: org })),
-    )
-    .find((project) => project.id === projectId);
+  const sessionOrganization = findSessionProjectOrganization(
+    session,
+    projectId,
+  );
+  const orgRole = getSessionOrganizationRole(session, sessionOrganization?.id);
+  const projectRole = getSessionProjectRole(session, projectId);
 
-  if (!sessionProject) {
+  if (!sessionOrganization || !orgRole || !projectRole) {
     // not a member
     logger.warn(`User is not a member of this project with id ${projectId}`);
     throw new TRPCError({
@@ -381,34 +391,30 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
     });
   }
 
-  if (sessionProject.organization.supportAccess === true) {
+  if (sessionOrganization.supportAccess === true) {
     await sendAdminAccessWebhook({
-      email: ctx.session.user.email,
+      email: getSessionUserEmail(session),
       projectId,
-      orgId: sessionProject.organization.id,
+      orgId: sessionOrganization.id,
     });
   }
 
   trackPosthogActivity({
-    userId: ctx.session.user.id,
-    organizationId: sessionProject.organization.id,
+    userId: getSessionUserId(session),
+    organizationId: sessionOrganization.id,
     projectId,
   });
-  addUserToSpan(
-    { projectId, orgId: sessionProject.organization.id },
-    ctx.requestSpan,
-  );
+  addUserToSpan({ projectId, orgId: sessionOrganization.id }, ctx.requestSpan);
 
   return next({
     ctx: {
       // infers the `session` as non-nullable
       session: {
-        ...ctx.session,
-        user: ctx.session.user,
-        orgId: sessionProject.organization.id,
-        orgRole: sessionProject.organization.role,
+        ...session,
+        orgId: sessionOrganization.id,
+        orgRole,
         projectId: projectId,
-        projectRole: sessionProject.role,
+        projectRole,
       },
     },
   });
@@ -451,13 +457,15 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
     });
   }
 
+  const session = { ...ctx.session, user: ctx.session.user };
   const orgId = result.data.orgId;
-  const sessionOrg = ctx.session.user.organizations.find(
-    (org) => org.id === orgId,
-  );
+  const sessionOrg = findSessionOrganization(session, orgId);
+  const orgRole = getSessionOrganizationRole(session, orgId);
 
-  if (!sessionOrg) {
-    logger.error(`User ${ctx.session.user.id} is not a member of org ${orgId}`);
+  if (!sessionOrg || !orgRole) {
+    logger.error(
+      `User ${getSessionUserId(session)} is not a member of org ${orgId}`,
+    );
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message: "User is not a member of this organization",
@@ -466,23 +474,22 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
 
   if (sessionOrg.supportAccess === true) {
     await sendAdminAccessWebhook({
-      email: ctx.session.user.email,
+      email: getSessionUserEmail(session),
       orgId,
     });
   }
 
   trackPosthogActivity({
-    userId: ctx.session.user.id,
+    userId: getSessionUserId(session),
     organizationId: orgId,
   });
 
   return next({
     ctx: {
       session: {
-        ...ctx.session,
-        user: ctx.session.user,
+        ...session,
         orgId: orgId,
-        orgRole: sessionOrg.role,
+        orgRole,
       },
     },
   });
@@ -605,11 +612,10 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
         }
       : null;
 
-    const sessionProject = ctx.session?.user?.organizations
-      .flatMap((org) =>
-        org.projects.map((project) => ({ ...project, organization: org })),
-      )
-      .find(({ id }) => id === projectId);
+    const sessionOrganization = findSessionProjectOrganization(
+      ctx.session,
+      projectId,
+    );
 
     const traceSession =
       !!trace?.sessionId && isStorableTraceSessionId(trace.sessionId)
@@ -626,9 +632,9 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
 
     const isSessionPublic = traceSession?.public === true;
 
-    if (!trace?.public && !sessionProject && !isSessionPublic) {
+    if (!trace?.public && !sessionOrganization && !isSessionPublic) {
       logger.error(
-        `User ${ctx.session?.user?.id} is not a member of project ${projectId}`,
+        `User ${getSessionUserId(ctx.session)} is not a member of project ${projectId}`,
       );
       throw new TRPCError({
         code: "UNAUTHORIZED",
@@ -637,11 +643,11 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
       });
     }
 
-    if (sessionProject?.organization.supportAccess === true) {
+    if (sessionOrganization?.supportAccess === true) {
       await sendAdminAccessWebhook({
-        email: ctx.session?.user?.email,
+        email: getSessionUserEmail(ctx.session),
         projectId,
-        orgId: sessionProject.organization.id,
+        orgId: sessionOrganization.id,
       });
     }
     addUserToSpan({ projectId }, ctx.requestSpan);
@@ -650,7 +656,7 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
       ctx: {
         session: {
           ...ctx.session,
-          projectRole: sessionProject?.role,
+          projectRole: getSessionProjectRole(ctx.session, projectId),
         },
         trace, // pass the trace to the next middleware so we do not need to fetch it again
       },
@@ -707,15 +713,14 @@ const enforceSessionAccess = t.middleware(async (opts) => {
 
   const isPublicSession = session?.public ?? false;
 
-  const userSessionProject = ctx.session?.user?.organizations
-    .flatMap((org) =>
-      org.projects.map((project) => ({ ...project, organization: org })),
-    )
-    .find(({ id }) => id === projectId);
+  const userSessionOrganization = findSessionProjectOrganization(
+    ctx.session,
+    projectId,
+  );
 
-  if (!isPublicSession && !userSessionProject) {
+  if (!isPublicSession && !userSessionOrganization) {
     logger.error(
-      `User ${ctx.session?.user?.id} is not a member of project ${projectId}`,
+      `User ${getSessionUserId(ctx.session)} is not a member of project ${projectId}`,
     );
     throw new TRPCError({
       code: "UNAUTHORIZED",
@@ -724,11 +729,11 @@ const enforceSessionAccess = t.middleware(async (opts) => {
     });
   }
 
-  if (userSessionProject?.organization.supportAccess === true) {
+  if (userSessionOrganization?.supportAccess === true) {
     await sendAdminAccessWebhook({
-      email: ctx.session?.user?.email,
+      email: getSessionUserEmail(ctx.session),
       projectId,
-      orgId: userSessionProject.organization.id,
+      orgId: userSessionOrganization.id,
     });
   }
   addUserToSpan({ projectId }, ctx.requestSpan);
@@ -737,7 +742,7 @@ const enforceSessionAccess = t.middleware(async (opts) => {
     ctx: {
       session: {
         ...ctx.session,
-        projectRole: userSessionProject?.role,
+        projectRole: getSessionProjectRole(ctx.session, projectId),
       },
     },
   });
