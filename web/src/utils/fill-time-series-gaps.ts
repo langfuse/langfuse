@@ -142,14 +142,27 @@ function fillGapsInSingleUnitData<
 
       // Safety check: only iterate if data array is not empty
       if (data.length > 0) {
-        const sampleItem = data[0];
-        if (sampleItem) {
-          for (const key in sampleItem) {
-            if (key !== "timestamp" && typeof sampleItem[key] === "number") {
-              (placeholder as any)[key] = null;
-            } else if (key !== "timestamp") {
-              (placeholder as any)[key] = sampleItem[key];
-            }
+        const allKeys = new Set<string>();
+        for (const item of data) {
+          for (const k of Object.keys(item)) {
+            allKeys.add(k);
+          }
+        }
+
+        for (const key of allKeys) {
+          if (key === "timestamp") continue;
+          const isNumeric = data.some(
+            (item) => typeof (item as any)[key] === "number",
+          );
+          if (isNumeric) {
+            (placeholder as any)[key] = null;
+          } else {
+            const firstDefined = data.find(
+              (item) => (item as any)[key] !== undefined,
+            );
+            (placeholder as any)[key] = firstDefined
+              ? (firstDefined as any)[key]
+              : null;
           }
         }
       }
@@ -269,42 +282,152 @@ function aggregateIntoMultiUnitBuckets<
 
       // Safety check: only iterate if data array is not empty
       if (data.length > 0) {
-        const sampleItem = data[0];
-        if (sampleItem) {
-          for (const key in sampleItem) {
-            if (key !== "timestamp" && typeof sampleItem[key] === "number") {
-              (placeholder as any)[key] = null;
-            } else if (key !== "timestamp") {
-              (placeholder as any)[key] = sampleItem[key];
-            }
+        const allKeys = new Set<string>();
+        for (const item of data) {
+          for (const k of Object.keys(item)) {
+            allKeys.add(k);
+          }
+        }
+
+        for (const key of allKeys) {
+          if (key === "timestamp") continue;
+          const isNumeric = data.some(
+            (item) => typeof (item as any)[key] === "number",
+          );
+          if (isNumeric) {
+            (placeholder as any)[key] = null;
+          } else {
+            const firstDefined = data.find(
+              (item) => (item as any)[key] !== undefined,
+            );
+            (placeholder as any)[key] = firstDefined
+              ? (firstDefined as any)[key]
+              : null;
           }
         }
       }
 
       aggregatedData.push(placeholder);
     } else {
-      // Aggregate values - average numeric fields, use bucket end as timestamp
+      // Aggregate values - average numeric fields (weighted by score counts when available), use bucket end as timestamp
       const aggregated = { timestamp: bucket.end } as T;
 
-      const sampleItem = bucket.dataPoints[0];
-      for (const key in sampleItem) {
+      // Helper to check if a numeric key represents a count/volume that should be summed rather than averaged
+      const isCountField = (k: string): boolean => {
+        const lower = k.toLowerCase();
+        return (
+          lower === "count" ||
+          lower === "cnt" ||
+          lower.startsWith("count") ||
+          lower.endsWith("count") ||
+          lower.endsWith("_count")
+        );
+      };
+
+      // Helper to determine the corresponding count/weight key for a numeric average field
+      const getWeightKeyForField = (fieldKey: string): string | null => {
+        // e.g., avg1 -> count1, mean2 -> count2
+        const match = fieldKey.match(/^(?:avg|mean)(\d+)$/i);
+        if (match) {
+          const specificCountKey = `count${match[1]}`;
+          if (
+            bucket.dataPoints.some(
+              (dp) => typeof (dp as any)[specificCountKey] === "number",
+            )
+          ) {
+            return specificCountKey;
+          }
+        }
+
+        // Generic fallback to 'count' if present
+        if (
+          bucket.dataPoints.some((dp) => typeof (dp as any).count === "number")
+        ) {
+          return "count";
+        }
+
+        return null;
+      };
+
+      // Collect all keys present across data points in this bucket
+      const allKeys = new Set<string>();
+      for (const dp of bucket.dataPoints) {
+        for (const k of Object.keys(dp)) {
+          allKeys.add(k);
+        }
+      }
+
+      for (const key of allKeys) {
         if (key === "timestamp") continue;
 
-        if (typeof sampleItem[key] === "number") {
-          // Average numeric values (excluding nulls)
-          const values = bucket.dataPoints
-            .map((dp) => dp[key] as number | null)
-            .filter((v): v is number => v !== null);
+        // Check if this key is numeric in any data point
+        const hasNumericValue = bucket.dataPoints.some(
+          (dp) => typeof (dp as any)[key] === "number",
+        );
 
-          if (values.length > 0) {
-            const sum = values.reduce((acc, val) => acc + val, 0);
-            (aggregated as any)[key] = sum / values.length;
+        if (hasNumericValue) {
+          if (isCountField(key)) {
+            // Count/volume fields are summed across the bucket
+            const countValues = bucket.dataPoints
+              .map((dp) => (dp as any)[key] as number | null | undefined)
+              .filter((v): v is number => typeof v === "number" && !isNaN(v));
+
+            if (countValues.length > 0) {
+              (aggregated as any)[key] = countValues.reduce(
+                (acc, val) => acc + val,
+                0,
+              );
+            } else {
+              (aggregated as any)[key] = null;
+            }
           } else {
-            (aggregated as any)[key] = null;
+            // Non-count numeric values (e.g. avg1, avg2, mean) are aggregated using a weighted average
+            // based on sample counts when available
+            const weightKey = getWeightKeyForField(key);
+
+            let weightedSum = 0;
+            let totalWeight = 0;
+            let validCount = 0;
+            let unweightedSum = 0;
+
+            for (const dp of bucket.dataPoints) {
+              const val = (dp as any)[key] as number | null | undefined;
+              if (typeof val === "number" && !isNaN(val)) {
+                validCount++;
+                unweightedSum += val;
+
+                let weight = 1;
+                if (weightKey) {
+                  const w = (dp as any)[weightKey] as number | null | undefined;
+                  if (typeof w === "number" && !isNaN(w) && w >= 0) {
+                    weight = w;
+                  }
+                }
+
+                if (weight > 0) {
+                  weightedSum += val * weight;
+                  totalWeight += weight;
+                }
+              }
+            }
+
+            if (validCount === 0) {
+              (aggregated as any)[key] = null;
+            } else if (totalWeight > 0) {
+              (aggregated as any)[key] = weightedSum / totalWeight;
+            } else {
+              // Fall back to unweighted arithmetic mean if all weights are zero
+              (aggregated as any)[key] = unweightedSum / validCount;
+            }
           }
         } else {
-          // Non-numeric fields: use first value
-          (aggregated as any)[key] = sampleItem[key];
+          // Non-numeric fields: use first defined non-null value
+          const firstDefined = bucket.dataPoints.find(
+            (dp) => (dp as any)[key] !== undefined && (dp as any)[key] !== null,
+          );
+          (aggregated as any)[key] = firstDefined
+            ? (firstDefined as any)[key]
+            : (bucket.dataPoints[0] as any)[key];
         }
       }
 
