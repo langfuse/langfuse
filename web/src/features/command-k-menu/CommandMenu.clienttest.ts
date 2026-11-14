@@ -2,6 +2,7 @@ import {
   addRecentEntry,
   buildCreateActions,
   buildPageShortcuts,
+  entitySearchTerm,
   getEntityBaseUrl,
   getIdNavigationItem,
   getRecentPickAnalytics,
@@ -250,6 +251,33 @@ describe("getEntityBaseUrl", () => {
         canRead: () => readable,
       }),
     ).toBeNull();
+  });
+});
+
+describe("entitySearchTerm", () => {
+  const keywords = ["evaluator", "eval"];
+
+  it("does not send a group keyword as a name filter", () => {
+    // #19326: these select the evaluator group client-side; as a server filter they
+    // would hide every evaluator whose name lacks the word.
+    expect(entitySearchTerm("evaluator", keywords)).toBeUndefined();
+    expect(entitySearchTerm("Eval", keywords)).toBeUndefined();
+    expect(entitySearchTerm("  evaluator  ", keywords)).toBeUndefined();
+  });
+
+  it("keeps the name part after the keyword", () => {
+    expect(entitySearchTerm("eval answer_relevance", keywords)).toBe(
+      "answer_relevance",
+    );
+    expect(entitySearchTerm("evaluator answer_relevance", keywords)).toBe(
+      "answer_relevance",
+    );
+  });
+
+  it("passes an ordinary term through and ignores an empty search", () => {
+    expect(entitySearchTerm("answer", keywords)).toBe("answer");
+    expect(entitySearchTerm("", keywords)).toBeUndefined();
+    expect(entitySearchTerm("   ", keywords)).toBeUndefined();
   });
 });
 
