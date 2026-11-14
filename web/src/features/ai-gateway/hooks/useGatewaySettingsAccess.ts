@@ -1,7 +1,10 @@
 import { useSession } from "next-auth/react";
 
 import { gatewayPageAccess } from "@/src/features/ai-gateway/fns/gatewayPageAccess";
-import { getSessionEnvironment } from "@/src/features/auth/lib/sessionAccessors";
+import {
+  getSessionEnvironment,
+  type MaybeSession,
+} from "@/src/features/auth/lib/sessionAccessors";
 import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
@@ -30,10 +33,9 @@ export function useGatewaySettingsAccess(organizationId: string | undefined) {
   const session = useSession();
 
   const { showNotDeployedNotice, showManagement, showApiKeys, showModels } =
-    gatewayPageAccess({
+    getGatewaySettingsPageAccess(session.data, {
       organizationId,
       isAiGatewayEnabled,
-      aiGatewayDeployed: getSessionEnvironment(session.data)?.aiGatewayDeployed,
       canManageGateway,
       canReadGateway,
       canInvokeGateway,
@@ -58,4 +60,15 @@ export function useGatewaySettingsAccess(organizationId: string | undefined) {
     isRecording: setupStatus.data?.isRecording,
     isSetupStatusPending: setupStatus.isPending,
   };
+}
+
+/** getGatewaySettingsPageAccess is which gateway settings the member sees, given whether the session's deployment runs the gateway. */
+function getGatewaySettingsPageAccess(
+  session: MaybeSession,
+  access: Omit<Parameters<typeof gatewayPageAccess>[0], "aiGatewayDeployed">,
+) {
+  return gatewayPageAccess({
+    ...access,
+    aiGatewayDeployed: getSessionEnvironment(session)?.aiGatewayDeployed,
+  });
 }

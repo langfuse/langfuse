@@ -1,3 +1,4 @@
+import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
 
 import { GATEWAY_PAGE_SLUGS } from "@/src/features/ai-gateway/constants/gatewayPageSlugs";
@@ -15,8 +16,17 @@ export function useGatewayEntryHref(
   organizationId: string | undefined,
 ): string | undefined {
   const session = useSession();
+  return getGatewayEntryHref(session.data, organizationId);
+}
+
+/** getGatewayEntryHref is the path of the first AI Gateway page the session's user can open in the organization. */
+function getGatewayEntryHref(
+  session: Session | null,
+  organizationId: string | undefined,
+): string | undefined {
   if (!organizationId) return undefined;
-  const visible = visibleGatewayPages(session.data, organizationId);
+  const visible = visibleGatewayPages(session, organizationId);
   const slug = ENTRY_ORDER.find((entry) => visible[entry]);
-  return slug ? buildGatewayPagePath(organizationId, slug) : undefined;
+  if (!slug) return undefined;
+  return buildGatewayPagePath(organizationId, slug);
 }

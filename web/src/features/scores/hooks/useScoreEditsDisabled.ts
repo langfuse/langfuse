@@ -1,5 +1,9 @@
 import { useSession } from "next-auth/react";
-import { findSessionProject } from "@/src/features/auth/lib/sessionAccessors";
+
+import {
+  findSessionProject,
+  type MaybeSession,
+} from "@/src/features/auth/lib/sessionAccessors";
 
 /**
  * Whether saved scores in this project are immutable in the UI. Resolved on
@@ -8,7 +12,13 @@ import { findSessionProject } from "@/src/features/auth/lib/sessionAccessors";
  */
 export function useScoreEditsDisabled(projectId: string): boolean {
   const session = useSession();
-  return (
-    findSessionProject(session.data, projectId)?.scoreEditsDisabled === true
-  );
+  return areScoreEditsDisabledForSession(session.data, projectId);
+}
+
+/** areScoreEditsDisabledForSession reports whether saved scores in projectId are immutable for the session's user. */
+function areScoreEditsDisabledForSession(
+  session: MaybeSession,
+  projectId: string,
+): boolean {
+  return findSessionProject(session, projectId)?.scoreEditsDisabled === true;
 }

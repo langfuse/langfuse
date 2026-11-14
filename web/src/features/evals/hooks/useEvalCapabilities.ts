@@ -1,11 +1,15 @@
-import { useSession } from "next-auth/react";
-import { api } from "@/src/utils/api";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { type SessionContextValue, useSession } from "next-auth/react";
+
+import {
+  getSessionEnvironment,
+  type MaybeSession,
+} from "@/src/features/auth/lib/sessionAccessors";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
-import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
 import { isNewLegacyEvalAllowed } from "@/src/features/evals/utils/legacyEvalGate";
-import { getSessionEnvironment } from "@/src/features/auth/lib/sessionAccessors";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
+import { api } from "@/src/utils/api";
 
 export interface EvalCapabilities {
   isNewCompatible: boolean;
@@ -30,11 +34,8 @@ export function useEvalCapabilities(
   },
 ): EvalCapabilities {
   const { data: session, status: sessionStatus } = useSession();
-  const isSessionLoading = sessionStatus === "loading";
   const { isV4 } = useReadPath();
   const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
-  const isCodeEvalConfig =
-    isCodeEvalEnabled && (options?.isCodeEvalTemplate ?? false);
 
   // Query SDK version info from events table (only when v4 beta is enabled)
   const sdkVersionInfo = api.events.getSdkVersionInfo.useQuery(
@@ -42,24 +43,68 @@ export function useEvalCapabilities(
     { enabled: isV4 && Boolean(projectId) },
   );
 
-  // Determine OTEL status from SDK version info
-  const isOtel = sdkVersionInfo.data?.isOtel ?? false;
-
   // Get eval counts including legacy eval count
   const evalCounts = api.evals.counts.useQuery(
     { projectId },
     { enabled: Boolean(projectId) },
   );
-  const hasLegacyEvals = (evalCounts.data?.legacyConfigCount ?? 0) > 0;
+
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+
+  // Projects forced onto v3 keep legacy evals while legacy tables are written.
+  const forceV3Experience = useForceV3Experience(projectId);
+
+  return getEvalCapabilities(session, sessionStatus, {
+    isV4,
+    isCodeEvalEnabled,
+    isCodeEvalTemplate: options?.isCodeEvalTemplate,
+    isOtel: sdkVersionInfo.data?.isOtel,
+    isSdkVersionInfoLoading: sdkVersionInfo.isLoading,
+    legacyConfigCount: evalCounts.data?.legacyConfigCount,
+    isEvalCountsLoading: evalCounts.isLoading,
+    isLangfuseCloud,
+    forceV3Experience,
+  });
+}
+
+/** getEvalCapabilities is which eval configuration features the session's deployment and project allow. */
+function getEvalCapabilities(
+  session: MaybeSession,
+  sessionStatus: SessionContextValue["status"],
+  {
+    isV4,
+    isCodeEvalEnabled,
+    isCodeEvalTemplate,
+    isOtel,
+    isSdkVersionInfoLoading,
+    legacyConfigCount,
+    isEvalCountsLoading,
+    isLangfuseCloud,
+    forceV3Experience,
+  }: {
+    isV4: boolean;
+    isCodeEvalEnabled: boolean;
+    isCodeEvalTemplate: boolean | undefined;
+    isOtel: boolean | undefined;
+    isSdkVersionInfoLoading: boolean;
+    legacyConfigCount: number | undefined;
+    isEvalCountsLoading: boolean;
+    isLangfuseCloud: boolean;
+    forceV3Experience: boolean;
+  },
+): EvalCapabilities {
+  const isSessionLoading = sessionStatus === "loading";
+  const isCodeEvalConfig = isCodeEvalEnabled && (isCodeEvalTemplate ?? false);
+
+  // Determine OTEL status from SDK version info
+  const isNewCompatible = isOtel ?? false;
+
+  const hasLegacyEvals = (legacyConfigCount ?? 0) > 0;
 
   // The legacy eval experience depends on whether the deployment still writes
   // the legacy tables. Use explicit mode checks so we default to hidden while
   // the session is loading, which prevents a flash of legacy options.
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const v4WriteMode = getSessionEnvironment(session)?.v4WriteMode;
-
-  // Projects forced onto v3 keep legacy evals while legacy tables are written.
-  const forceV3Experience = useForceV3Experience(projectId);
 
   // Whether a *new* config may use the legacy experience.
   const modeAllowsNewLegacy = isNewLegacyEvalAllowed({
@@ -69,7 +114,7 @@ export function useEvalCapabilities(
   });
 
   return {
-    isNewCompatible: isOtel,
+    isNewCompatible,
     // True when v4 beta is enabled (SDK check query was run)
     compatibilityCheckWasPerformed: isV4,
     // Allow setting up new legacy evals only if: not a code eval AND the
@@ -77,7 +122,7 @@ export function useEvalCapabilities(
     // evals no longer grants this; they remain editable via edit mode.
     allowLegacy: !isCodeEvalConfig && modeAllowsNewLegacy,
     isLoading:
-      evalCounts.isLoading || isSessionLoading || sdkVersionInfo.isLoading,
+      isEvalCountsLoading || isSessionLoading || isSdkVersionInfoLoading,
     hasLegacyEvals,
     forceV3Experience,
   };

@@ -4,9 +4,11 @@ import {
 } from "@langfuse/shared/rbac";
 import { type Role } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
-import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
-import { getSessionOrganizationRole } from "@/src/features/auth/lib/sessionAccessors";
+import {
+  getSessionOrganizationRole,
+  type MaybeSession,
+} from "@/src/features/auth/lib/sessionAccessors";
 import { hasOwnRole } from "./hasOwnRole";
 
 type HasOrganizationAccessParams =
@@ -15,7 +17,7 @@ type HasOrganizationAccessParams =
       scope: OrganizationScope;
     }
   | {
-      session: null | Session;
+      session: MaybeSession;
       organizationId: string;
       scope: OrganizationScope;
     };

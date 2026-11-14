@@ -1,8 +1,10 @@
-import { useSession } from "next-auth/react";
+import { type SessionContextValue, useSession } from "next-auth/react";
+
 import {
   getSessionUserCanToggleV4,
-  getSessionUserId,
   getSessionUserV4BetaEnabled,
+  hasSessionUser,
+  type MaybeSession,
 } from "@/src/features/auth/lib/sessionAccessors";
 
 /** The events read path a data-fetching surface must use. */
@@ -26,14 +28,21 @@ export function useReadPath(): {
   canToggleV4: boolean;
 } {
   const { data: session, status } = useSession();
+  return getSessionReadPath(session, status);
+}
 
+/** getSessionReadPath is the user's v3/v4 read path and toggle state as resolved from the session. */
+function getSessionReadPath(
+  session: MaybeSession,
+  status: SessionContextValue["status"],
+): ReturnType<typeof useReadPath> {
   // A session re-check reports "loading" with the previous session still in
   // hand — that keeps the resolved path. Only a cold load is unknown.
   const readPath = ((): ReadPath => {
     if (getSessionUserV4BetaEnabled(session) === true) {
       return "v4";
     }
-    if (getSessionUserId(session)) {
+    if (hasSessionUser(session)) {
       return "v3";
     }
     if (status === "loading") {

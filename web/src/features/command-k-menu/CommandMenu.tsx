@@ -9,7 +9,7 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/src/components/ui/command";
-import { useRouter } from "next/router";
+import { type NextRouter, useRouter } from "next/router";
 import {
   BotMessageSquare,
   ClipboardPen,
@@ -54,6 +54,7 @@ import {
 import {
   getSessionOrganizations,
   hasSessionUser,
+  type MaybeSession,
 } from "@/src/features/auth/lib/sessionAccessors";
 
 type IdNavigationItem = {
@@ -1109,7 +1110,15 @@ export const useNavigationItems = () => {
   const router = useRouter();
   const session = useSession();
 
-  const organizations = getSessionOrganizations(session.data);
+  return getSessionNavigationItems(session.data, router);
+};
+
+/** getSessionNavigationItems lists the projects the session's user can switch to from the current route. */
+export function getSessionNavigationItems(
+  session: MaybeSession,
+  router: Pick<NextRouter, "route" | "asPath" | "query">,
+) {
+  const organizations = getSessionOrganizations(session);
 
   const truncatePathBeforeDynamicSegments = (path: string) => {
     const allowlistedIds = ["[projectId]", "[organizationId]", "[page]"];
@@ -1159,9 +1168,9 @@ export const useNavigationItems = () => {
 
   return {
     allProjectItems,
-    isLoading: !hasSessionUser(session.data),
+    isLoading: !hasSessionUser(session),
   };
-};
+}
 
 function useCommandMenuRecents(projectId: string | undefined) {
   const [recentsByProject, setRecentsByProject] = useLocalStorage<

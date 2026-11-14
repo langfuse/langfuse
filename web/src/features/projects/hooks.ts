@@ -1,11 +1,13 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/router";
+
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import {
   findSessionProject,
   findSessionProjectOrganization,
+  type MaybeSession,
 } from "@/src/features/auth/lib/sessionAccessors";
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/router";
 
 export const useQueryProject = () => {
   const router = useRouter();
@@ -16,9 +18,14 @@ export const useQueryProject = () => {
 export const useProject = (projectId: string | null) => {
   const session = useSession();
 
-  const project = findSessionProject(session.data, projectId ?? undefined);
+  return getSessionProject(session.data, projectId);
+};
+
+/** getSessionProject resolves the user's project with projectId and the organization that owns it. */
+function getSessionProject(session: MaybeSession, projectId: string | null) {
+  const project = findSessionProject(session, projectId ?? undefined);
   const organization = findSessionProjectOrganization(
-    session.data,
+    session,
     projectId ?? undefined,
   );
 
@@ -30,7 +37,7 @@ export const useProject = (projectId: string | null) => {
     project: null,
     organization: null,
   };
-};
+}
 
 export const useQueryProjectOrOrganization = () => {
   const p = useQueryProject();

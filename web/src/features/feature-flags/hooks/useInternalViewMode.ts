@@ -1,9 +1,11 @@
 import { useSession } from "next-auth/react";
-import { api } from "@/src/utils/api";
+
 import {
   getSessionEnvironment,
   getSessionUserEmail,
+  type MaybeSession,
 } from "@/src/features/auth/lib/sessionAccessors";
+import { api } from "@/src/utils/api";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { hasInternalAccess } from "../utils";
@@ -12,11 +14,7 @@ import { useInternalFeaturesEnabled } from "./useInternalFeaturesEnabled";
 export function useInternalViewMode() {
   const session = useSession();
   const enabled = useInternalFeaturesEnabled();
-  const available = hasInternalAccess({
-    email: getSessionUserEmail(session.data),
-    isExperimentalFeaturesEnabled:
-      getSessionEnvironment(session.data)?.enableExperimentalFeatures === true,
-  });
+  const available = isInternalViewModeAvailable(session.data);
   const mutation = api.userAccount.setViewMode.useMutation({
     onSuccess: async () => {
       await session.update();
@@ -39,4 +37,13 @@ export function useInternalViewMode() {
       }
     },
   };
+}
+
+/** isInternalViewModeAvailable reports whether the session's user may switch to the internal view. */
+function isInternalViewModeAvailable(session: MaybeSession): boolean {
+  return hasInternalAccess({
+    email: getSessionUserEmail(session),
+    isExperimentalFeaturesEnabled:
+      getSessionEnvironment(session)?.enableExperimentalFeatures === true,
+  });
 }
