@@ -30,7 +30,6 @@ import { useRouter } from "next/router";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
 import { type Session } from "next-auth";
-import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { type OrganizationScope } from "@langfuse/shared/rbac";
 import { SupportButton } from "@/src/components/nav/SupportButton";
 import { V4SidebarToggle } from "@/src/features/events/components/V4SidebarToggle";
@@ -92,6 +91,7 @@ export type Route = {
       | NonNullable<Session["user"]>["organizations"][number]
       | undefined;
     projectId: string | undefined;
+    canReadOrganizationSettings: boolean;
     canViewTopics: boolean;
     visibleGatewayPages: Record<GatewayPageSlug, boolean>;
     isLangfuseCloud: boolean;
@@ -378,7 +378,8 @@ export const ROUTES: Route[] = [
     href: "/organization/[organizationId]/settings",
     icon: Settings,
     section: RouteSection.Secondary,
-    show: ({ organization }) => showsOrganizationSettings(organization),
+    show: ({ organization, canReadOrganizationSettings }) =>
+      showsOrganizationSettings(organization, canReadOrganizationSettings),
   },
   {
     title: "Book a call",
@@ -400,13 +401,11 @@ function showsOrganizationSettings(
   organization:
     | NonNullable<Session["user"]>["organizations"][number]
     | undefined,
+  canReadOrganizationSettings: boolean,
 ) {
   return (
     !organization ||
-    hasOrganizationAccess({
-      role: organization.role,
-      scope: "organizationSettings:read",
-    }) ||
+    canReadOrganizationSettings ||
     organization.projects.length > 0
   );
 }

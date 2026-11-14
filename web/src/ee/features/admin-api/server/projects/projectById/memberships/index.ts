@@ -9,6 +9,7 @@ import {
   saveProjectMembership,
 } from "@langfuse/shared/memberships";
 import { authorize } from "@/src/features/rbac/authorize";
+import { isOwnershipChange } from "@/src/features/rbac/server/ownershipChange";
 import { ForbiddenError, Role } from "@langfuse/shared";
 import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";
 import {
@@ -316,7 +317,7 @@ function assertAuthorizeMembershipChange({
     project,
   );
   if (!membershipAccess.success) throw membershipAccess.error;
-  if (from !== Role.OWNER && to !== Role.OWNER) return;
+  if (!isOwnershipChange(from, to)) return;
   const ownershipAccess = authorize(
     context,
     organization,

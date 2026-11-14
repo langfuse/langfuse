@@ -16,7 +16,6 @@ import { createTextTableColumn } from "@/src/components/design-system/table/colu
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { RoleSelect } from "@/src/features/rbac/components/RoleSelect";
-import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
 import type { FeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 import { UserFeaturePreviewsControl } from "@/src/features/feature-flags/components/UserFeaturePreviewsControl";
 import type { RouterOutput } from "@/src/utils/types";
@@ -28,15 +27,23 @@ import { Button } from "@/src/components/ui/button";
 
 const formatRoleLabel = (role: Role) => systemRoleAccessRights[role].name;
 
-const allRoles = Object.keys(orderedRoles) as Role[];
+const allRoles: Role[] = [
+  "OWNER",
+  "ADMIN",
+  "MEMBER",
+  "VIEWER",
+  "AI_GATEWAY",
+  "NONE",
+];
 
 const allProjectRoles = allRoles.filter((role) => role !== "AI_GATEWAY");
 
 const ownerLockedLabel = "Requires owner access";
 
-const roleFilterOptions = allRoles
-  .toSorted((a, b) => orderedRoles[b] - orderedRoles[a])
-  .map((role) => ({ value: role, label: formatRoleLabel(role) }));
+const roleFilterOptions = allRoles.map((role) => ({
+  value: role,
+  label: formatRoleLabel(role),
+}));
 
 export type MembersSettingsTableRow = {
   user: { image: string | null; name: string | null };
