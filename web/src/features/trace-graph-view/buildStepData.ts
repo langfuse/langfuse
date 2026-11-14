@@ -174,35 +174,65 @@ function assignGlobalTimingSteps(
       return ancestors;
     };
 
-    // identify spans which must be pushed (violations) and calculate adjustments
+    // Child moves to requiredMinStep; later steps +1; ancestors stay.
+    type StepViolation = { id: string; step: number; requiredMinStep: number };
+    type ViolationMap = Map<string, StepViolation[]>;
+    const requiredMinSteps: number[] = [];
+    const violationsByChild: ViolationMap = new Map();
+    const violationsByAncestor: ViolationMap = new Map();
+    const pushTo = (map: ViolationMap, key: string, v: StepViolation) => {
+      const list = map.get(key);
+      if (list) list.push(v);
+      else map.set(key, [v]);
+    };
+
     for (const obs of result) {
       if (!obs.parentObservationId || obs.step === null) continue;
-
       const parent = obsMap.get(obs.parentObservationId);
       if (!parent || parent.step === null) continue;
-
       const requiredMinStep = parent.step + 1;
-      if (obs.step < requiredMinStep) {
-        constraintViolations = true;
-        const ancestors = getAncestors(obs.id);
+      if (obs.step >= requiredMinStep) continue;
 
-        // adjust the violating child and push all observations at future steps forward (except ancestors)
-        for (const target of result) {
-          if (target.step === null) continue;
+      constraintViolations = true;
+      const violation: StepViolation = {
+        id: obs.id,
+        step: obs.step,
+        requiredMinStep,
+      };
+      requiredMinSteps.push(requiredMinStep);
+      pushTo(violationsByChild, obs.id, violation);
+      for (const ancestorId of getAncestors(obs.id)) {
+        pushTo(violationsByAncestor, ancestorId, violation);
+      }
+    }
 
-          if (target.id === obs.id) {
-            // child adjustment
-            adjustments.set(
-              target.id,
-              (adjustments.get(target.id) || 0) + (requiredMinStep - obs.step),
-            );
-          } else if (
-            target.step >= requiredMinStep &&
-            !ancestors.has(target.id)
-          ) {
-            // Push forward observations at future steps except for ancestors
-            adjustments.set(target.id, (adjustments.get(target.id) || 0) + 1);
+    if (requiredMinSteps.length > 0) {
+      requiredMinSteps.sort((a, b) => a - b);
+      const countAtOrBelow = (step: number) => {
+        let lo = 0;
+        let hi = requiredMinSteps.length;
+        while (lo < hi) {
+          const mid = Math.floor((lo + hi) / 2);
+          if (requiredMinSteps[mid] <= step) lo = mid + 1;
+          else hi = mid;
+        }
+        return lo;
+      };
+
+      for (const target of result) {
+        if (target.step === null) continue;
+        let shift = countAtOrBelow(target.step);
+        for (const v of violationsByChild.get(target.id) ?? []) {
+          shift += v.requiredMinStep - v.step;
+          if (target.step >= v.requiredMinStep) shift -= 1;
+        }
+        for (const v of violationsByAncestor.get(target.id) ?? []) {
+          if (v.id !== target.id && target.step >= v.requiredMinStep) {
+            shift -= 1;
           }
+        }
+        if (shift !== 0) {
+          adjustments.set(target.id, (adjustments.get(target.id) || 0) + shift);
         }
       }
     }

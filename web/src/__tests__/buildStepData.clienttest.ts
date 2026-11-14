@@ -658,4 +658,52 @@ describe("buildStepData", () => {
       expect(userObservations[1].name).toBe("span_task");
     });
   });
+
+  describe("sequential nested turns", () => {
+    const at = (ms: number) => new Date(1e12 + ms).toISOString();
+    const nestedTurns = (turns: number, depth: number) => [
+      createMockObservation({
+        id: "root",
+        startTime: at(0),
+        endTime: at(turns * 1000 + 5),
+      }),
+      ...Array.from({ length: turns * depth }, (_, i) => {
+        const turn = Math.floor(i / depth),
+          level = i % depth;
+        return createMockObservation({
+          id: `t${turn}-${level}`,
+          parentObservationId: level ? `t${turn}-${level - 1}` : "root",
+          startTime: at(turn * 1000 + level),
+          endTime: at(turn * 1000 + 900 - level),
+        });
+      }),
+    ];
+
+    it("puts each parent on an earlier step than its child", () => {
+      for (const [t, d, n] of [
+        [20, 5, 101],
+        [100, 40, 4001],
+      ] as const) {
+        const rows = buildStepData(nestedTurns(t, d)).filter(
+          (o) => !o.name.includes("__"),
+        );
+        const step = new Map(rows.map((o) => [o.id, o.step]));
+        expect(rows).toHaveLength(n);
+        expect(
+          rows.every(
+            (o) =>
+              !o.parentObservationId ||
+              (o.step != null && step.get(o.parentObservationId)! < o.step),
+          ),
+        ).toBe(true);
+        if (n === 101) {
+          expect(
+            ["root", "t0-0", "t0-4", "t1-0", "t19-0", "t19-4"].map((id) =>
+              step.get(id),
+            ),
+          ).toEqual([1, 2, 6, 17, 215, 219]);
+        }
+      }
+    });
+  });
 });
