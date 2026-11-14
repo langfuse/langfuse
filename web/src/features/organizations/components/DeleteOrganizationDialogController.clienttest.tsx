@@ -34,7 +34,7 @@ vi.mock("@/src/features/organizations/hooks", () => ({
   useQueryOrganization: () => ({ id: "org-1", name: "Acme", projects: [] }),
 }));
 
-vi.mock("@/src/features/rbac/utils/checkOrganizationAccess", () => ({
+vi.mock("@/src/features/rbac/new/hooks", () => ({
   useHasOrganizationAccess: () => true,
 }));
 

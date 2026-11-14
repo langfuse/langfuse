@@ -1,6 +1,6 @@
 import { api } from "@/src/utils/api";
 import { MoreHorizontal, X } from "@langfuse/icons";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { Button } from "@/src/components/ui/button";
 import { MultiSelectCombobox } from "@/src/components/ui/MultiSelectCombobox";
 import { useUserSearch } from "@/src/hooks/useUserSearch";

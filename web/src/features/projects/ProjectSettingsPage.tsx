@@ -11,8 +11,10 @@ import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer"
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { ConnectedMembershipInvitesSettingsTable } from "@/src/features/rbac/components/MembershipInvitesSettingsTable/ConnectedMembershipInvitesSettingsTable";
 import { ConnectedMembersSettingsTable } from "@/src/features/rbac/components/MembersSettingsTable/ConnectedMembersSettingsTable";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import {
+  useHasProjectAccess,
+  useHasOrganizationAccess,
+} from "@/src/features/rbac/new/hooks";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { PostHogLogo } from "@/src/components/PostHogLogo";
 import { MixpanelLogo } from "@/src/components/MixpanelLogo";

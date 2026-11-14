@@ -23,7 +23,7 @@ import { api } from "@/src/utils/api";
 const EMPTY_ACKNOWLEDGEMENTS: InAppAgentActivityAcknowledgement[] = [];
 
 /**
- * Placeholder key while session.user.id is still loading. Never written —
+ * Placeholder key while the session user id is still loading. Never written —
  * polling and ledger sync stay disabled until a real userId arrives (and the
  * provider remounts the hook with that id so useLocalStorage re-reads).
  */

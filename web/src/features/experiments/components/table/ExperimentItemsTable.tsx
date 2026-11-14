@@ -10,7 +10,7 @@ import { SearchableTableFilterLayout } from "@/src/components/table/resizable-fi
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
 import { LightbulbIcon } from "@langfuse/icons";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import type { TableAction } from "@/src/features/table/types";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";

@@ -22,8 +22,16 @@ vi.mock("@langfuse/shared/src/db", async (importOriginal) => ({
     user: {
       findUnique: mockFindUnique,
     },
+    organization: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     $queryRaw: mockQueryRaw,
   },
+}));
+
+vi.mock("@/src/features/rbac/getRolesForPrincipal", () => ({
+  getRoleGrantsForPrincipal: vi.fn().mockResolvedValue([]),
+  getRolesForPrincipal: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
@@ -38,6 +46,7 @@ vi.mock("@/src/ee/features/multi-tenant-sso/utils", () => ({
 }));
 
 import { getAuthOptions } from "@/src/server/auth";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const loginAt = new Date("2026-09-09T12:00:00.000Z").getTime();
 
@@ -51,24 +60,23 @@ const dbUser = {
   createdAt: new Date("2026-01-01T00:00:00.000Z"),
   featureFlags: [],
   v4BetaEnabled: false,
-  organizationMemberships: [],
+  sessionsExpiredAt: null,
 };
 
-const baseSession: Session = {
-  expires: "2026-09-23T12:00:00.000Z",
+const baseSession: Session = testSession({
   user: {
     id: "user-1",
     name: "Test User",
     email: "user@example.com",
     canCreateOrganizations: true,
-    organizations: [],
     featureFlags: testFeatureFlags({ templateFlag: false }),
   },
+  organizations: [],
   environment: {
     enableExperimentalFeatures: false,
     selfHostedInstancePlan: null,
   },
-};
+});
 
 async function getCallbacks() {
   const callbacks = (await getAuthOptions()).callbacks;
@@ -127,7 +135,7 @@ describe("NextAuth JWT session revocation", () => {
       token: { email: "user@example.com", loginAt },
     });
 
-    expect(result.user).toBeNull();
+    expect(result.authCtx).toBeNull();
     expect(mockFindUnique).not.toHaveBeenCalled();
   });
 
@@ -163,23 +171,7 @@ describe("NextAuth JWT session revocation", () => {
       isAllowed: false,
     },
   ])("$name", async ({ token, sessionsExpiredAt, isAllowed }) => {
-    mockFindUnique.mockImplementation(
-      ({
-        where,
-      }: {
-        where: {
-          OR: [
-            { sessionsExpiredAt: null },
-            { sessionsExpiredAt: { lt: Date } },
-          ];
-        };
-      }) => {
-        const tokenLoginAt = where.OR[1].sessionsExpiredAt.lt;
-        return sessionsExpiredAt === null || sessionsExpiredAt < tokenLoginAt
-          ? dbUser
-          : null;
-      },
-    );
+    mockFindUnique.mockResolvedValue({ ...dbUser, sessionsExpiredAt });
 
     const { session } = await getCallbacks();
     const result = await session({
@@ -187,22 +179,9 @@ describe("NextAuth JWT session revocation", () => {
       token: token as JWT,
     });
 
-    expect(result.user !== null).toBe(isAllowed);
+    expect(result.authCtx !== null).toBe(isAllowed);
     expect(mockFindUnique).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: {
-          id: "user-1",
-          email: "user@example.com",
-          OR: [
-            { sessionsExpiredAt: null },
-            {
-              sessionsExpiredAt: {
-                lt: new Date(token.loginAt ?? 0),
-              },
-            },
-          ],
-        },
-      }),
+      expect.objectContaining({ where: { id: "user-1" } }),
     );
   });
 });

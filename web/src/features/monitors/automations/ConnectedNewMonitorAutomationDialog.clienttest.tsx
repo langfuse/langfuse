@@ -27,7 +27,7 @@ vi.mock("@/src/utils/api", () => ({
 vi.mock("@/src/features/pagerduty/hooks/usePagerDutyTestEvent", () => ({
   usePagerDutyTestEvent: () => ({}),
 }));
-vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
+vi.mock("@/src/features/rbac/new/hooks", () => ({
   useHasProjectAccess: () => true,
 }));
 vi.mock("@/src/features/slack/hooks/useChannelSelectorData", () => ({

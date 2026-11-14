@@ -7,7 +7,7 @@ import {
   getRequestOrigin,
   readProjectCookie,
 } from "@/src/server/utils/cookies";
-import { hasSessionUser } from "@/src/features/auth/lib/sessionAccessors";
+import { hasSessionUser } from "@/src/features/rbac/new/sessionAccessors";
 
 export default function Home() {
   return <NoOrganizationPage />;

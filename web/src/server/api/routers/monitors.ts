@@ -6,11 +6,11 @@ import {
   protectedProjectProcedure,
   requireV4Writes,
 } from "@/src/server/api/trpc";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/new/checkProjectAccess";
 import { createWithinEntitlementLimit } from "@/src/features/entitlements/server/createWithinEntitlementLimit";
 import { listLinkedEvaluatorAlerts } from "@/src/features/monitors/server/listLinkedEvaluatorAlerts";
 import { suggestMonitorName } from "@/src/features/monitors/server/suggestMonitorName";
-import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
 import {
   CreateMonitorSchema,
   DeleteMonitorSchema,

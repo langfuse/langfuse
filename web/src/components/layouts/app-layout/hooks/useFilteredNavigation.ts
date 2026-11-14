@@ -14,7 +14,7 @@ import {
   getSessionEnvironment,
   getSessionUserV4BetaEnabled,
   type SessionOrganization,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 import { useEntitlements } from "@/src/features/entitlements/hooks";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";

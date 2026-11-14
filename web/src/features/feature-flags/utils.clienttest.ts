@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import type { Session } from "next-auth";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -187,22 +187,21 @@ describe("parseFlags", () => {
       },
     );
     const enabledInFirstOrg = { ...personalFlags, sessionViewV2: true };
-    const user = {
-      featureFlags: personalFlags,
+    const session = testSession({
+      user: { featureFlags: personalFlags },
       organizations: [
         {
           id: "org-a",
-          featureFlags: enabledInFirstOrg,
+          featureFlagDefaults: enabledInFirstOrg,
           projects: [{ id: "project-a" }],
         },
         {
           id: "org-b",
-          featureFlags: personalFlags,
+          featureFlagDefaults: personalFlags,
           projects: [{ id: "project-b" }],
         },
       ],
-    };
-    const session = { user } as unknown as Session;
+    });
 
     expect(
       getContextualFeatureFlags(session, { projectId: "project-a" })

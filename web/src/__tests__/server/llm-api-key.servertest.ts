@@ -9,9 +9,9 @@ vi.mock("@langfuse/shared/src/server", async () => {
   };
 });
 
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import * as auditLogs from "@/src/features/audit-logs/auditLog";
-import type { Session } from "next-auth";
 import { BEDROCK_USE_DEFAULT_CREDENTIALS, LLMAdapter } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { randomUUID } from "crypto";
@@ -31,36 +31,26 @@ import {
   EvaluatorBlockSource,
   generateLLMText,
 } from "@langfuse/shared/src/server";
+import {
+  testSession,
+  withSessionRoles,
+} from "@/src/__tests__/fixtures/principal";
 
 const mockGenerateLLMText = vi.mocked(generateLLMText);
 
 describe("llmApiKey.all RPC", () => {
   let projectId: string;
   let orgId: string;
-  let session: Session;
+  let session: ReturnType<typeof testSession>;
   let caller: ReturnType<typeof appRouter.createCaller>;
 
   const createCallerForProjectRole = (
     projectRole: "ADMIN" | "MEMBER" | "VIEWER",
   ) => {
-    const limitedSession: Session = {
-      ...session,
-      user: {
-        ...session.user!,
-        organizations: [
-          {
-            ...session.user!.organizations[0],
-            role: "MEMBER",
-            projects: [
-              {
-                ...session.user!.organizations[0].projects[0],
-                role: projectRole,
-              },
-            ],
-          },
-        ],
-      },
-    };
+    const limitedSession = withSessionRoles(session, {
+      role: "MEMBER",
+      projectRole,
+    });
 
     const limitedCtx = createInnerTRPCContext({
       session: limitedSession,
@@ -77,40 +67,38 @@ describe("llmApiKey.all RPC", () => {
     mockFinalizeEvaluatorBlocks.mockReset().mockResolvedValue(undefined);
     mockGenerateLLMText.mockReset().mockResolvedValue({} as never);
 
-    session = {
-      expires: "1",
+    session = testSession({
       user: {
         id: "user-1",
         name: "Demo User",
         canCreateOrganizations: true,
-        organizations: [
-          {
-            id: orgId,
-            role: "OWNER",
-            plan: "cloud:hobby",
-            cloudConfig: undefined,
-            name: "Test Organization",
-            metadata: {},
-            aiFeaturesEnabled: false,
-            aiTelemetryEnabled: false,
-            projects: [
-              {
-                id: projectId,
-                role: "ADMIN",
-                name: "Test Project",
-                deletedAt: null,
-                retentionDays: null,
-                hasTraces: false,
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        ],
         featureFlags: testFeatureFlags(),
       },
+      organizations: [
+        {
+          id: orgId,
+          role: "OWNER",
+          plan: "cloud:hobby",
+          cloudConfig: undefined,
+          name: "Test Organization",
+          metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: false,
+          projects: [
+            {
+              id: projectId,
+              role: "ADMIN",
+              name: "Test Project",
+              retentionDays: null,
+              hasTraces: false,
+              metadata: {},
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        },
+      ],
       environment: {} as any,
-    };
+    });
 
     const ctx = createInnerTRPCContext({ session, headers: {} });
     caller = appRouter.createCaller({ ...ctx, prisma });
@@ -273,7 +261,7 @@ describe("llmApiKey.all RPC", () => {
           adapter: LLMAdapter.Anthropic,
           secretKey: "rotated-project-secret",
         },
-        actor: { userId: session.user!.id, orgId, projectId },
+        actor: { userId: getSessionUserId(session), orgId, projectId },
       }),
     ).resolves.toMatchObject({ created: false });
     await expect(
@@ -288,7 +276,7 @@ describe("llmApiKey.all RPC", () => {
           adapter: LLMAdapter.Azure,
           secretKey: "azure-project-secret",
         },
-        actor: { userId: session.user!.id, orgId, projectId },
+        actor: { userId: getSessionUserId(session), orgId, projectId },
       }),
     ).rejects.toThrow(
       "Project and organization connections with the same provider name must use the same adapter.",
@@ -320,7 +308,7 @@ describe("llmApiKey.all RPC", () => {
         secretKey: "rotated-secret",
         baseURL: connection.baseURL,
       },
-      actor: { userId: session.user!.id, orgId, projectId },
+      actor: { userId: getSessionUserId(session), orgId, projectId },
     });
 
     expect(result.created).toBe(false);

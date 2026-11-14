@@ -23,7 +23,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import Header from "@/src/components/layouts/header";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac/new/hooks";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle } from "@langfuse/icons";

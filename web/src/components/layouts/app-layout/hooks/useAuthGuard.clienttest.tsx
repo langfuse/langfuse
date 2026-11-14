@@ -1,10 +1,10 @@
 import { renderHook } from "@testing-library/react";
 import type { Mock } from "vitest";
-import type { Session } from "next-auth";
 import type { SessionContextValue } from "next-auth/react";
 import { useRouter } from "next/router";
 
 import { useAuthGuard } from "@/src/components/layouts/app-layout/hooks/useAuthGuard";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 vi.mock("next/router", () => ({
   useRouter: vi.fn(),
@@ -39,7 +39,7 @@ function unauthenticated(): SessionContextValue {
 function authenticated(): SessionContextValue {
   return {
     status: "authenticated",
-    data: { user: { id: "u1", email: "a@b.c" } } as Session,
+    data: testSession({ user: { id: "u1", email: "a@b.c" } }),
     update: vi.fn(),
   };
 }

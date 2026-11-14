@@ -1,7 +1,6 @@
 import dns from "node:dns/promises";
 import { randomUUID } from "crypto";
 import type { Mock } from "vitest";
-import type { Session } from "next-auth";
 
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
@@ -16,6 +15,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { CrossAccountRoleError } from "@langfuse/shared/src/server/ee/customerRoleAuth/customerRoleCredentials";
 import { getCrossAccountRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
@@ -53,43 +53,41 @@ async function prepare({
     data: { cloudConfig: { plan: "Enterprise" } },
   });
 
-  const session: Session = {
-    expires: "1",
+  const session = testSession({
     user: {
       id: "user-1",
       canCreateOrganizations: false,
       name: "Demo User",
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: "MEMBER",
-          plan,
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: false,
-          projects: [
-            {
-              id: project.id,
-              role: projectRole,
-              retentionDays: 30,
-              deletedAt: null,
-              hasTraces: false,
-              name: project.name,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
       featureFlags: testFeatureFlags(),
     },
+    organizations: [
+      {
+        id: org.id,
+        name: org.name,
+        role: "MEMBER",
+        plan,
+        cloudConfig: undefined,
+        metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: false,
+        projects: [
+          {
+            id: project.id,
+            role: projectRole,
+            retentionDays: 30,
+            hasTraces: false,
+            name: project.name,
+            metadata: {},
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      },
+    ],
     environment: {
       enableExperimentalFeatures: false,
       selfHostedInstancePlan: "cloud:hobby",
     },
-  };
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   return { project, org, caller: appRouter.createCaller({ ...ctx, prisma }) };

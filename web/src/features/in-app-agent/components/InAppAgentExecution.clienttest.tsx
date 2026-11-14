@@ -18,6 +18,7 @@ import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
 import { InAppAiAgentProvider, useInAppAiAgent } from "./InAppAiAgentProvider";
 import styles from "./InAppAgentWindow.module.css";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const providerMocks = vi.hoisted(() => {
   const startRun = vi.fn();
@@ -120,10 +121,10 @@ const sessionMocks = vi.hoisted(() => ({
 
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
-    data: {
+    data: testSession({
       user: { id: sessionMocks.userId, name: "Test User" },
       environment: { inAppAgentEnabled: sessionMocks.inAppAgentEnabled },
-    },
+    }),
   }),
 }));
 

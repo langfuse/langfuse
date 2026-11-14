@@ -4,8 +4,9 @@ import { hasOrganizationAccess } from "./checkOrganizationAccess";
 import { hasProjectAccess } from "./checkProjectAccess";
 import { type ProjectScope } from "@langfuse/shared";
 import { type Role } from "@langfuse/shared/src/db";
-import { type Session } from "next-auth";
+import { type PrincipalUser } from "@/src/features/auth/policy/types";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 vi.mock("@/src/env.mjs", () => ({
   env: { NEXT_PUBLIC_DEMO_PROJECT_ID: "demo-project" },
@@ -14,16 +15,16 @@ vi.mock("@/src/env.mjs", () => ({
 function projectSession(
   projectId: string,
   role: Role,
-  user: Partial<NonNullable<Session["user"]>> = {},
+  user: Partial<PrincipalUser> = {},
 ) {
-  return {
+  return testSession({
     user: {
       email: "user@example.com",
       featureFlags: testFeatureFlags(),
-      organizations: [{ projects: [{ id: projectId, role }] }],
       ...user,
     },
-  } as Session;
+    organizations: [{ projects: [{ id: projectId, role }] }],
+  });
 }
 
 describe("RBAC access checks", () => {
@@ -33,11 +34,9 @@ describe("RBAC access checks", () => {
         role: "OWNER",
       }),
       {
-        session: {
-          user: {
-            organizations: [{ id: "org-1", role: "MEMBER" }],
-          },
-        },
+        session: testSession({
+          organizations: [{ id: "org-1", role: "MEMBER" }],
+        }),
         organizationId: "org-1",
         scope: "organizationMembers:CUD",
       },
@@ -56,15 +55,13 @@ describe("RBAC access checks", () => {
         role: "OWNER",
       }),
       {
-        session: {
-          user: {
-            organizations: [
-              {
-                projects: [{ id: "project-1", role: "MEMBER" }],
-              },
-            ],
-          },
-        },
+        session: testSession({
+          organizations: [
+            {
+              projects: [{ id: "project-1", role: "MEMBER" }],
+            },
+          ],
+        }),
         projectId: "project-1",
         scope: "project:update",
       },

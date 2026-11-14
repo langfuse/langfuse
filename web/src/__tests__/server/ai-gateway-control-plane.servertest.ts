@@ -101,6 +101,7 @@ import {
   AI_GATEWAY_SERVICE_NAME,
 } from "@langfuse/shared";
 import type { QueryType } from "@langfuse/shared/query";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const cleanupOrganizations: string[] = [];
 const cleanupUsers: string[] = [];
@@ -203,44 +204,10 @@ async function prepare(role: Role = Role.OWNER) {
   cleanupUsers.push(user.id);
   env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.push(org.id);
 
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: user.id,
-      name: user.name,
-      canCreateOrganizations: true,
-      featureFlags: testFeatureFlags({ templateFlag: false }),
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role,
-          cloudConfig: undefined,
-          plan: "oss",
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [
-            {
-              id: project.id,
-              role,
-              retentionDays: 0,
-              deletedAt: null,
-              hasTraces: false,
-              name: project.name,
-              metadata: {},
-              createdAt: project.createdAt.toISOString(),
-            },
-          ],
-        },
-      ],
-    },
-    environment: {} as Session["environment"],
-  };
+  const session = gatewaySession({ user, org, project, role });
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const orgSession = {
     ...session,
-    user: session.user!,
     orgId: org.id,
     orgRole: role,
   } satisfies OrgAuthedContext["session"];
@@ -270,28 +237,62 @@ async function createCallerForOrganizationRole(
   });
   cleanupUsers.push(user.id);
 
-  const session: Session = {
-    ...setup.session,
-    user: {
-      ...setup.session.user,
-      id: user.id,
-      name: user.name,
-      organizations: setup.session.user.organizations.map((organization) =>
-        organization.id === setup.org.id
-          ? {
-              ...organization,
-              role,
-              projects: organization.projects.map((project) => ({
-                ...project,
-                role: projectRole,
-              })),
-            }
-          : organization,
-      ),
-    },
-  };
+  const session = gatewaySession({
+    user,
+    org: setup.org,
+    project: setup.project,
+    role,
+    projectRole,
+  });
   const ctx = createInnerTRPCContext({ session, headers: {} });
   return appRouter.createCaller({ ...ctx, prisma });
+}
+
+function gatewaySession({
+  user,
+  org,
+  project,
+  role,
+  projectRole = role,
+}: {
+  user: { id: string; name: string | null };
+  org: { id: string; name: string };
+  project: { id: string; name: string; createdAt: Date };
+  role: Role;
+  projectRole?: Role;
+}) {
+  return testSession({
+    user: {
+      id: user.id,
+      name: user.name,
+      canCreateOrganizations: true,
+      featureFlags: testFeatureFlags({ templateFlag: false }),
+    },
+    organizations: [
+      {
+        id: org.id,
+        name: org.name,
+        role,
+        cloudConfig: undefined,
+        plan: "oss",
+        metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: true,
+        projects: [
+          {
+            id: project.id,
+            role: projectRole,
+            retentionDays: 0,
+            hasTraces: false,
+            name: project.name,
+            metadata: {},
+            createdAt: project.createdAt.toISOString(),
+          },
+        ],
+      },
+    ],
+    environment: {} as Session["environment"],
+  });
 }
 
 describe("AI gateway control plane", () => {
@@ -461,13 +462,7 @@ describe("AI gateway control plane", () => {
     const owner = await prepare();
     const memberSession = {
       ...owner.session,
-      user: {
-        ...owner.session.user,
-        organizations: owner.session.user.organizations.map((org) => ({
-          ...org,
-          role: Role.MEMBER,
-        })),
-      },
+      ...gatewaySession({ ...owner, role: Role.MEMBER }),
     };
     const redirectFor = (session: Session, slug: string) =>
       getGatewaySetupRedirect({

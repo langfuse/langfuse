@@ -1,7 +1,7 @@
 import { type Plan } from "@langfuse/shared";
 import { type Session } from "next-auth";
 
-import { findSessionProjectOrganization } from "@/src/features/auth/lib/sessionAccessors";
+import { findSessionProjectOrganization } from "@/src/features/rbac/new/sessionAccessors";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 
 export function getSessionPlanForProject({

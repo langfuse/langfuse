@@ -6,8 +6,10 @@ import Header from "@/src/components/layouts/header";
 import { CreateApiKeyButton } from "@/src/features/public-api/components/CreateApiKeyButton";
 import { ConnectedApiKeySettingsTable } from "@/src/features/public-api/components/ApiKeySettingsTable/ConnectedApiKeySettingsTable";
 import { useLangfuseEnvCode } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  useHasOrganizationAccess,
+  useHasProjectAccess,
+} from "@/src/features/rbac/new/hooks";
 
 type ApiKeyScope = "project" | "organization";
 

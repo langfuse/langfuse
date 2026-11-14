@@ -1,6 +1,6 @@
 import Page from "@/src/components/layouts/Page";
 import { useRouter } from "next/router";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { Plus } from "@langfuse/icons";
 import EvaluatorTable from "@/src/features/evals/components/EvaluatorTable";
 import {

@@ -1,4 +1,5 @@
 /* eslint-disable @repo/prefer-stories-over-client-tests */
+import { type Flags } from "@/src/features/feature-flags/types";
 import {
   fireEvent,
   render,
@@ -16,6 +17,7 @@ import {
 } from "./InAppAgentWindow";
 import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
 import type { InAppAgentError } from "./utils/utils";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const capture = vi.fn();
 const controlledAgent = vi.hoisted(() => ({
@@ -69,10 +71,11 @@ const telemetryProjectQuery = vi.hoisted(() => ({
 
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
-    data: {
-      user: { featureFlags: {}, organizations: [] },
+    data: testSession({
+      user: { featureFlags: {} as Flags },
+      organizations: [],
       environment: { ...sessionEnvironment },
-    },
+    }),
   }),
 }));
 

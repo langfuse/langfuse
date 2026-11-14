@@ -1,5 +1,5 @@
 import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { api } from "@/src/utils/api";
 
 export function getExternalMediaStorageStatus(

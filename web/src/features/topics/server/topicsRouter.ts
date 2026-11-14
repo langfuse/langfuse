@@ -58,13 +58,13 @@ import {
   startTopicRuleRefresh,
   startTopicRuleSetup,
 } from "@langfuse/shared/topics/server";
-import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
 import {
   createTRPCRouter,
   protectedProjectProcedureWithoutTracing,
   type ProjectAuthedContext,
 } from "@/src/server/api/trpc";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/new/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import { canViewTopics } from "@/src/features/topics/topicsAccess";

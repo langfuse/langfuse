@@ -3,8 +3,8 @@ import {
   type MaybeSession,
   type SessionOrganization,
   type SessionStatus,
-} from "@/src/features/auth/lib/sessionAccessors";
-import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+} from "@/src/features/rbac/new/sessionAccessors";
+import { hasOrganizationAccess } from "@/src/features/rbac/new/checkOrganizationAccess";
 
 /** getSessionPaymentBanner describes the billing-issue banner for organization, or null unless the session's user can manage its past-due or unpaid cloud subscription. */
 export function getSessionPaymentBanner(

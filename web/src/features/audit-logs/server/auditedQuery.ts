@@ -5,7 +5,6 @@ import {
   type TRPCQueryProcedure,
   type TRPCUnsetMarker,
 } from "@trpc/server";
-import { type Session } from "next-auth";
 import * as z from "zod";
 
 import {
@@ -20,6 +19,7 @@ import {
   recordTrpcAccess,
   type AccessRead,
 } from "@/src/features/audit-logs/server/recordAccessEvent";
+import { type MaybeSession } from "@/src/features/rbac/new/sessionAccessors";
 
 /** The read a tRPC query performs, recorded as an audit access event. */
 export type AccessAuditMeta = {
@@ -257,7 +257,7 @@ export async function recordRefusedRead({
 }: {
   path: string;
   ctx: {
-    session: { user?: Session["user"] } | null;
+    session: MaybeSession;
     headers: IncomingHttpHeaders;
   };
   meta: AccessAuditMeta;

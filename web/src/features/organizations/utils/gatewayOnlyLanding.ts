@@ -3,9 +3,9 @@ import { type Session } from "next-auth";
 import {
   getSessionOrganizations,
   type SessionOrganization,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
-import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { hasOrganizationAccess } from "@/src/features/rbac/new/checkOrganizationAccess";
 
 /** gatewayOnlyLanding finds the landing org whose projects the user cannot see */
 export function gatewayOnlyLanding(

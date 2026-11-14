@@ -43,7 +43,7 @@ import { useProjectSettingsPages } from "@/src/features/projects/ProjectSettings
 import { api } from "@/src/utils/api";
 import { type NavigationItem } from "@/src/components/layouts/utilities/routes";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { hasProjectAccess } from "@/src/features/rbac/new/checkProjectAccess";
 import { type ProjectScope } from "@langfuse/shared";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import {

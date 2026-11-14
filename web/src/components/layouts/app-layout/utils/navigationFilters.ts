@@ -5,8 +5,8 @@
 
 import { type Route } from "@/src/components/layouts/routes";
 import type { NavigationFilterContext } from "./navigationFilters.types";
-import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { hasProjectAccess } from "@/src/features/rbac/new/checkProjectAccess";
+import { hasOrganizationAccess } from "@/src/features/rbac/new/checkOrganizationAccess";
 import { isInternalFeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 import { canViewTopics } from "@/src/features/topics/topicsAccess";
@@ -18,7 +18,7 @@ import {
   getSessionUserV4BetaEnabled,
   getSessionUserV4UpgradeUiAvailable,
   type SessionOrganization,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 /** Organization type from user session (can be null when not in project/org context) */
 type Organization = SessionOrganization | null | undefined;
 

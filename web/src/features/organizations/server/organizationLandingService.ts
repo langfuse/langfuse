@@ -2,7 +2,7 @@ import { type Session } from "next-auth";
 
 import { env } from "@/src/env.mjs";
 import { gatewayOnlyLanding } from "@/src/features/organizations/utils/gatewayOnlyLanding";
-import { getSessionOrganizations } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionOrganizations } from "@/src/features/rbac/new/sessionAccessors";
 
 /** OrganizationLandingService decides where the app root sends a signed-in user */
 export class OrganizationLandingService {

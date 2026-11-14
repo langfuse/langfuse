@@ -82,7 +82,7 @@ import {
 } from "@/src/utils/date-range-utils";
 import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import { calculateAggregatedUsage } from "@/src/features/traces/fns/calculateAggregatedUsage";
 import { InfoIcon } from "@langfuse/icons";

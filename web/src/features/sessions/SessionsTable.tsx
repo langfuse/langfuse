@@ -85,7 +85,7 @@ import { BatchExportTableButton } from "@/src/components/BatchExportTableButton"
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
 
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 
 export type SessionTableRow = {
   id: string;

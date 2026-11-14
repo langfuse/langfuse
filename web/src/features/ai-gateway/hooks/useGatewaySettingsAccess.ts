@@ -2,7 +2,7 @@ import { useSession } from "next-auth/react";
 
 import { getGatewaySettingsPageAccess } from "@/src/features/ai-gateway/hooks/getGatewaySettingsPageAccess";
 import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac/new/hooks";
 import { api } from "@/src/utils/api";
 
 /**

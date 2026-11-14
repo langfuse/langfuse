@@ -125,7 +125,7 @@ vi.mock(
     useInternalFeaturesEnabled: () => false,
   }),
 );
-vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
+vi.mock("@/src/features/rbac/new/hooks", () => ({
   useHasProjectAccess: () => state.canWrite,
 }));
 vi.mock("@/src/components/error-page", () => ({

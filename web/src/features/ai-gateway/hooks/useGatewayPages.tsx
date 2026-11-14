@@ -24,7 +24,7 @@ import { useGatewayOverviewSetupVisit } from "@/src/features/ai-gateway/hooks/us
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import { useGatewaySetupRequiredReason } from "@/src/features/ai-gateway/hooks/useGatewaySetupRequiredReason";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac/new/hooks";
 
 type GatewayPageEntry = {
   title: string;

@@ -16,7 +16,7 @@ import {
   SheetTitle,
 } from "@/src/components/ui/sheet";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { useCanViewTopics } from "@/src/features/topics/topicsAccess";
 import {
   TOPICS_MAX_RULES,

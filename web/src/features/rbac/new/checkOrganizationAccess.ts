@@ -1,3 +1,5 @@
+import { TRPCError } from "@trpc/server";
+
 import {
   OrganizationId,
   organizationRoleAccessRights,
@@ -18,6 +20,17 @@ export function hasOrganizationAccess(p: HasOrganizationAccessParams): boolean {
   const organization = OrganizationId(p.organizationId);
   return authorize(p.session.authCtx, organization, p.scope, organization)
     .success;
+}
+
+/** throwIfNoOrganizationAccess throws a tRPC FORBIDDEN error when hasOrganizationAccess denies. */
+export function throwIfNoOrganizationAccess(
+  p: HasOrganizationAccessParams,
+): void {
+  if (hasOrganizationAccess(p)) return;
+  throw new TRPCError({
+    code: "FORBIDDEN",
+    message: "Forbidden, user does not have access to this resource or action",
+  });
 }
 
 /** HasOrganizationAccessParams is an explicit role, or a session and the organizationId whose policies decide scope. */

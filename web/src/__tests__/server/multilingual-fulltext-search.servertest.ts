@@ -26,7 +26,6 @@
  * SQL builder. Testing-Trophy weighting: heavy on integration, light on unit.
  */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
-import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -42,6 +41,7 @@ import { type TracingSearchType } from "@langfuse/shared";
 import { makeAPICall } from "@/src/__tests__/test-utils";
 import waitForExpect from "wait-for-expect";
 import { randomUUID } from "crypto";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -83,40 +83,38 @@ describe("multilingual full-text search (issue #11538)", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
   const suiteStartMs = Date.now();
 
-  const session: Session = {
-    expires: "1",
+  const session = testSession({
     user: {
       id: "user-1",
       canCreateOrganizations: true,
       name: "Demo User",
-      organizations: [
-        {
-          id: "seed-org-id",
-          name: "Test Organization",
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [
-            {
-              id: projectId,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              name: "Test Project",
-              metadata: {},
-              hasTraces: true,
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
       featureFlags: testFeatureFlags(),
     },
+    organizations: [
+      {
+        id: "seed-org-id",
+        name: "Test Organization",
+        role: "OWNER",
+        plan: "cloud:hobby",
+        cloudConfig: undefined,
+        metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: true,
+        projects: [
+          {
+            id: projectId,
+            role: "ADMIN",
+            retentionDays: 30,
+            name: "Test Project",
+            metadata: {},
+            hasTraces: true,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      },
+    ],
     environment: {} as any,
-  };
+  });
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 

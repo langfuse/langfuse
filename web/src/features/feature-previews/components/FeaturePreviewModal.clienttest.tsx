@@ -1,11 +1,11 @@
 /* eslint-disable @repo/prefer-stories-over-client-tests */
 import { fireEvent, render, screen } from "@testing-library/react";
-import type { Session } from "next-auth";
 import { useSession } from "next-auth/react";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 
 import { ControlledFeaturePreviewModal } from "./ControlledFeaturePreviewModal";
 import { FeaturePreviewModal } from "./FeaturePreviewModal";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const mocks = vi.hoisted(() => ({ mutate: vi.fn(), isV4: true }));
 
@@ -42,7 +42,7 @@ describe("FeaturePreviewModal", () => {
   });
 
   it("locks Topics on for staff and hides it after opting out of internal view", () => {
-    const session = {
+    const session = testSession({
       user: {
         email: "member@clickhouse.com",
         featureFlags: testFeatureFlags({
@@ -51,7 +51,7 @@ describe("FeaturePreviewModal", () => {
         }),
       },
       environment: { enableExperimentalFeatures: false },
-    } as Session;
+    });
     vi.mocked(useSession).mockReturnValue({
       data: session,
       status: "authenticated",
@@ -72,7 +72,7 @@ describe("FeaturePreviewModal", () => {
     fireEvent.click(toggle);
     expect(mocks.mutate).not.toHaveBeenCalled();
 
-    session.user!.featureFlags.internalFeatures = false;
+    session.authCtx.principal.user.featureFlags.internalFeatures = false;
     rerender(<ControlledFeaturePreviewModal open onOpenChange={vi.fn()} />);
     expect(
       screen.queryByRole("button", { name: /Langfuse Topics/ }),
@@ -85,7 +85,7 @@ describe("FeaturePreviewModal", () => {
   it("keeps session previews unavailable on the legacy read path despite stored opt-ins", () => {
     mocks.isV4 = false;
     vi.mocked(useSession).mockReturnValue({
-      data: {
+      data: testSession({
         user: {
           featureFlags: testFeatureFlags({
             sessionViewV2: true,
@@ -93,7 +93,7 @@ describe("FeaturePreviewModal", () => {
           }),
         },
         environment: { enableExperimentalFeatures: false },
-      } as Session,
+      }),
       status: "authenticated",
       update: vi.fn(),
     });

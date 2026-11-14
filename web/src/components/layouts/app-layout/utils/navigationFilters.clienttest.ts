@@ -1,8 +1,15 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
-import type { Session } from "next-auth";
 import { ROUTES, type Route } from "@/src/components/layouts/routes";
 import { applyNavigationFilters } from "./navigationFilters";
 import type { NavigationFilterContext } from "./navigationFilters.types";
+import {
+  testSession,
+  type TestOrganization,
+} from "@/src/__tests__/fixtures/principal";
+import {
+  findSessionOrganization,
+  getPrincipalUser,
+} from "@/src/features/rbac/new/sessionAccessors";
 
 it.each([
   { flag: "langfuseTopics", enableExperimentalFeatures: true },
@@ -18,9 +25,9 @@ it.each([
     const context: NavigationFilterContext = {
       routerProjectId: undefined,
       routerOrganizationId: undefined,
-      session: {
+      session: testSession({
         user: { featureFlags: testFeatureFlags({ [flag]: false }) },
-      } as Session,
+      }),
       enableExperimentalFeatures,
       internalFeaturesEnabled: false,
       entitlements: [],
@@ -30,7 +37,7 @@ it.each([
       forceV3Experience: false,
     };
     expect(applyNavigationFilters([route], context, undefined)).toEqual([]);
-    context.session!.user!.featureFlags[flag] = true;
+    getPrincipalUser(context.session)!.featureFlags[flag] = true;
     expect(applyNavigationFilters([route], context, undefined)).toEqual([
       route,
     ]);
@@ -49,7 +56,7 @@ it.each([
     const context: NavigationFilterContext = {
       routerProjectId: "project-1",
       routerOrganizationId: undefined,
-      session: {
+      session: testSession({
         user: {
           canToggleV4: false,
           v4BetaEnabled: false,
@@ -57,7 +64,7 @@ it.each([
           featureFlags: testFeatureFlags({}),
         },
         environment: { v4WriteMode: "dual" },
-      } as Session,
+      }),
       enableExperimentalFeatures: false,
       internalFeaturesEnabled: false,
       entitlements: [],
@@ -88,16 +95,14 @@ it.each([
       id: "org-1",
       role: "VIEWER",
       projects: [project],
-    } as unknown as NonNullable<Session["user"]>["organizations"][number];
+    } as TestOrganization;
     const context: NavigationFilterContext = {
       routerProjectId: "project-1",
       routerOrganizationId: undefined,
-      session: {
-        user: {
-          featureFlags: testFeatureFlags({ langfuseTopics: true }),
-          organizations: [organization],
-        },
-      } as Session,
+      session: testSession({
+        user: { featureFlags: testFeatureFlags({ langfuseTopics: true }) },
+        organizations: [organization],
+      }),
       enableExperimentalFeatures: false,
       internalFeaturesEnabled: false,
       entitlements: [],
@@ -107,9 +112,13 @@ it.each([
       forceV3Experience: false,
     };
 
-    expect(applyNavigationFilters([route], context, organization)).toEqual(
-      visible ? [route] : [],
-    );
+    expect(
+      applyNavigationFilters(
+        [route],
+        context,
+        findSessionOrganization(context.session, "org-1"),
+      ),
+    ).toEqual(visible ? [route] : []);
   },
 );
 
@@ -134,17 +143,15 @@ it.each([
       id: "org-1",
       role,
       projects,
-    } as unknown as NonNullable<Session["user"]>["organizations"][number];
+    } as TestOrganization;
     const context: NavigationFilterContext = {
       routerProjectId: undefined,
       routerOrganizationId: "org-1",
-      session: {
-        user: {
-          featureFlags: testFeatureFlags({}),
-          organizations: [organization],
-        },
+      session: testSession({
+        user: { featureFlags: testFeatureFlags({}) },
+        organizations: [organization],
         environment: { aiGatewayDeployed: true },
-      } as Session,
+      }),
       enableExperimentalFeatures: false,
       internalFeaturesEnabled: false,
       entitlements: [],
@@ -154,9 +161,13 @@ it.each([
       forceV3Experience: false,
     };
 
-    expect(applyNavigationFilters([route], context, organization)).toEqual(
-      visible ? [route] : [],
-    );
+    expect(
+      applyNavigationFilters(
+        [route],
+        context,
+        findSessionOrganization(context.session, "org-1"),
+      ),
+    ).toEqual(visible ? [route] : []);
   },
 );
 
@@ -165,18 +176,16 @@ it("shows the AI Gateway pages among the organization routes", () => {
     id: "org-1",
     role: "OWNER",
     projects: [],
-    featureFlags: testFeatureFlags({ aiGateway: true }),
-  } as unknown as NonNullable<Session["user"]>["organizations"][number];
+    featureFlagDefaults: testFeatureFlags({ aiGateway: true }),
+  } as TestOrganization;
   const context: NavigationFilterContext = {
     routerProjectId: undefined,
     routerOrganizationId: "org-1",
-    session: {
-      user: {
-        featureFlags: testFeatureFlags({}),
-        organizations: [organization],
-      },
+    session: testSession({
+      user: { featureFlags: testFeatureFlags({}) },
+      organizations: [organization],
       environment: { aiGatewayDeployed: true },
-    } as Session,
+    }),
     enableExperimentalFeatures: false,
     internalFeaturesEnabled: false,
     entitlements: [],
@@ -187,7 +196,11 @@ it("shows the AI Gateway pages among the organization routes", () => {
   };
 
   expect(
-    applyNavigationFilters(ROUTES, context, organization)
+    applyNavigationFilters(
+      ROUTES,
+      context,
+      findSessionOrganization(context.session, "org-1"),
+    )
       .filter(
         (route) =>
           route.href.includes("[organizationId]") ||

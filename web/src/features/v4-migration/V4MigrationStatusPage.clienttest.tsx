@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import V4MigrationStatusPage from "./V4MigrationStatusPage";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
@@ -36,25 +37,22 @@ vi.mock("next/router", () => ({
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
     status: "authenticated",
-    data: {
-      user: {
-        organizations: [
-          {
-            id: "org-1",
-            name: "Test organization",
-            role: "MEMBER",
-            projects: [
-              {
-                id: "project-1",
-                name: "Test project",
-                role: "MEMBER",
-                deletedAt: null,
-              },
-            ],
-          },
-        ],
-      },
-    },
+    data: testSession({
+      organizations: [
+        {
+          id: "org-1",
+          name: "Test organization",
+          role: "MEMBER",
+          projects: [
+            {
+              id: "project-1",
+              name: "Test project",
+              role: "MEMBER",
+            },
+          ],
+        },
+      ],
+    }),
   }),
 }));
 

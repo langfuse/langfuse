@@ -9,7 +9,7 @@ import {
   organizationOptionalNameSchema,
 } from "@/src/features/organizations/utils/organizationNameSchema";
 import * as z from "zod";
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { throwIfNoOrganizationAccess } from "@/src/features/rbac/new/checkOrganizationAccess";
 import { TRPCError } from "@trpc/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import {
@@ -33,7 +33,7 @@ import {
   getSessionUserEmail,
   getSessionUserId,
   getSessionUserV4BetaEnabled,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 
 export const organizationsRouter = createTRPCRouter({
   lastTraceByProject: protectedOrganizationProcedure

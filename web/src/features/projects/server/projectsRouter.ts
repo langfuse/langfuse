@@ -9,9 +9,9 @@ import * as z from "zod";
 import {
   hasOrganizationAccess,
   throwIfNoOrganizationAccess,
-} from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+} from "@/src/features/rbac/new/checkOrganizationAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/new/checkProjectAccess";
+import { throwIfNoEntitlement } from "@/src/features/rbac/new/entitlements";
 import { TRPCError } from "@trpc/server";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { auditLog } from "@/src/features/audit-logs/auditLog";

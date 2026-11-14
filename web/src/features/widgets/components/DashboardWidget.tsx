@@ -36,7 +36,7 @@ import {
   buildTableFilterHref,
   buildViewAsTableHint,
 } from "@/src/features/dashboard/lib/buildTableFilterHref";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { downloadChartDataCsv } from "@/src/features/widgets/chart-library/downloadChartDataCsv";
 import {
   buildWidgetExport,

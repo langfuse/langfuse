@@ -15,7 +15,9 @@ import {
 } from "@/src/utils/sentryV4BetaTag";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import {
+  getSessionOrganizationRole,
   getSessionOrganizations,
+  getSessionProjectRole,
   getSessionUserCanCreateOrganizations,
   getSessionUserCanToggleV4,
   getSessionUserEmail,
@@ -26,7 +28,8 @@ import {
   getSessionUserName,
   getSessionUserV4BetaEnabled,
   getSessionUserV4UpgradeUiAvailable,
-} from "@/src/features/auth/lib/sessionAccessors";
+  type MaybeSession,
+} from "@/src/features/rbac/new/sessionAccessors";
 import { CommandMenuProvider } from "@/src/features/command-k-menu/CommandMenuProvider";
 
 import { api } from "@/src/utils/api";
@@ -278,7 +281,11 @@ function UserTracking() {
       canCreateOrganizations: getSessionUserCanCreateOrganizations(
         session.data,
       ),
-      organizations: getSessionOrganizations(session.data),
+      organizations: getSessionOrganizations(session.data).map((org) => ({
+        ...org,
+        role: getSessionOrganizationRole(session.data, org.id),
+      })),
+      projects: getIdentifiedProjects(session.data),
       featureFlags: getSessionUserFeatureFlags(session.data),
       hasPassword: getSessionUserHasPassword(session.data),
     });
@@ -295,13 +302,7 @@ function UserTracking() {
           email: getSessionUserEmail(session.data) ?? undefined,
           name: getSessionUserName(session.data) ?? undefined,
           featureFlags: getSessionUserFeatureFlags(session.data) ?? undefined,
-          projects:
-            getSessionOrganizations(session.data).flatMap((org) =>
-              org.projects.map((project) => ({
-                ...project,
-                organization: org,
-              })),
-            ) ?? undefined,
+          projects: getIdentifiedProjects(session.data),
           LANGFUSE_CLOUD_REGION: region,
           [V4_BETA_ENABLED_POSTHOG_PROPERTY]:
             getSessionUserV4BetaEnabled(session.data) ?? false,
@@ -360,4 +361,19 @@ if (
       return await shutdown(signal);
     },
   );
+}
+
+/** getIdentifiedProjects lists the user's projects with the user's project and organization roles, as PostHog identifies them. */
+function getIdentifiedProjects(session: MaybeSession) {
+  return getSessionOrganizations(session).flatMap((org) => {
+    const organization = {
+      ...org,
+      role: getSessionOrganizationRole(session, org.id),
+    };
+    return org.projects.map((project) => ({
+      ...project,
+      role: getSessionProjectRole(session, project.id),
+      organization,
+    }));
+  });
 }

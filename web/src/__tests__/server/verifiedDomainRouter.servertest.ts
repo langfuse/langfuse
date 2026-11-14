@@ -8,6 +8,7 @@ import { TRPCError } from "@trpc/server";
 import type { Session } from "next-auth";
 import type { Mock } from "vitest";
 import { v4 as uuidv4 } from "uuid";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 vi.mock("@/src/ee/features/verified-domains/server/dnsLookup", () => ({
   resolveTxtFresh: vi.fn(),
@@ -44,33 +45,32 @@ function createSession(
   role: Role,
   plan: "cloud:enterprise" | "cloud:hobby",
 ): Session {
-  return {
-    expires: "1",
+  return testSession({
     user: {
       id: user.id,
       email: user.email,
       name: user.name,
       canCreateOrganizations: true,
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role,
-          plan,
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [],
-        },
-      ],
       featureFlags: testFeatureFlags(),
     },
+    organizations: [
+      {
+        id: org.id,
+        name: org.name,
+        role,
+        plan,
+        cloudConfig: undefined,
+        metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: true,
+        projects: [],
+      },
+    ],
     environment: {
       enableExperimentalFeatures: false,
       selfHostedInstancePlan: "cloud:enterprise",
     },
-  };
+  });
 }
 
 async function prepareWithRole(

@@ -10,7 +10,7 @@ import { CreateExperimentsForm } from "@/src/features/experiments/components/Cre
 import { default as ExperimentsTable } from "@/src/features/experiments/components/table/ExperimentsTable";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { V4MigrationDelayBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 import { api } from "@/src/utils/api";
 import { FlaskConical } from "@langfuse/icons";

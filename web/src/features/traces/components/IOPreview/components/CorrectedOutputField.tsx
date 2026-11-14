@@ -13,7 +13,7 @@ import { useCorrectionEditor } from "../hooks/useCorrectionEditor";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { useScoreEditsDisabled } from "@/src/features/scores/hooks/useScoreEditsDisabled";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";

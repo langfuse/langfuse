@@ -69,7 +69,7 @@ vi.mock(
   }),
 );
 
-vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
+vi.mock("@/src/features/rbac/new/hooks", () => ({
   useHasProjectAccess: () => mocks.hasAccess,
 }));
 

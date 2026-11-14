@@ -1,7 +1,7 @@
-import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { throwIfNoOrganizationAccess } from "@/src/features/rbac/new/checkOrganizationAccess";
+import { throwIfNoEntitlement } from "@/src/features/rbac/new/entitlements";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,

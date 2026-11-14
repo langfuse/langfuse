@@ -50,7 +50,7 @@ import { TableSearchBar } from "@/src/features/search-bar/components/TableSearch
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import { useFullTextSearch } from "@/src/features/search-bar/hooks/useFullTextSearch";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";

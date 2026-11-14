@@ -70,7 +70,7 @@ import { mapAgentGraphRecord } from "@/src/features/trace-graph-view/fns/mapAgen
 
 import type * as opentelemetry from "@opentelemetry/api";
 import { isProjectMember } from "@/src/server/utils/checkProjectMembership";
-import { getSessionUserEmail } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionUserEmail } from "@/src/features/rbac/new/sessionAccessors";
 
 const GetAllEventsInput = EventsTableOptions.safeExtend({
   ...paginationZod,

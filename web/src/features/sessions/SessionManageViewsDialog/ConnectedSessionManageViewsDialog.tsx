@@ -1,8 +1,8 @@
 import { type ComponentProps } from "react";
 import { useSession } from "next-auth/react";
-import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
 import { api } from "@/src/utils/api";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { SessionManageViewsDialog } from "./SessionManageViewsDialog";
 
 export function ConnectedSessionManageViewsDialog({

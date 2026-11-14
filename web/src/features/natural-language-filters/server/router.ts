@@ -19,11 +19,11 @@ import {
 import { env } from "@/src/env.mjs";
 import { CreateNaturalLanguageFilterCompletion } from "./validation";
 import { parseFiltersFromCompletion, getLangfuseClient } from "./utils";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/new/checkProjectAccess";
 import {
   getSessionUserEmail,
   getSessionUserId,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 
 export const naturalLanguageFilterRouter = createTRPCRouter({
   createCompletion: protectedProjectProcedure

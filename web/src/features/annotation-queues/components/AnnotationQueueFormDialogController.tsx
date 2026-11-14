@@ -5,7 +5,7 @@ import { DialogController } from "@/src/components/design-system/DialogControlle
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { AnnotationQueueFormDialogContent } from "@/src/features/annotation-queues/components/AnnotationQueueFormDialogContent";
 import { QueueScoreConfigFields } from "./QueueScoreConfigFields";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";

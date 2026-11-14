@@ -8,8 +8,8 @@ import {
   singleFilterList,
   optionalPaginationZod,
 } from "@langfuse/shared";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/new/checkProjectAccess";
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
 import { DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import {
   DashboardService,

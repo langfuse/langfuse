@@ -4,8 +4,8 @@ import { beforeEach, afterAll, describe, expect, it, vi } from "vitest";
 import {
   buildTraceExport,
   TraceDownloadTooLargeError,
-  type TraceExportSession,
 } from "@/src/features/traces/server/buildTraceExport";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const {
   mockGetTraceByIdFromEventsTable,
@@ -63,18 +63,18 @@ const observationStartTimeFilter = new Date(
 const makeSession = (overrides?: {
   supportAccess?: boolean;
   projects?: Array<{ id: string }>;
-}): TraceExportSession => ({
-  user: {
-    email: "test@example.com",
+}) =>
+  testSession({
+    user: { email: "test@example.com" },
     organizations: [
       {
         id: "org-1",
+        role: "VIEWER",
         supportAccess: overrides?.supportAccess ?? false,
         projects: overrides?.projects ?? [{ id: projectId }],
       },
     ],
-  },
-});
+  });
 
 const makeTrace = (overrides?: Record<string, unknown>) => ({
   id: traceId,

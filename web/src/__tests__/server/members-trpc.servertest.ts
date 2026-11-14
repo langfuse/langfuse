@@ -10,13 +10,13 @@ import { createApiKey } from "@langfuse/shared/src/server";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { env } from "@/src/env.mjs";
 
-// Session fixture sub-object types; casts keep the runtime fixtures unchanged
-// while satisfying newer required fields on the session user type.
-type SessionUser = NonNullable<Session["user"]>;
-type SessionProject = SessionUser["organizations"][number]["projects"][number];
 import { v4 as uuidv4 } from "uuid";
 import type * as SharedServer from "@langfuse/shared/src/server";
 import type * as MultiTenantSsoUtils from "@/src/ee/features/multi-tenant-sso/utils";
+import {
+  testSession,
+  type TestOrganization,
+} from "@/src/__tests__/fixtures/principal";
 
 const SSO_ENFORCED_DOMAIN = "sso-enforced.test";
 
@@ -81,45 +81,51 @@ function createSession(
   project: { id: string; name: string },
   plan: Plan,
   roles: { orgRole?: Role; projectRole?: Role } = {},
+  otherOrganizations: TestOrganization[] = [],
 ): Session {
-  const orgRole = roles.orgRole ?? Role.OWNER;
-  const projectRole = roles.projectRole ?? Role.OWNER;
-
-  return {
-    expires: "1",
+  return testSession({
     user: {
       id: ownerUser.id,
       email: ownerUser.email,
       name: ownerUser.name,
       canCreateOrganizations: true,
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: orgRole,
-          plan: plan,
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [
-            {
-              id: project.id,
-              role: projectRole,
-              retentionDays: 30,
-              deletedAt: null,
-              name: project.name,
-              metadata: {},
-            } as SessionProject,
-          ],
-        },
-      ],
       featureFlags: testFeatureFlags(),
     },
+    organizations: [
+      createMembership(org, project, plan, roles),
+      ...otherOrganizations,
+    ],
     environment: {
       enableExperimentalFeatures: false,
       selfHostedInstancePlan: plan,
     },
+  });
+}
+
+function createMembership(
+  org: { id: string; name: string },
+  project: { id: string; name: string },
+  plan: Plan,
+  roles: { orgRole?: Role; projectRole?: Role } = {},
+): TestOrganization {
+  return {
+    id: org.id,
+    name: org.name,
+    role: roles.orgRole ?? Role.OWNER,
+    plan: plan,
+    cloudConfig: undefined,
+    metadata: {},
+    aiFeaturesEnabled: false,
+    aiTelemetryEnabled: true,
+    projects: [
+      {
+        id: project.id,
+        role: roles.projectRole ?? Role.OWNER,
+        retentionDays: 30,
+        name: project.name,
+        metadata: {},
+      },
+    ],
   };
 }
 
@@ -1256,10 +1262,7 @@ describe("membersRouter.create - project organization consistency", () => {
         orgRole: Role.VIEWER,
         projectRole: Role.VIEWER,
       },
-    );
-    session.user!.organizations.push(
-      ...createSession(caller, callerOrg, callerProject, "cloud:team").user!
-        .organizations,
+      [createMembership(callerOrg, callerProject, "cloud:team")],
     );
     const ctx = createInnerTRPCContext({ session, headers: {} });
     const trpc = appRouter.createCaller({ ...ctx, prisma });

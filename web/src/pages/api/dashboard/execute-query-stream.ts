@@ -17,7 +17,7 @@ import {
   getSessionUserEmail,
   getSessionUserV4BetaEnabled,
   hasSessionUser,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 import {
   prepareExecuteQuery,
   toClickhouseQueryOpts,

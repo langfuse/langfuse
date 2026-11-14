@@ -6,7 +6,7 @@ import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { ArrowRight } from "@langfuse/icons";
 import ContainerPage from "@/src/components/layouts/ContainerPage";
-import { getSessionOrganizations } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionOrganizations } from "@/src/features/rbac/new/sessionAccessors";
 import { Card } from "@/src/components/ui/card";
 import { Table } from "@/src/components/design-system/table/Table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";

@@ -24,6 +24,7 @@ import {
 } from "@/src/server/utils/cookies";
 import { getServerSideProps } from "@/src/pages/project/~/[[...path]]";
 import { type GetServerSidePropsContext } from "next";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const makeCtx = (
   params?: Record<string, string | string[]>,
@@ -53,16 +54,15 @@ const makeCtx = (
   } as unknown as GetServerSidePropsContext;
 };
 
-const makeSession = (projectIds: string[]) => ({
-  user: {
+const makeSession = (projectIds: string[]) =>
+  testSession({
     organizations: [
       {
         id: "org-1",
         projects: projectIds.map((id) => ({ id })),
       },
     ],
-  },
-});
+  });
 
 describe("sentinel redirect /project/~/", () => {
   beforeEach(() => vi.clearAllMocks());

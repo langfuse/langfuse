@@ -7,7 +7,7 @@ import { DialogController } from "@/src/components/design-system/DialogControlle
 import { DeleteOrganizationDialog } from "@/src/features/organizations/components/DeleteOrganizationDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac/new/hooks";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 
 type DeleteOrganizationDialogControllerProps = {

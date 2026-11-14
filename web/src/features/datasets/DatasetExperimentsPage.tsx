@@ -4,7 +4,7 @@ import { api } from "@/src/utils/api";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useState, useCallback } from "react";
 import { FlaskConical, MoreVertical } from "@langfuse/icons";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import {
   Dialog,
   DialogContent,

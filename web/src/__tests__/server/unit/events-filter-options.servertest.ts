@@ -17,28 +17,25 @@ vi.mock(
   },
 );
 
-import type { Session } from "next-auth";
 import { describe, expect, it, vi } from "vitest";
 
 import { eventsRouter } from "@/src/features/events/server/eventsRouter";
 import { partitionEventFilterOptionsFilter } from "@/src/features/events/server/eventsService";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import type { FilterState } from "@langfuse/shared";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const projectId = "project-id";
-const session = {
-  expires: "1",
-  user: {
-    id: "user-id",
-    organizations: [
-      {
-        id: "org-id",
-        role: "OWNER",
-        projects: [{ id: projectId, role: "ADMIN" }],
-      },
-    ],
-  },
-} as Session;
+const session = testSession({
+  user: { id: "user-id" },
+  organizations: [
+    {
+      id: "org-id",
+      role: "OWNER",
+      projects: [{ id: projectId, role: "ADMIN" }],
+    },
+  ],
+});
 
 describe("events.filterOptions applied-filter contract", () => {
   it("accepts and forwards an optional applied filter", async () => {

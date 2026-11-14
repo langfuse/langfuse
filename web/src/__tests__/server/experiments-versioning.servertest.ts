@@ -13,8 +13,8 @@ import {
   getDatasetItems,
   createDatasetItemFilterState,
 } from "@langfuse/shared/src/server";
-import type { Session } from "next-auth";
 import { v4 } from "uuid";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const __orgIds: string[] = [];
 
@@ -24,43 +24,41 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 async function prepare() {
   const { project, org } = await createOrgProjectAndApiKey();
 
-  const session: Session = {
-    expires: "1",
+  const session = testSession({
     user: {
       id: "user-1",
       canCreateOrganizations: true,
       name: "Demo User",
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          projects: [
-            {
-              id: project.id,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              hasTraces: false,
-              name: project.name,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-        },
-      ],
       featureFlags: testFeatureFlags(),
     },
+    organizations: [
+      {
+        id: org.id,
+        name: org.name,
+        role: "OWNER",
+        plan: "cloud:hobby",
+        cloudConfig: undefined,
+        metadata: {},
+        projects: [
+          {
+            id: project.id,
+            role: "ADMIN",
+            retentionDays: 30,
+            hasTraces: false,
+            name: project.name,
+            metadata: {},
+            createdAt: new Date().toISOString(),
+          },
+        ],
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: true,
+      },
+    ],
     environment: {
       enableExperimentalFeatures: false,
       selfHostedInstancePlan: "cloud:hobby",
     },
-  };
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });

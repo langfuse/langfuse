@@ -6,7 +6,7 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { api } from "@/src/utils/api";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import {
   buildWidgetExport,
   downloadWidgetJson,

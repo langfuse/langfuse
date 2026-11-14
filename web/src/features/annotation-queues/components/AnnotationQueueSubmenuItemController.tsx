@@ -7,7 +7,7 @@ import { ConfirmationDialogController } from "@/src/components/design-system/Con
 import { type DropdownMenuItemDefinition } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { AnnotationQueueFormDialogController } from "@/src/features/annotation-queues/components/AnnotationQueueFormDialogController";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { type AnalyticsData } from "@/src/features/scores/types";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 

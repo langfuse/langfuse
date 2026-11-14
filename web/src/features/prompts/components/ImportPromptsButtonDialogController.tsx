@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { type ReactNode, useState } from "react";
 import { CheckCircle, XCircle, Loader2 } from "@langfuse/icons";
 import { Dropzone } from "@/src/components/design-system/Dropzone/Dropzone";

@@ -1,6 +1,6 @@
 import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/new/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -9,7 +9,7 @@ import {
   findSessionProjectOrganization,
   getSessionUserId,
   getSessionUserName,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 import {
   AnnotationQueueObjectType,
   AnnotationQueueStatus,

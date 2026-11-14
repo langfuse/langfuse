@@ -8,6 +8,10 @@ import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/create
 import { V4_DEFAULT_ENABLED_FROM_AT } from "@/src/features/events/lib/v4Rollout";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 import { prisma, Role } from "@langfuse/shared/src/db";
+import {
+  testSession,
+  type TestOrganization,
+} from "@/src/__tests__/fixtures/principal";
 
 const makeSession = ({
   userId,
@@ -20,20 +24,19 @@ const makeSession = ({
   email: string;
   name?: string;
   canCreateOrganizations?: boolean;
-  organizations?: NonNullable<Session["user"]>["organizations"];
+  organizations?: TestOrganization[];
 }) =>
-  ({
-    expires: "1",
+  testSession({
     user: {
       id: userId,
       email,
       name,
       canCreateOrganizations,
-      organizations,
       featureFlags: testFeatureFlags(),
     },
+    organizations: organizations,
     environment: {} as Session["environment"],
-  }) as Session;
+  });
 
 describe("onboarding router", () => {
   const createdUserIds: string[] = [];

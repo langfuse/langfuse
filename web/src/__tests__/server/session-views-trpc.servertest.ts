@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { onTestFinished } from "vitest";
-import { type Session } from "next-auth";
 import { prisma, type Role } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const prepare = async () => {
   const { project, org } = await createOrgProjectAndApiKey();
@@ -31,43 +31,41 @@ const prepare = async () => {
     userId: string,
     role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER",
   ) => {
-    const session: Session = {
-      expires: "1",
+    const session = testSession({
       user: {
         id: userId,
         canCreateOrganizations: true,
         name: "Session view test user",
         featureFlags: testFeatureFlags(),
-        organizations: [
-          {
-            id: org.id,
-            name: org.name,
-            role: "OWNER",
-            plan: "cloud:team",
-            cloudConfig: undefined,
-            metadata: {},
-            aiFeaturesEnabled: false,
-            aiTelemetryEnabled: true,
-            projects: [
-              {
-                id: project.id,
-                role,
-                retentionDays: 30,
-                deletedAt: null,
-                hasTraces: false,
-                name: project.name,
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        ],
       },
+      organizations: [
+        {
+          id: org.id,
+          name: org.name,
+          role: "OWNER",
+          plan: "cloud:team",
+          cloudConfig: undefined,
+          metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: true,
+          projects: [
+            {
+              id: project.id,
+              role,
+              retentionDays: 30,
+              hasTraces: false,
+              name: project.name,
+              metadata: {},
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        },
+      ],
       environment: {
         enableExperimentalFeatures: false,
         selfHostedInstancePlan: "cloud:hobby",
       },
-    };
+    });
     return appRouter.createCaller({
       ...createInnerTRPCContext({ session, headers: {} }),
       prisma,

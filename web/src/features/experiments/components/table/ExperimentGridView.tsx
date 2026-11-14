@@ -26,7 +26,7 @@ import { useExperimentNames } from "@/src/features/experiments/hooks/useExperime
 import { cn } from "@/src/utils/tailwind";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 // Grid view row heights (matching DatasetCompareRunsTable)

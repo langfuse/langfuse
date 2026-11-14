@@ -29,7 +29,7 @@ import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFi
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { default as TagList } from "@/src/features/tag/components/TagList";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";

@@ -1,40 +1,8 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   entitlementAccess,
   type EntitlementLimit,
 } from "@/src/features/entitlements/constants/entitlements";
 import { type Plan } from "@langfuse/shared";
-import { TRPCError } from "@trpc/server";
-import { type Session } from "next-auth";
-
-import {
-  findSessionOrganization,
-  findSessionProjectOrganization,
-} from "@/src/features/auth/lib/sessionAccessors";
-
-type HasEntitlementLimitParams = {
-  entitlementLimit: EntitlementLimit;
-  session: Session;
-} & ({ projectId: string } | { orgId: string });
-
-/**
- * Get the limit for a specific entitlement based on the session user (to be used server-side).
- * @returns false if unlimited, or a number representing the limit
- */
-export const hasEntitlementLimit = (
-  p: HasEntitlementLimitParams,
-): number | false => {
-  const org =
-    "projectId" in p
-      ? findSessionProjectOrganization(p.session, p.projectId)
-      : findSessionOrganization(p.session, p.orgId);
-
-  const plan = org?.plan ?? "oss";
-  return hasEntitlementLimitBasedOnPlan({
-    plan,
-    entitlementLimit: p.entitlementLimit,
-  });
-};
 
 const hasEntitlementLimitBasedOnPlan = ({
   plan,
@@ -88,31 +56,4 @@ export const clampToDataAccessDays = ({
     effectiveFromTimestamp: wasClamped ? accessFloor : requestedFromTimestamp,
     wasClamped,
   };
-};
-
-/**
- * Check if a specific usage is within the entitlement limit
- * @returns true if usage is allowed, false if it exceeds the limit
- */
-const isWithinEntitlementLimit = (
-  p: HasEntitlementLimitParams & { currentUsage: number },
-): boolean => {
-  const limit = hasEntitlementLimit(p);
-  if (limit === false) return true; // No limit
-  return p.currentUsage < limit;
-};
-
-/**
- * Throws if usage exceeds the entitlement limit
- */
-export const throwIfExceedsLimit = (
-  p: HasEntitlementLimitParams & { currentUsage: number },
-) => {
-  if (!isWithinEntitlementLimit(p)) {
-    const limit = hasEntitlementLimit(p);
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: `Usage (${p.currentUsage}) exceeds the limit (${limit}) for entitlement: ${p.entitlementLimit}`,
-    });
-  }
 };

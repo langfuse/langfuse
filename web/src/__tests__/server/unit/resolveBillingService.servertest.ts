@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const mocks = vi.hoisted(() => ({
   env: {
@@ -32,7 +33,7 @@ const CHB_ORG_ID = "3f7c1b0a-2d5e-4c8b-9a1f-8e6d4c2b1a09";
 const ctxWithOrg = (cloudConfig: unknown) =>
   ({
     prisma: { organization: { findUnique: mocks.findOrg } },
-    session: { user: { id: "user-1" } },
+    session: testSession({ user: { id: "user-1" } }),
     cloudConfig,
   }) as never;
 

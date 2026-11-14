@@ -1,7 +1,7 @@
 /* eslint-disable @repo/component-file-structure */
 import { type AnnotationPanelData } from "@/src/features/scores/types";
 import { type CommentTarget } from "@/src/features/comments/state/commentOverlayStore";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { useTraceData } from "../contexts/TraceDataProvider";
 import { useSelection } from "../contexts/SelectionProvider";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";

@@ -32,7 +32,7 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 
-vi.mock("@/src/features/rbac/utils/checkOrganizationAccess", () => ({
+vi.mock("@/src/features/rbac/new/hooks", () => ({
   useHasOrganizationAccess: () => mocks.hasAccess,
 }));
 

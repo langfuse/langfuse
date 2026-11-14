@@ -7,8 +7,8 @@ import {
 import {
   hasProjectAccess,
   throwIfNoProjectAccess,
-} from "@/src/features/rbac/utils/checkProjectAccess";
-import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/checkProjectAccess";
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
 import {
   TableViewService,
   CreateTableViewPresetsInput,

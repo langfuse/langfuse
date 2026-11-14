@@ -31,7 +31,7 @@ const { fetchComments, invalidateComments, router } = vi.hoisted(() => ({
 }));
 
 vi.mock("next/router", () => ({ useRouter: () => router }));
-vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
+vi.mock("@/src/features/rbac/new/hooks", () => ({
   useHasProjectAccess: () => true,
 }));
 vi.mock("@/src/utils/api", () => ({

@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import type { Session } from "next-auth";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { LLMAdapter } from "@langfuse/shared";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
@@ -31,22 +30,22 @@ vi.mock("@langfuse/shared/src/server/topics/text", () => ({
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 type Role = "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
 
 function caller(userId: string, memberships: [string, string, Role][]) {
-  const session = {
-    expires: "1",
+  const session = testSession({
     user: {
       id: userId,
       featureFlags: testFeatureFlags({ langfuseTopics: true }),
-      organizations: memberships.map(([orgId, projectId, role]) => ({
-        id: orgId,
-        role,
-        projects: [{ id: projectId, role }],
-      })),
     },
-  } as unknown as Session;
+    organizations: memberships.map(([orgId, projectId, role]) => ({
+      id: orgId,
+      role,
+      projects: [{ id: projectId, role }],
+    })),
+  });
   return appRouter.createCaller({
     ...createInnerTRPCContext({ session, headers: {} }),
     prisma,

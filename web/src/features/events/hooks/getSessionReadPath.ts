@@ -4,7 +4,7 @@ import {
   hasSessionUser,
   type MaybeSession,
   type SessionStatus,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 
 /** getSessionReadPath is the user's v3/v4 read path and toggle state, "unknown" only while a session without a user is still loading. */
 export function getSessionReadPath(

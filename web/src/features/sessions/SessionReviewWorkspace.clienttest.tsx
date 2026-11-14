@@ -23,7 +23,7 @@ const { groupRef, router } = vi.hoisted(() => ({
 }));
 
 vi.mock("next/router", () => ({ useRouter: () => router }));
-vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
+vi.mock("@/src/features/rbac/new/hooks", () => ({
   useHasProjectAccess: () => true,
 }));
 vi.mock("react-resizable-panels", async (importOriginal) => ({

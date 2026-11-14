@@ -4,9 +4,9 @@ import {
   protectedProjectProcedure,
   protectedOrganizationProcedure,
 } from "../trpc";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/new/checkProjectAccess";
+import { throwIfNoOrganizationAccess } from "@/src/features/rbac/new/checkOrganizationAccess";
+import { throwIfNoEntitlement } from "@/src/features/rbac/new/entitlements";
 import { paginationZod } from "@langfuse/shared";
 import { AuditLogRecordType, type AuditLog } from "@langfuse/shared/src/db";
 import { orgBoundApiKeyScopes } from "@langfuse/shared/src/server/auth/apiKeys";

@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoEntitlement } from "@/src/features/rbac/new/entitlements";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/new/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -34,7 +34,7 @@ import { CrossAccountRoleError } from "@langfuse/shared/src/server/ee/customerRo
 import { createBlobStorageRoleCredentials } from "@langfuse/shared/src/server/ee/storageRoleAuth/blobStorageRoleCredentials";
 import { getCrossAccountRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
 import { canSessionUseStorageRoleAuth } from "@/src/ee/features/storage-role-auth/server/storageRoleAuthEntitlement";
-import { hasSessionUser } from "@/src/features/auth/lib/sessionAccessors";
+import { hasSessionUser } from "@/src/features/rbac/new/sessionAccessors";
 import { randomUUID } from "crypto";
 import { decrypt } from "@langfuse/shared/encryption";
 import {

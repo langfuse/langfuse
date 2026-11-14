@@ -8,7 +8,7 @@ import {
 import {
   getSessionProjects,
   hasSessionUser,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 import { getServerAuthSession } from "@/src/server/auth";
 import { type Session } from "next-auth";
 import {

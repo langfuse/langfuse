@@ -3,7 +3,6 @@ import { generateBatchActionId } from "@/src/features/table/server/helpers";
 import {
   ActionId,
   BatchActionStatus,
-  type Role,
   type BatchExportTableName,
   type BatchActionQuery,
   type BatchActionType,
@@ -22,6 +21,11 @@ import {
 import { TRPCError } from "@trpc/server";
 import { assertLegacyTracingIoSearchCanCreateBatchJob } from "@/src/features/traces/server/legacyIoSearch";
 import { prisma } from "@langfuse/shared/src/db";
+import {
+  getSessionUserId,
+  getSessionUserV4BetaEnabled,
+  type AuthedSession,
+} from "@/src/features/rbac/new/sessionAccessors";
 
 type CreateBatchActionJob = {
   projectId: string;
@@ -33,16 +37,7 @@ type CreateBatchActionJob = {
   >;
   tableName: BatchExportTableName;
   actionType: BatchActionType;
-  session: {
-    user: {
-      id: string;
-      v4BetaEnabled?: boolean | null;
-    };
-    orgId: string;
-    orgRole: Role;
-    projectId?: string;
-    projectRole?: Role;
-  };
+  session: AuthedSession & { orgId: string; projectId?: string };
   query: BatchActionQuery;
   targetId?: string;
   // Call-site decision on whether this action reads from the events table
@@ -94,10 +89,11 @@ export const createBatchActionJob = async ({
   if ((query.filter ?? []).some(isTopicFilter))
     throw new InvalidRequestError(TOPIC_FILTERS_IN_BATCH_JOBS_MESSAGE);
 
+  const userId = getSessionUserId(session);
   const queryWithSnapshot: BatchActionQuery = {
     ...query,
     useEventsTable:
-      useEventsTableOverride ?? session.user.v4BetaEnabled ?? false,
+      useEventsTableOverride ?? getSessionUserV4BetaEnabled(session) ?? false,
   };
 
   assertLegacyTracingIoSearchCanCreateBatchJob({
@@ -123,7 +119,7 @@ export const createBatchActionJob = async ({
       cutoffCreatedAt,
     });
     const batchActionData = {
-      userId: session.user.id,
+      userId,
       actionType: actionId,
       tableName,
       status: BatchActionStatus.Queued,
@@ -183,7 +179,7 @@ export const createBatchActionJob = async ({
       batchActionId,
       projectId,
       actionId,
-      userId: session.user.id,
+      userId,
     });
 
     return;
@@ -222,7 +218,7 @@ export const createBatchActionJob = async ({
         query: queryWithSnapshot,
         targetId: targetId,
         type: actionType,
-        userId: session.user.id,
+        userId,
       },
     },
     {
@@ -234,7 +230,7 @@ export const createBatchActionJob = async ({
     batchActionId,
     projectId,
     actionId,
-    userId: session.user.id,
+    userId,
   });
 
   return;

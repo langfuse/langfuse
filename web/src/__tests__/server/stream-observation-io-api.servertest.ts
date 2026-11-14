@@ -5,6 +5,7 @@ import { createMocks } from "node-mocks-http";
 import { LangfuseNotFoundError, UnauthorizedError } from "@langfuse/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import handler from "../../pages/api/traces/[traceId]/observations/[observationId]/io/[field]";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const {
   mockGetServerAuthSession,
@@ -58,12 +59,12 @@ const validQuery = {
 describe("GET /api/traces/[traceId]/observations/[observationId]/io/[field]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetServerAuthSession.mockResolvedValue({
-      user: {
-        email: "test@example.com",
+    mockGetServerAuthSession.mockResolvedValue(
+      testSession({
+        user: { email: "test@example.com" },
         organizations: [{ projects: [{ id: projectId }] }],
-      },
-    });
+      }),
+    );
     mockGetAuthorizedTrace.mockResolvedValue({
       id: traceId,
       timestamp: new Date(startTime),
@@ -126,12 +127,12 @@ describe("GET /api/traces/[traceId]/observations/[observationId]/io/[field]", ()
   it("serves each supported field", async () => {
     for (const field of ["input", "output", "metadata"] as const) {
       vi.clearAllMocks();
-      mockGetServerAuthSession.mockResolvedValue({
-        user: {
-          email: "test@example.com",
+      mockGetServerAuthSession.mockResolvedValue(
+        testSession({
+          user: { email: "test@example.com" },
           organizations: [{ projects: [{ id: projectId }] }],
-        },
-      });
+        }),
+      );
       mockGetAuthorizedTrace.mockResolvedValue({ id: traceId });
       mockByteLength.mockResolvedValue(1);
       mockStreamIOField.mockResolvedValue({ stream: Readable.from(["x"]) });

@@ -5,9 +5,9 @@ import {
   gatewayPageAccess,
   gatewayPageVisibility,
 } from "@/src/features/ai-gateway/fns/gatewayPageAccess";
-import { getSessionEnvironment } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionEnvironment } from "@/src/features/rbac/new/sessionAccessors";
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
-import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { hasOrganizationAccess } from "@/src/features/rbac/new/checkOrganizationAccess";
 
 /** The AI Gateway sub-pages visible to the session in the organization. */
 export function visibleGatewayPages(

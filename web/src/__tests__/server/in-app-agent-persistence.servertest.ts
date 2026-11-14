@@ -10,7 +10,6 @@ vi.mock("@langfuse/shared/src/server/llm/llmText", async () => {
 });
 
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
-import type { Session } from "next-auth";
 import { EventType } from "@ag-ui/core";
 import { EventSchema } from "@ag-ui/core/schemas";
 import { randomUUID } from "crypto";
@@ -59,6 +58,10 @@ import {
 import { finishClaimedRun } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 import { watchConversationFrames } from "@/src/features/in-app-agent/server/watch";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import {
+  testSession,
+  withSessionUser,
+} from "@/src/__tests__/fixtures/principal";
 
 vi.mock("@/src/server/auth", () => ({
   getServerAuthSession: vi.fn(),
@@ -96,40 +99,38 @@ describe("in-app agent persistence", () => {
       },
     });
 
-    const session: Session = {
-      expires: "1",
+    const session = testSession({
       user: {
         id: userId,
         name: "Agent User",
         canCreateOrganizations: true,
-        organizations: [
-          {
-            id: setup.orgId,
-            role: "OWNER",
-            plan,
-            cloudConfig: undefined,
-            name: "Test Organization",
-            metadata: {},
-            aiFeaturesEnabled: true,
-            aiTelemetryEnabled: true,
-            projects: [
-              {
-                id: setup.projectId,
-                role: "ADMIN",
-                name: "Test Project",
-                deletedAt: null,
-                retentionDays: null,
-                hasTraces: false,
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        ],
         featureFlags: testFeatureFlags({ templateFlag: false }),
       },
+      organizations: [
+        {
+          id: setup.orgId,
+          role: "OWNER",
+          plan,
+          cloudConfig: undefined,
+          name: "Test Organization",
+          metadata: {},
+          aiFeaturesEnabled: true,
+          aiTelemetryEnabled: true,
+          projects: [
+            {
+              id: setup.projectId,
+              role: "ADMIN",
+              name: "Test Project",
+              retentionDays: null,
+              hasTraces: false,
+              metadata: {},
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        },
+      ],
       environment: {} as any,
-    };
+    });
 
     const ctx = createInnerTRPCContext({ session, headers: {} });
 
@@ -2132,13 +2133,7 @@ describe("in-app agent persistence", () => {
       },
     });
 
-    const otherSession: Session = {
-      ...owner.session,
-      user: {
-        ...owner.session.user!,
-        id: otherUserId,
-      },
-    };
+    const otherSession = withSessionUser(owner.session, { id: otherUserId });
 
     const otherCtx = createInnerTRPCContext({
       session: otherSession,

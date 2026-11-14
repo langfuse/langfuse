@@ -451,10 +451,7 @@ async function persistAndPropagate(params: {
   // surfaced rather than retried.
   try {
     await auditLog({
-      session: {
-        user: { id: "clickhouse-webhook" },
-        orgId: parsedOrg.id,
-      },
+      userId: "clickhouse-webhook",
       orgId: parsedOrg.id,
       resourceType: "organization",
       resourceId: parsedOrg.id,

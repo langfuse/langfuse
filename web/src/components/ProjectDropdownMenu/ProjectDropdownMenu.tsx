@@ -1,6 +1,6 @@
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
-import { type SessionProject } from "@/src/features/auth/lib/sessionAccessors";
+import { type SessionProject } from "@/src/features/rbac/new/sessionAccessors";
 import { House, PlusIcon, Settings } from "@langfuse/icons";
 import { type ComponentProps, useMemo } from "react";
 

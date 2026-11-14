@@ -9,13 +9,13 @@ const eventsTableAvailable = vi.hoisted(() => {
   return enabled;
 });
 
-import type { Session } from "next-auth";
 import { randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
 import { createEvent, createEventsCh } from "@langfuse/shared/src/server";
 import { env } from "@langfuse/shared/src/env";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const maybe = eventsTableAvailable ? describe : describe.skip;
 
@@ -26,41 +26,39 @@ describe("datasets metrics events-only liveness", () => {
 maybe("datasets.allDatasetsMetrics in events_only write mode", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
-  const session: Session = {
-    expires: "1",
+  const session = testSession({
     user: {
       id: "user-1",
       canCreateOrganizations: true,
       name: "Demo User",
-      organizations: [
-        {
-          id: "seed-org-id",
-          name: "Test Organization",
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: false,
-          projects: [
-            {
-              id: projectId,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              name: "Test Project",
-              hasTraces: true,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
       featureFlags: testFeatureFlags(),
       v4BetaEnabled: true,
     },
+    organizations: [
+      {
+        id: "seed-org-id",
+        name: "Test Organization",
+        role: "OWNER",
+        plan: "cloud:hobby",
+        cloudConfig: undefined,
+        metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: false,
+        projects: [
+          {
+            id: projectId,
+            role: "ADMIN",
+            retentionDays: 30,
+            name: "Test Project",
+            hasTraces: true,
+            metadata: {},
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      },
+    ],
     environment: {} as any,
-  };
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });

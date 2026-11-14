@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   mutate: vi.fn(),
 }));
 
-vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
+vi.mock("@/src/features/rbac/new/hooks", () => ({
   useHasProjectAccess: () => false,
 }));
 vi.mock("@/src/utils/api", () => ({

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const {
   mutateAsyncMock,
@@ -18,13 +19,9 @@ const {
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
     status: "authenticated",
-    data: {
-      user: {
-        email: "user@example.com",
-        name: "Test User",
-        hasPassword: true,
-      },
-    },
+    data: testSession({
+      user: { email: "user@example.com", name: "Test User", hasPassword: true },
+    }),
   }),
 }));
 

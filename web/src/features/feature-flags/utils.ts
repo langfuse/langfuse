@@ -6,7 +6,7 @@ import {
   getSessionUserEmail,
   getSessionUserFeatureFlags,
   type MaybeSession,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 import {
   availableFlags,
   defaultOnFeaturePreviewFlags,

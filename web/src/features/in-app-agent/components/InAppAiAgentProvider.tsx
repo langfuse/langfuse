@@ -64,7 +64,7 @@ import {
   getSessionEnvironment,
   getSessionUserId,
   getSessionUserName,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 import { isInAppAgentLauncherVisibleForSession } from "@/src/features/in-app-agent/components/isInAppAgentLauncherVisibleForSession";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";

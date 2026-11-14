@@ -5,6 +5,7 @@ import { vi } from "vitest";
 
 import { useV4UpgradeUiEnabled } from "./useV4UpgradeUiEnabled";
 import { useForceV3Experience } from "./useForceV3Experience";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(),
@@ -19,13 +20,13 @@ const mockUseForceV3Experience = vi.mocked(useForceV3Experience);
 
 const mockSessionAvailability = (v4UpgradeUiAvailable: boolean) => {
   mockUseSession.mockReturnValue({
-    data: {
+    data: testSession({
       user: {
         featureFlags: testFeatureFlags({ templateFlag: false }),
         v4UpgradeUiAvailable,
       },
       environment: { enableExperimentalFeatures: false },
-    },
+    }),
   } as never);
 };
 
@@ -52,13 +53,13 @@ describe("useV4UpgradeUiEnabled", () => {
 
   it("does not enable the UI for experimental deployments", () => {
     mockUseSession.mockReturnValue({
-      data: {
+      data: testSession({
         user: {
           featureFlags: testFeatureFlags({ templateFlag: false }),
           v4UpgradeUiAvailable: false,
         },
         environment: { enableExperimentalFeatures: true },
-      },
+      }),
     } as never);
 
     const { result } = renderHook(() => useV4UpgradeUiEnabled());
@@ -70,12 +71,10 @@ describe("useV4UpgradeUiEnabled", () => {
     // Older sessions and test fixtures predate the field; default to off rather
     // than showing migration surfaces a deployment may not support.
     mockUseSession.mockReturnValue({
-      data: {
-        user: {
-          featureFlags: testFeatureFlags({ templateFlag: false }),
-        },
+      data: testSession({
+        user: { featureFlags: testFeatureFlags({ templateFlag: false }) },
         environment: { enableExperimentalFeatures: false },
-      },
+      }),
     } as never);
 
     const { result } = renderHook(() => useV4UpgradeUiEnabled());

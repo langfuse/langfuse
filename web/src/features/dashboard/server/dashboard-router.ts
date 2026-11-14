@@ -39,8 +39,8 @@ import {
   LANGFUSE_HOME_DASHBOARD_ID,
   type FilterState,
 } from "@langfuse/shared";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/new/checkProjectAccess";
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
 
 // Define the dashboard list input schema
 const ListDashboardsInput = z.object({

@@ -21,7 +21,6 @@ import {
   saveProjectMembership,
   updateOrgMembership,
 } from "@langfuse/shared/memberships";
-import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
 import {
   afterAll,
@@ -70,6 +69,7 @@ import {
   setRedisValue,
   type RedisTestClient,
 } from "@/src/__tests__/server/redis-test-utils";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 let redis: RedisTestClient;
 
@@ -190,41 +190,39 @@ function makeCaller({
   projectId?: string;
   plan?: Plan;
 }) {
-  const session: Session = {
-    expires: "1",
+  const session = testSession({
     user: {
       id: userId,
       canCreateOrganizations: true,
       name: "Test User",
       email: "cache-inval@test.com",
-      organizations: orgIds.map((orgId) => ({
-        id: orgId,
-        name: "Test Organization",
-        role: Role.OWNER,
-        plan,
-        cloudConfig: undefined,
-        metadata: {},
-        aiFeaturesEnabled: false,
-        aiTelemetryEnabled: true,
-        projects: projectId
-          ? [
-              {
-                id: projectId,
-                role: Role.OWNER,
-                retentionDays: 0,
-                deletedAt: null,
-                hasTraces: false,
-                name: "Test Project",
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ]
-          : [],
-      })),
       featureFlags: testFeatureFlags(),
     },
+    organizations: orgIds.map((orgId) => ({
+      id: orgId,
+      name: "Test Organization",
+      role: Role.OWNER,
+      plan,
+      cloudConfig: undefined,
+      metadata: {},
+      aiFeaturesEnabled: false,
+      aiTelemetryEnabled: true,
+      projects: projectId
+        ? [
+            {
+              id: projectId,
+              role: Role.OWNER,
+              retentionDays: 0,
+              hasTraces: false,
+              name: "Test Project",
+              metadata: {},
+              createdAt: new Date().toISOString(),
+            },
+          ]
+        : [],
+    })),
     environment: {} as any,
-  };
+  });
   const ctx = createInnerTRPCContext({ session, headers: {} });
   return appRouter.createCaller({ ...ctx, prisma, session });
 }

@@ -8,11 +8,11 @@ import {
   createTraceScore,
   createTracesCh,
 } from "@langfuse/shared/src/server";
-import type { Session } from "next-auth";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { getOrgUsageBreakdown } from "@/src/features/organization-usage/server/usageBreakdown";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const createOrgWithProjects = async (
   projects: { name: string; deleted?: boolean }[],
@@ -36,32 +36,31 @@ const createOrgWithProjects = async (
 };
 
 const callerWithOrgRole = (orgId: string, role: Role) => {
-  const session: Session = {
-    expires: "1",
+  const session = testSession({
     user: {
       id: "user-1",
       canCreateOrganizations: false,
       name: "Demo User",
-      organizations: [
-        {
-          id: orgId,
-          name: "Org",
-          role,
-          plan: "oss",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: false,
-          projects: [],
-        },
-      ],
       featureFlags: testFeatureFlags(),
     },
+    organizations: [
+      {
+        id: orgId,
+        name: "Org",
+        role,
+        plan: "oss",
+        cloudConfig: undefined,
+        metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: false,
+        projects: [],
+      },
+    ],
     environment: {
       enableExperimentalFeatures: false,
       selfHostedInstancePlan: "oss",
     },
-  };
+  });
   const ctx = createInnerTRPCContext({ session, headers: {} });
   return appRouter.createCaller({ ...ctx, prisma });
 };

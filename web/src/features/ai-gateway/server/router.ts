@@ -3,11 +3,11 @@ import { z } from "zod/v4";
 import { z as zodV3 } from "zod";
 import type { Session } from "next-auth";
 
-import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
 import {
   hasOrganizationAccess,
   throwIfNoOrganizationAccess,
-} from "@/src/features/rbac/utils/checkOrganizationAccess";
+} from "@/src/features/rbac/new/checkOrganizationAccess";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,

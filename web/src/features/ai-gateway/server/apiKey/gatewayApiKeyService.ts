@@ -19,13 +19,13 @@ import {
 } from "@langfuse/shared/rbac";
 import type { Cluster, Redis } from "ioredis";
 
-import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
 import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import type { GatewayMetadata } from "@/src/features/ai-gateway/server/provider/registry";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
-import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { hasOrganizationAccess } from "@/src/features/rbac/new/checkOrganizationAccess";
 import { GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS } from "@/src/features/ai-gateway/constants/gatewayApiKeyLastUsed";
 import { getEffectiveGatewayIngestionMode } from "@/src/features/ai-gateway/fns/gatewayIngestionModePolicy";
 import { GatewayConfigRepository } from "@/src/features/ai-gateway/server/config/gatewayConfigRepository";

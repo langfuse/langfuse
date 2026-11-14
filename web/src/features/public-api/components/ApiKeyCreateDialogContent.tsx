@@ -34,7 +34,7 @@ import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePer
 import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
 import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
 import { roleIcons } from "@/src/features/rbac/components/roleIcons";
-import { getSessionEnvironment } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionEnvironment } from "@/src/features/rbac/new/sessionAccessors";
 
 type ApiKeyScope = "project" | "organization";
 

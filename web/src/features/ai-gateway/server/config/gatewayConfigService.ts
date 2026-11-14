@@ -21,11 +21,7 @@ import { GatewayConfigRepository } from "./gatewayConfigRepository";
 function withoutProjectContext(actor: AuditLogActor): AuditLogActor {
   if ("session" in actor) {
     return {
-      session: {
-        ...actor.session,
-        projectId: undefined,
-        projectRole: undefined,
-      },
+      session: { ...actor.session, projectId: undefined },
     };
   }
   return { ...actor, projectId: undefined };

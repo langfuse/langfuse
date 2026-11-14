@@ -3,7 +3,7 @@ import Page from "@/src/components/layouts/Page";
 import { ConnectedDashboardTable } from "@/src/features/dashboard/components/DashboardTable/ConnectedDashboardTable";
 import { ActionButton } from "@/src/components/ActionButton";
 import { PlusIcon } from "@langfuse/icons";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import {
   getDashboardTabs,
   DASHBOARD_TABS,

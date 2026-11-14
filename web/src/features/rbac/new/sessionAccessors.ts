@@ -1,6 +1,6 @@
 import { type Session } from "next-auth";
 
-import { type Role } from "@langfuse/shared";
+import { type CloudConfigSchema, type Plan, type Role } from "@langfuse/shared";
 import {
   hasSystemRoleKind,
   organizationRoleAccessRights,
@@ -12,10 +12,8 @@ import {
 } from "@langfuse/shared/rbac";
 
 import {
-  type SessionOrganization,
-  type SessionProject,
-} from "@/src/features/auth/lib/sessionAccessors";
-import {
+  type AuthorizationContext,
+  type Principal,
   type PrincipalOrganization,
   type PrincipalProject,
   type PrincipalUser,
@@ -24,10 +22,16 @@ import { type Flags } from "@/src/features/feature-flags/types";
 import { rolesFor } from "./rolesFor";
 import { type PolicySession } from "./sessionCallback";
 
-export function hasSessionUser(session: MaybeSession): boolean {
+/** hasSessionUser reports whether the session resolved to a signed-in user. */
+export function hasSessionUser<T extends MaybeSession>(
+  session: T,
+): session is NonNullable<T> & AuthedSession {
   return Boolean(getPrincipalUser(session));
 }
 
+/** getSessionUserId is undefined when the session has not loaded or has no user. */
+export function getSessionUserId(session: AuthedSession): string;
+export function getSessionUserId(session: MaybeSession): string | undefined;
 export function getSessionUserId(session: MaybeSession): string | undefined {
   return getPrincipalUser(session)?.id;
 }
@@ -46,6 +50,10 @@ export function getSessionUserImage(session: MaybeSession) {
 }
 
 /** getSessionUserFeatureFlags is the signed-in user's resolved feature flags. */
+export function getSessionUserFeatureFlags(session: AuthedSession): Flags;
+export function getSessionUserFeatureFlags(
+  session: MaybeSession,
+): Flags | undefined;
 export function getSessionUserFeatureFlags(
   session: MaybeSession,
 ): Flags | undefined {
@@ -76,6 +84,12 @@ export function getSessionUserHasPassword(session: MaybeSession) {
 }
 
 /** getSessionEnvironment is the deployment's client-visible configuration. */
+export function getSessionEnvironment(
+  session: Pick<Session, "environment">,
+): Session["environment"];
+export function getSessionEnvironment(
+  session: MaybeSession,
+): Session["environment"] | undefined;
 export function getSessionEnvironment(
   session: MaybeSession,
 ): Session["environment"] | undefined {
@@ -153,6 +167,10 @@ export function findPrincipalProjectOrganization(
 }
 
 /** getPrincipalUser is the signed-in user the session's context resolved to. */
+export function getPrincipalUser(session: AuthedSession): PrincipalUser;
+export function getPrincipalUser(
+  session: MaybeSession,
+): PrincipalUser | undefined;
 export function getPrincipalUser(
   session: MaybeSession,
 ): PrincipalUser | undefined {
@@ -232,5 +250,45 @@ function toSessionProject(project: PrincipalProject): SessionProject {
   };
 }
 
+/** SessionStatus is next-auth's client-side session status, typed here so pure code need not import its React bindings. */
+export type SessionStatus = "authenticated" | "loading" | "unauthenticated";
+
 /** MaybeSession is a policy-engine session that may not have loaded or may have no user. */
 export type MaybeSession = Partial<PolicySession> | null | undefined;
+
+/** AuthedSession is a session whose context is known to have resolved to a signed-in user. */
+export type AuthedSession = { authCtx: UserAuthorizationContext };
+
+/** UserAuthorizationContext is the authorization context of a signed-in user. */
+type UserAuthorizationContext = AuthorizationContext & {
+  principal: Extract<Principal, { kind: "user" }>;
+};
+
+/** SessionOrganization is an organization the user can open, in the shape the UI reads. */
+export type SessionOrganization = {
+  id: string;
+  name: string;
+  supportAccess?: boolean;
+  cloudConfig: CloudConfigSchema | undefined;
+  plan: Plan;
+  metadata: Record<string, unknown>;
+  aiFeaturesEnabled: boolean;
+  aiTelemetryEnabled: boolean;
+  accessAuditLogEnabled?: boolean;
+  featureFlags?: Flags;
+  projects: SessionProject[];
+};
+
+/** SessionProject is a live project the user can open, in the shape the UI reads. */
+export type SessionProject = {
+  id: string;
+  name: string;
+  deletedAt: Date | null;
+  retentionDays: number | null;
+  hasTraces: boolean;
+  topicsEnabled?: boolean;
+  scoreEditsDisabled?: boolean;
+  forceV3Experience?: boolean;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+};

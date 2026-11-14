@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const {
   completeMock,
@@ -45,13 +46,13 @@ vi.mock("next/router", () => ({
 
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
-    data: {
+    data: testSession({
       user: {
         email: "user@example.com",
         canCreateOrganizations: harness.canCreateOrganizations,
-        organizations: harness.organizations,
       },
-    },
+      organizations: harness.organizations,
+    }),
     update: vi.fn(async () => undefined),
   }),
 }));

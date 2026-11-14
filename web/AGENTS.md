@@ -120,14 +120,14 @@ Sentry instrumentation skill first and decide whether it should capture at all
   tags, access-right tables, and helpers) lives in `@langfuse/shared/rbac`;
   assignment reads and writes live in `@langfuse/shared/rbac/server`;
   web owns policy resolution/evaluation (`getRolesForPrincipal`, `authorize`)
-  and the access checks in `src/features/rbac/utils/checkProjectAccess.ts` and
-  `src/features/rbac/utils/checkOrganizationAccess.ts`.
+  and the access checks in `src/features/rbac/new/checkProjectAccess.ts` and
+  `src/features/rbac/new/checkOrganizationAccess.ts`.
 - Entitlements guidance lives in `src/features/entitlements/README.md`.
 - Prefer Shadcn/ui primitives from `src/components/ui`; if a missing component
   must be installed, ask the user before doing so.
 - When you surface a score in the UI, always show its level
   (trace/observation/session/experiment) with the `<ScoreTag>` component
-    (`src/components/ScoreTag.tsx`) and its global color coding (see the
+  (`src/components/ScoreTag.tsx`) and its global color coding (see the
   ScoreTag Storybook story).
 - Tailwind is the default styling layer; use the shared palette and globals in
   `src/styles/globals.css`.

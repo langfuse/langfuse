@@ -6,7 +6,7 @@ import { type Prisma } from "@langfuse/shared/src/db";
 
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { authorize } from "@/src/features/rbac/authorize";
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { throwIfNoOrganizationAccess } from "@/src/features/rbac/new/checkOrganizationAccess";
 
 /** assertValidOrgOwnershipChange lets a session or auth context grant, change or remove an org OWNER only with ownership rights, and never removes the last owner. */
 export async function assertValidOrgOwnershipChange(

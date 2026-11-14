@@ -15,7 +15,7 @@ import {
 import { CreateExperimentsForm } from "@/src/features/experiments/components/CreateExperimentsForm";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import { toExperimentsResultsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { DatasetAnalytics } from "@/src/features/datasets/components/DatasetAnalytics";
 import {
   RESOURCE_METRICS,

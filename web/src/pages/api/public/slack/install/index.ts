@@ -3,8 +3,8 @@ import { handleInstallPath } from "@/src/features/slack/server/oauth-handlers";
 import { logger } from "@langfuse/shared/src/server";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { getServerAuthSession } from "@/src/server/auth";
-import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
+import { hasProjectAccess } from "@/src/features/rbac/new/checkProjectAccess";
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
 
 /** handler starts the Slack app installation for a project member. */
 export default async function handler(

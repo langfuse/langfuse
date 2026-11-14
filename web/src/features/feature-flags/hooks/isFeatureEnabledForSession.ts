@@ -1,6 +1,6 @@
 import { type Session } from "next-auth";
 
-import { getSessionEnvironment } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionEnvironment } from "@/src/features/rbac/new/sessionAccessors";
 import {
   isInternalFeaturePreviewFlag,
   isInternalFlag,

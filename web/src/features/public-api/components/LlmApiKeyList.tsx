@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Building2, Plug } from "@langfuse/icons";
 
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import Header from "@/src/components/layouts/header";

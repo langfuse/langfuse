@@ -8,7 +8,7 @@ import {
   type Entitlement,
   type EntitlementLimit,
 } from "@/src/features/entitlements/constants/entitlements";
-import { getSessionPlan } from "@/src/features/entitlements/getSessionPlan";
+import { getSessionPlan } from "@/src/features/rbac/new/entitlements";
 
 /**
  * Hook to get the plan of the current organization or self-hosted instance.

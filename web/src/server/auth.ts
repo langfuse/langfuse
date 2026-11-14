@@ -1,6 +1,5 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type GetServerSidePropsContext } from "next";
-import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
 import {
   getServerSession,
   type NextAuthOptions,
@@ -8,20 +7,12 @@ import {
 } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@langfuse/shared/src/db";
-import { isInAppAgentInstanceEnabled } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import {
   hashPassword,
   passwordRequiresReset,
   verifyPassword,
 } from "@/src/features/auth-credentials/lib/passwordHash";
-import {
-  parseFlags,
-  parseFlagsWithOrganizationDefaults,
-} from "@/src/features/feature-flags/server/parseFlags";
-import {
-  isGatewayDeployedOnInstance,
-  isGatewayEnabledForOrganization,
-} from "@/src/features/ai-gateway/server/availability";
+import { parseFlags } from "@/src/features/feature-flags/server/parseFlags";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
@@ -68,7 +59,6 @@ import {
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
 } from "@/src/ee/features/multi-tenant-sso/utils";
-import { getSupportAccessMemberships } from "@/src/ee/features/support-access/server/supportAccess";
 import {
   ENTERPRISE_SSO_REQUIRED_MESSAGE,
   MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE,
@@ -81,7 +71,6 @@ import {
   verifyTurnstileToken,
 } from "@/src/features/auth/server/verifyTurnstile";
 import { z } from "zod";
-import { CloudConfigSchema, projectRoleAccessRights } from "@langfuse/shared";
 import {
   CustomSSOProvider,
   GitHubEnterpriseProvider,
@@ -90,27 +79,16 @@ import {
   sendResetPasswordVerificationRequest,
   instrumentAsync,
   logger,
-  resolveProjectRole,
-  isLangfuseAITracingConfigured,
-  shouldSkipScoresDedup,
-  isForceV3ExperienceProject,
 } from "@langfuse/shared/src/server";
-import {
-  getOrganizationPlanServerSide,
-  getSelfHostedInstancePlanServerSide,
-} from "@/src/features/entitlements/server/getPlan";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 import {
   type EmailCodeRequest,
   normalizeEmailIdentifier,
 } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
-import {
-  canToggleV4,
-  isV4UpgradeUiAvailable,
-} from "@/src/features/events/lib/v4Rollout";
 import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
 import { isSignupOnboardingEnabled } from "@/src/features/onboarding/server/onboardingService";
-import { shadowSession } from "@/src/features/rbac/new/shadowSession";
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
+import { sessionCallback } from "@/src/features/rbac/new/sessionCallback";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -878,253 +856,12 @@ export async function getAuthOptions(
       },
       async session({ session, token }): Promise<Session> {
         return instrumentAsync({ name: "next-auth-session" }, async (span) => {
-          // `sub` is the id of the user the token was issued for. Requiring it
-          // to match keeps a token from resolving to a later account that
-          // reuses the email, e.g. after the original account was deleted.
-          // A token without `sub` resolves to no user: Prisma would drop
-          // `id: undefined` from the filter and match on email alone.
-          const dbUser = !token.sub
-            ? null
-            : await prisma.user.findUnique({
-                where: {
-                  id: token.sub,
-                  email: token.email!.toLowerCase(),
-                  OR: [
-                    { sessionsExpiredAt: null },
-                    {
-                      // Strict: a token issued in the same millisecond as revocation
-                      // is treated as revoked.
-                      sessionsExpiredAt: {
-                        lt: new Date(token.loginAt ?? 0),
-                      },
-                    },
-                  ],
-                },
-                select: {
-                  id: true,
-                  name: true,
-                  email: true,
-                  image: true,
-                  password: true,
-                  createdAt: true,
-                  featureFlags: true,
-                  v4BetaEnabled: true,
-                  supportAccess: true,
-                  organizationMemberships: {
-                    // Newest first so demo project is last for the `project/~/` sentinel
-                    orderBy: {
-                      createdAt: "desc",
-                    },
-                    include: {
-                      organization: {
-                        include: {
-                          projects: {
-                            where: {
-                              deletedAt: {
-                                equals: null,
-                              },
-                            },
-                            orderBy: {
-                              createdAt: "desc",
-                            },
-                          },
-                        },
-                      },
-                      ProjectMemberships: {
-                        include: {
-                          project: true,
-                        },
-                      },
-                    },
-                  },
-                },
-              });
-
-          span.setAttribute("langfuse.user.id", dbUser?.id ?? "");
-          // Support engineers with an unexpired ConductorOne grant see the
-          // org as VIEWER.
-          const organizationMemberships = [
-            ...(dbUser?.organizationMemberships ?? []),
-            ...(await getSupportAccessMemberships(dbUser)),
-          ];
-          // V4 preview availability is governed by the write mode:
-          // - events_only: the legacy traces/observations tables are no longer
-          //   written, so the events-aware UI is the only correct read path —
-          //   force the preview on for everyone and hide the toggle.
-          // - legacy: the events tables are not written, so the preview cannot
-          //   read — keep it off and hide the toggle.
-          // - dual: both table sets are written, so the preview is optional. On
-          //   Cloud we keep the date-based rollout (new orgs are auto-enabled
-          //   and locked on at signup/org-creation, older orgs may toggle).
-          //   Self-hosted dual deployments are opt-in, but only once they have
-          //   also set LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN=true —
-          //   otherwise feature paths still gated on that flag would silently
-          //   fall back to legacy tables while the core UI reads events.
-          const v4WriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
-          const isLangfuseCloud = Boolean(
-            env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+          const policySession = await sessionCallback({ session, token });
+          span.setAttribute(
+            "langfuse.user.id",
+            getSessionUserId(policySession) ?? "",
           );
-          // In dual mode the preview is available on Cloud (governed by the
-          // rollout below) or on self-hosted deployments that opted into the
-          // preview read path via ALLOW_PREVIEW_OPT_IN.
-          const dualPreviewAvailable =
-            isLangfuseCloud ||
-            env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
-          const v4BetaEnabled =
-            v4WriteMode === "events_only" ||
-            (v4WriteMode === "dual" &&
-              dualPreviewAvailable &&
-              dbUser?.v4BetaEnabled === true);
-          // The migration/upgrade UI is a separate question from the preview
-          // read path above: it guides users through work that is still
-          // pending, so it does not require the user to have opted into v4
-          // reads first — the migration panel is where that opt-in is offered.
-          const v4UpgradeUiAvailable = isV4UpgradeUiAvailable({
-            isLangfuseCloud,
-            v4WriteMode,
-            dualPreviewAvailable,
-          });
-
-          const legacySession: Session = {
-            ...session,
-            environment: {
-              enableExperimentalFeatures:
-                env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
-              inAppAgentEnabled: isInAppAgentInstanceEnabled(),
-              aiFeaturesTracingConfigured: isLangfuseAITracingConfigured(),
-              aiGatewayDeployed: isGatewayDeployedOnInstance(),
-              // Enables features that are only available under an enterprise license when self-hosting Langfuse
-              // If you edit this line, you risk executing code that is not MIT licensed (self-contained in /ee folders otherwise)
-              selfHostedInstancePlan: getSelfHostedInstancePlanServerSide(),
-              v4WriteMode,
-              apiKeyProjectRoleSelectionEnabled:
-                env.API_AUTH_MIGRATION === "enforce" &&
-                env.API_KEY_PROJECT_ROLES_ENABLE === "true",
-              apiKeyOrgRoleSelectionEnabled:
-                env.API_AUTH_MIGRATION === "enforce" &&
-                env.API_KEY_ORG_ROLES_ENABLE === "true",
-              accessAuditLogMode: env.LANGFUSE_AUDIT_LOG_ACCESS_EVENTS,
-            },
-            user:
-              dbUser !== null
-                ? {
-                    ...session.user,
-                    id: dbUser.id,
-                    name: dbUser.name,
-                    email: dbUser.email,
-                    image: dbUser.image,
-                    v4BetaEnabled,
-                    v4UpgradeUiAvailable,
-                    canToggleV4:
-                      v4WriteMode === "dual" && dualPreviewAvailable
-                        ? isLangfuseCloud
-                          ? canToggleV4({
-                              userCreatedAt: dbUser.createdAt,
-                              organizations: dbUser.organizationMemberships.map(
-                                (orgMembership) => ({
-                                  id: orgMembership.organization.id,
-                                  createdAt:
-                                    orgMembership.organization.createdAt,
-                                }),
-                              ),
-                              excludedOrganizationIds:
-                                env.NEXT_PUBLIC_DEMO_ORG_ID
-                                  ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
-                                  : [],
-                            })
-                          : true
-                        : false,
-                    canCreateOrganizations: canCreateOrganizations(
-                      dbUser.email,
-                    ),
-                    organizations: organizationMemberships.map(
-                      (orgMembership) => {
-                        const parsedCloudConfig = CloudConfigSchema.safeParse(
-                          orgMembership.organization.cloudConfig,
-                        );
-                        return {
-                          id: orgMembership.organization.id,
-                          name: orgMembership.organization.name,
-                          role: orgMembership.role,
-                          supportAccess: "supportAccess" in orgMembership,
-                          metadata:
-                            (orgMembership.organization.metadata as Record<
-                              string,
-                              unknown
-                            >) ?? {},
-                          aiFeaturesEnabled:
-                            orgMembership.organization.aiFeaturesEnabled,
-                          aiTelemetryEnabled:
-                            orgMembership.organization.aiTelemetryEnabled,
-                          accessAuditLogEnabled:
-                            orgMembership.organization.accessAuditLogEnabled,
-                          featureFlags: parseFlagsWithOrganizationDefaults(
-                            dbUser.featureFlags,
-                            orgMembership.organization.featureFlagOrgDefaults,
-                            {
-                              v4BetaEnabled,
-                              aiGatewayEnabled: isGatewayEnabledForOrganization(
-                                orgMembership.organization.id,
-                              ),
-                            },
-                          ),
-                          cloudConfig: parsedCloudConfig.data,
-                          projects: orgMembership.organization.projects
-                            .map((project) => {
-                              const projectRole = resolveProjectRole({
-                                projectId: project.id,
-                                projectMemberships:
-                                  orgMembership.ProjectMemberships,
-                                orgMembershipRole: orgMembership.role,
-                              });
-                              return {
-                                id: project.id,
-                                name: project.name,
-                                role: projectRole,
-                                retentionDays: project.retentionDays,
-                                hasTraces: project.hasTraces,
-                                topicsEnabled: isTopicsProjectEnabled(
-                                  project.id,
-                                ),
-                                scoreEditsDisabled: shouldSkipScoresDedup(
-                                  project.id,
-                                ),
-                                forceV3Experience: isForceV3ExperienceProject(
-                                  project.id,
-                                ),
-                                deletedAt: project.deletedAt,
-                                metadata:
-                                  (project.metadata as Record<
-                                    string,
-                                    unknown
-                                  >) ?? {},
-                                createdAt: project.createdAt.toISOString(),
-                              };
-                            })
-                            // Only include projects where the user has the required role
-                            .filter((project) =>
-                              projectRoleAccessRights[project.role].includes(
-                                "project:read",
-                              ),
-                            ),
-
-                          // Enables features/entitlements based on the plan of the organization, either cloud or EE version when self-hosting
-                          // If you edit this line, you risk executing code that is not MIT licensed (contained in /ee folders, see LICENSE)
-                          plan: getOrganizationPlanServerSide(
-                            parsedCloudConfig.data,
-                          ),
-                        };
-                      },
-                    ),
-                    featureFlags: parseFlags(dbUser.featureFlags, {
-                      v4BetaEnabled,
-                    }),
-                    hasPassword: Boolean(dbUser.password),
-                  }
-                : null,
-          };
-          shadowSession(token, legacySession).catch(() => undefined);
-          return legacySession;
+          return policySession as Session;
         });
       },
       async signIn({ user, account, profile, email: emailFlow }) {

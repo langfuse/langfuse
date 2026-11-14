@@ -2,7 +2,7 @@ import { type ReactNode } from "react";
 import { ExternalLink } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac/new/hooks";
 
 export function openAIFeaturesSettings(organizationId: string) {
   window.open(

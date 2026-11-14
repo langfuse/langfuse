@@ -7,9 +7,9 @@ import {
 } from "@/src/server/api/trpc";
 import { Prisma, type Dataset } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/new/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { getSessionUserV4BetaEnabled } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionUserV4BetaEnabled } from "@/src/features/rbac/new/sessionAccessors";
 import { createMediaUploadUrl } from "@/src/features/media/server/mediaService";
 import {
   datasetItemMediaReferenceKey,

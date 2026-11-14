@@ -27,6 +27,7 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
   };
 });
 
+import { testSession } from "@/src/__tests__/fixtures/principal";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { prisma } from "@langfuse/shared/src/db";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
@@ -88,7 +89,7 @@ describe("audit log license gate", () => {
       action: "update",
       resourceType: "job",
       resourceId: resourceIds[1],
-      session: { user: { id: userId }, orgId, projectId },
+      session: { ...testSession({ user: { id: userId } }), orgId, projectId },
     });
     await auditLog({
       action: "delete",

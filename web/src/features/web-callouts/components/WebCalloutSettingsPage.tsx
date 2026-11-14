@@ -35,7 +35,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import {
   WEB_CALLOUT_BLOCKED_HEADER_NAMES,
   WEB_CALLOUT_HEADER_NAME_PATTERN,

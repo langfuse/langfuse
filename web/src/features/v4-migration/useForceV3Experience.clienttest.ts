@@ -6,6 +6,7 @@ import {
   useForceV3Experience,
   useIsForceV3ExperienceSettled,
 } from "./useForceV3Experience";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(),
@@ -20,16 +21,14 @@ vi.mock("@/src/utils/api", () => ({
 describe("useForceV3Experience", () => {
   it("resolves the session project's force-v3 flag on first render", () => {
     vi.mocked(useSession).mockReturnValue({
-      data: {
-        user: {
-          organizations: [
-            {
-              id: "org-1",
-              projects: [{ id: "project-1", forceV3Experience: true }],
-            },
-          ],
-        },
-      },
+      data: testSession({
+        organizations: [
+          {
+            id: "org-1",
+            projects: [{ id: "project-1", forceV3Experience: true }],
+          },
+        ],
+      }),
     } as never);
 
     const { result } = renderHook(() => ({

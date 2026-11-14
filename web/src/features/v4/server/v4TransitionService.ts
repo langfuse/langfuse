@@ -24,7 +24,7 @@ import {
   getSdkUsageSeriesByProject,
 } from "@/src/features/v4/server/v4TransitionSdkUsage";
 import { isActionableLegacyApiUsage } from "@/src/features/v4/utils";
-import { findSessionOrganization } from "@/src/features/auth/lib/sessionAccessors";
+import { findSessionOrganization } from "@/src/features/rbac/new/sessionAccessors";
 
 export { getSdkUsageSummaries, getLegacyApiUsageSummaries };
 

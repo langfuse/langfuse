@@ -56,7 +56,7 @@ vi.mock("next/router", () => ({
   }),
 }));
 
-vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
+vi.mock("@/src/features/rbac/new/hooks", () => ({
   useHasProjectAccess: () => true,
 }));
 

@@ -8,7 +8,7 @@ import { toGatewayApiKeyMetadataRows } from "@/src/features/ai-gateway/component
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
 import { localDateInputValue } from "@/src/features/apiKey/fns/localDateInputValue";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac/new/hooks";
 import {
   api,
   reportNonTrpcError,

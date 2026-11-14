@@ -14,7 +14,6 @@
  * the extra (+1) row is the client's "has more" sentinel.
  */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
-import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -22,6 +21,7 @@ import { createEvent, createEventsCh } from "@langfuse/shared/src/server";
 import waitForExpect from "wait-for-expect";
 import { randomUUID } from "crypto";
 import superjson from "superjson";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 // The events_full table is created only by the ClickHouse dev-tables setup,
 // which runs in the default deploy-mode where .env.dev.example enables the v4
@@ -53,40 +53,38 @@ const parseMetadata = (metadata: string | null) =>
 maybe("sessions observations bounded I/O (events)", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
-  const session: Session = {
-    expires: "1",
+  const session = testSession({
     user: {
       id: "user-1",
       canCreateOrganizations: true,
       name: "Demo User",
-      organizations: [
-        {
-          id: "seed-org-id",
-          name: "Test Organization",
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [
-            {
-              id: projectId,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              name: "Test Project",
-              hasTraces: false,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
       featureFlags: testFeatureFlags(),
     },
+    organizations: [
+      {
+        id: "seed-org-id",
+        name: "Test Organization",
+        role: "OWNER",
+        plan: "cloud:hobby",
+        cloudConfig: undefined,
+        metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: true,
+        projects: [
+          {
+            id: projectId,
+            role: "ADMIN",
+            retentionDays: 30,
+            name: "Test Project",
+            hasTraces: false,
+            metadata: {},
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      },
+    ],
     environment: {} as any,
-  };
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });

@@ -1,12 +1,12 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { throwIfNoEntitlement } from "@/src/features/rbac/new/entitlements";
+import { throwIfNoOrganizationAccess } from "@/src/features/rbac/new/checkOrganizationAccess";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
 } from "@/src/server/api/trpc";
 import { resolveTxtFresh } from "@/src/ee/features/verified-domains/server/dnsLookup";
-import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
 import { Prisma } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
 import * as z from "zod";

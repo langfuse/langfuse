@@ -1,7 +1,7 @@
 import {
   findSessionProject,
   type MaybeSession,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 
 /** areScoreEditsDisabledForSession reports whether the deployment allowlist carried on the session makes saved scores in projectId immutable. */
 export function areScoreEditsDisabledForSession(

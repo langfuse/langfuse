@@ -22,7 +22,7 @@ import {
   getSessionUserEmail,
   getSessionUserImage,
   getSessionUserName,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 
 /**
  * Compact account affordance for the mobile top bar: the user's avatar opening

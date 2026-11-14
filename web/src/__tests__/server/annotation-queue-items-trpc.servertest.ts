@@ -6,6 +6,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const HOBBY_LIMIT_MESSAGE =
   /Maximum number of annotation queues reached on Hobby plan/;
@@ -20,40 +21,38 @@ describe("annotation queues trpc", () => {
     projectRole: "ADMIN" | "NONE" = "ADMIN",
     plan: Plan = "cloud:hobby",
   ) => {
-    const session: Session = {
-      expires: "1",
+    const session = testSession({
       user: {
         id: "user-1",
         name: "Demo User",
         canCreateOrganizations: true,
-        organizations: [
-          {
-            id: setup.org.id,
-            name: setup.org.name,
-            role: "MEMBER",
-            plan,
-            cloudConfig: undefined,
-            metadata: {},
-            aiFeaturesEnabled: false,
-            aiTelemetryEnabled: true,
-            projects: [
-              {
-                id: setup.project.id,
-                role: projectRole,
-                name: setup.project.name,
-                deletedAt: null,
-                retentionDays: null,
-                hasTraces: false,
-                createdAt: new Date().toISOString(),
-                metadata: {},
-              },
-            ],
-          },
-        ],
         featureFlags: testFeatureFlags(),
       },
+      organizations: [
+        {
+          id: setup.org.id,
+          name: setup.org.name,
+          role: "MEMBER",
+          plan,
+          cloudConfig: undefined,
+          metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: true,
+          projects: [
+            {
+              id: setup.project.id,
+              role: projectRole,
+              name: setup.project.name,
+              retentionDays: null,
+              hasTraces: false,
+              createdAt: new Date().toISOString(),
+              metadata: {},
+            },
+          ],
+        },
+      ],
       environment: {} as Session["environment"],
-    };
+    });
 
     const ctx = createInnerTRPCContext({ session, headers: {} });
 

@@ -50,6 +50,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 
 import chatCompletionHandler from "@/src/features/playground/server/chatCompletionHandler";
 import { LLMValidationError } from "@langfuse/shared/src/server";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const AISDK_ERROR_MARKER = Symbol.for("vercel.ai.error");
 const API_CALL_ERROR_MARKER = Symbol.for("vercel.ai.error.AI_APICallError");
@@ -92,12 +93,10 @@ function createRequest(body: Record<string, unknown>) {
 }
 
 function createSession(projectId = baseBody.projectId) {
-  return {
-    user: {
-      id: "user-1",
-      organizations: [{ projects: [{ id: projectId, role: "ADMIN" }] }],
-    },
-  };
+  return testSession({
+    user: { id: "user-1" },
+    organizations: [{ projects: [{ id: projectId, role: "ADMIN" }] }],
+  });
 }
 
 describe("chatCompletionHandler", () => {
@@ -131,14 +130,16 @@ describe("chatCompletionHandler", () => {
 
   it("allows staff members in Internal view to run demo completions", async () => {
     const projectId = "demo-project";
-    mocks.session.mockResolvedValue({
-      user: {
-        id: "user-1",
-        email: "member@clickhouse.com",
-        featureFlags: testFeatureFlags({ internalFeatures: true }),
+    mocks.session.mockResolvedValue(
+      testSession({
+        user: {
+          id: "user-1",
+          email: "member@clickhouse.com",
+          featureFlags: testFeatureFlags({ internalFeatures: true }),
+        },
         organizations: [{ projects: [{ id: projectId, role: "MEMBER" }] }],
-      },
-    });
+      }),
+    );
     mocks.generate.mockResolvedValue({ text: "Hello back", finalStep: {} });
 
     const response = await chatCompletionHandler(

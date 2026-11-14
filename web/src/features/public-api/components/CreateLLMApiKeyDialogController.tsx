@@ -12,8 +12,10 @@ import {
   CreateLLMApiKeyForm,
   type LlmConnectionFormOwner,
 } from "@/src/features/public-api/components/CreateLLMApiKeyForm";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  useHasOrganizationAccess,
+  useHasProjectAccess,
+} from "@/src/features/rbac/new/hooks";
 
 export function CreateLLMApiKeyDialogController({
   owner,

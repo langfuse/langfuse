@@ -3,7 +3,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   getSessionUserId,
   getSessionUserV4BetaEnabled,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 import { recordTrpcAccess } from "@/src/features/audit-logs/server/recordAccessEvent";
 import { env } from "@/src/env.mjs";
 import { parseBatchExportFileKeyFromUrl } from "@/src/features/batch-exports/server/batchExportFileKey";
@@ -11,11 +11,11 @@ import { getBatchExportStorageServiceClient } from "@/src/features/batch-exports
 import {
   hasEntitlement,
   throwIfNoEntitlement,
-} from "@/src/features/entitlements/server/hasEntitlement";
+} from "@/src/features/rbac/new/entitlements";
 import {
   hasProjectAccess,
   throwIfNoProjectAccess,
-} from "@/src/features/rbac/utils/checkProjectAccess";
+} from "@/src/features/rbac/new/checkProjectAccess";
 import {
   type AuthedSession,
   createTRPCRouter,

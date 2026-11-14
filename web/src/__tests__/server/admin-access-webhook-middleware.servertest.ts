@@ -1,10 +1,5 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
-
-// Session fixture sub-object types; casts keep the runtime fixtures unchanged
-// while satisfying newer required fields on the session user type.
-type SessionUser = NonNullable<Session["user"]>;
-type SessionProjects = SessionUser["organizations"][number]["projects"];
 import * as z from "zod";
 import { env } from "@/src/env.mjs";
 
@@ -20,6 +15,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
 import {
   createTRPCRouter,
   createInnerTRPCContext,
+  protectedProcedureWithoutTracing,
   protectedProjectProcedureWithoutTracing,
   protectedGetEventsTraceProcedure,
   protectedGetTraceProcedure,
@@ -30,8 +26,10 @@ import {
   getTraceById,
   getTraceByIdFromEventsTable,
 } from "@langfuse/shared/src/server";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const middlewareTestRouter = createTRPCRouter({
+  me: protectedProcedureWithoutTracing.query(() => ({ ok: true })),
   project: protectedProjectProcedureWithoutTracing
     .input(z.object({ projectId: z.string() }))
     .query(() => ({ ok: true })),
@@ -61,13 +59,15 @@ const sessionOrgId = "session-org-id";
 const createSession = (
   projects: Array<{ id: string; name?: string }> = [],
   options: { supportAccess?: boolean } = {},
-): Session => ({
-  expires: "1",
-  user: {
-    id: "staff-user-id",
-    email: "staff@langfuse.com",
-    canCreateOrganizations: true,
-    name: "Staff User",
+): Session =>
+  testSession({
+    user: {
+      id: "staff-user-id",
+      email: "staff@langfuse.com",
+      canCreateOrganizations: true,
+      name: "Staff User",
+      featureFlags: testFeatureFlags(),
+    },
     organizations: [
       {
         id: sessionOrgId,
@@ -81,15 +81,12 @@ const createSession = (
           id: project.id,
           role: options.supportAccess ? "VIEWER" : "OWNER",
           retentionDays: 30,
-          deletedAt: null,
           name: project.name ?? "Project",
-        })) as SessionProjects,
-      } as SessionUser["organizations"][number],
+        })),
+      },
     ],
-    featureFlags: testFeatureFlags(),
-  },
-  environment: {} as any,
-});
+    environment: {} as any,
+  });
 
 const createTestCaller = (params: {
   session: Session | null;
@@ -204,13 +201,22 @@ describe("admin access webhook in tRPC authorization middleware", () => {
     expect(vi.mocked(globalThis.fetch)).not.toHaveBeenCalled();
   });
 
+  it("rejects a session whose context resolved to no user", async () => {
+    const { caller } = createTestCaller({
+      session: {
+        environment: createSession().environment,
+        authCtx: null,
+        user: { name: "Staff User", email: "staff@langfuse.com" },
+      } as unknown as Session,
+    });
+
+    await expect(caller.me()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
+
   it("rejects non-members even when the session carries a legacy admin flag", async () => {
     const session = createSession([]);
     const { caller } = createTestCaller({
-      session: {
-        ...session,
-        user: { ...session.user, admin: true } as Session["user"],
-      },
+      session: { ...session, user: { admin: true } } as unknown as Session,
     });
 
     await expect(

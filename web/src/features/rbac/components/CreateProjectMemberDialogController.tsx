@@ -8,8 +8,10 @@ import {
 } from "@/src/features/entitlements/hooks";
 import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  useHasOrganizationAccess,
+  useHasProjectAccess,
+} from "@/src/features/rbac/new/hooks";
 import { api } from "@/src/utils/api";
 
 type CreateProjectMemberDialogControllerProps = {

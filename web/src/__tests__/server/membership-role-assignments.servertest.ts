@@ -35,14 +35,15 @@ import {
   createApiKey,
   createBasicAuthHeader,
 } from "@langfuse/shared/src/server";
+import {
+  testSession,
+  type TestOrganization,
+} from "@/src/__tests__/fixtures/principal";
 
 vi.mock("@/src/env.mjs", async (importOriginal) => {
   const actual = await importOriginal<{ env: typeof env }>();
   return { ...actual, env: { ...actual.env } };
 });
-
-type SessionUser = NonNullable<Session["user"]>;
-type SessionOrganization = SessionUser["organizations"][number];
 
 const plan: Plan = "cloud:team";
 
@@ -124,7 +125,7 @@ describe("membership role assignments", () => {
 
   /** sessionFor builds a session that owns the given organization and its project. */
   function sessionFor(userId: string, ownedOrgId?: string): Session {
-    const organizations = ownedOrgId
+    const organizations: TestOrganization[] = ownedOrgId
       ? [
           {
             id: ownedOrgId,
@@ -141,28 +142,26 @@ describe("membership role assignments", () => {
                 name: projectId,
                 role: Role.OWNER,
                 retentionDays: 30,
-                deletedAt: null,
                 metadata: {},
               },
             ],
-          } as unknown as SessionOrganization,
+          },
         ]
       : [];
-    return {
-      expires: "1",
+    return testSession({
       user: {
         id: userId,
         email: `${userId}@example.com`,
         name: userId,
         canCreateOrganizations: true,
-        organizations,
         featureFlags: testFeatureFlags(),
-      } as SessionUser,
+      },
+      organizations: organizations,
       environment: {
         enableExperimentalFeatures: false,
         selfHostedInstancePlan: plan,
       },
-    };
+    });
   }
 
   /** callerFor calls tRPC as a user who may own an organization. */

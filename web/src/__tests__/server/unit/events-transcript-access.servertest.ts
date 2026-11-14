@@ -8,6 +8,7 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { env } from "@/src/env.mjs";
 import { getFeaturePreviewOptOutFlag } from "@/src/features/feature-flags/utils";
 import { parseFlagsWithOrganizationDefaults } from "@/src/features/feature-flags/server/parseFlags";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const mocks = vi.hoisted(() => ({
   getObservationsForTraceFromEventsTable: vi.fn(async () => ({
@@ -46,47 +47,49 @@ function createCaller({
   flags: string[];
   defaults: string[];
 }) {
-  const session = {
-    expires: "1",
+  const session = testSession({
     user: {
       id: "user-id",
       name: "Test User",
       email,
       canCreateOrganizations: true,
       featureFlags: testFeatureFlags(),
-      organizations: [
-        {
-          id: "org-id",
-          name: "Test Organization",
-          role: "MEMBER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: false,
-          featureFlags: parseFlagsWithOrganizationDefaults(flags, defaults, {
-            v4BetaEnabled: true,
-          }),
-          projects: [
-            {
-              id: "project-id",
-              name: "Test Project",
-              role: "MEMBER",
-              retentionDays: 30,
-              deletedAt: null,
-              hasTraces: false,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
     },
+    organizations: [
+      {
+        id: "org-id",
+        name: "Test Organization",
+        role: "MEMBER",
+        plan: "cloud:hobby",
+        cloudConfig: undefined,
+        metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: false,
+        featureFlagDefaults: parseFlagsWithOrganizationDefaults(
+          flags,
+          defaults,
+          {
+            v4BetaEnabled: true,
+          },
+        ),
+        projects: [
+          {
+            id: "project-id",
+            name: "Test Project",
+            role: "MEMBER",
+            retentionDays: 30,
+            hasTraces: false,
+            metadata: {},
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      },
+    ],
     environment: {
       enableExperimentalFeatures: false,
       selfHostedInstancePlan: null,
     },
-  } satisfies Session;
+  }) satisfies Session;
   return appRouter.createCaller(
     createInnerTRPCContext({ session, headers: {} }),
   );

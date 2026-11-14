@@ -12,7 +12,7 @@ import { useSlackIntegration } from "@/src/features/slack/hooks/useSlackIntegrat
 import { useRouter } from "next/router";
 import { useState, useEffect } from "react";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import {
   Card,
   CardContent,

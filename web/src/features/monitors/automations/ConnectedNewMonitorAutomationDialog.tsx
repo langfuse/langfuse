@@ -1,6 +1,6 @@
 import { type ActionTypes } from "@langfuse/shared";
 import { usePagerDutyTestEvent } from "@/src/features/pagerduty/hooks/usePagerDutyTestEvent";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { useChannelSelectorData } from "@/src/features/slack/hooks/useChannelSelectorData";
 import { useSlackConnect } from "@/src/features/slack/hooks/useSlackConnect";
 import { useSlackTestMessage } from "@/src/features/slack/hooks/useSlackTestMessage";

@@ -14,7 +14,7 @@ import {
   getSessionOrganizations,
   getSessionUserCanCreateOrganizations,
   hasSessionUser,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { useOrganizationSettingsPages } from "@/src/features/organizations/OrganizationSettingsPage";
 import { accountSettingsPath } from "@/src/features/settings/accountSettingsPath";

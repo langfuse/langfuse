@@ -7,18 +7,21 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { LLMAdapter } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const createSession = (params: {
   orgId: string;
   projectId: string;
   orgRole: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
   projectRole: "ADMIN" | "MEMBER" | "VIEWER";
-}): Session => ({
-  expires: "1",
-  user: {
-    id: randomUUID(),
-    name: "LLM connection test user",
-    canCreateOrganizations: true,
+}): Session =>
+  testSession({
+    user: {
+      id: randomUUID(),
+      name: "LLM connection test user",
+      canCreateOrganizations: true,
+      featureFlags: testFeatureFlags(),
+    },
     organizations: [
       {
         id: params.orgId,
@@ -34,7 +37,6 @@ const createSession = (params: {
             id: params.projectId,
             role: params.projectRole,
             name: "Test Project",
-            deletedAt: null,
             retentionDays: null,
             hasTraces: false,
             metadata: {},
@@ -43,10 +45,8 @@ const createSession = (params: {
         ],
       },
     ],
-    featureFlags: testFeatureFlags(),
-  },
-  environment: {} as never,
-});
+    environment: {} as never,
+  });
 
 const createCaller = (session: Session) => {
   const ctx = createInnerTRPCContext({ session, headers: {} });

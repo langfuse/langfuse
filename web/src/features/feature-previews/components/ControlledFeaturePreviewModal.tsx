@@ -8,7 +8,7 @@ import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import {
   getSessionEnvironment,
   getSessionUserFeatureFlags,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 import { featurePreviewLabels } from "@/src/features/feature-flags/available-flags";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 import { api } from "@/src/utils/api";

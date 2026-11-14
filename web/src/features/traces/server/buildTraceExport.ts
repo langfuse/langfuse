@@ -13,23 +13,16 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "@langfuse/shared/src/env";
 import { prisma } from "@langfuse/shared/src/db";
+import {
+  findSessionProjectOrganization,
+  getSessionUserEmail,
+  type AuthedSession,
+} from "@/src/features/rbac/new/sessionAccessors";
 import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
 import { TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD } from "../constants/traceDownloadConfig";
 
-export type TraceExportSession = {
-  user: {
-    email: string;
-    organizations: Array<{
-      id?: string;
-      supportAccess?: boolean;
-      projects: Array<{
-        id: string;
-      }>;
-    }>;
-  };
-};
-
-export type TraceExportAccessSession = TraceExportSession | null;
+/** TraceExportAccessSession is a signed-in session, or null for an anonymous reader of public traces. */
+export type TraceExportAccessSession = AuthedSession | null;
 
 export class TraceDownloadTooLargeError extends BaseError {
   constructor(description = "Observations in trace are too large") {
@@ -47,14 +40,6 @@ const getDurationSeconds = (
 
   return (endTime.getTime() - startTime.getTime()) / 1000;
 };
-
-const findSessionOrganization = (
-  session: TraceExportAccessSession,
-  projectId: string,
-) =>
-  session?.user.organizations.find((organization) =>
-    organization.projects.some((project) => project.id === projectId),
-  );
 
 const getObservationRecordsForTrace = async (params: {
   traceId: string;
@@ -138,7 +123,10 @@ export async function getAuthorizedTrace(params: {
       : null;
 
   const isSessionPublic = traceSession?.public === true;
-  const sessionOrganization = findSessionOrganization(session, projectId);
+  const sessionOrganization = findSessionProjectOrganization(
+    session,
+    projectId,
+  );
   const canReadTrace =
     clickhouseTrace.public ||
     isSessionPublic ||
@@ -152,7 +140,7 @@ export async function getAuthorizedTrace(params: {
 
   if (sessionOrganization?.supportAccess === true) {
     await sendAdminAccessWebhook({
-      email: session?.user.email,
+      email: getSessionUserEmail(session),
       projectId,
       orgId: sessionOrganization.id,
     });

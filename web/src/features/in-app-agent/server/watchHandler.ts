@@ -9,7 +9,7 @@ import { z } from "zod";
 import { assertInAppAgentAvailable } from "@/src/features/in-app-agent/server/availability";
 import { getServerAuthSessionForRequest } from "@/src/server/auth";
 import { isProjectMember } from "@/src/server/utils/checkProjectMembership";
-import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
 
 const WatchQuerySchema = z.object({
   projectId: z.string().min(1),

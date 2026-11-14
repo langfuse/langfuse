@@ -3,7 +3,7 @@ import type { Session } from "next-auth";
 import {
   getSessionOrganizations,
   hasSessionUser,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 import { getMigrationActionsByProject } from "@/src/features/v4/server/v4TransitionService";
 import { hasMigrationActionNeeded } from "@/src/features/v4-migration/migrationData";
 import { getV4MigrationBannerConfig } from "@/src/features/v4-migration/server/v4MigrationBannerConfig";

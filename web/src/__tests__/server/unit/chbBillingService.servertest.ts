@@ -1,4 +1,5 @@
 import type { CloudConfigSchema } from "@langfuse/shared";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 import type * as SharedServer from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -75,9 +76,9 @@ const ctx = {
     $executeRaw: executeRaw,
   },
   session: {
+    ...testSession({ user: { id: "user-1", email: "user@example.com" } }),
     orgId: ORG_ID,
     orgRole: "OWNER",
-    user: { id: "user-1", email: "user@example.com" },
   },
 } as unknown as OrgAuthedContext;
 

@@ -8,10 +8,10 @@ import {
   EntityChangeQueue,
 } from "@langfuse/shared/src/server";
 import { PromptType } from "@langfuse/shared";
-import type { Session } from "next-auth";
 import { v4 } from "uuid";
 import waitForExpect from "wait-for-expect";
 import { entitlementAccess } from "@/src/features/entitlements/constants/entitlements";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 function createCaller({
   projectId,
@@ -26,43 +26,41 @@ function createCaller({
   orgName?: string;
   projectRole?: "ADMIN" | "MEMBER";
 }) {
-  const session: Session = {
-    expires: "1",
+  const session = testSession({
     user: {
       id: "user-1",
       canCreateOrganizations: true,
       name: "Demo User",
-      organizations: [
-        {
-          id: orgId,
-          name: orgName,
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: false,
-          projects: [
-            {
-              id: projectId,
-              role: projectRole,
-              retentionDays: 30,
-              deletedAt: null,
-              hasTraces: false,
-              name: projectName,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
       featureFlags: testFeatureFlags(),
     },
+    organizations: [
+      {
+        id: orgId,
+        name: orgName,
+        role: "OWNER",
+        plan: "cloud:hobby",
+        cloudConfig: undefined,
+        metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: false,
+        projects: [
+          {
+            id: projectId,
+            role: projectRole,
+            retentionDays: 30,
+            hasTraces: false,
+            name: projectName,
+            metadata: {},
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      },
+    ],
     environment: {
       enableExperimentalFeatures: false,
       selfHostedInstancePlan: "cloud:hobby",
     },
-  };
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });

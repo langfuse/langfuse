@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import Page from "@/src/components/layouts/Page";
 import { ActionButton } from "@/src/components/ActionButton";
 import { PlusIcon } from "@langfuse/icons";

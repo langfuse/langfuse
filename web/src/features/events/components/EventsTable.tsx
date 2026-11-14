@@ -108,7 +108,7 @@ import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTabl
 import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import { InfoIcon, LightbulbIcon } from "@langfuse/icons";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";

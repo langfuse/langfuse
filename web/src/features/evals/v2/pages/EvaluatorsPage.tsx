@@ -38,7 +38,7 @@ import { OverviewSelectionBar } from "@/src/components/table/OverviewSelectionBa
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { useEvaluatorAlerts } from "@/src/features/evals/v2/hooks/useEvaluatorAlerts";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { usePaginationState } from "@/src/hooks/usePaginationState";

@@ -25,7 +25,6 @@ vi.mock("@/src/features/audit-logs/auditLog", () => ({
   auditLog: vi.fn(),
 }));
 
-import type { Session } from "next-auth";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import type * as SharedServerModule from "@langfuse/shared/src/server";
@@ -33,12 +32,18 @@ import {
   BatchEvalSourceTable,
   InvalidRequestError,
   type BatchActionQuery,
+  type Plan,
 } from "@langfuse/shared";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { addToDatasetRouter } from "@/src/features/batch-actions/server/addToDatasetRouter";
 import { runEvaluationRouter } from "@/src/features/batch-actions/server/runEvaluationRouter";
 import { batchActionRouter } from "@/src/features/batch-actions/server/batchActionRouter";
 import { env } from "@/src/env.mjs";
+import {
+  testSession,
+  withSessionOrganizations,
+  withSessionUser,
+} from "@/src/__tests__/fixtures/principal";
 
 const mutableEnv = env as unknown as {
   LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: "true" | "false";
@@ -74,24 +79,21 @@ const datasetConfig = {
   },
 };
 
-const session = {
-  expires: "1",
-  user: {
-    id: "user-id",
-    organizations: [
-      {
-        id: "org-id",
-        role: "OWNER",
-        projects: [
-          {
-            id: projectId,
-            role: "ADMIN",
-          },
-        ],
-      },
-    ],
-  },
-} as Session;
+const session = testSession({
+  user: { id: "user-id" },
+  organizations: [
+    {
+      id: "org-id",
+      role: "OWNER",
+      projects: [
+        {
+          id: projectId,
+          role: "ADMIN",
+        },
+      ],
+    },
+  ],
+});
 
 function prepare({
   v4BetaEnabled = false,
@@ -104,7 +106,7 @@ function prepare({
   foundEvaluatorIds?: string[];
   missingPromptVariable?: boolean;
   decisionModel?: boolean;
-  plan?: string;
+  plan?: Plan;
 } = {}) {
   const batchActionCreate = vi
     .fn()
@@ -166,17 +168,12 @@ function prepare({
   } as unknown as PrismaClient;
   const ctx = {
     ...createInnerTRPCContext({
-      session: {
-        ...session,
-        user: {
-          ...session.user,
-          v4BetaEnabled,
-          organizations: session.user!.organizations.map((org) => ({
-            ...org,
-            plan,
-          })),
-        },
-      } as Session,
+      session: withSessionUser(
+        withSessionOrganizations(session, (organizations) =>
+          organizations.map((org) => ({ ...org, plan: plan ?? org.plan })),
+        ),
+        { v4BetaEnabled },
+      ),
       headers: {},
     }),
     prisma,

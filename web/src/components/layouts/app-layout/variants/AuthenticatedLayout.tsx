@@ -39,7 +39,7 @@ import {
   getSessionUserId,
   getSessionUserImage,
   getSessionUserName,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 import type { Session } from "next-auth";
 import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
 import type { RouteGroup } from "@/src/components/layouts/routes";
@@ -67,7 +67,7 @@ import {
   LegacyUiBanner,
   useLegacyUiBannerVisible,
 } from "@/src/features/v4-migration/LegacyUiBanner";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac/new/hooks";
 import { PaymentBannerView } from "@/src/features/payment-banner/PaymentBannerView";
 import { usePaymentBanner } from "@/src/features/payment-banner/PaymentBanner";
 import { useTopBannerHeight } from "@/src/features/top-banner/useTopBannerHeight";

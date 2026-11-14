@@ -4,7 +4,7 @@ import { getSessionHeaderMetrics } from "@/src/features/sessions/fns/getSessionH
 import { SessionHeaderMetricsControl } from "@/src/features/sessions/SessionHeaderMetricsControl/SessionHeaderMetricsControl";
 import { SessionMetadataJsonPathControl } from "@/src/features/sessions/SessionMetadataJsonPathControl";
 import { useSessionViewSelection } from "@/src/features/sessions/hooks/useSessionViewSelection";
-import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
 import { StringParam, useQueryParam } from "use-query-params";
 /* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-use-before-define */
 /* eslint-disable @repo/no-style-props */
@@ -90,7 +90,7 @@ import { ModernSessionSaveViewDialogContent } from "@/src/features/sessions/Mode
 import { ConnectedSessionManageViewsDialog } from "@/src/features/sessions/SessionManageViewsDialog/ConnectedSessionManageViewsDialog";
 import { SessionDuplicateViewDialog } from "@/src/features/sessions/SessionDuplicateViewDialog/SessionDuplicateViewDialog";
 import { SessionDeleteViewDialog } from "@/src/features/sessions/SessionDeleteViewDialog/SessionDeleteViewDialog";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { ConnectedSessionCustomizationDialog } from "@/src/features/sessions/SessionCustomizationDialog/ConnectedSessionCustomizationDialog";
 import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";

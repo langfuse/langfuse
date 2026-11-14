@@ -8,7 +8,7 @@ import { useHasAppSidebar } from "@/src/components/nav/SidebarPresenceProvider";
 import { TopbarAccount } from "@/src/components/nav/TopbarAccount";
 import { InAppAiAgentButton } from "@/src/components/nav/InAppAiAgentButton";
 import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
-import { hasSessionUser } from "@/src/features/auth/lib/sessionAccessors";
+import { hasSessionUser } from "@/src/features/rbac/new/sessionAccessors";
 
 /**
  * Slim mobile top chrome for the minimal-chrome shell: hamburger · centered

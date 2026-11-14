@@ -2,7 +2,7 @@ import {
   findSessionProject,
   findSessionProjectOrganization,
   type MaybeSession,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 
 /** getSessionProject resolves the user's project with projectId and the organization that owns it, or nulls for both when either is missing. */
 export function getSessionProject(

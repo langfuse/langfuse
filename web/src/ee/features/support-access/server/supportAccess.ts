@@ -28,55 +28,6 @@ export function parseSupportAccess(value: Prisma.JsonValue): SupportAccess {
   return SupportAccessSchema.safeParse(value ?? {}).data ?? {};
 }
 
-export function getActiveSupportAccessGrants(
-  supportAccess: SupportAccess,
-  now: Date = new Date(),
-): { orgId: string; role: SupportAccess[string]["role"] }[] {
-  return Object.entries(supportAccess)
-    .filter(([, entry]) => new Date(entry.expiresAt) > now)
-    .map(([orgId, entry]) => ({ orgId, role: entry.role }));
-}
-
-export async function getSupportAccessMemberships(
-  user: {
-    supportAccess: Prisma.JsonValue;
-    organizationMemberships: { organization: { id: string } }[];
-  } | null,
-) {
-  if (!user) return [];
-  const memberOrgIds = new Set(
-    user.organizationMemberships.map((m) => m.organization.id),
-  );
-  const roleByOrgId = new Map(
-    getActiveSupportAccessGrants(parseSupportAccess(user.supportAccess))
-      .filter((grant) => !memberOrgIds.has(grant.orgId))
-      .map((grant) => [grant.orgId, grant.role]),
-  );
-  if (roleByOrgId.size === 0) return [];
-
-  const organizations = await prisma.organization.findMany({
-    where: { id: { in: [...roleByOrgId.keys()] } },
-    include: {
-      projects: {
-        where: { deletedAt: null },
-        orderBy: { createdAt: "desc" },
-      },
-    },
-  });
-  return organizations.flatMap((organization) => {
-    const role = roleByOrgId.get(organization.id);
-    if (!role) return [];
-    return [
-      {
-        organization,
-        role,
-        ProjectMemberships: [],
-        supportAccess: true as const,
-      },
-    ];
-  });
-}
-
 /** grantSupportAccess records a support grant and mirrors it as an expiring VIEWER assignment. */
 export async function grantSupportAccess(
   userId: string,

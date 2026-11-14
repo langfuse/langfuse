@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import Page from "@/src/components/layouts/Page";
 import { ActionButton } from "@/src/components/ActionButton";
 import { Button } from "@/src/components/ui/button";

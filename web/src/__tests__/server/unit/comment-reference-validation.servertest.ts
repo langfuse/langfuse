@@ -1,4 +1,5 @@
 import { LangfuseNotFoundError } from "@langfuse/shared";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 import { validateCommentReferenceObject } from "@/src/features/comments/validateCommentReferenceObject";
 
 const mocks = vi.hoisted(() => ({
@@ -18,7 +19,9 @@ const input = {
   content: "Review this observation",
   objectStartTime: new Date("2026-09-18T10:00:00.000Z"),
 };
-const v4Context = { session: { user: { v4BetaEnabled: true } } };
+const v4Context = {
+  session: testSession({ user: { v4BetaEnabled: true } }),
+};
 
 describe("comment reference validation", () => {
   beforeEach(() => {
@@ -57,7 +60,7 @@ describe("comment reference validation", () => {
   it.each([
     {
       name: "legacy session",
-      ctx: { session: { user: { v4BetaEnabled: false } } },
+      ctx: { session: testSession({ user: { v4BetaEnabled: false } }) },
     },
     {
       name: "public API context",

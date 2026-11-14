@@ -20,7 +20,6 @@ vi.mock("@langfuse/shared/src/env", async (importOriginal) => {
   };
 });
 
-import type { Session } from "next-auth";
 import { EvaluatorSourceCodeLanguage, EvalTemplateType } from "@prisma/client";
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
@@ -37,6 +36,7 @@ import {
   queryClickhouse,
 } from "@langfuse/shared/src/server";
 import { EvalTargetObject } from "@langfuse/shared";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const orgIds: string[] = [];
 
@@ -48,43 +48,41 @@ const maybe =
 async function prepare() {
   const { project, org } = await createOrgProjectAndApiKey();
 
-  const session: Session = {
-    expires: "1",
+  const session = testSession({
     user: {
       id: "user-1",
       canCreateOrganizations: true,
       name: "Demo User",
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: true,
-          aiTelemetryEnabled: true,
-          projects: [
-            {
-              id: project.id,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              name: project.name,
-              hasTraces: false,
-              metadata: {},
-              createdAt: project.createdAt.toISOString(),
-            },
-          ],
-        },
-      ],
       featureFlags: testFeatureFlags(),
     },
+    organizations: [
+      {
+        id: org.id,
+        name: org.name,
+        role: "OWNER",
+        plan: "cloud:hobby",
+        cloudConfig: undefined,
+        metadata: {},
+        aiFeaturesEnabled: true,
+        aiTelemetryEnabled: true,
+        projects: [
+          {
+            id: project.id,
+            role: "ADMIN",
+            retentionDays: 30,
+            name: project.name,
+            hasTraces: false,
+            metadata: {},
+            createdAt: project.createdAt.toISOString(),
+          },
+        ],
+      },
+    ],
     environment: {
       enableExperimentalFeatures: false,
       selfHostedInstancePlan: "cloud:hobby",
     },
-  };
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });

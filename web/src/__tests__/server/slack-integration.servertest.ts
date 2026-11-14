@@ -3,7 +3,6 @@ import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type * as SharedServer from "@langfuse/shared/src/server";
 import type { Mock } from "vitest";
 import { prisma, type Role } from "@langfuse/shared/src/db";
-import type { Session } from "next-auth";
 import { encrypt } from "@langfuse/shared/encryption";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { appRouter } from "@/src/server/api/root";
@@ -13,6 +12,7 @@ import {
   SLACK_CHANNEL_NOT_FOUND_MESSAGE,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 // Mock SlackService
 vi.mock("@langfuse/shared/src/server", async () => {
@@ -82,43 +82,41 @@ const prepare = async ({
 }: { projectRole?: Role } = {}) => {
   const { project, org } = await createOrgProjectAndApiKey();
 
-  const session: Session = {
-    expires: "1",
+  const session = testSession({
     user: {
       id: "user-1",
       canCreateOrganizations: true,
       name: "Demo User",
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: "OWNER",
-          plan: "cloud:team",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: false,
-          projects: [
-            {
-              id: project.id,
-              role: projectRole,
-              retentionDays: 30,
-              deletedAt: null,
-              name: project.name,
-              hasTraces: false,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
       featureFlags: testFeatureFlags(),
     },
+    organizations: [
+      {
+        id: org.id,
+        name: org.name,
+        role: "OWNER",
+        plan: "cloud:team",
+        cloudConfig: undefined,
+        metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: false,
+        projects: [
+          {
+            id: project.id,
+            role: projectRole,
+            retentionDays: 30,
+            name: project.name,
+            hasTraces: false,
+            metadata: {},
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      },
+    ],
     environment: {
       enableExperimentalFeatures: false,
       selfHostedInstancePlan: "cloud:team",
     },
-  };
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });

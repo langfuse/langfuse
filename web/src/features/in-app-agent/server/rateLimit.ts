@@ -1,48 +1,7 @@
-import { type Session } from "next-auth";
-
-import {
-  BaseError,
-  ForbiddenError,
-  type RateLimitResult,
-} from "@langfuse/shared";
+import { BaseError, type RateLimitResult } from "@langfuse/shared";
 import type { ApiAccessScope } from "@langfuse/shared/src/server";
 
-import { findSessionProjectOrganization } from "@/src/features/auth/lib/sessionAccessors";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
-
-/**
- * Build the org-scoped rate-limit scope for an in-app agent request.
- *
- * Used by `startRun` to build the same org-scoped API access shape as other
- * authenticated project requests. The scope only keys the rate limit and never
- * authorizes a read, so it leaves the access-audit opt-in unresolved.
- *
- * TODO: this bucket is org-scoped only; a per-user submission cap needs the
- * rate-limit service to support non-org keys. Concurrency is capped per user by
- * `assertInAppAgentRunCapacity`.
- */
-export function getInAppAgentApiAccessScope(
-  session: Session,
-  projectId: string,
-): ApiAccessScope {
-  const organization = findSessionProjectOrganization(session, projectId);
-
-  if (!organization) {
-    throw new ForbiddenError("User is not a member of this project");
-  }
-
-  return {
-    orgId: organization.id,
-    plan: organization.plan,
-    projectId,
-    accessLevel: "project",
-    rateLimitOverrides: organization.cloudConfig?.rateLimitOverrides ?? [],
-    apiKeyId: "in-app-agent-session",
-    publicKey: "in-app-agent-session",
-    isIngestionSuspended: false,
-    accessAuditLogEnabled: null,
-  };
-}
 
 async function checkInAppAgentRateLimit(
   scope: ApiAccessScope,

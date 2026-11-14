@@ -8,7 +8,7 @@ import {
   sessionTraceFilterSchema,
 } from "@langfuse/shared";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useHistoryEntryRevisit } from "../useHistoryEntryRevisit";
 

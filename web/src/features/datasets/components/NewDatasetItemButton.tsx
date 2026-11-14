@@ -9,7 +9,7 @@ import {
 import { useRef, useState } from "react";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
 import { DialogTrigger } from "@radix-ui/react-dialog";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { ActionButton } from "@/src/components/ActionButton";
 
 export const NewDatasetItemButton = (props: {

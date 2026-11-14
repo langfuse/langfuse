@@ -25,6 +25,7 @@ import type { Session } from "next-auth";
 
 import { eventsRouter } from "@/src/features/events/server/eventsRouter";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const createdSessionIds: string[] = [];
@@ -45,43 +46,41 @@ const caller = eventsRouter.createCaller({
 
 const memberCaller = eventsRouter.createCaller({
   ...createInnerTRPCContext({
-    session: {
-      expires: "1",
+    session: testSession({
       user: {
         id: "user-1",
         name: "Test User",
         canCreateOrganizations: true,
         featureFlags: testFeatureFlags({ templateFlag: false }),
-        organizations: [
-          {
-            id: "org-1",
-            name: "Test Organization",
-            role: "MEMBER",
-            plan: "cloud:hobby",
-            cloudConfig: undefined,
-            metadata: {},
-            aiFeaturesEnabled: false,
-            aiTelemetryEnabled: false,
-            projects: [
-              {
-                id: projectId,
-                role: "MEMBER",
-                retentionDays: 30,
-                deletedAt: null,
-                name: "Test Project",
-                hasTraces: false,
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        ],
       },
+      organizations: [
+        {
+          id: "org-1",
+          name: "Test Organization",
+          role: "MEMBER",
+          plan: "cloud:hobby",
+          cloudConfig: undefined,
+          metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: false,
+          projects: [
+            {
+              id: projectId,
+              role: "MEMBER",
+              retentionDays: 30,
+              name: "Test Project",
+              hasTraces: false,
+              metadata: {},
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        },
+      ],
       environment: {
         enableExperimentalFeatures: false,
         selfHostedInstancePlan: null,
       },
-    } satisfies Session,
+    }) satisfies Session,
     headers: {},
   }),
   prisma,

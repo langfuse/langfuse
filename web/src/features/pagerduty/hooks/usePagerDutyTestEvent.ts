@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { type PagerDutyRegion } from "@langfuse/shared/pagerduty";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { api } from "@/src/utils/api";
 
 /** usePagerDutyTestEvent triggers a critical test alert for the project and resolves it once it is open. */

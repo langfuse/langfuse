@@ -1,4 +1,3 @@
-import type { Session } from "next-auth";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -35,6 +34,7 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
 
 import { isAccessAuditLogEnabled } from "@/src/features/audit-logs/isAccessAuditLogEnabled";
 import { recordTrpcAccess } from "@/src/features/audit-logs/server/recordAccessEvent";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 beforeEach(() => {
   mocks.mode = "org";
@@ -141,9 +141,7 @@ describe("recordTrpcAccess", () => {
   // Admins and viewers of public resources read projects their session does
   // not list, so the gate has to load the org.
   const nonMember = {
-    session: {
-      user: { id: "user", organizations: [] } as unknown as Session["user"],
-    },
+    session: testSession({ user: { id: "user" }, organizations: [] }),
     headers: {},
   };
   const read = {

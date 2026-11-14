@@ -28,7 +28,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/new/hooks";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";

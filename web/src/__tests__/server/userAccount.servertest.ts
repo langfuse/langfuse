@@ -1,3 +1,4 @@
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import type { JWT } from "next-auth/jwt";
@@ -14,6 +15,7 @@ import { getFeaturePreviewOptOutFlag } from "@/src/features/feature-flags/utils"
 import { INTERNAL_FEATURE_FLAG } from "@/src/features/feature-flags/available-flags";
 import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
 import { getAuthOptions } from "@/src/server/auth";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 describe("userAccountRouter.setFeaturePreviewEnabled", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
@@ -253,14 +255,14 @@ describe("userAccountRouter.signOutAllSessions", () => {
       session,
       token: { email, sub: userId, loginAt: revokedLoginAt },
     });
-    expect(revoked.user).toBeNull();
+    expect(revoked.authCtx).toBeNull();
 
     const reLoginAt = (await getSessionLoginAt(email, prisma)).getTime();
     const admitted = await sessionCallback({
       session,
       token: { email, sub: userId, loginAt: reLoginAt },
     });
-    expect(admitted.user).not.toBeNull();
+    expect(admitted.authCtx).not.toBeNull();
   });
 });
 
@@ -320,7 +322,7 @@ describe("userAccountRouter.delete", () => {
       session,
       token: { email, sub: userId, loginAt: deletedLoginAt },
     });
-    expect(stale.user).toBeNull();
+    expect(stale.authCtx).toBeNull();
 
     const replacementLoginAt = (
       await getSessionLoginAt(email, prisma)
@@ -329,7 +331,7 @@ describe("userAccountRouter.delete", () => {
       session,
       token: { email, sub: replacement.id, loginAt: replacementLoginAt },
     });
-    expect(fresh.user?.id).toBe(replacement.id);
+    expect(getSessionUserId(fresh)).toBe(replacement.id);
   });
 });
 
@@ -383,40 +385,13 @@ async function createCaller({
     },
   });
 
-  const session: Session = {
-    expires: "1",
+  const session = testSession({
     user: {
       id: user.id,
       email: user.email,
       v4BetaEnabled: false,
       name: user.name,
       canCreateOrganizations: true,
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: "OWNER",
-          plan,
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: org.aiFeaturesEnabled,
-          aiTelemetryEnabled: true,
-          projects: includeProjectInSession
-            ? [
-                {
-                  id: project.id,
-                  name: project.name,
-                  role: "ADMIN",
-                  deletedAt: null,
-                  retentionDays: null,
-                  hasTraces: false,
-                  metadata: {},
-                  createdAt: project.createdAt.toISOString(),
-                },
-              ]
-            : [],
-        },
-      ],
       featureFlags: testFeatureFlags({
         internalFeatures: !featureFlags.includes(
           getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
@@ -427,11 +402,36 @@ async function createCaller({
         templateFlag: featureFlags.includes("templateFlag"),
       }),
     },
+    organizations: [
+      {
+        id: org.id,
+        name: org.name,
+        role: "OWNER",
+        plan,
+        cloudConfig: undefined,
+        metadata: {},
+        aiFeaturesEnabled: org.aiFeaturesEnabled,
+        aiTelemetryEnabled: true,
+        projects: includeProjectInSession
+          ? [
+              {
+                id: project.id,
+                name: project.name,
+                role: "ADMIN",
+                retentionDays: null,
+                hasTraces: false,
+                metadata: {},
+                createdAt: project.createdAt.toISOString(),
+              },
+            ]
+          : [],
+      },
+    ],
     environment: {
       enableExperimentalFeatures: false,
       selfHostedInstancePlan: "cloud:enterprise",
     },
-  };
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
 

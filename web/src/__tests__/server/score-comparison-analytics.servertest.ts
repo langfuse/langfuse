@@ -1,5 +1,4 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
-import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
 import { createScoreAnalyticsRouter } from "@/src/features/score-analytics/server/scoreAnalyticsRouter";
 import { appRouter } from "@/src/server/api/root";
@@ -11,44 +10,43 @@ import {
   createDatasetRunScore,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 describe("Score Comparison Analytics tRPC", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
-  const session: Session = {
+  const session = testSession({
     user: {
       id: "user-1",
       canCreateOrganizations: true,
       name: "Demo User",
-      organizations: [
-        {
-          id: "seed-org-id",
-          name: "Test Organization",
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [
-            {
-              id: projectId,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              name: "Test Project",
-              hasTraces: false,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
       featureFlags: testFeatureFlags(),
     },
+    organizations: [
+      {
+        id: "seed-org-id",
+        name: "Test Organization",
+        role: "OWNER",
+        plan: "cloud:hobby",
+        cloudConfig: undefined,
+        metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: true,
+        projects: [
+          {
+            id: projectId,
+            role: "ADMIN",
+            retentionDays: 30,
+            name: "Test Project",
+            hasTraces: false,
+            metadata: {},
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      },
+    ],
     environment: {} as any,
-    expires: new Date().toISOString(),
-  };
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });

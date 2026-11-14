@@ -9,7 +9,7 @@ vi.mock("@langfuse/shared/src/server", async () => ({
   traceException: vi.fn(),
 }));
 
-import type { Session } from "next-auth";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 import { TRPCError } from "@trpc/server";
 import * as z from "zod";
 import {
@@ -39,11 +39,7 @@ describe("tRPC error formatting", () => {
         "Limit for result exceeded, max bytes: 10.00 MiB. (TOO_MANY_ROWS_OR_BYTES) SELECT private_column FROM private_table",
     },
   ])("ClickHouseResourceError $errorType", async ({ errorType, message }) => {
-    const session = {
-      user: {
-        id: "user-1",
-      },
-    } as Session;
+    const session = testSession({ user: { id: "user-1" } });
 
     const formatterTestRouter = createTRPCRouter({
       clickhouse: protectedProcedureWithoutTracing
@@ -162,7 +158,7 @@ describe("tRPC error formatting", () => {
         router,
         createContext: () =>
           createInnerTRPCContext({
-            session: { user: { id: "user-1" } } as Session,
+            session: testSession({ user: { id: "user-1" } }),
             headers: {},
           }),
         onError: reportTRPCError,

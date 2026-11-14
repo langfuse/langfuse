@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
-import { type SessionOrganization } from "@/src/features/auth/lib/sessionAccessors";
+import { type SessionOrganization } from "@/src/features/rbac/new/sessionAccessors";
 import { api } from "@/src/utils/api";
 
 /**

@@ -36,6 +36,7 @@ vi.mock("@langfuse/shared/src/db", () => ({
 
 import { type GetServerSidePropsContext } from "next";
 import { getServerSideProps as getDemoServerSideProps } from "@/src/pages/demo/[[...path]]";
+import { testSession } from "@/src/__tests__/fixtures/principal";
 
 type DemoCtxOverrides = {
   resolvedUrl?: string;
@@ -74,16 +75,16 @@ describe("demo redirect page", () => {
   });
 
   it("redirects authenticated users with demo project access to the configured regional demo project", async () => {
-    getServerAuthSessionMock.mockResolvedValue({
-      user: {
-        id: "user-1",
+    getServerAuthSessionMock.mockResolvedValue(
+      testSession({
+        user: { id: "user-1" },
         organizations: [
           {
             projects: [{ id: "demo-project" }],
           },
         ],
-      },
-    });
+      }),
+    );
 
     await expect(getDemoServerSideProps(makeCtx())).resolves.toEqual({
       redirect: {
@@ -104,16 +105,16 @@ describe("demo redirect page", () => {
   });
 
   it("falls back home for authenticated users without demo project access", async () => {
-    getServerAuthSessionMock.mockResolvedValue({
-      user: {
-        id: "user-1",
+    getServerAuthSessionMock.mockResolvedValue(
+      testSession({
+        user: { id: "user-1" },
         organizations: [
           {
             projects: [{ id: "other-project" }],
           },
         ],
-      },
-    });
+      }),
+    );
 
     await expect(getDemoServerSideProps(makeCtx())).resolves.toEqual({
       redirect: {
@@ -149,16 +150,16 @@ describe("demo redirect page", () => {
   });
 
   it("redirects authenticated users from demo subpaths to the same demo project subpath", async () => {
-    getServerAuthSessionMock.mockResolvedValue({
-      user: {
-        id: "user-1",
+    getServerAuthSessionMock.mockResolvedValue(
+      testSession({
+        user: { id: "user-1" },
         organizations: [
           {
             projects: [{ id: "demo-project" }],
           },
         ],
-      },
-    });
+      }),
+    );
 
     await expect(
       getDemoServerSideProps(
@@ -265,16 +266,16 @@ describe("demo redirect page", () => {
   });
 
   it("falls back to home when the configured demo project does not exist", async () => {
-    getServerAuthSessionMock.mockResolvedValue({
-      user: {
-        id: "user-1",
+    getServerAuthSessionMock.mockResolvedValue(
+      testSession({
+        user: { id: "user-1" },
         organizations: [
           {
             projects: [{ id: "demo-project" }],
           },
         ],
-      },
-    });
+      }),
+    );
     prismaMock.project.findUnique.mockResolvedValue(null);
 
     await expect(getDemoServerSideProps(makeCtx())).resolves.toEqual({

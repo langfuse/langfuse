@@ -1,5 +1,5 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/new/checkProjectAccess";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
 import {
   createTRPCRouter,
@@ -28,7 +28,7 @@ import {
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { env } from "@/src/env.mjs";
-import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionUserId } from "@/src/features/rbac/new/sessionAccessors";
 
 const isItemLocked = (item: AnnotationQueueItem) => {
   return (

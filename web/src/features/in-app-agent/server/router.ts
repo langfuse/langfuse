@@ -16,7 +16,7 @@ import {
   getSessionUserEmail,
   getSessionUserId,
   getSessionUserV4BetaEnabled,
-} from "@/src/features/auth/lib/sessionAccessors";
+} from "@/src/features/rbac/new/sessionAccessors";
 import { env } from "@/src/env.mjs";
 import {
   AgUiContextSchema,
@@ -40,10 +40,8 @@ import {
   getOwnedConversationOrThrow,
   serializeConversation,
 } from "@langfuse/shared/in-app-agent/server/persistence";
-import {
-  assertInAppAgentRateLimit,
-  getInAppAgentApiAccessScope,
-} from "@/src/features/in-app-agent/server/rateLimit";
+import { assertInAppAgentRateLimit } from "@/src/features/in-app-agent/server/rateLimit";
+import { getInAppAgentApiAccessScope } from "@/src/features/rbac/new/rateLimit";
 import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/runCapacity";
 import { hasInternalAccess } from "@/src/features/feature-flags/utils";
 import { canViewTopics } from "@/src/features/topics/topicsAccess";
