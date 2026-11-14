@@ -2,13 +2,14 @@ import { createNextApiHandler } from "@trpc/server/adapters/next";
 import { createTRPCContext } from "@/src/server/api/trpc";
 import { appRouter } from "@/src/server/api/root";
 import { env } from "@/src/env.mjs";
+import { getSkillRequestBodySizeLimit } from "@/src/features/skills/server/skill-request-body-limit";
 import { reportTRPCError } from "@/src/server/utils/trpc-utils";
 
 export const config = {
   maxDuration: 240,
   api: {
     bodyParser: {
-      sizeLimit: "4.5mb",
+      sizeLimit: getSkillRequestBodySizeLimit(),
     },
   },
 };
