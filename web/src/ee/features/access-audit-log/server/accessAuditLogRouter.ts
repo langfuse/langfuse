@@ -23,7 +23,7 @@ export const accessAuditLogRouter = createTRPCRouter({
       });
       throwIfNoEntitlement({
         entitlement: "audit-logs",
-        sessionUser: ctx.session.user,
+        session: ctx.session,
         orgId: input.orgId,
       });
       if (env.LANGFUSE_AUDIT_LOG_ACCESS_EVENTS !== "org") {

@@ -13,6 +13,7 @@ import {
 import { TriangleAlertIcon } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 
 interface AnnotationDrawerSectionProps {
   item: AnnotationQueueItem & {
@@ -40,7 +41,8 @@ export const AnnotationDrawerSection: React.FC<
 }) => {
   const session = useSession();
 
-  const isLockedByOtherUser = item.lockedByUserId !== session.data?.user?.id;
+  const isLockedByOtherUser =
+    item.lockedByUserId !== getSessionUserId(session.data);
 
   const hasNonAnnotationScores = scores.some(
     (score) => score.source !== "ANNOTATION",

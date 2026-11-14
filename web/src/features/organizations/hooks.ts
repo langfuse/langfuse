@@ -1,7 +1,10 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { env } from "@/src/env.mjs";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
+
+import { env } from "@/src/env.mjs";
+import { findSessionOrganization } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionV4WriteMode } from "@/src/features/organizations/getSessionV4WriteMode";
 
 /**
  * Hook to get the organization of the current page.
@@ -19,11 +22,7 @@ const useOrganization = (organizationId: string | null) => {
 
   if (!organizationId) return null;
 
-  return (
-    session.data?.user?.organizations.find(
-      (org) => org.id === organizationId,
-    ) ?? null
-  );
+  return findSessionOrganization(session.data, organizationId) ?? null;
 };
 
 export const useLangfuseCloudRegion = () => {
@@ -44,5 +43,5 @@ export const useLangfuseCloudRegion = () => {
 
 export const useLangfuseV4WriteMode = () => {
   const session = useSession();
-  return session.data?.environment.v4WriteMode ?? null;
+  return getSessionV4WriteMode(session.data);
 };

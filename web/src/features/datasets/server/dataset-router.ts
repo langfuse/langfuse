@@ -9,6 +9,7 @@ import { Prisma, type Dataset } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { getSessionUserV4BetaEnabled } from "@/src/features/auth/lib/sessionAccessors";
 import { createMediaUploadUrl } from "@/src/features/media/server/mediaService";
 import {
   datasetItemMediaReferenceKey,
@@ -513,7 +514,7 @@ export const datasetRouter = createTRPCRouter({
       if (input.datasetIds.length === 0) return { metrics: [] };
 
       const [runsMetrics, itemsCounts] = await Promise.all([
-        ctx.session.user.v4BetaEnabled === true
+        getSessionUserV4BetaEnabled(ctx.session) === true
           ? getDatasetExperimentMetricsFromEvents({
               projectId: input.projectId,
               datasetIds: input.datasetIds,

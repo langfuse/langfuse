@@ -6,6 +6,7 @@ import {
   protectedProjectProcedure,
   type ProjectAuthedContext,
 } from "@/src/server/api/trpc";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 import { RuleService } from "./ruleService";
 import {
   CreateOrAttachFromEvaluatorFiltersSchema,
@@ -147,7 +148,7 @@ export const ruleRouter = createTRPCRouter({
       });
       return serviceForContext(ctx).create(
         { ...input, projectId: ctx.session.projectId },
-        ctx.session.user.id,
+        getSessionUserId(ctx.session),
       );
     }),
 
@@ -161,7 +162,7 @@ export const ruleRouter = createTRPCRouter({
       });
       return serviceForContext(ctx).createOrAttachFromEvaluatorFilters(
         { ...input, projectId: ctx.session.projectId },
-        ctx.session.user.id,
+        getSessionUserId(ctx.session),
       );
     }),
 

@@ -9,6 +9,7 @@ import {
   optionalPaginationZod,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 import { DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import {
   DashboardService,
@@ -77,7 +78,7 @@ export const dashboardWidgetRouter = createTRPCRouter({
           ...input,
           view: queryViewToDashboardWidgetView[input.view],
         },
-        ctx.session.user?.id,
+        getSessionUserId(ctx.session),
       );
 
       return {
@@ -157,7 +158,7 @@ export const dashboardWidgetRouter = createTRPCRouter({
           chartType: input.chartType,
           chartConfig: input.chartConfig,
         },
-        ctx.session.user?.id,
+        getSessionUserId(ctx.session),
       );
 
       return {
@@ -187,7 +188,7 @@ export const dashboardWidgetRouter = createTRPCRouter({
         projectId: input.projectId,
         dashboardId: input.dashboardId,
         placementId: input.placementId,
-        userId: ctx.session.user?.id,
+        userId: getSessionUserId(ctx.session),
       });
 
       return { widgetId: newWidgetId };

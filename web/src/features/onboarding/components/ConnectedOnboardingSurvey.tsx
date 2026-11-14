@@ -2,6 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { env } from "@/src/env.mjs";
+import {
+  getSessionOrganizations,
+  getSessionUserCanCreateOrganizations,
+  getSessionUserEmail,
+} from "@/src/features/auth/lib/sessionAccessors";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -60,11 +65,11 @@ export function ConnectedOnboardingSurvey() {
   const fallbackDestination =
     queryRedirectPath ??
     getFallbackRedirectPath({
-      hasOrganizations:
-        session?.user?.organizations.some(
-          (organization) => organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,
-        ) ?? false,
-      canCreateOrganizations: session?.user?.canCreateOrganizations ?? false,
+      hasOrganizations: getSessionOrganizations(session).some(
+        (organization) => organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,
+      ),
+      canCreateOrganizations:
+        getSessionUserCanCreateOrganizations(session) ?? false,
     });
 
   /** On self-hosted, a failed client-side redirect falls back to loading the same path. */
@@ -287,7 +292,7 @@ export function ConnectedOnboardingSurvey() {
     return (
       <NewsletterOptInStep
         lists={newsletterLists}
-        defaultEmail={session?.user?.email ?? ""}
+        defaultEmail={getSessionUserEmail(session) ?? ""}
         isCompleting={hasStartedOnboardingCompletion}
         onComplete={completeNewsletterStep}
       />

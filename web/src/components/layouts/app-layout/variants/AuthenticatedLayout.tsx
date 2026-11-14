@@ -32,6 +32,14 @@ import {
   getCloudRegionAuthUrl,
 } from "@/src/features/organizations/cloudRegions";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import {
+  getSessionOrganizations,
+  getSessionUserCanCreateOrganizations,
+  getSessionUserEmail,
+  getSessionUserId,
+  getSessionUserImage,
+  getSessionUserName,
+} from "@/src/features/auth/lib/sessionAccessors";
 import type { Session } from "next-auth";
 import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
 import type { RouteGroup } from "@/src/components/layouts/routes";
@@ -98,7 +106,7 @@ type GroupedNavigation = {
 };
 
 type AuthenticatedLayoutProps = PropsWithChildren<{
-  user: NonNullable<Session["user"]>;
+  session: Session;
   navigation: {
     mainNavigation: GroupedNavigation;
     secondaryNavigation: GroupedNavigation;
@@ -125,13 +133,12 @@ type AuthenticatedLayoutProps = PropsWithChildren<{
  */
 export function AuthenticatedLayout({
   children,
-  user,
+  session,
   navigation,
   metadata,
   onSignOut,
 }: AuthenticatedLayoutProps) {
   const { isLangfuseCloud, region: currentRegion } = useLangfuseCloudRegion();
-  const { data: session } = useSession();
   const [featurePreviewOpen, setFeaturePreviewOpen] = useState(false);
   const [internalViewModeOpen, setInternalViewModeOpen] = useState(false);
   const internalViewMode = useInternalViewMode();
@@ -153,14 +160,14 @@ export function AuthenticatedLayout({
       : undefined;
   const showLegacyUiBanner = useLegacyUiBannerVisible(routerProjectId);
   const customerDataWarning = getCustomerDataWarning({
-    email: user.email,
+    email: getSessionUserEmail(session),
     isLangfuseCloud,
     projectId: routerProjectId ?? null,
     organizationId:
       typeof router.query.organizationId === "string"
         ? router.query.organizationId
         : null,
-    memberships: user.organizations,
+    memberships: getSessionOrganizations(session),
     organizationName: currentOrganization?.name ?? null,
     projectName: currentProject?.name ?? null,
   });
@@ -173,7 +180,7 @@ export function AuthenticatedLayout({
       onClick: () => {
         if (!region.rootUrl) return;
         window.open(
-          getCloudRegionAuthUrl(region.rootUrl, user.email),
+          getCloudRegionAuthUrl(region.rootUrl, getSessionUserEmail(session)),
           "_blank",
           "noopener,noreferrer",
         );
@@ -205,9 +212,9 @@ export function AuthenticatedLayout({
 
   // User navigation items for sidebar dropdown
   const sidebarUser = {
-    name: user.name ?? "",
-    email: user.email ?? "",
-    avatar: user.image ?? "",
+    name: getSessionUserName(session) ?? "",
+    email: getSessionUserEmail(session) ?? "",
+    avatar: getSessionUserImage(session) ?? "",
   };
   const userMenuItems = [
     ...(internalViewMode.available
@@ -504,9 +511,13 @@ function ConnectedAppSidebar({
         organization ? { id: organization.id, name: organization.name } : null
       }
       project={project ? { id: project.id, name: project.name } : null}
-      organizations={session.data?.user?.organizations ?? null}
+      organizations={
+        getSessionUserId(session.data)
+          ? getSessionOrganizations(session.data)
+          : null
+      }
       canCreateOrganizations={
-        session.data?.user?.canCreateOrganizations ?? false
+        getSessionUserCanCreateOrganizations(session.data) ?? false
       }
       canCreateProjects={canCreateProjects}
       showDemoBadge={Boolean(

@@ -24,6 +24,7 @@ import {
   getSdkUsageSeriesByProject,
 } from "@/src/features/v4/server/v4TransitionSdkUsage";
 import { isActionableLegacyApiUsage } from "@/src/features/v4/utils";
+import { findSessionOrganization } from "@/src/features/auth/lib/sessionAccessors";
 
 export { getSdkUsageSummaries, getLegacyApiUsageSummaries };
 
@@ -69,9 +70,9 @@ const getAccessibleOrganizationProjectWhere = ({
   orgId: string;
   session: Session;
 }): Prisma.ProjectWhereInput => {
-  const projectIds = session.user?.organizations
-    .find((organization) => organization.id === orgId)
-    ?.projects.map((project) => project.id);
+  const projectIds = findSessionOrganization(session, orgId)?.projects.map(
+    (project) => project.id,
+  );
 
   return {
     orgId,

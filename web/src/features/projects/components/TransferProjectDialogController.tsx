@@ -9,6 +9,7 @@ import {
   useHasOrganizationAccess,
 } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
+import { getSessionOrganizations } from "@/src/features/auth/lib/sessionAccessors";
 import { useSession } from "next-auth/react";
 
 type TransferProjectDialogControllerProps = {
@@ -37,7 +38,7 @@ export function TransferProjectDialogController({
     organizationId: organization.id,
     scope: "projects:transfer_org",
   });
-  const organizationsToTransferTo = (session.data?.user?.organizations ?? [])
+  const organizationsToTransferTo = getSessionOrganizations(session.data)
     .filter((org) =>
       hasOrganizationAccess({
         session: session.data,

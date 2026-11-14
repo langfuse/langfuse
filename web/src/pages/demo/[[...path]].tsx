@@ -37,7 +37,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   });
   const session = await getServerAuthSession({ req: ctx.req, res: ctx.res });
 
-  if (isProjectMember(session?.user, demoProject.id)) {
+  if (isProjectMember(session, demoProject.id)) {
     return redirect(demoProjectPath);
   }
 

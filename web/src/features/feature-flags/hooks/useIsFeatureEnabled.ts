@@ -1,11 +1,7 @@
 import { useSession } from "next-auth/react";
-import {
-  isInternalFeaturePreviewFlag,
-  isInternalFlag,
-  isRestrictedFlag,
-} from "../available-flags";
+
+import { isFeatureEnabledForSession } from "@/src/features/feature-flags/hooks/isFeatureEnabledForSession";
 import type { Flag } from "../types";
-import { getContextualFeatureFlags, isInternalViewEnabled } from "../utils";
 
 export default function useIsFeatureEnabled(
   feature: Flag,
@@ -18,23 +14,8 @@ export default function useIsFeatureEnabled(
   } = {},
 ): boolean {
   const session = useSession();
-
-  const isExperimentalFeaturesEnabled =
-    session.data?.environment.enableExperimentalFeatures ?? false;
-
-  const isFeatureEnabledOnUser =
-    getContextualFeatureFlags(session.data?.user, {
-      projectId,
-      organizationId,
-    })?.[feature] ?? false;
-
-  if (isInternalFlag(feature)) {
-    return isInternalViewEnabled(session.data);
-  }
-
-  if (isRestrictedFlag(feature) || isInternalFeaturePreviewFlag(feature)) {
-    return isFeatureEnabledOnUser;
-  }
-
-  return isExperimentalFeaturesEnabled || isFeatureEnabledOnUser;
+  return isFeatureEnabledForSession(session.data, feature, {
+    projectId,
+    organizationId,
+  });
 }

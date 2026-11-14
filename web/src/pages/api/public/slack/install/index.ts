@@ -4,6 +4,9 @@ import { logger } from "@langfuse/shared/src/server";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { getServerAuthSession } from "@/src/server/auth";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
+
+/** handler starts the Slack app installation for a project member. */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -24,7 +27,8 @@ export default async function handler(
 
     // Verify user is authenticated
     const session = await getServerAuthSession({ req, res });
-    if (!session?.user) {
+    const userId = getSessionUserId(session);
+    if (!session || !userId) {
       logger.warn("Unauthenticated Slack install attempt", { projectId });
       return res.status(401).json({ error: "Authentication required" });
     }
@@ -39,7 +43,7 @@ export default async function handler(
     if (!hasAccess) {
       logger.warn("Unauthorized Slack install attempt", {
         projectId,
-        userId: session.user?.id,
+        userId,
       });
       return res.status(403).json({
         error: "You do not have permission to configure Slack for this project",
@@ -48,7 +52,7 @@ export default async function handler(
 
     logger.info("Slack install request received", {
       projectId,
-      userId: session.user?.id,
+      userId,
     });
 
     // Let SlackOAuthHandlers handle the installation page rendering
@@ -56,7 +60,7 @@ export default async function handler(
     // - Generating the OAuth URL with proper state
     // - Setting session cookies for state validation
     // - Rendering the installation page
-    return await handleInstallPath(req, res, projectId, session.user.id);
+    return await handleInstallPath(req, res, projectId, userId);
   } catch (error) {
     logger.error("Install handler failed", { error });
     return res.status(500).json({ message: "Internal server error" });

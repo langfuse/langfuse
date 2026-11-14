@@ -26,6 +26,7 @@ import {
   getOrganizationFeaturePreviewStatesByUserId,
   getUserFeaturePreviewManagementCapabilities,
 } from "@/src/features/feature-flags/server/organizationFeatureFlags";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 
 const orgLevelMemberQuery = z.object({
   orgId: z.string(),
@@ -231,7 +232,7 @@ export const allMembersRoutes = {
               }),
               getUserFeaturePreviewManagementCapabilities({
                 prisma: ctx.prisma,
-                actorUserId: ctx.session.user.id,
+                actorUserId: getSessionUserId(ctx.session),
                 targetUserIds: userIds,
                 demoOrgId: env.NEXT_PUBLIC_DEMO_ORG_ID,
               }),

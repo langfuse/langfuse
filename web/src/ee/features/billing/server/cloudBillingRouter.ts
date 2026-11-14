@@ -43,7 +43,7 @@ export const cloudBillingRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       throwIfNoEntitlement({
         entitlement: "cloud-billing",
-        sessionUser: ctx.session.user,
+        session: ctx.session,
         orgId: input.orgId,
       });
       throwIfNoOrganizationAccess({
@@ -90,7 +90,7 @@ export const cloudBillingRouter = createTRPCRouter({
       });
       throwIfNoEntitlement({
         entitlement: "cloud-billing",
-        sessionUser: ctx.session.user,
+        session: ctx.session,
         orgId: input.orgId,
       });
 
@@ -140,7 +140,7 @@ export const cloudBillingRouter = createTRPCRouter({
       });
       throwIfNoEntitlement({
         entitlement: "cloud-billing",
-        sessionUser: ctx.session.user,
+        session: ctx.session,
         orgId: input.orgId,
       });
 
@@ -173,7 +173,7 @@ export const cloudBillingRouter = createTRPCRouter({
       });
       throwIfNoEntitlement({
         entitlement: "cloud-billing",
-        sessionUser: ctx.session.user,
+        session: ctx.session,
         orgId: input.orgId,
       });
 
@@ -206,7 +206,7 @@ export const cloudBillingRouter = createTRPCRouter({
       });
       throwIfNoEntitlement({
         entitlement: "cloud-billing",
-        sessionUser: ctx.session.user,
+        session: ctx.session,
         orgId: input.orgId,
       });
 
@@ -234,7 +234,7 @@ export const cloudBillingRouter = createTRPCRouter({
       });
       throwIfNoEntitlement({
         entitlement: "cloud-billing",
-        sessionUser: ctx.session.user,
+        session: ctx.session,
         orgId: input.orgId,
       });
 
@@ -262,7 +262,7 @@ export const cloudBillingRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       throwIfNoEntitlement({
         entitlement: "cloud-billing",
-        sessionUser: ctx.session.user,
+        session: ctx.session,
         orgId: input.orgId,
       });
       throwIfNoOrganizationAccess({
@@ -315,7 +315,7 @@ export const cloudBillingRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       throwIfNoEntitlement({
         entitlement: "cloud-billing",
-        sessionUser: ctx.session.user,
+        session: ctx.session,
         orgId: input.orgId,
       });
       throwIfNoOrganizationAccess({
@@ -367,7 +367,7 @@ export const cloudBillingRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       throwIfNoEntitlement({
         entitlement: "cloud-billing",
-        sessionUser: ctx.session.user,
+        session: ctx.session,
         orgId: input.orgId,
       });
       throwIfNoOrganizationAccess({
@@ -400,7 +400,7 @@ export const cloudBillingRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       throwIfNoEntitlement({
         entitlement: "cloud-billing",
-        sessionUser: ctx.session.user,
+        session: ctx.session,
         orgId: input.orgId,
       });
       throwIfNoOrganizationAccess({

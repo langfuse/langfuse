@@ -6,6 +6,11 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
+  findSessionProjectOrganization,
+  getSessionUserId,
+  getSessionUserName,
+} from "@/src/features/auth/lib/sessionAccessors";
+import {
   AnnotationQueueObjectType,
   AnnotationQueueStatus,
   CreateQueueData,
@@ -124,7 +129,7 @@ export const queueRouter = createTRPCRouter({
         const userQueueAssignments =
           await ctx.prisma.annotationQueueAssignment.findMany({
             where: {
-              userId: ctx.session.user.id,
+              userId: getSessionUserId(ctx.session),
             },
             select: {
               queueId: true,
@@ -335,8 +340,9 @@ export const queueRouter = createTRPCRouter({
         });
 
         // gate usage on cloud:hobby
-        const org = ctx.session.user.organizations.find((org) =>
-          org.projects.some((proj) => proj.id === input.projectId),
+        const org = findSessionProjectOrganization(
+          ctx.session,
+          input.projectId,
         );
         const plan = org?.plan ?? "oss";
 
@@ -589,7 +595,7 @@ export const queueRouter = createTRPCRouter({
           OR: [
             { lockedAt: null },
             { lockedAt: { lt: fiveMinutesAgo } },
-            { lockedByUserId: ctx.session.user.id },
+            { lockedByUserId: getSessionUserId(ctx.session) },
           ],
           NOT: {
             id: { in: input.seenItemIds },
@@ -610,13 +616,13 @@ export const queueRouter = createTRPCRouter({
         },
         data: {
           lockedAt: now,
-          lockedByUserId: ctx.session.user.id,
+          lockedByUserId: getSessionUserId(ctx.session),
         },
       });
 
       const inflatedUpdatedItem = {
         ...updatedItem,
-        lockedByUser: { name: ctx.session.user.name },
+        lockedByUser: { name: getSessionUserName(ctx.session) },
       };
 
       if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {

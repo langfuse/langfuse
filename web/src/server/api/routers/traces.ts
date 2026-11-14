@@ -1,5 +1,9 @@
 import { z } from "zod";
 import {
+  getSessionUserId,
+  getSessionUserV4BetaEnabled,
+} from "@/src/features/auth/lib/sessionAccessors";
+import {
   auditedQuery,
   observationRefs,
   scoreRefs,
@@ -516,7 +520,7 @@ export const traceRouter = createTRPCRouter({
       throwIfNoEntitlement({
         entitlement: "trace-deletion",
         projectId: input.projectId,
-        sessionUser: ctx.session.user,
+        session: ctx.session,
       });
 
       if (input.isBatchAction && input.query) {
@@ -546,7 +550,7 @@ export const traceRouter = createTRPCRouter({
         const declaresEventsTable = input.query.useEventsTable === true;
         if (declaresEventsTable) {
           const eventsSurfaceAvailable =
-            ctx.session.user.v4BetaEnabled === true ||
+            getSessionUserV4BetaEnabled(ctx.session) === true ||
             env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
           if (!eventsSurfaceAvailable) {
             throw new TRPCError({
@@ -579,7 +583,7 @@ export const traceRouter = createTRPCRouter({
         );
 
         await traceDeletionProcessor(input.projectId, input.traceIds, {
-          actor: { type: "USER", userId: ctx.session.user.id },
+          actor: { type: "USER", userId: getSessionUserId(ctx.session) },
         });
       }
     }),

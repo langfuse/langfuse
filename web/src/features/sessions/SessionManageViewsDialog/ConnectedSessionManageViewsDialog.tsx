@@ -1,5 +1,6 @@
 import { type ComponentProps } from "react";
 import { useSession } from "next-auth/react";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 import { api } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { SessionManageViewsDialog } from "./SessionManageViewsDialog";
@@ -41,7 +42,7 @@ export function ConnectedSessionManageViewsDialog({
     <SessionManageViewsDialog
       {...props}
       views={views.data ?? []}
-      currentUserId={session.data?.user?.id}
+      currentUserId={getSessionUserId(session.data)}
       canEdit={canEdit}
       onSetDefaultPin={
         canSetDefaultPin

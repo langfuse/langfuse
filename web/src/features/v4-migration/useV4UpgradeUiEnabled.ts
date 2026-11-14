@@ -1,5 +1,6 @@
 import { useSession } from "next-auth/react";
 
+import { isV4UpgradeUiAvailableForSession } from "@/src/features/v4-migration/isV4UpgradeUiAvailableForSession";
 import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
 
 /**
@@ -10,7 +11,7 @@ import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Expe
 export function useV4UpgradeUiFlag(): boolean {
   const { data: session } = useSession();
 
-  return session?.user?.v4UpgradeUiAvailable === true;
+  return isV4UpgradeUiAvailableForSession(session);
 }
 
 /**

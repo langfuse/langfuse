@@ -7,6 +7,14 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { env } from "@/src/env.mjs";
 import { VERSION } from "@/src/constants/VERSION";
+import {
+  type MaybeSession,
+  findSessionOrganization,
+  findSessionProjectOrganization,
+  getSessionUserEmail,
+  getSessionUserId,
+  getSessionUserName,
+} from "@/src/features/auth/lib/sessionAccessors";
 import { nanoid } from "nanoid";
 import { logger } from "@langfuse/shared/src/server";
 
@@ -58,24 +66,6 @@ function splitTopic(topic: z.infer<typeof TopicSchema>): {
   return { topLevel: "Product Features", subtype: topic };
 }
 
-type SessionUser = {
-  organizations: Organization[];
-};
-
-type Organization = {
-  id: string;
-  plan?: string;
-  projects?: { id: string }[];
-};
-
-function deriveOrganizationFromProject(user: SessionUser, projectId?: string) {
-  if (!projectId || !Array.isArray(user.organizations)) return undefined;
-  for (const org of user.organizations) {
-    if (org.projects?.some((p) => p.id === projectId)) return org;
-  }
-  return undefined;
-}
-
 // =========================
 /** Router */
 // =========================
@@ -89,8 +79,8 @@ export const supportRouter = createTRPCRouter({
   createSupportThread: authenticatedProcedure
     .input(CreateSupportThreadInput)
     .mutation(async ({ ctx, input }) => {
-      const email = ctx.session.user.email;
-      const fullName = getFullName(ctx.session.user);
+      const email = getSessionUserEmail(ctx.session);
+      const fullName = getFullName(ctx.session);
       if (!email) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -107,8 +97,9 @@ export const supportRouter = createTRPCRouter({
 
       // Validate that, if organizationId is provided the user has access to it
       if (input.organizationId) {
-        const organization = ctx.session.user.organizations.find(
-          (o) => o.id === input.organizationId,
+        const organization = findSessionOrganization(
+          ctx.session,
+          input.organizationId,
         );
 
         if (!organization) {
@@ -133,8 +124,8 @@ export const supportRouter = createTRPCRouter({
 
       // Validate that, if organizationId is NOT provided the user has access to the project
       if (!input.organizationId && input.projectId) {
-        const organization = deriveOrganizationFromProject(
-          ctx.session.user as SessionUser,
+        const organization = findSessionProjectOrganization(
+          ctx.session,
           input.projectId,
         );
         if (!organization) {
@@ -263,12 +254,9 @@ export const supportRouter = createTRPCRouter({
     }),
 });
 
-function getFullName(user: {
-  name?: string | null;
-  email?: string | null;
-  id: string;
-}): string {
-  const { name, email } = user ?? {};
+function getFullName(session: MaybeSession): string {
+  const name = getSessionUserName(session);
+  const email = getSessionUserEmail(session);
 
   if (name?.trim()) return name;
 
@@ -278,5 +266,5 @@ function getFullName(user: {
     if (emailUserName) return emailUserName;
   }
 
-  return user?.id.slice(0, 8) ?? "Anonymous";
+  return getSessionUserId(session)?.slice(0, 8) ?? "Anonymous";
 }

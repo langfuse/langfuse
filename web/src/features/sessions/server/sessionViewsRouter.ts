@@ -6,6 +6,7 @@ import {
   SessionViewInputSchema,
   SessionViewPreferencesSchema,
 } from "@langfuse/shared";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -63,7 +64,7 @@ export const sessionViewsRouter = createTRPCRouter({
         scope: "TableViewPresets:CUD",
       });
       try {
-        const userId = ctx.session.user.id;
+        const userId = getSessionUserId(ctx.session);
         const view = await ctx.prisma.$transaction(async (tx) => {
           await lockSessionViewPins(tx, input.projectId, userId);
           const lastPin = await tx.sessionViewPinOverride.aggregate({
@@ -211,7 +212,10 @@ export const sessionViewsRouter = createTRPCRouter({
         scope: "TableViewPresets:read",
       });
       const overrides = await ctx.prisma.sessionViewPinOverride.findMany({
-        where: { projectId: input.projectId, userId: ctx.session.user.id },
+        where: {
+          projectId: input.projectId,
+          userId: getSessionUserId(ctx.session),
+        },
         select: { viewId: true, isPinned: true, position: true },
       });
       const defaults = await ctx.prisma.sessionView.findMany({
@@ -258,7 +262,7 @@ export const sessionViewsRouter = createTRPCRouter({
         scope: "TableViewPresets:read",
       });
       const { projectId, pinnedViewIds, unpinnedViewIds } = input;
-      const userId = ctx.session.user.id;
+      const userId = getSessionUserId(ctx.session);
       await ctx.prisma.$transaction(async (tx) => {
         await lockSessionViewPins(tx, projectId, userId);
         const candidates = await tx.sessionView.findMany({

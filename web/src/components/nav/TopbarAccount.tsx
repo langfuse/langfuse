@@ -18,6 +18,11 @@ import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEn
 import { cn } from "@/src/utils/tailwind";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { accountSettingsPath } from "@/src/features/settings/accountSettingsPath";
+import {
+  getSessionUserEmail,
+  getSessionUserImage,
+  getSessionUserName,
+} from "@/src/features/auth/lib/sessionAccessors";
 
 /**
  * Compact account affordance for the mobile top bar: the user's avatar opening
@@ -25,17 +30,17 @@ import { accountSettingsPath } from "@/src/features/settings/accountSettingsPath
  * this is the always-visible shell-level shortcut in the minimal mobile chrome.
  */
 export const TopbarAccount = ({
-  user,
+  session,
   className,
 }: {
-  user: NonNullable<Session["user"]>;
+  session: Session;
   className?: string;
 }) => {
   const showV4Migration = useV4UpgradeUiFlag();
   const { organization } = useQueryProjectOrOrganization();
 
-  const name = user.name ?? "";
-  const email = user.email ?? "";
+  const name = getSessionUserName(session) ?? "";
+  const email = getSessionUserEmail(session) ?? "";
 
   return (
     <DropdownMenu>
@@ -48,7 +53,7 @@ export const TopbarAccount = ({
       >
         <Avatar
           size="lg"
-          src={user.image ?? undefined}
+          src={getSessionUserImage(session) ?? undefined}
           displayName={name || email || "User"}
           email={email || undefined}
         />

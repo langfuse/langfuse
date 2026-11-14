@@ -1,4 +1,8 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import {
+  getSessionEnvironment,
+  getSessionUserFeatureFlags,
+} from "@/src/features/auth/lib/sessionAccessors";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useState } from "react";
@@ -112,7 +116,7 @@ export function OrganizationFeaturePreviewsSettings({
   const selectedDefaults = new Set(defaultsQuery.data?.defaults ?? []);
   const memberCount = defaultsQuery.data?.memberCount ?? 0;
   const experimentalFeaturesEnabled =
-    session.data?.environment.enableExperimentalFeatures === true;
+    getSessionEnvironment(session.data)?.enableExperimentalFeatures === true;
 
   return (
     <div className="flex flex-col gap-4">
@@ -141,7 +145,7 @@ export function OrganizationFeaturePreviewsSettings({
         {featurePreviewFlags.map((flag) => {
           const selected = selectedDefaults.has(flag);
           const enabledForAdmin =
-            session.data?.user?.featureFlags[flag] === true;
+            getSessionUserFeatureFlags(session.data)?.[flag] === true;
           const requiresPersonalEnablement = !selected && !enabledForAdmin;
           return (
             <Card

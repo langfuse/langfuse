@@ -19,6 +19,7 @@ import {
 } from "@langfuse/shared/rbac";
 import type { Cluster, Redis } from "ioredis";
 
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import type { GatewayMetadata } from "@/src/features/ai-gateway/server/provider/registry";
@@ -114,9 +115,9 @@ export class GatewayApiKeyService {
           scope:
             params.issuedAs === "serviceAccount"
               ? OrganizationId(params.organizationId)
-              : UserId(params.session.user.id),
+              : UserId(getSessionUserId(params.session)),
           role: SystemRoleId("AI_GATEWAY"),
-          createdBy: UserId(params.session.user.id),
+          createdBy: UserId(getSessionUserId(params.session)),
           name: params.name,
           expiresAt: params.expiresAt,
         });
@@ -274,7 +275,7 @@ async function assertCreatorCanInvokeGateway(
   const [membership] = await tx.$queryRaw<{ role: Role }[]>`
     SELECT role FROM organization_memberships
     WHERE org_id = ${params.organizationId}
-      AND user_id = ${params.session.user.id}
+      AND user_id = ${getSessionUserId(params.session)}
     FOR SHARE
   `;
   const allowed =

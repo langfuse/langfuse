@@ -6,6 +6,7 @@ import {
 } from "@/src/server/api/trpc";
 import { getVisibleProductModules } from "@/src/ee/features/ui-customization/productModuleSchema";
 import { parseInstanceLinks } from "@/src/ee/features/ui-customization/instanceLinks";
+import { getSessionEnvironment } from "@/src/features/auth/lib/sessionAccessors";
 
 // Parsed once per process so invalid configuration warns once, not per query.
 const instanceLinks = parseInstanceLinks(env.LANGFUSE_UI_INSTANCE_LINKS);
@@ -13,7 +14,7 @@ const instanceLinks = parseInstanceLinks(env.LANGFUSE_UI_INSTANCE_LINKS);
 export const uiCustomizationRouter = createTRPCRouter({
   get: authenticatedProcedure.query(({ ctx }) => {
     const hasEntitlement = hasEntitlementBasedOnPlan({
-      plan: ctx.session.environment.selfHostedInstancePlan,
+      plan: getSessionEnvironment(ctx.session).selfHostedInstancePlan,
       entitlement: "self-host-ui-customization",
     });
     if (!hasEntitlement) return null;

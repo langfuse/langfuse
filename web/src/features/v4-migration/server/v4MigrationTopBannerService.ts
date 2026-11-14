@@ -1,5 +1,9 @@
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
+import {
+  getSessionOrganizations,
+  hasSessionUser,
+} from "@/src/features/auth/lib/sessionAccessors";
 import { getMigrationActionsByProject } from "@/src/features/v4/server/v4TransitionService";
 import { hasMigrationActionNeeded } from "@/src/features/v4-migration/migrationData";
 import { getV4MigrationBannerConfig } from "@/src/features/v4-migration/server/v4MigrationBannerConfig";
@@ -31,12 +35,11 @@ export async function getV4MigrationTopBannerState({
   demoOrgId: string | undefined;
   isLangfuseCloud: boolean;
 }): Promise<V4MigrationTopBannerState> {
-  const user = session.user;
-  if (!user) {
+  if (!hasSessionUser(session)) {
     return hiddenState;
   }
 
-  const sessionOrganizations = user.organizations ?? [];
+  const sessionOrganizations = getSessionOrganizations(session);
   const eligibleOrganizations = sessionOrganizations.filter(
     (organization) =>
       organization.id !== demoOrgId &&

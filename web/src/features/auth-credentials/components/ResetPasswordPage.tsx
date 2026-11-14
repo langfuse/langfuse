@@ -25,6 +25,10 @@ import Link from "next/link";
 import { ErrorPage } from "@/src/components/error-page";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { passwordSchema } from "@/src/features/auth/lib/signupSchema";
+import {
+  getSessionUserEmail,
+  getSessionUserHasPassword,
+} from "@/src/features/auth/lib/sessionAccessors";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import {
   PASSWORD_RESET_EMAIL_CODE_MAX_AGE_SECONDS,
@@ -76,7 +80,7 @@ export function ResetPasswordPage({
   const capture = usePostHogClientCapture();
 
   const isSetMode =
-    intent === "setup" || session.data?.user?.hasPassword === false;
+    intent === "setup" || getSessionUserHasPassword(session.data) === false;
   const codeMinutesValid =
     (isSetMode
       ? SIGNUP_EMAIL_CODE_MAX_AGE_SECONDS
@@ -93,7 +97,7 @@ export function ResetPasswordPage({
     : "/auth/setup-password";
 
   const mutResetPassword = api.credentials.resetPassword.useMutation();
-  const effectiveEmail = session.data?.user?.email ?? email;
+  const effectiveEmail = getSessionUserEmail(session.data) ?? email;
   const turnstileSiteKey = env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
   const [turnstileToken, setTurnstileToken] = useState<string>();
   const [turnstileAction, setTurnstileAction] = useState<

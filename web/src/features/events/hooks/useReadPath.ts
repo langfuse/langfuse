@@ -1,9 +1,14 @@
 import { useSession } from "next-auth/react";
 
-/** The events read path a data-fetching surface must use. */
-export type ResolvedReadPath = "v3" | "v4";
-/** "unknown" = the session has not resolved yet; no versioned fetch may fire. */
-export type ReadPath = ResolvedReadPath | "unknown";
+import {
+  getSessionReadPath,
+  type ReadPath,
+} from "@/src/features/events/hooks/getSessionReadPath";
+
+export {
+  type ReadPath,
+  type ResolvedReadPath,
+} from "@/src/features/events/hooks/getSessionReadPath";
 
 /**
  * The user's v3/v4 read path, derived from the session. v4 is the default
@@ -21,27 +26,5 @@ export function useReadPath(): {
   canToggleV4: boolean;
 } {
   const { data: session, status } = useSession();
-
-  // A session re-check reports "loading" with the previous session still in
-  // hand — that keeps the resolved path. Only a cold load is unknown.
-  const readPath = ((): ReadPath => {
-    if (session?.user?.v4BetaEnabled === true) {
-      return "v4";
-    }
-    if (session?.user) {
-      return "v3";
-    }
-    if (status === "loading") {
-      return "unknown";
-    }
-    return "v3";
-  })();
-
-  return {
-    readPath,
-    isV4: readPath === "v4",
-    isV3Legacy: readPath === "v3",
-    isResolved: readPath !== "unknown",
-    canToggleV4: session?.user?.canToggleV4 === true,
-  };
+  return getSessionReadPath(session, status);
 }

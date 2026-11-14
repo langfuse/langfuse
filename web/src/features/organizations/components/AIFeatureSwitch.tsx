@@ -21,13 +21,14 @@ import { Card } from "@/src/components/ui/card";
 import { ExternalLink } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
 import { AIFeatureSettingRow } from "@/src/features/organizations/components/AIFeatureSettingRow";
+import { getSessionEnvironment } from "@/src/features/auth/lib/sessionAccessors";
 
 export default function AIFeatureSwitch() {
   const { data: session, update: updateSession } = useSession();
   const utils = api.useUtils();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const aiFeaturesTracingConfigured =
-    session?.environment.aiFeaturesTracingConfigured === true;
+    getSessionEnvironment(session)?.aiFeaturesTracingConfigured === true;
   const capture = usePostHogClientCapture();
   const organization = useQueryOrganization();
   const aiFeaturesEnabled = organization?.aiFeaturesEnabled;

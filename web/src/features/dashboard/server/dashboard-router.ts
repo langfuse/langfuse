@@ -40,6 +40,7 @@ import {
   type FilterState,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 
 // Define the dashboard list input schema
 const ListDashboardsInput = z.object({
@@ -559,7 +560,7 @@ export const dashboardRouter = createTRPCRouter({
         input.projectId,
         input.name,
         input.description,
-        ctx.session.user.id,
+        getSessionUserId(ctx.session),
       );
 
       return dashboard;
@@ -578,7 +579,7 @@ export const dashboardRouter = createTRPCRouter({
         input.dashboardId,
         input.projectId,
         input.definition,
-        ctx.session.user.id,
+        getSessionUserId(ctx.session),
       );
 
       return dashboard;
@@ -598,7 +599,7 @@ export const dashboardRouter = createTRPCRouter({
         input.projectId,
         input.name,
         input.description,
-        ctx.session.user.id,
+        getSessionUserId(ctx.session),
       );
 
       return dashboard;
@@ -644,7 +645,7 @@ export const dashboardRouter = createTRPCRouter({
           existingClones.map((d) => d.name),
         ),
         sourceDashboard.description,
-        ctx.session.user.id,
+        getSessionUserId(ctx.session),
         input.definition ?? sourceDashboard.definition,
       );
 
@@ -741,7 +742,7 @@ export const dashboardRouter = createTRPCRouter({
         input.dashboardId,
         input.projectId,
         input.filters,
-        ctx.session.user.id,
+        getSessionUserId(ctx.session),
       );
 
       return dashboard;

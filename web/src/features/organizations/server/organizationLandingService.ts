@@ -2,6 +2,7 @@ import { type Session } from "next-auth";
 
 import { env } from "@/src/env.mjs";
 import { gatewayOnlyLanding } from "@/src/features/organizations/utils/gatewayOnlyLanding";
+import { getSessionOrganizations } from "@/src/features/auth/lib/sessionAccessors";
 
 /** OrganizationLandingService decides where the app root sends a signed-in user */
 export class OrganizationLandingService {
@@ -18,7 +19,7 @@ export class OrganizationLandingService {
   }
 
   private landingOrganization(lastProjectId: string | null) {
-    const organizations = (this.session.user?.organizations ?? []).filter(
+    const organizations = getSessionOrganizations(this.session).filter(
       (org) => org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,
     );
     const lastProjectOrganization = lastProjectId

@@ -11,7 +11,6 @@ type Organization = Extract<
 const createOrganization = (id: string, name: string): Organization => ({
   id,
   name,
-  role: "OWNER",
   cloudConfig: undefined,
   plan: "cloud:hobby",
   metadata: {},

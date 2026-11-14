@@ -5,6 +5,7 @@ import {
   gatewayPageAccess,
   gatewayPageVisibility,
 } from "@/src/features/ai-gateway/fns/gatewayPageAccess";
+import { getSessionEnvironment } from "@/src/features/auth/lib/sessionAccessors";
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 
@@ -27,9 +28,9 @@ export function visibleGatewayPages(
     organizationId,
     isAiGatewayEnabled:
       organizationId !== undefined &&
-      getContextualFeatureFlags(session?.user, { organizationId })
-        ?.aiGateway === true,
-    aiGatewayDeployed: session?.environment?.aiGatewayDeployed,
+      getContextualFeatureFlags(session, { organizationId })?.aiGateway ===
+        true,
+    aiGatewayDeployed: getSessionEnvironment(session)?.aiGatewayDeployed,
     canManageGateway: can("gateway:manage"),
     canReadGateway: can("gateway:read"),
     canInvokeGateway: can("gateway:invoke"),

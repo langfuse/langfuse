@@ -18,6 +18,12 @@ import {
 } from "@/src/features/projects/hooks";
 import { useSession } from "next-auth/react";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import {
+  findSessionOrganization,
+  getSessionOrganizations,
+  getSessionUserCanCreateOrganizations,
+  hasSessionUser,
+} from "@/src/features/auth/lib/sessionAccessors";
 import Link from "next/link";
 import { cn } from "@/src/utils/tailwind";
 import { useOptionalSidebar } from "@/src/components/ui/sidebar";
@@ -35,12 +41,15 @@ const BreadcrumbComponent = ({
   const { organization, project } = useQueryProjectOrOrganization();
   const { getProjectPath, getOrgPath } = useOrgProjectSwitchPaths();
 
-  const organizations = session.data?.user?.organizations;
+  const organizations = getSessionOrganizations(session.data);
+  const organizationsLoaded = hasSessionUser(session.data);
   // The expanded desktop sidebar shows the org switcher, so the breadcrumb
   // drops it there.
   const orgInSidebar = useOptionalSidebar()?.state === "expanded";
 
-  const canCreateOrganizations = session.data?.user?.canCreateOrganizations;
+  const canCreateOrganizations = getSessionUserCanCreateOrganizations(
+    session.data,
+  );
   const canCreateProjects = useHasOrganizationAccess({
     organizationId: organization?.id,
     scope: "projects:create",
@@ -51,7 +60,7 @@ const BreadcrumbComponent = ({
       <BreadcrumbList>
         {organization && (
           <OrganizationDropdownMenu
-            {...(organizations
+            {...(organizationsLoaded
               ? { state: "loaded", organizations }
               : { state: "loading" })}
             canCreateOrganizations={!!canCreateOrganizations}
@@ -99,11 +108,11 @@ const BreadcrumbComponent = ({
             </BreadcrumbSeparator>
             <ProjectDropdownMenu
               organizationId={organization.id}
-              {...(organizations
+              {...(organizationsLoaded
                 ? {
                     state: "loaded",
                     projects:
-                      organizations.find((org) => org.id === organization.id)
+                      findSessionOrganization(session.data, organization.id)
                         ?.projects ?? [],
                   }
                 : { state: "loading" })}

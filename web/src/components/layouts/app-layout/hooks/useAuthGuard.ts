@@ -7,6 +7,7 @@ import { useRouter } from "next/router";
 import { PATH_CONSTANTS } from "../utils/pathClassification";
 import { getSafeRedirectPath, stripBasePath } from "@/src/utils/redirect";
 import type { SessionContextValue } from "next-auth/react";
+import { hasSessionUser } from "@/src/features/auth/lib/sessionAccessors";
 
 /** Result of auth guard evaluation */
 export type AuthGuardResult =
@@ -66,7 +67,7 @@ export function useAuthGuard(
   // This can happen if user was deleted from DB but still has valid JWT
   if (
     session.data &&
-    session.data.user === null &&
+    !hasSessionUser(session.data) &&
     !isUnauthPath &&
     !isPublishable &&
     !isPublicPath

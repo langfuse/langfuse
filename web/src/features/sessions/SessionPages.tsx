@@ -4,6 +4,7 @@ import { getSessionHeaderMetrics } from "@/src/features/sessions/fns/getSessionH
 import { SessionHeaderMetricsControl } from "@/src/features/sessions/SessionHeaderMetricsControl/SessionHeaderMetricsControl";
 import { SessionMetadataJsonPathControl } from "@/src/features/sessions/SessionMetadataJsonPathControl";
 import { useSessionViewSelection } from "@/src/features/sessions/hooks/useSessionViewSelection";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 import { StringParam, useQueryParam } from "use-query-params";
 /* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-use-before-define */
 /* eslint-disable @repo/no-style-props */
@@ -721,7 +722,7 @@ const LoadedSessionEventsPage: React.FC<{
   const setSessionViewPreferences = api.sessionViews.setPreferences.useMutation(
     {
       scope: {
-        id: `session-view-preferences:${projectId}:${userSession.data?.user?.id}`,
+        id: `session-view-preferences:${projectId}:${getSessionUserId(userSession.data)}`,
       },
       onMutate: async ({ projectId, pinnedViewIds }) => {
         pendingPreferenceUpdates.current += 1;

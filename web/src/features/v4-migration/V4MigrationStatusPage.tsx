@@ -6,6 +6,7 @@ import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { ArrowRight } from "@langfuse/icons";
 import ContainerPage from "@/src/components/layouts/ContainerPage";
+import { getSessionOrganizations } from "@/src/features/auth/lib/sessionAccessors";
 import { Card } from "@/src/components/ui/card";
 import { Table } from "@/src/components/design-system/table/Table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -473,14 +474,15 @@ function V4MigrationStatusPageContent() {
   const hasDeadline = useHasV4MigrationDeadline();
   const title = useV4MigrationTitle();
 
-  const orgs: V4MigrationOrganization[] =
-    session.data?.user?.organizations?.map((org) => ({
-      id: org.id,
-      name: org.name,
-      projects: org.projects
-        .filter((project) => !project.deletedAt)
-        .map((project) => ({ id: project.id, name: project.name })),
-    })) ?? [];
+  const orgs: V4MigrationOrganization[] = getSessionOrganizations(
+    session.data,
+  ).map((org) => ({
+    id: org.id,
+    name: org.name,
+    projects: org.projects
+      .filter((project) => !project.deletedAt)
+      .map((project) => ({ id: project.id, name: project.name })),
+  }));
   const statusByProjectId = useAccountV4MigrationData({
     organizations: orgs,
     enabled: true,

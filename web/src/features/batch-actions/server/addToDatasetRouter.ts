@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
@@ -84,7 +85,7 @@ export const addToDatasetRouter = createTRPCRouter({
             message: `Too many observations selected. Maximum allowed is ${MAX_BATCH_ADD_TO_DATASET_ITEMS}, but ${observationCount} observations match your filters. Please refine your filters to reduce the count.`,
           });
         }
-        const userId = ctx.session.user.id;
+        const userId = getSessionUserId(ctx.session);
 
         logger.info("[TRPC] Creating observation-add-to-dataset action", {
           projectId,

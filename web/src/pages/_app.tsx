@@ -14,6 +14,19 @@ import {
   setV4BetaEnabledSentryTag,
 } from "@/src/utils/sentryV4BetaTag";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
+import {
+  getSessionOrganizations,
+  getSessionUserCanCreateOrganizations,
+  getSessionUserCanToggleV4,
+  getSessionUserEmail,
+  getSessionUserFeatureFlags,
+  getSessionUserHasPassword,
+  getSessionUserId,
+  getSessionUserImage,
+  getSessionUserName,
+  getSessionUserV4BetaEnabled,
+  getSessionUserV4UpgradeUiAvailable,
+} from "@/src/features/auth/lib/sessionAccessors";
 import { CommandMenuProvider } from "@/src/features/command-k-menu/CommandMenuProvider";
 
 import { api } from "@/src/utils/api";
@@ -245,29 +258,45 @@ const MyApp: AppType<{ session: Session | null }> = ({
 
 export default api.withTRPC(MyApp);
 
+/** UserTracking identifies the signed-in user to PostHog and Sentry. */
 function UserTracking() {
   const session = useSession();
   const { region } = useLangfuseCloudRegion();
-  const sessionUser = session.data?.user;
 
   // Track user identity and properties
   const lastIdentifiedUser = useRef<string | null>(null);
   useEffect(() => {
+    const userId = getSessionUserId(session.data);
+    const userIdentity = JSON.stringify({
+      id: userId,
+      name: getSessionUserName(session.data),
+      email: getSessionUserEmail(session.data),
+      image: getSessionUserImage(session.data),
+      v4BetaEnabled: getSessionUserV4BetaEnabled(session.data),
+      v4UpgradeUiAvailable: getSessionUserV4UpgradeUiAvailable(session.data),
+      canToggleV4: getSessionUserCanToggleV4(session.data),
+      canCreateOrganizations: getSessionUserCanCreateOrganizations(
+        session.data,
+      ),
+      organizations: getSessionOrganizations(session.data),
+      featureFlags: getSessionUserFeatureFlags(session.data),
+      hasPassword: getSessionUserHasPassword(session.data),
+    });
     if (
       session.status === "authenticated" &&
-      sessionUser &&
-      lastIdentifiedUser.current !== JSON.stringify(sessionUser)
+      userId &&
+      lastIdentifiedUser.current !== userIdentity
     ) {
-      lastIdentifiedUser.current = JSON.stringify(sessionUser);
+      lastIdentifiedUser.current = userIdentity;
       // PostHog
       if (isPostHogClientEnabled()) {
-        posthog.identify(sessionUser.id ?? undefined, {
+        posthog.identify(userId ?? undefined, {
           environment: process.env.NODE_ENV,
-          email: sessionUser.email ?? undefined,
-          name: sessionUser.name ?? undefined,
-          featureFlags: sessionUser.featureFlags ?? undefined,
+          email: getSessionUserEmail(session.data) ?? undefined,
+          name: getSessionUserName(session.data) ?? undefined,
+          featureFlags: getSessionUserFeatureFlags(session.data) ?? undefined,
           projects:
-            sessionUser.organizations.flatMap((org) =>
+            getSessionOrganizations(session.data).flatMap((org) =>
               org.projects.map((project) => ({
                 ...project,
                 organization: org,
@@ -275,20 +304,20 @@ function UserTracking() {
             ) ?? undefined,
           LANGFUSE_CLOUD_REGION: region,
           [V4_BETA_ENABLED_POSTHOG_PROPERTY]:
-            sessionUser.v4BetaEnabled ?? false,
+            getSessionUserV4BetaEnabled(session.data) ?? false,
         });
         posthog.register({
           [V4_BETA_ENABLED_POSTHOG_PROPERTY]:
-            sessionUser.v4BetaEnabled ?? false,
+            getSessionUserV4BetaEnabled(session.data) ?? false,
         });
       }
 
       // Sentry — user identity stays on setUser; v4 is a boolean tag only
       setUser({
-        email: sessionUser.email ?? undefined,
-        id: sessionUser.id ?? undefined,
+        email: getSessionUserEmail(session.data) ?? undefined,
+        id: userId ?? undefined,
       });
-      setV4BetaEnabledSentryTag(sessionUser.v4BetaEnabled);
+      setV4BetaEnabledSentryTag(getSessionUserV4BetaEnabled(session.data));
     } else if (session.status === "unauthenticated") {
       lastIdentifiedUser.current = null;
       posthog.unregister(V4_BETA_ENABLED_POSTHOG_PROPERTY);
@@ -296,7 +325,7 @@ function UserTracking() {
       setUser(null);
       clearV4BetaEnabledSentryTag();
     }
-  }, [sessionUser, session.status, region]);
+  }, [session.data, session.status, region]);
 
   // add stripe link to chat
   // const orgStripeLink = organization?.cloudConfig?.stripe?.customerId

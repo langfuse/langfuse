@@ -5,6 +5,12 @@ import {
 } from "@langfuse/shared";
 import { stringify } from "@langfuse/shared/src/server";
 import { recordInternalApiAccess } from "@/src/features/audit-logs/server/recordAccessEvent";
+import {
+  getSessionOrganizations,
+  getSessionUserEmail,
+  hasSessionOrganizationList,
+  hasSessionUser,
+} from "@/src/features/auth/lib/sessionAccessors";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
   buildTraceExport,
@@ -18,6 +24,7 @@ const querySchema = z.object({
   projectId: z.string().min(1),
 });
 
+/** getTraceExportSession narrows the auth session to what the trace export checks. */
 function getTraceExportSession(
   session: Awaited<ReturnType<typeof getServerAuthSession>>,
 ): TraceExportAccessSession {
@@ -25,20 +32,21 @@ function getTraceExportSession(
     return null;
   }
 
-  const { user } = session;
+  const email = getSessionUserEmail(session);
 
   if (
-    !user ||
-    typeof user.email !== "string" ||
-    !Array.isArray(user.organizations)
+    !hasSessionUser(session) ||
+    typeof email !== "string" ||
+    !hasSessionOrganizationList(session)
   ) {
     throw new UnauthorizedError("Unauthorized");
   }
+  const organizations = getSessionOrganizations(session);
 
   return {
     user: {
-      email: user.email,
-      organizations: user.organizations,
+      email,
+      organizations,
     },
   };
 }

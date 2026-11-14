@@ -1,5 +1,12 @@
-/* eslint-disable no-nested-ternary */
 import type { Session } from "next-auth";
+import {
+  findSessionOrganization,
+  findSessionProjectOrganization,
+  getSessionEnvironment,
+  getSessionUserEmail,
+  getSessionUserFeatureFlags,
+  type MaybeSession,
+} from "@/src/features/auth/lib/sessionAccessors";
 import {
   availableFlags,
   defaultOnFeaturePreviewFlags,
@@ -40,10 +47,10 @@ export const hasInternalAccess = ({
 
 export const isInternalViewEnabled = (session: Session | null | undefined) =>
   hasInternalAccess({
-    email: session?.user?.email,
+    email: getSessionUserEmail(session),
     isExperimentalFeaturesEnabled:
-      session?.environment?.enableExperimentalFeatures === true,
-  }) && session?.user?.featureFlags[INTERNAL_FEATURE_FLAG] !== false;
+      getSessionEnvironment(session)?.enableExperimentalFeatures === true,
+  }) && getSessionUserFeatureFlags(session)?.[INTERNAL_FEATURE_FLAG] !== false;
 
 export const parseFlags = (
   dbFlags: string[],
@@ -114,31 +121,25 @@ export const parseFlagsWithOrganizationDefaults = (
   return flags;
 };
 
-type ContextualFeatureFlagUser = {
-  featureFlags: Flags;
-  organizations: Array<{
-    id: string;
-    featureFlags?: Flags;
-    projects: Array<{ id: string }>;
-  }>;
+/** getContextualFeatureFlags is the user's flags as resolved for the given organization or project. */
+export const getContextualFeatureFlags = (
+  session: MaybeSession,
+  context: { projectId?: string; organizationId?: string } = {},
+): Flags | undefined => {
+  const userFlags = getSessionUserFeatureFlags(session);
+  if (!userFlags) return undefined;
+  return findContextOrganization(session, context)?.featureFlags ?? userFlags;
 };
 
-export const getContextualFeatureFlags = (
-  user: ContextualFeatureFlagUser | null | undefined,
+/** findContextOrganization is the organization a feature-flag context points at, preferring an explicit organization over a project's. */
+function findContextOrganization(
+  session: MaybeSession,
   {
     projectId,
     organizationId,
-  }: { projectId?: string; organizationId?: string } = {},
-): Flags | undefined => {
-  if (!user) return undefined;
-
-  const organization = organizationId
-    ? user.organizations.find((candidate) => candidate.id === organizationId)
-    : projectId
-      ? user.organizations.find((candidate) =>
-          candidate.projects.some((project) => project.id === projectId),
-        )
-      : undefined;
-
-  return organization?.featureFlags ?? user.featureFlags;
-};
+  }: { projectId?: string; organizationId?: string },
+) {
+  if (organizationId) return findSessionOrganization(session, organizationId);
+  if (projectId) return findSessionProjectOrganization(session, projectId);
+  return undefined;
+}

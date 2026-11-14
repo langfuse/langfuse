@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import { z as zodV3 } from "zod";
 import type { Session } from "next-auth";
 
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 import {
   hasOrganizationAccess,
   throwIfNoOrganizationAccess,
@@ -112,7 +113,7 @@ function getGatewayUsageScope(params: {
   });
   return canManageGateway
     ? { scope: "organization" }
-    : { scope: "ownUsage", userId: params.session.user.id };
+    : { scope: "ownUsage", userId: getSessionUserId(params.session) };
 }
 
 function requireGatewayRead(params: { session: Session; orgId: string }) {
@@ -280,7 +281,7 @@ export const aiGatewayRouter = createTRPCRouter({
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
       return new GatewayTeamService(ctx.prisma).getNotifiableMembers({
         organizationId: input.orgId,
-        currentUserId: ctx.session.user.id,
+        currentUserId: getSessionUserId(ctx.session),
       });
     }),
 
@@ -295,7 +296,7 @@ export const aiGatewayRouter = createTRPCRouter({
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
       return new GatewayTeamService(ctx.prisma).getMemberSuggestions({
         organizationId: input.orgId,
-        currentUserId: ctx.session.user.id,
+        currentUserId: getSessionUserId(ctx.session),
         search: input.search,
         excludeEmails: input.excludeEmails,
       });
@@ -311,7 +312,7 @@ export const aiGatewayRouter = createTRPCRouter({
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
       return new GatewayTeamService(ctx.prisma).getInviteeMembers({
         organizationId: input.orgId,
-        currentUserId: ctx.session.user.id,
+        currentUserId: getSessionUserId(ctx.session),
         emails: input.emails,
       });
     }),

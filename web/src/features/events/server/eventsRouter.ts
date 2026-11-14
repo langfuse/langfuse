@@ -70,6 +70,7 @@ import { mapAgentGraphRecord } from "@/src/features/trace-graph-view/fns/mapAgen
 
 import type * as opentelemetry from "@opentelemetry/api";
 import { isProjectMember } from "@/src/server/utils/checkProjectMembership";
+import { getSessionUserEmail } from "@/src/features/auth/lib/sessionAccessors";
 
 const GetAllEventsInput = EventsTableOptions.safeExtend({
   ...paginationZod,
@@ -208,7 +209,7 @@ export const eventsRouter = createTRPCRouter({
     protectedGetSessionProcedure.input(GetSessionEventsInput),
     { resourceType: "observation", action: "list" },
     async ({ input, ctx, audit }) => {
-      const filter = isProjectMember(ctx.session.user, input.projectId)
+      const filter = isProjectMember(ctx.session, input.projectId)
         ? (input.filter ?? [])
         : (input.filter ?? []).filter(
             ({ column }) =>
@@ -535,13 +536,13 @@ export const eventsRouter = createTRPCRouter({
     { resourceType: "trace", action: "read", idKey: "traceId" },
     async ({ input, ctx, audit }) => {
       const isSessionTimelineEnabled =
-        getContextualFeatureFlags(ctx.session?.user, {
+        getContextualFeatureFlags(ctx.session, {
           projectId: input.projectId,
         })?.sessionViewV2Timeline === true;
       if (
         !isSessionTimelineEnabled &&
         !hasInternalAccess({
-          email: ctx.session?.user?.email,
+          email: getSessionUserEmail(ctx.session),
           isExperimentalFeaturesEnabled:
             env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
         })
@@ -607,7 +608,7 @@ export const eventsRouter = createTRPCRouter({
     async ({ input, ctx, audit }) => {
       if (
         !hasInternalAccess({
-          email: ctx.session?.user?.email,
+          email: getSessionUserEmail(ctx.session),
           isExperimentalFeaturesEnabled:
             env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
         })

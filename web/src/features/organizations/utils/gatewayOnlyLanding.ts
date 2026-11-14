@@ -1,5 +1,9 @@
 import { type Session } from "next-auth";
 
+import {
+  getSessionOrganizations,
+  type SessionOrganization,
+} from "@/src/features/auth/lib/sessionAccessors";
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 
@@ -8,10 +12,7 @@ export function gatewayOnlyLanding(
   session: Session | null,
   queryOrgId: string | string[] | undefined,
 ): GatewayOnlyLanding | undefined {
-  const org = landingOrganization(
-    queryOrgId,
-    session?.user?.organizations ?? [],
-  );
+  const org = landingOrganization(queryOrgId, getSessionOrganizations(session));
   if (!org || canViewOrganizationProjects(session, org)) return undefined;
   return {
     organizationId: org.id,
@@ -46,7 +47,7 @@ function canViewOrganizationProjects(
 /** canUseGateway reports whether the user can invoke the AI Gateway in the given org */
 function canUseGateway(session: Session | null, organizationId: string) {
   return (
-    getContextualFeatureFlags(session?.user, { organizationId })?.aiGateway ===
+    getContextualFeatureFlags(session, { organizationId })?.aiGateway ===
       true &&
     hasOrganizationAccess({
       session,
@@ -58,4 +59,4 @@ function canUseGateway(session: Session | null, organizationId: string) {
 
 type GatewayOnlyLanding = { organizationId: string; canUseGateway: boolean };
 
-type Organization = NonNullable<Session["user"]>["organizations"][number];
+type Organization = SessionOrganization;

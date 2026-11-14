@@ -53,6 +53,11 @@ import {
 } from "@/src/features/rbac/server/ownershipChange";
 import { userFeaturePreviewFlags } from "@/src/features/feature-flags/available-flags";
 import { setUserFeaturePreviewWithAuthorization } from "@/src/features/feature-flags/server/organizationFeatureFlags";
+import {
+  getSessionUserEmail,
+  getSessionUserId,
+  getSessionUserName,
+} from "@/src/features/auth/lib/sessionAccessors";
 
 function buildUserSearchFilter(searchQuery: string | undefined | null) {
   if (searchQuery === undefined || searchQuery === null || searchQuery === "") {
@@ -90,8 +95,8 @@ export const membersRouter = createTRPCRouter({
         input,
         sendInvitationEmail: async ({ to, orgName, userExists }) =>
           sendMembershipInvitationEmail({
-            inviterEmail: ctx.session.user.email!,
-            inviterName: ctx.session.user.name!,
+            inviterEmail: getSessionUserEmail(ctx.session)!,
+            inviterName: getSessionUserName(ctx.session)!,
             to,
             orgName,
             orgId: input.orgId,
@@ -135,7 +140,7 @@ export const membersRouter = createTRPCRouter({
         organizationId: input.orgId,
         scope: "organizationMembers:CUD",
       });
-      if (!hasAccess && orgMembership.userId !== ctx.session.user.id)
+      if (!hasAccess && orgMembership.userId !== getSessionUserId(ctx.session))
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "You do not have access to delete organization members",
@@ -346,7 +351,7 @@ export const membersRouter = createTRPCRouter({
 
       const result = await setUserFeaturePreviewWithAuthorization({
         prisma: ctx.prisma,
-        actorUserId: ctx.session.user.id,
+        actorUserId: getSessionUserId(ctx.session),
         currentOrgId: input.orgId,
         targetUserId: input.userId,
         flag: input.flag,
@@ -423,7 +428,7 @@ export const membersRouter = createTRPCRouter({
       if (input.projectRole !== null && input.projectRole !== Role.NONE) {
         const entitled = hasEntitlement({
           entitlement: "rbac-project-roles",
-          sessionUser: ctx.session.user,
+          session: ctx.session,
           orgId: input.orgId,
         });
         if (!entitled) {

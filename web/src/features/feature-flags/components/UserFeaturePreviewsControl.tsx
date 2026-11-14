@@ -1,3 +1,4 @@
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useId, useState, type ReactNode } from "react";
@@ -57,7 +58,7 @@ export function UserFeaturePreviewsControl({
         isEnabled: variables.enabled,
       });
       await utils.members.allFromOrg.invalidate();
-      if (variables.userId === session.data?.user?.id) {
+      if (variables.userId === getSessionUserId(session.data)) {
         await session.update();
       }
       showSuccessToast({

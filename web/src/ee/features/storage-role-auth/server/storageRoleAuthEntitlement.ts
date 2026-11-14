@@ -1,24 +1,22 @@
 import { type Plan } from "@langfuse/shared";
 import { type Session } from "next-auth";
 
+import { findSessionProjectOrganization } from "@/src/features/auth/lib/sessionAccessors";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 
 export function getSessionPlanForProject({
-  sessionUser,
+  session,
   projectId,
 }: {
-  sessionUser: NonNullable<Session["user"]>;
+  session: Session;
   projectId: string;
 }): Plan | null {
-  const org = sessionUser.organizations.find((org) =>
-    org.projects.some((project) => project.id === projectId),
-  );
-  return org?.plan ?? null;
+  return findSessionProjectOrganization(session, projectId)?.plan ?? null;
 }
 
 // Only the organization's plan grants IAM role auth; Langfuse admins get no bypass.
 export function canSessionUseStorageRoleAuth(params: {
-  sessionUser: NonNullable<Session["user"]>;
+  session: Session;
   projectId: string;
 }) {
   return canPlanUseStorageRoleAuth(getSessionPlanForProject(params));

@@ -34,6 +34,7 @@ import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePer
 import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
 import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
 import { roleIcons } from "@/src/features/rbac/components/roleIcons";
+import { getSessionEnvironment } from "@/src/features/auth/lib/sessionAccessors";
 
 type ApiKeyScope = "project" | "organization";
 
@@ -108,8 +109,8 @@ function ApiKeyCreateForm({
   const { data: session } = useSession();
   const roleSelectionEnabled =
     (scope === "project"
-      ? session?.environment?.apiKeyProjectRoleSelectionEnabled
-      : session?.environment?.apiKeyOrgRoleSelectionEnabled) ?? false;
+      ? getSessionEnvironment(session)?.apiKeyProjectRoleSelectionEnabled
+      : getSessionEnvironment(session)?.apiKeyOrgRoleSelectionEnabled) ?? false;
 
   const [name, setName] = useState("");
   const [role, setRole] = useState<SystemRole>(DEFAULT_ROLE);

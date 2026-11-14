@@ -60,6 +60,12 @@ import {
   isInAppAgentRateLimited,
   type InAppAiAgentMessage,
 } from "@/src/features/in-app-agent/components/utils/utils";
+import {
+  getSessionEnvironment,
+  getSessionUserId,
+  getSessionUserName,
+} from "@/src/features/auth/lib/sessionAccessors";
+import { isInAppAgentLauncherVisibleForSession } from "@/src/features/in-app-agent/components/isInAppAgentLauncherVisibleForSession";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
@@ -269,7 +275,7 @@ function InAppAiAgentProjectProvider({
   projectId: string;
 }) {
   const session = useSession();
-  const userId = session.data?.user?.id ?? null;
+  const userId = getSessionUserId(session.data) ?? null;
   const [open, setOpen] = useSessionStorage<boolean>(
     `${OPEN_STORAGE_KEY_PREFIX}:${projectId}`,
     defaultOpen ?? false,
@@ -937,13 +943,14 @@ function InAppAiAgentProviderInner({
     ],
   );
 
+  const userName = getSessionUserName(session.data);
   const createRunContext = useCallback(
     () =>
       createInAppAgentScreenContext({
         currentUrl: window.location.href,
       }).concat(
         createInAppAgentUserContext({
-          userName: session.data?.user?.name,
+          userName,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           languages:
             navigator.languages.length > 0
@@ -951,7 +958,7 @@ function InAppAiAgentProviderInner({
               : [navigator.language],
         }),
       ),
-    [session.data?.user?.name],
+    [userName],
   );
 
   const selectConversation = useCallback(
@@ -1647,7 +1654,8 @@ function useCanUseInAppAgent() {
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
   const { organization } = useQueryProjectOrOrganization();
   const session = useSession();
-  const instanceEnabled = session.data?.environment.inAppAgentEnabled ?? false;
+  const instanceEnabled =
+    getSessionEnvironment(session.data)?.inAppAgentEnabled ?? false;
 
   return (
     instanceEnabled &&
@@ -1665,12 +1673,11 @@ export function useIsInAppAgentLauncherVisible() {
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
   const { organization } = useQueryProjectOrOrganization();
   const session = useSession();
-  const instanceEnabled = session.data?.environment.inAppAgentEnabled ?? false;
 
-  return (
-    instanceEnabled &&
-    isAvailable &&
-    hasInAppAgentEntitlement &&
-    Boolean(organization)
+  return isInAppAgentLauncherVisibleForSession(
+    session.data,
+    isAvailable,
+    hasInAppAgentEntitlement,
+    organization,
   );
 }

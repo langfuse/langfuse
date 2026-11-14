@@ -6,6 +6,7 @@ import {
 import { setPasswordWithEmailCode } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { TRPCError } from "@trpc/server";
 import { passwordSchema } from "@/src/features/auth/lib/signupSchema";
+import { getSessionUserEmail } from "@/src/features/auth/lib/sessionAccessors";
 
 export const credentialsRouter = createTRPCRouter({
   resetPassword: publicProcedureWithoutTracing
@@ -26,7 +27,7 @@ export const credentialsRouter = createTRPCRouter({
       // it is only optional. Logged-out recovery has none. When a user changes
       // their password from account settings, the code must belong to the
       // signed-in account so a stale session cannot reset someone else's.
-      const sessionEmail = ctx.session?.user?.email?.toLowerCase();
+      const sessionEmail = getSessionUserEmail(ctx.session)?.toLowerCase();
       if (sessionEmail && sessionEmail !== normalizedEmail) {
         throw new TRPCError({
           code: "UNAUTHORIZED",

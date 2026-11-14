@@ -1,4 +1,5 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
@@ -90,7 +91,7 @@ export const projectApiKeysRouter = createTRPCRouter({
         tenant: OrganizationId(ctx.session.orgId),
         scope: ProjectId(input.projectId),
         role: SystemRoleId(input.role),
-        createdBy: UserId(ctx.session.user.id),
+        createdBy: UserId(getSessionUserId(ctx.session)),
         name: input.name,
         expiresAt: input.expiresAt,
       });

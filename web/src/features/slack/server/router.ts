@@ -16,6 +16,11 @@ import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { env } from "@/src/env.mjs";
 import { getProductBaseUrl } from "@/src/utils/base-url";
+import {
+  getSessionUserEmail,
+  getSessionUserId,
+  getSessionUserName,
+} from "@/src/features/auth/lib/sessionAccessors";
 
 export const slackRouter = createTRPCRouter({
   /**
@@ -121,7 +126,7 @@ export const slackRouter = createTRPCRouter({
         );
         const viewerSlackUserId = getPrivateChannelViewerSlackUserId(
           integration,
-          ctx.session.user.id,
+          getSessionUserId(ctx.session),
         );
         const [publicPage, privateChannels] = await Promise.all([
           slackService.getChannels(client, input.cursor),
@@ -281,7 +286,7 @@ export const slackRouter = createTRPCRouter({
             channel: input.channelId,
             viewerSlackUserId: getPrivateChannelViewerSlackUserId(
               integration,
-              ctx.session.user.id,
+              getSessionUserId(ctx.session),
             ),
           });
         if (privateChannelAccess.access === "denied") {
@@ -325,7 +330,7 @@ export const slackRouter = createTRPCRouter({
               },
               {
                 type: "mrkdwn",
-                text: `*User:*\n${ctx.session.user.name || ctx.session.user.email}`,
+                text: `*User:*\n${getSessionUserName(ctx.session) || getSessionUserEmail(ctx.session)}`,
               },
               {
                 type: "mrkdwn",

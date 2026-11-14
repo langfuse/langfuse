@@ -18,7 +18,7 @@ export function canViewTopics(
     !!project &&
     isTopicsEnabledForProject(project) &&
     (isInternalViewEnabled(session) ||
-      getContextualFeatureFlags(session?.user, { projectId: project.id })
+      getContextualFeatureFlags(session, { projectId: project.id })
         ?.langfuseTopics === true) &&
     hasProjectAccess({ session, projectId: project.id, scope: "topics:read" })
   );

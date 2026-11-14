@@ -2,6 +2,10 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import {
+  getSessionUserId,
+  getSessionUserV4BetaEnabled,
+} from "@/src/features/auth/lib/sessionAccessors";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   WebCalloutEndpointUpsertInputSchema,
@@ -146,10 +150,10 @@ export const webCalloutsRouter = createTRPCRouter({
       return invokeWebCalloutEndpoint({
         prisma: ctx.prisma,
         input,
-        useEventsTable: ctx.session.user.v4BetaEnabled === true,
+        useEventsTable: getSessionUserV4BetaEnabled(ctx.session) === true,
         invoker: {
           orgId: ctx.session.orgId,
-          userId: ctx.session.user.id,
+          userId: getSessionUserId(ctx.session),
         },
       });
     }),

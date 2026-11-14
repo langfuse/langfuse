@@ -1,5 +1,9 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import {
+  getSessionUserId,
+  getSessionUserV4BetaEnabled,
+} from "@/src/features/auth/lib/sessionAccessors";
 import { recordTrpcAccess } from "@/src/features/audit-logs/server/recordAccessEvent";
 import { env } from "@/src/env.mjs";
 import { parseBatchExportFileKeyFromUrl } from "@/src/features/batch-exports/server/batchExportFileKey";
@@ -56,7 +60,7 @@ const isAuditLogExport = (query: Prisma.JsonValue): boolean =>
 const canReadAuditLogs = (session: AuthedSession, projectId: string) =>
   hasEntitlement({
     entitlement: "audit-logs",
-    sessionUser: session.user,
+    session,
     projectId,
   }) &&
   hasProjectAccess({ session, projectId, scope: "projectAuditLogs:read" });
@@ -66,7 +70,7 @@ const canReadAuditLogs = (session: AuthedSession, projectId: string) =>
 const assertCanReadAuditLogs = (session: AuthedSession, projectId: string) => {
   throwIfNoEntitlement({
     entitlement: "audit-logs",
-    sessionUser: session.user,
+    session,
     projectId,
   });
   throwIfNoProjectAccess({
@@ -111,7 +115,7 @@ export const batchExportRouter = createTRPCRouter({
         // snapshot, never the live user record. Overrides any client-sent value.
         const query = {
           ...input.query,
-          useEventsTable: ctx.session.user.v4BetaEnabled ?? false,
+          useEventsTable: getSessionUserV4BetaEnabled(ctx.session) ?? false,
         };
 
         if (query.tableName === BatchExportTableName.AuditLogs) {
@@ -125,7 +129,7 @@ export const batchExportRouter = createTRPCRouter({
         });
 
         logger.info("[BATCH EXPORT] Creating export job", { job: input });
-        const userId = ctx.session.user.id;
+        const userId = getSessionUserId(ctx.session);
 
         await assertNoActiveExport({ prisma: ctx.prisma, projectId, userId });
 

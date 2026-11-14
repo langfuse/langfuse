@@ -12,6 +12,11 @@ import {
   convertDateToClickhouseDateTime,
   upsertScore,
 } from "@langfuse/shared/src/server";
+import {
+  getSessionUserEmail,
+  getSessionUserId,
+  getSessionUserV4BetaEnabled,
+} from "@/src/features/auth/lib/sessionAccessors";
 import { env } from "@/src/env.mjs";
 import {
   AgUiContextSchema,
@@ -127,13 +132,13 @@ export const inAppAgentRouter = createTRPCRouter({
       await assertInAppAgentAvailable({
         prisma: ctx.prisma,
         projectId: input.projectId,
-        user: ctx.session.user,
+        session: ctx.session,
       });
 
       const conversations = await ctx.prisma.inAppAgentConversation.findMany({
         where: {
           projectId: input.projectId,
-          createdByUserId: ctx.session.user.id,
+          createdByUserId: getSessionUserId(ctx.session),
           deletedAt: null,
           ...(input.cursor
             ? {
@@ -196,14 +201,14 @@ export const inAppAgentRouter = createTRPCRouter({
       await assertInAppAgentAvailable({
         prisma: ctx.prisma,
         projectId: input.projectId,
-        user: ctx.session.user,
+        session: ctx.session,
       });
 
       return getBackgroundConversationSnapshot({
         prisma: ctx.prisma,
         projectId: input.projectId,
         conversationId: input.conversationId,
-        userId: ctx.session.user.id,
+        userId: getSessionUserId(ctx.session),
       });
     }),
 
@@ -223,12 +228,12 @@ export const inAppAgentRouter = createTRPCRouter({
       const projectAvailability = await assertInAppAgentAvailable({
         prisma: ctx.prisma,
         projectId: input.projectId,
-        user: ctx.session.user,
+        session: ctx.session,
       });
       const modelConfig = assertInAppAgentModelConfigured();
 
       const rateLimitScope = getInAppAgentApiAccessScope(
-        ctx.session.user,
+        ctx.session,
         input.projectId,
       );
 
@@ -242,10 +247,10 @@ export const inAppAgentRouter = createTRPCRouter({
         orgId: rateLimitScope.orgId,
         plan: rateLimitScope.plan,
         conversationId: input.conversationId,
-        userId: ctx.session.user.id,
+        userId: getSessionUserId(ctx.session),
         message: input.message,
         context: input.context,
-        isV4Enabled: ctx.session.user.v4BetaEnabled === true,
+        isV4Enabled: getSessionUserV4BetaEnabled(ctx.session) === true,
         topicsAvailable: canViewTopics(ctx.session, {
           id: input.projectId,
           topicsEnabled: isTopicsProjectEnabled(input.projectId),
@@ -261,7 +266,7 @@ export const inAppAgentRouter = createTRPCRouter({
       await assertInAppAgentAvailable({
         prisma: ctx.prisma,
         projectId: input.projectId,
-        user: ctx.session.user,
+        session: ctx.session,
       });
 
       return cancelBackgroundRun({
@@ -269,7 +274,7 @@ export const inAppAgentRouter = createTRPCRouter({
         projectId: input.projectId,
         conversationId: input.conversationId,
         runId: input.runId,
-        userId: ctx.session.user.id,
+        userId: getSessionUserId(ctx.session),
       });
     }),
 
@@ -286,12 +291,12 @@ export const inAppAgentRouter = createTRPCRouter({
       await assertInAppAgentAvailable({
         prisma: ctx.prisma,
         projectId: input.projectId,
-        user: ctx.session.user,
+        session: ctx.session,
       });
       const modelConfig = assertInAppAgentModelConfigured();
 
       const rateLimitScope = getInAppAgentApiAccessScope(
-        ctx.session.user,
+        ctx.session,
         input.projectId,
       );
 
@@ -303,7 +308,7 @@ export const inAppAgentRouter = createTRPCRouter({
         prisma: ctx.prisma,
         orgId: rateLimitScope.orgId,
         plan: rateLimitScope.plan,
-        userId: ctx.session.user.id,
+        userId: getSessionUserId(ctx.session),
       });
 
       return decideBackgroundApproval({
@@ -315,7 +320,7 @@ export const inAppAgentRouter = createTRPCRouter({
         approved: input.approved,
         approvalScope: input.approvalScope,
         toolInputs: input.toolInputs,
-        userId: ctx.session.user.id,
+        userId: getSessionUserId(ctx.session),
         model: modelConfig.modelId,
       });
     }),
@@ -326,14 +331,14 @@ export const inAppAgentRouter = createTRPCRouter({
       await assertInAppAgentAvailable({
         prisma: ctx.prisma,
         projectId: input.projectId,
-        user: ctx.session.user,
+        session: ctx.session,
       });
 
       return deleteBackgroundConversation({
         prisma: ctx.prisma,
         projectId: input.projectId,
         conversationId: input.conversationId,
-        userId: ctx.session.user.id,
+        userId: getSessionUserId(ctx.session),
       });
     }),
 
@@ -343,14 +348,14 @@ export const inAppAgentRouter = createTRPCRouter({
       await assertInAppAgentAvailable({
         prisma: ctx.prisma,
         projectId: input.projectId,
-        user: ctx.session.user,
+        session: ctx.session,
       });
 
       await getOwnedConversationOrThrow({
         prisma: ctx.prisma,
         projectId: input.projectId,
         conversationId: input.conversationId,
-        userId: ctx.session.user.id,
+        userId: getSessionUserId(ctx.session),
       });
 
       const conversation = await ctx.prisma.inAppAgentConversation.update({
@@ -359,7 +364,7 @@ export const inAppAgentRouter = createTRPCRouter({
             id: input.conversationId,
             projectId: input.projectId,
           },
-          createdByUserId: ctx.session.user.id,
+          createdByUserId: getSessionUserId(ctx.session),
           deletedAt: null,
         },
         data: {
@@ -377,14 +382,14 @@ export const inAppAgentRouter = createTRPCRouter({
       const projectAvailability = await assertInAppAgentAvailable({
         prisma: ctx.prisma,
         projectId: input.projectId,
-        user: ctx.session.user,
+        session: ctx.session,
       });
 
       await getOwnedConversationOrThrow({
         prisma: ctx.prisma,
         projectId: input.projectId,
         conversationId: input.conversationId,
-        userId: ctx.session.user.id,
+        userId: getSessionUserId(ctx.session),
       });
 
       const messages = await getConversationMessages({
@@ -417,7 +422,7 @@ export const inAppAgentRouter = createTRPCRouter({
         return { feedback: null };
       }
 
-      const scoreId = `afbs_${input.messageId}_${ctx.session.user.id}`;
+      const scoreId = `afbs_${input.messageId}_${getSessionUserId(ctx.session)}`;
       const now = new Date();
       const scoreProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
 
@@ -447,7 +452,7 @@ export const inAppAgentRouter = createTRPCRouter({
           value: input.value === "thumbs_up" ? 1 : 0,
           source: ScoreSourceEnum.ANNOTATION,
           comment,
-          author_user_id: ctx.session.user.id,
+          author_user_id: getSessionUserId(ctx.session),
           config_id: null,
           data_type: ScoreDataTypeEnum.BOOLEAN,
           string_value: input.value === "thumbs_up" ? "true" : "false",
@@ -476,7 +481,7 @@ export const inAppAgentRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       if (
         !hasInternalAccess({
-          email: ctx.session.user.email,
+          email: getSessionUserEmail(ctx.session),
           isExperimentalFeaturesEnabled:
             env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
         })
@@ -489,7 +494,7 @@ export const inAppAgentRouter = createTRPCRouter({
       const projectAvailability = await assertInAppAgentAvailable({
         prisma: ctx.prisma,
         projectId: input.projectId,
-        user: ctx.session.user,
+        session: ctx.session,
       });
       return {
         projectId: projectAvailability.aiTelemetryEnabled

@@ -22,6 +22,7 @@ import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { GatewayApiKeyRepository } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyRepository";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 import { GATEWAY_CONNECTION_NAME_ERRORS } from "@/src/features/ai-gateway/constants/gatewayConnection";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import {
@@ -200,7 +201,7 @@ export class GatewayProviderService {
         displaySecret: toDisplaySecret(params.provider, params.credential),
         config,
         ...toStoredEndpoint(endpoint),
-        createdById: params.session.user.id,
+        createdById: getSessionUserId(params.session),
         status: "ENABLED",
       });
     } catch (error) {

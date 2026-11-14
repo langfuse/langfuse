@@ -1,5 +1,11 @@
 import { type Session } from "next-auth";
 
+import {
+  getSessionProjectRole,
+  getSessionUserId,
+  hasSessionUser,
+} from "@/src/features/auth/lib/sessionAccessors";
+
 export function canManageSessionView({
   session,
   projectId,
@@ -9,9 +15,11 @@ export function canManageSessionView({
   projectId: string;
   createdBy: string | null;
 }) {
-  if (!session?.user) return false;
-  const role = session.user.organizations
-    .flatMap((organization) => organization.projects)
-    .find((project) => project.id === projectId)?.role;
-  return createdBy === session.user.id || role === "OWNER" || role === "ADMIN";
+  if (!hasSessionUser(session)) return false;
+  const role = getSessionProjectRole(session, projectId);
+  return (
+    createdBy === getSessionUserId(session) ||
+    role === "OWNER" ||
+    role === "ADMIN"
+  );
 }

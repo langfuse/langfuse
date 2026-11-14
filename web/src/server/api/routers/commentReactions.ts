@@ -7,6 +7,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 import { TRPCError } from "@trpc/server";
 import { logger } from "@langfuse/shared/src/server";
 
@@ -49,14 +50,14 @@ export const commentReactionsRouter = createTRPCRouter({
           where: {
             commentId_userId_emoji: {
               commentId: input.commentId,
-              userId: ctx.session.user.id,
+              userId: getSessionUserId(ctx.session),
               emoji: input.emoji,
             },
           },
           create: {
             projectId: comment.projectId,
             commentId: input.commentId,
-            userId: ctx.session.user.id,
+            userId: getSessionUserId(ctx.session),
             emoji: input.emoji,
           },
           update: {}, // Already exists, no-op
@@ -111,7 +112,7 @@ export const commentReactionsRouter = createTRPCRouter({
         const deletedReaction = await ctx.prisma.commentReaction.deleteMany({
           where: {
             commentId: input.commentId,
-            userId: ctx.session.user.id,
+            userId: getSessionUserId(ctx.session),
             emoji: input.emoji,
             projectId: comment.projectId,
           },
@@ -236,7 +237,7 @@ export const commentReactionsRouter = createTRPCRouter({
               });
             }
 
-            if (reaction.userId === ctx.session.user.id) {
+            if (reaction.userId === getSessionUserId(ctx.session)) {
               acc[reaction.emoji].hasReacted = true;
             }
             return acc;

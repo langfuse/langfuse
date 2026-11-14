@@ -27,13 +27,21 @@ import { getOrganizationFeaturePreviewDefaults } from "@/src/features/feature-fl
 import { setOrganizationFeatureFlagDefault } from "@/src/features/feature-flags/server/organizationFeatureFlags";
 import { parseFlags } from "@/src/features/feature-flags/server/parseFlags";
 import { env } from "@/src/env.mjs";
+import {
+  findSessionOrganization,
+  getSessionUserCanCreateOrganizations,
+  getSessionUserEmail,
+  getSessionUserId,
+  getSessionUserV4BetaEnabled,
+} from "@/src/features/auth/lib/sessionAccessors";
 
 export const organizationsRouter = createTRPCRouter({
   lastTraceByProject: protectedOrganizationProcedure
     .input(z.object({ orgId: z.string() }))
     .query(async ({ ctx }) => {
-      const organization = ctx.session.user.organizations.find(
-        (org) => org.id === ctx.session.orgId,
+      const organization = findSessionOrganization(
+        ctx.session,
+        ctx.session.orgId,
       );
 
       return getLastTraceTimestampsByProjects({
@@ -110,7 +118,7 @@ export const organizationsRouter = createTRPCRouter({
         env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES !== "true"
       ) {
         const actor = await ctx.prisma.user.findUnique({
-          where: { id: ctx.session.user.id },
+          where: { id: getSessionUserId(ctx.session) },
           select: {
             featureFlags: true,
             v4BetaEnabled: true,
@@ -120,7 +128,7 @@ export const organizationsRouter = createTRPCRouter({
           actor !== null &&
           parseFlags(actor.featureFlags, {
             v4BetaEnabled:
-              ctx.session.user.v4BetaEnabled ?? actor.v4BetaEnabled,
+              getSessionUserV4BetaEnabled(ctx.session) ?? actor.v4BetaEnabled,
           })[input.flag] === true;
         if (!actorHasPreviewEnabled) {
           throw new TRPCError({
@@ -156,7 +164,7 @@ export const organizationsRouter = createTRPCRouter({
   create: authenticatedProcedure
     .input(organizationFormSchema)
     .mutation(async ({ input, ctx }) => {
-      if (!ctx.session.user.canCreateOrganizations)
+      if (!getSessionUserCanCreateOrganizations(ctx.session))
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "You do not have permission to create organizations",
@@ -166,7 +174,7 @@ export const organizationsRouter = createTRPCRouter({
         const organizationCountBeforeCreate =
           await tx.organizationMembership.count({
             where: {
-              userId: ctx.session.user.id,
+              userId: getSessionUserId(ctx.session),
               ...(env.NEXT_PUBLIC_DEMO_ORG_ID
                 ? { orgId: { not: env.NEXT_PUBLIC_DEMO_ORG_ID } }
                 : {}),
@@ -181,7 +189,7 @@ export const organizationsRouter = createTRPCRouter({
         });
         await createOrgMembership(tx, {
           orgId: organization.id,
-          userId: ctx.session.user.id,
+          userId: getSessionUserId(ctx.session),
           role: "OWNER",
         });
 
@@ -192,7 +200,7 @@ export const organizationsRouter = createTRPCRouter({
 
           if (isCloudDeployment) {
             const userRolloutState = await tx.user.findUnique({
-              where: { id: ctx.session.user.id },
+              where: { id: getSessionUserId(ctx.session) },
               select: {
                 createdAt: true,
                 v4BetaEnabled: true,
@@ -228,7 +236,7 @@ export const organizationsRouter = createTRPCRouter({
               // This path is both the normal first-org initialization and a
               // recovery path if signup-side initialization failed earlier.
               await tx.user.update({
-                where: { id: ctx.session.user.id },
+                where: { id: getSessionUserId(ctx.session) },
                 data: { v4BetaEnabled: true },
               });
             }
@@ -243,7 +251,7 @@ export const organizationsRouter = createTRPCRouter({
         action: "create",
         orgId: organization.id,
         orgRole: "OWNER",
-        userId: ctx.session.user.id,
+        userId: getSessionUserId(ctx.session),
         after: organization,
       });
 
@@ -255,8 +263,8 @@ export const organizationsRouter = createTRPCRouter({
       });
       await getSfdcService()?.setUserRole({
         orgId: organization.id,
-        userId: ctx.session.user.id,
-        email: ctx.session.user.email,
+        userId: getSessionUserId(ctx.session),
+        email: getSessionUserEmail(ctx.session),
         role: "OWNER",
       });
 

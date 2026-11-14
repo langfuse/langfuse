@@ -14,13 +14,19 @@ import {
   EXCLUSIVE_BUILD_INTENT,
 } from "@/src/features/onboarding/lib/buildIntent";
 import { NEWSLETTER_OUTCOMES } from "@/src/features/onboarding/lib/newsletterSignup";
+import {
+  getSessionUserCanCreateOrganizations,
+  getSessionUserEmail,
+  getSessionUserId,
+} from "@/src/features/auth/lib/sessionAccessors";
 
 export const onboardingRouter = createTRPCRouter({
   status: authenticatedProcedure.query(async ({ ctx }) => {
     return getSignupOnboardingStatus({
       prisma: ctx.prisma,
-      userId: ctx.session.user.id,
-      canCreateOrganizations: ctx.session.user.canCreateOrganizations,
+      userId: getSessionUserId(ctx.session),
+      canCreateOrganizations:
+        getSessionUserCanCreateOrganizations(ctx.session) === true,
     });
   }),
 
@@ -72,9 +78,10 @@ export const onboardingRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       return completeSignupOnboarding({
         prisma: ctx.prisma,
-        userId: ctx.session.user.id,
-        userEmail: ctx.session.user.email,
-        canCreateOrganizations: ctx.session.user.canCreateOrganizations,
+        userId: getSessionUserId(ctx.session),
+        userEmail: getSessionUserEmail(ctx.session),
+        canCreateOrganizations:
+          getSessionUserCanCreateOrganizations(ctx.session) === true,
         referralSource: input?.referralSource,
         aiFeaturesEnabled: input?.aiFeaturesEnabled,
         buildIntents: input?.buildIntents,

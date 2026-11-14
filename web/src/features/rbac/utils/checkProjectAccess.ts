@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { hasOwnRole } from "./hasOwnRole";
 import { env } from "@/src/env.mjs";
 import { isInternalViewEnabled } from "@/src/features/feature-flags/utils";
+import { getSessionProjectRole } from "@/src/features/auth/lib/sessionAccessors";
 
 /** Demo LLM operations need Internal view and project permissions. */
 const demoProjectLlmScopes = new Set<ProjectScope>([
@@ -67,9 +68,7 @@ export function hasProjectAccess(p: HasProjectAccessParams): boolean {
 
   const projectRole: Role | undefined = hasOwnRole(p)
     ? p.role
-    : p.session?.user?.organizations
-        .flatMap((org) => org.projects)
-        .find((project) => project.id === p.projectId)?.role;
+    : getSessionProjectRole(p.session, p.projectId);
   if (projectRole === undefined) return false;
 
   return projectRoleAccessRights[projectRole].includes(p.scope);

@@ -38,6 +38,11 @@ import { env } from "@/src/env.mjs";
 import type { ProjectAuthedContext } from "@/src/server/api/trpc";
 import type { AuthorizationContext } from "@/src/features/auth/policy/types";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import {
+  getSessionUserEmail,
+  getSessionUserId,
+  getSessionUserName,
+} from "@/src/features/auth/lib/sessionAccessors";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { checkHasProtectedLabels } from "@/src/features/prompts/server/utils/checkHasProtectedLabels";
 import {
@@ -798,7 +803,8 @@ export class SkillService {
   }
 
   private async publishChanges(changes: SkillChange[], actor: SkillActor) {
-    const user = "session" in actor ? actor.session.user : undefined;
+    const session = "session" in actor ? actor.session : undefined;
+    const userId = getSessionUserId(session);
     await Promise.all(
       changes.map(async ({ skill, action }) => {
         try {
@@ -814,12 +820,12 @@ export class SkillService {
                 skillId: skill.id,
                 action,
                 skill,
-                ...(user
+                ...(userId
                   ? {
                       user: {
-                        id: user.id,
-                        name: user.name ?? null,
-                        email: user.email ?? null,
+                        id: userId,
+                        name: getSessionUserName(session) ?? null,
+                        email: getSessionUserEmail(session) ?? null,
                       },
                     }
                   : {}),

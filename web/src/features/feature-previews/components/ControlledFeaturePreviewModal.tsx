@@ -5,6 +5,10 @@ import { useSession } from "next-auth/react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
+import {
+  getSessionEnvironment,
+  getSessionUserFeatureFlags,
+} from "@/src/features/auth/lib/sessionAccessors";
 import { featurePreviewLabels } from "@/src/features/feature-flags/available-flags";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 import { api } from "@/src/utils/api";
@@ -57,22 +61,24 @@ export function ControlledFeaturePreviewModal({
 
   const isTopicsEnabled =
     internalViewEnabled ||
-    authSession.data?.user?.featureFlags.langfuseTopics === true;
+    getSessionUserFeatureFlags(authSession.data)?.langfuseTopics === true;
 
   const isModernSessionEnabled =
     isV4 &&
-    (authSession.data?.user?.featureFlags.sessionViewV2 === true ||
-      authSession.data?.environment.enableExperimentalFeatures === true);
+    (getSessionUserFeatureFlags(authSession.data)?.sessionViewV2 === true ||
+      getSessionEnvironment(authSession.data)?.enableExperimentalFeatures ===
+        true);
 
   const state: Partial<Record<PreviewFlag, PreviewState>> = {
     ...(internalViewEnabled ||
-    authSession.data?.user?.featureFlags.unifiedTraceSessionView === true
+    getSessionUserFeatureFlags(authSession.data)?.unifiedTraceSessionView ===
+      true
       ? {
           unifiedTraceSessionView: {
             enabled:
               isV4 &&
-              authSession.data?.user?.featureFlags.unifiedTraceSessionView ===
-                true,
+              getSessionUserFeatureFlags(authSession.data)
+                ?.unifiedTraceSessionView === true,
             disabled: !isV4,
             warningReason: !isV4
               ? `Unified Trace and Session View requires ${V4_PREVIEW_LABEL}.`
@@ -99,10 +105,12 @@ export function ControlledFeaturePreviewModal({
       enabled: isModernSessionEnabled,
       disabled:
         !isV4 ||
-        authSession.data?.environment.enableExperimentalFeatures === true,
+        getSessionEnvironment(authSession.data)?.enableExperimentalFeatures ===
+          true,
       warningReason: !isV4
         ? `Redesigned Session View is only available on the events-backed session view. Turn on ${V4_PREVIEW_LABEL} to enable it.`
-        : authSession.data?.environment.enableExperimentalFeatures === true
+        : getSessionEnvironment(authSession.data)
+              ?.enableExperimentalFeatures === true
           ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
           : undefined,
       onToggle: onToggle("sessionViewV2"),
@@ -111,16 +119,20 @@ export function ControlledFeaturePreviewModal({
     sessionViewV2Timeline: {
       enabled:
         isModernSessionEnabled &&
-        (authSession.data?.user?.featureFlags.sessionViewV2Timeline === true ||
-          authSession.data?.environment.enableExperimentalFeatures === true),
+        (getSessionUserFeatureFlags(authSession.data)?.sessionViewV2Timeline ===
+          true ||
+          getSessionEnvironment(authSession.data)
+            ?.enableExperimentalFeatures === true),
       disabled:
         !isModernSessionEnabled ||
-        authSession.data?.environment.enableExperimentalFeatures === true,
+        getSessionEnvironment(authSession.data)?.enableExperimentalFeatures ===
+          true,
       warningReason: !isV4
         ? `Redesigned Session View is only available on the events-backed session view. Turn on ${V4_PREVIEW_LABEL} to enable it.`
         : !isModernSessionEnabled
           ? "Enable Redesigned Session View before enabling the Session Timeline."
-          : authSession.data?.environment.enableExperimentalFeatures === true
+          : getSessionEnvironment(authSession.data)
+                ?.enableExperimentalFeatures === true
             ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
             : undefined,
       onToggle: onToggle("sessionViewV2Timeline"),

@@ -77,6 +77,7 @@ import { createBatchActionJob } from "@/src/features/table/server/createBatchAct
 import { TRPCError } from "@trpc/server";
 import { randomUUID } from "crypto";
 import { toDomainWithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import { getSessionUserId } from "@/src/features/auth/lib/sessionAccessors";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -545,7 +546,7 @@ export const scoresRouter = createTRPCRouter({
       throwIfNoEntitlement({
         entitlement: "trace-deletion",
         projectId: input.projectId,
-        sessionUser: ctx.session.user,
+        session: ctx.session,
       });
 
       if (input.isBatchAction && input.query) {
@@ -667,7 +668,7 @@ export const scoresRouter = createTRPCRouter({
             stringValue: input.stringValue ?? null,
             comment: input.comment ?? null,
             metadata: {},
-            authorUserId: ctx.session.user.id,
+            authorUserId: getSessionUserId(ctx.session),
             queueId: input.queueId ?? null,
             timestamp,
             updatedAt: new Date(),
@@ -686,7 +687,7 @@ export const scoresRouter = createTRPCRouter({
             name: input.name,
             comment: input.comment ?? null,
             metadata: {},
-            authorUserId: ctx.session.user.id,
+            authorUserId: getSessionUserId(ctx.session),
             source: ScoreSourceEnum.ANNOTATION,
             queueId: input.queueId ?? null,
             executionTraceId: null,
@@ -707,7 +708,7 @@ export const scoresRouter = createTRPCRouter({
         value: input.value,
         source: ScoreSourceEnum.ANNOTATION,
         comment: input.comment,
-        author_user_id: ctx.session.user.id,
+        author_user_id: getSessionUserId(ctx.session),
         config_id: input.configId,
         data_type: input.dataType,
         string_value: input.stringValue,
@@ -834,7 +835,7 @@ export const scoresRouter = createTRPCRouter({
           value: input.value,
           source: ScoreSourceEnum.ANNOTATION,
           comment: input.comment,
-          author_user_id: ctx.session.user.id,
+          author_user_id: getSessionUserId(ctx.session),
           config_id: input.configId,
           data_type: input.dataType,
           string_value: input.stringValue,
@@ -862,7 +863,7 @@ export const scoresRouter = createTRPCRouter({
           updatedAt: new Date(),
           source: ScoreSourceEnum.ANNOTATION,
           comment: input.comment ?? null,
-          authorUserId: ctx.session.user.id,
+          authorUserId: getSessionUserId(ctx.session),
           queueId: input.queueId ?? null,
           timestamp,
           longStringValue: "",
@@ -934,7 +935,7 @@ export const scoresRouter = createTRPCRouter({
           value: input.value !== null ? input.value : undefined,
           string_value: input.stringValue,
           comment: input.comment,
-          author_user_id: ctx.session.user.id,
+          author_user_id: getSessionUserId(ctx.session),
           queue_id: input.queueId,
           source: ScoreSourceEnum.ANNOTATION,
           name: score.name,
@@ -954,7 +955,7 @@ export const scoresRouter = createTRPCRouter({
           updatedAt,
           value: input.value,
           comment: input.comment ?? null,
-          authorUserId: ctx.session.user.id,
+          authorUserId: getSessionUserId(ctx.session),
           queueId: input.queueId ?? null,
           timestamp: score.timestamp,
         };
@@ -1089,7 +1090,7 @@ export const scoresRouter = createTRPCRouter({
             stringValue: null,
             comment: null,
             metadata: {},
-            authorUserId: ctx.session.user.id,
+            authorUserId: getSessionUserId(ctx.session),
             queueId: input.queueId ?? null,
             longStringValue: input.value,
             updatedAt: new Date(),
@@ -1110,7 +1111,7 @@ export const scoresRouter = createTRPCRouter({
             name: CORRECTION_NAME,
             comment: null,
             metadata: {},
-            authorUserId: ctx.session.user.id,
+            authorUserId: getSessionUserId(ctx.session),
             source: ScoreSourceEnum.ANNOTATION,
             queueId: input.queueId ?? null,
             executionTraceId: null,
@@ -1132,7 +1133,7 @@ export const scoresRouter = createTRPCRouter({
         value: 0,
         source: ScoreSourceEnum.ANNOTATION,
         comment: null,
-        author_user_id: ctx.session.user.id,
+        author_user_id: getSessionUserId(ctx.session),
         config_id: null,
         data_type: ScoreDataTypeEnum.CORRECTION,
         string_value: null,
