@@ -36,8 +36,8 @@ import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
   getSessionUserEmail,
   getSessionUserName,
-  type MaybeSession,
 } from "@/src/features/auth/lib/sessionAccessors";
+import { getSessionAccountEmail } from "@/src/features/account/getSessionAccountEmail";
 
 const displayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -304,16 +304,9 @@ type AccountSettingsPage = {
 export function useAccountSettingsPages(): AccountSettingsPage[] {
   const { data: session } = useSession();
 
-  return getSessionAccountSettingsPages(session);
-}
-
-/** getSessionAccountSettingsPages lists the account settings pages for the session's user. */
-function getSessionAccountSettingsPages(
-  session: MaybeSession,
-): AccountSettingsPage[] {
-  const userEmail = getSessionUserEmail(session) ?? "";
-
-  return getAccountSettingsPages({ userEmail });
+  return getAccountSettingsPages({
+    userEmail: getSessionAccountEmail(session),
+  });
 }
 
 const getAccountSettingsPages = ({
