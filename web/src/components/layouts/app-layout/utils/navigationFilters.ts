@@ -185,13 +185,6 @@ const filters = {
     return route.show({
       organization: organization ?? undefined,
       projectId: ctx.routerProjectId,
-      canReadOrganizationSettings:
-        !!organization &&
-        hasOrganizationAccess({
-          session: ctx.session,
-          organizationId: organization.id,
-          scope: "organizationSettings:read",
-        }),
       canViewTopics: canViewTopics(
         ctx.session,
         organization?.projects.find(

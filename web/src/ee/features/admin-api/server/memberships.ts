@@ -16,14 +16,10 @@ import {
 } from "@langfuse/shared/memberships";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { authorize } from "@/src/features/rbac/authorize";
-import {
-  assertOtherOwners,
-  isOwnershipChange,
-  isOwnershipRemoval,
-} from "@/src/features/rbac/server/ownershipChange";
-import { ForbiddenError, Role } from "@langfuse/shared";
+import { assertValidOrgOwnershipChange } from "@/src/features/rbac/server/ownershipChange";
+import { Role } from "@langfuse/shared";
 import { OrganizationId } from "@langfuse/shared/rbac";
-import { prisma, type Prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 
 // Schema for request body validation
 const MembershipSchema = z.object({
@@ -101,7 +97,7 @@ export async function handleUpdateMembership(
       where: { orgId_userId: { orgId, userId: validatedBody.data.userId } },
     });
     assertAuthorizeMembershipChange(context, orgId);
-    await assertValidOwnershipChange({
+    await assertValidOrgOwnershipChange({
       tx,
       context,
       orgId,
@@ -176,7 +172,7 @@ export async function handleDeleteMembership(
     });
     assertAuthorizeMembershipChange(context, orgId);
     if (!before) return { deleted: false, revokedKeys: [] };
-    await assertValidOwnershipChange({
+    await assertValidOrgOwnershipChange({
       tx,
       context,
       orgId,
@@ -236,40 +232,4 @@ function assertAuthorizeMembershipChange(
     organization,
   );
   if (!membershipAccess.success) throw membershipAccess.error;
-}
-
-/** assertValidOwnershipChange checks ownership permission and keeps at least one owner. */
-export async function assertValidOwnershipChange({
-  tx,
-  context,
-  orgId,
-  from,
-  to,
-}: {
-  tx: Prisma.TransactionClient;
-  context: AuthorizationContext | undefined;
-  orgId: string;
-  from: Role | undefined;
-  to?: Role;
-}) {
-  if (isOwnershipChange(from, to)) {
-    assertAuthorizeOwnershipChange(context, orgId);
-  }
-  if (isOwnershipRemoval(from, to)) await assertOtherOwners(tx, orgId);
-}
-
-/** assertAuthorizeOwnershipChange throws unless the context may grant, change, or remove the OWNER role. */
-function assertAuthorizeOwnershipChange(
-  context: AuthorizationContext | undefined,
-  orgId: string,
-) {
-  if (!context) throw new ForbiddenError();
-  const organization = OrganizationId(orgId);
-  const ownershipAccess = authorize(
-    context,
-    organization,
-    "organization:manageOwnership",
-    organization,
-  );
-  if (!ownershipAccess.success) throw ownershipAccess.error;
 }

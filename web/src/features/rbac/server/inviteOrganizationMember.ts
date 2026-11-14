@@ -20,8 +20,8 @@ import {
   PENDING_MEMBERSHIP_INVITE_MESSAGE,
 } from "@/src/features/rbac/constants/membershipErrorMessages";
 import {
-  assertOrgOwnershipChange,
-  assertProjectOwnershipChange,
+  assertValidOrgOwnershipChange,
+  assertValidProjectOwnershipChange,
 } from "@/src/features/rbac/server/ownershipChange";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
@@ -121,7 +121,7 @@ export async function inviteOrganizationMember({
     });
   }
 
-  await assertOrgOwnershipChange({
+  await assertValidOrgOwnershipChange({
     tx: ctx.prisma,
     session: ctx.session,
     orgId: input.orgId,
@@ -152,7 +152,8 @@ export async function inviteOrganizationMember({
   });
 
   if (project && input.projectRole)
-    assertProjectOwnershipChange({
+    await assertValidProjectOwnershipChange({
+      tx: ctx.prisma,
       session: ctx.session,
       orgId: input.orgId,
       from: undefined,
