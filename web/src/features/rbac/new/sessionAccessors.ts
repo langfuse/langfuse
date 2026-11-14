@@ -93,25 +93,29 @@ export function findSessionOrganization(
   session: MaybeSession,
   orgId: string | undefined,
 ): SessionOrganization | undefined {
-  return getSessionOrganizations(session).find((org) => org.id === orgId);
+  const org = findPrincipalOrganization(session, orgId);
+  if (!org) return undefined;
+  return toSessionOrganization(org);
 }
 
 export function findSessionProject(
   session: MaybeSession,
   projectId: string | undefined,
 ): SessionProject | undefined {
-  return getSessionProjects(session).find(
-    (project) => project.id === projectId,
-  );
+  const project = getPrincipalOrganizations(session)
+    .flatMap((org) => org.projects)
+    .find((candidate) => candidate.id === projectId);
+  if (!project) return undefined;
+  return toSessionProject(project);
 }
 
 export function findSessionProjectOrganization(
   session: MaybeSession,
   projectId: string | undefined,
 ): SessionOrganization | undefined {
-  return getSessionOrganizations(session).find((org) =>
-    org.projects.some((project) => project.id === projectId),
-  );
+  const org = findPrincipalProjectOrganization(session, projectId);
+  if (!org) return undefined;
+  return toSessionOrganization(org);
 }
 
 /** getSessionProjects lists the projects the user can open across organizations. */
