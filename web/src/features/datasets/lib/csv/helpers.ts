@@ -31,31 +31,29 @@ const processRows = async (
   options: ParseOptions,
   fileName: string,
 ): Promise<CsvPreviewResult> => {
-  const [header, ...dataRows] = rows;
+  const header = rows.shift();
   if (!header) {
     throw new Error("CSV file is empty");
   }
 
   const headerRow = header.map((value) => value.trim());
   const columnSamples = new Map<string, string[]>();
-  const previewRows: string[][] = [];
-
   await options.processor?.onHeader?.(headerRow);
 
-  for (const [index, row] of dataRows.entries()) {
-    const sanitizedRow = row.map((value) => value.trim());
-    previewRows.push(sanitizedRow);
-
-    if (options.collectSamples) {
-      sanitizedRow.forEach((value, colIndex) => {
+  // Reuse the parser's rows so large imports retain only one set of row arrays.
+  for (const [index, row] of rows.entries()) {
+    row.forEach((value, colIndex) => {
+      const trimmed = value.trim();
+      row[colIndex] = trimmed;
+      if (options.collectSamples) {
         const header = headerRow[colIndex];
         const samples = columnSamples.get(header) ?? [];
-        samples.push(value);
+        samples.push(trimmed);
         columnSamples.set(header, samples);
-      });
-    }
+      }
+    });
     if (options.processor?.onRow) {
-      await options.processor.onRow(sanitizedRow, headerRow, index + 1);
+      await options.processor.onRow(row, headerRow, index + 1);
     }
   }
 
@@ -68,7 +66,7 @@ const processRows = async (
         ? inferColumnType(columnSamples.get(header) ?? [])
         : "string",
     })),
-    previewRows,
+    previewRows: rows,
     totalColumns: headerRow.length,
   };
 };
