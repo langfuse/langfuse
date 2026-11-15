@@ -326,7 +326,15 @@ type TabsTriggerProps = {
     }
 ) &
   (
-    | { value: string; href?: never; active?: never; onClick?: never }
+    | {
+        value: string;
+        href?: never;
+        active?: never;
+        onClick?: never;
+        /** For a tab that also opens a menu; the menu owns its trigger's events. */
+        "aria-haspopup"?: "menu";
+        "aria-expanded"?: boolean;
+      }
     | {
         /** Renders a Next.js link with `aria-current` instead of a tab. */
         href: LinkProps["href"];
@@ -377,6 +385,8 @@ function TabsTrigger(props: TabsTriggerProps) {
   return (
     <TabsPrimitive.Trigger
       value={props.value}
+      aria-haspopup={props["aria-haspopup"]}
+      aria-expanded={props["aria-expanded"]}
       disabled={disabled}
       title={nativeTitle}
       className={className}

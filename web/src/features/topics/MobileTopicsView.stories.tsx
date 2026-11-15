@@ -456,6 +456,8 @@ export const SwitchVisualization = meta.story({
     ).toBeVisible();
     await userEvent.click(visualize);
     const menu = await body.findByRole("menu", { name: "Visualize as" });
+    await expect(visualize).toHaveAttribute("aria-haspopup", "menu");
+    await expect(visualize).toHaveAttribute("aria-expanded", "true");
     await waitFor(() =>
       expect(within(menu).getByText("Internal")).toBeVisible(),
     );

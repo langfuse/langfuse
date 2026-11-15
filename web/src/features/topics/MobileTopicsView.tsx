@@ -326,8 +326,16 @@ function VisualizeTabMenu({
               pressedWhileActive.current = true;
             },
           })}
+          // The focused tab announces the menu; its id and aria-controls stay the tab's own.
+          aria-haspopup={undefined}
+          aria-expanded={undefined}
+          aria-controls={undefined}
         >
-          <Tabs.Trigger value="visualization">
+          <Tabs.Trigger
+            value="visualization"
+            aria-haspopup="menu"
+            aria-expanded={open}
+          >
             <span className="min-w-0 truncate leading-normal" title="Visualize">
               Visualize
             </span>
