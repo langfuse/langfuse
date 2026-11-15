@@ -4,7 +4,7 @@
   },
   "editor.defaultFormatter": "oxc.oxc-vscode",
   "editor.formatOnSave": true,
-  "editor.rulers": [80],
+  "editor.rulers": [100],
   "editor.tabSize": 2,
 
   "typescript.tsdk": "node_modules/typescript/lib",
