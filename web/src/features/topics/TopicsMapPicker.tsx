@@ -215,7 +215,7 @@ export function TopicsMapPicker({
           type="button"
           aria-label={`Topic map: ${selectedName}`}
           className={cn(
-            "ph-no-capture text-foreground hover:bg-accent focus-visible:ring-ring inline-flex h-7 max-w-72 min-w-0 items-center gap-1.5 rounded-md border pr-2 text-xs font-bold focus-visible:ring-2 focus-visible:outline-hidden",
+            "ph-no-capture text-foreground hover:bg-accent focus-visible:ring-ring inline-flex h-8 max-w-72 min-w-0 items-center gap-1.5 rounded-md border pr-2 text-xs font-bold focus-visible:ring-2 focus-visible:outline-hidden md:h-7",
             // A leading badge sits closer to the border than plain text.
             selectedRule || selectedAnalysis ? "pl-1" : "pl-2",
           )}
