@@ -18,17 +18,38 @@ test("CLI rejects missing jobs when invoked through a symlink", () => {
       fileURLToPath(new URL("./merge-gate.mjs", import.meta.url)),
       entry,
     );
-    const result = spawnSync(process.execPath, [entry], {
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        NEEDS_JSON: "{}",
-        GITHUB_EVENT_NAME: "merge_group",
-        GITHUB_OUTPUT: "",
-      },
-    });
-    assert.equal(result.status, 1, result.stderr);
-    assert.match(result.stderr, /expected success, received missing/);
+    for (const flags of [[], ["--preserve-symlinks-main"]]) {
+      const result = spawnSync(process.execPath, [...flags, entry], {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          NEEDS_JSON: "{}",
+          GITHUB_EVENT_NAME: "merge_group",
+          GITHUB_OUTPUT: "",
+        },
+      });
+      assert.equal(result.status, 1, result.stderr);
+      assert.match(result.stderr, /expected success, received missing/);
+    }
+    const importGate = `await import(${JSON.stringify(new URL("./merge-gate.mjs", import.meta.url).href)}); console.log("imported");`;
+    for (const launcher of [join(dir, "missing"), join(entry, "child"), dir]) {
+      const imported = spawnSync(
+        process.execPath,
+        ["--input-type=module", "--eval", importGate, launcher],
+        { encoding: "utf8" },
+      );
+      assert.equal(imported.status, 0, imported.stderr);
+      assert.match(imported.stdout, /imported/);
+    }
+    const loop = join(dir, "loop");
+    symlinkSync(loop, loop);
+    const invalidLauncher = spawnSync(
+      process.execPath,
+      ["--input-type=module", "--eval", importGate, loop],
+      { encoding: "utf8" },
+    );
+    assert.equal(invalidLauncher.status, 1, invalidLauncher.stderr);
+    assert.match(invalidLauncher.stderr, /ELOOP/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -1,5 +1,6 @@
 import { appendFileSync, realpathSync } from "node:fs";
-import { pathToFileURL } from "node:url";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 export const requiredJobs = [
   "lint",
@@ -92,10 +93,23 @@ function releaseTagErrors(event, ref, needs) {
     : [];
 }
 
-if (
-  process.argv[1] &&
-  import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href
-) {
+function isMainModule() {
+  if (!process.argv[1]) return false;
+  const modulePath = fileURLToPath(import.meta.url);
+  // A recognized entrypoint must run even if its path disappears after loading.
+  if (resolve(process.argv[1]) === modulePath) return true;
+  let entryPath;
+  try {
+    entryPath = realpathSync(process.argv[1]);
+  } catch (error) {
+    // Eval/import launchers can put non-file arguments in argv[1].
+    if (error.code === "ENOENT" || error.code === "ENOTDIR") return false;
+    throw error;
+  }
+  return entryPath === realpathSync(modulePath);
+}
+
+if (isMainModule()) {
   let errors;
   try {
     errors = evaluateGate({
