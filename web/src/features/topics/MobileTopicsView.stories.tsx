@@ -77,8 +77,7 @@ const mapResult = {
 };
 
 function MobileExample(args: ComponentProps<typeof MobileTopicsView>) {
-  const [view, setView] = useState(args.view);
-  const { onViewChange } = args;
+  const view = args.view;
   const [facetId, setFacetId] = useState(args.facet.facetId);
   const facets = [
     args.facet,
@@ -108,13 +107,6 @@ function MobileExample(args: ComponentProps<typeof MobileTopicsView>) {
         {...args}
         facet={facet}
         view={view}
-        onViewChange={
-          onViewChange &&
-          ((next) => {
-            onViewChange(next);
-            setView(next);
-          })
-        }
         filters={filters}
         searchQuery={searchQuery}
         onFiltersChange={setFilters}
@@ -438,35 +430,6 @@ export const PickFilteredPointBeyondPage = meta.story({
       canvas.getByRole("heading", { name: topics[0].name }),
     ).toBeVisible();
     await expect(args.onOpenTrace).not.toHaveBeenCalled();
-  },
-});
-
-export const SwitchVisualization = meta.story({
-  name: "(Test) Pressing the active Visualize tab switches between treemap and map",
-  args: { onViewChange: fn() },
-  play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement);
-    const body = within(canvasElement.ownerDocument.body);
-    const visualize = canvas.getByRole("tab", { name: "Visualize" });
-    await userEvent.click(visualize);
-    await expect(visualize).toHaveAttribute("data-state", "active");
-    await expect(body.queryByRole("menu")).not.toBeInTheDocument();
-    await expect(
-      canvas.getByRole("button", { name: `${topics[0].name}, 21 traces` }),
-    ).toBeVisible();
-    await userEvent.click(visualize);
-    const menu = await body.findByRole("menu", { name: "Visualize as" });
-    await expect(visualize).toHaveAttribute("aria-haspopup", "menu");
-    await expect(visualize).toHaveAttribute("aria-expanded", "true");
-    await waitFor(() =>
-      expect(within(menu).getByText("Internal")).toBeVisible(),
-    );
-    await userEvent.click(within(menu).getByRole("menuitem", { name: /^Map/ }));
-    await expect(args.onViewChange).toHaveBeenCalledWith("map");
-    await expect(
-      await canvas.findByRole("button", { name: "Zoom in (+)" }),
-    ).toBeVisible();
-    await expect(visualize).toHaveAttribute("data-state", "active");
   },
 });
 
