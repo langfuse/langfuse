@@ -568,6 +568,20 @@ jobs:
         run: bash scripts/ci/install-playwright.sh
       - name: run Storybook tests
         run: pnpm --filter web run test-storybook
+      - name: Upload Storybook failure screenshots
+        id: screenshots
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: storybook-failure-screenshots
+          path: web/test-results/storybook/**/*.png
+          include-hidden-files: true
+          retention-days: 3
+      - name: Link Storybook failure screenshots
+        if: ${{ failure() && steps.screenshots.outputs.artifact-url != '' }}
+        env:
+          SCREENSHOTS_URL: ${{ steps.screenshots.outputs.artifact-url }}
+        run: printf '[Download failure screenshots](%s) (available for 3 days)\n' "$SCREENSHOTS_URL" >> "$GITHUB_STEP_SUMMARY"
 
   build-storybook:
     # Kept apart from tests-storybook so the static build and the Vitest
