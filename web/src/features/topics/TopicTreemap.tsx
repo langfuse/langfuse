@@ -277,13 +277,12 @@ export function TopicTreemap({
   } | null>(null);
   const [zoom, setZoom] = useState(1);
   const [viewportRef, viewport] = useElementSize<HTMLDivElement>();
-  // Measured separately: a scrollbar narrows the tiles, not the viewport.
-  const [contentRef, content] = useElementSize<HTMLElement>();
+  const contentRef = useRef<HTMLElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const layoutHeight = viewport ? viewport.height * zoom : 0;
-  const tiles =
-    viewport && content ? layoutTiles(topics, content.width, layoutHeight) : [];
-  const previewedTopic = topics.find((topic) => topic.id === preview?.id);
+  const tiles = viewport
+    ? layoutTiles(topics, viewport.width, layoutHeight)
+    : [];
   /** Where the card sits, derived from the current tile so it follows a re-layout. */
   function previewPlacement() {
     const tile = tiles.find((candidate) => candidate.item.id === preview?.id);
@@ -293,7 +292,11 @@ export function TopicTreemap({
     const top = Math.max(tile.y, visibleTop);
     const bottom = Math.min(tile.y + tile.height, visibleBottom);
     const anchor = top < bottom ? (top + bottom) / 2 : tile.y + tile.height / 2;
-    return { anchor, above: anchor > (visibleTop + visibleBottom) / 2 };
+    return {
+      topic: tile.item,
+      anchor,
+      above: anchor > (visibleTop + visibleBottom) / 2,
+    };
   }
   const placement = previewPlacement();
   function selectTopic(topicId: string) {
@@ -320,7 +323,7 @@ export function TopicTreemap({
     const scroller = scrollRef.current;
     const next = Math.min(MAX_ZOOM, Math.max(1, zoom * 2 ** levels));
     const section = contentRef.current;
-    if (!scroller || !section || !viewport || !content || next === zoom) return;
+    if (!scroller || !section || !viewport || next === zoom) return;
     const bounds = scroller.getBoundingClientRect();
     const origin = section.getBoundingClientRect();
     const x = bounds.left + anchor.x * bounds.width - origin.left;
@@ -336,7 +339,7 @@ export function TopicTreemap({
     );
     const moved =
       aimed &&
-      layoutTiles(topics, content.width, nextHeight).find(
+      layoutTiles(topics, viewport.width, nextHeight).find(
         (tile) => tile.item.id === aimed.item.id,
       );
     const nextY =
@@ -369,7 +372,7 @@ export function TopicTreemap({
         zoom > 1 ? "overflow-y-auto" : "overflow-y-hidden",
       )}
     >
-      {/* Inset by the padding, so it measures the visible tile area at any zoom. */}
+      {/* Inset by the padding, so it measures the visible tile area. */}
       <div
         ref={viewportRef}
         aria-hidden
@@ -411,7 +414,7 @@ export function TopicTreemap({
             capped={capped}
           />
         ))}
-        {placement && previewedTopic && (
+        {placement && (
           <div
             className="pointer-events-none absolute right-2 left-2"
             style={
@@ -420,7 +423,7 @@ export function TopicTreemap({
                 : { top: placement.anchor }
             }
           >
-            <TopicPreviewCard topic={previewedTopic} total={total} />
+            <TopicPreviewCard topic={placement.topic} total={total} />
           </div>
         )}
       </section>
