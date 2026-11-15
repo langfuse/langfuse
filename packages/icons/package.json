@@ -45,7 +45,6 @@
     "@types/node": "24.3.0",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
-    "prettier": "^3.8.3",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "tsx": "^4.20.5"
