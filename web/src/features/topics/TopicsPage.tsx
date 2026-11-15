@@ -596,7 +596,7 @@ function TopicsWorkspaceContent({
                     />
                   </span>
                 )}
-                {/* Handheld results always show the treemap under their own Visualize tab. */}
+                {/* Handheld results pick their visualization from their own Visualize tab. */}
                 {!isHandheld && (
                   <span className="text-muted-foreground flex shrink-0 items-center gap-2 text-sm whitespace-nowrap">
                     Visualize as

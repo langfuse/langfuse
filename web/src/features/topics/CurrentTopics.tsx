@@ -10,7 +10,11 @@ import { api, type RouterOutputs } from "@/src/utils/api";
 import { CurrentTopicsView } from "./CurrentTopicsView";
 import { TopicListView } from "./TopicListView";
 import { TopicTreemapView } from "./TopicTreemapView";
-import { type TopicsResultsView } from "./TopicsResultsViewSelect";
+import {
+  type MobileTopicsVisualization,
+  type TopicsResultsView,
+  useMobileTopicsVisualization,
+} from "./TopicsResultsViewSelect";
 import type { useTopicTraceFilters } from "./useTopicTraceFilters";
 import { useIsHandheld } from "@/src/hooks/use-mobile";
 import useSessionStorage from "@/src/components/useSessionStorage";
@@ -90,10 +94,13 @@ function CurrentFacet({
   showUnassigned,
 }: CurrentFacetProps) {
   const isHandheld = useIsHandheld();
-  // Only the desktop Map view needs the run's projection.
+  const mobileVisualization = useMobileTopicsVisualization();
+  // Only the Map view needs the run's projection.
   const mapQuery = useCurrentTopicMap(
     projectId,
-    view === "map" && !isHandheld ? resultFacet.map?.runId : undefined,
+    (isHandheld ? mobileVisualization.view : view) === "map"
+      ? resultFacet.map?.runId
+      : undefined,
   );
   // Stable identities keep the map camera and grid layout across re-renders.
   const facet = useMemo(
@@ -131,7 +138,8 @@ function CurrentFacet({
         <MobileTopics
           projectId={projectId}
           facet={facet}
-          view="treemap"
+          view={mobileVisualization.view}
+          onViewChange={mobileVisualization.onViewChange}
           mapResult={mapResult}
           traceFilters={traceFilters}
           onGenerateTopics={onGenerateTopics}
@@ -182,6 +190,7 @@ function MobileTopics({
   projectId,
   facet,
   view,
+  onViewChange,
   mapResult,
   traceFilters,
   onGenerateTopics,
@@ -197,7 +206,8 @@ function MobileTopics({
   | "canGenerateTopics"
   | "showUnassigned"
 > & {
-  view: "treemap";
+  view: MobileTopicsVisualization;
+  onViewChange: ComponentProps<typeof MobileTopicsView>["onViewChange"];
   mapResult: ComponentProps<typeof MobileTopicsView>["mapResult"];
   onOpenTrace: (traceId: string) => void;
 }) {
@@ -210,6 +220,7 @@ function MobileTopics({
       projectId={projectId}
       facet={facet}
       view={view}
+      onViewChange={onViewChange}
       mapResult={mapResult}
       filters={traceFilters.filters}
       searchQuery={traceFilters.searchQuery}
