@@ -393,7 +393,7 @@ export function TopicMapExplorer({
         role="group"
         aria-label="Interactive topic map. Drag or scroll to pan, pinch or control scroll to zoom. Arrow keys pan, plus and minus zoom, zero fits the map."
         className={cn(
-          "bg-muted/10 focus-visible:ring-ring relative w-full overflow-hidden overscroll-contain outline-none focus-visible:ring-2 focus-visible:ring-inset",
+          "bg-muted/10 focus-visible:ring-ring relative w-full overflow-hidden overscroll-contain outline-none select-none focus-visible:ring-2 focus-visible:ring-inset",
           fullscreen || fillContainer
             ? "min-h-0 flex-1"
             : "h-[clamp(380px,64vh,820px)] min-h-[340px]",
