@@ -61,8 +61,10 @@ import {
   type WithStringifiedMetadata,
 } from "@/src/utils/clientSideDomainTypes";
 import {
+  getJumpToPlaygroundMenuItems,
   JumpToPlaygroundMenu,
   type JumpToPlaygroundAction,
+  type JumpToPlaygroundMenuProps,
 } from "./JumpToPlaygroundMenu";
 
 export type JumpToPlaygroundSourceProps =
@@ -331,21 +333,19 @@ export function useJumpToPlayground(
     ? "Test in LLM playground"
     : "Test in LLM playground is not available since messages are not in valid ChatML format or tool calls have been used. If you think this is not correct, please open a GitHub issue.";
 
-  const menu =
-    props.source === "prompt" ? (
-      <JumpToPlaygroundMenu
-        source="prompt"
-        onPlaygroundAction={handlePlaygroundAction}
-      />
-    ) : (
-      <JumpToPlaygroundMenu
-        source="generation"
-        includeOutput={includeOutput}
-        disabled={isPreparingPrompt}
-        onIncludeOutputChange={setIncludeOutput}
-        onPlaygroundAction={handlePlaygroundAction}
-        promptReplay={
-          generation?.promptId
+  const menuProps: JumpToPlaygroundMenuProps =
+    props.source === "prompt"
+      ? {
+          source: "prompt",
+          onPlaygroundAction: handlePlaygroundAction,
+        }
+      : {
+          source: "generation",
+          includeOutput,
+          disabled: isPreparingPrompt,
+          onIncludeOutputChange: setIncludeOutput,
+          onPlaygroundAction: handlePlaygroundAction,
+          promptReplay: generation?.promptId
             ? {
                 source: inputSource,
                 recordedVersion: generation.promptVersion,
@@ -355,14 +355,13 @@ export function useJumpToPlayground(
                   ? undefined
                   : recordedVariables.reason,
               }
-            : undefined
-        }
-      />
-    );
+            : undefined,
+        };
   return {
     disabled: !isAvailable || isPreparingPrompt,
     title: isPreparingPrompt ? "Loading prompt for replay" : tooltipMessage,
-    menu,
+    menu: <JumpToPlaygroundMenu {...menuProps} />,
+    menuItems: getJumpToPlaygroundMenuItems(menuProps),
     includeOutput,
     setIncludeOutput,
     handlePlaygroundAction,

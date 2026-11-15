@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 
 import { getMessagesFingerprint } from "./messagesFingerprint";
+import { resolvePromptVariables } from "./resolvePromptVariables";
 import type { PlaygroundCache } from "../types";
 
 type WindowDraft = Pick<
@@ -26,11 +27,9 @@ const isSiblingOf = (stableWindowId: string, windowId: string): boolean =>
   windowId.startsWith(`${stableWindowId}-`) &&
   UUID_PATTERN.test(windowId.slice(stableWindowId.length + 1));
 
-const getVariableValuesFingerprint = (
-  variables: WindowDraft["promptVariables"],
-): string =>
+const getVariableValuesFingerprint = (state: WindowDraft): string =>
   JSON.stringify(
-    (variables ?? [])
+    resolvePromptVariables(state.messages, state.promptVariables ?? [])
       .map(({ name, value }): [string, string] => [name, value])
       .sort(([left], [right]) => left.localeCompare(right)),
   );
@@ -44,9 +43,7 @@ export const resolveJumpTargetWindowId = ({
   if (!openWindowIds.includes(stableWindowId)) return stableWindowId;
 
   const incomingFingerprint = getMessagesFingerprint(incomingState.messages);
-  const incomingVariables = getVariableValuesFingerprint(
-    incomingState.promptVariables,
-  );
+  const incomingVariables = getVariableValuesFingerprint(incomingState);
   const holdsIncomingState = (windowId: string): boolean => {
     const cachedState = getCachedState(windowId);
     // Open but empty, so nothing to lose either.
@@ -54,8 +51,7 @@ export const resolveJumpTargetWindowId = ({
 
     return (
       getMessagesFingerprint(cachedState.messages) === incomingFingerprint &&
-      getVariableValuesFingerprint(cachedState.promptVariables) ===
-        incomingVariables
+      getVariableValuesFingerprint(cachedState) === incomingVariables
     );
   };
 

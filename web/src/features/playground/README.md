@@ -2,7 +2,8 @@
 
 The page controller and session storage live in `page/context` and
 `page/storage`. `page/components/JumpToPlaygroundDropdownMenuController.tsx`
-prepares prompt or generation state for the existing Playground windows.
+prepares prompt or generation state for the existing Playground windows and
+provides the shared menu items used by generation headers.
 
 ## Replay a generation with a managed prompt
 
@@ -26,7 +27,7 @@ All values must be strings. The UI never tries to reconstruct variables from
 compiled messages. Missing or malformed values leave the prompt replay options
 disabled with an explanation; the existing compiled-message action is unchanged.
 
-Open the generation's Playground menu, select **Recorded prompt** or
+Open the generation's **Add to → Playground** submenu, select **Recorded prompt** or
 **Latest prompt version**, then choose **Fresh playground** or **Add to existing**.
 Variables introduced by a newer prompt start empty and must be filled before
 execution. Unused recorded variables are not copied. Model, tools, and structured
@@ -35,7 +36,10 @@ prompt template.
 
 Adding a replay to existing windows preserves edited variable values. A window
 is reused only when both its messages and variable values match; otherwise a
-separate window is opened.
+separate window is opened. Automatically initialized empty variables count as
+unchanged defaults, so reopening an unedited managed prompt reuses its window.
+`page/utils/resolvePromptVariables.ts` owns this initialization for both the
+Playground provider and window matching.
 
 The existing project-scoped prompt read endpoints enforce access. If loading or
 resolving a prompt fails, the current Playground cache is not cleared and no

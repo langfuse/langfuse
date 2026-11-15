@@ -90,6 +90,38 @@ describe("resolveJumpTargetWindowId", () => {
     ).toBe(siblingId);
   });
 
+  it("reuses hydrated empty variables but preserves active and unused edits", () => {
+    const messages = [message("Explain {{topic}} in {{language}}")];
+    const promptVariables = [
+      { name: "language", value: "", isUsed: true },
+      { name: "topic", value: "", isUsed: true },
+    ];
+    const resolve = (variables: typeof promptVariables) =>
+      resolveJumpTargetWindowId({
+        stableWindowId,
+        openWindowIds: [stableWindowId],
+        incomingState: { messages },
+        getCachedState: () => ({ messages, promptVariables: variables }),
+      });
+
+    expect(resolve(promptVariables)).toBe(stableWindowId);
+    expect(
+      resolve([
+        ...promptVariables,
+        { name: "unused", value: "", isUsed: false },
+      ]),
+    ).toBe(stableWindowId);
+    expect(
+      resolve([{ name: "topic", value: "edited draft", isUsed: true }]),
+    ).not.toBe(stableWindowId);
+    expect(
+      resolve([
+        ...promptVariables,
+        { name: "unused", value: "saved draft", isUsed: false },
+      ]),
+    ).not.toBe(stableWindowId);
+  });
+
   it("preserves edited variable values and reuses an equivalent sibling", () => {
     const promptVariables = [{ name: "topic", value: "logging", isUsed: true }];
     const editedState = {
