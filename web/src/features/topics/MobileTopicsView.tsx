@@ -8,7 +8,6 @@ import {
 import { type FilterState } from "@langfuse/shared";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { ControlledDropdownMenu } from "@/src/components/design-system/ControlledDropdownMenu/ControlledDropdownMenu";
-import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   type Facet,
@@ -333,14 +332,9 @@ function VisualizeTabMenu({
         >
           <Tabs.Trigger
             value="visualization"
-            aria-haspopup="menu"
-            aria-expanded={open}
-          >
-            <span className="min-w-0 truncate leading-normal" title="Visualize">
-              Visualize
-            </span>
-            <DropdownIndicator size="sm" nudge />
-          </Tabs.Trigger>
+            label="Visualize"
+            menu={{ open }}
+          />
         </span>
       )}
     </ControlledDropdownMenu>

@@ -37,53 +37,54 @@ export function TopicsResultsViewSelect({
 }
 
 export function useTopicsResultsView() {
-  const capture = usePostHogClientCapture();
-  const [view, setView] = useLocalStorage<TopicsResultsView>(
+  const { view, selectView } = usePersistedResultsView(
     "topicsResultsView",
-    "treemap",
+    TOPICS_RESULTS_VIEWS.map((option) => option.value),
   );
-  const views = useAvailableResultsViews();
-  const effectiveView = views.some((option) => option.value === view)
-    ? view
-    : "treemap";
-  function selectView(nextView: TopicsResultsView) {
-    if (nextView === effectiveView) return;
-    capture("topics:results_view_select", {
-      view: nextView,
-      previousView: effectiveView,
-    });
-    setView(nextView);
-  }
-  return [effectiveView, selectView] as const;
+  return [view, selectView] as const;
 }
 
-export type MobileTopicsVisualization = "treemap" | "map";
+export type MobileTopicsVisualization = Extract<
+  TopicsResultsView,
+  "treemap" | "map"
+>;
 
 /** The handheld Visualize tab; the map shares the desktop Map view's internal gate. */
 export function useMobileTopicsVisualization() {
+  const { view, selectView, available } =
+    usePersistedResultsView<MobileTopicsVisualization>(
+      "topicsMobileVisualization",
+      ["treemap", "map"],
+      "mobile",
+    );
+  return {
+    view,
+    onViewChange: available.length > 1 ? selectView : undefined,
+  };
+}
+
+/** Falls back to the treemap when the stored view is not allowed or no longer available. */
+function usePersistedResultsView<T extends TopicsResultsView>(
+  storageKey: string,
+  views: readonly T[],
+  surface?: "mobile",
+) {
   const capture = usePostHogClientCapture();
-  const [view, setView] = useLocalStorage<MobileTopicsVisualization>(
-    "topicsMobileVisualization",
-    "treemap",
-  );
-  const mapAvailable = useAvailableResultsViews().some(
-    (option) => option.value === "map",
-  );
-  const effectiveView: MobileTopicsVisualization =
-    mapAvailable && view === "map" ? "map" : "treemap";
-  function selectView(nextView: MobileTopicsVisualization) {
-    if (nextView === effectiveView) return;
+  const [stored, setStored] = useLocalStorage<T>(storageKey, "treemap" as T);
+  const available = useAvailableResultsViews()
+    .map((option) => option.value)
+    .filter((value): value is T => views.includes(value as T));
+  const view = available.includes(stored) ? stored : ("treemap" as T);
+  function selectView(nextView: T) {
+    if (nextView === view) return;
     capture("topics:results_view_select", {
       view: nextView,
-      previousView: effectiveView,
-      surface: "mobile",
+      previousView: view,
+      ...(surface && { surface }),
     });
-    setView(nextView);
+    setStored(nextView);
   }
-  return {
-    view: effectiveView,
-    onViewChange: mapAvailable ? selectView : undefined,
-  };
+  return { view, selectView, available };
 }
 
 function useAvailableResultsViews() {
