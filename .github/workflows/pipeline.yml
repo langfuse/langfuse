@@ -271,6 +271,23 @@ jobs:
         run: node --test scripts/vitest/ci-reporter.test.mjs
       - name: merge gate tests
         run: node --test scripts/ci/merge-gate.test.mjs
+      - name: repository maintenance regression tests
+        run: |
+          test -f "scripts/check.test.mjs"
+          repo_regression_tests=(scripts/*.test.mjs)
+          node --test "${repo_regression_tests[@]}" \
+            "scripts/ci/cargo-security.test.mjs" \
+            "scripts/ci/code-scanning-alerts.test.mjs" \
+            "scripts/model-price-audit/audit-output-contract.test.mjs" \
+            "scripts/model-price-audit/discard-edits-without-model-changes.test.mjs" \
+            "scripts/model-price-audit/discard-formatting-only-pricing-diff.test.mjs" \
+            "scripts/model-price-audit/prepare-metadata.test.mjs" \
+            ".agents/skills/add-model-price/scripts/validate-pricing-file.test.mjs"
+      - name: shell regression tests
+        run: |
+          bash "scripts/agents/start-cursor-cloud.test.sh"
+          bash "scripts/codex/setup.test.sh"
+          bash "scripts/openapi/assert-generated-current.test.sh"
       - name: Load default env
         run: |
           cp .env.dev.example .env
