@@ -2,6 +2,7 @@ import { useState, type ComponentProps } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { Button } from "@/src/components/design-system/Button/Button";
+import { PINCH_ZOOM_RATE } from "@/src/utils/panZoomGestures";
 import preview from "../../../.storybook/preview";
 import { MobileTopicsView } from "./MobileTopicsView";
 import { TopicsMobileControls } from "./TopicsMobileControls";
@@ -365,7 +366,8 @@ export const PreviewZoomedTreemap = meta.story({
         bubbles: true,
         cancelable: true,
         ctrlKey: true,
-        deltaY: -80,
+        // Two zoom levels: four times the treemap height.
+        deltaY: -2 / PINCH_ZOOM_RATE,
       }),
     );
     await waitFor(() =>

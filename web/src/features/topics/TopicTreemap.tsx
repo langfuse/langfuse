@@ -269,11 +269,11 @@ export function TopicTreemap({
   onSelectTopic,
   previewOnSelect = false,
 }: TopicTreemapProps) {
-  /** `anchor` is the middle of the tapped tile's visible part, in px from the top of the tiles. */
+  /** The visible span of the tiles when the tile was tapped, in px from the top of the tiles. */
   const [preview, setPreview] = useState<{
     id: string;
-    anchor: number;
-    above: boolean;
+    visibleTop: number;
+    visibleBottom: number;
   } | null>(null);
   const [zoom, setZoom] = useState(1);
   const [viewportRef, viewport] = useElementSize<HTMLDivElement>();
@@ -284,30 +284,30 @@ export function TopicTreemap({
   const tiles =
     viewport && content ? layoutTiles(topics, content.width, layoutHeight) : [];
   const previewedTopic = topics.find((topic) => topic.id === preview?.id);
-  function previewOf(topicId: string) {
-    const tile = tiles.find((candidate) => candidate.item.id === topicId);
+  /** Where the card sits, derived from the current tile so it follows a re-layout. */
+  function previewPlacement() {
+    const tile = tiles.find((candidate) => candidate.item.id === preview?.id);
+    if (!preview || !tile) return null;
+    const visibleTop = Math.max(0, preview.visibleTop);
+    const visibleBottom = Math.min(layoutHeight, preview.visibleBottom);
+    const top = Math.max(tile.y, visibleTop);
+    const bottom = Math.min(tile.y + tile.height, visibleBottom);
+    const anchor = top < bottom ? (top + bottom) / 2 : tile.y + tile.height / 2;
+    return { anchor, above: anchor > (visibleTop + visibleBottom) / 2 };
+  }
+  const placement = previewPlacement();
+  function selectTopic(topicId: string) {
     const scroller = scrollRef.current;
     const section = contentRef.current;
-    if (!tile || !scroller || !section) {
-      return { id: topicId, anchor: 0, above: false };
-    }
-    const visibleTop =
-      scroller.getBoundingClientRect().top -
-      section.getBoundingClientRect().top;
-    const visibleBottom = visibleTop + scroller.clientHeight;
-    const anchor =
-      (Math.max(tile.y, visibleTop) +
-        Math.min(tile.y + tile.height, visibleBottom)) /
-      2;
-    return {
-      id: topicId,
-      anchor,
-      above: anchor > (visibleTop + visibleBottom) / 2,
-    };
-  }
-  function selectTopic(topicId: string) {
-    if (previewOnSelect && preview?.id !== topicId) {
-      setPreview(previewOf(topicId));
+    if (previewOnSelect && preview?.id !== topicId && scroller && section) {
+      const visibleTop =
+        scroller.getBoundingClientRect().top -
+        section.getBoundingClientRect().top;
+      setPreview({
+        id: topicId,
+        visibleTop,
+        visibleBottom: visibleTop + scroller.clientHeight,
+      });
       return;
     }
     setPreview(null);
@@ -364,7 +364,8 @@ export function TopicTreemap({
     <div
       ref={scrollRef}
       className={cn(
-        "relative min-h-0 min-w-0 flex-1 touch-pan-y overflow-x-hidden p-4",
+        // A stable gutter keeps the tile width the same when zoom adds a scrollbar.
+        "relative min-h-0 min-w-0 flex-1 touch-pan-y overflow-x-hidden p-4 [scrollbar-gutter:stable]",
         zoom > 1 ? "overflow-y-auto" : "overflow-y-hidden",
       )}
     >
@@ -375,7 +376,7 @@ export function TopicTreemap({
         className="pointer-events-none invisible absolute inset-4"
       />
       {zoom > 1 && (
-        <div className="sticky top-4 z-10 flex h-0 items-start justify-end">
+        <div className="sticky top-4 z-1 flex h-0 items-start justify-end">
           <div className="p-2">
             <Button
               text="Reset zoom"
@@ -410,13 +411,13 @@ export function TopicTreemap({
             capped={capped}
           />
         ))}
-        {preview && previewedTopic && (
+        {placement && previewedTopic && (
           <div
             className="pointer-events-none absolute right-2 left-2"
             style={
-              preview.above
-                ? { bottom: layoutHeight - preview.anchor }
-                : { top: preview.anchor }
+              placement.above
+                ? { bottom: layoutHeight - placement.anchor }
+                : { top: placement.anchor }
             }
           >
             <TopicPreviewCard topic={previewedTopic} total={total} />
