@@ -1753,12 +1753,10 @@ export class QueryBuilder {
       view,
     );
     this.validateFilters(query.filters, view);
-    const filters = query.filters.map(
-      (filter): DashboardFilter => ({
-        lowering: eventsObservationsFilterLowering(filter.column),
-        condition: conditionFromFilter(filter),
-      }),
-    );
+    const filters = query.filters.map((filter): DashboardFilter => ({
+      lowering: eventsObservationsFilterLowering(filter.column),
+      condition: conditionFromFilter(filter),
+    }));
 
     // No filter joins a relation: `eventsObservationsFilterLowering` compares
     // `e` columns only. The empty list stands in for the filters.

@@ -16,12 +16,10 @@ function fakeProvider(
   let counter = 0;
   return {
     name: "fake",
-    fetchToken: vi.fn(
-      async (): Promise<ManagedAccessToken> => ({
-        token: `token-${++counter}`,
-        expiresOnTimestamp: Date.now() + ttl,
-      }),
-    ),
+    fetchToken: vi.fn(async (): Promise<ManagedAccessToken> => ({
+      token: `token-${++counter}`,
+      expiresOnTimestamp: Date.now() + ttl,
+    })),
   };
 }
 

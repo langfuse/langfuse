@@ -296,9 +296,7 @@ export default function ScoresTable({
     queryParams: ["observation", "display", "timestamp", "traceId"],
     tableName: scoresFilterConfig.tableName,
     isV4,
-    extractParamsValuesFromRow: (
-      row: ScoresTableRow,
-    ): Record<string, string> =>
+    extractParamsValuesFromRow: (row: ScoresTableRow): Record<string, string> =>
       row.observationId ? { observation: row.observationId } : {},
     expandConfig: {
       basePath: `/project/${projectId}/traces`,

@@ -38,16 +38,14 @@ export function prepareTopicGrid(
   const { points, perDot } =
     mapData?.status === "ready"
       ? sampleGridPoints(
-          mapData.points.map(
-            (point): GridPoint => ({
-              id: point.traceId,
-              x: point.x,
-              y: point.y,
-              topicIndex: point.topicId
-                ? (indexById.get(point.topicId) ?? -1)
-                : -1,
-            }),
-          ),
+          mapData.points.map((point): GridPoint => ({
+            id: point.traceId,
+            x: point.x,
+            y: point.y,
+            topicIndex: point.topicId
+              ? (indexById.get(point.topicId) ?? -1)
+              : -1,
+          })),
         )
       : { points: [], perDot: 1 };
 

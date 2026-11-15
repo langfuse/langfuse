@@ -35,13 +35,11 @@ const { envMock, prismaMock, loggerMock, fetchMock } = vi.hoisted(() => {
           async (): Promise<{ sfdcOrgId: string | null } | null> => null,
         ),
         update: vi.fn(async () => ({})),
-        create: vi.fn(
-          async (): Promise<unknown> => ({
-            id: "org-new",
-            name: "New Org",
-            createdAt: new Date("2026-06-01T08:30:00.900Z"),
-          }),
-        ),
+        create: vi.fn(async (): Promise<unknown> => ({
+          id: "org-new",
+          name: "New Org",
+          createdAt: new Date("2026-06-01T08:30:00.900Z"),
+        })),
       },
       organizationMembership: {
         findFirst: vi.fn(async (): Promise<unknown> => null),
