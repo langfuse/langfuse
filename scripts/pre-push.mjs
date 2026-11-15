@@ -201,10 +201,23 @@ export function main(remote, input, root = process.cwd()) {
   runPushChecks(root, checks);
 }
 
-if (
-  process.argv[1] &&
-  realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)
-) {
+function isMainModule() {
+  if (!process.argv[1]) return false;
+  const modulePath = fileURLToPath(import.meta.url);
+  // A recognized entrypoint must run even if its path disappears after loading.
+  if (resolve(process.argv[1]) === modulePath) return true;
+  let entryPath;
+  try {
+    entryPath = realpathSync(process.argv[1]);
+  } catch (error) {
+    // Eval/import launchers can put non-file arguments in argv[1].
+    if (error.code === "ENOENT" || error.code === "ENOTDIR") return false;
+    throw error;
+  }
+  return entryPath === realpathSync(modulePath);
+}
+
+if (isMainModule()) {
   try {
     main(process.argv[2], readFileSync(0, "utf8"));
   } catch (error) {

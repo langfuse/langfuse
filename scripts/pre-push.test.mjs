@@ -1,10 +1,16 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { assertCheckableTree, resolvePushChecks } from "./pre-push.mjs";
 
 test("pre-push validates every advertised ref and the checked tree", () => {
@@ -120,6 +126,41 @@ test("pre-push validates every advertised ref and the checked tree", () => {
     assertCheckableTree(fixture);
     writeFileSync(join(fixture, "package.json"), "{}\n");
     assert.throws(() => assertCheckableTree(fixture), /different tree/);
+    const source = resolve(repository, "scripts/pre-push.mjs");
+    const alias = join(fixture, "pre-push.mjs");
+    symlinkSync(source, alias);
+    for (const flags of [[], ["--preserve-symlinks-main"]]) {
+      const invalid = spawnSync(process.execPath, [...flags, alias], {
+        cwd: fixture,
+        input: "invalid update\n",
+        encoding: "utf8",
+      });
+      assert.equal(invalid.status, 1, invalid.stderr);
+      assert.match(invalid.stderr, /Invalid pre-push/);
+    }
+    const importHook = `await import(${JSON.stringify(pathToFileURL(source).href)}); console.log("imported");`;
+    for (const launcher of [
+      join(fixture, "missing"),
+      join(alias, "child"),
+      fixture,
+    ]) {
+      const imported = spawnSync(
+        process.execPath,
+        ["--input-type=module", "--eval", importHook, launcher],
+        { encoding: "utf8" },
+      );
+      assert.equal(imported.status, 0, imported.stderr);
+      assert.match(imported.stdout, /imported/);
+    }
+    const loop = join(fixture, "loop");
+    symlinkSync(loop, loop);
+    const invalidLauncher = spawnSync(
+      process.execPath,
+      ["--input-type=module", "--eval", importHook, loop],
+      { encoding: "utf8" },
+    );
+    assert.equal(invalidLauncher.status, 1, invalidLauncher.stderr);
+    assert.match(invalidLauncher.stderr, /ELOOP/);
   } finally {
     rmSync(fixture, { recursive: true, force: true });
   }
