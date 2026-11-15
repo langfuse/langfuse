@@ -143,7 +143,7 @@ const OUTLIER_REQUESTS = [
 export const topicsMapScenario: ScenarioDefinition = {
   name: "topics-map",
   description:
-    "A published Topics map without model calls: 116 traces, two live rules (one with a long name), Intent and Issues maps with nine and five topics of very different sizes, long topic names, outliers and traces awaiting a map. Needs Topics enabled for the project.",
+    "A published Topics map without model calls: 116 traces, two live rules (one with a long name), Intent and Issues maps with nine and five topics of very different sizes, long topic names, outliers and traces awaiting a map. Each map's latest run added its smallest one to three topics, for the new-topics badges. Needs Topics enabled for the project.",
   supportsV4: true,
   flags: [],
   run: async (ctx, params) => {
@@ -360,6 +360,7 @@ export const topicsMapScenario: ScenarioDefinition = {
         topicOf: (index: number) => intentOf[index],
         members: (index: number) => index < assignedCount,
         summaries: intentSummaries,
+        newTopics: 2,
       },
       {
         runId: `${runPrefix}-issues`,
@@ -369,6 +370,7 @@ export const topicsMapScenario: ScenarioDefinition = {
         topicOf: (index: number) => issuesOf[index],
         members: (index: number) => index < ISSUES_APPLICABLE,
         summaries: issueSummaries,
+        newTopics: 1,
       },
       {
         runId: `${runPrefix}-enterprise-intent`,
@@ -378,6 +380,7 @@ export const topicsMapScenario: ScenarioDefinition = {
         topicOf: (index: number) => intentOf[index],
         members: (index: number) => index < SECOND_RULE_TRACES,
         summaries: intentSummaries,
+        newTopics: 3,
       },
     ];
     // Completed runs never change, so a re-run replaces them.
@@ -416,7 +419,14 @@ export const topicsMapScenario: ScenarioDefinition = {
         centroid: unit(k),
         radius: 0.4,
         representativeSummaries: [],
-        metadata: {},
+        // As if refit: the smallest topics are new, the rest continue the previous map.
+        metadata: {
+          continuity: {
+            version: 1,
+            status:
+              k >= map.topics.length - map.newTopics ? "new" : "continued",
+          },
+        },
       }));
       const assignments: TopicAssignment[] = traceIds.flatMap((_, index) => {
         if (!map.members(index)) return [];
