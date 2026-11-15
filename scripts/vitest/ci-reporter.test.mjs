@@ -163,10 +163,35 @@ test("timing artifacts keep every project/file and reject incomplete measurement
       taskId: "missing-file",
       moduleId: "/repo/web/src/missing.test.ts",
     };
+    modules[0].state = () => "failed";
+    modules[0].children.allTests = () => [
+      testCase({
+        file: "src/example.test.ts",
+        name: "underlying failure",
+        duration: 12,
+        state: "failed",
+      }),
+    ];
     reporter.onTestRunStart([...specifications, missing]);
-    assert.throws(
-      () => reporter.onTestRunEnd(modules, [], "failed"),
-      /Incomplete Vitest timing report/,
+    const lines = [];
+    const original = console.log;
+    console.log = (line) => lines.push(String(line));
+    try {
+      assert.throws(
+        () => reporter.onTestRunEnd(modules, [], "failed"),
+        /Incomplete Vitest timing report/,
+      );
+    } finally {
+      console.log = original;
+    }
+    const diagnostics = lines.join("\n");
+    assert.deepEqual(block(diagnostics, "\nFailed tests (1):"), [
+      "1. retries=0 src/example.test.ts > underlying failure",
+    ]);
+    assert.match(diagnostics, /Slowest tests \(top 10\)/);
+    assert.match(
+      diagnostics,
+      /Slowest test files \(top 10, summed test durations\)/,
     );
     const incomplete = JSON.parse(readFileSync(timingPath, "utf8"));
     assert.equal(incomplete.complete, false);
