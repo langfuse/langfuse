@@ -243,7 +243,8 @@ async function editOperation(body: EditSandboxOperation, requestId: string) {
   if (replaced) {
     await writeFile(
       filePath,
-      current.replace(body.oldText, body.newText),
+      // Function replacer keeps `$` sequences in newText literal ($$, $&, $', $`)
+      current.replace(body.oldText, () => body.newText),
       "utf8",
     );
   }

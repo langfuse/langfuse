@@ -46,6 +46,21 @@ describe("compileChatMessages", () => {
     ]);
   });
 
+  it("should insert text variable values containing $ replacement patterns literally", () => {
+    const compiledMessages = compileChatMessages(
+      [{ role: "user", content: "Solve: {{equation}} Thanks." }],
+      {},
+      { equation: "$$x^2$$ costs $& or $' and $`" },
+    );
+
+    expect(compiledMessages).toEqual([
+      {
+        role: "user",
+        content: "Solve: $$x^2$$ costs $& or $' and $` Thanks.",
+      },
+    ]);
+  });
+
   it("should throw error when placeholder value is missing", () => {
     const promptTemplate = [
       { role: "system", content: "You are a helpful assistant." },
