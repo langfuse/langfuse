@@ -75,7 +75,21 @@ test("pre-push validates every advertised ref and the checked tree", () => {
     );
     assert.throws(
       () => resolvePushChecks(fixture, "missing", update(head, zero)),
-      /Cannot resolve/,
+      /named Git remote/,
+    );
+    assert.throws(
+      () =>
+        resolvePushChecks(
+          fixture,
+          "https://github.com/example/repository.git",
+          update(head, zero),
+        ),
+      /named Git remote.*not a URL/,
+    );
+    git("remote", "add", "upstream", repository);
+    assert.throws(
+      () => resolvePushChecks(fixture, "upstream", update(head, zero)),
+      /git fetch 'upstream'.*git remote set-head 'upstream' --auto/,
     );
     assert.throws(
       () =>
@@ -91,6 +105,16 @@ test("pre-push validates every advertised ref and the checked tree", () => {
       /Invalid pre-push/,
     );
     assert.deepEqual(resolvePushChecks(fixture, "origin", update(zero)), []);
+    for (const ref of ["refs/tags/old-release", "refs/notes/commits"]) {
+      assert.deepEqual(
+        resolvePushChecks(
+          fixture,
+          "origin",
+          `${ref} ${previous} ${ref} ${zero}\n`,
+        ),
+        [],
+      );
+    }
     assertCheckableTree(fixture);
     writeFileSync(join(fixture, "notes.md"), "Unrelated notes\n");
     assertCheckableTree(fixture);

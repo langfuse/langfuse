@@ -62,12 +62,22 @@ function parsePushUpdates(input) {
 function resolvePreviousCommit(root, remote, previous) {
   if (!zero.test(previous))
     return git(root, ["rev-parse", "--verify", `${previous}^{commit}`]);
-  if (!remote)
+  if (!remote || !git(root, ["remote"]).split("\n").includes(remote))
     throw new Error(
-      "New branches require a named Git remote with a local default-branch ref.",
+      "New branches require a named Git remote (see git remote -v), not a URL. Fetch its default branch and run git remote set-head <remote> --auto before pushing.",
     );
-  const defaultRef = git(root, ["symbolic-ref", `refs/remotes/${remote}/HEAD`]);
-  return git(root, ["rev-parse", "--verify", `${defaultRef}^{commit}`]);
+  try {
+    const defaultRef = git(root, [
+      "symbolic-ref",
+      `refs/remotes/${remote}/HEAD`,
+    ]);
+    return git(root, ["rev-parse", "--verify", `${defaultRef}^{commit}`]);
+  } catch {
+    const quotedRemote = `'${remote.replaceAll("'", "'\\''")}'`;
+    throw new Error(
+      `Cannot resolve the local default branch for ${quotedRemote}. Run git fetch ${quotedRemote}, then git remote set-head ${quotedRemote} --auto before pushing a new branch.`,
+    );
+  }
 }
 
 function isAncestor(root, previous, head) {
@@ -90,7 +100,8 @@ function resolvePushCheck(root, remote, head, update) {
     throw new Error(
       "Push a PR branch. Changes to main must pass the merge queue.",
     );
-  if (zero.test(update.local)) return null;
+  if (!update.remoteRef.startsWith("refs/heads/") || zero.test(update.local))
+    return null;
   const pushed = git(root, [
     "rev-parse",
     "--verify",
