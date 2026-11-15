@@ -27,6 +27,12 @@ test("pre-push validates every advertised ref and the checked tree", () => {
     git("sparse-checkout", "set", "--no-cone", "/package.json");
     git("checkout", "--detach", "HEAD");
     const head = git("rev-parse", "HEAD");
+    git("update-ref", "refs/remotes/origin/fixture-base", head);
+    git(
+      "symbolic-ref",
+      "refs/remotes/origin/HEAD",
+      "refs/remotes/origin/fixture-base",
+    );
     const previous = git("rev-parse", "HEAD^");
     const zero = "0".repeat(head.length);
     const update = (local = head, old = previous, ref = "refs/heads/example") =>
