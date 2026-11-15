@@ -1840,6 +1840,66 @@ describe("Dataset Items Repository - Versioning Tests", () => {
   });
 
   describe("getDatasetItems() with search", () => {
+    it.each(["id", "content"] as const)(
+      "should search dataset items by %s with dataset names",
+      async (searchType) => {
+        const datasetId = v4();
+        const datasetName = v4();
+        const matchingItemId = v4();
+        const matchingMetadata = { itemMarker: matchingItemId };
+        await prisma.dataset.create({
+          data: {
+            id: datasetId,
+            name: datasetName,
+            projectId,
+            metadata: { datasetMarker: matchingItemId },
+          },
+        });
+
+        const result = await createManyDatasetItems({
+          projectId,
+          items: [
+            {
+              id: matchingItemId,
+              datasetId,
+              input: { query: "first item" },
+              expectedOutput: { result: "first output" },
+              metadata: matchingMetadata,
+            },
+            {
+              id: v4(),
+              datasetId,
+              input: { query: "second item" },
+              expectedOutput: { result: "second output" },
+              metadata: { itemMarker: "unrelated" },
+            },
+          ],
+        });
+        expect(result.success).toBe(true);
+
+        const searchResults = await getDatasetItems({
+          projectId,
+          filterState: createDatasetItemFilterState({
+            datasetIds: [datasetId],
+          }),
+          includeDatasetName: true,
+          limit: 100,
+          page: 0,
+          searchQuery: matchingItemId,
+          searchType: [searchType],
+        });
+
+        expect(searchResults).toEqual([
+          expect.objectContaining({
+            id: matchingItemId,
+            datasetId,
+            datasetName,
+            metadata: matchingMetadata,
+          }),
+        ]);
+      },
+    );
+
     it("should search dataset items by expected output only", async () => {
       const datasetId = v4();
       await prisma.dataset.create({
