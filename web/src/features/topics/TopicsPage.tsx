@@ -698,7 +698,10 @@ function TopicsWorkspaceContent({
                   title: "Topics",
                   className: "@container/topics-header",
                   mobileActionButtons: mapStatus ? (
-                    <span className="text-muted-foreground text-sm whitespace-nowrap">
+                    <span
+                      title={mapStatus}
+                      className="text-muted-foreground block max-w-[50vw] truncate text-sm"
+                    >
                       {mapStatus}
                     </span>
                   ) : undefined,
