@@ -1,5 +1,10 @@
-import { useState, type MouseEvent } from "react";
+import { useRef, useState, type MouseEvent } from "react";
+import { flushSync } from "react-dom";
+import { ZoomOut } from "@langfuse/icons";
 import { useElementSize } from "@/src/hooks/useElementSize";
+import { usePanZoomGestures } from "@/src/hooks/usePanZoomGestures";
+import { type PanZoomAnchor } from "@/src/utils/panZoomGestures";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { cn } from "@/src/utils/tailwind";
 import { compactNumberFormatter } from "@/src/utils/numbers";
@@ -41,6 +46,8 @@ type TopicTileButtonProps = TopicTileProps & {
 const TILE_GAP = 8;
 /** Tiles above this area (px²) get the stronger resting tint. */
 const BIG_TILE_AREA = 30_000;
+/** Zoom multiplies the layout height at a fixed width, so every tile stays reachable by scrolling down. */
+const MAX_ZOOM = 8;
 
 const TILE_PADDING: Record<TileTier, string> = {
   large: "p-3",
@@ -253,19 +260,25 @@ export function TopicTreemap({
   previewOnSelect = false,
 }: TopicTreemapProps) {
   const [previewedId, setPreviewedId] = useState<string | null>(null);
-  const [ref, size] = useElementSize<HTMLDivElement>();
-  const tiles = size
-    ? layoutTreemap(
-        layoutWeights(topics),
-        size.width,
-        size.height,
-        TILE_GAP,
-      ).map((tile) => ({
-        ...tile,
-        item: tile.item.topic,
-        capped: tile.item.count < tile.item.topic.count,
-      }))
-    : [];
+  const [zoom, setZoom] = useState(1);
+  const [viewportRef, viewport] = useElementSize<HTMLDivElement>();
+  // Measured separately: a scrollbar narrows the tiles, not the viewport.
+  const [contentRef, content] = useElementSize<HTMLElement>();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const layoutHeight = viewport ? viewport.height * zoom : 0;
+  const tiles =
+    viewport && content
+      ? layoutTreemap(
+          layoutWeights(topics),
+          content.width,
+          layoutHeight,
+          TILE_GAP,
+        ).map((tile) => ({
+          ...tile,
+          item: tile.item.topic,
+          capped: tile.item.count < tile.item.topic.count,
+        }))
+      : [];
   const previewedTopic = topics.find((topic) => topic.id === previewedId);
   const previewedTile = tiles.find((tile) => tile.item.id === previewedId);
   const previewAnchor = previewedTile
@@ -282,41 +295,93 @@ export function TopicTreemap({
   function dismissPreview(event: MouseEvent<HTMLElement>) {
     if (event.target === event.currentTarget) setPreviewedId(null);
   }
+  function zoomAt(levels: number, anchor: PanZoomAnchor) {
+    const scroller = scrollRef.current;
+    const next = Math.min(MAX_ZOOM, Math.max(1, zoom * 2 ** levels));
+    if (!scroller || !viewport || next === zoom) return;
+    // Keep the point under the pinch or cursor at the same height on screen.
+    const offset = anchor.y * scroller.clientHeight;
+    const fraction = (scroller.scrollTop + offset) / layoutHeight;
+    flushSync(() => setZoom(next));
+    scroller.scrollTop = fraction * viewport.height * next - offset;
+  }
+  function scrollWithPinch(dxPx: number, dyPx: number) {
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+    scroller.scrollLeft -= dxPx;
+    scroller.scrollTop -= dyPx;
+  }
+  function resetZoom() {
+    setZoom(1);
+  }
+  usePanZoomGestures({
+    target: scrollRef,
+    pointerPan: false,
+    touchPinch: true,
+    canPan: () => false,
+    onPan: scrollWithPinch,
+    onZoom: zoomAt,
+  });
   return (
-    <section
-      aria-label="Topics"
-      ref={ref}
-      className="relative h-full min-h-0 min-w-0 flex-1"
-      onClick={dismissPreview}
-    >
-      {tiles.map(({ item, capped, x, y, width, height }) => (
-        <TopicTile
-          key={item.id}
-          topic={item}
-          share={total > 0 ? item.count / total : 0}
-          colors={
-            width * height > BIG_TILE_AREA ? item.tiles.big : item.tiles.small
-          }
-          isSelected={item.id === (previewedId ?? selectedTopicId)}
-          onSelect={selectTopic}
-          rect={{ left: x, top: y, width, height }}
-          tier={tileTier(width, height)}
-          previewOnSelect={previewOnSelect}
-          capped={capped}
-        />
-      ))}
-      {previewedTopic && (
-        <div
-          className="pointer-events-none absolute right-2 left-2"
-          style={
-            size && previewAnchor > size.height / 2
-              ? { bottom: size.height - previewAnchor }
-              : { top: previewAnchor }
-          }
+    <div ref={viewportRef} className="relative h-full min-h-0 min-w-0 flex-1">
+      {/* The 4px inset leaves room for the selected tile's outline at the edges. */}
+      <div
+        ref={scrollRef}
+        className={cn(
+          "absolute -inset-1 touch-pan-y overflow-x-hidden p-1",
+          zoom > 1 ? "overflow-y-auto overscroll-contain" : "overflow-y-hidden",
+        )}
+      >
+        <section
+          aria-label="Topics"
+          ref={contentRef}
+          className="relative"
+          style={{ height: layoutHeight }}
+          onClick={dismissPreview}
         >
-          <TopicPreviewCard topic={previewedTopic} total={total} />
+          {tiles.map(({ item, capped, x, y, width, height }) => (
+            <TopicTile
+              key={item.id}
+              topic={item}
+              share={total > 0 ? item.count / total : 0}
+              colors={
+                width * height > BIG_TILE_AREA
+                  ? item.tiles.big
+                  : item.tiles.small
+              }
+              isSelected={item.id === (previewedId ?? selectedTopicId)}
+              onSelect={selectTopic}
+              rect={{ left: x, top: y, width, height }}
+              tier={tileTier(width, height)}
+              previewOnSelect={previewOnSelect}
+              capped={capped}
+            />
+          ))}
+          {previewedTopic && (
+            <div
+              className="pointer-events-none absolute right-2 left-2"
+              style={
+                previewAnchor > layoutHeight / 2
+                  ? { bottom: layoutHeight - previewAnchor }
+                  : { top: previewAnchor }
+              }
+            >
+              <TopicPreviewCard topic={previewedTopic} total={total} />
+            </div>
+          )}
+        </section>
+      </div>
+      {zoom > 1 && (
+        <div className="absolute top-2 right-2 rounded-md shadow-sm">
+          <Button
+            text="Reset zoom"
+            icon={ZoomOut}
+            variant="outline"
+            size="sm"
+            onClick={resetZoom}
+          />
         </div>
       )}
-    </section>
+    </div>
   );
 }

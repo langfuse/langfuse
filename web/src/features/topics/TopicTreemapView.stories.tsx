@@ -273,6 +273,41 @@ export const SelectTopic = meta.story({
   },
 });
 
+export const ZoomTreemap = meta.story({
+  name: "(Test) Control scroll zooms tiles and reset restores them",
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const tile = await canvas.findByRole("button", {
+      name: "Trace cost analysis, 21 traces",
+    });
+    const area = () => {
+      const rect = tile.getBoundingClientRect();
+      return rect.width * rect.height;
+    };
+    const before = area();
+    await expect(
+      canvas.queryByRole("button", { name: "Reset zoom" }),
+    ).not.toBeInTheDocument();
+    tile.dispatchEvent(
+      new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        ctrlKey: true,
+        deltaY: -40,
+        clientX: tile.getBoundingClientRect().left,
+        clientY: tile.getBoundingClientRect().top,
+      }),
+    );
+    // One zoom level doubles the treemap height, so every tile gets about twice the area.
+    await waitFor(() => expect(area() / before).toBeGreaterThan(1.8));
+    await userEvent.click(canvas.getByRole("button", { name: "Reset zoom" }));
+    await waitFor(() => expect(area()).toBeCloseTo(before, 0));
+    await expect(
+      canvas.queryByRole("button", { name: "Reset zoom" }),
+    ).not.toBeInTheDocument();
+  },
+});
+
 export const DescriptionTooltipWhenClipped = meta.story({
   name: "(Test) Hover shows the full text only when clipped",
   render: (args) => (
