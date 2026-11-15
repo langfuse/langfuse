@@ -1292,7 +1292,7 @@ jobs:
     needs:
       - pre-job
       - llm-connections-filter
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (github.event_name != 'pull_request' || needs.llm-connections-filter.outputs.changed == 'true') }}
+    if: ${{ !cancelled() && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (github.event_name != 'pull_request' || needs.llm-connections-filter.outputs.changed == 'true'))) }}
     name: test-worker-llm-connections (node24, pg15)
     env:
       NODE_ENV: test
@@ -1638,7 +1638,7 @@ jobs:
     needs:
       - pre-job
       - ai-gateway-filter
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && needs.ai-gateway-filter.outputs.changed == 'true')) }}
+    if: ${{ !cancelled() && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && needs.ai-gateway-filter.outputs.changed == 'true')))) }}
     name: test-ai-gateway-e2e
     env:
       NODE_ENV: test

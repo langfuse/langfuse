@@ -25,40 +25,71 @@ export function evaluateGate({ event, ref = "", needs, fork = false }) {
   if (!needs || typeof needs !== "object" || Array.isArray(needs)) {
     return ["Missing job results"];
   }
-  const errors = Object.entries(needs)
+  const allowedSkips = allowedPrSkips(event, needs, fork);
+  const duplicate = isDuplicatePush(event, needs);
+  return [
+    ...failedNeeds(needs),
+    ...missingRequiredJobs(needs, allowedSkips, duplicate, ref),
+    ...releaseTagErrors(event, ref, needs),
+  ];
+}
+
+function failedNeeds(needs) {
+  return Object.entries(needs)
     .filter(([, job]) => ["failure", "cancelled"].includes(job.result))
     .map(([name, job]) => `${name}: ${job.result}`);
-  const duplicate =
+}
+
+function isDuplicatePush(event, needs) {
+  return (
     event === "push" &&
     needs["pre-job"]?.result === "success" &&
-    needs["pre-job"]?.outputs?.should_skip === "true";
+    needs["pre-job"]?.outputs?.should_skip === "true"
+  );
+}
+
+function allowedPrSkips(event, needs, fork) {
   const allowedSkips = new Set();
-  if (event === "pull_request") {
-    for (const [job, filter] of [
-      ["test-worker-llm-connections", "llm-connections-filter"],
-      ["test-ai-gateway-e2e", "ai-gateway-filter"],
-    ]) {
-      if (
-        needs[filter]?.result === "success" &&
-        needs[filter]?.outputs?.changed === "false"
-      ) {
-        allowedSkips.add(job);
-      }
+  if (event !== "pull_request") return allowedSkips;
+  for (const [job, filter] of [
+    ["test-worker-llm-connections", "llm-connections-filter"],
+    ["test-ai-gateway-e2e", "ai-gateway-filter"],
+  ]) {
+    if (
+      needs[filter]?.result === "success" &&
+      needs[filter]?.outputs?.changed === "false"
+    ) {
+      allowedSkips.add(job);
     }
-    if (fork) allowedSkips.add("test-ai-gateway-e2e");
   }
+  if (fork) allowedSkips.add("test-ai-gateway-e2e");
+  return allowedSkips;
+}
+
+function missingRequiredJobs(needs, allowedSkips, duplicate, ref) {
+  const errors = [];
   for (const name of requiredJobs) {
     const result = needs[name]?.result;
     if (result === "success") continue;
-    if (result === "skipped" && (duplicate || allowedSkips.has(name))) continue;
+    const requiredOnTag =
+      ref.startsWith("refs/tags/") &&
+      ["test-worker-llm-connections", "test-ai-gateway-e2e"].includes(name);
+    if (
+      result === "skipped" &&
+      ((duplicate && !requiredOnTag) || allowedSkips.has(name))
+    )
+      continue;
     errors.push(`${name}: expected success, received ${result ?? "missing"}`);
   }
-  if (/^refs\/tags\/v3(?:\.|$)/.test(ref)) {
-    if (needs["validate-v3-release-tag"]?.result !== "success") {
-      errors.push("validate-v3-release-tag: expected success");
-    }
-  }
   return errors;
+}
+
+function releaseTagErrors(event, ref, needs) {
+  return event === "push" &&
+    /^refs\/tags\/v3(?:\.|$)/.test(ref) &&
+    needs["validate-v3-release-tag"]?.result !== "success"
+    ? ["validate-v3-release-tag: expected success"]
+    : [];
 }
 
 if (

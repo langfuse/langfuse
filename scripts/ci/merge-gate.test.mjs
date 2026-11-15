@@ -14,10 +14,18 @@ test("CLI rejects missing jobs when invoked through a symlink", () => {
   const dir = mkdtempSync(join(tmpdir(), "merge-gate-"));
   try {
     const entry = join(dir, "gate.mjs");
-    symlinkSync(fileURLToPath(new URL("./merge-gate.mjs", import.meta.url)), entry);
+    symlinkSync(
+      fileURLToPath(new URL("./merge-gate.mjs", import.meta.url)),
+      entry,
+    );
     const result = spawnSync(process.execPath, [entry], {
       encoding: "utf8",
-      env: { ...process.env, NEEDS_JSON: "{}", GITHUB_EVENT_NAME: "merge_group", GITHUB_OUTPUT: "" },
+      env: {
+        ...process.env,
+        NEEDS_JSON: "{}",
+        GITHUB_EVENT_NAME: "merge_group",
+        GITHUB_OUTPUT: "",
+      },
     });
     assert.equal(result.status, 1, result.stderr);
     assert.match(result.stderr, /expected success, received missing/);
@@ -80,5 +88,21 @@ test("a duplicate push cannot excuse a failed job or a failed tag check", () => 
   assert.notEqual(
     evaluateGate({ event: "push", ref: "refs/tags/v3.1.0", needs }).length,
     0,
+  );
+  needs["validate-v3-release-tag"] = { result: "success" };
+  assert.notEqual(
+    evaluateGate({ event: "push", ref: "refs/tags/v3.1.0", needs }).length,
+    0,
+    "release provider checks must run even when the application tree was tested",
+  );
+  const dispatch = successfulJobs();
+  dispatch["validate-v3-release-tag"] = { result: "skipped" };
+  assert.deepEqual(
+    evaluateGate({
+      event: "workflow_dispatch",
+      ref: "refs/tags/v3.1.0",
+      needs: dispatch,
+    }),
+    [],
   );
 });
