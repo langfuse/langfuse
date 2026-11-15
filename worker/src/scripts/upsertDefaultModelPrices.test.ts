@@ -125,21 +125,64 @@ describe("Claude 5.5 Bedrock profile prices", () => {
     },
   );
 
-  it("prices Haiku 5.5 long context at the geographic rate", () => {
-    const entry = defaultModelPrices.find(
-      ({ modelName }) => modelName === "anthropic.claude-haiku-5-5",
-    )!;
-    expect(
-      entry.pricingTiers.find((tier) => tier.name === "Large Context (>100K)")
-        ?.prices,
-    ).toMatchObject({
-      input: 0.55e-6,
-      output: 2.75e-6,
-      input_cache_creation_5m: 0.6875e-6,
-      input_cache_creation_1h: 1.1e-6,
-      input_cache_read: 0.055e-6,
-    });
-  });
+  it.each([
+    [50_000, "Standard", 0.11e-6, 0.55e-6, 0.1375e-6, 0.22e-6, 0.011e-6],
+    [
+      50_001,
+      "Large Context (>100K)",
+      0.55e-6,
+      2.75e-6,
+      0.6875e-6,
+      1.1e-6,
+      0.055e-6,
+    ],
+  ])(
+    "selects the Haiku geographic rate with %i uncached input tokens",
+    (
+      inputTokens,
+      tierName,
+      input,
+      output,
+      cacheWrite,
+      cacheWrite1h,
+      cacheRead,
+    ) => {
+      const entry = defaultModelPrices.find(
+        ({ modelName }) => modelName === "anthropic.claude-haiku-5-5",
+      )!;
+      const tiers = entry.pricingTiers.map((tier) => ({
+        ...tier,
+        conditions:
+          tier.conditions as DefaultModelPrice["pricingTiers"][number]["conditions"],
+        prices: Object.entries(tier.prices).map(([usageType, price]) => ({
+          usageType,
+          price: new Decimal(price),
+        })),
+      }));
+      const match = matchPricingTier(tiers, {
+        input: inputTokens,
+        input_cache_read: 30_000,
+        input_cache_creation_5m: 10_000,
+        input_cache_creation_1h: 10_000,
+        output: 1_000,
+      });
+      expect(match?.pricingTierName).toBe(tierName);
+      expect(
+        Object.fromEntries(
+          Object.entries(match!.prices).map(([usageType, price]) => [
+            usageType,
+            price.toNumber(),
+          ]),
+        ),
+      ).toMatchObject({
+        input,
+        output,
+        input_cache_creation_5m: cacheWrite,
+        input_cache_creation_1h: cacheWrite1h,
+        input_cache_read: cacheRead,
+      });
+    },
+  );
 });
 
 describe("upsertModelWithTiers", () => {
