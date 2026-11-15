@@ -8,6 +8,8 @@ import {
   streamLLMText,
   type LLMModelMessage,
 } from "@langfuse/shared/src/server";
+import sharedEnv = require("@langfuse/shared/src/env");
+import { startLocalLlmServer } from "./helpers/localLlmServer";
 import { encrypt } from "@langfuse/shared/encryption";
 import {
   buildEvalOutputResultSchema,
@@ -20,6 +22,9 @@ import {
   type ModelParams,
 } from "@langfuse/shared";
 import { z } from "zod";
+
+// Share the built CommonJS transport's env instance when setting a local allowlist.
+const { env } = sharedEnv;
 
 /**
  * LLM Connection Integration Tests
@@ -130,6 +135,117 @@ test("Google AI Studio checks preserve the first provider failure", async () => 
   ).rejects.toBe(failure);
   expect(models).toEqual(["gemini-3.1-flash-lite"]);
 });
+
+test.each(["stored", "messages", "stream"] as const)(
+  "SDK wrappers preserve the first HTTP failure (%s)",
+  async (wrapper) => {
+    const firstFailureBody = JSON.stringify({
+      error: { message: "first provider failure", type: "server_error" },
+    });
+    let attempts = 0;
+    const server = await startLocalLlmServer((_request, body, response) => {
+      response.setHeader("content-type", "application/json");
+      if (++attempts === 1) {
+        response.writeHead(503, { "retry-after": "0" });
+        response.end(firstFailureBody);
+        return;
+      }
+      const completion = {
+        id: "local-completion",
+        created: 1,
+        model: "local-model",
+        choices: [
+          {
+            index: 0,
+            message: { role: "assistant", content: "4" },
+            finish_reason: "stop",
+          },
+        ],
+      };
+      if (JSON.parse(body).stream) {
+        response.setHeader("content-type", "text/event-stream");
+        response.end(
+          `data: ${JSON.stringify({
+            ...completion,
+            choices: [
+              {
+                index: 0,
+                delta: { role: "assistant", content: "4" },
+                finish_reason: "stop",
+              },
+            ],
+          })}\n\ndata: [DONE]\n\n`,
+        );
+      } else {
+        response.end(JSON.stringify(completion));
+      }
+    });
+    const previousEnv = {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+      LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST:
+        env.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST,
+      LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS:
+        env.LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS,
+      LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS:
+        env.LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS,
+      no_proxy: env.no_proxy,
+    };
+    Object.assign(env, {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+      LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST: ["127.0.0.1"],
+      LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS: ["127.0.0.1"],
+      LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS: ["127.0.0.1"],
+      no_proxy: "127.0.0.1",
+    });
+    try {
+      const params: TestCompletionParams = {
+        messages: [
+          {
+            role: "user",
+            content: "Return 4",
+            type: ChatMessageType.PublicAPICreated,
+          },
+        ],
+        modelParams: {
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          model: "local-model",
+          max_tokens: 10,
+        },
+        llmConnection: {
+          secretKey: encrypt("local-dummy-key"),
+          baseURL: `${server.url}/v1`,
+        },
+      };
+      let failure: unknown;
+      try {
+        if (wrapper === "stream") {
+          const stream = await streamWithStoredConnection(params);
+          for await (const part of stream.fullStream) {
+            if (part.type === "error") failure = part.error;
+          }
+        } else if (wrapper === "messages") {
+          await generateWithModelMessages({
+            ...params,
+            messages: [{ role: "user", content: "Return 4" }],
+          });
+        } else {
+          await generateWithStoredConnection(params);
+        }
+      } catch (error) {
+        failure = error;
+      }
+      expect(server.requests).toHaveLength(1);
+      expect(getLLMErrorInfo(failure)?.providerError).toMatchObject({
+        statusCode: 503,
+        responseBody: firstFailureBody,
+      });
+    } finally {
+      Object.assign(env, previousEnv);
+      await server.close();
+    }
+  },
+);
 
 const numericEvalResponseSchema = z.object({
   score: z.number(),
