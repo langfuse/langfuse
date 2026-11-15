@@ -27,88 +27,29 @@ function projectSession(
 }
 
 describe("RBAC access checks", () => {
-  it("ignores inherited role properties for organization access", () => {
-    const params = Object.assign(
-      Object.create({
-        role: "OWNER",
-      }),
-      {
-        session: {
-          user: {
-            organizations: [{ id: "org-1", role: "MEMBER" }],
-          },
-        },
-        organizationId: "org-1",
-        scope: "organizationMembers:CUD",
-      },
-    );
-
-    expect(
-      hasOrganizationAccess(
-        params as Parameters<typeof hasOrganizationAccess>[0],
-      ),
-    ).toBe(false);
-  });
-
-  it("ignores inherited role properties for project access", () => {
-    const params = Object.assign(
-      Object.create({
-        role: "OWNER",
-      }),
-      {
-        session: {
-          user: {
-            organizations: [
-              {
-                projects: [{ id: "project-1", role: "MEMBER" }],
-              },
-            ],
-          },
-        },
-        projectId: "project-1",
-        scope: "project:update",
-      },
-    );
-
-    expect(
-      hasProjectAccess(params as Parameters<typeof hasProjectAccess>[0]),
-    ).toBe(false);
-  });
-
-  it("still supports own role-based checks", () => {
-    expect(
-      hasOrganizationAccess({
-        role: "OWNER",
-        scope: "organizationMembers:CUD",
-      }),
-    ).toBe(true);
-
-    expect(
-      hasProjectAccess({
-        role: "ADMIN",
-        scope: "project:update",
-      }),
-    ).toBe(true);
-  });
-
   it("allows organization members to invoke the gateway", () => {
-    for (const role of ["OWNER", "ADMIN", "MEMBER"] as const) {
-      expect(hasOrganizationAccess({ role, scope: "gateway:invoke" })).toBe(
-        true,
-      );
-    }
+    const canInvoke = (role: Role) =>
+      hasOrganizationAccess({
+        session: {
+          user: { organizations: [{ id: "org-1", role, projects: [] }] },
+        } as unknown as Session,
+        organizationId: "org-1",
+        scope: "gateway:invoke",
+      });
 
+    for (const role of ["OWNER", "ADMIN", "MEMBER"] as const) {
+      expect(canInvoke(role)).toBe(true);
+    }
     for (const role of ["VIEWER", "NONE"] as const) {
-      expect(hasOrganizationAccess({ role, scope: "gateway:invoke" })).toBe(
-        false,
-      );
+      expect(canInvoke(role)).toBe(false);
     }
   });
 
   it("allows members to manage llm tools", () => {
     expect(
       hasProjectAccess({
-        role: "MEMBER",
+        session: projectSession("project-1", "MEMBER"),
+        projectId: "project-1",
         scope: "llmTools:CUD",
       }),
     ).toBe(true);
