@@ -14,7 +14,7 @@ concurrency:
 jobs:
   evaluate:
     if: github.event_name != 'status' || github.event.context == 'license/cla'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 3
     permissions:
       contents: read
