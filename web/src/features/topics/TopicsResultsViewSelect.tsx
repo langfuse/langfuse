@@ -57,6 +57,35 @@ export function useTopicsResultsView() {
   return [effectiveView, selectView] as const;
 }
 
+export type MobileTopicsVisualization = "treemap" | "map";
+
+/** The handheld Visualize tab; the map shares the desktop Map view's internal gate. */
+export function useMobileTopicsVisualization() {
+  const capture = usePostHogClientCapture();
+  const [view, setView] = useLocalStorage<MobileTopicsVisualization>(
+    "topicsMobileVisualization",
+    "treemap",
+  );
+  const mapAvailable = useAvailableResultsViews().some(
+    (option) => option.value === "map",
+  );
+  const effectiveView: MobileTopicsVisualization =
+    mapAvailable && view === "map" ? "map" : "treemap";
+  function selectView(nextView: MobileTopicsVisualization) {
+    if (nextView === effectiveView) return;
+    capture("topics:results_view_select", {
+      view: nextView,
+      previousView: effectiveView,
+      surface: "mobile",
+    });
+    setView(nextView);
+  }
+  return {
+    view: effectiveView,
+    onViewChange: mapAvailable ? selectView : undefined,
+  };
+}
+
 function useAvailableResultsViews() {
   const internal = useInternalFeaturesEnabled();
   return TOPICS_RESULTS_VIEWS.filter(

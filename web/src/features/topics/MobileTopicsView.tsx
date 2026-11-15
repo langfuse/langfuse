@@ -1,6 +1,14 @@
-import { useContext, useMemo, useState, type ComponentProps } from "react";
+import {
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+} from "react";
 import { type FilterState } from "@langfuse/shared";
 import { Button } from "@/src/components/design-system/Button/Button";
+import { ControlledDropdownMenu } from "@/src/components/design-system/ControlledDropdownMenu/ControlledDropdownMenu";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   type Facet,
@@ -20,11 +28,14 @@ import { TopicsTraceToolbar } from "./TopicsTraceToolbar";
 import { prepareMobileTopics } from "./prepare-mobile-topics";
 import { UNASSIGNED_TOPIC_ID } from "./prepare-topic-display";
 import { FacetTraceSource } from "./useFacetTopicTraces";
+import { type MobileTopicsVisualization } from "./TopicsResultsViewSelect";
 
 type MobileTopicsViewProps = {
   projectId: string;
   facet: Facet;
   view: ComponentProps<typeof MobileTopicVisualization>["view"];
+  /** Adds the Visualize tab menu; omit while the map is unavailable. */
+  onViewChange?: (view: MobileTopicsVisualization) => void;
   mapResult: ComponentProps<typeof MobileTopicVisualization>["mapResult"];
   filters: FilterState;
   searchQuery: string | null;
@@ -45,6 +56,7 @@ export function MobileTopicsView({
   projectId,
   facet,
   view,
+  onViewChange,
   mapResult,
   filters,
   searchQuery,
@@ -164,7 +176,15 @@ export function MobileTopicsView({
         <Tabs.List variant="underline" layout="full" aria-label="Topics panels">
           <Tabs.Trigger value="topics" label="Topics" />
           <Tabs.Trigger value="traces" label="Traces" />
-          <Tabs.Trigger value="visualization" label="Visualize" />
+          {onViewChange ? (
+            <VisualizeTabMenu
+              view={view}
+              active={navigation.panel === "visualization"}
+              onViewChange={onViewChange}
+            />
+          ) : (
+            <Tabs.Trigger value="visualization" label="Visualize" />
+          )}
         </Tabs.List>
         <Tabs.Content value="topics" layout="fill">
           <TopicMobileList
@@ -259,5 +279,62 @@ export function MobileTopicsView({
         </Tabs.Content>
       </Tabs>
     </div>
+  );
+}
+
+const VISUALIZATIONS = [
+  { value: "treemap", label: "Treemap" },
+  { value: "map", label: "Map" },
+] as const;
+
+/** Pressing the already active Visualize tab opens the view menu; the first press only selects the tab. */
+function VisualizeTabMenu({
+  view,
+  active,
+  onViewChange,
+}: {
+  view: MobileTopicsViewProps["view"];
+  active: boolean;
+  onViewChange: (view: MobileTopicsVisualization) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  // Read before the tab activates on mouse down, so the selecting press stays a plain tab press.
+  const pressedWhileActive = useRef(false);
+  return (
+    <ControlledDropdownMenu
+      open={open}
+      onOpenChange={(next) => setOpen(next && pressedWhileActive.current)}
+      ariaLabel="Visualize as"
+      internal
+      placement="bottom-end"
+      items={VISUALIZATIONS.map((option) => ({
+        id: option.value,
+        title: option.label,
+        type: "item" as const,
+        selected: option.value === view,
+        onClick: () => onViewChange(option.value),
+      }))}
+    >
+      {({ getTriggerProps }) => (
+        <span
+          {...getTriggerProps({
+            onPointerDown: () => {
+              pressedWhileActive.current = active;
+            },
+            // Keyboard focus already activated the tab.
+            onKeyDown: () => {
+              pressedWhileActive.current = true;
+            },
+          })}
+        >
+          <Tabs.Trigger value="visualization">
+            <span className="min-w-0 truncate leading-normal" title="Visualize">
+              Visualize
+            </span>
+            <DropdownIndicator size="sm" nudge />
+          </Tabs.Trigger>
+        </span>
+      )}
+    </ControlledDropdownMenu>
   );
 }
