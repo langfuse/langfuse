@@ -3,7 +3,6 @@ import {
   createLLMOutput,
   createLLMToolSet,
   generateLLMText,
-  getLLMErrorInfo,
   mapLegacyLLMCompletionParams,
   streamLLMText,
   type LLMModelMessage,
@@ -72,19 +71,21 @@ function generateWithStoredConnection(params: TestCompletionParams) {
       ? { output: createLLMOutput(structuredOutputSchema) }
       : {}),
     ...(tools?.length ? { tools: createLLMToolSet(tools) } : {}),
+    maxRetries: 0,
   });
 }
 
 function streamWithStoredConnection(
   params: Omit<TestCompletionParams, "structuredOutputSchema" | "tools">,
 ) {
-  return streamLLMText(
-    mapLegacyLLMCompletionParams({
+  return streamLLMText({
+    ...mapLegacyLLMCompletionParams({
       messages: params.messages,
       modelParams: params.modelParams,
       connection: params.llmConnection,
     }),
-  );
+    maxRetries: 0,
+  });
 }
 
 function generateWithModelMessages(params: {
@@ -101,57 +102,33 @@ function generateWithModelMessages(params: {
   return generateLLMText({
     ...mappedParams,
     messages: params.messages,
+    maxRetries: 0,
   });
 }
 
-const googleAIStudioFallbackModels = [
-  "gemini-3.1-flash-lite",
-  "gemini-2.5-flash",
-  "gemini-3.5-flash",
-] as const;
+const googleAIStudioModel = "gemini-3.1-flash-lite";
 
-async function runWithGoogleAIStudioModelFallback<T>(
+function runWithGoogleAIStudioModel<T>(
   operation: (model: string) => Promise<T>,
 ): Promise<T> {
-  let lastError: unknown;
-
-  for (const [index, model] of googleAIStudioFallbackModels.entries()) {
-    try {
-      return await operation(model);
-    } catch (error) {
-      lastError = error;
-
-      if (
-        index === googleAIStudioFallbackModels.length - 1 ||
-        !isRetryableProviderError(error)
-      ) {
-        throw error;
-      }
-    }
-  }
-
-  throw lastError;
+  return operation(googleAIStudioModel);
 }
 
-function isRetryableProviderError(error: unknown): boolean {
-  const llmError = getLLMErrorInfo(error);
-  if (llmError) return llmError.isRetryable;
+test("Google AI Studio checks preserve the first provider failure", async () => {
+  const failure = Object.assign(new Error("provider unavailable"), {
+    statusCode: 503,
+  });
+  const models: string[] = [];
 
-  if (!error || typeof error !== "object") return false;
-
-  const errorLike = error as {
-    response?: { status?: unknown };
-    status?: unknown;
-    statusCode?: unknown;
-  };
-  const statusCode = [
-    errorLike.response?.status,
-    errorLike.status,
-    errorLike.statusCode,
-  ].find((code): code is number => typeof code === "number");
-
-  return statusCode === 429 || (statusCode !== undefined && statusCode >= 500);
-}
+  await expect(
+    runWithGoogleAIStudioModel(async (model) => {
+      models.push(model);
+      if (models.length === 1) throw failure;
+      return "a later request would succeed";
+    }),
+  ).rejects.toBe(failure);
+  expect(models).toEqual(["gemini-3.1-flash-lite"]);
+});
 
 const numericEvalResponseSchema = z.object({
   score: z.number(),
@@ -1146,20 +1123,13 @@ describe("LLM Connection Tests", () => {
       } catch (error) {
         const message = String(error);
 
-        // The CI project currently does not have access to Anthropic publisher
-        // models. The regression signal is that Claude-on-Vertex reaches the
-        // Anthropic publisher endpoint instead of /v1/v1/messages or Google's
-        // Gemini/Gemma publisher path. Some provider errors only include the
-        // normalized Vertex 404 without echoing the request URL.
-        if (message.includes("/publishers/")) {
-          expect(message).toContain(
-            `/publishers/anthropic/models/${claudeVertexModel}`,
-          );
-          expect(message).not.toContain("/v1/v1/messages");
-          expect(message).not.toContain("/publishers/google/");
-        } else {
-          expect(message).toContain("Not Found");
-        }
+        // The CI project does not have access to Anthropic publisher models.
+        // A rejected call must identify its Anthropic route to prove routing.
+        expect(message).toContain(
+          `/publishers/anthropic/models/${claudeVertexModel}`,
+        );
+        expect(message).not.toContain("/v1/v1/messages");
+        expect(message).not.toContain("/publishers/google/");
       }
     }, 30_000);
 
@@ -1290,10 +1260,7 @@ describe("LLM Connection Tests", () => {
       // Should parse tool calls successfully despite reasoning blocks in content
       expect(completion.toolCalls.length).toBeGreaterThan(0);
       expect(completion.toolCalls[0].toolName).toBe("get_weather");
-      // Reasoning should be extracted separately
-      if (completion.reasoningText) {
-        expect(typeof completion.reasoningText).toBe("string");
-      }
+      expect(completion.reasoningText).toMatch(/\S/);
     }, 60_000);
 
     test("thinking model exposes text and reasoning separately", async () => {
@@ -1322,8 +1289,7 @@ describe("LLM Connection Tests", () => {
       });
 
       expect(completion.text).toContain("4");
-      // With maxReasoningTokens > 0, reasoning should be present
-      // Note: this depends on the model actually producing reasoning output
+      expect(completion.reasoningText).toMatch(/\S/);
     }, 60_000);
   });
 
@@ -1341,7 +1307,7 @@ describe("LLM Connection Tests", () => {
     test("simple completion", async () => {
       checkEnvVar();
 
-      const completion = await runWithGoogleAIStudioModelFallback((model) =>
+      const completion = await runWithGoogleAIStudioModel((model) =>
         generateWithStoredConnection({
           messages: [
             {
@@ -1371,7 +1337,7 @@ describe("LLM Connection Tests", () => {
     test("streaming completion", async () => {
       checkEnvVar();
 
-      await runWithGoogleAIStudioModelFallback(async (model) => {
+      await runWithGoogleAIStudioModel(async (model) => {
         const stream = await streamWithStoredConnection({
           messages: [
             {
@@ -1409,7 +1375,7 @@ describe("LLM Connection Tests", () => {
 
     registerMessageFormatTests({
       checkEnv: checkEnvVar,
-      getModelParams: (model = googleAIStudioFallbackModels[0]) => ({
+      getModelParams: (model = googleAIStudioModel) => ({
         provider: "google-ai-studio",
         adapter: LLMAdapter.GoogleAIStudio,
         model,
@@ -1422,12 +1388,12 @@ describe("LLM Connection Tests", () => {
         ),
       }),
       timeoutMs: 30_000,
-      runWithModel: runWithGoogleAIStudioModelFallback,
+      runWithModel: runWithGoogleAIStudioModel,
     });
 
     registerEvalStructuredOutputTests({
       checkEnv: checkEnvVar,
-      getModelParams: (model = googleAIStudioFallbackModels[0]) => ({
+      getModelParams: (model = googleAIStudioModel) => ({
         provider: "google-ai-studio",
         adapter: LLMAdapter.GoogleAIStudio,
         model,
@@ -1440,13 +1406,13 @@ describe("LLM Connection Tests", () => {
         ),
       }),
       timeoutMs: 30_000,
-      runWithModel: runWithGoogleAIStudioModelFallback,
+      runWithModel: runWithGoogleAIStudioModel,
     });
 
     test("tool calling", async () => {
       checkEnvVar();
 
-      const completion = await runWithGoogleAIStudioModelFallback((model) =>
+      const completion = await runWithGoogleAIStudioModel((model) =>
         generateWithStoredConnection({
           messages: [
             {
@@ -1482,7 +1448,7 @@ describe("LLM Connection Tests", () => {
       // Regression test: Text prompts create a single system message.
       // GoogleAIStudio must convert it to a user message to prevent:
       // "GenerateContentRequest.contents is not specified" error
-      const completion = await runWithGoogleAIStudioModelFallback((model) =>
+      const completion = await runWithGoogleAIStudioModel((model) =>
         generateWithStoredConnection({
           messages: [
             {
