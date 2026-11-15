@@ -89,6 +89,7 @@ vi.mock("@/src/features/posthog-analytics/server/backendActivity", () => ({
 
 import { topicsRouter } from "@/src/features/topics/server/topicsRouter";
 import {} from "@/src/features/topics/server/slices";
+import { isNewTopicInRun } from "@/src/features/topics/server/newTopics";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
 const projectId = "project-a";
@@ -1615,5 +1616,25 @@ describe("Topics analyses", () => {
         ],
       }),
     );
+  });
+});
+
+describe("Topics new in the last run", () => {
+  it("counts only topics the run wrote without continuing an earlier topic", () => {
+    const topic = (createdByRunId: string, status?: string) => ({
+      createdByRunId,
+      metadata: status ? { continuity: { version: 1, status } } : {},
+    });
+    const counted = [
+      topic("run-b", "new"),
+      topic("run-b", "split"),
+      // Continued topics whose geometry changed get a new version from this run.
+      topic("run-b", "continued"),
+      // Unchanged topics keep the definition of the run that first wrote them.
+      topic("run-a", "new"),
+      // A map fit without a previous map has no continuity.
+      topic("run-b"),
+    ].map((definition) => isNewTopicInRun(definition, "run-b"));
+    expect(counted).toEqual([true, true, false, false, false]);
   });
 });

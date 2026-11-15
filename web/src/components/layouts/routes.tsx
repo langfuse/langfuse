@@ -51,6 +51,8 @@ import {
 import { gatewayPageSlugFromPath } from "@/src/features/ai-gateway/fns/gatewayUrls/gatewayPageSlugFromPath";
 import { useGatewayKeyReminder } from "@/src/features/ai-gateway/hooks/useGatewayKeyReminder";
 import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
+import { TopicsNavBadge } from "@/src/features/topics/TopicsNavBadge";
+import { useNewTopicsBadge } from "@/src/features/topics/useNewTopics";
 
 export enum RouteSection {
   Main = "main",
@@ -215,7 +217,7 @@ export const ROUTES: Route[] = [
     title: "Topics",
     href: "/project/[projectId]/topics",
     icon: Grid2X2,
-    label: <TopicsInternalBadge />,
+    label: <TopicsNavLabel />,
     show: ({ canViewTopics }) => canViewTopics,
     group: RouteGroup.Observability,
     section: RouteSection.Main,
@@ -420,11 +422,25 @@ function GatewayKeyReminderDot() {
   ) : null;
 }
 
-function TopicsInternalBadge() {
+function TopicsNavLabel() {
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
-  return internalFeaturesEnabled ? (
-    <FeatureReleaseStatus status="internal" />
-  ) : null;
+  const router = useRouter();
+  const projectId =
+    typeof router.query.projectId === "string"
+      ? router.query.projectId
+      : undefined;
+  return (
+    <>
+      {internalFeaturesEnabled && <FeatureReleaseStatus status="internal" />}
+      {/* Keyed so a project switch reads that project's seen runs. */}
+      {projectId && <NewTopicsCount key={projectId} projectId={projectId} />}
+    </>
+  );
+}
+
+function NewTopicsCount({ projectId }: { projectId: string }) {
+  const badge = useNewTopicsBadge(projectId);
+  return badge ? <TopicsNavBadge {...badge} /> : null;
 }
 
 function CommandMenuTrigger() {

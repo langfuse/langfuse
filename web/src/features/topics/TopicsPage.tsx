@@ -29,6 +29,8 @@ import { ManualTopicsFormContent } from "./ManualTopicsFormContent";
 import { cn } from "@/src/utils/tailwind";
 import { useIsHandheld } from "@/src/hooks/use-mobile";
 import { TopicsFacetTabs } from "./TopicsFacetTabs";
+import { newTopicCountsForRule } from "./new-topics";
+import { useNewTopicRuns } from "./useNewTopics";
 import { TopicsMobileControls } from "./TopicsMobileControls";
 import { resolveTopicFacetId } from "./topic-facet-selection";
 import { Spinner } from "@/src/components/layouts/Spinner";
@@ -333,6 +335,11 @@ function TopicsWorkspaceContent({
     mapSelection?.kind === "rule"
       ? maps.data?.rules.find((rule) => rule.id === mapSelection.id)
       : undefined;
+  const newTopicRuns = useNewTopicRuns(projectId);
+  const newTopicCounts = newTopicCountsForRule(
+    newTopicRuns ?? [],
+    selectedRule?.id,
+  );
   // A refit (refresh or nightly) is no execution; its completion shows as a new lastRefitAt.
   const lastRefitAt = selectedRule?.lastRefitAt
     ? Date.parse(selectedRule.lastRefitAt)
@@ -593,6 +600,7 @@ function TopicsWorkspaceContent({
                       facets={shownFacets}
                       selectedFacet={headerFacetId}
                       onSelectFacet={traceFilters.selectFacet}
+                      newTopicCounts={newTopicCounts}
                     />
                   </span>
                 )}

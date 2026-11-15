@@ -302,6 +302,7 @@ vi.mock("@/src/utils/api", () => ({
       },
       traceErrors: { useQuery: () => ({}) },
       maps: { useQuery: () => ({ data: state.maps }) },
+      newTopics: { useQuery: () => ({}) },
       ruleSetupStatus: { useQuery: () => ({ data: null }) },
       startRuleSetup: {
         useMutation: () => ({
