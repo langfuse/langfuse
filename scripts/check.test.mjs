@@ -1,8 +1,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createPlan, parseOptions, runPlan } from "./check.mjs";
+
+test("the check CLI executes when reached through a filesystem alias", () => {
+  const directory = mkdtempSync(resolve(".check-test-"));
+  try {
+    const alias = resolve(directory, "check.mjs");
+    symlinkSync(resolve("scripts/check.mjs"), alias);
+    const result = spawnSync(process.execPath, [alias, "--help"], {
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Usage: pnpm check/);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
 
 test("formatter config changes check the whole repository without source changes", () => {
   const plan = createPlan([".oxfmtrc.json"], [], { only: ["format"] }, "HEAD", {
