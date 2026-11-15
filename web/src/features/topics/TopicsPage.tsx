@@ -70,7 +70,11 @@ import {
 } from "./topic-maps";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { TopicsMapPicker, type UsePreviewTopics } from "./TopicsMapPicker";
-import { TopicMapStrip } from "./TopicMapStrip";
+import {
+  TopicMapStrip,
+  topicAnalysisStatus,
+  topicRuleStatus,
+} from "./TopicMapStrip";
 import { TopicRuleBuildingState } from "./TopicRuleBuildingState";
 import { TopicAnalysisState } from "./TopicAnalysisState";
 import { TopicSliceDialogController } from "./TopicSliceDialogController";
@@ -680,11 +684,27 @@ function TopicsWorkspaceContent({
                   }}
                 />
               ) : null;
+            const now = Date.now();
+            const mapShown = shownFacets.some((facet) => facet.map);
+            // Handheld hides the strip, so its status line sits beside the title instead.
+            let mapStatus = "";
+            if (selectedAnalysis)
+              mapStatus = topicAnalysisStatus(selectedAnalysis);
+            else if (!showOnboarding && selectedRule)
+              mapStatus = topicRuleStatus(selectedRule, now, mapShown);
             return (
               <Page
                 headerProps={{
                   title: "Topics",
                   className: "@container/topics-header",
+                  mobileActionButtons: mapStatus ? (
+                    <span
+                      title={mapStatus}
+                      className="ph-no-capture text-muted-foreground block max-w-[50vw] truncate text-sm"
+                    >
+                      {mapStatus}
+                    </span>
+                  ) : undefined,
                   actionButtonsLeft: showOnboarding ? null : (
                     <div className="flex items-center gap-3">
                       {mapPicker}
@@ -705,8 +725,8 @@ function TopicsWorkspaceContent({
                   {!showOnboarding && selectedRule ? (
                     <TopicMapStrip.Rule
                       rule={selectedRule}
-                      now={Date.now()}
-                      mapShown={shownFacets.some((facet) => facet.map)}
+                      now={now}
+                      mapShown={mapShown}
                       controls={viewControls}
                       options={unassignedSwitch}
                     />
