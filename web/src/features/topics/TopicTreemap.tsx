@@ -269,10 +269,11 @@ export function TopicTreemap({
   onSelectTopic,
   previewOnSelect = false,
 }: TopicTreemapProps) {
-  /** `anchor` is the visible middle of the tapped tile, in px from the top of the scroll window. */
+  /** `anchor` is the middle of the tapped tile's visible part, in px from the top of the tiles. */
   const [preview, setPreview] = useState<{
     id: string;
     anchor: number;
+    above: boolean;
   } | null>(null);
   const [zoom, setZoom] = useState(1);
   const [viewportRef, viewport] = useElementSize<HTMLDivElement>();
@@ -283,18 +284,30 @@ export function TopicTreemap({
   const tiles =
     viewport && content ? layoutTiles(topics, content.width, layoutHeight) : [];
   const previewedTopic = topics.find((topic) => topic.id === preview?.id);
-  const visibleHeight = viewport?.height ?? 0;
-  function visibleMiddle(topicId: string) {
+  function previewOf(topicId: string) {
     const tile = tiles.find((candidate) => candidate.item.id === topicId);
-    if (!tile) return 0;
-    const scrollTop = scrollRef.current?.scrollTop ?? 0;
-    const top = Math.max(tile.y, scrollTop);
-    const bottom = Math.min(tile.y + tile.height, scrollTop + visibleHeight);
-    return (top + bottom) / 2 - scrollTop;
+    const scroller = scrollRef.current;
+    const section = contentRef.current;
+    if (!tile || !scroller || !section) {
+      return { id: topicId, anchor: 0, above: false };
+    }
+    const visibleTop =
+      scroller.getBoundingClientRect().top -
+      section.getBoundingClientRect().top;
+    const visibleBottom = visibleTop + scroller.clientHeight;
+    const anchor =
+      (Math.max(tile.y, visibleTop) +
+        Math.min(tile.y + tile.height, visibleBottom)) /
+      2;
+    return {
+      id: topicId,
+      anchor,
+      above: anchor > (visibleTop + visibleBottom) / 2,
+    };
   }
   function selectTopic(topicId: string) {
     if (previewOnSelect && preview?.id !== topicId) {
-      setPreview({ id: topicId, anchor: visibleMiddle(topicId) });
+      setPreview(previewOf(topicId));
       return;
     }
     setPreview(null);
@@ -336,12 +349,6 @@ export function TopicTreemap({
     });
     scroller.scrollTop += nextY - y;
   }
-  function scrollWithPinch(dxPx: number, dyPx: number) {
-    const scroller = scrollRef.current;
-    if (!scroller) return;
-    scroller.scrollLeft -= dxPx;
-    scroller.scrollTop -= dyPx;
-  }
   function resetZoom() {
     setZoom(1);
     setPreview(null);
@@ -351,69 +358,72 @@ export function TopicTreemap({
     pointerPan: false,
     touchPinch: true,
     canPan: () => false,
-    onPan: scrollWithPinch,
+    // A pinch only zooms; the treemap itself never pans.
+    onPan: () => {},
     onZoom: zoomAt,
   });
   return (
-    <div ref={viewportRef} className="relative h-full min-h-0 min-w-0 flex-1">
-      {/* The 4px inset leaves room for the selected tile's outline at the edges. */}
+    <div
+      ref={scrollRef}
+      className={cn(
+        "relative min-h-0 min-w-0 flex-1 touch-pan-y overflow-x-hidden p-4",
+        zoom > 1 ? "overflow-y-auto" : "overflow-y-hidden",
+      )}
+    >
       <div
-        ref={scrollRef}
-        className={cn(
-          "absolute -inset-1 touch-pan-y overflow-x-hidden p-1",
-          zoom > 1 ? "overflow-y-auto overscroll-contain" : "overflow-y-hidden",
-        )}
-      >
-        <section
-          aria-label="Topics"
-          ref={contentRef}
-          className="relative"
-          style={{ height: layoutHeight }}
-          onClick={dismissPreview}
-        >
-          {tiles.map(({ item, capped, x, y, width, height }) => (
-            <TopicTile
-              key={item.id}
-              topic={item}
-              share={total > 0 ? item.count / total : 0}
-              colors={
-                width * height > BIG_TILE_AREA
-                  ? item.tiles.big
-                  : item.tiles.small
-              }
-              isSelected={item.id === (preview?.id ?? selectedTopicId)}
-              onSelect={selectTopic}
-              rect={{ left: x, top: y, width, height }}
-              tier={tileTier(width, height)}
-              previewOnSelect={previewOnSelect}
-              capped={capped}
-            />
-          ))}
-        </section>
-      </div>
-      {preview && previewedTopic && (
-        <div
-          className="pointer-events-none absolute right-2 left-2"
-          style={
-            preview.anchor > visibleHeight / 2
-              ? { bottom: visibleHeight - preview.anchor }
-              : { top: preview.anchor }
-          }
-        >
-          <TopicPreviewCard topic={previewedTopic} total={total} />
-        </div>
-      )}
+        ref={viewportRef}
+        aria-hidden
+        className="pointer-events-none invisible absolute inset-4"
+      />
       {zoom > 1 && (
-        <div className="absolute top-2 right-2">
-          <Button
-            text="Reset zoom"
-            icon={ZoomOut}
-            variant="outline"
-            size="sm"
-            onClick={resetZoom}
-          />
+        <div className="sticky top-4 z-10 flex h-0 items-start justify-end">
+          <div className="p-2">
+            <Button
+              text="Reset zoom"
+              icon={ZoomOut}
+              variant="outline"
+              size="sm"
+              onClick={resetZoom}
+            />
+          </div>
         </div>
       )}
+      <section
+        aria-label="Topics"
+        ref={contentRef}
+        className="relative"
+        style={{ height: layoutHeight }}
+        onClick={dismissPreview}
+      >
+        {tiles.map(({ item, capped, x, y, width, height }) => (
+          <TopicTile
+            key={item.id}
+            topic={item}
+            share={total > 0 ? item.count / total : 0}
+            colors={
+              width * height > BIG_TILE_AREA ? item.tiles.big : item.tiles.small
+            }
+            isSelected={item.id === (preview?.id ?? selectedTopicId)}
+            onSelect={selectTopic}
+            rect={{ left: x, top: y, width, height }}
+            tier={tileTier(width, height)}
+            previewOnSelect={previewOnSelect}
+            capped={capped}
+          />
+        ))}
+        {preview && previewedTopic && (
+          <div
+            className="pointer-events-none absolute right-2 left-2"
+            style={
+              preview.above
+                ? { bottom: layoutHeight - preview.anchor }
+                : { top: preview.anchor }
+            }
+          >
+            <TopicPreviewCard topic={previewedTopic} total={total} />
+          </div>
+        )}
+      </section>
     </div>
   );
 }
