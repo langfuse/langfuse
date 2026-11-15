@@ -700,7 +700,7 @@ function TopicsWorkspaceContent({
                   mobileActionButtons: mapStatus ? (
                     <span
                       title={mapStatus}
-                      className="text-muted-foreground block max-w-[50vw] truncate text-sm"
+                      className="ph-no-capture text-muted-foreground block max-w-[50vw] truncate text-sm"
                     >
                       {mapStatus}
                     </span>
