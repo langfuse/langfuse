@@ -213,4 +213,33 @@ describe("fillTimeSeriesGaps - numeric weighted aggregation (#20232)", () => {
     expect(points[2]!.avg1).toBe(0.75);
     expect(points[2]!.count).toBe(20);
   });
+
+  it("populates precomputed placeholder template for empty multi-unit buckets", () => {
+    const data = [
+      {
+        timestamp: new Date("2026-10-31T00:00:00.000Z"),
+        score: 0.5,
+        count: 5,
+        category: "evaluation",
+      },
+      {
+        timestamp: new Date("2026-11-04T00:00:00.000Z"),
+        score: 0.9,
+        count: 10,
+        category: "evaluation",
+      },
+    ];
+
+    const points = fillTimeSeriesGaps(
+      data,
+      new Date("2026-10-31T00:00:00.000Z"),
+      new Date("2026-11-04T00:00:00.000Z"),
+      { count: 2, unit: "day" },
+    );
+
+    const emptyBucket = points.find((p) => p.score === null);
+    expect(emptyBucket).toBeDefined();
+    expect(emptyBucket!.count).toBeNull();
+    expect(emptyBucket!.category).toBe("evaluation");
+  });
 });

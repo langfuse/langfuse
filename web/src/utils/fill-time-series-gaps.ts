@@ -50,6 +50,40 @@ export function fillTimeSeriesGaps<
 }
 
 /**
+ * Precompute placeholder values for missing buckets once to avoid O(N * Gaps) scans.
+ */
+function buildPlaceholderTemplate<
+  T extends { timestamp: Date; [key: string]: unknown },
+>(data: T[]): Record<string, unknown> {
+  const template: Record<string, unknown> = {};
+  if (data.length === 0) return template;
+
+  const allKeys = new Set<string>();
+  for (const item of data) {
+    for (const k of Object.keys(item)) {
+      allKeys.add(k);
+    }
+  }
+
+  for (const key of allKeys) {
+    if (key === "timestamp") continue;
+    const isNumeric = data.some(
+      (item) => typeof (item as any)[key] === "number",
+    );
+    if (isNumeric) {
+      template[key] = null;
+    } else {
+      const firstDefined = data.find(
+        (item) => (item as any)[key] !== undefined,
+      );
+      template[key] = firstDefined ? (firstDefined as any)[key] : null;
+    }
+  }
+
+  return template;
+}
+
+/**
  * Fill gaps in single-unit data (ClickHouse already returned correct bucket timestamps)
  */
 function fillGapsInSingleUnitData<
@@ -128,6 +162,8 @@ function fillGapsInSingleUnitData<
     ...data.map((d) => toStartOfInterval(d.timestamp).getTime()),
   );
 
+  const placeholderTemplate = buildPlaceholderTemplate(data);
+
   let currentTime = normalizedFrom;
 
   while (currentTime.getTime() <= lastDataTimestamp) {
@@ -137,37 +173,10 @@ function fillGapsInSingleUnitData<
     if (existingData) {
       filledData.push(existingData);
     } else {
-      // Create a placeholder with null values
-      const placeholder = { timestamp: new Date(timestamp) } as T;
-
-      // Safety check: only iterate if data array is not empty
-      if (data.length > 0) {
-        const allKeys = new Set<string>();
-        for (const item of data) {
-          for (const k of Object.keys(item)) {
-            allKeys.add(k);
-          }
-        }
-
-        for (const key of allKeys) {
-          if (key === "timestamp") continue;
-          const isNumeric = data.some(
-            (item) => typeof (item as any)[key] === "number",
-          );
-          if (isNumeric) {
-            (placeholder as any)[key] = null;
-          } else {
-            const firstDefined = data.find(
-              (item) => (item as any)[key] !== undefined,
-            );
-            (placeholder as any)[key] = firstDefined
-              ? (firstDefined as any)[key]
-              : null;
-          }
-        }
-      }
-
-      filledData.push(placeholder);
+      filledData.push({
+        ...placeholderTemplate,
+        timestamp: new Date(timestamp),
+      } as T);
     }
 
     currentTime = addInterval(currentTime);
@@ -272,42 +281,19 @@ function aggregateIntoMultiUnitBuckets<
     }
   }
 
+  // Precompute placeholder template once for empty buckets
+  const placeholderTemplate = buildPlaceholderTemplate(data);
+
   // Aggregate each bucket
   const aggregatedData: T[] = [];
 
   for (const bucket of buckets) {
     if (bucket.dataPoints.length === 0) {
       // Empty bucket - create placeholder
-      const placeholder = { timestamp: bucket.end } as T;
-
-      // Safety check: only iterate if data array is not empty
-      if (data.length > 0) {
-        const allKeys = new Set<string>();
-        for (const item of data) {
-          for (const k of Object.keys(item)) {
-            allKeys.add(k);
-          }
-        }
-
-        for (const key of allKeys) {
-          if (key === "timestamp") continue;
-          const isNumeric = data.some(
-            (item) => typeof (item as any)[key] === "number",
-          );
-          if (isNumeric) {
-            (placeholder as any)[key] = null;
-          } else {
-            const firstDefined = data.find(
-              (item) => (item as any)[key] !== undefined,
-            );
-            (placeholder as any)[key] = firstDefined
-              ? (firstDefined as any)[key]
-              : null;
-          }
-        }
-      }
-
-      aggregatedData.push(placeholder);
+      aggregatedData.push({
+        ...placeholderTemplate,
+        timestamp: bucket.end,
+      } as T);
     } else {
       // Aggregate values - average numeric fields (weighted by score counts when available), use bucket end as timestamp
       const aggregated = { timestamp: bucket.end } as T;
