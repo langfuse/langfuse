@@ -276,6 +276,53 @@ jobs:
           cp .env.dev.example .env
       - name: lint web
         run: pnpm turbo run lint --filter=!ai-gateway --filter=!@langfuse/native --concurrency=3 -- --threads=4
+
+  typecheck:
+    name: typecheck and native checks
+    timeout-minutes: 12
+    runs-on: blacksmith-16vcpu-ubuntu-2404
+    needs:
+      - pre-job
+    # pre-job only runs on push events; everywhere else it resolves as skipped
+    # at run creation, so this job starts immediately (!cancelled() lets the
+    # condition evaluate despite the skipped dependency).
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          install: false
+          cache: false
+      - name: Use Node.js ${{ env.NODE_VERSION }} without cache
+        if: env.CI_CACHE_ALLOWED != 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # zizmor: ignore[cache-poisoning] typecheck job dependency cache only; no released artifacts are built or published from this cached state
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+      - name: Setup Turbo remote cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        continue-on-error: true
+        uses: rharkor/caching-for-turbo@2238fae6eb9a9936f92356f54cb3660200d105e7 # v2.5.1
+        with:
+          provider: github
+          cache-prefix: ${{ runner.os }}-${{ runner.arch }}-node${{ env.NODE_VERSION }}-turbo-ci-
+          use-relative-cache-path: true
+          server-port: "0"
+      - name: install dependencies
+        run: |
+          pnpm i
+      - name: Load default env
+        run: |
+          cp .env.dev.example .env
       # Rust packages lint separately (ai-gateway in its own job).
       - name: lint native addon (rustfmt, clippy)
         run: pnpm --filter @langfuse/native run lint
@@ -1738,6 +1785,7 @@ jobs:
         pre-job,
         llm-connections-filter,
         lint,
+        typecheck,
         knip,
         format-check,
         tests-ai-gateway,
