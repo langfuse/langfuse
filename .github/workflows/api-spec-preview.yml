@@ -45,11 +45,15 @@ jobs:
       - name: Checkout pull request
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          filter: blob:none
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Checkout API reference
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          filter: blob:none
+          fetch-depth: 0
           repository: langfuse/langfuse-api-reference
           ref: 7affc0ed7208985f60dab27c9ad0c1751ec4d2f8
           path: api-reference

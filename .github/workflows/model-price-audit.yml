@@ -60,6 +60,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          filter: blob:none
           fetch-depth: 0
           persist-credentials: false
 
@@ -692,6 +693,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          filter: blob:none
+          fetch-depth: 0
           persist-credentials: false
       - name: Notify Slack
         uses: ./.github/actions/notify-slack-failure

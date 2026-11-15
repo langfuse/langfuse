@@ -23,17 +23,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          filter: blob:none
           ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 2
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Checkout Claude Code security review action
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          filter: blob:none
           repository: anthropics/claude-code-security-review
           ref: 0c6a49f1fa56a1d472575da86a94dbc1edb78eda
           path: .github/actions/claude-code-security-review
-          fetch-depth: 1
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Patch Claude API validation model

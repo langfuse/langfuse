@@ -90,6 +90,8 @@ jobs:
       - name: Checkout base local actions
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          filter: blob:none
+          fetch-depth: 0
           persist-credentials: false
           ref: ${{ github.event.pull_request.base.sha }}
           sparse-checkout: .github/actions
@@ -190,6 +192,8 @@ jobs:
       - name: Checkout PR head (build context)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          filter: blob:none
+          fetch-depth: 0
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha }}
 
@@ -299,6 +303,8 @@ jobs:
       - name: Checkout PR head (build context)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          filter: blob:none
+          fetch-depth: 0
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha }}
 
@@ -433,6 +439,8 @@ jobs:
       - name: Checkout base local actions
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          filter: blob:none
+          fetch-depth: 0
           persist-credentials: false
           ref: ${{ github.event.pull_request.base.sha }}
           sparse-checkout: .github/actions
