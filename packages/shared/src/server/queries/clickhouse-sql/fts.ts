@@ -189,13 +189,16 @@ export const FTS_OPERATOR_DESCRIPTORS = {
       encodedValueParam,
       hasToken,
     }) => {
-      const tokenPrefilter = hasToken
-        ? `${ftsMetadataArrayTokenConjunct(valuesColumn, valueParam)} AND `
-        : "";
+      const equalityCondition = (param: string) => {
+        const tokenPrefilter = hasToken
+          ? `${ftsMetadataArrayTokenConjunct(valuesColumn, param)} AND `
+          : "";
+        return `${tokenPrefilter}${valueAccessor} = ${param}`;
+      };
       const encodedMatch = encodedValueParam
-        ? ` OR ${valueAccessor} = ${encodedValueParam}`
+        ? ` OR (${equalityCondition(encodedValueParam)})`
         : "";
-      return `${hasKey} AND ${tokenPrefilter}(${valueAccessor} = ${valueParam}${encodedMatch})`;
+      return `${hasKey} AND ((${equalityCondition(valueParam)})${encodedMatch})`;
     },
   },
   [FTS_MATCH_OPERATOR]: {
