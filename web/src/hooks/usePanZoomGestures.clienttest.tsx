@@ -239,6 +239,51 @@ describe("pan and zoom device input", () => {
     expect(onZoom).toHaveBeenCalledOnce();
   });
 
+  it("leaves one-finger touch to native scrolling and zooms on a two-finger touch pinch", () => {
+    const element = surface();
+    const onZoom = vi.fn();
+    const onPan = vi.fn();
+    const onInteractionEnd = vi.fn();
+    renderHook(() =>
+      usePanZoomGestures({
+        target: { current: element },
+        pointerPan: false,
+        touchPinch: true,
+        onPan,
+        onZoom,
+        onInteractionEnd,
+      }),
+    );
+    const touch = (type: string, ...points: [number, number][]) => {
+      const event = new Event(type, { cancelable: true });
+      Object.defineProperty(event, "touches", {
+        value: points.map(([clientX, clientY]) => ({ clientX, clientY })),
+      });
+      element.dispatchEvent(event);
+      return event;
+    };
+    const scroll = touch("touchmove", [120, 140]);
+    expect(scroll.defaultPrevented).toBe(false);
+    expect(touch("touchstart", [120, 140], [220, 140]).defaultPrevented).toBe(
+      true,
+    );
+    expect(touch("touchmove", [120, 140], [320, 160]).defaultPrevented).toBe(
+      true,
+    );
+    flushFrame();
+    // 100px → ~223.6px about the original midpoint, then a 50/10px translation.
+    expect(onZoom).toHaveBeenCalledExactlyOnceWith(
+      Math.log2(Math.hypot(200, 20) / 100),
+      { x: 0.375, y: 0.5 },
+    );
+    expect(onPan).toHaveBeenCalledExactlyOnceWith(50, 10);
+    touch("touchend", [120, 140]);
+    expect(onInteractionEnd).toHaveBeenCalledOnce();
+    touch("touchmove", [120, 200]);
+    flushFrame();
+    expect(onPan).toHaveBeenCalledOnce();
+  });
+
   it("continues pinching when three contacts become a different pair", () => {
     const element = surface();
     const onZoom = vi.fn();

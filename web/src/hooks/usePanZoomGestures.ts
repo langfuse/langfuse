@@ -20,7 +20,12 @@ const WHEEL_END_MS = 120;
  * pointer capture and animation-frame batching share one mount/cleanup lifecycle.
  */
 export function usePanZoomGestures(options: Options) {
-  const { target, enabled = true, pointerPan = true } = options;
+  const {
+    target,
+    enabled = true,
+    pointerPan = true,
+    touchPinch = false,
+  } = options;
   const live = useRef(options);
   live.current = options;
   const [isDragging, setIsDragging] = useState(false);
@@ -114,10 +119,67 @@ export function usePanZoomGestures(options: Options) {
     const onPress = () => {
       suppressClick.current = false;
     };
+    // Touch events keep firing once the browser scrolls, unlike pointer events,
+    // so one finger stays native scrolling and a second finger turns it into a pinch.
+    let touchPair: { distance: number; midpoint: Point } | null = null;
+    const onTouch = (event: TouchEvent) => {
+      if (event.touches.length !== 2) {
+        if (!touchPair) return;
+        touchPair = null;
+        if (pending.current.frame) {
+          cancelAnimationFrame(pending.current.frame);
+          flushRef.current();
+        }
+        live.current.onInteractionEnd?.();
+        return;
+      }
+      const [a, b] = [event.touches[0], event.touches[1]];
+      const previous = touchPair;
+      touchPair = {
+        distance: Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY),
+        midpoint: {
+          x: (a.clientX + b.clientX) / 2,
+          y: (a.clientY + b.clientY) / 2,
+        },
+      };
+      // An uncancelable move means the browser is already scrolling the midpoint.
+      const owned = event.cancelable;
+      if (owned) event.preventDefault();
+      live.current.onInteractionStart?.();
+      if (!previous || event.type !== "touchmove") return;
+      const queued = pending.current;
+      if (previous.distance > 0 && touchPair.distance > 0) {
+        queued.levels += Math.log2(touchPair.distance / previous.distance);
+        if (!queued.frame) {
+          queued.anchor = panZoomAnchor(
+            previous.midpoint,
+            element.getBoundingClientRect(),
+          );
+        }
+      }
+      if (owned) {
+        queued.dxPx += touchPair.midpoint.x - previous.midpoint.x;
+        queued.dyPx += touchPair.midpoint.y - previous.midpoint.y;
+      }
+      if (!queued.frame) {
+        queued.frame = requestAnimationFrame(() => flushRef.current());
+      }
+    };
+    const touchTypes = ["touchstart", "touchmove", "touchend", "touchcancel"];
+    if (touchPinch) {
+      for (const type of touchTypes) {
+        element.addEventListener(type, onTouch as EventListener, {
+          passive: false,
+        });
+      }
+    }
     element.addEventListener("wheel", onWheel, { passive: false });
     element.addEventListener("pointerdown", onPress, { capture: true });
     element.addEventListener("click", onClick, { capture: true });
     return () => {
+      for (const type of touchTypes) {
+        element.removeEventListener(type, onTouch as EventListener);
+      }
       element.removeEventListener("wheel", onWheel);
       element.removeEventListener("pointerdown", onPress, { capture: true });
       element.removeEventListener("click", onClick, { capture: true });
@@ -134,7 +196,7 @@ export function usePanZoomGestures(options: Options) {
       press.current = null;
       pinch.current = null;
     };
-  }, [target, enabled]);
+  }, [target, enabled, touchPinch]);
 
   const onPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
     if (!enabled || !pointerPan) return;
@@ -281,4 +343,6 @@ type Options = {
   enabled?: boolean;
   /** A surface with its own marquee gestures can reuse just the wheel adapter. */
   pointerPan?: boolean;
+  /** Two-finger touch pinch for a natively scrolling surface; pair with `pointerPan: false`. */
+  touchPinch?: boolean;
 };
