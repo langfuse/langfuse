@@ -252,6 +252,16 @@ function TopicTile(props: TopicTileProps) {
   );
 }
 
+function layoutTiles(topics: TopicDisplay[], width: number, height: number) {
+  return layoutTreemap(layoutWeights(topics), width, height, TILE_GAP).map(
+    (tile) => ({
+      ...tile,
+      item: tile.item.topic,
+      capped: tile.item.count < tile.item.topic.count,
+    }),
+  );
+}
+
 export function TopicTreemap({
   total,
   topics,
@@ -271,18 +281,7 @@ export function TopicTreemap({
   const scrollRef = useRef<HTMLDivElement>(null);
   const layoutHeight = viewport ? viewport.height * zoom : 0;
   const tiles =
-    viewport && content
-      ? layoutTreemap(
-          layoutWeights(topics),
-          content.width,
-          layoutHeight,
-          TILE_GAP,
-        ).map((tile) => ({
-          ...tile,
-          item: tile.item.topic,
-          capped: tile.item.count < tile.item.topic.count,
-        }))
-      : [];
+    viewport && content ? layoutTiles(topics, content.width, layoutHeight) : [];
   const previewedTopic = topics.find((topic) => topic.id === preview?.id);
   const visibleHeight = viewport?.height ?? 0;
   function visibleMiddle(topicId: string) {
@@ -307,15 +306,35 @@ export function TopicTreemap({
   function zoomAt(levels: number, anchor: PanZoomAnchor) {
     const scroller = scrollRef.current;
     const next = Math.min(MAX_ZOOM, Math.max(1, zoom * 2 ** levels));
-    if (!scroller || !viewport || next === zoom) return;
-    // Keep the point under the pinch or cursor at the same height on screen.
-    const offset = anchor.y * scroller.clientHeight;
-    const fraction = (scroller.scrollTop + offset) / layoutHeight;
+    const section = contentRef.current;
+    if (!scroller || !section || !viewport || !content || next === zoom) return;
+    const bounds = scroller.getBoundingClientRect();
+    const origin = section.getBoundingClientRect();
+    const x = bounds.left + anchor.x * bounds.width - origin.left;
+    const y = bounds.top + anchor.y * bounds.height - origin.top;
+    const nextHeight = viewport.height * next;
+    // The layout reflows at the new height, so follow the tile under the point, not its height fraction.
+    const aimed = tiles.find(
+      (tile) =>
+        x >= tile.x &&
+        x <= tile.x + tile.width &&
+        y >= tile.y &&
+        y <= tile.y + tile.height,
+    );
+    const moved =
+      aimed &&
+      layoutTiles(topics, content.width, nextHeight).find(
+        (tile) => tile.item.id === aimed.item.id,
+      );
+    const nextY =
+      aimed && moved
+        ? moved.y + ((y - aimed.y) / aimed.height) * moved.height
+        : (y / layoutHeight) * nextHeight;
     flushSync(() => {
       setZoom(next);
       setPreview(null);
     });
-    scroller.scrollTop = fraction * viewport.height * next - offset;
+    scroller.scrollTop += nextY - y;
   }
   function scrollWithPinch(dxPx: number, dyPx: number) {
     const scroller = scrollRef.current;
@@ -385,7 +404,7 @@ export function TopicTreemap({
         </div>
       )}
       {zoom > 1 && (
-        <div className="absolute top-2 right-2 rounded-md shadow-sm">
+        <div className="absolute top-2 right-2">
           <Button
             text="Reset zoom"
             icon={ZoomOut}

@@ -288,18 +288,29 @@ export const ZoomTreemap = meta.story({
     await expect(
       canvas.queryByRole("button", { name: "Reset zoom" }),
     ).not.toBeInTheDocument();
+    const start = tile.getBoundingClientRect();
+    const at = {
+      clientX: start.left + start.width / 2,
+      clientY: start.top + start.height / 2,
+    };
     tile.dispatchEvent(
       new WheelEvent("wheel", {
         bubbles: true,
         cancelable: true,
         ctrlKey: true,
         deltaY: -40,
-        clientX: tile.getBoundingClientRect().left,
-        clientY: tile.getBoundingClientRect().top,
+        ...at,
       }),
     );
     // One zoom level doubles the treemap height, so every tile gets about twice the area.
     await waitFor(() => expect(area() / before).toBeGreaterThan(1.8));
+    // The layout reflows, but the tile under the cursor stays in view.
+    const zoomed = tile.getBoundingClientRect();
+    const visible = canvas
+      .getByRole("region", { name: "Topics" })
+      .parentElement!.getBoundingClientRect();
+    await expect(zoomed.bottom).toBeGreaterThan(visible.top);
+    await expect(zoomed.top).toBeLessThan(visible.bottom);
     await userEvent.click(canvas.getByRole("button", { name: "Reset zoom" }));
     await waitFor(() => expect(area()).toBeCloseTo(before, 0));
     await expect(
