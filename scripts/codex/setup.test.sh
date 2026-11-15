@@ -13,6 +13,7 @@ trap cleanup EXIT
 
 repo_copy="$tmpdir/repo"
 pnpm_log="$tmpdir/pnpm.log"
+sudo_log="$tmpdir/sudo.log"
 
 mkdir -p "$tmpdir/bin" "$repo_copy/scripts/agents" "$repo_copy/scripts/codex"
 
@@ -43,7 +44,18 @@ cat <<'EOF' > "$tmpdir/bin/uname"
 echo Linux
 EOF
 
-chmod +x "$tmpdir/bin/corepack" "$tmpdir/bin/pnpm" "$tmpdir/bin/uname"
+cat <<'EOF' > "$tmpdir/bin/docker"
+#!/usr/bin/env bash
+exit 1
+EOF
+
+cat <<EOF > "$tmpdir/bin/sudo"
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$sudo_log"
+cat > /dev/null
+EOF
+
+chmod +x "$tmpdir/bin/corepack" "$tmpdir/bin/pnpm" "$tmpdir/bin/uname" "$tmpdir/bin/docker" "$tmpdir/bin/sudo"
 
 assert_file_contains() {
   local file_path="$1"
@@ -116,6 +128,13 @@ assert_file_contains \
   cd "$repo_copy"
   PATH="$tmpdir/bin:$PATH" bash scripts/agents/setup-cursor-cloud.sh
 )
+
+if [[ -d /etc/apt/apt.conf.d ]]; then
+  assert_file_contains \
+    "$sudo_log" \
+    "tee /etc/apt/apt.conf.d/80-playwright-network-retries" \
+    "Cursor Cloud setup should configure apt through the isolated sudo stub"
+fi
 
 assert_file_contains \
   "$pnpm_log" \
