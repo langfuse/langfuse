@@ -259,7 +259,11 @@ export function TopicTreemap({
   onSelectTopic,
   previewOnSelect = false,
 }: TopicTreemapProps) {
-  const [previewedId, setPreviewedId] = useState<string | null>(null);
+  /** `anchor` is the visible middle of the tapped tile, in px from the top of the scroll window. */
+  const [preview, setPreview] = useState<{
+    id: string;
+    anchor: number;
+  } | null>(null);
   const [zoom, setZoom] = useState(1);
   const [viewportRef, viewport] = useElementSize<HTMLDivElement>();
   // Measured separately: a scrollbar narrows the tiles, not the viewport.
@@ -279,21 +283,26 @@ export function TopicTreemap({
           capped: tile.item.count < tile.item.topic.count,
         }))
       : [];
-  const previewedTopic = topics.find((topic) => topic.id === previewedId);
-  const previewedTile = tiles.find((tile) => tile.item.id === previewedId);
-  const previewAnchor = previewedTile
-    ? previewedTile.y + previewedTile.height / 2
-    : 0;
+  const previewedTopic = topics.find((topic) => topic.id === preview?.id);
+  const visibleHeight = viewport?.height ?? 0;
+  function visibleMiddle(topicId: string) {
+    const tile = tiles.find((candidate) => candidate.item.id === topicId);
+    if (!tile) return 0;
+    const scrollTop = scrollRef.current?.scrollTop ?? 0;
+    const top = Math.max(tile.y, scrollTop);
+    const bottom = Math.min(tile.y + tile.height, scrollTop + visibleHeight);
+    return (top + bottom) / 2 - scrollTop;
+  }
   function selectTopic(topicId: string) {
-    if (previewOnSelect && previewedId !== topicId) {
-      setPreviewedId(topicId);
+    if (previewOnSelect && preview?.id !== topicId) {
+      setPreview({ id: topicId, anchor: visibleMiddle(topicId) });
       return;
     }
-    setPreviewedId(null);
+    setPreview(null);
     onSelectTopic(topicId);
   }
   function dismissPreview(event: MouseEvent<HTMLElement>) {
-    if (event.target === event.currentTarget) setPreviewedId(null);
+    if (event.target === event.currentTarget) setPreview(null);
   }
   function zoomAt(levels: number, anchor: PanZoomAnchor) {
     const scroller = scrollRef.current;
@@ -302,7 +311,10 @@ export function TopicTreemap({
     // Keep the point under the pinch or cursor at the same height on screen.
     const offset = anchor.y * scroller.clientHeight;
     const fraction = (scroller.scrollTop + offset) / layoutHeight;
-    flushSync(() => setZoom(next));
+    flushSync(() => {
+      setZoom(next);
+      setPreview(null);
+    });
     scroller.scrollTop = fraction * viewport.height * next - offset;
   }
   function scrollWithPinch(dxPx: number, dyPx: number) {
@@ -313,6 +325,7 @@ export function TopicTreemap({
   }
   function resetZoom() {
     setZoom(1);
+    setPreview(null);
   }
   usePanZoomGestures({
     target: scrollRef,
@@ -349,7 +362,7 @@ export function TopicTreemap({
                   ? item.tiles.big
                   : item.tiles.small
               }
-              isSelected={item.id === (previewedId ?? selectedTopicId)}
+              isSelected={item.id === (preview?.id ?? selectedTopicId)}
               onSelect={selectTopic}
               rect={{ left: x, top: y, width, height }}
               tier={tileTier(width, height)}
@@ -357,20 +370,20 @@ export function TopicTreemap({
               capped={capped}
             />
           ))}
-          {previewedTopic && (
-            <div
-              className="pointer-events-none absolute right-2 left-2"
-              style={
-                previewAnchor > layoutHeight / 2
-                  ? { bottom: layoutHeight - previewAnchor }
-                  : { top: previewAnchor }
-              }
-            >
-              <TopicPreviewCard topic={previewedTopic} total={total} />
-            </div>
-          )}
         </section>
       </div>
+      {preview && previewedTopic && (
+        <div
+          className="pointer-events-none absolute right-2 left-2"
+          style={
+            preview.anchor > visibleHeight / 2
+              ? { bottom: visibleHeight - preview.anchor }
+              : { top: preview.anchor }
+          }
+        >
+          <TopicPreviewCard topic={previewedTopic} total={total} />
+        </div>
+      )}
       {zoom > 1 && (
         <div className="absolute top-2 right-2 rounded-md shadow-sm">
           <Button

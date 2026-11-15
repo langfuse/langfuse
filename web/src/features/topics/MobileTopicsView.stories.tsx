@@ -349,6 +349,41 @@ export const PreviewTreemap = meta.story({
   },
 });
 
+export const PreviewZoomedTreemap = meta.story({
+  name: "(Test) A zoomed treemap previews inside the visible area",
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("tab", { name: "Visualize" }));
+    const billing = canvas.getByRole("button", {
+      name: `${topics[0].name}, 21 traces`,
+    });
+    const scroller = canvas.getByRole("region", { name: "Topics" })
+      .parentElement as HTMLElement;
+    const before = billing.getBoundingClientRect().height;
+    billing.dispatchEvent(
+      new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        ctrlKey: true,
+        deltaY: -80,
+      }),
+    );
+    await waitFor(() =>
+      expect(billing.getBoundingClientRect().height).toBeGreaterThan(
+        before * 3,
+      ),
+    );
+    scroller.scrollTop = 0;
+    await userEvent.click(billing);
+    const visible = scroller.getBoundingClientRect();
+    const preview = (
+      await canvas.findByRole("tooltip")
+    ).getBoundingClientRect();
+    await expect(preview.top).toBeGreaterThanOrEqual(visible.top);
+    await expect(preview.top).toBeLessThan(visible.bottom);
+  },
+});
+
 export const PreviewGrid = meta.story({
   name: "(Test) Preview grid items, select traces, and clear topics",
   args: {
