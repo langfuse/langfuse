@@ -56,10 +56,21 @@ const LangGraphMessageSchema = z
         ) &&
         data.every(
           (msg) =>
-            msg.type === undefined && msg.additional_kwargs === undefined,
+            msg.type === undefined &&
+            msg.additional_kwargs === undefined &&
+            !isLangGraphToolDefinition(msg) &&
+            !(
+              Array.isArray(msg.tool_calls) &&
+              msg.tool_calls.some(
+                (toolCall: unknown) =>
+                  typeof toolCall === "object" &&
+                  toolCall !== null &&
+                  "args" in toolCall,
+              )
+            ),
         );
-      // Plain reasoning arrays belong to the OpenAI adapter, while
-      // LangChain-specific fields retain their existing interpretation.
+      // Plain reasoning arrays belong to the OpenAI adapter; native LangChain
+      // fields and tool-definition messages need LangGraph conversion.
       if (hasPlainOpenAiReasoning && openAIAdapter.detect({ data }))
         return false;
 

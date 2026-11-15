@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { langgraphAdapter, normalizeInput } from "@langfuse/shared";
+import {
+  langgraphAdapter,
+  normalizeInput,
+  normalizeOutput,
+} from "@langfuse/shared";
 
 describe("LangGraph Adapter", () => {
   it("should detect LangGraph via various metadata patterns", () => {
@@ -97,6 +101,81 @@ describe("LangGraph Adapter", () => {
     expect(result.data[2].content).toBe(
       '{"temperature":72,"conditions":"sunny"}',
     );
+  });
+
+  it("preserves native tool-call args with reasoning through default normalization", () => {
+    const messages = [
+      {
+        role: "assistant",
+        content: "Searching.",
+        reasoning_content: "Search for related records.",
+        tool_calls: [{ id: "c1", name: "search", args: { query: "example" } }],
+      },
+    ];
+
+    for (const result of [
+      normalizeInput(messages),
+      normalizeOutput(messages),
+      normalizeInput({ messages }),
+      normalizeOutput({ messages }),
+    ]) {
+      expect(result.success).toBe(true);
+      expect(result.data?.[0].tool_calls).toEqual([
+        {
+          id: "c1",
+          name: "search",
+          arguments: '{"query":"example"}',
+        },
+      ]);
+    }
+  });
+
+  it("preserves native tool definitions with reasoning through default normalization", () => {
+    const definition = {
+      name: "search",
+      description: "Search records.",
+      parameters: {
+        type: "object",
+        properties: { query: { type: "string" } },
+        required: ["query"],
+      },
+    };
+    const messages = [
+      {
+        role: "tool",
+        content: { type: "function", function: definition },
+      },
+      {
+        role: "assistant",
+        content: "Searching.",
+        reasoning_content: "Search for related records.",
+        tool_calls: [
+          {
+            id: "c1",
+            type: "function",
+            function: { name: "search", arguments: '{"query":"example"}' },
+          },
+        ],
+      },
+    ];
+
+    for (const result of [
+      normalizeInput(messages),
+      normalizeOutput(messages),
+      normalizeInput({ messages }),
+      normalizeOutput({ messages }),
+    ]) {
+      expect(result.success).toBe(true);
+      expect(result.data).toHaveLength(1);
+      expect(result.data?.[0]).toMatchObject({
+        role: "assistant",
+        content: "Searching.",
+        tools: [definition],
+        tool_calls: [
+          { id: "c1", name: "search", arguments: '{"query":"example"}' },
+        ],
+      });
+    }
   });
 
   it("should filter out tool definitions and attach them to messages", () => {
