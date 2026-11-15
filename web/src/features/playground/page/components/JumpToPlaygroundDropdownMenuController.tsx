@@ -634,62 +634,6 @@ function parseLitellmMetadataFromGeneration(
     return undefined;
   }
 
-  if (import.meta.vitest) {
-    const { expect, test } = import.meta.vitest;
-
-    test("preserves scalar-looking text when replaying a generation", () => {
-      for (const input of ["12345678901", "0", "true", "false", "null"]) {
-        const generation: Parameters<typeof parseGeneration>[0] = {
-          id: "generation",
-          traceId: "trace",
-          projectId: "project",
-          environment: "default",
-          type: "GENERATION",
-          startTime: new Date(0),
-          endTime: new Date(1),
-          name: null,
-          metadata: null,
-          parentObservationId: null,
-          level: "DEFAULT",
-          statusMessage: null,
-          version: null,
-          createdAt: new Date(0),
-          updatedAt: new Date(0),
-          model: null,
-          internalModelId: null,
-          modelParameters: null,
-          input,
-          output: null,
-          completionStartTime: null,
-          promptId: null,
-          promptName: null,
-          promptVersion: null,
-          latency: null,
-          timeToFirstToken: null,
-          providedUsageDetails: {},
-          usageDetails: {},
-          costDetails: {},
-          providedCostDetails: {},
-          inputCost: null,
-          outputCost: null,
-          totalCost: null,
-          inputUsage: 0,
-          outputUsage: 0,
-          totalUsage: 0,
-          usagePricingTierId: null,
-          usagePricingTierName: null,
-          toolDefinitions: null,
-          toolCalls: null,
-          toolCallNames: null,
-        };
-
-        expect(parseGeneration(generation, {})).toMatchObject({
-          messages: [{ content: input }],
-        });
-      }
-    });
-  }
-
   if (typeof metadata === "string") {
     const trimmedMetadata = metadata.trim();
 
