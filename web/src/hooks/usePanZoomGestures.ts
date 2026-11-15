@@ -123,7 +123,12 @@ export function usePanZoomGestures(options: Options) {
     // so one finger stays native scrolling and a second finger turns it into a pinch.
     let touchPair: { distance: number; midpoint: Point } | null = null;
     const onTouch = (event: TouchEvent) => {
-      if (event.touches.length !== 2) {
+      // `touches` lists every finger on the screen, not just those on the surface.
+      const fingers = Array.from(event.touches).filter(
+        (touch) =>
+          touch.target instanceof Node && element.contains(touch.target),
+      );
+      if (fingers.length !== 2) {
         if (!touchPair) return;
         touchPair = null;
         if (pending.current.frame) {
@@ -133,7 +138,7 @@ export function usePanZoomGestures(options: Options) {
         live.current.onInteractionEnd?.();
         return;
       }
-      const [a, b] = [event.touches[0], event.touches[1]];
+      const [a, b] = fingers;
       const previous = touchPair;
       touchPair = {
         distance: Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY),

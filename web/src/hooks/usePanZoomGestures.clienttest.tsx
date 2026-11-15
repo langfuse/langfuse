@@ -254,16 +254,27 @@ describe("pan and zoom device input", () => {
         onInteractionEnd,
       }),
     );
-    const touch = (type: string, ...points: [number, number][]) => {
+    const touch = (
+      type: string,
+      ...points: [number, number, EventTarget?][]
+    ) => {
       const event = new Event(type, { cancelable: true });
       Object.defineProperty(event, "touches", {
-        value: points.map(([clientX, clientY]) => ({ clientX, clientY })),
+        value: points.map(([clientX, clientY, target = element]) => ({
+          clientX,
+          clientY,
+          target,
+        })),
       });
       element.dispatchEvent(event);
       return event;
     };
     const scroll = touch("touchmove", [120, 140]);
     expect(scroll.defaultPrevented).toBe(false);
+    // A finger resting outside the surface does not make a pinch.
+    const resting = touch("touchstart", [120, 140], [10, 10, document.body]);
+    expect(resting.defaultPrevented).toBe(false);
+    touch("touchend");
     expect(touch("touchstart", [120, 140], [220, 140]).defaultPrevented).toBe(
       true,
     );
