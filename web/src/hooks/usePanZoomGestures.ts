@@ -57,7 +57,7 @@ export function usePanZoomGestures(options: Options) {
     // Zoom about the previous midpoint, then translate to the new one. Both
     // callbacks read the caller's current camera, including the prior callback.
     if (levels !== 0) live.current.onZoom(levels, anchor);
-    if (dxPx !== 0 || dyPx !== 0) live.current.onPan(dxPx, dyPx);
+    if (dxPx !== 0 || dyPx !== 0) live.current.onPan?.(dxPx, dyPx);
   };
   const flushRef = useRef(flush);
   flushRef.current = flush;
@@ -142,26 +142,18 @@ export function usePanZoomGestures(options: Options) {
           y: (a.clientY + b.clientY) / 2,
         },
       };
-      // An uncancelable move means the browser is already scrolling the midpoint.
-      const owned = event.cancelable;
-      if (owned) event.preventDefault();
+      // Uncancelable once the browser is already scrolling; the pinch still zooms.
+      if (event.cancelable) event.preventDefault();
       live.current.onInteractionStart?.();
       if (!previous || event.type !== "touchmove") return;
+      if (previous.distance === 0 || touchPair.distance === 0) return;
       const queued = pending.current;
-      if (previous.distance > 0 && touchPair.distance > 0) {
-        queued.levels += Math.log2(touchPair.distance / previous.distance);
-        if (!queued.frame) {
-          queued.anchor = panZoomAnchor(
-            previous.midpoint,
-            element.getBoundingClientRect(),
-          );
-        }
-      }
-      if (owned) {
-        queued.dxPx += touchPair.midpoint.x - previous.midpoint.x;
-        queued.dyPx += touchPair.midpoint.y - previous.midpoint.y;
-      }
+      queued.levels += Math.log2(touchPair.distance / previous.distance);
       if (!queued.frame) {
+        queued.anchor = panZoomAnchor(
+          previous.midpoint,
+          element.getBoundingClientRect(),
+        );
         queued.frame = requestAnimationFrame(() => flushRef.current());
       }
     };
@@ -334,7 +326,8 @@ export function usePanZoomGestures(options: Options) {
 type Point = { x: number; y: number };
 type Options = {
   target: RefObject<HTMLElement | null>;
-  onPan: (dxPx: number, dyPx: number) => void;
+  /** Omit on a surface that only zooms. */
+  onPan?: (dxPx: number, dyPx: number) => void;
   /** One level doubles scale; anchor coordinates are fractions of the surface. */
   onZoom: (levels: number, anchor: PanZoomAnchor) => void;
   canPan?: (dxPx: number, dyPx: number) => boolean;
@@ -343,6 +336,6 @@ type Options = {
   enabled?: boolean;
   /** A surface with its own marquee gestures can reuse just the wheel adapter. */
   pointerPan?: boolean;
-  /** Two-finger touch pinch for a natively scrolling surface; pair with `pointerPan: false`. */
+  /** Two-finger touch pinch that only zooms, for a natively scrolling surface; pair with `pointerPan: false`. */
   touchPinch?: boolean;
 };

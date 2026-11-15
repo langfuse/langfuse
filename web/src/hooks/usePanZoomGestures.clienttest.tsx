@@ -271,17 +271,16 @@ describe("pan and zoom device input", () => {
       true,
     );
     flushFrame();
-    // 100px → ~223.6px about the original midpoint, then a 50/10px translation.
+    // 100px → ~223.6px about the original midpoint; the moved midpoint does not pan.
     expect(onZoom).toHaveBeenCalledExactlyOnceWith(
       Math.log2(Math.hypot(200, 20) / 100),
       { x: 0.375, y: 0.5 },
     );
-    expect(onPan).toHaveBeenCalledExactlyOnceWith(50, 10);
     touch("touchend", [120, 140]);
     expect(onInteractionEnd).toHaveBeenCalledOnce();
     touch("touchmove", [120, 200]);
     flushFrame();
-    expect(onPan).toHaveBeenCalledOnce();
+    expect(onPan).not.toHaveBeenCalled();
   });
 
   it("continues pinching when three contacts become a different pair", () => {

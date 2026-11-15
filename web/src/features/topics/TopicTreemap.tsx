@@ -358,8 +358,6 @@ export function TopicTreemap({
     pointerPan: false,
     touchPinch: true,
     canPan: () => false,
-    // A pinch only zooms; the treemap itself never pans.
-    onPan: () => {},
     onZoom: zoomAt,
   });
   return (
@@ -370,6 +368,7 @@ export function TopicTreemap({
         zoom > 1 ? "overflow-y-auto" : "overflow-y-hidden",
       )}
     >
+      {/* Inset by the padding, so it measures the visible tile area at any zoom. */}
       <div
         ref={viewportRef}
         aria-hidden
