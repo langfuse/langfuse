@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [{ "command": "langfuse-cursor-hook", "timeout": 10 }],
+    "sessionEnd": [{ "command": "langfuse-cursor-hook", "timeout": 60 }],
+    "beforeSubmitPrompt": [{ "command": "langfuse-cursor-hook", "timeout": 60 }],
+    "preToolUse": [{ "command": "langfuse-cursor-hook", "timeout": 10 }],
+    "postToolUse": [{ "command": "langfuse-cursor-hook", "timeout": 10 }],
+    "postToolUseFailure": [{ "command": "langfuse-cursor-hook", "timeout": 10 }],
+    "subagentStart": [{ "command": "langfuse-cursor-hook", "timeout": 10 }],
+    "subagentStop": [{ "command": "langfuse-cursor-hook", "timeout": 10 }],
+    "beforeShellExecution": [{ "command": "langfuse-cursor-hook", "timeout": 10 }],
+    "afterShellExecution": [{ "command": "langfuse-cursor-hook", "timeout": 10 }],
+    "beforeMCPExecution": [{ "command": "langfuse-cursor-hook", "timeout": 10 }],
+    "afterMCPExecution": [{ "command": "langfuse-cursor-hook", "timeout": 10 }],
+    "beforeReadFile": [{ "command": "langfuse-cursor-hook", "timeout": 10 }],
+    "afterFileEdit": [{ "command": "langfuse-cursor-hook", "timeout": 10 }],
+    "afterAgentResponse": [{ "command": "langfuse-cursor-hook", "timeout": 10 }],
+    "afterAgentThought": [{ "command": "langfuse-cursor-hook", "timeout": 10 }],
+    "preCompact": [{ "command": "langfuse-cursor-hook", "timeout": 10 }],
+    "stop": [{ "command": "langfuse-cursor-hook", "timeout": 60 }]
+  }
+}
