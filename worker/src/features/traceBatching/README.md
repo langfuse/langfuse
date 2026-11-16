@@ -1,20 +1,20 @@
 # Internal cloud trace readiness and dispatch
 
-Ingestion tracks when a trace goes idle, and a dispatcher enqueues ready traces in batches to `events-dispatch-queue`. The [events-dispatch consumer](../eventsDispatch/eventsDispatch.ts) reads each batch from ClickHouse, stores the transcript and enqueues one job per routed consumer (Topics, trace transcript evals). `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED` and `QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED` choose which service runs each role; the dispatcher runs only when events dispatch is enabled.
+Ingestion tracks when a trace goes idle, and a dispatcher enqueues ready traces in batches to `events-dispatch-queue`. The [events-dispatch consumer](../eventsDispatch/eventsDispatch.ts) reads each batch from ClickHouse, stores the transcript and enqueues one job per routed consumer (Topics, trace transcript evals). `LANGFUSE_EVENTS_DISPATCH_ENABLED` (cloud only, default off) turns on the whole pipeline; `QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED` picks the service that runs the consumer and the dispatcher (worker-cpu).
 
-- **Trace dispatch** (`LANGFUSE_TRACE_DISPATCH_ENABLED`, default off): tracks rule-matched traces in the `{trace-dispatch:<shard>}` maps: ingestion → Redis → dispatcher → events-dispatch jobs. A trace is admitted when it passes its project's rule sampling or the experiment sampling (`LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE`); both use the same deterministic trace-ID value.
+- **Trace dispatch** tracks rule-matched traces in the `{trace-dispatch:<shard>}` maps: ingestion → Redis → dispatcher → events-dispatch jobs. A trace is admitted when it passes its project's rule sampling or the experiment sampling (`LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL`); both use the same deterministic trace-ID value.
 
 ## Recording trace-rule selections
 
-Requires cloud, `LANGFUSE_TRACE_DISPATCH_ENABLED=true` and direct events-table
-writes. `LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE` selects the experiment cohort by
+Requires cloud, `LANGFUSE_EVENTS_DISPATCH_ENABLED=true` and direct events-table
+writes. `LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL` selects the experiment cohort by
 trace ID. Recording atomically updates keys under `{trace-dispatch:<shard>:<suffix>}`:
 
-| Map              | Contents                                                                                                                                                   | Retention                                                               |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `b:<trace-hash>` | One string key per trace: MessagePack `[minStart, maxStart, serializedEventBytes]`, including nonmatches; raw 16-byte SHA-256 prefix of the JSON identity. | Native TTL, bounds TTL after the latest activity (24 hours by default). |
-| `pending`        | `{ revision, rules, failed_cnt }` with deduplicated rules; JSON `[projectId, traceId]` identity.                                                           | Eligible for cleanup two hours past due.                                |
-| `due`            | Same JSON identity, scored by Redis arrival time plus project idle interval.                                                                               | Eligible for cleanup two hours past due.                                |
+| Map              | Contents                                                                                                                                                   | Retention                                                                                            |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `b:<trace-hash>` | One string key per trace: MessagePack `[minStart, maxStart, serializedEventBytes]`, including nonmatches; raw 16-byte SHA-256 prefix of the JSON identity. | Native TTL, `LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS` after the latest activity (12 hours by default). |
+| `pending`        | `{ revision, rules, failed_cnt }` with deduplicated rules; JSON `[projectId, traceId]` identity.                                                           | Eligible for cleanup two hours past due.                                                             |
+| `due`            | Same JSON identity, scored by Redis arrival time plus project idle interval.                                                                               | Eligible for cleanup two hours past due.                                                             |
 
 The tag suffix is the smallest base36 value whose CRC16 slot sits mid-range in the
 shard's share of the 16384 slots, so shards spread evenly over cluster masters with
@@ -35,12 +35,11 @@ ClickHouse flush. `eventUpdateCount` is a TypeScript measurement only, not Redis
 
 ### Recording experiment
 
-Example (10% of traces, four-hour retention; Topics projects additionally admit their rule's sample):
+Example (10% of traces; Topics projects additionally admit their rule's sample):
 
 ```env
-LANGFUSE_TRACE_DISPATCH_ENABLED=true
-LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE=0.1
-LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS=14400000
+LANGFUSE_EVENTS_DISPATCH_ENABLED=true
+LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL=0.1
 ```
 
 Sampling defaults to zero.
@@ -90,13 +89,14 @@ Redis CPU/memory. Queue metrics remain under `langfuse.trace_batch`.
 
 ## Controls
 
-[worker env](../../env.ts) owns defaults and limits. Gates live in [traceBatchSampling.ts](traceBatchSampling.ts):
+The gate and the tuning constants live in [eventsDispatch/config.ts](../eventsDispatch/config.ts) (`traceDispatchConfig`, `eventsDispatchConfig`); the env surface is:
 
-- `LANGFUSE_TRACE_DISPATCH_ENABLED` turns on trace recording.
-- `LANGFUSE_EVENTS_DISPATCH_ENABLED` (requires trace dispatch) enables the dispatcher's target queue. `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED` runs the dispatcher; `QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED` (worker-cpu only) consumes `events-dispatch-queue` with `LANGFUSE_EVENTS_DISPATCH_CONCURRENCY` jobs. Its ClickHouse read settings (60 s limit, 2 threads, block size 512), pending-bytes cap and upload concurrency are constants in `eventsDispatch.ts`, not env vars.
-- `LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES` (experiment) also reads and stores traces without consumer rules, counted as `trace_outcomes{outcome:stored}`; consumers are still enqueued only where rules apply.
-- `LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE` admits an additional experiment cohort; it does not make those traces eligible for Topics or input capture.
-- A project's `tracing_readiness_settings.trace_idle_ms` overrides `LANGFUSE_TRACE_BATCH_IDLE_MS`. Saving refreshes its cache; failed reads fall back to the deployment value.
+- `LANGFUSE_EVENTS_DISPATCH_ENABLED` turns on recording at ingestion, the dispatcher and the consumer.
+- `QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED` (worker-cpu only) consumes `events-dispatch-queue`, one job at a time, and runs the dispatcher. Its ClickHouse read settings (60 s limit, 2 threads, block size 512), pending-bytes cap and upload concurrency are constants in `eventsDispatch.ts`.
+- `LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE` (default 120) caps traces per events-dispatch job.
+- `LANGFUSE_EVENTS_DISPATCH_STORE_ALL_EXPERIMENTAL` also reads and stores traces without consumer rules, counted as `trace_outcomes{outcome:stored}`; consumers are still enqueued only where rules apply.
+- `LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL` admits an additional experiment cohort; it does not make those traces eligible for Topics or input capture.
+- A project's `tracing_readiness_settings.trace_idle_ms` overrides the default idle time (10 minutes, 2 in DEV). Saving refreshes its cache; failed reads fall back to the default.
 
 Cloud guards cover intake, dispatcher execution, worker registration, processing and shared queue access. Rule sampling is deterministic by trace ID. Consumers recheck active Topics settings and the rule's sample before reading ClickHouse.
 
@@ -155,7 +155,7 @@ Serialized event bytes differ from the reader's `input_bytes`, `output_bytes` an
 
 Both strategies close a job before its summed estimates would exceed
 `LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES` or
-`LANGFUSE_TRACE_BATCH_MAX_BATCH_SERIALIZED_BYTES`, in addition to the trace cap.
+`eventsDispatchConfig.maxBatchBytes` (64 MiB), in addition to the trace cap.
 Locality treats an over-budget slice like one past its time envelope, and
 partials coalesce only within the budget. A single trace always forms a job, so
 a trace heavier than the budget runs alone. Locality packs traces above half of
@@ -166,7 +166,7 @@ distributions show how close jobs run to the budget.
 
 After hydration, a trace whose retained read-window estimates exceed
 `LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES` or
-`LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES` is never queued or read. The
+`eventsDispatchConfig.maxTraceBytes` (50 MiB) is never queued or read. The
 dispatcher acknowledges it like a dispatched trace, increments
 `langfuse.trace_batch.excluded_traces` tagged with
 `reason:event_updates|serialized_bytes` and `strategy`, and logs
@@ -181,7 +181,7 @@ Events dispatch streams full `events_full` payloads through `getTraceBatchEventS
 
 ## Input storage
 
-Events dispatch stores the assembled transcript once per routed trace, then enqueues one job per consumer with the IDs of every rule routed to it. The Topics job resolves those rules' facets at their current version and reads the object back; events dispatch makes no model calls. Each S3 request is bounded by `LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_REQUEST_TIMEOUT_MS` (default 10 seconds) so a stalled request cannot hold a slot indefinitely; the SDK attempt budget stays at its default. An oversized input or failed upload counts the trace as failed and enqueues nothing for it.
+Events dispatch stores the assembled transcript once per routed trace, then enqueues one job per consumer with the IDs of every rule routed to it. The Topics job resolves those rules' facets at their current version and reads the object back; events dispatch makes no model calls. Each S3 request is bounded to 10 seconds so a stalled request cannot hold a slot indefinitely; the SDK attempt budget stays at its default. An oversized input or failed upload counts the trace as failed and enqueues nothing for it.
 
 The shared `server/traceBatch` module uses the event-upload bucket and credentials:
 

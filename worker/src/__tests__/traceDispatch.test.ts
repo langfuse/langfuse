@@ -56,6 +56,10 @@ import {
   isTopicsProcessingActive,
   type TopicsModels,
 } from "@langfuse/shared/topics/server";
+import {
+  traceDispatchConfig,
+  eventsDispatchConfig,
+} from "../features/eventsDispatch/config";
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const original =
@@ -579,8 +583,8 @@ describe("trace batch selection", () => {
 
 describe("trace-dispatch shard tags", () => {
   it("places each shard's hash tag in its own share of the cluster slot space", () => {
-    const originalCount = env.LANGFUSE_TRACE_BATCH_SHARD_COUNT;
-    env.LANGFUSE_TRACE_BATCH_SHARD_COUNT = 16;
+    const originalCount = traceDispatchConfig.shardCount;
+    traceDispatchConfig.shardCount = 16;
     try {
       const tags = Array.from({ length: 16 }, (_, shard) =>
         getRecordingTag(shard),
@@ -593,7 +597,7 @@ describe("trace-dispatch shard tags", () => {
         expect(offset).toBeLessThan(640);
       });
     } finally {
-      env.LANGFUSE_TRACE_BATCH_SHARD_COUNT = originalCount;
+      traceDispatchConfig.shardCount = originalCount;
     }
   });
 });
@@ -602,25 +606,21 @@ describe("trace micro-batch scheduling with Redis", () => {
   // Recent base for start times; the dispatcher excludes starts over a year old.
   const T0 = Date.now() - 2 * 60 * 60_000;
   // Recording tags depend on the shard count; these tests run with one shard.
-  const originalShards = env.LANGFUSE_TRACE_BATCH_SHARD_COUNT;
-  env.LANGFUSE_TRACE_BATCH_SHARD_COUNT = 1;
+  const originalShards = traceDispatchConfig.shardCount;
+  traceDispatchConfig.shardCount = 1;
   const recordingKeys = getRecordingKeys(0);
   const recordingBoundsKeys = new Map<number, Buffer[]>();
-  const originalDispatchEnabled = env.LANGFUSE_TRACE_DISPATCH_ENABLED;
   const originalEventsDispatchEnabled = env.LANGFUSE_EVENTS_DISPATCH_ENABLED;
   const originalDispatchSamplingRate =
-    env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE;
-  const originalBoundsTtl = env.LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS;
+    env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL;
+  const originalBoundsTtl = traceDispatchConfig.boundsTtlMs;
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-  const originalDispatcherEnabled = env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED;
   const originalStrategy = env.LANGFUSE_TRACE_BATCH_STRATEGY;
-  const originalMaxSize = env.LANGFUSE_TRACE_BATCH_MAX_SIZE;
-  const originalMaxBatchBytes =
-    env.LANGFUSE_TRACE_BATCH_MAX_BATCH_SERIALIZED_BYTES;
-  const originalPendingTtl = env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS;
-  const originalIdle = env.LANGFUSE_TRACE_BATCH_IDLE_MS;
-  const originalMaxTraceBytes =
-    env.LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES;
+  const originalMaxSize = env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE;
+  const originalMaxBatchBytes = eventsDispatchConfig.maxBatchBytes;
+  const originalPendingTtl = traceDispatchConfig.pendingTtlMs;
+  const originalIdle = traceDispatchConfig.defaultIdleMs;
+  const originalMaxTraceBytes = eventsDispatchConfig.maxTraceBytes;
   let queue: Queue<TQueueJobTypes[QueueName.EventsDispatch]>;
   let connection: NonNullable<ReturnType<typeof createNewRedisInstance>>;
   const runners: TraceBatchDispatcher[] = [];
@@ -687,7 +687,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     for (const keys of recordingBoundsKeys.values())
       await client().del(...keys);
     recordingBoundsKeys.clear();
-    for (let shard = 0; shard < env.LANGFUSE_TRACE_BATCH_SHARD_COUNT; shard++) {
+    for (let shard = 0; shard < traceDispatchConfig.shardCount; shard++) {
       const recording = getRecordingKeys(shard);
       await client().del(recording.due, recording.pending);
     }
@@ -705,20 +705,18 @@ describe("trace micro-batch scheduling with Redis", () => {
       "warm-up",
     ])
       topicsProjects.add(projectId);
-    env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
     // vitest loads the root .env; pin the dispatcher's target queue.
     env.LANGFUSE_EVENTS_DISPATCH_ENABLED = "true";
-    env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE = 0;
-    env.LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS = 86_400_000;
+    env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL = 0;
+    traceDispatchConfig.boundsTtlMs = 86_400_000;
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-    env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED = "true";
     env.LANGFUSE_TRACE_BATCH_STRATEGY = "project";
-    env.LANGFUSE_TRACE_BATCH_MAX_SIZE = 60;
-    env.LANGFUSE_TRACE_BATCH_IDLE_MS = 600_000;
-    env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 7_200_000;
-    env.LANGFUSE_TRACE_BATCH_SHARD_COUNT = 1;
+    env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE = 60;
+    traceDispatchConfig.defaultIdleMs = 600_000;
+    traceDispatchConfig.pendingTtlMs = 7_200_000;
+    traceDispatchConfig.shardCount = 1;
     // The unset default is 2 minutes on DEV; pin the production idle time.
-    env.LANGFUSE_TRACE_BATCH_IDLE_MS = 600_000;
+    traceDispatchConfig.defaultIdleMs = 600_000;
     await clearReadiness();
     const redisConnection = createNewRedisInstance();
     if (!redisConnection) throw new Error("Redis is required for this test");
@@ -739,19 +737,18 @@ describe("trace micro-batch scheduling with Redis", () => {
     vi.mocked(shared.getTracingReadinessSettings).mockReset();
     await clearReadiness();
     topicsProjects.clear();
-    env.LANGFUSE_TRACE_DISPATCH_ENABLED = originalDispatchEnabled;
     env.LANGFUSE_EVENTS_DISPATCH_ENABLED = originalEventsDispatchEnabled;
-    env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE = originalDispatchSamplingRate;
-    env.LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS = originalBoundsTtl;
+    env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL =
+      originalDispatchSamplingRate;
+    traceDispatchConfig.boundsTtlMs = originalBoundsTtl;
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
-    env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED = originalDispatcherEnabled;
     env.LANGFUSE_TRACE_BATCH_STRATEGY = originalStrategy;
-    env.LANGFUSE_TRACE_BATCH_MAX_SIZE = originalMaxSize;
-    env.LANGFUSE_TRACE_BATCH_MAX_BATCH_SERIALIZED_BYTES = originalMaxBatchBytes;
-    env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = originalPendingTtl;
-    env.LANGFUSE_TRACE_BATCH_IDLE_MS = originalIdle;
-    env.LANGFUSE_TRACE_BATCH_SHARD_COUNT = originalShards;
-    env.LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES = originalMaxTraceBytes;
+    env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE = originalMaxSize;
+    eventsDispatchConfig.maxBatchBytes = originalMaxBatchBytes;
+    traceDispatchConfig.pendingTtlMs = originalPendingTtl;
+    traceDispatchConfig.defaultIdleMs = originalIdle;
+    traceDispatchConfig.shardCount = originalShards;
+    eventsDispatchConfig.maxTraceBytes = originalMaxTraceBytes;
     await queue.obliterate({ force: true });
     await queue.close();
     connection.disconnect();
@@ -797,14 +794,14 @@ describe("trace micro-batch scheduling with Redis", () => {
     });
     const expiry = Number(await client().pexpiretime(key));
     expect(expiry).toBeGreaterThanOrEqual(
-      before + env.LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS,
+      before + traceDispatchConfig.boundsTtlMs,
     );
     // PX is set from the Redis clock, which can run ahead of Date.now().
     const [seconds, microseconds] = await client().time();
     expect(expiry).toBeLessThanOrEqual(
       Number(seconds) * 1_000 +
         Math.floor(Number(microseconds) / 1_000) +
-        env.LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS,
+        traceDispatchConfig.boundsTtlMs,
     );
     expect(await client().pexpiretime(idleKey)).toBe(idleExpiry);
     const record = JSON.parse(
@@ -818,17 +815,16 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(record.revision).not.toBe("old");
     expect(
       Number(await client().zscore(recordingKeys.due, identity)),
-    ).toBeGreaterThanOrEqual(before + env.LANGFUSE_TRACE_BATCH_IDLE_MS);
+    ).toBeGreaterThanOrEqual(before + traceDispatchConfig.defaultIdleMs);
   });
 
   it("uses the capped project idle time when recording matches and later nonmatching spans", async () => {
     vi.mocked(shared.getTracingReadinessSettings).mockResolvedValue({
       traceIdleMs: 120_000,
     });
-    env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 90_000;
+    traceDispatchConfig.pendingTtlMs = 90_000;
     const idleMs =
-      env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS -
-      env.LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS;
+      traceDispatchConfig.pendingTtlMs - traceDispatchConfig.dispatchIntervalMs;
     const identity = member("project", "recorded");
     // Due times come from the Redis clock, which can differ from Date.now().
     const redisNow = async () => {
@@ -981,7 +977,6 @@ describe("trace micro-batch scheduling with Redis", () => {
       recordingKeys.due,
       ...expired.flatMap(({ traceId }) => [1, member("project", traceId)]),
     );
-    env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED = "false";
     // Each write reclaims at most 100 pending entries.
     for (let i = 0; i < 2; i++) {
       await recordActivity("project", [
@@ -1005,9 +1000,9 @@ describe("trace micro-batch scheduling with Redis", () => {
     vi.spyOn(shared, "getTracingReadinessSettings").mockResolvedValue({
       traceIdleMs: null,
     });
-    env.LANGFUSE_TRACE_BATCH_IDLE_MS = 200;
-    env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 100;
-    env.LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS = 100;
+    traceDispatchConfig.defaultIdleMs = 200;
+    traceDispatchConfig.pendingTtlMs = 100;
+    traceDispatchConfig.boundsTtlMs = 100;
     await recordActivity("project", [
       { ...spanActivity("first"), ruleIds: ["rule"] },
     ]);
@@ -1015,7 +1010,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       await client().call("PEXPIRETIME", recordingKeys.due),
     );
     expect(deadline).toBeGreaterThan(Date.now());
-    env.LANGFUSE_TRACE_BATCH_IDLE_MS = 1;
+    traceDispatchConfig.defaultIdleMs = 1;
     await recordActivity("project", [
       { ...spanActivity("second"), ruleIds: ["rule"] },
     ]);
@@ -1035,7 +1030,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   });
 
   it("dispatches recording maps across shards with bounded reads", async () => {
-    env.LANGFUSE_TRACE_BATCH_SHARD_COUNT = 2;
+    traceDispatchConfig.shardCount = 2;
     const traces = Array.from(
       { length: 60 },
       (_, index) => `recorded-${index}`,
@@ -1216,7 +1211,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       expect(dues[i] - dues[i - 1]).toBe(15_000);
     for (const key of [recordingKeys.pending, recordingKeys.due])
       expect(await client().pexpiretime(key)).toBe(
-        dues[3] + env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
+        dues[3] + traceDispatchConfig.pendingTtlMs,
       );
   });
 
@@ -1344,8 +1339,8 @@ describe("trace micro-batch scheduling with Redis", () => {
     "uses recorded bytes without event counts for %s batch and trace limits",
     async (strategy) => {
       env.LANGFUSE_TRACE_BATCH_STRATEGY = strategy;
-      env.LANGFUSE_TRACE_BATCH_MAX_BATCH_SERIALIZED_BYTES = 100;
-      env.LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES = 100;
+      eventsDispatchConfig.maxBatchBytes = 100;
+      eventsDispatchConfig.maxTraceBytes = 100;
       await recordActivity("project", [
         { ...spanActivity("first", T0 + 1_000, 60), ruleIds: ["rule"] },
         { ...spanActivity("second", T0 + 1_000, 60), ruleIds: ["rule"] },
@@ -1379,7 +1374,7 @@ describe("trace micro-batch scheduling with Redis", () => {
 
   it("distributes skewed projects by trace and dispatches every shard with single-slot scripts", async () => {
     const shardCount = 64;
-    env.LANGFUSE_TRACE_BATCH_SHARD_COUNT = shardCount;
+    traceDispatchConfig.shardCount = shardCount;
     const evaluate = client().eval.bind(client());
     const slots: string[][] = [];
     vi.spyOn(client(), "eval").mockImplementation(((
@@ -1444,7 +1439,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   it.each(["project", "locality"] as const)(
     "packs one project's traces across readiness shards with %s",
     async (strategy) => {
-      env.LANGFUSE_TRACE_BATCH_SHARD_COUNT = 16;
+      traceDispatchConfig.shardCount = 16;
       env.LANGFUSE_TRACE_BATCH_STRATEGY = strategy;
       const traceIds = Array.from(
         { length: 60 },
@@ -1475,8 +1470,8 @@ describe("trace micro-batch scheduling with Redis", () => {
   );
 
   it("acknowledges enqueued batches by shard across a hydration window", async () => {
-    env.LANGFUSE_TRACE_BATCH_SHARD_COUNT = 16;
-    env.LANGFUSE_TRACE_BATCH_MAX_SIZE = 30;
+    traceDispatchConfig.shardCount = 16;
+    env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE = 30;
     const traceIds = Array.from(
       { length: 120 },
       (_, index) => `trace-${index}`,
@@ -1680,7 +1675,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   });
 
   it("excludes oversized and too-old traces from dispatch, removes their state, and reports their IDs", async () => {
-    env.LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES = 1_000;
+    eventsDispatchConfig.maxTraceBytes = 1_000;
     const warn = vi.spyOn(shared.logger, "warn");
     await recordActivity("project", [
       matched("large-input", T0 + 1_000_000, 5_000),
@@ -1727,7 +1722,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   });
 
   it("does not report an oversized trace as excluded when new activity keeps it pending", async () => {
-    env.LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES = 1_000;
+    eventsDispatchConfig.maxTraceBytes = 1_000;
     const warn = vi.spyOn(shared.logger, "warn");
     await recordActivity("project", [
       matched("reactivated", T0 + 1_000_000, 5_000),
@@ -1945,7 +1940,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       [0.5, 478],
       [1, 1_000],
     ]) {
-      env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE = rate;
+      env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL = rate;
       // "project" is an active Topics project whose rule samples everything.
       expect(await resolveTraceBatchSamplingRate("project")).toBe(1);
       const samplingRate = await resolveTraceBatchSamplingRate("other-project");
@@ -1958,11 +1953,11 @@ describe("trace micro-batch scheduling with Redis", () => {
       previous = selected;
     }
     // A rule sampling below the experiment rate admits the experiment share.
-    env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE = 0.5;
+    env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL = 0.5;
     vi.mocked(getTopicsProcessingSampling).mockResolvedValueOnce(0.25);
     expect(await resolveTraceBatchSamplingRate("project")).toBe(0.5);
     // A rule sampling above it admits the rule's share.
-    env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE = 0.1;
+    env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL = 0.1;
     vi.mocked(getTopicsProcessingSampling).mockResolvedValueOnce(0.25);
     expect(await resolveTraceBatchSamplingRate("project")).toBe(0.25);
     // An unreadable gate falls back to the Topics allowlist.
@@ -1974,8 +1969,8 @@ describe("trace micro-batch scheduling with Redis", () => {
       "langfuse.trace_batch.topics_gate_failures",
       1,
     );
-    // Nothing is admitted without trace dispatch.
-    env.LANGFUSE_TRACE_DISPATCH_ENABLED = "false";
+    // Nothing is admitted without events dispatch.
+    env.LANGFUSE_EVENTS_DISPATCH_ENABLED = "false";
     expect(await resolveTraceBatchSamplingRate("project")).toBe(0);
   });
 
@@ -1985,7 +1980,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   ])(
     "dispatches cross-project batches capped at $maxSize",
     async ({ maxSize, sizes, projectCounts }) => {
-      env.LANGFUSE_TRACE_BATCH_MAX_SIZE = maxSize;
+      env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE = maxSize;
       const traces = Array.from(
         { length: 201 },
         (_, index) => `trace-${index}`,
@@ -2335,7 +2330,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   });
 
   it("cleans an expired backlog in bounded pages without queueing expired traces", async () => {
-    env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 60_000;
+    traceDispatchConfig.pendingTtlMs = 60_000;
     const expired = Array.from({ length: 10_001 }, (_, i) =>
       matched(`expired-${i}`),
     );
@@ -2373,7 +2368,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   });
 
   it("acknowledges successful jobs when a later enqueue fails", async () => {
-    env.LANGFUSE_TRACE_BATCH_MAX_SIZE = 1;
+    env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE = 1;
     await recordActivity("project", [matched("first"), matched("second")]);
     await makeDue("project", "first", "second");
     const add = queue.add.bind(queue);
@@ -2422,7 +2417,7 @@ describe("trace micro-batch scheduling with Redis", () => {
 
   it("subtracts dispatcher runtime from the next delay and catches up after an overrun", async () => {
     let clock = Date.now();
-    const interval = env.LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS;
+    const interval = traceDispatchConfig.dispatchIntervalMs;
     let elapsed = Math.floor(interval / 2);
     vi.spyOn(Date, "now").mockImplementation(() => clock);
     const range = client().zrange.bind(client());
@@ -2474,7 +2469,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   });
 
   it("allows only one dispatcher and waits for its in-flight enqueue before shutdown", async () => {
-    env.LANGFUSE_TRACE_BATCH_MAX_SIZE = 1;
+    env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE = 1;
     await recordActivity("project", [matched("trace")]);
     await makeDue("project", "trace");
     await recordActivity("other", [matched("trace")]);

@@ -14,7 +14,6 @@ import {
 } from "../evaluation/scheduleEvals";
 import {
   isTraceBatchSampled,
-  isTraceDispatchEnabled,
   resolveTraceBatchSamplingRate,
 } from "../traceBatching/traceBatchSampling";
 import {
@@ -23,6 +22,7 @@ import {
   type OtelMediaPresence,
 } from "../otel-media/processOtelMedia";
 import type { IngestionService } from "../../services/IngestionService";
+import { isEventsDispatchEnabled } from "../eventsDispatch/config";
 
 type ProcessOtelEventsParams = {
   processor: OtelIngestionProcessor;
@@ -64,7 +64,7 @@ export async function processOtelEvents({
 
   // Trace recording requires direct events-table writes.
   const traceBatchSamplingRate =
-    shouldWriteToEventsTable && isTraceDispatchEnabled()
+    shouldWriteToEventsTable && isEventsDispatchEnabled()
       ? await resolveTraceBatchSamplingRate(projectId)
       : 0;
   const includeTraceTranscriptRules = eventInputs.some(({ traceId }) =>

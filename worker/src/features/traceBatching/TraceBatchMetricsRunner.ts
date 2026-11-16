@@ -4,11 +4,13 @@ import {
   recordGauge,
   redis,
 } from "@langfuse/shared/src/server";
-import { env } from "../../env";
 import { PeriodicRunner } from "../../utils/PeriodicRunner";
 import { MEMORY_SCRIPT } from "./traceBatchReadiness";
 import { getRecordingBoundsKey, getRecordingKeys } from "./traceRuleRecording";
-import { isTraceDispatchEnabled } from "./traceBatchSampling";
+import {
+  isEventsDispatchEnabled,
+  traceDispatchConfig,
+} from "../eventsDispatch/config";
 
 const METRIC_PREFIX = "langfuse.trace_batch";
 const MEMORY_INTERVAL_MS = 60_000;
@@ -37,7 +39,7 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
   }
 
   protected async execute(): Promise<void> {
-    if (!isTraceDispatchEnabled()) return;
+    if (!isEventsDispatchEnabled()) return;
 
     const collections = [
       this.collectQueueDepth(),
@@ -106,7 +108,7 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
     const totals = [0, 0, 0, 0];
     let sampledBoundsBytes = 0;
     let sampledBoundsKeys = 0;
-    for (let shard = 0; shard < env.LANGFUSE_TRACE_BATCH_SHARD_COUNT; shard++) {
+    for (let shard = 0; shard < traceDispatchConfig.shardCount; shard++) {
       const { due, pending } = getRecordingKeys(shard);
       const values = (await redis.eval(
         MEMORY_SCRIPT,

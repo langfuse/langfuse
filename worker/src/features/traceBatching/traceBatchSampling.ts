@@ -8,13 +8,7 @@ import {
   getDeterministicSamplingValue,
   shouldSampleEvaluation,
 } from "../evaluation/deterministicSampling";
-
-export function isTraceDispatchEnabled(): boolean {
-  return (
-    Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) &&
-    env.LANGFUSE_TRACE_DISPATCH_ENABLED === "true"
-  );
-}
+import { isEventsDispatchEnabled } from "../eventsDispatch/config";
 
 /**
  * A trace is admitted when it passes its Topics rule's sampling or the
@@ -24,7 +18,7 @@ export function isTraceDispatchEnabled(): boolean {
 export async function resolveTraceBatchSamplingRate(
   projectId: string,
 ): Promise<number> {
-  if (!isTraceDispatchEnabled()) return 0;
+  if (!isEventsDispatchEnabled()) return 0;
 
   let topicsRate: number;
   try {
@@ -38,7 +32,10 @@ export async function resolveTraceBatchSamplingRate(
     });
     topicsRate = isTopicsProjectEnabled(projectId) ? 1 : 0;
   }
-  return Math.max(topicsRate, env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE);
+  return Math.max(
+    topicsRate,
+    env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL,
+  );
 }
 
 export function isTraceBatchSampled(

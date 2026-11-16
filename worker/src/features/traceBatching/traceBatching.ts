@@ -31,7 +31,6 @@ import {
   type TraceBatchWeightLimits,
   type TraceExclusionReason,
 } from "./traceBatchSelection";
-import { isTraceDispatchEnabled } from "./traceBatchSampling";
 import {
   ACKNOWLEDGE_RECORDING_SCRIPT,
   evalRecording,
@@ -39,6 +38,11 @@ import {
   getRecordingKeys,
   HYDRATE_RECORDING_SCRIPT,
 } from "./traceRuleRecording";
+import {
+  isEventsDispatchEnabled,
+  traceDispatchConfig,
+  eventsDispatchConfig,
+} from "../eventsDispatch/config";
 
 const CHUNK_SIZE = 1_000;
 // Per-shard/run candidate cap; excess stays due for the next run.
@@ -60,7 +64,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
   }
 
   protected get defaultIntervalMs(): number {
-    return env.LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS;
+    return traceDispatchConfig.dispatchIntervalMs;
   }
 
   public override stop(): void {
@@ -90,7 +94,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
   }
 
   protected async execute(): Promise<number | void> {
-    if (!isTraceDispatchEnabled() || this.stopping || this.activeDispatch)
+    if (!isEventsDispatchEnabled() || this.stopping || this.activeDispatch)
       return;
     const startedAt = Date.now();
     const dispatch = this.withLock(async () => {
@@ -144,7 +148,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       cutoff: string;
       due: number;
     }[] = [];
-    for (let shard = 0; shard < env.LANGFUSE_TRACE_BATCH_SHARD_COUNT; shard++) {
+    for (let shard = 0; shard < traceDispatchConfig.shardCount; shard++) {
       if (this.stopping) return;
       const { due, state } = getKeys(shard);
       let cutoff = "";
@@ -154,7 +158,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         const snapshot = (await evalReadiness(
           SNAPSHOT_SCRIPT,
           [due, state],
-          [env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS, cutoff],
+          [traceDispatchConfig.pendingTtlMs, cutoff],
         )) as (string | number)[];
         const [clock, , pending, ready, oldest, expired] = snapshot.map(Number);
         now = clock;
@@ -173,7 +177,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         }
       }
       if (this.stopping) return;
-      const from = `(${now - env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS}`;
+      const from = `(${now - traceDispatchConfig.pendingTtlMs}`;
       const dueMembers = await redis.zrange(
         due,
         from,
@@ -221,17 +225,13 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       maxEventUpdates: toLimit(
         env.LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES,
       ),
-      maxSerializedEventBytes: toLimit(
-        env.LANGFUSE_TRACE_BATCH_MAX_BATCH_SERIALIZED_BYTES,
-      ),
+      maxSerializedEventBytes: toLimit(eventsDispatchConfig.maxBatchBytes),
     };
     const traceWeightLimits: TraceBatchWeightLimits = {
       maxEventUpdates: toLimit(
         env.LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES,
       ),
-      maxSerializedEventBytes: toLimit(
-        env.LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES,
-      ),
+      maxSerializedEventBytes: toLimit(eventsDispatchConfig.maxTraceBytes),
     };
 
     const acknowledge = async (
@@ -343,7 +343,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         if (batch.length === 1) {
           return "singleton";
         }
-        if (batch.length === env.LANGFUSE_TRACE_BATCH_MAX_SIZE) {
+        if (batch.length === env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE) {
           return "full";
         }
         return "partial";
@@ -432,10 +432,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         for (let start = 0; start < group.length; start += REDIS_CHUNK_SIZE) {
           await this.extendLockOnProgress();
           const chunk = group.slice(start, start + REDIS_CHUNK_SIZE);
-          const args = [
-            group[0].cutoff,
-            env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
-          ];
+          const args = [group[0].cutoff, traceDispatchConfig.pendingTtlMs];
           const part = (await evalRecording(
             HYDRATE_RECORDING_SCRIPT,
             [
@@ -515,7 +512,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       const selectorStartedAt = performance.now();
       const selected = selectTraceBatches(
         selectorInput,
-        env.LANGFUSE_TRACE_BATCH_MAX_SIZE,
+        env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE,
         strategy,
         batchWeightLimits,
       );
@@ -528,7 +525,10 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       try {
         if (strategy === "project") {
           projectBatchTail = [];
-          if (selected.at(-1)?.length !== env.LANGFUSE_TRACE_BATCH_MAX_SIZE) {
+          if (
+            selected.at(-1)?.length !==
+            env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE
+          ) {
             projectBatchTail = selected.pop() ?? [];
           }
           for (const batch of selected) {
@@ -539,10 +539,11 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         }
 
         const fullBatches = selected.filter(
-          (batch) => batch.length === env.LANGFUSE_TRACE_BATCH_MAX_SIZE,
+          (batch) =>
+            batch.length === env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE,
         );
         const partialBatches = selected.filter(
-          (batch) => batch.length < env.LANGFUSE_TRACE_BATCH_MAX_SIZE,
+          (batch) => batch.length < env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE,
         );
         for (const batch of fullBatches) {
           if (this.stopping) return;
@@ -552,7 +553,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         if (this.stopping) return;
         const prepared = prepareLocalityPartials(
           partialBatches,
-          env.LANGFUSE_TRACE_BATCH_MAX_SIZE,
+          env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE,
           batchWeightLimits,
         );
         localityPartials = prepared.carry;

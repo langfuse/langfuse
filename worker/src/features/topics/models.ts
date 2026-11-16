@@ -224,7 +224,11 @@ async function topicTraceSink(
   projectId: string,
   metadata?: Record<string, unknown>,
 ) {
-  if (!env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS?.includes(projectId))
+  if (
+    !env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL?.includes(
+      projectId,
+    )
+  )
     return undefined;
   const trace = getLangfuseAITraceSinkParams({
     feature: "topics",

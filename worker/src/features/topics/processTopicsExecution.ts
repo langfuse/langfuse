@@ -41,7 +41,6 @@ import {
   topicTimeRangeSchema,
 } from "@langfuse/shared/topics";
 import { prisma } from "@langfuse/shared/src/db";
-import { env } from "../../env";
 import { nameTopicGroup, prepareTopicNamingGroup } from "./models";
 import {
   isRejectedConnection,
@@ -88,6 +87,10 @@ type FitScope = Pick<
   save: (phase: string) => Promise<void>;
 };
 type AssignmentScope = Pick<FitScope, "projectId" | "embeddingConfig">;
+
+// Admission policy for full-cohort fitting; excludes child-process and runtime overhead.
+const MAX_CLUSTERING_ROWS = 20_000;
+const MAX_CLUSTERING_BYTES = 256 * 1024 * 1024;
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "Topics processing failed.";
@@ -360,7 +363,7 @@ async function clusterFacet(
         facetRef,
         previous.id,
         previousTimeRange,
-        env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS,
+        MAX_CLUSTERING_ROWS,
       );
       const previousMemberships: {
         traceId: string;
@@ -748,8 +751,8 @@ async function updateTopics(
             execution.input.embeddingConfig,
             execution.input.timeRange,
             {
-              maxRows: env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS,
-              maxBytes: env.LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES,
+              maxRows: MAX_CLUSTERING_ROWS,
+              maxBytes: MAX_CLUSTERING_BYTES,
             },
             cohort,
           ).catch(async (error: unknown) => {
@@ -906,12 +909,9 @@ async function scheduledModels(
 const refitLimits = () => ({
   maxRows: Math.max(
     topicClusterSettings(false).minimumCount,
-    Math.floor(env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS * 0.8),
+    Math.floor(MAX_CLUSTERING_ROWS * 0.8),
   ),
-  maxBytes: Math.max(
-    1,
-    Math.floor(env.LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES * 0.8),
-  ),
+  maxBytes: Math.max(1, Math.floor(MAX_CLUSTERING_BYTES * 0.8)),
 });
 
 /**

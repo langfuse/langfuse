@@ -29,6 +29,7 @@ import {
   toLimit,
   type PendingTrace,
 } from "../traceBatching/traceBatchSelection";
+import { eventsDispatchConfig } from "../eventsDispatch/config";
 
 const DAY_MS = 86_400_000;
 const SETTLED_SHARE = 0.9;
@@ -220,9 +221,7 @@ async function dispatch(
   // The dispatcher's per-trace limits: too heavy or too old to read safely.
   const traceLimits = {
     maxEventUpdates: toLimit(env.LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES),
-    maxSerializedEventBytes: toLimit(
-      env.LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES,
-    ),
+    maxSerializedEventBytes: toLimit(eventsDispatchConfig.maxTraceBytes),
   };
   const candidates = all.filter(
     (entry) => !getTraceExclusionReason(entry, traceLimits),
@@ -235,15 +234,13 @@ async function dispatch(
     });
   const batches = selectTraceBatches(
     candidates,
-    env.LANGFUSE_TRACE_BATCH_MAX_SIZE,
+    env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE,
     "locality",
     {
       maxEventUpdates: toLimit(
         env.LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES,
       ),
-      maxSerializedEventBytes: toLimit(
-        env.LANGFUSE_TRACE_BATCH_MAX_BATCH_SERIALIZED_BYTES,
-      ),
+      maxSerializedEventBytes: toLimit(eventsDispatchConfig.maxBatchBytes),
     },
   );
   const spreadMs = spreadFor(candidates.length);
