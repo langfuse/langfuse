@@ -1095,6 +1095,27 @@ export class QueryBuilder {
     return { relationJoins, joinParams };
   }
 
+  /** `<base>.trace_id IN (ids of traces whose aggregated attributes pass `traceFilters`)`. */
+  private buildTraceAttributesSemiJoin(
+    baseTableName: string,
+    relationTableName: string,
+    traceFilters: FilterList,
+    query: QueryType,
+    projectId: string,
+  ): { sql: string; params: Record<string, unknown> } {
+    const subquery = compileEventsTraceAttributesSubquery({
+      projectId,
+      fromTimestamp: query.fromTimestamp,
+      toTimestamp: query.toTimestamp,
+    });
+    const { query: filterSql, params: filterParams } = traceFilters.apply();
+    const where = filterSql ? ` WHERE ${filterSql}` : "";
+    return {
+      sql: `${baseTableName}.trace_id IN (SELECT ${relationTableName}.id FROM (${subquery.sql}) AS ${relationTableName}${where})`,
+      params: { ...subquery.params, ...filterParams },
+    };
+  }
+
   /** The query's one pairExpand dimension, if any. */
   private pairExpandDimension(
     appliedDimensions: AppliedDimensionType[],
@@ -2284,6 +2305,41 @@ export class QueryBuilder {
       filterList,
       appliedBucketingDimension,
     );
+
+    // A trace-attribute relation that only filters becomes a semi-join: no
+    // column of it is selected, so the score only needs its trace id in the
+    // matching set. Its filters move into the subquery.
+    const outputRelationTables = this.collectRelationTables(
+      view,
+      appliedDimensions,
+      appliedMetrics,
+      new FilterList([]),
+      appliedBucketingDimension,
+    );
+    const semiJoins: string[] = [];
+    for (const relationTableName of [...relationTables]) {
+      if (
+        view.tableRelations[relationTableName]?.source !==
+          "eventsTraceAttributes" ||
+        outputRelationTables.has(relationTableName)
+      ) {
+        continue;
+      }
+      const isTraceFilter = (filter: { clickhouseTable: string }) =>
+        filter.clickhouseTable === relationTableName;
+      const semiJoin = this.buildTraceAttributesSemiJoin(
+        this.actualTableName(view),
+        relationTableName,
+        filterList.filter(isTraceFilter),
+        query,
+        projectId,
+      );
+      Object.assign(parameters, semiJoin.params);
+      semiJoins.push(semiJoin.sql);
+      filterList = filterList.filter((filter) => !isTraceFilter(filter));
+      relationTables.delete(relationTableName);
+    }
+
     if (relationTables.size > 0) {
       const { relationJoins, joinParams } = this.buildJoins(
         relationTables,
@@ -2311,6 +2367,10 @@ export class QueryBuilder {
     for (const part of whereRawParts) {
       fromClause += ` AND ${part.query}`;
       Object.assign(parameters, part.params);
+    }
+
+    for (const semiJoin of semiJoins) {
+      fromClause += ` AND ${semiJoin}`;
     }
 
     // When rootEventCondition is set, add a subquery filter to restrict rows
