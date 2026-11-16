@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import type { NextApiRequest, NextApiResponse } from "next";
+import { createMocks } from "node-mocks-http";
 import { version as uuidVersion, validate as isUuid } from "uuid";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 
@@ -35,6 +37,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import tracesHandler from "@/src/pages/api/public/traces";
 import {
   createDatasetItemForApi,
   deleteDatasetItemForApi,
@@ -303,6 +306,61 @@ describe("audit log staging", () => {
       });
       return { record, staged };
     };
+
+    it("audits a bulk trace deletion once while retaining every submitted id", async () => {
+      const { auth, orgId, projectId, publicKey } =
+        await createOrgProjectAndApiKey();
+      const { id: apiKeyId } = await prisma.apiKey.findUniqueOrThrow({
+        where: { publicKey },
+      });
+      const traceIds = Array.from({ length: 1000 }, () => randomUUID());
+      const info = vi.spyOn(logger, "info");
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "DELETE",
+        url: "/api/public/traces",
+        headers: { authorization: auth },
+        body: { traceIds },
+      });
+
+      await tracesHandler(req, res);
+
+      expect(res._getStatusCode()).toBe(200);
+      const records = await prisma.auditLog.findMany({
+        where: { projectId },
+      });
+      stagedIds.push(
+        ...records.map((record) =>
+          deriveAuditLogEventId(record.id, record.createdAt),
+        ),
+      );
+      expect(records).toHaveLength(1);
+      expect(records[0]).toMatchObject({
+        type: "API_KEY",
+        apiKeyId,
+        orgId,
+        projectId,
+        resourceType: "project",
+        resourceId: projectId,
+        action: "deleteTraces",
+        before: JSON.stringify({ traceIds }),
+      });
+
+      const { record, staged } = await findRecordAndStagedEvent(projectId);
+      expect(convertAuditLogStagingRowToClickhouse(staged)).toMatchObject({
+        actor_type: "API_KEY",
+        api_key_id: apiKeyId,
+        org_id: orgId,
+        project_id: projectId,
+        resource_type: "project",
+        resource_id: projectId,
+        action: "deleteTraces",
+        before: record.before,
+      });
+      const actorLines = info.mock.calls.filter(([message]) =>
+        String(message).startsWith("Audit log:"),
+      );
+      expect(actorLines).toHaveLength(1);
+    });
 
     it("omits dataset item payloads from both audit sinks while preserving versions", async () => {
       const { orgId, projectId } = await createOrgProjectAndApiKey();
