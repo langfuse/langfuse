@@ -143,14 +143,9 @@ impl ProtocolCapture {
     }
 }
 
-/// The generation's usage as Langfuse ingests it: projected by its API format,
-/// then corrected for the provider that served it.
-pub(crate) fn langfuse_usage_details(
-    api_format: ApiFormat,
-    provider: Option<&str>,
-    usage: &Value,
-) -> Option<Value> {
-    let projected = match api_format {
+/// The generation's usage projected by its API format.
+pub(crate) fn project_usage(api_format: ApiFormat, usage: &Value) -> Option<Value> {
+    match api_format {
         // Decisions reports usage in the Responses shape.
         ApiFormat::OpenAiResponses | ApiFormat::OpenAiDecisions => {
             openai_responses::project_usage(usage)
@@ -158,12 +153,7 @@ pub(crate) fn langfuse_usage_details(
         ApiFormat::OpenAiChatCompletions => openai_chat_completions::project_usage(usage),
         ApiFormat::AnthropicMessages => anthropic_messages::project_usage(usage),
         ApiFormat::OpenAiEmbeddings => openai_embeddings::project_usage(usage),
-    }?;
-    Some(if api_format == ApiFormat::OpenAiChatCompletions {
-        crate::providers::usage::adjust_chat_completions_usage(provider, projected)
-    } else {
-        projected
-    })
+    }
 }
 
 /// Owned before dispatch and moved into the response body. Drop also covers a

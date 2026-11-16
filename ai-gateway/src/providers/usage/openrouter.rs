@@ -1,9 +1,19 @@
-use serde_json::{Map, Value, json};
+use serde_json::Value;
+
+use super::ProviderUsage;
+use crate::spend::UsageCostType;
+
+pub(super) fn usage(projected: Option<Value>, usage: &Value) -> ProviderUsage {
+    ProviderUsage {
+        provided_cost_details: cost_details(usage),
+        ..ProviderUsage::reported(projected)
+    }
+}
 
 /// `cost` is what `OpenRouter` charged, in USD. With a bring-your-own provider key
 /// it is only `OpenRouter`'s fee, and the provider bills the inference itself, so
 /// the total adds that upstream charge or is left to price inference without it.
-pub(super) fn cost_details(usage: &Value) -> Option<Value> {
+fn cost_details(usage: &Value) -> Option<UsageCostType> {
     let usd = |pointer: &str| {
         usage
             .pointer(pointer)?
@@ -11,7 +21,7 @@ pub(super) fn cost_details(usage: &Value) -> Option<Value> {
             .filter(|usd| usd.is_finite() && *usd >= 0.0)
     };
     let cost = usd("/cost")?;
-    let mut details = Map::new();
+    let mut details = UsageCostType::new();
     // Responses names the split input/output; Chat Completions and Messages
     // name it prompt/completions.
     for (key, pointers) in [
@@ -31,15 +41,15 @@ pub(super) fn cost_details(usage: &Value) -> Option<Value> {
         ),
     ] {
         if let Some(usd) = pointers.into_iter().find_map(usd) {
-            details.insert(key.into(), json!(usd));
+            details.insert(key.into(), usd);
         }
     }
     let total = if usage.get("is_byok").and_then(Value::as_bool) == Some(true) {
-        details.insert("openrouter_fee".into(), json!(cost));
+        details.insert("openrouter_fee".into(), cost);
         cost + usd("/cost_details/upstream_inference_cost")?
     } else {
         cost
     };
-    details.insert("total".into(), json!(total));
-    Some(Value::Object(details))
+    details.insert("total".into(), total);
+    Some(details)
 }

@@ -20,6 +20,7 @@ pub(crate) use window::{SpendLimitInterval, SpendLimitScope};
 use crate::{
     capture::InferenceFacts,
     config::SpendCountersConfig,
+    providers::usage::provider_usage,
     resolution::{
         Provider, ProviderConnection, ResolutionError, ResolvedRequestContext, SpendLimit,
         SpendLimitExceeded,
@@ -31,6 +32,7 @@ use cost::{
     calculate_model_usage_costs,
 };
 use store::{Counter, Expiry, RedisCounters};
+pub(crate) use usage::provided_usage_details;
 
 /// Windowed counters outlive their window by a day, so a request that started
 /// just before the window ended still finds its counter.
@@ -280,15 +282,14 @@ fn generation_cost(
     let inference = &facts.inference;
     let usage = inference.usage_details.as_ref()?;
     let provider = facts.metadata.get("provider").and_then(Value::as_str);
-    let usage_units = crate::capture::langfuse_usage_details(facts.api_format, provider, usage)
-        .map(|usage_details| usage::usage_units(&usage_details))
-        .unwrap_or_default();
-    let provided_cost_details = crate::providers::usage::provided_cost_details(
+    let usage = provider_usage(
+        facts.api_format,
         provider,
         usage,
         inference.provider_metadata.as_ref(),
-    )
-    .and_then(|details| usd_amounts(&details));
+    );
+    let usage_units = usage::usage_units(usage.usage_details());
+    let provided_cost_details = usage.provided_cost_details;
     let model_parameters = Value::Object(inference.model_parameters.clone());
     let metadata = Value::Object(metadata.clone());
     let costs = calculate_model_usage_costs(CalculateModelUsageCostsParams {
@@ -310,15 +311,6 @@ fn generation_cost(
             .collect(),
         provided: provided_cost_details.is_some(),
     })
-}
-
-fn usd_amounts(details: &Value) -> Option<UsageCostType> {
-    let amounts: UsageCostType = details
-        .as_object()?
-        .iter()
-        .filter_map(|(key, usd)| Some((key.clone(), usd.as_f64()?)))
-        .collect();
-    (!amounts.is_empty()).then_some(amounts)
 }
 
 #[cfg(test)]

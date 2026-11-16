@@ -406,12 +406,16 @@ fn usage_attributes(
     charged_cost_details: Option<&crate::spend::UsageCostType>,
 ) -> Vec<Value> {
     let provider = metadata.get("provider").and_then(Value::as_str);
-    let usage_details = crate::capture::langfuse_usage_details(api_format, provider, usage)
-        .map(|projected| attribute("langfuse.observation.usage_details", projected.to_string()));
-    let cost_details =
-        crate::providers::usage::provided_cost_details(provider, usage, provider_metadata)
-            .or_else(|| charged_cost_details.and_then(|cost| serde_json::to_value(cost).ok()))
-            .map(|cost| attribute("langfuse.observation.cost_details", cost.to_string()));
+    let usage =
+        crate::providers::usage::provider_usage(api_format, provider, usage, provider_metadata);
+    let usage_details = usage
+        .usage
+        .map(|usage| attribute("langfuse.observation.usage_details", usage.to_string()));
+    let cost_details = usage
+        .provided_cost_details
+        .as_ref()
+        .or(charged_cost_details)
+        .map(|cost| attribute("langfuse.observation.cost_details", json!(cost).to_string()));
     usage_details.into_iter().chain(cost_details).collect()
 }
 

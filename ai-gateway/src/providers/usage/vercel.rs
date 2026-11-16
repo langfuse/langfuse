@@ -1,9 +1,24 @@
-use serde_json::{Value, json};
+use serde_json::Value;
+
+use super::ProviderUsage;
+use crate::spend::UsageCostType;
+
+pub(super) fn usage(
+    projected: Option<Value>,
+    usage: &Value,
+    provider_metadata: Option<&Value>,
+) -> ProviderUsage {
+    ProviderUsage {
+        provided_cost_details: cost_details(usage)
+            .or_else(|| provider_metadata.and_then(gateway_cost_details)),
+        ..ProviderUsage::reported(projected)
+    }
+}
 
 /// `cost` is what Vercel debited, in USD, surcharges included. A bring-your-own
 /// provider key is billed by the provider, at the list price Vercel reports as
 /// the upstream cost or, when that is null, as `market_cost`; the total adds it.
-pub(super) fn cost_details(usage: &Value) -> Option<Value> {
+fn cost_details(usage: &Value) -> Option<UsageCostType> {
     let usd = |pointer: &str| {
         usage
             .pointer(pointer)?
@@ -16,7 +31,7 @@ pub(super) fn cost_details(usage: &Value) -> Option<Value> {
     } else {
         cost
     };
-    Some(json!({ "total": total }))
+    Some(total_only(total))
 }
 
 /// Responses and Messages report Vercel's charge only in
@@ -24,7 +39,7 @@ pub(super) fn cost_details(usage: &Value) -> Option<Value> {
 /// `cost` is the charge; on a bring-your-own key it is `0`, and `marketCost`
 /// holds the provider's list price the customer pays instead. Other or mixed
 /// credentials are left to price inference.
-pub(super) fn gateway_cost_details(provider_metadata: &Value) -> Option<Value> {
+fn gateway_cost_details(provider_metadata: &Value) -> Option<UsageCostType> {
     let gateway = provider_metadata.get("gateway")?;
     let credentials = gateway
         .pointer("/routing/modelAttempts")?
@@ -49,5 +64,9 @@ pub(super) fn gateway_cost_details(provider_metadata: &Value) -> Option<Value> {
         .parse::<f64>()
         .ok()
         .filter(|usd| usd.is_finite() && *usd >= 0.0)?;
-    Some(json!({ "total": cost }))
+    Some(total_only(cost))
+}
+
+fn total_only(usd: f64) -> UsageCostType {
+    UsageCostType::from([("total".into(), usd)])
 }

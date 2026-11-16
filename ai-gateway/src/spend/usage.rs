@@ -5,15 +5,20 @@ use serde_json::{Map, Value};
 
 use super::cost::UsageCostType;
 
-/// The units Langfuse derives from a generation's `usage_details` attribute.
-pub(crate) fn usage_units(usage_details: &Value) -> UsageCostType {
-    let provided_usage_details = openai_completion_usage(usage_details)
-        .or_else(|| openai_response_usage(usage_details))
-        .or_else(|| raw_usage_details(usage_details))
-        .unwrap_or_default();
-    let mut usage = provided_usage_details.clone();
+/// The provided usage details Langfuse parses from a generation's usage.
+pub(crate) fn provided_usage_details(usage: &Value) -> UsageCostType {
+    openai_completion_usage(usage)
+        .or_else(|| openai_response_usage(usage))
+        .or_else(|| raw_usage_details(usage))
+        .unwrap_or_default()
+}
+
+/// The units Langfuse prices: the provided usage details with a missing `total` added.
+pub(crate) fn usage_units(provided_usage_details: UsageCostType) -> UsageCostType {
+    let mut usage = provided_usage_details;
     if !usage.is_empty() && !usage.contains_key("total") {
-        usage.insert("total".into(), provided_usage_details.values().sum());
+        let total = usage.values().sum();
+        usage.insert("total".into(), total);
     }
     usage
 }
@@ -180,7 +185,9 @@ mod tests {
     use super::*;
 
     fn units(value: &Value) -> Vec<(String, f64)> {
-        usage_units(value).into_iter().collect()
+        usage_units(provided_usage_details(value))
+            .into_iter()
+            .collect()
     }
 
     fn expected(pairs: &[(&str, f64)]) -> Vec<(String, f64)> {
