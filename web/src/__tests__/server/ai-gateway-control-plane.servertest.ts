@@ -2239,6 +2239,18 @@ describe("AI gateway control plane", () => {
       id: memberLimit.id,
       limitUsd: 20,
     });
+    await owner.caller.aiGateway.spendLimits.update({
+      orgId: owner.org.id,
+      id: memberLimit.id,
+      limitUsd: 5,
+    });
+    await expect(
+      member.aiGateway.spendLimits.update({
+        orgId: owner.org.id,
+        id: memberLimit.id,
+        limitUsd: 1000,
+      }),
+    ).rejects.toThrow("Spend limit not found");
     await owner.caller.aiGateway.spendLimits.delete({
       orgId: owner.org.id,
       id: memberLimit.id,

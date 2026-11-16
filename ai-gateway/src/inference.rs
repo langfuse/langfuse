@@ -309,6 +309,9 @@ impl InferenceService {
             }
             let context = resolved?;
             correlation.record_resolution(&context);
+            if !route.captures_generation() {
+                return Ok((self.provider.admit(None), context));
+            }
             let spend_limits = match self.spend_limits.check(&context).await {
                 Ok(spend_limits) => spend_limits,
                 Err(error) => {

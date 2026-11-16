@@ -1611,6 +1611,53 @@ async fn keys_with_spend_limits_reject_requests_they_cannot_price() {
 }
 
 #[tokio::test]
+async fn keys_with_spend_limits_charge_the_billed_cost_of_unpriced_models() {
+    let (status, code, provider_calls) = spend_limited_request(|body| {
+        body["pricing"] = serde_json::Value::Null;
+        body["connection"]["provider"] = "openrouter".into();
+        body["connection"]["base_url"] = "https://openrouter.ai/api/v1".into();
+    })
+    .await;
+    // Past the pricing check, the key fails closed on the missing spend counters.
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(code, "gateway_unavailable");
+    assert_eq!(provider_calls, 0);
+}
+
+#[tokio::test]
+async fn keys_with_spend_limits_still_count_tokens() {
+    let web = FakeServer::start(|_| async {
+        let bytes = to_bytes(
+            resolution_response_for(ApiFormat::AnthropicMessages, "provider-anthropic").into_body(),
+            4096,
+        )
+        .await
+        .unwrap();
+        let mut body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        body["spend_limits"] = serde_json::json!([{
+            "id": "limit-1", "scope": "api_key", "interval": "daily", "limit_usd": 10,
+            "generation": 0, "baseline_usd": 0, "baseline_window_start": 0,
+        }]);
+        Response::new(Body::from(body.to_string()))
+    })
+    .await;
+    let provider = FakeServer::start(|_| async { Response::new(Body::from("{}")) }).await;
+    let gateway = Gateway::start(Some(inference(&web, &provider))).await;
+    let response = reqwest::Client::new()
+        .post(format!(
+            "{}/anthropic/v1/messages/count_tokens",
+            gateway.url
+        ))
+        .header("x-api-key", "gateway-anthropic")
+        .body(r#"{"model":"Production key:test"}"#)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(provider.calls(), 1);
+}
+
+#[tokio::test]
 async fn spend_limit_rejections_are_recorded_as_error_generations() {
     let (sent, mut uploads) = tokio::sync::mpsc::unbounded_channel();
     let web = FakeServer::start(move |request| {

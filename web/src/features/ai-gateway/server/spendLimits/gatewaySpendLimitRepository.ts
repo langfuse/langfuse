@@ -101,16 +101,21 @@ export class GatewaySpendLimitRepository {
     });
   }
 
-  updateLimit(params: { id: string; limitUsd: number }) {
+  updateLimit(params: { id: string; limitUsd: number; userId: string }) {
     return this.prisma.gatewaySpendLimit.update({
       where: { id: params.id },
-      data: { limitUsd: params.limitUsd },
+      data: { limitUsd: params.limitUsd, createdByUserId: params.userId },
       select: GATEWAY_SPEND_LIMIT_SELECT,
     });
   }
 
   /** A new generation starts the gateway on fresh usage counters, so the baseline is dropped too. */
-  reset(params: { id: string; windowStart: Date; resetAt: Date }) {
+  reset(params: {
+    id: string;
+    windowStart: Date;
+    resetAt: Date;
+    userId: string;
+  }) {
     return this.prisma.gatewaySpendLimit.update({
       where: { id: params.id },
       data: {
@@ -118,6 +123,7 @@ export class GatewaySpendLimitRepository {
         resetAt: params.resetAt,
         baselineSpendUsd: 0,
         baselineWindowStart: params.windowStart,
+        createdByUserId: params.userId,
       },
       select: GATEWAY_SPEND_LIMIT_SELECT,
     });

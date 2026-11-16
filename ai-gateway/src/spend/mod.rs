@@ -21,7 +21,7 @@ use window::Window;
 use crate::{
     capture::InferenceFacts,
     config::SpendCountersConfig,
-    providers::usage::{UsageDetails, provider_usage},
+    providers::usage::{UsageDetails, provider_usage, reports_billed_cost},
     resolution::{
         Provider, ProviderConnection, ResolutionError, ResolvedRequestContext, SpendLimit,
         SpendLimitExceeded,
@@ -79,7 +79,14 @@ impl SpendLimits {
         if limits.is_empty() {
             return Ok(None);
         }
-        let model = priced_model(context).ok_or(ResolutionError::SpendLimitUnpricedModel)?;
+        let model = match priced_model(context) {
+            Some(model) => model,
+            None if reports_billed_cost(context.connection().provider()) => ModelWithPrices {
+                model: None,
+                pricing_tiers: Vec::new(),
+            },
+            None => return Err(ResolutionError::SpendLimitUnpricedModel),
+        };
         if !reports_usage(context.connection()) {
             return Err(ResolutionError::SpendLimitUnmeteredConnection);
         }

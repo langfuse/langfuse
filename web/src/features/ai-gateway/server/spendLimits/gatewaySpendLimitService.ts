@@ -39,7 +39,8 @@ const GATEWAY_SPEND_LIMITS_UNAVAILABLE_REASON =
  * request.
  *
  * Gateway managers may change every limit. Other gateway members may add
- * limits to their own keys and change only the limits they created.
+ * limits to their own keys and change only the limits they own. Whoever last
+ * updated or reset a limit owns it, so a member cannot undo a manager's change.
  */
 export class GatewaySpendLimitService {
   private readonly repository: GatewaySpendLimitRepository;
@@ -67,25 +68,20 @@ export class GatewaySpendLimitService {
     const windowStarts = limits.map((limit) =>
       getGatewaySpendLimitWindowStart(limit.interval, now),
     );
-    const spend =
-      recordingProjectId && limits.length > 0
-        ? await getGatewaySpendSince({
-            projectId: recordingProjectId,
-            scope: params.scope,
-            since: limits.map((limit, index) =>
-              spendSince({
-                // A total limit's baseline holds the spend before the limit
-                // existed, so only spend since then is read on every list.
-                windowStart:
-                  limit.interval === "TOTAL"
-                    ? limit.createdAt
-                    : windowStarts[index]!,
-                subjectCreatedAt: subject.createdAt,
-                resetAt: limit.resetAt,
-              }),
-            ),
-          })
-        : null;
+    let spend: number[] | null = null;
+    if (recordingProjectId && limits.length > 0) {
+      spend = await getGatewaySpendSince({
+        projectId: recordingProjectId,
+        scope: params.scope,
+        since: limits.map((limit, index) =>
+          spendSince({
+            windowStart: readSpendFrom(limit, windowStarts[index]!),
+            subjectCreatedAt: subject.createdAt,
+            resetAt: limit.resetAt,
+          }),
+        ),
+      });
+    }
     return {
       available: recordingProjectId !== null,
       unavailableReason:
@@ -96,12 +92,7 @@ export class GatewaySpendLimitService {
         ...toGatewaySpendLimit(limit),
         windowStart: windowStarts[index]!,
         recordedSpendUsd:
-          spend === null
-            ? null
-            : spend[index]! +
-              (limit.interval === "TOTAL"
-                ? limit.baselineSpendUsd.toNumber()
-                : 0),
+          spend === null ? null : spend[index]! + totalBaselineUsd(limit),
       })),
     };
   }
@@ -164,7 +155,11 @@ export class GatewaySpendLimitService {
   }) {
     const { before, subject } = await this.requireLimit(params);
     await this.requireRecordingProjectId(params.organizationId);
-    const after = await this.repository.updateLimit(params);
+    const after = await this.repository.updateLimit({
+      id: before.id,
+      limitUsd: params.limitUsd,
+      userId: params.session.user.id,
+    });
     await subject.invalidateResolveCache();
     await this.audit({
       session: params.session,
@@ -188,6 +183,7 @@ export class GatewaySpendLimitService {
       id: before.id,
       windowStart: getGatewaySpendLimitWindowStart(before.interval),
       resetAt: new Date(),
+      userId: params.session.user.id,
     });
     await subject.invalidateResolveCache();
     await this.audit({
@@ -308,6 +304,15 @@ function spendSince(params: {
       params.resetAt?.getTime() ?? 0,
     ),
   );
+}
+
+/** A total limit's baseline holds the spend before the limit existed, so only spend since then is read. */
+function readSpendFrom(limit: GatewaySpendLimitRecord, windowStart: Date) {
+  return limit.interval === "TOTAL" ? limit.createdAt : windowStart;
+}
+
+function totalBaselineUsd(limit: GatewaySpendLimitRecord) {
+  return limit.interval === "TOTAL" ? limit.baselineSpendUsd.toNumber() : 0;
 }
 
 function toGatewaySpendLimit(limit: GatewaySpendLimitRecord) {

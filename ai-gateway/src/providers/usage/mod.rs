@@ -11,7 +11,10 @@ mod xai;
 pub(crate) use ingestion::UsageDetails;
 use serde_json::Value;
 
-use crate::{resolution::ApiFormat, spend::UsageCostType};
+use crate::{
+    resolution::{ApiFormat, Provider},
+    spend::UsageCostType,
+};
 
 #[derive(Debug, Default, PartialEq)]
 pub(crate) struct ProviderUsage {
@@ -31,6 +34,15 @@ impl ProviderUsage {
             provided_cost_details: None,
         }
     }
+}
+
+/// Whether the provider's usage carries what it billed, so a request can be charged
+/// without Langfuse prices for the model.
+pub(crate) fn reports_billed_cost(provider: Provider) -> bool {
+    matches!(
+        provider,
+        Provider::OpenRouter | Provider::Vercel | Provider::Xai
+    )
 }
 
 pub(crate) fn provider_usage(
