@@ -8,7 +8,6 @@ import { TopicsProviderUnavailable } from "./provider-error";
 type TopicStage =
   | "execution"
   | "trace"
-  | "transcript"
   | "summary"
   | "embedding"
   | "clustering"
@@ -17,7 +16,6 @@ type TopicStage =
   | "storage";
 export type TopicResult =
   | "generated"
-  | "cached"
   | "applicable"
   | "not_applicable"
   | "insufficient_input"
@@ -28,13 +26,11 @@ export type TopicResult =
   | "insufficient_data"
   | "no_applicable_summaries"
   | "assigned"
-  | "awaiting_topics"
   | "outlier"
   | "name_conflict"
   | "duplicate_name";
 type TopicErrorReason =
   | TopicsProviderUnavailable["reason"]
-  | "trace_load"
   | "storage"
   | "numerical"
   | "input_too_large"
