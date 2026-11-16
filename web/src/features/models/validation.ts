@@ -5,7 +5,7 @@ import {
   duplicateNameIndexes,
   PricingTierConditionSchema,
   PricingTierInputSchema,
-  ModelScope,
+  type ModelScope,
   tiersMissingConditions,
   validatePricingTiers,
 } from "@langfuse/shared";
@@ -64,7 +64,7 @@ export type FormPricingTier = z.input<typeof FormPricingTierSchema>;
 
 export const GetModelResultSchema = z.object({
   id: z.string(),
-  scope: z.enum(ModelScope),
+  scope: z.enum(["LANGFUSE", "PROJECT"] satisfies ModelScope[]),
   projectId: z.string().nullable(),
   modelName: z.string(),
   matchPattern: z.string(),
