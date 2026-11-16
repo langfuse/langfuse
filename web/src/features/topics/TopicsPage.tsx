@@ -400,8 +400,8 @@ function TopicsWorkspaceContent({
   const setupWasActive = useRef(setupActive);
   useEffect(() => {
     if (setupWasActive.current && !setupActive) {
-      void utils.topics.maps.invalidate({ projectId });
-      void utils.topics.currentResults.invalidate({ projectId });
+      utils.topics.maps.invalidate({ projectId });
+      utils.topics.currentResults.invalidate({ projectId });
     }
     setupWasActive.current = setupActive;
   }, [setupActive, projectId, utils]);
