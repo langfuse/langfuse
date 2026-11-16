@@ -26,6 +26,17 @@ pub struct GatewayConfig {
     pub outbound_policy: OutboundPolicy,
     /// LLM connection whitelist entries that do not parse and so exempt nothing.
     pub ignored_whitelist_entries: Vec<String>,
+    /// Where keys' spend is counted. Without it, requests on a key with a spend
+    /// limit are rejected, since the limit cannot be checked.
+    pub spend_counters: Option<SpendCountersConfig>,
+}
+
+/// The Redis that counts keys' spend against their limits.
+#[derive(Clone)]
+pub struct SpendCountersConfig {
+    /// A `redis://` or `rediss://` URL, or every cluster node's URL.
+    pub nodes: Vec<String>,
+    pub cluster: bool,
 }
 
 /// Where the memory budget came from, for the startup log.
@@ -183,6 +194,10 @@ impl GatewayConfig {
             read_env("LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS")?.as_deref(),
             read_env("LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS")?.as_deref(),
         )?;
+        config.spend_counters = spend_counters(
+            read_env("LANGFUSE_AI_GATEWAY_REDIS_URL")?.as_deref(),
+            read_env("LANGFUSE_AI_GATEWAY_REDIS_CLUSTER_ENABLED")?.as_deref(),
+        )?;
         Ok(config)
     }
 
@@ -256,6 +271,7 @@ impl GatewayConfig {
             execution_limits: ExecutionLimits::default(),
             outbound_policy: OutboundPolicy::default(),
             ignored_whitelist_entries: Vec::new(),
+            spend_counters: None,
         })
     }
 }
@@ -516,6 +532,35 @@ fn integer_setting<T: FromStr + PartialOrd>(
         .map_or(Some(default), |value| value.parse().ok())
         .filter(|value| range.contains(value))
         .ok_or(GatewayConfigError(message))
+}
+
+/// In cluster mode the URL lists every node, comma-separated.
+fn spend_counters(
+    url: Option<&str>,
+    cluster: Option<&str>,
+) -> Result<Option<SpendCountersConfig>, GatewayConfigError> {
+    let cluster = match cluster.filter(|value| is_set(value)) {
+        None => false,
+        Some(value) => parse_boolean(value.trim()).ok_or(GatewayConfigError(
+            "LANGFUSE_AI_GATEWAY_REDIS_CLUSTER_ENABLED must be true or false",
+        ))?,
+    };
+    let nodes: Vec<String> = url
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|node| !node.is_empty())
+        .map(str::to_owned)
+        .collect();
+    if nodes.is_empty() {
+        return Ok(None);
+    }
+    if !cluster && nodes.len() > 1 {
+        return Err(GatewayConfigError(
+            "LANGFUSE_AI_GATEWAY_REDIS_URL lists several nodes; set LANGFUSE_AI_GATEWAY_REDIS_CLUSTER_ENABLED=true",
+        ));
+    }
+    Ok(Some(SpendCountersConfig { nodes, cluster }))
 }
 
 fn is_set(value: &str) -> bool {

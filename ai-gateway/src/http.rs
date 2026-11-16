@@ -22,7 +22,7 @@ use crate::{
     },
     observability::{ErrorOrigin, Wait},
     providers::{ProviderError, RequestBody, Route},
-    resolution::{ApiFormat, RateLimit, ResolutionError},
+    resolution::{ApiFormat, RateLimit, ResolutionError, SpendLimitExceeded},
     server::GatewayLifecycleState,
 };
 
@@ -493,6 +493,8 @@ impl InferenceHttpError {
                     R::ModelNotAllowed => "model_not_allowed",
                     R::NoRoute => "no_route",
                     R::RateLimited(limit) => rate_limited_reason(limit.kind()),
+                    R::SpendLimitExceeded(_) => "spend_limit_exceeded",
+                    R::SpendLimitUnavailable => "spend_limit_unavailable",
                     R::Busy => "capacity",
                     R::Timeout => "timeout",
                     R::Unavailable => "unavailable",
@@ -547,6 +549,13 @@ impl InferenceHttpError {
                 "requests",
                 "rate_limit_exceeded",
             ),
+            // OpenAI's type for an exhausted budget; the message names the limit.
+            Self::Resolution(R::SpendLimitExceeded(_)) => (
+                StatusCode::TOO_MANY_REQUESTS,
+                "Spend limit exceeded",
+                "insufficient_quota",
+                "spend_limit_exceeded",
+            ),
             Self::Resolution(R::NoRoute) => (
                 StatusCode::NOT_FOUND,
                 "No eligible provider connection",
@@ -584,7 +593,9 @@ impl InferenceHttpError {
                 "invalid_model",
             ),
             Self::Unavailable
-            | Self::Resolution(R::Unavailable | R::Configuration | R::Busy)
+            | Self::Resolution(
+                R::Unavailable | R::Configuration | R::Busy | R::SpendLimitUnavailable,
+            )
             | Self::Provider(ProviderError::Configuration) => (
                 StatusCode::SERVICE_UNAVAILABLE,
                 "Gateway temporarily unavailable",
@@ -663,7 +674,14 @@ impl InferenceHttpError {
             );
         }
         let request_id = correlation.id();
-        let message = rate_limit.map_or(message, RateLimit::message);
+        let spend_limit = match &self {
+            Self::Resolution(ResolutionError::SpendLimitExceeded(limit)) => Some(limit.as_ref()),
+            _ => None,
+        };
+        let message = rate_limit
+            .map(RateLimit::message)
+            .or_else(|| spend_limit.map(SpendLimitExceeded::message))
+            .unwrap_or(message);
         let mut response = match api_format {
             ApiFormat::OpenAiResponses
             | ApiFormat::OpenAiChatCompletions
@@ -698,6 +716,11 @@ impl InferenceHttpError {
             response
                 .headers_mut()
                 .insert(header::RETRY_AFTER, limit.retry_after_secs().into());
+        }
+        if let Some(retry_after_secs) = spend_limit.and_then(SpendLimitExceeded::retry_after_secs) {
+            response
+                .headers_mut()
+                .insert(header::RETRY_AFTER, retry_after_secs.into());
         }
         response
     }

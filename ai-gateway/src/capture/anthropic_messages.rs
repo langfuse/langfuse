@@ -460,5 +460,10 @@ impl AnthropicMessagesCapture {
     }
 }
 
+/// Langfuse ingests native Messages usage as is.
+pub(super) fn project_usage(usage: &Value) -> Option<Value> {
+    usage.is_object().then(|| usage.clone())
+}
+
 #[cfg(test)]
 mod tests;

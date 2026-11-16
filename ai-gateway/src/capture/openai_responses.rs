@@ -307,5 +307,14 @@ impl OpenAiResponsesCapture {
     }
 }
 
+/// The usage counters Langfuse ingests, without unknown top-level fields.
+pub(super) fn project_usage(usage: &Value) -> Option<Value> {
+    super::openai_usage::project_openai_usage(
+        usage,
+        ["input_tokens", "output_tokens", "total_tokens"],
+        ["input_tokens_details", "output_tokens_details"],
+    )
+}
+
 #[cfg(test)]
 mod tests;

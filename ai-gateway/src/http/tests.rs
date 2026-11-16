@@ -1537,6 +1537,39 @@ async fn organization_rate_limits_become_provider_native_429s_with_retry_after()
 }
 
 #[tokio::test]
+async fn keys_with_spend_limits_fail_closed_without_spend_counters() {
+    let web = FakeServer::start(|_| async {
+        let bytes = to_bytes(resolution_response("provider-secret").into_body(), 4096)
+            .await
+            .unwrap();
+        let mut body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        body["spend_limits"] = serde_json::json!([{
+            "id": "limit-1", "interval": "daily", "limit_usd": 10, "generation": 0,
+            "baseline_usd": 0, "baseline_window_start": 0,
+        }]);
+        Response::builder()
+            .header("content-type", "application/json")
+            .body(Body::from(body.to_string()))
+            .unwrap()
+    })
+    .await;
+    let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
+    let gateway = Gateway::start(Some(inference(&web, &provider))).await;
+
+    let response = gateway
+        .post()
+        .bearer_auth("gateway-key")
+        .body(r#"{"model":"Production key:gpt-4.1"}"#)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    let body: serde_json::Value = serde_json::from_str(&response.text().await.unwrap()).unwrap();
+    assert_eq!(body["error"]["code"], "gateway_unavailable");
+    assert_eq!(provider.calls(), 0);
+}
+
+#[tokio::test]
 async fn anthropic_capacity_rejections_use_the_native_envelope() {
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
     let web = FakeServer::start(|_| async {

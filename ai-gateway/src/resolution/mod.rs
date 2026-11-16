@@ -4,6 +4,7 @@ mod contracts;
 pub(crate) mod signing;
 mod vertex;
 
+pub(crate) use contracts::SpendLimit;
 pub use contracts::{
     ApiFormat, IngestionGrant, IngestionMode, MetadataValue, OrganizationId, ProjectId, Provider,
     ProviderConnection, ProviderCredential, RequestAttribution, ResolvedRequestContext,
@@ -539,6 +540,33 @@ impl RateLimit {
     }
 }
 
+/// A key spent its limit for the current window.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpendLimitExceeded {
+    message: Box<str>,
+    /// Until the window ends; a lifetime limit never refreshes.
+    retry_after_secs: Option<u64>,
+}
+
+impl SpendLimitExceeded {
+    pub(crate) fn new(message: String, retry_after_secs: Option<u64>) -> Self {
+        Self {
+            message: message.into_boxed_str(),
+            retry_after_secs,
+        }
+    }
+
+    #[must_use]
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+
+    #[must_use]
+    pub fn retry_after_secs(&self) -> Option<u64> {
+        self.retry_after_secs
+    }
+}
+
 fn valid_token(value: &str) -> bool {
     !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_graphic())
 }
@@ -563,6 +591,11 @@ pub enum ResolutionError {
     NoRoute,
     #[error("organization rate limit exceeded")]
     RateLimited(Box<RateLimit>),
+    #[error("key spend limit exceeded")]
+    SpendLimitExceeded(Box<SpendLimitExceeded>),
+    /// The key has spend limits, but its spend cannot be read.
+    #[error("spend limit unavailable")]
+    SpendLimitUnavailable,
     /// The gateway's memory budget cannot cover another request.
     #[error("gateway at capacity")]
     Busy,

@@ -448,6 +448,33 @@ struct ResolutionResponse {
     ingestion_mode: IngestionMode,
     /// Absent only in [`IngestionMode::None`]; nothing is delivered without it.
     ingestion: Option<IngestionGrant>,
+    /// Empty when the key has no limits or its spend is not recorded.
+    #[serde(default)]
+    spend_limits: Vec<SpendLimit>,
+    /// The provider model's prices; absent when the key has no limits or the
+    /// model has no prices.
+    #[serde(default)]
+    pricing: Option<ModelPricing>,
+}
+
+/// A cap on what a key spends per UTC calendar window.
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct SpendLimit {
+    pub id: String,
+    #[serde(deserialize_with = "string_enum")]
+    pub interval: crate::spend::SpendLimitInterval,
+    pub limit_usd: f64,
+    /// Bumped when an admin resets the limit, so counting starts over.
+    pub generation: u32,
+    /// Spend recorded before the gateway started counting, in the window
+    /// starting at `baseline_window_start` (Unix seconds).
+    pub baseline_usd: f64,
+    pub baseline_window_start: i64,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct ModelPricing {
+    pub tiers: Vec<crate::spend::PricingTierWithPrices>,
 }
 
 /// A validated v1 execution. Construction is restricted to successful resolution.
@@ -476,6 +503,12 @@ impl ResolvedRequestContext {
     }
     pub fn ingestion(&self) -> Option<&IngestionGrant> {
         self.0.ingestion.as_ref()
+    }
+    pub(crate) fn spend_limits(&self) -> &[SpendLimit] {
+        &self.0.spend_limits
+    }
+    pub(crate) fn pricing(&self) -> Option<&ModelPricing> {
+        self.0.pricing.as_ref()
     }
     /// The project and grant telemetry is delivered with. Resolution guarantees both
     /// in every mode but [`IngestionMode::None`], which never delivers.
@@ -537,6 +570,22 @@ fn valid_ingestion(response: &ResolutionResponse, now: u64) -> bool {
     }
 }
 
+/// Limit and key ids name the gateway's spend counters, so they must be plain ids.
+fn valid_spend_limits(response: &ResolutionResponse) -> bool {
+    let plain_id = |id: &str| {
+        !id.is_empty()
+            && id
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+    };
+    let amount = |usd: f64| usd.is_finite() && usd >= 0.0;
+    response.spend_limits.is_empty()
+        || (plain_id(&response.attribution.key_id)
+            && response.spend_limits.iter().all(|limit| {
+                plain_id(&limit.id) && amount(limit.limit_usd) && amount(limit.baseline_usd)
+            }))
+}
+
 pub(super) fn decode(
     bytes: &[u8],
     expected_format: ApiFormat,
@@ -557,6 +606,7 @@ pub(super) fn decode(
             .extra_headers()
             .all(|(name, value)| valid_extra_header(name, value))
         || !valid_ingestion(&response, now)
+        || !valid_spend_limits(&response)
         || [
             connection.id.as_str(),
             attribution.organization_id.as_str(),

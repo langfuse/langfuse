@@ -1,4 +1,3 @@
-import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Decimal } from "decimal.js";
 import { describe, expect, it } from "vitest";
@@ -7,7 +6,7 @@ import type { PricingTierWithPrices } from "./types";
 
 /**
  * The AI gateway prices requests with a Rust port of calculateModelUsageCosts
- * and replays these cases. Regenerate with UPDATE_GATEWAY_COST_FIXTURE=1.
+ * and replays these cases. Regenerate with `vitest -u`.
  */
 const FIXTURE_PATH = join(
   __dirname,
@@ -398,11 +397,8 @@ function buildFixture() {
 }
 
 describe("AI gateway cost fixture", () => {
-  it("matches calculateModelUsageCosts", () => {
+  it("matches calculateModelUsageCosts", async () => {
     const fixture = `${JSON.stringify(buildFixture(), null, 2)}\n`;
-    if (process.env.UPDATE_GATEWAY_COST_FIXTURE === "1") {
-      writeFileSync(FIXTURE_PATH, fixture);
-    }
-    expect(readFileSync(FIXTURE_PATH, "utf8")).toBe(fixture);
+    await expect(fixture).toMatchFileSnapshot(FIXTURE_PATH);
   });
 });

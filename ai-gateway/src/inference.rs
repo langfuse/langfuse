@@ -25,6 +25,7 @@ pub struct InferenceService {
     request_limits: RequestLimits,
     memory_budget: Arc<Semaphore>,
     telemetry: Option<crate::telemetry::Telemetry>,
+    spend_limits: crate::spend::SpendLimits,
 }
 
 /// `error.origin` and `error.reason` for a failed resolution or catalog fetch.
@@ -39,6 +40,8 @@ pub(crate) fn resolution_origin(error: &ResolutionError) -> (ErrorOrigin, &'stat
         R::ModelNotAllowed => (ErrorOrigin::Client, "model_not_allowed"),
         R::NoRoute => (ErrorOrigin::Client, "no_route"),
         R::RateLimited(limit) => (ErrorOrigin::Client, rate_limited_reason(limit.kind())),
+        R::SpendLimitExceeded(_) => (ErrorOrigin::Client, "spend_limit_exceeded"),
+        R::SpendLimitUnavailable => (ErrorOrigin::Gateway, "spend_limit_unavailable"),
         R::Unavailable => (ErrorOrigin::ControlPlane, "unavailable"),
         R::Timeout => (ErrorOrigin::ControlPlane, "timeout"),
         R::Transport => (ErrorOrigin::ControlPlane, "transport"),
@@ -146,6 +149,7 @@ impl InferenceService {
             request_limits: config.request_limits,
             memory_budget: Arc::new(Semaphore::new(config.request_limits.memory_budget_bytes)),
             telemetry: Some(telemetry),
+            spend_limits: crate::spend::SpendLimits::new(config.spend_counters.clone()),
         })
     }
 
@@ -297,7 +301,19 @@ impl InferenceService {
             }
             let context = resolved?;
             correlation.record_resolution(&context);
-            Ok((self.provider.admit(), context))
+            let spend = self
+                .spend_limits
+                .check(&context)
+                .await
+                .inspect_err(|error| {
+                    let (origin, reason) = resolution_origin(error);
+                    span.record("gateway.outcome", reason);
+                    if origin.is_ours() {
+                        span.record("otel.status_code", "ERROR");
+                        span.record("error.type", reason);
+                    }
+                })?;
+            Ok((self.provider.admit().with_spend_recording(spend), context))
         }
         .instrument(span)
         .await
@@ -325,6 +341,7 @@ impl InferenceService {
             request_limits: RequestLimits::default(),
             memory_budget: Arc::new(Semaphore::new(RequestLimits::default().memory_budget_bytes)),
             telemetry: None,
+            spend_limits: crate::spend::SpendLimits::default(),
         }
     }
 

@@ -493,5 +493,14 @@ impl OpenAiChatCompletionsCapture {
     }
 }
 
+/// The usage counters Langfuse ingests, without unknown top-level fields.
+pub(super) fn project_usage(usage: &Value) -> Option<Value> {
+    super::openai_usage::project_openai_usage(
+        usage,
+        ["prompt_tokens", "completion_tokens", "total_tokens"],
+        ["prompt_tokens_details", "completion_tokens_details"],
+    )
+}
+
 #[cfg(test)]
 mod tests;

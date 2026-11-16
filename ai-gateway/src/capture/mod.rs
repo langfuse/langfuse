@@ -4,6 +4,7 @@ mod openai_chat_completions;
 mod openai_decisions;
 mod openai_embeddings;
 mod openai_responses;
+mod openai_usage;
 mod response;
 mod sse;
 
@@ -140,6 +141,29 @@ impl ProtocolCapture {
     }
 }
 
+/// The generation's usage as Langfuse ingests it: projected by its API format,
+/// then corrected for the provider that served it.
+pub(crate) fn langfuse_usage_details(
+    api_format: ApiFormat,
+    provider: Option<&str>,
+    usage: &Value,
+) -> Option<Value> {
+    let projected = match api_format {
+        // Decisions reports usage in the Responses shape.
+        ApiFormat::OpenAiResponses | ApiFormat::OpenAiDecisions => {
+            openai_responses::project_usage(usage)
+        }
+        ApiFormat::OpenAiChatCompletions => openai_chat_completions::project_usage(usage),
+        ApiFormat::AnthropicMessages => anthropic_messages::project_usage(usage),
+        ApiFormat::OpenAiEmbeddings => openai_embeddings::project_usage(usage),
+    }?;
+    Some(if api_format == ApiFormat::OpenAiChatCompletions {
+        crate::providers::usage::adjust_chat_completions_usage(provider, projected)
+    } else {
+        projected
+    })
+}
+
 /// Owned before dispatch and moved into the response body. Drop also covers a
 /// cancelled provider future before response headers have arrived.
 pub(crate) struct ExecutionCapture {
@@ -156,6 +180,7 @@ pub(crate) struct ExecutionCapture {
     metadata: Value,
     provider_model: Option<String>,
     delivery: Option<(telemetry::Telemetry, telemetry::DeliveryContext)>,
+    spend: Option<crate::spend::SpendRecording>,
 }
 
 impl ExecutionCapture {
@@ -177,6 +202,7 @@ impl ExecutionCapture {
             metadata: json!({}),
             provider_model: None,
             delivery: None,
+            spend: None,
         }
     }
 
@@ -240,6 +266,7 @@ impl ExecutionCapture {
             }),
             provider_model: None,
             delivery: None,
+            spend: None,
         }
     }
 
@@ -265,6 +292,10 @@ impl ExecutionCapture {
             self.metadata["client_request_id"] = json!(client_id);
         }
         self.delivery = Some((telemetry, delivery));
+    }
+
+    pub(crate) fn record_spend_to(&mut self, spend: Option<crate::spend::SpendRecording>) {
+        self.spend = spend;
     }
 
     pub(crate) fn set_provider_model(&mut self, model: &str) {
@@ -326,6 +357,9 @@ impl ExecutionCapture {
         };
         telemetry::debug_record(&facts);
         crate::observability::execution_finished(&facts);
+        if let Some(spend) = self.spend.take() {
+            spend.record(&facts);
+        }
         if let Some((telemetry, context)) = self.delivery.take() {
             telemetry.record(context, facts);
         }

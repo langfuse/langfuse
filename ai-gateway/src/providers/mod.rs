@@ -1,6 +1,7 @@
 mod chat_completions;
 pub(crate) mod model_list;
 mod outbound;
+pub(crate) mod usage;
 
 use std::{ops::Range, sync::Arc, time::Duration};
 
@@ -83,6 +84,18 @@ pub(crate) struct ProviderLimits {
 pub struct RequestPermit {
     _active: crate::observability::Active,
     deadline: Instant,
+    spend: Option<crate::spend::SpendRecording>,
+}
+
+impl RequestPermit {
+    /// Count the execution's cost toward the key's spend limits once it finishes.
+    pub(crate) fn with_spend_recording(
+        mut self,
+        spend: Option<crate::spend::SpendRecording>,
+    ) -> Self {
+        self.spend = spend;
+        self
+    }
 }
 
 /// The validated caller body and the facts the relay needs about it.
@@ -145,6 +158,7 @@ impl ProviderTransport {
         RequestPermit {
             _active: crate::observability::Active::new("execution"),
             deadline: Instant::now() + self.limits.execution.max_execution_time,
+            spend: None,
         }
     }
 
@@ -179,7 +193,7 @@ impl ProviderTransport {
 
     pub(crate) async fn forward_route(
         &self,
-        permit: RequestPermit,
+        mut permit: RequestPermit,
         context: ResolvedRequestContext,
         headers: &HeaderMap,
         request: RequestBody,
@@ -204,6 +218,7 @@ impl ProviderTransport {
             {
                 capture.deliver_to(telemetry.clone(), &context, headers, correlation);
             }
+            capture.record_spend_to(permit.spend.take());
             capture
         } else {
             ExecutionCapture::unobserved()

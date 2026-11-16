@@ -20,7 +20,7 @@ import {
   type GatewaySpendLimitRecord,
 } from "./gatewaySpendLimitRepository";
 
-export const GATEWAY_SPEND_LIMITS_UNAVAILABLE_REASON =
+const GATEWAY_SPEND_LIMITS_UNAVAILABLE_REASON =
   "Please switch to ingestion mode usage to enable this";
 
 /**
