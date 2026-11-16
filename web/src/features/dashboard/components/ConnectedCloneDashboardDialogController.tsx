@@ -8,6 +8,7 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import type { DashboardPlacement } from "@/src/features/widgets/components/DashboardGrid";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
+import { LANGFUSE_HOME_DASHBOARD_ID } from "@langfuse/shared";
 
 /**
  * Clone-first flow for Langfuse-managed (read-only) dashboards: any edit
@@ -172,6 +173,7 @@ function ConnectedCloneDashboardDialog({
       dashboardName={dashboardName}
       setAsHome={setAsHome}
       hasPendingChange={Boolean(pendingDefinition)}
+      hasPresetTiles={dashboardId === LANGFUSE_HOME_DASHBOARD_ID}
       existingCloneName={existingClone?.name}
       isPending={cloneDashboard.isPending}
       onConfirm={handleConfirm}

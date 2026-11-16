@@ -297,8 +297,10 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
       },
     });
 
+  const hasPendingDefinitionSaveRef = useRef(false);
   const saveDashboardChanges = useDebounce(
     (definition: { widgets: DashboardPlacement[] }) => {
+      hasPendingDefinitionSaveRef.current = false;
       if (!hasCUDAccess) return;
       updateDashboardDefinition.mutate({
         projectId,
@@ -316,10 +318,33 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   const applyDashboardDefinition = useCallback(
     (updated: { widgets: DashboardPlacement[] }) => {
       applyDraft(updated);
+      hasPendingDefinitionSaveRef.current = true;
       saveDashboardChanges(updated);
     },
     [applyDraft, saveDashboardChanges],
   );
+
+  // Saves a pending debounced change now, so it cannot land after (and
+  // overwrite) a server-side rewrite of the definition such as a widget copy.
+  const flushDefinitionSave = useCallback(async () => {
+    const definition = dashboardDefinitionRef.current;
+    if (!hasPendingDefinitionSaveRef.current || !hasCUDAccess || !definition)
+      return;
+    saveDashboardChanges.cancel();
+    hasPendingDefinitionSaveRef.current = false;
+    await updateDashboardDefinition.mutateAsync({
+      projectId,
+      dashboardId,
+      definition,
+    });
+  }, [
+    hasCUDAccess,
+    saveDashboardChanges,
+    updateDashboardDefinition,
+    projectId,
+    dashboardId,
+    dashboardDefinitionRef,
+  ]);
 
   // Function to save current filters
   const handleSaveFilters = () => {
@@ -1531,6 +1556,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                         onDuplicateWidget={
                           hasCUDAccess ? handleDuplicateWidget : undefined
                         }
+                        onBeforeWidgetCopy={flushDefinitionSave}
                         onDuplicatePreset={
                           hasCUDAccess ? handleDuplicatePreset : undefined
                         }

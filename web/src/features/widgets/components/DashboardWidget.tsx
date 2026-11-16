@@ -61,9 +61,7 @@ import {
 } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 import type { ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
-import { CopyWidgetDialog } from "@/src/features/widgets/components/CopyWidgetDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 export interface WidgetPlacement {
   id: string;
@@ -89,6 +87,7 @@ export function DashboardWidget({
   onLockedEditAttempt,
   readOnly,
   onDuplicateWidget,
+  onBeforeWidgetCopy,
 }: {
   projectId: string;
   dashboardId: string;
@@ -117,6 +116,8 @@ export function DashboardWidget({
     anchor: WidgetPlacement,
     widget: WidgetExportSource,
   ) => void;
+  /** Runs before a Langfuse widget is copied into the project. */
+  onBeforeWidgetCopy?: () => Promise<void>;
 }) {
   const router = useRouter();
   const utils = api.useUtils();
@@ -168,7 +169,6 @@ export function DashboardWidget({
     return defaultSort || null;
   });
   const [retryCount, setRetryCount] = useState(0);
-  const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
 
   // Apply defaultSort when it becomes available (after widget data loads)
   // but only if user hasn't interacted yet
@@ -532,11 +532,17 @@ export function DashboardWidget({
       );
     },
   });
-  const handleCopy = () => {
+  const handleCopy = async () => {
+    try {
+      await onBeforeWidgetCopy?.();
+    } catch {
+      // The failed save already showed an error toast.
+      return;
+    }
     copyMutation.mutate({
       projectId,
       widgetId: placement.widgetId,
-      dashboardId: router.query.dashboardId as string,
+      dashboardId,
       placementId: placement.id,
     });
   };
@@ -621,15 +627,6 @@ export function DashboardWidget({
 
   return (
     <div className="bg-background group flex h-full w-full flex-col overflow-hidden rounded-lg border p-4">
-      {isCopyDialogOpen && (
-        <CopyWidgetDialog
-          open={isCopyDialogOpen}
-          onOpenChange={setIsCopyDialogOpen}
-          widgetName={widget.data.name}
-          onConfirm={handleCopy}
-          isPending={copyMutation.isPending}
-        />
-      )}
       <div className="flex items-center justify-between">
         <span
           className="flex min-w-0 items-center gap-1.5 truncate text-base font-bold"
@@ -654,41 +651,18 @@ export function DashboardWidget({
                 >
                   <PencilIcon size="base" />
                 </button>
-              ) : widget.data.owner === "PROJECT" ? (
+              ) : (
                 <button
-                  onClick={handleEdit}
+                  onClick={
+                    widget.data.owner === "LANGFUSE" ? handleCopy : handleEdit
+                  }
+                  disabled={copyMutation.isPending}
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
                   aria-label="Edit widget"
                 >
                   <PencilIcon size="base" />
                 </button>
-              ) : widget.data.owner === "LANGFUSE" ? (
-                <Tooltip
-                  label={
-                    "This widget is managed by Langfuse.\nCreate a copy to edit."
-                  }
-                  placement="bottom-end"
-                  hoverableContent={false}
-                >
-                  {({ getTriggerProps }) => (
-                    <button
-                      {...getTriggerProps({
-                        onClick: () => {
-                          capture("dashboard:widget_copy_first_open", {
-                            widget_id: placement.widgetId,
-                            dashboard_id: dashboardId,
-                          });
-                          setIsCopyDialogOpen(true);
-                        },
-                      })}
-                      className="text-muted-foreground hover:text-foreground hidden group-hover:block"
-                      aria-label="Edit widget"
-                    >
-                      <PencilIcon size="base" />
-                    </button>
-                  )}
-                </Tooltip>
-              ) : null}
+              )}
             </>
           )}
           <DropdownMenu

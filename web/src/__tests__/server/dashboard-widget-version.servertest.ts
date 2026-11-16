@@ -582,6 +582,98 @@ describe("dashboard widget minVersion", () => {
       expect(res.homeDashboardId).toBe(clone.id);
       expect(res.dashboard?.id).toBe(clone.id);
     });
+
+    it("gives a clone its own copy of every widget it places", async () => {
+      const caller = makeCaller();
+      const langfuseWidget = await prisma.dashboardWidget.create({
+        data: {
+          ...baseWidgetInput,
+          name: "Langfuse Clone Source Widget",
+          minVersion: 2,
+          projectId: null,
+        },
+      });
+      const missingWidgetId = uuidv4();
+      const placement = { x: 0, y: 0, x_size: 6, y_size: 4 };
+      const source = await prisma.dashboard.create({
+        data: {
+          projectId: null,
+          name: "Langfuse Clone Source",
+          description: "Curated dashboard",
+          definition: {
+            widgets: [
+              {
+                type: "widget",
+                id: "a",
+                widgetId: langfuseWidget.id,
+                ...placement,
+              },
+              {
+                type: "widget",
+                id: "b",
+                widgetId: langfuseWidget.id,
+                ...placement,
+              },
+              {
+                type: "widget",
+                id: "missing",
+                widgetId: missingWidgetId,
+                ...placement,
+              },
+              {
+                type: "preset",
+                id: "preset",
+                presetId: "home-traces",
+                ...placement,
+              },
+            ],
+          },
+        },
+      });
+
+      // Langfuse-owned rows are listed in every project; remove them here.
+      onTestFinished(async () => {
+        await prisma.dashboard.delete({ where: { id: source.id } });
+        await prisma.dashboardWidget.delete({
+          where: { id: langfuseWidget.id },
+        });
+      });
+
+      const clone = await caller.dashboard.cloneDashboard({
+        projectId,
+        dashboardId: source.id,
+      });
+
+      const [a, b, missing, preset] = clone.definition.widgets;
+      if (a?.type !== "widget" || b?.type !== "widget") {
+        throw new Error("Widget placements not found");
+      }
+      expect(a.widgetId).not.toBe(langfuseWidget.id);
+      expect(b.widgetId).toBe(a.widgetId);
+      expect(missing).toMatchObject({ widgetId: missingWidgetId });
+      expect(preset).toMatchObject({ presetId: "home-traces" });
+
+      const copy = await DashboardService.getWidget(a.widgetId, projectId);
+      expect(copy).toMatchObject({
+        owner: "PROJECT",
+        name: "Langfuse Clone Source Widget",
+        minVersion: 2,
+      });
+
+      // A clone of the clone gets its own project widgets too.
+      const secondClone = await caller.dashboard.cloneDashboard({
+        projectId,
+        dashboardId: clone.id,
+      });
+      const [secondA] = secondClone.definition.widgets;
+      if (secondA?.type !== "widget") {
+        throw new Error("Widget placement not found");
+      }
+      expect(secondA.widgetId).not.toBe(a.widgetId);
+      await expect(
+        DashboardService.getWidget(secondA.widgetId, projectId),
+      ).resolves.toMatchObject({ owner: "PROJECT" });
+    });
   });
 
   // ── tRPC measure-aggregation validation ──────────────────────────────

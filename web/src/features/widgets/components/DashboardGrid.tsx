@@ -85,6 +85,7 @@ export function DashboardGrid({
   readOnly,
   onDuplicateWidget,
   onDuplicatePreset,
+  onBeforeWidgetCopy,
 }: {
   widgets: DashboardPlacement[];
   onChange: (widgets: DashboardPlacement[]) => void;
@@ -114,6 +115,8 @@ export function DashboardGrid({
   ) => void;
   /** Duplicate a preset card next to it (editable dashboards only). */
   onDuplicatePreset?: (anchor: PresetPlacement) => void;
+  /** Runs before a Langfuse widget is copied into the project. */
+  onBeforeWidgetCopy?: () => Promise<void>;
 }) {
   const [activeChartKey, setActiveChartKey] = useState<string>();
   const chartSync: ChartProps["sync"] = {
@@ -239,6 +242,7 @@ export function DashboardGrid({
         onLockedEditAttempt={onLockedEditAttempt}
         readOnly={readOnly}
         onDuplicateWidget={onDuplicateWidget}
+        onBeforeWidgetCopy={onBeforeWidgetCopy}
       />
     );
 
