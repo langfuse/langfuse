@@ -121,20 +121,6 @@ WHERE (scores.project_id = {param1:String})
             SELECT
                 e.trace_id AS id,
                 e.project_id AS project_id,
-                coalesce(
-                    nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
-                    nullIf(
-                        argMaxIf(
-                            e.name,
-                            e.event_ts,
-                            (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
-                        ),
-                        ''
-                    )
-                ) AS name,
-                argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
-                argMaxIf(e.release, e.event_ts, e.release != '') AS release,
-                argMaxIf(e.version, e.event_ts, e.version != '') AS version,
                 arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
             FROM events_core AS e
             WHERE (e.project_id = {param5:String})
@@ -222,11 +208,7 @@ WHERE (scores.project_id = {param1:String})
                         ),
                         ''
                     )
-                ) AS name,
-                argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
-                argMaxIf(e.release, e.event_ts, e.release != '') AS release,
-                argMaxIf(e.version, e.event_ts, e.version != '') AS version,
-                arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
+                ) AS name
             FROM events_core AS e
             WHERE (e.project_id = {param5:String})
                 AND (e.start_time >= {param6:DateTime64(3, 'UTC')})
@@ -278,21 +260,7 @@ WHERE (scores.project_id = {param1:String})
             SELECT
                 e.trace_id AS id,
                 e.project_id AS project_id,
-                coalesce(
-                    nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
-                    nullIf(
-                        argMaxIf(
-                            e.name,
-                            e.event_ts,
-                            (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
-                        ),
-                        ''
-                    )
-                ) AS name,
-                argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
-                argMaxIf(e.release, e.event_ts, e.release != '') AS release,
-                argMaxIf(e.version, e.event_ts, e.version != '') AS version,
-                arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
+                argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id
             FROM events_core AS e
             WHERE (e.project_id = {param5:String})
                 AND (e.start_time >= {param6:DateTime64(3, 'UTC')})
@@ -440,20 +408,6 @@ FROM
         SELECT
             e.trace_id AS id,
             e.project_id AS project_id,
-            coalesce(
-                nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
-                nullIf(
-                    argMaxIf(
-                        e.name,
-                        e.event_ts,
-                        (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
-                    ),
-                    ''
-                )
-            ) AS name,
-            argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
-            argMaxIf(e.release, e.event_ts, e.release != '') AS release,
-            argMaxIf(e.version, e.event_ts, e.version != '') AS version,
             arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
         FROM events_core AS e
         WHERE (e.project_id = {param1:String})
@@ -551,11 +505,7 @@ FROM
                     ),
                     ''
                 )
-            ) AS name,
-            argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
-            argMaxIf(e.release, e.event_ts, e.release != '') AS release,
-            argMaxIf(e.version, e.event_ts, e.version != '') AS version,
-            arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
+            ) AS name
         FROM events_core AS e
         WHERE (e.project_id = {param1:String})
             AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
@@ -616,21 +566,7 @@ FROM
         SELECT
             e.trace_id AS id,
             e.project_id AS project_id,
-            coalesce(
-                nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
-                nullIf(
-                    argMaxIf(
-                        e.name,
-                        e.event_ts,
-                        (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
-                    ),
-                    ''
-                )
-            ) AS name,
-            argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
-            argMaxIf(e.release, e.event_ts, e.release != '') AS release,
-            argMaxIf(e.version, e.event_ts, e.version != '') AS version,
-            arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
+            argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id
         FROM events_core AS e
         WHERE (e.project_id = {param1:String})
             AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
@@ -793,20 +729,6 @@ WHERE (scores.project_id = {param1:String})
             SELECT
                 e.trace_id AS id,
                 e.project_id AS project_id,
-                coalesce(
-                    nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
-                    nullIf(
-                        argMaxIf(
-                            e.name,
-                            e.event_ts,
-                            (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
-                        ),
-                        ''
-                    )
-                ) AS name,
-                argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
-                argMaxIf(e.release, e.event_ts, e.release != '') AS release,
-                argMaxIf(e.version, e.event_ts, e.version != '') AS version,
                 arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
             FROM events_core AS e
             WHERE (e.project_id = {param5:String})
@@ -900,11 +822,7 @@ WHERE (scores.project_id = {param1:String})
                         ),
                         ''
                     )
-                ) AS name,
-                argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
-                argMaxIf(e.release, e.event_ts, e.release != '') AS release,
-                argMaxIf(e.version, e.event_ts, e.version != '') AS version,
-                arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
+                ) AS name
             FROM events_core AS e
             WHERE (e.project_id = {param5:String})
                 AND (e.start_time >= {param6:DateTime64(3, 'UTC')})
@@ -959,21 +877,7 @@ WHERE (scores.project_id = {param1:String})
             SELECT
                 e.trace_id AS id,
                 e.project_id AS project_id,
-                coalesce(
-                    nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
-                    nullIf(
-                        argMaxIf(
-                            e.name,
-                            e.event_ts,
-                            (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
-                        ),
-                        ''
-                    )
-                ) AS name,
-                argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
-                argMaxIf(e.release, e.event_ts, e.release != '') AS release,
-                argMaxIf(e.version, e.event_ts, e.version != '') AS version,
-                arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
+                argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id
             FROM events_core AS e
             WHERE (e.project_id = {param5:String})
                 AND (e.start_time >= {param6:DateTime64(3, 'UTC')})
@@ -1133,20 +1037,6 @@ FROM
         SELECT
             e.trace_id AS id,
             e.project_id AS project_id,
-            coalesce(
-                nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
-                nullIf(
-                    argMaxIf(
-                        e.name,
-                        e.event_ts,
-                        (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
-                    ),
-                    ''
-                )
-            ) AS name,
-            argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
-            argMaxIf(e.release, e.event_ts, e.release != '') AS release,
-            argMaxIf(e.version, e.event_ts, e.version != '') AS version,
             arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
         FROM events_core AS e
         WHERE (e.project_id = {param1:String})
@@ -1250,11 +1140,7 @@ FROM
                     ),
                     ''
                 )
-            ) AS name,
-            argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
-            argMaxIf(e.release, e.event_ts, e.release != '') AS release,
-            argMaxIf(e.version, e.event_ts, e.version != '') AS version,
-            arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
+            ) AS name
         FROM events_core AS e
         WHERE (e.project_id = {param1:String})
             AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
@@ -1318,21 +1204,7 @@ FROM
         SELECT
             e.trace_id AS id,
             e.project_id AS project_id,
-            coalesce(
-                nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
-                nullIf(
-                    argMaxIf(
-                        e.name,
-                        e.event_ts,
-                        (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
-                    ),
-                    ''
-                )
-            ) AS name,
-            argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
-            argMaxIf(e.release, e.event_ts, e.release != '') AS release,
-            argMaxIf(e.version, e.event_ts, e.version != '') AS version,
-            arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
+            argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id
         FROM events_core AS e
         WHERE (e.project_id = {param1:String})
             AND (e.start_time >= {param2:DateTime64(3, 'UTC')})

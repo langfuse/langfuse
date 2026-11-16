@@ -75,7 +75,10 @@ import {
   type QueryLevel,
 } from "./eventsObservationsRegistry";
 import { NULL_IF_EMPTY_RE } from "./nullIfEmptyFilter";
-import { compileEventsTraceAttributesSubquery } from "./eventsTraceAttributes";
+import {
+  compileEventsTraceAttributesSubquery,
+  referencedTraceAttributeColumns,
+} from "./eventsTraceAttributes";
 import {
   getCompatibleFilterTypes,
   isFilterColumnType,
@@ -1017,6 +1020,7 @@ export class QueryBuilder {
     skipObservationsFinal: boolean,
     skipScoresFinal: boolean,
     projectId: string,
+    referencingSql: readonly string[],
   ) {
     assertKnownRelationTables(view, relationTables);
     const relationJoins = [];
@@ -1029,6 +1033,10 @@ export class QueryBuilder {
           projectId,
           fromTimestamp: query.fromTimestamp,
           toTimestamp: query.toTimestamp,
+          columns: referencedTraceAttributeColumns(
+            relationTableName,
+            referencingSql,
+          ),
         });
         Object.assign(joinParams, subquery.params);
         relationJoins.push(
@@ -1159,6 +1167,24 @@ export class QueryBuilder {
     };
   }
 
+  /** Every SQL fragment of the query that can reference a relation's columns. */
+  private relationReferencingSql(
+    appliedDimensions: AppliedDimensionType[],
+    appliedMetrics: AppliedMetricType[],
+    appliedBucketingDimension: AppliedBucketingDimension,
+    filterList: FilterList,
+  ): string[] {
+    const dimensions =
+      appliedBucketingDimension.type === "entity"
+        ? [...appliedDimensions, appliedBucketingDimension.dimension]
+        : appliedDimensions;
+    return [
+      ...dimensions.flatMap((d) => [d.sql, d.aggregationFunction ?? ""]),
+      ...appliedMetrics.flatMap((m) => [m.sql, ...Object.values(m.aggs ?? {})]),
+      filterList.apply().query,
+    ];
+  }
+
   /** `<base>.trace_id IN (ids of traces whose aggregated attributes pass `traceFilters`)`. */
   private buildTraceAttributesSemiJoin(
     baseTableName: string,
@@ -1167,12 +1193,13 @@ export class QueryBuilder {
     query: QueryType,
     projectId: string,
   ): { sql: string; params: Record<string, unknown> } {
+    const { query: filterSql, params: filterParams } = traceFilters.apply();
     const subquery = compileEventsTraceAttributesSubquery({
       projectId,
       fromTimestamp: query.fromTimestamp,
       toTimestamp: query.toTimestamp,
+      columns: referencedTraceAttributeColumns(relationTableName, [filterSql]),
     });
-    const { query: filterSql, params: filterParams } = traceFilters.apply();
     const where = filterSql ? ` WHERE ${filterSql}` : "";
     return {
       sql: `${baseTableName}.trace_id IN (SELECT ${relationTableName}.id FROM (${subquery.sql}) AS ${relationTableName}${where})`,
@@ -2394,6 +2421,12 @@ export class QueryBuilder {
         skipObservationsFinal,
         skipScoresFinal,
         projectId,
+        this.relationReferencingSql(
+          appliedDimensions,
+          appliedMetrics,
+          appliedBucketingDimension,
+          filterList,
+        ),
       );
       Object.assign(parameters, joinParams);
       fromClause += ` ${relationJoins.join(" ")}`;
