@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
   severity: "warning" as "off" | "warning" | "critical",
   message: null as string | null,
   actionNeededCount: 1,
-  variant: "deadline" as "deadline" | "delayed",
+  variant: "deadline" as "deadline" | "delayed" | "december",
   organization: { id: "org-1", name: "Org 1" } as {
     id: string;
     name: string;

@@ -2,6 +2,7 @@ import type { PrismaClient } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  V4_MIGRATION_DECEMBER_DEADLINE_MESSAGE,
   V4_MIGRATION_DELAYED_DEADLINE_MESSAGE,
   V4_MIGRATION_TOP_BANNER_MESSAGE,
 } from "@/src/features/v4-migration/v4MigrationBannerCopy";
@@ -222,5 +223,40 @@ describe("getV4MigrationTopBannerState", () => {
       severity: "off",
       message: null,
     });
+  });
+
+  it("shows the December deadline only when every actionable project is in a December organization", async () => {
+    const banner = {
+      prisma: {} as PrismaClient,
+      session,
+      demoOrgId: "demo-org" as string | undefined,
+      isLangfuseCloud: true,
+    };
+
+    await expect(
+      getV4MigrationTopBannerState({
+        ...banner,
+        decemberOrgIds: ["org-a"],
+        cutoffExemptProjectIds: ["project-a"],
+      }),
+    ).resolves.toMatchObject({
+      message: V4_MIGRATION_DECEMBER_DEADLINE_MESSAGE,
+      variant: "december",
+      href: "/v4-migration",
+    });
+
+    mocks.getMigrationActionsByProject.mockResolvedValue(
+      new Map([
+        ["project-a", actionNeeded],
+        ["project-c", actionNeeded],
+      ]),
+    );
+    await expect(
+      getV4MigrationTopBannerState({
+        ...banner,
+        decemberOrgIds: ["org-a"],
+        cutoffExemptProjectIds: ["project-a", "project-c"],
+      }),
+    ).resolves.toMatchObject({ variant: "delayed" });
   });
 });

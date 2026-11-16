@@ -746,6 +746,20 @@ export const env = createEnv({
               .filter(Boolean)
           : [],
       ),
+    // Comma-separated organization ids whose deadline is December 31, 2026.
+    // The December sentence shows only when every actionable project belongs
+    // to one of these organizations.
+    LANGFUSE_V4_BANNER_DECEMBER_ORG_IDS: z
+      .string()
+      .optional()
+      .transform((value) =>
+        value
+          ? value
+              .split(",")
+              .map((organizationId) => organizationId.trim())
+              .filter(Boolean)
+          : [],
+      ),
     // Langfuse Cloud only, temporary. v3 cutoff switches, flipped by hand.
     // Ignored on self-hosted deployments.
     // INGESTION: legacy batch events except score-create, and legacy trace writes.
@@ -1409,6 +1423,8 @@ export const env = createEnv({
     LANGFUSE_V4_BANNER_SEVERITY: process.env.LANGFUSE_V4_BANNER_SEVERITY,
     LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS:
       process.env.LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS,
+    LANGFUSE_V4_BANNER_DECEMBER_ORG_IDS:
+      process.env.LANGFUSE_V4_BANNER_DECEMBER_ORG_IDS,
     LANGFUSE_V4_CUTOFF_INGESTION: process.env.LANGFUSE_V4_CUTOFF_INGESTION,
     LANGFUSE_V4_CUTOFF_PUBLIC_API: process.env.LANGFUSE_V4_CUTOFF_PUBLIC_API,
     LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS:

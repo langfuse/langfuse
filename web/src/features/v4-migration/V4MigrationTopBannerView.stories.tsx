@@ -1,6 +1,7 @@
 import { fn } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import {
+  V4_MIGRATION_DECEMBER_DEADLINE_MESSAGE,
   V4_MIGRATION_DELAYED_DEADLINE_MESSAGE,
   V4_MIGRATION_STATUS_LINK_LABEL,
   V4_MIGRATION_TOP_BANNER_MESSAGE,
@@ -34,6 +35,14 @@ export const Critical = meta.story({
 export const DelayedDeadline = meta.story({
   args: {
     message: V4_MIGRATION_DELAYED_DEADLINE_MESSAGE,
+    linkLabel: V4_MIGRATION_STATUS_LINK_LABEL,
+  },
+});
+
+/** Organizations whose deadline is December 31. Same page as the other banners. */
+export const DecemberDeadline = meta.story({
+  args: {
+    message: V4_MIGRATION_DECEMBER_DEADLINE_MESSAGE,
     linkLabel: V4_MIGRATION_STATUS_LINK_LABEL,
   },
 });

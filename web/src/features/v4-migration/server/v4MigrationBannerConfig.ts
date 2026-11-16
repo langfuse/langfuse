@@ -13,8 +13,9 @@ export type V4MigrationBannerConfig = {
 /**
  * Self-hosted deployments, exempt orgs, and severity "off" hide the banner.
  * A non-null message means the strip is allowed. The sentence itself comes
- * from the delayed-deadline rule. Operators choose the severity, which
- * organizations are exempt, and which projects skip the v3 cutoff.
+ * from the deadline rule. Operators choose the severity, which
+ * organizations are exempt, which organizations keep a December 31 deadline,
+ * and which projects skip the v3 cutoff.
  */
 export function getV4MigrationBannerConfig(params: {
   orgId: string;

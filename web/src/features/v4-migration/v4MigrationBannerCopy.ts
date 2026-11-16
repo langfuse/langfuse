@@ -4,11 +4,14 @@ export const V4_MIGRATION_TOP_BANNER_MESSAGE =
 export const V4_MIGRATION_DELAYED_DEADLINE_MESSAGE =
   "Action required: Deadline delayed by one week, until November 23, 2026. Some features may stop working after that for at least one of your projects.";
 
+export const V4_MIGRATION_DECEMBER_DEADLINE_MESSAGE =
+  "Action required: Deadline delayed until December 31, 2026. Some features may stop working after that for at least one of your projects.";
+
 export const V4_MIGRATION_STATUS_HREF = "/v4-migration";
 export const V4_MIGRATION_STATUS_LINK_LABEL = "Check migration status";
 export const V4_MIGRATION_STATUS_MOBILE_LABEL = "Action required:";
 
-export type V4MigrationBannerVariant = "deadline" | "delayed";
+export type V4MigrationBannerVariant = "deadline" | "delayed" | "december";
 
 export type V4MigrationBannerPresentation = {
   variant: V4MigrationBannerVariant;
@@ -36,23 +39,38 @@ const DELAYED: V4MigrationBannerPresentation = {
   ...migrationLink,
 };
 
+const DECEMBER: V4MigrationBannerPresentation = {
+  variant: "december",
+  message: V4_MIGRATION_DECEMBER_DEADLINE_MESSAGE,
+  ...migrationLink,
+};
+
 /**
- * One sentence for the whole session, or none. The delayed deadline shows only
- * when every actionable project is cutoff-exempt; any other actionable project
- * gets the default message.
+ * One sentence for the whole session, or none. December 31 shows only when
+ * every actionable project belongs to a December organization. November 23
+ * shows only when every actionable project is cutoff-exempt. Any other
+ * actionable project gets the default message.
  */
 export function resolveV4MigrationBannerCopy(params: {
-  actionNeededProjectIds: readonly string[];
+  actionNeededProjects: readonly { projectId: string; orgId: string }[];
   cutoffExemptProjectIds: readonly string[];
+  decemberOrgIds: readonly string[];
 }): V4MigrationBannerPresentation | null {
-  const { actionNeededProjectIds } = params;
-  if (actionNeededProjectIds.length === 0) {
+  const { actionNeededProjects } = params;
+  if (actionNeededProjects.length === 0) {
     return null;
   }
 
+  const decemberOrgIds = new Set(params.decemberOrgIds);
+  if (
+    actionNeededProjects.every((project) => decemberOrgIds.has(project.orgId))
+  ) {
+    return DECEMBER;
+  }
+
   const cutoffExemptProjectIds = new Set(params.cutoffExemptProjectIds);
-  const allExempt = actionNeededProjectIds.every((projectId) =>
-    cutoffExemptProjectIds.has(projectId),
+  const allExempt = actionNeededProjects.every((project) =>
+    cutoffExemptProjectIds.has(project.projectId),
   );
   return allExempt ? DELAYED : DEADLINE;
 }
