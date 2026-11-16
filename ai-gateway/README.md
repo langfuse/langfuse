@@ -678,7 +678,7 @@ Codex sends its turn snapshot canonically in the request body as
 `client_metadata["x-codex-turn-metadata"]`; the `x-codex-turn-metadata` header and the
 flat `client_metadata` keys (`session_id`, `thread_id`, `turn_id`, `root_turn_id`,
 `parent_turn_id`, `x-codex-installation-id`, `x-codex-window-id`,
-`x-codex-parent-thread-id`) are compatibility copies of it. The gateway reads the
+`x-codex-parent-thread-id`) are compatibility projections of it. The gateway reads the
 body snapshot first, then the header, and finally the flat keys. A recognized
 `client_metadata` object is removed from the recorded input in full mode because it is
 request metadata rather than prompt content; other clients' `client_metadata` stays in
@@ -718,7 +718,7 @@ Web's resolved ingestion mode controls content capture:
 
 - `full`: input retains native `input`, `instructions`, tools, prompt/context
   references and unknown fields. Model, configuration and a recognized coding agent's
-  `client_metadata` are extracted from input. Output is an ordered array of native
+  `client_metadata` are projected out of input. Output is an ordered array of native
   completed items. Content is sent only through Langfuse ingestion.
 - `usage`: input and output are null. Model, scalar parameters, native usage,
   timing and trusted attribution are retained; request schemas/content are omitted.
@@ -758,8 +758,8 @@ level. Scalar model parameters (`max_tokens`, `temperature`, `top_p`, `top_k`,
 `stream`, `service_tier`, `speed`) are recorded in both modes; `speed` selects the
 fast-mode pricing tier.
 
-In full mode the input is the native request with `model` and parameters extracted
-from it: `stop_sequences`, `thinking`, `tool_choice`, `context_management` and
+In full mode the input is the native request with `model` and parameters projected
+out: `stop_sequences`, `thinking`, `tool_choice`, `context_management` and
 `output_config` become model parameters and `metadata` (where Claude Code stores its
 session identifiers) becomes `langfuse.gateway.client.request.metadata`; `system`, `messages`, `tools` and
 unknown fields are kept as sent. The output is the native assistant message
@@ -809,7 +809,7 @@ bytes observed by the gateway for operational metrics. `completion_start_ms` mea
 the first captured SSE content delta independently; it ignores response-created
 events and keepalives and does not retain or reconstruct delta content.
 
-`input_complete` means request input was captured and configuration extracted; it is false when
+`input_complete` means request input was captured and configuration projected; it is false when
 content is omitted in usage mode. `output_complete` means response inspection
 finished without capture gaps for the configured mode (including a terminal event
 and all expected completed items for full-mode SSE). It does not promise that the

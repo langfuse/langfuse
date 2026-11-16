@@ -35,7 +35,7 @@ pub(crate) const MAX_INPUT_CAPTURE_BYTES: usize = 5 * 1024 * 1024;
 pub(crate) const MAX_OUTPUT_CAPTURE_BYTES: usize = 1024 * 1024;
 const MAX_ITEMS: usize = 256;
 const MAX_FACT_STRING: usize = 512;
-const MAX_EXTRACTED_BYTES: usize = 64 * 1024;
+const MAX_PROJECTED_BYTES: usize = 64 * 1024;
 
 enum ProtocolCapture {
     OpenAiResponses(OpenAiResponsesCapture),
@@ -379,7 +379,7 @@ impl Drop for ExecutionCapture {
 
 /// The request's top-level members, each kept as its original bytes. A parsed
 /// `Value` tree can take about 100x the bytes of adversarial JSON such as
-/// `[{"":0},...]`, so the members extracted from the input share one small
+/// `[{"":0},...]`, so the members projected out of the input share one small
 /// parse budget.
 struct RawRequest {
     members: BTreeMap<String, Box<RawValue>>,
@@ -420,7 +420,7 @@ fn parse_request(headers: &HeaderMap, body: &[u8]) -> Result<RawRequest, InputOm
     } else if let Ok(members) = serde_json::from_slice(body) {
         return Ok(RawRequest {
             members,
-            parse_budget: MAX_EXTRACTED_BYTES,
+            parse_budget: MAX_PROJECTED_BYTES,
         });
     } else {
         InputOmissionReason::InvalidJson

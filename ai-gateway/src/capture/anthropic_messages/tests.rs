@@ -274,7 +274,7 @@ fn stop_events() -> String {
 }
 
 #[tokio::test]
-async fn request_configuration_and_metadata_are_extracted_from_input_by_mode() {
+async fn request_configuration_and_metadata_are_projected_out_of_input_by_mode() {
     let observer = new_observer("full").await;
     let facts = &captured(&observer).facts;
     assert_eq!(
@@ -300,7 +300,7 @@ async fn request_configuration_and_metadata_are_extracted_from_input_by_mode() {
     assert_eq!(input["messages"][0]["content"], json!("prompt-canary"));
     assert_eq!(input["tools"][0]["name"], json!("Bash"));
     assert_eq!(input["future_field"], json!({"kept":true}));
-    for extracted in [
+    for projected in [
         "model",
         "max_tokens",
         "speed",
@@ -308,7 +308,7 @@ async fn request_configuration_and_metadata_are_extracted_from_input_by_mode() {
         "tool_choice",
         "metadata",
     ] {
-        assert!(input.get(extracted).is_none(), "{extracted} left in input");
+        assert!(input.get(projected).is_none(), "{projected} left in input");
     }
     assert!(facts.input_complete);
 

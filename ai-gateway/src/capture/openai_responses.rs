@@ -163,7 +163,7 @@ impl OpenAiResponsesCapture {
                     self.facts.request_metadata.insert(key.to_owned(), value);
                 }
             }
-            // Preserve native prompt context and unknown fields after extracting configuration.
+            // Preserve native prompt context and unknown fields after projecting configuration.
             self.facts.input = request.into_input();
             self.facts.input_complete = self.facts.input.is_some();
         }
