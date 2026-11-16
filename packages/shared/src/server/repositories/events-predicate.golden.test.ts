@@ -78,13 +78,12 @@ type Raw = Compiled | { error: string };
 const PLACEHOLDER = /\{[A-Za-z_][A-Za-z0-9_]*\s*:\s*([^}]+)\}/g;
 
 const PROJECT_ID = "golden-project";
-const TENANCY_PREFIX =
-  /^e\.project_id = \{(\w+):String\} and e\.is_deleted = 0 and /;
+const TENANCY_PREFIX = /^e\.project_id = \{(\w+):String\} and /;
 
 /**
- * `compiled` minus the project and soft-delete conjuncts the compiler passes
- * put first, which the raw-SQL builders it is compared with omit. Throws
- * unless they lead the SQL and bind `PROJECT_ID`.
+ * `compiled` minus the project conjunct the tenancy pass puts first, which
+ * the raw-SQL builders it is compared with omit. Throws unless it leads the
+ * SQL and binds `PROJECT_ID`.
  */
 const withoutTenancy = (compiled: Compiled): Compiled => {
   const match = TENANCY_PREFIX.exec(compiled.sql);
@@ -234,8 +233,8 @@ function samples(
   }
 }
 
-// `numberObject` on metadata has no FilterState counterpart, so `samples`
-// returns none; it runs in clickhouse local instead, one row per operator:
+// `samples` returns none for `numberObject` on metadata, so these cases run
+// in clickhouse local, one row per operator:
 // `[op, value, matching span ids]` over the rows of "numeric metadata
 // conditions".
 const NUMERIC_METADATA_CASES = [
@@ -253,8 +252,7 @@ const loweredFields = eventsPredicateSource.fields.filter(
 );
 
 // Every lowered field × accepted condition type × operator × sample value,
-// plus `null` on every field. `numberObject` on metadata has no FilterState
-// counterpart; its tests are below.
+// plus `null` on every field. `numberObject` on metadata is tested below.
 const conditionCases: [string, FilterStateCondition][] = loweredFields.flatMap(
   (field) => [
     ...Object.entries(field.operators).flatMap(([type, operators]) =>

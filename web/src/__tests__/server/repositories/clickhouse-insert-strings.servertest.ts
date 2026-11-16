@@ -1,4 +1,9 @@
-import { createEvent, createEventsCh } from "@langfuse/shared/src/server";
+import { Readable } from "node:stream";
+import {
+  clickhouseClient,
+  createEvent,
+  createEventsCh,
+} from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -119,5 +124,55 @@ describe("ClickHouse insert string edge cases", () => {
         );
       },
     );
+  });
+
+  describe("Stream inserts of rows beyond the V8 string limit", () => {
+    const table = "insert_strings_stream_probe";
+
+    beforeAll(async () => {
+      await clickhouseClient().command({
+        query: `CREATE TABLE IF NOT EXISTS ${table} (id UInt32, input String) ENGINE = Memory`,
+      });
+    });
+
+    afterAll(async () => {
+      await clickhouseClient().command({
+        query: `DROP TABLE IF EXISTS ${table}`,
+      });
+    });
+
+    it("inserts rows from an object-mode stream when an array insert cannot be serialized", async () => {
+      // Each row serializes on its own, but together they exceed V8's maximum
+      // string length (~512 MiB), which an array insert needs because the
+      // client joins all rows into one string. Rows stay below ~90 MiB because
+      // ClickHouse 26.3 rejects a JSONEachRow row once its parsing chunk grows
+      // past 10x min_chunk_bytes_for_parallel_parsing (100 MiB by default).
+      const input = "x".repeat(80 * 1024 * 1024);
+      const rowCount = 7;
+      const rows = () =>
+        Array.from({ length: rowCount }, (_, id) => ({ id, input }));
+
+      await expect(
+        clickhouseClient().insert({
+          table,
+          format: "JSONEachRow",
+          values: rows(),
+        }),
+      ).rejects.toThrow(/Invalid string length/);
+
+      await clickhouseClient().insert({
+        table,
+        format: "JSONEachRow",
+        values: Readable.from(rows()),
+      });
+
+      const result = await clickhouseClient().query({
+        query: `SELECT count() AS rows, sum(length(input)) AS bytes FROM ${table}`,
+        format: "JSONEachRow",
+      });
+      expect(await result.json()).toEqual([
+        { rows: rowCount, bytes: rowCount * input.length },
+      ]);
+    }, 120_000);
   });
 });

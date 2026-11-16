@@ -9,6 +9,21 @@ export { DEFAULT_TOPIC_FACETS };
 export const TOPICS_BEDROCK_ACCESS_ERROR =
   "Unable to invoke LLM model (HTTP 403), please contact Langfuse Support";
 
+/** Tracing filter column: key is the facet name, values are topic names. */
+const TOPIC_FILTER_COLUMN = "topics";
+
+export function isTopicFilter<T extends { type: string; column: string }>(
+  filter: T,
+): filter is Extract<T, { type: "categoryOptions" }> {
+  return (
+    filter.type === "categoryOptions" && filter.column === TOPIC_FILTER_COLUMN
+  );
+}
+
+/** Batch jobs read without topic membership, so they must not drop a topic filter silently. */
+export const TOPIC_FILTERS_IN_BATCH_JOBS_MESSAGE =
+  "Topic filters can't be used for batch exports or actions yet. Remove the topic filter and try again.";
+
 export const topicIdSchema = z
   .string()
   .min(1)
@@ -126,6 +141,8 @@ export const TOPICS_MAX_RULES = 5;
 export const TOPICS_SLICE_MAX_TRACES = 20_000;
 /** An analysis needs this many summarized traces before it can cluster. */
 export const TOPICS_ANALYSIS_MIN_TRACES = 100;
+/** Fewer than TOPICS_ANALYSIS_MIN_TRACES, down to this, cluster in small-sample mode. */
+export const TOPICS_ANALYSIS_SMALL_SAMPLE_MIN_TRACES = 10;
 /** Seeds an analysis's sample, so its preview counts the traces its run clusters. */
 export const TOPICS_ANALYSIS_SAMPLING_SEED = "topics-analysis";
 
@@ -143,10 +160,21 @@ export function topicRuleFilterError(
 }
 
 /** Saved with a one-off clustering run; the cohort resolves from it at fit time. */
+/** Most traces a snapshot summarizes before it groups. */
+export const TOPICS_SNAPSHOT_SUMMARIZE_MAX_TRACES = 1_000;
+export const topicSnapshotSummarizeSchema = z.object({
+  limit: z.number().int().min(1).max(TOPICS_SNAPSHOT_SUMMARIZE_MAX_TRACES),
+  selection: z.enum(["random", "latest"]),
+});
+export type TopicSnapshotSummarize = z.infer<
+  typeof topicSnapshotSummarizeSchema
+>;
 export const topicAnalysisConfigSchema = z.object({
   label: z.string().trim().min(1).max(100),
   filter: topicRuleConfigSchema.shape.filter,
   seed: z.string().min(1).max(128),
+  // Traces without summaries to summarize through events-dispatch before grouping.
+  summarize: topicSnapshotSummarizeSchema.optional(),
 });
 export type TopicAnalysisConfig = z.infer<typeof topicAnalysisConfigSchema>;
 

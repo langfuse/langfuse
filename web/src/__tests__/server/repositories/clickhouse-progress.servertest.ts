@@ -6,6 +6,22 @@ import {
   isException,
 } from "@langfuse/shared/src/server";
 
+describe("queryClickhouse", () => {
+  it("binds parameter sets larger than the ClickHouse URL limit", async () => {
+    // Over http_max_uri_size (1 MiB by default) in total, while each value
+    // stays under the per-parameter limit (128 KiB by default).
+    const names = Array.from({ length: 10 }, (_, i) => `p${i}`);
+    const value = "x".repeat(120_000);
+
+    const rows = await queryClickhouse<{ total: number }>({
+      query: `SELECT ${names.map((name) => `length({${name}: String})`).join(" + ")} AS total`,
+      params: Object.fromEntries(names.map((name) => [name, value])),
+    });
+
+    expect(rows).toEqual([{ total: 1_200_000 }]);
+  });
+});
+
 async function getClickhouseMajorVersion(): Promise<number> {
   const rows = await queryClickhouse<{ v: string }>({
     query: "SELECT version() AS v",

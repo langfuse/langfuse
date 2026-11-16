@@ -13,8 +13,8 @@ export function ConnectionFilter(props: ConnectionFilterProps) {
     <div className="w-56 max-w-full">
       <ConnectionSelect
         {...props}
-        aria-label="Provider"
-        placeholder="Select a provider"
+        aria-label="Connection"
+        placeholder="Select a connection"
       />
     </div>
   );

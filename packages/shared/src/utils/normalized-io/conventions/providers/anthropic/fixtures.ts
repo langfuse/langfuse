@@ -58,75 +58,73 @@ export const documentedToolResultFixtures: NormalizedIOFixture[] = [
       },
     ],
   },
-].map(
-  ({ label, content, expectedOutput }): NormalizedIOFixture => ({
-    name: `Anthropic ${label} tool result with string system instruction`,
-    spanIO: {
-      input: {
-        system: "Be concise.",
-        messages: [
-          {
-            role: "assistant",
-            content: [
-              {
-                type: "tool_use",
-                id: "call_weather",
-                name: "get_weather",
-                input: { city: "Paris" },
-              },
-            ],
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "tool_result",
-                tool_use_id: "call_weather",
-                ...(content === undefined ? {} : { content }),
-              },
-            ],
-          },
-        ],
-      },
-      output: undefined,
-      metadata: undefined,
-    },
-    expected: {
+].map(({ label, content, expectedOutput }): NormalizedIOFixture => ({
+  name: `Anthropic ${label} tool result with string system instruction`,
+  spanIO: {
+    input: {
+      system: "Be concise.",
       messages: [
         {
-          source: "input",
-          role: "system",
-          parts: [{ type: "text", text: "Be concise." }],
-        },
-        {
-          source: "input",
           role: "assistant",
-          parts: [
+          content: [
             {
-              type: "tool-call",
-              toolCallId: "call_weather",
-              toolName: "get_weather",
+              type: "tool_use",
+              id: "call_weather",
+              name: "get_weather",
               input: { city: "Paris" },
-              toolType: "tool_use",
             },
           ],
         },
         {
-          source: "input",
-          role: "tool",
-          parts: [
+          role: "user",
+          content: [
             {
-              type: "tool-result",
-              toolCallId: "call_weather",
-              output: expectedOutput as ToolResultOutput,
+              type: "tool_result",
+              tool_use_id: "call_weather",
+              ...(content === undefined ? {} : { content }),
             },
           ],
         },
       ],
-      toolDefinitions: [],
     },
-  }),
-);
+    output: undefined,
+    metadata: undefined,
+  },
+  expected: {
+    messages: [
+      {
+        source: "input",
+        role: "system",
+        parts: [{ type: "text", text: "Be concise." }],
+      },
+      {
+        source: "input",
+        role: "assistant",
+        parts: [
+          {
+            type: "tool-call",
+            toolCallId: "call_weather",
+            toolName: "get_weather",
+            input: { city: "Paris" },
+            toolType: "tool_use",
+          },
+        ],
+      },
+      {
+        source: "input",
+        role: "tool",
+        parts: [
+          {
+            type: "tool-result",
+            toolCallId: "call_weather",
+            output: expectedOutput as ToolResultOutput,
+          },
+        ],
+      },
+    ],
+    toolDefinitions: [],
+  },
+}));
 
 const searchSchema = {
   type: "object",

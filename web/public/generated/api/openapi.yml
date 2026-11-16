@@ -4888,12 +4888,19 @@ paths:
                   type: array
                   items:
                     type: string
+                  nullable: true
                   description: >-
                     New labels for the prompt version. Labels are unique across
                     versions. The "latest" label is reserved and managed by
                     Langfuse.
-              required:
-                - newLabels
+                removeLabels:
+                  type: array
+                  items:
+                    type: string
+                  nullable: true
+                  description: >-
+                    Labels to remove from the prompt version. The "latest" label
+                    is reserved and managed by Langfuse.
   /api/public/v2/prompts/{promptName}:
     get:
       description: Get a prompt
@@ -11013,11 +11020,13 @@ components:
         value:
           type: string
           const: ''
-          nullable: true
-          description: Optional. Defaults to an empty string.
+          description: >-
+            Empty-string placeholder. Can be omitted on servers newer than
+            v4.78.0.
       required:
         - column
         - operator
+        - value
     PromptVariableMappingInput:
       title: PromptVariableMappingInput
       type: object
@@ -15079,7 +15088,8 @@ components:
 
         | `boolean` | boolean | `=`, `<>` |
 
-        | `null` | omit, or `""` | `is null`, `is not null` |
+        | `null` | `""` (can be omitted on servers newer than v4.78.0) | `is
+        null`, `is not null` |
 
         | `stringOptions` | list of strings | `any of`, `none of` |
 

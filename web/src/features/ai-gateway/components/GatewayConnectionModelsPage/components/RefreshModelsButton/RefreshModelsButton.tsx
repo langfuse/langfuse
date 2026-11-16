@@ -11,12 +11,12 @@ export function RefreshModelsButton({
 }) {
   const { connectionQuery, isRetrying, retryDiscovery } = connectionModels;
   return (
-    <Tooltip label="Refresh models from provider">
+    <Tooltip label="Refresh models for this connection">
       {({ getTriggerProps }) => (
         <IconButton
           {...getTriggerProps()}
           icon={RefreshCw}
-          label="Refresh models from provider"
+          label="Refresh models for this connection"
           variant="outline"
           disabled={isRetrying || !connectionQuery.data}
           onClick={retryDiscovery}

@@ -181,8 +181,11 @@ describe("executeDecisionModelEvaluator", () => {
     ]);
   });
 
-  it("writes OpenAI score details under metadata.openai", async () => {
-    const { client } = createClient({ ...evaluation, model: "gpt-6-luna" });
+  it.each([
+    ["gpt-6-luna", "openai"],
+    ["gemini-decision-1", "google-ai-studio"],
+  ])("writes %s score details under metadata.%s", async (model, key) => {
+    const { client } = createClient({ ...evaluation, model });
 
     const { scores } = await executeDecisionModelEvaluator({
       variables: [{ var: "question", value: "refund?" }],
@@ -191,12 +194,12 @@ describe("executeDecisionModelEvaluator", () => {
     });
 
     expect(scores.map((score) => Object.keys(score.metadata ?? {}))).toEqual([
-      ["openai"],
-      ["openai"],
-      ["openai"],
+      [key],
+      [key],
+      [key],
     ]);
     expect(scores[1]?.metadata).toMatchObject({
-      openai: { model: "gpt-6-luna", questionId: "frustration", type: "score" },
+      [key]: { model, questionId: "frustration", type: "score" },
     });
   });
 

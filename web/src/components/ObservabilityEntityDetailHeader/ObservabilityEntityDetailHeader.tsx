@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { Fragment, useLayoutEffect, useRef, useState } from "react";
 import type PageHeader from "@/src/components/layouts/page-header";
 import {
   DropdownMenu,
@@ -98,9 +98,13 @@ export type HeaderMetric = {
           rows: {
             id: string;
             label: string;
-            value: string;
+            /** One badge per value; a caption names its source when there are several. */
+            values: {
+              text: string;
+              caption?: string;
+              color?: React.ComponentProps<typeof Badge>["color"];
+            }[];
             description?: string;
-            color?: React.ComponentProps<typeof Badge>["color"];
           }[];
         }
     ))
@@ -680,22 +684,49 @@ function MetricContent({ metric }: { metric: HeaderMetric }) {
               <span className="text-sm font-bold">{metric.title}</span>
               <Metric href={metric.href} value={metric.linkText} />
             </div>
-            {metric.rows.map((row) => (
-              <div
-                key={row.id}
-                className="flex flex-col gap-1.5 border-b py-3 last:border-b-0"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-muted-foreground text-sm">
-                    {row.label}
-                  </span>
-                  <Badge text={row.value} color={row.color} />
+            {metric.rows.map((row) => {
+              // Several or captioned values get a line each under the label.
+              const isGrouped =
+                row.values.length > 1 ||
+                row.values.some((value) => value.caption);
+              return (
+                <div
+                  key={row.id}
+                  className="flex flex-col gap-1.5 border-b py-3 last:border-b-0"
+                >
+                  <div className="grid grid-cols-[fit-content(45%)_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1.5">
+                    <span
+                      className={cn(
+                        // `anywhere`, unlike `break-word`, lowers the min-content width the column sizes to.
+                        "text-muted-foreground text-sm wrap-anywhere",
+                        isGrouped && "col-span-2",
+                      )}
+                    >
+                      {row.label}
+                    </span>
+                    {row.values.map((value) => (
+                      <Fragment key={`${value.caption ?? ""}:${value.text}`}>
+                        {isGrouped && (
+                          <span className="text-muted-foreground text-xs wrap-anywhere">
+                            {value.caption}
+                          </span>
+                        )}
+                        <span className="flex min-w-0 justify-end">
+                          <Badge
+                            text={value.text}
+                            color={value.color}
+                            shouldWrap
+                          />
+                        </span>
+                      </Fragment>
+                    ))}
+                  </div>
+                  {row.description && (
+                    <p className="text-sm text-pretty">{row.description}</p>
+                  )}
                 </div>
-                {row.description && (
-                  <p className="text-sm text-pretty">{row.description}</p>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         }
       >

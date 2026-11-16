@@ -70,6 +70,13 @@ const topicSetupParams = (projectId: string, idleMs: number, now: Date) => ({
 const TOPIC_SETUP_COUNT_TIMEOUT_SECONDS = 10;
 const TOPIC_SETUP_SELECTION_TIMEOUT_SECONDS = 30;
 
+const summarizedParams = (summarized?: TopicSetupSummarized) =>
+  summarized && {
+    facetIds: summarized.facets.map(({ facetId }) => facetId),
+    facetVersions: summarized.facets.map(({ version }) => version),
+    ...summarized.embeddingConfig,
+  };
+
 /** Unsampled finished-trace count over one setup window, for the Topics setup estimate. */
 export async function getTopicSetupTraceCount(input: {
   projectId: string;
@@ -77,14 +84,17 @@ export async function getTopicSetupTraceCount(input: {
   now: Date;
   days: TopicSetupDays;
   matching?: TopicSetupMatching;
+  /** Counts only traces not yet summarized for every facet. */
+  summarized?: TopicSetupSummarized;
 }): Promise<number> {
   const rows = await queryClickhouse<{ count: string }>({
     query: `
       SELECT count() AS count
-      FROM (${topicSetupTracesSql(input.days, false, input.matching)})`,
+      FROM (${topicSetupTracesSql(input.days, false, input.matching, input.summarized)})`,
     params: {
       ...input.matching?.params,
       ...topicSetupParams(input.projectId, input.idleMs, input.now),
+      ...summarizedParams(input.summarized),
     },
     tags: { route: "topics-setup-counts", projectId: input.projectId },
     preferredClickhouseService: "EventsReadOnly",
@@ -109,22 +119,20 @@ export async function getTopicSetupTraceIds(input: {
   limit: number;
   /** Seeds the sample beyond the limit. */
   seed: string;
+  /** "latest" takes the most recently active traces instead of a seeded sample. */
+  order?: "random" | "latest";
   matching?: TopicSetupMatching;
   /** Leaves out traces already summarized for every facet. */
   summarized?: TopicSetupSummarized;
 }): Promise<string[]> {
   const rows = await queryClickhouse<{ trace_id: string }>({
     query: `${topicSetupTracesSql(input.days, input.sampling < 1, input.matching, input.summarized)}
-      ORDER BY cityHash64(trace_id, {seed: String}), trace_id
+      ORDER BY ${input.order === "latest" ? "last_ts DESC" : "cityHash64(trace_id, {seed: String})"}, trace_id
       LIMIT {limit: UInt32}`,
     params: {
       ...input.matching?.params,
       ...topicSetupParams(input.projectId, input.idleMs, input.now),
-      ...(input.summarized && {
-        facetIds: input.summarized.facets.map(({ facetId }) => facetId),
-        facetVersions: input.summarized.facets.map(({ version }) => version),
-        ...input.summarized.embeddingConfig,
-      }),
+      ...summarizedParams(input.summarized),
       sampling: input.sampling,
       limit: input.limit,
       seed: input.seed,

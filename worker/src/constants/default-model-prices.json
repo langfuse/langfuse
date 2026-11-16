@@ -9883,5 +9883,27 @@
         }
       }
     ]
+  },
+  {
+    "id": "cfa7cc19-24eb-42a5-9d45-5b4ed7081a96",
+    "modelName": "gemini-decision-1",
+    "matchPattern": "(?i)^(google(ai)?\/)?(gemini-decision-1)$",
+    "createdAt": "2026-11-13T00:00:00.000Z",
+    "updatedAt": "2026-11-13T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "cfa7cc19-24eb-42a5-9d45-5b4ed7081a96_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.1e-6,
+          "output": 0e-6
+        }
+      }
+    ]
   }
 ]

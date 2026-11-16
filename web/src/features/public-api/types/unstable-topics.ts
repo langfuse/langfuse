@@ -139,12 +139,15 @@ const TopicResultCursor = z.object({
   timestamp: z.coerce.date(),
   traceId: z.string(),
   facetId: z.string(),
+  // Assignment pages: rules sharing a facet each have a row per trace.
+  runId: z.string().optional(),
 });
 
 export const encodeTopicResultCursor = (cursor: {
   timestamp: Date;
   traceId: string;
   facetId: string;
+  runId?: string;
 }) =>
   Buffer.from(
     JSON.stringify({
@@ -152,6 +155,7 @@ export const encodeTopicResultCursor = (cursor: {
       timestamp: cursor.timestamp.toISOString(),
       traceId: cursor.traceId,
       facetId: cursor.facetId,
+      ...(cursor.runId !== undefined ? { runId: cursor.runId } : {}),
     }),
   ).toString("base64url");
 

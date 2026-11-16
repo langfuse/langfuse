@@ -21,35 +21,33 @@ export const documentedPromptFixtures: NormalizedIOFixture[] = [
     },
   },
 ].flatMap(({ name, input }) =>
-  [false, true].map(
-    (serialized): NormalizedIOFixture => ({
-      name: `documented AI SDK ${name}${serialized ? " (JSON)" : ""}`,
-      spanIO: {
-        input: serialized ? JSON.stringify(input) : input,
-        output: undefined,
-        metadata: undefined,
-      },
-      expected: {
-        messages: [
-          ...(input.system
-            ? [
-                {
-                  source: "input" as const,
-                  role: "system" as const,
-                  parts: [{ type: "text" as const, text: input.system }],
-                },
-              ]
-            : []),
-          {
-            source: "input",
-            role: "user",
-            parts: [{ type: "text", text: "Weather in San Francisco?" }],
-          },
-        ],
-        toolDefinitions: [],
-      },
-    }),
-  ),
+  [false, true].map((serialized): NormalizedIOFixture => ({
+    name: `documented AI SDK ${name}${serialized ? " (JSON)" : ""}`,
+    spanIO: {
+      input: serialized ? JSON.stringify(input) : input,
+      output: undefined,
+      metadata: undefined,
+    },
+    expected: {
+      messages: [
+        ...(input.system
+          ? [
+              {
+                source: "input" as const,
+                role: "system" as const,
+                parts: [{ type: "text" as const, text: input.system }],
+              },
+            ]
+          : []),
+        {
+          source: "input",
+          role: "user",
+          parts: [{ type: "text", text: "Weather in San Francisco?" }],
+        },
+      ],
+      toolDefinitions: [],
+    },
+  })),
 );
 
 const inputToolCallId = "call_5iGKBMczvh1pevPChrZNGSFB";

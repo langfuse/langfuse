@@ -11,11 +11,61 @@ import {
 } from "@langfuse/shared/src/server";
 import { fail } from "assert";
 import { randomUUID } from "node:crypto";
+import { prepareExecuteQuery } from "@langfuse/shared/query/server";
 
 const QUERY_ID_PATTERN =
   /\[query_id: [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\]/;
 
 describe("ClickHouse Resource Error Handling", () => {
+  it.each(["buffered", "streaming"] as const)(
+    "rejects an oversized analytics result through the %s adapter",
+    async (adapter) => {
+      const prepared = await prepareExecuteQuery({
+        projectId: "result-limit-test",
+        version: "v2",
+        query: {
+          view: "observations",
+          dimensions: [],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [],
+          timeDimension: null,
+          fromTimestamp: "2026-01-01T00:00:00Z",
+          toTimestamp: "2026-01-02T00:00:00Z",
+          orderBy: null,
+        },
+      });
+      const opts = {
+        // Vary each value so ClickHouse materializes the strings rather than
+        // keeping one shared constant column in memory.
+        query:
+          "SELECT concat(toString(number), repeat('x', 1000000)) AS payload FROM numbers(12)",
+        clickhouseSettings: {
+          ...prepared.clickhouseSettings,
+          max_block_size: "1",
+        },
+      };
+
+      const read = async () => {
+        if (adapter === "buffered") {
+          await queryClickhouse(opts);
+          return;
+        }
+        for await (const event of queryClickhouseWithProgress(opts)) {
+          if ("exception" in event) {
+            throw ClickHouseResourceError.wrapIfResourceError(
+              new Error(event.exception),
+            );
+          }
+        }
+      };
+
+      await expect(read()).rejects.toMatchObject({
+        name: "ClickHouseResourceError",
+        errorType: "RESULT_SIZE",
+      });
+    },
+  );
+
   describe("queryClickhouse", () => {
     describe("Error transformation with throwIf", () => {
       // It is enough to test different block sizes on one error type only
@@ -44,6 +94,8 @@ describe("ClickHouse Resource Error Handling", () => {
               surface: "trpc",
               route: "test.resource-error",
               projectId: "project-1",
+              projectSize: "unknown",
+              queryWindow: "none",
             });
           }
         });

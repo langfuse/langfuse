@@ -2,9 +2,13 @@ import { createElement, type ReactNode } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { decodeFiltersGeneric } from "@langfuse/shared";
+import { TOPICS_MAX_TIME_RANGE_MS } from "@langfuse/shared/topics";
 import { __test } from "./CurrentTopics";
 import {
+  type Facet,
   type TopicTraceQuery,
+  topicTracesHref,
   type TopicTracesResult,
   useTracesWithSelection,
 } from "./facet-topics";
@@ -195,5 +199,35 @@ describe("trace selection", () => {
     expect(listed({}, "older")).toEqual(["newest", "older"]);
     expect(listed({}, "picked")).toEqual(["picked", "newest", "older"]);
     expect(listed({ traceId: "searched" }, "picked")).toEqual(["searched"]);
+  });
+});
+
+describe("Open in Tracing", () => {
+  it("filters by the topic over a window the tracing topic filter accepts", () => {
+    const to = new Date("2026-09-23T00:00:00Z");
+    const facet = {
+      name: "Intent",
+      window: { from: new Date(to.getTime() - TOPICS_MAX_TIME_RANGE_MS), to },
+    } as Facet;
+    const url = new URL(
+      topicTracesHref("p1", [], true, { facet, name: "Billing" })!,
+      "http://localhost",
+    );
+    expect(decodeFiltersGeneric(url.searchParams.get("filter")!)).toEqual([
+      {
+        column: "topics",
+        type: "categoryOptions",
+        key: "Intent",
+        operator: "any of",
+        value: ["Billing"],
+      },
+    ]);
+    // The server adds 1 ms to the inclusive upper bound before checking the maximum.
+    const [from, until] = url.searchParams
+      .get("dateRange")!
+      .split("-")
+      .map(Number);
+    expect(until).toBe(to.getTime());
+    expect(until + 1 - from).toBe(TOPICS_MAX_TIME_RANGE_MS);
   });
 });

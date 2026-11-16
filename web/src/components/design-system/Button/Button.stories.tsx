@@ -40,6 +40,15 @@ export const VariantMatrix = meta.story({
           />
         )),
       )}
+      {(["default", "sm"] as const).map((size) => (
+        <Button
+          key={`outline-pressed-${size}`}
+          text={`outline pressed / ${size}`}
+          variant="outline"
+          size={size}
+          aria-pressed
+        />
+      ))}
     </div>
   ),
 });

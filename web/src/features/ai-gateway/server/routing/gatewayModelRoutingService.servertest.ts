@@ -153,6 +153,17 @@ describe("GatewayModelRoutingService", () => {
     });
   });
 
+  it("skips connections the key's model patterns deny for an implicitly routed model", () => {
+    expect(
+      routingService.resolve("gpt-6-sol", connections, undefined, [
+        "OpenAI secondary:*",
+      ]),
+    ).toEqual({
+      connection: connections[2],
+      providerModel: "gpt-6-sol",
+    });
+  });
+
   it("uses an unrestricted connection for an implicitly routed model", () => {
     const unrestrictedConnection = {
       id: "openai-unrestricted",

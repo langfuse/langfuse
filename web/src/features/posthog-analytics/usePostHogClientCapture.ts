@@ -473,6 +473,7 @@ const events = {
     "provider_credential_deleted",
     "team_invite_sent",
     "api_key_created",
+    "api_key_updated",
     "api_key_revoked",
     "api_key_secret_copied",
     "api_key_secret_revealed",
@@ -557,7 +558,9 @@ const events = {
 
 // type that represents all possible event names, e.g. "trace:delete"
 type EventName = {
-  [Resource in keyof typeof events]: `${Resource}:${(typeof events)[Resource][number]}`;
+  [
+    Resource in keyof typeof events
+  ]: `${Resource}:${(typeof events)[Resource][number]}`;
 }[keyof typeof events];
 
 type TypedEventMap = AnnotationEventMap &

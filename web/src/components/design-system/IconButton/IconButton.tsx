@@ -21,6 +21,7 @@ const buttonVariants = cva(
       },
       size: {
         xs: "size-4 rounded-sm",
+        xsTouch: "size-4 rounded-sm pointer-coarse:size-8",
         sm: "size-6",
         md: "size-8",
       },
@@ -41,7 +42,8 @@ type IconButtonProps = NativeButtonProps & {
   icon: IconComponent;
   label: string;
   ref?: Ref<HTMLButtonElement>;
-  size?: "xs" | "sm" | "md";
+  /** `xsTouch` is `xs` that grows to a touch-sized target on coarse pointers. */
+  size?: "xs" | "xsTouch" | "sm" | "md";
   variant?:
     | "ghost"
     | "outline"
@@ -78,7 +80,11 @@ export function IconButton({
       type={type}
     >
       <Icon
-        size={variant === "toolbar" || size === "xs" ? "sm" : "base"}
+        size={
+          variant === "toolbar" || size === "xs" || size === "xsTouch"
+            ? "sm"
+            : "base"
+        }
         color={iconColors[variant ?? "ghost"]}
         aria-hidden
       />
