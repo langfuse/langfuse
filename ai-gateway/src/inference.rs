@@ -3,19 +3,20 @@ use std::{sync::Arc, time::Duration};
 
 use axum::{
     body::Body,
-    http::{HeaderMap, Response},
+    http::{HeaderMap, Response, StatusCode},
 };
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tracing::Instrument;
 
 use crate::{
+    capture::{ExecutionCapture, GatewayRejection},
     config::{GatewayConfig, RequestLimits},
     correlation::RequestCorrelation,
     observability::ErrorOrigin,
     providers::{ProviderError, ProviderTransport, RequestBody, RequestPermit, Route},
     resolution::{
-        ApiFormat, ControlPlaneClient, ControlPlaneConfig, RateLimitKind, ResolutionError,
-        ResolvedRequestContext,
+        ApiFormat, ControlPlaneClient, ControlPlaneConfig, IngestionMode, RateLimitKind,
+        ResolutionError, ResolvedRequestContext,
     },
 };
 
@@ -257,11 +258,14 @@ impl InferenceService {
     pub(crate) async fn resolve_and_admit(
         &self,
         gateway_key: &str,
-        api_format: ApiFormat,
+        route: Route,
         model: &str,
-        request_bytes: usize,
+        headers: &HeaderMap,
+        body: &[u8],
         correlation: &mut RequestCorrelation,
     ) -> Result<(RequestPermit, ResolvedRequestContext), ResolutionError> {
+        let api_format = route.api_format();
+        let request_bytes = body.len();
         let span = tracing::info_span!(
             "resolution",
             otel.kind = "internal",
@@ -306,22 +310,60 @@ impl InferenceService {
             }
             let context = resolved?;
             correlation.record_resolution(&context);
-            let spend = self
-                .spend_limits
-                .check(&context)
-                .await
-                .inspect_err(|error| {
-                    let (origin, reason) = resolution_origin(error);
+            let spend = match self.spend_limits.check(&context).await {
+                Ok(spend) => spend,
+                Err(error) => {
+                    let (origin, reason) = resolution_origin(&error);
                     span.record("gateway.outcome", reason);
                     if origin.is_ours() {
                         span.record("otel.status_code", "ERROR");
                         span.record("error.type", reason);
                     }
-                })?;
+                    if let ResolutionError::SpendLimitExceeded(limit) = &error
+                        && route.captures_generation()
+                    {
+                        self.record_rejection(
+                            api_format,
+                            &context,
+                            headers,
+                            body,
+                            correlation,
+                            GatewayRejection {
+                                status: StatusCode::TOO_MANY_REQUESTS.as_u16(),
+                                reason,
+                                message: limit.message().to_owned(),
+                            },
+                        );
+                    }
+                    return Err(error);
+                }
+            };
             Ok((self.provider.admit().with_spend_recording(spend), context))
         }
         .instrument(span)
         .await
+    }
+
+    /// Records the refused request as a generation, like one the provider answered.
+    fn record_rejection(
+        &self,
+        api_format: ApiFormat,
+        context: &ResolvedRequestContext,
+        headers: &HeaderMap,
+        body: &[u8],
+        correlation: &mut RequestCorrelation,
+        rejection: GatewayRejection,
+    ) {
+        let Some(telemetry) = &self.telemetry else {
+            return;
+        };
+        if context.ingestion_mode() == IngestionMode::None {
+            return;
+        }
+        let mut capture = ExecutionCapture::for_request(api_format, context, headers, body);
+        capture.deliver_to(telemetry.clone(), context, headers, correlation);
+        capture.set_provider_model(context.connection().provider_model());
+        capture.reject(rejection);
     }
 
     pub(crate) async fn forward(

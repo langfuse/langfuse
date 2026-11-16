@@ -28,6 +28,7 @@ fn xai_chat_completion(usage: Value) -> InferenceFacts {
         metadata: json!({ "provider": "xai" }),
         outcome: RelayOutcome::Eof,
         charged_cost_details: None,
+        rejection: None,
         inference,
     }
 }

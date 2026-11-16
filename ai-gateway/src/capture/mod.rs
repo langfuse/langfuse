@@ -24,7 +24,9 @@ use crate::{
 };
 use anthropic_messages::AnthropicMessagesCapture;
 pub(crate) use facts::ProviderFacts;
-pub(crate) use facts::{InferenceFacts, InputOmission, InputOmissionReason, RelayOutcome};
+pub(crate) use facts::{
+    GatewayRejection, InferenceFacts, InputOmission, InputOmissionReason, RelayOutcome,
+};
 use openai_chat_completions::OpenAiChatCompletionsCapture;
 use openai_decisions::OpenAiDecisionsCapture;
 use openai_embeddings::OpenAiEmbeddingsCapture;
@@ -336,11 +338,38 @@ impl ExecutionCapture {
         let span = self.span.clone();
         let _entered = span.enter();
         crate::observability::execution_failed(outcome);
-        let Some(protocol) = self.protocol.take() else {
+        let Some(mut facts) = self.take_facts(outcome) else {
             return;
         };
-        let (api_format, inference) = protocol.into_facts();
-        let mut facts = InferenceFacts {
+        telemetry::debug_record(&facts);
+        crate::observability::execution_finished(&facts);
+        if let Some(spend) = self.spend.take() {
+            let metadata = self
+                .delivery
+                .as_ref()
+                .map(|(_, context)| context.observation_metadata(&facts))
+                .unwrap_or_default();
+            facts.charged_cost_details = spend.record(&facts, &metadata);
+        }
+        self.deliver(facts);
+    }
+
+    /// Records a request the gateway refused, so it reaches Langfuse without
+    /// counting as a provider execution.
+    pub(crate) fn reject(mut self, rejection: GatewayRejection) {
+        let span = self.span.clone();
+        let _entered = span.enter();
+        let Some(mut facts) = self.take_facts(RelayOutcome::Eof) else {
+            return;
+        };
+        facts.rejection = Some(rejection);
+        telemetry::debug_record(&facts);
+        self.deliver(facts);
+    }
+
+    fn take_facts(&mut self, outcome: RelayOutcome) -> Option<InferenceFacts> {
+        let (api_format, inference) = self.protocol.take()?.into_facts();
+        Some(InferenceFacts {
             api_format,
             start_time_unix_ms: self.start_time_unix_ms,
             duration_ms: self.started.elapsed().as_millis(),
@@ -354,18 +383,12 @@ impl ExecutionCapture {
             metadata: std::mem::take(&mut self.metadata),
             outcome,
             charged_cost_details: None,
+            rejection: None,
             inference,
-        };
-        telemetry::debug_record(&facts);
-        crate::observability::execution_finished(&facts);
-        if let Some(spend) = self.spend.take() {
-            let metadata = self
-                .delivery
-                .as_ref()
-                .map(|(_, context)| context.observation_metadata(&facts))
-                .unwrap_or_default();
-            facts.charged_cost_details = spend.record(&facts, &metadata);
-        }
+        })
+    }
+
+    fn deliver(&mut self, facts: InferenceFacts) {
         if let Some((telemetry, context)) = self.delivery.take() {
             telemetry.record(context, facts);
         }

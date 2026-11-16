@@ -242,11 +242,16 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
     );
     // Before upstream headers, transport failures become gateway HTTP errors.
     // Once headers arrive, later stream failures cannot change the HTTP status.
-    let response_status = facts.http_status.or(match facts.outcome {
-        RelayOutcome::Timeout => Some(504),
-        RelayOutcome::TransportError => Some(502),
-        RelayOutcome::Eof | RelayOutcome::Cancelled => None,
-    });
+    let response_status = facts
+        .rejection
+        .as_ref()
+        .map(|rejection| rejection.status)
+        .or(facts.http_status)
+        .or(match facts.outcome {
+            RelayOutcome::Timeout => Some(504),
+            RelayOutcome::TransportError => Some(502),
+            RelayOutcome::Eof | RelayOutcome::Cancelled => None,
+        });
     metadata.insert(
         "langfuse.gateway.response.status_code".into(),
         json!(response_status),
@@ -331,7 +336,9 @@ fn upstream_metadata(facts: &InferenceFacts) -> Map<String, Value> {
 /// Mirrors the failure order of [`observation_status`] and the bounded
 /// `error.origin`/`error.reason` values on the gateway's own request telemetry.
 fn error_classification(facts: &InferenceFacts) -> Option<(ErrorOrigin, &'static str)> {
-    if let Some(status) = facts.http_status.filter(|status| *status >= 400) {
+    if let Some(rejection) = &facts.rejection {
+        Some((ErrorOrigin::Client, rejection.reason))
+    } else if let Some(status) = facts.http_status.filter(|status| *status >= 400) {
         Some((ErrorOrigin::Provider, provider_status_reason(status)))
     } else if facts.inference.provider_status.as_deref() == Some("failed") {
         Some((ErrorOrigin::Provider, "provider_response_failed"))
@@ -345,6 +352,9 @@ fn error_classification(facts: &InferenceFacts) -> Option<(ErrorOrigin, &'static
 }
 
 fn observation_status(facts: &InferenceFacts) -> (&'static str, Option<String>) {
+    if let Some(rejection) = &facts.rejection {
+        return ("ERROR", Some(rejection.message.clone()));
+    }
     let failure = if let Some(status) = facts.http_status.filter(|status| *status >= 400) {
         Some(format!("Provider HTTP error ({status})"))
     } else if facts.inference.provider_status.as_deref() == Some("failed") {
@@ -408,6 +418,7 @@ fn usage_attributes(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::capture::GatewayRejection;
 
     fn context() -> GenerationContext {
         GenerationContext {
@@ -432,6 +443,7 @@ mod tests {
             metadata: json!({"ingestion_mode": "full", "key_id": "key", "key_metadata": {"team": "search"}}),
             outcome: RelayOutcome::Eof,
             charged_cost_details: None,
+            rejection: None,
             inference: crate::capture::ProviderFacts::default(),
         };
         facts.inference.model = Some("actual-model".into());
@@ -1408,6 +1420,30 @@ mod tests {
             assert_eq!(attrs["langfuse.observation.status_message"], expected);
             assert_eq!(attrs["langfuse.observation.level"], "ERROR");
         }
+    }
+
+    #[test]
+    fn gateway_rejections_are_caller_errors_with_the_status_the_caller_received() {
+        let mut facts = facts();
+        facts.http_status = None;
+        facts.rejection = Some(GatewayRejection {
+            status: 429,
+            reason: "spend_limit_exceeded",
+            message: "This API key has spent $10.00 of its $10.00 daily spend limit.".into(),
+        });
+        let attrs = attributes(&span(facts, &context()));
+        assert_eq!(attrs["langfuse.observation.level"], "ERROR");
+        assert_eq!(
+            attrs["langfuse.observation.status_message"],
+            "This API key has spent $10.00 of its $10.00 daily spend limit."
+        );
+        let metadata = metadata(&attrs);
+        assert_eq!(metadata["langfuse.gateway.response.status_code"], 429);
+        assert_eq!(metadata["langfuse.gateway.error.origin"], "client");
+        assert_eq!(
+            metadata["langfuse.gateway.error.type"],
+            "spend_limit_exceeded"
+        );
     }
 
     #[test]

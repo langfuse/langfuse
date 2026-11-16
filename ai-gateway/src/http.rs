@@ -241,9 +241,10 @@ async fn relay(
     let (permit, context) = inference
         .resolve_and_admit(
             gateway_key,
-            route.api_format(),
+            route,
             &request_body.model,
-            request_bytes,
+            &parts.headers,
+            &request_body.bytes,
             correlation,
         )
         .await
