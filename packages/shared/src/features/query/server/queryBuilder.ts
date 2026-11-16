@@ -1038,9 +1038,15 @@ export class QueryBuilder {
             referencingSql,
           ),
         });
-        Object.assign(joinParams, subquery.params);
+        const innerAlias = `${relationTableName}_all`;
+        const scored = this.scoredTraceIdsCondition(
+          view,
+          innerAlias,
+          filterList,
+        );
+        Object.assign(joinParams, subquery.params, scored.params);
         relationJoins.push(
-          `INNER JOIN (${subquery.sql}) AS ${relationTableName} ${relation.joinConditionSql}`,
+          `INNER JOIN (SELECT * FROM (${subquery.sql}) AS ${innerAlias} WHERE ${scored.sql}) AS ${relationTableName} ${relation.joinConditionSql}`,
         );
         continue;
       }
@@ -1146,9 +1152,10 @@ export class QueryBuilder {
       const isTraceFilter = (filter: { clickhouseTable: string }) =>
         filter.clickhouseTable === relationTableName;
       const semiJoin = this.buildTraceAttributesSemiJoin(
-        this.actualTableName(view),
+        view,
         relationTableName,
         remainingFilters.filter(isTraceFilter),
+        filterList,
         query,
         projectId,
       );
@@ -1187,9 +1194,10 @@ export class QueryBuilder {
 
   /** `<base>.trace_id IN (ids of traces whose aggregated attributes pass `traceFilters`)`. */
   private buildTraceAttributesSemiJoin(
-    baseTableName: string,
+    view: ViewDeclarationType,
     relationTableName: string,
     traceFilters: FilterList,
+    scoreFilters: FilterList,
     query: QueryType,
     projectId: string,
   ): { sql: string; params: Record<string, unknown> } {
@@ -1200,10 +1208,42 @@ export class QueryBuilder {
       toTimestamp: query.toTimestamp,
       columns: referencedTraceAttributeColumns(relationTableName, [filterSql]),
     });
-    const where = filterSql ? ` WHERE ${filterSql}` : "";
+    const scored = this.scoredTraceIdsCondition(
+      view,
+      relationTableName,
+      scoreFilters,
+    );
+    const where = [filterSql, scored.sql].filter(Boolean).join(" AND ");
     return {
-      sql: `${baseTableName}.trace_id IN (SELECT ${relationTableName}.id FROM (${subquery.sql}) AS ${relationTableName}${where})`,
-      params: { ...subquery.params, ...filterParams },
+      sql: `${this.actualTableName(view)}.trace_id IN (SELECT ${relationTableName}.id FROM (${subquery.sql}) AS ${relationTableName} WHERE ${where})`,
+      params: { ...subquery.params, ...filterParams, ...scored.params },
+    };
+  }
+
+  /**
+   * `<alias>.id IN (trace ids of scores passing the query's own score filters)`.
+   * The condition is on the trace-attribute subquery's group key, so
+   * ClickHouse applies it before aggregating: only traces with a matching
+   * score are aggregated.
+   */
+  private scoredTraceIdsCondition(
+    view: ViewDeclarationType,
+    alias: string,
+    filterList: FilterList,
+  ): { sql: string; params: Record<string, unknown> } {
+    const baseTable = this.actualTableName(view);
+    const { query, params } = filterList
+      .filter(
+        (filter) =>
+          filter.clickhouseTable === view.name ||
+          filter.clickhouseTable === baseTable,
+      )
+      .apply();
+    const from = view.baseCte.replace(/\s+FINAL$/, "");
+    const where = query ? ` WHERE ${query}` : "";
+    return {
+      sql: `${alias}.id IN (SELECT ${baseTable}.trace_id FROM ${from}${where})`,
+      params,
     };
   }
 

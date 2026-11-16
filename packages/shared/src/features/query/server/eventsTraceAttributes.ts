@@ -47,7 +47,8 @@ export function referencedTraceAttributeColumns(
  * filter or grouping on a trace attribute sees the whole trace whichever span
  * carries the attribute, and each score matches at most one row.
  *
- * Only traces with a score in the window are aggregated.
+ * Callers restrict it by `id` to the traces of matching scores; ClickHouse
+ * applies that condition on the group key before aggregating.
  */
 export function compileEventsTraceAttributesSubquery(params: {
   projectId: string;
@@ -74,13 +75,6 @@ export function compileEventsTraceAttributesSubquery(params: {
       )
       .where("e.start_time", ">=", from)
       .where("e.start_time", "<=", to)
-      .where("e.trace_id", "in", (eb) =>
-        eb
-          .selectFrom("scores as s")
-          .select("s.trace_id")
-          .where("s.timestamp", ">=", from)
-          .where("s.timestamp", "<=", to),
-      )
       .groupBy(["e.trace_id", "e.project_id"]),
     params.projectId,
     "traceAttrs",
