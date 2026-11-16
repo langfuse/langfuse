@@ -247,7 +247,7 @@ async function zoomToInlineNodes(canvasElement: HTMLElement) {
 
 async function hoverInlineNode(canvasElement: HTMLElement) {
   const canvas = within(canvasElement);
-  const stage = canvas.getByRole("group", { name: /^Interactive topic map/ });
+  const stage = canvas.getByRole("group", { name: /^Interactive scatter/ });
   const result: {
     hovered?: { node: HTMLElement; clientX: number; clientY: number };
   } = {};
@@ -369,7 +369,7 @@ export const MissingSummaries = meta.story({
   args: { data: { ...data, missingSummaryCount: 2, unpositionedCount: 3 } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const stage = canvas.getByRole("group", { name: /^Interactive topic map/ });
+    const stage = canvas.getByRole("group", { name: /^Interactive scatter/ });
     const baseline = stage.getBoundingClientRect();
     const trigger = canvas.getByRole("button", { name: /^Map coverage/ });
     expect(getComputedStyle(trigger).pointerEvents).toBe("auto");
@@ -432,7 +432,7 @@ export const ExploreZoneAndTrace = meta.story({
     await userEvent.click(summaryButton);
     await expect(args.onSelectTrace).toHaveBeenCalledWith(trace.traceId);
     const stage = canvas.getByRole("group", {
-      name: /^Interactive topic map/,
+      name: /^Interactive scatter/,
     });
     await expect(summaryButton).toHaveAttribute("aria-pressed", "true");
     stage.focus();
@@ -440,7 +440,9 @@ export const ExploreZoneAndTrace = meta.story({
     await expect(args.onSelectTopic).toHaveBeenLastCalledWith(null);
     await userEvent.keyboard("{Home}");
     await expect(args.onSelectTopic).toHaveBeenLastCalledWith(null);
-    await userEvent.click(canvas.getByRole("button", { name: "Fit map (0)" }));
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Fit scatter (0)" }),
+    );
     await expect(args.onSelectTopic).toHaveBeenLastCalledWith(null);
   },
 });
@@ -457,7 +459,7 @@ export const NavigationClearsHover = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const stage = canvas.getByRole("group", {
-      name: /^Interactive topic map/,
+      name: /^Interactive scatter/,
     });
     await zoomToInlineNodes(canvasElement);
     const { node, ...at } = await hoverInlineNode(canvasElement);
@@ -515,7 +517,7 @@ export const NavigationClearsHover = meta.story({
       await expect(activeHover()).toBeNull();
 
       await hoverInlineNode(canvasElement);
-      const section = canvas.getByRole("region", { name: "Embedding map" });
+      const section = canvas.getByRole("region", { name: "Scatter" });
       const originalStyleWidth = section.style.width;
       const originalStageWidth = stage.getBoundingClientRect().width;
       try {
@@ -570,7 +572,7 @@ export const ReadingKeepsZoomedCloud = meta.story({
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     const stage = canvas.getByRole("group", {
-      name: /^Interactive topic map/,
+      name: /^Interactive scatter/,
     });
     await new Promise<void>((resolve) =>
       requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
@@ -700,7 +702,7 @@ export const HoverPreservesMapGeometry = meta.story({
   ),
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    const stage = canvas.getByRole("group", { name: /^Interactive topic map/ });
+    const stage = canvas.getByRole("group", { name: /^Interactive scatter/ });
     await waitFor(() =>
       expect(stage.getBoundingClientRect().height).toBeGreaterThan(0),
     );
@@ -833,7 +835,7 @@ export const InterruptingTopicFlightKeepsPaintedZoom = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const stage = canvas.getByRole("group", { name: /^Interactive topic map/ });
+    const stage = canvas.getByRole("group", { name: /^Interactive scatter/ });
     await new Promise<void>((resolve) =>
       requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
     );
@@ -913,7 +915,7 @@ export const InterruptingTopicFlightKeepsPaintedZoom = meta.story({
       );
       await waitForMapSettled(canvasElement);
       await userEvent.click(
-        canvas.getByRole("button", { name: "Fit map (0)" }),
+        canvas.getByRole("button", { name: "Fit scatter (0)" }),
       );
       await new Promise<void>((resolve) => setTimeout(resolve, 420));
       const beforeFitInterrupt = painted.distance;
@@ -975,7 +977,7 @@ export const FilteringPreservesCamera = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const stage = canvas.getByRole("group", { name: /^Interactive topic map/ });
+    const stage = canvas.getByRole("group", { name: /^Interactive scatter/ });
     await userEvent.click(canvas.getByRole("button", { name: "Zoom in (+)" }));
     await userEvent.click(canvas.getByRole("button", { name: "Zoom in (+)" }));
     await userEvent.click(canvas.getByRole("button", { name: "Zoom in (+)" }));

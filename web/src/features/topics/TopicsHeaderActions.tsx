@@ -25,6 +25,8 @@ export function TopicsHeaderActions({ actions }: { actions: TopicsActions }) {
             disabled: action.disabledReason
               ? { reason: action.disabledReason }
               : undefined,
+            // The reason's title tooltip never shows on touch screens.
+            description: action.disabledReason,
             onClick: action.onSelect,
           })),
         ]}

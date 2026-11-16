@@ -118,7 +118,7 @@ export function TopicsMapPicker({
               />
             </label>
             <div className="flex min-h-0 flex-col overflow-y-auto p-1.5">
-              <Section>
+              <Section label={rules.length > 0 ? "Live maps" : undefined}>
                 {rules.map((rule) => (
                   <MapRow
                     key={rule.id}
@@ -169,7 +169,7 @@ export function TopicsMapPicker({
                   <CreateButton
                     entry={create.map}
                     icon={Plus}
-                    label="New map"
+                    label="New live map"
                     onChosen={() => changeOpen(false)}
                   />
                 )}

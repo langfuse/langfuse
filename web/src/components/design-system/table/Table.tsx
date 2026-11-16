@@ -332,7 +332,7 @@ export function Table<TData extends object>({
                             "hidden md:table-cell",
                         )}
                       >
-                        <div className="flex min-w-0 items-center overflow-hidden">
+                        <div className="flex min-w-0 items-center">
                           {typeof loadingCell === "function" && loadingCell()}
                           {typeof loadingCell !== "function" && loadingCell}
                           {loadingCell === undefined && (
@@ -412,7 +412,7 @@ export function Table<TData extends object>({
                       >
                         <div
                           className={cn(
-                            "flex min-w-0 items-center overflow-hidden",
+                            "flex min-w-0 items-center",
                             rowHeight === "s" && "h-8",
                             rowHeight === "m" && "h-20",
                             rowHeight === "l" && "h-60",

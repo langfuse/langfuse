@@ -1,8 +1,14 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import type { FilterState } from "@langfuse/shared";
-import { applyKeyedFilterEntries } from "@/src/features/filters/lib/sidebar-filter-actions";
-import { KeyValueFilterBuilder } from "./KeyValueFilterBuilder";
+import {
+  applyKeyedFilterEntries,
+  isStringKeyValueTextEntry,
+} from "@/src/features/filters/lib/sidebar-filter-actions";
+import {
+  KeyValueFilterBuilder,
+  stringRowOperatorOptions,
+} from "./KeyValueFilterBuilder";
 
 const noop = () => {};
 
@@ -46,7 +52,7 @@ function MetadataBuilderHarness() {
           setFilters((current) =>
             applyKeyedFilterEntries(current, "metadata", {
               kind: "stringObject",
-              entries,
+              entries: entries.filter(isStringKeyValueTextEntry),
             }),
           )
         }
@@ -175,5 +181,33 @@ describe("KeyValueFilterBuilder", () => {
     fireEvent.click(screen.getByText("Clear externally"));
     expect(screen.queryByDisplayValue("team")).not.toBeInTheDocument();
     expect(screen.getByDisplayValue("draft-key")).toBeInTheDocument();
+  });
+
+  it("offers numeric metadata comparisons but no numeric equals", () => {
+    const options = stringRowOperatorOptions(
+      { key: "attempt", operator: "=", value: "2" },
+      true,
+    );
+
+    expect(options.map((option) => option.value)).toEqual([
+      "=",
+      "contains",
+      "does not contain",
+      "is set",
+      "is not set",
+      "number:>",
+      "number:<",
+      "number:>=",
+      "number:<=",
+    ]);
+  });
+
+  it("offers numeric equals only on a row that already carries one", () => {
+    const options = stringRowOperatorOptions(
+      { key: "attempt", operator: "=", value: "2", valueType: "number" },
+      true,
+    );
+
+    expect(options.map((option) => option.value)).toContain("number:=");
   });
 });

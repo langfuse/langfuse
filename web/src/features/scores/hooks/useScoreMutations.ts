@@ -6,6 +6,7 @@ import {
 import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheProvider";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
+import { scoreWriteErrorDescription } from "@/src/utils/trpcValidationError";
 
 export function useScoreMutations() {
   const {
@@ -58,7 +59,7 @@ export function useScoreMutations() {
       cacheRollbackSet(variables.id);
       showErrorToast(
         "Failed to create score",
-        err.message,
+        scoreWriteErrorDescription(err),
         classifyTrpcToastError(err, "score.create"),
         "WARNING",
       );
@@ -113,7 +114,7 @@ export function useScoreMutations() {
       }
       showErrorToast(
         "Failed to update score",
-        err.message,
+        scoreWriteErrorDescription(err),
         classifyTrpcToastError(err, "score.update"),
         "WARNING",
       );
@@ -135,7 +136,7 @@ export function useScoreMutations() {
       cacheRollbackDelete(variables.id, context?.previousCacheValue);
       showErrorToast(
         "Failed to delete score",
-        err.message,
+        scoreWriteErrorDescription(err),
         classifyTrpcToastError(err, "score.delete"),
         "WARNING",
       );

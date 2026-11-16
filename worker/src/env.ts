@@ -186,33 +186,6 @@ const EnvSchema = z.object({
   LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
-  QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_TRACE_BATCH_READ_ENABLED: z.enum(["true", "false"]).default("false"),
-  LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_TRACE_BATCH_CONCURRENCY: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(2),
-  LANGFUSE_TRACE_BATCH_MAX_THREADS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(2),
-  LANGFUSE_TRACE_BATCH_REQUEST_TIMEOUT_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(40_000),
-  LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(100 * 1024 * 1024),
   // Traces summarized and embedded at once per Topics job, in both trace-batch and manual processing.
   LANGFUSE_TOPICS_TRACE_CONCURRENCY: z.coerce
     .number()
@@ -246,17 +219,6 @@ const EnvSchema = z.object({
     .min(0)
     .max(23)
     .default(4),
-  LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE: z.coerce
-    .number()
-    .int()
-    .positive()
-    .optional(),
-  LANGFUSE_TRACE_BATCH_EXPERIMENT_ID: z
-    .string()
-    .min(1)
-    .max(64)
-    .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/)
-    .optional(),
   LANGFUSE_TRACE_BATCH_MAX_SIZE: z.coerce
     .number()
     .int()
