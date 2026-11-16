@@ -5,6 +5,9 @@ import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { getShardIndex } from "./sharding";
 import { env } from "../../env";
 
+// Producer (worker-cpu) and consumer (worker) must agree; drain the queue before changing.
+const TOPICS_TRACE_QUEUE_SHARD_COUNT = 1;
+
 /** Per-trace Topics summaries; shard by `${projectId}-${traceId}`. */
 export class TopicsTraceQueue {
   private static instances: Map<
@@ -14,7 +17,7 @@ export class TopicsTraceQueue {
 
   public static getShardNames() {
     return Array.from(
-      { length: env.LANGFUSE_TOPICS_TRACE_QUEUE_SHARD_COUNT },
+      { length: TOPICS_TRACE_QUEUE_SHARD_COUNT },
       (_, i) => `${QueueName.TopicsTrace}${i > 0 ? `-${i}` : ""}`,
     );
   }
@@ -43,10 +46,7 @@ export class TopicsTraceQueue {
     const shardIndex =
       TopicsTraceQueue.getShardIndexFromShardName(shardName) ??
       (env.REDIS_CLUSTER_ENABLED === "true" && shardingKey
-        ? getShardIndex(
-            shardingKey,
-            env.LANGFUSE_TOPICS_TRACE_QUEUE_SHARD_COUNT,
-          )
+        ? getShardIndex(shardingKey, TOPICS_TRACE_QUEUE_SHARD_COUNT)
         : 0);
 
     if (TopicsTraceQueue.instances.has(shardIndex)) {

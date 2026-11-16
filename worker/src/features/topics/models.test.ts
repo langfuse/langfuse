@@ -3,7 +3,9 @@ import { Decimal } from "decimal.js";
 import { encrypt } from "@langfuse/shared/encryption";
 
 const state = vi.hoisted(() => ({
-  env: { LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS: ["project"] },
+  env: {
+    LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL: ["project"],
+  },
   call: vi.fn(),
   findModel: vi.fn(),
   embed: vi.fn(),
@@ -122,7 +124,9 @@ const evidence = {
 };
 
 beforeEach(() => {
-  state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS = ["project"];
+  state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL = [
+    "project",
+  ];
   state.call.mockReset();
   state.findModel.mockReset().mockResolvedValue({
     model: null,
@@ -194,7 +198,7 @@ describe("Topics naming boundary", () => {
       typeof import("@langfuse/shared/topics/server")
     >("@langfuse/shared/topics/server");
     state.call.mockImplementation(generateTopicText);
-    state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS = [];
+    state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL = [];
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -242,7 +246,7 @@ describe("Topics naming boundary", () => {
       typeof import("@langfuse/shared/topics/server")
     >("@langfuse/shared/topics/server");
     state.call.mockImplementation(generateTopicText);
-    state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS = [];
+    state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL = [];
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -1108,7 +1112,7 @@ describe("Topics naming boundary", () => {
       if (reason === "unconfigured destination")
         state.traceSink.mockReturnValue(undefined);
       else
-        state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS =
+        state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL =
           reason === "empty allowlist" ? [] : ["ai-features", "project-other"];
       state.call.mockResolvedValue({
         output: keyed({ summary: "A billing request.", status: "applicable" }),

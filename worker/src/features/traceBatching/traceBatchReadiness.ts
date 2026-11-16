@@ -6,10 +6,10 @@ import {
   recordIncrement,
   redis,
 } from "@langfuse/shared/src/server";
-import { env } from "../../env";
+import { traceDispatchConfig } from "../eventsDispatch/config";
 
 export function getTraceBatchShard(member: string): number {
-  return getShardIndex(member, env.LANGFUSE_TRACE_BATCH_SHARD_COUNT);
+  return getShardIndex(member, traceDispatchConfig.shardCount);
 }
 
 /** Resolve the project's idle interval consistently for both trace writers. */
@@ -24,11 +24,10 @@ export async function resolveTraceIdleMs(projectId: string): Promise<number> {
       error,
     });
   }
-  if (traceIdleMs === null) return env.LANGFUSE_TRACE_BATCH_IDLE_MS;
+  if (traceIdleMs === null) return traceDispatchConfig.defaultIdleMs;
   // Limit configured project idle time to the pending window minus one dispatch interval.
   const cap =
-    env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS -
-    env.LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS;
+    traceDispatchConfig.pendingTtlMs - traceDispatchConfig.dispatchIntervalMs;
   return cap > 0 ? Math.min(traceIdleMs, cap) : traceIdleMs;
 }
 

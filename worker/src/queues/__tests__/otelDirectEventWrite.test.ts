@@ -137,8 +137,10 @@ describe("trace-rule recording at the evaluation stage", () => {
       vi.mocked(getTopicsProcessingSampling).mockResolvedValue(
         topicsEnabled ? 1 : 0,
       );
-      env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE = 1;
-      env.LANGFUSE_TRACE_DISPATCH_ENABLED = ingestionEnabled ? "true" : "false";
+      env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL = 1;
+      env.LANGFUSE_EVENTS_DISPATCH_ENABLED = ingestionEnabled
+        ? "true"
+        : "false";
       const includeTraceTranscriptRules =
         shouldWriteToEventsTable && ingestionEnabled;
       env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
@@ -324,10 +326,10 @@ describe("trace-rule recording at the evaluation stage", () => {
       let recordedActivity: unknown;
       try {
         env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = cloud ? "DEV" : undefined;
-        env.LANGFUSE_TRACE_DISPATCH_ENABLED = ingestionEnabled
+        env.LANGFUSE_EVENTS_DISPATCH_ENABLED = ingestionEnabled
           ? "true"
           : "false";
-        env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE = rate;
+        env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL = rate;
         env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
         vi.mocked(fetchEvalRules).mockResolvedValue({
           observationRules: [],
