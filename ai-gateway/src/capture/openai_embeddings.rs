@@ -282,16 +282,6 @@ fn dimensions(item: &[u8]) -> Option<usize> {
     }
 }
 
-/// Embeddings report `prompt_tokens` and an equal `total_tokens`. Langfuse
-/// would sum the two into its total and double the cost, so only the input
-/// counter is kept and Langfuse derives the total from it.
-pub(super) fn project_usage(usage: &Value) -> Option<Value> {
-    let input = usage
-        .get("prompt_tokens")
-        .filter(|value| value.as_u64().is_some())?;
-    Some(serde_json::json!({ "input": input }))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

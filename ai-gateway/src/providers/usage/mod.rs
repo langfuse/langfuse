@@ -1,22 +1,23 @@
-//! A generation's usage as the provider that served it reports it. Providers
-//! whose usage or billing departs from their API format have their own file.
+//! A generation's usage as the provider that served it reports it. Every
+//! provider starts from the usage its API format reports; providers whose usage
+//! or billing departs from it adjust that in their own file.
+mod details;
+mod formats;
 mod gemini;
 mod openrouter;
 mod vercel;
 mod xai;
 
+pub(crate) use details::UsageDetails;
 use serde_json::Value;
 
-use crate::{
-    resolution::ApiFormat,
-    spend::{UsageCostType, provided_usage_details},
-};
+use crate::{resolution::ApiFormat, spend::UsageCostType};
 
 #[derive(Debug, Default, PartialEq)]
 pub(crate) struct ProviderUsage {
-    /// The usage projected by its API format and brought to `OpenAI`'s meaning, as
-    /// Langfuse ingests it; `None` when the format's usage could not be projected.
-    pub usage: Option<Value>,
+    /// Uploaded as the generation's `usage_details`; `None` when the usage lacks
+    /// its format's counters.
+    pub usage_details: Option<UsageDetails>,
     /// What the provider says it billed, in USD. Langfuse then records it, with its
     /// breakdown, instead of inferring costs from model prices.
     pub provided_cost_details: Option<UsageCostType>,
@@ -24,19 +25,11 @@ pub(crate) struct ProviderUsage {
 
 impl ProviderUsage {
     /// Usage as the API format reports it, without a billed amount.
-    fn reported(usage: Option<Value>) -> Self {
+    fn standard(api_format: ApiFormat, usage: &Value) -> Self {
         Self {
-            usage,
+            usage_details: formats::standard_usage(api_format, usage),
             provided_cost_details: None,
         }
-    }
-
-    /// The usage details `calculateModelUsageCosts` takes, as ingestion parses them.
-    pub(crate) fn usage_details(&self) -> UsageCostType {
-        self.usage
-            .as_ref()
-            .map(provided_usage_details)
-            .unwrap_or_default()
     }
 }
 
@@ -46,12 +39,11 @@ pub(crate) fn provider_usage(
     usage: &Value,
     provider_metadata: Option<&Value>,
 ) -> ProviderUsage {
-    let projected = crate::capture::project_usage(api_format, usage);
     match provider {
-        Some("xai") => xai::usage(api_format, projected, usage),
-        Some("google_ai_studio" | "vertex") => gemini::usage(api_format, projected),
-        Some("openrouter") => openrouter::usage(projected, usage),
-        Some("vercel") => vercel::usage(projected, usage, provider_metadata),
-        _ => ProviderUsage::reported(projected),
+        Some("xai") => xai::usage(api_format, usage),
+        Some("google_ai_studio" | "vertex") => gemini::usage(api_format, usage),
+        Some("openrouter") => openrouter::usage(api_format, usage),
+        Some("vercel") => vercel::usage(api_format, usage, provider_metadata),
+        _ => ProviderUsage::standard(api_format, usage),
     }
 }

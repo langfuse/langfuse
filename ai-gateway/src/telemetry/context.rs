@@ -54,7 +54,7 @@ const CODEX_SCALAR_FIELDS: [(&str, &str); 4] = [
 ];
 const CODEX_COMPACTION_FIELDS: [&str; 5] =
     ["trigger", "reason", "implementation", "phase", "strategy"];
-/// Flat `client_metadata` keys Codex projects from the same snapshot, used when the blob is absent.
+/// Flat `client_metadata` keys Codex copies from the same snapshot, used when the blob is absent.
 const CODEX_FLAT_FIELDS: [(&str, &str); 8] = [
     ("session_id", "session_id"),
     ("thread_id", "thread_id"),
@@ -318,7 +318,7 @@ impl AgentContext {
 
     /// Codex sends its turn snapshot canonically as `client_metadata["x-codex-turn-metadata"]`
     /// in the request body; the same-named header and the flat `client_metadata` keys are
-    /// compatibility projections of that snapshot.
+    /// compatibility copies of that snapshot.
     fn parse_codex(
         headers: &HeaderMap,
         client_metadata: Option<&Map<String, Value>>,

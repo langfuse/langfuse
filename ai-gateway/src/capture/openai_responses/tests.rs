@@ -220,7 +220,7 @@ async fn usage_mode_excludes_content_and_context_credentials() {
 }
 
 #[tokio::test]
-async fn request_configuration_is_projected_out_of_input() {
+async fn request_configuration_is_extracted_from_input() {
     let request = json!({
         "model": "requested", "input": "hello", "instructions": "be brief",
         "tools": [{"type": "function", "name": "weather"}],
@@ -285,7 +285,7 @@ async fn configuration_beyond_the_parse_budget_stays_in_input() {
 }
 
 #[tokio::test]
-async fn agent_client_metadata_is_projected_out_of_input_in_both_modes() {
+async fn agent_client_metadata_is_extracted_from_input_in_both_modes() {
     let codex = json!({
         "model": "requested", "input": "hello", "future_field": {"keep": true},
         "client_metadata": {

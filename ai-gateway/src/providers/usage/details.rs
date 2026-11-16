@@ -1,26 +1,49 @@
-//! Usage units as Langfuse prices them. A port of the `UsageDetails` union in
+//! A generation's usage in the shape Langfuse ingests it, and the units ingestion
+//! parses from it. A port of the `UsageDetails` union in
 //! `packages/shared/src/server/ingestion/types.ts` followed by the worker's
 //! `getUsageUnits`, which adds a missing `total`.
 use serde_json::{Map, Value};
 
-use super::cost::UsageCostType;
+use crate::spend::UsageCostType;
 
-/// The provided usage details Langfuse parses from a generation's usage.
-pub(crate) fn provided_usage_details(usage: &Value) -> UsageCostType {
-    openai_completion_usage(usage)
-        .or_else(|| openai_response_usage(usage))
-        .or_else(|| raw_usage_details(usage))
-        .unwrap_or_default()
+/// The usage uploaded as the generation's `usage_details`, tagged with the
+/// ingestion schema it satisfies.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum UsageDetails {
+    OpenAiCompletion(Map<String, Value>),
+    OpenAiResponse(Map<String, Value>),
+    /// Any other shape; ingestion keeps its integer counts.
+    Raw(Map<String, Value>),
 }
 
-/// The units Langfuse prices: the provided usage details with a missing `total` added.
-pub(crate) fn usage_units(provided_usage_details: UsageCostType) -> UsageCostType {
-    let mut usage = provided_usage_details;
-    if !usage.is_empty() && !usage.contains_key("total") {
-        let total = usage.values().sum();
-        usage.insert("total".into(), total);
+impl UsageDetails {
+    pub(crate) fn to_json(&self) -> Value {
+        let (Self::OpenAiCompletion(usage) | Self::OpenAiResponse(usage) | Self::Raw(usage)) = self;
+        Value::Object(usage.clone())
     }
-    usage
+
+    /// The provided usage details ingestion parses, which `calculateModelUsageCosts`
+    /// prices. Raw usage goes through the whole union, as ingestion receives it.
+    pub(crate) fn provided_usage_details(&self) -> UsageCostType {
+        match self {
+            Self::OpenAiCompletion(usage) => openai_completion_usage(usage),
+            Self::OpenAiResponse(usage) => openai_response_usage(usage),
+            Self::Raw(usage) => openai_completion_usage(usage)
+                .or_else(|| openai_response_usage(usage))
+                .or_else(|| raw_usage_details(usage)),
+        }
+        .unwrap_or_default()
+    }
+
+    /// The units Langfuse prices: the provided usage details with a missing `total` added.
+    pub(crate) fn usage_units(&self) -> UsageCostType {
+        let mut usage = self.provided_usage_details();
+        if !usage.is_empty() && !usage.contains_key("total") {
+            let total = usage.values().sum();
+            usage.insert("total".into(), total);
+        }
+        usage
+    }
 }
 
 /// `z.number().int().nonnegative()`
@@ -30,8 +53,8 @@ fn count(value: &Value) -> Option<f64> {
         .filter(|number| number.is_finite() && number.fract() == 0.0 && *number >= 0.0)
 }
 
-fn raw_usage_details(value: &Value) -> Option<UsageCostType> {
-    let result = extract_usage_counts(value.as_object()?);
+fn raw_usage_details(value: &Map<String, Value>) -> Option<UsageCostType> {
+    let result = extract_usage_counts(value);
     (!result.is_empty()).then_some(result)
 }
 
@@ -120,11 +143,10 @@ fn optional_details(value: Option<&Value>) -> Option<Vec<(&String, f64)>> {
 
 /// The Chat Completions and Responses schemas differ only in their field names.
 fn openai_usage(
-    value: &Value,
+    fields: &Map<String, Value>,
     [input_key, output_key, total_key]: [&str; 3],
     [input_details_key, output_details_key]: [&str; 2],
 ) -> Option<UsageCostType> {
-    let fields = value.as_object()?;
     let input_tokens = count(fields.get(input_key)?)?;
     let output_tokens = count(fields.get(output_key)?)?;
     let total_tokens = count(fields.get(total_key)?)?;
@@ -161,7 +183,7 @@ fn openai_usage(
     Some(result)
 }
 
-fn openai_completion_usage(value: &Value) -> Option<UsageCostType> {
+fn openai_completion_usage(value: &Map<String, Value>) -> Option<UsageCostType> {
     openai_usage(
         value,
         ["prompt_tokens", "completion_tokens", "total_tokens"],
@@ -170,7 +192,7 @@ fn openai_completion_usage(value: &Value) -> Option<UsageCostType> {
 }
 
 // The Responses API's usage departs from the Chat Completions schema.
-fn openai_response_usage(value: &Value) -> Option<UsageCostType> {
+fn openai_response_usage(value: &Map<String, Value>) -> Option<UsageCostType> {
     openai_usage(
         value,
         ["input_tokens", "output_tokens", "total_tokens"],
@@ -184,10 +206,11 @@ mod tests {
 
     use super::*;
 
-    fn units(value: &Value) -> Vec<(String, f64)> {
-        usage_units(provided_usage_details(value))
-            .into_iter()
-            .collect()
+    fn units(value: Value) -> Vec<(String, f64)> {
+        let Value::Object(usage) = value else {
+            panic!("usage is an object")
+        };
+        UsageDetails::Raw(usage).usage_units().into_iter().collect()
     }
 
     fn expected(pairs: &[(&str, f64)]) -> Vec<(String, f64)> {
@@ -209,7 +232,7 @@ mod tests {
             "completion_tokens_details": { "reasoning_tokens": 60 },
         });
         assert_eq!(
-            units(&usage),
+            units(usage),
             expected(&[
                 ("input", 60.0),
                 ("input_cached_tokens", 40.0),
@@ -232,7 +255,7 @@ mod tests {
             "server_tool_use": { "web_search_requests": 1 },
         });
         assert_eq!(
-            units(&usage),
+            units(usage),
             expected(&[
                 ("input_tokens", 10.0),
                 ("output_tokens", 5.0),

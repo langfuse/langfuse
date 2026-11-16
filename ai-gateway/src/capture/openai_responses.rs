@@ -163,7 +163,7 @@ impl OpenAiResponsesCapture {
                     self.facts.request_metadata.insert(key.to_owned(), value);
                 }
             }
-            // Preserve native prompt context and unknown fields after projecting configuration.
+            // Preserve native prompt context and unknown fields after extracting configuration.
             self.facts.input = request.into_input();
             self.facts.input_complete = self.facts.input.is_some();
         }
@@ -305,15 +305,6 @@ impl OpenAiResponsesCapture {
             self.facts.error_message = Some(detail);
         }
     }
-}
-
-/// The usage counters Langfuse ingests, without unknown top-level fields.
-pub(super) fn project_usage(usage: &Value) -> Option<Value> {
-    super::openai_usage::project_openai_usage(
-        usage,
-        ["input_tokens", "output_tokens", "total_tokens"],
-        ["input_tokens_details", "output_tokens_details"],
-    )
 }
 
 #[cfg(test)]

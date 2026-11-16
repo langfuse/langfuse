@@ -6,7 +6,6 @@
 //! connection may not report usage, is rejected before it is forwarded.
 mod cost;
 mod store;
-mod usage;
 mod window;
 
 use std::{sync::Arc, time::Duration, time::SystemTime};
@@ -20,7 +19,7 @@ pub(crate) use window::{SpendLimitInterval, SpendLimitScope};
 use crate::{
     capture::InferenceFacts,
     config::SpendCountersConfig,
-    providers::usage::provider_usage,
+    providers::usage::{UsageDetails, provider_usage},
     resolution::{
         Provider, ProviderConnection, ResolutionError, ResolvedRequestContext, SpendLimit,
         SpendLimitExceeded,
@@ -32,7 +31,6 @@ use cost::{
     calculate_model_usage_costs,
 };
 use store::{Counter, Expiry, RedisCounters};
-pub(crate) use usage::provided_usage_details;
 
 /// Windowed counters outlive their window by a day, so a request that started
 /// just before the window ended still finds its counter.
@@ -288,7 +286,11 @@ fn generation_cost(
         usage,
         inference.provider_metadata.as_ref(),
     );
-    let usage_units = usage::usage_units(usage.usage_details());
+    let usage_units = usage
+        .usage_details
+        .as_ref()
+        .map(UsageDetails::usage_units)
+        .unwrap_or_default();
     let provided_cost_details = usage.provided_cost_details;
     let model_parameters = Value::Object(inference.model_parameters.clone());
     let metadata = Value::Object(metadata.clone());

@@ -408,9 +408,12 @@ fn usage_attributes(
     let provider = metadata.get("provider").and_then(Value::as_str);
     let usage =
         crate::providers::usage::provider_usage(api_format, provider, usage, provider_metadata);
-    let usage_details = usage
-        .usage
-        .map(|usage| attribute("langfuse.observation.usage_details", usage.to_string()));
+    let usage_details = usage.usage_details.map(|details| {
+        attribute(
+            "langfuse.observation.usage_details",
+            details.to_json().to_string(),
+        )
+    });
     let cost_details = usage
         .provided_cost_details
         .as_ref()
@@ -948,7 +951,7 @@ mod tests {
     }
 
     #[test]
-    fn usage_projection_preserves_new_numeric_details_without_unknown_top_level_fields() {
+    fn uploaded_usage_keeps_new_numeric_details_without_unknown_top_level_fields() {
         let mut facts = facts();
         let usage = json!({
             "input_tokens": 20, "output_tokens": 10, "total_tokens": 30,
@@ -959,14 +962,14 @@ mod tests {
         facts.inference.usage_details = Some(usage);
         let attrs = attributes(&span(facts, &context()));
         assert!(metadata(&attrs).get("native_usage").is_none());
-        let projected: Value = serde_json::from_str(
+        let uploaded: Value = serde_json::from_str(
             attrs["langfuse.observation.usage_details"]
                 .as_str()
                 .unwrap(),
         )
         .unwrap();
         assert_eq!(
-            projected,
+            uploaded,
             json!({
                 "input_tokens": 20, "output_tokens": 10, "total_tokens": 30,
                 "input_tokens_details": {"cached_tokens": 4, "future_counter": 3, "optional": null},
@@ -984,7 +987,7 @@ mod tests {
         assert!(metadata(&attrs).get("native_usage").is_none());
     }
 
-    fn projected_usage(api_format: ApiFormat, usage: Value) -> Option<Value> {
+    fn uploaded_usage(api_format: ApiFormat, usage: Value) -> Option<Value> {
         let mut facts = facts();
         facts.api_format = api_format;
         facts.inference.usage_details = Some(usage);
@@ -1215,16 +1218,16 @@ mod tests {
             "service_tier": "standard", "inference_geo": null
         });
         assert_eq!(
-            projected_usage(ApiFormat::AnthropicMessages, native.clone()),
+            uploaded_usage(ApiFormat::AnthropicMessages, native.clone()),
             Some(native)
         );
         assert_eq!(
-            projected_usage(ApiFormat::AnthropicMessages, json!({"input_tokens": 7})),
+            uploaded_usage(ApiFormat::AnthropicMessages, json!({"input_tokens": 7})),
             Some(json!({"input_tokens": 7}))
         );
-        // The Anthropic shape never projects through the OpenAI rules.
+        // The Anthropic shape is never read with the OpenAI rules.
         assert_eq!(
-            projected_usage(
+            uploaded_usage(
                 ApiFormat::OpenAiResponses,
                 json!({"input_tokens": 7, "output_tokens": 1, "cache_read_input_tokens": 5})
             ),
@@ -1233,7 +1236,7 @@ mod tests {
     }
 
     #[test]
-    fn chat_completions_usage_projects_into_the_receivers_completion_schema() {
+    fn chat_completions_usage_is_uploaded_in_the_receivers_completion_schema() {
         let native = json!({
             "prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30,
             "prompt_tokens_details": {"cached_tokens": 4, "audio_tokens": 0},
@@ -1241,23 +1244,23 @@ mod tests {
             "future_usage": {"cost": 123},
         });
         assert_eq!(
-            projected_usage(ApiFormat::OpenAiChatCompletions, native),
+            uploaded_usage(ApiFormat::OpenAiChatCompletions, native),
             Some(json!({
                 "prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30,
                 "prompt_tokens_details": {"cached_tokens": 4, "audio_tokens": 0},
                 "completion_tokens_details": {"reasoning_tokens": 6, "accepted_prediction_tokens": null},
             }))
         );
-        // Each OpenAI contract projects only its own counter names.
+        // Each OpenAI contract keeps only its own counter names.
         assert_eq!(
-            projected_usage(
+            uploaded_usage(
                 ApiFormat::OpenAiChatCompletions,
                 json!({"input_tokens": 2, "output_tokens": 1, "total_tokens": 3})
             ),
             None
         );
         assert_eq!(
-            projected_usage(
+            uploaded_usage(
                 ApiFormat::OpenAiResponses,
                 json!({"prompt_tokens": 2, "completion_tokens": 1, "total_tokens": 3})
             ),

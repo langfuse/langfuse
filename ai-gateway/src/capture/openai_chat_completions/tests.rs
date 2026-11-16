@@ -182,7 +182,7 @@ async fn json_and_streaming_capture_equivalent_choices_and_facts() {
 }
 
 #[tokio::test]
-async fn request_configuration_and_metadata_are_projected_out_of_input() {
+async fn request_configuration_and_metadata_are_extracted_from_input() {
     let mut observer = new_observer("full").await;
     let (_, facts) = finalized(&mut observer);
     assert_eq!(

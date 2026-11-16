@@ -16,7 +16,7 @@ const SCALAR_PARAMETERS: [&str; 7] = [
     "service_tier",
     "speed",
 ];
-/// Structured configuration projected out of the recorded input in full mode.
+/// Structured configuration extracted from the recorded input in full mode.
 const STRUCTURED_PARAMETERS: [&str; 5] = [
     "stop_sequences",
     "thinking",
@@ -458,11 +458,6 @@ impl AnthropicMessagesCapture {
             self.facts.error_message = Some(detail);
         }
     }
-}
-
-/// Langfuse ingests native Messages usage as is.
-pub(super) fn project_usage(usage: &Value) -> Option<Value> {
-    usage.is_object().then(|| usage.clone())
 }
 
 #[cfg(test)]

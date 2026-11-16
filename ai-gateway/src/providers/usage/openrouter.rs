@@ -1,12 +1,12 @@
 use serde_json::Value;
 
 use super::ProviderUsage;
-use crate::spend::UsageCostType;
+use crate::{resolution::ApiFormat, spend::UsageCostType};
 
-pub(super) fn usage(projected: Option<Value>, usage: &Value) -> ProviderUsage {
+pub(super) fn usage(api_format: ApiFormat, usage: &Value) -> ProviderUsage {
     ProviderUsage {
         provided_cost_details: cost_details(usage),
-        ..ProviderUsage::reported(projected)
+        ..ProviderUsage::standard(api_format, usage)
     }
 }
 

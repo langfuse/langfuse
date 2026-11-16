@@ -27,7 +27,7 @@ const SCALAR_PARAMETERS: [&str; 17] = [
     "store",
     "prompt_cache_retention",
 ];
-/// Structured configuration projected out of the recorded input in full mode.
+/// Structured configuration extracted from the recorded input in full mode.
 const STRUCTURED_PARAMETERS: [&str; 10] = [
     "stop",
     "response_format",
@@ -491,15 +491,6 @@ impl OpenAiChatCompletionsCapture {
             self.facts.error_message = Some(detail);
         }
     }
-}
-
-/// The usage counters Langfuse ingests, without unknown top-level fields.
-pub(super) fn project_usage(usage: &Value) -> Option<Value> {
-    super::openai_usage::project_openai_usage(
-        usage,
-        ["prompt_tokens", "completion_tokens", "total_tokens"],
-        ["prompt_tokens_details", "completion_tokens_details"],
-    )
 }
 
 #[cfg(test)]
