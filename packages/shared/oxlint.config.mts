@@ -49,7 +49,7 @@ const config: OxlintConfig = {
             patterns: [
               nextAuthValueImport,
               {
-                regex: "(^|/)query-ast/passHarness$|^\\./passHarness$",
+                regex: "(^|/)passHarness(\\.[cm]?[jt]s)?$",
                 message:
                   "passHarness is test-only: it skips compiler passes and stamps the tree as tenancy-scoped, so SQL rendered through it can read other projects' rows.",
               },
