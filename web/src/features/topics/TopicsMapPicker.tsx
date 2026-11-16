@@ -118,7 +118,7 @@ export function TopicsMapPicker({
               />
             </label>
             <div className="flex min-h-0 flex-col overflow-y-auto p-1.5">
-              <Section label={rules.length > 0 ? "Live" : undefined}>
+              <Section label={rules.length > 0 ? "Live maps" : undefined}>
                 {rules.map((rule) => (
                   <MapRow
                     key={rule.id}
