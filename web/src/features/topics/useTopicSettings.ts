@@ -30,7 +30,7 @@ export type TopicSetupNoticeState = {
  * and `AutomaticProcessingDialogController` and wires their `openDialog` into
  * the header buttons and `TopicSetupNotice`.
  */
-export function useTopicModelSettings({
+export function useTopicSettings({
   projectId,
   canWrite,
   facets,

@@ -526,20 +526,25 @@ it.each([
   },
 );
 
-it("puts New scan first in the menu with the scan actions", async () => {
+it("puts New live map and New snapshot first in the menu", async () => {
   withSummaries();
   render(<TopicsPage />, { wrapper: LayerProvider });
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   const items = await screen.findAllByRole("menuitem");
   expect(items.map((item) => item.textContent)).toEqual([
-    "New scan",
+    "New live map",
+    "New snapshot",
     "History",
     "Settings",
   ]);
 });
 
-it("shows Edit scan as a header button for a selected live scan", async () => {
+it.each([
+  { access: "with topics:CUD", canWrite: true },
+  { access: "without topics:CUD", canWrite: false },
+])("shows Edit map as a header button $access", async ({ canWrite }) => {
   withSummaries();
+  state.canWrite = canWrite;
   state.maps = {
     rules: [
       {
@@ -552,15 +557,26 @@ it("shows Edit scan as a header button for a selected live scan", async () => {
         enabled: true,
         updatedAt: "2026-11-01T00:00:00Z",
         lastRefitAt: "2026-11-01T00:00:00Z",
+        refresh: { availableAt: null, running: false },
       },
     ],
     analyses: [],
   };
   render(<TopicsPage />, { wrapper: LayerProvider });
-  expect(screen.getByRole("button", { name: "Edit scan" })).toBeTruthy();
+  const editMap = screen.getByRole("button", { name: "Edit map" });
+  expect(editMap).toHaveProperty("disabled", !canWrite);
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   const items = await screen.findAllByRole("menuitem");
-  expect(items.map((item) => item.textContent)).not.toContain("Edit scan");
+  expect(items.map((item) => item.textContent)).not.toContain("Edit map");
+  // Every action stays visible; without write access it is disabled with a reason.
+  for (const label of ["New live map", "New snapshot"]) {
+    const item = items.find((candidate) => candidate.textContent === label);
+    expect(item).toBeDefined();
+    expect(item!.getAttribute("aria-disabled")).toBe(canWrite ? null : "true");
+    expect(item!.getAttribute("title")).toBe(
+      canWrite ? null : "You need permission to edit Topics.",
+    );
+  }
 });
 
 it.each([
@@ -765,6 +781,7 @@ it("regenerates the shown rule's facets as a snapshot, without a rule ID", async
         facetIds: ["intent"],
         enabled: true,
         lastRefitAt: "2026-10-09T10:00:00Z",
+        refresh: { availableAt: null, running: false },
       },
     ],
     analyses: [],

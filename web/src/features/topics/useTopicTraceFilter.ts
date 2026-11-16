@@ -82,7 +82,7 @@ const OPTION_COLUMNS = topicsFilterRegistry.columns
   .map((column) => optionColumn(column.id)) as OptionColumns;
 
 // Matches the setup backfill window.
-const WINDOW_MS = 7 * 86_400_000;
+const DAY_MS = 86_400_000;
 const PREVIEW_TRACES = 20;
 
 export type TopicTracePreviewRow =
@@ -154,17 +154,21 @@ export function useTopicTraceFilter({
   active,
   filters,
   onFiltersChange,
+  days = 7,
 }: {
   projectId: string;
   /** Loads suggestions and the preview only while the Traces step shows. */
   active: boolean;
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
+  /** Window the preview counts, ending when the hook mounts. */
+  days?: number;
 }) {
-  const [range] = useState(() => {
-    const to = new Date();
-    return { from: new Date(to.getTime() - WINDOW_MS), to };
-  });
+  const [to] = useState(() => new Date());
+  const range = useMemo(
+    () => ({ from: new Date(to.getTime() - days * DAY_MS), to }),
+    [to, days],
+  );
   const startTimeFilter = useMemo<TimeFilter[]>(
     () => [
       {

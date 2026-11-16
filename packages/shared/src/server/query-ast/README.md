@@ -23,6 +23,7 @@ changing how it emits SQL.
 - `views.ts` / `dedup.ts` — virtual views as CTEs and per-table dedup lowering.
 - `fixtures/catalog.ts` — test-only catalog of builder queries exercising the
   dialect's expressivity.
+- `passHarness.ts` — test-only: applies one compiler pass alone, for the pass suites ([Testing a pass](#testing-a-pass)).
 - `catalog.golden.test.ts` — catalog SQL baselines.
 
 The golden-SQL harness lives in `../repositories/goldenHarness.ts` (it captures
@@ -359,6 +360,21 @@ widening behavior.
 arrayJoin widening, limitBy / useFinal preservation). It is never run: `tsc`
 checks it through the package's `include`, and knip treats `*types.assert.ts`
 as an entry. `@ts-expect-error` lines there must stay live.
+
+### Testing a pass
+
+Production compiles through `compileClickhouseQuery` and `compileClickhouseCondition`, which run every pass of `compilerPasses`. `renderClickhouseExpression` and `renderClickhouseSelections` run none: they render a fragment with no FROM of its own (a subquery or raw relation throws) for a raw-SQL query that owns the FROM, so there is nothing for tenancy, routing or dedup to act on.
+
+A pass's guarantee is tested with only that pass applied, so another pass cannot mask a gap in it. `passHarness.ts` (test-only) applies one pass (`applyPassOnly(query, pass)`) and renders the tree with no further pass (`renderPassOutput(node)`). A row check runs that SQL in `clickhouse local` with `substituteNamedParams` and `executeClickhouseLocal` from `../repositories/goldenHarness`. The suites, with the pass each applies:
+
+- tenancy, `new TenancyInjectionPlugin(projectId)` from `./tenancy`: `tenancy.golden.test.ts`, every join type × FROM table or subquery × ON scope, caller WHERE scope or a caller WHERE on `project_id` that does not scope, plus reads in an IN subquery, a scalar subquery and a CTE body, each rejected or executed with no other project's row surviving; the other tenancy rejections in "tenancy injection" in `nodes.test.ts`;
+- dedup, `new DedupLoweringPlugin()` from `./dedup`: `dedup.golden.test.ts`, one row per key, the latest version, per read shape;
+- routing, `new EventsTableRoutingPlugin()` from `./eventsRouting`: "routing pass alone" in `eventsRouting.test.ts`;
+- CTE names, `new CteNamePlugin()` from `./ctes`: the CTE-name rejections in `nodes.test.ts`;
+- schema references, `new SchemaReferencePlugin()` from `./schemaReferences`: `schemaReferences.test.ts`;
+- ARRAY JOIN, LIMIT BY, WITH FILL, FINAL and views are builder plugins, not passes: "builder plugins alone" in `composition.test.ts` renders the builder's own tree, `renderPassOutput(query.toOperationNode())`, and checks each clause survives each pass, FINAL and views attaching where called.
+
+"compiler passes in production" in `extensions.test.ts` holds `compilerPasses` to the passes these suites test, in order, and checks both entry points run each one. Its first test lists the pass classes by hand: a new pass goes into `compilerPasses`, that list and a suite of its own.
 
 ### Verifying changes
 

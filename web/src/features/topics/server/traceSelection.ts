@@ -7,6 +7,8 @@ import {
   topicTraceSelectionCriteriaSchema,
   topicTraceSelectionSnapshotSchema,
   TOPICS_MAX_TIME_RANGE_MS,
+  type TopicEmbeddingConfig,
+  type TopicFacetRef,
 } from "@langfuse/shared/topics";
 import {
   prisma as defaultPrisma,
@@ -171,6 +173,45 @@ export async function countTopicSetupTraces(input: {
       ? finished7d
       : await count(30);
   return { finished7d, finished30d };
+}
+
+/** The setup window that covers a snapshot's time range. */
+const snapshotDays = ({ from, to }: { from: Date; to: Date }) =>
+  TOPIC_SETUP_WINDOW_DAYS.find(
+    (days) => days >= Math.round((to.getTime() - from.getTime()) / 86_400_000),
+  ) ?? TOPIC_SETUP_WINDOW_DAYS[0];
+
+/**
+ * Finished matching traces in a snapshot's window without a stored result for
+ * every facet: what the snapshot could summarize. Finished means idle for twice
+ * the project's wait, as the snapshot's selection uses.
+ */
+export async function countUnsummarizedTopicTraces(input: {
+  projectId: string;
+  filter: FilterState;
+  timeRange: { from: Date; to: Date };
+  facets: TopicFacetRef[];
+  embeddingConfig: TopicEmbeddingConfig;
+}) {
+  const days = snapshotDays(input.timeRange);
+  const matching = await setupMatching(
+    input.projectId,
+    input.filter,
+    input.timeRange.to,
+    days,
+  );
+  if (matching === null) return 0;
+  return getTopicSetupTraceCount({
+    projectId: input.projectId,
+    idleMs: 2 * (await topicSetupIdleMs(input.projectId)),
+    now: input.timeRange.to,
+    days,
+    matching,
+    summarized: {
+      facets: input.facets,
+      embeddingConfig: input.embeddingConfig,
+    },
+  });
 }
 
 /** Widens from 7 to 14 and 30 days until the limit is met. */

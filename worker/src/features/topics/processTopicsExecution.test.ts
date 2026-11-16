@@ -78,6 +78,10 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
   const { TOPIC_EMBEDDING_EXPIRED_ERROR } =
     await importOriginal<typeof import("@langfuse/shared/topics/server")>();
   return {
+    topicAnalysisCohort: async () => ({
+      traces: { query: "SELECT '' AS id LIMIT 0", params: {} },
+      sample: { seed: "seed", limit: 20_000 },
+    }),
     getTopicTextResponseMetadata: () => undefined,
     isTopicsEnabled: () => true,
     // A refit's rule selects every trace.
@@ -279,6 +283,25 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
             a.traceId < b.traceId ? -1 : a.traceId > b.traceId ? 1 : 0,
           ),
     ),
+    getNewestTopicClusteringSummaries: async (
+      projectId: string,
+      facet: TopicFacetRef,
+      embeddingConfig: TopicEmbeddingConfig,
+      timeRange: TopicTimeRange,
+    ) =>
+      [...state.summaries.values()]
+        .filter(
+          (row) =>
+            row.projectId === projectId &&
+            row.facetId === facet.facetId &&
+            row.facetVersion === facet.version &&
+            row.traceId !== null &&
+            row.state === "complete" &&
+            row.embeddingModel === embeddingConfig.embeddingModel &&
+            row.embedding.length === embeddingConfig.embeddingDimensions &&
+            inTimeRange(row, timeRange),
+        )
+        .sort((a, b) => b.unitStartTime.localeCompare(a.unitStartTime)),
     getTopicRun: async (_project: string, id: string) =>
       state.runs.get(id) ?? null,
     readTopicRunTraceIds: async (
@@ -1438,6 +1461,24 @@ describe("Topics execution", () => {
         },
       ]);
     }
+  });
+
+  it("fits a snapshot below the standard minimum as a small sample", async () => {
+    await processSelection("source", 40);
+    const snapshot = execution("snapshot", 0, "update");
+    snapshot.input.analysis = { label: "Snapshot", filter: [], seed: "seed" };
+    state.executions.set("snapshot", snapshot);
+
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: "snapshot",
+    });
+
+    expect(state.numeric).toHaveBeenCalled();
+    expect([...state.runs.values()].at(-1)).toMatchObject({
+      status: "completed",
+      config: { exploratory: true, minimumCount: 10, analysis: true },
+    });
   });
 
   it.each([0, 3])(

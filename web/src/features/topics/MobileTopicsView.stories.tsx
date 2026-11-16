@@ -2,6 +2,7 @@ import { useState, type ComponentProps } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { Button } from "@/src/components/design-system/Button/Button";
+import { PINCH_ZOOM_RATE } from "@/src/utils/panZoomGestures";
 import preview from "../../../.storybook/preview";
 import { MobileTopicsView } from "./MobileTopicsView";
 import { TopicsMobileControls } from "./TopicsMobileControls";
@@ -274,7 +275,9 @@ export const FitFilteredMap = meta.story({
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("tab", { name: "Visualize" }));
-    await userEvent.click(canvas.getByRole("button", { name: "Fit map (0)" }));
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Fit scatter (0)" }),
+    );
     await expect(
       canvas.getByRole("tab", { name: "Visualize" }),
     ).toHaveAttribute("data-state", "active");
@@ -346,6 +349,42 @@ export const PreviewTreemap = meta.story({
     const trace = canvas.getByRole("button", { name: "Open trace access-0" });
     await expect(trace).toBeVisible();
     await expect(args.onOpenTrace).not.toHaveBeenCalled();
+  },
+});
+
+export const PreviewZoomedTreemap = meta.story({
+  name: "(Test) A zoomed treemap previews inside the visible area",
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("tab", { name: "Visualize" }));
+    const billing = canvas.getByRole("button", {
+      name: `${topics[0].name}, 21 traces`,
+    });
+    const scroller = canvas.getByRole("region", { name: "Topics" })
+      .parentElement as HTMLElement;
+    const before = billing.getBoundingClientRect().height;
+    billing.dispatchEvent(
+      new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        ctrlKey: true,
+        // Two zoom levels: four times the treemap height.
+        deltaY: -2 / PINCH_ZOOM_RATE,
+      }),
+    );
+    await waitFor(() =>
+      expect(billing.getBoundingClientRect().height).toBeGreaterThan(
+        before * 3,
+      ),
+    );
+    scroller.scrollTop = 0;
+    await userEvent.click(billing);
+    const visible = scroller.getBoundingClientRect();
+    const preview = (
+      await canvas.findByRole("tooltip")
+    ).getBoundingClientRect();
+    await expect(preview.top).toBeGreaterThanOrEqual(visible.top);
+    await expect(preview.top).toBeLessThan(visible.bottom);
   },
 });
 

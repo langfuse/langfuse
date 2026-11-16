@@ -347,7 +347,7 @@ jobs:
       - name: run knip
         run: pnpm exec knip
 
-  prettier-check:
+  format-check:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
@@ -372,7 +372,7 @@ jobs:
           package-manager-cache: false
       - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
         if: env.CI_CACHE_ALLOWED == 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # zizmor: ignore[cache-poisoning] prettier check dependency cache only; no released artifacts are built or published from this cached state
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # zizmor: ignore[cache-poisoning] formatting check dependency cache only; no released artifacts are built or published from this cached state
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "pnpm"
@@ -396,17 +396,13 @@ jobs:
 
           echo "Checking files changed from $BASE_SHA to HEAD"
 
-          if git diff --quiet --exit-code --diff-filter=d "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css'; then
-            echo "No JS/TS/CSS files changed - skipping prettier check"
+          if ! git diff --quiet "$BASE_SHA" HEAD -- '.oxfmtrc.*' '**/.oxfmtrc.*' 'oxfmt.config.*' '**/oxfmt.config.*' '.editorconfig' '**/.editorconfig'; then
+            pnpm run format:check
+          elif git diff --quiet --exit-code --diff-filter=d "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css'; then
+            echo "No JS/TS/CSS files changed - skipping formatting check"
           else
-            # --experimental-cli is intentionally omitted: its glob resolver treats bracket characters
-            # in Next.js dynamic-route paths (e.g. [projectId]) as glob character classes, causing
-            # "No files matching the given patterns were found" (exit 123) for any PR that touches a
-            # file inside a bracket-named directory. Standard prettier resolves explicit paths correctly.
-            # Parallelism and the ephemeral cache (the only extras --experimental-cli adds) provide no
-            # benefit when checking a handful of per-PR changed files.
             git diff --name-only -z --diff-filter=d "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css' \
-              | xargs -0 --no-run-if-empty pnpm prettier --check --
+              | xargs -0 --no-run-if-empty pnpm exec oxfmt --check --
           fi
 
   tests-eslint-plugin:
@@ -1752,7 +1748,7 @@ jobs:
       [
         lint,
         knip,
-        prettier-check,
+        format-check,
         tests-ai-gateway,
         tests-eslint-plugin,
         tests-in-app-agent-sandbox-runtime,

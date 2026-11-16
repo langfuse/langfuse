@@ -135,4 +135,17 @@ describe("Google AI Studio decision models", () => {
       }),
     );
   });
+
+  it("blocks a custom base URL that points at an internal address", async () => {
+    const client = createDecisionModelClient({
+      adapter: LLMAdapter.GoogleAIStudio,
+      apiKey: "google-key",
+      model: "gemini-decision-1",
+      baseURL: "http://169.254.169.254/v1beta",
+    });
+
+    await expect(client.evaluate(request)).rejects.toMatchObject({
+      name: "LLMValidationError",
+    });
+  });
 });
