@@ -65,16 +65,12 @@ function testProject(project: TestProject, orgRole: Role): SessionProject {
   };
 }
 
-/** SignedInSession is a session whose user is signed in. */
 type SignedInSession = Session & { user: SessionUser };
 
-/** SessionUser is the signed-in user on a session. */
 type SessionUser = NonNullable<Session["user"]>;
 
-/** SessionOrganization is an organization on the session user. */
 type SessionOrganization = SessionUser["organizations"][number];
 
-/** SessionProject is a project on a session organization. */
 type SessionProject = SessionOrganization["projects"][number];
 
 /** TestOrganization is an organization's id and the user's role on it, plus the fields that differ from the defaults. */
