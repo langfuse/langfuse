@@ -144,9 +144,9 @@ export const isNetworkConnectivityError = (error: unknown): boolean => {
  * whose `data.zodError` is populated), plus CONFLICT on
  * {@link EXPECTED_TRPC_CONFLICT_PATHS}, plus BAD_REQUEST on
  * {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}. Empty/too-short fields, stale
- * in-app-agent approvals, and a rejected user-configured remote-experiment
- * URL are the product working as designed — the toast is the UX; Sentry
- * must not log them.
+ * in-app-agent approvals, a rejected user-configured remote-experiment
+ * URL, and inviting someone who is already a member are the product working
+ * as designed — the toast (or form error) is the UX; Sentry must not log them.
  * A 5xx (`INTERNAL_SERVER_ERROR`), a non-Zod `BAD_REQUEST` outside the
  * allowlist, a CONFLICT outside the allowlist, an unrecognized code, or
  * any non-tRPC error is not expected and keeps flowing to Sentry.
@@ -164,12 +164,17 @@ export const EXPECTED_TRPC_ERROR_CODES = [
  * only as an optimistic-concurrency / stale-UI race the product already
  * toasts — expected user-facing state, not a regression.
  *
- * `inAppAgent.decideToolApproval` is the only current member: every CONFLICT
- * it throws means the parent run is no longer AWAITING_APPROVAL (already
- * decided, expired, or cancelled). The UI already tells the user to reload.
+ * `inAppAgent.decideToolApproval`: every CONFLICT it throws means the parent
+ * run is no longer AWAITING_APPROVAL (already decided, expired, or cancelled).
+ * The UI already tells the user to reload.
+ *
+ * `members.create`: unique-constraint 409 when the invitee is already on the
+ * project (or a concurrent invite won the org-membership insert). The members
+ * form already shows that message on the email field.
  */
 export const EXPECTED_TRPC_CONFLICT_PATHS = [
   "inAppAgent.decideToolApproval",
+  "members.create",
 ] as const;
 
 const getTrpcErrorData = (

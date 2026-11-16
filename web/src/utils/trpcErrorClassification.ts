@@ -15,6 +15,10 @@ type SyntaxErrorWithResponseStatus = SyntaxError & { responseStatus?: number };
 /**
  * BAD_REQUEST is normally a client bug. These procedures also use it for
  * rejected user-configured values, so they belong to the user-input bucket.
+ *
+ * `members.create` 400s when the invitee is already in the org, already on
+ * the project via a stray membership, or already has a pending invite. The
+ * members form already shows that message on the email field.
  */
 export const EXPECTED_TRPC_BAD_REQUEST_PATHS = [
   "datasets.triggerRemoteExperiment",
@@ -22,6 +26,7 @@ export const EXPECTED_TRPC_BAD_REQUEST_PATHS = [
   "models.upsert",
   "aiGateway.createConnection",
   "aiGateway.updateConnection",
+  "members.create",
 ] as const;
 
 const FAILED_FETCH_MESSAGE = /^failed to fetch(?: \([^)]+\))?$/i;
