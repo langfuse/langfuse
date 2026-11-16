@@ -22,7 +22,10 @@ import {
   transformEventForMixpanel,
 } from "./transformers";
 import { env, v4WritesToLegacyTables } from "../../env";
-import { assertExportSourceWritable } from "../exportWriteModeGuard";
+import {
+  assertExportSourceWritable,
+  effectiveExportSource,
+} from "../exportWriteModeGuard";
 import {
   classifyCustomerFault,
   type CustomerFaultReason,
@@ -341,8 +344,12 @@ export const handleMixpanelIntegrationProjectJob = async (
 
     // Fail loudly before exporting empty data and advancing lastSyncAt
     // (LFE-10148, LFE-11009); the catch below logs and BullMQ retries.
-    assertExportSourceWritable(
+    const exportSource = effectiveExportSource(
       mixpanelIntegration.exportSource,
+      projectId,
+    );
+    assertExportSourceWritable(
+      exportSource,
       "Select the enriched observations export source in the Mixpanel integration settings.",
     );
 
@@ -359,8 +366,8 @@ export const handleMixpanelIntegrationProjectJob = async (
 
     // Traces and observations - for TRACES_OBSERVATIONS and TRACES_OBSERVATIONS_EVENTS
     if (
-      mixpanelIntegration.exportSource === "TRACES_OBSERVATIONS" ||
-      mixpanelIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
+      exportSource === "TRACES_OBSERVATIONS" ||
+      exportSource === "TRACES_OBSERVATIONS_EVENTS"
     ) {
       await processMixpanelTraces(mixpanel, executionConfig);
       await processMixpanelGenerations(mixpanel, executionConfig);
@@ -368,8 +375,8 @@ export const handleMixpanelIntegrationProjectJob = async (
 
     // Events - for EVENTS and TRACES_OBSERVATIONS_EVENTS
     if (
-      mixpanelIntegration.exportSource === "EVENTS" ||
-      mixpanelIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
+      exportSource === "EVENTS" ||
+      exportSource === "TRACES_OBSERVATIONS_EVENTS"
     ) {
       await processMixpanelEvents(mixpanel, executionConfig);
     }

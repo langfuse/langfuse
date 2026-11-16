@@ -1,10 +1,42 @@
 import {
   areEnrichedWritesActive,
   areLegacyWritesActive,
+  isLegacyExportSource,
   validateExportSource,
   type AnalyticsIntegrationExportSource,
 } from "@langfuse/shared";
+import { logger, recordIncrement } from "@langfuse/shared/src/server";
+import { isV4CutoffActive } from "@langfuse/shared/src/server/v4Cutoff";
 import { env } from "../env";
+
+/**
+ * The export source a run uses. While the Cloud v3 export cutoff applies to the
+ * project, a legacy source exports like EVENTS: observations_v2 and scores, no
+ * legacy traces or observations. The persisted source stays as configured.
+ */
+export function effectiveExportSource(
+  exportSource: AnalyticsIntegrationExportSource,
+  projectId: string,
+): AnalyticsIntegrationExportSource {
+  if (
+    !isLegacyExportSource(exportSource) ||
+    !isV4CutoffActive({
+      cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+      enabled: env.LANGFUSE_V4_CUTOFF_EXPORTS,
+      exemptProjectIds: env.LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS,
+      projectId,
+    })
+  ) {
+    return exportSource;
+  }
+  recordIncrement("langfuse.v4_cutoff", 1, { surface: "exports" });
+  logger.info("Langfuse v3 cutoff", {
+    surface: "exports",
+    projectId,
+    exportSource,
+  });
+  return "EVENTS";
+}
 
 /**
  * Write-mode guard for the export workers (blob storage, PostHog, Mixpanel);

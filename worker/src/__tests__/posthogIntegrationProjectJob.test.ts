@@ -366,6 +366,40 @@ describe("handlePostHogIntegrationProjectJob events_only legacy guard (LFE-10148
   });
 });
 
+describe("handlePostHogIntegrationProjectJob v3 export cutoff", () => {
+  beforeEach(() => {
+    resetSharedState();
+    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "EU";
+    (env as any).LANGFUSE_V4_CUTOFF_EXPORTS = "true";
+    (env as any).LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS = [];
+  });
+
+  afterEach(() => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    (env as any).LANGFUSE_V4_CUTOFF_EXPORTS = undefined;
+    (env as any).LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS = undefined;
+  });
+
+  it("exports a legacy source as enriched observations and scores", async () => {
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(h.getEvents).toHaveBeenCalledTimes(1);
+    expect(h.getScores).toHaveBeenCalledTimes(1);
+    expect(h.getTraces).not.toHaveBeenCalled();
+    expect(h.getGenerations).not.toHaveBeenCalled();
+  });
+
+  it("keeps the legacy export for an exempt project", async () => {
+    (env as any).LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS = ["project-1"];
+
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(h.getTraces).toHaveBeenCalledTimes(1);
+    expect(h.getEvents).not.toHaveBeenCalled();
+  });
+});
+
 // LFE-11009: enriched sources on legacy write mode must fail loudly instead
 // of silently exporting empty data while lastSyncAt advances.
 describe("handlePostHogIntegrationProjectJob legacy-mode enriched guard (LFE-11009)", () => {

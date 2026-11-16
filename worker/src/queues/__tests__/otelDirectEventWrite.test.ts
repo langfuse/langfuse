@@ -838,6 +838,7 @@ describe("resolveOtelWritePath", () => {
     headerBasedDirectWrite: false,
     envForcesDirect: false,
     scopeBasedDirectWrite: false,
+    v4CutoffForcesDirect: false,
     orgCutoffForcesDirect: false,
     langfuseSdkTraffic: false,
   };
@@ -853,6 +854,7 @@ describe("resolveOtelWritePath", () => {
     { signal: "headerBasedDirectWrite", writePath: "direct_header" },
     { signal: "envForcesDirect", writePath: "direct_env" },
     { signal: "scopeBasedDirectWrite", writePath: "direct_scope" },
+    { signal: "v4CutoffForcesDirect", writePath: "direct_v4_cutoff" },
     { signal: "orgCutoffForcesDirect", writePath: "direct_org_cutoff" },
   ] as const)("$signal alone routes to $writePath", ({ signal, writePath }) => {
     expect(resolveOtelWritePath({ ...none, [signal]: true })).toEqual({
@@ -891,6 +893,18 @@ describe("resolveOtelWritePath", () => {
         langfuseSdkTraffic: true,
       }),
     ).toEqual({ useDirectEventWrite: false, writePath: "dual" });
+  });
+
+  // The v3 shutdown switch moves every non-exempt project, old SDKs included.
+  it("routes Langfuse SDK traffic directly under the v4 cutoff", () => {
+    expect(
+      resolveOtelWritePath({
+        ...none,
+        v4CutoffForcesDirect: true,
+        orgCutoffForcesDirect: true,
+        langfuseSdkTraffic: true,
+      }),
+    ).toEqual({ useDirectEventWrite: true, writePath: "direct_v4_cutoff" });
   });
 
   it("applies the org cutoff to plain OTel traffic", () => {
