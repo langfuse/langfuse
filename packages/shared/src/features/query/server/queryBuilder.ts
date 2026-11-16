@@ -45,7 +45,6 @@ import {
   arrayJoin,
   arrayJoinElements,
   histogram,
-  includeDeleted,
   interval,
   literal,
   quantile,
@@ -1754,12 +1753,10 @@ export class QueryBuilder {
       view,
     );
     this.validateFilters(query.filters, view);
-    const filters = query.filters.map(
-      (filter): DashboardFilter => ({
-        lowering: eventsObservationsFilterLowering(filter.column),
-        condition: conditionFromFilter(filter),
-      }),
-    );
+    const filters = query.filters.map((filter): DashboardFilter => ({
+      lowering: eventsObservationsFilterLowering(filter.column),
+      condition: conditionFromFilter(filter),
+    }));
 
     // No filter joins a relation: `eventsObservationsFilterLowering` compares
     // `e` columns only. The empty list stands in for the filters.
@@ -1915,7 +1912,7 @@ export class QueryBuilder {
     const to = utcDateTime(new Date(query.toTimestamp));
     const db = getClickhouseKysely();
     // from events_truncated as e where <filters> and e.start_time between <from> and <to>
-    let events = db.selectFrom("events_truncated as e").$call(includeDeleted());
+    let events = db.selectFrom("events_truncated as e");
     const eventsEb = expressionBuilder(events);
     for (const { lowering, condition } of filters) {
       for (const conjunct of lowerEventsFieldCondition(

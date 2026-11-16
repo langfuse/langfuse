@@ -4,12 +4,9 @@ import {
   queryClickhouseStream,
 } from "../repositories/clickhouse";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-import { assembleTranscript } from "../transcript/transcript";
+import { assembleTranscriptContext } from "../transcript/context";
 import { orderObservations } from "../transcript/ordering";
 import type { TranscriptObservation } from "../transcript/types";
-
-/** Historical summaries are reusable only with the same transcript producer. */
-export const TOPICS_TRANSCRIPT_VERSION = "shared-transcript-v3";
 
 const MAX_OBSERVATIONS = 2_000;
 const MAX_SNAPSHOT_BYTES = 10 * 1024 * 1024;
@@ -34,6 +31,8 @@ type SnapshotRow = {
   end_time: string | null;
   type: TranscriptObservation["type"];
   name: string;
+  level: TranscriptObservation["level"];
+  status_message: string | null;
   input: string;
   output: string;
   metadata: Record<string, string>;
@@ -46,10 +45,12 @@ const utcTimestamp = (value: string) =>
 export async function loadTopicTranscript(params: {
   projectId: string;
   traceId: string;
+  /** Trace timestamp; when set, observations from one hour before it onwards are read. */
+  timestamp?: Date;
 }) {
-  const { projectId, traceId } = params;
+  const { projectId, traceId, timestamp } = params;
   // ID-only requests first discover source bounds without reading transcript payloads.
-  const boundsQuery = new EventsQueryBuilder({ projectId })
+  const boundsBuilder = new EventsQueryBuilder({ projectId })
     .selectRaw(
       "count() AS count",
       "min(toUnixTimestamp64Milli(e.start_time)) AS minStart",
@@ -57,8 +58,16 @@ export async function loadTopicTranscript(params: {
     )
     .forceFullTable()
     .whereRaw("e.trace_id = {traceId: String}", { traceId })
-    .whereRaw("xxHash32(e.trace_id) = xxHash32({traceId: String})", { traceId })
-    .buildWithParams();
+    .whereRaw("xxHash32(e.trace_id) = xxHash32({traceId: String})", {
+      traceId,
+    });
+  if (timestamp)
+    boundsBuilder.whereRaw("e.start_time >= {fromTimestamp: DateTime64(3)}", {
+      fromTimestamp: convertDateToClickhouseDateTime(
+        new Date(timestamp.getTime() - 60 * 60 * 1000),
+      ),
+    });
+  const boundsQuery = boundsBuilder.buildWithParams();
   const [bounds] = await queryClickhouse<{
     count: string;
     minStart: string;
@@ -86,6 +95,8 @@ export async function loadTopicTranscript(params: {
       "e.end_time",
       "e.type",
       "e.name",
+      "e.level",
+      "e.status_message",
     )
     .selectIO(false)
     .selectMetadataExpanded()
@@ -158,6 +169,8 @@ export async function loadTopicTranscript(params: {
         input: row.input,
         output: row.output,
         metadata: row.metadata,
+        level: row.level,
+        statusMessage: row.status_message || null,
       });
     }
   } catch (error) {
@@ -177,13 +190,15 @@ export async function loadTopicTranscript(params: {
     if (a.id === b.id) return 0;
     return a.id < b.id ? -1 : 1;
   });
+  // Uncapped, like trace-batch; the summary input limit rejects oversized traces.
+  const context = assembleTranscriptContext(orderObservations(observations));
   return {
     unitStartTime: observations[0].startTime.toISOString(),
     sessionId,
     environment,
     traceName,
-    // Uncapped, like trace-batch; the summary input limit rejects oversized traces.
-    transcript: assembleTranscript(orderObservations(observations)),
+    transcript: context?.transcript ?? null,
+    executionIssues: context?.executionIssues ?? [],
   };
 }
 

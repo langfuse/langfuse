@@ -1,12 +1,5 @@
-import { z } from "zod";
-import {
-  singleFilterList,
-  stringFilter,
-  stringOptionsFilter,
-  arrayOptionsFilter,
-  stringObjectFilter,
-  booleanFilter,
-} from "../../interfaces/filters";
+import { singleFilterList } from "../../interfaces/filters";
+import { eventsTableCols } from "../../eventsTable";
 import { type ColumnDefinition } from "../../tableDefinitions/types";
 
 export const sessionTraceFilterColumns: ColumnDefinition[] = [
@@ -17,19 +10,11 @@ export const sessionTraceFilterColumns: ColumnDefinition[] = [
     internal: "is_root_observation",
   },
   { id: "traceName", name: "Trace name", type: "string", internal: "name" },
-  { id: "userId", name: "User ID", type: "string", internal: "user_id" },
   {
     id: "environment",
     name: "Environment",
     type: "string",
     internal: "environment",
-  },
-  {
-    id: "traceTags",
-    name: "Trace tags",
-    type: "arrayOptions",
-    internal: "tags",
-    options: [],
   },
   {
     id: "name",
@@ -49,12 +34,6 @@ export const sessionTraceFilterColumns: ColumnDefinition[] = [
     type: "string",
     internal: "level",
   },
-  {
-    id: "metadata",
-    name: "Observation metadata",
-    type: "stringObject",
-    internal: "metadata",
-  },
 ];
 
 // Saved views and shared URLs created before observation filtering used root fields.
@@ -67,28 +46,50 @@ const legacyObservationColumns: Record<string, string> = {
 
 export const sessionTraceFilterSchema = singleFilterList
   .transform((filters) =>
-    filters.map((filter) => ({
-      ...filter,
-      column: legacyObservationColumns[filter.column] ?? filter.column,
-    })),
+    filters.map((filter) => {
+      const column =
+        legacyObservationColumns[filter.column] ??
+        eventsTableCols.find(
+          (column: ColumnDefinition) =>
+            column.name === filter.column ||
+            column.aliases?.includes(filter.column),
+        )?.id ??
+        filter.column;
+      if (
+        ["name", "traceName"].includes(column) &&
+        filter.type === "stringOptions" &&
+        filter.operator === "any of" &&
+        filter.value.length === 1
+      ) {
+        return {
+          ...filter,
+          column,
+          type: "string" as const,
+          operator: "=" as const,
+          value: filter.value[0]!,
+        };
+      }
+      return { ...filter, column };
+    }),
   )
-  .pipe(
-    z.array(
-      z.discriminatedUnion("type", [
-        booleanFilter.extend({ column: z.literal("isRootObservation") }),
-        stringOptionsFilter.extend({ column: z.enum(["name", "traceName"]) }),
-        stringFilter.extend({
-          column: z.enum([
-            "traceName",
-            "userId",
-            "environment",
-            "name",
-            "type",
-            "level",
-          ]),
-        }),
-        arrayOptionsFilter.safeExtend({ column: z.literal("traceTags") }),
-        stringObjectFilter.extend({ column: z.literal("metadata") }),
-      ]),
-    ),
-  );
+  .superRefine((filters, ctx) => {
+    filters.forEach((filter, index) => {
+      if (filter.column === "isRootObservation") {
+        if (filter.type === "boolean" && filter.operator === "=") return;
+      } else if (["name", "traceName"].includes(filter.column)) {
+        if (filter.type === "stringOptions") return;
+        if (
+          filter.type === "string" &&
+          ["=", "contains", "does not contain"].includes(filter.operator)
+        )
+          return;
+      } else if (["type", "level", "environment"].includes(filter.column)) {
+        if (filter.type === "string" && filter.operator === "=") return;
+      }
+      ctx.addIssue({
+        code: "custom",
+        path: [index],
+        message: `Unsupported session filter: ${filter.column} (${filter.type})`,
+      });
+    });
+  });

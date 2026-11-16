@@ -1261,6 +1261,41 @@ describe("trace micro-batch scheduling with Redis", () => {
     ).toEqual({ live: ["live-rule", "setup-rule"], stored: ["setup-rule"] });
   });
 
+  it("spreads seeded traces' due times and keeps the maps alive past the last one", async () => {
+    const traceIds = ["s0", "s1", "s2", "s3"];
+    recordingBoundsKeys.set(
+      0,
+      traceIds.map((id) => getRecordingBoundsKey(0, member("project", id))),
+    );
+    const before = Date.now();
+    await seedTraceDispatch(
+      "project",
+      traceIds.map((traceId) => ({
+        traceId,
+        minStart: T0,
+        maxStart: T0,
+        serializedEventBytes: 10,
+      })),
+      ["setup-rule"],
+      20_000,
+      60_000,
+    );
+    const dues = await Promise.all(
+      traceIds.map(async (id) =>
+        Number(await client().zscore(recordingKeys.due, member("project", id))),
+      ),
+    );
+    // Offsets 20 s, 35 s, 50 s, 65 s from Redis' clock.
+    expect(dues[0] - before).toBeGreaterThanOrEqual(19_000);
+    expect(dues[0] - before).toBeLessThan(25_000);
+    for (let i = 1; i < dues.length; i++)
+      expect(dues[i] - dues[i - 1]).toBe(15_000);
+    for (const key of [recordingKeys.pending, recordingKeys.due])
+      expect(await client().pexpiretime(key)).toBe(
+        dues[3] + env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
+      );
+  });
+
   it("rebuilds a stored trace's dispatch state from ClickHouse for setup", async () => {
     env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
     env.LANGFUSE_EVENTS_DISPATCH_ENABLED = "true";
@@ -2013,8 +2048,9 @@ describe("trace micro-batch scheduling with Redis", () => {
 
       env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 1_800_000;
       await trackLegacyTopicsBatchActivity(projectId, [event("capped")]);
-      expect(await dueOffset("capped")).toBeLessThan(1_780_000);
-      expect(await dueOffset("capped")).toBeGreaterThan(1_760_000);
+      const cap = 1_800_000 - env.LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS;
+      expect(await dueOffset("capped")).toBeLessThan(cap + 10_000);
+      expect(await dueOffset("capped")).toBeGreaterThan(cap - 10_000);
     } finally {
       await prisma.organization.delete({ where: { id: orgId } });
     }

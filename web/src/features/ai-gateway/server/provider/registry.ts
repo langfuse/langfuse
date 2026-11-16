@@ -1,8 +1,14 @@
 import { z } from "zod/v4";
 import {
   bedrockRuntimeOrigin,
+  decodeBedrockApiKey,
   GatewayBedrockConfigSchema,
 } from "@/src/features/ai-gateway/server/provider/bedrock";
+import {
+  GatewayVertexConfigSchema,
+  getVertexAccessToken,
+  vertexOpenAICompatibleBaseUrl,
+} from "@/src/features/ai-gateway/server/provider/vertex";
 
 export const gatewayApiFormats = [
   "openai.responses",
@@ -21,6 +27,7 @@ export const gatewayProviders = [
   "VERCEL",
   "AZURE",
   "GOOGLE_AI_STUDIO",
+  "VERTEX",
 ] as const;
 
 export type GatewayApiFormat = (typeof gatewayApiFormats)[number];
@@ -31,6 +38,13 @@ const metadataValueSchema = z.union([z.string(), z.number(), z.boolean()]);
 export const GatewayMetadataSchema = z.record(z.string(), metadataValueSchema);
 export type GatewayMetadata = z.infer<typeof GatewayMetadataSchema>;
 
+// Bedrock keeps its region and Vertex AI its location; other providers have no config.
+export const GatewayProviderConfigSchema = z.union([
+  GatewayBedrockConfigSchema,
+  GatewayVertexConfigSchema,
+]);
+export type GatewayProviderConfig = z.infer<typeof GatewayProviderConfigSchema>;
+
 const gatewayProviderIds = [
   "openai",
   "anthropic",
@@ -40,6 +54,7 @@ const gatewayProviderIds = [
   "vercel",
   "azure",
   "google_ai_studio",
+  "vertex",
 ] as const;
 export type GatewayProviderId = (typeof gatewayProviderIds)[number];
 
@@ -130,7 +145,7 @@ type ProviderDefinition = {
 
 type HostedGatewayProviderName = Exclude<
   GatewayProviderName,
-  "BEDROCK" | "AZURE"
+  "BEDROCK" | "AZURE" | "VERTEX"
 >;
 type GatewayUpstream = Pick<ProviderDefinition, "baseUrl" | "authType">;
 
@@ -223,21 +238,26 @@ export function providerSupportsApiFormat(
     );
   }
   if (provider === "AZURE") return apiFormat !== "openai.decisions";
+  if (provider === "VERTEX") return apiFormat === "openai.chat-completions";
   return PROVIDER_REGISTRY[provider].apiFormats.includes(apiFormat);
 }
 
 // Bedrock and Azure serve each supported API format natively under its own path
 // and auth header, Bedrock on its regional runtime and Azure on the origin of
-// the resource stored as the connection's base URL.
-// Throws if a Bedrock connection has no valid region config or an Azure
-// connection has no endpoint. OpenAI and Anthropic connections may override
-// the official base URL; OpenRouter, xAI, Vercel and Google AI Studio never
-// store one.
+// the resource stored as the connection's base URL. Vertex AI serves Chat
+// Completions on an OpenAI-compatible endpoint of the key's project in the
+// connection's location.
+// Throws if a Bedrock or Vertex AI connection has no valid config or an Azure
+// connection has no endpoint. OpenAI, Anthropic and OpenRouter connections may
+// override the official base URL; xAI, Vercel and Google AI Studio never store
+// one.
 export function getGatewayUpstream(params: {
   provider: GatewayProviderName;
   apiFormat: GatewayApiFormat;
   config: unknown;
   baseURL: string | null;
+  /** The stored credential, decrypted. */
+  credential: string;
 }): GatewayUpstream {
   if (params.provider === "AZURE") {
     if (!params.baseURL) throw new Error("Azure connection has no endpoint.");
@@ -245,6 +265,15 @@ export function getGatewayUpstream(params: {
       new URL(params.baseURL).origin,
       params.apiFormat,
     );
+  }
+  if (params.provider === "VERTEX") {
+    return {
+      baseUrl: vertexOpenAICompatibleBaseUrl({
+        config: GatewayVertexConfigSchema.parse(params.config),
+        credential: params.credential,
+      }),
+      authType: "bearer",
+    };
   }
   if (params.provider !== "BEDROCK") {
     const { baseUrl, authType } = PROVIDER_REGISTRY[params.provider];
@@ -265,6 +294,20 @@ function getPerFormatUpstream(
     return { baseUrl: `${origin}/anthropic/v1`, authType: "x-api-key" };
   }
   return { baseUrl: `${origin}/openai/v1`, authType: "bearer" };
+}
+
+/** The secret sent upstream for a decrypted stored credential. Vertex AI keys are exchanged for an access token. */
+export async function getGatewayUpstreamSecret(params: {
+  provider: GatewayProviderName;
+  credential: string;
+}): Promise<string> {
+  if (params.provider === "BEDROCK") {
+    return decodeBedrockApiKey(params.credential);
+  }
+  if (params.provider === "VERTEX") {
+    return getVertexAccessToken(params.credential);
+  }
+  return params.credential;
 }
 
 const xaiApiKeySchema = z.object({

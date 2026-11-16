@@ -76,6 +76,8 @@ model User {
   dashboardUpdated          Dashboard[]                 @relation("UpdatedByUser")
   tableViewPresetCreated    TableViewPreset[]           @relation("CreatedByUser")
   tableViewPresetUpdated    TableViewPreset[]           @relation("UpdatedByUser")
+  sessionViewsCreated       SessionView[]
+  sessionViewPinOverrides   SessionViewPinOverride[]
   monitorsCreated           Monitor[]                   @relation("CreatedByUser")
   monitorsUpdated           Monitor[]                   @relation("UpdatedByUser")
   topicConfigsCreated       TopicConfig[]               @relation("CreatedByUser")
@@ -205,6 +207,8 @@ model Project {
   Dashboard                         Dashboard[]
   DashboardWidget                   DashboardWidget[]
   TableViewPreset                   TableViewPreset[]
+  sessionViews                      SessionView[]
+  sessionViewPinOverrides           SessionViewPinOverride[]
   actions                           Action[]
   triggers                          Trigger[]
   automationExecutions              AutomationExecution[]
@@ -349,6 +353,7 @@ enum GatewayProvider {
   VERCEL           @map("vercel")
   AZURE            @map("azure")
   GOOGLE_AI_STUDIO @map("google_ai_studio")
+  VERTEX           @map("vertex")
 }
 
 enum GatewayConnectionStatus {
@@ -395,9 +400,11 @@ model GatewayAiConnection {
 }
 
 model GatewayApiKeyAssociation {
-  apiKeyId String @id @map("api_key_id")
-  apiKey   ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
-  metadata Json   @default("{}") @db.JsonB
+  apiKeyId      String @id @map("api_key_id")
+  apiKey        ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  metadata      Json   @default("{}") @db.JsonB
+  // Model patterns this key may call (`*` wildcard, `-` excludes); null allows every enabled model.
+  allowedModels Json?  @map("allowed_models") @db.JsonB
 
   @@map("gateway_api_key_associations")
 }
@@ -1769,6 +1776,8 @@ model BatchAction {
   processedCount Int?    @map("processed_count")
   failedCount    Int?    @map("failed_count")
   log            String?
+  // Last row a resumable batch action finished, written with the counts.
+  cursor         Json?
 
   @@index([projectId, userId])
   @@index([status])
@@ -2017,6 +2026,55 @@ model TableViewPreset {
 
   @@unique([projectId, tableName, name])
   @@map("table_view_presets")
+}
+
+enum SessionViewMode {
+  conversational
+  list
+}
+
+enum SessionUnmatchedTraces {
+  show
+  hide
+}
+
+model SessionView {
+  isPinnedByDefaultForProject Boolean                  @default(false) @map("is_pinned_by_default_for_project")
+  pins                        SessionViewPinOverride[]
+  id                          String                   @id @default(cuid())
+  projectId                   String                   @map("project_id")
+  project                     Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name                        String
+  filters                     Json
+  viewMode                    SessionViewMode          @map("view_mode")
+  unmatchedTraces             SessionUnmatchedTraces   @map("unmatched_traces")
+  createdBy                   String?                  @map("created_by")
+  createdByUser               User?                    @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  createdAt                   DateTime                 @default(now()) @map("created_at")
+  updatedAt                   DateTime                 @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([projectId, name])
+  @@unique([projectId, id])
+  @@map("session_views")
+}
+
+model SessionViewPinOverride {
+  id        String       @id @default(cuid())
+  projectId String       @map("project_id")
+  project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String       @map("user_id")
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Null identifies the built-in Messages view.
+  viewId    String?      @map("view_id")
+  view      SessionView? @relation(fields: [projectId, viewId], references: [projectId, id], onDelete: Cascade)
+  isPinned  Boolean      @default(true) @map("is_pinned")
+  position  Int
+
+  // A partial unique index in the migration enforces one Messages override per user/project.
+  @@unique([projectId, userId, viewId])
+  @@index([userId])
+  @@index([projectId, viewId])
+  @@map("session_view_pin_overrides")
 }
 
 model DefaultView {

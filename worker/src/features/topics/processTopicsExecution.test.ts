@@ -11,12 +11,14 @@ import type {
   TopicTimeRange,
 } from "@langfuse/shared/topics";
 import {
-  TOPICS_TRANSCRIPT_VERSION,
   getTopicClusteringSummaries,
   type TopicEmbeddingBatch,
   type TopicEmbeddingRef,
 } from "@langfuse/shared/topics/server";
-import { assembleTranscript } from "@langfuse/shared/src/server";
+import {
+  assembleTranscript,
+  TOPICS_TEXT_VERSION,
+} from "@langfuse/shared/src/server";
 import {
   topicExecutionInputSchema,
   topicSourceKey,
@@ -73,9 +75,13 @@ const facet: TopicFacetVersion = {
 };
 
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
-  const { TOPICS_TRANSCRIPT_VERSION, TOPIC_EMBEDDING_EXPIRED_ERROR } =
+  const { TOPIC_EMBEDDING_EXPIRED_ERROR } =
     await importOriginal<typeof import("@langfuse/shared/topics/server")>();
   return {
+    topicAnalysisCohort: async () => ({
+      traces: { query: "SELECT '' AS id LIMIT 0", params: {} },
+      sample: { seed: "seed", limit: 20_000 },
+    }),
     getTopicTextResponseMetadata: () => undefined,
     isTopicsEnabled: () => true,
     // A refit's rule selects every trace.
@@ -99,7 +105,6 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
         clustering: slot("clustering", "gpt-5.6-terra"),
       };
     },
-    TOPICS_TRANSCRIPT_VERSION,
     TOPIC_EMBEDDING_EXPIRED_ERROR,
     stageTopicSummary: async (
       scope: { projectId: string; executionId: string },
@@ -278,6 +283,25 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
             a.traceId < b.traceId ? -1 : a.traceId > b.traceId ? 1 : 0,
           ),
     ),
+    getNewestTopicClusteringSummaries: async (
+      projectId: string,
+      facet: TopicFacetRef,
+      embeddingConfig: TopicEmbeddingConfig,
+      timeRange: TopicTimeRange,
+    ) =>
+      [...state.summaries.values()]
+        .filter(
+          (row) =>
+            row.projectId === projectId &&
+            row.facetId === facet.facetId &&
+            row.facetVersion === facet.version &&
+            row.traceId !== null &&
+            row.state === "complete" &&
+            row.embeddingModel === embeddingConfig.embeddingModel &&
+            row.embedding.length === embeddingConfig.embeddingDimensions &&
+            inTimeRange(row, timeRange),
+        )
+        .sort((a, b) => b.unitStartTime.localeCompare(a.unitStartTime)),
     getTopicRun: async (_project: string, id: string) =>
       state.runs.get(id) ?? null,
     readTopicRunTraceIds: async (
@@ -438,6 +462,7 @@ function traceInput(traceId: string, input: string | null = traceId) {
         metadata: {},
       },
     ]),
+    executionIssues: [],
   };
 }
 
@@ -598,15 +623,12 @@ beforeEach(() => {
     traceInput(traceId),
   );
   state.summarize.mockImplementation(async (_facet, text: string) => {
-    // The projected transcript the trace-batch path sends.
-    const transcript = JSON.parse(text);
-    const input = transcript.threads[0].currentTurn[0].parts.find(
-      (part: { type: string }) => part.type === "text",
-    );
+    // The rendered Topics text carries the request on its own line.
+    const request = /\[user · request\] (.*)/.exec(text)![1];
     return {
       output: {
         status: "applicable",
-        summary: input!.text,
+        summary: request,
       },
       providedUsageDetails: { summary_input: 1 },
       usageDetails: { summary_input: 1 },
@@ -911,7 +933,7 @@ describe("Topics execution", () => {
   );
 
   it.each([
-    { version: TOPICS_TRANSCRIPT_VERSION, calls: 1, usageDetails: {} },
+    { version: TOPICS_TEXT_VERSION, calls: 1, usageDetails: {} },
     {
       version: "older-transcript",
       calls: 2,
@@ -938,7 +960,7 @@ describe("Topics execution", () => {
         {
           environment: "staging",
           traceName: "Updated support",
-          transcriptVersion: TOPICS_TRANSCRIPT_VERSION,
+          transcriptVersion: TOPICS_TEXT_VERSION,
           metadata: { executionId: "second" },
         },
       ]);
@@ -1439,6 +1461,24 @@ describe("Topics execution", () => {
         },
       ]);
     }
+  });
+
+  it("fits a snapshot below the standard minimum as a small sample", async () => {
+    await processSelection("source", 40);
+    const snapshot = execution("snapshot", 0, "update");
+    snapshot.input.analysis = { label: "Snapshot", filter: [], seed: "seed" };
+    state.executions.set("snapshot", snapshot);
+
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: "snapshot",
+    });
+
+    expect(state.numeric).toHaveBeenCalled();
+    expect([...state.runs.values()].at(-1)).toMatchObject({
+      status: "completed",
+      config: { exploratory: true, minimumCount: 10, analysis: true },
+    });
   });
 
   it.each([0, 3])(

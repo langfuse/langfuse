@@ -19,6 +19,7 @@ import {
   validateLlmConnectionBaseURL,
 } from "@langfuse/shared/src/server";
 import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import { GatewayApiKeyRepository } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyRepository";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { GATEWAY_CONNECTION_NAME_ERRORS } from "@/src/features/ai-gateway/constants/gatewayConnection";
@@ -27,18 +28,24 @@ import {
   getAzureResource,
   getAzureResourceEndpoint,
 } from "@/src/features/ai-gateway/fns/azureResource";
-import { isGatewayApiFamily } from "@/src/features/ai-gateway/fns/isGatewayApiFamily";
+import { supportsCustomEndpoint } from "@/src/features/ai-gateway/fns/supportsCustomEndpoint";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import {
+  type GatewayProviderConfig,
   type GatewayProviderName,
   getGatewayProviderDefinition,
   getGatewayUpstream,
 } from "@/src/features/ai-gateway/server/provider/registry";
 import {
   encodeBedrockCredential,
-  type GatewayBedrockConfig,
+  GatewayBedrockConfigSchema,
 } from "@/src/features/ai-gateway/server/provider/bedrock";
+import {
+  GatewayVertexConfigSchema,
+  parseVertexServiceAccountKey,
+  UnsupportedVertexProjectIdError,
+} from "@/src/features/ai-gateway/server/provider/vertex";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import type { GatewayCustomModel } from "@/src/features/ai-gateway/fns/parseGatewayCustomModels";
 import { assertValidExtraHeaders } from "./assertValidExtraHeaders";
@@ -48,17 +55,35 @@ import { testGatewayModel } from "./testGatewayModel";
 import { GatewayModelCatalogService } from "../models/gatewayModelCatalogService";
 import { getModelDiscoveryAdapter } from "../models/modelDiscoveryRegistry";
 import { requestJson } from "../models/adapters/shared";
+import type { ModelDiscoveryError } from "../models/types";
+import {
+  getProviderAnswerFromCallError,
+  ProviderCredentialRejectedError,
+} from "./ProviderCredentialRejectedError";
+
+/** The AWS SDK's answer is not kept by model discovery, only its category. */
+const BEDROCK_FAILURE_DESCRIPTIONS: Record<ModelDiscoveryError, string> = {
+  unauthorized: "AWS rejected the Bedrock API key.",
+  rate_limited: "AWS throttled the request to list models.",
+  provider_error:
+    "AWS returned an error while listing models. Check the region and the key's permissions.",
+  timeout: "AWS did not answer in time.",
+};
 
 export class GatewayProviderService {
   private readonly repository: GatewayProviderRepository;
   private readonly modelCatalogService: GatewayModelCatalogService;
+  private readonly apiKeyRepository: GatewayApiKeyRepository;
 
   constructor(
     private readonly prisma: PrismaClient,
     private readonly validateCredential: CredentialValidator = validateGatewayCredential,
     modelCatalogService?: GatewayModelCatalogService,
+    apiKeyRepository?: GatewayApiKeyRepository,
   ) {
     this.repository = new GatewayProviderRepository(prisma);
+    this.apiKeyRepository =
+      apiKeyRepository ?? new GatewayApiKeyRepository(prisma);
     this.modelCatalogService =
       modelCatalogService ?? new GatewayModelCatalogService(prisma);
   }
@@ -95,7 +120,7 @@ export class GatewayProviderService {
     connectionId?: string;
     provider: GatewayProvider;
     credential: string;
-    config?: GatewayBedrockConfig;
+    config?: GatewayProviderConfig;
     baseURL?: string | null;
     extraHeaders?: Record<string, string>;
   }) {
@@ -140,7 +165,7 @@ export class GatewayProviderService {
     name: string;
     provider: GatewayProvider;
     credential: string;
-    config?: GatewayBedrockConfig;
+    config?: GatewayProviderConfig;
     baseURL?: string | null;
     extraHeaders?: Record<string, string>;
     session: OrgAuthedContext["session"];
@@ -172,7 +197,7 @@ export class GatewayProviderService {
         encryptedCredential: encrypt(
           toStoredCredential(params.provider, params.credential),
         ),
-        displaySecret: getDisplaySecretKey(params.credential),
+        displaySecret: toDisplaySecret(params.provider, params.credential),
         config,
         ...toStoredEndpoint(endpoint),
         createdById: params.session.user.id,
@@ -249,18 +274,34 @@ export class GatewayProviderService {
 
     let updated;
     try {
-      updated = await this.repository.updateConnection({
-        organizationId: params.organizationId,
-        id: params.id,
-        name,
-        status: params.credential ? "ENABLED" : params.status,
-        encryptedCredential: params.credential
-          ? encrypt(toStoredCredential(existing.provider, params.credential))
-          : undefined,
-        displaySecret: params.credential
-          ? getDisplaySecretKey(params.credential)
-          : undefined,
-        ...(isEndpointChanged ? toStoredEndpoint(endpoint) : {}),
+      updated = await this.prisma.$transaction(async (tx) => {
+        const connection = await this.repository.updateConnection(
+          {
+            organizationId: params.organizationId,
+            id: params.id,
+            name,
+            previousName: existing.name,
+            status: params.credential ? "ENABLED" : params.status,
+            encryptedCredential: params.credential
+              ? encrypt(
+                  toStoredCredential(existing.provider, params.credential),
+                )
+              : undefined,
+            displaySecret: params.credential
+              ? toDisplaySecret(existing.provider, params.credential)
+              : undefined,
+            ...(isEndpointChanged ? toStoredEndpoint(endpoint) : {}),
+          },
+          tx,
+        );
+        if (name !== undefined) {
+          await this.apiKeyRepository.renameConnectionInModelPatterns(tx, {
+            organizationId: params.organizationId,
+            previousName: existing.name,
+            name,
+          });
+        }
+        return connection;
       });
     } catch (error) {
       rethrowConnectionMutationError(error);
@@ -551,21 +592,42 @@ function rethrowConnectionMutationError(error: unknown): never {
   ) {
     throw new InvalidRequestError(GATEWAY_CONNECTION_NAME_ERRORS.duplicate);
   }
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2025"
+  ) {
+    throw new LangfuseConflictError(
+      "This connection was changed in the meantime. Reload it and try again.",
+    );
+  }
   throw error;
 }
 
-// Bedrock keeps its region in `config`; other providers have no config.
+// Bedrock keeps its region and Vertex AI its location in `config`; other
+// providers have no config.
 function parseConnectionConfig(
   provider: GatewayProvider,
-  config: GatewayBedrockConfig | undefined,
-) {
-  if (provider !== "BEDROCK") return null;
-  if (!config) {
-    throw new InvalidRequestError(
-      "Amazon Bedrock connections need an AWS region",
-    );
+  config: GatewayProviderConfig | undefined,
+): GatewayProviderConfig | null {
+  if (provider === "BEDROCK") {
+    const parsed = GatewayBedrockConfigSchema.safeParse(config);
+    if (!parsed.success) {
+      throw new InvalidRequestError(
+        "Amazon Bedrock connections need an AWS region",
+      );
+    }
+    return parsed.data;
   }
-  return config;
+  if (provider === "VERTEX") {
+    const parsed = GatewayVertexConfigSchema.safeParse(config);
+    if (!parsed.success) {
+      throw new InvalidRequestError(
+        "Google Vertex AI connections need a location",
+      );
+    }
+    return parsed.data;
+  }
+  return null;
 }
 
 type ConnectionEndpoint = {
@@ -573,9 +635,10 @@ type ConnectionEndpoint = {
   extraHeaders: Record<string, string> | null;
 };
 
-// Bedrock only reaches its regional AWS endpoints, and OpenRouter, xAI and
-// Vercel their single hosted API; compatible proxies use an OpenAI connection
-// with a base URL. Azure always needs the endpoint of the customer's resource.
+// Bedrock only reaches its regional AWS endpoints, and xAI, Vercel and Google
+// AI Studio their single hosted API; compatible proxies use an OpenAI
+// connection with a base URL. Azure always needs the endpoint of the
+// customer's resource.
 async function parseConnectionEndpoint(
   params: ConnectionEndpoint & {
     provider: GatewayProvider;
@@ -587,7 +650,7 @@ async function parseConnectionEndpoint(
       ? params.extraHeaders
       : null;
   if (
-    !isGatewayApiFamily(params.provider) &&
+    !supportsCustomEndpoint(params.provider) &&
     params.provider !== "AZURE" &&
     (params.baseURL || extraHeaders)
   ) {
@@ -657,17 +720,40 @@ function toStoredEndpoint(endpoint: ConnectionEndpoint) {
   };
 }
 
+// Vertex AI keys keep only the fields the token exchange needs.
 function toStoredCredential(provider: GatewayProvider, credential: string) {
-  return provider === "BEDROCK"
-    ? encodeBedrockCredential(credential)
-    : credential;
+  if (provider === "BEDROCK") return encodeBedrockCredential(credential);
+  if (provider === "VERTEX") {
+    return JSON.stringify(parseVertexServiceAccountKey(credential));
+  }
+  return credential;
+}
+
+// A service account key's private key must not be shown even in part, so
+// Vertex AI connections show the service account instead.
+function toDisplaySecret(provider: GatewayProvider, credential: string) {
+  return provider === "VERTEX"
+    ? parseVertexServiceAccountKey(credential).client_email
+    : getDisplaySecretKey(credential);
+}
+
+function parseVertexCredential(credential: string) {
+  try {
+    return JSON.stringify(parseVertexServiceAccountKey(credential));
+  } catch (error) {
+    throw new InvalidRequestError(
+      error instanceof UnsupportedVertexProjectIdError
+        ? error.message
+        : "Paste a Google Cloud service account key in JSON format",
+    );
+  }
 }
 
 async function validateGatewayCredential(
   params: {
     provider: GatewayProviderName;
     credential: string;
-    config: GatewayBedrockConfig | null;
+    config: GatewayProviderConfig | null;
   } & ConnectionEndpoint,
 ): Promise<GatewayCredentialValidation> {
   // Listing models proves the key and region without depending on which
@@ -686,7 +772,10 @@ async function validateGatewayCredential(
       }),
     });
     if (!result.success) {
-      throw new InvalidRequestError("Provider connection test failed");
+      throw new ProviderCredentialRejectedError({
+        status: null,
+        body: BEDROCK_FAILURE_DESCRIPTIONS[result.error],
+      });
     }
     return { modelListingDenied: result.modelListingDenied ?? false };
   }
@@ -699,6 +788,7 @@ async function validateGatewayCredential(
       apiFormat: "openai.responses",
       config: null,
       baseURL: params.baseURL,
+      credential: params.credential,
     });
     return checkCredentialEndpoint({
       url: new URL(`${baseUrl}/models`),
@@ -707,15 +797,39 @@ async function validateGatewayCredential(
       extraHeaders: params.extraHeaders,
     });
   }
+  // Listing models proves both that Google accepts the key and that its
+  // project can use Vertex AI in the location.
+  if (params.provider === "VERTEX") {
+    const result = await getModelDiscoveryAdapter("VERTEX").fetchCatalog({
+      credential: parseVertexCredential(params.credential),
+      config: params.config,
+      baseURL: null,
+      extraHeaders: {},
+      fetcher: getGatewayFetch({
+        baseURL: null,
+        extraHeaders: {},
+        logContext: "AI Gateway Vertex AI credential validation",
+      }),
+    });
+    if (!result.success && result.error === "unauthorized") {
+      throw new InvalidRequestError("Provider connection test failed");
+    }
+    if (!result.success) {
+      throw new ServiceUnavailableError(
+        "Provider connection test is unavailable, try again later",
+      );
+    }
+    return { modelListingDenied: false };
+  }
 
   const definition = getGatewayProviderDefinition(params.provider);
   const check = definition.credentialCheck;
   if ("path" in check) {
     return checkCredentialEndpoint({
-      url: new URL(`${definition.baseUrl}${check.path}`),
+      url: new URL(`${params.baseURL ?? definition.baseUrl}${check.path}`),
       credential: params.credential,
-      baseURL: null,
-      extraHeaders: null,
+      baseURL: params.baseURL,
+      extraHeaders: params.extraHeaders,
       usable: check.usable,
     });
   }
@@ -744,8 +858,10 @@ async function validateGatewayCredential(
       },
       timeout: 10_000,
     });
-  } catch {
-    throw new InvalidRequestError("Provider connection test failed");
+  } catch (error) {
+    throw new ProviderCredentialRejectedError(
+      getProviderAnswerFromCallError(error),
+    );
   }
   return { modelListingDenied: false };
 }
@@ -779,7 +895,13 @@ async function checkCredentialEndpoint(
     status >= 400 ||
     (result.success && params.usable?.(result.value) === false)
   ) {
-    throw new InvalidRequestError("Provider connection test failed");
+    throw new ProviderCredentialRejectedError({
+      status,
+      body:
+        result.success && result.value !== null
+          ? JSON.stringify(result.value)
+          : "",
+    });
   }
   return { modelListingDenied: false };
 }
@@ -788,7 +910,7 @@ type CredentialValidator = (
   params: {
     provider: GatewayProviderName;
     credential: string;
-    config: GatewayBedrockConfig | null;
+    config: GatewayProviderConfig | null;
   } & ConnectionEndpoint,
 ) => Promise<GatewayCredentialValidation>;
 

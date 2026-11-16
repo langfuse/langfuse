@@ -3,12 +3,12 @@ import { STATUS_CODES } from "node:http";
 import { getBedrockModelApiFormats } from "@/src/features/ai-gateway/fns/getBedrockModelApiFormats";
 import { isGeminiEmbeddingModel } from "@/src/features/ai-gateway/fns/isGeminiEmbeddingModel";
 import { isOpenAiEmbeddingModel } from "@/src/features/ai-gateway/fns/isOpenAiEmbeddingModel";
-import { decodeBedrockApiKey } from "@/src/features/ai-gateway/server/provider/bedrock";
 import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import {
   type GatewayApiFormat,
   type GatewayProviderName,
   getGatewayUpstream,
+  getGatewayUpstreamSecret,
 } from "@/src/features/ai-gateway/server/provider/registry";
 
 const TEST_TIMEOUT_MS = 15_000;
@@ -66,11 +66,20 @@ async function sendTestRequest(
     apiFormat,
     config: params.config,
     baseURL: params.baseURL,
+    credential: params.credential,
   });
-  const apiKey =
-    params.provider === "BEDROCK"
-      ? decodeBedrockApiKey(params.credential)
-      : params.credential;
+  let apiKey: string;
+  try {
+    apiKey = await getGatewayUpstreamSecret({
+      provider: params.provider,
+      credential: params.credential,
+    });
+  } catch {
+    return {
+      success: false,
+      error: "The credential could not be exchanged for an access token.",
+    };
+  }
   const { path, body } = getTestRequest(apiFormat, params.model);
   const headers: Record<string, string> = {
     ...params.extraHeaders,
@@ -126,6 +135,7 @@ function getTestApiFormats(
       ? ["openai.embeddings"]
       : ["openai.chat-completions"];
   }
+  if (provider === "VERTEX") return ["openai.chat-completions"];
   if (provider === "OPENAI" || provider === "XAI") {
     return ["openai.responses", "openai.chat-completions"];
   }

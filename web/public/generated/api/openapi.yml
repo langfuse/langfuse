@@ -11020,11 +11020,13 @@ components:
         value:
           type: string
           const: ''
-          nullable: true
-          description: Optional. Defaults to an empty string.
+          description: >-
+            Empty-string placeholder. Can be omitted on servers newer than
+            v4.78.0.
       required:
         - column
         - operator
+        - value
     PromptVariableMappingInput:
       title: PromptVariableMappingInput
       type: object
@@ -15086,7 +15088,8 @@ components:
 
         | `boolean` | boolean | `=`, `<>` |
 
-        | `null` | omit, or `""` | `is null`, `is not null` |
+        | `null` | `""` (can be omitted on servers newer than v4.78.0) | `is
+        null`, `is not null` |
 
         | `stringOptions` | list of strings | `any of`, `none of` |
 

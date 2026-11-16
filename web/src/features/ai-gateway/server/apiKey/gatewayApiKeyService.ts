@@ -1,6 +1,7 @@
 import {
   ForbiddenError,
   InternalServerError,
+  LangfuseConflictError,
   LangfuseNotFoundError,
   type OrderByState,
 } from "@langfuse/shared";
@@ -98,6 +99,8 @@ export class GatewayApiKeyService {
     organizationId: string;
     name: string;
     metadata: GatewayMetadata;
+    /** Null allows every model the admin enabled. */
+    allowedModels?: string[] | null;
     expiresAt?: Date | null;
     /** `user` keys are USER-scoped and also need their creator's roles to allow each call; `serviceAccount` keys belong to the organization. */
     issuedAs: GatewayApiKeyIssuedAs;
@@ -121,6 +124,7 @@ export class GatewayApiKeyService {
           data: {
             apiKeyId: key.id,
             metadata: params.metadata,
+            allowedModels: params.allowedModels ?? Prisma.DbNull,
           },
         });
         return key;
@@ -140,6 +144,7 @@ export class GatewayApiKeyService {
           note: key.note,
           expiresAt: params.expiresAt ?? null,
           issuedAs: params.issuedAs,
+          allowedModels: params.allowedModels,
         },
       },
       this.prisma,
@@ -148,6 +153,52 @@ export class GatewayApiKeyService {
   }
 
   /** With ownerUserId, another user's key is reported as not found. */
+  /** Metadata and model patterns are read per request, so the key's cached context is dropped. */
+  async update(params: {
+    organizationId: string;
+    ownerUserId?: string;
+    apiKeyId: string;
+    name: string;
+    metadata: GatewayMetadata;
+    allowedModels: string[] | null;
+    previousAllowedModels: string[] | null;
+    session: OrgAuthedContext["session"];
+  }) {
+    const before = await this.repository.getGatewayApiKey(params);
+    if (!before) {
+      throw new LangfuseNotFoundError("Gateway key not found");
+    }
+    const updated = await this.repository.updateGatewayApiKey(params);
+    const after = await this.repository.getGatewayApiKey(params);
+    if (!after) {
+      throw new LangfuseNotFoundError("Gateway key not found");
+    }
+    if (!updated) {
+      throw new LangfuseConflictError(
+        "The key's models changed since you opened it. Reopen the key and try again.",
+      );
+    }
+    const apiKey = await this.prisma.apiKey.findUnique({
+      where: { id: params.apiKeyId },
+      select: { fastHashedSecretKey: true },
+    });
+    if (apiKey?.fastHashedSecretKey) {
+      await invalidateGatewayResolveCacheForApiKey(apiKey.fastHashedSecretKey);
+    }
+    await auditLog(
+      {
+        session: params.session,
+        resourceType: "apiKey",
+        resourceId: params.apiKeyId,
+        action: "update",
+        before,
+        after,
+      },
+      this.prisma,
+    );
+    return after;
+  }
+
   async revoke(params: {
     organizationId: string;
     ownerUserId?: string;

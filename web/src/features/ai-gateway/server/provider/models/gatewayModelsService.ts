@@ -82,8 +82,10 @@ export class GatewayModelsService {
           return catalog.models
             .filter(
               (model) =>
-                isGatewayModelAllowed(allowedModels, model.id) &&
-                modelMatchesApiFormat(model, params.apiFormat),
+                isGatewayModelAllowed(allowedModels, model.id, {
+                  connectionName: connection.name,
+                  allowedModels: params.context.keyAllowedModels,
+                }) && modelMatchesApiFormat(model, params.apiFormat),
             )
             .map(({ apiFormats: _apiFormats, ...model }) => ({
               ...model,
