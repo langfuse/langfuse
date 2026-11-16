@@ -102,6 +102,21 @@ describe("BackfillAuditLogsToClickhouse", () => {
     });
   });
 
+  it("preserves a bulk audit row when its snapshot cannot supply resource refs", () => {
+    const row = postgresRow(settledAt(0), {
+      userId: "user-1",
+      resourceType: "project",
+      resourceId: projectId,
+      action: "deleteTraces",
+      before: "unrecognized legacy snapshot",
+    });
+
+    expect(convertPostgresAuditLogToClickhouse(row)).toMatchObject({
+      before: row.before,
+      resource_refs: [],
+    });
+  });
+
   // Keeps the cursor, as an operator who moves copyUntil would.
   const setCopyUntil = async (copyUntil: Date) => {
     const { state } = await prisma.backgroundMigration.findUniqueOrThrow({

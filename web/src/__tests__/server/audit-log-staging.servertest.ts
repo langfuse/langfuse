@@ -29,6 +29,7 @@ import {
 import {
   clickhouseClient,
   convertAuditLogStagingRowToClickhouse,
+  convertPostgresAuditLogToClickhouse,
   createOrgProjectAndApiKey,
   deriveAuditLogEventId,
   logger,
@@ -346,7 +347,8 @@ describe("audit log staging", () => {
       });
 
       const { record, staged } = await findRecordAndStagedEvent(projectId);
-      expect(convertAuditLogStagingRowToClickhouse(staged)).toMatchObject({
+      const row = convertAuditLogStagingRowToClickhouse(staged);
+      expect(row).toMatchObject({
         actor_type: "API_KEY",
         api_key_id: apiKeyId,
         org_id: orgId,
@@ -355,7 +357,25 @@ describe("audit log staging", () => {
         resource_id: projectId,
         action: "deleteTraces",
         before: record.before,
+        resource_refs: traceIds.map((id) => toAuditLogResourceRef("trace", id)),
       });
+      expect(convertPostgresAuditLogToClickhouse(record).resource_refs).toEqual(
+        row.resource_refs,
+      );
+      await clickhouseClient().insert({
+        table: "audit_logs",
+        values: [row],
+        format: "JSONEachRow",
+      });
+      const found = await queryAuditLogs(
+        "SELECT id FROM audit_logs WHERE org_id = {orgId: String} AND project_id = {projectId: String} AND has(resource_refs, {ref: String})",
+        {
+          orgId,
+          projectId,
+          ref: toAuditLogResourceRef("trace", traceIds[999]),
+        },
+      );
+      expect(found).toEqual([{ id: row.id }]);
       const actorLines = info.mock.calls.filter(([message]) =>
         String(message).startsWith("Audit log:"),
       );
