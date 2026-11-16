@@ -7,7 +7,6 @@ import {
   useDetailPageLists,
 } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { isOpenDialogPresent } from "@/src/features/scores/lib/keyboardShortcuts";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { cn } from "@/src/utils/tailwind";
 import { ArrowDown, ArrowUp } from "@langfuse/icons";
@@ -17,6 +16,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 const SHORTCUT_PULSE_MS = 160;
 
 type ShortcutPulse = "previous" | "next" | null;
+
+/** A dialog that does not contain this nav. The peek that hosts the nav does not count. */
+function dialogOutsideNav(root: HTMLElement | null): boolean {
+  if (typeof document === "undefined") return false;
+  const dialogs = document.querySelectorAll(
+    '[role="dialog"]:not([aria-hidden="true"])',
+  );
+  for (const dialog of dialogs) {
+    if (!root || !dialog.contains(root)) return true;
+  }
+  return false;
+}
 
 export const DetailPageNav = (props: {
   currentId: string;
@@ -35,6 +46,7 @@ export const DetailPageNav = (props: {
   const { detailPagelists } = useDetailPageLists();
   const entries = detailPagelists[listKey] ?? [];
   const [shortcutPulse, setShortcutPulse] = useState<ShortcutPulse>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const shortcutPulseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -119,8 +131,9 @@ export const DetailPageNav = (props: {
       if (event.metaKey || event.ctrlKey) {
         return;
       }
-      // An open dialog owns the keyboard. Leaving the page would drop its draft.
-      if (isOpenDialogPresent()) return;
+      // A dialog outside this nav owns the keyboard. The dialog that contains
+      // the nav, such as a table peek, does not.
+      if (dialogOutsideNav(rootRef.current)) return;
 
       if (event.key === "k" && previousPageEntry) {
         pulseShortcut("previous");
@@ -137,7 +150,7 @@ export const DetailPageNav = (props: {
   if (entries.length > 1) {
     if (compact) {
       return (
-        <div className="flex flex-row gap-1">
+        <div ref={rootRef} className="flex flex-row gap-1">
           <HeaderActionButton
             label="Navigate up"
             shortcut="K"
@@ -171,7 +184,7 @@ export const DetailPageNav = (props: {
         active && "border-primary/60 bg-accent/60 ring-primary/20 ring-2",
       );
     return (
-      <div className="flex flex-row gap-1">
+      <div ref={rootRef} className="flex flex-row gap-1">
         <Tooltip label="Navigate up" shortcut={{ keys: ["K"] }}>
           {({ getTriggerProps }) => (
             <Button

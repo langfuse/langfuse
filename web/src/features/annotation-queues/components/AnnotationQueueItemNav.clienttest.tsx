@@ -118,3 +118,38 @@ it("does not leave an open dialog on J or K", async () => {
   fireEvent.keyDown(window, { key: "j" });
   expect(router.push).toHaveBeenCalledWith(itemPath("item-c"));
 });
+
+it("keeps J and K when the nav itself is inside a dialog", async () => {
+  router.push.mockClear();
+  const peek = document.createElement("div");
+  peek.setAttribute("role", "dialog");
+  document.body.appendChild(peek);
+
+  render(
+    <DetailPageListsProvider>
+      <SeedQueueList />
+      <AnnotationQueueItemNav
+        projectId="project"
+        queueId="queue"
+        itemId="item-b"
+      />
+    </DetailPageListsProvider>,
+    { container: peek },
+  );
+
+  try {
+    await screen.findByRole("button", { name: "Navigate down" });
+    fireEvent.keyDown(window, { key: "j" });
+    expect(router.push).toHaveBeenCalledWith(itemPath("item-c"));
+
+    router.push.mockClear();
+    const other = document.createElement("div");
+    other.setAttribute("role", "dialog");
+    document.body.appendChild(other);
+    fireEvent.keyDown(window, { key: "k" });
+    expect(router.push).not.toHaveBeenCalled();
+    other.remove();
+  } finally {
+    peek.remove();
+  }
+});
