@@ -154,6 +154,13 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+  // How long a trace's Redis bounds survive its latest activity; late spans merge within it.
+  LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(2 * 24 * 60 * 60 * 1_000)
+    .default(12 * 60 * 60 * 1_000),
   // Traces per events-dispatch job.
   LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE: z.coerce
     .number()

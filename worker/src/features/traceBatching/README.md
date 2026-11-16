@@ -10,11 +10,11 @@ Requires cloud, `LANGFUSE_EVENTS_DISPATCH_ENABLED=true` and direct events-table
 writes. `LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL` selects the experiment cohort by
 trace ID. Recording atomically updates keys under `{trace-dispatch:<shard>:<suffix>}`:
 
-| Map              | Contents                                                                                                                                                   | Retention                                                               |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `b:<trace-hash>` | One string key per trace: MessagePack `[minStart, maxStart, serializedEventBytes]`, including nonmatches; raw 16-byte SHA-256 prefix of the JSON identity. | Native TTL, bounds TTL after the latest activity (24 hours by default). |
-| `pending`        | `{ revision, rules, failed_cnt }` with deduplicated rules; JSON `[projectId, traceId]` identity.                                                           | Eligible for cleanup two hours past due.                                |
-| `due`            | Same JSON identity, scored by Redis arrival time plus project idle interval.                                                                               | Eligible for cleanup two hours past due.                                |
+| Map              | Contents                                                                                                                                                   | Retention                                                                                            |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `b:<trace-hash>` | One string key per trace: MessagePack `[minStart, maxStart, serializedEventBytes]`, including nonmatches; raw 16-byte SHA-256 prefix of the JSON identity. | Native TTL, `LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS` after the latest activity (12 hours by default). |
+| `pending`        | `{ revision, rules, failed_cnt }` with deduplicated rules; JSON `[projectId, traceId]` identity.                                                           | Eligible for cleanup two hours past due.                                                             |
+| `due`            | Same JSON identity, scored by Redis arrival time plus project idle interval.                                                                               | Eligible for cleanup two hours past due.                                                             |
 
 The tag suffix is the smallest base36 value whose CRC16 slot sits mid-range in the
 shard's share of the 16384 slots, so shards spread evenly over cluster masters with

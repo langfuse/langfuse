@@ -20,8 +20,7 @@ export const traceDispatchConfig = {
   /** How long a due trace stays pending before cleanup drops it. */
   pendingTtlMs: 2 * 60 * 60_000,
   dispatchIntervalMs: 60_000,
-  /** How long a trace's bounds survive its latest activity; late spans merge within it. */
-  boundsTtlMs: 4 * 60 * 60_000,
+  boundsTtlMs: env.LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS,
 };
 
 /** The jobs on `events-dispatch-queue` and their consumer. */
