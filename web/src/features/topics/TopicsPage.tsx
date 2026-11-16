@@ -333,6 +333,7 @@ function TopicsWorkspaceContent({
     },
   );
 
+  const mapsSettled = maps.data !== undefined || maps.isError;
   const mapSelection = resolveTopicMapSelection(
     maps.data,
     typeof router.query.map === "string" ? router.query.map : undefined,
@@ -451,16 +452,27 @@ function TopicsWorkspaceContent({
     pollForSummaries: modelSettings.automaticProcessing.state.status === "on",
     refreshAfter: Math.max(refreshAfter, refitAfter),
     ruleId: selectedRule?.id,
-    enabled: !analysisId,
+    // The default map is unknown until the maps load.
+    enabled: !analysisId && mapsSettled,
   });
+  // On a map switch, the previous map's results stay until the new map's arrive.
+  const switchingMap =
+    results.data !== undefined && results.data.ruleId !== selectedRule?.id;
   const shownResults = analysisId
     ? {
         data: analysisResults.data,
         isLoading: analysisResults.isLoading,
         error: analysisResults.error,
       }
-    : results;
-  const scope = analysisId ? { analysisId } : { ruleId: selectedRule?.id };
+    : {
+        data: results.data,
+        isLoading: results.isLoading || !mapsSettled,
+        error: results.error,
+      };
+  // Traces follow the results on screen, so a switch requests no traces for stale topics.
+  const scope = analysisId
+    ? { analysisId }
+    : { ruleId: switchingMap ? results.data?.ruleId : selectedRule?.id };
   const traceFilters = useTopicTraceFilters(
     projectId,
     shownResults.data?.facets ?? [],
@@ -883,6 +895,7 @@ function TopicsWorkspaceContent({
                           tracePanelRef={setTracePanel}
                           showUnassigned={showUnassigned}
                           mapActions={actions}
+                          pending={!analysisId && switchingMap}
                         />
                       </div>
                     )}
