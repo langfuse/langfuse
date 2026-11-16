@@ -22,9 +22,6 @@ export class TopicTraceTooLarge extends Error {
 type SnapshotRow = {
   project_id: string;
   trace_id: string;
-  session_id: string;
-  environment: string;
-  trace_name: string;
   span_id: string;
   parent_span_id: string | null;
   start_time: string;
@@ -86,9 +83,6 @@ export async function loadTopicTranscript(params: {
     .selectRaw(
       "e.project_id",
       "e.trace_id",
-      "e.session_id",
-      "e.environment",
-      "e.trace_name",
       "e.span_id",
       "e.parent_span_id",
       "e.start_time",
@@ -130,9 +124,6 @@ export async function loadTopicTranscript(params: {
     .limit(MAX_OBSERVATIONS + 1);
   const { query, params: queryParams } = builder.buildWithParams();
   const observations: TranscriptObservation[] = [];
-  let sessionId: string | null = null;
-  let environment = "";
-  let traceName = "";
   let bytes = 0;
   try {
     for await (const row of queryClickhouseStream<SnapshotRow>({
@@ -150,10 +141,6 @@ export async function loadTopicTranscript(params: {
     })) {
       if (row.project_id !== projectId || row.trace_id !== traceId)
         throw new Error("Trace snapshot scope mismatch");
-      if (!observations.length) environment = row.environment;
-      // Rows arrive newest first; retain the latest non-empty session and name metadata.
-      if (!sessionId && row.session_id) sessionId = row.session_id;
-      if (!traceName && row.trace_name) traceName = row.trace_name;
       bytes += Buffer.byteLength(JSON.stringify(row));
       if (bytes > MAX_SNAPSHOT_BYTES || observations.length >= MAX_OBSERVATIONS)
         throw new TopicTraceTooLarge();
@@ -183,20 +170,16 @@ export async function loadTopicTranscript(params: {
     );
   if (new Set(observations.map(({ id }) => id)).size !== observations.length)
     throw new Error("Trace snapshot contains duplicate observation IDs");
-  // Storage order determines metadata freshness; transcript ties use stable IDs.
+  // Order by start time; ties use stable IDs.
   observations.sort((a, b) => {
     const timeDifference = a.startTime.getTime() - b.startTime.getTime();
     if (timeDifference) return timeDifference;
     if (a.id === b.id) return 0;
     return a.id < b.id ? -1 : 1;
   });
-  // Uncapped, like trace-batch; the summary input limit rejects oversized traces.
+  // Uncapped; the summary input limit rejects oversized traces.
   const context = assembleTranscriptContext(orderObservations(observations));
   return {
-    unitStartTime: observations[0].startTime.toISOString(),
-    sessionId,
-    environment,
-    traceName,
     transcript: context?.transcript ?? null,
     executionIssues: context?.executionIssues ?? [],
   };

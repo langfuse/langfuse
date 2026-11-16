@@ -285,17 +285,6 @@ Recordings come from many frameworks and can be messy. Repeated, partial, or pas
 Status says whether the facet applies, not whether the run succeeded.
 </status>`;
 
-function requireFrozenSummaryModel(
-  models: TopicsModels,
-  config: TopicProcessingConfig,
-) {
-  if (config.summaryModel !== models.summary.model)
-    throw new TopicsProviderUnavailable(
-      "The project's summary model changed after this request was created. Start a new Topics execution.",
-      "configuration",
-    );
-}
-
 /**
  * Summarizes all given facets of one trace in a single call. The system prompt
  * is identical across traces; each facet is listed under its key and answered
@@ -310,7 +299,6 @@ export async function summarizeTopicTraceFacets(
   config: TopicProcessingConfig,
   metadata?: Record<string, unknown>,
 ) {
-  requireFrozenSummaryModel(models, config);
   const entry = z.object({
     notes: z
       .string()

@@ -55,7 +55,7 @@ function loadRows(...rows: Partial<typeof row>[]) {
 
 describe("Topics transcript input", () => {
   it.each(["2026-09-15 10:00:01.250", null])(
-    "loads project-scoped I/O and latest source metadata with end time %s",
+    "loads project-scoped I/O with end time %s",
     async (endTime) => {
       const result = await loadRows(
         {
@@ -95,12 +95,6 @@ describe("Topics transcript input", () => {
         traceId: "trace",
         from: "2026-09-15 09:00:00.000",
         to: "2026-09-15 10:00:00.001",
-      });
-      expect(result).toMatchObject({
-        unitStartTime: "2026-09-15T09:00:00.000Z",
-        sessionId: "current-session",
-        environment: "",
-        traceName: "Current trace",
       });
       const json = JSON.stringify(result.transcript);
       expect(json).toContain("Please cancel my subscription.");
@@ -170,42 +164,7 @@ describe("Topics transcript input", () => {
     ).rejects.toThrow("limit");
   });
 
-  it.each([
-    { parent_span_id: "", is_app_root: false },
-    { parent_span_id: "external-parent", is_app_root: true },
-  ])("uses explicit trace names without a root fallback: %j", async (root) => {
-    const latestRoot = {
-      ...root,
-      span_id: "root",
-      trace_name: "",
-      name: "Root fallback",
-    };
-    const olderChild = {
-      span_id: "child",
-      parent_span_id: "root",
-      trace_name: "Explicit trace name",
-    };
-    expect((await loadRows(latestRoot, olderChild)).traceName).toBe(
-      "Explicit trace name",
-    );
-    expect(
-      (await loadRows(latestRoot, { ...olderChild, trace_name: "" })).traceName,
-    ).toBe("");
-  });
-
-  it("preserves empty source context", async () => {
-    const result = await loadRows({
-      parent_span_id: "missing-root",
-      environment: "",
-      trace_name: "",
-    });
-    expect(result).toMatchObject({
-      environment: "",
-      traceName: "",
-    });
-  });
-
-  it("keeps the full transcript, like trace-batch, with stable equal-time ordering", async () => {
+  it("keeps the full transcript with stable equal-time ordering", async () => {
     const rows = [0, 1, 2].map((index) => ({
       span_id: `generation-${index}`,
       input: JSON.stringify([{ role: "user", content: `Request ${index}` }]),
