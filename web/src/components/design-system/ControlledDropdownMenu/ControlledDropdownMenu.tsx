@@ -72,6 +72,19 @@ const menuBodyVariants = cva(
   },
 );
 
+// Bottom scroll gradient lives on the footer; the body's would sit behind it.
+const menuFooterVariants = cva(
+  "bg-popover before:from-popover sticky bottom-0 z-2 border-t p-1 before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:mb-px before:h-6 before:bg-linear-to-t before:to-transparent before:content-['']",
+  {
+    variants: {
+      showGradient: {
+        true: "before:opacity-100",
+        false: "before:opacity-0",
+      },
+    },
+  },
+);
+
 const menuItemVariants = cva(
   "group/item focus:bg-accent data-[active]:bg-accent data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 relative flex w-full min-w-0 cursor-pointer items-center text-sm outline-hidden",
   {
@@ -996,7 +1009,7 @@ function DropdownMenuNode({
                 {visibleItems.slice(0, footerStart).map(renderItem)}
               </div>
               {footerStart < visibleItems.length ? (
-                <div className="bg-popover sticky bottom-0 z-2 border-t p-1">
+                <div className={menuFooterVariants({ showGradient: bottom })}>
                   {visibleItems
                     .slice(footerStart)
                     .map((item, offset) =>
