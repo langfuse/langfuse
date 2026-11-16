@@ -62,6 +62,7 @@ Use their technical rules, not their implementation or handoff workflows.
 
 - A test earns its place only when it is fast, uses few or no mocks, and fails without the change it accompanies.
 - Flag tests that would pass without the fix: change-set checks that only assert a removed thing is gone, tautologies, and assertions on mocks only.
+- Flag tests whose only assertion is that a mocked collaborator was called (e.g. `expect(mockFn).toHaveBeenCalledOnce()`) without checking arguments or an observable outcome.
 - Flag brittle, mock-heavy UI click-through tests and Storybook stories that only render the fixed state, with no interaction or assertion, to prove a fix. Do not flag a focused Storybook test of the changed behavior.
 - Test components only through Storybook. Use `.clienttest.ts` for frontend unit tests, not in-source tests. Keep backend and worker conventions.
 - Flag duplicates of existing coverage, and multiple tests where one meaningful test is enough. Suggest which one to keep. One representative input per distinct contract or path, plus each boundary.
