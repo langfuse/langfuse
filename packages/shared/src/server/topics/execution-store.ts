@@ -173,7 +173,7 @@ export async function createTopicExecution(
   const existing = await storedExecution(input.projectId, id);
   if (existing) {
     checkRequest(batchMetadata(existing), input, requestHash);
-    return { ...summaryResult(existing), input, traceErrors: [] };
+    return { ...summaryResult(existing), input };
   }
   const { projectId } = input;
   const { ids, inputSettings } =
@@ -289,7 +289,7 @@ export async function createTopicExecution(
       },
     });
   });
-  return { ...summaryResult(row), input, traceErrors: [] };
+  return { ...summaryResult(row), input };
 }
 
 export async function readTopicExecutionForRequest(

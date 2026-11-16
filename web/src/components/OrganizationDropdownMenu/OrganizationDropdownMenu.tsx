@@ -64,9 +64,12 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
               },
             ])
         : [{ type: "loading" as const, id: "loading" }]),
-      ...(currentOrganizationId || canCreateOrganizations
-        ? [{ type: "separator" as const, id: "organization-actions-separator" }]
-        : []),
+    ],
+    [currentOrganizationId, getOrgPath, organizations],
+  );
+
+  const footerItems = useMemo<ComponentProps<typeof DropdownMenu>["items"]>(
+    () => [
       ...(currentOrganizationId
         ? [
             {
@@ -75,7 +78,6 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
               title: "Organization settings",
               icon: Settings,
               href: `/organization/${currentOrganizationId}/settings`,
-              searchBehavior: "always-show" as const,
             },
           ]
         : []),
@@ -87,21 +89,21 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
               title: "New organization",
               icon: PlusIcon,
               href: createOrganizationRoute,
-              searchBehavior: "always-show" as const,
             },
           ]
         : []),
     ],
-    [canCreateOrganizations, currentOrganizationId, getOrgPath, organizations],
+    [canCreateOrganizations, currentOrganizationId],
   );
 
   return (
     <DropdownMenu
       ariaLabel="Organizations"
       items={items}
+      footerItems={footerItems}
       width="wide"
-      // Fits every org; scrolls only when taller than the window.
-      maxHeight="calc(100dvh - 4rem)"
+      // Caps the list; settings and New stay pinned below it.
+      maxHeight="min(28rem, calc(100dvh - 4rem))"
       search={{ placeholder: "Search organizations..." }}
       emptyText="No organization found."
     >

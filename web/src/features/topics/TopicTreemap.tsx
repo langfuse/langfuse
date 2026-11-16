@@ -48,6 +48,8 @@ const TILE_GAP = 8;
 const BIG_TILE_AREA = 30_000;
 /** Zoom multiplies the layout height at a fixed width, so every tile stays reachable by scrolling down. */
 const MAX_ZOOM = 8;
+/** The panel width less 1rem a side, whether or not the gutter holds a scrollbar. */
+const TILES_WIDTH = "w-[min(100%,100cqw_-_2rem)]";
 
 const TILE_PADDING: Record<TileTier, string> = {
   large: "p-3",
@@ -364,69 +366,80 @@ export function TopicTreemap({
     onZoom: zoomAt,
   });
   return (
-    <div
-      ref={scrollRef}
-      className={cn(
-        // A stable gutter keeps the tile width the same when zoom adds a scrollbar.
-        "relative min-h-0 min-w-0 flex-1 touch-pan-y overflow-x-hidden p-4 [scrollbar-gutter:stable]",
-        zoom > 1 ? "overflow-y-auto" : "overflow-y-hidden",
-      )}
-    >
-      {/* Inset by the padding, so it measures the visible tile area. */}
+    // The container's width includes the scrollbar gutter, so the tiles can end 1rem from its edge.
+    <div className="@container flex min-h-0 min-w-0 flex-1 flex-col">
       <div
-        ref={viewportRef}
-        aria-hidden
-        className="pointer-events-none invisible absolute inset-4"
-      />
-      {zoom > 1 && (
-        <div className="sticky top-4 z-1 flex h-0 items-start justify-end">
-          <div className="p-2">
-            <Button
-              text="Reset zoom"
-              icon={ZoomOut}
-              variant="outline"
-              size="sm"
-              onClick={resetZoom}
-            />
-          </div>
-        </div>
-      )}
-      <section
-        aria-label="Topics"
-        ref={contentRef}
-        className="relative"
-        style={{ height: layoutHeight }}
-        onClick={dismissPreview}
+        ref={scrollRef}
+        className={cn(
+          // A stable gutter keeps the tile width the same when zoom adds a scrollbar.
+          // It sits in the right padding, so the tiles line up with the controls above.
+          "relative min-h-0 min-w-0 flex-1 touch-pan-y overflow-x-hidden py-4 pl-4 [scrollbar-gutter:stable]",
+          zoom > 1 ? "overflow-y-auto" : "overflow-y-hidden",
+        )}
       >
-        {tiles.map(({ item, capped, x, y, width, height }) => (
-          <TopicTile
-            key={item.id}
-            topic={item}
-            share={total > 0 ? item.count / total : 0}
-            colors={
-              width * height > BIG_TILE_AREA ? item.tiles.big : item.tiles.small
-            }
-            isSelected={item.id === (preview?.id ?? selectedTopicId)}
-            onSelect={selectTopic}
-            rect={{ left: x, top: y, width, height }}
-            tier={tileTier(width, height)}
-            previewOnSelect={previewOnSelect}
-            capped={capped}
-          />
-        ))}
-        {placement && (
+        {/* Inset by the padding, so it measures the visible tile area. */}
+        <div
+          ref={viewportRef}
+          aria-hidden
+          className="pointer-events-none invisible absolute top-4 bottom-4 left-4 w-[min(100%_-_1rem,100cqw_-_2rem)]"
+        />
+        {zoom > 1 && (
           <div
-            className="pointer-events-none absolute right-2 left-2"
-            style={
-              placement.above
-                ? { bottom: layoutHeight - placement.anchor }
-                : { top: placement.anchor }
-            }
+            className={cn(
+              "sticky top-4 z-1 flex h-0 items-start justify-end",
+              TILES_WIDTH,
+            )}
           >
-            <TopicPreviewCard topic={placement.topic} total={total} />
+            <div className="p-2">
+              <Button
+                text="Reset zoom"
+                icon={ZoomOut}
+                variant="outline"
+                size="sm"
+                onClick={resetZoom}
+              />
+            </div>
           </div>
         )}
-      </section>
+        <section
+          aria-label="Topics"
+          ref={contentRef}
+          className={cn("relative", TILES_WIDTH)}
+          style={{ height: layoutHeight }}
+          onClick={dismissPreview}
+        >
+          {tiles.map(({ item, capped, x, y, width, height }) => (
+            <TopicTile
+              key={item.id}
+              topic={item}
+              share={total > 0 ? item.count / total : 0}
+              colors={
+                width * height > BIG_TILE_AREA
+                  ? item.tiles.big
+                  : item.tiles.small
+              }
+              isSelected={item.id === (preview?.id ?? selectedTopicId)}
+              onSelect={selectTopic}
+              rect={{ left: x, top: y, width, height }}
+              tier={tileTier(width, height)}
+              previewOnSelect={previewOnSelect}
+              capped={capped}
+            />
+          ))}
+          {placement && (
+            <div
+              className="pointer-events-none absolute right-2 left-2"
+              style={
+                placement.above
+                  ? { bottom: layoutHeight - placement.anchor }
+                  : { top: placement.anchor }
+              }
+            >
+              <TopicPreviewCard topic={placement.topic} total={total} />
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 }

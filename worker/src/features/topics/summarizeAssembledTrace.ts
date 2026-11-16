@@ -51,7 +51,7 @@ const BUILT_IN_FACETS = new Set(
 // Rows from this transcript producer are interchangeable between trace-batch and manual processing.
 export const ASSEMBLED_TRANSCRIPT_ID = "trace-batch";
 
-export type TraceFacet = {
+type TraceFacet = {
   name: string;
   version: TopicFacetVersion;
   builtIn: boolean;
@@ -251,11 +251,11 @@ async function summarizeEnabledTrace(
 
 /**
  * Summarizes the given facets of one trace in a single model call on the
- * projected transcript. Trace-batch and manual processing share this request.
+ * projected transcript.
  * Returns undefined without a call when the transcript has no content; results
  * follow the order of `facets`, with an error for each invalid facet output.
  */
-export async function summarizeTraceFacets(params: {
+async function summarizeTraceFacets(params: {
   models: TopicsModels;
   facets: TraceFacet[];
   transcript: Transcript | null;
@@ -365,8 +365,8 @@ function facetTag(facet: TraceFacet): string {
     : "custom";
 }
 
-/** The summary row both processing paths start from, before any model call. */
-export function baseTopicSummary(params: {
+/** The summary row processing starts from, before any model call. */
+function baseTopicSummary(params: {
   projectId: string;
   traceId: string;
   sessionId: string | null;
