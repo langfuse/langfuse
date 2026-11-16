@@ -126,17 +126,16 @@ vi.mock("./CurrentTopics", () => ({
       isLoading: false,
     };
   },
-  CurrentTopics: ({
-    result,
-  }: {
-    result: { running: boolean; refreshAfter: number };
-  }) => (
-    <div
-      data-testid="current-topics"
-      data-running={result.running}
-      data-refresh-after={result.refreshAfter}
-    ></div>
-  ),
+  CurrentTopics: () => {
+    const input = state.currentTopics.mock.lastCall?.[0];
+    return (
+      <div
+        data-testid="current-topics"
+        data-running={input?.running}
+        data-refresh-after={input?.refreshAfter}
+      ></div>
+    );
+  },
 }));
 vi.mock("@/src/utils/api", () => ({
   api: {
@@ -417,6 +416,38 @@ it.each([
   },
 );
 
+const oneRuleMaps = {
+  rules: [
+    {
+      id: "rule-1",
+      projectId: "project",
+      name: "All generations",
+      filter: [],
+      sampling: 1,
+      facetIds: ["intent"],
+      enabled: true,
+      updatedAt: "2026-11-01T00:00:00Z",
+      lastRefitAt: "2026-11-01T00:00:00Z",
+      refresh: { availableAt: null, running: false },
+    },
+  ],
+  analyses: [],
+};
+
+it("requests results for the default map only once the maps load", () => {
+  withSummaries();
+  const view = render(<TopicsPage />, { wrapper: LayerProvider });
+  expect(state.currentTopics).not.toHaveBeenCalledWith(
+    expect.objectContaining({ enabled: true }),
+  );
+
+  state.maps = oneRuleMaps;
+  view.rerender(<TopicsPage />);
+  expect(state.currentTopics).toHaveBeenLastCalledWith(
+    expect.objectContaining({ enabled: true, ruleId: "rule-1" }),
+  );
+});
+
 it("puts New live map and New snapshot first in the menu", async () => {
   withSummaries();
   render(<TopicsPage />, { wrapper: LayerProvider });
@@ -436,23 +467,7 @@ it.each([
 ])("shows Edit map as a header button $access", async ({ canWrite }) => {
   withSummaries();
   state.canWrite = canWrite;
-  state.maps = {
-    rules: [
-      {
-        id: "rule-1",
-        projectId: "project",
-        name: "All generations",
-        filter: [],
-        sampling: 1,
-        facetIds: ["intent"],
-        enabled: true,
-        updatedAt: "2026-11-01T00:00:00Z",
-        lastRefitAt: "2026-11-01T00:00:00Z",
-        refresh: { availableAt: null, running: false },
-      },
-    ],
-    analyses: [],
-  };
+  state.maps = oneRuleMaps;
   render(<TopicsPage />, { wrapper: LayerProvider });
   const editMap = screen.getByRole("button", { name: "Edit map" });
   expect(editMap).toHaveProperty("disabled", !canWrite);
