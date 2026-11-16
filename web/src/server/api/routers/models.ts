@@ -56,6 +56,7 @@ export const modelRouter = createTRPCRouter({
       const modelQueryResult = await ctx.prisma.$queryRaw`
           SELECT
             m.id,
+            m.scope as "scope",
             m.project_id as "projectId",
             m.model_name as "modelName",
             m.match_pattern as "matchPattern",
@@ -97,14 +98,17 @@ export const modelRouter = createTRPCRouter({
           WHERE
             m.id = ${input.modelId}
             AND (
-              project_id IS NULL
+              scope = 'LANGFUSE'
               OR project_id = ${input.projectId}
             );
       `;
 
       const model = z.array(GetModelResultSchema).parse(modelQueryResult)[0];
 
-      if (!model || (model.projectId && model.projectId !== input.projectId)) {
+      if (
+        !model ||
+        (model.scope === "PROJECT" && model.projectId !== input.projectId)
+      ) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Model not found",
@@ -129,6 +133,7 @@ export const modelRouter = createTRPCRouter({
         ctx.prisma.$queryRaw`
           SELECT DISTINCT ON (project_id, model_name)
             m.id,
+            m.scope as "scope",
             m.project_id as "projectId",
             m.model_name as "modelName",
             m.match_pattern as "matchPattern",
@@ -168,7 +173,7 @@ export const modelRouter = createTRPCRouter({
           FROM
             models m
           WHERE
-            (project_id IS NULL OR project_id = ${projectId})
+            (scope = 'LANGFUSE' OR project_id = ${projectId})
 			      ${searchStringCondition}
           ORDER BY
             project_id,
@@ -184,7 +189,7 @@ export const modelRouter = createTRPCRouter({
         >`
           SELECT COUNT(DISTINCT (project_id, model_name))
           FROM models
-          WHERE (project_id IS NULL OR project_id = ${projectId})
+          WHERE (scope = 'LANGFUSE' OR project_id = ${projectId})
           ${searchStringCondition};
         `,
       ]);
@@ -318,6 +323,7 @@ export const modelRouter = createTRPCRouter({
           },
           create: {
             id: modelId,
+            scope: "PROJECT",
             projectId,
             modelName,
             matchPattern,
@@ -489,6 +495,7 @@ export const modelRouter = createTRPCRouter({
           id: model.id,
           modelName: model.modelName,
           matchPattern: model.matchPattern,
+          scope: model.scope,
           projectId: model.projectId,
         },
         matchedTier: {

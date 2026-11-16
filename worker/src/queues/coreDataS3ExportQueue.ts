@@ -2,7 +2,7 @@ import { EventType } from "@ag-ui/core";
 import { Processor } from "bullmq";
 import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
-import { DashboardWidgetChartType } from "@prisma/client";
+import { DashboardWidgetChartType, type ModelScope } from "@prisma/client";
 import pLimit from "p-limit";
 import {
   DEFAULT_STARTER_PROJECT_NAME,
@@ -486,17 +486,19 @@ export const mapEvalTemplateToCoreDataRow = ({
 
 type ModelCoreDataInput = {
   modelName: string;
+  scope: ModelScope;
   projectId: string | null;
   _count: { Price: number; pricingTiers: number };
 } & Record<string, unknown>;
 
 export const mapModelToCoreDataRow = ({
   modelName,
+  scope,
   _count,
   ...model
 }: ModelCoreDataInput) => ({
   ...model,
-  modelName: langfuseOwnedName(model.projectId, modelName),
+  modelName: scope === "LANGFUSE" ? modelName : null,
   priceCount: _count.Price,
   tierCount: _count.pricingTiers,
 });
@@ -1804,6 +1806,7 @@ export const coreDataTableExports: Array<
           orderBy: { id: "asc" },
           select: {
             id: true,
+            scope: true,
             projectId: true,
             modelName: true,
             unit: true,

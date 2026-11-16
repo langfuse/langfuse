@@ -1143,6 +1143,7 @@ describe("Ingestion end-to-end tests", () => {
           prisma.model.create({
             data: {
               id: getModelId(model.id),
+              scope: "PROJECT",
               projectId,
               modelName: model.modelName,
               matchPattern: model.matchPattern,
@@ -1746,6 +1747,7 @@ describe("Ingestion end-to-end tests", () => {
     await prisma.model.create({
       data: {
         id: modelId,
+        scope: "PROJECT",
         projectId,
         modelName: "gpt-4o-mini-2024-07-18",
         matchPattern: "(?i)^(gpt-4o-mini-2024-07-18)$",
@@ -1885,6 +1887,7 @@ describe("Ingestion end-to-end tests", () => {
     await prisma.model.create({
       data: {
         id: modelId,
+        scope: "PROJECT",
         projectId,
         modelName: "gpt-4o-mini-2024-07-18",
         matchPattern: "(?i)^(gpt-4o-mini-2024-07-18)$",
@@ -2267,6 +2270,7 @@ describe("Ingestion end-to-end tests", () => {
 
     await prisma.model.create({
       data: {
+        scope: "PROJECT",
         projectId,
         modelName: "gpt-3.5",
         matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
@@ -2375,6 +2379,7 @@ describe("Ingestion end-to-end tests", () => {
 
     await prisma.model.create({
       data: {
+        scope: "PROJECT",
         projectId,
         modelName: "gpt-3.5",
         matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
@@ -2615,6 +2620,7 @@ describe("Ingestion end-to-end tests", () => {
       await prisma.model.create({
         data: {
           id: modelId,
+          scope: "PROJECT",
           projectId,
           modelName,
           matchPattern: `(?i)^(${modelName})$`,
@@ -2689,6 +2695,7 @@ describe("Ingestion end-to-end tests", () => {
       await prisma.model.create({
         data: {
           id: modelId,
+          scope: "PROJECT",
           projectId,
           modelName,
           matchPattern: `(?i)^(${modelName})$`,
@@ -2799,6 +2806,7 @@ describe("Ingestion end-to-end tests", () => {
       await prisma.model.create({
         data: {
           id: modelId,
+          scope: "PROJECT",
           projectId,
           modelName,
           matchPattern: `(?i)^(${modelName})$`,
@@ -2940,6 +2948,7 @@ describe("Ingestion end-to-end tests", () => {
       await prisma.model.create({
         data: {
           id: modelId,
+          scope: "PROJECT",
           projectId,
           modelName,
           matchPattern: `(?i)^(${modelName})$`,
@@ -3081,6 +3090,7 @@ describe("Ingestion end-to-end tests", () => {
       await prisma.model.create({
         data: {
           id: modelId,
+          scope: "PROJECT",
           projectId,
           modelName,
           matchPattern: `(?i)^(${modelName})$`,
@@ -3202,6 +3212,7 @@ describe("Ingestion end-to-end tests", () => {
       await prisma.model.create({
         data: {
           id: modelId,
+          scope: "PROJECT",
           projectId,
           modelName,
           matchPattern: `(?i)^(${modelName})$`,

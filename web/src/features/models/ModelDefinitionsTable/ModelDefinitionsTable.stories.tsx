@@ -17,6 +17,7 @@ const model: ModelTableRow = {
   prices: { input: 0.000001, output: 0.000002 },
   serverResponse: {
     id: "model-1",
+    scope: "LANGFUSE",
     projectId: null,
     modelName: "example-model",
     matchPattern: "^example-model$",

@@ -871,6 +871,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       await prisma.model.create({
         data: {
           id: modelId,
+          scope: "PROJECT",
           projectId,
           modelName: "gpt-4-test",
           matchPattern: "gpt-4-test",
@@ -2911,6 +2912,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       prisma.model.create({
         data: {
           id: modelId,
+          scope: "PROJECT",
           projectId,
           modelName: "gpt-4-passthrough",
           matchPattern: "gpt-4-passthrough",

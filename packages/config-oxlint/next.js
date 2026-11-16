@@ -192,6 +192,7 @@ export default {
           },
         ],
         "@repo/no-exotic-operators": "warn",
+        "@repo/no-null-model-project-filter": "warn",
         "@repo/no-restricted-prisma-writes": [
           "warn",
           {

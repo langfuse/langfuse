@@ -266,6 +266,7 @@ const writeModel = async (
   model: ModelDef,
 ): Promise<string> => {
   const modelRow = {
+    scope: "PROJECT" as const,
     projectId: ctx.projectId,
     modelName: model.modelName,
     matchPattern: `(?i)^(${model.modelName})$`,

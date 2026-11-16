@@ -565,6 +565,7 @@ describe("/models API Endpoints - Pricing Tiers", () => {
       const model = await prisma.model.create({
         data: {
           id: modelId,
+          scope: "PROJECT",
           projectId,
           modelName: `aaa-test-model-${uniqueId}`,
           matchPattern: `^aaa-test-model-${uniqueId}`,
@@ -703,6 +704,7 @@ describe("/models API Endpoints - Pricing Tiers", () => {
       const model = await prisma.model.create({
         data: {
           id: modelId,
+          scope: "PROJECT",
           projectId,
           modelName: `aaa-test-model-${uniqueId}`,
           matchPattern: `^aaa-test-model-${uniqueId}`,

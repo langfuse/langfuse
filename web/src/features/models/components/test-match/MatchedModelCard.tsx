@@ -5,17 +5,18 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { type ModelScope } from "@langfuse/shared";
 
 export type MatchedModelCardProps = {
   model: {
     modelName: string;
     matchPattern: string;
-    projectId: string | null;
+    scope: ModelScope;
   };
 };
 
 export function MatchedModelCard({ model }: MatchedModelCardProps) {
-  const isLangfuseModel = !model.projectId;
+  const isLangfuseModel = model.scope === "LANGFUSE";
 
   return (
     <Card>

@@ -92,6 +92,7 @@ const modelData = (
   pricingTiers: GetModelResult["pricingTiers"],
 ): GetModelResult => ({
   id: "model-1",
+  scope: "PROJECT",
   projectId: "p1",
   modelName: "gpt-realtime-2.1",
   matchPattern: "(?i)^(gpt-realtime-2.1)$",

@@ -4,6 +4,7 @@ import { default as noArbitraryColors } from "./rules/no-arbitrary-colors.js";
 import { default as noAbstractedOverlayTrigger } from "./rules/no-abstracted-overlay-trigger.js";
 import { default as noInSourceVitest } from "./rules/no-in-source-vitest.js";
 import { default as noRestrictedPrismaWrites } from "./rules/no-restricted-prisma-writes.js";
+import { default as noNullModelProjectFilter } from "./rules/no-null-model-project-filter.js";
 import { default as noExoticOperators } from "./rules/no-exotic-operators.js";
 import { default as noUnescapedPrismaLikePattern } from "./rules/no-unescaped-prisma-like-pattern.js";
 import { default as noMarginOnRootElements } from "./rules/no-margin-on-root-elements.js";
@@ -32,6 +33,7 @@ const plugin = {
     "storybook-play-no-implementation-detail-assertions":
       storybookPlayNoImplementationDetailAssertions,
     "no-margin-on-root-elements": noMarginOnRootElements,
+    "no-null-model-project-filter": noNullModelProjectFilter,
     "no-null-render": noNullRender,
     "no-let-assign-in-react": noLetAssignInReact,
     "no-overlay-zindex": noOverlayZindex,

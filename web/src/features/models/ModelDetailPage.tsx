@@ -101,7 +101,7 @@ export default function ModelDetailPage() {
     );
   }
 
-  const isLangfuseModel = !Boolean(model?.projectId);
+  const isLangfuseModel = model?.scope === "LANGFUSE";
 
   if (isLoading || !model) {
     return <div className="p-3">Loading...</div>;

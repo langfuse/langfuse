@@ -74,6 +74,7 @@ describe("/models API Endpoints", () => {
     await prisma.model.create({
       data: {
         id: modelOneId,
+        scope: "LANGFUSE",
         modelName: fixtureModelName,
         inputPrice: "0.0010",
         outputPrice: "0.0020",
@@ -124,6 +125,7 @@ describe("/models API Endpoints", () => {
     await prisma.model.create({
       data: {
         id: modelTwoId,
+        scope: "LANGFUSE",
         modelName: fixtureModelName,
         inputPrice: "0.0020",
         outputPrice: "0.0040",
