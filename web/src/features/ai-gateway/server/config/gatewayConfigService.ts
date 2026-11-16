@@ -142,19 +142,6 @@ export class GatewayConfigService {
       );
     }
 
-    // Spend limits are only managed while spend is recorded, so a switch that
-    // stops recording must not leave stored limits behind unseen.
-    if (
-      params.ingestionMode === "NONE" &&
-      (await this.prisma.gatewaySpendLimit.count({
-        where: { organizationId: params.organizationId },
-      })) > 0
-    ) {
-      throw new InvalidRequestError(
-        "Delete all gateway spend limits before switching to ingestion mode NONE",
-      );
-    }
-
     const before = await this.repository.getConfig(params.organizationId);
 
     if (params.defaultIngestionProjectId) {
