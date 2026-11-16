@@ -1095,6 +1095,70 @@ export class QueryBuilder {
     return { relationJoins, joinParams };
   }
 
+  /**
+   * A trace-attribute relation that only filters becomes a semi-join: no
+   * column of it is selected, so the score only needs its trace id in the
+   * matching set. Its filters move into the subquery and it is left out of
+   * the returned `relationTables`, so it is not joined.
+   */
+  private splitTraceAttributeSemiJoins(
+    view: ViewDeclarationType,
+    relationTables: Set<string>,
+    appliedDimensions: AppliedDimensionType[],
+    appliedMetrics: AppliedMetricType[],
+    appliedBucketingDimension: AppliedBucketingDimension,
+    filterList: FilterList,
+    query: QueryType,
+    projectId: string,
+  ): {
+    semiJoins: string[];
+    params: Record<string, unknown>;
+    filterList: FilterList;
+    relationTables: Set<string>;
+  } {
+    const outputRelationTables = this.collectRelationTables(
+      view,
+      appliedDimensions,
+      appliedMetrics,
+      new FilterList([]),
+      appliedBucketingDimension,
+    );
+    const semiJoins: string[] = [];
+    const params: Record<string, unknown> = {};
+    let remainingFilters = filterList;
+    const remainingRelations = new Set(relationTables);
+    for (const relationTableName of relationTables) {
+      if (
+        view.tableRelations[relationTableName]?.source !==
+          "eventsTraceAttributes" ||
+        outputRelationTables.has(relationTableName)
+      ) {
+        continue;
+      }
+      const isTraceFilter = (filter: { clickhouseTable: string }) =>
+        filter.clickhouseTable === relationTableName;
+      const semiJoin = this.buildTraceAttributesSemiJoin(
+        this.actualTableName(view),
+        relationTableName,
+        remainingFilters.filter(isTraceFilter),
+        query,
+        projectId,
+      );
+      Object.assign(params, semiJoin.params);
+      semiJoins.push(semiJoin.sql);
+      remainingFilters = remainingFilters.filter(
+        (filter) => !isTraceFilter(filter),
+      );
+      remainingRelations.delete(relationTableName);
+    }
+    return {
+      semiJoins,
+      params,
+      filterList: remainingFilters,
+      relationTables: remainingRelations,
+    };
+  }
+
   /** `<base>.trace_id IN (ids of traces whose aggregated attributes pass `traceFilters`)`. */
   private buildTraceAttributesSemiJoin(
     baseTableName: string,
@@ -2298,7 +2362,7 @@ export class QueryBuilder {
     let fromClause = `FROM ${view.baseCte}`;
 
     // Handle relation tables
-    const relationTables = this.collectRelationTables(
+    let relationTables = this.collectRelationTables(
       view,
       appliedDimensions,
       appliedMetrics,
@@ -2306,39 +2370,20 @@ export class QueryBuilder {
       appliedBucketingDimension,
     );
 
-    // A trace-attribute relation that only filters becomes a semi-join: no
-    // column of it is selected, so the score only needs its trace id in the
-    // matching set. Its filters move into the subquery.
-    const outputRelationTables = this.collectRelationTables(
+    const traceSemiJoins = this.splitTraceAttributeSemiJoins(
       view,
+      relationTables,
       appliedDimensions,
       appliedMetrics,
-      new FilterList([]),
       appliedBucketingDimension,
+      filterList,
+      query,
+      projectId,
     );
-    const semiJoins: string[] = [];
-    for (const relationTableName of [...relationTables]) {
-      if (
-        view.tableRelations[relationTableName]?.source !==
-          "eventsTraceAttributes" ||
-        outputRelationTables.has(relationTableName)
-      ) {
-        continue;
-      }
-      const isTraceFilter = (filter: { clickhouseTable: string }) =>
-        filter.clickhouseTable === relationTableName;
-      const semiJoin = this.buildTraceAttributesSemiJoin(
-        this.actualTableName(view),
-        relationTableName,
-        filterList.filter(isTraceFilter),
-        query,
-        projectId,
-      );
-      Object.assign(parameters, semiJoin.params);
-      semiJoins.push(semiJoin.sql);
-      filterList = filterList.filter((filter) => !isTraceFilter(filter));
-      relationTables.delete(relationTableName);
-    }
+    filterList = traceSemiJoins.filterList;
+    relationTables = traceSemiJoins.relationTables;
+    Object.assign(parameters, traceSemiJoins.params);
+    const semiJoins = traceSemiJoins.semiJoins;
 
     if (relationTables.size > 0) {
       const { relationJoins, joinParams } = this.buildJoins(
