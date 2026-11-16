@@ -2090,7 +2090,7 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ steps.bases.outputs.base }}
             MICRO_BASE_IMAGE=${{ steps.bases.outputs.micro }}
-            BUILD_ID=${{ github.sha }}
+            NEXT_PUBLIC_BUILD_ID=${{ github.sha }}
           provenance: false
           sbom: false
       - name: Build and push image by digest to Docker Hub (${{ matrix.component }}, ${{ matrix.platform_tag }})
@@ -2105,7 +2105,7 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ steps.bases.outputs.base }}
             MICRO_BASE_IMAGE=${{ steps.bases.outputs.micro }}
-            BUILD_ID=${{ github.sha }}
+            NEXT_PUBLIC_BUILD_ID=${{ github.sha }}
           provenance: false
           sbom: false
       - name: Record pushed digests
