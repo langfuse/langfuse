@@ -96,6 +96,15 @@ network:
 tools:
   github:
     toolsets: [actions, pull_requests]
+    # The GitHub MCP gateway gives Actions job logs baseline `none` integrity
+    # (gateway v0.5.1+), and gh-aw defaults public repos to `approved`, which
+    # filters every get_job_logs call. The vitest and merge-queue analysis
+    # cannot run without logs, so accept all integrity levels, but only from
+    # this repository. The agent treats logs and API data as untrusted (see
+    # "Hard constraints"), and its only output is one issue, checked by the
+    # detection job.
+    min-integrity: none
+    allowed-repos: ["langfuse/langfuse"]
   bash:
     [
       "pnpm:*",
