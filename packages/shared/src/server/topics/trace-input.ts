@@ -45,10 +45,12 @@ const utcTimestamp = (value: string) =>
 export async function loadTopicTranscript(params: {
   projectId: string;
   traceId: string;
+  /** Trace timestamp; when set, observations from one hour before it onwards are read. */
+  timestamp?: Date;
 }) {
-  const { projectId, traceId } = params;
+  const { projectId, traceId, timestamp } = params;
   // ID-only requests first discover source bounds without reading transcript payloads.
-  const boundsQuery = new EventsQueryBuilder({ projectId })
+  const boundsBuilder = new EventsQueryBuilder({ projectId })
     .selectRaw(
       "count() AS count",
       "min(toUnixTimestamp64Milli(e.start_time)) AS minStart",
@@ -56,8 +58,16 @@ export async function loadTopicTranscript(params: {
     )
     .forceFullTable()
     .whereRaw("e.trace_id = {traceId: String}", { traceId })
-    .whereRaw("xxHash32(e.trace_id) = xxHash32({traceId: String})", { traceId })
-    .buildWithParams();
+    .whereRaw("xxHash32(e.trace_id) = xxHash32({traceId: String})", {
+      traceId,
+    });
+  if (timestamp)
+    boundsBuilder.whereRaw("e.start_time >= {fromTimestamp: DateTime64(3)}", {
+      fromTimestamp: convertDateToClickhouseDateTime(
+        new Date(timestamp.getTime() - 60 * 60 * 1000),
+      ),
+    });
+  const boundsQuery = boundsBuilder.buildWithParams();
   const [bounds] = await queryClickhouse<{
     count: string;
     minStart: string;

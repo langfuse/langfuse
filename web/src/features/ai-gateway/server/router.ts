@@ -40,8 +40,10 @@ import { GatewayAnalyticsService } from "./analytics/gatewayAnalyticsService";
 import { GatewayConfigService } from "./config/gatewayConfigService";
 import { getKeyOwnerFilter, type GatewayUsageScope } from "./gatewayUsageScope";
 import { GatewayTeamService } from "./team/gatewayTeamService";
-import { GatewayMetadataSchema } from "@/src/features/ai-gateway/server/provider/registry";
-import { GatewayBedrockConfigSchema } from "@/src/features/ai-gateway/server/provider/bedrock";
+import {
+  GatewayMetadataSchema,
+  GatewayProviderConfigSchema,
+} from "@/src/features/ai-gateway/server/provider/registry";
 import type { GatewayApiFamily } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
 import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
@@ -226,7 +228,8 @@ export const aiGatewayRouter = createTRPCRouter({
         }
         if (
           connection.provider === "XAI" ||
-          connection.provider === "GOOGLE_AI_STUDIO"
+          connection.provider === "GOOGLE_AI_STUDIO" ||
+          connection.provider === "VERTEX"
         ) {
           return ["OPENAI"] satisfies GatewayApiFamily[];
         }
@@ -238,12 +241,14 @@ export const aiGatewayRouter = createTRPCRouter({
           env.LANGFUSE_AI_GATEWAY_PUBLIC_URL,
         ),
         // Agent clients call the OpenAI route with the Responses API, which
-        // Google AI Studio lacks; plain API calls also work over Chat Completions.
+        // Google AI Studio and Vertex AI lack; plain API calls also work over Chat Completions.
         providers: [
           ...new Set(
             connections
               .filter(
-                (connection) => connection.provider !== "GOOGLE_AI_STUDIO",
+                (connection) =>
+                  connection.provider !== "GOOGLE_AI_STUDIO" &&
+                  connection.provider !== "VERTEX",
               )
               .flatMap(families),
           ),
@@ -357,7 +362,7 @@ export const aiGatewayRouter = createTRPCRouter({
         id: z.string().optional(),
         provider: z.enum(GatewayProvider),
         credential: z.string().min(1),
-        config: GatewayBedrockConfigSchema.optional(),
+        config: GatewayProviderConfigSchema.optional(),
         ...connectionEndpointInput,
       }),
     )
@@ -395,7 +400,7 @@ export const aiGatewayRouter = createTRPCRouter({
         name: connectionNameSchema,
         provider: z.enum(GatewayProvider),
         credential: z.string().min(1),
-        config: GatewayBedrockConfigSchema.optional(),
+        config: GatewayProviderConfigSchema.optional(),
         ...connectionEndpointInput,
       }),
     )

@@ -91,6 +91,7 @@ describe("AI gateway provider registry", () => {
         apiFormat: "anthropic.messages",
         config,
         baseURL: null,
+        credential: "unused",
       }),
     ).toEqual({
       baseUrl:
@@ -103,6 +104,7 @@ describe("AI gateway provider registry", () => {
         apiFormat: "openai.chat-completions",
         config,
         baseURL: null,
+        credential: "unused",
       }),
     ).toEqual({
       baseUrl: "https://bedrock-runtime.eu-central-1.amazonaws.com/openai/v1",
@@ -114,6 +116,7 @@ describe("AI gateway provider registry", () => {
         apiFormat: "openai.responses",
         config: { region: "evil.example/x" },
         baseURL: null,
+        credential: "unused",
       }),
     ).toThrow();
   });
@@ -166,6 +169,7 @@ describe("AI gateway provider registry", () => {
         config: null,
         baseURL:
           "https://contoso.services.ai.azure.com/api/projects/my-project",
+        credential: "azure-key",
       });
     expect(upstream("openai.embeddings")).toEqual({
       baseUrl: "https://contoso.services.ai.azure.com/openai/v1",

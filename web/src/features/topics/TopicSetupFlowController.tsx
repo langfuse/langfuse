@@ -8,7 +8,7 @@ import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
-import { type ConfigureTopicsSettingsInput } from "./TopicModelSettings";
+import { type ConfigureTopicsSettingsInput } from "./useTopicSettings";
 import {
   TopicSetupFlowDialog,
   type TopicSetupPastCount,
@@ -25,7 +25,6 @@ import {
   type TopicSetupDraft,
   type TopicSetupQuestion,
 } from "./topic-setup-flow";
-import { suggestTopicRuleName } from "./topic-maps";
 
 export function TopicSetupFlowController({
   canWrite,
@@ -119,6 +118,8 @@ function TopicSetupSession({
       utils.topics.modelSettings.invalidate({ projectId });
       utils.topics.facets.invalidate({ projectId });
       utils.topics.rules.invalidate({ projectId });
+      // The page follows the first rule's setup from the maps overview.
+      utils.topics.maps.invalidate({ projectId });
       utils.topics.tracingReadinessSettings.invalidate({ projectId });
     },
   });
@@ -233,9 +234,7 @@ function TopicSetupSession({
       ),
       filter: draft.filter,
       traceIdleMs: draft.waitMinutes * 60_000,
-      ...(savedRuleId
-        ? { ruleId: savedRuleId }
-        : { name: suggestTopicRuleName(draft.filter) }),
+      ...(savedRuleId ? { ruleId: savedRuleId } : { name: "Default" }),
     });
     if (saved) setSavedRuleId(saved.id);
     return saved?.id ?? savedRuleId;

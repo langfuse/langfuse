@@ -18,7 +18,7 @@ import {
   type ConfigureTopicsSaveDraft,
   type TopicSlotCheck,
 } from "./ConfigureTopicsDialog";
-import { type ConfigureTopicsSettingsInput } from "./TopicModelSettings";
+import { type ConfigureTopicsSettingsInput } from "./useTopicSettings";
 import { topicsSetupPayload } from "./topics-setup";
 import { resolveTopicModelSlot } from "./topic-setup-flow";
 

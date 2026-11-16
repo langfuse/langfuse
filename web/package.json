@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "4.80.0",
+  "version": "4.81.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -225,8 +225,8 @@
     "eslint-plugin-tailwindcss": "4.4.0",
     "jsdom": "^26.1.0",
     "node-mocks-http": "^1.17.2",
+    "oxfmt": "^0.78.0",
     "prettier": "^3.8.3",
-    "prettier-plugin-tailwindcss": "^0.7.2",
     "raw-loader": "^4.0.2",
     "storybook": "10.6.2",
     "tailwindcss": "^4.2.2",

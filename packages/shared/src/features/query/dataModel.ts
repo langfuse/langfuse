@@ -804,9 +804,9 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
     highCardinality: true,
     uiHidden: true,
   },
-  // Trace metadata on events table (accessed via events_traces JOIN)
+  // Trace attributes aggregated over the trace's spans (events_traces JOIN)
   traceName: {
-    sql: eventsTableTraceNameSqlForAlias("events_traces"),
+    sql: "events_traces.name",
     alias: "traceName",
     type: "string",
     relationTable: "events_traces",
@@ -998,6 +998,7 @@ const createScoreTableRelations = (
     joinConditionSql: string;
     timeDimension: string;
     useFinal?: boolean;
+    source?: "eventsTraceAttributes";
   }
 > => {
   if (version === "v1") {
@@ -1018,15 +1019,13 @@ const createScoreTableRelations = (
   }
 
   return {
+    // Trace attributes are spread over spans in v4, so the join reads one
+    // aggregated row per trace (see compileEventsTraceAttributesSubquery).
     events_traces: {
       name: "events_core",
-      // Legacy and dual-write ingestion materialize a parentless synthetic
-      // trace event and propagate trace metadata to it. Native V4 may not, but
-      // its app roots come from newer SDKs and are expected to carry trace_name.
-      // A semantic-root join can match both rows in dual-write data and
-      // multiply scores for little fallback value.
+      source: "eventsTraceAttributes",
       joinConditionSql:
-        "ON scores.trace_id = events_traces.trace_id AND scores.project_id = events_traces.project_id AND events_traces.parent_span_id = ''",
+        "ON scores.trace_id = events_traces.id AND scores.project_id = events_traces.project_id",
       timeDimension: "start_time",
       useFinal: false,
     },

@@ -1,4 +1,5 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { deleteSessionViewsWithoutProjectAccess } from "@/src/features/sessions/server/fns/deleteSessionViewsWithoutProjectAccess";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
@@ -21,6 +22,7 @@ import {
   getUserProjectRoles,
   getUserProjectRolesCount,
   escapeSqlLikePattern,
+  invalidateCachedUserApiKeys,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
@@ -177,6 +179,10 @@ export const membersRouter = createTRPCRouter({
             userId: orgMembership.userId,
             orgId: input.orgId,
           });
+          await deleteSessionViewsWithoutProjectAccess(tx, {
+            userId: orgMembership.userId,
+            orgId: input.orgId,
+          });
           return { deleted, revokedKeys };
         },
       );
@@ -304,10 +310,21 @@ export const membersRouter = createTRPCRouter({
         });
       }
 
-      const updatedMembership = await updateOrgMembership(ctx.prisma, {
+      const updatedMembership = await ctx.prisma.$transaction(async (tx) => {
+        const updatedMembership = await updateOrgMembership(tx, {
+          orgId: input.orgId,
+          userId: membership.userId,
+          role: input.role,
+        });
+        await deleteSessionViewsWithoutProjectAccess(tx, {
+          userId: membership.userId,
+          orgId: input.orgId,
+        });
+        return updatedMembership;
+      });
+      await invalidateCachedUserApiKeys(ctx.prisma, {
         orgId: input.orgId,
         userId: membership.userId,
-        role: input.role,
       });
       await evictUserGatewayResolveCache(ctx.prisma, {
         orgId: input.orgId,
@@ -519,9 +536,20 @@ export const membersRouter = createTRPCRouter({
       // If the project role is set to null, delete the project membership
       if (input.projectRole === null || input.projectRole === Role.NONE) {
         if (projectMembership) {
-          await deleteProjectMembership(ctx.prisma, {
+          await ctx.prisma.$transaction(async (tx) => {
+            await deleteProjectMembership(tx, {
+              orgId: input.orgId,
+              projectId: input.projectId,
+              userId: input.userId,
+            });
+            await deleteSessionViewsWithoutProjectAccess(tx, {
+              userId: input.userId,
+              orgId: input.orgId,
+              projectId: input.projectId,
+            });
+          });
+          await invalidateCachedUserApiKeys(ctx.prisma, {
             orgId: input.orgId,
-            projectId: input.projectId,
             userId: input.userId,
           });
 

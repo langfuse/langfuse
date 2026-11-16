@@ -16,7 +16,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { build } from "esbuild";
-import prettier from "prettier";
+import { format } from "oxfmt";
+import formatterConfig from "../.oxfmtrc.json" with { type: "json" };
 
 const webDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -78,10 +79,15 @@ export async function buildWorkerSourceModule() {
 export const JSON_PARSER_WORKER_SOURCE = ${JSON.stringify(bundled)};
 `;
 
-  return prettier.format(moduleText, {
-    ...((await prettier.resolveConfig(GENERATED_FILE)) ?? {}),
-    filepath: GENERATED_FILE,
-  });
+  const { code, errors } = await format(
+    GENERATED_FILE,
+    moduleText,
+    /** @type {import("oxfmt").FormatConfig} */ (formatterConfig),
+  );
+  if (errors.length) {
+    throw new Error(errors.map((error) => error.message).join("\n"));
+  }
+  return code;
 }
 
 /** True when the committed module is already what a fresh build produces. */

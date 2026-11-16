@@ -25,7 +25,7 @@ import {
   getRecordingKeys,
   RESTORE_RECORDING_SCRIPT,
 } from "../traceBatching/traceRuleRecording";
-import { routeRules } from "./consumers";
+import { routeRules, SNAPSHOT_JOBS } from "./consumers";
 import {
   newestEvent,
   newestSessionId,
@@ -49,7 +49,12 @@ type TraceOutcome =
       trace: DispatchTrace;
       retryRuleIds: string[];
     };
-type ReadableTrace = { trace: DispatchTrace; jobs: ConsumerJobs };
+type ReadableTrace = {
+  trace: DispatchTrace;
+  jobs: ConsumerJobs;
+  /** The snapshot that seeded the trace; its consumers need no rules. */
+  batchActionId?: string;
+};
 
 // Backoff before the first, second and third retry; a fourth failure drops the trace.
 const RETRY_BACKOFF_MS = [5, 15, 45].map((minutes) => minutes * 60_000);
@@ -74,9 +79,19 @@ export function isEventsDispatchEnabled(): boolean {
  * Routes each trace's recorded rules to consumers. Traces without any end here,
  * before ClickHouse, unless the store-all experiment keeps them for storage only.
  */
-async function selectTraces(traces: DispatchTrace[]) {
+async function selectTraces(traces: DispatchTrace[], batchActionId?: string) {
   const readable = new Map<string, ReadableTrace>();
   const outcomes: TraceOutcome[] = [];
+  // A snapshot's traces skip rule routing; a failure is not restored to the dispatch maps.
+  if (batchActionId) {
+    for (const trace of traces)
+      readable.set(traceKey(trace.projectId, trace.traceId), {
+        trace,
+        jobs: SNAPSHOT_JOBS,
+        batchActionId,
+      });
+    return { readable, outcomes };
+  }
   let unresolved = 0;
   const withoutConsumers = (trace: DispatchTrace) => {
     if (env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES === "true")
@@ -131,7 +146,7 @@ async function selectTraces(traces: DispatchTrace[]) {
  * Enqueue failures stay on the outcome; this never throws.
  */
 function dispatchTrace(
-  { trace, jobs }: ReadableTrace,
+  { trace, jobs, batchActionId }: ReadableTrace,
   observations: TraceEventObservation[],
 ): Promise<TraceOutcome> {
   const { projectId, traceId, revision } = trace;
@@ -206,6 +221,7 @@ function dispatchTrace(
           consumer
             .enqueue(reference, ruleIds, {
               transcriptS3Path: stored.key,
+              batchActionId,
             })
             .catch((error) => {
               traceException(error, span);
@@ -450,9 +466,12 @@ function recordOutcomes(outcomes: TraceOutcome[]): Record<string, number> {
 export async function processEventsDispatchJob(
   event: z.infer<typeof EventsDispatchEventSchema>,
 ): Promise<Record<string, number>> {
-  const { readable, outcomes } = await selectTraces(event.payload.traces);
+  const { readable, outcomes } = await selectTraces(
+    event.payload.traces,
+    event.payload.batchActionId,
+  );
   if (readable.size > 0) outcomes.push(...(await streamTraces(readable)));
-  // Storage-only traces have no consumer to retry for.
+  // Storage-only and snapshot traces have no rules to retry for.
   const failed = outcomes.flatMap((result) =>
     result.outcome === "failed" && result.retryRuleIds.length > 0
       ? [

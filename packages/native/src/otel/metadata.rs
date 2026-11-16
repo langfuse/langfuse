@@ -486,13 +486,15 @@ fn parse_experiment_item_version(value: Option<&Value>) -> Option<String> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::otel::value::json;
     use std::sync::{atomic::Ordering, Arc, Mutex};
 
     #[derive(Default)]
-    struct CapturingRecorder(Mutex<Vec<(metrics::Key, Arc<metrics::atomics::AtomicU64>)>>);
+    pub(crate) struct CapturingRecorder(
+        pub(crate) Mutex<Vec<(metrics::Key, Arc<metrics::atomics::AtomicU64>)>>,
+    );
 
     impl metrics::Recorder for CapturingRecorder {
         fn describe_counter(

@@ -65,13 +65,11 @@ import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseReadSkipCache } from "./utils/clickhouseReadSkipCache";
 import { experimentCreateQueueProcessor } from "./queues/experimentQueue";
 import { traceDeleteProcessor } from "./queues/traceDelete";
-import { traceBatchQueueProcessor } from "./queues/traceBatchQueue";
 import { topicsTraceQueueProcessorBuilder } from "./queues/topicsTraceQueue";
 import { eventsDispatchQueueProcessor } from "./queues/eventsDispatchQueue";
 import { isEventsDispatchEnabled } from "./features/eventsDispatch/eventsDispatch";
 import { TraceBatchDispatcher } from "./features/traceBatching/traceBatching";
 import { TraceBatchMetricsRunner } from "./features/traceBatching/TraceBatchMetricsRunner";
-import { isTraceBatchPipelineEnabled } from "./features/traceBatching/traceBatchSampling";
 import { projectDeleteProcessor } from "./queues/projectDelete";
 import {
   postHogIntegrationProcessingProcessor,
@@ -123,12 +121,7 @@ import { TraceDeleteBatchActionRunner } from "./features/trace-delete-batch-acti
 import { InAppAgentIntegrityRunner } from "./features/in-app-agent-integrity-runner";
 import { InAppAgentDlqRetryRunner } from "./features/in-app-agent-dlq-retry-runner";
 import { isTopicsEnabled } from "@langfuse/shared/topics/server";
-import {
-  topicsQueueProcessor,
-  topicsUpdateQueueProcessor,
-} from "./queues/topicsQueue";
-import { topicsEmbeddingQueueProcessor } from "./queues/topicsEmbeddingQueue";
-import { topicsAutomationQueueProcessor } from "./queues/topicsAutomationQueue";
+import { topicsUpdateQueueProcessor } from "./queues/topicsQueue";
 import { topicsSetupQueueProcessor } from "./queues/topicsSetupQueue";
 import { TopicsNightlyRefitRunner } from "./features/topics/nightlyRefit";
 
@@ -162,13 +155,13 @@ ClickhouseReadSkipCache.getInstance(prisma)
     logger.error("Error initializing ClickhouseReadSkipCache", err);
   });
 
-// The pipeline mode decides what each role does; every service still opts into its roles.
+// Events dispatch is the dispatcher's only target; every service still opts into its roles.
 const traceBatchDispatcherEnabled =
-  isTraceBatchPipelineEnabled() &&
+  isEventsDispatchEnabled() &&
   env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED === "true";
-const traceBatchConsumerEnabled =
-  isTraceBatchPipelineEnabled() &&
-  env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED === "true";
+const eventsDispatchConsumerEnabled =
+  isEventsDispatchEnabled() &&
+  env.QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED === "true";
 
 export let traceBatchDispatcher: TraceBatchDispatcher | null = null;
 if (traceBatchDispatcherEnabled) {
@@ -176,17 +169,8 @@ if (traceBatchDispatcherEnabled) {
   traceBatchDispatcher.start();
 }
 
-if (traceBatchConsumerEnabled) {
-  WorkerManager.register(QueueName.TraceBatch, traceBatchQueueProcessor, {
-    concurrency: env.LANGFUSE_TRACE_BATCH_CONCURRENCY,
-  });
-}
-
-// Consumed only on worker-cpu, like trace-batch; Topics jobs it enqueues run on the main worker.
-if (
-  isEventsDispatchEnabled() &&
-  env.QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED === "true"
-) {
+// Consumed only on worker-cpu; Topics jobs it enqueues run on the main worker.
+if (eventsDispatchConsumerEnabled) {
   WorkerManager.register(
     QueueName.EventsDispatch,
     eventsDispatchQueueProcessor,
@@ -195,7 +179,7 @@ if (
 }
 
 export let traceBatchMetricsRunner: TraceBatchMetricsRunner | null = null;
-if (traceBatchDispatcherEnabled || traceBatchConsumerEnabled) {
+if (traceBatchDispatcherEnabled || eventsDispatchConsumerEnabled) {
   traceBatchMetricsRunner = new TraceBatchMetricsRunner();
   traceBatchMetricsRunner.start();
 }
@@ -516,28 +500,10 @@ export let inAppAgentDlqRetryRunner: InAppAgentDlqRetryRunner | null = null;
 export let topicsNightlyRefitRunner: TopicsNightlyRefitRunner | null = null;
 
 if (isTopicsEnabled()) {
-  if (env.QUEUE_CONSUMER_TOPICS_QUEUE_IS_ENABLED === "true")
-    WorkerManager.register(QueueName.Topics, topicsQueueProcessor, {
-      concurrency: 1,
-    });
   if (env.QUEUE_CONSUMER_TOPICS_UPDATE_QUEUE_IS_ENABLED === "true")
     WorkerManager.register(QueueName.TopicsUpdate, topicsUpdateQueueProcessor, {
       concurrency: 1,
     });
-  if (env.QUEUE_CONSUMER_TOPICS_EMBEDDING_QUEUE_IS_ENABLED === "true")
-    WorkerManager.register(
-      QueueName.TopicsEmbedding,
-      topicsEmbeddingQueueProcessor,
-      {
-        concurrency: 2,
-      },
-    );
-  if (env.QUEUE_CONSUMER_TOPICS_AUTOMATION_QUEUE_IS_ENABLED === "true")
-    WorkerManager.register(
-      QueueName.TopicsAutomation,
-      topicsAutomationQueueProcessor,
-      { concurrency: 2 },
-    );
   if (env.QUEUE_CONSUMER_TOPICS_UPDATE_QUEUE_IS_ENABLED === "true") {
     // Setup ticks get their own queue so they never wait behind a fit.
     WorkerManager.register(QueueName.TopicsSetup, topicsSetupQueueProcessor, {

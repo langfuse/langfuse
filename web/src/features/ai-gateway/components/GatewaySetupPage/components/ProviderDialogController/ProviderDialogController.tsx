@@ -21,14 +21,16 @@ import {
   AzureResourceField,
   type AzureResourceFieldValue,
 } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/AzureResourceField/AzureResourceField";
-import { BedrockRegionField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/BedrockRegionField/BedrockRegionField";
 import { ConnectionTestStatus } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ConnectionTestStatus/ConnectionTestStatus";
 import { type ConnectionTestFailure } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ConnectionTestStatus/components/ConnectionTestDetails/ConnectionTestDetails";
 import { ConnectionNameField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ConnectionNameField/ConnectionNameField";
 import { FieldHeader } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/FieldHeader";
+import { RegionField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/RegionField/RegionField";
 import { ProviderSelect } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ProviderSelect";
 import { SecretKeyField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/SecretKeyField/SecretKeyField";
+import { bedrockRegionGroups } from "@/src/features/ai-gateway/constants/bedrockRegions";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
+import { vertexLocationGroups } from "@/src/features/ai-gateway/constants/vertexLocations";
 import { ModelListingDeniedAlert } from "@/src/features/ai-gateway/components/ModelListingDeniedAlert/ModelListingDeniedAlert";
 import { showToast } from "@/src/features/notifications/showToast";
 import {
@@ -59,6 +61,23 @@ import { getLiveConnectionNameError } from "@/src/features/ai-gateway/components
 import { useExistingConnectionNames } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/hooks/useExistingConnectionNames";
 
 const EMPTY_AZURE_RESOURCE: AzureResourceFieldValue = { name: "", project: "" };
+const DEFAULT_VERTEX_LOCATION = "global";
+const BEDROCK_REGION_FIELD = {
+  id: "gateway-bedrock-region",
+  label: "AWS region",
+};
+const VERTEX_LOCATION_FIELD = {
+  id: "gateway-vertex-location",
+  label: "Location",
+};
+
+function getStoredRegionField(
+  config: { region: string } | { location: string },
+) {
+  return "region" in config
+    ? { ...BEDROCK_REGION_FIELD, value: config.region }
+    : { ...VERTEX_LOCATION_FIELD, value: config.location };
+}
 
 export function ProviderDialogController({
   organizationId,
@@ -87,6 +106,7 @@ export function ProviderDialogController({
   );
   const [credential, setCredential] = useState("");
   const [awsRegion, setAwsRegion] = useState("");
+  const [vertexLocation, setVertexLocation] = useState(DEFAULT_VERTEX_LOCATION);
   const [baseURL, setBaseURL] = useState("");
   const [azureResource, setAzureResource] =
     useState<AzureResourceFieldValue>(EMPTY_AZURE_RESOURCE);
@@ -131,17 +151,17 @@ export function ProviderDialogController({
           existingNames,
         }) ?? serverNameError);
 
-  /** Bedrock's region is fixed once saved, so edits reuse the stored one. */
+  /** Bedrock's region and Vertex AI's location are fixed once saved, so edits reuse the stored one. */
   const getConfig = (selectedConnection: GatewayConnection | null) => {
-    if ((selectedConnection?.provider ?? provider) !== "BEDROCK") {
-      return undefined;
-    }
-    return selectedConnection?.config ?? { region: awsRegion.trim() };
+    if (selectedConnection) return selectedConnection.config ?? undefined;
+    if (provider === "BEDROCK") return { region: awsRegion.trim() };
+    if (provider === "VERTEX") return { location: vertexLocation };
+    return undefined;
   };
 
   /**
-   * Bedrock, xAI, Vercel and Google AI Studio have no custom endpoint, and
-   * Azure only the endpoint of its resource and project.
+   * Bedrock, xAI, Vercel, Google AI Studio and Vertex AI have no custom
+   * endpoint, and Azure only the endpoint of its resource and project.
    * When editing, a blank header value keeps the stored value, so those rows
    * are sent; a new connection has no stored values and drops them.
    */
@@ -197,6 +217,7 @@ export function ProviderDialogController({
     setNameDraft(null);
     setCredential("");
     setAwsRegion("");
+    setVertexLocation(DEFAULT_VERTEX_LOCATION);
     loadEndpoint(null);
     resetMutations();
   };
@@ -311,8 +332,13 @@ export function ProviderDialogController({
       onBeforeClose={() => !isPending}
       renderContent={({ state: selectedConnection, closeDialog }) => {
         const nameError = getNameError(selectedConnection);
+        const config = getConfig(selectedConnection);
+        const isMissingRegion =
+          config !== undefined && "region" in config && config.region === "";
+        const storedRegion = selectedConnection?.config
+          ? getStoredRegionField(selectedConnection.config)
+          : null;
         const dialogProvider = selectedConnection?.provider ?? provider;
-        const isMissingRegion = getConfig(selectedConnection)?.region === "";
         const isMissingEndpoint =
           dialogProvider === "AZURE" && !isValidAzureResource(azureResource);
         return (
@@ -358,22 +384,39 @@ export function ProviderDialogController({
                 nameError={nameError}
                 onNameChange={updateName}
               />
-              {selectedConnection?.config ? (
+              {storedRegion ? (
                 <div>
                   <FieldHeader
-                    htmlFor="gateway-bedrock-region"
-                    label="AWS region"
+                    htmlFor={storedRegion.id}
+                    label={storedRegion.label}
                     description="Fixed once the connection is saved."
                   />
                   <Input
-                    id="gateway-bedrock-region"
-                    value={selectedConnection.config.region}
+                    id={storedRegion.id}
+                    value={storedRegion.value}
                     disabled
                   />
                 </div>
               ) : null}
               {!selectedConnection && provider === "BEDROCK" ? (
-                <BedrockRegionField value={awsRegion} onChange={setAwsRegion} />
+                <RegionField
+                  id={BEDROCK_REGION_FIELD.id}
+                  label={BEDROCK_REGION_FIELD.label}
+                  description="Requests go to Bedrock in this region. It can't be changed after saving."
+                  groups={bedrockRegionGroups}
+                  value={awsRegion}
+                  onChange={setAwsRegion}
+                />
+              ) : null}
+              {!selectedConnection && provider === "VERTEX" ? (
+                <RegionField
+                  id={VERTEX_LOCATION_FIELD.id}
+                  label={VERTEX_LOCATION_FIELD.label}
+                  description="Requests go to Vertex AI in this location. It can't be changed after saving."
+                  groups={vertexLocationGroups}
+                  value={vertexLocation}
+                  onChange={setVertexLocation}
+                />
               ) : null}
               {dialogProvider === "AZURE" ? (
                 <AzureResourceField
@@ -469,6 +512,7 @@ export function ProviderDialogController({
           setNameDraft(connection?.name ?? null);
           setCredential("");
           setAwsRegion("");
+          setVertexLocation(DEFAULT_VERTEX_LOCATION);
           loadEndpoint(connection ?? null);
           resetMutations();
           openDialog(connection ?? null);
@@ -482,6 +526,7 @@ export function ProviderDialogController({
             setNameDraft(selectedConnection.name);
             setCredential("");
             setAwsRegion("");
+            setVertexLocation(DEFAULT_VERTEX_LOCATION);
             loadEndpoint(selectedConnection);
             resetMutations();
             openDialog(selectedConnection);

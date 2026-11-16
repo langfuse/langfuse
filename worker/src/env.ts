@@ -186,39 +186,6 @@ const EnvSchema = z.object({
   LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
-  QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_TRACE_BATCH_READ_ENABLED: z.enum(["true", "false"]).default("false"),
-  LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_TRACE_BATCH_CONCURRENCY: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(2),
-  LANGFUSE_TRACE_BATCH_MAX_THREADS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(2),
-  LANGFUSE_TRACE_BATCH_REQUEST_TIMEOUT_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(40_000),
-  LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(100 * 1024 * 1024),
-  // Traces summarized and embedded at once per Topics job, in both trace-batch and manual processing.
-  LANGFUSE_TOPICS_TRACE_CONCURRENCY: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(20),
   QUEUE_CONSUMER_TOPICS_TRACE_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
@@ -246,17 +213,6 @@ const EnvSchema = z.object({
     .min(0)
     .max(23)
     .default(4),
-  LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE: z.coerce
-    .number()
-    .int()
-    .positive()
-    .optional(),
-  LANGFUSE_TRACE_BATCH_EXPERIMENT_ID: z
-    .string()
-    .min(1)
-    .max(64)
-    .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/)
-    .optional(),
   LANGFUSE_TRACE_BATCH_MAX_SIZE: z.coerce
     .number()
     .int()
@@ -491,16 +447,7 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_BATCH_ACTION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
-  QUEUE_CONSUMER_TOPICS_QUEUE_IS_ENABLED: z
-    .enum(["true", "false"])
-    .default("true"),
   QUEUE_CONSUMER_TOPICS_UPDATE_QUEUE_IS_ENABLED: z
-    .enum(["true", "false"])
-    .default("true"),
-  QUEUE_CONSUMER_TOPICS_EMBEDDING_QUEUE_IS_ENABLED: z
-    .enum(["true", "false"])
-    .default("true"),
-  QUEUE_CONSUMER_TOPICS_AUTOMATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_EVAL_EXECUTION_QUEUE_IS_ENABLED: z
@@ -838,6 +785,23 @@ const EnvSchema = z.object({
   LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR: z
     .enum(["dual_write", "direct"])
     .default("direct"),
+  // Langfuse Cloud only, temporary. v3 cutoff switches, flipped by hand.
+  // Ignored on self-hosted deployments.
+  // EVALS: trace and dataset LLM-as-a-Judge evaluators. New jobs are not created.
+  LANGFUSE_V4_CUTOFF_EVALS: z.enum(["true", "false"]).default("false"),
+  // Comma-separated project ids that skip every cutoff.
+  // Keep in sync with web/src/env.mjs.
+  LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS: z
+    .string()
+    .optional()
+    .transform((value) =>
+      value
+        ? value
+            .split(",")
+            .map((projectId) => projectId.trim())
+            .filter(Boolean)
+        : [],
+    ),
   // Cloud-only rollout boundary for automatic direct OTel event writes.
   // Organizations created on or after this date are past the point where the v4
   // preview is force-enabled and cannot be switched off, so the events table is

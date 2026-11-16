@@ -94,8 +94,13 @@ export type AnnotationRefreshHandle = {
   refresh: (data: AnnotationPanelData) => void;
 };
 
+export type FailedAnnotationScoreWrite = {
+  name: string;
+  message: string;
+};
+
 export type AnnotationCommentFlush = {
-  flushPendingComments: () => void;
+  flushPendingComments: () => Promise<FailedAnnotationScoreWrite[]>;
 };
 
 export type AnnotateFormSchemaType = z.infer<typeof AnnotateFormSchema>;

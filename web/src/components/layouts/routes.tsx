@@ -137,25 +137,23 @@ export const ROUTES: Route[] = [
         icon: KeyRound,
       },
     ] as const
-  ).map(
-    ({ title, slug, icon }): Route => ({
-      title,
-      href:
-        slug === GATEWAY_PAGE_SLUGS.overview
-          ? "/organization/[organizationId]/ai-gateway"
-          : `/organization/[organizationId]/ai-gateway/${slug}`,
-      icon,
-      gatewayPage: slug,
-      show: ({ visibleGatewayPages }) => visibleGatewayPages[slug],
-      isActive: (_, asPath) => gatewayPageSlugFromPath(asPath) === slug,
-      label:
-        slug === GATEWAY_PAGE_SLUGS.apiKeys ? (
-          <GatewayKeyReminderDot />
-        ) : undefined,
-      group: RouteGroup.AiGateway,
-      section: RouteSection.Main,
-    }),
-  ),
+  ).map(({ title, slug, icon }): Route => ({
+    title,
+    href:
+      slug === GATEWAY_PAGE_SLUGS.overview
+        ? "/organization/[organizationId]/ai-gateway"
+        : `/organization/[organizationId]/ai-gateway/${slug}`,
+    icon,
+    gatewayPage: slug,
+    show: ({ visibleGatewayPages }) => visibleGatewayPages[slug],
+    isActive: (_, asPath) => gatewayPageSlugFromPath(asPath) === slug,
+    label:
+      slug === GATEWAY_PAGE_SLUGS.apiKeys ? (
+        <GatewayKeyReminderDot />
+      ) : undefined,
+    group: RouteGroup.AiGateway,
+    section: RouteSection.Main,
+  })),
   {
     // The URL is filled in from the gateway config; see useFilteredNavigation.
     title: "Tracing",

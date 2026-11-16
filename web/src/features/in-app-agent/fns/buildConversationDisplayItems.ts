@@ -72,7 +72,7 @@ export function buildConversationDisplayItems(
       : splitToolGroupAtQuestionnaires(message),
   );
 
-  for (let index = 0; index < visibleMessages.length; ) {
+  for (let index = 0; index < visibleMessages.length;) {
     const message = visibleMessages[index];
     if (!message) {
       break;

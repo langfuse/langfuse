@@ -50,9 +50,12 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
             type: "loading" as const,
             id: `loading-${index}`,
           }))),
-      ...(currentProjectId || canCreateProjects
-        ? [{ type: "separator" as const, id: "project-actions-separator" }]
-        : []),
+    ],
+    [currentProjectId, getProjectPath, projects],
+  );
+
+  const footerItems = useMemo<ComponentProps<typeof DropdownMenu>["items"]>(
+    () => [
       ...(currentProjectId
         ? [
             {
@@ -61,7 +64,6 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
               title: "Project settings",
               icon: Settings,
               href: `/project/${currentProjectId}/settings`,
-              searchBehavior: "always-show" as const,
             },
           ]
         : []),
@@ -73,27 +75,21 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
               title: "New project",
               icon: PlusIcon,
               href: createProjectRoute(organizationId),
-              searchBehavior: "always-show" as const,
             },
           ]
         : []),
     ],
-    [
-      canCreateProjects,
-      currentProjectId,
-      getProjectPath,
-      organizationId,
-      projects,
-    ],
+    [canCreateProjects, currentProjectId, organizationId],
   );
 
   return (
     <DropdownMenu
       ariaLabel="Projects"
       items={items}
+      footerItems={footerItems}
       width="wide"
-      // Fits every project; scrolls only when taller than the window.
-      maxHeight="calc(100dvh - 4rem)"
+      // Caps the list; settings and New stay pinned below it.
+      maxHeight="min(28rem, calc(100dvh - 4rem))"
       search={{ placeholder: "Search projects..." }}
       emptyText="No project found."
     >
