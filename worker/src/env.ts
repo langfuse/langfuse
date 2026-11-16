@@ -827,18 +827,16 @@ const EnvSchema = z.object({
   // Ignored on self-hosted deployments.
   // EVALS: trace and dataset LLM-as-a-Judge evaluators. New jobs are not created.
   LANGFUSE_V4_CUTOFF_EVALS: z.enum(["true", "false"]).default("false"),
-  // INTEGRATIONS: blob storage, PostHog and Mixpanel exports on v3 sources.
-  LANGFUSE_V4_CUTOFF_INTEGRATIONS: z.enum(["true", "false"]).default("false"),
-  // Comma-separated organization ids that skip every cutoff.
+  // Comma-separated project ids that skip every cutoff.
   // Keep in sync with web/src/env.mjs.
-  LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS: z
+  LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS: z
     .string()
     .optional()
     .transform((value) =>
       value
         ? value
             .split(",")
-            .map((organizationId) => organizationId.trim())
+            .map((projectId) => projectId.trim())
             .filter(Boolean)
         : [],
     ),

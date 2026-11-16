@@ -25,7 +25,7 @@ const {
     scoreOnlyCutoff: undefined as string | undefined,
     cloudRegion: undefined as string | undefined,
     v4CutoffIngestion: "false" as "true" | "false",
-    v4CutoffExemptOrgIds: [] as string[],
+    v4CutoffExemptProjectIds: [] as string[],
   },
   originalProcessEventBatch: {
     current: undefined as typeof processEventBatch | undefined,
@@ -52,8 +52,8 @@ vi.mock(import("@/src/env.mjs"), async (importOriginal) => {
         if (property === "LANGFUSE_V4_CUTOFF_INGESTION") {
           return legacyIngestionGate.v4CutoffIngestion;
         }
-        if (property === "LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS") {
-          return legacyIngestionGate.v4CutoffExemptOrgIds;
+        if (property === "LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS") {
+          return legacyIngestionGate.v4CutoffExemptProjectIds;
         }
         return Reflect.get(target, property, receiver);
       },
@@ -303,7 +303,7 @@ describe("Langfuse Cloud v3 ingestion cutoff", () => {
     legacyIngestionGate.writeMode = "dual";
     legacyIngestionGate.cloudRegion = "EU";
     legacyIngestionGate.v4CutoffIngestion = "true";
-    legacyIngestionGate.v4CutoffExemptOrgIds = [];
+    legacyIngestionGate.v4CutoffExemptProjectIds = [];
     shadowAuth.mockReset();
     vi.mocked(processEventBatch).mockReset();
     vi.mocked(processEventBatch).mockImplementation(async (batch) => ({
@@ -330,7 +330,7 @@ describe("Langfuse Cloud v3 ingestion cutoff", () => {
   afterEach(() => {
     legacyIngestionGate.cloudRegion = undefined;
     legacyIngestionGate.v4CutoffIngestion = "false";
-    legacyIngestionGate.v4CutoffExemptOrgIds = [];
+    legacyIngestionGate.v4CutoffExemptProjectIds = [];
   });
 
   async function post(batch: unknown[]) {
@@ -371,17 +371,43 @@ describe("Langfuse Cloud v3 ingestion cutoff", () => {
     expect(processEventBatch).not.toHaveBeenCalled();
   });
 
-  it("does nothing when the switch is off, the org is exempt, or the install is self-hosted", async () => {
+  it("returns 410 to an organization created after the score-only cutoff", async () => {
+    legacyIngestionGate.scoreOnlyCutoff = "2026-01-01T00:00:00.000Z";
+    shadowAuth.mockResolvedValue({
+      success: true,
+      scope: {
+        accessLevel: "project",
+        projectId: "project",
+        orgId: "org",
+        organizationCreatedAt: "2026-06-01T00:00:00.000Z",
+        apiKeyId: "key",
+        publicKey: "pk-lf-test",
+        plan: "cloud:hobby",
+        rateLimitOverrides: [],
+      },
+    });
+
+    try {
+      const res = await post([
+        { id: "trace", type: "trace-create", body: { id: "t" } },
+      ]);
+      expect(res._getStatusCode()).toBe(410);
+    } finally {
+      legacyIngestionGate.scoreOnlyCutoff = undefined;
+    }
+  });
+
+  it("does nothing when the switch is off, the project is exempt, or the install is self-hosted", async () => {
     const batch = [{ id: "trace", type: "trace-create", body: { id: "t" } }];
 
     legacyIngestionGate.v4CutoffIngestion = "false";
     expect((await post(batch))._getStatusCode()).toBe(207);
 
     legacyIngestionGate.v4CutoffIngestion = "true";
-    legacyIngestionGate.v4CutoffExemptOrgIds = ["org"];
+    legacyIngestionGate.v4CutoffExemptProjectIds = ["project"];
     expect((await post(batch))._getStatusCode()).toBe(207);
 
-    legacyIngestionGate.v4CutoffExemptOrgIds = [];
+    legacyIngestionGate.v4CutoffExemptProjectIds = [];
     legacyIngestionGate.cloudRegion = undefined;
     expect((await post(batch))._getStatusCode()).toBe(207);
     expect(processEventBatch).toHaveBeenCalledTimes(3);

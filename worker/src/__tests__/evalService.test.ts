@@ -3834,17 +3834,17 @@ describe("Langfuse Cloud v3 eval cutoff", () => {
   const original = {
     cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
     evals: env.LANGFUSE_V4_CUTOFF_EVALS,
-    exempt: env.LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS,
+    exempt: env.LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS,
   };
 
   afterAll(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = original.cloudRegion;
     (env as any).LANGFUSE_V4_CUTOFF_EVALS = original.evals;
-    (env as any).LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS = original.exempt;
+    (env as any).LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS = original.exempt;
   });
 
-  test("creates no trace eval job while the switch is on, and still creates one for an exempt org", async () => {
-    const { projectId, orgId } = await createOrgProjectAndApiKey();
+  test("creates no trace eval job while the switch is on, and still creates one for an exempt project", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
     const traceId = randomUUID();
     await upsertTrace({
       id: traceId,
@@ -3869,7 +3869,7 @@ describe("Langfuse Cloud v3 eval cutoff", () => {
     });
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "EU";
     (env as any).LANGFUSE_V4_CUTOFF_EVALS = "true";
-    (env as any).LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS = [];
+    (env as any).LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS = [];
 
     await createEvalJobs({
       sourceEventType: "trace-upsert",
@@ -3878,7 +3878,7 @@ describe("Langfuse Cloud v3 eval cutoff", () => {
     });
     expect(await prisma.jobExecution.count({ where: { projectId } })).toBe(0);
 
-    (env as any).LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS = [orgId];
+    (env as any).LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS = [projectId];
     await createEvalJobs({
       sourceEventType: "trace-upsert",
       event: { projectId, traceId, traceEnvironment: "production" },

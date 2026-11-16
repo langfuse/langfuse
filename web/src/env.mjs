@@ -752,16 +752,16 @@ export const env = createEnv({
     LANGFUSE_V4_CUTOFF_INGESTION: z.enum(["true", "false"]).default("false"),
     // PUBLIC_API: public API handlers that carry a v3 deprecation.
     LANGFUSE_V4_CUTOFF_PUBLIC_API: z.enum(["true", "false"]).default("false"),
-    // Comma-separated organization ids that skip every cutoff and the banner.
+    // Comma-separated project ids that skip every cutoff.
     // Keep in sync with worker/src/env.ts.
-    LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS: z
+    LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS: z
       .string()
       .optional()
       .transform((value) =>
         value
           ? value
               .split(",")
-              .map((organizationId) => organizationId.trim())
+              .map((projectId) => projectId.trim())
               .filter(Boolean)
           : [],
       ),
@@ -1415,8 +1415,8 @@ export const env = createEnv({
       process.env.LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS,
     LANGFUSE_V4_CUTOFF_INGESTION: process.env.LANGFUSE_V4_CUTOFF_INGESTION,
     LANGFUSE_V4_CUTOFF_PUBLIC_API: process.env.LANGFUSE_V4_CUTOFF_PUBLIC_API,
-    LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS:
-      process.env.LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS,
+    LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS:
+      process.env.LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS,
     LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
       process.env.LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
     LANGFUSE_SKILL_MAX_BYTES: process.env.LANGFUSE_SKILL_MAX_BYTES,

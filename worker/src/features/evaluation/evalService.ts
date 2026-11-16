@@ -316,8 +316,6 @@ export const createEvalJobs = async ({
     span.setAttribute("messaging.bullmq.job.input.projectId", event.projectId);
   }
 
-  if (await traceDatasetEvalCutoff(event.projectId)) return;
-
   // TRACE/DATASET rules are stored in the evaluator v2 model. The executor
   // still consumes a config-shaped projection.
   const rules = await prisma.evaluationRule.findMany({
@@ -360,6 +358,8 @@ export const createEvalJobs = async ({
 
     return;
   }
+
+  if (isTraceDatasetEvalCutoff(event.projectId)) return;
 
   logger.debug(
     `Creating eval jobs for trace ${event.traceId} on project ${event.projectId}`,
@@ -1421,32 +1421,20 @@ async function resolveTraceExecution(params: {
   };
 }
 
-/** traceDatasetEvalCutoff reports and skips trace and dataset evals while that switch is on. */
-async function traceDatasetEvalCutoff(projectId: string): Promise<boolean> {
-  if (
-    !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ||
-    env.LANGFUSE_V4_CUTOFF_EVALS !== "true"
-  ) {
-    return false;
-  }
-  const orgId = (
-    await prisma.project.findUnique({
-      where: { id: projectId },
-      select: { orgId: true },
-    })
-  )?.orgId;
+/** isTraceDatasetEvalCutoff reports and skips trace and dataset evals while that switch is on. */
+function isTraceDatasetEvalCutoff(projectId: string): boolean {
   if (
     !isV4CutoffActive({
       cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
       enabled: env.LANGFUSE_V4_CUTOFF_EVALS,
-      exemptOrgIds: env.LANGFUSE_V4_CUTOFF_EXEMPT_ORG_IDS,
-      orgId,
+      exemptProjectIds: env.LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS,
+      projectId,
     })
   ) {
     return false;
   }
   recordIncrement("langfuse.v4_cutoff", 1, { surface: "evals" });
-  logger.info("Langfuse v3 cutoff", { surface: "evals", orgId, projectId });
+  logger.debug("Langfuse v3 cutoff", { surface: "evals", projectId });
   return true;
 }
 

@@ -66,6 +66,13 @@ const LEGACY_TRACE_WRITE_REPLACEMENT = `Upgrade to the latest Langfuse SDKs, whi
 /** LEGACY_INGESTION_ORG_CUTOFF_MESSAGE is the rejection for an organization created at or after the legacy-ingestion cutoff. */
 export const LEGACY_INGESTION_ORG_CUTOFF_MESSAGE = `This ingestion API no longer accepts trace or observation writes for this organization. ${LEGACY_TRACE_WRITE_REPLACEMENT}`;
 
+/** V4_CUTOFF_NOTICE is the Langfuse Cloud v3 shutdown schedule quoted by every cutoff rejection. */
+export const V4_CUTOFF_NOTICE =
+  "Langfuse v3 APIs are being removed from Langfuse Cloud: they are switched off during scheduled brownouts from November 16 to 18, 2026, and removed from November 19, 2026.";
+
+/** V4_CUTOFF_INGESTION_MESSAGE is the rejection for a legacy trace or observation write while the Cloud ingestion cutoff is on. */
+export const V4_CUTOFF_INGESTION_MESSAGE = `Langfuse v3 trace and observation ingestion is switched off. ${V4_CUTOFF_NOTICE} ${LEGACY_TRACE_WRITE_REPLACEMENT}`;
+
 /** EVENTS_ONLY_UNAVAILABLE_MESSAGE is the 404 for a deployment in v4 events_only mode. */
 export const EVENTS_ONLY_UNAVAILABLE_MESSAGE = `This endpoint is not available on deployments running in Langfuse v4 events_only mode. ${LEGACY_TRACE_WRITE_REPLACEMENT} Learn more about Langfuse v4 at ${DOCS.v4}.`;
 
