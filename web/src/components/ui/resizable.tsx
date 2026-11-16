@@ -73,8 +73,9 @@ function ResizableHandle({
         <div
           className={cn(
             "bg-border z-10 flex h-6 w-1 shrink-0 rounded-lg",
+            // Touch screens have no hover, so the grip stays visible there.
             withHandle === "hover" &&
-              "opacity-0 transition-opacity group-focus-visible:opacity-100 group-data-[separator=active]:opacity-100 group-data-[separator=hover]:opacity-100",
+              "opacity-0 transition-opacity group-focus-visible:opacity-100 group-data-[separator=active]:opacity-100 group-data-[separator=hover]:opacity-100 pointer-coarse:opacity-100",
           )}
         />
       )}
