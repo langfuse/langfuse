@@ -15,7 +15,7 @@ export const evaluatorFilterMatchesSql = (
       AND (
         (${filterRow}->>'operator' = '=' AND ${evaluatorId} = ${filterRow}->>'value')
         OR (${filterRow}->>'operator' = 'contains' AND strpos(${evaluatorId}, ${filterRow}->>'value') > 0)
-        OR (${filterRow}->>'operator' = 'starts with' AND starts_with(${evaluatorId}, ${filterRow}->>'value'))
+        OR (${filterRow}->>'operator' = 'starts with' AND left(${evaluatorId}, length(${filterRow}->>'value')) = ${filterRow}->>'value')
       )
     )
     OR (

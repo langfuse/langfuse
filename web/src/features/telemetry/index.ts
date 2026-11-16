@@ -110,17 +110,17 @@ async function jobScheduler(): Promise<
   }
   if (!checkNoLock[0]!.status) return { shouldRunJob: false };
 
-  // Lock table and update job_started_at if no other job was created in the meantime
-  const res = await prisma.$transaction([
-    prisma.$executeRaw`LOCK TABLE cron_jobs IN SHARE ROW EXCLUSIVE MODE`,
-    prisma.$queryRaw<
-      Array<{
-        name: string;
-        last_run: Date | null;
-        job_started_at: Date | null;
-        state: string | null;
-      }>
-    >`INSERT INTO cron_jobs (name, last_run, job_started_at, state)
+  // Claim the job by setting job_started_at, unless another run claimed it in
+  // the meantime. The upsert serializes concurrent claims on the job's row: a
+  // concurrent claim waits for it, and then its WHERE no longer matches.
+  const claimedJob = await prisma.$queryRaw<
+    Array<{
+      name: string;
+      last_run: Date | null;
+      job_started_at: Date | null;
+      state: string | null;
+    }>
+  >`INSERT INTO cron_jobs (name, last_run, job_started_at, state)
     VALUES ('telemetry', NULL, CURRENT_TIMESTAMP, NULL)
     ON CONFLICT (name) 
     DO UPDATE 
@@ -133,17 +133,15 @@ async function jobScheduler(): Promise<
     WHERE cron_jobs.name = 'telemetry' 
       AND (cron_jobs.last_run IS NULL OR cron_jobs.last_run <= (NOW() - INTERVAL '${JOB_INTERVAL_MINUTES} minutes')) 
       AND (cron_jobs.job_started_at IS NULL OR cron_jobs.job_started_at <= (NOW() - INTERVAL '${JOB_TIMEOUT_MINUTES} minutes'))
-    RETURNING *`,
-  ]);
-  const createJobLocked = res[1];
+    RETURNING *`;
 
   // Other job was created in the meantime
-  if (createJobLocked.length !== 1) {
+  if (claimedJob.length !== 1) {
     logger.error("Telemetry job is locked");
     return { shouldRunJob: false };
   }
 
-  const jobStartedAt = createJobLocked[0]?.job_started_at ?? null;
+  const jobStartedAt = claimedJob[0]?.job_started_at ?? null;
 
   // should not happen
   if (!jobStartedAt) {
@@ -152,8 +150,8 @@ async function jobScheduler(): Promise<
   }
 
   // set vars
-  const lastRun = createJobLocked[0]?.last_run ?? null;
-  const clientId = createJobLocked[0]?.state ?? uuidv4();
+  const lastRun = claimedJob[0]?.last_run ?? null;
+  const clientId = claimedJob[0]?.state ?? uuidv4();
 
   return { shouldRunJob: true, jobStartedAt, lastRun, clientId };
 }
@@ -291,7 +289,7 @@ async function posthogTelemetry({
     const domains = await prisma.$queryRaw<Array<{ domain: string }>>`
       SELECT
         substring(email FROM position('@' in email) + 1) as domain,
-        count(id)::int as "userCount"
+        count(id)::int4 as "userCount"
       FROM users
       WHERE email ILIKE '%@%'
       GROUP BY 1

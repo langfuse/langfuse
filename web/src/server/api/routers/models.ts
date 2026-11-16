@@ -171,7 +171,7 @@ export const modelRouter = createTRPCRouter({
             (project_id IS NULL OR project_id = ${projectId})
 			      ${searchStringCondition}
           ORDER BY
-            project_id,
+            project_id NULLS LAST,
             model_name,
             m.created_at DESC NULLS LAST
           `,

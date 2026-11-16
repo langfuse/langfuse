@@ -119,7 +119,7 @@ export async function findNextMediaRetentionProject(): Promise<MediaRetentionPro
       p.id AS "projectId",
       p.retention_days AS "retentionDays",
       ${cutoffDate} AS "cutoffDate",
-      EXTRACT(EPOCH FROM (${cutoffDate} - oldest.created_at))::int
+      EXTRACT(EPOCH FROM (${cutoffDate} - oldest.created_at))::int4
         AS "secondsPastCutoff"
     FROM projects p
     CROSS JOIN LATERAL (

@@ -45,7 +45,7 @@ async function retryMonitorBadQueryErrors(args: {
       SET status = 'ACTIVE',
           severity = 'UNKNOWN',
           severity_changed_at = now(),
-          next_run_at = now() + random() * make_interval(mins => ${args.jitterMinutes}::int),
+          next_run_at = now() + random() * ${args.jitterMinutes}::int::float8 * INTERVAL '1 minute',
           last_published_at = NULL,
           last_completed_at = NULL,
           last_claimed_at = NULL,

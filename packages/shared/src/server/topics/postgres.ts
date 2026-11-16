@@ -1,4 +1,5 @@
 import { JobConfigState, prisma, Prisma } from "../../db";
+import { lockTransactionKey } from "../transactionLock";
 import {
   DEFAULT_TOPIC_FACETS,
   TOPICS_MAX_RULES,
@@ -257,7 +258,7 @@ async function lockProjectTopicRule(
   tx: Prisma.TransactionClient,
   projectId: string,
 ) {
-  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`topics-rule:${projectId}`}, 0))`;
+  await lockTransactionKey(tx, `topics-rule:${projectId}`);
 }
 
 export type TopicRuleInput = Omit<

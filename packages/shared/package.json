@@ -228,6 +228,7 @@
     "db:reset": "dotenv -e ../../.env -- pnpm exec prisma migrate reset",
     "db:reset:test": "if [ -f ../../.env.test ]; then dotenv -e ../../.env.test -e ../../.env -- pnpm exec prisma migrate reset --force; fi",
     "db:deploy": "dotenv -e ../../.env npx -- prisma migrate deploy",
+    "db:deploy:cockroachdb": "dotenv -e ../../.env -- sh prisma/cockroachdb/migrate.sh",
     "db:seed": "dotenv -e ../../.env -- npx prisma db seed",
     "db:generate": "dotenv -e ../../.env -- npx prisma generate --no-hints",
     "db:seed:examples": "dotenv -e ../../.env -- npx prisma db seed -- --environment examples",

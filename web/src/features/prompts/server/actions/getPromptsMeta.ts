@@ -39,7 +39,7 @@ export const getPromptsMeta = async (
     )
     SELECT
       n.name,
-      metadata.tags,
+      latest.tags,
       metadata."lastUpdatedAt",
       metadata.versions,
       metadata.labels,
@@ -48,7 +48,6 @@ export const getPromptsMeta = async (
     FROM page_names n
     CROSS JOIN LATERAL (
       SELECT
-        MAX(p.tags) AS tags,
         MAX(p.updated_at) AS "lastUpdatedAt",
         array_agg(DISTINCT p.version) AS versions,
         COALESCE(
@@ -62,7 +61,7 @@ export const getPromptsMeta = async (
         ${getPromptsFilterCondition(params)}
     ) metadata
     LEFT JOIN LATERAL (
-      SELECT p.config, p.type
+      SELECT p.config, p.type, p.tags
       FROM prompts p
       WHERE p."project_id" = ${projectId}
         AND p.name = n.name

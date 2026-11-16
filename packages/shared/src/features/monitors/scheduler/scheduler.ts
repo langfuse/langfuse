@@ -92,16 +92,22 @@ function buildScheduleQuery({
   totalSchedulers: number;
 }): Prisma.Sql {
   /** calculateRunAt returns the deterministic cadence boundary at or before tick for the given source. */
-  const calculateRunAt = (source: "monitors" | "due"): Prisma.Sql => Prisma.sql`
+  const calculateRunAt = (source: "monitors" | "due"): Prisma.Sql => {
+    // Up to 59 s of jitter per batch spreads the load over each cadence.
+    const jitterMs = Prisma.sql`(${Prisma.raw(source)}.scheduler_batch_id % 60) * 1000`;
+    // Milliseconds since the epoch, minus the jitter.
+    const shiftedMs = Prisma.sql`((EXTRACT(EPOCH FROM ${tick}::timestamptz) * 1000)::bigint - ${jitterMs})`;
+    // `x - x % c` rounds down to the last cadence. It equals PostgreSQL's
+    // integer `x / c * c`; on CockroachDB `/` on integers returns a decimal.
+    return Prisma.sql`
     TIMESTAMPTZ 'epoch' + (
       (
-        ((EXTRACT(EPOCH FROM ${tick}::timestamptz) * 1000)::bigint
-          - (${Prisma.raw(source)}.scheduler_batch_id % 60) * 1000) -- ms since the beginning of time
-          / ${Prisma.raw(source)}.cadence_ms * ${Prisma.raw(source)}.cadence_ms -- rounded down to the last cadence
-        + (${Prisma.raw(source)}.scheduler_batch_id % 60) * 1000 -- plus some second jitter for better load distribution
+        ${shiftedMs} - ${shiftedMs} % ${Prisma.raw(source)}.cadence_ms
+        + ${jitterMs}
       ) * INTERVAL '1 millisecond'
     )
   `;
+  };
 
   /** calculateNextRunAt is the next cadence boundary strictly after tick (snapshotted from due). */
   const calculateNextRunAt = Prisma.sql`
@@ -162,9 +168,12 @@ function buildScheduleQuery({
       UPDATE monitors
       SET
         next_run_at = ${calculateNextRunAt},
+        -- Both branches have the column's type: CockroachDB does not mix
+        -- timestamp and timestamptz in one CASE. schedule() pins the session
+        -- to UTC.
         last_published_at = CASE
           WHEN ${runIsPending} THEN monitors.last_published_at
-          ELSE ${tick}::timestamptz
+          ELSE ${tick}::timestamptz::timestamp(3)
         END
       FROM due
       WHERE monitors.id = due.id

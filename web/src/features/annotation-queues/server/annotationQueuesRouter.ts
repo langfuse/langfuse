@@ -89,8 +89,8 @@ export const queueRouter = createTRPCRouter({
             aq.description,
             aq.score_config_ids AS "scoreConfigIds",
             aq.created_at AS "createdAt",
-            COALESCE(SUM(CASE WHEN aqi.status = 'COMPLETED' THEN 1 ELSE 0 END), 0) AS "countCompletedItems",
-            COALESCE(SUM(CASE WHEN aqi.status = 'PENDING' THEN 1 ELSE 0 END), 0) AS "countPendingItems"
+            COALESCE(SUM(CASE WHEN aqi.status = 'COMPLETED' THEN 1 ELSE 0 END), 0)::bigint AS "countCompletedItems",
+            COALESCE(SUM(CASE WHEN aqi.status = 'PENDING' THEN 1 ELSE 0 END), 0)::bigint AS "countPendingItems"
           FROM
             annotation_queues aq
           LEFT JOIN

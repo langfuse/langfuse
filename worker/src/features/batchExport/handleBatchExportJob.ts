@@ -22,6 +22,7 @@ import {
   applyCommentFilters,
   type CommentObjectType,
   type PreferredClickhouseService,
+  lockTransactionKey,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { getDatabaseReadStreamPaginated } from "../database-read-stream/getDatabaseReadStream";
@@ -438,7 +439,7 @@ export const touchRunningExport = ({
     data: { updatedAt: new Date() },
   });
 
-/** Claims the user's per-project export slot, serialized across workers by an advisory lock. */
+/** Claims the user's per-project export slot, serialized across workers by a transaction lock. */
 export const claimExportSlot = async ({
   projectId,
   userId,
@@ -449,7 +450,7 @@ export const claimExportSlot = async ({
   batchExportId: string;
 }): Promise<boolean> =>
   prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`batch-export:${projectId}:${userId}`}, 0))`;
+    await lockTransactionKey(tx, `batch-export:${projectId}:${userId}`);
 
     const running = await tx.batchExport.count({
       where: {

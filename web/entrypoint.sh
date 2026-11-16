@@ -120,10 +120,16 @@ fi
 
 # Always execute the postgres migration, except when disabled.
 if [ "$LANGFUSE_AUTO_POSTGRES_MIGRATION_DISABLED" != "true" ]; then
-    prisma db execute --url "$DIRECT_URL" --file "./packages/shared/scripts/cleanup.sql"
-
-    # Apply migrations
-    prisma migrate deploy --schema=./packages/shared/prisma/schema.prisma
+    # Apply migrations. CockroachDB needs its own runner: Prisma's migration
+    # engine refuses a CockroachDB server under the "postgresql" provider, and
+    # some migrations use SQL that CockroachDB does not support. The cleanup
+    # script only removes history rows that a CockroachDB database never has.
+    if [ "$LANGFUSE_POSTGRES_ENGINE" = "cockroachdb" ]; then
+        sh ./packages/shared/prisma/cockroachdb/migrate.sh
+    else
+        prisma db execute --url "$DIRECT_URL" --file "./packages/shared/scripts/cleanup.sql"
+        prisma migrate deploy --schema=./packages/shared/prisma/schema.prisma
+    fi
 fi
 status=$?
 
@@ -133,6 +139,9 @@ if [ $status -ne 0 ]; then
     echo "  1. The database is unavailable or unreachable."
     echo "  2. DATABASE_URL / DIRECT_URL credentials contain special characters that are not URL-encoded."
     check_unencoded_credentials "$DIRECT_URL"
+    if [ "$LANGFUSE_POSTGRES_ENGINE" = "cockroachdb" ]; then
+        echo "On CockroachDB, a failed migration keeps the statements that ran before the failure. Recovery steps: https://github.com/langfuse/langfuse/blob/main/packages/shared/prisma/cockroachdb/README.md#migrations"
+    fi
     echo "Exiting..."
     exit $status
 fi
