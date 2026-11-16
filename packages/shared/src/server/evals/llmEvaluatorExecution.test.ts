@@ -74,7 +74,7 @@ describe("generateLlmEvaluatorOutput", () => {
 
     const call = mockGenerateLLMText.mock.calls[0][0];
     expect(call).toMatchObject({
-      maxRetries: 1,
+      maxRetries: 0,
       trace: { traceId: "trace-123" },
     });
     const modelSchema = z.toJSONSchema(call.output.schema as z.ZodType);

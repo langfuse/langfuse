@@ -1,5 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { randomUUID } from "crypto";
 import { z } from "zod";
+import { classifyEvaluatorLlmError, redis } from "@langfuse/shared/src/server";
 import { createProductionEvalExecutionDeps } from "../evalExecutionDeps";
 import { EXPORT_VOLUME_METRIC } from "../../../services/exportVolumeMetric";
 
@@ -172,6 +174,52 @@ describe("createProductionEvalExecutionDeps", () => {
       } as any),
     ).rejects.toThrow("boom");
     expect(mockRecordIncrement).not.toHaveBeenCalled();
+  });
+
+  it("pauses an LLM connection after a provider 429 instead of calling it again", async () => {
+    const llmApiKeyId = randomUUID();
+    // The AI SDK identifies an APICallError by these markers.
+    const providerRateLimit = Object.assign(
+      new Error("per-key concurrency limit reached"),
+      {
+        [Symbol.for("vercel.ai.error")]: true,
+        [Symbol.for("vercel.ai.error.AI_APICallError")]: true,
+        name: "AI_APICallError",
+        statusCode: 429,
+        isRetryable: true,
+        responseHeaders: { "retry-after": "7" },
+      },
+    );
+    mockGenerateLlmEvaluatorOutput.mockRejectedValueOnce(providerRateLimit);
+    const deps = createProductionEvalExecutionDeps();
+    const params = {
+      messages: [{ role: "user", type: "user", content: "Judge this answer" }],
+      modelConfig: {
+        ...modelConfig,
+        apiKey: { ...modelConfig.apiKey, id: llmApiKeyId },
+      },
+      structuredOutputSchema,
+      traceSinkParams,
+    } as any;
+
+    try {
+      await expect(deps.callLLM(params)).rejects.toBe(providerRateLimit);
+      const cooldownError = await deps.callLLM(params).catch((e) => e);
+
+      expect(mockGenerateLlmEvaluatorOutput).toHaveBeenCalledTimes(1);
+      expect(classifyEvaluatorLlmError(cooldownError)).toMatchObject({
+        statusCode: 429,
+        isRetryable: true,
+        blockReason: null,
+      });
+      const cooldownMs = await redis?.pttl(
+        `llm-connection-cooldown:${llmApiKeyId}`,
+      );
+      expect(cooldownMs).toBeGreaterThan(5_000);
+      expect(cooldownMs).toBeLessThanOrEqual(7_000);
+    } finally {
+      await redis?.del(`llm-connection-cooldown:${llmApiKeyId}`);
+    }
   });
 
   it("enqueues eval scores to read only their own S3 file", async () => {

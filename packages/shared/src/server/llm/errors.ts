@@ -40,6 +40,23 @@ export class LLMValidationError extends Error {
   }
 }
 
+/**
+ * Stands in for a provider 429 while an LLM connection cools down after one,
+ * so callers classify and reschedule it exactly like the provider's own.
+ */
+export class LLMConnectionCooldownError extends APICallError {
+  constructor(remainingMs: number) {
+    super({
+      message: `The provider rate limited this LLM connection; requests are paused for another ${Math.ceil(remainingMs / 1000)}s.`,
+      url: "",
+      requestBodyValues: undefined,
+      statusCode: 429,
+      isRetryable: true,
+    });
+    this.name = "LLMConnectionCooldownError";
+  }
+}
+
 export type LLMErrorInfo = {
   kind: "provider" | "validation" | "ai-sdk" | "timeout" | "abort";
   message: string;
