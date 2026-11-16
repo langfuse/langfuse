@@ -291,6 +291,8 @@ jobs:
         run: node --test scripts/github/label-cursor-prs.test.mjs
       - name: vitest CI reporter tests
         run: node --test scripts/vitest/ci-reporter.test.mjs
+      - name: merge gate tests
+        run: node --test scripts/ci/merge-gate.test.mjs
       - name: Load default env
         run: |
           cp .env.dev.example .env
@@ -386,11 +388,11 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          if [ "$EVENT_NAME" = "pull_request" ]; then
-            BASE_SHA="$PR_BASE_SHA"
-          else
-            BASE_SHA=$(git merge-base origin/main HEAD)
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            pnpm run format:check
+            exit 0
           fi
+          BASE_SHA="$PR_BASE_SHA"
 
           echo "Checking files changed from $BASE_SHA to HEAD"
 
@@ -1163,7 +1165,7 @@ jobs:
     # ERR_OSSL_EVP_UNSUPPORTED. Databases and migrations run on the runner as
     # in tests-web/tests-worker; install, build, the web and worker processes
     # and the tests run in the container (scripts/ci/fips-tests.sh).
-    # Not part of all-ci-passed yet.
+    # Compatibility signal; not part of the required merge gate.
     timeout-minutes: 45
     runs-on: ${{ matrix.runner }}
     needs:
@@ -1290,7 +1292,7 @@ jobs:
     needs:
       - pre-job
       - llm-connections-filter
-    if: ${{ !cancelled() && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.llm-connections-filter.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'))) }}
+    if: ${{ !cancelled() && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (github.event_name != 'pull_request' || needs.llm-connections-filter.outputs.changed == 'true'))) }}
     name: test-worker-llm-connections (node24, pg15)
     env:
       NODE_ENV: test
@@ -1636,7 +1638,7 @@ jobs:
     needs:
       - pre-job
       - ai-gateway-filter
-    if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.ai-gateway-filter.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'))) }}
+    if: ${{ !cancelled() && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && needs.ai-gateway-filter.outputs.changed == 'true')))) }}
     name: test-ai-gateway-e2e
     env:
       NODE_ENV: test
@@ -1744,6 +1746,9 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       [
+        pre-job,
+        llm-connections-filter,
+        ai-gateway-filter,
         lint,
         knip,
         format-check,
@@ -1769,27 +1774,15 @@ jobs:
     outputs:
       success: ${{ steps.set-success-output.outputs.success }}
     steps:
-      - name: Set check result as an output
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Require every planned CI job to pass
         id: set-success-output
-        run: |
-          if [[ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
-            echo "success=false" >> $GITHUB_OUTPUT
-          else
-            echo "success=true" >> $GITHUB_OUTPUT
-          fi
-      - name: Successful deploy
-        if: ${{ !(contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
-        run: exit 0
-        working-directory: .
-      - name: Failing deploy
-        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
-        run: exit 1
-        working-directory: .
-      - name: Output job results
-        run: |
-          echo "Job results: ${STEPS_SET_SUCCESS_OUTPUT_OUTPUTS_SUCCESS}"
         env:
-          STEPS_SET_SUCCESS_OUTPUT_OUTPUTS_SUCCESS: ${{ steps.set-success-output.outputs.success }}
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          IS_FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+        run: node scripts/ci/merge-gate.mjs
 
   # The alert lives in its own job because only a job-level `cancelled()` tells
   # whether the run was cancelled. Inside a step of the always() gate it reads
