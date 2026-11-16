@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   DashboardWidgetChartType,
   InvalidRequestError,
+  NumberColorThresholdsSchema,
 } from "@langfuse/shared";
 import { metricAggregations } from "@langfuse/shared/query";
 import { defineTool } from "@/src/features/mcp/core/define-tool";
@@ -30,6 +31,9 @@ export const DashboardWidgetChartConfigBaseSchema = z.object({
   row_limit: z.number().int().positive().max(1000).optional(),
   show_value_labels: z.boolean().optional(),
   bins: z.number().int().min(1).max(100).optional(),
+  colorThresholds: NumberColorThresholdsSchema.optional().describe(
+    "NUMBER tile colour bands in raw metric units. Critical must be below warning for higher-is-better, or above warning for lower-is-better.",
+  ),
   defaultSort: z
     .object({
       column: z.string(),

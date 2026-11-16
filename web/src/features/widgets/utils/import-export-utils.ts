@@ -122,6 +122,10 @@ export type ImportedWidgetFormSnapshot = {
   histogramBins: number;
   defaultSortColumn: string;
   defaultSortOrder: "ASC" | "DESC";
+  colorThresholds?: Extract<
+    WidgetImport["chartConfig"],
+    { type: "NUMBER" }
+  >["colorThresholds"];
 };
 
 export type ImportedWidgetResult = {
@@ -429,6 +433,10 @@ function toImportedWidgetFormSnapshot(
       importedChartConfig.type === "HISTOGRAM"
         ? (importedChartConfig.bins ?? 10)
         : 10,
+    colorThresholds:
+      importedChartConfig.type === "NUMBER"
+        ? importedChartConfig.colorThresholds
+        : undefined,
     defaultSortColumn:
       importedChartConfig.type === "PIVOT_TABLE"
         ? (importedChartConfig.defaultSort?.column ?? "none")

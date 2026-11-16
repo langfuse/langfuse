@@ -32,6 +32,7 @@ import {
   useWatch,
   type Control,
   type Resolver,
+  type UseFormTrigger,
 } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
@@ -359,6 +360,7 @@ export function WidgetForm({
     form.setValue("dimensions", candidate.dimensions);
     if (opts.filters) form.setValue("filters", candidate.filters);
     if (opts.view) form.setValue("view", candidate.view);
+    form.setValue("chart.colorThresholds", candidate.chart.colorThresholds);
     form.setValue("chart.type", candidate.chart.type, { shouldValidate: true });
   };
 
@@ -486,6 +488,7 @@ export function WidgetForm({
             type: snapshot.selectedChartType,
             bins: snapshot.histogramBins,
             rowLimit: snapshot.rowLimit,
+            colorThresholds: snapshot.colorThresholds,
             sort:
               snapshot.defaultSortColumn !== "none"
                 ? {
@@ -703,6 +706,13 @@ export function WidgetForm({
 
             {chartType === "HISTOGRAM" && (
               <HistogramBinsField control={form.control} />
+            )}
+
+            {chartType === "NUMBER" && (
+              <NumberColorThresholdsField
+                control={form.control}
+                trigger={form.trigger}
+              />
             )}
 
             {widgetChartTypeSupportsBreakdown(chartType) &&
@@ -1564,6 +1574,86 @@ function RowLimitField({ control }: { control: Control<WidgetFormValues> }) {
         />
       )}
     </FormField>
+  );
+}
+
+function NumberColorThresholdsField({
+  control,
+  trigger,
+}: {
+  control: Control<WidgetFormValues>;
+  trigger: UseFormTrigger<WidgetFormValues>;
+}) {
+  const thresholds = useWatch({
+    control,
+    name: "chart.colorThresholds",
+  });
+  const higherIsBetter = thresholds?.direction === "higher-is-better";
+
+  return (
+    <div className="flex flex-col gap-3">
+      <FormField
+        control={control}
+        name="chart.colorThresholds"
+        label="Tile colour"
+        description={
+          thresholds
+            ? "Use raw metric values before display formatting. Values at a threshold stay in the less severe band."
+            : undefined
+        }
+      >
+        {(field) => (
+          <SelectInput
+            id={field.id}
+            placeholder="Select a colour mode"
+            value={field.value?.direction ?? "none"}
+            onValueChange={(direction) => {
+              if (direction === "none") field.onChange(null);
+              else {
+                field.onChange({
+                  direction,
+                  warning: field.value?.warning ?? Number.NaN,
+                  critical: field.value?.critical ?? Number.NaN,
+                });
+              }
+            }}
+            error={Boolean(field.error)}
+            aria-invalid={Boolean(field.error)}
+            aria-describedby={field.inputDescribedById}
+            options={[
+              { value: "none", label: "No colour thresholds" },
+              { value: "higher-is-better", label: "Higher values are better" },
+              { value: "lower-is-better", label: "Lower values are better" },
+            ]}
+          />
+        )}
+      </FormField>
+      {thresholds &&
+        (["warning", "critical"] as const).map((level) => (
+          <FormField
+            key={level}
+            control={control}
+            name={`chart.colorThresholds.${level}`}
+            label={`${level === "warning" ? "Warning" : "Critical"} ${higherIsBetter ? "below" : "above"}`}
+          >
+            {(field) => (
+              <Input
+                id={field.id}
+                type="number"
+                step="any"
+                value={Number.isFinite(field.value) ? field.value : ""}
+                onChange={async (event) => {
+                  field.onChange(event.target.valueAsNumber);
+                  await trigger("chart.colorThresholds");
+                }}
+                error={Boolean(field.error)}
+                aria-invalid={Boolean(field.error)}
+                aria-describedby={field.inputDescribedById}
+              />
+            )}
+          </FormField>
+        ))}
+    </div>
   );
 }
 

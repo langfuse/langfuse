@@ -2,7 +2,11 @@
 import { z } from "zod";
 import startCase from "lodash/startCase";
 
-import { singleFilterList, type FilterState } from "@langfuse/shared";
+import {
+  singleFilterList,
+  NumberColorThresholdsSchema,
+  type FilterState,
+} from "@langfuse/shared";
 import {
   getValidAggregationsForMeasureType,
   getWidgetRequiredVersion,
@@ -194,6 +198,7 @@ export function makeWidgetFormSchema(viewVersion: ViewVersion) {
         bins: z.coerce.number().int().min(1).max(100),
         rowLimit: z.coerce.number().int().min(0).max(1000),
         sort: SortFieldSchema.nullable(),
+        colorThresholds: NumberColorThresholdsSchema.nullable().optional(),
       }),
     })
     .superRefine((values, ctx) => {
@@ -528,7 +533,11 @@ export function normalizeWidgetFormValues(
     ...values,
     metrics,
     dimensions,
-    chart: { ...values.chart, type: chartType },
+    chart: {
+      ...values.chart,
+      type: chartType,
+      ...(chartType !== "NUMBER" ? { colorThresholds: undefined } : {}),
+    },
   };
 }
 
@@ -641,6 +650,7 @@ export function toDefaultValues(
         bins: initialValues.chartConfig?.bins ?? 10,
         rowLimit: initialValues.chartConfig?.row_limit ?? 100,
         sort,
+        colorThresholds: initialValues.chartConfig?.colorThresholds,
       },
     },
     viewVersion,
@@ -701,7 +711,13 @@ export function toSavePayload(
             row_limit: values.chart.rowLimit,
             defaultSort: params.effectiveSort ?? undefined,
           }
-        : { type: chartType, row_limit: values.chart.rowLimit };
+        : {
+            type: chartType,
+            row_limit: values.chart.rowLimit,
+            ...(chartType === "NUMBER" && values.chart.colorThresholds
+              ? { colorThresholds: values.chart.colorThresholds }
+              : {}),
+          };
 
   return {
     name: effectiveWidgetName(values.name, params.suggestedName),

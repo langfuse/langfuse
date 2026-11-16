@@ -5,6 +5,7 @@ import {
 import {
   DeleteUnstableDashboardWidgetResponse,
   GetUnstableDashboardWidgetsResponse,
+  GetUnstableDashboardWidgetResponse,
   PatchUnstableDashboardWidgetResponse,
   PostUnstableDashboardWidgetResponse,
 } from "@/src/features/public-api/types/unstable-dashboard-widgets";
@@ -51,6 +52,42 @@ const expectUnstableError = (
 };
 
 describe("/api/public/unstable/dashboard-widgets API", () => {
+  it("persists number colour thresholds and rejects an inverted range", async () => {
+    const { auth } = await createOrgProjectAndApiKey();
+    const colorThresholds = {
+      direction: "higher-is-better",
+      warning: 0.75,
+      critical: 0.6,
+    };
+    const created = await makeZodVerifiedAPICall(
+      PostUnstableDashboardWidgetResponse,
+      "POST",
+      "/api/public/unstable/dashboard-widgets",
+      { ...baseWidgetBody, chartConfig: { colorThresholds } },
+      auth,
+    );
+    expect(created.body.chartConfig).toMatchObject({ colorThresholds });
+
+    const fetched = await makeZodVerifiedAPICall(
+      GetUnstableDashboardWidgetResponse,
+      "GET",
+      `/api/public/unstable/dashboard-widgets/${created.body.id}`,
+      undefined,
+      auth,
+    );
+    expect(fetched.body.chartConfig).toMatchObject({ colorThresholds });
+
+    const invalid = await makeAPICall(
+      "PATCH",
+      `/api/public/unstable/dashboard-widgets/${created.body.id}`,
+      {
+        chartConfig: { colorThresholds: { ...colorThresholds, critical: 0.8 } },
+      },
+      auth,
+    );
+    expectUnstableError(invalid, { status: 400, code: "invalid_request" });
+  });
+
   it("creates a dashboard widget and writes an API-key audit log", async () => {
     const { auth, projectId } = await createOrgProjectAndApiKey();
 

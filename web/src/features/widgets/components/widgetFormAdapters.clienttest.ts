@@ -5,6 +5,8 @@ import startCase from "lodash/startCase";
 import { type z } from "zod";
 
 import { type metricAggregations } from "@langfuse/shared/query";
+import { ChartConfigSchema } from "@langfuse/shared";
+import { importWidgetFile } from "../utils/import-export-utils";
 import {
   mapWidgetUiTableFilterToView,
   normalizeStoredWidgetFiltersForEditor,
@@ -690,6 +692,48 @@ describe("save seam: editor-space filters map to view space (double-map)", () =>
       saved.filters,
     );
   });
+});
+
+it("preserves number colour thresholds through edit, save and JSON import, and rejects inverted ranges", async () => {
+  const colorThresholds = {
+    direction: "higher-is-better" as const,
+    warning: 0.75,
+    critical: 0.6,
+  };
+  const initial: WidgetInitialValues = {
+    name: "Acceptance rate",
+    description: "Threshold example",
+    view: "observations",
+    dimension: "none",
+    measure: "latency",
+    aggregation: "avg",
+    chartType: "NUMBER",
+    chartConfig: { type: "NUMBER", colorThresholds },
+    filters: [],
+  };
+  const values = toDefaultValues(initial, "v2");
+  const saved = toSavePayload(values, {
+    suggestedName: "Number",
+    suggestedDescription: "Number",
+    effectiveSort: undefined,
+  });
+  expect.soft(ChartConfigSchema.parse(saved.chartConfig)).toMatchObject({
+    colorThresholds,
+  });
+  const imported = await importWidgetFile({
+    file: { text: async () => JSON.stringify(saved) } as File,
+    optionSets: { observationLevels: [] },
+    isV4: true,
+  });
+  expect.soft(imported.snapshot).toMatchObject({ colorThresholds });
+  expect
+    .soft(
+      ChartConfigSchema.safeParse({
+        type: "NUMBER",
+        colorThresholds: { ...colorThresholds, critical: 0.8 },
+      }).success,
+    )
+    .toBe(false);
 });
 
 // --- sum(toolCalls) reads as "number of tool calls" in suggested name/copy ---

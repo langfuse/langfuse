@@ -24,7 +24,7 @@ export default function EditWidgetPage() {
   const capture = usePostHogClientCapture();
   // The form derives its view/version declaration from the read path at
   // mount — an unresolved session would seed a v4 user's editor as v3.
-  const { isResolved } = useReadPath();
+  const { isV4, isResolved } = useReadPath();
   const { data: widgetData, isLoading: isWidgetLoading } =
     api.dashboardWidgets.get.useQuery(
       {
@@ -45,8 +45,12 @@ export default function EditWidgetPage() {
       // Which measure/aggregation/chart shapes do users actually save?
       capture("dashboard:widget_saved", {
         isNew: false,
+        isV4,
         view: variables.view,
         chartType: variables.chartType,
+        hasColorThresholds:
+          variables.chartConfig.type === "NUMBER" &&
+          Boolean(variables.chartConfig.colorThresholds),
         measures: variables.metrics.map((m) => `${m.agg}:${m.measure}`),
         dimensionCount: variables.dimensions.length,
         filterCount: variables.filters.length,
