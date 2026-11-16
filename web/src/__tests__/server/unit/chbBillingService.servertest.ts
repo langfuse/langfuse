@@ -76,7 +76,6 @@ const ctx = {
   },
   session: {
     orgId: ORG_ID,
-    orgRole: "OWNER",
     user: { id: "user-1", email: "user@example.com" },
   },
 } as unknown as OrgAuthedContext;

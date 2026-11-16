@@ -24,7 +24,7 @@ function withoutProjectContext(actor: AuditLogActor): AuditLogActor {
       session: {
         ...actor.session,
         projectId: undefined,
-        projectRole: undefined,
+        projectRoles: undefined,
       },
     };
   }

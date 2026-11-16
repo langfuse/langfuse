@@ -59,7 +59,7 @@ describe("topic filters in batch jobs", () => {
         session: {
           user: { id: "user-a" },
           orgId: "org-a",
-          orgRole: "OWNER",
+          orgRoles: [],
         },
         query,
       }),

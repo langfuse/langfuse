@@ -251,7 +251,7 @@ async function prepare(role: Role = Role.OWNER) {
     ...session,
     user: session.user!,
     orgId: org.id,
-    orgRole: role,
+    orgRoles: [SystemRoleId(role)],
   } satisfies OrgAuthedContext["session"];
   return {
     org,

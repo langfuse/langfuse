@@ -1,10 +1,11 @@
-import { projectRoleAccessRights, type ProjectScope } from "@langfuse/shared";
-import { type Role } from "@langfuse/shared/src/db";
+import { type ProjectScope } from "@langfuse/shared";
+import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
 import { env } from "@/src/env.mjs";
 import { isInternalViewEnabled } from "@/src/features/feature-flags/utils";
+import { authorize } from "@/src/features/rbac/authorize";
 
 /** Demo LLM operations need Internal view and project permissions. */
 const demoProjectLlmScopes = new Set<ProjectScope>([
@@ -18,7 +19,7 @@ const demoProjectLlmScopes = new Set<ProjectScope>([
   "llmApiKeys:update",
 ]);
 
-/** HasProjectAccessParams is a session and the projectId whose role decides scope. */
+/** HasProjectAccessParams is a session and the projectId whose policies decide scope. */
 type HasProjectAccessParams = {
   session: null | Session;
   projectId: string;
@@ -59,13 +60,21 @@ export const useHasProjectAccess = (p: {
 // For use in UI components as function, if session is already available
 export function hasProjectAccess(p: HasProjectAccessParams): boolean {
   if (isDemoProjectLlmRestricted(p)) return false;
+  return isAuthorizedOnProject(p);
+}
 
-  const projectRole: Role | undefined = p.session?.user?.organizations
-    .flatMap((org) => org.projects)
-    .find((project) => project.id === p.projectId)?.role;
-  if (projectRole === undefined) return false;
-
-  return projectRoleAccessRights[projectRole].includes(p.scope);
+/** isAuthorizedOnProject authorizes scope through the session's policies on a project the session lists. */
+function isAuthorizedOnProject({
+  session,
+  projectId,
+  scope,
+}: HasProjectAccessParams): boolean {
+  const org = session?.user?.organizations.find((candidate) =>
+    candidate.projects.some((project) => project.id === projectId),
+  );
+  if (!session || !org) return false;
+  const tenant = OrganizationId(org.id);
+  return authorize(session, tenant, scope, ProjectId(projectId)).success;
 }
 
 /** isDemoProjectLlmRestricted reports whether scope is an LLM operation on the demo project the user may not run outside the internal view. */

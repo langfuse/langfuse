@@ -19,7 +19,7 @@ import { type CreateNextContextOptions } from "@trpc/server/adapters/next";
 import { type Session } from "next-auth";
 import { tracing } from "@baselime/trpc-opentelemetry-middleware";
 import { getServerAuthSession } from "@/src/server/auth";
-import { prisma, type Role } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import * as z from "zod";
 import * as opentelemetry from "@opentelemetry/api";
 import { type IncomingHttpHeaders } from "node:http";
@@ -111,6 +111,8 @@ import {
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 import { env } from "@/src/env.mjs";
 import { isBaseError, parseIO } from "@langfuse/shared";
+import { OrganizationId, ProjectId, type RoleId } from "@langfuse/shared/rbac";
+import { rolesFor } from "@/src/features/rbac/utils/rolesFor";
 import { recordBackendActivity } from "@/src/features/posthog-analytics/server/backendActivity";
 
 setUpSuperjson();
@@ -409,6 +411,7 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
     { projectId, orgId: sessionProject.organization.id },
     ctx.requestSpan,
   );
+  const tenant = OrganizationId(sessionProject.organization.id);
 
   return next({
     ctx: {
@@ -417,9 +420,9 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
         ...ctx.session,
         user: ctx.session.user,
         orgId: sessionProject.organization.id,
-        orgRole: sessionProject.organization.role,
+        orgRoles: rolesFor(ctx.session, tenant, tenant),
         projectId: projectId,
-        projectRole: sessionProject.role,
+        projectRoles: rolesFor(ctx.session, tenant, ProjectId(projectId)),
       },
     },
   });
@@ -480,13 +483,15 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
     organizationId: orgId,
   });
 
+  const tenant = OrganizationId(orgId);
+
   return next({
     ctx: {
       session: {
         ...ctx.session,
         user: ctx.session.user,
         orgId: orgId,
-        orgRole: sessionOrg.role,
+        orgRoles: rolesFor(ctx.session, tenant, tenant),
       },
     },
   });
@@ -645,10 +650,7 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
 
     return next({
       ctx: {
-        session: {
-          ...ctx.session,
-          projectRole: sessionProject?.role,
-        },
+        session: { ...ctx.session },
         trace, // pass the trace to the next middleware so we do not need to fetch it again
       },
     });
@@ -725,10 +727,7 @@ const enforceSessionAccess = t.middleware(async (opts) => {
 
   return next({
     ctx: {
-      session: {
-        ...ctx.session,
-        projectRole: userSessionProject?.role,
-      },
+      session: { ...ctx.session },
     },
   });
 });
@@ -792,15 +791,15 @@ export type AuthedSession = NonNullable<TRPCContext["session"]> & {
 export type ProjectAuthedContext = Omit<TRPCContext, "session"> & {
   session: AuthedSession & {
     orgId: string;
-    orgRole: Role;
+    orgRoles: RoleId[];
     projectId: string;
-    projectRole: Role;
+    projectRoles: RoleId[];
   };
 };
 // After `enforceIsAuthedAndOrgMember`
 export type OrgAuthedContext = Omit<TRPCContext, "session"> & {
   session: AuthedSession & {
     orgId: string;
-    orgRole: Role;
+    orgRoles: RoleId[];
   };
 };

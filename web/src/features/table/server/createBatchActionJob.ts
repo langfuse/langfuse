@@ -3,7 +3,6 @@ import { generateBatchActionId } from "@/src/features/table/server/helpers";
 import {
   ActionId,
   BatchActionStatus,
-  type Role,
   type BatchExportTableName,
   type BatchActionQuery,
   type BatchActionType,
@@ -39,9 +38,9 @@ type CreateBatchActionJob = {
       v4BetaEnabled?: boolean | null;
     };
     orgId: string;
-    orgRole: Role;
+    orgRoles: string[];
     projectId?: string;
-    projectRole?: Role;
+    projectRoles?: string[];
   };
   query: BatchActionQuery;
   targetId?: string;

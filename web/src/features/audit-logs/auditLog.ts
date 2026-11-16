@@ -5,6 +5,7 @@ import {
   type Prisma,
 } from "@langfuse/shared/src/db";
 import { type AuditLogActor as StagedAuditLogActor } from "@langfuse/shared";
+import { SystemRoleId } from "@langfuse/shared/rbac";
 import {
   deriveAuditLogEventId,
   formatSubmittedPublicKeyForLog,
@@ -93,9 +94,10 @@ export type AuditLogActor =
           organizations?: { id: string; supportAccess?: boolean }[];
         };
         orgId: string;
-        orgRole?: Role;
+        // The role ids the user holds on orgId and projectId; absent for a system actor.
+        orgRoles?: string[];
         projectId?: string;
-        projectRole?: Role;
+        projectRoles?: string[];
       };
     }
   | {
@@ -247,6 +249,10 @@ export async function auditLog(
   }
 
   if ("session" in log) {
+    const orgRole =
+      [...(log.session.orgRoles ?? [])].sort().join(",") || undefined;
+    const projectRole =
+      [...(log.session.projectRoles ?? [])].sort().join(",") || undefined;
     // Actor telemetry is ungated — see top-of-function comment.
     logAuditEvent(log, {
       type: AuditLogRecordType.USER,
@@ -261,9 +267,9 @@ export async function auditLog(
       data: {
         userId: log.session.user.id,
         orgId: log.session.orgId,
-        userOrgRole: log.session.orgRole,
+        userOrgRole: orgRole,
         projectId: log.session.projectId,
-        userProjectRole: log.session.projectRole,
+        userProjectRole: projectRole,
         type: AuditLogRecordType.USER,
         ...makeShared(),
       },
@@ -276,8 +282,8 @@ export async function auditLog(
         record,
         { orgId: log.session.orgId, projectId: log.session.projectId },
         toUserActor(log.session.user, {
-          orgRole: log.session.orgRole,
-          projectRole: log.session.projectRole,
+          orgRole,
+          projectRole,
           supportAccess: log.session.user.organizations?.some(
             (org) => org.id === log.session.orgId && org.supportAccess === true,
           ),
@@ -290,6 +296,8 @@ export async function auditLog(
   }
 
   if ("userId" in log) {
+    const orgRole = log.orgRole && SystemRoleId(log.orgRole);
+    const projectRole = log.projectRole && SystemRoleId(log.projectRole);
     // Actor telemetry is ungated — see top-of-function comment.
     logAuditEvent(log, {
       type: AuditLogRecordType.USER,
@@ -304,9 +312,9 @@ export async function auditLog(
       data: {
         userId: log.userId,
         orgId: log.orgId,
-        userOrgRole: log.orgRole,
+        userOrgRole: orgRole,
         projectId: log.projectId,
-        userProjectRole: log.projectRole,
+        userProjectRole: projectRole,
         type: AuditLogRecordType.USER,
         ...makeShared(),
       },
@@ -318,7 +326,7 @@ export async function auditLog(
         log,
         record,
         { orgId: log.orgId, projectId: log.projectId },
-        toUserActor({ id: log.userId }, log),
+        toUserActor({ id: log.userId }, { orgRole, projectRole }),
         db,
       );
     }
@@ -330,7 +338,7 @@ export async function auditLog(
 /** `supportAccess` is set when the user reaches the org through a ConductorOne support access grant. */
 export function toUserActor(
   user: { id: string; name?: string | null; email?: string | null },
-  access: { orgRole?: Role; projectRole?: Role; supportAccess?: boolean },
+  access: { orgRole?: string; projectRole?: string; supportAccess?: boolean },
 ): StagedAuditLogActor {
   const systemActor = getSystemAuditLogActorForUserId(user.id);
   if (systemActor) return systemActor;

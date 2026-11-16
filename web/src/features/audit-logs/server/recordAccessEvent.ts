@@ -12,6 +12,7 @@ import {
   type ApiAccessScope,
   getOrganizationPlanServerSide,
 } from "@langfuse/shared/src/server";
+import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";
 
 import { stageAccessEvent } from "@/src/ee/features/access-audit-log/server/stageAccessEvent";
 import {
@@ -22,6 +23,7 @@ import {
 import { getAuditRequestContext } from "@/src/features/audit-logs/server/getAuditRequestContext";
 import { toApiKeyActor, toUserActor } from "@/src/features/audit-logs/auditLog";
 import { type ServerContext } from "@/src/features/mcp/types";
+import { rolesFor } from "@/src/features/rbac/utils/rolesFor";
 
 /** What a route returned: the resource it read, typed refs to every resource in the response, and the validated request input. */
 export type AccessRead = {
@@ -61,7 +63,7 @@ async function loadAccessAuditOrg(
  * only for orgs that pass the gate.
  */
 async function recordUserAccess(
-  user: Session["user"] | undefined,
+  session: UserSession | null | undefined,
   projectId: string,
   read: AccessRead,
   via: {
@@ -70,12 +72,12 @@ async function recordUserAccess(
     remoteAddress?: string;
   },
 ): Promise<void> {
-  if (!user) return;
+  const user = session?.user;
+  if (!session || !user) return;
 
   const org = user.organizations.find((o) =>
     o.projects.some((p) => p.id === projectId),
   );
-  const project = org?.projects.find((p) => p.id === projectId);
   const supportAccess = org?.supportAccess === true;
   if (!canRecordAccessEvents({ supportAccess })) return;
   // Admins and viewers of public resources read projects outside their session.
@@ -90,13 +92,16 @@ async function recordUserAccess(
     return;
   }
 
+  const tenant = OrganizationId(auditOrg.orgId);
   await stageAccessEvent({
     ...read,
     orgId: auditOrg.orgId,
     projectId,
     actor: toUserActor(user, {
-      orgRole: org?.role,
-      projectRole: project?.role,
+      orgRole: rolesFor(session, tenant, tenant).sort().join(",") || undefined,
+      projectRole:
+        rolesFor(session, tenant, ProjectId(projectId)).sort().join(",") ||
+        undefined,
       supportAccess,
     }),
     surface: via.surface,
@@ -166,13 +171,13 @@ async function recordApiKeyAccess(
  */
 export async function recordTrpcAccess(
   ctx: {
-    session: { user?: Session["user"] } | null;
+    session: UserSession | null;
     headers: IncomingHttpHeaders;
   },
   projectId: string,
   read: AccessRead,
 ): Promise<void> {
-  await recordUserAccess(ctx.session?.user, projectId, read, {
+  await recordUserAccess(ctx.session, projectId, read, {
     surface: "trpc",
     headers: ctx.headers,
   });
@@ -187,7 +192,7 @@ export async function recordInternalApiAccess(
   projectId: string,
   read: AccessRead,
 ): Promise<void> {
-  await recordUserAccess(session?.user, projectId, read, {
+  await recordUserAccess(session, projectId, read, {
     surface: "internal-api",
     headers: req.headers,
     remoteAddress: req.socket.remoteAddress,
@@ -227,3 +232,6 @@ export async function recordMcpAccess(
     read,
   );
 }
+
+/** UserSession is the part of a session that records a user's read. */
+type UserSession = Pick<Session, "user" | "policies">;
