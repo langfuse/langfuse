@@ -9,7 +9,8 @@ export function TopicsNavBadge({
   description: string;
 }) {
   return (
-    <span className="ml-auto flex shrink-0">
+    // The description can name a project-defined facet.
+    <span className="ph-no-capture ml-auto flex shrink-0">
       <span className="sr-only">{description}</span>
       <Badge
         aria-hidden
