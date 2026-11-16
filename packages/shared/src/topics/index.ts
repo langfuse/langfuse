@@ -267,7 +267,7 @@ export const topicExecutionInputSchema = z
   })
   .strict();
 export type TopicExecutionInput = z.infer<typeof topicExecutionInputSchema>;
-/** Settings of a stored manual run; nothing creates these anymore, History still shows them. */
+/** Settings of a stored manual run, read for History only. */
 export type TopicManualRunInput = {
   operation: "process";
   projectId: string;

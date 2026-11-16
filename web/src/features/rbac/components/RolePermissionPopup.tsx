@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { type SystemRole } from "@langfuse/shared/src/db";
-import { systemRoleAccessRights } from "@langfuse/shared/rbac";
 
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import {
@@ -15,25 +14,28 @@ import {
   rolePermissionCount,
   rolePermissionNoun,
 } from "@/src/features/rbac/components/RolePermissionList";
-import { roleIcons } from "@/src/features/rbac/components/roleIcons";
+import {
+  roleDisplay,
+  type RoleDisplay,
+} from "@/src/features/rbac/components/roleDisplay";
 
 /** RolePermissionPopup must remain outside the Select content. */
 export function RolePermissionPopup({
   open,
   onOpenChange,
   role,
-  transformName = (name) => name,
+  display = roleDisplay,
   emptyStateComment,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   role: SystemRole | null;
-  /** transformName rewrites the role name before it is shown. */
-  transformName?: (name: string) => string;
+  /** display overrides how the role is presented. */
+  display?: (role: SystemRole) => RoleDisplay;
   emptyStateComment?: string;
 }) {
-  const def = role ? systemRoleAccessRights[role] : undefined;
-  const Icon = role ? roleIcons[role] : undefined;
+  const shown = role ? display(role) : undefined;
+  const Icon = shown?.Icon;
   const showEmptyStateComment =
     role !== null &&
     emptyStateComment !== undefined &&
@@ -43,14 +45,14 @@ export function RolePermissionPopup({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         closeOnInteractionOutside
-        className="min-h-[25.5rem] min-w-[32rem]"
+        className="min-h-[25.5rem] sm:min-w-[32rem]"
       >
-        {role && def && Icon && (
+        {role && shown && Icon && (
           <>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Icon size="base" />
-                <span>{transformName(def.name)}</span>
+                <span>{shown?.name}</span>
                 <span className="ml-1 shrink-0 tabular-nums">
                   <BadgeShell color="filled" size="sm">
                     <span className="font-bold">

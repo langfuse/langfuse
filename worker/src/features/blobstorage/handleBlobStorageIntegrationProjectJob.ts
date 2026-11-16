@@ -410,6 +410,7 @@ const createBlobStorageService = (
     googleCloudCredentials: gcsServiceAccountKey,
     useOCIObjectStorage: false, // Not supported in blob storage integration
     connectionValidation: blobStorageEndpointConnectionValidationOptions(),
+    sendContentMd5: true,
   });
 };
 

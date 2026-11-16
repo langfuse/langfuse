@@ -170,7 +170,7 @@ export async function loadTopicTranscript(params: {
     );
   if (new Set(observations.map(({ id }) => id)).size !== observations.length)
     throw new Error("Trace snapshot contains duplicate observation IDs");
-  // Storage order determines metadata freshness; transcript ties use stable IDs.
+  // Order by start time; ties use stable IDs.
   observations.sort((a, b) => {
     const timeDifference = a.startTime.getTime() - b.startTime.getTime();
     if (timeDifference) return timeDifference;
