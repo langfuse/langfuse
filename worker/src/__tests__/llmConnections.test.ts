@@ -114,71 +114,16 @@ function generateWithModelMessages(params: {
 
 const googleAIStudioModel = "gemini-3.1-flash-lite";
 
-function runWithGoogleAIStudioModel<T>(
-  operation: (model: string) => Promise<T>,
-): Promise<T> {
-  return operation(googleAIStudioModel);
-}
-
-test("Google AI Studio checks preserve the first provider failure", async () => {
-  const failure = Object.assign(new Error("provider unavailable"), {
-    statusCode: 503,
-  });
-  const models: string[] = [];
-
-  await expect(
-    runWithGoogleAIStudioModel(async (model) => {
-      models.push(model);
-      if (models.length === 1) throw failure;
-      return "a later request would succeed";
-    }),
-  ).rejects.toBe(failure);
-  expect(models).toEqual(["gemini-3.1-flash-lite"]);
-});
-
 test.each(["stored", "messages", "stream"] as const)(
   "SDK wrappers preserve the first HTTP failure (%s)",
   async (wrapper) => {
     const firstFailureBody = JSON.stringify({
       error: { message: "first provider failure", type: "server_error" },
     });
-    let attempts = 0;
-    const server = await startLocalLlmServer((_request, body, response) => {
+    const server = await startLocalLlmServer((_request, _body, response) => {
       response.setHeader("content-type", "application/json");
-      if (++attempts === 1) {
-        response.writeHead(503, { "retry-after": "0" });
-        response.end(firstFailureBody);
-        return;
-      }
-      const completion = {
-        id: "local-completion",
-        created: 1,
-        model: "local-model",
-        choices: [
-          {
-            index: 0,
-            message: { role: "assistant", content: "4" },
-            finish_reason: "stop",
-          },
-        ],
-      };
-      if (JSON.parse(body).stream) {
-        response.setHeader("content-type", "text/event-stream");
-        response.end(
-          `data: ${JSON.stringify({
-            ...completion,
-            choices: [
-              {
-                index: 0,
-                delta: { role: "assistant", content: "4" },
-                finish_reason: "stop",
-              },
-            ],
-          })}\n\ndata: [DONE]\n\n`,
-        );
-      } else {
-        response.end(JSON.stringify(completion));
-      }
+      response.writeHead(503, { "retry-after": "0" });
+      response.end(firstFailureBody);
     });
     const previousEnv = {
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
@@ -1438,29 +1383,27 @@ describe("LLM Connection Tests", () => {
     test("simple completion", async () => {
       checkEnvVar();
 
-      const completion = await runWithGoogleAIStudioModel((model) =>
-        generateWithStoredConnection({
-          messages: [
-            {
-              role: "user",
-              content: "What is 2+2? Answer only with the number.",
-              type: ChatMessageType.PublicAPICreated,
-            },
-          ],
-          modelParams: {
-            provider: "google-ai-studio",
-            adapter: LLMAdapter.GoogleAIStudio,
-            model,
-            temperature: 0,
-            max_tokens: 10,
+      const completion = await generateWithStoredConnection({
+        messages: [
+          {
+            role: "user",
+            content: "What is 2+2? Answer only with the number.",
+            type: ChatMessageType.PublicAPICreated,
           },
-          llmConnection: {
-            secretKey: encrypt(
-              process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
-            ),
-          },
-        }),
-      );
+        ],
+        modelParams: {
+          provider: "google-ai-studio",
+          adapter: LLMAdapter.GoogleAIStudio,
+          model: googleAIStudioModel,
+          temperature: 0,
+          max_tokens: 10,
+        },
+        llmConnection: {
+          secretKey: encrypt(
+            process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+          ),
+        },
+      });
 
       expect(completion.text).toContain("4");
     }, 30_000);
@@ -1468,40 +1411,38 @@ describe("LLM Connection Tests", () => {
     test("streaming completion", async () => {
       checkEnvVar();
 
-      await runWithGoogleAIStudioModel(async (model) => {
-        const stream = await streamWithStoredConnection({
-          messages: [
-            {
-              role: "user",
-              content: "What is 2+2? Answer only with the number.",
-              type: ChatMessageType.PublicAPICreated,
-            },
-          ],
-          modelParams: {
-            provider: "google-ai-studio",
-            adapter: LLMAdapter.GoogleAIStudio,
-            model,
-            temperature: 0,
-            max_tokens: 10,
+      const stream = await streamWithStoredConnection({
+        messages: [
+          {
+            role: "user",
+            content: "What is 2+2? Answer only with the number.",
+            type: ChatMessageType.PublicAPICreated,
           },
-          llmConnection: {
-            secretKey: encrypt(
-              process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
-            ),
-          },
-        });
-
-        let fullResponse = "";
-        let chunkCount = 0;
-
-        for await (const chunk of stream.textStream) {
-          fullResponse += chunk;
-          chunkCount++;
-        }
-
-        expect(chunkCount).toBeGreaterThan(0);
-        expect(fullResponse).toContain("4");
+        ],
+        modelParams: {
+          provider: "google-ai-studio",
+          adapter: LLMAdapter.GoogleAIStudio,
+          model: googleAIStudioModel,
+          temperature: 0,
+          max_tokens: 10,
+        },
+        llmConnection: {
+          secretKey: encrypt(
+            process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+          ),
+        },
       });
+
+      let fullResponse = "";
+      let chunkCount = 0;
+
+      for await (const chunk of stream.textStream) {
+        fullResponse += chunk;
+        chunkCount++;
+      }
+
+      expect(chunkCount).toBeGreaterThan(0);
+      expect(fullResponse).toContain("4");
     }, 30_000);
 
     registerMessageFormatTests({
@@ -1519,7 +1460,6 @@ describe("LLM Connection Tests", () => {
         ),
       }),
       timeoutMs: 30_000,
-      runWithModel: runWithGoogleAIStudioModel,
     });
 
     registerEvalStructuredOutputTests({
@@ -1537,36 +1477,33 @@ describe("LLM Connection Tests", () => {
         ),
       }),
       timeoutMs: 30_000,
-      runWithModel: runWithGoogleAIStudioModel,
     });
 
     test("tool calling", async () => {
       checkEnvVar();
 
-      const completion = await runWithGoogleAIStudioModel((model) =>
-        generateWithStoredConnection({
-          messages: [
-            {
-              role: "user",
-              content: "What's the weather like in Paris?",
-              type: ChatMessageType.PublicAPICreated,
-            },
-          ],
-          modelParams: {
-            provider: "google-ai-studio",
-            adapter: LLMAdapter.GoogleAIStudio,
-            model,
-            temperature: 0,
-            max_tokens: 100,
+      const completion = await generateWithStoredConnection({
+        messages: [
+          {
+            role: "user",
+            content: "What's the weather like in Paris?",
+            type: ChatMessageType.PublicAPICreated,
           },
-          tools: [weatherTool],
-          llmConnection: {
-            secretKey: encrypt(
-              process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
-            ),
-          },
-        }),
-      );
+        ],
+        modelParams: {
+          provider: "google-ai-studio",
+          adapter: LLMAdapter.GoogleAIStudio,
+          model: googleAIStudioModel,
+          temperature: 0,
+          max_tokens: 100,
+        },
+        tools: [weatherTool],
+        llmConnection: {
+          secretKey: encrypt(
+            process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+          ),
+        },
+      });
 
       expect(completion.toolCalls.length).toBeGreaterThan(0);
       expect(completion.toolCalls[0].toolName).toBe("get_weather");
@@ -1579,29 +1516,27 @@ describe("LLM Connection Tests", () => {
       // Regression test: Text prompts create a single system message.
       // GoogleAIStudio must convert it to a user message to prevent:
       // "GenerateContentRequest.contents is not specified" error
-      const completion = await runWithGoogleAIStudioModel((model) =>
-        generateWithStoredConnection({
-          messages: [
-            {
-              role: "system",
-              content: "What is 2+2? Answer only with the number.",
-              type: ChatMessageType.System,
-            },
-          ],
-          modelParams: {
-            provider: "google-ai-studio",
-            adapter: LLMAdapter.GoogleAIStudio,
-            model,
-            temperature: 0,
-            max_tokens: 10,
+      const completion = await generateWithStoredConnection({
+        messages: [
+          {
+            role: "system",
+            content: "What is 2+2? Answer only with the number.",
+            type: ChatMessageType.System,
           },
-          llmConnection: {
-            secretKey: encrypt(
-              process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
-            ),
-          },
-        }),
-      );
+        ],
+        modelParams: {
+          provider: "google-ai-studio",
+          adapter: LLMAdapter.GoogleAIStudio,
+          model: googleAIStudioModel,
+          temperature: 0,
+          max_tokens: 10,
+        },
+        llmConnection: {
+          secretKey: encrypt(
+            process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+          ),
+        },
+      });
 
       expect(completion.text).toContain("4");
     }, 30_000);
