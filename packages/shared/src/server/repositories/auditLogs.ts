@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { createHash } from "node:crypto";
 import { v7 as uuidv7 } from "uuid";
+import { z } from "zod";
 import {
   prisma,
   type AuditLog,
@@ -10,9 +11,12 @@ import {
 import {
   AuditLogEventSchema,
   AuditLogStagingPayloadSchema,
+  AUDIT_LOG_RESOURCE_REFS_MAX,
+  toAuditLogResourceRef,
   type AuditLogActor,
   type AuditLogEvent,
   type AuditLogStagingPayload,
+  type AuditLogResourceRef,
 } from "../../domain/auditLogs";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import type { AuditLogRecordInsertType } from "./definitions";
@@ -26,6 +30,41 @@ const SYSTEM_ACTOR_USER_IDS = new Set([
   "conductorone-webhook",
 ]);
 const ADMIN_API_KEY_IDS = new Set(["ADMIN_KEY", "ADMIN_API_KEY"]);
+
+const BulkTraceDeletionSnapshotSchema = z.object({
+  traceIds: z.array(z.string()).max(AUDIT_LOG_RESOURCE_REFS_MAX),
+});
+
+/** Derives queryable refs from the durable snapshot for live writes and replay. */
+export function getAuditLogResourceRefs(
+  log: Pick<AuditLog, "resourceType" | "action"> & { before?: unknown },
+): AuditLogResourceRef[] {
+  if (log.resourceType !== "project" || log.action !== "deleteTraces") {
+    return [];
+  }
+
+  let snapshot = log.before;
+  if (typeof snapshot === "string") {
+    try {
+      snapshot = JSON.parse(snapshot);
+    } catch {
+      return [];
+    }
+  }
+  const parsed = BulkTraceDeletionSnapshotSchema.safeParse(snapshot);
+  if (!parsed.success) return [];
+
+  return Array.from(
+    new Set(
+      parsed.data.traceIds
+        .filter((id) => id.length > 0)
+        .map((id) =>
+          id.replaceAll("\u0000", String.fromCharCode(0xfffd)).toWellFormed(),
+        ),
+    ),
+    (id) => toAuditLogResourceRef("trace", id),
+  );
+}
 
 export type StageAuditLogEventInput = AuditLogEvent & {
   // A UUID. Defaults to a new UUIDv7. Pass one to give another record the
@@ -149,7 +188,7 @@ export function convertPostgresAuditLogToClickhouse(
     actor: toPostgresAuditLogActor(row),
     resourceType: row.resourceType,
     resourceId: row.resourceId,
-    resourceRefs: [],
+    resourceRefs: getAuditLogResourceRefs(row),
     action: row.action,
     outcome: "success",
     // Serialized JSON in both stores.

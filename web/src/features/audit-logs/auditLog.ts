@@ -10,6 +10,7 @@ import {
   formatSubmittedPublicKeyForLog,
   getSystemAuditLogActorForApiKeyId,
   getSystemAuditLogActorForUserId,
+  getAuditLogResourceRefs,
   logger,
   recordIncrement,
   stageAuditLogEvents,
@@ -384,6 +385,7 @@ async function stageChangeEvent(
       actor,
       resourceType: log.resourceType,
       resourceId: log.resourceId,
+      resourceRefs: getAuditLogResourceRefs(log),
       action: log.action,
       // Staging serializes these itself. Falsy values are dropped, as in the
       // Postgres row.

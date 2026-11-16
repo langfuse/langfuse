@@ -730,6 +730,7 @@ export { stageAuditLogEvents } from "./repositories/auditLogs";
 export { deriveAuditLogEventId } from "./repositories/auditLogs";
 export { convertAuditLogStagingRowToClickhouse } from "./repositories/auditLogs";
 export { convertPostgresAuditLogToClickhouse } from "./repositories/auditLogs";
+export { getAuditLogResourceRefs } from "./repositories/auditLogs";
 export { getSystemAuditLogActorForUserId } from "./repositories/auditLogs";
 export { getSystemAuditLogActorForApiKeyId } from "./repositories/auditLogs";
 export { type BillableEventType } from "./repositories/billable-events";
