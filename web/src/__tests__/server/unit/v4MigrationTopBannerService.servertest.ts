@@ -227,5 +227,16 @@ describe("getV4MigrationTopBannerState", () => {
         extendedOrgIds: ["org-c"],
       }),
     ).resolves.toMatchObject({ variant: "brownout" });
+
+    await expect(
+      getV4MigrationTopBannerState({
+        ...banner,
+        brownoutProjectIds: [],
+        extendedOrgIds: ["org-c"],
+      }),
+    ).resolves.toMatchObject({
+      variant: "deadline",
+      message: "Action required.",
+    });
   });
 });

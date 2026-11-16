@@ -59,11 +59,13 @@ export function useV4MigrationTopBanner(): V4MigrationTopBannerViewProps | null 
       : null;
   const variant: V4MigrationBannerVariant = state?.variant ?? "deadline";
   // Exposure denominator for the CTA funnel; PostHog is the external system.
-  // Fires once per severity the viewer sees, not on every refetch.
-  const shownSeverityRef = useRef<V4MigrationTopBannerSeverity | null>(null);
+  // Fires once per severity and variant the viewer sees, not on every refetch.
+  const shownBannerRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!bannerSeverity || shownSeverityRef.current === bannerSeverity) return;
-    shownSeverityRef.current = bannerSeverity;
+    if (!bannerSeverity) return;
+    const shownBanner = `${bannerSeverity}:${variant}`;
+    if (shownBannerRef.current === shownBanner) return;
+    shownBannerRef.current = shownBanner;
     capture("v4_migration:top_banner_shown", {
       severity: bannerSeverity,
       actionNeededCount,

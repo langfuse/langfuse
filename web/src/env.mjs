@@ -761,8 +761,11 @@ export const env = createEnv({
       ),
     // Comma-separated organization ids whose deadline is November 23, 2026.
     // An actionable project in one of these orgs keeps the deadline banner,
-    // even when that project is also on the brownout list. A session that
-    // also has a brownout project in another org sees the brownout banner.
+    // even when that project is also on the brownout list. The November 23
+    // sentence is shown only when every actionable project is in an extended
+    // org. A session that also has a November 16 project keeps that earlier
+    // sentence, and a session that also has a brownout project sees the
+    // brownout banner.
     LANGFUSE_V4_BANNER_EXTENDED_ORG_IDS: z
       .string()
       .optional()

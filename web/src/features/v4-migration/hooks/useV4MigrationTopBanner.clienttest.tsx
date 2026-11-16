@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
       | string
       | null,
   actionNeededCount: 1,
+  variant: "deadline" as "deadline" | "extended" | "brownout",
   organization: { id: "org-1", name: "Org 1" } as {
     id: string;
     name: string;
@@ -56,6 +57,7 @@ vi.mock("@/src/utils/api", () => ({
               message: mocks.message,
               exempt: false,
               actionNeededCount: mocks.actionNeededCount,
+              variant: mocks.variant,
             },
           };
         },
@@ -73,6 +75,7 @@ beforeEach(() => {
   mocks.severity = "warning";
   mocks.message = WARNING_MESSAGE;
   mocks.actionNeededCount = 1;
+  mocks.variant = "deadline";
   mocks.organization = { id: "org-1", name: "Org 1" };
   mocks.project = null;
   mocks.forceV3Settled = true;
@@ -106,6 +109,23 @@ describe("useV4MigrationTopBanner", () => {
         variant: "deadline",
         cta: "primary",
       },
+    );
+  });
+
+  it("records another view when the variant changes at the same severity", () => {
+    mocks.variant = "brownout";
+    const { rerender } = renderHook(() => useV4MigrationTopBanner());
+    expect(mocks.capture).toHaveBeenCalledWith(
+      "v4_migration:top_banner_shown",
+      { severity: "warning", actionNeededCount: 1, variant: "brownout" },
+    );
+
+    mocks.variant = "deadline";
+    rerender();
+    expect(mocks.capture).toHaveBeenCalledTimes(2);
+    expect(mocks.capture).toHaveBeenLastCalledWith(
+      "v4_migration:top_banner_shown",
+      { severity: "warning", actionNeededCount: 1, variant: "deadline" },
     );
   });
 

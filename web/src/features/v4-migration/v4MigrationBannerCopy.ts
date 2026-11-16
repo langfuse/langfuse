@@ -37,10 +37,11 @@ const deadlinePresentation = (
 
 /**
  * Brownout copy applies when an actionable project is on the freeze list and
- * its organization is outside the one-week extension. An extended organization
- * keeps the deadline banner through November 23. A session that has both sees
- * the brownout, because a feature may already be down. Otherwise the
- * configured deadline sentence stays.
+ * its organization is outside the one-week extension. The November 23 sentence
+ * applies only when every actionable project belongs to an extended
+ * organization, so a project still on the November 16 deadline stays visible.
+ * A session that also has a brownout project sees the brownout, because a
+ * feature may already be down.
  */
 export function resolveV4MigrationBannerCopy(params: {
   actionNeededProjects: readonly { projectId: string; orgId: string }[];
@@ -65,10 +66,12 @@ export function resolveV4MigrationBannerCopy(params: {
     };
   }
 
-  const hasExtendedDeadline = params.actionNeededProjects.some((project) =>
-    extendedOrgIds.has(project.orgId),
-  );
-  if (hasExtendedDeadline) {
+  const everyActionableProjectIsExtended =
+    params.actionNeededProjects.length > 0 &&
+    params.actionNeededProjects.every((project) =>
+      extendedOrgIds.has(project.orgId),
+    );
+  if (everyActionableProjectIsExtended) {
     return {
       variant: "extended",
       message: V4_MIGRATION_EXTENDED_DEADLINE_MESSAGE,
