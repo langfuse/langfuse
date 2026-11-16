@@ -344,6 +344,7 @@ export const handleMixpanelIntegrationProjectJob = async (
     assertExportSourceWritable(
       mixpanelIntegration.exportSource,
       "Select the enriched observations export source in the Mixpanel integration settings.",
+      projectId,
     );
 
     // Reuse a single client and run streams sequentially so the per-job export

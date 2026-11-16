@@ -692,6 +692,97 @@ describe("early media extraction rollout", () => {
   );
 });
 
+describe("v4 cutoff legacy writes", () => {
+  it.each([
+    {
+      label: "skips the legacy tables for a project the cutoff applies to",
+      exempt: [],
+      legacyWrites: 0,
+    },
+    {
+      label: "keeps the legacy tables for an exempt project",
+      exempt: ["project"],
+      legacyWrites: 1,
+    },
+  ])("$label", async ({ exempt, legacyWrites }) => {
+    const original = {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+      LANGFUSE_MIGRATION_V4_WRITE_MODE: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+      LANGFUSE_V4_CUTOFF_OTEL_EVENTS_ONLY:
+        env.LANGFUSE_V4_CUTOFF_OTEL_EVENTS_ONLY,
+      LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS:
+        env.LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS,
+      LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED:
+        env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED,
+    };
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "EU";
+    env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+    env.LANGFUSE_V4_CUTOFF_OTEL_EVENTS_ONLY = "true";
+    env.LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS = exempt;
+    env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED = "false";
+
+    try {
+      vi.mocked(getS3EventStorageClient).mockReturnValue({
+        download: vi.fn().mockResolvedValue("[]"),
+      } as unknown as ReturnType<typeof getS3EventStorageClient>);
+      vi.spyOn(ClickhouseWriter, "getInstance").mockReturnValue(
+        {} as ClickhouseWriter,
+      );
+      vi.spyOn(
+        OtelIngestionProcessor.prototype,
+        "processToIngestionEvents",
+      ).mockResolvedValue([
+        {
+          id: "event-1",
+          type: "span-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: "span-1",
+            traceId: "trace-1",
+            startTime: new Date().toISOString(),
+          },
+        },
+      ]);
+      vi.spyOn(
+        OtelIngestionProcessor.prototype,
+        "processToEvent",
+      ).mockReturnValue([]);
+      const mergeAndWrite = vi
+        .spyOn(IngestionService.prototype, "mergeAndWrite")
+        .mockResolvedValue(undefined);
+
+      await otelIngestionQueueProcessorBuilder(false)(
+        {
+          data: {
+            id: "v4-cutoff",
+            timestamp: new Date(),
+            name: QueueJobs.OtelIngestionJob,
+            payload: {
+              data: { fileKey: "v4-cutoff.json" },
+              authCheck: {
+                validKey: true,
+                scope: {
+                  projectId: "project",
+                  orgId: "org",
+                  accessLevel: "project",
+                },
+              },
+              ingestionVersion: "4",
+            },
+          },
+        } as Job<TQueueJobTypes[QueueName.OtelIngestionQueue]>,
+        undefined,
+      );
+
+      expect(mergeAndWrite).toHaveBeenCalledTimes(legacyWrites);
+    } finally {
+      Object.assign(env, original);
+      vi.restoreAllMocks();
+      vi.clearAllMocks();
+    }
+  });
+});
+
 describe("isOrgPastOtelDirectWriteCutoff", () => {
   const cutoff = "2026-08-06";
   const inScope = {
@@ -838,6 +929,7 @@ describe("resolveOtelWritePath", () => {
     headerBasedDirectWrite: false,
     envForcesDirect: false,
     scopeBasedDirectWrite: false,
+    v4CutoffForcesDirect: false,
     orgCutoffForcesDirect: false,
     langfuseSdkTraffic: false,
   };
@@ -853,6 +945,7 @@ describe("resolveOtelWritePath", () => {
     { signal: "headerBasedDirectWrite", writePath: "direct_header" },
     { signal: "envForcesDirect", writePath: "direct_env" },
     { signal: "scopeBasedDirectWrite", writePath: "direct_scope" },
+    { signal: "v4CutoffForcesDirect", writePath: "direct_v4_cutoff" },
     { signal: "orgCutoffForcesDirect", writePath: "direct_org_cutoff" },
   ] as const)("$signal alone routes to $writePath", ({ signal, writePath }) => {
     expect(resolveOtelWritePath({ ...none, [signal]: true })).toEqual({
@@ -891,6 +984,18 @@ describe("resolveOtelWritePath", () => {
         langfuseSdkTraffic: true,
       }),
     ).toEqual({ useDirectEventWrite: false, writePath: "dual" });
+  });
+
+  // The v3 shutdown switch moves every non-exempt project, old SDKs included.
+  it("routes Langfuse SDK traffic directly under the v4 cutoff", () => {
+    expect(
+      resolveOtelWritePath({
+        ...none,
+        v4CutoffForcesDirect: true,
+        orgCutoffForcesDirect: true,
+        langfuseSdkTraffic: true,
+      }),
+    ).toEqual({ useDirectEventWrite: true, writePath: "direct_v4_cutoff" });
   });
 
   it("applies the org cutoff to plain OTel traffic", () => {

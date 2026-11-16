@@ -1283,6 +1283,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
     assertExportSourceWritable(
       blobStorageIntegration.exportSource,
       "Select the enriched export source (OBSERVATIONS_V2) in the blob storage integration settings.",
+      projectId,
     );
 
     // Preflight the persisted integration endpoint once per job inside the

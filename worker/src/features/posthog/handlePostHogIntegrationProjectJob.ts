@@ -359,6 +359,7 @@ export const handlePostHogIntegrationProjectJob = async (
     assertExportSourceWritable(
       postHogIntegration.exportSource,
       "Select the enriched observations export source in the PostHog integration settings.",
+      projectId,
     );
 
     // Reuse one client and process streams sequentially so their aggregate

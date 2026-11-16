@@ -37,6 +37,7 @@ import {
   v4WritesToLegacyTables,
 } from "../env";
 import { IngestionService } from "../services/IngestionService";
+import { isV4CutoffActive } from "@langfuse/shared/src/server/v4Cutoff";
 import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { logRetryableJobFailure } from "./jobFailureLog";
@@ -119,6 +120,7 @@ export type OtelWritePath =
   | "direct_header"
   | "direct_env"
   | "direct_scope"
+  | "direct_v4_cutoff"
   | "direct_org_cutoff";
 
 /**
@@ -288,10 +290,13 @@ async function isProjectOrgPastOtelDirectWriteCutoff(
 /**
  * Resolve which persistence path a batch takes, and which signal decided it.
  *
- * Precedence is header > env > scope > org cutoff. The org cutoff sits last so
- * the `direct_org_cutoff` label counts only the traffic that rule genuinely
- * moves off the dual path, rather than absorbing batches that a header or a
- * recognized SDK scope would have routed directly anyway.
+ * Precedence is header > env > scope > v4 cutoff > org cutoff. Both cutoffs
+ * sit last so their labels count only the traffic they genuinely move off the
+ * dual path, rather than absorbing batches that a header or a recognized SDK
+ * scope would have routed directly anyway.
+ *
+ * The v4 cutoff is the Cloud v3 shutdown switch: it moves every non-exempt
+ * project, Langfuse SDK traffic included.
  *
  * The org cutoff additionally excludes Langfuse SDK traffic. An older SDK has
  * an established dual-write shape — its trace-level attributes surface on the
@@ -303,6 +308,7 @@ export function resolveOtelWritePath(params: {
   headerBasedDirectWrite: boolean;
   envForcesDirect: boolean;
   scopeBasedDirectWrite: boolean;
+  v4CutoffForcesDirect: boolean;
   orgCutoffForcesDirect: boolean;
   langfuseSdkTraffic: boolean;
 }): { useDirectEventWrite: boolean; writePath: OtelWritePath } {
@@ -310,6 +316,7 @@ export function resolveOtelWritePath(params: {
     headerBasedDirectWrite,
     envForcesDirect,
     scopeBasedDirectWrite,
+    v4CutoffForcesDirect,
     orgCutoffForcesDirect,
     langfuseSdkTraffic,
   } = params;
@@ -322,6 +329,9 @@ export function resolveOtelWritePath(params: {
   }
   if (scopeBasedDirectWrite) {
     return { useDirectEventWrite: true, writePath: "direct_scope" };
+  }
+  if (v4CutoffForcesDirect) {
+    return { useDirectEventWrite: true, writePath: "direct_v4_cutoff" };
   }
   if (orgCutoffForcesDirect && !langfuseSdkTraffic) {
     return { useDirectEventWrite: true, writePath: "direct_org_cutoff" };
@@ -608,7 +618,18 @@ export const otelIngestionQueueProcessorBuilder = (
       });
       const events: IngestionEventType[] =
         await processor.processToIngestionEvents(parsedSpans);
-      const writesToLegacyTables = v4WritesToLegacyTables(env);
+      // Cloud v3 cutoff, per project: events_only behaviour for this batch.
+      // Never on a legacy write mode, where events_full is not written.
+      const v4CutoffForcesDirect =
+        v4WritesToEventsTable(env) &&
+        isV4CutoffActive({
+          cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+          enabled: env.LANGFUSE_V4_CUTOFF_OTEL_EVENTS_ONLY,
+          exemptProjectIds: env.LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS,
+          projectId,
+        });
+      const writesToLegacyTables =
+        v4WritesToLegacyTables(env) && !v4CutoffForcesDirect;
       if (earlyBatch && writesToLegacyTables) {
         await restoreInlineMedia(
           earlyBatch,
@@ -756,6 +777,7 @@ export const otelIngestionQueueProcessorBuilder = (
         !headerBasedDirectWrite &&
         !envForcesDirect &&
         !scopeBasedDirectWrite &&
+        !v4CutoffForcesDirect &&
         !langfuseSdkTraffic &&
         (await isProjectOrgPastOtelDirectWriteCutoff(projectId));
 
@@ -763,6 +785,7 @@ export const otelIngestionQueueProcessorBuilder = (
         headerBasedDirectWrite,
         envForcesDirect,
         scopeBasedDirectWrite,
+        v4CutoffForcesDirect,
         orgCutoffForcesDirect,
         langfuseSdkTraffic,
       });
@@ -772,11 +795,12 @@ export const otelIngestionQueueProcessorBuilder = (
         path: writePath,
       });
 
-      // V4 events_only mode: skip the legacy traces/observations write paths.
-      // The direct events_full write below is the sole destination — env
-      // validation already guarantees useDirectEventWrite is true here, so
-      // observations and traces don't need the mergeAndWrite / IngestionQueue
-      // detour that would otherwise populate the legacy tables.
+      // V4 events_only mode or the Cloud v3 cutoff: skip the legacy
+      // traces/observations write paths. The direct events_full write below is
+      // the sole destination — env validation (events_only) or the cutoff's
+      // write path guarantees useDirectEventWrite is true here, so observations
+      // and traces don't need the mergeAndWrite / IngestionQueue detour that
+      // would otherwise populate the legacy tables.
       const skipLegacyWrites = !writesToLegacyTables;
       const shouldProcessLegacyMedia = shouldProcessLegacyOtelMedia({
         mediaUploadEnabled: env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true",

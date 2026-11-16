@@ -252,6 +252,35 @@ describe("handleMixpanelIntegrationProjectJob events_only legacy guard (LFE-1014
   });
 });
 
+describe("handleMixpanelIntegrationProjectJob v3 export cutoff", () => {
+  beforeEach(() => {
+    h.timeline.length = 0;
+    h.mixpanelIntegrationUpdate.mockClear();
+    h.mixpanelIntegrationUpdateMany.mockClear();
+    h.db.integration = h.defaultIntegration();
+    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "EU";
+    (env as any).LANGFUSE_V4_CUTOFF_EXPORTS = "true";
+    (env as any).LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS = [];
+  });
+
+  afterEach(() => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    (env as any).LANGFUSE_V4_CUTOFF_EXPORTS = undefined;
+    (env as any).LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS = undefined;
+  });
+
+  it("disables a legacy source and exports nothing", async () => {
+    await handleMixpanelIntegrationProjectJob(makeJob());
+
+    expect(h.mixpanelIntegrationUpdateMany).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ data: { enabled: false } }),
+    );
+    expect(h.timeline).toEqual([]);
+    expect(h.mixpanelIntegrationUpdate).not.toHaveBeenCalled();
+  });
+});
+
 // LFE-11009: enriched sources on legacy write mode must fail loudly instead
 // of silently exporting empty data while lastSyncAt advances.
 describe("handleMixpanelIntegrationProjectJob legacy-mode enriched guard (LFE-11009)", () => {
