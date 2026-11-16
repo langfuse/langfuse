@@ -47,8 +47,6 @@ type ExperimentGridCellProps = {
   baselineLatencyMs?: number | null;
   observationId: string;
   traceId: string;
-  /** Render the output cell as single-line text (true) or JSON tree (false). */
-  singleLine: boolean;
   scores: ScoreAggregate;
   traceScores: ScoreAggregate;
   observationScoreOrder: string[];
@@ -354,7 +352,6 @@ export const ExperimentGridCell = ({
   baselineLatencyMs,
   observationId,
   traceId,
-  singleLine,
   scores,
   traceScores,
   observationScoreOrder,
@@ -461,7 +458,7 @@ export const ExperimentGridCell = ({
           },
         ] satisfies CellRowDef<GridCellData>[])
       : []),
-    // Output section. Display chooses text or JSON. Row height does not.
+    // Output section. JSON tree. Row height does not collapse it to one line.
     {
       accessorKey: "output",
       header: "Output",
@@ -471,14 +468,14 @@ export const ExperimentGridCell = ({
             isLoading
             variant="output"
             followRowHeight={false}
-            singleLine={singleLine}
+            singleLine={false}
           />
         ) : (
           <ConnectedIOTableCell
             data={data.output ?? null}
             variant="output"
             followRowHeight={false}
-            singleLine={singleLine}
+            singleLine={false}
           />
         ),
     },

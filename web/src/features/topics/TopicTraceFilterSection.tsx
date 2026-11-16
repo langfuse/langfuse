@@ -1,6 +1,9 @@
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { type ColumnDef } from "@tanstack/react-table";
-import type { FilterState } from "@langfuse/shared";
+import {
+  traceTranscriptFilterDefinition,
+  type FilterState,
+} from "@langfuse/shared";
 import { TOPICS_RULE_FILTER_HINT } from "@langfuse/shared/topics";
 import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { Table } from "@/src/components/design-system/table/Table";
@@ -10,6 +13,7 @@ import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Eva
 import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 import { compactNumberFormatter } from "@/src/utils/numbers";
+import { TopicInlineSelect } from "./TopicInlineSelect";
 import {
   topicsFilterQueryOnlyColumnIds,
   topicsFilterRegistry,
@@ -42,27 +46,52 @@ const matchingTraceColumns: ColumnDef<TopicTracePreviewRow>[] = [
   { accessorKey: "environment", header: "Environment", size: 128 },
 ];
 
-const FILTER_TOOLTIP = `A trace matches when one of its observations meets every filter. ${TOPICS_RULE_FILTER_HINT}`;
+const MATCH_RULE =
+  "A trace matches when one of its observations meets every filter.";
+
+/** Copy that differs between a map (matched at ingestion) and a snapshot (past traces). */
+const COPY = {
+  live: {
+    description:
+      "Topics runs on trace-level. If this project traces several agents or AI applications, filter to one so the topic maps are specific to your use case. Add a map for each.",
+    tooltip: `${MATCH_RULE} ${TOPICS_RULE_FILTER_HINT}`,
+  },
+  snapshot: {
+    description:
+      "Topics runs on trace-level. If this project traces several agents or AI applications, filter to one so the topic map is specific to your use case.",
+    tooltip: `${MATCH_RULE} Filters take trace, session, user, tags, metadata, observation and experiment fields with positive operators. Scores, cost, latency and 'is not' filters aren't supported.`,
+  },
+} as const;
 
 type TopicTraceFilterSectionProps = {
   projectId: string;
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
   model: TopicTraceFilterModel;
+  /** A map matches new traces at ingestion; a snapshot reads past traces. */
+  kind?: keyof typeof COPY;
   title?: string;
-  /** Null hides the line under the title. */
+  /** Overrides the kind's description; null hides the line under the title. */
   description?: string | null;
+  /** Window the match count covers. */
+  days?: number;
+  /** Makes the window an inline choice in the match line. */
+  onDaysChange?: (days: number) => void;
+  dayOptions?: number[];
 };
 
-/** A scan's trace filter (setup, New scan, Edit scan), with the traces it matches. */
+/** A map's trace filter (setup, New map, New snapshot, Edit map), with the traces it matches. */
 export function TopicTraceFilterSection({
   projectId,
   filters,
   onFiltersChange,
   model,
+  kind = "live",
   title = "Filter traces",
-  // Topics are clustered per scan, so each agent or app wants its own.
-  description = "Topics runs on trace-level. If this project traces several agents or AI applications, filter to one so the topic maps are specific to your use case. Add a live scan for each.",
+  description = COPY[kind].description,
+  days = 7,
+  onDaysChange,
+  dayOptions = [7, 14],
 }: TopicTraceFilterSectionProps) {
   // The count is enough to judge a filter; the rows show on request.
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -75,10 +104,11 @@ export function TopicTraceFilterSection({
             title={title}
             meta={null}
             description={description}
-            tooltip={FILTER_TOOLTIP}
+            tooltip={COPY[kind].tooltip}
             trailing={
               <FilterModeToggle mode={model.mode} onChange={model.changeMode} />
             }
+            trailingLayout="wrap"
           />
         ) : (
           <div className="flex items-center justify-between gap-2">
@@ -86,7 +116,7 @@ export function TopicTraceFilterSection({
               title={title}
               meta={null}
               description={null}
-              tooltip={FILTER_TOOLTIP}
+              tooltip={COPY[kind].tooltip}
               trailing={null}
             />
             <FilterModeToggle mode={model.mode} onChange={model.changeMode} />
@@ -112,6 +142,7 @@ export function TopicTraceFilterSection({
               filterState={filters}
               onChange={onFiltersChange}
               queryOnlyColumnIds={topicsFilterQueryOnlyColumnIds}
+              operators={traceTranscriptFilterDefinition.operators}
             />
             {model.error ? (
               <p className="text-destructive text-xs">{model.error}</p>
@@ -121,7 +152,24 @@ export function TopicTraceFilterSection({
       </section>
       <section className="flex min-h-0 flex-col gap-2">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <MatchSummary preview={model.preview} />
+          <MatchSummary
+            preview={model.preview}
+            days={
+              onDaysChange ? (
+                <TopicInlineSelect
+                  label="Time range"
+                  value={String(days)}
+                  options={dayOptions.map((option) => ({
+                    value: String(option),
+                    label: `${option} days`,
+                  }))}
+                  onChange={(next) => onDaysChange(Number(next))}
+                />
+              ) : (
+                `${days} days`
+              )
+            }
+          />
           <span aria-hidden className="text-muted-foreground text-sm">
             ·
           </span>
@@ -151,7 +199,7 @@ export function TopicTraceFilterSection({
               noResultsMessage={
                 model.preview.status === "invalid"
                   ? "Fix the filter to preview matching traces."
-                  : "No traces in the last seven days match these filters."
+                  : `No traces in the last ${days} days match these filters.`
               }
             />
           </div>
@@ -162,7 +210,13 @@ export function TopicTraceFilterSection({
 }
 
 /** Grey text before the toggle: the match count, or why there is none. */
-function MatchSummary({ preview }: { preview: TopicTracePreview }) {
+function MatchSummary({
+  preview,
+  days,
+}: {
+  preview: TopicTracePreview;
+  days: ReactNode;
+}) {
   if (preview.status === "error")
     return <span className="text-destructive text-sm">{preview.message}</span>;
   if (preview.status === "invalid")
@@ -178,8 +232,8 @@ function MatchSummary({ preview }: { preview: TopicTracePreview }) {
   const unit = preview.count === 1 ? "trace" : "traces";
   return (
     <span className="text-muted-foreground text-sm">
-      ~{compactNumberFormatter(preview.count)} matching {unit} in the last 7
-      days
+      ~{compactNumberFormatter(preview.count)} matching {unit} in the last{" "}
+      {days}
     </span>
   );
 }

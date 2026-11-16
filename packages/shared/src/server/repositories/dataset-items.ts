@@ -1118,7 +1118,11 @@ function buildPrismaWhereFromFilterState(filterState: FilterState): any {
         break;
       case "status":
         if (filter.type === "stringOptions" && filter.value.length > 0) {
-          where.status = { in: filter.value.map((v) => v as DatasetStatus) };
+          const statuses = filter.value.map((v) => v as DatasetStatus);
+          where.status =
+            filter.operator === "none of"
+              ? { notIn: statuses }
+              : { in: statuses };
         }
         break;
       case "createdAt":

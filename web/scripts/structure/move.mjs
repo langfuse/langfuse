@@ -327,7 +327,7 @@ console.log();
 
 // --- language service over a mutable in-memory layout ------------------------
 const t0 = Date.now();
-  const projects = ["tsconfig.json"].map((configName) => {
+const projects = ["tsconfig.json"].map((configName) => {
   const parsed = ts.getParsedCommandLineOfConfigFile(
     `${webRoot}/${configName}`,
     {},
@@ -672,7 +672,7 @@ if (followed.size) {
 const git = (cmd, cmdArgs) =>
   execFileSync("git", [cmd, ...cmdArgs], { cwd: webRoot, encoding: "utf8" });
 
-// Rewriting a file that already has uncommitted work in it also runs prettier
+// Rewriting a file that already has uncommitted work in it also runs Oxfmt
 // over that work — worth saying out loud before it happens.
 if (importerFiles.length) {
   const rels = importerFiles.map((f) => relative(webRoot, f));
@@ -752,15 +752,14 @@ try {
   const rewritten = [...new Set([...importerFiles, ...followed.keys()])];
   for (const f of rewritten) writeFileSync(f, currentText(f) ?? "", "utf8");
   if (rewritten.length)
-    // a specifier gets longer or shorter, so prettier may want to re-wrap the line
+    // A specifier gets longer or shorter, so Oxfmt may re-wrap the line.
     execFileSync(
       "pnpm",
       [
         "exec",
-        "prettier",
+        "oxfmt",
         "--write",
-        "--log-level",
-        "warn",
+        "--",
         ...rewritten.map((f) => relative(webRoot, f)),
       ],
       { cwd: webRoot, stdio: "inherit" },

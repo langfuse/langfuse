@@ -1,5 +1,5 @@
 import {
-  getTopicProcessingMapIds,
+  getTopicRuleMapRow,
   getTopicRun,
 } from "@langfuse/shared/topics/server";
 import type {
@@ -23,11 +23,13 @@ const completedRuns = new Map<string, Promise<TopicRun | null>>();
 
 function servingRunId(
   projectId: string,
+  ruleId: string,
   facet: TopicFacetRef,
   embeddingConfig: TopicEmbeddingConfig,
 ): Promise<string | null> {
   const key = JSON.stringify([
     projectId,
+    ruleId,
     facet.facetId,
     facet.version,
     embeddingConfig.embeddingModel,
@@ -38,11 +40,17 @@ function servingRunId(
   if (cached && cached.expiresAt > now) return cached.runId;
 
   if (servingRunIds.size >= MAX_SERVING_RUN_KEYS) servingRunIds.clear();
-  const runId = getTopicProcessingMapIds(
-    projectId,
-    [facet],
-    embeddingConfig,
-  ).then(([map]) => map?.runId ?? null);
+  // A map of another facet version or vector space can't place this summary.
+  const runId = getTopicRuleMapRow(projectId, ruleId, facet.facetId).then(
+    (run) => {
+      const config = run?.config as Record<string, unknown> | undefined;
+      return run?.facetVersion === facet.version &&
+        config?.embeddingModel === embeddingConfig.embeddingModel &&
+        config?.dimensions === embeddingConfig.embeddingDimensions
+        ? run.id
+        : null;
+    },
+  );
   servingRunIds.set(key, { runId, expiresAt: now + SERVING_RUN_TTL_MS });
   runId.catch(() => servingRunIds.delete(key));
   return runId;
@@ -76,12 +84,13 @@ function completedRun(
   return run;
 }
 
-/** The completed map that serves this facet version and vector space, cached per pod. */
-export async function getServingTopicRun(
+/** The rule's completed map of this facet version and vector space, cached per pod. */
+export async function getRuleTopicRun(
   projectId: string,
+  ruleId: string,
   facet: TopicFacetRef,
   embeddingConfig: TopicEmbeddingConfig,
 ): Promise<TopicRun | null> {
-  const runId = await servingRunId(projectId, facet, embeddingConfig);
+  const runId = await servingRunId(projectId, ruleId, facet, embeddingConfig);
   return runId ? completedRun(projectId, runId) : null;
 }

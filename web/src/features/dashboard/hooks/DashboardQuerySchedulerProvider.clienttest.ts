@@ -7,12 +7,77 @@
  * and NOT on the set of widgets present — otherwise adding a widget re-runs
  * every sibling, which on the SSE path blanks already-rendered charts.
  */
-import { act, renderHook } from "@testing-library/react";
+import { act, render, renderHook, screen } from "@testing-library/react";
+import { createElement } from "react";
+import { api } from "@/src/utils/api";
 import {
   getDashboardSchedulerResetKey,
   useDashboardQueryScheduler,
+  useScheduledDashboardExecuteQuery,
 } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 import { type DashboardQuerySchedulerStore } from "@/src/features/dashboard/stores/dashboardQuerySchedulerStore";
+
+const { errorToast } = vi.hoisted(() => ({ errorToast: vi.fn() }));
+vi.mock("@/src/utils/trpcErrorToast", () => ({ trpcErrorToast: errorToast }));
+
+it.each([
+  { surface: "widget", inline: true },
+  { surface: "Home", inline: false },
+])("handles resource-limit errors on $surface", async ({ inline }) => {
+  errorToast.mockClear();
+  const message = "The query result is too large. Try a shorter date range.";
+  const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(
+    async () =>
+      new Response(
+        JSON.stringify({
+          error: {
+            json: {
+              message,
+              code: -32600,
+              data: {
+                code: "UNPROCESSABLE_CONTENT",
+                httpStatus: 422,
+                path: "dashboard.executeQuery",
+                errorName: "ClickHouseResourceError",
+              },
+            },
+          },
+        }),
+        { status: 422, headers: { "Content-Type": "application/json" } },
+      ),
+  );
+  const Page = api.withTRPC(() => {
+    const result = useScheduledDashboardExecuteQuery(
+      {
+        projectId: "project-1",
+        version: "v1",
+        query: {
+          view: "traces",
+          dimensions: [],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [],
+          timeDimension: null,
+          fromTimestamp: "2026-01-01T00:00:00.000Z",
+          toTimestamp: "2026-01-02T00:00:00.000Z",
+          orderBy: null,
+        },
+      },
+      {
+        queryId: "inline-error:test",
+        meta: inline ? { silentHttpCodes: [412, 422] } : undefined,
+      },
+    );
+    return createElement("div", null, result.error);
+  });
+
+  try {
+    render(createElement(Page));
+    await screen.findByText(message);
+    expect(errorToast).toHaveBeenCalledTimes(inline ? 0 : 1);
+  } finally {
+    fetchMock.mockRestore();
+  }
+});
 
 describe("getDashboardSchedulerResetKey", () => {
   const base = {

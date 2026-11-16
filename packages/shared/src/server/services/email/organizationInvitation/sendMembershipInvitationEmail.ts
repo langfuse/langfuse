@@ -21,6 +21,11 @@ type SendMembershipInvitationParams = {
   orgName: string;
   orgId: string;
   userExists: boolean;
+  /**
+   * The invitee's email domain must authenticate via SSO, so sign-up would
+   * reject them. New users are sent to sign-in, which starts the SSO flow.
+   */
+  ssoEnforced?: boolean;
 };
 
 export const sendMembershipInvitationEmail = async ({
@@ -31,6 +36,7 @@ export const sendMembershipInvitationEmail = async ({
   orgName,
   orgId,
   userExists,
+  ssoEnforced = false,
 }: SendMembershipInvitationParams) => {
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
     logger.error(
@@ -47,10 +53,11 @@ export const sendMembershipInvitationEmail = async ({
     return;
   }
 
-  // Generate appropriate link based on whether user exists
+  const orgPath = `/organization/${orgId}`;
+  const authPage = ssoEnforced ? "sign-in" : "sign-up";
   const inviteLink = userExists
-    ? `${authUrl}/organization/${orgId}`
-    : `${authUrl}/auth/sign-up?targetPath=${encodeURIComponent(`/organization/${orgId}`)}&email=${encodeURIComponent(to)}`;
+    ? `${authUrl}${orgPath}`
+    : `${authUrl}/auth/${authPage}?targetPath=${encodeURIComponent(orgPath)}&email=${encodeURIComponent(to)}`;
 
   try {
     const mailer = createMailTransport(env.SMTP_CONNECTION_URL);
@@ -63,6 +70,7 @@ export const sendMembershipInvitationEmail = async ({
         receiverEmail: to,
         inviteLink: inviteLink,
         userExists: userExists,
+        ssoEnforced: ssoEnforced,
         emailFromAddress: env.EMAIL_FROM_ADDRESS,
         langfuseCloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
       }),

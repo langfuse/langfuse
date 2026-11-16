@@ -493,6 +493,15 @@ function lowerFilter(
     case "metadata":
       lowerMetadata(node, ref.key, negated, conditions, errors, ref.column);
       break;
+    case "keyedOptions":
+      conditions.push({
+        type: "categoryOptions",
+        column: ref.column,
+        key: ref.key,
+        operator: negated ? "none of" : "any of",
+        value: node.values,
+      });
+      break;
     case "scores":
       if (registry.targeting?.scoreTypesError) {
         errors.push(registry.targeting.scoreTypesError);
@@ -694,7 +703,7 @@ export const INVERTED_COMPARISON = {
 
 type ComparisonOp = keyof typeof INVERTED_COMPARISON;
 
-function isComparison(op: FilterNode["op"]): op is ComparisonOp {
+export function isComparison(op: FilterNode["op"]): op is ComparisonOp {
   return op === ">" || op === "<" || op === ">=" || op === "<=";
 }
 
@@ -807,8 +816,10 @@ function lowerBoolean(
 }
 
 /**
- * Metadata dot-paths lower to stringObject filters (the only metadata filter
- * shape in the contract): single value, string ops, FTS matches.
+ * Metadata dot-paths lower to stringObject filters: single value, string ops,
+ * FTS matches. Comparisons (`metadata.attempt:>2`) lower to numberObject
+ * filters; operatorIssue admits them only on views with `numericMetadata`,
+ * and negationIssue rejects their negation.
  */
 function lowerMetadata(
   node: FilterNode,
@@ -826,6 +837,22 @@ function lowerMetadata(
   }
   const value = node.values[0]!;
 
+  if (isComparison(node.op)) {
+    const numbers = parseNumbers(
+      node,
+      `metadata.${quoteIfNeeded(key)}`,
+      errors,
+    );
+    if (numbers === null) return;
+    out.push({
+      type: "numberObject",
+      column,
+      key,
+      operator: node.op,
+      value: numbers[0]!,
+    });
+    return;
+  }
   if (node.op === "~") {
     out.push({
       type: "stringObject",

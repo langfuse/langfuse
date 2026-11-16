@@ -1,4 +1,6 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+import { isTopicFilter } from "../../topics";
+import { topicFilterConditions } from "../topics/trace-filter";
 import { prisma } from "../../db";
 import {
   TupleParam,
@@ -38,7 +40,6 @@ import {
   byteLength,
   count,
   dateDiff,
-  softDeleteAfterLimit,
   startsWith,
   leftUTF8,
   limitBy,
@@ -985,7 +986,11 @@ async function getObservationsFromEventsTableInternal<T>(
 
   // Extract positionInTrace filter and build baseFilter without it
   const positionFilter = filter.find((f) => f.type === "positionInTrace");
-  const baseFilter = withoutPositionInTrace(filter);
+  const baseFilter = withoutPositionInTrace(filter).filter(
+    (f) => !isTopicFilter(f),
+  );
+  // Topic membership lives in the topics tables; it joins the query as trace_id subqueries.
+  const topicConditions = await topicFilterConditions(projectId, filter);
 
   const orderByEntries = orderByToEntries(
     [orderBy ?? null],
@@ -1003,6 +1008,8 @@ async function getObservationsFromEventsTableInternal<T>(
       orderBy,
     });
   assertNoScoreFiltersWithPosition(positionFilter, filterGroups);
+  for (const condition of topicConditions)
+    queryBuilder.whereRaw(condition.query, condition.params);
 
   if (opts.select === "count") {
     queryBuilder.selectFieldSet("count");
@@ -1237,13 +1244,11 @@ async function getObservationByIdFromEventsTableInternal({
   const needsFullTable =
     fetchWithInputOutput && renderingProps.truncated !== true;
 
-  // A soft-deleted latest version reads as not found, not as an older version.
   const builder = (
     needsFullTable
       ? db.selectFrom("events as e")
       : db.selectFrom("events_truncated as e")
   )
-    .$call(softDeleteAfterLimit())
     .select(observationByIdSelects)
     .$if(fetchWithInputOutput, (qb) =>
       qb.select((eb) => observationIoSelects(eb, renderingProps.truncated)),
@@ -3547,15 +3552,13 @@ interface ObservationIOReadOpts {
 // The field expression is chosen from the validated `field` enum — never
 // string-interpolated user input. The length pre-query and the byte stream share
 // this builder so they can never drift; a mismatch would make the route's
-// Content-Length integrity check wrong. A soft-deleted latest version reads as
-// no row.
+// Content-Length integrity check wrong.
 function compileObservationIOFieldRead<A extends string>(
   opts: ObservationIOReadOpts,
   select: (field: AliasableExpression<string>) => AliasedExpression<unknown, A>,
 ) {
   const query = getClickhouseKysely()
     .selectFrom("events as e")
-    .$call(softDeleteAfterLimit())
     .select((eb) =>
       select(
         opts.field === "metadata"
@@ -3672,10 +3675,8 @@ export const getObservationFullIOForSessionFromEventsTable = async (opts: {
   const maxTimestamp = new Date(opts.startTime.getTime() + 1000);
 
   const db = getClickhouseKysely();
-  // A soft-deleted latest version reads as not found.
   const builder = db
     .selectFrom("events as e")
-    .$call(softDeleteAfterLimit())
     .select((eb) => [
       "e.span_id as id",
       "e.input as input",

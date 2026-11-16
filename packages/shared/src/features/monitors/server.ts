@@ -34,3 +34,5 @@ export * from "./scheduler/types";
 export * from "./scheduler/scheduler";
 export * from "./processor/processor";
 export * from "./processor/buildMonitorAlertSlackMessage";
+export * from "./helpers/assertDropStaleAlert";
+export * from "./helpers/monitorQueueMetricTags";

@@ -4,7 +4,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { Search, SearchIcon } from "@langfuse/icons";
 import { SiGithub } from "@langfuse/icons/si";
 import { TbBrandAzure } from "@langfuse/icons/tb";
-import { LangfuseMark, OpenRouterMark, XaiMark } from "@langfuse/icons/brand";
+import {
+  AzureMark,
+  LangfuseMark,
+  OpenRouterMark,
+  XaiMark,
+} from "@langfuse/icons/brand";
 
 test("semantic sizes apply across icon libraries", () => {
   for (const Icon of [
@@ -14,6 +19,7 @@ test("semantic sizes apply across icon libraries", () => {
     LangfuseMark,
     OpenRouterMark,
     XaiMark,
+    AzureMark,
   ]) {
     for (const [size, pixels] of [
       ["sm", 12],
@@ -45,6 +51,7 @@ test("icons do not shrink in flex layouts by default", () => {
     LangfuseMark,
     OpenRouterMark,
     XaiMark,
+    AzureMark,
   ]) {
     assert.match(renderToStaticMarkup(<Icon />), /flex-shrink:0/);
   }

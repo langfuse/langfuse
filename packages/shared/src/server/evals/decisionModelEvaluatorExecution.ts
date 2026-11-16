@@ -12,9 +12,9 @@ import {
   type InternalTraceEventInput,
 } from "../llm/internalTraceEvents";
 import {
-  isOpenAIDecisionModel,
   LangfuseInternalTraceEnvironment,
   LLMAdapter,
+  textAdapterForDecisionModel,
   type InternalTraceWriteInput,
 } from "../llm/types";
 import type { CodeEvalScoreWithName } from "./codeEvalDispatcherTypes";
@@ -217,7 +217,7 @@ export function formatDecisionModelComment(params: {
 
 /** Score details are namespaced by the API that produced them. */
 function decisionScoreMetadataKey(model: string) {
-  return isOpenAIDecisionModel(model) ? LLMAdapter.OpenAI : LLMAdapter.TypeSafe;
+  return textAdapterForDecisionModel(model) ?? LLMAdapter.TypeSafe;
 }
 
 function toScoreMetadata(params: {

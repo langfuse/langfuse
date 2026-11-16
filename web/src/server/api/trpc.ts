@@ -213,7 +213,7 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
       });
       res.error = new TRPCError({
         code: "UNPROCESSABLE_CONTENT",
-        message: ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
+        message: res.error.cause.adviceMessage,
         // Keep the original error, it will be removed by `errorFormatter`
         cause: res.error.cause,
       });

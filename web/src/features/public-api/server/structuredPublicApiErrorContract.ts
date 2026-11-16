@@ -213,7 +213,7 @@ export function toStructuredPublicApiError(
       httpCode: 422,
       code: "invalid_request",
       message: [
-        ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
+        error.adviceMessage,
         "See https://langfuse.com/docs/api-and-data-platform/features/public-api for more details.",
       ].join("\n"),
     });

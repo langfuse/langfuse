@@ -52,7 +52,10 @@ import {
   TopicsTraceQueue,
 } from "@langfuse/shared/src/server";
 import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/licenseCheck";
-import { monitorProcessorTtl } from "@langfuse/shared/monitors/server";
+import {
+  monitorProcessorTtl,
+  monitorQueueMetricTags,
+} from "@langfuse/shared/monitors/server";
 import { IN_APP_AGENT_RUN_MAX_DURATION_MS } from "@langfuse/shared/in-app-agent/server/tunables";
 import { env, v4WritesToEventsTable } from "./env";
 import { isInAppAgentWorkerSurfaceEnabled } from "./features/in-app-agent/enablement";
@@ -62,13 +65,11 @@ import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseReadSkipCache } from "./utils/clickhouseReadSkipCache";
 import { experimentCreateQueueProcessor } from "./queues/experimentQueue";
 import { traceDeleteProcessor } from "./queues/traceDelete";
-import { traceBatchQueueProcessor } from "./queues/traceBatchQueue";
 import { topicsTraceQueueProcessorBuilder } from "./queues/topicsTraceQueue";
 import { eventsDispatchQueueProcessor } from "./queues/eventsDispatchQueue";
 import { isEventsDispatchEnabled } from "./features/eventsDispatch/eventsDispatch";
 import { TraceBatchDispatcher } from "./features/traceBatching/traceBatching";
 import { TraceBatchMetricsRunner } from "./features/traceBatching/TraceBatchMetricsRunner";
-import { isTraceBatchPipelineEnabled } from "./features/traceBatching/traceBatchSampling";
 import { projectDeleteProcessor } from "./queues/projectDelete";
 import {
   postHogIntegrationProcessingProcessor,
@@ -93,7 +94,7 @@ import { batchActionQueueProcessor } from "./queues/batchActionQueue";
 import { scoreDeleteProcessor } from "./queues/scoreDelete";
 import { DlqRetryService } from "./services/dlq/dlqRetryService";
 import { entityChangeQueueProcessor } from "./queues/entityChangeQueue";
-import { webhookProcessor } from "./queues/webhooks";
+import { webhookProcessor, webhookQueueMetricTags } from "./queues/webhooks";
 import { datasetDeleteProcessor } from "./queues/datasetDelete";
 import { otelIngestionQueueProcessorBuilder } from "./queues/otelIngestionQueue";
 import { eventPropagationProcessor } from "./queues/eventPropagationQueue";
@@ -158,13 +159,13 @@ ClickhouseReadSkipCache.getInstance(prisma)
     logger.error("Error initializing ClickhouseReadSkipCache", err);
   });
 
-// The pipeline mode decides what each role does; every service still opts into its roles.
+// Events dispatch is the dispatcher's only target; every service still opts into its roles.
 const traceBatchDispatcherEnabled =
-  isTraceBatchPipelineEnabled() &&
+  isEventsDispatchEnabled() &&
   env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED === "true";
-const traceBatchConsumerEnabled =
-  isTraceBatchPipelineEnabled() &&
-  env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED === "true";
+const eventsDispatchConsumerEnabled =
+  isEventsDispatchEnabled() &&
+  env.QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED === "true";
 
 export let traceBatchDispatcher: TraceBatchDispatcher | null = null;
 if (traceBatchDispatcherEnabled) {
@@ -172,17 +173,8 @@ if (traceBatchDispatcherEnabled) {
   traceBatchDispatcher.start();
 }
 
-if (traceBatchConsumerEnabled) {
-  WorkerManager.register(QueueName.TraceBatch, traceBatchQueueProcessor, {
-    concurrency: env.LANGFUSE_TRACE_BATCH_CONCURRENCY,
-  });
-}
-
-// Consumed only on worker-cpu, like trace-batch; Topics jobs it enqueues run on the main worker.
-if (
-  isEventsDispatchEnabled() &&
-  env.QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED === "true"
-) {
+// Consumed only on worker-cpu; Topics jobs it enqueues run on the main worker.
+if (eventsDispatchConsumerEnabled) {
   WorkerManager.register(
     QueueName.EventsDispatch,
     eventsDispatchQueueProcessor,
@@ -191,7 +183,7 @@ if (
 }
 
 export let traceBatchMetricsRunner: TraceBatchMetricsRunner | null = null;
-if (traceBatchDispatcherEnabled || traceBatchConsumerEnabled) {
+if (traceBatchDispatcherEnabled || eventsDispatchConsumerEnabled) {
   traceBatchMetricsRunner = new TraceBatchMetricsRunner();
   traceBatchMetricsRunner.start();
 }
@@ -201,7 +193,7 @@ if (env.QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED === "true") {
   const traceUpsertShardNames = TraceUpsertQueue.getShardNames();
   traceUpsertShardNames.forEach((shardName) => {
     WorkerManager.register(
-      shardName as QueueName,
+      shardName as QueueName.TraceUpsert,
       evalJobTraceCreatorQueueProcessor,
       {
         concurrency: env.LANGFUSE_TRACE_UPSERT_WORKER_CONCURRENCY,
@@ -504,6 +496,7 @@ if (env.QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED === "true") {
     // recovery so the unified TTL pacing is uncontested.
     lockDuration: monitorProcessorTtl + 60_000,
     maxStalledCount: 0,
+    metricTags: monitorQueueMetricTags,
   });
 }
 
@@ -781,6 +774,7 @@ if (env.QUEUE_CONSUMER_DEAD_LETTER_RETRY_QUEUE_IS_ENABLED === "true") {
 if (env.QUEUE_CONSUMER_WEBHOOK_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(QueueName.WebhookQueue, webhookProcessor, {
     concurrency: env.LANGFUSE_WEBHOOK_QUEUE_PROCESSING_CONCURRENCY,
+    metricTags: webhookQueueMetricTags,
   });
 }
 

@@ -1406,30 +1406,50 @@ describe("AI gateway control plane", () => {
           baseURL: "https://93.184.215.14/v1",
           extraHeaders: { "x-team": "research" },
         });
-        const routes = {
+        // Created as OpenAI because creating an OpenRouter connection checks
+        // the credential against openrouter.ai.
+        const openRouter = await caller.aiGateway.createConnection({
+          orgId: org.id,
+          name: "OpenRouter-proxied",
+          provider: "OPENAI",
+          credential: "sk-test",
+        });
+        await prisma.gatewayAiConnection.update({
+          where: { id: openRouter.id },
+          data: { provider: "OPENROUTER" },
+        });
+        const routesFor = (
+          provider: "OPENAI" | "OPENROUTER",
+          connectionId: string,
+        ) => ({
           testConnection: (endpoint: Endpoint) =>
             caller.aiGateway.testConnection({
               orgId: org.id,
-              id: proxied.id,
-              provider: "OPENAI",
+              id: connectionId,
+              provider,
               credential: "sk-test",
               ...endpoint,
             }),
           createConnection: (endpoint: Endpoint) =>
             caller.aiGateway.createConnection({
               orgId: org.id,
-              name: `OpenAI-${randomUUID().slice(0, 8)}`,
-              provider: "OPENAI",
+              name: `${provider}-${randomUUID().slice(0, 8)}`,
+              provider,
               credential: "sk-test",
               ...endpoint,
             }),
           updateConnection: (endpoint: Endpoint) =>
             caller.aiGateway.updateConnection({
               orgId: org.id,
-              id: proxied.id,
+              id: connectionId,
               credential: "sk-test",
               ...endpoint,
             }),
+        });
+        const routes = routesFor("OPENAI", proxied.id);
+        const routesByProvider = {
+          OPENAI: routes,
+          OPENROUTER: routesFor("OPENROUTER", openRouter.id),
         };
         const rejected: Array<{
           name: string;
@@ -1470,13 +1490,22 @@ describe("AI gateway control plane", () => {
           sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = testCase.cloud
             ? "STAGING"
             : undefined;
-          for (const [route, call] of Object.entries(routes)) {
-            const code = await call(testCase.endpoint).then(
-              () => "OK",
-              (error: { code?: string }) => error.code ?? "UNKNOWN",
-            );
-            if (code !== testCase.code) {
-              outcomes.push(`${route} ${testCase.name}: ${code}`);
+          for (const [provider, providerRoutes] of Object.entries(
+            routesByProvider,
+          )) {
+            for (const [route, call] of Object.entries(providerRoutes)) {
+              // A rejected credential check also answers BAD_REQUEST, so only
+              // the base URL validation message proves the URL was refused.
+              const code = await call(testCase.endpoint).then(
+                () => "OK",
+                (error: { code?: string; message?: string }) =>
+                  error.message?.startsWith("Invalid base URL")
+                    ? (error.code ?? "UNKNOWN")
+                    : `${error.code ?? "UNKNOWN"} (${error.message})`,
+              );
+              if (code !== testCase.code) {
+                outcomes.push(`${provider} ${route} ${testCase.name}: ${code}`);
+              }
             }
           }
         }
@@ -2096,6 +2125,111 @@ describe("AI gateway control plane", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
+  it("lets members edit metadata and models of only their own keys", async () => {
+    const owner = await prepare();
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const ownerKey = await owner.caller.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Owner key",
+      metadata: {},
+    });
+    const memberKey = await member.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Member key",
+      metadata: { team: "search" },
+      allowedModels: ["openai:*"],
+    });
+    const update = {
+      orgId: owner.org.id,
+      name: " Search backend ",
+      metadata: { environment: "production" },
+      allowedModels: [" anthropic:* ", "-*opus*"],
+      previousAllowedModels: ["openai:*"],
+    };
+
+    await expect(
+      member.aiGateway.updateApiKey({
+        ...update,
+        id: ownerKey.id,
+        previousAllowedModels: null,
+      }),
+    ).rejects.toThrow("Gateway key not found");
+    await expect(
+      member.aiGateway.updateApiKey({ ...update, id: memberKey.id }),
+    ).resolves.toMatchObject({
+      metadata: { environment: "production" },
+      allowedModels: ["anthropic:*", "-*opus*"],
+    });
+    // A dialog still holding the patterns it loaded must not overwrite newer ones.
+    await expect(
+      member.aiGateway.updateApiKey({
+        ...update,
+        id: memberKey.id,
+        allowedModels: ["openai:*"],
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    await member.aiGateway.updateApiKey({
+      ...update,
+      id: memberKey.id,
+      allowedModels: [],
+      previousAllowedModels: ["anthropic:*", "-*opus*"],
+    });
+
+    const [edited] = (
+      await member.aiGateway.listApiKeys({ orgId: owner.org.id })
+    ).data;
+    expect(edited).toMatchObject({
+      metadata: { environment: "production" },
+      allowedModels: null,
+      apiKey: { note: "Search backend" },
+    });
+  });
+
+  it("rejects key edits from another organization and from members without gateway:invoke", async () => {
+    const owner = await prepare();
+    const other = await prepare();
+    const viewer = await createCallerForOrganizationRole(owner, Role.VIEWER);
+    const ownerKey = await owner.caller.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Owner key",
+      metadata: { team: "search" },
+      allowedModels: ["openai:*"],
+    });
+    const update = {
+      orgId: owner.org.id,
+      id: ownerKey.id,
+      name: "Hijacked",
+      metadata: {},
+      allowedModels: [],
+      previousAllowedModels: ["openai:*"],
+    };
+
+    await expect(
+      other.caller.aiGateway.updateApiKey(update),
+    ).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+      message: "User is not a member of this organization",
+    });
+    await expect(
+      other.caller.aiGateway.updateApiKey({ ...update, orgId: other.org.id }),
+    ).rejects.toMatchObject({
+      code: "NOT_FOUND",
+      message: "Gateway key not found",
+    });
+    await expect(viewer.aiGateway.updateApiKey(update)).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+
+    const [unchanged] = (
+      await owner.caller.aiGateway.listApiKeys({ orgId: owner.org.id })
+    ).data;
+    expect(unchanged).toMatchObject({
+      metadata: { team: "search" },
+      allowedModels: ["openai:*"],
+      apiKey: { note: "Owner key" },
+    });
+  });
+
   it("lets only gateway managers issue service-account keys", async () => {
     const owner = await prepare();
     const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
@@ -2658,6 +2792,58 @@ describe("AI gateway control plane", () => {
       id: connection.id,
     });
     expect(allowAll.allowedModels).toBeNull();
+  });
+
+  it("enforces key model patterns and keeps them through a connection rename", async () => {
+    configureGatewayJwtSigning();
+    const { caller, org, project } = await prepare();
+    await caller.aiGateway.updateConfig({
+      orgId: org.id,
+      defaultIngestionProjectId: project.id,
+      ingestionMode: "FULL",
+    });
+    const connection = await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "OpenAI",
+      provider: "OPENAI",
+      credential: "sk-test-openai",
+    });
+    const gatewayKey = await caller.aiGateway.createApiKey({
+      orgId: org.id,
+      name: "Restricted key",
+      metadata: {},
+      allowedModels: ["OpenAI:gpt-4o*", "-*mini"],
+    });
+    const request = {
+      fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
+      apiFormat: "openai.responses" as const,
+    };
+
+    await expect(
+      authenticateRequest({ ...request, model: "OpenAI:gpt-4o" }),
+    ).resolves.toMatchObject({ connection: { id: connection.id } });
+    await expect(
+      authenticateRequest({ ...request, model: "OpenAI:gpt-4o-mini" }),
+    ).rejects.toMatchObject({ status: 403, code: "model_not_allowed" });
+
+    await caller.aiGateway.updateConnection({
+      orgId: org.id,
+      id: connection.id,
+      name: "OpenAI-EU",
+    });
+
+    await expect(
+      prisma.gatewayApiKeyAssociation.findUnique({
+        where: { apiKeyId: gatewayKey.id },
+        select: { allowedModels: true },
+      }),
+    ).resolves.toEqual({ allowedModels: ["OpenAI-EU:gpt-4o*", "-*mini"] });
+    await expect(
+      authenticateRequest({ ...request, model: "OpenAI-EU:gpt-4o" }),
+    ).resolves.toMatchObject({ connection: { id: connection.id } });
+    await expect(
+      authenticateRequest({ ...request, model: "OpenAI-EU:gpt-4o-mini" }),
+    ).rejects.toMatchObject({ status: 403, code: "model_not_allowed" });
   });
 
   it("rejects stale concurrent model allowlist updates", async () => {
