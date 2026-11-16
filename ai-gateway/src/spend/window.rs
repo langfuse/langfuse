@@ -1,6 +1,22 @@
 use chrono::{DateTime, Datelike, Duration, NaiveDate, TimeZone, Utc};
 use serde::Deserialize;
 
+/// What a spend limit caps. Resolve returns only the limits that apply to the
+/// request, so the scope just names the subject in errors.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum SpendLimitScope {
+    ApiKey,
+}
+
+impl SpendLimitScope {
+    pub(crate) fn subject(self) -> &'static str {
+        match self {
+            Self::ApiKey => "This API key",
+        }
+    }
+}
+
 /// How often a spend limit starts over, in UTC calendar windows. Web computes
 /// the same windows in `web/src/features/ai-gateway/fns/getGatewaySpendLimitWindowStart.ts`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]

@@ -5,14 +5,15 @@ import {
   queryClickhouse,
 } from "@langfuse/shared/src/server";
 
+import type { GatewaySpendLimitScope } from "./gatewaySpendLimitScope";
+
 /**
- * USD a gateway key spent since each `since`, read from the gateway ingestion
- * project. Gateway ingestion stores the calling key id as `ingestion_api_key`;
- * one scan from the earliest `since` serves every window.
+ * USD a scope spent since each `since`, read from the gateway ingestion
+ * project. One scan from the earliest `since` serves every window.
  */
-export async function getGatewayApiKeySpendSince(params: {
+export async function getGatewaySpendSince(params: {
   projectId: string;
-  apiKeyId: string;
+  scope: GatewaySpendLimitScope;
   since: Date[];
 }): Promise<number[]> {
   if (params.since.length === 0) return [];
@@ -33,9 +34,10 @@ export async function getGatewayApiKeySpendSince(params: {
     )
     .join(", ");
 
+  const { column, value } = scopeFilter(params.scope);
   const { query, params: queryParams } = new EventsAggQueryBuilder({
     projectId: params.projectId,
-    groupByColumn: "e.ingestion_api_key",
+    groupByColumn: column,
     selectExpression,
   })
     .whereRaw("e.start_time >= {earliest: DateTime64(3)}", {
@@ -45,9 +47,7 @@ export async function getGatewayApiKeySpendSince(params: {
     .whereRaw("e.service_name = {gatewayServiceName: String}", {
       gatewayServiceName: AI_GATEWAY_SERVICE_NAME,
     })
-    .whereRaw("e.ingestion_api_key = {apiKeyId: String}", {
-      apiKeyId: params.apiKeyId,
-    })
+    .whereRaw(`${column} = {scopeValue: String}`, { scopeValue: value })
     .buildWithParams();
 
   const rows = await queryClickhouse<Record<string, string>>({
@@ -59,4 +59,12 @@ export async function getGatewayApiKeySpendSince(params: {
 
   const row = rows[0];
   return params.since.map((_, index) => Number(row?.[`spend_${index}`] ?? 0));
+}
+
+function scopeFilter(scope: GatewaySpendLimitScope) {
+  switch (scope.type) {
+    case "API_KEY":
+      // Gateway ingestion stores the calling key id as `ingestion_api_key`.
+      return { column: "e.ingestion_api_key", value: scope.apiKeyId };
+  }
 }

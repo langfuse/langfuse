@@ -41,6 +41,7 @@ import { GatewayAnalyticsService } from "./analytics/gatewayAnalyticsService";
 import { GatewayConfigService } from "./config/gatewayConfigService";
 import { getKeyOwnerFilter, type GatewayUsageScope } from "./gatewayUsageScope";
 import { GatewaySpendLimitService } from "./spendLimits/gatewaySpendLimitService";
+import { GatewaySpendLimitScopeSchema } from "./spendLimits/gatewaySpendLimitScope";
 import { GatewayTeamService } from "./team/gatewayTeamService";
 import {
   GatewayMetadataSchema,
@@ -720,7 +721,7 @@ export const aiGatewayRouter = createTRPCRouter({
 
   /** `available` is false while gateway requests are not recorded; limits then cannot be created, changed or reset. */
   listSpendLimits: protectedOrganizationProcedure
-    .input(organizationInput.extend({ apiKeyId: z.string() }))
+    .input(organizationInput.extend({ scope: GatewaySpendLimitScopeSchema }))
     .query(async ({ input, ctx }) => {
       requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
       const usageScope = getGatewayUsageScope({
@@ -730,14 +731,14 @@ export const aiGatewayRouter = createTRPCRouter({
       return new GatewaySpendLimitService(ctx.prisma).list({
         organizationId: input.orgId,
         ownerUserId: getKeyOwnerFilter(usageScope),
-        apiKeyId: input.apiKeyId,
+        scope: input.scope,
       });
     }),
 
   createSpendLimit: protectedOrganizationProcedure
     .input(
       organizationInput.extend({
-        apiKeyId: z.string(),
+        scope: GatewaySpendLimitScopeSchema,
         interval: z.enum(GatewaySpendLimitInterval),
         limitUsd: spendLimitUsdSchema,
       }),
@@ -746,7 +747,7 @@ export const aiGatewayRouter = createTRPCRouter({
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
       return new GatewaySpendLimitService(ctx.prisma).create({
         organizationId: input.orgId,
-        apiKeyId: input.apiKeyId,
+        scope: input.scope,
         interval: input.interval,
         limitUsd: input.limitUsd,
         session: ctx.session,

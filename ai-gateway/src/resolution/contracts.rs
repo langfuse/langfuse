@@ -457,10 +457,12 @@ struct ResolutionResponse {
     pricing: Option<ModelPricing>,
 }
 
-/// A cap on what a key spends per UTC calendar window.
+/// A cap on what a scope spends per UTC calendar window.
 #[derive(Clone, Debug, Deserialize)]
 pub(crate) struct SpendLimit {
     pub id: String,
+    #[serde(deserialize_with = "string_enum")]
+    pub scope: crate::spend::SpendLimitScope,
     #[serde(deserialize_with = "string_enum")]
     pub interval: crate::spend::SpendLimitInterval,
     pub limit_usd: f64,

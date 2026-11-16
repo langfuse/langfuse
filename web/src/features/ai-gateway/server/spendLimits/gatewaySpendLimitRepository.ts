@@ -5,8 +5,14 @@ import type {
 } from "@langfuse/shared/src/db";
 import { orgBoundApiKeyScopes } from "@langfuse/shared/src/server/auth/apiKeys";
 
+import {
+  type GatewaySpendLimitScope,
+  toScopeColumns,
+} from "./gatewaySpendLimitScope";
+
 const GATEWAY_SPEND_LIMIT_SELECT = {
   id: true,
+  scope: true,
   apiKeyId: true,
   interval: true,
   limitUsd: true,
@@ -47,11 +53,11 @@ export class GatewaySpendLimitRepository {
     });
   }
 
-  listForApiKey(params: { organizationId: string; apiKeyId: string }) {
+  list(params: { organizationId: string; scope: GatewaySpendLimitScope }) {
     return this.prisma.gatewaySpendLimit.findMany({
       where: {
         organizationId: params.organizationId,
-        apiKeyId: params.apiKeyId,
+        ...toScopeColumns(params.scope),
       },
       select: GATEWAY_SPEND_LIMIT_SELECT,
       orderBy: { createdAt: "asc" },
@@ -65,16 +71,19 @@ export class GatewaySpendLimitRepository {
     });
   }
 
-  create(params: {
+  create({
+    scope,
+    ...params
+  }: {
     organizationId: string;
-    apiKeyId: string;
+    scope: GatewaySpendLimitScope;
     interval: GatewaySpendLimitInterval;
     limitUsd: number;
     baselineSpendUsd: number;
     baselineWindowStart: Date;
   }) {
     return this.prisma.gatewaySpendLimit.create({
-      data: params,
+      data: { ...params, ...toScopeColumns(scope) },
       select: GATEWAY_SPEND_LIMIT_SELECT,
     });
   }

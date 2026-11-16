@@ -2652,7 +2652,7 @@ describe("AI gateway control plane", () => {
     });
     const limit = await caller.aiGateway.createSpendLimit({
       orgId: org.id,
-      apiKeyId: gatewayKey.id,
+      scope: { type: "API_KEY", apiKeyId: gatewayKey.id },
       interval: "DAILY",
       limitUsd: 10,
     });
@@ -2669,6 +2669,7 @@ describe("AI gateway control plane", () => {
     expect(first.spend_limits).toEqual([
       {
         id: limit.id,
+        scope: "api_key",
         interval: "daily",
         limit_usd: 10,
         generation: 0,
@@ -2697,7 +2698,7 @@ describe("AI gateway control plane", () => {
     await expect(
       caller.aiGateway.createSpendLimit({
         orgId: org.id,
-        apiKeyId: gatewayKey.id,
+        scope: { type: "API_KEY", apiKeyId: gatewayKey.id },
         interval: "DAILY",
         limitUsd: 20,
       }),

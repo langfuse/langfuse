@@ -1543,7 +1543,7 @@ async fn spend_limited_resolution(edit: fn(&mut serde_json::Value)) -> Response<
         .unwrap();
     let mut body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     body["spend_limits"] = serde_json::json!([{
-        "id": "limit-1", "interval": "daily", "limit_usd": 10, "generation": 0,
+        "id": "limit-1", "scope": "api_key", "interval": "daily", "limit_usd": 10, "generation": 0,
         "baseline_usd": 0, "baseline_window_start": 0,
     }]);
     body["pricing"] = serde_json::json!({

@@ -1,4 +1,10 @@
 DO $$ BEGIN
+  CREATE TYPE "GatewaySpendLimitScope" AS ENUM ('API_KEY');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
   CREATE TYPE "GatewaySpendLimitInterval" AS ENUM ('DAILY', 'WEEKLY', 'MONTHLY', 'TOTAL');
 EXCEPTION
   WHEN duplicate_object THEN NULL;
@@ -7,7 +13,8 @@ END $$;
 CREATE TABLE IF NOT EXISTS "gateway_spend_limits" (
     "id" TEXT NOT NULL,
     "organization_id" TEXT NOT NULL,
-    "api_key_id" TEXT NOT NULL,
+    "scope" "GatewaySpendLimitScope" NOT NULL,
+    "api_key_id" TEXT,
     "interval" "GatewaySpendLimitInterval" NOT NULL,
     "limit_usd" DECIMAL(65,30) NOT NULL,
     "generation" INTEGER NOT NULL DEFAULT 0,
@@ -23,7 +30,9 @@ CREATE TABLE IF NOT EXISTS "gateway_spend_limits" (
         ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "gateway_spend_limits_api_key_id_fkey"
         FOREIGN KEY ("api_key_id") REFERENCES "api_keys"("id")
-        ON DELETE CASCADE ON UPDATE CASCADE
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "gateway_spend_limits_scope_check"
+        CHECK ("scope" <> 'API_KEY' OR "api_key_id" IS NOT NULL)
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS "gateway_spend_limits_api_key_id_interval_key" ON "gateway_spend_limits"("api_key_id", "interval");

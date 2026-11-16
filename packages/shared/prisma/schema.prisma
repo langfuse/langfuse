@@ -407,6 +407,10 @@ model GatewayApiKeyAssociation {
   @@map("gateway_api_key_associations")
 }
 
+enum GatewaySpendLimitScope {
+  API_KEY
+}
+
 enum GatewaySpendLimitInterval {
   DAILY
   WEEKLY
@@ -420,8 +424,10 @@ model GatewaySpendLimit {
   id                  String                    @id @default(cuid())
   organizationId      String                    @map("organization_id")
   organization        Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  apiKeyId            String                    @map("api_key_id")
-  apiKey              ApiKey                    @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  // Each scope has its own subject column, set exactly for that scope (checked in the database).
+  scope               GatewaySpendLimitScope
+  apiKeyId            String?                   @map("api_key_id")
+  apiKey              ApiKey?                   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
   interval            GatewaySpendLimitInterval
   limitUsd            Decimal                   @map("limit_usd")
   // Bumped on reset; the gateway's usage counters are keyed by it, so a reset starts fresh counters.

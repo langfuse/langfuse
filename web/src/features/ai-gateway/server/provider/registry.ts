@@ -67,6 +67,8 @@ export const GatewayResolveSpendLimitsSchema = z.array(
   z
     .object({
       id: z.string(),
+      // Resolve returns only the limits that apply to the request.
+      scope: z.enum(["api_key"]),
       interval: z.enum(["daily", "weekly", "monthly", "total"]),
       limit_usd: z.number(),
       // Part of the gateway's usage counter key; bumped when an admin resets the limit.

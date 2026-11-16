@@ -36,6 +36,7 @@ export class GatewayResolveRepository {
           orderBy: { interval: "asc" },
           select: {
             id: true,
+            scope: true,
             interval: true,
             limitUsd: true,
             generation: true,

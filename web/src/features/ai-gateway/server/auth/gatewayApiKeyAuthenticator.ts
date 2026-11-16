@@ -177,6 +177,7 @@ export class GatewayApiKeyAuthenticator {
       ),
       spendLimits: row.gatewaySpendLimits.map((limit) => ({
         id: limit.id,
+        scope: limit.scope.toLowerCase() as Lowercase<typeof limit.scope>,
         interval: limit.interval.toLowerCase() as Lowercase<
           typeof limit.interval
         >,

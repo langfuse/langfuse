@@ -15,7 +15,7 @@ use chrono::{DateTime, SecondsFormat, Utc};
 use serde_json::{Map, Value};
 
 pub(crate) use cost::PricingTierWithPrices;
-pub(crate) use window::SpendLimitInterval;
+pub(crate) use window::{SpendLimitInterval, SpendLimitScope};
 
 use crate::{
     capture::InferenceFacts,
@@ -72,10 +72,10 @@ impl SpendLimits {
             return Err(ResolutionError::SpendLimitUnavailable);
         };
         let now = DateTime::<Utc>::from(SystemTime::now());
-        let key_id = context.attribution().key_id();
+        let organization_id = context.attribution().organization_id().as_str();
         let windows: Vec<Window> = limits
             .iter()
-            .map(|limit| Window::current(key_id, limit, now))
+            .map(|limit| Window::current(organization_id, limit, now))
             .collect();
         let keys: Vec<String> = windows.iter().map(|window| window.key.clone()).collect();
         let counted = store
@@ -131,12 +131,14 @@ struct Window {
 }
 
 impl Window {
-    fn current(key_id: &str, limit: &SpendLimit, now: DateTime<Utc>) -> Self {
+    fn current(organization_id: &str, limit: &SpendLimit, now: DateTime<Utc>) -> Self {
         let start = limit.interval.window_start(now);
         let end = limit.interval.window_end(start);
-        // A reset bumps the generation, so counting starts over in a new key.
+        // A reset bumps the generation, so counting starts over in a new key. All
+        // limits of a request belong to one organization, so tagging the
+        // organization keeps them on one cluster slot for a single MGET.
         let key = format!(
-            "ai-gateway:spend:{{{key_id}}}:{}:{}:{}",
+            "ai-gateway:spend:{{{organization_id}}}:{}:{}:{}",
             limit.id,
             limit.generation,
             start.timestamp()
@@ -160,7 +162,8 @@ fn exceeded(
     now: DateTime<Utc>,
 ) -> SpendLimitExceeded {
     let spent = format!(
-        "This API key has spent ${spent:.2} of its ${:.2} {} spend limit.",
+        "{} has spent ${spent:.2} of its ${:.2} {} spend limit.",
+        limit.scope.subject(),
         limit.limit_usd,
         limit.interval.as_str()
     );

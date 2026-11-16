@@ -14,20 +14,25 @@ import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { getGatewaySpendLimitWindowStart } from "@/src/features/ai-gateway/fns/getGatewaySpendLimitWindowStart";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
-import { getGatewayApiKeySpendSince } from "./gatewayApiKeySpendRepository";
+import { getGatewaySpendSince } from "./gatewaySpendRepository";
 import {
   GatewaySpendLimitRepository,
   type GatewaySpendLimitRecord,
 } from "./gatewaySpendLimitRepository";
+import {
+  type GatewaySpendLimitScope,
+  toGatewaySpendLimitScope,
+} from "./gatewaySpendLimitScope";
 
 const GATEWAY_SPEND_LIMITS_UNAVAILABLE_REASON =
   "Please switch to ingestion mode usage to enable this";
 
 /**
- * Spend limits for gateway keys. Spend is read from the gateway ingestion
- * project, so limits are only available while gateway requests are recorded.
- * Every write drops the key's cached /resolve context, so the gateway sees the
- * change on the key's next request.
+ * Gateway spend limits, each capping one scope (today: an API key). Spend is
+ * read from the gateway ingestion project, so limits are only available while
+ * gateway requests are recorded. Every write drops the cached /resolve context
+ * of the keys the scope covers, so the gateway sees the change on their next
+ * request.
  */
 export class GatewaySpendLimitService {
   private readonly repository: GatewaySpendLimitRepository;
@@ -37,29 +42,29 @@ export class GatewaySpendLimitService {
   }
 
   /**
-   * The key's limits with what ClickHouse has recorded for each current
+   * The scope's limits with what ClickHouse has recorded for each current
    * window. The gateway enforces against its own counters, which run ahead of
    * ClickHouse by the ingestion delay.
    */
   async list(params: {
     organizationId: string;
     ownerUserId?: string;
-    apiKeyId: string;
+    scope: GatewaySpendLimitScope;
   }) {
-    const apiKey = await this.requireApiKey(params);
+    const subject = await this.requireSubject(params);
     const recordingProjectId = await this.getRecordingProjectId(
       params.organizationId,
     );
-    const limits = await this.repository.listForApiKey(params);
+    const limits = await this.repository.list(params);
     const now = new Date();
     const windowStarts = limits.map((limit) =>
       getGatewaySpendLimitWindowStart(limit.interval, now),
     );
     const spend =
       recordingProjectId && limits.length > 0
-        ? await getGatewayApiKeySpendSince({
+        ? await getGatewaySpendSince({
             projectId: recordingProjectId,
-            apiKeyId: apiKey.id,
+            scope: params.scope,
             since: limits.map((limit, index) =>
               spendSince({
                 // A total limit's baseline holds the spend before the limit
@@ -68,7 +73,7 @@ export class GatewaySpendLimitService {
                   limit.interval === "TOTAL"
                     ? limit.createdAt
                     : windowStarts[index]!,
-                apiKeyCreatedAt: apiKey.createdAt,
+                subjectCreatedAt: subject.createdAt,
                 resetAt: limit.resetAt,
               }),
             ),
@@ -96,26 +101,26 @@ export class GatewaySpendLimitService {
 
   async create(params: {
     organizationId: string;
-    apiKeyId: string;
+    scope: GatewaySpendLimitScope;
     interval: GatewaySpendLimitInterval;
     limitUsd: number;
     session: OrgAuthedContext["session"];
   }) {
-    const apiKey = await this.requireApiKey(params);
+    const subject = await this.requireSubject(params);
     const recordingProjectId = await this.requireRecordingProjectId(
       params.organizationId,
     );
     const windowStart = getGatewaySpendLimitWindowStart(params.interval);
-    const [baselineSpendUsd] = await getGatewayApiKeySpendSince({
+    const [baselineSpendUsd] = await getGatewaySpendSince({
       projectId: recordingProjectId,
-      apiKeyId: apiKey.id,
-      since: [spendSince({ windowStart, apiKeyCreatedAt: apiKey.createdAt })],
+      scope: params.scope,
+      since: [spendSince({ windowStart, subjectCreatedAt: subject.createdAt })],
     });
     let limit: GatewaySpendLimitRecord;
     try {
       limit = await this.repository.create({
         organizationId: params.organizationId,
-        apiKeyId: apiKey.id,
+        scope: params.scope,
         interval: params.interval,
         limitUsd: params.limitUsd,
         baselineSpendUsd: baselineSpendUsd ?? 0,
@@ -127,12 +132,12 @@ export class GatewaySpendLimitService {
         error.code === "P2002"
       ) {
         throw new LangfuseConflictError(
-          "This key already has a spend limit for this interval",
+          "A spend limit for this interval already exists",
         );
       }
       throw error;
     }
-    await this.invalidate(apiKey.fastHashedSecretKey);
+    await subject.invalidateResolveCache();
     await this.audit({
       session: params.session,
       action: "create",
@@ -147,10 +152,10 @@ export class GatewaySpendLimitService {
     limitUsd: number;
     session: OrgAuthedContext["session"];
   }) {
-    const { before, apiKey } = await this.requireLimit(params);
+    const { before, subject } = await this.requireLimit(params);
     await this.requireRecordingProjectId(params.organizationId);
     const after = await this.repository.updateLimit(params);
-    await this.invalidate(apiKey.fastHashedSecretKey);
+    await subject.invalidateResolveCache();
     await this.audit({
       session: params.session,
       action: "update",
@@ -166,14 +171,14 @@ export class GatewaySpendLimitService {
     id: string;
     session: OrgAuthedContext["session"];
   }) {
-    const { before, apiKey } = await this.requireLimit(params);
+    const { before, subject } = await this.requireLimit(params);
     await this.requireRecordingProjectId(params.organizationId);
     const after = await this.repository.reset({
       id: before.id,
       windowStart: getGatewaySpendLimitWindowStart(before.interval),
       resetAt: new Date(),
     });
-    await this.invalidate(apiKey.fastHashedSecretKey);
+    await subject.invalidateResolveCache();
     await this.audit({
       session: params.session,
       action: "reset",
@@ -189,30 +194,48 @@ export class GatewaySpendLimitService {
     id: string;
     session: OrgAuthedContext["session"];
   }) {
-    const { before, apiKey } = await this.requireLimit(params);
+    const { before, subject } = await this.requireLimit(params);
     await this.repository.delete({ id: before.id });
-    await this.invalidate(apiKey.fastHashedSecretKey);
+    await subject.invalidateResolveCache();
     await this.audit({ session: params.session, action: "delete", before });
   }
 
-  private async requireApiKey(params: {
+  /** What the scope applies to, if the caller may see it. */
+  private async requireSubject(params: {
     organizationId: string;
     ownerUserId?: string;
-    apiKeyId: string;
+    scope: GatewaySpendLimitScope;
   }) {
-    const apiKey = await this.repository.getGatewayApiKey(params);
-    if (!apiKey) throw new LangfuseNotFoundError("Gateway key not found");
-    return apiKey;
+    switch (params.scope.type) {
+      case "API_KEY": {
+        const apiKey = await this.repository.getGatewayApiKey({
+          organizationId: params.organizationId,
+          ownerUserId: params.ownerUserId,
+          apiKeyId: params.scope.apiKeyId,
+        });
+        if (!apiKey) throw new LangfuseNotFoundError("Gateway key not found");
+        return {
+          createdAt: apiKey.createdAt,
+          invalidateResolveCache: async () => {
+            if (apiKey.fastHashedSecretKey) {
+              await invalidateGatewayResolveCacheForApiKey(
+                apiKey.fastHashedSecretKey,
+              );
+            }
+          },
+        };
+      }
+    }
   }
 
   private async requireLimit(params: { organizationId: string; id: string }) {
     const before = await this.repository.get(params);
     if (!before) throw new LangfuseNotFoundError("Spend limit not found");
-    const apiKey = await this.requireApiKey({
+    const subject = await this.requireSubject({
       organizationId: params.organizationId,
-      apiKeyId: before.apiKeyId,
+      scope: toGatewaySpendLimitScope(before),
     });
-    return { before, apiKey };
+    return { before, subject };
   }
 
   private getRecordingProjectId(organizationId: string) {
@@ -227,12 +250,6 @@ export class GatewaySpendLimitService {
       throw new InvalidRequestError(GATEWAY_SPEND_LIMITS_UNAVAILABLE_REASON);
     }
     return projectId;
-  }
-
-  private async invalidate(fastHashedSecretKey: string | null) {
-    if (fastHashedSecretKey) {
-      await invalidateGatewayResolveCacheForApiKey(fastHashedSecretKey);
-    }
   }
 
   private audit(params: {
@@ -256,16 +273,16 @@ export class GatewaySpendLimitService {
   }
 }
 
-/** Spend counts from the window start, but never from before the key existed or was last reset. */
+/** Spend counts from the window start, but never from before the subject existed or the limit was last reset. */
 function spendSince(params: {
   windowStart: Date;
-  apiKeyCreatedAt: Date;
+  subjectCreatedAt: Date;
   resetAt?: Date | null;
 }) {
   return new Date(
     Math.max(
       params.windowStart.getTime(),
-      params.apiKeyCreatedAt.getTime(),
+      params.subjectCreatedAt.getTime(),
       params.resetAt?.getTime() ?? 0,
     ),
   );
@@ -274,7 +291,7 @@ function spendSince(params: {
 function toGatewaySpendLimit(limit: GatewaySpendLimitRecord) {
   return {
     id: limit.id,
-    apiKeyId: limit.apiKeyId,
+    scope: toGatewaySpendLimitScope(limit),
     interval: limit.interval,
     limitUsd: limit.limitUsd.toNumber(),
     generation: limit.generation,
