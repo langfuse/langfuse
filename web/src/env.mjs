@@ -746,6 +746,34 @@ export const env = createEnv({
               .filter(Boolean)
           : [],
       ),
+    // Comma-separated project ids in today's v3 brownout. Actionable projects
+    // on this list see the status-page banner instead of the deadline sentence.
+    LANGFUSE_V4_BROWNOUT_PROJECT_IDS: z
+      .string()
+      .optional()
+      .transform((value) =>
+        value
+          ? value
+              .split(",")
+              .map((projectId) => projectId.trim())
+              .filter(Boolean)
+          : [],
+      ),
+    // Comma-separated organization ids whose deadline is November 23, 2026.
+    // An actionable project in one of these orgs keeps the deadline banner,
+    // even when that project is also on the brownout list. A session that
+    // also has a brownout project in another org sees the brownout banner.
+    LANGFUSE_V4_BANNER_EXTENDED_ORG_IDS: z
+      .string()
+      .optional()
+      .transform((value) =>
+        value
+          ? value
+              .split(",")
+              .map((organizationId) => organizationId.trim())
+              .filter(Boolean)
+          : [],
+      ),
 
     // Character count above which trace/observation I/O is rendered as plain
     // text instead of markdown. Served to the browser via the public tRPC
@@ -763,11 +791,7 @@ export const env = createEnv({
       .int()
       .positive()
       .default(1_000_000),
-    LANGFUSE_SKILL_MAX_FILES: z.coerce
-      .number()
-      .int()
-      .positive()
-      .default(200),
+    LANGFUSE_SKILL_MAX_FILES: z.coerce.number().int().positive().default(200),
 
     // Reverse proxies in front of the web container that append the client
     // address to X-Forwarded-For. Audit events take the client IP from the
@@ -1394,6 +1418,10 @@ export const env = createEnv({
     LANGFUSE_V4_BANNER_SEVERITY: process.env.LANGFUSE_V4_BANNER_SEVERITY,
     LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS:
       process.env.LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS,
+    LANGFUSE_V4_BROWNOUT_PROJECT_IDS:
+      process.env.LANGFUSE_V4_BROWNOUT_PROJECT_IDS,
+    LANGFUSE_V4_BANNER_EXTENDED_ORG_IDS:
+      process.env.LANGFUSE_V4_BANNER_EXTENDED_ORG_IDS,
     LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
       process.env.LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
     LANGFUSE_SKILL_MAX_BYTES: process.env.LANGFUSE_SKILL_MAX_BYTES,

@@ -9,6 +9,12 @@ import {
 import { useIsForceV3ExperienceSettled } from "@/src/features/v4-migration/useForceV3Experience";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import type { V4MigrationTopBannerViewProps } from "@/src/features/v4-migration/V4MigrationTopBannerView";
+import {
+  V4_MIGRATION_STATUS_HREF,
+  V4_MIGRATION_STATUS_LINK_LABEL,
+  V4_MIGRATION_STATUS_MOBILE_LABEL,
+  type V4MigrationBannerVariant,
+} from "@/src/features/v4-migration/v4MigrationBannerCopy";
 import { api } from "@/src/utils/api";
 
 const QUERY_STALE_TIME_MS = 5 * 60 * 1000;
@@ -51,6 +57,7 @@ export function useV4MigrationTopBanner(): V4MigrationTopBannerViewProps | null 
     visible && (severity === "warning" || severity === "critical")
       ? severity
       : null;
+  const variant: V4MigrationBannerVariant = state?.variant ?? "deadline";
   // Exposure denominator for the CTA funnel; PostHog is the external system.
   // Fires once per severity the viewer sees, not on every refetch.
   const shownSeverityRef = useRef<V4MigrationTopBannerSeverity | null>(null);
@@ -60,19 +67,24 @@ export function useV4MigrationTopBanner(): V4MigrationTopBannerViewProps | null 
     capture("v4_migration:top_banner_shown", {
       severity: bannerSeverity,
       actionNeededCount,
+      variant,
     });
-  }, [bannerSeverity, actionNeededCount, capture]);
+  }, [bannerSeverity, actionNeededCount, capture, variant]);
 
   if (!bannerSeverity || !state?.message) return null;
 
   const analytics = {
     severity: bannerSeverity,
     actionNeededCount,
+    variant,
   };
 
   return {
     severity: bannerSeverity,
     message: state.message,
+    href: state.href ?? V4_MIGRATION_STATUS_HREF,
+    linkLabel: state.linkLabel ?? V4_MIGRATION_STATUS_LINK_LABEL,
+    mobileLabel: state.mobileLabel ?? V4_MIGRATION_STATUS_MOBILE_LABEL,
     onStatusClick: () => {
       capture("v4_migration:top_banner_cta_clicked", {
         ...analytics,

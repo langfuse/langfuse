@@ -113,6 +113,10 @@ describe("getV4MigrationTopBannerState", () => {
     ).resolves.toEqual({
       severity: "warning",
       message: "Action required.",
+      href: "/v4-migration",
+      linkLabel: "Check migration status",
+      mobileLabel: "Action required:",
+      variant: "deadline",
       actionNeededCount: 1,
     });
 
@@ -159,5 +163,69 @@ describe("getV4MigrationTopBannerState", () => {
     expect(mocks.getMigrationActionsByProject).toHaveBeenCalledWith(
       expect.objectContaining({ projectIds }),
     );
+  });
+
+  it("uses brownout copy for freeze-list projects and the extended deadline for named orgs", async () => {
+    const banner = {
+      prisma: {} as PrismaClient,
+      session,
+      demoOrgId: "demo-org" as string | undefined,
+      isLangfuseCloud: true,
+    };
+
+    await expect(
+      getV4MigrationTopBannerState({
+        ...banner,
+        brownoutProjectIds: ["project-c"],
+        extendedOrgIds: [],
+      }),
+    ).resolves.toMatchObject({
+      message: "Action required.",
+      variant: "deadline",
+      href: "/v4-migration",
+      linkLabel: "Check migration status",
+    });
+
+    await expect(
+      getV4MigrationTopBannerState({
+        ...banner,
+        brownoutProjectIds: ["project-a"],
+        extendedOrgIds: [],
+      }),
+    ).resolves.toMatchObject({
+      message: "If a feature does not work, it may be in a scheduled brownout.",
+      variant: "brownout",
+      href: "https://status.langfuse.com",
+      linkLabel: "See brownout times",
+      mobileLabel: "If a feature does not work:",
+    });
+
+    await expect(
+      getV4MigrationTopBannerState({
+        ...banner,
+        brownoutProjectIds: ["project-a"],
+        extendedOrgIds: ["org-a"],
+      }),
+    ).resolves.toMatchObject({
+      message:
+        "Action required: Deadline extended by one week, until November 23, 2026. Some features may stop working after that for at least one of your projects.",
+      variant: "extended",
+      href: "/v4-migration",
+      linkLabel: "Check migration status",
+    });
+
+    mocks.getMigrationActionsByProject.mockResolvedValue(
+      new Map([
+        ["project-a", actionNeeded],
+        ["project-c", actionNeeded],
+      ]),
+    );
+    await expect(
+      getV4MigrationTopBannerState({
+        ...banner,
+        brownoutProjectIds: ["project-a"],
+        extendedOrgIds: ["org-c"],
+      }),
+    ).resolves.toMatchObject({ variant: "brownout" });
   });
 });

@@ -91,7 +91,7 @@ describe("useV4MigrationTopBanner", () => {
     });
     expect(mocks.capture).toHaveBeenCalledWith(
       "v4_migration:top_banner_shown",
-      { severity: "warning", actionNeededCount: 1 },
+      { severity: "warning", actionNeededCount: 1, variant: "deadline" },
     );
 
     const link = screen.getByRole("link", { name: "Check migration status" });
@@ -103,6 +103,7 @@ describe("useV4MigrationTopBanner", () => {
       {
         severity: "warning",
         actionNeededCount: 1,
+        variant: "deadline",
         cta: "primary",
       },
     );
