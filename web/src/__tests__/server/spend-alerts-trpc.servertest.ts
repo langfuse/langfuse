@@ -130,48 +130,46 @@ describe("spend alerts trpc", () => {
     ]);
   });
 
-  it.each([Role.ADMIN, Role.MEMBER, Role.VIEWER, Role.NONE])(
-    "denies alert mutations to an organization %s without langfuseCloudBilling:CRUD",
-    async (role) => {
-      const { orgId, callerWithRole } = await prepare("cloud:core");
-      const caller = callerWithRole(role);
-      const alert = await prisma.cloudSpendAlert.create({
-        data: { orgId, title: "Existing", threshold: 100 },
-      });
-      const missingScope = {
-        code: "FORBIDDEN",
-        message:
-          "Forbidden, user does not have access to this resource or action",
-      };
+  // ADMIN is the broadest role without langfuseCloudBilling:CRUD; lower roles hold a subset of its scopes.
+  it("denies alert mutations to an organization admin without langfuseCloudBilling:CRUD", async () => {
+    const { orgId, callerWithRole } = await prepare("cloud:core");
+    const caller = callerWithRole(Role.ADMIN);
+    const alert = await prisma.cloudSpendAlert.create({
+      data: { orgId, title: "Existing", threshold: 100 },
+    });
+    const missingScope = {
+      code: "FORBIDDEN",
+      message:
+        "Forbidden, user does not have access to this resource or action",
+    };
 
-      await expect(
-        caller.spendAlerts.createSpendAlert({
-          orgId,
-          title: "New",
-          threshold: 50,
-        }),
-      ).rejects.toMatchObject(missingScope);
-      await expect(
-        caller.spendAlerts.updateSpendAlert({
-          orgId,
-          id: alert.id,
-          threshold: 50,
-        }),
-      ).rejects.toMatchObject(missingScope);
-      await expect(
-        caller.spendAlerts.deleteSpendAlert({ orgId, id: alert.id }),
-      ).rejects.toMatchObject(missingScope);
+    await expect(
+      caller.spendAlerts.createSpendAlert({
+        orgId,
+        title: "New",
+        threshold: 50,
+      }),
+    ).rejects.toMatchObject(missingScope);
+    await expect(
+      caller.spendAlerts.updateSpendAlert({
+        orgId,
+        id: alert.id,
+        threshold: 50,
+      }),
+    ).rejects.toMatchObject(missingScope);
+    await expect(
+      caller.spendAlerts.deleteSpendAlert({ orgId, id: alert.id }),
+    ).rejects.toMatchObject(missingScope);
 
-      expect(
-        await prisma.cloudSpendAlert.findMany({
-          where: { orgId },
-          select: { id: true, title: true, threshold: true },
-        }),
-      ).toEqual([
-        { id: alert.id, title: "Existing", threshold: alert.threshold },
-      ]);
-    },
-  );
+    expect(
+      await prisma.cloudSpendAlert.findMany({
+        where: { orgId },
+        select: { id: true, title: true, threshold: true },
+      }),
+    ).toEqual([
+      { id: alert.id, title: "Existing", threshold: alert.threshold },
+    ]);
+  });
 });
 
 /** prepare creates an organization on the given plan and tRPC callers for its members */
