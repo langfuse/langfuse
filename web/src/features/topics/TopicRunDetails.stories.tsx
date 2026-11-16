@@ -156,23 +156,6 @@ const meta = preview.meta({
   },
 });
 
-export const Running = meta.story({
-  args: {
-    execution: processRun({
-      status: "running",
-      phase: "summarizing",
-      facets: facetRefs.map(({ facetId }) =>
-        facetProgress(facetId, {
-          outcome: "pending",
-          runId: null,
-          counts: { complete: 180, assigned: 0, outlier: 0 },
-        }),
-      ),
-    }),
-    retry: retryIdle,
-  },
-});
-
 export const Regenerating = meta.story({
   name: "(Test) Regenerating counts the summaries it groups",
   args: {

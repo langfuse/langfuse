@@ -1,6 +1,6 @@
 # Topics UI
 
-Web owns configuration, manual run controls, and result exploration. Processing and storage contracts live in the [worker README](../../../../worker/src/features/topics/README.md).
+Web owns configuration, map and snapshot controls, and result exploration. Processing and storage contracts live in the [worker README](../../../../worker/src/features/topics/README.md).
 
 ## Access
 

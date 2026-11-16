@@ -412,7 +412,6 @@ describe("Topics filtered trace preview", () => {
     });
     expect(response).toMatchObject({
       matchedTraceCount: 123,
-      selectedTraceCount: 100,
       traces: [
         {
           id: "trace/a:1",
@@ -446,27 +445,6 @@ describe("Topics filtered trace preview", () => {
       samplingSeed: "sample-seed",
     });
     expect(request.preferredClickhouseService).toBe("EventsReadOnly");
-  });
-
-  it("caps manual backfill selection while preserving the full matching count", async () => {
-    mocks.queryClickhouse.mockResolvedValue([
-      {
-        id: "trace-a",
-        timestampMs: "1789430400000",
-        name: "Agent",
-        environment: "default",
-        matchedTraceCount: String(TOPICS_BACKFILL_TRACE_LIMIT + 1),
-      },
-    ]);
-    const response = await caller().previewTraces({
-      ...selection,
-      limit: null,
-    });
-    expect(response.matchedTraceCount).toBe(1001);
-    expect(response.selectedTraceCount).toBe(1000);
-    expect(mocks.queryClickhouse.mock.calls[0][0].params.limit).toBe(20);
-    await caller().previewTraces({ ...selection, limit: 500 });
-    expect(mocks.queryClickhouse.mock.calls[1][0].params.limit).toBe(20);
   });
 
   it("rejects oversized previews before querying", async () => {

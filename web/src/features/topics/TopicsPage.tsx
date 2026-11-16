@@ -37,7 +37,6 @@ import { TopicSetupFlowController } from "./TopicSetupFlowController";
 import { TopicSetupNotice } from "./TopicSetupNotice";
 import {
   topicRuleSetupProgress,
-  topicSetupStage,
   type TopicSetupStage,
 } from "./topic-setup-flow";
 import { TopicSetupProgressView } from "./TopicSetupProgressView";
@@ -232,18 +231,6 @@ function TopicsWorkspaceContent({
   const [mountedAt] = useState(Date.now);
   const facetName = (facetId: string) =>
     facets.data?.find((item) => item.id === facetId)?.name ?? "Facet";
-  const runFacets = (process: RouterOutputs["topics"]["executions"][number]) =>
-    process.facets.map((facet) => ({
-      key: `${facet.facetId}:${facet.facetVersion}`,
-      name: facetName(facet.facetId),
-      complete: facet.counts.complete,
-      requested: facet.counts.requested,
-    }));
-  const busyProcess =
-    (executions.data ?? []).find(
-      (execution) =>
-        execution.input.operation === "process" && busy(execution.status),
-    ) ?? null;
   const executionId =
     typeof router.query.executionId === "string"
       ? router.query.executionId
@@ -483,15 +470,10 @@ function TopicsWorkspaceContent({
           !results.isLoading &&
           !results.error &&
           !hasStoredSummaries;
-        // Without a tracked setup run, a running summary run or automatic processing still shows progress.
-        const landingRun =
-          showLanding && !showSetupProgress && busyProcess
-            ? { process: busyProcess, update: null }
-            : null;
+        // Without a tracked setup run, automatic processing still shows progress.
         const waitingForTraces =
           showLanding &&
           !showSetupProgress &&
-          !landingRun &&
           modelSettings.automaticProcessing.state.status === "on";
         // A setup keeps the header while other maps exist, so they stay reachable.
         const setupInline =
@@ -504,8 +486,6 @@ function TopicsWorkspaceContent({
           );
         const showOnboarding =
           (showSetupProgress && !setupInline) || showLanding;
-        const landingOnly =
-          showLanding && !showSetupProgress && !setupBlockedReason;
         const hasStrip =
           (!showOnboarding && selectedRule !== undefined) ||
           selectedAnalysis !== undefined;
@@ -575,7 +555,6 @@ function TopicsWorkspaceContent({
           automaticProcessing,
           canWrite,
           configureAvailable: modelSettings.configure.settings !== null,
-          menuOnly: landingOnly,
           // Settings only edits models and idle time; setup starts from onboarding.
           onConfigure: openConfigure,
           onHistory: openHistory,
@@ -699,21 +678,9 @@ function TopicsWorkspaceContent({
                   onKeepOff={automaticProcessing.clearPause}
                   onTurnBackOn={turnAutomaticProcessingBackOn}
                   showOnboarding={
-                    showLanding &&
-                    !showSetupProgress &&
-                    !landingRun &&
-                    !waitingForTraces
+                    showLanding && !showSetupProgress && !waitingForTraces
                   }
                 />
-                {landingRun ? (
-                  <TopicSetupProgressView
-                    stage={topicSetupStage(landingRun, Date.now()).stage}
-                    facets={runFacets(landingRun.process)}
-                    retrying={false}
-                    canRetry={false}
-                    onViewDetails={() => openExecution(landingRun.process.id)}
-                  />
-                ) : null}
                 {waitingForTraces ? (
                   <TopicSetupProgressView
                     waiting
