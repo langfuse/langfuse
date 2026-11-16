@@ -215,17 +215,14 @@ export default withMiddlewares(
           },
         );
 
-        let latencySeconds = -1;
-        if (includeMetrics) {
-          latencySeconds = latencyMs !== undefined ? latencyMs / 1000 : 0;
-        }
+        const latencySeconds = latencyMs !== undefined ? latencyMs / 1000 : 0;
 
         return {
           ...trace,
           externalId: null,
           metadata: includeIO ? trace.metadata : {},
           scores: includeScores ? validatedScores : [],
-          latency: latencySeconds,
+          latency: includeMetrics ? latencySeconds : -1,
           observations: includeObservations ? outObservations : [],
           htmlPath: `/project/${auth.scope.projectId}/traces/${traceId}`,
           totalCost: includeMetrics
