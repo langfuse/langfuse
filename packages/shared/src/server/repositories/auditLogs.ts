@@ -55,7 +55,13 @@ export function getAuditLogResourceRefs(
   if (!parsed.success) return [];
 
   return Array.from(
-    new Set(parsed.data.traceIds.filter((id) => id.length > 0)),
+    new Set(
+      parsed.data.traceIds
+        .filter((id) => id.length > 0)
+        .map((id) =>
+          id.replaceAll("\u0000", String.fromCharCode(0xfffd)).toWellFormed(),
+        ),
+    ),
     (id) => toAuditLogResourceRef("trace", id),
   );
 }

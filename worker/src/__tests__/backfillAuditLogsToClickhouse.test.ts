@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { AuditLogEventSchema, toAuditLogResourceRef } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   convertPostgresAuditLogToClickhouse,
@@ -24,6 +25,7 @@ const readClickhouseRows = (orgId: string) =>
     user_project_role: string;
     resource_type: string;
     resource_id: string;
+    resource_refs: string[];
     action: string;
     before: string;
     after: string;
@@ -31,7 +33,7 @@ const readClickhouseRows = (orgId: string) =>
     query: `
       SELECT id, project_id, event_kind, actor_type, user_id, api_key_id,
              actor_name, actor_email, user_org_role, user_project_role,
-             resource_type, resource_id, action, before, after
+             resource_type, resource_id, resource_refs, action, before, after
       FROM audit_logs
       WHERE org_id = {orgId: String}
       ORDER BY timestamp ASC, id ASC
@@ -102,19 +104,52 @@ describe("BackfillAuditLogsToClickhouse", () => {
     });
   });
 
-  it("preserves a bulk audit row when its snapshot cannot supply resource refs", () => {
+  it("reconstructs the same safe bulk trace refs as live staging", async () => {
+    const traceIds = [
+      "ordinary",
+      "nul-\u0000",
+      "high-\ud800",
+      "low-\udc00",
+      "pair-\ud83d\ude80",
+    ];
     const row = postgresRow(settledAt(0), {
       userId: "user-1",
       resourceType: "project",
       resourceId: projectId,
       action: "deleteTraces",
-      before: "unrecognized legacy snapshot",
+      before: JSON.stringify({ traceIds }),
+    });
+    const staged = AuditLogEventSchema.parse({
+      kind: "change",
+      orgId,
+      projectId,
+      actor: { type: "USER", userId: "user-1" },
+      resourceType: "project",
+      resourceId: projectId,
+      action: "deleteTraces",
+      before: { traceIds },
+      resourceRefs: traceIds.map((id) => toAuditLogResourceRef("trace", id)),
     });
 
-    expect(convertPostgresAuditLogToClickhouse(row)).toMatchObject({
-      before: row.before,
-      resource_refs: [],
-    });
+    expect(convertPostgresAuditLogToClickhouse(row).resource_refs).toEqual(
+      staged.resourceRefs,
+    );
+    await prisma.auditLog.create({ data: row });
+    await new BackfillAuditLogsToClickhouse(migrationId).run({ settleMs: 0 });
+
+    const replacement = String.fromCharCode(0xfffd);
+    expect(await readClickhouseRows(orgId)).toMatchObject([
+      {
+        before: row.before,
+        resource_refs: [
+          "trace:ordinary",
+          `trace:nul-${replacement}`,
+          `trace:high-${replacement}`,
+          `trace:low-${replacement}`,
+          "trace:pair-\ud83d\ude80",
+        ],
+      },
+    ]);
   });
 
   // Keeps the cursor, as an operator who moves copyUntil would.
