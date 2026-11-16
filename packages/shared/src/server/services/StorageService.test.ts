@@ -658,8 +658,10 @@ describe("S3StorageService request checksums", () => {
 
   const makeServiceWithCapture = (
     respond: string | ((request: CapturedRequest) => CannedResponse),
+    options: { sendContentMd5?: boolean } = {},
   ) => {
     const service = StorageServiceFactory.getInstance({
+      ...options,
       credentials: storageKeys("test-access-key", "test-secret-key"),
       bucketName: "test-bucket",
       endpoint: "http://127.0.0.1:9000",
@@ -767,29 +769,36 @@ describe("S3StorageService request checksums", () => {
       (env as Record<string, unknown>)[bufferedKey] = "true";
 
       try {
-        const { service, captured } = makeServiceWithCapture((request) => {
-          if (request.query && "uploads" in request.query) {
+        const { service, captured } = makeServiceWithCapture(
+          (request) => {
+            if (request.query && "uploads" in request.query) {
+              return {
+                xml: `<InitiateMultipartUploadResult><Bucket>test-bucket</Bucket><Key>k</Key><UploadId>upload-1</UploadId></InitiateMultipartUploadResult>`,
+              };
+            }
+            if (request.query?.partNumber) {
+              return {
+                headers: { etag: `"etag-${request.query.partNumber}"` },
+              };
+            }
             return {
-              xml: `<InitiateMultipartUploadResult><Bucket>test-bucket</Bucket><Key>k</Key><UploadId>upload-1</UploadId></InitiateMultipartUploadResult>`,
+              xml: `<CompleteMultipartUploadResult><Bucket>test-bucket</Bucket><Key>k</Key><ETag>"final"</ETag></CompleteMultipartUploadResult>`,
             };
-          }
-          if (request.query?.partNumber) {
-            return { headers: { etag: `"etag-${request.query.partNumber}"` } };
-          }
-          return {
-            xml: `<CompleteMultipartUploadResult><Bucket>test-bucket</Bucket><Key>k</Key><ETag>"final"</ETag></CompleteMultipartUploadResult>`,
-          };
-        });
+          },
+          { sendContentMd5: true },
+        );
 
-        // Stream chunks straddle part boundaries, so parts are sliced views.
+        // Stream chunks straddle part boundaries, so parts are sliced views;
+        // parts also exceed the middleware's internal hash slice size.
+        const MiB = 1024 * 1024;
         const chunks = Array.from({ length: 4 }, (_, i) =>
-          Buffer.alloc(700, i + 1),
+          Buffer.alloc(3 * MiB, i + 1),
         );
         await service.uploadFileBuffered({
           fileName: "exports/observations.parquet",
           fileType: "application/vnd.apache.parquet",
           data: Readable.from(chunks),
-          partSizeBytes: 1024,
+          partSizeBytes: 5 * MiB,
           maxConcurrentParts: 1,
         });
 
@@ -827,6 +836,16 @@ describe("S3StorageService request checksums", () => {
       }
     },
   );
+
+  // Ingestion writes go through default clients; they must not pay for MD5.
+  it("does not send Content-MD5 unless the client opts in", async () => {
+    const { service, captured } = makeServiceWithCapture("");
+
+    await service.uploadJson("events/project-1/event.json", [{ id: "e1" }]);
+
+    expect(captured).toHaveLength(1);
+    expect(findHeader(captured[0], "content-md5")).toBeUndefined();
+  });
 });
 
 describe("S3StorageService non-buffered upload part size", () => {

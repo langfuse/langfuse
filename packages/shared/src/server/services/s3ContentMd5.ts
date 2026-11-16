@@ -9,14 +9,22 @@ type BuildArgs = {
 type BuildNext = (args: BuildArgs) => Promise<unknown>;
 type BuildContext = { commandName?: string };
 
-function md5Base64(body: unknown): string | undefined {
+// Hash parts in slices, yielding between them, so a 100 MiB+ part does not
+// hold the event loop (BullMQ lock renewal, other consumers) for its whole MD5.
+const MD5_SLICE_BYTES = 4 * 1024 * 1024;
+
+async function md5Base64(body: unknown): Promise<string | undefined> {
   if (typeof body === "string") {
     return createHash("md5").update(body, "utf8").digest("base64");
   }
-  if (body instanceof Uint8Array) {
-    return createHash("md5").update(body).digest("base64");
+  if (!(body instanceof Uint8Array)) return undefined;
+
+  const hash = createHash("md5");
+  for (let offset = 0; offset < body.byteLength; offset += MD5_SLICE_BYTES) {
+    if (offset > 0) await new Promise((resolve) => setImmediate(resolve));
+    hash.update(body.subarray(offset, offset + MD5_SLICE_BYTES));
   }
-  return undefined;
+  return hash.digest("base64");
 }
 
 function hasHeader(headers: Record<string, string>, name: string): boolean {
@@ -51,7 +59,7 @@ export function addS3ContentMd5Middleware(client: S3Client): void {
         !hasHeader(headers, "content-md5")
       ) {
         try {
-          const digest = md5Base64(args.request?.body);
+          const digest = await md5Base64(args.request?.body);
           if (digest) headers["content-md5"] = digest;
         } catch {
           // MD5 disabled (FIPS): send the request as before.
