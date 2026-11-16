@@ -149,17 +149,19 @@ vi.mock("./CurrentTopics", () => ({
     running: boolean;
     refreshAfter: number;
     timeRange: { from: Date; to: Date };
+    enabled?: boolean;
   }) => {
     useState(() => state.workspaceMounts++);
     state.currentTopics(input);
     return {
       ...input,
-      data: state.resultsDataAvailable
-        ? {
-            hasStoredSummaries: state.hasStoredSummaries,
-            facets: state.resultFacets,
-          }
-        : undefined,
+      data:
+        state.resultsDataAvailable && input.enabled !== false
+          ? {
+              hasStoredSummaries: state.hasStoredSummaries,
+              facets: state.resultFacets,
+            }
+          : undefined,
       isLoading: false,
     };
   },
@@ -609,13 +611,15 @@ const oneRuleMaps = {
   analyses: [],
 };
 
-it("requests results for the default map only once the maps load", () => {
+it("shows one loading page until the default map's results load", () => {
   withSummaries();
   state.rulesPending = true;
   const view = renderTopicsPage();
   expect(state.currentTopics).toHaveBeenLastCalledWith(
     expect.objectContaining({ enabled: false }),
   );
+  expect(screen.queryByTestId("current-topics")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Edit map" })).toBeNull();
 
   state.rulesPending = false;
   state.maps = oneRuleMaps;
@@ -623,6 +627,8 @@ it("requests results for the default map only once the maps load", () => {
   expect(state.currentTopics).toHaveBeenLastCalledWith(
     expect.objectContaining({ enabled: true, ruleId: "rule-1" }),
   );
+  expect(screen.getByTestId("current-topics")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Edit map" })).toBeInTheDocument();
 });
 
 it("leaves creating and refreshing maps to the map picker, not the menu", async () => {

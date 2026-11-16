@@ -1,5 +1,5 @@
 /* eslint-disable react/no-unstable-nested-components */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronLeft } from "@langfuse/icons";
 import {
   keepPreviousData,
@@ -394,6 +394,17 @@ function TopicsWorkspaceContent({
     },
   );
   const setup = ruleSetup.data ? topicRuleSetupProgress(ruleSetup.data) : null;
+  // A finished setup's map shows on the next poll; refetch now so the full
+  // progress bar hands over to the map without waiting for it.
+  const setupActive = Boolean(setup?.active);
+  const setupWasActive = useRef(setupActive);
+  useEffect(() => {
+    if (setupWasActive.current && !setupActive) {
+      void utils.topics.maps.invalidate({ projectId });
+      void utils.topics.currentResults.invalidate({ projectId });
+    }
+    setupWasActive.current = setupActive;
+  }, [setupActive, projectId, utils]);
   // A finished setup hands over to results; a failure from this visit stays until retried.
   const showSetupProgress =
     setup !== null &&
@@ -469,6 +480,16 @@ function TopicsWorkspaceContent({
         isLoading: results.isLoading || !mapsSettled,
         error: results.error,
       };
+  // The page renders once, with its header, strip and results together; later
+  // loads stay inside it so its dialogs and selection survive.
+  const [firstLoadSettled, setFirstLoadSettled] = useState(false);
+  if (
+    !firstLoadSettled &&
+    (facets.isError ||
+      (facets.isSuccess &&
+        (shownResults.data !== undefined || Boolean(shownResults.error))))
+  )
+    setFirstLoadSettled(true);
   // Traces follow the results on screen, so a switch requests no traces for stale topics.
   const scope = analysisId
     ? { analysisId }
@@ -911,7 +932,7 @@ function TopicsWorkspaceContent({
     </TopicSliceDialogController>
   );
   return (
-    <TopicsWorkspaceGate isLoading={facets.isLoading} fallback={loadingPage}>
+    <TopicsWorkspaceGate isLoading={!firstLoadSettled} fallback={loadingPage}>
       {workspace}
     </TopicsWorkspaceGate>
   );
