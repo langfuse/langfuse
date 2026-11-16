@@ -8,7 +8,6 @@ import {
   type ClickHouseSettings,
 } from "@clickhouse/client";
 import {
-  sql,
   type AliasableExpression,
   type AliasedExpression,
   type Expression,
@@ -40,6 +39,7 @@ import {
   byteLength,
   count,
   dateDiff,
+  emptyMap,
   startsWith,
   leftUTF8,
   limitBy,
@@ -1346,7 +1346,7 @@ export const getTraceByIdFromEventsTable = async ({
       .orderBy("timestamp", "desc");
 
   const metadataSelect = excludeMetadata
-    ? sql`map()`.as("metadata")
+    ? emptyMap<string>().as("metadata")
     : "t.metadata";
 
   const builder = db

@@ -23,8 +23,10 @@ import {
   type CommonTableExpressionNameNode,
   type CommonTableExpressionNode,
   type OperationNode,
+  type OrderByItemNode,
   type PrimitiveValueListNode,
   type RootOperationNode,
+  type SelectModifierNode,
   type SelectionNode,
   type ValueListNode,
 } from "kysely";
@@ -33,9 +35,11 @@ import { TupleParam } from "@clickhouse/client";
 
 import {
   ArrayJoinNode,
+  PLAIN_IDENTIFIER,
   TypedParam,
   asCustomNode,
   compileCustomNode,
+  isRawReference,
   type ClickHouseSelectQueryNode,
   type LimitByNode,
   type WithFillNode,
@@ -52,7 +56,6 @@ const ARRAY_JOIN_SQL: Record<ArrayJoinNode["variant"], string> = {
   inner: "inner array join",
 };
 
-const PLAIN_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const TUPLE_INDEX = /^[1-9][0-9]*$/;
 
 const DATE_WRAPPER_FNS = new Set([
@@ -175,13 +178,7 @@ function typePreservedOperand(node: OperationNode): OperationNode {
 function columnReference(
   node: OperationNode,
 ): { column: string; qualifier: string | undefined } | undefined {
-  if (
-    RawNode.is(node) &&
-    node.parameters.length === 1 &&
-    node.sqlFragments.every((fragment) => fragment === "")
-  ) {
-    return columnReference(node.parameters[0]);
-  }
+  if (isRawReference(node)) return columnReference(node.parameters[0]);
   if (ColumnNode.is(node)) {
     return { column: node.column.name, qualifier: undefined };
   }
@@ -202,21 +199,11 @@ function qualifierOf(table: TableNode): string {
   return table.table.schema?.name ?? table.table.identifier.name;
 }
 
-/**
- * The names of an `sql.id(…)` node, which Kysely builds as identifiers joined
- * by dots: `sql.id("t", "col")` → `["t", "col"]`. Undefined for other raw SQL.
- */
-function identifierPath(node: RawNode): string[] | undefined {
-  const { parameters, sqlFragments } = node;
-  if (parameters.length === 0 || !parameters.every(IdentifierNode.is)) {
-    return undefined;
-  }
-  const joinedByDots = sqlFragments.every((fragment, index) =>
-    index === 0 || index === sqlFragments.length - 1
-      ? fragment === ""
-      : fragment === ".",
-  );
-  return joinedByDots ? parameters.map((id) => id.name) : undefined;
+/** `asc` / `desc`, as Kysely builds the direction of `orderBy("t.x", "desc")`. */
+function isRawDirection(node: OperationNode): boolean {
+  if (!RawNode.is(node) || node.parameters.length > 0) return false;
+  const [text] = node.sqlFragments;
+  return text === "asc" || text === "desc";
 }
 
 type SelectScope = {
@@ -281,6 +268,8 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
    * {@link visitColumn} does not check it as bare. Reset by that visit.
    */
   private visitingQualifiedColumn = false;
+  /** Raw `asc` / `desc` nodes in an ORDER BY item's direction slot. */
+  private readonly directions = new WeakSet<OperationNode>();
 
   /** Placeholders are named `<paramPrefix>1`, `<paramPrefix>2`, … */
   constructor(private readonly paramPrefix = "p") {
@@ -363,6 +352,17 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     return { sql: this.getSql(), params: { ...this.namedParameters } };
   }
 
+  /**
+   * Kysely writes unary minus without a space, so before an operand that
+   * starts with `-` (`-1`, `-x`) it would write the comment `--`. Reporting
+   * no operator as minus makes Kysely space every unary operator: `- -1`.
+   */
+  protected override isMinusOperator(
+    _node: OperationNode,
+  ): _node is OperatorNode {
+    return false;
+  }
+
   // Emit identifiers unquoted. `clickhouse format` normalizes to unquoted
   // identifiers, so returning empty wrappers is what keeps raw compiler output
   // byte-comparable with the golden snapshots. Dropping the quotes is safe
@@ -376,8 +376,8 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   }
 
   /**
-   * Every identifier (column, table, schema, alias, CTE name, `sql.ref`,
-   * `sql.id`) is written unquoted, so a name that is not a plain identifier
+   * Every identifier (column, table, schema, alias, CTE name, `sql.ref`) is
+   * written unquoted, so a name that is not a plain identifier
    * would be raw SQL: the alias `x from scores --` comments out the tenancy
    * predicate after it.
    */
@@ -441,14 +441,36 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   }
 
   /**
-   * `sql.id("timestamp")` and `sql.id("t", "timestamp")` are columns written
-   * as identifiers, so they follow the same rule as a column reference.
+   * Raw SQL compiles only in the shapes Kysely builds for builder calls: a
+   * column reference (`sql.ref("t.x")`) and an ORDER BY direction (`asc` /
+   * `desc`). Any other raw SQL (`` sql`…` ``, `sql.raw`, `sql.lit`, `sql.id`,
+   * `sql.table`, `sql.join`) writes text the passes cannot read, which can
+   * read a relation unscoped or leave its slot.
    */
   protected override visitRaw(node: RawNode): void {
-    const ids = identifierPath(node);
-    if (ids?.length === 1) this.assertBareNameResolves(ids[0]);
-    else if (ids) this.assertQualifierResolves(ids[0]);
+    if (!isRawReference(node) && !this.directions.has(node)) {
+      throw new UnscopedRelationError(
+        "Raw SQL is rejected: only sql.ref(...) and an ORDER BY direction compile. Use builder expressions, a function from extensions.ts (or eb.fn for one on the allowlist), sql.ref(...) for a column, literal(...) / typedValue(...) / emptyMap() for a constant, or a bound value.",
+      );
+    }
     super.visitRaw(node);
+  }
+
+  protected override visitOrderByItem(node: OrderByItemNode): void {
+    if (node.direction && isRawDirection(node.direction)) {
+      this.directions.add(node.direction);
+    }
+    super.visitOrderByItem(node);
+  }
+
+  /** `modifyFront` / `modifyEnd` write raw SQL before or after a select. */
+  protected override visitSelectModifier(node: SelectModifierNode): void {
+    if (node.rawModifier) {
+      throw new UnscopedRelationError(
+        "modifyFront/modifyEnd are rejected: raw text before or after a select can rewrite what the tenancy pass scoped. Express the clause with the builder or an extensions.ts helper.",
+      );
+    }
+    super.visitSelectModifier(node);
   }
 
   private assertBareNameResolves(name: string): void {
@@ -503,6 +525,35 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   protected override visitCollate(node: CollateNode): void {
     throw new QueryCompileError(
       `Collation "${node.collation.name}" is not supported: ClickHouse expects a string literal after collate.`,
+    );
+  }
+
+  /**
+   * Every string the compiler inlines (`literal(...)`) passes here.
+   * Kysely doubles `'` but leaves `\`, which ClickHouse reads as an escape:
+   * `'a\'` would not end the string, and the next literal's text would run
+   * as SQL.
+   */
+  protected override sanitizeStringLiteral(value: string): string {
+    if (value.includes("\\")) {
+      throw new QueryCompileError(
+        `An inlined string literal holds a backslash, which ClickHouse reads as an escape: ${value}. Bind the value instead.`,
+      );
+    }
+    return super.sanitizeStringLiteral(value);
+  }
+
+  /** `eb.ref(col, "->>$")` writes `->` / `->>`, which ClickHouse cannot parse. */
+  protected override visitJSONReference(): void {
+    throw new QueryCompileError(
+      "JSON references (eb.ref(col, '->')) are not supported: ClickHouse has no -> or ->> operator. Use a function from extensions.ts or eb.fn.",
+    );
+  }
+
+  /** `eb.jsonPath()` inlines its keys into a string literal unchecked. */
+  protected override visitJSONPath(): void {
+    throw new QueryCompileError(
+      "JSON paths (eb.jsonPath()) are not supported. Bind the path as a value instead.",
     );
   }
 
@@ -725,10 +776,19 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     super.visitCommonTableExpressionName(node);
   }
 
-  /** A CTE body does not see the declaring SELECT's FROM relations. */
+  /**
+   * A CTE body does not see the declaring SELECT's FROM relations. A body
+   * that is not a select writes `with x as <expr>`, a WITH alias: `FROM x`
+   * then reads the physical table `x`, which the tenancy pass took for the CTE.
+   */
   protected override visitCommonTableExpression(
     node: CommonTableExpressionNode,
   ): void {
+    if (!SelectQueryNode.is(node.expression)) {
+      throw new UnscopedRelationError(
+        `CTE "${cteName(node)}" has a body that is not a select query: ClickHouse reads it as a WITH alias, so FROM "${cteName(node)}" would read a table of that name. Write the body as a select.`,
+      );
+    }
     const declaring = this.selectScopes.pop();
     if (!declaring) {
       super.visitCommonTableExpression(node);
@@ -741,6 +801,16 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       this.selectScopes.pop();
       this.selectScopes.push(declaring);
     }
+  }
+
+  /** A UNION / INTERSECT / EXCEPT operand that is not a select names a relation the passes never scoped. */
+  protected override visitSetOperation(node: SetOperationNode): void {
+    if (!SelectQueryNode.is(node.expression)) {
+      throw new UnscopedRelationError(
+        `A ${node.operator} operand is not a select query, so the compiler passes cannot scope what it reads. Write the operand as a select.`,
+      );
+    }
+    super.visitSetOperation(node);
   }
 
   /**

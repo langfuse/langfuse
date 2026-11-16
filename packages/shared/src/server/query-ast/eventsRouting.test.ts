@@ -216,50 +216,6 @@ describe("logical events routing", () => {
     ).toEqual(["events_core"]);
   });
 
-  it.each([
-    ["lengthUTF8(e.output)", sql<string>`lengthUTF8(e.output)`],
-    ["sql.id e.input", sql<string>`${sql.id("e", "input")}`],
-    ["sql.id input", sql<string>`${sql.id("input")}`],
-    ["sql.table input", sql<string>`${sql.table("input")}`],
-    ["*", sql<string>`*`],
-    ["e.*", sql.raw<string>("e.*")],
-    ["tuple(*)", sql<string>`tuple(*)`],
-    ["COLUMNS(...)", sql<string>`COLUMNS('^inp')`],
-    ["sql.ref e.*", sql.ref<string>("e.*")],
-    ["sql.ref *", sql.ref<string>("*")],
-    ["tuple(sql.ref e.*)", sql<string>`tuple(${sql.ref("e.*")})`],
-  ])("rejects raw %s in a select that reads events", (_, expression) => {
-    expect(() =>
-      routeAlone(db.selectFrom("events as e").select(expression.as("x"))),
-    ).toThrow(QueryCompileError);
-  });
-
-  it("rejects a raw identifier in the where clause of a select that reads events", () => {
-    expect(() =>
-      routeAlone(
-        db
-          .selectFrom("events as e")
-          .select("e.span_id")
-          .where(sql<string>`${sql.id("input")}`, "=", "x"),
-      ),
-    ).toThrow(QueryCompileError);
-  });
-
-  it("rejects raw SQL in a select nested under one that reads events", () => {
-    expect(() =>
-      routeAlone(
-        db.selectFrom("events as e").select((eb) => [
-          "e.span_id",
-          eb
-            .selectFrom("scores as s")
-            .select(sql<number>`1`.as("one"))
-            .limit(1)
-            .as("x"),
-        ]),
-      ),
-    ).toThrow(QueryCompileError);
-  });
-
   it("rejects COLUMNS() in a select that reads events", () => {
     expect(() =>
       routeAlone(
@@ -351,27 +307,6 @@ describe("logical events routing", () => {
             eb(eb.ref("events_full.input" as never), "!=", "" as never),
           ),
     ],
-    [
-      "raw SQL text",
-      () =>
-        db
-          .selectFrom("scores as s")
-          .select(sql<number>`(select count() from events_full)`.as("n")),
-    ],
-    [
-      "sql.id",
-      () =>
-        db
-          .selectFrom("scores as s")
-          .select(sql<string>`${sql.id("events_full")}.input`.as("x")),
-    ],
-    [
-      "sql.table",
-      () =>
-        db
-          .selectFrom("scores as s")
-          .select(sql<string>`${sql.table("events_core")}.input`.as("x")),
-    ],
   ])("rejects a physical events table named as %s", (_, build) => {
     expect(() => routeAlone(build())).toThrow(
       /Read the logical "events" relation instead of "events_(core|full)"/,
@@ -387,20 +322,6 @@ describe("logical events routing", () => {
       );
     expect(route("e.input")).toEqual(["events_full"]);
     expect(route("e.span_id")).toEqual(["events_core"]);
-  });
-
-  it("allows raw SQL in a select over a subquery that reads events", () => {
-    expect(
-      routedTables(
-        routeAlone(
-          db
-            .selectFrom(
-              db.selectFrom("events as e").select("e.span_id").as("x"),
-            )
-            .select(sql<number>`1`.as("one")),
-        ),
-      ),
-    ).toEqual(["events_core"]);
   });
 
   it("rejects an unqualified truncated column of the only relation", () => {
@@ -685,19 +606,6 @@ describe("logical events routing", () => {
     expect(routedTables(routeAlone(query))).toEqual(["events_core"]);
   });
 
-  it("rejects raw SQL text in the WHERE of a select that reads events_truncated", () => {
-    expect(() =>
-      routeAlone(
-        db
-          .selectFrom("events_truncated as e")
-          .select("e.span_id")
-          .where(sql<boolean>`e.input ilike '%x%'`),
-      ),
-    ).toThrow(
-      /cannot appear in the WHERE of a select that reads "events_truncated"/,
-    );
-  });
-
   // The core-safe shortcut skips the walk only in a WHERE.
   it("cuts a core-safe metadata comparison outside the WHERE once events_truncated reads events_full", () => {
     expect(
@@ -745,16 +653,6 @@ describe("logical events routing", () => {
           .where("input", "=", "x"),
       /Qualify "input" in the WHERE/,
     ],
-    // transformRaw: raw text outside the WHERE over a full copy.
-    [
-      "raw SQL text in its select once full",
-      () =>
-        db
-          .selectFrom("events_truncated as e")
-          .select(sql<string>`e.input`.as("i"))
-          .where("e.output", "=", "x"),
-      /Raw SQL text or identifiers cannot read "e"/,
-    ],
     // rejectStar: a bare `*` over a full copy of the current select.
     [
       "selectAll() once full",
@@ -767,19 +665,13 @@ describe("logical events routing", () => {
     ],
     // copiesInScope: the enclosing select's copy counts.
     [
-      "raw SQL text in a subquery under a full copy",
+      "an unqualified truncated column in a subquery under a full copy",
       () =>
         db
           .selectFrom("events_truncated as e")
-          .select((eb) =>
-            eb
-              .selectFrom("traces as t")
-              .select(sql<string>`e.input`.as("i"))
-              .limit(1)
-              .as("i"),
-          )
+          .select(db.selectNoFrom(sql.ref<string>("input").as("i")).as("i"))
           .where("e.output", "=", "x"),
-      /Raw SQL text or identifiers cannot read "e"/,
+      /Unqualified "input" cannot read "e"/,
     ],
   ])("rejects %s of events_truncated", (_name, query, error) => {
     expect(() => routeAlone(query())).toThrow(error);

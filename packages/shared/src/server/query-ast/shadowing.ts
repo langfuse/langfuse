@@ -4,7 +4,6 @@ import {
   ColumnNode,
   IdentifierNode,
   OperatorNode,
-  RawNode,
   ReferenceNode,
   SelectQueryNode,
   TupleNode,
@@ -20,6 +19,8 @@ import { UnscopedRelationError } from "./errors";
 import {
   ArrayJoinNode,
   FinalTableNode,
+  PLAIN_IDENTIFIER,
+  isRawReference,
   unwrapFinalTable,
   walkNodes,
 } from "./nodes";
@@ -119,19 +120,16 @@ function expressionNames(
   return [];
 }
 
-const PLAIN_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
-
 /**
- * The name an alias or lambda parameter binds, as ClickHouse reads it: `t`
- * for `as t`, `as sql.id("t")`, ``as sql`t` `` and the lambda parameter
- * `sql.ref("t")`. Throws for any other shape, whose name the pass cannot
- * check.
+ * The name an alias or lambda parameter binds: `t` for `as t` and the
+ * lambda parameter `sql.ref("t")`. Throws for any other shape, whose name the
+ * pass cannot check.
  */
 function boundName(node: OperationNode): string {
   // The compiler rejects an identifier that is not a plain name.
   if (IdentifierNode.is(node)) return node.name;
   const name = nameText(node);
-  if (name === undefined || !PLAIN_NAME.test(name)) {
+  if (name === undefined || !PLAIN_IDENTIFIER.test(name)) {
     throw new UnscopedRelationError(
       "An alias or lambda parameter must be a plain name: the shadowing check cannot tell which relation another shape would shadow.",
     );
@@ -139,19 +137,13 @@ function boundName(node: OperationNode): string {
   return name;
 }
 
-/** The text of a name node; raw SQL counts when it holds only names. */
+/** The name a name node writes; `sql.ref("t")` writes `t`. */
 function nameText(node: OperationNode): string | undefined {
   if (IdentifierNode.is(node)) return node.name;
   if (ColumnNode.is(node)) return node.column.name;
   if (ReferenceNode.is(node) && ColumnNode.is(node.column) && !node.table) {
     return node.column.column.name;
   }
-  if (!RawNode.is(node)) return undefined;
-  let text = node.sqlFragments[0] ?? "";
-  for (const [i, parameter] of node.parameters.entries()) {
-    const part = nameText(parameter);
-    if (part === undefined) return undefined;
-    text += part + (node.sqlFragments[i + 1] ?? "");
-  }
-  return text.trim();
+  if (isRawReference(node)) return nameText(node.parameters[0]);
+  return undefined;
 }
