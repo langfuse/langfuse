@@ -265,6 +265,7 @@ vi.mock("@/src/utils/api", () => ({
                 })),
                 analyses: [],
               }),
+          isError: false,
         }),
       },
       ruleSetupStatus: { useQuery: () => ({ data: null }) },
@@ -610,11 +611,13 @@ const oneRuleMaps = {
 
 it("requests results for the default map only once the maps load", () => {
   withSummaries();
+  state.rulesPending = true;
   const view = renderTopicsPage();
-  expect(state.currentTopics).not.toHaveBeenCalledWith(
-    expect.objectContaining({ enabled: true }),
+  expect(state.currentTopics).toHaveBeenLastCalledWith(
+    expect.objectContaining({ enabled: false }),
   );
 
+  state.rulesPending = false;
   state.maps = oneRuleMaps;
   view.rerender(<TopicsPage />);
   expect(state.currentTopics).toHaveBeenLastCalledWith(
