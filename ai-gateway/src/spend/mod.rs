@@ -30,7 +30,7 @@ use cost::{
     CalculateModelUsageCostsParams, Model, ModelWithPrices, PricingAttributes,
     calculate_model_usage_costs,
 };
-use store::{Expiry, RedisCounters};
+use store::{Counter, Expiry, RedisCounters};
 
 /// Windowed counters outlive their window by a day, so a request that started
 /// just before the window ended still finds its counter.
@@ -76,37 +76,45 @@ impl SpendLimits {
         };
         let now = DateTime::<Utc>::from(SystemTime::now());
         let organization_id = context.attribution().organization_id().as_str();
-        let windows: Vec<Window> = limits
-            .iter()
-            .map(|limit| Window::current(organization_id, limit, now))
-            .collect();
-        let keys: Vec<String> = windows.iter().map(|window| window.key.clone()).collect();
-        let counted = store
-            .read_counters(&keys)
+        let usage = current_usage(store, limits, organization_id, now)
             .await
             .map_err(|_| ResolutionError::SpendLimitUnavailable)?;
-        for ((limit, window), counted) in limits.iter().zip(&windows).zip(counted) {
-            let baseline = if limit.baseline_window_start == window.start.timestamp() {
-                limit.baseline_usd
-            } else {
-                0.0
-            };
-            let spent = counted.unwrap_or(0.0) + baseline;
-            if spent >= limit.limit_usd {
-                return Err(ResolutionError::SpendLimitExceeded(Box::new(exceeded(
-                    limit, window, spent, now,
-                ))));
-            }
+        if let Some(exceeded) = usage.iter().find(|usage| usage.is_exceeded()) {
+            return Err(ResolutionError::SpendLimitExceeded(Box::new(
+                exceeded.rejection(now),
+            )));
         }
         Ok(Some(SpendRecording {
             store: Arc::clone(store),
-            counters: windows
+            counters: usage
                 .into_iter()
-                .map(|window| (window.key, window.expiry))
+                .map(|usage| usage.window.counter)
                 .collect(),
             model,
         }))
     }
+}
+
+/// What each limit's scope has spent in its current window, read in one round trip.
+async fn current_usage<'a>(
+    store: &RedisCounters,
+    limits: &'a [SpendLimit],
+    organization_id: &str,
+    now: DateTime<Utc>,
+) -> Result<Vec<LimitUsage<'a>>, store::Unavailable> {
+    let windows: Vec<Window> = limits
+        .iter()
+        .map(|limit| Window::current(organization_id, limit, now))
+        .collect();
+    let counted = store
+        .read(windows.iter().map(|window| &window.counter))
+        .await?;
+    Ok(limits
+        .iter()
+        .zip(windows)
+        .zip(counted)
+        .map(|((limit, window), counted)| LimitUsage::new(limit, window, counted))
+        .collect())
 }
 
 /// The model with its pricing tiers, when Langfuse has a price for the model.
@@ -132,11 +140,11 @@ fn reports_usage(connection: &ProviderConnection) -> bool {
     connection.provider() == Provider::Azure || !connection.has_custom_base_url()
 }
 
+/// The window of a limit that `now` falls in, and the counter its spend is added to.
 struct Window {
-    key: String,
+    counter: Counter,
     start: DateTime<Utc>,
     end: Option<DateTime<Utc>>,
-    expiry: Expiry,
 }
 
 impl Window {
@@ -156,45 +164,68 @@ impl Window {
             Expiry::At(end.timestamp() + WINDOW_EXPIRY_GRACE_SECONDS)
         });
         Self {
-            key,
+            counter: Counter { key, expiry },
             start,
             end,
-            expiry,
         }
     }
 }
 
-fn exceeded(
-    limit: &SpendLimit,
-    window: &Window,
+/// What a limit's scope has spent in the limit's current window.
+struct LimitUsage<'a> {
+    limit: &'a SpendLimit,
+    window: Window,
     spent: f64,
-    now: DateTime<Utc>,
-) -> SpendLimitExceeded {
-    let spent = format!(
-        "{} has spent ${spent:.2} of its ${:.2} {} spend limit.",
-        limit.scope.subject(),
-        limit.limit_usd,
-        limit.interval.as_str()
-    );
-    match window.end {
-        Some(end) => SpendLimitExceeded::new(
-            format!(
-                "{spent} The limit resets at {}.",
-                end.to_rfc3339_opts(SecondsFormat::Secs, true)
+}
+
+impl<'a> LimitUsage<'a> {
+    /// `counted` is what the gateway counted in the window; spend recorded before it
+    /// started counting is added while the window is the baseline's.
+    fn new(limit: &'a SpendLimit, window: Window, counted: Option<f64>) -> Self {
+        let baseline = if limit.baseline_window_start == window.start.timestamp() {
+            limit.baseline_usd
+        } else {
+            0.0
+        };
+        Self {
+            limit,
+            window,
+            spent: counted.unwrap_or(0.0) + baseline,
+        }
+    }
+
+    fn is_exceeded(&self) -> bool {
+        self.spent >= self.limit.limit_usd
+    }
+
+    fn rejection(&self, now: DateTime<Utc>) -> SpendLimitExceeded {
+        let spent = format!(
+            "{} has spent ${:.2} of its ${:.2} {} spend limit.",
+            self.limit.scope.subject(),
+            self.spent,
+            self.limit.limit_usd,
+            self.limit.interval.as_str()
+        );
+        match self.window.end {
+            Some(end) => SpendLimitExceeded::new(
+                format!(
+                    "{spent} The limit resets at {}.",
+                    end.to_rfc3339_opts(SecondsFormat::Secs, true)
+                ),
+                u64::try_from((end - now).num_seconds().max(1)).ok(),
             ),
-            u64::try_from((end - now).num_seconds().max(1)).ok(),
-        ),
-        None => SpendLimitExceeded::new(
-            format!("{spent} An admin can reset or raise the limit."),
-            None,
-        ),
+            None => SpendLimitExceeded::new(
+                format!("{spent} An admin can reset or raise the limit."),
+                None,
+            ),
+        }
     }
 }
 
 /// Adds an admitted request's cost to the counters it was checked against.
 pub(crate) struct SpendRecording {
     store: Arc<RedisCounters>,
-    counters: Vec<(String, Expiry)>,
+    counters: Vec<Counter>,
     model: ModelWithPrices,
 }
 
@@ -222,17 +253,12 @@ impl SpendRecording {
             // A retry after a timeout may count the cost twice; overcounting keeps the key
             // within its limit. A cost still unwritten after the last retry is lost.
             for delay in COUNTER_WRITE_RETRY_DELAYS {
-                if self
-                    .store
-                    .add_to_counters(&self.counters, cost)
-                    .await
-                    .is_ok()
-                {
+                if self.store.add(&self.counters, cost).await.is_ok() {
                     return;
                 }
                 tokio::time::sleep(delay).await;
             }
-            let _ = self.store.add_to_counters(&self.counters, cost).await;
+            let _ = self.store.add(&self.counters, cost).await;
         });
     }
 }

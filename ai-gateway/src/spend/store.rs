@@ -57,6 +57,13 @@ pub(crate) enum Expiry {
     After(Duration),
 }
 
+/// One Redis key holding the USD a scope spent in one window.
+#[derive(Clone, Debug)]
+pub(crate) struct Counter {
+    pub key: String,
+    pub expiry: Expiry,
+}
+
 pub(crate) struct RedisCounters {
     config: SpendCountersConfig,
     connection: OnceCell<Connection>,
@@ -105,13 +112,15 @@ impl RedisCounters {
     }
 
     /// Each counter's USD, or `None` while it has none.
-    pub(crate) async fn read_counters(
+    pub(crate) async fn read<'a>(
         &self,
-        keys: &[String],
+        counters: impl IntoIterator<Item = &'a Counter>,
     ) -> Result<Vec<Option<f64>>, Unavailable> {
         let mut connection = self.connection().await?;
         let mut command = redis::cmd("MGET");
-        command.arg(keys);
+        for counter in counters {
+            command.arg(&counter.key);
+        }
         tokio::time::timeout(OPERATION_TIMEOUT, connection.query(&command))
             .await
             .map_err(|_| Unavailable)?
@@ -119,14 +128,10 @@ impl RedisCounters {
             .map_err(|_| Unavailable)
     }
 
-    pub(crate) async fn add_to_counters(
-        &self,
-        counters: &[(String, Expiry)],
-        usd: f64,
-    ) -> Result<(), Unavailable> {
+    pub(crate) async fn add(&self, counters: &[Counter], usd: f64) -> Result<(), Unavailable> {
         let mut connection = self.connection().await?;
         let mut pipeline = redis::pipe();
-        for (key, expiry) in counters {
+        for Counter { key, expiry } in counters {
             pipeline.cmd("INCRBYFLOAT").arg(key).arg(usd).ignore();
             match expiry {
                 Expiry::At(unix_seconds) => pipeline.cmd("EXPIREAT").arg(key).arg(*unix_seconds),
