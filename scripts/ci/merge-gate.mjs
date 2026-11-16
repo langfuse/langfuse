@@ -26,7 +26,7 @@ export function evaluateGate({ event, ref = "", needs, fork = false }) {
   if (!needs || typeof needs !== "object" || Array.isArray(needs)) {
     return ["Missing job results"];
   }
-  const allowedSkips = allowedPrSkips(event, needs, fork);
+  const allowedSkips = allowedFilteredSkips(event, ref, needs, fork);
   const duplicate = isDuplicatePush(event, needs);
   return [
     ...failedNeeds(needs),
@@ -49,9 +49,13 @@ function isDuplicatePush(event, needs) {
   );
 }
 
-function allowedPrSkips(event, needs, fork) {
+function allowedFilteredSkips(event, ref, needs, fork) {
   const allowedSkips = new Set();
-  if (event !== "pull_request") return allowedSkips;
+  if (
+    !["pull_request", "merge_group", "push"].includes(event) ||
+    ref.startsWith("refs/tags/")
+  )
+    return allowedSkips;
   for (const [job, filter] of [
     ["test-worker-llm-connections", "llm-connections-filter"],
     ["test-ai-gateway-e2e", "ai-gateway-filter"],
@@ -63,7 +67,7 @@ function allowedPrSkips(event, needs, fork) {
       allowedSkips.add(job);
     }
   }
-  if (fork) allowedSkips.add("test-ai-gateway-e2e");
+  if (event === "pull_request" && fork) allowedSkips.add("test-ai-gateway-e2e");
   return allowedSkips;
 }
 

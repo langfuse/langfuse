@@ -55,7 +55,7 @@ test("CLI rejects missing jobs when invoked through a symlink", () => {
   }
 });
 
-test("merge queue requires every gating suite, including provider tests", () => {
+test("merge queue rejects missing or unexpectedly skipped jobs", () => {
   assert.deepEqual(
     evaluateGate({ event: "merge_group", needs: successfulJobs() }),
     [],
@@ -74,7 +74,7 @@ test("merge queue requires every gating suite, including provider tests", () => 
   }
 });
 
-test("PR provider selection permits only explicit exclusions", () => {
+test("changed-file provider selection permits only explicit exclusions", () => {
   const needs = successfulJobs();
   needs["test-worker-llm-connections"] = { result: "skipped" };
   needs["test-ai-gateway-e2e"] = { result: "skipped" };
@@ -86,12 +86,46 @@ test("PR provider selection permits only explicit exclusions", () => {
     result: "success",
     outputs: { changed: "false" },
   };
-  assert.deepEqual(evaluateGate({ event: "pull_request", needs }), []);
-  needs["llm-connections-filter"].outputs.changed = "true";
-  assert.notEqual(evaluateGate({ event: "pull_request", needs }).length, 0);
-  needs["llm-connections-filter"].outputs.changed = "false";
-  needs["tests-web"] = { result: "skipped" };
-  assert.notEqual(evaluateGate({ event: "pull_request", needs }).length, 0);
+  for (const event of ["pull_request", "merge_group", "push"]) {
+    assert.deepEqual(
+      evaluateGate({ event, ref: "refs/heads/main", needs }),
+      [],
+      event,
+    );
+    for (const filter of ["llm-connections-filter", "ai-gateway-filter"]) {
+      for (const changed of ["true", undefined]) {
+        needs[filter].outputs.changed = changed;
+        assert.notEqual(evaluateGate({ event, needs }).length, 0);
+      }
+      needs[filter].outputs.changed = "false";
+      for (const result of ["failure", "cancelled", "skipped"]) {
+        needs[filter].result = result;
+        assert.notEqual(evaluateGate({ event, needs }).length, 0);
+      }
+      needs[filter].result = "success";
+    }
+    for (const job of ["test-worker-llm-connections", "test-ai-gateway-e2e"]) {
+      for (const result of ["failure", "cancelled", undefined]) {
+        if (result) needs[job] = { result };
+        else delete needs[job];
+        assert.notEqual(evaluateGate({ event, needs }).length, 0);
+      }
+      needs[job] = { result: "skipped" };
+    }
+    needs["tests-web"] = { result: "skipped" };
+    assert.notEqual(evaluateGate({ event, needs }).length, 0);
+    needs["tests-web"] = { result: "success" };
+  }
+  assert.notEqual(
+    evaluateGate({ event: "workflow_dispatch", needs }).length,
+    0,
+    "manual validation runs the provider suites regardless of the diff",
+  );
+  assert.notEqual(
+    evaluateGate({ event: "push", ref: "refs/tags/v4.1.0", needs }).length,
+    0,
+    "release validation runs the provider suites regardless of the diff",
+  );
 });
 
 test("a duplicate push cannot excuse a failed job or a failed tag check", () => {
