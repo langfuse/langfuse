@@ -570,22 +570,6 @@ fn valid_ingestion(response: &ResolutionResponse, now: u64) -> bool {
     }
 }
 
-/// Limit and key ids name the gateway's spend counters, so they must be plain ids.
-fn valid_spend_limits(response: &ResolutionResponse) -> bool {
-    let plain_id = |id: &str| {
-        !id.is_empty()
-            && id
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
-    };
-    let amount = |usd: f64| usd.is_finite() && usd >= 0.0;
-    response.spend_limits.is_empty()
-        || (plain_id(&response.attribution.key_id)
-            && response.spend_limits.iter().all(|limit| {
-                plain_id(&limit.id) && amount(limit.limit_usd) && amount(limit.baseline_usd)
-            }))
-}
-
 pub(super) fn decode(
     bytes: &[u8],
     expected_format: ApiFormat,
@@ -606,7 +590,6 @@ pub(super) fn decode(
             .extra_headers()
             .all(|(name, value)| valid_extra_header(name, value))
         || !valid_ingestion(&response, now)
-        || !valid_spend_limits(&response)
         || [
             connection.id.as_str(),
             attribution.organization_id.as_str(),
