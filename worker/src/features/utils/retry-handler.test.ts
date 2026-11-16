@@ -164,47 +164,7 @@ describe("retryLLMRateLimitError", () => {
     expect(add).not.toHaveBeenCalled();
   });
 
-  it("waits out an LLM connection cooldown without spending a retry attempt", async () => {
-    const add = vi.fn().mockResolvedValue(undefined);
-    const retryBaggage = {
-      originalJobTimestamp: new Date("2026-01-01T01:00:00.000Z"),
-      attempt: 4,
-    };
-
-    const result = await retryLLMRateLimitError(
-      {
-        data: {
-          timestamp: new Date("2026-01-01T01:00:00.000Z"),
-          payload: {
-            projectId: "project-id",
-            jobExecutionId: "job-execution-id",
-          },
-          retryBaggage,
-        },
-      },
-      {
-        table: "job_executions",
-        idField: "jobExecutionId",
-        queue: { add },
-        queueName: "llm-as-a-judge-execution-queue-1",
-        jobName: "llm-as-a-judge-execution-job",
-      },
-      { cooldownMs: 30_000 },
-    );
-
-    const nextRetryBaggage = { ...retryBaggage, cooldownHits: 1 };
-    expect(result).toMatchObject({
-      outcome: "scheduled",
-      retryBaggage: nextRetryBaggage,
-    });
-    expect(add).toHaveBeenCalledWith(
-      "llm-as-a-judge-execution-queue-1",
-      expect.objectContaining({ retryBaggage: nextRetryBaggage }),
-      { delay: 33_000 },
-    );
-  });
-
-  it("puts a job's later cooldown hits on the backoff schedule", async () => {
+  it("waits at least the provider-suggested delay and spends an attempt", async () => {
     const add = vi.fn().mockResolvedValue(undefined);
     const originalJobTimestamp = new Date("2026-01-01T01:00:00.000Z");
 
@@ -216,7 +176,7 @@ describe("retryLLMRateLimitError", () => {
             projectId: "project-id",
             jobExecutionId: "job-execution-id",
           },
-          retryBaggage: { originalJobTimestamp, attempt: 2, cooldownHits: 1 },
+          retryBaggage: { originalJobTimestamp, attempt: 1 },
         },
       },
       {
@@ -226,16 +186,17 @@ describe("retryLLMRateLimitError", () => {
         queueName: "llm-as-a-judge-execution-queue-1",
         jobName: "llm-as-a-judge-execution-job",
       },
-      { cooldownMs: 30_000 },
+      { providerDelayMs: 30_000 },
     );
 
-    // Attempt 3 targets ~82 min into the window; 60 min have passed.
-    const retryBaggage = { originalJobTimestamp, attempt: 3, cooldownHits: 2 };
+    // Attempt 2 targets ~43 min into the window; 60 min have passed, so the
+    // schedule alone would retry at once.
+    const retryBaggage = { originalJobTimestamp, attempt: 2 };
     expect(result).toMatchObject({ outcome: "scheduled", retryBaggage });
     expect(add).toHaveBeenCalledWith(
       "llm-as-a-judge-execution-queue-1",
       expect.objectContaining({ retryBaggage }),
-      { delay: 1_300_000 },
+      { delay: 33_000 },
     );
   });
 

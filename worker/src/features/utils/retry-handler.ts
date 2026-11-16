@@ -69,21 +69,21 @@ const getLLMQueueRetryDelaySeconds = ({
   return Math.min(jitteredDelaySeconds, remainingAgeSeconds);
 };
 
-const getCooldownDelaySeconds = ({
-  cooldownMs,
+const getProviderDelaySeconds = ({
+  providerDelayMs,
   elapsedSeconds,
   maxAgeSeconds,
 }: {
-  cooldownMs: number;
+  providerDelayMs: number;
   elapsedSeconds: number;
   maxAgeSeconds: number;
 }) => {
-  // Jitter only upwards so a job never wakes before the cooldown ends.
+  // Jitter only upwards so a job never wakes before the provider's delay ends.
   const jitterMultiplier = 1 + Math.random() * LLM_QUEUE_RETRY_JITTER_FACTOR;
   const remainingAgeSeconds = Math.max(0, maxAgeSeconds - elapsedSeconds);
 
   return Math.min(
-    Math.ceil((cooldownMs / 1000) * jitterMultiplier),
+    Math.ceil((providerDelayMs / 1000) * jitterMultiplier),
     remainingAgeSeconds,
   );
 };
@@ -164,10 +164,8 @@ async function getRetryWindowStartTimeMs(
 /**
  * Handles rate limiting and retry logic for queue jobs.
  * Automatically retries jobs that fail with 429/5xx errors unless they exceed
- * the configured retry budget or age limit. With `cooldownMs`, the job never
- * reached the provider. Its first cooldown hit waits out the cooldown and keeps
- * its attempt count; later hits follow the backoff schedule, waiting at least
- * the cooldown, so a saturated model cannot wake the job on every cooldown.
+ * the configured retry budget or age limit. A retry waits at least
+ * `providerDelayMs`, the delay the provider or an LLM connection cooldown asked for.
  */
 export async function retryLLMRateLimitError(
   job: {
@@ -178,7 +176,7 @@ export async function retryLLMRateLimitError(
     };
   },
   config: RetryConfig,
-  options?: { cooldownMs?: number },
+  options?: { providerDelayMs?: number },
 ): Promise<RetryScheduleResult> {
   try {
     const jobId = job.data.payload[config.idField];
@@ -209,12 +207,7 @@ export async function retryLLMRateLimitError(
       };
     }
 
-    const cooldownMs = options?.cooldownMs;
-    const previousCooldownHits = job.data.retryBaggage?.cooldownHits ?? 0;
-    const isFirstCooldownHit =
-      cooldownMs !== undefined && previousCooldownHits === 0;
-    const currentAttempt =
-      (job.data.retryBaggage?.attempt ?? 0) + (isFirstCooldownHit ? 0 : 1);
+    const currentAttempt = (job.data.retryBaggage?.attempt ?? 0) + 1;
 
     if (currentAttempt > maxRetryAttempts) {
       logger.info(`Job ${jobId} exceeded retry attempt limit. Stop retrying.`);
@@ -225,39 +218,38 @@ export async function retryLLMRateLimitError(
       };
     }
 
-    const cooldownDelaySeconds =
-      cooldownMs === undefined
+    const providerDelayMs = options?.providerDelayMs;
+    const delaySeconds = Math.max(
+      getLLMQueueRetryDelaySeconds({
+        attempt: currentAttempt,
+        elapsedSeconds,
+        maxRetryAttempts,
+        maxAgeSeconds,
+        offsetsSeconds: config.schedule?.offsetsSeconds,
+      }),
+      providerDelayMs === undefined
         ? 0
-        : getCooldownDelaySeconds({
-            cooldownMs,
+        : getProviderDelaySeconds({
+            providerDelayMs,
             elapsedSeconds,
             maxAgeSeconds,
-          });
-    const delaySeconds = isFirstCooldownHit
-      ? cooldownDelaySeconds
-      : Math.max(
-          getLLMQueueRetryDelaySeconds({
-            attempt: currentAttempt,
-            elapsedSeconds,
-            maxRetryAttempts,
-            maxAgeSeconds,
-            offsetsSeconds: config.schedule?.offsetsSeconds,
           }),
-          cooldownDelaySeconds,
-        );
+    );
     const delayMs = Math.round(delaySeconds * 1000);
 
     const retryWindowStart = new Date(retryWindowStartTimeMs);
-    const cooldownHits =
-      previousCooldownHits + (cooldownMs === undefined ? 0 : 1);
-    const retryBaggage: RetryBaggage = {
-      originalJobTimestamp:
-        job.data.retryBaggage && job.data.retryBaggage.attempt > 0
-          ? new Date(job.data.retryBaggage.originalJobTimestamp)
-          : retryWindowStart,
-      attempt: currentAttempt,
-      ...(cooldownHits > 0 && { cooldownHits }),
-    };
+    const retryBaggage: RetryBaggage =
+      job.data.retryBaggage && job.data.retryBaggage.attempt > 0
+        ? {
+            originalJobTimestamp: new Date(
+              job.data.retryBaggage.originalJobTimestamp,
+            ),
+            attempt: currentAttempt,
+          }
+        : {
+            originalJobTimestamp: retryWindowStart,
+            attempt: currentAttempt,
+          };
 
     if (!config.queue) {
       logger.warn(

@@ -12,7 +12,7 @@ import {
   QueueJobs,
   getCurrentSpan,
   classifyEvaluatorLlmError,
-  LLMConnectionCooldownError,
+  getLLMRetryAfterMs,
   type EvaluatorLlmErrorClassification,
 } from "@langfuse/shared/src/server";
 import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
@@ -122,9 +122,6 @@ export const evalJobCreatorQueueProcessor = async (
   }
 };
 
-const getCooldownMs = (error: unknown) =>
-  error instanceof LLMConnectionCooldownError ? error.remainingMs : undefined;
-
 export const evalJobExecutorQueueProcessorBuilder = (
   enableRedirectToSecondaryQueue: boolean,
   queueName: string,
@@ -232,7 +229,7 @@ export const evalJobExecutorQueueProcessorBuilder = (
             queueName,
             jobName: QueueJobs.EvaluationExecution,
           },
-          { cooldownMs: getCooldownMs(e) },
+          { providerDelayMs: getLLMRetryAfterMs(e) },
         );
 
         if (retryResult.outcome === "scheduled") {
@@ -361,7 +358,7 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
             queueName,
             jobName: QueueJobs.LLMAsJudgeExecution,
           },
-          { cooldownMs: getCooldownMs(e) },
+          { providerDelayMs: getLLMRetryAfterMs(e) },
         );
 
         if (retryResult.outcome === "scheduled") {

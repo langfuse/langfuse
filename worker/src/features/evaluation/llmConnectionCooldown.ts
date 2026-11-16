@@ -1,7 +1,7 @@
 import {
   classifyEvaluatorLlmError,
   getCurrentSpan,
-  getLLMErrorInfo,
+  getLLMRetryAfterMs,
   LLMConnectionCooldownError,
   logger,
   recordIncrement,
@@ -74,9 +74,7 @@ async function getRemainingCooldownMs(key: string): Promise<number> {
 
 async function startCooldown(key: string, rateLimitError: unknown) {
   if (redis?.status !== "ready") return;
-  const retryAfterMs = getRetryAfterMs(
-    getLLMErrorInfo(rateLimitError)?.providerError?.responseHeaders,
-  );
+  const retryAfterMs = getLLMRetryAfterMs(rateLimitError);
   const cooldownMs = Math.min(
     MAX_COOLDOWN_MS,
     Math.max(MIN_COOLDOWN_MS, retryAfterMs ?? DEFAULT_COOLDOWN_MS),
@@ -93,17 +91,6 @@ async function startCooldown(key: string, rateLimitError: unknown) {
     logger.warn("Failed to start LLM connection cooldown", { key, error });
     recordIncrement(COOLDOWN_METRIC, 1, { outcome: "redis_error" });
   }
-}
-
-function getRetryAfterMs(
-  headers: Record<string, string> | undefined,
-): number | undefined {
-  const retryAfterMs = Number.parseFloat(headers?.["retry-after-ms"] ?? "");
-  if (Number.isFinite(retryAfterMs)) return retryAfterMs;
-  const retryAfterSeconds = Number.parseFloat(headers?.["retry-after"] ?? "");
-  if (Number.isFinite(retryAfterSeconds)) return retryAfterSeconds * 1000;
-  const retryAt = Date.parse(headers?.["retry-after"] ?? "");
-  return Number.isFinite(retryAt) ? retryAt - Date.now() : undefined;
 }
 
 // A command sent just before a disconnect waits for the reconnect, so the

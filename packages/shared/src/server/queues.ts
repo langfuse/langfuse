@@ -432,8 +432,6 @@ export type NotificationEventType = z.infer<typeof NotificationEventSchema>;
 export const RetryBaggage = z.object({
   originalJobTimestamp: z.date(),
   attempt: z.number(),
-  /** LLM connection cooldown hits so far; absent on jobs from before it existed. */
-  cooldownHits: z.number().optional(),
 });
 
 export type RetryBaggage = z.infer<typeof RetryBaggage>;

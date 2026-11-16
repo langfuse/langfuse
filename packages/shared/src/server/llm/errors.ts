@@ -41,7 +41,7 @@ export class LLMValidationError extends Error {
 }
 
 /**
- * Stands in for a provider 429 while an LLM connection cools down after one,
+ * Stands in for a provider 429 while a model on an LLM connection cools down after one,
  * so callers classify and reschedule it exactly like the provider's own.
  */
 export class LLMConnectionCooldownError extends APICallError {
@@ -49,7 +49,7 @@ export class LLMConnectionCooldownError extends APICallError {
 
   constructor(remainingMs: number) {
     super({
-      message: `The provider rate limited this LLM connection; requests are paused for another ${Math.ceil(remainingMs / 1000)}s.`,
+      message: `The provider rate limited this model on this LLM connection; requests are paused for another ${Math.ceil(remainingMs / 1000)}s.`,
       url: "",
       requestBodyValues: undefined,
       statusCode: 429,
@@ -58,6 +58,30 @@ export class LLMConnectionCooldownError extends APICallError {
     this.name = "LLMConnectionCooldownError";
     this.remainingMs = remainingMs;
   }
+}
+
+/**
+ * How long to wait before calling the provider again: the remaining LLM
+ * connection cooldown, or the provider's `retry-after-ms` / `retry-after`
+ * (seconds or HTTP date). Undefined when neither says.
+ */
+export function getLLMRetryAfterMs(error: unknown): number | undefined {
+  const cooldownError = findInCauseChain(
+    error,
+    (e): e is LLMConnectionCooldownError =>
+      e instanceof LLMConnectionCooldownError,
+  );
+  if (cooldownError) return cooldownError.remainingMs;
+
+  const headers = getLLMErrorInfo(error)?.providerError?.responseHeaders;
+  const retryAfterMs = Number.parseFloat(headers?.["retry-after-ms"] ?? "");
+  if (Number.isFinite(retryAfterMs)) return retryAfterMs;
+  const retryAfterSeconds = Number.parseFloat(headers?.["retry-after"] ?? "");
+  if (Number.isFinite(retryAfterSeconds)) return retryAfterSeconds * 1000;
+  const retryAt = Date.parse(headers?.["retry-after"] ?? "");
+  return Number.isFinite(retryAt)
+    ? Math.max(0, retryAt - Date.now())
+    : undefined;
 }
 
 export type LLMErrorInfo = {

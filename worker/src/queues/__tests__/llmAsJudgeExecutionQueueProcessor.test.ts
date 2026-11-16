@@ -70,12 +70,13 @@ vi.mock("@langfuse/shared/src/server", async () => {
     await import("../../../../packages/shared/src/server/evals/codeEvalExecution");
   const { CodeEvalDispatcherErrorCodes } =
     await import("../../../../packages/shared/src/server/evals/codeEvalDispatcherTypes");
-  const { LLMConnectionCooldownError } =
+  const { LLMConnectionCooldownError, getLLMRetryAfterMs } =
     await import("../../../../packages/shared/src/server/llm/errors");
 
   return {
     CodeEvalDispatcherErrorCodes,
     LLMConnectionCooldownError,
+    getLLMRetryAfterMs,
     CodeEvalExecutionError,
     QueueName: {
       LLMAsJudgeExecution: "llm-as-a-judge-execution-queue",
@@ -316,7 +317,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
           idField: "jobExecutionId",
           queueName,
         }),
-        { cooldownMs: undefined },
+        { providerDelayMs: undefined },
       );
       expect(LLMAsJudgeExecutionQueue.getInstance).toHaveBeenCalledWith({
         shardName: queueName,
@@ -339,7 +340,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       );
     });
 
-    it("reschedules a cooldown hit after the remaining cooldown", async () => {
+    it("waits at least the remaining cooldown after a cooldown hit", async () => {
       const cooldownError = new LLMConnectionCooldownError(30_000);
       (processEval as Mock).mockRejectedValue(cooldownError);
       mockLlmError(cooldownError, true);
@@ -353,7 +354,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       expect(retryLLMRateLimitError).toHaveBeenCalledWith(
         job,
         expect.anything(),
-        { cooldownMs: 30_000 },
+        { providerDelayMs: 30_000 },
       );
     });
 
