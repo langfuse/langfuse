@@ -9,29 +9,54 @@ use serde::{
 };
 use serde_json::value::RawValue;
 
-/// The rewritten body for a streamed request that did not ask for usage, or
-/// `None` when the original bytes must be forwarded unchanged. Every other
-/// top-level member keeps its original bytes and position.
-pub(super) fn request_stream_usage(body: &[u8], provider_model: &str) -> Option<Bytes> {
-    let Members(mut members) = serde_json::from_slice(body).ok()?;
+pub(super) enum StreamUsage {
+    /// The body for a streamed request that did not ask for usage, opted in.
+    /// Every other top-level member keeps its original bytes and position.
+    Requested(Bytes),
+    /// The request is not streamed, or already asks for usage.
+    Reported,
+    /// The body is ambiguous or malformed, so whether usage is reported is unknown.
+    Unknown,
+}
+
+pub(super) fn request_stream_usage(body: &[u8], provider_model: &str) -> StreamUsage {
+    let Ok(Members(members)) = serde_json::from_slice(body) else {
+        return StreamUsage::Unknown;
+    };
     // Duplicate members are resolved differently by different parsers.
-    if count(&members, "model") != 1
-        || count(&members, "stream") != 1
-        || count(&members, "stream_options") > 1
-    {
-        return None;
+    if count(&members, "stream") > 1 {
+        return StreamUsage::Unknown;
     }
-    if member(&members, "stream")? != "true" {
-        return None;
+    if member(&members, "stream") != Some("true") {
+        return StreamUsage::Reported;
+    }
+    if count(&members, "model") != 1 || count(&members, "stream_options") > 1 {
+        return StreamUsage::Unknown;
     }
     // Parsed as raw members too: a full `Value` tree can take ~100x the bytes.
-    let mut options = match member(&members, "stream_options") {
+    let options = match member(&members, "stream_options") {
         None | Some("null") => Vec::new(),
-        Some(raw) => serde_json::from_str::<Members>(raw).ok()?.0,
+        Some(raw) => match serde_json::from_str::<Members>(raw) {
+            Ok(Members(options)) => options,
+            Err(_) => return StreamUsage::Unknown,
+        },
     };
-    if count(&options, "include_usage") > 1 || member(&options, "include_usage") == Some("true") {
-        return None;
+    if count(&options, "include_usage") > 1 {
+        return StreamUsage::Unknown;
     }
+    if member(&options, "include_usage") == Some("true") {
+        return StreamUsage::Reported;
+    }
+    opt_in(members, options, provider_model, body.len())
+        .map_or(StreamUsage::Unknown, StreamUsage::Requested)
+}
+
+fn opt_in(
+    mut members: Vec<(String, Box<RawValue>)>,
+    mut options: Vec<(String, Box<RawValue>)>,
+    provider_model: &str,
+    body_len: usize,
+) -> Option<Bytes> {
     let include_usage = RawValue::from_string("true".to_owned()).ok()?;
     match options.iter_mut().find(|(key, _)| key == "include_usage") {
         Some((_, raw)) => *raw = include_usage,
@@ -45,7 +70,7 @@ pub(super) fn request_stream_usage(body: &[u8], provider_model: &str) -> Option<
         Some((_, raw)) => *raw = options,
         None => members.push(("stream_options".to_owned(), options)),
     }
-    object_bytes(&members, body.len() + 32).map(Bytes::from)
+    object_bytes(&members, body_len + 32).map(Bytes::from)
 }
 
 fn object_bytes(members: &[(String, Box<RawValue>)], capacity: usize) -> Option<Vec<u8>> {
@@ -102,8 +127,10 @@ mod tests {
     use super::*;
 
     fn rewrite(body: &str) -> Option<String> {
-        request_stream_usage(body.as_bytes(), "provider-model")
-            .map(|bytes| String::from_utf8(bytes.to_vec()).unwrap())
+        match request_stream_usage(body.as_bytes(), "provider-model") {
+            StreamUsage::Requested(bytes) => Some(String::from_utf8(bytes.to_vec()).unwrap()),
+            StreamUsage::Reported | StreamUsage::Unknown => None,
+        }
     }
 
     #[test]
@@ -131,20 +158,31 @@ mod tests {
     }
 
     #[test]
-    fn other_bodies_are_forwarded_unchanged() {
+    fn requests_that_already_report_usage_are_left_alone() {
         for body in [
             r#"{"model":"m","messages":[]}"#,
             r#"{"stream":false}"#,
             r#"{"stream":"true"}"#,
-            r#"{"stream":true,"stream_options":{"include_usage":true}}"#,
-            r#"{"stream":true,"stream_options":"invalid"}"#,
-            r#"{"stream":true,"stream":true}"#,
-            r#"{"stream":true,"stream_options":{},"stream_options":{}}"#,
+            r#"{"model":"m","stream":true,"stream_options":{"include_usage":true}}"#,
+        ] {
+            let usage = request_stream_usage(body.as_bytes(), "provider-model");
+            assert!(matches!(usage, StreamUsage::Reported), "{body}");
+        }
+    }
+
+    #[test]
+    fn ambiguous_streamed_requests_report_unknown_usage() {
+        for body in [
+            r#"{"model":"m","stream":true,"stream_options":"invalid"}"#,
+            r#"{"model":"m","stream":true,"stream":true}"#,
+            r#"{"model":"m","stream":true,"stream_options":{},"stream_options":{}}"#,
+            r#"{"model":"m","stream":true,"stream_options":{"include_usage":true,"include_usage":false}}"#,
             r#"[{"stream":true}]"#,
             r#"{"stream":true"#,
             "",
         ] {
-            assert_eq!(rewrite(body), None, "{body}");
+            let usage = request_stream_usage(body.as_bytes(), "provider-model");
+            assert!(matches!(usage, StreamUsage::Unknown), "{body}");
         }
     }
 }

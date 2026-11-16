@@ -33,6 +33,9 @@ pub enum ProviderError {
     Timeout,
     #[error("provider transport failed")]
     Transport,
+    /// The request may not report usage, so a key with spend limits cannot be charged for it.
+    #[error("request usage cannot be metered")]
+    UnmeteredRequest,
 }
 
 // An allowlist prevents gateway credentials, tenant routing overrides and cookies

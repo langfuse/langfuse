@@ -510,6 +510,7 @@ impl InferenceHttpError {
                     ProviderError::Timeout => "timeout",
                     ProviderError::Transport => "transport",
                     ProviderError::Configuration => "configuration",
+                    ProviderError::UnmeteredRequest => "unmetered_request",
                 },
             ),
         }
@@ -580,7 +581,7 @@ impl InferenceHttpError {
                 "invalid_request_error",
                 "unsupported_content_encoding",
             ),
-            Self::InvalidBody => (
+            Self::InvalidBody | Self::Provider(ProviderError::UnmeteredRequest) => (
                 StatusCode::BAD_REQUEST,
                 "Invalid request body",
                 "invalid_request_error",

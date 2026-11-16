@@ -211,6 +211,14 @@ impl ProviderTransport {
         // A rejected destination returns before any generation is recorded.
         let upstream = self.post(route, context.connection())?;
         let provider_headers = connection_headers(&context)?;
+        let stream_usage = matches!(route, Route::OpenAiChatCompletions)
+            .then(|| chat_completions::request_stream_usage(&body, provider_model));
+        // A request whose usage may go unreported would escape the key's spend limits.
+        if permit.spend.is_some()
+            && matches!(stream_usage, Some(chat_completions::StreamUsage::Unknown))
+        {
+            return Err(ProviderError::UnmeteredRequest);
+        }
         let mut capture = if route.captures_generation() {
             let mut capture = ExecutionCapture::for_request(api_format, &context, headers, &body);
             if let Some(telemetry) = &self.telemetry
@@ -224,15 +232,10 @@ impl ProviderTransport {
             ExecutionCapture::unobserved()
         };
         // Capture the caller's body shape, but keep upstream-only changes out of the input.
-        let body = match route {
-            Route::OpenAiChatCompletions => {
-                match chat_completions::request_stream_usage(&body, provider_model) {
-                    Some(rewritten) => {
-                        drop(body);
-                        rewritten
-                    }
-                    None => rewrite_model(body, model_range, provider_model)?,
-                }
+        let body = match stream_usage {
+            Some(chat_completions::StreamUsage::Requested(rewritten)) => {
+                drop(body);
+                rewritten
             }
             _ => rewrite_model(body, model_range, provider_model)?,
         };

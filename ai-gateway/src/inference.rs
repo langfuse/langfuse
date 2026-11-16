@@ -64,6 +64,7 @@ pub(crate) fn provider_origin(error: ProviderError) -> (ErrorOrigin, &'static st
         ProviderError::Configuration => (ErrorOrigin::Gateway, "configuration"),
         ProviderError::Timeout => (ErrorOrigin::ProviderTransport, "timeout"),
         ProviderError::Transport => (ErrorOrigin::ProviderTransport, "transport"),
+        ProviderError::UnmeteredRequest => (ErrorOrigin::Client, "unmetered_request"),
     }
 }
 
