@@ -28,9 +28,13 @@ vi.mock("@/src/features/ai-gateway/server/provider/getGatewayFetch", () => ({
 const getVertexAccessToken = vi.hoisted(() =>
   vi.fn(async () => "vertex-access-token"),
 );
+const testModelCall = vi.hoisted(() =>
+  vi.fn<typeof SharedServer.testModelCall>(),
+);
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof SharedServer>()),
   generateVertexAccessTokenForServiceAccount: getVertexAccessToken,
+  testModelCall,
 }));
 
 const openAiModels = [
@@ -876,5 +880,120 @@ describe("AI Gateway path credential check", () => {
     expect(getGatewayFetch).toHaveBeenCalledWith(
       expect.objectContaining({ baseURL: "https://93.184.215.14/api/v1" }),
     );
+  });
+});
+
+describe("AI Gateway model credential check", () => {
+  const modelNotServed = Object.assign(new Error("Not Found"), {
+    statusCode: 404,
+    responseBody: JSON.stringify({
+      error: { message: "The model `gpt-4o-mini` does not exist." },
+    }),
+  });
+
+  const testKey = (params: {
+    provider: "OPENAI" | "ANTHROPIC";
+    baseURL: string | null;
+    fetcher: typeof fetch;
+  }) => {
+    vi.mocked(getGatewayFetch).mockReturnValue(params.fetcher);
+    return new GatewayProviderService({} as PrismaClient).testCredential({
+      organizationId: "org",
+      provider: params.provider,
+      credential: "sk-test",
+      baseURL: params.baseURL,
+    });
+  };
+
+  beforeEach(() => {
+    testModelCall.mockReset();
+  });
+
+  it("accepts a key an OpenAI-compatible base URL lists its models for when it does not serve the test model", async () => {
+    testModelCall.mockRejectedValue(modelNotServed);
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      Response.json({
+        object: "list",
+        data: [
+          {
+            id: "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+            object: "model",
+            created: 1763251200,
+            owned_by: "vllm",
+          },
+        ],
+      }),
+    );
+
+    await expect(
+      testKey({
+        provider: "OPENAI",
+        baseURL: "https://93.184.215.14/v1",
+        fetcher,
+      }),
+    ).resolves.toEqual({ modelListingDenied: false });
+    expect(String(fetcher.mock.calls[0]?.[0])).toBe(
+      "https://93.184.215.14/v1/models",
+    );
+    expect(
+      new Headers(fetcher.mock.calls[0]?.[1]?.headers).get("authorization"),
+    ).toBe("Bearer sk-test");
+  });
+
+  it("accepts a key an Anthropic-compatible base URL lists its models for when it does not serve the test model", async () => {
+    testModelCall.mockRejectedValue(modelNotServed);
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      Response.json({
+        data: [
+          {
+            id: "claude-sonnet-4-5",
+            display_name: "Claude Sonnet 4.5",
+            created_at: "2026-09-29T00:00:00Z",
+          },
+        ],
+        has_more: false,
+      }),
+    );
+
+    await expect(
+      testKey({
+        provider: "ANTHROPIC",
+        baseURL: "https://93.184.215.14/v1",
+        fetcher,
+      }),
+    ).resolves.toEqual({ modelListingDenied: false });
+    expect(String(fetcher.mock.calls[0]?.[0])).toBe(
+      "https://93.184.215.14/v1/models?limit=1000",
+    );
+    expect(
+      new Headers(fetcher.mock.calls[0]?.[1]?.headers).get("x-api-key"),
+    ).toBe("sk-test");
+  });
+
+  it("keeps the test model's answer when a custom base URL also refuses to list models", async () => {
+    testModelCall.mockRejectedValue(modelNotServed);
+
+    await expect(
+      testKey({
+        provider: "OPENAI",
+        baseURL: "https://93.184.215.14/v1",
+        fetcher: async () => new Response(null, { status: 401 }),
+      }),
+    ).rejects.toMatchObject({
+      httpCode: 400,
+      providerResponse: { status: 404, body: modelNotServed.responseBody },
+    });
+  });
+
+  it("does not list models when the official OpenAI endpoint rejects the test model call", async () => {
+    testModelCall.mockRejectedValue(modelNotServed);
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      Response.json({ data: [] }),
+    );
+
+    await expect(
+      testKey({ provider: "OPENAI", baseURL: null, fetcher }),
+    ).rejects.toMatchObject({ providerResponse: { status: 404 } });
+    expect(fetcher).not.toHaveBeenCalled();
   });
 });
