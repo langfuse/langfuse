@@ -16,6 +16,27 @@ export type MigrationActionState =
       result: "required" | "not_required" | "sdk_usage_inconclusive";
     };
 
+export type MigrationActionFlags = {
+  forceV3Experience: boolean;
+  sdkActionNeeded: boolean | null;
+  experimentsActionNeeded: boolean | null;
+  apisActionNeeded: boolean | null;
+  evalsActionNeeded: boolean;
+  exportsActionNeeded: boolean;
+};
+
+export const hasMigrationActionNeeded = (
+  actions: MigrationActionFlags,
+): boolean =>
+  !actions.forceV3Experience &&
+  [
+    actions.sdkActionNeeded,
+    actions.experimentsActionNeeded,
+    actions.apisActionNeeded,
+    actions.evalsActionNeeded,
+    actions.exportsActionNeeded,
+  ].some((actionNeeded) => actionNeeded === true);
+
 const loadingMigrationCount = {
   status: "loading",
   count: 0,

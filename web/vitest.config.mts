@@ -134,7 +134,7 @@ const sharedSourceResolve = {
   ],
   // Runtime source resolves these through shared's node_modules symlinks.
   // Dedupe keeps one module identity so mocks registered from web intercept.
-  dedupe: ["@ag-ui/core", "@ag-ui/client", "langfuse"],
+  dedupe: ["@ag-ui/core", "@ag-ui/client"],
 };
 
 function serverProject(
@@ -144,6 +144,7 @@ function serverProject(
     database?: boolean;
     env?: Record<string, string>;
     exclude?: string[];
+    fileParallelism?: boolean;
     isolate?: boolean;
     resolve?: typeof sharedSourceResolve;
   } = {},
@@ -156,6 +157,9 @@ function serverProject(
       include,
       exclude: [...sharedExclude, ...(options.exclude ?? [])],
       ...(options.isolate === undefined ? {} : { isolate: options.isolate }),
+      ...(options.fileParallelism === undefined
+        ? {}
+        : { fileParallelism: options.fileParallelism }),
       ...(options.env ? { env: options.env } : {}),
       environment: "node" as const,
       setupFiles: ["./src/__tests__/after-teardown.ts"],
@@ -234,7 +238,10 @@ export default defineConfig({
           include: ["src/**/*.clienttest.{ts,tsx}"],
           exclude: sharedExclude,
           environment: "jsdom",
-          setupFiles: ["@testing-library/jest-dom/vitest"],
+          setupFiles: [
+            "@testing-library/jest-dom/vitest",
+            "./src/__tests__/flush-focus-scope-timers.ts",
+          ],
         },
       },
       serverProject("server", sharedContextServerTestFiles, {
@@ -298,8 +305,9 @@ export default defineConfig({
       },
       serverProject(
         "ai-gateway-e2e-server",
-        ["src/__e2e__/**/ai-gateway.gatewaye2e.{ts,tsx}"],
-        { isolate: true },
+        ["src/__e2e__/ai-gateway/*.gatewaye2e.{ts,tsx}"],
+        // Every suite reconfigures the same organization's connections.
+        { isolate: true, fileParallelism: false },
       ),
     ],
   },

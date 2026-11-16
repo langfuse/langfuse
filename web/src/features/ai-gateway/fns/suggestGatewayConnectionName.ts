@@ -5,7 +5,7 @@ export function suggestGatewayConnectionName(
   provider: GatewayProvider,
   existingNames: Iterable<string>,
 ) {
-  const base = providerLabels[provider].toLowerCase();
+  const base = providerLabels[provider].toLowerCase().replaceAll(" ", "-");
   /** Case-insensitive so suggestions never near-duplicate an existing name. */
   const taken = new Set(
     Array.from(existingNames, (name) => name.toLowerCase()),

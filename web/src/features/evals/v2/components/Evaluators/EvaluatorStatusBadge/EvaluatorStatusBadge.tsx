@@ -4,7 +4,7 @@ import {
   getEvaluatorBlockMetadata,
   type EvaluatorBlockReason,
 } from "@langfuse/shared";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 
 type ExecutionSummary = { total: number; failed: number };
@@ -27,12 +27,12 @@ function getStatus({
 }
 
 const colors = {
-  Blocked: "red",
-  Inactive: "primary",
-  Healthy: "green",
-  Degraded: "yellow",
-  Failing: "red",
-  Unknown: "primary",
+  Blocked: "error",
+  Inactive: "filled",
+  Healthy: "success",
+  Degraded: "warning",
+  Failing: "error",
+  Unknown: "filled",
 } as const;
 
 /** Displays evaluator health from the most recent execution traces of the last seven days. */
@@ -79,7 +79,9 @@ export function EvaluatorStatusBadge({
   }, [status, blockMessage, blockReason, ruleCount, summary]);
 
   const badge = (
-    <Badge text={status === "Unknown" ? "—" : status} color={colors[status]} />
+    <BadgeShell color={colors[status]}>
+      <span className="uppercase">{status === "Unknown" ? "—" : status}</span>
+    </BadgeShell>
   );
 
   return (

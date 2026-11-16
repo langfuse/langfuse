@@ -347,7 +347,7 @@ types:
         type: EvaluationRuleNullFilterOperator
       value:
         type: literal<"">
-        docs: Required empty-string placeholder used by the runtime filter contract.
+        docs: Empty-string placeholder. Can be omitted on servers newer than v4.78.0.
 
   PromptVariableMappingInput:
     docs: |

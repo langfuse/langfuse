@@ -42,6 +42,17 @@ describe("LLM base URL validation", () => {
     ).rejects.toThrow("Blocked hostname detected");
   });
 
+  it.each(["https://[::1]/v1", "https://10.0.0.1/v1"])(
+    "should reject the private IP literal %s by default for self-hosted instances",
+    async (baseURL) => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+
+      await expect(validateLlmConnectionBaseURL(baseURL)).rejects.toThrow(
+        "Blocked IP address detected",
+      );
+    },
+  );
+
   it("should reject encoded delimiter userinfo SSRF bypass attempts", async () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
 

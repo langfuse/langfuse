@@ -3,7 +3,7 @@ name: pnpm-upgrade-package
 description: >-
   Upgrade pnpm workspace dependencies to target/latest versions:
   direct/transitive bumps, release-age checks, temporary overrides,
-  minimumReleaseAgeExclude, lockfile/dedupe verification.
+  minimumReleaseAgeExclude, lockfile verification.
 ---
 
 # PNPM Upgrade Package
@@ -44,16 +44,15 @@ Use this skill for interactive dependency bumps in Langfuse.
 - If pnpm will not move an already-allowed transitive version, a scoped
   `overrides` entry in `pnpm-workspace.yaml` may be used as a temporary
   resolution tool. Before finishing, prove whether the override is still
-  required: remove it, run `pnpm install`, then run `pnpm dedupe`. Inspect the
-  diff after each generated change. If the target version remains without the
-  override, do not keep the override; keep or restore it only when pnpm reverts
-  or drifts from the requested version without it.
+  required: remove it, run `pnpm install`, and inspect the generated diff.
+  If the target version remains without the override, do not keep the override;
+  keep or restore it only when pnpm reverts or drifts from the requested version
+  without it.
 - Never manually edit `pnpm-lock.yaml`; regenerate lockfile changes with
   `pnpm` commands only. If a lockfile-only refresh causes unrelated churn,
   adjust the pnpm command and rerun instead of patching the lockfile by hand.
-- After fixing or upgrading a package, run `pnpm dedupe`. Always inspect the
-  diff after dedupe and revert that generated attempt if it introduces
-  unrelated churn.
+- Rely on the workspace's `autoDedupe` during writable installs; skip a separate
+  dedupe run or check. Keep generated changes scoped to the requested upgrade.
 - Resolve the registry latest version, but do not silently upgrade to latest
   unless the user asked for latest.
 - Compare the target version with the latest version installable under the
@@ -83,8 +82,6 @@ Use this skill for interactive dependency bumps in Langfuse.
   `pnpm view <parent>@<installedVersion> dependencies peerDependencies optionalDependencies --json`
 - Preflight resolver/policy check:
   `pnpm install --dry-run --ignore-scripts`
-- Optional lockfile cleanup:
-  `pnpm dedupe`
 - Bump in the root workspace:
   `pnpm -w up <package>@<version>`
 - Bump in one workspace:
@@ -92,6 +89,6 @@ Use this skill for interactive dependency bumps in Langfuse.
 - Bump everywhere that should move together:
   `pnpm -r up <package>@<version>`
 - Verify temporary override removal:
-  remove the override, then run `pnpm install` and `pnpm dedupe`
+  remove the override, then run `pnpm install` and inspect the generated diff
 - Human commit helper:
   `git switch -C deps/bump-<package-slug>-to-<version> && git commit -m "chore(deps): bump <package> to <version>" --no-verify`

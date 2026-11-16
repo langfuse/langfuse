@@ -48,8 +48,7 @@ import {
   sessionTraceFilterColumns,
 } from "../../features/filters/sessionTraceFilters";
 import { tracesTableUiColumnDefinitions } from "../tableMappings/mapTracesTable";
-import { eventsTableNativeUiColumnDefinitions } from "../tableMappings/mapEventsTable";
-import { EventsQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
+import { buildEventsObservationRowSelection } from "../queries/clickhouse-sql/events-observation-row-selection";
 
 export type SessionTraceFromEvents = {
   id: string;
@@ -84,46 +83,36 @@ export const getSessionTracesFromEvents = async (props: {
   const filters = sessionTraceFilterSchema.parse(props.filter);
   const traceFilters = new FilterList(
     createFilterFromFilterState(
-      filters.filter(
-        (filter) =>
-          !["name", "type", "level", "metadata", "isRootObservation"].includes(
-            filter.column,
-          ),
-      ),
+      filters.filter((filter) => filter.column === "traceName"),
       tracesTableUiColumnDefinitions,
       sessionTraceFilterColumns,
     ),
   ).apply();
-  const observationFilters = filters.filter((filter) =>
-    ["name", "type", "level", "metadata", "isRootObservation"].includes(
-      filter.column,
-    ),
+  const observationFilters = filters.filter(
+    (filter) => filter.column !== "traceName",
   );
   const sessionTraceIdsQuery = compileClickhouseQuery(
     builder.clearSelect().select("e.trace_id").clearGroupBy().clearOrderBy(),
     projectId,
   );
-  const observationQuery =
-    observationFilters.length > 0
-      ? new EventsQueryBuilder({ projectId: props.projectId })
-          .selectRaw("e.trace_id")
-          .when(
-            observationFilters.some((filter) => filter.column === "metadata"),
-            (builder) => builder.forceFullTable(),
-          )
-          .whereRaw("e.is_deleted = 0")
-          .whereRaw(`e.trace_id IN (${sessionTraceIdsQuery.sql})`)
-          .where(
-            new FilterList(
-              createFilterFromFilterState(
-                observationFilters,
-                eventsTableNativeUiColumnDefinitions,
-                sessionTraceFilterColumns,
-              ),
-            ).apply(),
-          )
-          .buildWithParams()
-      : null;
+  let observationQuery: {
+    query: string;
+    params: Record<string, unknown>;
+  } | null = null;
+  if (observationFilters.length > 0) {
+    const { queryBuilder } = buildEventsObservationRowSelection({
+      projectId,
+      filter: observationFilters,
+    });
+    observationQuery = queryBuilder
+      .selectRaw("e.trace_id")
+      .whereRaw("e.is_deleted = 0")
+      .whereRaw(
+        `e.trace_id IN (${sessionTraceIdsQuery.sql})`,
+        sessionTraceIdsQuery.params,
+      )
+      .buildWithParams();
+  }
   const query =
     filters.length === 0
       ? tracesQuery
@@ -294,62 +283,96 @@ const getSessionsTableFromEventsGeneric = async <T>(
     filter.some((item) => toolColumns.includes(item.column)) ||
     (orderBy != null && toolColumns.includes(orderBy.column));
 
-  // Build session_data CTE
-  const sessionsBuilder = eventsSessionsAggregation({
-    projectId,
-    fields: ALL_SESSION_EVENTS_FIELDS,
-    sessionIds: sessionIdFilter?.values,
-    startTimeFrom: traceTimestampFilter
-      ? convertDateToClickhouseDateTime(traceTimestampFilter.value)
-      : null,
-    includeMetadata: requiresMetadata,
-    includeTools: requiresTools,
-    fullTable,
-    metadataSessionPrefilter,
-  });
-
-  // Compose query using CTEQueryBuilder
-  let queryBuilder = new CTEQueryBuilder()
-    .withCTEFromBuilder("session_data", sessionsBuilder)
-    .from("session_data", "s");
-
-  // Conditionally add scores CTE
-  if (requiresScoresJoin) {
-    queryBuilder = queryBuilder
-      .withCTE("scores_agg", eventsSessionScoresAggregation({ projectId }))
-      .leftJoin(
-        "scores_agg",
-        "sc",
-        "ON sc.project_id = {projectId: String} AND sc.score_session_id = s.session_id",
-      );
-  }
-
-  if (select === "count") {
-    queryBuilder.select("count(s.session_id) as count");
-  } else {
-    queryBuilder.selectColumns(
-      ...select.fields.map((field) => `s.${field}` as const),
-    );
-  }
-
-  // Apply filters, ordering, and pagination
-  if (sessionsFilterRes.query) {
-    queryBuilder.whereRaw(sessionsFilterRes.query, sessionsFilterRes.params);
-  }
-
   const orderBySql = orderByToClickhouseSql(
     orderBy ?? null,
     sessionEventsOrderByCols,
   );
-  if (orderBySql) {
-    queryBuilder.orderBy(orderBySql);
-  }
 
-  if (limit !== undefined && page !== undefined) {
-    queryBuilder.limit(limit, limit * page);
-  }
+  const buildQuery = (
+    cteName: "session_data" | "page_sessions",
+    columns: FetchSessionsTableFromEventsProps["select"],
+    pageSessions?: { query: string; params: Record<string, unknown> },
+  ) => {
+    // Build the session aggregation CTE
+    const sessionsBuilder = eventsSessionsAggregation({
+      projectId,
+      fields: ALL_SESSION_EVENTS_FIELDS,
+      sessionIds: sessionIdFilter?.values,
+      startTimeFrom: traceTimestampFilter
+        ? convertDateToClickhouseDateTime(traceTimestampFilter.value)
+        : null,
+      includeMetadata: requiresMetadata,
+      includeTools: requiresTools,
+      fullTable,
+      // The page subquery has already applied the prefilter.
+      metadataSessionPrefilter: pageSessions ? null : metadataSessionPrefilter,
+    });
+    if (pageSessions) {
+      sessionsBuilder.whereRaw(
+        `session_id IN (${pageSessions.query})`,
+        pageSessions.params,
+      );
+    }
 
-  const { query, params } = queryBuilder.buildWithParams();
+    // Compose query using CTEQueryBuilder
+    let queryBuilder = new CTEQueryBuilder()
+      .withCTEFromBuilder(cteName, sessionsBuilder)
+      .from(cteName, "s");
+
+    // Conditionally add scores CTE
+    if (requiresScoresJoin) {
+      queryBuilder = queryBuilder
+        .withCTE("scores_agg", eventsSessionScoresAggregation({ projectId }))
+        .leftJoin(
+          "scores_agg",
+          "sc",
+          "ON sc.project_id = {projectId: String} AND sc.score_session_id = s.session_id",
+        );
+    }
+
+    if (columns === "count") {
+      queryBuilder.select("count(s.session_id) as count");
+    } else {
+      queryBuilder.selectColumns(
+        ...columns.fields.map((field) => `s.${field}` as const),
+      );
+    }
+
+    // Apply filters, ordering, and pagination
+    if (sessionsFilterRes.query) {
+      queryBuilder.whereRaw(sessionsFilterRes.query, sessionsFilterRes.params);
+    }
+
+    if (orderBySql) {
+      queryBuilder.orderBy(orderBySql);
+    }
+
+    // The page subquery has already applied the pagination.
+    if (!pageSessions && limit !== undefined && page !== undefined) {
+      queryBuilder.limit(limit, limit * page);
+    }
+
+    return queryBuilder.buildWithParams();
+  };
+
+  // A page of rows is read in two steps within one query. The subquery ranks
+  // the sessions selecting only session_id, so ClickHouse computes just the
+  // aggregates that filters and ordering read for every session in the
+  // window. The outer query then computes the requested fields for the
+  // page's sessions only, over the same events, so the values are unchanged.
+  // Score filters and ordering keep the single query: both steps would have
+  // to join the session scores aggregation, which reads the whole project.
+  const { query, params } =
+    select !== "count" &&
+    !requiresScoresJoin &&
+    limit !== undefined &&
+    page !== undefined
+      ? buildQuery(
+          "session_data",
+          select,
+          buildQuery("page_sessions", { fields: ["session_id"] }),
+        )
+      : buildQuery("session_data", select);
 
   const input = {
     params: {

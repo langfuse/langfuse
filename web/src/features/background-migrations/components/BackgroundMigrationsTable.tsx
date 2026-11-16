@@ -87,7 +87,7 @@ export default function BackgroundMigrationsTable() {
   return (
     <Page
       headerProps={{
-        title: "Background Migrations",
+        title: "Background migrations",
       }}
     >
       <DataTableToolbar columns={columns} tableName="background-migrations" />

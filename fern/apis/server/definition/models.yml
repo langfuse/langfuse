@@ -50,7 +50,7 @@ service:
 
 types:
   ModelTokenizerId:
-    docs: Tokenizer supported by Langfuse for model usage inference.
+    docs: Legacy tokenizer identifier retained for API compatibility. Ingestion no longer uses it to infer observation usage.
     enum:
       - openai
       - claude
@@ -104,8 +104,8 @@ types:
           which will automatically create a single default tier named "Standard".
         type: optional<nullable<list<commons.PricingTierInput>>>
       tokenizerId:
-        docs: Optional. Tokenizer to be applied to observations which match to this model. See docs for more details.
+        docs: Legacy tokenizer identifier retained for API compatibility. Ingestion no longer uses it to infer observation usage.
         type: optional<nullable<ModelTokenizerId>>
       tokenizerConfig:
-        docs: Optional. Configuration for the selected tokenizer. Needs to be JSON. See docs for more details.
+        docs: Legacy tokenizer configuration retained for API compatibility. Ingestion no longer uses it to infer observation usage.
         type: optional<nullable<unknown>>

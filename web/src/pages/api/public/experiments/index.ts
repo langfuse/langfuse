@@ -9,6 +9,7 @@ import {
 } from "@/src/features/public-api/types/experiments";
 import { listExperimentsForPublicApi } from "@/src/features/experiments/server/public/service";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import { scoreV3Refs } from "@/src/features/audit-logs/server/auditedQuery";
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Experiments",
@@ -16,6 +17,14 @@ export default withMiddlewares({
     querySchema: GetExperimentsV1Query,
     responseSchema: GetExperimentsV1Response,
     allowInAppAgentKey: true,
+    audit: {
+      route: "GET /api/public/experiments",
+      resourceType: "experiment",
+      action: "list",
+      refs: (response) =>
+        scoreV3Refs(response.data.flatMap((run) => run.scores ?? [])),
+      resultCount: (response) => response.data.length,
+    },
     fn: async ({ query, auth }) => {
       if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") {
         throw new LangfuseNotFoundError(

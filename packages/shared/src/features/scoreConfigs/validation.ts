@@ -7,7 +7,7 @@ import {
 
 /**
  * Use this function when pulling a list of score configs from the database before using in the application to ensure type safety.
- * All score configs are expected to pass the validation. If a score fails validation, it will be logged to Otel.
+ * All score configs are expected to pass the validation. Invalid configs are omitted and reported through the optional onParseError callback.
  * @param scoreConfigs
  * @returns list of validated score configs
  */

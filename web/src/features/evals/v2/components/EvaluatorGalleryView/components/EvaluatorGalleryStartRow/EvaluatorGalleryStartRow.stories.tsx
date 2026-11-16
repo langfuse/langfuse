@@ -23,7 +23,7 @@ export const CreatesDecisionModel = meta.story({
   name: "(Test) Starts a blank decision model",
   args: { onCreateFromScratch: fn() },
   play: async ({ canvas, args }) => {
-    await expect(canvas.getByText("NEW")).toBeVisible();
+    await expect(canvas.getByText("New")).toBeVisible();
     await userEvent.click(
       canvas.getByRole("button", { name: /^Decision model/ }),
     );

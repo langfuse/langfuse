@@ -39,6 +39,8 @@ caller — or before concluding that no change is needed — read
 
 ## Quick Start Checklists
 
+Whether to add a test follows root [`AGENTS.md`](../../../AGENTS.md). Place a warranted test as described in [references/testing-guide.md](references/testing-guide.md).
+
 ### UI: New tRPC Feature
 
 - Define the router in `features/[feature]/server/*Router.ts`.
@@ -48,7 +50,6 @@ caller — or before concluding that no change is needed — read
 - Validate input with Zod v4.
 - Put business logic in a service file.
 - Use `traceException` for error handling where relevant.
-- Add unit or integration tests in `__tests__/`.
 - Access config via `env.mjs`.
 
 ### Existing Endpoint: Additive Field or Filter
@@ -66,7 +67,6 @@ For an additive field/filter:
 - Do not create API-version-specific field sets, casts, or "must be selected"
   runtime assertions unless compatibility requires them.
 - Extend examples and contracts; do not replace an existing filter example.
-- Write one test per unique boundary, not one test per file touched.
 
 ### SDKs: New Public API Endpoint
 
@@ -77,7 +77,6 @@ For an additive field/filter:
 - Validate query, body, and response with Zod schemas.
 - Include API versioning in paths and schemas.
 - Update Fern API definitions to match TypeScript types.
-- Add end-to-end tests in `__tests__/async/`.
 
 ### Worker: New Queue Processor
 
@@ -86,7 +85,6 @@ For an additive field/filter:
 - Place business logic in `features/` or `worker/src/features/`.
 - Distinguish failed jobs from jobs that should succeed with a recorded error.
 - Register the queue in `WorkerManager` in `app.ts`.
-- Add worker vitest coverage.
 
 ## Core Principles
 

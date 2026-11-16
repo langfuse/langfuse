@@ -6,6 +6,14 @@ import {
 } from "@langfuse/shared/src/db";
 
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
+import {
+  type GatewayCustomModel,
+  parseGatewayCustomModels,
+} from "@/src/features/ai-gateway/fns/parseGatewayCustomModels";
+import {
+  type GatewayProviderConfig,
+  GatewayProviderConfigSchema,
+} from "@/src/features/ai-gateway/server/provider/registry";
 
 const safeConnectionSelect = {
   id: true,
@@ -16,6 +24,10 @@ const safeConnectionSelect = {
   createdById: true,
   status: true,
   allowedModels: true,
+  customModels: true,
+  config: true,
+  baseURL: true,
+  extraHeaderKeys: true,
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.GatewayAiConnectionSelect;
@@ -28,6 +40,9 @@ function toSafeConnection<T extends SafeConnectionRow>(connection: T) {
   return {
     ...connection,
     allowedModels: parseGatewayAllowedModels(connection.allowedModels),
+    customModels: parseGatewayCustomModels(connection.customModels),
+    config:
+      GatewayProviderConfigSchema.safeParse(connection.config).data ?? null,
   };
 }
 
@@ -77,9 +92,21 @@ export class GatewayProviderRepository {
       select: {
         ...safeConnectionSelect,
         encryptedCredential: true,
+        extraHeaders: true,
       },
     });
     return connection ? toSafeConnection(connection) : null;
+  }
+
+  async getEncryptedExtraHeaders(params: {
+    organizationId: string;
+    id: string;
+  }) {
+    const connection = await this.prisma.gatewayAiConnection.findFirst({
+      where: params,
+      select: { extraHeaders: true },
+    });
+    return connection?.extraHeaders ?? null;
   }
 
   async hasConnectionNamedIgnoringCase(params: {
@@ -109,27 +136,43 @@ export class GatewayProviderRepository {
     provider: GatewayProvider;
     encryptedCredential: string;
     displaySecret: string;
+    config: GatewayProviderConfig | null;
+    baseURL: string | null;
+    extraHeaders: string | null;
+    extraHeaderKeys: string[];
     createdById: string | null;
     status: GatewayConnectionStatus;
   }) {
     const connection = await this.prisma.gatewayAiConnection.create({
-      data: params,
+      data: { ...params, config: params.config ?? Prisma.DbNull },
       select: safeConnectionSelect,
     });
     return toSafeConnection(connection);
   }
 
-  async updateConnection(params: {
-    organizationId: string;
-    id: string;
-    name?: string;
-    encryptedCredential?: string;
-    displaySecret?: string;
-    status?: GatewayConnectionStatus;
-  }) {
-    const { organizationId, id, ...data } = params;
-    const connection = await this.prisma.gatewayAiConnection.update({
-      where: { id, organizationId },
+  async updateConnection(
+    params: {
+      organizationId: string;
+      id: string;
+      name?: string;
+      encryptedCredential?: string;
+      displaySecret?: string;
+      baseURL?: string | null;
+      extraHeaders?: string | null;
+      extraHeaderKeys?: string[];
+      status?: GatewayConnectionStatus;
+      /** Matching it makes a concurrent rename fail with P2025 instead of leaving key model patterns on a stale name. */
+      previousName?: string;
+    },
+    client: Prisma.TransactionClient = this.prisma,
+  ) {
+    const { organizationId, id, previousName, ...data } = params;
+    const connection = await client.gatewayAiConnection.update({
+      where: {
+        id,
+        organizationId,
+        ...(previousName !== undefined && { name: previousName }),
+      },
       data,
       select: safeConnectionSelect,
     });
@@ -140,6 +183,7 @@ export class GatewayProviderRepository {
     organizationId: string;
     id: string;
     allowedModels: string[] | null;
+    customModels?: GatewayCustomModel[];
     expectedUpdatedAt: Date;
   }) {
     const result = await this.prisma.gatewayAiConnection.updateMany({
@@ -151,6 +195,7 @@ export class GatewayProviderRepository {
       data: {
         allowedModels:
           params.allowedModels === null ? Prisma.DbNull : params.allowedModels,
+        customModels: params.customModels,
       },
     });
     if (result.count === 0) return null;

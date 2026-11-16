@@ -24,9 +24,9 @@ export function ConnectedScoreConfigsTable({
     limit: "pageSize",
   });
 
-  const hasAccess = useHasProjectAccess({
+  const hasReadAccess = useHasProjectAccess({
     projectId,
-    scope: "scoreConfigs:CUD",
+    scope: "scoreConfigs:read",
   });
 
   const configs = api.scoreConfigs.all.useQuery(
@@ -35,7 +35,7 @@ export function ConnectedScoreConfigsTable({
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
     },
-    { enabled: hasAccess },
+    { enabled: hasReadAccess },
   );
 
   const tableData = useMemo<AsyncTableData<ScoreConfigTableRow[]>>(() => {

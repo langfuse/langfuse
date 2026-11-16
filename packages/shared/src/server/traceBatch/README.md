@@ -1,8 +1,8 @@
 # Trace-batch input storage
 
-`createTraceBatchInputStorage()` provides `put` and `get` for versioned inputs,
-using a project/trace/revision reference and one lazily initialized provider
-client shared across factory calls. The live inputs contain a nullable transcript,
+`createTraceBatchInputStorage()` provides `put` and `get`. `put` returns the
+stored object key. `get` reads that key. One lazily initialized provider
+client is shared across factory calls. The live inputs contain a nullable transcript,
 its execution issues (empty without a transcript) and required trace context. Session ID and trace name are nullable; context
 timestamps stay ISO strings.
 

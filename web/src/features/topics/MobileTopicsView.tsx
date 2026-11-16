@@ -1,24 +1,40 @@
-import { useMemo, useState, type ComponentProps } from "react";
+import {
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+} from "react";
 import { type FilterState } from "@langfuse/shared";
 import { Button } from "@/src/components/design-system/Button/Button";
+import { ControlledDropdownMenu } from "@/src/components/design-system/ControlledDropdownMenu/ControlledDropdownMenu";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   type Facet,
+  type UseTopicTraces,
   orderedFacetTopics,
   topicTracesHref,
+  useTracesWithSelection,
 } from "./facet-topics";
-import { selectTopicTraceFilters } from "./topic-trace-filters";
+import {
+  filterTopicTraces,
+  selectTopicTraceFilters,
+} from "./topic-trace-filters";
 import { TopicMobileList } from "./TopicMobileList";
 import { TopicMobileTraceList } from "./TopicMobileTraceList";
 import { MobileTopicVisualization } from "./MobileTopicVisualization";
 import { TopicsTraceToolbar } from "./TopicsTraceToolbar";
 import { prepareMobileTopics } from "./prepare-mobile-topics";
 import { UNASSIGNED_TOPIC_ID } from "./prepare-topic-display";
+import { FacetTraceSource } from "./useFacetTopicTraces";
+import { type MobileTopicsVisualization } from "./TopicsResultsViewSelect";
 
 type MobileTopicsViewProps = {
   projectId: string;
   facet: Facet;
   view: ComponentProps<typeof MobileTopicVisualization>["view"];
+  /** Adds the Visualize tab menu; omit while the map is unavailable. */
+  onViewChange?: (view: MobileTopicsVisualization) => void;
   mapResult: ComponentProps<typeof MobileTopicVisualization>["mapResult"];
   filters: FilterState;
   searchQuery: string | null;
@@ -30,6 +46,8 @@ type MobileTopicsViewProps = {
   onGenerateTopics: () => void;
   canGenerateTopics: boolean;
   isV4: boolean;
+  useTraces: UseTopicTraces;
+  showUnassigned: boolean;
 };
 
 /** Local navigation only; query data and persisted filters stay with the caller. */
@@ -37,6 +55,7 @@ export function MobileTopicsView({
   projectId,
   facet,
   view,
+  onViewChange,
   mapResult,
   filters,
   searchQuery,
@@ -48,6 +67,8 @@ export function MobileTopicsView({
   onGenerateTopics,
   canGenerateTopics,
   isV4,
+  useTraces,
+  showUnassigned,
 }: MobileTopicsViewProps) {
   const [navigation, setNavigation] = useState({
     view,
@@ -59,12 +80,29 @@ export function MobileTopicsView({
   function showPanel(panel: string) {
     setNavigation({ view, panel });
   }
-  const { topics, selectedTopicId, selectedTopic, visible } =
-    prepareMobileTopics(facet, view, filters, searchQuery);
-  const matchingTraceKey =
-    filters.length > 0 || searchQuery?.trim()
-      ? JSON.stringify([...new Set(visible.map((row) => row.traceId))].sort())
-      : null;
+  const { topics, selectedTopicId, selectedTopic, traceQuery } =
+    prepareMobileTopics(facet, view, filters, searchQuery, showUnassigned);
+  const traces = useTracesWithSelection(useTraces, traceQuery, selectedTraceId);
+  const visible = traces.rows;
+  const mapPoints =
+    mapResult.data?.status === "ready" ? mapResult.data.points : null;
+  // The map highlights its own points that match the filters.
+  const matchingTraceKey = useMemo(() => {
+    if (!(filters.length > 0 || searchQuery?.trim()) || !mapPoints) return null;
+    const names = new Map(facet.topics.map((topic) => [topic.id, topic.name]));
+    return JSON.stringify(
+      filterTopicTraces(
+        mapPoints.map((point) => ({
+          ...point,
+          topicName: point.topicId ? (names.get(point.topicId) ?? null) : null,
+        })),
+        filters,
+        searchQuery,
+      )
+        .map((row) => row.traceId)
+        .sort(),
+    );
+  }, [filters, searchQuery, mapPoints, facet.topics]);
   // Map frame identity follows matching IDs, preserving tap previews across refreshes.
   const matchingTraceIds = useMemo(
     () =>
@@ -73,7 +111,19 @@ export function MobileTopicsView({
         : new Set<string>(JSON.parse(matchingTraceKey)),
     [matchingTraceKey],
   );
-  const tracingHref = topicTracesHref(projectId, visible, isV4);
+  // Only a plain topic selection maps to the tracing filter; analysis snapshots have their own topics.
+  const isAnalysis = Boolean(useContext(FacetTraceSource)?.analysisId);
+  const tracingHref = topicTracesHref(
+    projectId,
+    visible,
+    isV4,
+    selectedTopic &&
+      selectedTopic.id !== UNASSIGNED_TOPIC_ID &&
+      !searchQuery &&
+      !isAnalysis
+      ? { facet, name: selectedTopic.name }
+      : undefined,
+  );
 
   function showAllTraces() {
     onFiltersChange([]);
@@ -102,7 +152,12 @@ export function MobileTopicsView({
     showPanel("traces");
   }
   function selectTrace(traceId: string | null) {
-    if (traceId !== null && !visible.some((row) => row.traceId === traceId)) {
+    // A point outside the filters clears them; one inside is pinned once loaded.
+    if (
+      traceId !== null &&
+      matchingTraceIds &&
+      !matchingTraceIds.has(traceId)
+    ) {
       onFiltersChange([]);
       onSearchQueryChange(null);
     }
@@ -120,12 +175,20 @@ export function MobileTopicsView({
         <Tabs.List variant="underline" layout="full" aria-label="Topics panels">
           <Tabs.Trigger value="topics" label="Topics" />
           <Tabs.Trigger value="traces" label="Traces" />
-          <Tabs.Trigger value="visualization" label="Visualize" />
+          {onViewChange ? (
+            <VisualizeTabMenu
+              view={view}
+              active={navigation.panel === "visualization"}
+              onViewChange={onViewChange}
+            />
+          ) : (
+            <Tabs.Trigger value="visualization" label="Visualize" />
+          )}
         </Tabs.List>
         <Tabs.Content value="topics" layout="fill">
           <TopicMobileList
             topics={topics}
-            totalCount={facet.rows.length}
+            totalCount={facet.counts.total}
             selectedTopicId={selectedTopicId}
             onSelectTopic={selectTopic}
             onShowAllTraces={showAllTraces}
@@ -144,7 +207,7 @@ export function MobileTopicsView({
             <TopicMobileTraceList
               key={facet.facetId}
               filterKey={JSON.stringify([filters, searchQuery])}
-              rows={visible}
+              traces={traces}
               selectedTraceId={selectedTraceId}
               onOpenTrace={openTrace}
             >
@@ -154,7 +217,11 @@ export function MobileTopicsView({
                     {selectedTopic?.name ?? "Trace summaries"}
                   </h3>
                   <span className="text-muted-foreground text-xs tabular-nums">
-                    {visible.length.toLocaleString()} traces
+                    ~
+                    {(
+                      selectedTopic?.count ?? facet.counts.total
+                    ).toLocaleString()}{" "}
+                    traces
                   </span>
                 </div>
                 {selectedTopic?.description && (
@@ -211,5 +278,65 @@ export function MobileTopicsView({
         </Tabs.Content>
       </Tabs>
     </div>
+  );
+}
+
+const VISUALIZATIONS = [
+  { value: "treemap", label: "Treemap" },
+  { value: "map", label: "Scatter" },
+] as const;
+
+/** Pressing the already active Visualize tab opens the view menu; the first press only selects the tab. */
+function VisualizeTabMenu({
+  view,
+  active,
+  onViewChange,
+}: {
+  view: MobileTopicsViewProps["view"];
+  active: boolean;
+  onViewChange: (view: MobileTopicsVisualization) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  // Read before the tab activates on mouse down, so the selecting press stays a plain tab press.
+  const pressedWhileActive = useRef(false);
+  return (
+    <ControlledDropdownMenu
+      open={open}
+      onOpenChange={(next) => setOpen(next && pressedWhileActive.current)}
+      ariaLabel="Visualize as"
+      internal
+      placement="bottom-end"
+      items={VISUALIZATIONS.map((option) => ({
+        id: option.value,
+        title: option.label,
+        type: "item" as const,
+        selected: option.value === view,
+        onClick: () => onViewChange(option.value),
+      }))}
+    >
+      {({ getTriggerProps }) => (
+        <span
+          {...getTriggerProps({
+            onPointerDown: () => {
+              pressedWhileActive.current = active;
+            },
+            // Keyboard focus already activated the tab.
+            onKeyDown: () => {
+              pressedWhileActive.current = true;
+            },
+          })}
+          // The focused tab announces the menu; its id and aria-controls stay the tab's own.
+          aria-haspopup={undefined}
+          aria-expanded={undefined}
+          aria-controls={undefined}
+        >
+          <Tabs.Trigger
+            value="visualization"
+            label="Visualize"
+            menu={{ open }}
+          />
+        </span>
+      )}
+    </ControlledDropdownMenu>
   );
 }

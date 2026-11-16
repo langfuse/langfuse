@@ -94,6 +94,10 @@ export type AnnotationRefreshHandle = {
   refresh: (data: AnnotationPanelData) => void;
 };
 
+export type AnnotationCommentFlush = {
+  flushPendingComments: () => void;
+};
+
 export type AnnotateFormSchemaType = z.infer<typeof AnnotateFormSchema>;
 export type AnnotationScoreSchemaType = z.infer<
   typeof AnnotationScoreDataSchema
@@ -123,6 +127,7 @@ export type ScoreConfigSelection =
 
 export type AnnotationForm<Target extends ScoreTarget> = {
   refreshRef?: React.Ref<AnnotationRefreshHandle>;
+  commentFlushRef?: React.Ref<AnnotationCommentFlush>;
   isActive?: boolean;
   scoreTarget: Target;
   serverScores: WithStringifiedMetadata<ScoreDomain>[] | ScoreAggregate;

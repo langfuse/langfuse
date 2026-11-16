@@ -569,6 +569,24 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
       expect(deserialized).toEqual(filterWithPendingNoneSelection);
     });
 
+    it.each(["key;name", "key,name", "key%", "%41", "deployment region"])(
+      "round-trips object key %s",
+      (key) => {
+        const filters: FilterState = [
+          {
+            column: "metadata",
+            type: "stringObject",
+            key,
+            operator: "=",
+            value: "value",
+          },
+          { column: "name", type: "string", operator: "=", value: "next" },
+        ];
+
+        expect(decodeFilters(encodeFilters(filters))).toEqual(filters);
+      },
+    );
+
     it("should maintain consistency for values containing pipes", () => {
       // Issue #11757: values with literal | should round-trip correctly
       const cases: FilterState[] = [

@@ -296,9 +296,7 @@ export default function ScoresTable({
     queryParams: ["observation", "display", "timestamp", "traceId"],
     tableName: scoresFilterConfig.tableName,
     isV4,
-    extractParamsValuesFromRow: (
-      row: ScoresTableRow,
-    ): Record<string, string> =>
+    extractParamsValuesFromRow: (row: ScoresTableRow): Record<string, string> =>
       row.observationId ? { observation: row.observationId } : {},
     expandConfig: {
       basePath: `/project/${projectId}/traces`,
@@ -376,6 +374,7 @@ export default function ScoresTable({
       utils.scores.all.invalidate();
       utils.scores.allFromEvents.invalidate();
       utils.scores.countAllFromEvents.invalidate();
+      utils.sessions.observationsForSessionFromEvents.invalidate({ projectId });
 
       if (traceId) {
         utils.traces.byIdWithObservationsAndScores.invalidate({

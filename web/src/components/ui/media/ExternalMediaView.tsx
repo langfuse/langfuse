@@ -1,5 +1,5 @@
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useHasExternalMediaStorageAccess } from "@/src/ee/features/external-media-storage/hooks/useHasExternalMediaStorageAccess";
 import type { MediaContentType } from "@/src/features/media/validation";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { MediaFileView } from "./MediaFileView";
@@ -14,11 +14,19 @@ export type ExternalMediaViewProps = {
 
 export function ExternalMediaView({ descriptor }: ExternalMediaViewProps) {
   const projectId = useProjectIdFromURL();
-  const isFeatureEnabled = useIsFeatureEnabled("externalMediaStorage", {
-    enableForAdmins: false,
-    projectId,
-  });
-  if (!isFeatureEnabled) return <ExternalMediaFallback uri={descriptor.uri} />;
+  if (!projectId) return <ExternalMediaFallback uri={descriptor.uri} />;
+
+  return (
+    <ProjectExternalMediaView projectId={projectId} descriptor={descriptor} />
+  );
+}
+
+function ProjectExternalMediaView({
+  projectId,
+  descriptor,
+}: ExternalMediaViewProps & { projectId: string }) {
+  const hasAccess = useHasExternalMediaStorageAccess(projectId);
+  if (!hasAccess) return <ExternalMediaFallback uri={descriptor.uri} />;
 
   return <EnabledExternalMediaView descriptor={descriptor} />;
 }

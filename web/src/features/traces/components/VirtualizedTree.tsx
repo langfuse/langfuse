@@ -23,6 +23,7 @@ interface VirtualizedTreeProps<T extends { id: string; children: T[] }> {
   roots: T[];
   collapsedNodes: Set<string>;
   selectedNodeId: string | null;
+  isScrollReady?: boolean;
   renderNode: (params: {
     node: T;
     treeMetadata: TreeNodeMetadata;
@@ -43,6 +44,7 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
   roots,
   collapsedNodes,
   selectedNodeId,
+  isScrollReady = true,
   renderNode,
   onToggleCollapse,
   onSelectNode,
@@ -114,8 +116,15 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
   // is a no-op when the row is already visible, so clicking a visible row never
   // jumps the list.
   const prevSelectedIdRef = useRef<string | null | undefined>(undefined);
+  const totalSize = rowVirtualizer.getTotalSize();
+  const viewportHeight = rowVirtualizer.scrollRect?.height ?? 0;
 
   useLayoutEffect(() => {
+    if (!isScrollReady) {
+      prevSelectedIdRef.current = undefined;
+      return;
+    }
+    if (viewportHeight === 0) return;
     if (!selectedNodeId || selectedNodeId === prevSelectedIdRef.current) {
       prevSelectedIdRef.current = selectedNodeId;
       return;
@@ -130,15 +139,30 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
     if (index === -1) return;
 
     const isInitial = prevSelectedIdRef.current === undefined;
-    prevSelectedIdRef.current = selectedNodeId;
-
-    // Initial load: center it instantly (no post-paint animation). Later
-    // selection changes: minimal, smooth scroll only if it's off-screen.
-    rowVirtualizer.scrollToIndex(index, {
-      align: isInitial ? "center" : "auto",
-      behavior: isInitial ? "auto" : "smooth",
+    let completionFrame: number | undefined;
+    // A scroll mounts and measures new rows. Size changes restart this effect
+    // before completion, so an estimated offset is not treated as the final one.
+    const scrollFrame = requestAnimationFrame(() => {
+      rowVirtualizer.scrollToIndex(index, {
+        align: isInitial ? "center" : "auto",
+        behavior: "auto",
+      });
+      completionFrame = requestAnimationFrame(() => {
+        prevSelectedIdRef.current = selectedNodeId;
+      });
     });
-  }, [selectedNodeId, flattenedItems, rowVirtualizer]);
+    return () => {
+      cancelAnimationFrame(scrollFrame);
+      if (completionFrame !== undefined) cancelAnimationFrame(completionFrame);
+    };
+  }, [
+    selectedNodeId,
+    flattenedItems,
+    rowVirtualizer,
+    isScrollReady,
+    totalSize,
+    viewportHeight,
+  ]);
 
   return (
     // `scrollbar-visible` is load-bearing, not decoration. Rows are `w-full`
@@ -156,7 +180,7 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
     >
       <div
         style={{
-          height: `${rowVirtualizer.getTotalSize()}px`,
+          height: `${totalSize}px`,
           width: "100%",
           position: "relative",
         }}

@@ -331,6 +331,19 @@ describe("computeSeverity", () => {
     expect(computeSeverity({ ...input, ...noDataDefaults })).toBe(expected);
   });
 
+  it("SUBSTITUTE_OK resolves a breaching below-threshold monitor to OK", () => {
+    expect(
+      computeSeverity({
+        value: null,
+        noData: { mode: MonitorNoDataModeSchema.enum.SUBSTITUTE_OK },
+        prevSeverity: MonitorSeveritySchema.enum.ALERT,
+        operator: MonitorThresholdOperatorSchema.enum.LT,
+        alertThreshold: 0.7,
+        warningThreshold: null,
+      }),
+    ).toBe(MonitorSeveritySchema.enum.OK);
+  });
+
   it("non-null value ignores noData mode", () => {
     expect(
       computeSeverity({

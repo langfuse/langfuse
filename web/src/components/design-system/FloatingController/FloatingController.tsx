@@ -10,6 +10,7 @@ import {
   safePolygon,
   shift,
   size,
+  useClick,
   useDismiss,
   useFloating,
   useFocus,
@@ -135,6 +136,8 @@ function FloatingController({
   renderContent,
   open,
   onOpenChange,
+  interaction = "hover",
+  returnFocus = true,
   openDelay = 700,
   closeDelay = 300,
   placement = "bottom",
@@ -165,6 +168,10 @@ function FloatingController({
   ) => React.ReactElement;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  interaction?: "hover" | "click";
+  returnFocus?: React.ComponentProps<
+    typeof FloatingFocusManager
+  >["returnFocus"];
   openDelay?: number;
   closeDelay?: number;
   placement?: Placement;
@@ -201,17 +208,23 @@ function FloatingController({
     whileElementsMounted: autoUpdate,
   });
   const hover = useHover(context, {
-    enabled,
+    enabled: enabled && interaction === "hover",
     delay: { open: openDelay, close: closeDelay },
     handleClose: hoverableContent ? safePolygon() : undefined,
     move: false,
   });
-  const focus = useFocus(context, { enabled });
+  const focus = useFocus(context, {
+    enabled: enabled && interaction === "hover",
+  });
+  const click = useClick(context, {
+    enabled: enabled && interaction === "click",
+  });
   const dismiss = useDismiss(context);
   const role = useRole(context, { role: overlayRole });
   const { getFloatingProps, getReferenceProps } = useInteractions([
     hover,
     focus,
+    click,
     dismiss,
     role,
   ]);
@@ -220,11 +233,10 @@ function FloatingController({
   return (
     <>
       {children({
-        getTriggerProps: (triggerProps) =>
-          getReferenceProps({
-            ...triggerProps,
-            ref: getTriggerRef(triggerProps?.ref),
-          }),
+        getTriggerProps: (triggerProps) => ({
+          ...getReferenceProps(triggerProps),
+          ref: getTriggerRef(triggerProps?.ref),
+        }),
       })}
       {isOpen ? (
         <FloatingPortal root={layerContainer}>
@@ -232,7 +244,8 @@ function FloatingController({
             context={context}
             disabled={overlayRole === "tooltip"}
             modal={false}
-            initialFocus={-1}
+            initialFocus={interaction === "click" ? 0 : -1}
+            returnFocus={returnFocus}
           >
             {renderContent(
               getContentProps({

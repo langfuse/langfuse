@@ -19,8 +19,6 @@ type HasEntitlementLimitParams = {
 export const hasEntitlementLimit = (
   p: HasEntitlementLimitParams,
 ): number | false => {
-  if (p.sessionUser.admin) return false; // Admins have unlimited access
-
   const org =
     "projectId" in p
       ? p.sessionUser.organizations.find((org) =>

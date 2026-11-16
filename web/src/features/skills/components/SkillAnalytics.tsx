@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { PaginationBar } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { SkillLinkedTraces } from "./SkillLinkedTraces";
 import { Filter, RefreshCw } from "@langfuse/icons";
 import {
@@ -50,7 +49,6 @@ function SkillAnalyticsDashboard({
   paths,
   timeRange,
 }: SkillAnalyticsProps & { timeRange: TimeRange }) {
-  const [filePage, setFilePage] = useState(0);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const { available, loaded, files, handleRefresh } = useSkillAnalytics({
     projectId,
@@ -70,14 +68,10 @@ function SkillAnalyticsDashboard({
     })
     .toSorted((a, b) => b.loads - a.loads || a.path.localeCompare(b.path));
   const error = available.error ?? loaded.error ?? files.error;
-  const pageIndex = Math.min(
-    filePage,
-    Math.max(0, Math.ceil(fileRows.length / 10) - 1),
-  );
   const fileTableData = prepareFileTableData(
     files.isPending,
     files.error,
-    fileRows.slice(pageIndex * 10, (pageIndex + 1) * 10),
+    fileRows,
   );
   return (
     <>
@@ -93,7 +87,7 @@ function SkillAnalyticsDashboard({
           }
         />
       </PageHeaderControlsPortal>
-      <div className="flex flex-col gap-3 p-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
         {error ? (
           <StatusMessage
             level="ERROR"
@@ -101,7 +95,7 @@ function SkillAnalyticsDashboard({
             message={`Could not load some metrics: ${error.message}. Use Refresh metrics to retry.`}
           />
         ) : null}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid shrink-0 grid-cols-1 gap-3 sm:grid-cols-2">
           <Metric
             label="Available"
             value={
@@ -121,11 +115,11 @@ function SkillAnalyticsDashboard({
             description="Observations loading one or more files"
           />
         </div>
-        <section className="flex flex-col gap-2 rounded-lg border pt-2">
-          <div className="px-3">
+        <section className="flex min-h-28 flex-col gap-2 rounded-lg border pt-2">
+          <div className="shrink-0 px-3">
             <h3 className="text-sm font-bold">File usage</h3>
           </div>
-          <div className="ph-no-capture overflow-auto [&_tbody>tr]:h-8 [&_tbody>tr>td:not([colspan])]:py-1 [&_tbody>tr>td:not([colspan])>div]:h-6">
+          <div className="ph-no-capture flex max-h-48 min-h-0 flex-col overflow-hidden [&_tbody>tr]:h-8 [&_tbody>tr>td:not([colspan])]:py-1 [&_tbody>tr>td:not([colspan])>div]:h-6">
             <Table<FileUsage>
               tableName="Skill file usage"
               columns={[
@@ -152,15 +146,6 @@ function SkillAnalyticsDashboard({
               loadingRowCount={Math.min(paths.length, 10)}
             />
           </div>
-          {fileRows.length > 10 ? (
-            <PaginationBar
-              mode="offset"
-              totalCount={fileRows.length}
-              state={{ pageIndex, pageSize: 10 }}
-              pageSizeOptions={[10]}
-              onChange={(state) => setFilePage(state.pageIndex)}
-            />
-          ) : null}
         </section>
         <SkillLinkedTraces
           projectId={projectId}

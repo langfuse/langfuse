@@ -1,7 +1,18 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import type { ComponentProps } from "react";
-import { Activity, BookOpen, Home, Settings } from "@langfuse/icons";
-import { expect, fn } from "storybook/test";
+import {
+  Activity,
+  ArrowUpRight,
+  BookOpen,
+  ListTree,
+  Grid2X2,
+  Box,
+  Home,
+  KeyRound,
+  Search,
+  Settings,
+} from "@langfuse/icons";
+import { expect, fn, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
 import { SidebarInset, SidebarProvider } from "@/src/components/ui/sidebar";
@@ -127,6 +138,17 @@ export const CurrentOpenSource = meta.story({
   },
 });
 
+export const CurrentGov = meta.story({
+  args: {
+    versionState: {
+      deployment: "self-hosted",
+      plan: "self-hosted:gov",
+      release: { status: "current" },
+      migration: { status: "idle" },
+    },
+  },
+});
+
 export const UpdateAvailable = meta.story({
   args: {
     versionState: {
@@ -136,6 +158,23 @@ export const UpdateAvailable = meta.story({
         status: "update-available",
         updateType: "minor",
         latestRelease: "3.128.0",
+      },
+      migration: { status: "idle" },
+    },
+  },
+});
+
+export const WidestVersionLabel = meta.story({
+  name: "Widest version label (long version, OSS, update)",
+  args: {
+    version: "v4.128.12",
+    versionState: {
+      deployment: "self-hosted",
+      plan: "oss",
+      release: {
+        status: "update-available",
+        updateType: "major",
+        latestRelease: "5.0.0",
       },
       migration: { status: "idle" },
     },
@@ -255,6 +294,81 @@ export const MobileNavigation = meta.story({
   },
 });
 
+// Enterprise co-branding: a configured logo replaces the Langfuse mark.
+const sampleLogo = (fill: string) =>
+  `data:image/svg+xml,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48"><rect width="48" height="48" rx="10" fill="${fill}"/><text x="24" y="32" text-anchor="middle" font-family="Arial" font-weight="700" font-size="24" fill="white">A</text></svg>`,
+  )}`;
+
+export const CustomLogo = meta.story({
+  args: {
+    logo: {
+      lightModeHref: sampleLogo("#1d4ed8"),
+      darkModeHref: sampleLogo("#93c5fd"),
+    },
+    versionState: {
+      deployment: "self-hosted",
+      plan: "self-hosted:enterprise",
+      release: { status: "current" },
+      migration: { status: "idle" },
+    },
+    organization: { id: "org-acme", name: "Acme Inc." },
+    organizations: [
+      {
+        id: "org-acme",
+        name: "Acme Inc.",
+        role: "OWNER",
+        cloudConfig: undefined,
+        plan: "self-hosted:enterprise",
+        metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: false,
+        projects: [],
+      },
+    ],
+    canCreateOrganizations: true,
+  },
+});
+
+export const CustomLogoCollapsed = meta.story({
+  args: CustomLogo.input.args,
+  render: (args) => <SidebarStory open={false} args={args} />,
+});
+
+const cloudEnterpriseOrg = (name: string): Partial<AppSidebarProps> => ({
+  organization: { id: "org-enterprise", name },
+  organizations: [
+    {
+      id: "org-enterprise",
+      name,
+      role: "OWNER",
+      cloudConfig: undefined,
+      plan: "cloud:enterprise",
+      metadata: {},
+      aiFeaturesEnabled: false,
+      aiTelemetryEnabled: false,
+      projects: [],
+    },
+  ],
+});
+
+export const EnterprisePlanBadge = meta.story({
+  name: "(Test) Enterprise badge shows in full when the name fits",
+  args: cloudEnterpriseOrg("Acme"),
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText("ENTERPRISE")).toBeVisible();
+  },
+});
+
+export const EnterprisePlanBadgeLongName = meta.story({
+  name: "(Test) Enterprise badge shortens to ENT for a long name",
+  args: cloudEnterpriseOrg("Acme Research Labs"),
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText("ENT")).toBeVisible();
+    await expect(canvas.queryByText("ENTERPRISE")).toBeNull();
+  },
+});
+
 export const Collapsed = meta.story({
   render: (args) => <SidebarStory open={false} args={args} />,
 });
@@ -289,5 +403,95 @@ export const ChromeRowAlignment = meta.story({
     // sidebar and the in-flow inset share an origin.
     await expect(Math.abs(sidebarBox.height - pageBox.height)).toBeLessThan(1);
     await expect(Math.abs(sidebarBox.bottom - pageBox.bottom)).toBeLessThan(1);
+  },
+});
+
+const SETUP_REQUIRED_REASON = "Finish the gateway setup on Overview first.";
+
+const aiGatewayNavigationArgs = {
+  navItems: {
+    ungrouped: [
+      { title: "Go to...", url: "", icon: Search },
+      { title: "Projects", url: "/organization/org-acme", icon: Grid2X2 },
+    ],
+    grouped: {
+      "AI Gateway": [
+        {
+          title: "Overview",
+          url: "/organization/org-acme/ai-gateway",
+          icon: Home,
+          isActive: true,
+        },
+        {
+          title: "Connections & Models",
+          url: "/organization/org-acme/ai-gateway/models",
+          icon: Box,
+          disabledReason: SETUP_REQUIRED_REASON,
+        },
+        {
+          title: "Gateway keys",
+          url: "/organization/org-acme/ai-gateway/api-keys",
+          icon: KeyRound,
+          disabledReason: SETUP_REQUIRED_REASON,
+        },
+      ],
+    },
+  },
+} satisfies Partial<AppSidebarProps>;
+
+export const AiGatewayNavigation = meta.story({
+  args: aiGatewayNavigationArgs,
+});
+
+export const AiGatewayNavigationDisabledReason = meta.story({
+  name: "(Test) Disabled gateway entries show their reason on focus",
+  args: aiGatewayNavigationArgs,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const models = canvas.getByRole("link", { name: "Connections & Models" });
+    await expect(models).toHaveAttribute("aria-disabled", "true");
+
+    models.focus();
+    const reason = await body.findByText(SETUP_REQUIRED_REASON);
+    await waitFor(() => expect(reason).toBeVisible());
+  },
+});
+
+/** Once set up, managers also get a link to the traces of the project that receives gateway traffic. */
+export const AiGatewayNavigationSetUp = meta.story({
+  args: {
+    navItems: {
+      ungrouped: [
+        { title: "Go to...", url: "", icon: Search },
+        { title: "Projects", url: "/organization/org-acme", icon: Grid2X2 },
+      ],
+      grouped: {
+        "AI Gateway": [
+          {
+            title: "Overview",
+            url: "/organization/org-acme/ai-gateway",
+            icon: Home,
+            isActive: true,
+          },
+          {
+            title: "Connections & Models",
+            url: "/organization/org-acme/ai-gateway/models",
+            icon: Box,
+          },
+          {
+            title: "Gateway keys",
+            url: "/organization/org-acme/ai-gateway/api-keys",
+            icon: KeyRound,
+          },
+          {
+            title: "Tracing",
+            url: "/project/project-gateway/traces",
+            icon: ListTree,
+            label: <ArrowUpRight size="base" color="tertiary" aria-hidden />,
+          },
+        ],
+      },
+    },
   },
 });

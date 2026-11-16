@@ -42,9 +42,10 @@ vi.mock("@/src/utils/api", () => ({
   },
 }));
 
-vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
-  default: () => true,
-}));
+vi.mock(
+  "@/src/ee/features/external-media-storage/hooks/useHasExternalMediaStorageAccess",
+  () => ({ useHasExternalMediaStorageAccess: () => true }),
+);
 
 const renderMarkdown = (markdown: string) =>
   render(<MarkdownView markdown={markdown} />);

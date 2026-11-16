@@ -22,7 +22,6 @@ import {
   featurePreviewFlags,
   featurePreviewLabels,
   defaultOnFeaturePreviewFlags,
-  isOrganizationOnlyFeaturePreviewFlag,
   type FeaturePreviewFlag,
 } from "@/src/features/feature-flags/available-flags";
 import { OrganizationFeaturePreviewIntro } from "./OrganizationFeaturePreviewIntro";
@@ -52,9 +51,8 @@ export function OrganizationFeaturePreviewsSettings({
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const capture = usePostHogClientCapture();
   const canOpenPersonalPreviews = canOpenPersonalFeaturePreviews({
+    session: session.data,
     isLangfuseCloud,
-    v4BetaEnabled: session.data?.user?.v4BetaEnabled === true,
-    isAdmin: session.data?.user?.admin === true,
   });
   const openPersonalPreviews = (source: "description" | "preview_row") => {
     capture("organization_settings:personal_feature_previews_opened", {
@@ -144,10 +142,7 @@ export function OrganizationFeaturePreviewsSettings({
           const selected = selectedDefaults.has(flag);
           const enabledForAdmin =
             session.data?.user?.featureFlags[flag] === true;
-          const requiresPersonalEnablement =
-            !isOrganizationOnlyFeaturePreviewFlag(flag) &&
-            !selected &&
-            !enabledForAdmin;
+          const requiresPersonalEnablement = !selected && !enabledForAdmin;
           return (
             <Card
               key={flag}
@@ -214,8 +209,7 @@ export function OrganizationFeaturePreviewsSettings({
               organization defaults.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {proposedChange?.enabled &&
-          !isOrganizationOnlyFeaturePreviewFlag(proposedChange.flag) ? (
+          {proposedChange?.enabled ? (
             <Alert>
               <Alert.Title>Already enabled for you</Alert.Title>
               <Alert.Description>

@@ -17,6 +17,7 @@ import {
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { GATEWAY_OVERVIEW_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
+import { buildGatewayPagePath } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayPagePath";
 
 export type OrganizationSettingsTileState =
   | "noProjects"
@@ -92,7 +93,7 @@ function tileActions(state: OrganizationSettingsTileState, orgId: string) {
       text="Organization settings"
     />
   );
-  const keysHref = `/organization/${orgId}/settings/ai-gateway-api-keys`;
+  const keysHref = buildGatewayPagePath(orgId, "api-keys");
   const docsButton = (
     <Button
       variant="secondary"
@@ -138,7 +139,7 @@ function tileActions(state: OrganizationSettingsTileState, orgId: string) {
           />
           <Button
             variant="secondary"
-            href={`/organization/${orgId}/settings/ai-gateway-models`}
+            href={buildGatewayPagePath(orgId, "models")}
             text="View models"
           />
         </>

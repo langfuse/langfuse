@@ -72,6 +72,14 @@ Model Availability" in `automated-audit.md` for the removal criteria.
   tier. Ask for both columns explicitly and cross-check
   `ai.google.dev/pricing` against `ai.google.dev/gemini-api/docs/pricing` when
   results disagree.
+- **`ai.google.dev` now 301-redirects to `aistudio.google.com`** — every
+  `ai.google.dev` pricing, models, and deprecations URL in this file redirects
+  to the equivalent `aistudio.google.com` path, which is outside the allowed
+  WebFetch domain list. Do not follow the redirect or add `aistudio.google.com`
+  to the workflow's allowed domains yourself; leave every Gemini pricing and
+  selectable-array entry unchanged and report the required domain change as
+  unresolved so the workflow's `--allowedTools` list and this table can be
+  updated together by a human.
 - **Deprecation dates** — Summaries misjudge whether a date is past or future.
   Compare the literal shutdown date with `date -u +%Y-%m-%dT00:00:00.000Z`
   yourself. Ask for the complete list of batch headings on the deprecations
@@ -100,15 +108,17 @@ Model Availability" in `automated-audit.md` for the removal criteria.
   pay 5x on every rate. Modeled as a usage-detail `gt 100000` tier.
 - **Cache multipliers** — The default is 0.1x base input for cache reads, 1.25x
   for 5-minute writes, and 2x for 1-hour writes. The pricing page's cache-hits
-  footnote lists the exceptions: Claude Fable 5.1 and Mythos 5.1 read at 0.025x,
-  and Claude Opus 5.5 and Sonnet 5.5 read at 0.05x. Re-read the footnote
-  whenever a Claude model is added or changed.
+  footnote lists the exceptions: Claude Fable 5.2, Mythos 5.2, Fable 5.1, and
+  Mythos 5.1 read at 0.025x, and Claude Opus 5.5 and Sonnet 5.5 read at 0.05x.
+  Re-read the footnote whenever a Claude model is added or changed.
 - **Fast mode** — The request field is `speed: "fast"`, matched as
   `modelParameters.speed in ["fast"]` (Anthropic's `service_tier` controls
-  capacity, not Fast mode). Only Opus 5.5, Opus 5, and Opus 4.8 have Fast mode.
-  Opus 4.7 rejects it and Opus 4.6 bills it at standard rates, so neither gets a
-  tier. Fast-mode cache prices come from applying the cache multipliers to the
-  Fast-mode base input price.
+  capacity, not Fast mode). Opus 5.5, Opus 5, Opus 4.8, Fable 5.2, and
+  Mythos 5.2 have Fast mode; Fable 5.2 and Mythos 5.2 share one $16/$80 rate
+  distinct from the Opus family's. Opus 4.7 rejects it and Opus 4.6 bills it at
+  standard rates, so neither gets a tier. Earlier Fable/Mythos generations
+  (5.1, 5) have no Fast mode. Fast-mode cache prices come from applying the
+  cache multipliers to the Fast-mode base input price.
 - **Batch** — Not represented for any Anthropic model; it is a separate
   endpoint that ordinary ingestion does not identify.
 - **Claude Sonnet 5** — $2/$10 is the standard price; the previously announced
@@ -118,6 +128,16 @@ Model Availability" in `automated-audit.md` for the removal criteria.
   IDs are `anthropic.<id>` with optional region prefixes and `-v1(:0)?`.
   Anchor every pattern with `^...$` so `claude-opus-5` does not match
   `claude-opus-5-5`.
+- **Two Bedrock endpoints** — `bedrock-mantle` (the Messages API) serves the
+  bare `anthropic.<id>` form with no region prefix or `-v1:0` suffix; this is
+  how Fable 5.1, Fable 5, Opus 5.5, Opus 5, Opus 4.8, Opus 4.7, Sonnet 5.5,
+  Sonnet 5, Mythos 5, Mythos 5.1, and Haiku 5.5 are reachable on Bedrock.
+  `bedrock-runtime` (`InvokeModel`/`Converse`) serves the older
+  region-prefixed, `-v1(:0)?`-suffixed form, and is the only endpoint that
+  serves Fable 5.2 and Mythos 5.2. Every current Claude `matchPattern` should
+  accept both forms (bare `anthropic.<id>` and optional
+  `(eu\.|us\.|apac\.|au\.|jp\.|global\.)?anthropic\.<id>(-v1(:0)?)?`) unless a
+  model is confirmed absent from one endpoint.
 
 ### OpenAI
 
@@ -132,22 +152,28 @@ Model Availability" in `automated-audit.md` for the removal criteria.
   newly added model.
 - **Service tiers** — Fast mode is `service_tier in ["fast","priority"]`, at 2x
   the applicable tier for the `gpt-6` and `gpt-5.6` families. Flex is
-  `["flex"]` at 0.5x. Ultrafast is `["ultrafast"]` at 6x and is priced only for
-  `gpt-6-astra`; `gpt-5.6-sol` has preview Ultrafast access with no published
-  price. Combined service-tier plus large-context tiers are evaluated before
-  single-condition tiers. When the page does not publish a Flex Large Context
-  row, apply 0.5x to the Large Context tier.
+  `["flex"]` at 0.5x. Ultrafast is `["ultrafast"]` at 6x and is priced for
+  `gpt-6-astra` and `gpt-6.1-sol`; `gpt-5.6-sol` has preview Ultrafast access
+  with no published price. Combined service-tier plus large-context tiers are
+  evaluated before single-condition tiers. When the page does not publish a
+  Flex Large Context row, apply 0.5x to the Large Context tier.
 - **GPT-6 family key set** — New `gpt-6*` and `gpt-6.1*` entries mirror the
   six-tier sibling shape: Standard, Fast mode · Large context, Flex · Large
-  context, Fast mode, Flex, and Large Context. `gpt-6-astra` also has the two
-  Ultrafast tiers.
+  context, Fast mode, Flex, and Large Context. `gpt-6-astra` and `gpt-6.1-sol`
+  additionally have the two Ultrafast tiers (eight tiers total); check each
+  new `gpt-6*`/`gpt-6.1*` model's own page for an "Ultrafast mode prices are
+  6x Standard" statement rather than assuming the six-tier shape.
 - **Batch** — Not represented; it is a separate asynchronous endpoint.
 - **Floating aliases** — Do not add entries for `-latest` style aliases such as
   `gpt-daybreak-*-latest`. `gpt-5-chat-latest` is an existing exception.
-- **Out of scope** — The restricted Daybreak cyber models (`gpt-5.6-cyber`,
-  `gpt-5.5-cyber`, `gpt-5.4-cyber`), GPT-Rosalind (`gpt-rosalind-research`),
-  and the open-weight `gpt-oss-*` models. Revisit only if OpenAI publishes a
-  public model page and price.
+- **Cyber models** — `gpt-6-cyber` and `gpt-5.6-cyber` have public model pages
+  and prices, so they are priced (Standard and Large Context only; neither page
+  lists Fast or Flex). `gpt-6-cyber` publishes no Large Context cache-write
+  rate, so that tier writes at its input rate.
+- **Out of scope** — The deprecated `gpt-5.5-cyber-preview` and
+  `gpt-5.4-cyber`, GPT-Rosalind (`gpt-rosalind-research`,
+  `gpt-rosalind-discovery`, `gpt-6-rosalind`), and the open-weight `gpt-oss-*`
+  models. Revisit only if OpenAI publishes a public model page and price.
 
 ### Google Gemini
 
@@ -171,6 +197,7 @@ Model Availability" in `automated-audit.md` for the removal criteria.
   Priority is about 1.8x Standard, but use each published rate rather than a
   multiplier. These are Developer API rates; do not infer Vertex reserved or
   regional pricing from them.
+- **Flex (Vertex AI Flex PayGo)** — Enabled by the `X-Vertex-AI-LLM-Shared-Request-Type: flex` header; responses report `trafficType: ON_DEMAND_FLEX`, recorded unchanged as `service_tier`. Flex tiers match `modelParameters.service_tier in ["flex", "ON_DEMAND_FLEX"]` (the Gemini API reports `serviceTier: "flex"`), and every Gemini Priority tier lists `["priority", "ON_DEMAND_PRIORITY"]`, because a Vertex `trafficType` overrides `gen_ai.request.service_tier`. When the two pricing pages list different Flex prices, split the tier: `Flex` matches `["flex"]` at the Gemini API price and `Flex (Vertex AI)` matches `["ON_DEMAND_FLEX"]` at the Vertex price (gemini-3.5-flash-lite cached input: $0.02 vs $0.015). Usually 0.5x every Standard token rate (global endpoint only); grounding fees are unchanged. Copy each published Flex value instead of halving: where the Gemini API page says cached input is "Same as Standard" (gemini-3.1-pro-preview, gemini-3-flash-preview), use the Standard cached rate. Only models on the [Flex PayGo page](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/flex-paygo) get a tier: not Gemini 4 or 2.5. For Pro models, Flex + >200K and Flex evaluate after the Priority tiers and before Large Context.
 - **Gemini 4 Argon** — Implicit caching only (no cache-write keys), thinking
   billed at the output rate, flat pricing across the full context. It is in
   `googleAIStudioModels` only, pending Vertex AI lifecycle confirmation.
@@ -224,6 +251,15 @@ Model Availability" in `automated-audit.md` for the removal criteria.
   `gemini-1.5-flash-8b`, and `gemini-2.0-flash-thinking-exp-01-21` have no
   official price and no matching pricing entry. Do not add one without official
   evidence.
+- **Bedrock cache-read divergence (unconfirmed)** — The AWS Bedrock pricing
+  page carries a footnote that Claude Sonnet 5.5 cache-read pricing on Bedrock
+  dropped 50% from the prior rate starting October 7, 2026, but the page
+  never renders a numeric table WebFetch can extract, so the new rate is
+  unconfirmed. Langfuse's `claude-sonnet-5-5` entry prices cache reads once
+  for both the Claude API and Bedrock; if Bedrock's rate has actually
+  diverged from the Claude API rate, that one shared price may now
+  misprice Bedrock traffic. Needs a numeric source (or a different
+  extraction method) before any change.
 
 ## Scheduled Changes
 
@@ -237,7 +273,7 @@ need action.
 | 2026-11-30 | `claude-sonnet-4-5-20250929` retires. Remove it from `anthropicModels`.                                                                                                                                                                                                          |
 | 2026-12-01 | `gemini-4-argon` introductory pricing ($2/$10/$0.10 Standard) steps up to $4/$20/$0.20, with Priority doubling in step.                                                                                                                                                          |
 | 2026-12-11 | OpenAI "GPT-5 and o3" batch shuts down. Remove `gpt-5`, `gpt-5-2025-08-07`, `gpt-5-mini`, `gpt-5-mini-2025-08-07`, `gpt-5-nano`, `gpt-5-nano-2025-08-07`, `o3`, and `o3-2025-04-16` from `openAIModels`.                                                                         |
-| 2027-01-01 | `gemini-3.6-flash`, `gemini-3.7-flash`, and `gemini-3.8-flash` introductory pricing ($0.75/$3.75/$0.075) steps up to $1.50/$7.50/$0.15. Re-check their Priority rates too.                                                                                                       |
+| 2027-01-01 | `gemini-3.6-flash`, `gemini-3.7-flash`, and `gemini-3.8-flash` introductory pricing ($0.75/$3.75/$0.075) steps up to $1.50/$7.50/$0.15. Re-check their Priority and Flex rates too.                                                                                              |
 | 2027-01-14 | OpenAI "GPT-4 series" batch shuts down (`gpt-4o-2024-08-06`, `gpt-4o-2024-11-20`, `gpt-4o-mini-2024-07-18`, `gpt-4.1-2025-04-14`, `gpt-4.1-mini-2025-04-14`). Remove those snapshots and their aliases (`gpt-4o`, `gpt-4o-mini`, `gpt-4.1`, `gpt-4.1-mini`) from `openAIModels`. |
 | 2027-04-01 | OpenAI batch shuts down `gpt-5.3-codex`, `gpt-5.4-nano`, `gpt-5.4-nano-2026-03-17`, `gpt-5.1`, and `gpt-5.1-2025-11-13`. Remove them from `openAIModels`.                                                                                                                        |
 | 2027-05-07 | `gemini-3.1-flash-lite` shuts down on the Gemini API (replacement `gemini-3.5-flash-lite`). Remove it from `googleAIStudioModels`; check Vertex AI separately.                                                                                                                   |

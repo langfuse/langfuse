@@ -50,7 +50,7 @@ async function batchMedia(batch: EarlyOtelBatch): Promise<MediaRegistry> {
   const load = (async () => {
     const count = batch.mediaCount();
     const media = new Map<string, ExtractedOtelMedia>();
-    for (let offset = 0; offset < count; ) {
+    for (let offset = 0; offset < count;) {
       const resultStartedAt = performance.now();
       const page = batch.mediaPage(offset, MEDIA_PAGE_SIZE);
       for (const entry of page) media.set(entry.reference, entry);

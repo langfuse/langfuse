@@ -129,7 +129,7 @@ const syncedLatencyData = buildSeries(
 );
 
 const msFormatter: MetricFormatterFunction = (value, options) =>
-  formatMetric(value, { ...options, unit: "millisecond" });
+  formatMetric(value, { ...options, unit: "milliseconds" });
 
 const meta = preview.meta({
   component: LineChartTimeSeriesDemo,

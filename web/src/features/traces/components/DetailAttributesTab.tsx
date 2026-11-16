@@ -76,7 +76,7 @@ export function DetailAttributesTab({
           >
             {(state) => (
               <IOSection
-                title="Attributes"
+                title="Metadata"
                 onCopy={state.copy}
                 actions={
                   state.contentKind === "table" && state.hasExpandableRows
@@ -97,7 +97,7 @@ export function DetailAttributesTab({
               >
                 <PrettyJsonViewContent
                   state={state}
-                  title="Attributes"
+                  title="Metadata"
                   borderless
                   rowActions={(row) =>
                     getAttributeRowActions({
@@ -153,9 +153,9 @@ export function DetailAttributesTab({
         {hasMetadata ? (
           <div>
             {metadataTooLarge ? (
-              <IOSection title="Metadata">
+              <IOSection title="Custom Metadata">
                 <LargeJsonFieldFallback
-                  title="Metadata"
+                  title="Custom Metadata"
                   hideTitle
                   serialized={metadataProbe.serialized}
                   isString={metadataProbe.isString}
@@ -186,7 +186,7 @@ export function DetailAttributesTab({
               >
                 {(state) => (
                   <IOSection
-                    title="Metadata"
+                    title="Custom Metadata"
                     onCopy={state.copy}
                     actions={
                       state.contentKind === "table" && state.hasExpandableRows
@@ -207,7 +207,7 @@ export function DetailAttributesTab({
                   >
                     <PrettyJsonViewContent
                       state={state}
-                      title="Metadata"
+                      title="Custom Metadata"
                       borderless
                       rowActions={(row) =>
                         getMetadataRowActions({

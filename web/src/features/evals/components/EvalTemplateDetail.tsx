@@ -193,7 +193,7 @@ export const EvalTemplateDetail = () => {
                             onClick={(e) => {
                               e.stopPropagation();
                             }}
-                            color="primary"
+                            color="outline"
                             size="lg"
                             text={`# ${template.version}`}
                             data-version-trigger="false"

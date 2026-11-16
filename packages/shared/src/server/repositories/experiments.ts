@@ -1422,6 +1422,9 @@ export const getExperimentItemsFromEvents = async (
  */
 export type ExperimentOutputData = {
   experimentId: string;
+  /** The run's root span and its trace. */
+  observationId: string;
+  traceId: string;
   output: string | null;
 };
 
@@ -1494,6 +1497,8 @@ export const getExperimentItemsBatchIO = async (props: {
       "leftUTF8(e.experiment_item_expected_output, {truncateLength: UInt32}) as expected_output",
       "e.experiment_item_id as item_id",
       "e.experiment_id as experiment_id",
+      "e.span_id as observation_id",
+      "e.trace_id as trace_id",
     )
     // We must deterministically return the latest row for each experiment_item_id, experiment_id pair until we model repetitions (LFE-8965)
     .orderByColumns([{ column: "e.start_time", direction: "DESC" }])
@@ -1504,6 +1509,8 @@ export const getExperimentItemsBatchIO = async (props: {
   const rows = await queryClickhouse<{
     item_id: string;
     experiment_id: string;
+    observation_id: string;
+    trace_id: string;
     input: string | null;
     output: string | null;
     expected_output: string | null;
@@ -1566,6 +1573,8 @@ export const getExperimentItemsBatchIO = async (props: {
     // Collect output from all experiments
     item.outputs.push({
       experimentId: row.experiment_id,
+      observationId: row.observation_id,
+      traceId: row.trace_id,
       output: row.output,
     });
   }

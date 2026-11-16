@@ -1,5 +1,5 @@
 import { getServerAuthSessionForRequest } from "@/src/server/auth";
-import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
+import { isProjectMember } from "@/src/server/utils/checkProjectMembership";
 import { ForbiddenError, UnauthorizedError } from "@langfuse/shared";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
@@ -14,7 +14,7 @@ export const authorizeRequestOrThrow = async (
   const session = await getServerAuthSessionForRequest(request);
   if (!session?.user) throw new UnauthorizedError("Unauthenticated");
 
-  if (!isProjectMemberOrAdmin(session.user, projectId))
+  if (!isProjectMember(session.user, projectId))
     throw new ForbiddenError("User is not a member of this project");
 
   if (!hasProjectAccess({ session, projectId, scope: "playground:execute" }))

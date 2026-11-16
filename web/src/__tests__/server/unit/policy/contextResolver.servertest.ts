@@ -23,6 +23,8 @@ const ORG = "org_1";
 const PRJ = "prj_1";
 const OTHER_PRJ = "prj_2";
 const USER = "user_1";
+const MEMBER_USER = "user_member";
+const ADMIN_USER = "user_admin";
 const TENANT = OrganizationId(ORG);
 const ORGANIZATION_CREATED_AT = new Date("2026-09-16T00:00:00.000Z");
 
@@ -37,6 +39,15 @@ const orgRow = (
     projects: [{ id: PRJ }, { id: OTHER_PRJ }],
     ...over,
   }) as unknown as OrganizationWithProjects;
+
+const orgAssignment = (principal: object, systemRole: string) => ({
+  ...principal,
+  systemRole,
+  roleId: `system/${systemRole}`,
+  ownerId: `organization/${ORG}`,
+  projectId: null,
+  orgId: ORG,
+});
 
 // Backfilled keys receive their legacy role, owned by their project or organization.
 const assignmentsFor = (principalId: string) => {
@@ -67,6 +78,14 @@ const assignmentsFor = (principalId: string) => {
         orgId: ORG,
       },
     ];
+  if (principalId === "apiKey/key_u")
+    return [orgAssignment(principal, "ADMIN")];
+  if (principalId === "apiKey/key_ug")
+    return [orgAssignment(principal, "AI_GATEWAY")];
+  if (principalId === `user/${MEMBER_USER}`)
+    return [orgAssignment(principal, "MEMBER")];
+  if (principalId === `user/${ADMIN_USER}`)
+    return [orgAssignment(principal, "ADMIN")];
   if (principalId === "apiKey/key_v")
     return [
       {
@@ -132,6 +151,14 @@ const apiKey = (over: Partial<ApiKey> = {}): ApiKey => ({
 });
 const orgKey = (over: Partial<ApiKey> = {}): ApiKey =>
   apiKey({ id: "key_o", scope: "ORGANIZATION", projectId: null, ...over });
+const userKey = (over: Partial<ApiKey> = {}): ApiKey =>
+  apiKey({
+    id: "key_u",
+    scope: "USER",
+    projectId: null,
+    userId: MEMBER_USER,
+    ...over,
+  });
 
 describe("resolves the admin key", () => {
   it("grants admin over any project and org", async () => {
@@ -153,15 +180,17 @@ describe("resolves the admin key", () => {
 
   it("carries OWNER policies bound to the wildcard tenant and resources", async () => {
     const ctx = await contextFor({ authorization: "admin" });
-    expect(ctx.policies.length).toBeGreaterThan(0);
-    expect(ctx.policies.every((p) => p.tenantId === OrganizationId("*"))).toBe(
+    expect(ctx.policies).toHaveLength(1);
+    const [policies] = ctx.policies;
+    expect(policies.length).toBeGreaterThan(0);
+    expect(policies.every((p) => p.tenantId === OrganizationId("*"))).toBe(
       true,
     );
-    expect(ctx.policies.every((p) => p.roleId === SystemRoleId("OWNER"))).toBe(
+    expect(policies.every((p) => p.roleId === SystemRoleId("OWNER"))).toBe(
       true,
     );
-    const org = ctx.policies.find((p) => p.id === "system/OWNER:organization");
-    const project = ctx.policies.find((p) => p.id === "system/OWNER:project");
+    const org = policies.find((p) => p.id === "system/OWNER:organization");
+    const project = policies.find((p) => p.id === "system/OWNER:project");
     expect(org?.resources).toEqual([OrganizationId("*")]);
     expect(project?.resources).toEqual([ProjectId("*")]);
     // The org wildcard carries an org action and the project wildcard a
@@ -270,6 +299,104 @@ describe("expansion table: scope ORGANIZATION, privateKey", () => {
   });
 });
 
+describe("expansion table: scope USER, privateKey", () => {
+  it("binds the key to its org and carries the user's policies and then its own", async () => {
+    const ctx = await contextFor({
+      authorization: "privateKey",
+      apiKey: userKey(),
+    });
+    expect(
+      ctx.principal.kind === "apiKey" && ctx.principal.boundResource,
+    ).toEqual({ orgId: ORG });
+    expect(ctx.policies).toHaveLength(2);
+    expect(ctx.policies[0].every((p) => p.roleId === "system/MEMBER")).toBe(
+      true,
+    );
+    expect(ctx.policies[1].every((p) => p.roleId === "system/ADMIN")).toBe(
+      true,
+    );
+  });
+
+  it("allows what both the user and the key allow", async () => {
+    const ctx = await contextFor({
+      authorization: "privateKey",
+      apiKey: userKey(),
+    });
+    expect(authorize(ctx, TENANT, "prompts:read", ProjectId(PRJ)).success).toBe(
+      true,
+    );
+  });
+
+  it("denies what the key allows but the user does not", async () => {
+    const ctx = await contextFor({
+      authorization: "privateKey",
+      apiKey: userKey(),
+    });
+    expect(
+      authorize(ctx, TENANT, "organization:CRUD_apiKeys", OrganizationId(ORG))
+        .success,
+    ).toBe(false);
+  });
+
+  it("denies what the user allows but the key does not", async () => {
+    const ctx = await contextFor({
+      authorization: "privateKey",
+      apiKey: userKey({ id: "key_ug", userId: ADMIN_USER }),
+    });
+    expect(
+      authorize(ctx, TENANT, "gateway:invoke", OrganizationId(ORG)).success,
+    ).toBe(true);
+    expect(authorize(ctx, TENANT, "prompts:read", ProjectId(PRJ)).success).toBe(
+      false,
+    );
+  });
+
+  it("denies everything once the user holds no role", async () => {
+    const prisma = mockPrisma(orgRow());
+    Object.assign(prisma, {
+      $queryRaw: vi.fn().mockResolvedValue([]),
+      $transaction: vi.fn((fn: (tx: PrismaClient) => unknown) => fn(prisma)),
+    });
+    Object.assign(prisma.roleAssignment, {
+      createMany: vi.fn().mockResolvedValue({ count: 0 }),
+    });
+    const resolved = await new ContextResolver(
+      new OrganizationRepository(prisma),
+      prisma,
+    ).resolve({
+      authorization: "privateKey",
+      apiKey: userKey({ userId: "user_removed" }),
+    });
+    if (!resolved.success) throw resolved.error;
+    const ctx = resolved.context;
+    expect(ctx.policies[0]).toEqual([]);
+    expect(authorize(ctx, TENANT, "prompts:read", ProjectId(PRJ)).success).toBe(
+      false,
+    );
+  });
+
+  it("denies a user key without a user", async () => {
+    const ctx = await contextFor({
+      authorization: "privateKey",
+      apiKey: userKey({ userId: null }),
+    });
+    expect(authorize(ctx, TENANT, "prompts:read", ProjectId(PRJ)).success).toBe(
+      false,
+    );
+  });
+
+  it("collapses a user key with a null orgId to an InternalServerError", async () => {
+    const resolved = await resolverFor(orgRow()).resolve({
+      authorization: "privateKey",
+      apiKey: userKey({ orgId: null }),
+    });
+    expect(resolved.success).toBe(false);
+    if (!resolved.success) {
+      expect(resolved.error).toBeInstanceOf(InternalServerError);
+    }
+  });
+});
+
 describe("attribution", () => {
   it("carries createdByUserId to principal.userId", async () => {
     const ctx = await contextFor({
@@ -353,7 +480,7 @@ describe("a verified key with no org is a 500 invariant break", () => {
 });
 
 describe("role lookup", () => {
-  it("throws an internal server error when backfill leaves no roles", async () => {
+  it("denies a key that backfill leaves without roles", async () => {
     const prisma = mockPrisma(orgRow());
     prisma.roleAssignment.findMany = vi.fn().mockResolvedValue([]);
     prisma.$transaction = vi.fn().mockResolvedValue(undefined);
@@ -361,10 +488,16 @@ describe("role lookup", () => {
       new OrganizationRepository(prisma),
       prisma,
     );
-    await expect(
-      resolver.resolve({ authorization: "privateKey", apiKey: apiKey() }),
-    ).rejects.toThrow(InternalServerError);
-    expect(prisma.roleAssignment.findMany).toHaveBeenCalledTimes(2);
+    const resolved = await resolver.resolve({
+      authorization: "privateKey",
+      apiKey: apiKey(),
+    });
+    if (!resolved.success) throw resolved.error;
+    expect(resolved.context.policies).toEqual([[]]);
+    expect(
+      authorize(resolved.context, TENANT, "prompts:read", ProjectId(PRJ))
+        .success,
+    ).toBe(false);
   });
 
   it("allows a stored role that grants no actions", async () => {
@@ -387,42 +520,28 @@ describe("role lookup", () => {
     });
     expect(resolved).toMatchObject({
       success: true,
-      context: { policies: [{ roleId: SystemRoleId("NONE"), actions: [] }] },
+      context: { policies: [[{ roleId: SystemRoleId("NONE"), actions: [] }]] },
     });
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it.each(["P2002", "P2003"])(
-    "handles a backfill %s error without swallowing other failures",
+    "propagates a backfill %s error",
     async (code) => {
       const prisma = mockPrisma(orgRow());
       const failure = new Prisma.PrismaClientKnownRequestError("write failed", {
         code,
         clientVersion: Prisma.prismaVersion.client,
       });
-      prisma.roleAssignment.findMany = vi
-        .fn()
-        .mockResolvedValueOnce([])
-        .mockResolvedValue(assignmentsFor("apiKey/key_p"));
+      prisma.roleAssignment.findMany = vi.fn().mockResolvedValue([]);
       prisma.$transaction = vi.fn().mockRejectedValue(failure);
       const resolver = new ContextResolver(
         new OrganizationRepository(prisma),
         prisma,
       );
-      const result = resolver.resolve({
-        authorization: "privateKey",
-        apiKey: apiKey(),
-      });
-      if (code !== "P2002") {
-        await expect(result).rejects.toThrow(failure);
-        return;
-      }
-      const resolved = await result;
-      if (!resolved.success) throw resolved.error;
-      expect(
-        authorize(resolved.context, TENANT, "project:read", ProjectId(PRJ))
-          .success,
-      ).toBe(true);
+      await expect(
+        resolver.resolve({ authorization: "privateKey", apiKey: apiKey() }),
+      ).rejects.toThrow(failure);
     },
   );
 

@@ -108,8 +108,8 @@ export function useObservationIOLoadedCount({
         ["observations", "byId"],
         {
           input: {
-            observationId: item.node.id,
-            traceId,
+            observationId: item.node.observationId ?? item.node.id,
+            traceId: item.node.traceId ?? traceId,
             projectId,
             startTime: item.node.startTime,
           },

@@ -83,7 +83,6 @@ function createSession(
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin: false,
     },
     environment: {
       enableExperimentalFeatures: false,

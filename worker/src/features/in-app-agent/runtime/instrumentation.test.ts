@@ -129,7 +129,6 @@ describe("InAppAgentInstrumentation", () => {
           langfuse_project_id: "project-1",
           langfuse_user_email: "user@example.com",
           langfuse_user_project_role: "ADMIN",
-          langfuse_user_is_admin: true,
         },
         targetProjectId: "project-1",
         traceId,
@@ -988,7 +987,7 @@ describe("InAppAgentInstrumentation", () => {
       targetProjectId: "project-1",
       environment: "production",
       metadata: {},
-      user: { id: "user-1", isAdmin: false },
+      user: { id: "user-1" },
     };
     const initial = createInAppAgentInstrumentation({ input, tracing });
     expect(initial).toBeDefined();
@@ -1214,7 +1213,6 @@ describe("InAppAgentInstrumentation", () => {
           langfuse_project_id: "project-1",
           langfuse_user_email: "user@example.com",
           langfuse_user_project_role: "ADMIN",
-          langfuse_user_is_admin: true,
           prompt_name: "in-app-agent-system-prompt",
           prompt_version: 3,
         },
@@ -1440,7 +1438,6 @@ describe("InAppAgentInstrumentation", () => {
             langfuse_project_id: "project-1",
             langfuse_user_email: "user@example.com",
             langfuse_user_project_role: "ADMIN",
-            langfuse_user_is_admin: true,
             approval_continuation_count: 2,
           },
         });
@@ -2183,7 +2180,6 @@ function createInstrumentation(
     userId: "user-1",
     userEmail: "user@example.com",
     userProjectRole: "ADMIN",
-    userIsAdmin: true,
     runId: input.runId,
     runStartedAt: new Date(),
     targetProjectId: "project-1",

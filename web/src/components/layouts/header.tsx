@@ -2,12 +2,12 @@
 import Link from "next/link";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { InternalFeatureBadge } from "@/src/features/feature-flags/components/InternalFeatureBadge";
 import {
   type Status,
   StatusBadge,
 } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { cn } from "@/src/utils/tailwind";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 type HeaderProps = {
   title: string;
@@ -87,23 +87,13 @@ function BaseHeader({ ...props }: HeaderProps & { level: "h3" | "h4" | "h5" }) {
             ) : null}
           </div>
           {props.status && <StatusBadge type={props.status} />}
-          {props.internal && <InternalFeatureBadge />}
+          {props.internal && <FeatureReleaseStatus status="internal" />}
           {props.labelBadge && (
-            <Badge
-              color="filled"
-              font="mono"
-              size="sm"
-              text={props.labelBadge}
-            />
+            <Badge color="filled" size="sm" text={props.labelBadge} />
           )}
           {props.label && (
             <Link href={props.label.href} className="flex">
-              <Badge
-                color="filled"
-                font="mono"
-                size="sm"
-                text={props.label.text}
-              />
+              <Badge color="filled" size="sm" text={props.label.text} />
             </Link>
           )}
         </div>

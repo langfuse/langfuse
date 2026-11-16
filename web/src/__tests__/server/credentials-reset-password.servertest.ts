@@ -210,7 +210,6 @@ async function createPasswordUser({
       canCreateOrganizations: true,
       organizations: [],
       featureFlags: testFeatureFlags({ templateFlag: false }),
-      admin: false,
     },
     environment: {
       enableExperimentalFeatures: false,

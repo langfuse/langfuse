@@ -9,7 +9,7 @@ export const Default = meta.story({});
 
 export const Customized = meta.story({
   args: {
-    logoLightModeHref: "/wordart-black.svg",
-    logoDarkModeHref: "/wordart-white.svg",
+    logoLightModeHref: "/langfuse-by-clickhouse.svg",
+    logoDarkModeHref: "/langfuse-by-clickhouse-white.svg",
   },
 });

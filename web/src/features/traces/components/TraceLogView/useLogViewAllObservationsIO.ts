@@ -26,6 +26,7 @@ interface UseLogViewAllObservationsIOParams {
 
 export interface ObservationIOData {
   id: string;
+  traceId?: string;
   type: string;
   name: string;
   startTime: Date;
@@ -87,7 +88,8 @@ export function useLogViewAllObservationsIO({
       .filter((item) => item.node.type !== "TRACE")
       .map((item) => {
         const baseData: ObservationIOData = {
-          id: item.node.id,
+          id: item.node.observationId ?? item.node.id,
+          traceId: item.node.traceId ?? traceId,
           type: item.node.type,
           name: formatDisplayName(item.node),
           startTime: item.node.startTime,
@@ -97,8 +99,8 @@ export function useLogViewAllObservationsIO({
 
         // Check if we have cached I/O data for this observation
         const queryKey = getObservationQueryKey(
-          item.node.id,
-          traceId,
+          item.node.observationId ?? item.node.id,
+          item.node.traceId ?? traceId,
           projectId,
           item.node.startTime,
         );
@@ -147,8 +149,8 @@ export function useLogViewAllObservationsIO({
 
       for (const item of observationItems) {
         const queryKey = getObservationQueryKey(
-          item.node.id,
-          traceId,
+          item.node.observationId ?? item.node.id,
+          item.node.traceId ?? traceId,
           projectId,
           item.node.startTime,
         );
@@ -159,7 +161,8 @@ export function useLogViewAllObservationsIO({
         if (cachedData) {
           // Build data from cache
           const baseData: ObservationIOData = {
-            id: item.node.id,
+            id: item.node.observationId ?? item.node.id,
+            traceId: item.node.traceId ?? traceId,
             type: item.node.type,
             name: formatDisplayName(item.node),
             startTime: item.node.startTime,
@@ -196,14 +199,15 @@ export function useLogViewAllObservationsIO({
           itemChunk.map(async (item) => {
             try {
               const result = await utils.observations.byId.fetch({
-                observationId: item.node.id,
-                traceId,
+                observationId: item.node.observationId ?? item.node.id,
+                traceId: item.node.traceId ?? traceId,
                 projectId,
                 startTime: item.node.startTime,
               });
 
               const baseData: ObservationIOData = {
-                id: item.node.id,
+                id: item.node.observationId ?? item.node.id,
+                traceId: item.node.traceId ?? traceId,
                 type: item.node.type,
                 name: formatDisplayName(item.node),
                 startTime: item.node.startTime,
@@ -226,7 +230,8 @@ export function useLogViewAllObservationsIO({
               // Track failure and return base data without I/O
               failures.push(item.node.id);
               return {
-                id: item.node.id,
+                id: item.node.observationId ?? item.node.id,
+                traceId: item.node.traceId ?? traceId,
                 type: item.node.type,
                 name: formatDisplayName(item.node),
                 startTime: item.node.startTime,
@@ -244,10 +249,15 @@ export function useLogViewAllObservationsIO({
 
       // Sort to maintain original item order
       const idOrder = new Map(
-        observationItems.map((item, i) => [item.node.id, i]),
+        observationItems.map((item, i) => [
+          `${item.node.traceId ?? traceId}:${item.node.observationId ?? item.node.id}`,
+          i,
+        ]),
       );
       allResults.sort(
-        (a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0),
+        (a, b) =>
+          (idOrder.get(`${a.traceId ?? traceId}:${a.id}`) ?? 0) -
+          (idOrder.get(`${b.traceId ?? traceId}:${b.id}`) ?? 0),
       );
 
       setData(allResults);

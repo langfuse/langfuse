@@ -435,4 +435,102 @@ describe("retryLLMRateLimitError", () => {
       { delay: 30 * 1000 },
     );
   });
+
+  it("starts the retry window at the first failure when there is no database row, even after queue backlog", async () => {
+    const add = vi.fn().mockResolvedValue(undefined);
+    // The system time; the job waited 40 minutes in the queue before failing.
+    const timestamp = new Date("2026-01-01T02:00:00.000Z");
+
+    const result = await retryLLMRateLimitError(
+      {
+        data: {
+          timestamp: new Date("2026-01-01T01:20:00.000Z"),
+          payload: { projectId: "project-id", traceId: "trace-id" },
+        },
+      },
+      {
+        table: null,
+        idField: "traceId",
+        queue: { add },
+        queueName: "topics-trace-queue",
+        jobName: "topics-trace-job",
+      },
+    );
+
+    expect(prisma.jobExecution.findFirstOrThrow).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      outcome: "scheduled",
+      delaySeconds: 300,
+      retryBaggage: { originalJobTimestamp: timestamp, attempt: 1 },
+    });
+    expect(add).toHaveBeenCalledWith(
+      "topics-trace-queue",
+      expect.objectContaining({
+        payload: { projectId: "project-id", traceId: "trace-id" },
+      }),
+      { delay: 300_000 },
+    );
+  });
+
+  it("follows a fixed schedule's offsets and stops after its last retry", async () => {
+    const add = vi.fn().mockResolvedValue(undefined);
+    const config = {
+      table: null,
+      idField: "traceId",
+      queue: { add },
+      queueName: "topics-trace-queue",
+      jobName: "topics-trace-job",
+      schedule: { offsetsSeconds: [60, 360, 960], maxAgeSeconds: 1800 },
+    } as const;
+    const retry = (attempt: number, elapsedSeconds: number) =>
+      retryLLMRateLimitError(
+        {
+          data: {
+            timestamp: new Date(),
+            payload: { projectId: "project-id", traceId: "trace-id" },
+            retryBaggage: {
+              originalJobTimestamp: new Date(
+                Date.now() - elapsedSeconds * 1000,
+              ),
+              attempt,
+            },
+          },
+        },
+        config,
+      );
+
+    // The second retry targets 6 minutes after the first attempt.
+    await expect(retry(1, 70)).resolves.toMatchObject({
+      outcome: "scheduled",
+      delaySeconds: 290,
+    });
+    await expect(retry(3, 970)).resolves.toEqual({
+      outcome: "skipped",
+      reason: "max_attempts",
+    });
+  });
+
+  it("stops retrying once the first job is older than the retry age", async () => {
+    const result = await retryLLMRateLimitError(
+      {
+        data: {
+          timestamp: new Date("2026-01-01T01:59:00.000Z"),
+          payload: { projectId: "project-id", traceId: "trace-id" },
+          retryBaggage: {
+            originalJobTimestamp: new Date("2025-12-31T23:59:00.000Z"),
+            attempt: 2,
+          },
+        },
+      },
+      {
+        table: null,
+        idField: "traceId",
+        queue: { add: vi.fn() },
+        queueName: "topics-trace-queue",
+        jobName: "topics-trace-job",
+      },
+    );
+
+    expect(result).toEqual({ outcome: "skipped", reason: "too_old" });
+  });
 });

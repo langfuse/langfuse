@@ -229,6 +229,53 @@ export const DestructiveOnlyAutofocus = meta.story({
   },
 });
 
+export const DisabledActionWithReason = meta.story({
+  name: "(Test) Disabled action with reason",
+  render: () => (
+    <DialogController
+      renderDialog={() => (
+        <Dialog
+          title="Add model"
+          text="Hover the disabled action to see why it is unavailable."
+          actions={[
+            {
+              label: "Add model",
+              onClick: fn(),
+              disabled: true,
+              disabledReason: "This model is already listed.",
+            },
+          ]}
+        />
+      )}
+    >
+      {({ openDialog }) => <Button text="Open dialog" onClick={openDialog} />}
+    </DialogController>
+  ),
+  play: async ({ canvasElement }) => {
+    const document = canvasElement.ownerDocument;
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "Open dialog" }));
+    const action = body.getByRole("button", { name: "Add model" });
+    await expect(action).toBeDisabled();
+    // Disabled buttons ignore pointer events, so the wrapper is the hover target.
+    await userEvent.hover(action.parentElement!);
+    // The open dialog marks the shared tooltip layer aria-hidden.
+    const tooltip = await body.findByRole("tooltip", { hidden: true });
+    await expect(tooltip).toHaveTextContent("This model is already listed.");
+    const tooltipBounds = tooltip.getBoundingClientRect();
+    await expect(
+      tooltip.contains(
+        document.elementFromPoint(
+          tooltipBounds.left + tooltipBounds.width / 2,
+          tooltipBounds.top + tooltipBounds.height / 2,
+        ),
+      ),
+    ).toBe(true);
+  },
+});
+
 export const ScrollableBodyKeepsControlsAboveFooter = meta.story({
   name: "(Test) Scrollable body keeps controls above footer",
   render: () => (

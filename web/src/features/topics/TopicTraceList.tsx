@@ -1,23 +1,30 @@
 /* eslint-disable react/no-unstable-nested-components */
 import {
   type PointerEvent,
+  useContext,
   type RefObject,
   type UIEvent,
   useState,
 } from "react";
 import { ExternalLink } from "@langfuse/icons";
 import { DataTable } from "@/src/components/table/data-table";
+import { TopicTraceLoadMore } from "./TopicTraceLoadMore";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { cn } from "@/src/utils/tailwind";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
-import { type FacetRow, topicTracesHref } from "./facet-topics";
+import {
+  type Facet,
+  type FacetRow,
+  type TopicTracesResult,
+  topicTracesHref,
+} from "./facet-topics";
+import { FacetTraceSource } from "./useFacetTopicTraces";
 
 /** With the table's own 4px (8px on the first column), cells end up 16px from each edge. */
 const CELL = "block px-3";
-/** Rows drawn at once; more load as the list nears its end. */
-const ROW_CHUNK = 100;
+/** More rows load from the server as the list nears its end. */
 const LOAD_MORE_THRESHOLD_PX = 400;
 const FIRST_CELL = "block pr-3 pl-2";
 
@@ -53,27 +60,34 @@ export function TopicTraceList({
   title,
   description,
   swatchColor,
-  rows,
+  traces,
+  totalCount,
+  tracingTopic,
   peekView,
   tracePanelRef,
   headerRef,
   divider,
 }: TopicTraceListProps) {
-  const [shown, setShown] = useState({ rows, count: ROW_CHUNK });
-  // A new topic or facet starts again from the first chunk.
-  const visibleCount = shown.rows === rows ? shown.count : ROW_CHUNK;
+  const { rows } = traces;
   const onScrollCapture = (event: UIEvent<HTMLElement>) => {
     const target = event.target as HTMLElement;
-    const nearBottom =
+    if (
       target.scrollTop + target.clientHeight >=
-      target.scrollHeight - LOAD_MORE_THRESHOLD_PX;
-    if (nearBottom && visibleCount < rows.length)
-      setShown({ rows, count: visibleCount + ROW_CHUNK });
+      target.scrollHeight - LOAD_MORE_THRESHOLD_PX
+    )
+      traces.loadMore();
   };
   const titleTooltip = useTruncatedTitle(title, "truncate");
   const descriptionTooltip = useTruncatedTitle(description ?? "", "line-clamp");
   const { isV4 } = useReadPath();
-  const tracingHref = topicTracesHref(projectId, rows, isV4);
+  // Analysis snapshots have their own topics, which the tracing filter can't match.
+  const isAnalysis = Boolean(useContext(FacetTraceSource)?.analysisId);
+  const tracingHref = topicTracesHref(
+    projectId,
+    rows,
+    isV4,
+    isAnalysis ? undefined : tracingTopic,
+  );
   const columns: LangfuseColumnDef<FacetRow>[] = [
     {
       accessorKey: "traceId",
@@ -116,7 +130,6 @@ export function TopicTraceList({
       className={cn(
         "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
         divider === "side" && "border-t lg:border-t-0 lg:border-l",
-        divider === "top" && "border-t",
         !divider && "rounded-md border",
       )}
     >
@@ -132,9 +145,9 @@ export function TopicTraceList({
             )}
             <span
               className="truncate font-mono text-xs"
-              title={`${rows.length.toLocaleString()} traces`}
+              title={traceCountLabel(totalCount)}
             >
-              {`${rows.length.toLocaleString()} traces`}
+              {traceCountLabel(totalCount)}
             </span>
           </p>
           {tracingHref && (
@@ -168,17 +181,17 @@ export function TopicTraceList({
         tableName="topics-topic-traces"
         columns={columns}
         data={{
-          isLoading: false,
-          isError: false,
-          data: rows
-            .slice(0, visibleCount)
-            .map((row) => ({ ...row, id: row.traceId })),
+          isLoading: traces.isLoading,
+          isError: traces.error !== null,
+          error: traces.error ?? undefined,
+          data: rows.map((row) => ({ ...row, id: row.traceId })),
         }}
         className="min-h-0 overscroll-contain"
         cellPadding="relaxed"
         noResultsMessage="No trace summaries."
         peekView={peekView}
       />
+      {traces.hasMore && <TopicTraceLoadMore traces={traces} />}
     </section>
   );
 }
@@ -188,10 +201,23 @@ type TopicTraceListProps = {
   title: string;
   description?: string;
   swatchColor?: string;
-  rows: FacetRow[];
+  traces: TopicTracesResult;
+  /** Approximate count of the listed topic's traces. */
+  totalCount: number;
+  /** The listed topic, so Open in Tracing can filter by it instead of trace IDs. */
+  tracingTopic?: { facet: Facet; name: string };
   peekView: DataTablePeekViewProps;
   tracePanelRef?: (element: HTMLElement | null) => void;
   /** Lets a neighbouring panel match this header's height. */
   headerRef?: RefObject<HTMLDivElement | null>;
-  divider?: "top" | "side";
+  /** `none` when the parent draws the divider, e.g. a resize handle. */
+  divider?: "side" | "none";
 };
+
+const APPROXIMATE_COUNT_FROM = 1_000;
+
+/** Counts are distinct-trace estimates; only large ones read as approximate. */
+function traceCountLabel(count: number) {
+  const approximate = count >= APPROXIMATE_COUNT_FROM ? "~" : "";
+  return `${approximate}${count.toLocaleString()} traces`;
+}

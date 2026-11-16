@@ -157,6 +157,7 @@ describe("in-app agent background runs", () => {
   const createCaller = async (
     userId = `user-${randomUUID()}`,
     plan: Plan = "cloud:hobby",
+    flags: Parameters<typeof testFeatureFlags>[0] = {},
   ) => {
     const setup = await createOrgProjectAndApiKey();
 
@@ -199,8 +200,7 @@ describe("in-app agent background runs", () => {
             ],
           },
         ],
-        featureFlags: testFeatureFlags({ templateFlag: false }),
-        admin: false,
+        featureFlags: testFeatureFlags({ templateFlag: false, ...flags }),
       },
       environment: {} as any,
     };
@@ -348,6 +348,7 @@ describe("in-app agent background runs", () => {
     parkedAt?: Date;
     toolName?: string;
     args?: unknown;
+    topicsAvailable?: boolean;
   }) => {
     const runId = createInAppAgentRunId();
 
@@ -362,6 +363,7 @@ describe("in-app agent background runs", () => {
         request: {
           kind: "userMessage",
           context: params.context ?? [],
+          ...(params.topicsAvailable ? { topicsAvailable: true } : {}),
         },
       },
     });
@@ -769,6 +771,97 @@ describe("in-app agent background runs", () => {
     });
   });
 
+  it("stores Topics availability from the user's preview and keeps it across approvals", async () => {
+    const withoutPreview = await createCaller();
+    const withPreview = await createCaller(undefined, "cloud:hobby", {
+      langfuseTopics: true,
+    });
+    const original = {
+      enabled: sharedEnv.LANGFUSE_TOPICS_ENABLED,
+      projectIds: sharedEnv.LANGFUSE_TOPICS_ENABLED_PROJECT_IDS,
+    };
+    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = "true";
+    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED_PROJECT_IDS = [
+      withoutPreview.projectId,
+      withPreview.projectId,
+    ];
+    const start = async ({
+      caller,
+      projectId,
+      userId,
+    }: Awaited<ReturnType<typeof createCaller>>) => {
+      const conversation = await createConversation({ projectId, userId });
+      const { runId } = await caller.startRun({
+        projectId,
+        conversationId: conversation.id,
+        message: "Which topics do these traces have?",
+      });
+      return {
+        conversationId: conversation.id,
+        run: await prisma.inAppAgentRun.findFirstOrThrow({
+          where: { id: runId, projectId },
+        }),
+      };
+    };
+
+    try {
+      const denied = await start(withoutPreview);
+      expect(denied.run.request).not.toHaveProperty("topicsAvailable");
+
+      // Positive control: the same flow with the preview stores the flag.
+      const { projectId, caller } = withPreview;
+      const { conversationId, run } = await start(withPreview);
+      expect(run.request).toMatchObject({ topicsAvailable: true });
+
+      // Park the router-created run like the worker does, then approve.
+      await prisma.inAppAgentRun.update({
+        where: { id_projectId: { id: run.id, projectId } },
+        data: {
+          status: InAppAgentRunStatus.AWAITING_APPROVAL,
+          finishedAt: new Date(),
+        },
+      });
+      await prisma.inAppAgentEvent.create({
+        data: {
+          projectId,
+          conversationId,
+          runId: run.id,
+          sequenceNumber: 1,
+          type: EventType.CUSTOM,
+          event: {
+            type: EventType.CUSTOM,
+            name: "on_interrupt",
+            value: {
+              type: "mastra_suspend",
+              toolCallId: "tool-call-topics",
+              toolName: "langfuse_createTextPrompt",
+              args: { name: "prompt" },
+              runId: run.id,
+            },
+          },
+        },
+      });
+      const { runId: continuationRunId } = await caller.decideToolApproval({
+        projectId,
+        conversationId,
+        runId: run.id,
+        toolCallId: "tool-call-topics",
+        approved: true,
+      });
+      const continuation = await prisma.inAppAgentRun.findFirstOrThrow({
+        where: { id: continuationRunId, projectId },
+      });
+      expect(continuation.request).toMatchObject({
+        kind: "approvalDecision",
+        topicsAvailable: true,
+      });
+    } finally {
+      (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = original.enabled;
+      (sharedEnv as any).LANGFUSE_TOPICS_ENABLED_PROJECT_IDS =
+        original.projectIds;
+    }
+  });
+
   it("decides an approval exactly once and reads the tool args server-side", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-08-14T10:01:00.000Z"));
@@ -789,6 +882,7 @@ describe("in-app agent background runs", () => {
       toolCallId: "tool-call-1",
       context,
       parkedAt,
+      topicsAvailable: true,
     });
 
     const { runId: continuationRunId } = await caller.decideToolApproval({
@@ -820,6 +914,7 @@ describe("in-app agent background runs", () => {
       toolCallId: "tool-call-1",
       approved: true,
       context,
+      topicsAvailable: true,
     });
 
     const decisionEvent = await prisma.inAppAgentEvent.findFirstOrThrow({
@@ -1470,7 +1565,6 @@ describe("in-app agent background runs", () => {
           },
         ],
         featureFlags: testFeatureFlags({ templateFlag: false }),
-        admin: false,
       },
       environment: {} as any,
     };

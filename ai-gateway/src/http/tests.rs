@@ -25,6 +25,11 @@ fn single_request_memory() -> RequestLimits {
     }
 }
 
+/// Declare an oversized upload without writing bytes after the gateway rejects its headers.
+fn oversized_body() -> reqwest::Body {
+    reqwest::Body::wrap_stream(stream::pending::<Result<&'static [u8], Infallible>>())
+}
+
 struct Gateway {
     url: String,
     shutdown: Option<oneshot::Sender<()>>,
@@ -357,7 +362,8 @@ async fn every_error_carries_a_fresh_request_id_in_its_header_and_native_body() 
             configured
                 .chat_completions()
                 .bearer_auth("valid")
-                .body(vec![b'x'; MAX_REQUEST_BYTES + 1]),
+                .header(header::CONTENT_LENGTH, (MAX_REQUEST_BYTES + 1).to_string())
+                .body(oversized_body()),
             StatusCode::PAYLOAD_TOO_LARGE,
             false,
             false,
@@ -384,7 +390,8 @@ async fn every_error_carries_a_fresh_request_id_in_its_header_and_native_body() 
             configured
                 .post()
                 .bearer_auth("valid")
-                .body(vec![b'x'; MAX_REQUEST_BYTES + 1]),
+                .header(header::CONTENT_LENGTH, (MAX_REQUEST_BYTES + 1).to_string())
+                .body(oversized_body()),
             StatusCode::PAYLOAD_TOO_LARGE,
             false,
             false,
@@ -737,7 +744,8 @@ async fn malformed_credentials_skip_resolution_and_oversized_body_releases_memor
     let response = gateway
         .post()
         .bearer_auth("valid-key")
-        .body(vec![b'x'; MAX_REQUEST_BYTES + 1])
+        .header(header::CONTENT_LENGTH, (MAX_REQUEST_BYTES + 1).to_string())
+        .body(oversized_body())
         .send()
         .await
         .unwrap();
@@ -823,7 +831,7 @@ async fn resolution_failures_are_sanitized_and_never_call_provider() {
                     .await
                     .unwrap();
                 let mut body: serde_json::Value = serde_json::from_slice(&body).unwrap();
-                body["connection"]["base_url"] = "https://attacker.example/v1".into();
+                body["connection"]["base_url"] = "file:///etc/passwd".into();
                 Response::new(Body::from(body.to_string()))
             }
             _ => {
@@ -1683,7 +1691,14 @@ async fn anthropic_routes_share_the_request_body_limit() {
             send(MAX_REQUEST_BYTES).await.unwrap().status(),
             StatusCode::OK
         );
-        let rejected = send(MAX_REQUEST_BYTES + 1).await.unwrap();
+        let rejected = client
+            .post(format!("{}/anthropic/v1/{path}", gateway.url))
+            .header("x-api-key", "gateway-anthropic")
+            .header(header::CONTENT_LENGTH, (MAX_REQUEST_BYTES + 1).to_string())
+            .body(oversized_body())
+            .send()
+            .await
+            .unwrap();
         assert_eq!(rejected.status(), StatusCode::PAYLOAD_TOO_LARGE);
         let body: serde_json::Value =
             serde_json::from_str(&rejected.text().await.unwrap()).unwrap();

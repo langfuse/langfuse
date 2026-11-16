@@ -45,7 +45,9 @@ function DialogController<State = void>({
     if (onBeforeClose?.() === false) return false;
 
     setControllerState((currentState) =>
-      currentState.status === "initialized"
+      currentState.status === "initialized" &&
+      controllerState.status === "initialized" &&
+      currentState.openCount === controllerState.openCount
         ? { ...currentState, isOpen: false }
         : currentState,
     );

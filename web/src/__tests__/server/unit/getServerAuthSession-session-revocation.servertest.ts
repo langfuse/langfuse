@@ -50,7 +50,6 @@ const dbUser = {
   password: "hashed-password",
   createdAt: new Date("2026-01-01T00:00:00.000Z"),
   featureFlags: [],
-  admin: false,
   v4BetaEnabled: false,
   organizationMemberships: [],
 };
@@ -64,7 +63,6 @@ const baseSession: Session = {
     canCreateOrganizations: true,
     organizations: [],
     featureFlags: testFeatureFlags({ templateFlag: false }),
-    admin: false,
   },
   environment: {
     enableExperimentalFeatures: false,
@@ -120,34 +118,47 @@ describe("NextAuth JWT session revocation", () => {
     expect(mockQueryRaw).toHaveBeenCalledTimes(1);
   });
 
+  it("denies a token without a user id instead of matching on email alone", async () => {
+    mockFindUnique.mockResolvedValue(dbUser);
+
+    const { session } = await getCallbacks();
+    const result = await session({
+      session: baseSession,
+      token: { email: "user@example.com", loginAt },
+    });
+
+    expect(result.user).toBeNull();
+    expect(mockFindUnique).not.toHaveBeenCalled();
+  });
+
   it.each([
     {
       name: "denies a token issued before the revocation timestamp",
-      token: { email: "USER@example.com", loginAt },
+      token: { email: "USER@example.com", sub: "user-1", loginAt },
       sessionsExpiredAt: new Date(loginAt + 1),
       isAllowed: false,
     },
     {
       name: "allows a user who has never revoked sessions",
-      token: { email: "USER@example.com", loginAt },
+      token: { email: "USER@example.com", sub: "user-1", loginAt },
       sessionsExpiredAt: null,
       isAllowed: true,
     },
     {
       name: "denies a token issued at the revocation timestamp",
-      token: { email: "USER@example.com", loginAt },
+      token: { email: "USER@example.com", sub: "user-1", loginAt },
       sessionsExpiredAt: new Date(loginAt),
       isAllowed: false,
     },
     {
       name: "allows a token issued strictly after the revocation timestamp",
-      token: { email: "USER@example.com", loginAt: loginAt + 1 },
+      token: { email: "USER@example.com", sub: "user-1", loginAt: loginAt + 1 },
       sessionsExpiredAt: new Date(loginAt),
       isAllowed: true,
     },
     {
       name: "denies a legacy token after sessions have been revoked",
-      token: { email: "USER@example.com" },
+      token: { email: "USER@example.com", sub: "user-1" },
       sessionsExpiredAt: new Date(loginAt),
       isAllowed: false,
     },
@@ -180,6 +191,7 @@ describe("NextAuth JWT session revocation", () => {
     expect(mockFindUnique).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
+          id: "user-1",
           email: "user@example.com",
           OR: [
             { sessionsExpiredAt: null },

@@ -857,7 +857,7 @@ describe("AI SDK request shapes", () => {
     );
   });
 
-  it("Bedrock: Sonnet 5 structured output falls back to the JSON tool", async () => {
+  it("Bedrock: Sonnet 5 structured output uses native output_config", async () => {
     const schema = {
       type: "object",
       properties: { answer: { type: "string" } },
@@ -867,52 +867,23 @@ describe("AI SDK request shapes", () => {
     const { result, request } = await runBedrockCompletion({
       model: "us.anthropic.claude-sonnet-5",
       output: createLLMOutput(schema),
-      response: (capturedRequest: CapturedRequest) =>
-        capturedRequest.body.toolConfig
-          ? {
-              output: {
-                message: {
-                  role: "assistant",
-                  content: [
-                    {
-                      toolUse: {
-                        toolUseId: "tool-1",
-                        name: "json",
-                        input: { answer: "ok" },
-                      },
-                    },
-                  ],
-                },
-              },
-              stopReason: "tool_use",
-              usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
-              metrics: { latencyMs: 1 },
-            }
-          : {
-              ...BEDROCK_RESPONSE,
-              output: {
-                message: {
-                  role: "assistant",
-                  content: [{ text: '{"answer":"ok"}' }],
-                },
-              },
-            },
+      response: {
+        ...BEDROCK_RESPONSE,
+        output: {
+          message: {
+            role: "assistant",
+            content: [{ text: '{"answer":"ok"}' }],
+          },
+        },
+      },
     });
 
     expect(result.output).toEqual({ answer: "ok" });
-    expect(request.body.additionalModelRequestFields).toEqual({ top_k: 10 });
-    expect(request.body.toolConfig).toEqual({
-      tools: [
-        {
-          toolSpec: {
-            name: "json",
-            description: "Respond with a JSON object.",
-            inputSchema: { json: schema },
-          },
-        },
-      ],
-      toolChoice: { any: {} },
+    expect(request.body.additionalModelRequestFields).toEqual({
+      top_k: 10,
+      output_config: { format: { type: "json_schema", schema } },
     });
+    expect(request.body).not.toHaveProperty("toolConfig");
   });
 
   it("Bedrock: models rejecting forced tools use JSON instructions", async () => {

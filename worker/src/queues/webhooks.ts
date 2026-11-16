@@ -12,6 +12,7 @@ import {
   isGitHubDispatchAction,
   isPagerDutyActionConfig,
   isBaseError,
+  TriggerEventSource,
   type AutomationDomain,
   type ActionDomainWithSecrets,
   type PagerDutyActionConfigWithSecrets,
@@ -27,7 +28,6 @@ import {
   type WebhookValidationWhitelist,
   WEBHOOK_URL_VALIDATION_LOG_CONTEXT,
   buildWebhookRequestHeaders,
-  recordIncrement,
 } from "@langfuse/shared/src/server";
 import {
   TQueueJobTypes,
@@ -43,10 +43,10 @@ import {
   ProjectNotificationWebhookQueueEventSchema,
   buildProjectNotificationSlackMessage,
 } from "@langfuse/shared/src/server";
-import { type MonitorAlert } from "@langfuse/shared/monitors";
 import {
   MonitorWebhookQueueEventSchema,
   buildMonitorAlertSlackMessage,
+  assertDropStaleAlert,
 } from "@langfuse/shared/monitors/server";
 import {
   pagerDutyClient,
@@ -63,6 +63,17 @@ import {
 
 /** WEBHOOK_ADDRESS_ATTEMPT_TIMEOUT_MS lets a retransmitted SYN finish before Node closes the socket. */
 const WEBHOOK_ADDRESS_ATTEMPT_TIMEOUT_MS = 2_000;
+
+/** webhookEventSources maps each webhook payload type to the trigger event source that produced it. */
+const webhookEventSources: Record<
+  WebhookInput["payload"]["type"],
+  TriggerEventSource
+> = {
+  "prompt-version": TriggerEventSource.Prompt,
+  "skill-version": TriggerEventSource.Skill,
+  "monitor-alert": TriggerEventSource.Monitor,
+  "project-notification": TriggerEventSource.ProjectNotification,
+};
 
 // GitHub repository_dispatch client_payload: max 10 top-level properties and <64KB.
 // https://docs.github.com/en/rest/repos/repos#create-a-repository-dispatch-event
@@ -169,6 +180,16 @@ export const webhookProcessor: Processor = async (
   }
 };
 
+/** webhookQueueMetricTags tags webhook queue metrics with the job's event source and action type. */
+export function webhookQueueMetricTags(
+  data: TQueueJobTypes[QueueName.WebhookQueue],
+): Record<string, string> {
+  return {
+    event_source: webhookEventSources[data.payload.payload.type] ?? "unknown",
+    action_type: data.payload.actionType ?? "unknown",
+  };
+}
+
 // TODO: Webhook outgoing API versioning
 export const executeWebhook = async (
   input: WebhookInput,
@@ -191,15 +212,11 @@ export const executeWebhook = async (
       return;
     }
 
-    if (
-      await isStaleMonitorAlert({
+    if (input.payload.type === "monitor-alert") {
+      await assertDropStaleAlert({
         projectId,
-        automationId,
-        actionType: automation.action.type,
-        input,
-      })
-    ) {
-      return;
+        alert: MonitorWebhookQueueEventSchema.parse(input.payload).payload,
+      });
     }
 
     // Route to appropriate handler based on action type
@@ -236,90 +253,6 @@ export const executeWebhook = async (
     throw error;
   }
 };
-
-/** isStaleMonitorAlert prevents older queued alerts from overwriting newer published alerts by reporting which jobs to drop. */
-async function isStaleMonitorAlert({
-  projectId,
-  automationId,
-  actionType,
-  input,
-}: {
-  projectId: string;
-  automationId: string;
-  actionType: string;
-  input: WebhookInput;
-}): Promise<boolean> {
-  if (input.payload.type !== "monitor-alert") return false;
-  const envelope = buildWebhookOutboundPayload(input);
-  if (envelope.type !== "monitor-alert") return false;
-  const alert = envelope.payload;
-
-  const reason = await getStaleMonitorAlertReason({ projectId, alert });
-  if (!reason) return false;
-
-  recordStaleMonitorAlertDrop({
-    projectId,
-    automationId,
-    actionType,
-    monitorId: alert.monitorId,
-    reason,
-  });
-  return true;
-}
-
-/** getStaleMonitorAlertReason says why an alert is stale, or undefined when it is current. */
-async function getStaleMonitorAlertReason({
-  projectId,
-  alert,
-}: {
-  projectId: string;
-  alert: MonitorAlert;
-}): Promise<StaleMonitorAlertReason | undefined> {
-  const monitor = await prisma.monitor.findUnique({
-    where: { id: alert.monitorId },
-    select: { projectId: true, alertedAt: true },
-  });
-  if (!monitor || monitor.projectId !== projectId) return "monitor_deleted";
-  // The processor publishes before it saves alertedAt, so only a later alertedAt is newer.
-  if (
-    alert.alertedAt &&
-    monitor.alertedAt &&
-    monitor.alertedAt > alert.alertedAt
-  ) {
-    return "newer_alert";
-  }
-  return undefined;
-}
-
-/** recordStaleMonitorAlertDrop logs a dropped stale alert and counts it by reason and action type. */
-function recordStaleMonitorAlertDrop({
-  projectId,
-  automationId,
-  actionType,
-  monitorId,
-  reason,
-}: {
-  projectId: string;
-  automationId: string;
-  actionType: string;
-  monitorId: string;
-  reason: StaleMonitorAlertReason;
-}): void {
-  logger.info("Dropping stale monitor alert", {
-    projectId,
-    automationId,
-    monitorId,
-    reason,
-  });
-  recordIncrement(
-    "langfuse.queue.webhook_queue.stale_monitor_alerts_dropped",
-    1,
-    {
-      reason,
-      actionType,
-    },
-  );
-}
 
 /**
  * Shared HTTP execution logic for webhook and GitHub dispatch actions
@@ -1377,6 +1310,3 @@ const setActionLastFailingExecutionId = async ({
       AND project_id = ${projectId}
   `;
 };
-
-/** StaleMonitorAlertReason is why a queued monitor alert was dropped. */
-type StaleMonitorAlertReason = "monitor_deleted" | "newer_alert";

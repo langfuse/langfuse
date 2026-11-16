@@ -66,7 +66,6 @@ export function ConnectedMembersSettingsTable({
   });
 
   const isAiGatewayEnabled = useIsFeatureEnabled("aiGateway", {
-    enableForAdmins: false,
     organizationId: orgId,
   });
 

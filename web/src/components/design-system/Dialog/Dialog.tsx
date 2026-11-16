@@ -6,6 +6,7 @@ import { X, type IconComponent } from "@langfuse/icons";
 import * as React from "react";
 
 import { Button } from "@/src/components/design-system/Button/Button";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { PopoverLayerProvider } from "@/src/context/LayerContext/PopoverLayerProvider";
 import { cn } from "@/src/utils/tailwind";
@@ -32,6 +33,8 @@ const dialogContentVariants = cva(
 
 type DialogAction = {
   disabled?: boolean;
+  /** Shown on hover while the action is disabled. */
+  disabledReason?: string;
   form?: string;
   icon?: IconComponent;
   label: string;
@@ -42,6 +45,8 @@ type DialogAction = {
 };
 
 type DialogProps = {
+  /** Blocks the portaled dialog's text and attributes from session replay. */
+  noCapture?: boolean;
   /** Defaults to "Cancel". Without `actions`, the close button is the only, primary button. */
   closeLabel?: string;
   closeOnInteractionOutside?: boolean;
@@ -61,6 +66,7 @@ type DialogProps = {
 
 function DialogRoot({
   actions,
+  noCapture,
   children,
   closeLabel,
   closeOnInteractionOutside = false,
@@ -99,7 +105,11 @@ function DialogRoot({
       />
       <DialogPrimitive.Content
         aria-describedby={undefined}
-        className={cn(motionStyles.content, dialogContentVariants({ size }))}
+        className={cn(
+          motionStyles.content,
+          dialogContentVariants({ size }),
+          noCapture && "ph-no-capture",
+        )}
         onOpenAutoFocus={(event) => {
           // Radix otherwise focuses Cancel because it is the first tabbable.
           // Prefer the rightmost safe action, falling back to Cancel rather
@@ -193,20 +203,37 @@ function DialogRoot({
                 )}
               </DialogPrimitive.Close>
               {actions?.map(
-                ({ icon: Icon, label, variant, ...buttonProps }, index) => (
-                  <Button
-                    key={label}
-                    icon={Icon}
-                    ref={(button) => {
-                      actionButtonRefs.current[index] = button;
-                    }}
-                    text={label}
-                    {...buttonProps}
-                    variant={
-                      variant === "destructive" ? "destructive" : "primary"
-                    }
-                  />
-                ),
+                (
+                  {
+                    icon: Icon,
+                    label,
+                    variant,
+                    disabledReason,
+                    ...buttonProps
+                  },
+                  index,
+                ) => {
+                  const button = (
+                    <Button
+                      key={label}
+                      icon={Icon}
+                      ref={(element) => {
+                        actionButtonRefs.current[index] = element;
+                      }}
+                      text={label}
+                      {...buttonProps}
+                      variant={
+                        variant === "destructive" ? "destructive" : "primary"
+                      }
+                    />
+                  );
+                  if (!buttonProps.disabled || !disabledReason) return button;
+                  return (
+                    <DisabledActionTooltip key={label} label={disabledReason}>
+                      {button}
+                    </DisabledActionTooltip>
+                  );
+                },
               )}
             </DialogFooter>
           ) : null}
@@ -238,6 +265,28 @@ function DialogBody({
     >
       {children}
     </div>
+  );
+}
+
+// Disabled buttons fire no pointer events, so the tooltip listens on a wrapper.
+function DisabledActionTooltip({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactElement;
+}) {
+  return (
+    <Tooltip label={label}>
+      {({ getTriggerProps }) => (
+        <span
+          {...getTriggerProps()}
+          className="inline-flex w-full cursor-not-allowed sm:w-auto [&>button]:pointer-events-none [&>button]:w-full"
+        >
+          {children}
+        </span>
+      )}
+    </Tooltip>
   );
 }
 

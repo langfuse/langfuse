@@ -316,9 +316,9 @@ function TextMessageWithActions({
         onClick={handleCopy}
       >
         {isCopied ? (
-          <Check __rawClassName={isCompact ? "icon-sm" : "icon-base"} />
+          <Check size={isCompact ? "sm" : "base"} />
         ) : (
-          <Copy __rawClassName={isCompact ? "icon-sm" : "icon-base"} />
+          <Copy size={isCompact ? "sm" : "base"} />
         )}
       </button>
       {canSubmitFeedback ? (
@@ -579,7 +579,7 @@ function MessageFeedbackControls({
         >
           <ThumbsUp
             color={selectedValue === "thumbs_up" ? "foreground" : "inherit"}
-            __rawClassName={cn(isCompact ? "icon-sm" : "icon-base")}
+            size={isCompact ? "sm" : "base"}
           />
         </FeedbackButton>
       </PopoverAnchor>
@@ -593,7 +593,7 @@ function MessageFeedbackControls({
       >
         <ThumbsDown
           color={selectedValue === "thumbs_down" ? "foreground" : "inherit"}
-          __rawClassName={cn(isCompact ? "icon-sm" : "icon-base")}
+          size={isCompact ? "sm" : "base"}
         />
       </FeedbackButton>
       {committedComment ? (
@@ -663,7 +663,7 @@ function SourcesPopover({
             isCompact && "py-0.5",
           )}
         >
-          <BookOpenText __rawClassName={isCompact ? "icon-sm" : "icon-base"} />
+          <BookOpenText size={isCompact ? "sm" : "base"} />
           Sources
         </button>
       </PopoverTrigger>
@@ -1247,9 +1247,7 @@ function ThinkingIndicator({
         className,
       )}
     >
-      <Loader2
-        __rawClassName={cn("animate-spin", isCompact ? "icon-sm" : "icon-base")}
-      />
+      <Loader2 size={isCompact ? "sm" : "base"} __rawClassName="animate-spin" />
       <span>{label}</span>
     </div>
   );

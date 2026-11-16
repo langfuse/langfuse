@@ -25,7 +25,6 @@ const session = {
     id: "user-1",
     email: "user@example.com",
     name: "Example User",
-    admin: false,
     canCreateOrganizations: true,
     featureFlags: testFeatureFlags({ templateFlag: false }),
     organizations: [

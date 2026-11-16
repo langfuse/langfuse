@@ -10,7 +10,7 @@ export function ExperimentRunBadge({
   return (
     <span
       className={cn(
-        "inline-flex h-5.5 w-fit max-w-full min-w-0 shrink-0 items-center gap-1.5 rounded-sm border px-2 text-xs leading-none",
+        "inline-flex h-5.25 w-fit max-w-full min-w-0 shrink-0 items-center gap-1.5 rounded-sm border px-2 text-xs leading-none",
         colorClass ?? "bg-muted text-foreground-secondary border-transparent",
         strong && "font-bold",
       )}

@@ -343,7 +343,6 @@ function SessionTimelineFileBody({
   if (content.kind === "image") {
     return (
       <a href={content.url} target="_blank" rel="noreferrer">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={content.url}
           alt={filename}

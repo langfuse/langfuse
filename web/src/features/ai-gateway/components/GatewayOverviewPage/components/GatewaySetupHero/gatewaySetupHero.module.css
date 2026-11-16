@@ -1,0 +1,52 @@
+/* Traffic dots are zero-length dashes on a pathLength=100 copy of a line. */
+.traffic {
+  stroke-dasharray: 0 100;
+}
+
+.knob {
+  transform-box: fill-box;
+}
+
+.knobOn {
+  transform: translateX(8.4px);
+}
+
+/* Without motion the dots rest at their stroke-dashoffset and toggles snap. */
+@media (prefers-reduced-motion: no-preference) {
+  .traffic {
+    animation: gateway-traffic 3.6s linear infinite;
+  }
+
+  .trafficDelay1 {
+    animation-delay: -0.9s;
+  }
+
+  .trafficDelay2 {
+    animation-delay: -1.8s;
+  }
+
+  .trafficDelay3 {
+    animation-delay: -2.7s;
+  }
+
+  .knob {
+    transition: transform 250ms ease-out;
+  }
+
+  .track,
+  .connector {
+    transition:
+      fill 250ms ease-out,
+      stroke 250ms ease-out;
+  }
+}
+
+@keyframes gateway-traffic {
+  from {
+    stroke-dashoffset: 0;
+  }
+
+  to {
+    stroke-dashoffset: -100;
+  }
+}

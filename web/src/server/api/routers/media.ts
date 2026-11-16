@@ -13,7 +13,7 @@ import type {
   MediaEnabledFields,
 } from "@/src/features/media/validation";
 
-import { createExternalMediaStorageService } from "@/src/features/external-media-storage/server/service";
+import { createExternalMediaStorageService } from "@/src/ee/features/external-media-storage/server/service";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { InvalidRequestError } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";

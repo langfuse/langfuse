@@ -25,6 +25,8 @@ export function computeSeverity(args: {
           alertThreshold: args.alertThreshold,
           warningThreshold: args.warningThreshold,
         });
+      case MonitorNoDataModeSchema.enum.SUBSTITUTE_OK:
+        return MonitorSeveritySchema.enum.OK;
       case MonitorNoDataModeSchema.enum.LAST_SEVERITY:
         return args.prevSeverity;
       case MonitorNoDataModeSchema.enum.SHOW_NO_DATA:

@@ -9,5 +9,5 @@
     "outDir": "dist",
     "jsx": "react-jsx"
   },
-  "include": ["src/create-icon.tsx"]
+  "include": ["src/create-icon.tsx", "src/brand.tsx"]
 }

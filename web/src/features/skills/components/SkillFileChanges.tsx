@@ -4,9 +4,9 @@ import { type compareSkillFiles } from "@/src/features/skills/utils/compareSkill
 import { cn } from "@/src/utils/tailwind";
 
 const statusColors = {
-  Modified: "blue",
-  Added: "green",
-  Removed: "red",
+  Modified: "info",
+  Added: "success",
+  Removed: "error",
   Unchanged: "filled",
 } as const;
 

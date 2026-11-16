@@ -1,0 +1,47 @@
+.line {
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 0;
+}
+.lineStop {
+  stop-color: var(--illustration-ink-2);
+}
+.hatchLine {
+  fill: none;
+  stroke: var(--illustration-line);
+  stroke-width: 1;
+  stroke-opacity: 0.5;
+}
+.dashed {
+  fill: none;
+  stroke: var(--illustration-guide);
+  stroke-width: 1;
+  stroke-dasharray: 7 5;
+}
+.pole {
+  fill: none;
+  stroke: var(--illustration-ink-2);
+  stroke-width: 1.5;
+}
+.dot {
+  fill: var(--illustration-panel);
+  stroke: var(--illustration-ink-2);
+  stroke-width: 1.5;
+}
+.dim {
+  opacity: 0.55;
+}
+
+/* The flag is the hero: it rises with --illustration-lifted, like the raised blocks in the other illustrations */
+.tooltip {
+  transform: translateY(calc(var(--illustration-lifted, 0) * -7px));
+}
+@media (prefers-reduced-motion: no-preference) {
+  .tooltip {
+    transition: transform var(--illustration-lift-for)
+      var(--illustration-lift-ease);
+  }
+}

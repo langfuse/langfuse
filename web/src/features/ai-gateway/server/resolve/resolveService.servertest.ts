@@ -130,6 +130,7 @@ describe("GatewayResolveService", () => {
         api_format: "openai.responses",
         base_url: "https://api.openai.com/v1",
         auth: { type: "Bearer", token: "sk-test" },
+        extra_headers: {},
       },
       // Metadata stays in its own object, so a metadata key called project_id
       // cannot redirect attribution.

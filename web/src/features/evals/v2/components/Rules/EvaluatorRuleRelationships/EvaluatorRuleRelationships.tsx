@@ -217,7 +217,7 @@ function EvaluatorRuleRelationshipsSheet({
                         {evaluationRule.name}
                       </button>
                       <Badge
-                        color={evaluationRule.enabled ? "green" : "filled"}
+                        color={evaluationRule.enabled ? "success" : "filled"}
                         text={evaluationRule.enabled ? "Active" : "Inactive"}
                       />
                       {requiresLegacyMigrationAction({

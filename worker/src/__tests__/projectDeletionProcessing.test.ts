@@ -15,6 +15,7 @@ import {
   getTraceById,
   StorageService,
   StorageServiceFactory,
+  storageKeys,
   upsertTrace,
   deleteTracesByProjectId,
   deleteObservationsByProjectId,
@@ -38,8 +39,10 @@ describe("ProjectDeletionProcessingJob", () => {
 
   beforeAll(() => {
     storageService = StorageServiceFactory.getInstance({
-      accessKeyId: env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY,
+      credentials: storageKeys(
+        env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
+        env.LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY,
+      ),
       bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
       endpoint: env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT,
       region: env.LANGFUSE_S3_MEDIA_UPLOAD_REGION,

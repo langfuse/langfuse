@@ -1159,34 +1159,6 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       expect(response.body.data.length).toBeGreaterThan(0);
     });
 
-    it("should support filtering by sessionId", async () => {
-      const query = {
-        view: "scores-numeric",
-        dimensions: [{ field: "name" }],
-        metrics: [{ measure: "count", aggregation: "count" }],
-        filters: [
-          {
-            column: "sessionId",
-            operator: "=",
-            value: scoreSessionId,
-            type: "string",
-          },
-        ],
-        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
-        toTimestamp: new Date().toISOString(),
-      };
-
-      const response = await makeZodVerifiedAPICall(
-        GetMetricsV1Response,
-        "GET",
-        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
-      );
-
-      expect(response.status).toBe(200);
-      expect(response.body.data).toBeDefined();
-      expect(response.body.data.length).toBeGreaterThan(0);
-    });
-
     it("should support value aggregations for numeric scores", async () => {
       const query = {
         view: "scores-numeric",

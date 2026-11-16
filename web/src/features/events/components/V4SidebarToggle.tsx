@@ -65,7 +65,9 @@ export function V4SidebarToggle() {
                   checked={isChecked}
                   onCheckedChange={handleSidebarToggle}
                   disabled={isLoading}
-                  aria-label={canToggleV4 ? "Toggle V4 Preview" : "Enable V4"}
+                  aria-label={
+                    canToggleV4 ? `Toggle ${V4_PREVIEW_LABEL}` : "Enable V4"
+                  }
                   aria-describedby="v4-preview-sidebar-description"
                 />
               </div>
@@ -124,7 +126,7 @@ export function V4PreviewToggleRow({ projectId }: { projectId?: string }) {
           checked={isChecked}
           onCheckedChange={handlePanelToggle}
           disabled={isLoading}
-          aria-label="Toggle V4 Preview"
+          aria-label={`Toggle ${V4_PREVIEW_LABEL}`}
           aria-describedby={descriptionId}
         />
         <Label

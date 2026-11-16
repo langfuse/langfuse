@@ -14,7 +14,6 @@ import {
 } from "@/src/components/ui/form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   tracesTableColsWithOptions,
   singleFilterList,
@@ -120,6 +119,7 @@ import { CodeEvalTestRunCard } from "@/src/features/evals/components/CodeEvalTes
 import { getExperimentEvalPreviewFilters } from "@/src/features/evals/utils/experiment-eval-preview-utils";
 import { cn } from "@/src/utils/tailwind";
 import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 // Lazy load tables
 const TracesTable = lazy(() => import("@/src/features/traces/TracesTable"));
@@ -922,7 +922,7 @@ export const InnerEvaluatorForm = (props: {
                                 icon={ListTree}
                               >
                                 Traces
-                                <Badge color="filled" text="Legacy" />
+                                <FeatureReleaseStatus status="legacy" />
                               </Tabs.Trigger>
                             </span>
                           )}
@@ -1002,7 +1002,7 @@ export const InnerEvaluatorForm = (props: {
                           icon={BetweenHorizonalStart}
                         >
                           Low-level SDK methods
-                          <Badge color="filled" text="Legacy" />
+                          <FeatureReleaseStatus status="legacy" />
                         </Tabs.Trigger>
                       </span>
                     </Tabs.List>

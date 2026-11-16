@@ -9,11 +9,11 @@ import {
   BedrockCredentialSchema,
   type LLMConnectionConfig,
 } from "../../../../interfaces/customLLMProviderConfigSchemas";
+import { parseOutboundUrl } from "../../../outbound-url/validation";
 import {
-  OutboundUrlValidationError,
-  parseOutboundUrl,
-} from "../../../outbound-url/validation";
-import { llmBaseUrlWhitelistFromEnv } from "../../baseUrlValidation";
+  assertLlmProviderHostAllowed,
+  llmBaseUrlWhitelistFromEnv,
+} from "../../baseUrlValidation";
 import type { LLMCredentialSource, TranslatedProviderOptions } from "./types";
 import { isPlainObject } from "./utils";
 
@@ -123,10 +123,7 @@ const SUPPRESS_BEARER_TOKEN_ENV_FALLBACK = { apiKey: "" };
  */
 export function createDefaultBedrockProviderAuth(params?: {
   profile?: string;
-}): Pick<
-  Parameters<typeof createAmazonBedrock>[0] & object,
-  "apiKey" | "credentialProvider"
-> {
+}) {
   const profile = params?.profile;
   return {
     credentialProvider: fromNodeProviderChain(profile ? { profile } : {}),
@@ -226,16 +223,9 @@ function bedrockRuntimeHostname(region: string | undefined): string {
 
 /** assertBedrockHostAllowed rejects a Bedrock host outside a configured LLM allowlist. */
 function assertBedrockHostAllowed(region: string | undefined): void {
-  const allowedHosts = llmBaseUrlWhitelistFromEnv().allowedHosts ?? [];
-  if (allowedHosts.length === 0) return;
-
-  const hostname = bedrockRuntimeHostname(region);
-  if (allowedHosts.includes(hostname)) return;
-
-  throw new OutboundUrlValidationError(
-    "host-not-allowed",
-    "Host is not in the outbound URL allowlist",
-  );
+  // Without an allowlist the region may stay unresolved for the AWS SDK.
+  if (!llmBaseUrlWhitelistFromEnv().allowedHosts?.length) return;
+  assertLlmProviderHostAllowed(bedrockRuntimeHostname(region));
 }
 
 /**

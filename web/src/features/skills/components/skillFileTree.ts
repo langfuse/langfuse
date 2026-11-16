@@ -18,6 +18,11 @@ type MutableTreeNode =
   | MutableFolder
   | { kind: "file"; name: string; path: string };
 
+export function parentFolder(path: string): string {
+  const separator = path.lastIndexOf("/");
+  return separator === -1 ? "" : path.slice(0, separator);
+}
+
 export function getParentFolderPaths(filePaths: string[]): string[] {
   const folders = new Set<string>();
   for (const filePath of filePaths) {

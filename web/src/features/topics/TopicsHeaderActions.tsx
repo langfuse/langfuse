@@ -1,22 +1,15 @@
-import { EllipsisVertical } from "@langfuse/icons";
+import { EllipsisVertical, Pencil } from "@langfuse/icons";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { AnalyzeControl } from "./AnalyzeControl";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { type TopicsActions } from "./prepare-topics-actions";
 
 export function TopicsHeaderActions({ actions }: { actions: TopicsActions }) {
   return (
     <div className="ph-no-capture flex shrink-0 items-center justify-end gap-1">
-      {actions.automatic && (
-        <div className="hidden items-center gap-1 @5xl/topics-header:flex">
-          <AnalyzeControl
-            state={actions.automatic.state}
-            disabledReason={actions.automatic.disabledReason}
-            onClick={actions.automatic.onSelect}
-          />
-        </div>
-      )}
+      {actions.editRun && <EditMapButton editRun={actions.editRun} />}
       <DropdownMenu
         ariaLabel="Topics actions"
         placement="bottom-end"
@@ -34,15 +27,6 @@ export function TopicsHeaderActions({ actions }: { actions: TopicsActions }) {
               : undefined,
             onClick: action.onSelect,
           })),
-          { id: "display-separator", type: "separator" },
-          {
-            id: actions.display.id,
-            type: "checkbox",
-            title: actions.display.label,
-            icon: actions.display.icon,
-            checked: actions.display.checked,
-            onCheckedChange: actions.display.onCheckedChange,
-          },
         ]}
       >
         {({ getTriggerProps }) => (
@@ -50,10 +34,46 @@ export function TopicsHeaderActions({ actions }: { actions: TopicsActions }) {
             {...getTriggerProps()}
             icon={EllipsisVertical}
             label="Topics actions"
-            size="sm"
+            size="md"
           />
         )}
       </DropdownMenu>
     </div>
+  );
+}
+
+function EditMapButton({
+  editRun,
+}: {
+  editRun: NonNullable<TopicsActions["editRun"]>;
+}) {
+  if (!editRun.disabledReason)
+    return (
+      <Button
+        text="Edit map"
+        icon={Pencil}
+        size="default"
+        variant="ghost"
+        onClick={editRun.onSelect}
+      />
+    );
+  return (
+    // Disabled buttons fire no pointer events, so the tooltip listens on a wrapper.
+    <Tooltip label={editRun.disabledReason}>
+      {({ getTriggerProps }) => (
+        <span
+          {...getTriggerProps()}
+          className="inline-flex cursor-not-allowed [&>button]:pointer-events-none"
+        >
+          <Button
+            text="Edit map"
+            icon={Pencil}
+            size="default"
+            variant="ghost"
+            disabled
+          />
+        </span>
+      )}
+    </Tooltip>
   );
 }

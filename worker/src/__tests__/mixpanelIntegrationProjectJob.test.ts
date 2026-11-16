@@ -42,6 +42,7 @@ const h = vi.hoisted(() => {
   }
 
   const mixpanelIntegrationUpdate = vi.fn();
+  const mixpanelIntegrationUpdateMany = vi.fn(async () => ({ count: 1 }));
 
   const flushError: { value: Error | undefined } = { value: undefined };
 
@@ -65,6 +66,7 @@ const h = vi.hoisted(() => {
     state,
     fakeStream,
     mixpanelIntegrationUpdate,
+    mixpanelIntegrationUpdateMany,
     defaultIntegration,
     db,
     flushError,
@@ -120,6 +122,7 @@ vi.mock("@langfuse/shared/src/db", () => ({
     mixpanelIntegration: {
       findFirst: vi.fn(async () => h.db.integration),
       update: h.mixpanelIntegrationUpdate,
+      updateMany: h.mixpanelIntegrationUpdateMany,
     },
   },
 }));
@@ -155,13 +158,6 @@ function makeJob(attemptsMade = 0) {
     data: { id: "job-1", payload: { projectId: "project-1" } },
     attemptsMade,
     opts: { attempts: 5 },
-  } as unknown as Parameters<typeof handleMixpanelIntegrationProjectJob>[0];
-}
-
-function makeJobWithoutOpts() {
-  return {
-    data: { id: "job-1", payload: { projectId: "project-1" } },
-    attemptsMade: 0,
   } as unknown as Parameters<typeof handleMixpanelIntegrationProjectJob>[0];
 }
 
@@ -292,37 +288,62 @@ describe("handleMixpanelIntegrationProjectJob legacy-mode enriched guard (LFE-11
   });
 });
 
-describe("handleMixpanelIntegrationProjectJob customer-fault observation (no disable)", () => {
+describe("handleMixpanelIntegrationProjectJob customer-fault auto-disable", () => {
   beforeEach(() => {
     h.timeline.length = 0;
     h.mixpanelIntegrationUpdate.mockClear();
+    h.mixpanelIntegrationUpdateMany.mockClear();
+    h.mixpanelIntegrationUpdateMany.mockResolvedValue({ count: 1 });
     h.db.integration = h.defaultIntegration();
     h.flushError.value = undefined;
     (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
   });
 
-  it("still throws a 401-shaped error and never calls update to disable the integration", async () => {
-    const unauthorized = new Error("Mixpanel API error: 401 Unauthorized");
-    Object.assign(unauthorized, { statusCode: 401 });
-    h.flushError.value = unauthorized;
-
-    await expect(handleMixpanelIntegrationProjectJob(makeJob())).rejects.toBe(
-      unauthorized,
-    );
-
-    expect(h.mixpanelIntegrationUpdate).not.toHaveBeenCalled();
-  });
-
-  it("a job with no opts still does not disable on a classified-fault-shaped error", async () => {
+  it("disables the integration on a rejected token and resolves without advancing lastSyncAt", async () => {
     const unauthorized = new Error("Mixpanel API error: 401 Unauthorized");
     Object.assign(unauthorized, { statusCode: 401 });
     h.flushError.value = unauthorized;
 
     await expect(
-      handleMixpanelIntegrationProjectJob(makeJobWithoutOpts()),
-    ).rejects.toBe(unauthorized);
+      handleMixpanelIntegrationProjectJob(makeJob()),
+    ).resolves.toBeUndefined();
 
+    expect(h.mixpanelIntegrationUpdateMany).toHaveBeenCalledWith({
+      where: {
+        projectId: "project-1",
+        enabled: true,
+        encryptedMixpanelProjectToken: "enc",
+        mixpanelRegion: "api",
+      },
+      data: { enabled: false },
+    });
     expect(h.mixpanelIntegrationUpdate).not.toHaveBeenCalled();
+  });
+
+  it("skips the disable and resolves when the config changed mid-run", async () => {
+    const unauthorized = new Error("Mixpanel API error: 401 Unauthorized");
+    Object.assign(unauthorized, { statusCode: 401 });
+    h.flushError.value = unauthorized;
+    h.mixpanelIntegrationUpdateMany.mockResolvedValueOnce({ count: 0 });
+
+    await expect(
+      handleMixpanelIntegrationProjectJob(makeJob()),
+    ).resolves.toBeUndefined();
+
+    expect(h.mixpanelIntegrationUpdateMany).toHaveBeenCalledTimes(1);
+    expect(h.mixpanelIntegrationUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rethrows the disable-write error when persisting the disable fails, so BullMQ retries", async () => {
+    const unauthorized = new Error("Mixpanel API error: 401 Unauthorized");
+    Object.assign(unauthorized, { statusCode: 401 });
+    h.flushError.value = unauthorized;
+    const dbDown = new Error("db unavailable");
+    h.mixpanelIntegrationUpdateMany.mockRejectedValueOnce(dbDown);
+
+    await expect(handleMixpanelIntegrationProjectJob(makeJob())).rejects.toBe(
+      dbDown,
+    );
   });
 });
 
@@ -330,20 +351,19 @@ describe("handleMixpanelIntegrationProjectJob customer-fault observability", () 
   beforeEach(() => {
     h.timeline.length = 0;
     h.mixpanelIntegrationUpdate.mockClear();
+    h.mixpanelIntegrationUpdateMany.mockClear();
     h.db.integration = h.defaultIntegration();
     h.flushError.value = undefined;
     vi.mocked(recordIncrement).mockClear();
     (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
   });
 
-  it("records the customer-fault metric with reason and attempt, then still rethrows", async () => {
+  it("records the customer-fault metric with reason and attempt", async () => {
     const unauthorized = new Error("Mixpanel API error: 401 Unauthorized");
     Object.assign(unauthorized, { statusCode: 401 });
     h.flushError.value = unauthorized;
 
-    await expect(handleMixpanelIntegrationProjectJob(makeJob(2))).rejects.toBe(
-      unauthorized,
-    );
+    await handleMixpanelIntegrationProjectJob(makeJob(2));
 
     expect(recordIncrement).toHaveBeenCalledWith(
       MIXPANEL_INTEGRATION_CUSTOMER_FAULT_METRIC,
@@ -362,6 +382,7 @@ describe("handleMixpanelIntegrationProjectJob customer-fault observability", () 
     );
 
     expect(recordIncrement).not.toHaveBeenCalled();
+    expect(h.mixpanelIntegrationUpdateMany).not.toHaveBeenCalled();
   });
 });
 

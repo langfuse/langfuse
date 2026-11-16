@@ -9,6 +9,7 @@ import { buildBedrockEmbeddingModel, buildBedrockModel } from "./bedrock";
 import {
   buildGoogleAIStudioEmbeddingModel,
   buildGoogleAIStudioModel,
+  GOOGLE_API_KEY_HEADER,
 } from "./google";
 import { buildOpenAIEmbeddingModel, buildOpenAIModel } from "./openai";
 import type { LLMCredentialSource } from "./types";
@@ -20,7 +21,6 @@ import {
 
 const AZURE_OPENAI_API_KEY_HEADER = "api-key";
 const ANTHROPIC_API_KEY_HEADER = "x-api-key";
-const GOOGLE_API_KEY_HEADER = "X-Goog-Api-Key";
 const VERTEX_AI_AUTH_HEADER = "authorization";
 
 /**
@@ -48,7 +48,7 @@ export async function buildAiSdkModel(params: {
    * - Omitted: URL-based routing uses @ai-sdk/openai for default/api.openai.com
    *   URLs and @ai-sdk/openai-compatible for other hosts. The compatible
    *   adapter supports gateways and preserves saved evaluators' raw options.
-   * Topics needs native on regional OpenAI hosts because the compatible
+   * Topics uses native on every OpenAI base URL because the compatible
    * adapter sends max_tokens for output limits, causing HTTP 400 on models
    * that require max_completion_tokens. The per-call override fixes Topics
    * without changing saved evaluators' routing or raw provider options.

@@ -100,13 +100,6 @@ describe("buildFilterSystemPrompt", () => {
     expect(prompt).not.toContain("## Current filters");
     expect(prompt).not.toContain("## Observed project data");
   });
-
-  it("no longer accepts currentQuery/dataContext — single-datetime signature", () => {
-    // Regression guard for the detangle: the skeleton takes only the anchor
-    // datetime now, so passing extra args would be a silent no-op if the
-    // signature ever regained them without a type error surfacing here.
-    expect(buildFilterSystemPrompt.length).toBe(1);
-  });
 });
 
 describe("evaluation rule AI registry", () => {

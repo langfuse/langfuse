@@ -27,7 +27,7 @@ export { TableName } from "./types";
 
 const MULTI_PROJECT_LOG_COMMENT_PROJECT_ID = "MULTI_PROJECT";
 
-export function isRetryableClickhouseInsertError(error: unknown): boolean {
+function isRetryableClickhouseInsertError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
 
   const errorMessage = (error as Error).message?.toLowerCase() || "";

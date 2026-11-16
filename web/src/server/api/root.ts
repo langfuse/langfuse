@@ -15,6 +15,7 @@ import { cloudBillingRouter } from "@/src/ee/features/billing/server/cloudBillin
 import { spendAlertRouter } from "@/src/ee/features/billing/server/spendAlertRouter";
 import { observationsRouter } from "@/src/server/api/routers/observations";
 import { sessionRouter } from "@/src/server/api/routers/sessions";
+import { sessionViewsRouter } from "@/src/features/sessions/server/sessionViewsRouter";
 import { promptRouter } from "@/src/features/prompts/server/routers/promptRouter";
 import { modelRouter } from "@/src/server/api/routers/models";
 import { evalRouter } from "@/src/features/evals/server/router";
@@ -22,7 +23,7 @@ import { evaluatorRouter } from "@/src/features/evals/v2/server/evaluators/evalu
 import { posthogIntegrationRouter } from "@/src/features/posthog-integration/posthog-integration-router";
 import { mixpanelIntegrationRouter } from "@/src/features/mixpanel-integration/mixpanel-integration-router";
 import { blobStorageIntegrationRouter } from "@/src/features/blobstorage-integration/blobstorage-integration-router";
-import { externalMediaStorageRouter } from "@/src/features/external-media-storage/server/router";
+import { externalMediaStorageRouter } from "@/src/ee/features/external-media-storage/server/router";
 import { llmApiKeyRouter } from "@/src/features/llm-api-key/server/router";
 import { organizationLlmApiKeyRouter } from "@/src/features/llm-api-key/server/organizationRouter";
 import { llmSchemaRouter } from "@/src/features/llm-schemas/server/router";
@@ -82,6 +83,7 @@ export const appRouter = createTRPCRouter({
   batchExport: batchExportRouter,
   traces: traceRouter,
   sessions: sessionRouter,
+  sessionViews: sessionViewsRouter,
   generations: generationsRouter,
   events: eventsRouter,
   scores: scoresRouter,

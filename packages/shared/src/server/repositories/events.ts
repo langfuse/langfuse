@@ -1,4 +1,6 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+import { isTopicFilter } from "../../topics";
+import { topicFilterConditions } from "../topics/trace-filter";
 import { prisma } from "../../db";
 import {
   TupleParam,
@@ -38,7 +40,6 @@ import {
   byteLength,
   count,
   dateDiff,
-  softDeleteAfterLimit,
   startsWith,
   leftUTF8,
   limitBy,
@@ -72,6 +73,7 @@ import {
   FilterList,
   filtersRequireEventsFull,
 } from "../queries/clickhouse-sql/clickhouse-filter";
+import { metadataFilterIsEventsCoreSafe } from "../queries/clickhouse-sql/events-core-truncation";
 
 import {
   type FullEventsObservation,
@@ -80,7 +82,12 @@ import {
   type EventsObservationPublic,
 } from "../queries/createGenerationsQuery";
 
-import { buildEventsObservationRowSelection } from "../queries/clickhouse-sql/events-observation-row-selection";
+import {
+  buildEventsObservationRowSelection,
+  rowConditionClause,
+  withoutPositionInTrace,
+  type EventsObservationFilterGroups,
+} from "../queries/clickhouse-sql/events-observation-row-selection";
 import { extractTimeFilter } from "../queries/clickhouse-sql/filter-utils";
 import {
   orderByToClickhouseSql,
@@ -529,6 +536,44 @@ const TRACES_ORDER_BY_COLUMNS = TRACES_FROM_EVENTS_UI_COLUMN_DEFINITIONS.filter(
 export const MAX_OBSERVATIONS_PER_TRACE =
   env.LANGFUSE_MAX_OBSERVATIONS_PER_TRACE;
 
+export const MAX_OBSERVATIONS_PER_SESSION =
+  env.LANGFUSE_MAX_OBSERVATIONS_PER_TRACE;
+
+export const getObservationsForSessionFromEventsTable = async (params: {
+  projectId: string;
+  sessionId: string;
+}): Promise<{ observations: FullEventsObservations; totalCount: number }> => {
+  const records =
+    await getObservationsFromEventsTableInternal<EventsObservationQueryResult>({
+      projectId: params.projectId,
+      filter: [
+        {
+          column: "sessionId",
+          type: "string",
+          operator: "=",
+          value: params.sessionId,
+        },
+      ],
+      orderBy: { column: "startTime", order: "ASC" },
+      limit: MAX_OBSERVATIONS_PER_SESSION + 1,
+      offset: 0,
+      selectIOAndMetadata: false,
+      selectToolData: false,
+      select: "rows",
+      dedupeBySpanId: true,
+    });
+  const withModelData = await enrichObservationsWithModelData(
+    records.slice(0, MAX_OBSERVATIONS_PER_SESSION),
+    params.projectId,
+    false,
+    null,
+  );
+  return {
+    observations: await enrichObservationsWithTraceFields(withModelData),
+    totalCount: records.length,
+  };
+};
+
 export const getObservationsForTraceFromEventsTable = async (params: {
   projectId: string;
   traceId: string;
@@ -875,6 +920,44 @@ export const getTraceDeleteCursorPageFromEvents = async (props: {
   }));
 };
 
+/**
+ * Throws `InvalidRequestError` when a `positionInTrace` filter comes with a
+ * score filter: events are ranked within their trace before any score is
+ * joined, so a score filter cannot narrow the ranking. No-op without a
+ * position filter.
+ */
+const assertNoScoreFiltersWithPosition = (
+  positionFilter: FilterState[number] | undefined,
+  filterGroups: EventsObservationFilterGroups,
+): void => {
+  if (!positionFilter) return;
+  const scoreLeaf = [
+    ...filterGroups.observationScores,
+    ...filterGroups.traceScores,
+  ][0];
+  if (scoreLeaf) {
+    throw new InvalidRequestError(
+      `Column ${scoreLeaf.column} does not match a UI / CH table mapping.`,
+    );
+  }
+};
+
+/**
+ * Reads observations from the events table for the observations list, its
+ * counts and the trace-delete cursor scan.
+ *
+ * - Input: the list query (filters, search, order, page or cursor) and a
+ *   `select` that picks the projection: `rows`, `count`,
+ *   `count-with-unique-traces` or `trace-delete-cursor`.
+ * - Behavior: the row-selection planner builds the WHERE (events filters and
+ *   search through the events predicate, score filters as `FilterList` text)
+ *   and the score CTEs. A `positionInTrace` filter becomes a `qualifying_obs`
+ *   CTE that ranks the filtered events per trace by start time and keeps
+ *   rank N.
+ * - Output: the raw ClickHouse rows, typed `T` by the caller.
+ * - Errors: `InvalidRequestError` (HTTP 400) for a score filter combined with
+ *   `positionInTrace`, and for the filters the planner rejects.
+ */
 async function getObservationsFromEventsTableInternal<T>(
   opts: ObservationTableQuery & {
     selectMetadata?: boolean;
@@ -903,9 +986,11 @@ async function getObservationsFromEventsTableInternal<T>(
 
   // Extract positionInTrace filter and build baseFilter without it
   const positionFilter = filter.find((f) => f.type === "positionInTrace");
-  const baseFilter: typeof filter = [
-    ...filter.filter((f) => f.type !== "positionInTrace"),
-  ];
+  const baseFilter = withoutPositionInTrace(filter).filter(
+    (f) => !isTopicFilter(f),
+  );
+  // Topic membership lives in the topics tables; it joins the query as trace_id subqueries.
+  const topicConditions = await topicFilterConditions(projectId, filter);
 
   const orderByEntries = orderByToEntries(
     [orderBy ?? null],
@@ -914,13 +999,17 @@ async function getObservationsFromEventsTableInternal<T>(
 
   // Build filter list from baseFilter (without positionInTrace)
   // Build query using EventsQueryBuilder
-  const { queryBuilder, search } = buildEventsObservationRowSelection({
-    projectId,
-    filter: baseFilter,
-    searchQuery: opts.searchQuery,
-    searchType: opts.searchType,
-    orderBy,
-  });
+  const { queryBuilder, filterGroups, rowConditions } =
+    buildEventsObservationRowSelection({
+      projectId,
+      filter: baseFilter,
+      searchQuery: opts.searchQuery,
+      searchType: opts.searchType,
+      orderBy,
+    });
+  assertNoScoreFiltersWithPosition(positionFilter, filterGroups);
+  for (const condition of topicConditions)
+    queryBuilder.whereRaw(condition.query, condition.params);
 
   if (opts.select === "count") {
     queryBuilder.selectFieldSet("count");
@@ -978,25 +1067,14 @@ async function getObservationsFromEventsTableInternal<T>(
       return 1;
     })();
 
-    // Build observation-only filter for CTE (no s.* or t.* references)
-    const nativeFilter = new FilterList(
-      createFilterFromFilterState(
-        baseFilter,
-        eventsTableNativeUiColumnDefinitions,
-      ),
-    );
-    const appliedNativeFilter = nativeFilter.apply();
     const qualifyingObsBuilder = new EventsQueryBuilder({ projectId })
       .selectRaw(
         "e.span_id",
         `ROW_NUMBER() OVER (PARTITION BY e.trace_id ORDER BY e.start_time ${direction}, e.event_ts ${direction}, e.span_id ${direction}) as _rn`,
       )
-      .when(
-        search.requiresEventsFull || filtersRequireEventsFull(nativeFilter),
-        (b) => b.forceFullTable(),
-      )
-      .where(appliedNativeFilter)
-      .where(search);
+      .when(rowConditions.requiresEventsFull, (b) => b.forceFullTable())
+      .where(rowConditionClause(rowConditions.events))
+      .where(rowConditionClause(rowConditions.search));
 
     queryBuilder.withCTE(
       "qualifying_obs",
@@ -1025,7 +1103,11 @@ async function getObservationsFromEventsTableInternal<T>(
         return cursorOrderedBuilder.limitBy("e.trace_id", "e.project_id");
       }
       if (opts.dedupeBySpanId) {
-        return cursorOrderedBuilder.limitBy("e.span_id", "e.project_id");
+        return cursorOrderedBuilder.limitBy(
+          "e.span_id",
+          "e.trace_id",
+          "e.project_id",
+        );
       }
       return cursorOrderedBuilder;
     })
@@ -1045,7 +1127,7 @@ async function getObservationsFromEventsTableInternal<T>(
         ),
     )
     .when(!isCursorPagination && Boolean(opts.dedupeBySpanId), (b) =>
-      b.limitBy("e.span_id", "e.project_id"),
+      b.limitBy("e.span_id", "e.trace_id", "e.project_id"),
     )
     .limit(limit, isCursorPagination ? undefined : offset);
 
@@ -1162,13 +1244,11 @@ async function getObservationByIdFromEventsTableInternal({
   const needsFullTable =
     fetchWithInputOutput && renderingProps.truncated !== true;
 
-  // A soft-deleted latest version reads as not found, not as an older version.
   const builder = (
     needsFullTable
       ? db.selectFrom("events as e")
       : db.selectFrom("events_truncated as e")
   )
-    .$call(softDeleteAfterLimit())
     .select(observationByIdSelects)
     .$if(fetchWithInputOutput, (qb) =>
       qb.select((eb) => observationIoSelects(eb, renderingProps.truncated)),
@@ -1941,7 +2021,7 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
   );
 };
 
-/** Assemble a page from completed windows, including empty continuations. */
+/** Assemble a page from completed windows. */
 export const getObservationsV2PageFromEventsTableForPublicApi = async (
   opts: PublicApiObservationsQuery,
 ): Promise<{
@@ -1959,6 +2039,12 @@ export const getObservationsV2PageFromEventsTableForPublicApi = async (
       }
       const page = await scanObservationWindows(opts, from, bounds.to, scan);
       span.setAttribute("observations.scan.windows", page.windows);
+      if (page.records.length === 0 && page.cursor) {
+        throw new ClickHouseResourceError(
+          "TIMEOUT",
+          new Error("Query timed out before returning observations"),
+        );
+      }
       return {
         items: await enrichObservationsWithModelData(
           page.records.slice(0, opts.limit),
@@ -2394,6 +2480,31 @@ type PublicApiTracesQuery = {
 };
 
 /**
+ * events_core stores each metadata value truncated to 200 code points. Trace
+ * aggregation copies that map and then applies filters to it, so a metadata
+ * predicate that is not safe on the truncated copy has to be aggregated from
+ * events_full. The column is resolved with the same mapping that builds the
+ * filter, so both the id (`metadata`) and the display name (`Metadata`) count.
+ */
+function metadataFilterNeedsFullValues(
+  filters: FilterState | undefined,
+): boolean {
+  return (filters ?? []).some((filter) => {
+    if (filter.type !== "stringObject") {
+      return false;
+    }
+    const column = findUiColumnMapping(
+      TRACES_FROM_EVENTS_UI_COLUMN_DEFINITIONS,
+      filter.column,
+    );
+    return (
+      column?.uiTableId === "metadata" &&
+      !metadataFilterIsEventsCoreSafe(filter.operator, filter.value)
+    );
+  });
+}
+
+/**
  * Internal implementation for public API traces queries.
  * Uses eventsTracesAggregation to create a traces CTE that
  * behaves similarly to the old traces table.
@@ -2453,12 +2564,14 @@ async function getTracesFromEventsTableForPublicApiInternal<T>(
 
   // Build traces CTE using eventsTracesAggregation WITHOUT filters
   // Filters must be applied AFTER aggregation to ensure filters on aggregated
-  // fields (like timestamp or version) are applied correctly
-  // Use events_full when I/O is requested (truncated: false), otherwise events_core
+  // fields (like timestamp or version) are applied correctly.
+  // events_core keeps the first 200 code points of each metadata value. I/O
+  // reads already use events_full; a metadata filter that truncation can change
+  // must too, or position() on the aggregated map drops matches past that prefix.
   const tracesBuilder = eventsTracesAggregation({
     projectId,
     startTimeFrom,
-    truncated: !includeIO,
+    truncated: !includeIO && !metadataFilterNeedsFullValues(advancedFilters),
   });
 
   // Build the final query using CTEQueryBuilder
@@ -3082,17 +3195,21 @@ export const deleteEventsByProjectId = async (
   return true;
 };
 
-export async function getAgentGraphDataFromEventsTable(params: {
-  projectId: string;
-  traceId: string;
-  minStartTime: Date;
-  maxStartTime: Date;
-}) {
-  const { projectId, traceId, minStartTime, maxStartTime } = params;
+export async function getAgentGraphDataFromEventsTable(
+  params: {
+    projectId: string;
+    minStartTime: Date;
+    maxStartTime: Date;
+  } & (
+    | { traceId: string; sessionId?: never }
+    | { sessionId: string; traceId?: never }
+  ),
+) {
+  const { projectId, minStartTime, maxStartTime } = params;
 
   const db = getClickhouseKysely();
 
-  const builder = db
+  const baseBuilder = db
     .selectFrom("events_truncated as e")
     .select((eb) => {
       const metadata = metadataMap(
@@ -3101,6 +3218,7 @@ export async function getAgentGraphDataFromEventsTable(params: {
       );
       return [
         "e.span_id as id",
+        "e.trace_id as trace_id",
         "e.parent_span_id as parent_observation_id",
         "e.type as type",
         "e.name as name",
@@ -3110,9 +3228,27 @@ export async function getAgentGraphDataFromEventsTable(params: {
         mapValue<string>(metadata, literal("langgraph_step")).as("step"),
       ];
     })
-    .where("e.trace_id", "=", traceId)
     .where("e.start_time", ">=", minStartTime)
     .where("e.start_time", "<=", maxStartTime);
+
+  const builder =
+    params.sessionId !== undefined
+      ? baseBuilder
+          .where("e.session_id", "=", params.sessionId)
+          .orderBy("e.start_time", "asc")
+          .orderBy("e.event_ts", "desc")
+          .$call(
+            limitBy({
+              count: 1,
+              columns: (eb) => [
+                eb.ref("e.span_id"),
+                eb.ref("e.trace_id"),
+                eb.ref("e.project_id"),
+              ],
+            }),
+          )
+          .limit(MAX_OBSERVATIONS_PER_SESSION)
+      : baseBuilder.where("e.trace_id", "=", params.traceId);
 
   const { sql: query, params: queryParams } = compileClickhouseQuery(
     builder,
@@ -3416,15 +3552,13 @@ interface ObservationIOReadOpts {
 // The field expression is chosen from the validated `field` enum — never
 // string-interpolated user input. The length pre-query and the byte stream share
 // this builder so they can never drift; a mismatch would make the route's
-// Content-Length integrity check wrong. A soft-deleted latest version reads as
-// no row.
+// Content-Length integrity check wrong.
 function compileObservationIOFieldRead<A extends string>(
   opts: ObservationIOReadOpts,
   select: (field: AliasableExpression<string>) => AliasedExpression<unknown, A>,
 ) {
   const query = getClickhouseKysely()
     .selectFrom("events as e")
-    .$call(softDeleteAfterLimit())
     .select((eb) =>
       select(
         opts.field === "metadata"
@@ -3541,10 +3675,8 @@ export const getObservationFullIOForSessionFromEventsTable = async (opts: {
   const maxTimestamp = new Date(opts.startTime.getTime() + 1000);
 
   const db = getClickhouseKysely();
-  // A soft-deleted latest version reads as not found.
   const builder = db
     .selectFrom("events as e")
-    .$call(softDeleteAfterLimit())
     .select((eb) => [
       "e.span_id as id",
       "e.input as input",
@@ -3851,10 +3983,11 @@ export const hasAnyUserFromEventsTable = async (
 };
 
 /**
- * Query for the events blob export. Full I/O reads events_full; everything
- * else reads events_core. `convertLatencyToSecondsInSql` can be set by the paths
- * that skip the JS row enrichment (raw passthrough, Parquet), so they select
- * latency and time to first token in seconds instead of milliseconds.
+ * Query for the events blob export. Full I/O or metadata reads events_full
+ * (events_core truncates both); everything else reads events_core.
+ * `convertLatencyToSecondsInSql` can be set by the paths that skip the JS row
+ * enrichment (raw passthrough, Parquet), so they select latency and time to
+ * first token in seconds instead of milliseconds.
  */
 const buildEventsForBlobStorageExportQuery = (
   projectId: string,
@@ -3868,6 +4001,7 @@ const buildEventsForBlobStorageExportQuery = (
     ? fieldGroups
     : (["core", ...fieldGroups] as ObservationFieldGroupFull[]);
   const includeIO = effectiveGroups.includes("io");
+  const readFullTable = includeIO || effectiveGroups.includes("metadata");
   const metricsInSeconds =
     convertLatencyToSecondsInSql && effectiveGroups.includes("metrics");
   const fieldSets = effectiveGroups.flatMap((group) => {
@@ -3877,7 +4011,7 @@ const buildEventsForBlobStorageExportQuery = (
   });
 
   const builder = getClickhouseKysely()
-    .selectFrom(includeIO ? "events as e" : "events_truncated as e")
+    .selectFrom(readFullTable ? "events as e" : "events_truncated as e")
     .select(eventsRowFieldSelects(eventsFieldSetKeys(...fieldSets)))
     .$if(includeIO, (qb) => qb.select(["e.input", "e.output"]))
     .$if(metricsInSeconds, (qb) => qb.select(eventsMetricsSecondsSelects))

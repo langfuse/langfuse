@@ -8,8 +8,8 @@ import { ControlledHoverCard } from "@/src/components/design-system/ControlledHo
 import { createForm } from "@/src/components/design-system/factories/createForm";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Input } from "@/src/components/design-system/Input/Input";
-import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
-import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
+import { LangfuseWordmark } from "@/src/components/design-system/LangfuseWordmark/LangfuseWordmark";
+import { Metric } from "@/src/components/design-system/Metric/Metric";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 import {
@@ -118,7 +118,7 @@ function OnboardingCard({ children }: { children: ReactNode }) {
   return (
     <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-start sm:px-6 sm:py-12 lg:px-8">
       <div className="flex items-center justify-center gap-2 sm:mx-auto sm:w-full sm:max-w-md">
-        <LangfuseIcon size={32} />
+        <LangfuseWordmark />
       </div>
 
       <div className="bg-card mt-6 flex flex-col gap-6 rounded-lg px-6 py-6 shadow-sm sm:mx-auto sm:mt-16 sm:w-full sm:max-w-[480px] sm:px-12 sm:py-10">
@@ -289,7 +289,7 @@ function NewsletterFallback({
               <span className="text-muted-foreground text-xs">
                 {FALLBACK_LINK_LABELS[list]}
               </span>
-              <LinkBadge href={url} text={url} newTab shouldWrap />
+              <Metric href={url} value={url} newTab shouldWrap />
             </li>
           ))}
         </ul>

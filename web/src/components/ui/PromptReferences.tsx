@@ -191,11 +191,11 @@ export const PromptReferenceButton = ({
         {promptRef.name}
         {promptRef.type === "version" ? (
           <span className="ml-1">
-            <Badge color="primary" size="sm" text={`v${promptRef.version}`} />
+            <Badge color="outline" size="sm" text={`v${promptRef.version}`} />
           </span>
         ) : promptRef.label ? (
           <span className="ml-1">
-            <Badge color="primary" size="sm" text={promptRef.label} />
+            <Badge color="outline" size="sm" text={promptRef.label} />
           </span>
         ) : (
           ""

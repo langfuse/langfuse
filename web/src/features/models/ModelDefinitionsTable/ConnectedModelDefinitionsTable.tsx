@@ -227,8 +227,6 @@ function convertToTableRow(model: GetModelResult): ModelTableRow {
     modelName: model.modelName,
     matchPattern: model.matchPattern,
     prices,
-    tokenizerId: model.tokenizerId ?? undefined,
-    config: model.tokenizerConfig,
     serverResponse: model,
   };
 }

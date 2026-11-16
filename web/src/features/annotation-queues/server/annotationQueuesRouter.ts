@@ -230,10 +230,11 @@ export const queueRouter = createTRPCRouter({
         });
 
         const scoreConfigsById = new Map(
-          filterAndValidateDbScoreConfigList(configs).map((config) => [
-            config.id,
-            config,
-          ]),
+          filterAndValidateDbScoreConfigList(configs, (error) =>
+            logger.warn("Invalid score config omitted from response", {
+              error,
+            }),
+          ).map((config) => [config.id, config]),
         );
 
         return {

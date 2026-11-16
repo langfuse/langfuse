@@ -16,7 +16,7 @@
 
 import * as React from "react";
 import { ArrowLeft, ArrowRight, Loader2 } from "@langfuse/icons";
-import { type ComposerSize } from "@/src/features/search-bar/components/ComposerSurface";
+import { type QueryInput } from "@/src/components/design-system/QueryInput/QueryInput";
 import { useStore } from "zustand";
 
 import { type FilterState } from "@langfuse/shared";
@@ -52,7 +52,7 @@ export function SearchBarAiPrompt({
 }: {
   projectId: string;
   /** Matches the composer's size so switching modes keeps the bar height. */
-  size?: ComposerSize;
+  size?: React.ComponentProps<typeof QueryInput>["size"];
   /** Table this bar filters — the `tableName` analytics dimension. */
   tableName: string;
   isV4?: boolean;

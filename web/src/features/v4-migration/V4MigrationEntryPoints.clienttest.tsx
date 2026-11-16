@@ -101,12 +101,12 @@ describe("v4 migration entry points", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
-  it("places the Action required pill above Upgrade Plan in the secondary nav", () => {
+  it("places the Action required pill above Upgrade plan in the secondary nav", () => {
     const secondaryTitles = ROUTES.filter(
       (route) => route.section === RouteSection.Secondary,
     ).map((route) => route.title);
     const updateIndex = secondaryTitles.indexOf("Update");
-    const upgradeIndex = secondaryTitles.indexOf("Upgrade Plan");
+    const upgradeIndex = secondaryTitles.indexOf("Upgrade plan");
 
     expect(updateIndex).toBeGreaterThanOrEqual(0);
     expect(upgradeIndex).toBeGreaterThan(updateIndex);

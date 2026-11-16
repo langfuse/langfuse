@@ -8,14 +8,15 @@ import {
 import { useMediaQuery } from "react-responsive";
 import dynamic from "next/dynamic";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
-import { MAX_SKILL_FILES } from "@langfuse/shared";
 import { useStore } from "zustand";
+import { useShallow } from "zustand/react/shallow";
 import {
   Download,
   ChevronDown,
   ExternalLink,
   Loader2,
   Pencil,
+  Sparkles,
   TriangleAlert,
   RotateCcw,
   Save,
@@ -25,6 +26,7 @@ import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { SkillLinkedTraces } from "@/src/features/skills/components/SkillLinkedTraces";
+import { SkillUsage } from "@/src/features/skills/components/SkillUsage";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import Page from "@/src/components/layouts/Page";
 import { Button } from "@/src/components/ui/button";
@@ -32,6 +34,8 @@ import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
 import { InstallSkillDialog } from "@/src/features/skills/components/InstallSkillDialog";
+import { useSkillHaloActions } from "@/src/features/skills/components/useSkillHaloActions";
+import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -51,7 +55,10 @@ import {
   type SkillFileExplorerState,
 } from "@/src/features/skills/components/SkillFileExplorer";
 import { importSkillFiles } from "@/src/features/skills/actions/importSkillFiles";
-import { getParentFolderPaths } from "@/src/features/skills/components/skillFileTree";
+import {
+  getParentFolderPaths,
+  parentFolder,
+} from "@/src/features/skills/components/skillFileTree";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
   createSkillDraftFile,
@@ -131,6 +138,7 @@ export function SkillEditor({
   const isImporting = useStore(store, (state) => state.isImporting);
   const fileCount = useStore(store, (state) => Object.keys(state.files).length);
   const name = useStore(store, (state) => state.name);
+  const isHaloVisible = useIsInAppAgentLauncherVisible();
   const baseVersion = useStore(store, (state) => state.baseVersion);
   const labels = useStore(store, (state) => state.labels);
   const tags = useStore(store, (state) => state.tags);
@@ -212,6 +220,17 @@ export function SkillEditor({
     expandedFolders: new Set(store.getState().folders),
     pendingEntry: null,
   }));
+  const handleSelectFile = (path: string) => {
+    store.getState().actions.selectFile(path);
+    setTreeState((current) => ({
+      ...current,
+      selectedFolder: parentFolder(path),
+      expandedFolders: new Set([
+        ...current.expandedFolders,
+        ...getParentFolderPaths([path]),
+      ]),
+    }));
+  };
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const showUpload = canEditFiles && isUploadOpen;
   const uploadPanelRef = useRef<HTMLElement | null>(null);
@@ -387,21 +406,28 @@ export function SkillEditor({
     : undefined;
   const usageTab = isV4 && view.kind === "version" && baseVersion !== null && (
     <Tabs.Content value="usage" layout="fill">
-      {canReadMetrics ? (
-        <SkillAnalytics
-          projectId={projectId}
-          skillId={view.skillId}
-          name={name}
-          version={baseVersion}
-          paths={Object.keys(store.getState().files).toSorted()}
-        />
-      ) : (
-        <SkillLinkedTraces
-          projectId={projectId}
-          name={name}
-          version={baseVersion}
-        />
-      )}
+      <SkillUsage
+        key={`${projectId}:${name}`}
+        projectId={projectId}
+        name={name}
+        version={baseVersion}
+      >
+        {canReadMetrics ? (
+          <SkillAnalytics
+            projectId={projectId}
+            skillId={view.skillId}
+            name={name}
+            version={baseVersion}
+            paths={Object.keys(store.getState().files).toSorted()}
+          />
+        ) : (
+          <SkillLinkedTraces
+            projectId={projectId}
+            name={name}
+            version={baseVersion}
+          />
+        )}
+      </SkillUsage>
     </Tabs.Content>
   );
 
@@ -502,19 +528,23 @@ export function SkillEditor({
           )}
         </Tooltip>
       ) : null}
-      {!isDraft ? (
-        <Button
-          disabled={!canCreate}
-          title={!canCreate ? "You do not have write access" : undefined}
-          onClick={async () => {
+      {!isDraft && view.kind === "version" ? (
+        <SkillEditActions
+          canEdit={canCreate}
+          hasDraft={view.hasDraft}
+          halo={
+            isHaloVisible && baseVersion !== null
+              ? { skillName: name, version: baseVersion }
+              : null
+          }
+          onEditManually={async () => {
             closeMenu?.();
-            if (view.kind === "version") await view.onEdit();
+            await view.onEdit();
           }}
-        >
-          <Pencil size="base" __rawClassName="mr-1.5" />
-          {view.kind === "version" && view.hasDraft ? "Resume draft" : "Edit"}
-        </Button>
-      ) : (
+          onBeforeHalo={closeMenu}
+        />
+      ) : null}
+      {isDraft ? (
         <>
           <Button
             variant="outline"
@@ -547,7 +577,7 @@ export function SkillEditor({
             Publish
           </Button>
         </>
-      )}
+      ) : null}
     </div>
   );
 
@@ -578,7 +608,7 @@ export function SkillEditor({
         return state.kind === "discard" ? (
           <Dialog
             title="Discard draft?"
-            text="Your unsaved file changes and commit note will be lost."
+            text="Unsaved changes will be lost."
             actions={[
               {
                 label: "Discard draft",
@@ -663,7 +693,7 @@ export function SkillEditor({
                     src={undefined}
                     variant="panel"
                     accept={undefined}
-                    maxFiles={MAX_SKILL_FILES}
+                    maxFiles={10_000}
                     maxSize={undefined}
                     minSize={undefined}
                     isDisabled={isImporting}
@@ -768,6 +798,7 @@ export function SkillEditor({
                             store={store}
                             isDraft={isDraft}
                             editable={canEditFiles}
+                            onSelectFile={handleSelectFile}
                           />
                         </ResizablePanel>
                       </ResizablePanelGroup>
@@ -835,12 +866,18 @@ function SkillFileEditor({
   store,
   isDraft,
   editable,
+  onSelectFile,
 }: {
   projectId: string;
   store: SkillEditorStore;
   isDraft: boolean;
   editable: boolean;
+  onSelectFile: (path: string) => void;
 }) {
+  const filePaths = useStore(
+    store,
+    useShallow((state) => Object.keys(state.files)),
+  );
   const activePath = useStore(store, (state) => state.activePath);
   const activeFile = useStore(store, (state) => state.files[state.activePath]!);
   const updateActiveFile = useStore(
@@ -883,6 +920,7 @@ function SkillFileEditor({
       key={isDraft ? "draft" : "version"}
       path={activePath}
       content={content}
+      fileNavigation={{ paths: filePaths, onSelect: onSelectFile }}
       mode={
         isDraft
           ? { kind: "draft", editable, onChange: updateActiveFile }
@@ -921,4 +959,74 @@ export function toSkillEditorInitialValue(skill: {
     tags: skill.tags,
     files: skill.files,
   };
+}
+
+function SkillEditActions(props: {
+  canEdit: boolean;
+  hasDraft: boolean;
+  halo: { skillName: string; version: number } | null;
+  onEditManually: () => Promise<void>;
+  onBeforeHalo?: () => void;
+}) {
+  // The Halo menu trigger cannot show a reason, so read-only users get the plain button.
+  if (!props.halo || !props.canEdit) {
+    return (
+      <Button
+        disabled={!props.canEdit}
+        title={!props.canEdit ? "You do not have write access" : undefined}
+        onClick={props.onEditManually}
+      >
+        <Pencil size="base" __rawClassName="mr-1.5" />
+        {props.hasDraft ? "Resume draft" : "Edit"}
+      </Button>
+    );
+  }
+  return <SkillEditMenu {...props} halo={props.halo} />;
+}
+
+function SkillEditMenu(
+  props: ComponentProps<typeof SkillEditActions> & {
+    halo: { skillName: string; version: number };
+  },
+) {
+  const { isRunning, improveSkill } = useSkillHaloActions();
+  const { skillName, version } = props.halo;
+  const haloBusy = isRunning
+    ? { reason: "Halo is still working on another request." }
+    : undefined;
+  return (
+    <DropdownMenu
+      ariaLabel="Edit skill"
+      items={[
+        {
+          type: "item",
+          id: "edit-manually",
+          title: props.hasDraft ? "Resume draft" : "Edit manually",
+          icon: Pencil,
+          onClick: props.onEditManually,
+        },
+        {
+          type: "item",
+          id: "improve-with-halo",
+          title: "Improve with Halo",
+          tooltip: "Halo reviews the skill and proposes fixes.",
+          icon: Sparkles,
+          disabled: haloBusy,
+          onClick: () => {
+            props.onBeforeHalo?.();
+            return improveSkill(skillName, version);
+          },
+        },
+      ]}
+    >
+      {({ getTriggerProps }) => (
+        <DesignSystemButton
+          text={props.hasDraft ? "Resume draft" : "Edit"}
+          variant="primary"
+          icon={ChevronDown}
+          {...getTriggerProps()}
+        />
+      )}
+    </DropdownMenu>
+  );
 }

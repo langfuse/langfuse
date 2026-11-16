@@ -3,7 +3,9 @@ import {
   type ViewVersion,
   type ViewDeclarationType,
   type DimensionsDeclarationType,
+  type metricAggregations,
   type views,
+  type viewsV2,
   SCORES_LISTABLE_COUNT_VIEW,
 } from "./types";
 import { InvalidRequestError } from "../../errors/InvalidRequestError";
@@ -18,6 +20,9 @@ import {
   AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY,
   AI_GATEWAY_SERVICE_NAME,
 } from "../ai-gateway/constants";
+
+/** numericMeasureTypes are the measure types whose values carry their own unit. */
+const numericMeasureTypes = new Set(["integer", "decimal", "number"]);
 
 // The data model defines all available dimensions, measures, and the timeDimension for a given view.
 // Make sure to update web/src/features/dashboard/lib/dashboardUiTableToViewMapping.ts if you make changes
@@ -130,7 +135,7 @@ export const traceView: ViewDeclarationType = {
       relationTable: "observations",
       description:
         "Elapsed time between the first and last observation inside the trace.",
-      unit: "millisecond",
+      unit: "milliseconds",
       defaultAggregation: "avg",
     },
     totalTokens: {
@@ -335,7 +340,7 @@ export const eventsTracesView: ViewDeclarationType = {
       type: "integer",
       description:
         "Elapsed time between the first and last observation inside the trace.",
-      unit: "millisecond",
+      unit: "milliseconds",
       defaultAggregation: "avg",
     },
     totalTokens: {
@@ -547,7 +552,7 @@ export const observationsView: ViewDeclarationType = {
       type: "integer",
       description:
         "Latency of an individual observation (start time to end time).",
-      unit: "millisecond",
+      unit: "milliseconds",
       defaultAggregation: "avg",
     },
     streamingLatency: {
@@ -558,7 +563,7 @@ export const observationsView: ViewDeclarationType = {
       type: "integer",
       description:
         "Latency of the generation step (completion start time to end time).",
-      unit: "millisecond",
+      unit: "milliseconds",
       defaultAggregation: "avg",
     },
     inputTokens: {
@@ -645,7 +650,7 @@ export const observationsView: ViewDeclarationType = {
       alias: "timeToFirstToken",
       type: "integer",
       description: "Time to first token for the observation.",
-      unit: "millisecond",
+      unit: "milliseconds",
       defaultAggregation: "avg",
     },
     countScores: {
@@ -1555,7 +1560,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "integer",
       description:
         "Latency of an individual observation (start time to end time).",
-      unit: "millisecond",
+      unit: "milliseconds",
       defaultAggregation: "avg",
     },
     streamingLatency: {
@@ -1565,7 +1570,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "integer",
       description:
         "Latency of the generation step (completion start time to end time).",
-      unit: "millisecond",
+      unit: "milliseconds",
       defaultAggregation: "avg",
     },
     inputTokens: {
@@ -1648,7 +1653,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       alias: "timeToFirstToken",
       type: "integer",
       description: "Time to first token for the observation.",
-      unit: "millisecond",
+      unit: "milliseconds",
       defaultAggregation: "avg",
     },
     countScores: {
@@ -1817,7 +1822,7 @@ export function requiresV2(params: {
 /**
  * Returns the declared unit for a measure in a given view/version, or undefined
  * if the view or measure is not found. Use this to drive display formatting
- * (e.g. unit === "millisecond" → convert to seconds before rendering).
+ * (e.g. unit === "milliseconds" → convert to seconds before rendering).
  */
 function getMeasureUnit(
   viewName: string,
@@ -1843,6 +1848,22 @@ export function getResultUnit(
 ): string | undefined {
   if (aggregation === "count" || aggregation === "uniq") return "integer";
   return getMeasureUnit(viewName, measureName, version);
+}
+
+/** getMetricUnit returns the declared unit of a v2 metric's value, using the view's row unit for any count. */
+export function getMetricUnit(
+  view: z.infer<typeof viewsV2>,
+  metric: {
+    measure: string;
+    aggregation: z.infer<typeof metricAggregations>;
+  },
+): string | undefined {
+  const measures = viewDeclarations.v2[view].measures;
+  const definition = measures[metric.measure];
+  const isNumeric = numericMeasureTypes.has(definition?.type ?? "");
+  if (metric.aggregation === "count") return measures.count?.unit;
+  if (metric.aggregation === "uniq" && isNumeric) return undefined;
+  return definition?.unit;
 }
 
 const measureNamesSet = new Set<string>();

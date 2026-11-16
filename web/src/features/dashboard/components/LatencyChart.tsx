@@ -179,7 +179,7 @@ export const GenerationLatencyChart = ({
                 <DashboardLineTimeSeriesChart
                   data={item.data}
                   label="Latency"
-                  unit="millisecond"
+                  unit="milliseconds"
                   syncId={syncId}
                   sync={sync}
                   missingValue="gap"

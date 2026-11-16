@@ -505,6 +505,28 @@ describe("Saved view restore with implicit environment defaults", () => {
     expect(queryParamStore.has("viewId")).toBe(false);
   });
 
+  it("does not apply a default saved view over an explicitly empty URL filter", async () => {
+    queryParamStore.delete("viewId");
+    queryParamStore.set("filter", "");
+    mockUseRouter.mockReturnValue({
+      isReady: true,
+      query: { filter: "" },
+    });
+    mockGetDefaultUseQuery.mockReturnValue({
+      data: { viewId: "view-1", scope: "project" },
+      isLoading: false,
+    });
+
+    render(<SavedViewHarness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-state").textContent).toBe("ready");
+    });
+
+    expect(screen.getByTestId("explicit-state").textContent).toBe("[]");
+    expect(queryParamStore.has("viewId")).toBe(false);
+  });
+
   it("does not restore a stored saved view over explicit URL filters", async () => {
     const explicitUrlFilters: FilterState = [
       {

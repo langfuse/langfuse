@@ -189,6 +189,24 @@ const cases: StateMachineCase[] = [
       nextAlertedAt: t0,
     },
   },
+  {
+    name: "NO_DATA -> OK with noData SUBSTITUTE_OK: emit",
+    input: {
+      prevSeverity: MonitorSeveritySchema.enum.NO_DATA,
+      computedSeverity: MonitorSeveritySchema.enum.OK,
+      prevSeverityChangedAt: tMinus10m,
+      prevAlertedAt: tMinus10m,
+      now: t0,
+      noData: { mode: MonitorNoDataModeSchema.enum.SUBSTITUTE_OK },
+      renotify: renotifyOff,
+    },
+    expected: {
+      emit: true,
+      nextSeverity: MonitorSeveritySchema.enum.OK,
+      nextSeverityChangedAt: t0,
+      nextAlertedAt: t0,
+    },
+  },
 
   // === NO_DATA -> WARNING / ALERT ===
   {

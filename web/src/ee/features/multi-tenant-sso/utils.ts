@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import { type Provider } from "next-auth/providers/index";
 import GoogleProvider from "next-auth/providers/google";
@@ -98,51 +97,17 @@ async function getSsoConfigs(): Promise<SsoProviderSchema[]> {
 }
 
 /**
- * Load all custom SSO providers from the database. To be used within `providers` in NextAuth backend configuration.
+ * Get the custom SSO providerId for a database SSO configuration. To be used with NextAuth's `signIn(providerId)`.
  *
- * @returns {Promise<Provider[]>} - A list of all custom SSO providers.
+ * @param {DbSsoConfig} dbSsoConfig - The SSO configuration from the database.
+ * @returns {string} - The providerId used in NextAuth.
  */
-export async function loadSsoProviders(): Promise<Provider[]> {
-  if (!multiTenantSsoAvailable) return [];
-
-  const ssoConfigs = await getSsoConfigs();
-
-  const providers: Provider[] = [];
-
-  for (const dbSsoConfig of ssoConfigs) {
-    const provider = dbToNextAuthProvider(dbSsoConfig);
-    if (provider !== null) providers.push(provider);
-  }
-
-  return providers;
-}
-
-/**
- * @returns `true` if any custom SSO provider is configured in the database.
- */
-export async function isAnySsoConfigured(): Promise<boolean> {
-  if (!multiTenantSsoAvailable) return false;
-  const ssoConfigs = await getSsoConfigs();
-  return ssoConfigs.length > 0;
-}
-
-/**
- * Get the custom SSO providerId for a domain. To be used with NextAuth's `signIn(providerId)`.
- *
- * @param domain - The domain to check for a custom SSO provider, e.g. "example.com".
- * @returns `providerId` or null if none is configured or EE is not available.
- */
-export async function getSsoAuthProviderIdForDomain(
-  domain: string,
-): Promise<string | null> {
-  if (!multiTenantSsoAvailable) return null;
-  const ssoConfig = (await getSsoConfigs()).find(
-    (ssoConfig) => ssoConfig.domain === domain.toLowerCase(),
-  );
-
-  if (!ssoConfig) return null;
-  return getAuthProviderIdForSsoConfig(ssoConfig);
-}
+const getAuthProviderIdForSsoConfig = (
+  dbSsoConfig: SsoProviderSchema,
+): string => {
+  if (!dbSsoConfig.authConfig) return dbSsoConfig.authProvider;
+  return `${dbSsoConfig.domain}.${dbSsoConfig.authProvider}`;
+};
 
 type TokenEndpointAuthMethod =
   | "client_secret_basic"
@@ -368,17 +333,51 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
 };
 
 /**
- * Get the custom SSO providerId for a database SSO configuration. To be used with NextAuth's `signIn(providerId)`.
+ * Load all custom SSO providers from the database. To be used within `providers` in NextAuth backend configuration.
  *
- * @param {DbSsoConfig} dbSsoConfig - The SSO configuration from the database.
- * @returns {string} - The providerId used in NextAuth.
+ * @returns {Promise<Provider[]>} - A list of all custom SSO providers.
  */
-const getAuthProviderIdForSsoConfig = (
-  dbSsoConfig: SsoProviderSchema,
-): string => {
-  if (!dbSsoConfig.authConfig) return dbSsoConfig.authProvider;
-  return `${dbSsoConfig.domain}.${dbSsoConfig.authProvider}`;
-};
+export async function loadSsoProviders(): Promise<Provider[]> {
+  if (!multiTenantSsoAvailable) return [];
+
+  const ssoConfigs = await getSsoConfigs();
+
+  const providers: Provider[] = [];
+
+  for (const dbSsoConfig of ssoConfigs) {
+    const provider = dbToNextAuthProvider(dbSsoConfig);
+    if (provider !== null) providers.push(provider);
+  }
+
+  return providers;
+}
+
+/**
+ * @returns `true` if any custom SSO provider is configured in the database.
+ */
+export async function isAnySsoConfigured(): Promise<boolean> {
+  if (!multiTenantSsoAvailable) return false;
+  const ssoConfigs = await getSsoConfigs();
+  return ssoConfigs.length > 0;
+}
+
+/**
+ * Get the custom SSO providerId for a domain. To be used with NextAuth's `signIn(providerId)`.
+ *
+ * @param domain - The domain to check for a custom SSO provider, e.g. "example.com".
+ * @returns `providerId` or null if none is configured or EE is not available.
+ */
+export async function getSsoAuthProviderIdForDomain(
+  domain: string,
+): Promise<string | null> {
+  if (!multiTenantSsoAvailable) return null;
+  const ssoConfig = (await getSsoConfigs()).find(
+    (ssoConfig) => ssoConfig.domain === domain.toLowerCase(),
+  );
+
+  if (!ssoConfig) return null;
+  return getAuthProviderIdForSsoConfig(ssoConfig);
+}
 
 export const findMultiTenantSsoConfig = async ({
   providerId,

@@ -231,7 +231,7 @@ function classifyChanges(codeFiles, packages, options, taskGraph) {
     )
       continue;
     if (
-      /^(prettier\.config\.[cm]?js|\.prettierrc(?:\.[^/]+)?|\.prettierignore|\.editorconfig)$/.test(
+      /^(\.oxfmtrc\.jsonc?|oxfmt\.config\.[cm]?[jt]s|\.editorconfig)$/.test(
         file,
       )
     ) {
@@ -562,7 +562,11 @@ function planRepositoryChecks(
   );
   const repositoryFormatting =
     options.all ||
-    codeFiles.some((file) => /prettier|(^|\/)\.editorconfig$/.test(file));
+    codeFiles.some((file) =>
+      /(^|\/)(\.oxfmtrc\.jsonc?|oxfmt\.config\.[cm]?[jt]s|\.editorconfig)$/.test(
+        file,
+      ),
+    );
   const repositoryChecks = [
     {
       component: "format",
@@ -576,7 +580,7 @@ function planRepositoryChecks(
       label: `Formatting · ${formatted.length} file${formatted.length === 1 ? "" : "s"}`,
       args: [
         "exec",
-        "prettier",
+        "oxfmt",
         "--check",
         "--",
         ...formatted.map((file) => `./${file}`),

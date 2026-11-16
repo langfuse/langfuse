@@ -29,6 +29,7 @@ Use their technical rules, not their implementation or handoff workflows.
 ### Components and state
 
 - Use `web/src/components/design-system/` primitives and their styling rules. Add variants instead of custom `className` values.
+- Flag CSS selectors that cross component boundaries to style another component's descendants, regardless of the target: tags, classes, roles, data attributes, or other selectors. This includes plain CSS descendant and child combinators (`.parent .child`, `.parent > button`) and Tailwind descendant/child variants (`[&_button]:…`, `[&_.child]:…`, `[&_[data-state=active]]:…`, `[&_[role=tab]]:…`, `[&>span]:…`, `*:…`, `**:…`). For our own components, add or use component variants instead of reaching into their markup from outside. Allow cross-component selectors only when integrating with external libraries that offer no other styling option. Self-contained selectors styling markup owned by the same component are allowed, such as a `MarkdownRenderer` styling its rendered paragraphs with `> p`.
 - Importing raw primitives (`@radix-ui/*`, cmdk, etc.) in feature code is an exception, only when the design system has no suitable option.
 - Compose triggers and overlay content separately. Overlay owners manage content and open/close state, but must allow callers to supply or replace the trigger. Trigger components must not own the overlay content. Connect triggers through trigger props or controller callbacks rather than hard-coding a button inside the content component. Use `DialogController` for dialogs and follow the render-prop trigger APIs of `Tooltip` and `HoverCard` in `web/src/components/design-system/`. Support triggers nested inside child components by passing trigger props or callbacks—not overlay content.
 - Export one component per file. Match the filename to the component. If a component has a named props type, name it `<ComponentName>Props`. Inline props types are allowed; do not require extracting a named type.
@@ -39,6 +40,7 @@ Use their technical rules, not their implementation or handoff workflows.
 - Allow short inline functions in JSX, including action handlers; prefer them when contextual type inference avoids restating complex parameter or return types. Discourage large inline functions that obscure the JSX structure; extract those into named functions.
 - Fetch data in custom hooks, not UI components. Use `react-hook-form` for forms.
 - Do not use effects to compute derived state, handle user actions, or synchronize application state when rendering, event handlers, or an existing state owner can express the same behavior directly.
+- Flag chained effects, effects or guards that keep state copies in step, and store or ref writes during render only when centralizing or deriving that state could plausibly remove them; name the store action, selector, or function that would. Effects for real external systems (subscriptions, DOM or browser APIs, timers, network sync) are fine; do not flag them.
 - Allow narrowly scoped effects to synchronize with external systems: browser APIs, subscriptions, and imperative integrations. Require correct dependencies and cleanup. A focused lifecycle hook is valid abstraction, not inherently a hidden effect; moving avoidable state synchronization into a hook is not a fix.
 - Allow `useLayoutEffect` for DOM measurement or layout correction that must happen before paint. Otherwise prefer `useEffect`. Check for feedback loops and unnecessary blocking work; neither hook is a violation by name alone.
 - Before flagging an effect as avoidable, show a viable alternative preserving the required timing, updates, and cleanup. Do not demand a lifecycle rewrite without establishing that it works for the integration.
@@ -58,11 +60,16 @@ Use their technical rules, not their implementation or handoff workflows.
 
 ### Tests
 
-- Not every detail needs a test. Focus tests on critical user behavior and known regressions. Add preemptive regression coverage only for important functionality; do not require tests for incidental details or hypothetical low-impact failures.
-- One representative input per code path, plus each boundary. Remove redundant cases; retain distinct contracts and paths.
-- Tests must fail when the behavior breaks or its implementation is deleted. No mocks that just return the expected answer or always-true assertions.
-- Remove regression tests when types, schemas, or deleted paths prevent the bug. Check that runtime inputs cannot bypass those protections.
+- A test earns its place only when it is fast, uses few or no mocks, and fails without the change it accompanies.
+- Flag tests that would pass without the fix: change-set checks that only assert a removed thing is gone, tautologies, and assertions on mocks only.
+- Flag brittle, mock-heavy UI click-through tests and Storybook stories that only render the fixed state, with no interaction or assertion, to prove a fix. Do not flag a focused Storybook test of the changed behavior.
 - Test components only through Storybook. Use `.clienttest.ts` for frontend unit tests, not in-source tests. Keep backend and worker conventions.
+- Flag duplicates of existing coverage, and multiple tests where one meaningful test is enough. Suggest which one to keep. One representative input per distinct contract or path, plus each boundary.
+- Flag tests that hardcode limits, timeouts, or plan values copied from code when the test is not checking that value. Ask to import the constant instead. When the test pins a limit or boundary, keep an explicit expected value.
+- Flag skipped or commented-out tests being added.
+- Flag unrelated side fixes bundled into the PR.
+- Do not ask for additional tests unless a specific behavior change is untested. Then ask for one focused test of that behavior.
+- Remove regression tests when types, schemas, or deleted paths prevent the bug. Check that runtime inputs cannot bypass those protections.
 - No dependencies on other tests, execution order, or another test's seeding.
 
 ### Security and performance

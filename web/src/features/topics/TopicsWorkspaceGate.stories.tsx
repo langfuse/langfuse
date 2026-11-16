@@ -2,6 +2,7 @@ import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { Button } from "@/src/components/design-system/Button/Button";
+import { Spinner } from "@/src/components/layouts/Spinner";
 import { TopicsFacetTabs } from "./TopicsFacetTabs";
 import { TopicsWorkspaceGate } from "./TopicsWorkspaceGate";
 
@@ -12,13 +13,14 @@ const controls = (
     onSelectFacet={fn()}
   />
 );
+const loader = <Spinner message="Loading topics" />;
 
 const meta = preview.meta({ component: TopicsWorkspaceGate });
 
 export const Loading = meta.story({
   args: {
     isLoading: true,
-    fallback: <p>Loading topics…</p>,
+    fallback: loader,
     children: controls,
   },
 });
@@ -26,7 +28,7 @@ export const Loading = meta.story({
 export const Loaded = meta.story({
   args: {
     isLoading: false,
-    fallback: <p>Loading topics…</p>,
+    fallback: loader,
     children: controls,
   },
 });
@@ -35,7 +37,7 @@ export const WaitsForInitialFacets = meta.story({
   name: "(Test) Waits for initial facets before mounting controls",
   args: {
     isLoading: true,
-    fallback: <p>Loading topics…</p>,
+    fallback: loader,
     children: controls,
   },
   render: (args) => {
@@ -52,14 +54,17 @@ export const WaitsForInitialFacets = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText("Loading topics…")).toBeVisible();
+    await expect(
+      canvas.getByRole("heading", { name: "Loading topics ..." }),
+    ).toBeVisible();
     await expect(
       canvas.queryByRole("tab", { name: "Intent" }),
     ).not.toBeInTheDocument();
     await userEvent.click(
       canvas.getByRole("button", { name: "Finish loading" }),
     );
-    await expect(canvas.queryByText("Loading topics…")).not.toBeInTheDocument();
+    // No waitFor: the loader must leave in the render that finishes loading.
+    await expect(canvas.queryByRole("heading")).not.toBeInTheDocument();
     await expect(canvas.getByRole("tab", { name: "Intent" })).toHaveAttribute(
       "aria-selected",
       "true",

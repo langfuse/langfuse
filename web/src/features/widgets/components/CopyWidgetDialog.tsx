@@ -44,12 +44,11 @@ export function CopyWidgetDialog({
         </DialogHeader>
         <DialogBody>
           <p className="text-muted-foreground py-4 text-sm">
+            Editing creates your own copy of{" "}
             <span className="text-foreground font-bold">
               &ldquo;{widgetName}&rdquo;
-            </span>{" "}
-            is maintained by Langfuse and can&rsquo;t be edited directly.
-            We&rsquo;ll replace this tile with your own editable copy and open
-            it in the widget editor — the rest of the dashboard stays unchanged.
+            </span>
+            . Your copy won&rsquo;t receive future updates from Langfuse.
           </p>
         </DialogBody>
         <DialogFooter>

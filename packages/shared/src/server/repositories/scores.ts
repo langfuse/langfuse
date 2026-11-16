@@ -10,6 +10,7 @@ import {
   LISTABLE_SCORE_TYPES,
   ListableScoreDataType,
   ScoreDataTypeEnum,
+  CORRECTION_SCORES_BILLABLE_FROM,
 } from "../../domain/scores";
 import {
   SCORE_EXPORT_CORE_FIELDS,
@@ -1633,7 +1634,17 @@ const getScoresUiGenericFromEvents = async <T>(props: {
   const tracesCTEParams: Record<string, unknown> = {};
 
   if (needsTracesCTE) {
-    const tracesEventsBuilder = eventsTraceMetadata(projectId);
+    // The trace lookup has no time bound of its own, so restrict it to traces
+    // of the scores in the window: only those can join below. Keeps it from
+    // reading the project's whole trace history.
+    const tracesEventsBuilder = eventsTraceMetadata(projectId).whereRaw(
+      `e.trace_id IN (
+        SELECT s.trace_id
+        FROM scores s
+        WHERE s.project_id = {projectId: String}
+        ${innerDatePruneQuery ? `AND ${innerDatePruneQuery}` : ""}
+      )`,
+    );
 
     if (traceFilterState.length > 0) {
       const cteTraceFilters = new FilterList(
@@ -2457,6 +2468,8 @@ export const getScoreCountsByProjectInCreationInterval = async ({
   projectId?: string;
   projectIds?: string[];
 }) => {
+  // Listable types stay a raw row count. CORRECTION rows created at or after
+  // the billing cutoff are included in the same count.
   const query = `
     SELECT
       project_id,
@@ -2466,7 +2479,13 @@ export const getScoreCountsByProjectInCreationInterval = async ({
     AND created_at < {end: DateTime64(3)}
     ${projectId ? "AND project_id = {projectId: String}" : ""}
     ${projectIds ? "AND project_id IN ({projectIds: Array(String)})" : ""}
-    AND data_type IN ({dataTypes: Array(String)})
+    AND (
+      data_type IN ({dataTypes: Array(String)})
+      OR (
+        data_type = 'CORRECTION'
+        AND created_at >= {correctionsFrom: DateTime64(3)}
+      )
+    )
     GROUP BY project_id
   `;
 
@@ -2476,6 +2495,9 @@ export const getScoreCountsByProjectInCreationInterval = async ({
       start: convertDateToClickhouseDateTime(start),
       end: convertDateToClickhouseDateTime(end),
       dataTypes: LISTABLE_SCORE_TYPES,
+      correctionsFrom: convertDateToClickhouseDateTime(
+        CORRECTION_SCORES_BILLABLE_FROM,
+      ),
       ...(projectId ? { projectId } : {}),
       ...(projectIds ? { projectIds } : {}),
     },
@@ -2752,6 +2774,12 @@ const buildAnalyticsScoreTraceAttributesFromEventsCte = (
   },
 });
 
+// Free-form score fields are cut to this many characters for analytics
+// exports. PostHog rejects events over 1MB after re-escaping them, so one
+// score with a runaway comment or metadata value would otherwise fail the
+// export for its whole window.
+const ANALYTICS_SCORE_FIELD_MAX_CHARS = 32_768;
+
 export const getScoresForAnalyticsIntegrations = async function* (
   projectId: string,
   projectName: string,
@@ -2786,9 +2814,9 @@ export const getScoresForAnalyticsIntegrations = async function* (
       s.timestamp as timestamp,
       s.name as name,
       s.value as value,
-      s.string_value as string_value,
+      substringUTF8(s.string_value, 1, {maxFieldChars: UInt32}) as string_value,
       s.data_type as data_type,
-      s.comment as comment,
+      substringUTF8(s.comment, 1, {maxFieldChars: UInt32}) as comment,
       s.environment as environment,
       s.trace_id as score_trace_id,
       s.session_id as score_session_id,
@@ -2799,7 +2827,7 @@ export const getScoresForAnalyticsIntegrations = async function* (
       t.user_id as trace_user_id,
       t.release as trace_release,
       t.tags as trace_tags,
-      s.metadata as metadata,
+      mapApply((k, v) -> (k, substringUTF8(v, 1, {maxFieldChars: UInt32})), s.metadata) as metadata,
       t.posthog_session_id as posthog_session_id,
       t.mixpanel_session_id as mixpanel_session_id
     FROM scores s ${shouldSkipScoresDedup(projectId) ? "" : "FINAL"}
@@ -2822,6 +2850,7 @@ export const getScoresForAnalyticsIntegrations = async function* (
       minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
       dataTypes: LISTABLE_SCORE_TYPES,
+      maxFieldChars: ANALYTICS_SCORE_FIELD_MAX_CHARS,
     },
     // Tagged explicitly: worker baggage isn't active during the deferred stream send.
     tags: { projectId, surface: "worker", route: "analytics_integration" },
@@ -2971,6 +3000,8 @@ export const getScoreCountsByProjectAndDay = async ({
   startDate: Date;
   endDate: Date;
 }) => {
+  // Listable types stay a raw row count. CORRECTION rows created at or after
+  // the billing cutoff are included on the day of their timestamp.
   const query = `
     SELECT
       count(*) as count,
@@ -2979,7 +3010,13 @@ export const getScoreCountsByProjectAndDay = async ({
     FROM scores
     WHERE timestamp >= {startDate: DateTime64(3)}
     AND timestamp < {endDate: DateTime64(3)}
-    AND data_type IN ({dataTypes: Array(String)})
+    AND (
+      data_type IN ({dataTypes: Array(String)})
+      OR (
+        data_type = 'CORRECTION'
+        AND created_at >= {correctionsFrom: DateTime64(3)}
+      )
+    )
     GROUP BY project_id, toDate(timestamp)
   `;
 
@@ -2993,6 +3030,9 @@ export const getScoreCountsByProjectAndDay = async ({
       startDate: convertDateToClickhouseDateTime(startDate),
       endDate: convertDateToClickhouseDateTime(endDate),
       dataTypes: LISTABLE_SCORE_TYPES,
+      correctionsFrom: convertDateToClickhouseDateTime(
+        CORRECTION_SCORES_BILLABLE_FROM,
+      ),
     },
     clickhouseConfigs: { request_timeout: 120_000 },
   });
@@ -3668,7 +3708,7 @@ export async function listScoresV3ForPublicApi(
         scoreDomainToV3(convertClickhouseScoreToDomain(row), params.fields),
       );
     } catch (error) {
-      logger.error("v3 score row dropped from response: conversion error", {
+      logger.warn("v3 score row dropped from response: conversion error", {
         error,
         scoreId: row.id,
         projectId: params.projectId,
@@ -3677,7 +3717,7 @@ export async function listScoresV3ForPublicApi(
   }
   return {
     data: filterAndValidateV3GetScoreList(items, (error) => {
-      logger.error(
+      logger.warn(
         "v3 score row dropped from response: schema validation error",
         {
           issues: error.issues,

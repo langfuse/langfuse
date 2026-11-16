@@ -1,7 +1,9 @@
 import { type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { PINCH_ZOOM_RATE } from "@/src/utils/panZoomGestures";
 import preview from "../../../.storybook/preview";
 import { TopicTreemapView } from "./TopicTreemapView";
+import { staticTopicTraces, storyFacet } from "./topic-story-traces";
 
 const counts = [55, 45, 27, 23, 21, 20, 20, 18, 17, 16, 15, 15, 14, 14, 13];
 const names = [
@@ -56,22 +58,15 @@ const rows = [
   })),
 ];
 
-const facet: ComponentProps<typeof TopicTreemapView>["facet"] = {
-  facetId: "intent",
-  name: "Intent",
-  facetVersion: 1,
+const facet = storyFacet(
+  { facetId: "intent", name: "Intent", facetVersion: 1, topics, map: null },
   rows,
-  topics,
-  map: null,
-  awaitingCount: 0,
-  usableCount: rows.length,
-};
+);
 
 const defaultArgs: ComponentProps<typeof TopicTreemapView> = {
   projectId: "storybook-topics",
   facet,
-  onGenerateTopics: fn(),
-  canGenerateTopics: true,
+  useTraces: staticTopicTraces(rows),
   peekView: {
     itemType: "TRACE",
     tableName: "topics-topic-traces",
@@ -276,6 +271,52 @@ export const SelectTopic = meta.story({
     await expect(
       within(list).getByRole("heading", { name: /Trace cost analysis/ }),
     ).toBeVisible();
+  },
+});
+
+export const ZoomTreemap = meta.story({
+  name: "(Test) Control scroll zooms tiles and reset restores them",
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const tile = await canvas.findByRole("button", {
+      name: "Trace cost analysis, 21 traces",
+    });
+    const area = () => {
+      const rect = tile.getBoundingClientRect();
+      return rect.width * rect.height;
+    };
+    const before = area();
+    await expect(
+      canvas.queryByRole("button", { name: "Reset zoom" }),
+    ).not.toBeInTheDocument();
+    const start = tile.getBoundingClientRect();
+    const at = {
+      clientX: start.left + start.width / 2,
+      clientY: start.top + start.height / 2,
+    };
+    tile.dispatchEvent(
+      new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        ctrlKey: true,
+        deltaY: -1 / PINCH_ZOOM_RATE,
+        ...at,
+      }),
+    );
+    // One zoom level doubles the treemap height, so every tile gets about twice the area.
+    await waitFor(() => expect(area() / before).toBeGreaterThan(1.8));
+    // The layout reflows, but the tile under the cursor stays in view.
+    const zoomed = tile.getBoundingClientRect();
+    const visible = canvas
+      .getByRole("region", { name: "Topics" })
+      .parentElement!.getBoundingClientRect();
+    await expect(zoomed.bottom).toBeGreaterThan(visible.top);
+    await expect(zoomed.top).toBeLessThan(visible.bottom);
+    await userEvent.click(canvas.getByRole("button", { name: "Reset zoom" }));
+    await waitFor(() => expect(area()).toBeCloseTo(before, 0));
+    await expect(
+      canvas.queryByRole("button", { name: "Reset zoom" }),
+    ).not.toBeInTheDocument();
   },
 });
 

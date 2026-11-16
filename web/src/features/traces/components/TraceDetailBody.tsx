@@ -21,11 +21,13 @@ export function TraceDetailBody({
   truncatedAtObservations,
   isPlaceholderData = false,
   layout,
+  header,
 }: {
   trace: TraceDetailData | undefined;
   context: NonNullable<TraceProps["context"]>;
   keySuffix?: string;
   layout?: TraceProps["layout"];
+  header: TraceProps["header"];
   /** Observation cap this trace was loaded under, when it hit it. */
   truncatedAtObservations?: number;
   /** `trace` is the previous trace, kept while the next one loads. */
@@ -37,7 +39,10 @@ export function TraceDetailBody({
     keySuffix ? `${trace?.id}-${keySuffix}` : trace?.id,
     isPlaceholderData,
   );
-  if (!trace) return <Trace isLoading context={context} layout={layout} />;
+  if (!trace)
+    return (
+      <Trace isLoading context={context} layout={layout} header={header} />
+    );
   return (
     <Trace
       key={traceKey}
@@ -48,6 +53,7 @@ export function TraceDetailBody({
       projectId={trace.projectId}
       context={context}
       layout={layout}
+      header={header}
       truncatedAtObservations={truncatedAtObservations}
       isPlaceholderData={isPlaceholderData}
     />

@@ -1,3 +1,4 @@
+import { Pencil } from "@langfuse/icons";
 import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { type TopicsActions } from "./prepare-topics-actions";
@@ -13,6 +14,18 @@ export function TopicsActionsMenu({
   const DisplayIcon = display.icon;
   return (
     <>
+      {actions.editRun && (
+        <HeaderActionMenuRow
+          label="Edit map"
+          icon={<Pencil size="base" color="default" />}
+          disabled={Boolean(actions.editRun.disabledReason)}
+          disabledReason={actions.editRun.disabledReason}
+          onClick={() => {
+            closeMenu();
+            actions.editRun?.onSelect();
+          }}
+        />
+      )}
       {actions.menu.map((action) => {
         const Icon = action.icon;
         function select() {

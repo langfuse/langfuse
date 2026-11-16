@@ -143,7 +143,7 @@ describe("user-bound API keys", () => {
   });
 
   describe("GatewayApiKeyService.create", () => {
-    it("binds the key to a creator who can invoke the gateway", async () => {
+    it("issues a USER-scoped key bound to a creator who can invoke the gateway", async () => {
       const org = await createOrg();
       const user = await createUser();
       await prisma.organizationMembership.create({
@@ -159,6 +159,12 @@ describe("user-bound API keys", () => {
       });
 
       expect(await boundUserOf(key.id)).toBe(user.id);
+      expect(
+        await prisma.apiKey.findUniqueOrThrow({
+          where: { id: key.id },
+          select: { scope: true },
+        }),
+      ).toEqual({ scope: "USER" });
     });
 
     it("leaves a service-account key unbound so it outlives the creator", async () => {

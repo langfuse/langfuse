@@ -47,11 +47,6 @@ export function useProjectAccess(session: Session | null) {
       return { hasAccess: true, projectId: routerProjectId };
     }
 
-    // Admin users have access to all projects
-    if (session?.user?.admin === true) {
-      return { hasAccess: true, projectId: routerProjectId };
-    }
-
     // Check if user's organizations contain this project
     const userProjects =
       session?.user?.organizations
@@ -61,5 +56,5 @@ export function useProjectAccess(session: Session | null) {
     const hasAccess = userProjects.includes(routerProjectId);
 
     return { hasAccess, projectId: routerProjectId };
-  }, [routerProjectId, session?.user?.admin, session?.user?.organizations]);
+  }, [routerProjectId, session?.user?.organizations]);
 }

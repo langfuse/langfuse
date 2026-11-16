@@ -1,4 +1,6 @@
+import { EvaluatorBlockReason } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
+import { classifyEvaluatorLlmError } from "../../evals/classifyEvaluatorLlmError";
 import type { DecisionModelRequest } from "../../evals/decisionModelEvaluatorExecution";
 import { createOpenAIDecisionModelClient } from "./openAIDecisionModelClient";
 
@@ -162,6 +164,74 @@ describe("createOpenAIDecisionModelClient", () => {
       });
     },
   );
+
+  it.each([
+    ["plain text", "Not Found", "text/plain"],
+    ["an HTML page", "<html><body>404</body></html>", "text/html"],
+    [
+      "a gateway JSON body",
+      JSON.stringify({ detail: "Not Found" }),
+      "application/json",
+    ],
+  ])(
+    "explains a 404 with %s as a base URL without the decisions endpoint",
+    async (_, body, contentType) => {
+      const fetchImpl = vi.fn().mockImplementation(
+        () =>
+          new Response(body, {
+            status: 404,
+            statusText: "Not Found",
+            headers: { "Content-Type": contentType },
+          }),
+      );
+      const client = createOpenAIDecisionModelClient({
+        apiKey: "sk-test",
+        model: "gpt-6-luna",
+        baseURL: "https://llm-proxy.example.com/v1",
+        fetchImpl,
+      });
+
+      const error = await client.evaluate(request).catch((e: unknown) => e);
+      expect(classifyEvaluatorLlmError(error)?.blockReason).toBe(
+        EvaluatorBlockReason.EVAL_MODEL_UNAVAILABLE,
+      );
+      expect(error).toMatchObject({
+        name: "AI_APICallError",
+        statusCode: 404,
+        isRetryable: false,
+        message:
+          "The decision-model endpoint was not found (POST https://llm-proxy.example.com/v1/decisions returned 404). Check that the connection's base URL supports OpenAI's /decisions endpoint, for example the default https://api.openai.com/v1.",
+      });
+    },
+  );
+
+  it("keeps the provider's message for a 404 with an OpenAI error body", async () => {
+    const fetchImpl = vi.fn().mockImplementation(() =>
+      jsonResponse(
+        {
+          error: {
+            message:
+              "The model `gpt-6-luna` does not exist or you do not have access to it.",
+            type: "invalid_request_error",
+            code: "model_not_found",
+          },
+        },
+        404,
+      ),
+    );
+    const client = createOpenAIDecisionModelClient({
+      apiKey: "sk-test",
+      model: "gpt-6-luna",
+      fetchImpl,
+    });
+
+    await expect(client.evaluate(request)).rejects.toMatchObject({
+      name: "AI_APICallError",
+      statusCode: 404,
+      message:
+        "The model `gpt-6-luna` does not exist or you do not have access to it.",
+    });
+  });
 
   it("fails the call when any question is refused", async () => {
     const fetchImpl = vi.fn().mockImplementation(() =>

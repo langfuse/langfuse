@@ -11,8 +11,24 @@ import { SessionConversationTimeline } from "@/src/features/sessions/components/
 import { getSessionConversationEntries } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionConversationEntries";
 import { useSessionConversationTimelineController } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
 import { getSessionTranscriptThreads } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptThreads";
+import { ConnectedSessionMessagesView } from "../ConnectedSessionMessagesView/ConnectedSessionMessagesView";
 
 export function TraceMessagesView() {
+  const { trace, sessionTraces, isPlaceholderData } = useTraceData();
+  if (sessionTraces && trace.sessionId) {
+    return (
+      <ConnectedSessionMessagesView
+        key={`${trace.projectId}:${trace.sessionId}`}
+        projectId={trace.projectId}
+        sessionId={trace.sessionId}
+        enabled={!isPlaceholderData}
+      />
+    );
+  }
+  return <SingleTraceMessagesView />;
+}
+
+function SingleTraceMessagesView() {
   const { trace, isPlaceholderData } = useTraceData();
   const [expandedTraceId, setExpandedTraceId] = useState<string | null>(null);
   const { selectNode, setSelectedTab } = useSelection();
@@ -20,6 +36,7 @@ export function TraceMessagesView() {
   const { messageTrace, navigation } = useTraceMessagesNavigation();
   const { data, state } = useTraceMessagesTranscript(
     {
+      context: "other",
       projectId: trace.projectId,
       traceId: messageTrace.id,
       timestamp: messageTrace.timestamp,

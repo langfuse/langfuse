@@ -3,6 +3,14 @@
 import { buildTracePath } from "@langfuse/shared";
 
 describe("buildTracePath", () => {
+  it("preserves session scope in shared links while keeping trace scope implicit", () => {
+    expect(
+      buildTracePath({ projectId: "p", traceId: "t", aggregation: "session" }),
+    ).toBe("/project/p/traces/t?aggregation=session");
+    expect(
+      buildTracePath({ projectId: "p", traceId: "t", aggregation: "trace" }),
+    ).toBe("/project/p/traces/t");
+  });
   it("builds a trace path without query params", () => {
     expect(
       buildTracePath({

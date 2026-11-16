@@ -12,6 +12,61 @@ export const Viewing = meta.story({
   args: { path: "SKILL.md", content, mode: { kind: "view" } },
 });
 
+export const LinkedFiles = meta.story({
+  name: "(Test) Opens relative links in the skill",
+  args: { path: "SKILL.md", content, mode: { kind: "view" } },
+  render: function Render(args) {
+    const files: Record<string, string> = {
+      "SKILL.md": "# Instructions\n\n[Read the guide](references/guide.md)",
+      "references/guide.md":
+        "# Guide\n\n[Run script](../scripts/run%20task.py#example)\n\n[Back](../SKILL.md)\n\n[Website](https://langfuse.com)\n\n[Missing](missing.md)\n\n[Outside skill](../../other/SKILL.md)",
+      "scripts/run task.py": "print('Linked file opened')",
+    };
+    const [path, setPath] = useState("SKILL.md");
+    return (
+      <SkillFileView
+        {...args}
+        path={path}
+        content={files[path]}
+        fileNavigation={{ paths: Object.keys(files), onSelect: setPath }}
+      />
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("link", { name: "Read the guide" }));
+    await expect(canvas.getByRole("heading", { name: "Guide" })).toBeVisible();
+    await expect(canvas.getByRole("link", { name: "Website" })).toHaveAttribute(
+      "href",
+      "https://langfuse.com/",
+    );
+    for (const name of ["Missing", "Outside skill"]) {
+      const link = canvas.getByRole("link", { name });
+      for (const [type, button] of [
+        ["click", 0],
+        ["auxclick", 1],
+        ["contextmenu", 2],
+      ] as const) {
+        const event = new MouseEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          button,
+        });
+        link.dispatchEvent(event);
+        await expect(event.defaultPrevented).toBe(true);
+      }
+      await expect(
+        canvas.getByRole("heading", { name: "Guide" }),
+      ).toBeVisible();
+    }
+    await userEvent.click(canvas.getByRole("link", { name: "Run script" }));
+    await expect(canvas.getByText("scripts/run task.py")).toBeVisible();
+    await expect(
+      canvas.getByText("Linked file opened", { exact: false }),
+    ).toBeVisible();
+  },
+});
+
 export const DraftPreview = meta.story({
   name: "(Test) Preview preserves unsaved edits",
   args: { path: "SKILL.md", content, mode: { kind: "view" } },

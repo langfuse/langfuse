@@ -127,10 +127,7 @@ export const isTimeSeriesChart = (
  * collision dropping skips ticks unevenly (e.g. 6/9, 6/11, 6/13 vanish while
  * 6/1–6/8 stay), making tick density vary by chart width. (LFE-10549)
  */
-export const getEvenTickInterval = (
-  pointCount: number,
-  maxTicks = 8,
-): number =>
+export const getEvenTickInterval = (pointCount: number, maxTicks = 8): number =>
   pointCount <= maxTicks ? 0 : Math.ceil(pointCount / maxTicks) - 1;
 
 /**
@@ -349,7 +346,7 @@ const formatWithConstrainedDecimals = ({
 /**
  * Formats a metric into structured parts for chart labels, axes, and tooltips.
  *
- * - `unit === "millisecond"` auto-scales across ms/s/min/h/d and can reduce
+ * - `unit === "milliseconds"` auto-scales across ms/s/min/h/d and can reduce
  *   fractional precision to satisfy `maxCharacters`.
  * - `unit === "USD"` formats with a currency prefix and can reduce fractional
  *   precision to satisfy `maxCharacters`. With `usdPrecision: "cents"` it keeps
@@ -379,7 +376,7 @@ export function formatMetric(
   const applyNegative = (formatted: FormattedMetric): FormattedMetric =>
     negative ? { negative: true, ...formatted } : formatted;
 
-  if (unit === "millisecond") {
+  if (unit === "milliseconds") {
     const tier = durationDivisors.reduce(
       (acc, divisor, i) => (absValue >= divisor ? i : acc),
       0,

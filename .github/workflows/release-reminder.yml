@@ -54,8 +54,8 @@ jobs:
           released_epoch="$(date -u -d "$released_at" +%s)"
           age_seconds="$(( $(date -u +%s) - released_epoch ))"
 
-          if [ "$age_seconds" -lt $((16 * 60 * 60)) ]; then
-            echo "Latest release ${release_tag} is less than 16 hours old; skipping."
+          if [ "$age_seconds" -lt $((24 * 60 * 60)) ]; then
+            echo "Latest release ${release_tag} is less than 24 hours old; skipping."
             echo "notify=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -77,7 +77,7 @@ jobs:
           else
             pull_request_label="PRs have"
           fi
-          message="$(printf 'The latest release %s is more than 16 hours old:\n%s\n\n%s release-worthy %s been merged since.\n\nView all unreleased changes:\n%s' \
+          message="$(printf 'The latest release %s is more than 24 hours old:\n%s\n\n%s release-worthy %s been merged since.\n\nView all unreleased changes:\n%s' \
             "$release_tag" "${{ github.server_url }}/${REPOSITORY}/releases/tag/${release_tag}" "$count" "$pull_request_label" "$compare_url")"
 
           delimiter="MESSAGE_EOF_${RANDOM}${RANDOM}"

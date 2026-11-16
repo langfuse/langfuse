@@ -105,11 +105,11 @@ const TemplateTypeBadge = ({
     })();
 
     return (
-      <Badge color="primary" leadingIcon={Icon ?? undefined} text={label} />
+      <Badge color="outline" leadingIcon={Icon ?? undefined} text={label} />
     );
   }
 
-  return <Badge color="primary" text="LLM-as-judge" />;
+  return <Badge color="outline" text="LLM-as-judge" />;
 };
 
 const templateTableRowHeights: CustomHeights = {
@@ -354,7 +354,7 @@ export default function EvalsTemplateTable({
       cell: (row) => {
         const resultType = row.getValue();
 
-        return <Badge color="primary" text={resultType} />;
+        return <Badge color="outline" text={resultType} />;
       },
     }),
     columnHelper.accessor("maintainer", {

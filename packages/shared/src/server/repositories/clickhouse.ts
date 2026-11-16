@@ -27,7 +27,10 @@ import {
   isProgressRow,
   isRow,
 } from "@clickhouse/client";
-import { RESOURCE_LIMIT_ERROR_MESSAGE } from "../../errors/errorMessages";
+import {
+  RESOURCE_LIMIT_ERROR_MESSAGE,
+  RESULT_SIZE_LIMIT_ERROR_MESSAGE,
+} from "../../errors/errorMessages";
 import {
   buildClickHouseLogComment,
   normalizeClickHouseQueryTags,
@@ -56,11 +59,14 @@ export { TupleParam } from "@clickhouse/client";
  */
 // Error type configuration map
 const ERROR_TYPE_CONFIG: Record<
-  "MEMORY_LIMIT" | "OVERCOMMIT" | "TIMEOUT",
+  "MEMORY_LIMIT" | "OVERCOMMIT" | "TIMEOUT" | "RESULT_SIZE",
   {
     discriminators: string[];
   }
 > = {
+  RESULT_SIZE: {
+    discriminators: ["too_many_rows_or_bytes", "limit for result exceeded"],
+  },
   // Order matters: matched top-to-bottom, first hit wins. OvercommitTracker
   // kills also carry a "Memory limit … exceeded" phrase, so OVERCOMMIT must
   // precede MEMORY_LIMIT to keep the more specific cause in the outcome metric.
@@ -88,6 +94,12 @@ export class ClickHouseResourceError extends Error {
 
   public readonly errorType: ErrorType;
   public readonly tags?: NormalizedClickHouseQueryTags;
+
+  get adviceMessage(): string {
+    return this.errorType === "RESULT_SIZE"
+      ? RESULT_SIZE_LIMIT_ERROR_MESSAGE
+      : ClickHouseResourceError.ERROR_ADVICE_MESSAGE;
+  }
 
   constructor(
     errType: ErrorType,

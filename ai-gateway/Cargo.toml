@@ -12,6 +12,7 @@ chrono = { version = "0.4", default-features = false, features = ["std"] }
 flate2 = "1.1"
 hmac = "0.13"
 http-body-util = "0.1"
+ipnet = "2.12"
 futures-util = "0.3"
 opentelemetry-http = "0.33"
 opentelemetry = { version = "0.33", default-features = false, features = ["trace", "metrics", "internal-logs"] }
@@ -28,6 +29,7 @@ tower-http = { version = "0.7", features = ["timeout", "trace"] }
 tracing = "0.1.44"
 tracing-opentelemetry = { version = "0.34", default-features = false }
 tracing-subscriber = { version = "0.3.23", default-features = false, features = ["env-filter", "fmt", "json"] }
+url = "2.5"
 uuid = { version = "1.26.1", default-features = false, features = ["v7", "std"] }
 secrecy = { version = "0.10", features = ["serde"] }
 thiserror = "2"

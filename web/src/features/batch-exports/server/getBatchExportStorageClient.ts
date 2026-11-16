@@ -2,6 +2,7 @@ import { env } from "@/src/env.mjs";
 import {
   type StorageService,
   StorageServiceFactory,
+  storageKeys,
 } from "@langfuse/shared/src/server";
 
 let batchExportStorageServiceClient: StorageService;
@@ -12,8 +13,10 @@ export const getBatchExportStorageServiceClient = (
   if (!batchExportStorageServiceClient) {
     batchExportStorageServiceClient = StorageServiceFactory.getInstance({
       bucketName,
-      accessKeyId: env.LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY,
+      credentials: storageKeys(
+        env.LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID,
+        env.LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY,
+      ),
       endpoint: env.LANGFUSE_S3_BATCH_EXPORT_ENDPOINT,
       externalEndpoint: env.LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT,
       region: env.LANGFUSE_S3_BATCH_EXPORT_REGION,

@@ -37,6 +37,8 @@ export interface TableProps<TData> {
   columns: ColumnDef<TData>[];
   actions?: (row: TData) => ComponentProps<typeof DropdownMenu>["items"];
   actionsDisabledReason?: string;
+  /** `belowMd` for a menu that replaces inline action columns hidden below md. */
+  actionsVisibility?: "always" | "belowMd";
   data: AsyncTableData<TData[]>;
   orderBy?: OrderByState;
   setOrderBy?: (state: OrderByState) => void;
@@ -59,6 +61,7 @@ export function Table<TData extends object>({
   columns,
   actions,
   actionsDisabledReason,
+  actionsVisibility = "always",
   data,
   orderBy,
   setOrderBy,
@@ -84,8 +87,14 @@ export function Table<TData extends object>({
         header: "",
         size: 48,
         enableResizing: false,
-        headerClassName: "text-right",
-        cellClassName: "text-right",
+        headerClassName: cn(
+          "text-right",
+          actionsVisibility === "belowMd" && "md:hidden",
+        ),
+        cellClassName: cn(
+          "text-right",
+          actionsVisibility === "belowMd" && "md:hidden",
+        ),
         cell: ({ row }) => {
           const items = actions(row.original);
 
@@ -139,7 +148,7 @@ export function Table<TData extends object>({
         ),
       },
     ];
-  }, [actions, actionsDisabledReason, columns]);
+  }, [actions, actionsDisabledReason, actionsVisibility, columns]);
   const table = useReactTable({
     data: data.status === "success" ? data.data : [],
     columns: tableColumns,

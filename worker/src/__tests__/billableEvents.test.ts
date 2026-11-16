@@ -87,6 +87,49 @@ const insertBillableEvents = (
   });
 
 describe("billable_events materialized views", () => {
+  it("preserves the payload size through core truncation and billing", async (ctx) => {
+    await skipUnlessBillableEvents(ctx);
+    const projectId = randomUUID();
+    const traceId = randomUUID();
+    await createEventsCh([
+      createEvent({
+        project_id: projectId,
+        trace_id: traceId,
+        span_id: "server-sized",
+        event_bytes: undefined,
+        input: "🔥".repeat(500),
+        output: "café".repeat(500),
+        metadata_names: ["large"],
+        metadata_values: ["x".repeat(500)],
+      }),
+    ]);
+    const full = await queryClickhouse<{ bytes: string }>({
+      query: `SELECT toString(event_bytes) AS bytes
+        FROM events_full WHERE project_id = {projectId: String}`,
+      params: { projectId },
+    });
+    expect(Number(full[0].bytes)).toBeGreaterThan(0);
+    const core = await queryClickhouse<{
+      bytes: string;
+      input_chars: string;
+      metadata_chars: string;
+    }>({
+      query: `SELECT toString(event_bytes) AS bytes, toString(lengthUTF8(input)) AS input_chars,
+        toString(lengthUTF8(metadata_values[1])) AS metadata_chars
+        FROM events_core WHERE project_id = {projectId: String}`,
+      params: { projectId },
+    });
+    expect(core).toEqual([
+      { bytes: full[0].bytes, input_chars: "200", metadata_chars: "200" },
+    ]);
+    const billable = await getBillableRows(projectId);
+    expect(
+      billable
+        .filter((row) => row.event_type === "observation")
+        .map((row) => String(row.event_bytes)),
+    ).toEqual([full[0].bytes]);
+  });
+
   it("records observations, one row per trace and every score type", async (ctx) => {
     await skipUnlessBillableEvents(ctx);
     const projectId = randomUUID();

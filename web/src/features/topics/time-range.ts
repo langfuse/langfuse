@@ -7,10 +7,9 @@ export function relativeTopicTimeRange(days: number, to = new Date()) {
   return { from: new Date(to.getTime() - days * DAY), to };
 }
 
-export function isValidTopicTimeRange(range: TopicTimeRange) {
+export function isValidTopicTimeRange(range: TopicTimeRange, maxMs = 90 * DAY) {
   return (
-    range.from < range.to &&
-    range.to.getTime() - range.from.getTime() <= 90 * DAY
+    range.from < range.to && range.to.getTime() - range.from.getTime() <= maxMs
   );
 }
 

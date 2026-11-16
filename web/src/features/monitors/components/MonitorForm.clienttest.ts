@@ -14,7 +14,6 @@ import { __test } from "./MonitorForm";
 
 const {
   createDefaults,
-  thresholdUnit,
   monitorToDefaults,
   nameOrPlaceholder,
   monitorCreateAnalyticsProperties,
@@ -76,28 +75,6 @@ describe("createDefaults", () => {
 
   it("uses a prefilled evaluator score window", () => {
     expect(createDefaults("project-1", { window: "1d" }).window).toBe("1d");
-  });
-});
-
-describe("thresholdUnit", () => {
-  it("uses the counted rows' unit for a count", () => {
-    expect(thresholdUnit("observations", "count", "count")).toBe(
-      "observations",
-    );
-    expect(thresholdUnit("observations", "latency", "count")).toBe(
-      "observations",
-    );
-  });
-
-  it("uses the measure's spelled-out unit for a value aggregation", () => {
-    expect(thresholdUnit("observations", "latency", "p95")).toBe(
-      "milliseconds",
-    );
-    expect(thresholdUnit("observations", "totalCost", "sum")).toBe("USD");
-  });
-
-  it("names the score value unit, which the view leaves undeclared", () => {
-    expect(thresholdUnit("scores-numeric", "value", "avg")).toBe("score value");
   });
 });
 

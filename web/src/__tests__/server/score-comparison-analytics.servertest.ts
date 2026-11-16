@@ -45,7 +45,6 @@ describe("Score Comparison Analytics tRPC", () => {
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin: true,
     },
     environment: {} as any,
     expires: new Date().toISOString(),

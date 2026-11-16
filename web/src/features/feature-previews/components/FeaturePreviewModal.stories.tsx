@@ -58,6 +58,7 @@ const meta = preview.meta({
     state: {
       sessionViewV2: { enabled: false, onToggle: fn(), isToggling: false },
       sessionViewV2Timeline: { enabled: false, disabled: true, onToggle: fn() },
+      unifiedTraceSessionView: { enabled: false, onToggle: fn() },
     },
   },
   render: StatefulFeaturePreviewModal,

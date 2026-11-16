@@ -39,7 +39,6 @@ const session: Session = {
     ],
     featureFlags: testFeatureFlags(),
     v4BetaEnabled: false,
-    admin: true,
   },
   environment: {} as any,
 };

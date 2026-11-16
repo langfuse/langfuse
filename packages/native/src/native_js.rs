@@ -48,19 +48,6 @@ pub(crate) fn from_js_field<T: FromJsValue>(
     }
 }
 
-pub(crate) fn required_js_field<T: FromJsValue>(
-    object: Object<'_>,
-    key: &str,
-) -> Result<T, String> {
-    let value = get_js_property(&object, key)?;
-    if is_missing(&value)? {
-        return Err(format!(
-            "{key} must be supplied by the finalized TypeScript row"
-        ));
-    }
-    T::from_js(value).map_err(|error| format!("{key}: {error}"))
-}
-
 pub(crate) trait FromJsValue: Sized {
     fn from_js(value: Unknown<'_>) -> Result<Self, String>;
 

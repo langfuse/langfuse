@@ -240,7 +240,12 @@ function lowerSingle(
       return filter.operator === "<>" ? negate(node) : node;
     }
     case "categoryOptions": {
-      const path = scorePathOf(filter.column, filter.key, registry);
+      const namespace = Object.entries(
+        registry.keyedOptionNamespaces ?? {},
+      ).find(([, column]) => column === filter.column)?.[0];
+      const path = namespace
+        ? `${namespace}.${quoteIfNeeded(filter.key)}`
+        : scorePathOf(filter.column, filter.key, registry);
       if (path === null || filter.value.length === 0) return null;
       const node = filterNode(path, "=", filter.value);
       return filter.operator === "none of" ? negate(node) : node;
@@ -455,7 +460,12 @@ function normalizeFilterValues(
 // `:` is contains and `:=` is exact, two different ops — as is datetime, which
 // has only comparison forms.
 function exactEqualsBareForm(ref: FieldRef): boolean {
-  if (ref.type === "metadata" || ref.type === "scores") return true;
+  if (
+    ref.type === "metadata" ||
+    ref.type === "scores" ||
+    ref.type === "keyedOptions"
+  )
+    return true;
   if (ref.type === "field") {
     const k = ref.field.kind;
     return (

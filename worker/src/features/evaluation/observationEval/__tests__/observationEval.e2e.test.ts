@@ -7,7 +7,7 @@ import {
 } from "@prisma/client";
 import { randomUUID } from "crypto";
 import { scheduleObservationEvals } from "../scheduleObservationEvals";
-import { processObservationEval } from "../observationEvalProcessor";
+import { processEval } from "../observationEvalProcessor";
 import { type ObservationEvalSchedulerDeps } from "../types";
 import {
   createTestObservation,
@@ -26,7 +26,7 @@ const mocks = vi.hoisted(() => ({
   writeInternalTrace: vi.fn(),
 }));
 
-// Mock prisma for processObservationEval
+// Mock prisma for processEval
 vi.mock("@langfuse/shared/src/db", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/db");
 
@@ -298,7 +298,7 @@ describe("Observation Eval E2E Pipeline", () => {
       mockMigratedAssignment(mockConfig);
 
       // ACT: Process the observation eval job
-      await processObservationEval({
+      await processEval({
         event: {
           projectId,
           jobExecutionId: capturedJobExecutionId!,
@@ -394,10 +394,11 @@ describe("Observation Eval E2E Pipeline", () => {
         jobInputObservationId: observation.span_id,
         jobInputDatasetItemId: null,
         jobTemplateId: null,
+        createdAt: new Date(),
       });
       mockMigratedAssignment(mockConfig);
 
-      await processObservationEval({
+      await processEval({
         event: {
           projectId,
           jobExecutionId: enqueued.jobExecutionId,
@@ -505,7 +506,7 @@ describe("Observation Eval E2E Pipeline", () => {
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
       mockMigratedAssignment(mockConfig);
 
-      await processObservationEval({
+      await processEval({
         event: {
           projectId,
           jobExecutionId: job.id,
@@ -755,7 +756,7 @@ describe("Observation Eval E2E Pipeline", () => {
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(mockJob);
       mockMigratedAssignment(mockConfig);
 
-      await processObservationEval({
+      await processEval({
         event: {
           projectId,
           jobExecutionId: "job-123",
@@ -852,7 +853,7 @@ describe("Observation Eval E2E Pipeline", () => {
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(mockJob);
       mockMigratedAssignment(mockConfig);
 
-      await processObservationEval({
+      await processEval({
         event: {
           projectId,
           jobExecutionId: "job-123",

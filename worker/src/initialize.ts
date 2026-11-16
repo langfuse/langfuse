@@ -7,11 +7,16 @@ import {
   logger,
   recordIncrement,
 } from "@langfuse/shared/src/server";
+import { initializeEventByteAccounting } from "./services/ClickhouseWriter/eventByteAccounting";
+import { env, v4WritesToEventsTable } from "./env";
 
 export const initializeWorker = async (): Promise<void> => {
   initializeNativeAddon();
 
   await initializeClickhouseCompatibility();
+  if (v4WritesToEventsTable(env)) {
+    await initializeEventByteAccounting();
+  }
 
   await Promise.all([upsertDefaultModelPrices(), upsertLangfuseDashboards()]);
 };

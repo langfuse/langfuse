@@ -9,7 +9,7 @@ export function useInternalViewMode() {
   const session = useSession();
   const enabled = useInternalFeaturesEnabled();
   const available = hasInternalAccess({
-    isAdmin: session.data?.user?.admin === true,
+    email: session.data?.user?.email,
     isExperimentalFeaturesEnabled:
       session.data?.environment.enableExperimentalFeatures === true,
   });

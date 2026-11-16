@@ -54,7 +54,6 @@ export function CreateProjectMemberDialogController({
     }) || canManageOrgOwnership;
   const hasProjectRoleEntitlement = useHasEntitlement("rbac-project-roles");
   const isAiGatewayEnabled = useIsFeatureEnabled("aiGateway", {
-    enableForAdmins: false,
     organizationId: orgId,
   });
   const hasOnlySingleProjectAccess =

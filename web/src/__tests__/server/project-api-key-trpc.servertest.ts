@@ -93,7 +93,6 @@ describe("project API keys trpc", () => {
           },
         ],
         featureFlags: testFeatureFlags(),
-        admin: false,
       },
       environment: {} as any,
     };

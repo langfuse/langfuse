@@ -42,6 +42,7 @@ export const DYNAMIC_API_ROUTE_TEMPLATES = [
   "/api/public/unstable/skills/[skillName]",
   "/api/public/unstable/skills/[skillName]/versions/[skillVersion]",
   "/api/public/unstable/topic-facets/[facetId]",
+  "/api/public/unstable/topic-rules/[ruleId]",
   "/api/public/unstable/topics/[topicId]",
   "/api/public/v2/datasets/[datasetName]",
   "/api/public/v2/evaluation-rules/[evaluationRuleId]",

@@ -15,7 +15,6 @@ const createCaller = async () => {
       id: `user-${randomUUID()}`,
       name: "Models Test User",
       canCreateOrganizations: true,
-      admin: true,
       organizations: [
         {
           id: org.id,

@@ -146,7 +146,7 @@ export default function SlackIntegrationPage() {
                           </span>
                         ) : (
                           <Badge
-                            color="primary"
+                            color="outline"
                             text={
                               selectedChannel.isPrivate ? "Private" : "Public"
                             }

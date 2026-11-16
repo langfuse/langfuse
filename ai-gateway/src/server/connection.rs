@@ -47,6 +47,11 @@ impl Listener for ObservedListener {
 
     async fn accept(&mut self) -> (Self::Io, Self::Addr) {
         let (io, peer) = Listener::accept(&mut self.0).await;
+        // Streamed responses are many small writes; with Nagle enabled each one
+        // after the first waits for the client's delayed ACK (~40 ms on Linux).
+        if let Err(error) = io.set_nodelay(true) {
+            tracing::debug!(%error, "failed to set TCP_NODELAY");
+        }
         (ObservedStream::new(io, peer), peer)
     }
 

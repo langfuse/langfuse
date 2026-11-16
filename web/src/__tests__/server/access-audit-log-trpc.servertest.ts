@@ -56,7 +56,6 @@ async function setup({ role, plan }: { role: Role; plan: Plan }) {
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin: false,
     },
     environment: {} as any,
   };

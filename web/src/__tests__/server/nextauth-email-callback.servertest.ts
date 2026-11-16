@@ -1,12 +1,13 @@
 import { createHash, randomBytes, randomInt, randomUUID } from "crypto";
+import { EventEmitter } from "events";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-// The EmailProvider is only registered when SMTP is configured, and the
-// provider list is built when `@/src/server/auth` is first imported. Set the
-// variables before any import so `GET /api/auth/callback/email` resolves to a
-// real provider instead of a "provider not found" redirect.
+// The EmailProvider is only registered when SMTP is configured, and
+// `@/src/env.mjs` reads the variables when it is first imported. Set them
+// before any import so `GET /api/auth/callback/email` resolves to a real
+// provider instead of a "provider not found" redirect.
 vi.hoisted(() => {
   process.env.SMTP_CONNECTION_URL = "smtp://localhost:1025";
   process.env.EMAIL_FROM_ADDRESS = "noreply@example.com";
@@ -24,11 +25,14 @@ import {
 import { verifyTurnstileToken } from "@/src/features/auth/server/verifyTurnstile";
 import type * as VerifyTurnstileModule from "@/src/features/auth/server/verifyTurnstile";
 import auth from "@/src/pages/api/auth/[...nextauth]";
+import trpcHandler from "@/src/pages/api/trpc/[trpc]";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { getAuthOptions } from "@/src/server/auth";
 import { getCookieName } from "@/src/server/utils/cookies";
 import { prisma } from "@langfuse/shared/src/db";
+import { sendResetPasswordVerificationRequest } from "@langfuse/shared/src/server";
+import type * as SharedServerModule from "@langfuse/shared/src/server";
 
 vi.mock(
   "@/src/features/auth/server/verifyTurnstile",
@@ -40,6 +44,12 @@ vi.mock(
     };
   },
 );
+
+// Records each code instead of sending it, so a test can read the plain code.
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof SharedServerModule>()),
+  sendResetPasswordVerificationRequest: vi.fn(),
+}));
 
 const OLD_PASSWORD = "Oldpass1!";
 const NEW_PASSWORD = "Newpass1!";
@@ -237,6 +247,171 @@ function csrfPair() {
     .digest("hex");
   return { csrfToken, cookie: `${csrfToken}|${csrfTokenHash}` };
 }
+
+describe("POST /api/auth/signin/email code lifetime", () => {
+  const SIGNUP_CALLBACK_URL = "http://localhost:3000/auth/setup-password";
+  const RESET_CALLBACK_URL = "http://localhost:3000/auth/reset-password";
+  const requestedAt = new Date("2026-10-30T12:00:00.000Z");
+  const sentAs = {
+    plain: (email: string) => email,
+    "a comma-suffixed domain": (email: string) => `${email},x.y`,
+    "upper case with spaces": (email: string) => ` ${email.toUpperCase()} `,
+    "a full-width first letter": (email: string) =>
+      `${String.fromCodePoint(email.codePointAt(0)! + 0xfee0)}${email.slice(1)}`,
+  };
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("gives a sign-up code 10 minutes, so it still resets at 9", async () => {
+    const { userId, email } = await createUser({ password: null });
+    const token = await requestEmailCode({
+      email,
+      callbackUrl: SIGNUP_CALLBACK_URL,
+    });
+
+    await expectStoredLifetimeSeconds(email, 600);
+    await resetPasswordAt(9, { email, token });
+    await expectPassword(userId, NEW_PASSWORD);
+  });
+
+  it("answers an expired code with 401, pointing at Send another code", async () => {
+    const { email } = await createUser({ password: OLD_PASSWORD });
+    const token = uniqueOtp();
+    await insertOtp({ email, token, expires: new Date(Date.now() - 60_000) });
+
+    const res = await postResetPassword({
+      email,
+      token,
+      password: NEW_PASSWORD,
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(JSON.parse(res._getData()).error.json.message).toBe(
+      'This code is wrong or has expired. Use "Send another code" to get a new one.',
+    );
+  });
+
+  it.each([
+    {
+      account: "a passwordless account",
+      password: null,
+      callbackUrl: SIGNUP_CALLBACK_URL,
+      form: "a full-width first letter",
+      seconds: 600,
+    },
+    {
+      account: "a passwordless account",
+      password: null,
+      callbackUrl: RESET_CALLBACK_URL,
+      form: "plain",
+      seconds: 180,
+    },
+    {
+      account: "a passwordless account",
+      password: null,
+      callbackUrl: SIGNUP_CALLBACK_URL,
+      form: "a comma-suffixed domain",
+      seconds: 600,
+    },
+    {
+      account: "a passwordless account",
+      password: null,
+      callbackUrl: SIGNUP_CALLBACK_URL,
+      form: "upper case with spaces",
+      seconds: 600,
+    },
+  ] as const)(
+    "gives $account $seconds s for $callbackUrl, sent as $form",
+    async ({ password, callbackUrl, form, seconds }) => {
+      const { email } = await createUser({ password });
+      await requestEmailCode({ email: sentAs[form](email), callbackUrl });
+
+      await expectStoredLifetimeSeconds(email, seconds);
+    },
+  );
+
+  async function postEmailCodeRequest({
+    email,
+    callbackUrl,
+  }: {
+    email: string;
+    callbackUrl: string;
+  }) {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(requestedAt);
+    vi.mocked(sendResetPasswordVerificationRequest).mockClear();
+    const { csrfToken, cookie } = csrfPair();
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "POST",
+      headers: { host: "localhost:3000" },
+      query: { nextauth: ["signin", "email"] },
+      body: { email, csrfToken, callbackUrl, json: "true" },
+    });
+    req.cookies = { [getCookieName("next-auth.csrf-token")]: cookie };
+
+    await auth(req, res);
+
+    expect(res.statusCode).toBe(200);
+  }
+
+  async function requestEmailCode(request: {
+    email: string;
+    callbackUrl: string;
+  }) {
+    await postEmailCodeRequest(request);
+    expect(sendResetPasswordVerificationRequest).toHaveBeenCalledOnce();
+    const [{ token }] = vi.mocked(sendResetPasswordVerificationRequest).mock
+      .calls[0];
+    return token;
+  }
+
+  async function expectStoredLifetimeSeconds(email: string, seconds: number) {
+    const code = await prisma.verificationToken.findFirstOrThrow({
+      where: { identifier: email },
+    });
+    expect((code.expires.getTime() - requestedAt.getTime()) / 1000).toBe(
+      seconds,
+    );
+  }
+
+  // credentials.resetPassword through the app's tRPC HTTP handler
+  async function postResetPassword(input: {
+    email: string;
+    token: string;
+    password: string;
+  }) {
+    // the handler settles on the response's "finish", which needs an emitter
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>(
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        query: { trpc: "credentials.resetPassword" },
+        body: { json: input },
+      },
+      { eventEmitter: EventEmitter },
+    );
+
+    await trpcHandler(req, res);
+
+    return res;
+  }
+
+  function resetPasswordAt(
+    minutesLater: number,
+    { email, token }: { email: string; token: string },
+  ) {
+    vi.setSystemTime(requestedAt.getTime() + minutesLater * 60_000);
+    const ctx = createInnerTRPCContext({ session: null, headers: {} });
+    const caller = appRouter.createCaller({ ...ctx, prisma });
+    return caller.credentials.resetPassword({
+      email,
+      token,
+      password: NEW_PASSWORD,
+    });
+  }
+});
 
 function uniqueOtp() {
   return randomInt(100000, 1000000).toString();

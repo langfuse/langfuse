@@ -129,8 +129,10 @@ export function withMiddlewares(
 
         if (error instanceof ClickHouseResourceError) {
           const errorMessage =
-            options?.clickHouseResourceErrorMessage ??
-            DEFAULT_CLICKHOUSE_RESOURCE_ERROR_MESSAGE;
+            error.errorType === "RESULT_SIZE"
+              ? error.adviceMessage
+              : (options?.clickHouseResourceErrorMessage ??
+                DEFAULT_CLICKHOUSE_RESOURCE_ERROR_MESSAGE);
 
           logger.warn("ClickHouse resource limit exceeded", {
             errorType: error.errorType,
@@ -148,7 +150,10 @@ export function withMiddlewares(
 
           return res.status(422).json({
             message: errorMessage,
-            error: "Request timed out",
+            error:
+              error.errorType === "RESULT_SIZE"
+                ? "Query result too large"
+                : "Request timed out",
           });
         }
 

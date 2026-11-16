@@ -60,6 +60,8 @@ export type AnalyticsScoreEvent = {
   langfuse_score_comment?: unknown;
   langfuse_score_metadata?: unknown;
   langfuse_score_string_value?: unknown;
+  langfuse_score_truncated_fields?: unknown;
+  langfuse_score_omitted_fields?: unknown;
   langfuse_score_data_type?: unknown;
   langfuse_trace_name?: unknown;
   langfuse_trace_id?: unknown;

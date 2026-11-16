@@ -1,6 +1,7 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
 imports:
   errors: ./errors.yml
+  evals: ../evaluation-commons.yml
   pagination: ../utils/pagination.yml
 
 service:
@@ -11,9 +12,9 @@ service:
       docs: |
         Unstable: Topics is in closed beta. The shape may change without notice.
 
-        List the project's Topics facets. Only active facets (attached to the
-        project's Topics rule, or all facets if the project has no rule) are
-        returned unless `filter` contains an `active` condition.
+        List the project's Topics facets. Only active facets (run by a Topics
+        rule, or all facets if the project has no rule) are returned unless
+        `filter` contains an `active` condition.
 
         `filter` is a JSON array of filter conditions combined with AND.
         String matching is case-insensitive. Columns: `id` (stringOptions),
@@ -64,7 +65,7 @@ service:
       docs: |
         Unstable: Topics is in closed beta. The shape may change without notice.
 
-        List the topics of each active facet's current published map, with
+        List the topics of each active facet's live map, with
         the number of traces currently assigned to each topic in the window.
         Retired topics are not listed. `facets` holds per-facet trace counts
         by topic status.
@@ -74,9 +75,9 @@ service:
 
         `filter` is a JSON array of filter conditions combined with AND.
         String matching is case-insensitive. Columns: `facetId`
-        (stringOptions), `facetName` (string, stringOptions), `id`
-        (stringOptions), `name` (string, stringOptions). Facet conditions also
-        restrict `facets`.
+        (stringOptions), `facetName` (string, stringOptions), `ruleId`
+        (stringOptions), `id` (stringOptions), `name` (string, stringOptions).
+        Facet and rule conditions also restrict `facets`.
       method: GET
       path: /topics
       request:
@@ -113,9 +114,8 @@ service:
       docs: |
         Unstable: Topics is in closed beta. The shape may change without notice.
 
-        Get one topic by its stable id. Topics on the current map are always
-        found. A retired topic is found while traces in the window are still
-        assigned to it, with `inCurrentMap: false`.
+        Get one topic of a facet's current map by its stable id. Retired
+        topics are not found.
       method: GET
       path: /topics/{topicId}
       path-parameters:
@@ -138,8 +138,298 @@ service:
         - errors.MethodNotAllowedError
         - errors.TooManyRequestsError
         - errors.InternalServerError
+    listRules:
+      docs: |
+        Unstable: Topics is in closed beta. The shape may change without notice.
+
+        List the project's Topics rules. A rule selects traces with an
+        observation filter and a sampling rate, runs the facets in `facetIds`
+        and keeps its own live topic map.
+
+        `filter` is a JSON array of filter conditions combined with AND.
+        String matching is case-insensitive. Columns: `id` (stringOptions),
+        `name` (string, stringOptions).
+      method: GET
+      path: /topic-rules
+      request:
+        name: GetTopicRulesRequest
+        query-parameters:
+          filter:
+            type: optional<string>
+            docs: JSON array of filter conditions, for example `[{"type":"string","column":"name","operator":"contains","value":"support"}]`.
+          page:
+            type: optional<integer>
+            docs: 1-based page number. Defaults to `1`.
+          limit:
+            type: optional<integer>
+            docs: Maximum number of items per page. Defaults to `50`, at most `100`.
+      response: TopicRuleList
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+    getRule:
+      docs: |
+        Unstable: Topics is in closed beta. The shape may change without notice.
+
+        Get one Topics rule by id.
+      method: GET
+      path: /topic-rules/{ruleId}
+      path-parameters:
+        ruleId: string
+      response: TopicRule
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+    listSummaries:
+      docs: |
+        Unstable: Topics is in closed beta. The shape may change without notice.
+
+        List the current Topics summary per trace and facet: what the trace
+        is about from the facet's perspective. Summaries are shared by all
+        rules. A trace that was re-summarized lists only its latest summary.
+
+        The window applies to the trace start time. It defaults to the last
+        7 days and can span at most 30 days, starting no earlier than the
+        plan's data access window. Without `fromTimestamp` and `toTimestamp`,
+        a `traceId` `any of` filter reads the listed traces at their own start
+        time within the last 93 days. Rows are ordered by trace start time.
+
+        Each request scans a bounded number of candidate rows. A page shorter
+        than `limit` (even an empty one) with a `meta.cursor` does not
+        indicate completion; continue with the cursor until it is null.
+
+        Only active facets (attached to a Topics rule, or all facets if the
+        project has no rule) are read. Traces Topics never processed are not
+        listed.
+
+        `filter` is a JSON array of filter conditions combined with AND, with
+        at most 100 `traceId` values. Columns: `traceId`, `facetId`, `facetName`, `ruleId`, `environment`
+        (stringOptions), `timestamp`, `processedAt` (datetime), `state`,
+        `topicId`, `topicName` (stringOptions), `assignmentStatus`
+        (stringOptions, `any of` only). An unknown `topicName` matches nothing under `any of`
+        and is ignored under `none of`.
+
+        `state` values: `complete` (summarized), `not_applicable` (the facet
+        does not apply to the trace), `insufficient_input` (too little input
+        to summarize). `assignmentStatus` values: `assigned`, `outlier` (no
+        topic fits), `awaiting_map` (summarized, not yet assigned).
+
+        Common questions:
+        - Summaries of specific traces: `traceId` `any of` the trace ids.
+        - Summaries of a topic's traces: `topicId` or `topicName`.
+        - Traces without a topic yet: `assignmentStatus` `any of` `["awaiting_map", "outlier"]`.
+      method: GET
+      path: /topic-summaries
+      request:
+        name: GetTopicSummariesRequest
+        query-parameters:
+          fromTimestamp:
+            type: optional<datetime>
+            docs: Start of the window (trace start time, inclusive). Defaults to 7 days before `toTimestamp`.
+          toTimestamp:
+            type: optional<datetime>
+            docs: End of the window (trace start time, exclusive). Defaults to now.
+          filter:
+            type: optional<string>
+            docs: JSON array of filter conditions, for example `[{"type":"stringOptions","column":"traceId","operator":"any of","value":["<trace id>"]}]`.
+          truncateSummaries:
+            type: optional<boolean>
+            docs: Whether to truncate summaries to 500 characters. Defaults to `false`.
+          orderBy:
+            type: optional<TopicResultsOrderBy>
+            docs: Defaults to `timestamp.desc`.
+          limit:
+            type: optional<integer>
+            docs: Maximum number of rows per page. Defaults to `50`, at most `100`.
+          cursor:
+            type: optional<string>
+            docs: The `meta.cursor` of the previous page.
+      response: TopicSummaryList
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+    listAssignments:
+      docs: |
+        Unstable: Topics is in closed beta. The shape may change without notice.
+
+        List the current topic per trace, facet and rule on each rule's live
+        map: `assigned` with its topic, or `outlier` when no topic fits.
+        Summarized traces that are not assigned yet are not listed; find
+        them through `GET /topic-summaries` with `assignmentStatus`.
+
+        The window applies to the trace start time. It defaults to the last
+        7 days and can span at most 30 days, starting no earlier than the
+        plan's data access window. Without `fromTimestamp` and `toTimestamp`,
+        a `traceId` `any of` filter reads the listed traces at their own start
+        time within the last 93 days. Rows are ordered by trace start time.
+
+        Each request scans a bounded number of candidate rows. A page shorter
+        than `limit` (even an empty one) with a `meta.cursor` does not
+        indicate completion; continue with the cursor until it is null.
+
+        Only active facets (attached to a Topics rule, or all facets if the
+        project has no rule) are read. Traces Topics never processed are not
+        listed.
+
+        `filter` is a JSON array of filter conditions combined with AND, with
+        at most 100 `traceId` values. Columns: `traceId`, `facetId`, `facetName`, `ruleId`, `environment`,
+        `topicId`, `topicName` (stringOptions), `status` (stringOptions,
+        `any of` only: `assigned`, `outlier`), `timestamp` (datetime). An
+        unknown `topicName` matches nothing under `any of` and is ignored
+        under `none of`.
+
+        Common questions:
+        - Topics of specific traces: `traceId` `any of` the trace ids.
+        - Traces in a topic: `topicId` or `topicName`.
+      method: GET
+      path: /topic-assignments
+      request:
+        name: GetTopicAssignmentsRequest
+        query-parameters:
+          fromTimestamp:
+            type: optional<datetime>
+            docs: Start of the window (trace start time, inclusive). Defaults to 7 days before `toTimestamp`.
+          toTimestamp:
+            type: optional<datetime>
+            docs: End of the window (trace start time, exclusive). Defaults to now.
+          filter:
+            type: optional<string>
+            docs: JSON array of filter conditions, for example `[{"type":"stringOptions","column":"topicName","operator":"any of","value":["Refunds"]}]`.
+          orderBy:
+            type: optional<TopicResultsOrderBy>
+            docs: Defaults to `timestamp.desc`.
+          limit:
+            type: optional<integer>
+            docs: Maximum number of rows per page. Defaults to `50`, at most `100`.
+          cursor:
+            type: optional<string>
+            docs: The `meta.cursor` of the previous page.
+      response: TopicAssignmentList
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
 
 types:
+  TopicResultsOrderBy:
+    enum:
+      - value: timestamp.desc
+        name: TimestampDesc
+      - value: timestamp.asc
+        name: TimestampAsc
+  TopicResultListMeta:
+    properties:
+      cursor:
+        type: optional<string>
+        docs: Pass as `cursor` to fetch the next page. Null on the last page.
+      comment:
+        type: optional<string>
+        docs: Set when the page is shorter than `limit` but more rows may follow.
+  TopicRule:
+    properties:
+      id: string
+      name: string
+      filter:
+        type: list<evals.EvaluationRuleReadFilter>
+        docs: Observation filter that selects the rule's traces, returned verbatim.
+      sampling:
+        type: double
+        docs: Fraction of matching traces that are processed, between `0` and `1`.
+      facetIds:
+        type: list<string>
+        docs: Facets the rule runs.
+      updatedAt: datetime
+  TopicRuleList:
+    properties:
+      data: list<TopicRule>
+      meta: pagination.MetaResponse
+  TopicSummaryState:
+    enum:
+      - value: complete
+        name: Complete
+      - value: not_applicable
+        name: NotApplicable
+      - value: insufficient_input
+        name: InsufficientInput
+  TopicSummary:
+    properties:
+      traceId: string
+      traceName: string
+      environment: string
+      timestamp:
+        type: datetime
+        docs: Trace start time.
+      facetId: string
+      facetName: string
+      facetVersion: integer
+      state: TopicSummaryState
+      summary:
+        type: optional<string>
+        docs: Set when `state` is `complete`.
+      summaryTruncated: boolean
+      processedAt: datetime
+  TopicSummaryList:
+    properties:
+      window: TopicWindow
+      data: list<TopicSummary>
+      meta: TopicResultListMeta
+  TopicAssignmentStatus:
+    enum:
+      - value: assigned
+        name: Assigned
+      - value: outlier
+        name: Outlier
+  TopicAssignmentTopic:
+    properties:
+      id:
+        type: string
+        docs: Stable topic id.
+      versionId: string
+      name: string
+  TopicAssignment:
+    properties:
+      traceId: string
+      timestamp:
+        type: datetime
+        docs: Trace start time.
+      facetId: string
+      facetName: string
+      facetVersion: integer
+      ruleId:
+        type: optional<string>
+        docs: The rule whose map assigned the trace. Null when the project has no rule.
+      status: TopicAssignmentStatus
+      topic:
+        type: optional<TopicAssignmentTopic>
+        docs: Set when `status` is `assigned`.
+      runId:
+        type: optional<string>
+        docs: The run that assigned the trace. Null for assignments made as traces arrive.
+      assignedAt: datetime
+  TopicAssignmentList:
+    properties:
+      window: TopicWindow
+      data: list<TopicAssignment>
+      meta: TopicResultListMeta
   TopicsOrderBy:
     enum:
       - value: traceCount.desc
@@ -163,7 +453,10 @@ types:
       isBuiltIn: boolean
       active:
         type: boolean
-        docs: Whether the facet is attached to the project's Topics rule. True for all facets if the project has no rule.
+        docs: Whether a Topics rule runs the facet. True for all facets if the project has no rule.
+      ruleIds:
+        type: list<string>
+        docs: The rules that run the facet.
       version:
         type: integer
         docs: Latest facet version.
@@ -197,6 +490,9 @@ types:
       name: string
       description: string
       facet: TopicFacetRef
+      ruleId:
+        type: optional<string>
+        docs: The rule whose live map has the topic. Null when the project has no rule.
       runId:
         type: string
         docs: The run that produced this topic version.
@@ -208,7 +504,7 @@ types:
     properties:
       inCurrentMap:
         type: boolean
-        docs: False for retired topics that still have assigned traces in the window.
+        docs: Always true; retired topics are not returned.
       window: TopicWindow
   TopicStatusCounts:
     docs: Traces in the window by their current result for one facet.
@@ -221,6 +517,7 @@ types:
   TopicFacetCounts:
     properties:
       facet: TopicFacetRef
+      ruleId: optional<string>
       publishedRunId: optional<string>
       counts: TopicStatusCounts
   TopicList:

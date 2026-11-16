@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { VirtualizedTree } from "./VirtualizedTree";
 import {
   VirtualizedTreeNodeWrapper,
@@ -10,6 +10,8 @@ import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
 import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";
 import { type TreeNode } from "../types/treeNode";
+import { resolveTreeNodeId } from "../fns/resolveTreeNodeId";
+import { getCollapsedAncestors } from "../fns/getCollapsedAncestors";
 import {
   metricEmphasisFor,
   type MetricEmphasisContext,
@@ -61,16 +63,52 @@ function TraceTreeLoading() {
 }
 
 function LoadedTraceTree() {
-  const { roots, comments, metricEmphasis } = useTraceData();
-  const { selectedNodeId, collapsedNodes, toggleCollapsed } = useSelection();
+  const {
+    roots,
+    comments,
+    metricEmphasis,
+    sessionTraces,
+    nodeMap,
+    trace,
+    isNavigationReady,
+  } = useTraceData();
+  const { selectedNodeId, collapsedNodes, toggleCollapsed, collapseAll } =
+    useSelection();
   const { handleHover } = useHandlePrefetchObservation();
   const handleSelectNode = useSelectTraceNode("tree");
+  const scope = sessionTraces ? "session" : "trace";
+  const previousScope = useRef(scope);
+  const selectedTreeNodeId = resolveTreeNodeId(
+    nodeMap,
+    selectedNodeId,
+    trace.id,
+  );
+
+  useLayoutEffect(() => {
+    if (previousScope.current === scope) return;
+    previousScope.current = scope;
+    if (!selectedTreeNodeId || collapsedNodes.size === 0) return;
+
+    const collapsedAncestors = getCollapsedAncestors(
+      roots,
+      selectedTreeNodeId,
+      collapsedNodes,
+    );
+    if (collapsedAncestors.size === 0) return;
+    collapseAll(
+      [...collapsedNodes].filter((id) => !collapsedAncestors.has(id)),
+    );
+  }, [scope, roots, selectedTreeNodeId, collapsedNodes, collapseAll]);
 
   return (
+    // Scope changes move rows without changing selection. Remount only the
+    // virtualizer so its initial selected-row scroll runs against the new tree.
     <VirtualizedTree
+      key={scope}
       roots={roots}
       collapsedNodes={collapsedNodes}
-      selectedNodeId={selectedNodeId}
+      selectedNodeId={selectedTreeNodeId}
+      isScrollReady={isNavigationReady}
       onToggleCollapse={toggleCollapsed}
       onSelectNode={handleSelectNode}
       renderNode={({ node, ...row }) => {
@@ -111,8 +149,6 @@ function TraceTreeRow({
   commentCount: number | undefined;
   onHover: () => void;
 }) {
-  const [isHovered, setIsHovered] = useState(false);
-
   return (
     <VirtualizedTreeNodeWrapper
       metadata={treeMetadata}
@@ -122,7 +158,6 @@ function TraceTreeRow({
       onToggleCollapse={onToggleCollapse}
       isSelected={isSelected}
       onSelect={onSelect}
-      onHoverChange={setIsHovered}
     >
       <SpanContent
         node={node}
@@ -130,7 +165,6 @@ function TraceTreeRow({
         commentCount={commentCount}
         onSelect={onSelect}
         onHover={onHover}
-        surface={isSelected || isHovered ? "muted" : "default"}
       />
     </VirtualizedTreeNodeWrapper>
   );

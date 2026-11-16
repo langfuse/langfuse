@@ -139,7 +139,7 @@ export const TestKeyboardReorderAndAdd = meta.story({
     await expect(
       body.queryByRole("menuitem", { name: /^Legacy quality/ }),
     ).not.toBeInTheDocument();
-    await userEvent.click(body.getByRole("menuitem", { name: /^Feedback \(/ }));
+    await userEvent.click(body.getByRole("menuitem", { name: "Feedback" }));
     await expect(args.onChange).toHaveBeenLastCalledWith([
       "accuracy",
       "helpfulness",
@@ -265,5 +265,84 @@ export const TestDescriptionOverflow = meta.story({
         canvas.getByRole("button", { name: "Show description for Accuracy" }),
       ).toBeVisible(),
     );
+  },
+});
+
+export const TestRowHoverShowsConfigDetails = meta.story({
+  name: "(Test) Row Hover Shows Config Details",
+  args: {
+    ...baseArgs,
+    value: [],
+    onChange: fn(),
+    scoreConfigs: [
+      ...configs,
+      {
+        id: "quality",
+        name: "Quality",
+        dataType: "CATEGORICAL",
+        isArchived: false,
+        description: `Overall answer quality.\nUse Excellent sparingly.\n${"Keep this guidance with the config.\n".repeat(80)}`,
+        categories: [
+          { label: "Bad", value: 0 },
+          { label: "Good", value: 1 },
+        ],
+      },
+      {
+        id: "tokens",
+        name: "Token estimate",
+        dataType: "NUMERIC",
+        isArchived: false,
+      },
+    ] satisfies EditorProps["scoreConfigs"],
+  },
+  render: StatefulEditor,
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const hoverRow = async (name: string) => {
+      const row = body.getByRole("menuitem", { name });
+      const rect = row.getBoundingClientRect();
+      const hit = row.ownerDocument.elementFromPoint(
+        rect.left + 12,
+        rect.top + rect.height / 2,
+      );
+      if (!hit) throw new Error(`no hit for ${name}`);
+      await userEvent.hover(hit);
+    };
+    await userEvent.click(canvas.getByRole("button", { name: "Add score" }));
+    await hoverRow("Quality");
+    const tooltip = await body.findByRole("tooltip");
+    await waitFor(() =>
+      expect(body.getByText(/Overall answer quality/)).toBeVisible(),
+    );
+    await expect(tooltip).toHaveTextContent("Quality");
+    await expect(tooltip.querySelector(".ph-no-capture")).not.toBeNull();
+    await expect(tooltip.style.maxHeight).toMatch(/px$/);
+    expect(getComputedStyle(tooltip).overflowY).toBe("auto");
+    expect(tooltip.scrollHeight).toBeGreaterThan(tooltip.clientHeight);
+    tooltip.scrollTop = tooltip.scrollHeight;
+    expect(tooltip.scrollTop).toBeGreaterThan(0);
+    await userEvent.hover(tooltip);
+    await expect(body.getByText(/Overall answer quality/)).toBeVisible();
+    await expect(body.getByText(/Use Excellent sparingly/)).toBeVisible();
+    await expect(body.getByText("Categorical")).toBeVisible();
+    await expect(body.getByText("Bad · Good")).toBeVisible();
+    await hoverRow("Feedback");
+    await waitFor(() => expect(body.getByText("No description")).toBeVisible());
+    await expect(body.getByText("Free text")).toBeVisible();
+    await hoverRow("Token estimate");
+    await waitFor(() => expect(body.getByText("Any number")).toBeVisible());
+    await hoverRow("Accuracy");
+    await waitFor(() => expect(body.getByText("1 – 5")).toBeVisible());
+    await userEvent.click(body.getByRole("menuitem", { name: "Accuracy" }));
+    await expect(args.onChange).toHaveBeenLastCalledWith(["accuracy"]);
+    await expect(body.queryByRole("menu")).not.toBeInTheDocument();
+    await expect(canvas.getByText("Accuracy")).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "Add score" }));
+    await hoverRow("Feedback");
+    await waitFor(() => expect(body.getByRole("tooltip")).toBeVisible());
+    await userEvent.keyboard("{Escape}");
+    await expect(body.queryByRole("menu")).not.toBeInTheDocument();
+    await expect(body.queryByRole("tooltip")).not.toBeInTheDocument();
   },
 });

@@ -20,9 +20,7 @@ export function composerPlaceholder(registry: FieldRegistry): string {
  *  while leaving underscore literal, so it is injective — distinct option ids
  *  always map to distinct DOM ids (a `\s+ → _` collapse would alias
  *  `My Test`/`My_Test` to the same duplicate id). */
-export function optionDomId(listboxId: string, optionId: string): string {
-  return `${listboxId}-opt-${encodeURIComponent(optionId)}`;
-}
+export { optionDomId } from "@/src/components/design-system/QueryInput/QueryInput";
 
 /**
  * Why this token is NOT applied on the current surface (e.g. a column the chart

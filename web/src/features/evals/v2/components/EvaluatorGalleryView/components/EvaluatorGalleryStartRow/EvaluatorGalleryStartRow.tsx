@@ -1,12 +1,11 @@
 import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
 
-import { Badge } from "@/src/components/design-system/Badge/Badge";
-
 import { EvaluatorGallerySectionHeader } from "@/src/features/evals/v2/components/EvaluatorGallerySectionHeader/EvaluatorGallerySectionHeader";
 import { cn } from "@/src/utils/tailwind";
 
 import { EvaluatorMethodTile } from "./components/EvaluatorMethodTile/EvaluatorMethodTile";
 import styles from "./EvaluatorGalleryStartRow.module.css";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 const EVALUATOR_START_OPTIONS = [
   {
@@ -89,5 +88,5 @@ function StartOptionCard({
 }
 
 function EvaluatorNewBadge() {
-  return <Badge text="NEW" color="green" font="mono" size="sm" />;
+  return <FeatureReleaseStatus status="new" />;
 }

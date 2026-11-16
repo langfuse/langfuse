@@ -39,7 +39,6 @@ import {
   X,
 } from "@langfuse/icons";
 import {
-  MAX_SKILL_FILES,
   SkillFilePathSchema,
   SkillVersionFileInputSchema,
 } from "@langfuse/shared";
@@ -50,6 +49,7 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import {
   buildSkillFileTree,
   getParentFolderPaths,
+  parentFolder,
   type SkillFileTreeNode,
 } from "@/src/features/skills/components/skillFileTree";
 import {
@@ -93,7 +93,6 @@ export function SkillFileExplorer({
       ...Object.keys(state.deletedFiles),
     ]),
   );
-  const fileCount = useStore(store, (state) => Object.keys(state.files).length);
   const folders = useStore(store, (state) => state.folders);
   const activePath = useStore(store, (state) => state.activePath);
   const actions = useStore(store, (state) => state.actions);
@@ -204,19 +203,6 @@ export function SkillFileExplorer({
               : "skill_file.create",
           errorOrigin: "frontend",
           errorCategory: "user_input",
-        },
-      );
-      return;
-    }
-
-    if (pendingEntry.kind === "file" && fileCount >= MAX_SKILL_FILES) {
-      showErrorToast(
-        "Could not add file",
-        `A skill can contain at most ${MAX_SKILL_FILES} files.`,
-        {
-          operation: "skill_file.create",
-          errorOrigin: "frontend",
-          errorCategory: "resource_limit",
         },
       );
       return;
@@ -335,16 +321,6 @@ export function SkillFileExplorer({
               onRestore={() => {
                 if (actions.restoreFile(node.path)) {
                   setSelectedFolder(parentFolder(node.path));
-                } else {
-                  showErrorToast(
-                    "Could not restore file",
-                    `A skill can contain at most ${MAX_SKILL_FILES} files. Delete another file before restoring this one.`,
-                    {
-                      operation: "skill_file.restore",
-                      errorOrigin: "frontend",
-                      errorCategory: "resource_limit",
-                    },
-                  );
                 }
               }}
             />
@@ -746,9 +722,4 @@ function SkillFolderDropTarget({
 
 function joinPath(parentPath: string, name: string): string {
   return parentPath ? `${parentPath}/${name}` : name;
-}
-
-function parentFolder(path: string): string {
-  const separator = path.lastIndexOf("/");
-  return separator === -1 ? "" : path.slice(0, separator);
 }

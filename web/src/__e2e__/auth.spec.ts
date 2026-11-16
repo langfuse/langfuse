@@ -86,7 +86,7 @@ test("Unauthenticated user should not be redirected to non-relative URLs after l
   );
 
   // Lands on the home page, not on the non-relative targetPath
-  await signIn(page, { expectedUrl: "/" });
+  await signIn(page);
 
   // Verify we're logged in
   await expect(page.getByRole("button", { name: /Demo User/ })).toBeVisible();

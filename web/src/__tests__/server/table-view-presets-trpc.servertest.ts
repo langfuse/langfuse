@@ -43,7 +43,6 @@ const prepare = async (projectRole: "ADMIN" | "VIEWER" = "ADMIN") => {
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin: false,
     },
     environment: {
       enableExperimentalFeatures: false,

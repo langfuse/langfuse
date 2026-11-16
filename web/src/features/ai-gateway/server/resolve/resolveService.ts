@@ -1,6 +1,10 @@
 import type { GatewayIngestionMode } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
-import { instrumentAsync } from "@langfuse/shared/src/server";
+import {
+  decryptAndParseExtraHeaders,
+  instrumentAsync,
+  logger,
+} from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
 import {
@@ -17,7 +21,8 @@ import {
   type GatewayApiFormat,
   type GatewayProviderId,
   type GatewayResolveResponse,
-  getGatewayProviderDefinition,
+  getGatewayUpstream,
+  getGatewayUpstreamSecret,
 } from "@/src/features/ai-gateway/server/provider/registry";
 
 export { GatewayControlPlaneError as GatewayResolveError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
@@ -94,10 +99,21 @@ export class GatewayResolveService {
           404,
         );
       }
-      const provider = getGatewayProviderDefinition(
-        context.connection.provider,
+      const decryptedCredential = decrypt(
+        context.connection.encryptedCredential,
       );
-      const credential = decrypt(context.connection.encryptedCredential);
+      const upstream = getGatewayUpstream({
+        provider: context.connection.provider,
+        apiFormat: params.apiFormat,
+        config: context.connection.config,
+        baseURL: context.connection.baseURL,
+        credential: decryptedCredential,
+      });
+      const credential = await this.getUpstreamSecret({
+        connectionId: context.connection.id,
+        provider: context.connection.provider,
+        credential: decryptedCredential,
+      });
       return {
         version: 1 as const,
         connection: {
@@ -107,9 +123,11 @@ export class GatewayResolveService {
             context.connection.provider.toLowerCase() as GatewayProviderId,
           provider_model: context.providerModel,
           api_format: params.apiFormat,
-          base_url: provider.baseUrl,
+          base_url: upstream.baseUrl,
+          extra_headers:
+            decryptAndParseExtraHeaders(context.connection.extraHeaders) ?? {},
           auth:
-            provider.authType === "bearer"
+            upstream.authType === "bearer"
               ? ({ type: "Bearer", token: credential } as const)
               : ({
                   type: "x-api-key",
@@ -140,6 +158,30 @@ export class GatewayResolveService {
             : null,
       };
     });
+  }
+
+  // Vertex AI exchanges its key for a token on every cache miss. A revoked key
+  // and a Google outage both fail here, and the gateway reports either as
+  // unavailable rather than blaming the caller's gateway key.
+  private async getUpstreamSecret(
+    params: Parameters<typeof getGatewayUpstreamSecret>[0] & {
+      connectionId: string;
+    },
+  ) {
+    try {
+      return await getGatewayUpstreamSecret(params);
+    } catch (error) {
+      if (params.provider !== "VERTEX") throw error;
+      logger.warn("Gateway connection credential exchange failed", {
+        connectionId: params.connectionId,
+        provider: params.provider,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw new GatewayResolveError(
+        "The connection's credential could not be exchanged for an access token",
+        503,
+      );
+    }
   }
 
   private createIngestionResponse(params: {
