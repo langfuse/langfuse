@@ -25,7 +25,7 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
   } = params;
 
   logger.info(
-    `Updating prompt ${promptName} in project ${projectId} version ${promptVersion} with labels ${newLabels}, removing labels ${removeLabels}`,
+    `Updating prompt ${promptName} in project ${projectId} version ${promptVersion}: adding ${newLabels.length} labels, removing ${removeLabels.length} labels`,
   );
   const promptService = new PromptService(prisma, redis);
   const touchedPromptIds: string[] = [];
@@ -110,9 +110,7 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
     }
 
     logger.info(
-      `Setting labels for prompt: ${prompt.id}, ${prompt.name}, ${prompt.version}, ${JSON.stringify(
-        Array.from(newLabelsSet),
-      )}`,
+      `Setting labels for prompt: ${prompt.id}, ${prompt.name}, ${prompt.version}, countBefore: ${prompt.labels.length}, countAfter: ${newLabelsSet.size}`,
     );
 
     const { touchedPromptIds: labelsTouchedPromptIds, updates: labelUpdates } =
