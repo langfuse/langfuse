@@ -25,7 +25,7 @@ import {
   type Placement,
 } from "@floating-ui/react";
 import { cva } from "class-variance-authority";
-import { Check, type IconComponent } from "@langfuse/icons";
+import { Check, Search, X, type IconComponent } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import Link from "next/link";
 import * as React from "react";
@@ -37,7 +37,6 @@ import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
-import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
 
 const menuVariants = cva(
   "bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 min-w-32 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-md border shadow-md outline-hidden",
@@ -94,7 +93,6 @@ const menuItemVariants = cva(
       radius: { default: "rounded-sm", tile: "rounded-md" },
       variant: {
         default: "",
-        entity: "",
         destructive:
           "text-destructive focus:bg-destructive/10 data-[active]:bg-destructive/10",
       },
@@ -216,24 +214,28 @@ type DropdownMenuItem = {
   disabled?: { reason: string };
   id: string;
   title: string;
-  tooltip?: string;
-  badge?: React.ReactNode;
-  icon?: IconComponent;
-  /** Shows the icon in a 36px shaded square. */
-  iconTile?: boolean;
-  /** Muted second line under the title. */
-  description?: string;
-  /** Shows a trailing tick. */
-  selected?: boolean;
-  searchBehavior?: SearchBehavior;
-  type: "item";
-  /** `entity` rows name an org or project; their title is medium weight. */
-  variant?: "default" | "entity" | "destructive";
-  secondaryAction?: MenuAction & {
-    ariaLabel: string;
-    icon: IconComponent;
-  };
-} & DropdownMenuItemAction;
+} & DropdownMenuItemAction &
+  (
+    | {
+        type: "item";
+        variant?: "default" | "destructive";
+        tooltip?: string;
+        badge?: React.ReactNode;
+        icon?: IconComponent;
+        description?: string;
+        searchBehavior?: SearchBehavior;
+        secondaryAction?: MenuAction & {
+          ariaLabel: string;
+          icon: IconComponent;
+        };
+      }
+    | {
+        type: "entity";
+        icon: IconComponent;
+        description?: string;
+        selected?: boolean;
+      }
+  );
 
 type DropdownMenuCheckboxItem = {
   checked: boolean;
@@ -449,7 +451,11 @@ function DropdownMenuNode({
     if (!search || !normalizedQuery) return withoutStraySeparators(items);
     const hasDefaultMatch = items.some((item) => {
       if (item.type === "separator" || item.type === "loading") return false;
-      if (item.searchBehavior && item.searchBehavior !== "default")
+      if (
+        item.type !== "entity" &&
+        item.searchBehavior &&
+        item.searchBehavior !== "default"
+      )
         return false;
       return item.title.toLocaleLowerCase().includes(normalizedQuery);
     });
@@ -457,6 +463,8 @@ function DropdownMenuNode({
     const filtered = items.filter((item) => {
       if (item.type === "separator") return true;
       if (item.type === "loading") return true;
+      if (item.type === "entity")
+        return item.title.toLocaleLowerCase().includes(normalizedQuery);
       if (item.searchBehavior === "hide") return false;
       if (item.searchBehavior === "always-show") return true;
       if (item.searchBehavior === "show-when-no-results") {
@@ -486,7 +494,9 @@ function DropdownMenuNode({
   const hasVisibleResults = bodyItems.some(
     (item) =>
       item.type !== "separator" &&
-      (item.type === "loading" || item.searchBehavior !== "always-show"),
+      (item.type === "loading" ||
+        item.type === "entity" ||
+        item.searchBehavior !== "always-show"),
   );
 
   React.useEffect(() => {
@@ -664,19 +674,19 @@ function DropdownMenuNode({
     }
 
     const ItemIcon = item.icon;
-    const SecondaryIcon = item.secondaryAction?.icon;
+    const variant = item.type === "item" ? item.variant : undefined;
     labelsRef.current[index] = item.title;
     const itemIconNode = ItemIcon ? (
       <ItemIcon
-        color={item.variant === "destructive" ? "inherit" : "default"}
-        size={item.iconTile ? "base" : undefined}
-        __rawClassName={item.iconTile ? undefined : "mr-2"}
+        color={variant === "destructive" ? "inherit" : "default"}
+        size={item.type === "entity" ? "base" : undefined}
+        __rawClassName={item.type === "entity" ? undefined : "mr-2"}
         aria-hidden="true"
       />
     ) : null;
     const itemContent = (
       <>
-        {item.iconTile ? (
+        {item.type === "entity" ? (
           <span className={itemIconTileVariants()}>{itemIconNode}</span>
         ) : (
           itemIconNode
@@ -685,7 +695,7 @@ function DropdownMenuNode({
           <span
             className={cn(
               "overflow-hidden text-ellipsis whitespace-nowrap",
-              item.variant === "entity" && "font-medium",
+              item.type === "entity" && "font-medium",
             )}
             title={item.disabled?.reason ?? item.title}
           >
@@ -697,10 +707,10 @@ function DropdownMenuNode({
             </span>
           ) : null}
         </span>
-        {item.badge ? (
+        {item.type === "item" && item.badge ? (
           <span className="ml-2 shrink-0">{item.badge}</span>
         ) : null}
-        {item.selected ? (
+        {item.type === "entity" && item.selected ? (
           <Check
             color="default"
             aria-label="Selected"
@@ -711,8 +721,9 @@ function DropdownMenuNode({
     );
     let renderedSecondaryAction: React.ReactNode = null;
 
-    if (item.secondaryAction && SecondaryIcon) {
+    if (item.type === "item" && item.secondaryAction) {
       const secondaryAction = item.secondaryAction;
+      const SecondaryIcon = secondaryAction.icon;
       const interactionProps = {
         onMouseEnter: () => {
           if (!item.disabled) setActiveIndex(index);
@@ -741,7 +752,7 @@ function DropdownMenuNode({
           >
             <SecondaryIcon
               size="sm"
-              color={item.variant === "destructive" ? "inherit" : "default"}
+              color={variant === "destructive" ? "inherit" : "default"}
               aria-hidden="true"
             />
           </Link>
@@ -764,7 +775,7 @@ function DropdownMenuNode({
           >
             <SecondaryIcon
               size="sm"
-              color={item.variant === "destructive" ? "inherit" : "default"}
+              color={variant === "destructive" ? "inherit" : "default"}
               aria-hidden="true"
             />
           </button>
@@ -778,17 +789,21 @@ function DropdownMenuNode({
         role="menuitem"
         tabIndex={activeIndex === index ? 0 : -1}
         aria-disabled={item.disabled ? "true" : undefined}
-        title={item.disabled?.reason ?? item.tooltip}
+        title={
+          item.disabled?.reason ??
+          (item.type === "item" ? item.tooltip : undefined)
+        }
         ref={(element) => {
           listRef.current[index] = element;
         }}
         data-active={activeIndex === index ? "" : undefined}
         data-disabled={item.disabled ? "" : undefined}
         className={menuItemVariants({
-          variant: item.variant,
+          variant,
           noCapture: item.noCapture,
-          height: item.iconTile || item.description ? "auto" : "default",
-          radius: item.iconTile ? "tile" : "default",
+          height:
+            item.type === "entity" || item.description ? "auto" : "default",
+          radius: item.type === "entity" ? "tile" : "default",
         })}
         {...getItemProps({
           onClick: (event) => {
@@ -819,7 +834,7 @@ function DropdownMenuNode({
             aria-disabled={item.disabled ? "true" : undefined}
             tabIndex={item.disabled ? -1 : undefined}
             className={primaryActionVariants({
-              inset: item.iconTile ? "tile" : "default",
+              inset: item.type === "entity" ? "tile" : "default",
             })}
             onClick={(event) => {
               if (item.disabled) {
@@ -841,7 +856,7 @@ function DropdownMenuNode({
             disabled={Boolean(item.disabled)}
             data-primary-action=""
             className={primaryActionVariants({
-              inset: item.iconTile ? "tile" : "default",
+              inset: item.type === "entity" ? "tile" : "default",
             })}
             onClick={() => {
               tree?.events.emit("click");
@@ -965,23 +980,26 @@ function DropdownMenuNode({
               {search ? (
                 <div
                   className={cn(
-                    "border-border bg-popover sticky top-0 z-1 border-b",
+                    "border-border bg-popover sticky top-0 z-1 flex h-9 items-stretch border-b",
                     hasHeader && "border-t",
                   )}
                 >
-                  <SearchInput
+                  <span className="flex aspect-square shrink-0 items-center justify-center">
+                    <Search size="base" color="muted" aria-hidden />
+                  </span>
+                  <input
                     ref={searchInputRef}
-                    mode="filter"
-                    variant="borderless"
-                    size="large"
+                    type="search"
+                    data-1p-ignore
                     value={searchQuery}
                     placeholder={search.placeholder}
-                    ariaLabel={search.placeholder}
-                    onChange={(value) => {
-                      setSearchQuery(value);
+                    aria-label={search.placeholder}
+                    className="placeholder:text-muted-foreground min-w-0 flex-1 appearance-none border-0 bg-transparent py-1 pr-2 pl-0 font-mono text-xs shadow-none outline-hidden focus:border-0 focus:shadow-none focus:ring-0 focus:ring-offset-0 focus:outline-none [&::-webkit-search-cancel-button]:hidden"
+                    onChange={(event) => {
+                      setSearchQuery(event.currentTarget.value);
                       setActiveIndex(null);
                     }}
-                    onBeforeKeyDown={(event) => {
+                    onKeyDown={(event) => {
                       if (event.key === "Escape") {
                         closeMenu();
                         event.preventDefault();
@@ -1004,6 +1022,22 @@ function DropdownMenuNode({
                       event.stopPropagation();
                     }}
                   />
+                  {searchQuery !== "" && (
+                    <button
+                      type="button"
+                      aria-label="Clear search"
+                      tabIndex={-1}
+                      className="text-foreground-tertiary hover:bg-accent hover:text-accent-foreground flex aspect-square shrink-0 items-center justify-center"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => {
+                        setSearchQuery("");
+                        setActiveIndex(null);
+                        searchInputRef.current?.focus();
+                      }}
+                    >
+                      <X size="base" aria-hidden />
+                    </button>
+                  )}
                 </div>
               ) : null}
               <div

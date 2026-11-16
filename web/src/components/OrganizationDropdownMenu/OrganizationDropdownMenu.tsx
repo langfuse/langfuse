@@ -47,13 +47,11 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
                 ? [{ type: "separator" as const, id: "demo-separator" }]
                 : []),
               {
-                type: "item" as const,
+                type: "entity" as const,
                 id: organization.id,
                 noCapture: true,
                 title: organization.name,
-                variant: "entity" as const,
                 icon: Building,
-                iconTile: true,
                 description:
                   isCloudPlan(organization.plan) &&
                   env.NEXT_PUBLIC_DEMO_ORG_ID !== organization.id

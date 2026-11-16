@@ -80,7 +80,7 @@ const mapResult = {
 };
 
 function MobileExample(args: ComponentProps<typeof MobileTopicsView>) {
-  const view = args.view;
+  const [view, setView] = useState(args.view);
   const [facetId, setFacetId] = useState(args.facet.facetId);
   const facets = [
     args.facet,
@@ -110,6 +110,10 @@ function MobileExample(args: ComponentProps<typeof MobileTopicsView>) {
         {...args}
         facet={facet}
         view={view}
+        onViewChange={(nextView) => {
+          args.onViewChange(nextView);
+          setView(nextView);
+        }}
         filters={filters}
         searchQuery={searchQuery}
         onFiltersChange={setFilters}
@@ -145,6 +149,7 @@ const defaultArgs: ComponentProps<typeof MobileTopicsView> = {
   projectId: "storybook-topics",
   facet,
   view: "treemap",
+  onViewChange: fn(),
   mapResult,
   filters: [],
   searchQuery: null,
@@ -167,6 +172,28 @@ const meta = preview.meta({
 });
 
 export const Default = meta.story({});
+export const SwitchVisualization = meta.story({
+  name: "(Test) Switch visualization within its panel",
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    await expect(
+      canvas.queryByRole("combobox", { name: "Visualization" }),
+    ).not.toBeInTheDocument();
+    const tab = canvas.getByRole("tab", { name: "Visualize" });
+    await userEvent.click(tab);
+    await expect(tab).not.toHaveAttribute("aria-haspopup");
+    const selector = canvas.getByRole("combobox", { name: "Visualization" });
+    await expect(selector).toHaveTextContent("Treemap");
+    await userEvent.click(selector);
+    await userEvent.click(await body.findByRole("option", { name: "Scatter" }));
+    await expect(args.onViewChange).toHaveBeenCalledWith("map");
+    await userEvent.click(canvas.getByRole("tab", { name: "Topics" }));
+    await expect(
+      canvas.queryByRole("combobox", { name: "Visualization" }),
+    ).not.toBeInTheDocument();
+  },
+});
 export const AwaitingTopics = meta.story({
   args: {
     facet: storyFacet(
