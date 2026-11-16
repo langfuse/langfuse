@@ -238,7 +238,7 @@ describe("getOrgUsageBreakdown", () => {
         bucket: "2026-08-03T00:00:00.000Z",
         projectId,
         unitType: "facet_summaries",
-        count: 2,
+        count: 3,
       },
       {
         bucket: "2026-08-04T00:00:00.000Z",

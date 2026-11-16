@@ -5,8 +5,7 @@ import { queryClickhouse } from "./clickhouse";
 /**
  * Topics facet summaries are billable units like traces, observations and
  * scores: one unit per stored summary row, counted by `processed_at`, the time
- * the row was written. Rows without content never reached the model and are
- * not billed; a model that answers `insufficient_input` is not billed either.
+ * the row was written. Every processing state is billed.
  *
  * Summaries of a source are processed after it starts, so the scan is bounded
  * by `unit_start_time` within the longest Topics time range before the window.
@@ -22,8 +21,7 @@ export const BILLABLE_TOPIC_FACET_SUMMARY_SQL = {
   condition: `processed_at >= {start: DateTime64(3)}
     AND processed_at < {end: DateTime64(3)}
     AND unit_start_time >= {sourcesFrom: DateTime64(3)}
-    AND unit_start_time < {end: DateTime64(3)}
-    AND processing_state != 'insufficient_input'`,
+    AND unit_start_time < {end: DateTime64(3)}`,
 };
 
 export const billableTopicFacetSummaryParams = ({
