@@ -88,8 +88,23 @@ describe("systemRoleAccessRights", () => {
     ]);
   });
 
-  it("grants INGEST exactly the application project actions", () => {
+  it("grants INGEST exactly the ingestion project actions", () => {
     expect(systemRoleAccessRights.INGEST.policies).toEqual([
+      {
+        resourceKind: "project",
+        effect: "ALLOW",
+        actions: [
+          "traces:create",
+          "scores:save",
+          "media:create",
+          "project:read",
+        ],
+      },
+    ]);
+  });
+
+  it("grants APPLICATION exactly the application project actions", () => {
+    expect(systemRoleAccessRights.APPLICATION.policies).toEqual([
       {
         resourceKind: "project",
         effect: "ALLOW",
@@ -167,12 +182,13 @@ describe("systemRoleAccessRights", () => {
   it("tags api-key roles and user roles disjointly", () => {
     const tagsFor = (role: keyof typeof systemRoleAccessRights) =>
       systemRoleAccessRights[role].tags;
-    for (const role of ["SCORES_INGEST", "INGEST"] as const) {
+    for (const role of ["SCORES_INGEST", "APPLICATION"] as const) {
       expect(tagsFor(role)).toEqual(["principal:apiKey"]);
     }
     for (const role of [
       "LEGACY_PROJECT_API_KEY",
       "LEGACY_ORGANIZATION_API_KEY",
+      "INGEST",
     ] as const) {
       expect(tagsFor(role)).toEqual(["principal:apiKey", "legacy"]);
     }
