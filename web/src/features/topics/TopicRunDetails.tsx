@@ -85,8 +85,6 @@ function questionStats(progress: FacetProgress, execution: Run) {
     return c.requested > 0
       ? `Grouping ${formatCount(c.complete)} summaries into topics`
       : null;
-  if (!isUpdate && busy(runStatus))
-    return `${formatCount(c.complete)} of ${formatCount(c.requested)} summarized`;
   if (!isUpdate && runStatus === "failed")
     return `${formatCount(c.complete)} of ${formatCount(c.requested)} summarized · ${formatCount(Math.max(0, c.requested - c.complete))} left`;
   const summaryNoun = isUpdate ? "summaries" : "summarized";
@@ -192,8 +190,7 @@ export function TopicRunDetails({
     : counts.reduce((sum, c) => sum + c.complete, 0);
   const isBusy = busy(execution.status);
   const costLabel = (() => {
-    if (isUpdate) return "Estimated cost";
-    return isBusy ? "Estimated cost so far" : "Estimated processing cost";
+    return isUpdate ? "Estimated cost" : "Estimated processing cost";
   })();
   const costDescription = (() => {
     if (isUpdate) return "Topic naming costs aren’t tracked yet.";

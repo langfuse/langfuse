@@ -11,10 +11,7 @@ type EntryPoint = { onSelect: () => void; disabledReason?: string };
 
 /** The page's map entry points, offered on phones where a question has no topics yet. */
 export function TopicsEmptyActions({ actions }: { actions: TopicsActions }) {
-  const editMap =
-    actions.editRun ??
-    actions.menu.find((action) => action.id === "edit") ??
-    null;
+  const editMap = actions.editRun;
   const candidates: Array<{
     label: string;
     icon: IconComponent;

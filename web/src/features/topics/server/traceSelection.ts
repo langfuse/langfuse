@@ -35,15 +35,9 @@ export async function previewTopicTraces(
   input: z.infer<typeof topicTraceSelectionSchema>,
   prisma: PrismaClient,
 ) {
-  const selection = {
-    ...input,
-    limit: input.limit ?? TOPICS_BACKFILL_TRACE_LIMIT,
-  };
-  const rows = await selectTopicTraceRows(selection, prisma);
-  const matchedTraceCount = Number(rows[0]?.matchedTraceCount ?? 0);
+  const rows = await selectTopicTraceRows(input, prisma);
   return {
-    matchedTraceCount,
-    selectedTraceCount: Math.min(matchedTraceCount, selection.limit),
+    matchedTraceCount: Number(rows[0]?.matchedTraceCount ?? 0),
     traces: rows.map((row) => ({
       id: row.id,
       timestamp: new Date(Number(row.timestampMs)),

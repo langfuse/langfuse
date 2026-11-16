@@ -133,7 +133,6 @@ const mapActions = prepareTopicsActions({
   automaticProcessing: { state: { status: "on" }, saving: false },
   canWrite: true,
   configureAvailable: true,
-  menuOnly: false,
   onConfigure: fn(),
   onHistory: fn(),
   ...mapActionHandlers,

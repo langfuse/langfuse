@@ -22,13 +22,6 @@ const meta = preview.meta({
 
 export const Summarizing = meta.story({});
 
-export const Naming = meta.story({
-  args: {
-    stage: "naming" as const,
-    facets: facets.map((facet) => ({ ...facet, complete: 500 })),
-  },
-});
-
 export const ClusteringTopics = meta.story({
   name: "(Test) Building topics counts finished fits, not summaries",
   args: {
