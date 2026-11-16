@@ -5,6 +5,7 @@ import {
   createTracesCh,
   createObservationsCh,
   createEventsCh,
+  clickhouseClient,
 } from "../../../src/server";
 import {
   createTopicRun,
@@ -143,7 +144,7 @@ const OUTLIER_REQUESTS = [
 export const topicsMapScenario: ScenarioDefinition = {
   name: "topics-map",
   description:
-    "A published Topics map without model calls: 116 traces, two live rules (one with a long name), Intent and Issues maps with nine and five topics of very different sizes, long topic names, outliers and traces awaiting a map. Each map's latest run added its smallest one to three topics, for the new-topics badges. Needs Topics enabled for the project.",
+    "A published Topics map without model calls: 116 traces, two live rules (one with a long name), Intent and Issues maps with nine and five topics of very different sizes, long topic names, outliers and traces awaiting a map. Each map's latest run added its smallest one or two topics with traces, for the new-topics badges. Needs Topics enabled for the project.",
   supportsV4: true,
   flags: [],
   run: async (ctx, params) => {
@@ -380,15 +381,24 @@ export const topicsMapScenario: ScenarioDefinition = {
         topicOf: (index: number) => intentOf[index],
         members: (index: number) => index < SECOND_RULE_TRACES,
         summaries: intentSummaries,
-        newTopics: 3,
+        newTopics: 1,
       },
     ];
-    // Completed runs never change, so a re-run replaces them.
+    // Completed runs and their definitions never change, so a re-run replaces both.
     await prisma.topicClusteringRun.deleteMany({
       where: {
         projectId: ctx.projectId,
         id: { in: maps.map((map) => map.runId) },
       },
+    });
+    await clickhouseClient().command({
+      query:
+        "DELETE FROM topics WHERE project_id = {projectId: String} AND created_by_run_id IN {runIds: Array(String)}",
+      query_params: {
+        projectId: ctx.projectId,
+        runIds: maps.map((map) => map.runId),
+      },
+      clickhouse_settings: { mutations_sync: "1" },
     });
     for (const map of maps) {
       const config = {
@@ -407,6 +417,16 @@ export const topicsMapScenario: ScenarioDefinition = {
         ruleId: map.rule.id,
         config,
       });
+      // As if refit: the smallest topics with traces in this map are new, the rest continue the previous map.
+      const populated = [
+        ...new Set(
+          traceIds.flatMap((_, index) => {
+            const k = map.members(index) ? map.topicOf(index) : undefined;
+            return k === undefined ? [] : [k];
+          }),
+        ),
+      ].sort((a, b) => a - b);
+      const newTopics = new Set(populated.slice(-map.newTopics));
       const definitions: TopicDefinition[] = map.topics.map((topic, k) => ({
         topicVersionId: `${map.runId}-topic-${k}`,
         projectId: ctx.projectId,
@@ -419,12 +439,10 @@ export const topicsMapScenario: ScenarioDefinition = {
         centroid: unit(k),
         radius: 0.4,
         representativeSummaries: [],
-        // As if refit: the smallest topics are new, the rest continue the previous map.
         metadata: {
           continuity: {
             version: 1,
-            status:
-              k >= map.topics.length - map.newTopics ? "new" : "continued",
+            status: newTopics.has(k) ? "new" : "continued",
           },
         },
       }));
