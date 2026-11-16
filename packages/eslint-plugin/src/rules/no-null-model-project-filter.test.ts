@@ -25,6 +25,10 @@ ruleTester.run("no-null-model-project-filter", rule, {
     `await prisma.model.findFirst(where);`,
     "const sql = Prisma.sql`SELECT * FROM models WHERE scope = 'LANGFUSE'`;",
     "const sql = Prisma.sql`SELECT * FROM dashboards WHERE project_id IS NULL`;",
+    `await tx.model.create({ data: { scope: "LANGFUSE", projectId: null, id } });`,
+    `await tx.model.upsert({ where: { scope: "LANGFUSE", id }, create: { scope: "LANGFUSE", projectId: null } });`,
+    "const sql = Prisma.sql`SELECT m.id FROM models m JOIN prices p ON p.model_id = m.id WHERE p.project_id IS NULL`;",
+    'const sql = Prisma.sql`SELECT m.id FROM "models" AS "m" JOIN prices ON prices.model_id = m.id WHERE "prices"."project_id" IS NULL`;',
   ],
   invalid: [
     {
@@ -45,6 +49,10 @@ ruleTester.run("no-null-model-project-filter", rule, {
     },
     {
       code: "const rows = Prisma.sql`SELECT id FROM models m WHERE (m.project_id is null OR m.project_id = ${projectId})`;",
+      errors: [{ messageId: "sql" }],
+    },
+    {
+      code: 'const rows = Prisma.sql`SELECT * FROM prices p JOIN "models" AS "m" ON p.model_id = m.id WHERE p.project_id = ${projectId} AND "models".project_id IS NULL`;',
       errors: [{ messageId: "sql" }],
     },
   ],
