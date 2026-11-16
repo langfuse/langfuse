@@ -268,6 +268,7 @@ describe("trace selection", () => {
     rows:
       query === null ? [] : (query.traceId ? [query.traceId] : loaded).map(row),
     isLoading: false,
+    isStale: false,
     isLoadingMore: false,
     error: null,
     hasMore: false,

@@ -174,8 +174,14 @@ function CoverageBar({
   preview: SnapshotPreview | null;
   extra: number;
 }) {
+  // Shaped like the bar and its legend, so the dialog doesn't grow when counts arrive.
   if (!preview)
-    return <p className="text-muted-foreground text-sm">Counting summaries…</p>;
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="bg-muted h-2 animate-pulse rounded-sm" />
+        <p className="text-muted-foreground text-xs">Counting summaries…</p>
+      </div>
+    );
   if (preview.unsummarizedCount === null)
     return (
       <p className="text-muted-foreground text-sm">
@@ -313,9 +319,19 @@ function SnapshotSummary({
 }) {
   if (!preview)
     return (
-      <div className="bg-light-blue text-dark-blue flex items-center gap-2 rounded-md px-4 py-2.5 text-sm">
-        <Layers size="base" aria-hidden="true" />
-        Counting summarized traces…
+      <div className="bg-light-blue text-dark-blue flex flex-col gap-1.5 rounded-md px-4 py-2.5 text-sm">
+        <span className="flex items-center gap-2">
+          <Layers size="base" aria-hidden="true" />
+          Counting summarized traces…
+        </span>
+        <span className="flex items-center gap-2">
+          <Clock size="base" aria-hidden="true" />
+          Usually ready in 1–2 minutes.
+        </span>
+        <span className="flex items-center gap-2">
+          <Camera size="base" aria-hidden="true" />
+          Runs once. A snapshot doesn’t change afterwards.
+        </span>
       </div>
     );
   const clustered = preview.summarizedCount + extra;

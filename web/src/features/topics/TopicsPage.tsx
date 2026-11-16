@@ -397,6 +397,7 @@ function TopicsWorkspaceContent({
     { projectId, executionId: analysisId ?? "" },
     {
       enabled: analysisId !== null,
+      placeholderData: keepPreviousData,
       // The results area already explains a run it can't find.
       meta: { silentHttpCodes: [404] },
       refetchInterval: (query) =>
@@ -438,9 +439,11 @@ function TopicsWorkspaceContent({
     // The default map is unknown until the maps load.
     enabled: !analysisId && mapsSettled,
   });
-  // On a map switch, the previous map's results stay until the new map's arrive.
-  const switchingMap =
-    results.data !== undefined && results.data.ruleId !== selectedRule?.id;
+  // On a map or snapshot switch, the previous results stay until the new ones arrive.
+  const switchingMap = analysisId
+    ? analysisResults.data !== undefined &&
+      analysisResults.data.execution.id !== analysisId
+    : results.data !== undefined && results.data.ruleId !== selectedRule?.id;
   const shownResults = analysisId
     ? {
         data: analysisResults.data,
@@ -464,7 +467,11 @@ function TopicsWorkspaceContent({
     setFirstLoadSettled(true);
   // Traces follow the results on screen, so a switch requests no traces for stale topics.
   const scope = analysisId
-    ? { analysisId }
+    ? {
+        analysisId: switchingMap
+          ? analysisResults.data?.execution.id
+          : analysisId,
+      }
     : { ruleId: switchingMap ? results.data?.ruleId : selectedRule?.id };
   const traceFilters = useTopicTraceFilters(
     projectId,
@@ -888,7 +895,7 @@ function TopicsWorkspaceContent({
                           tracePanelRef={setTracePanel}
                           showUnassigned={showUnassigned}
                           mapActions={actions}
-                          pending={!analysisId && switchingMap}
+                          pending={switchingMap}
                         />
                       </div>
                     )}

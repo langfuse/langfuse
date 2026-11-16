@@ -149,7 +149,8 @@ export function TopicsMapPicker({
         <div
           {...floatingProps}
           aria-label="Topic maps"
-          className="ph-no-capture bg-popover text-popover-foreground z-50 flex w-200 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border shadow-md"
+          // A fixed height keeps the list and its create buttons in place while a hovered map's preview loads.
+          className="ph-no-capture bg-popover text-popover-foreground z-50 flex w-200 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border shadow-md sm:h-[min(22rem,70vh)]"
         >
           <div className="flex w-full min-w-0 flex-col sm:w-2/5 sm:border-r">
             <label className="flex items-center gap-2 border-b px-4">
