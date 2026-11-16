@@ -4,7 +4,6 @@ import {
   useRef,
   useState,
   type ComponentProps,
-  type ReactNode,
 } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -22,6 +21,8 @@ import {
   selectTopicTraceFilters,
 } from "./topic-trace-filters";
 import { TopicMobileList } from "./TopicMobileList";
+import { TopicsEmptyActions } from "./TopicsEmptyActions";
+import { type TopicsActions } from "./prepare-topics-actions";
 import { TopicMobileTraceList } from "./TopicMobileTraceList";
 import { MobileTopicVisualization } from "./MobileTopicVisualization";
 import { TopicsTraceToolbar } from "./TopicsTraceToolbar";
@@ -47,8 +48,8 @@ type MobileTopicsViewProps = {
   isV4: boolean;
   useTraces: UseTopicTraces;
   showUnassigned: boolean;
-  /** Shown under an empty topic list. */
-  emptyActions?: ReactNode;
+  /** Offered under an empty topic list. */
+  mapActions: TopicsActions;
 };
 
 /** Local navigation only; query data and persisted filters stay with the caller. */
@@ -68,7 +69,7 @@ export function MobileTopicsView({
   isV4,
   useTraces,
   showUnassigned,
-  emptyActions,
+  mapActions,
 }: MobileTopicsViewProps) {
   const [navigation, setNavigation] = useState({
     view,
@@ -193,8 +194,10 @@ export function MobileTopicsView({
             onSelectTopic={selectTopic}
             onShowAllTraces={showAllTraces}
           />
-          {facet.topics.length === 0 && emptyActions ? (
-            <div className="shrink-0 border-t p-3">{emptyActions}</div>
+          {facet.topics.length === 0 ? (
+            <div className="shrink-0 border-t p-3">
+              <TopicsEmptyActions actions={mapActions} />
+            </div>
           ) : null}
         </Tabs.Content>
         <Tabs.Content value="traces" layout="fill">

@@ -20,7 +20,6 @@ const state = vi.hoisted(() => ({
   hasStoredSummaries: true,
   resultsDataAvailable: true,
   mobileHeader: false,
-  emptyPhoneResults: false,
   resultFacets: [] as Array<{ facetId: string; name: string }>,
   openAutomaticProcessing: vi.fn(),
   push: vi.fn(),
@@ -135,18 +134,14 @@ vi.mock("./CurrentTopics", () => ({
   },
   CurrentTopics: ({
     result,
-    emptyActions,
   }: {
     result: { running: boolean; refreshAfter: number };
-    emptyActions?: ReactNode;
   }) => (
     <div
       data-testid="current-topics"
       data-running={result.running}
       data-refresh-after={result.refreshAfter}
-    >
-      {state.emptyPhoneResults && emptyActions}
-    </div>
+    ></div>
   ),
 }));
 vi.mock("@/src/utils/api", () => ({
@@ -286,7 +281,6 @@ beforeEach(() => {
   state.canViewTopics = true;
   state.resultsDataAvailable = true;
   state.mobileHeader = false;
-  state.emptyPhoneResults = false;
   state.resultFacets = [];
   state.hasStoredSummaries = true;
   state.status = "failed";
@@ -493,42 +487,3 @@ it("shows the setup landing until the project's first stored summary exists", ()
   expect(screen.getByTestId("current-topics")).toBeVisible();
   expect(screen.queryByRole("button", { name: "Set up topics" })).toBeNull();
 });
-
-it.each([
-  { access: "with topics:CUD", canWrite: true },
-  { access: "without topics:CUD", canWrite: false },
-])(
-  "offers the map entry points under empty phone results $access",
-  ({ canWrite }) => {
-    withSummaries();
-    state.canWrite = canWrite;
-    state.emptyPhoneResults = true;
-    state.maps = {
-      rules: [
-        {
-          id: "rule-1",
-          projectId: "project",
-          name: "All generations",
-          filter: [],
-          sampling: 1,
-          facetIds: ["intent"],
-          enabled: true,
-          updatedAt: "2026-11-01T00:00:00Z",
-          lastRefitAt: "2026-11-01T00:00:00Z",
-          refresh: { availableAt: null, running: false },
-        },
-      ],
-      analyses: [],
-    };
-    render(<TopicsPage />, { wrapper: LayerProvider });
-    const results = within(screen.getByTestId("current-topics"));
-    for (const label of ["Edit map", "New map", "New snapshot"])
-      expect(results.getByRole("button", { name: label })).toHaveProperty(
-        "disabled",
-        !canWrite,
-      );
-    expect(
-      results.queryByText("You need permission to edit Topics.") !== null,
-    ).toBe(!canWrite);
-  },
-);

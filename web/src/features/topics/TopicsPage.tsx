@@ -25,7 +25,6 @@ import { TopicsMobileControls } from "./TopicsMobileControls";
 import { resolveTopicFacetId } from "./topic-facet-selection";
 import { Spinner } from "@/src/components/layouts/Spinner";
 import { TopicsHeaderActions } from "./TopicsHeaderActions";
-import { TopicsEmptyActions } from "./TopicsEmptyActions";
 import {
   TopicsResultsViewSelect,
   useTopicsResultsView,
@@ -835,9 +834,7 @@ function TopicsWorkspaceContent({
                           traceFilters={traceFilters}
                           tracePanelRef={setTracePanel}
                           showUnassigned={showUnassigned}
-                          emptyActions={
-                            <TopicsEmptyActions actions={actions} />
-                          }
+                          mapActions={actions}
                         />
                       </div>
                     )}

@@ -1,4 +1,4 @@
-import { type ComponentProps, type ReactNode, useMemo, useRef } from "react";
+import { type ComponentProps, useMemo, useRef } from "react";
 import { CircleAlert } from "@langfuse/icons";
 import { TopicsCenteredState } from "./TopicsCenteredState";
 import { Spinner } from "@/src/components/layouts/Spinner";
@@ -20,6 +20,7 @@ import { useIsHandheld } from "@/src/hooks/use-mobile";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { MobileTopicsView } from "./MobileTopicsView";
+import { type TopicsActions } from "./prepare-topics-actions";
 import {
   facetWithoutUnassigned,
   mapWithoutUnassigned,
@@ -39,7 +40,7 @@ export function CurrentTopics({
   tracePanelRef,
   traceFilters,
   showUnassigned,
-  emptyActions,
+  mapActions,
 }: CurrentTopicsProps) {
   const selectedFacet = result.data?.facets.find(
     (facet) => facet.facetId === selectedFacetId,
@@ -73,7 +74,7 @@ export function CurrentTopics({
           tracePanelRef={tracePanelRef}
           traceFilters={traceFilters}
           showUnassigned={showUnassigned}
-          emptyActions={emptyActions}
+          mapActions={mapActions}
         />
       )}
     </section>
@@ -88,7 +89,7 @@ function CurrentFacet({
   tracePanelRef,
   traceFilters,
   showUnassigned,
-  emptyActions,
+  mapActions,
 }: CurrentFacetProps) {
   const isHandheld = useIsHandheld();
   const mobileVisualization = useMobileTopicsVisualization();
@@ -141,7 +142,7 @@ function CurrentFacet({
           traceFilters={traceFilters}
           onOpenTrace={peekNavigation.openPeek}
           showUnassigned={showUnassigned}
-          emptyActions={emptyActions}
+          mapActions={mapActions}
         />
       );
     if (view === "map")
@@ -191,10 +192,10 @@ function MobileTopics({
   traceFilters,
   onOpenTrace,
   showUnassigned,
-  emptyActions,
+  mapActions,
 }: Pick<
   CurrentFacetProps,
-  "projectId" | "facet" | "traceFilters" | "showUnassigned" | "emptyActions"
+  "projectId" | "facet" | "traceFilters" | "showUnassigned" | "mapActions"
 > & {
   view: MobileTopicsVisualization;
   onViewChange: ComponentProps<typeof MobileTopicsView>["onViewChange"];
@@ -222,7 +223,7 @@ function MobileTopics({
       isV4={isV4}
       useTraces={useFacetTopicTraces}
       showUnassigned={showUnassigned}
-      emptyActions={emptyActions}
+      mapActions={mapActions}
     />
   );
 }
@@ -289,8 +290,8 @@ type CurrentTopicsProps = {
   tracePanelRef?: (element: HTMLElement | null) => void;
   traceFilters: ReturnType<typeof useTopicTraceFilters>;
   showUnassigned: boolean;
-  /** Shown on phones under an empty topic list. */
-  emptyActions?: ReactNode;
+  /** Offered on phones under an empty topic list. */
+  mapActions: TopicsActions;
 };
 
 type CurrentFacetProps = {
@@ -301,8 +302,8 @@ type CurrentFacetProps = {
   tracePanelRef?: (element: HTMLElement | null) => void;
   traceFilters: ReturnType<typeof useTopicTraceFilters>;
   showUnassigned: boolean;
-  /** Shown on phones under an empty topic list. */
-  emptyActions?: ReactNode;
+  /** Offered on phones under an empty topic list. */
+  mapActions: TopicsActions;
 };
 
 type Facet = RouterOutputs["topics"]["currentResults"]["facets"][number];

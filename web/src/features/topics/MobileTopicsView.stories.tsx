@@ -6,6 +6,7 @@ import { PINCH_ZOOM_RATE } from "@/src/utils/panZoomGestures";
 import preview from "../../../.storybook/preview";
 import { MobileTopicsView } from "./MobileTopicsView";
 import { TopicsMobileControls } from "./TopicsMobileControls";
+import { prepareTopicsActions } from "./prepare-topics-actions";
 import { staticTopicTraces, storyFacet } from "./topic-story-traces";
 
 const topics = [
@@ -122,6 +123,23 @@ function MobileExample(args: ComponentProps<typeof MobileTopicsView>) {
   );
 }
 
+const mapActionHandlers = {
+  onEditRun: fn(),
+  onNewMap: fn(),
+  onNewSnapshot: fn(),
+};
+const mapActions = prepareTopicsActions({
+  automaticProcessing: { state: { status: "on" }, saving: false },
+  canWrite: true,
+  configureAvailable: true,
+  menuOnly: false,
+  onConfigure: fn(),
+  onHistory: fn(),
+  ...mapActionHandlers,
+  showUnassigned: true,
+  onShowUnassignedChange: fn(),
+});
+
 const defaultArgs: ComponentProps<typeof MobileTopicsView> = {
   projectId: "storybook-topics",
   facet,
@@ -137,6 +155,7 @@ const defaultArgs: ComponentProps<typeof MobileTopicsView> = {
   onOpenTrace: fn(),
   useTraces: staticTopicTraces(rows),
   showUnassigned: true,
+  mapActions,
 };
 
 const meta = preview.meta({
@@ -154,6 +173,27 @@ export const AwaitingTopics = meta.story({
       rows.filter((row) => row.topicId === null),
     ),
     useTraces: staticTopicTraces(rows.filter((row) => row.topicId === null)),
+  },
+});
+export const MapEntryPointsWithoutTopics = meta.story({
+  name: "(Test) Offer the map entry points under an empty topic list",
+  args: {
+    facet: storyFacet(
+      { ...facet, topics: [], map: null },
+      rows.filter((row) => row.topicId === null),
+    ),
+    useTraces: staticTopicTraces(rows.filter((row) => row.topicId === null)),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    for (const [label, handler] of [
+      ["Edit map", mapActionHandlers.onEditRun],
+      ["New map", mapActionHandlers.onNewMap],
+      ["New snapshot", mapActionHandlers.onNewSnapshot],
+    ] as const) {
+      await userEvent.click(await canvas.findByRole("button", { name: label }));
+      await expect(handler).toHaveBeenCalledOnce();
+    }
   },
 });
 export const BrowseAndOpenTrace = meta.story({
