@@ -22,10 +22,11 @@ export function referencedTraceAttributeColumns(
   alias: string,
   sqlFragments: readonly string[],
 ): TraceAttributeColumn[] {
-  const reference = new RegExp(`\\b${alias}\\.(\\w+)`, "g");
   const referenced = new Set<string>();
   for (const sql of sqlFragments) {
-    for (const match of sql.matchAll(reference)) referenced.add(match[1]);
+    for (const [, table, column] of sql.matchAll(/\b(\w+)\.(\w+)/g)) {
+      if (table === alias) referenced.add(column);
+    }
   }
   referenced.delete("id");
   referenced.delete("project_id");
