@@ -96,26 +96,6 @@ vi.mock("@langfuse/shared/topics/server", () => {
         isBuiltIn: false,
         versions: [version],
       })),
-    listTopicSummaries: async (
-      projectId: string,
-      filter: {
-        traceIds: string[];
-        facetId: string;
-        facetVersion: number;
-      },
-      timeRange: TopicTimeRange,
-    ) => {
-      state.resultReads("historical");
-      return [...state.summaries.values()].filter(
-        (row) =>
-          row.projectId === projectId &&
-          row.facetId === filter.facetId &&
-          row.facetVersion === filter.facetVersion &&
-          row.traceId !== null &&
-          filter.traceIds.includes(row.traceId) &&
-          inTimeRange(row, timeRange),
-      );
-    },
     createTopicRun: async (
       input: Pick<
         TopicRun,
