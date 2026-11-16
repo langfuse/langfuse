@@ -602,6 +602,9 @@ pub enum ResolutionError {
     /// The key has spend limits, but the connection may not report usage.
     #[error("spend limit cannot meter the connection")]
     SpendLimitUnmeteredConnection,
+    /// The key has spend limits, but the request may not report usage.
+    #[error("spend limit cannot meter the request")]
+    SpendLimitUnmeteredRequest,
     /// The gateway's memory budget cannot cover another request.
     #[error("gateway at capacity")]
     Busy,

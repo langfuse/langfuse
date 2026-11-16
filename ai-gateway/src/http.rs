@@ -499,6 +499,7 @@ impl InferenceHttpError {
                     R::SpendLimitUnavailable => "spend_limit_unavailable",
                     R::SpendLimitUnpricedModel => "spend_limit_unpriced_model",
                     R::SpendLimitUnmeteredConnection => "spend_limit_unmetered_connection",
+                    R::SpendLimitUnmeteredRequest => "spend_limit_unmetered_request",
                     R::Busy => "capacity",
                     R::Timeout => "timeout",
                     R::Unavailable => "unavailable",
@@ -514,7 +515,6 @@ impl InferenceHttpError {
                     ProviderError::Timeout => "timeout",
                     ProviderError::Transport => "transport",
                     ProviderError::Configuration => "configuration",
-                    ProviderError::UnmeteredRequest => "unmetered_request",
                 },
             ),
         }
@@ -581,7 +581,7 @@ impl InferenceHttpError {
             ),
             Self::Resolution(R::SpendLimitUnpricedModel) => SPEND_LIMIT_UNPRICED_MODEL,
             Self::Resolution(R::SpendLimitUnmeteredConnection) => SPEND_LIMIT_UNMETERED_CONNECTION,
-            Self::Provider(ProviderError::UnmeteredRequest) => SPEND_LIMIT_UNMETERED_REQUEST,
+            Self::Resolution(R::SpendLimitUnmeteredRequest) => SPEND_LIMIT_UNMETERED_REQUEST,
             Self::InvalidBody => (
                 StatusCode::BAD_REQUEST,
                 "Invalid request body",
@@ -753,11 +753,6 @@ impl InferenceHttpError {
 /// The status and message a refused resolution returns, for its generation.
 pub(crate) fn resolution_rejection(error: &ResolutionError) -> GatewayRejection {
     InferenceHttpError::Resolution(error.clone()).rejection()
-}
-
-/// The status and message a refused provider request returns, for its generation.
-pub(crate) fn provider_rejection(error: ProviderError) -> GatewayRejection {
-    InferenceHttpError::Provider(error).rejection()
 }
 
 /// Status, message, error type and error code of a rejection.

@@ -19,7 +19,10 @@ pub(crate) use window::{SpendLimitInterval, SpendLimitScope};
 use crate::{
     capture::InferenceFacts,
     config::SpendCountersConfig,
-    providers::usage::{UsageDetails, provider_usage},
+    providers::{
+        Route, may_omit_usage,
+        usage::{UsageDetails, provider_usage},
+    },
     resolution::{
         Provider, ProviderConnection, ResolutionError, ResolvedRequestContext, SpendLimit,
         SpendLimitExceeded,
@@ -61,6 +64,8 @@ impl SpendLimits {
     pub(crate) async fn check(
         &self,
         context: &ResolvedRequestContext,
+        route: Route,
+        body: &[u8],
     ) -> Result<Option<SpendRecording>, ResolutionError> {
         let limits = context.spend_limits();
         if limits.is_empty() {
@@ -69,6 +74,9 @@ impl SpendLimits {
         let model = priced_model(context).ok_or(ResolutionError::SpendLimitUnpricedModel)?;
         if !reports_usage(context.connection()) {
             return Err(ResolutionError::SpendLimitUnmeteredConnection);
+        }
+        if may_omit_usage(route, body, context.connection().provider_model()) {
+            return Err(ResolutionError::SpendLimitUnmeteredRequest);
         }
         let Some(store) = &self.counters else {
             tracing::warn!("key has spend limits but LANGFUSE_AI_GATEWAY_REDIS_URL is not set");
