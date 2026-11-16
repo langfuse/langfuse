@@ -186,14 +186,6 @@ vi.mock("@/src/utils/api", () => ({
           mutateAsync: vi.fn(),
         }),
       },
-      rules: {
-        useQuery: () => ({
-          data: state.rulesPending ? undefined : state.rules,
-          isPending: state.rulesPending,
-          isSuccess: !state.rulesPending && !state.rulesError,
-          error: state.rulesError,
-        }),
-      },
       execution: {
         useQuery: () => ({
           data: {
@@ -213,7 +205,29 @@ vi.mock("@/src/utils/api", () => ({
           refetch: state.refetchExecution,
         }),
       },
-      maps: { useQuery: () => ({ data: state.maps }) },
+      // Settings read the rules from the maps overview.
+      maps: {
+        useQuery: () => ({
+          data: state.rulesPending
+            ? undefined
+            : (state.maps ?? {
+                // A settled live map per rule, so the page shows its results.
+                rules: state.rules.map((rule, index) => ({
+                  id: `rule-${index}`,
+                  projectId: "project",
+                  name: "Rule",
+                  filter: [],
+                  sampling: 1,
+                  enabled: true,
+                  updatedAt: "2026-11-01T00:00:00Z",
+                  lastRefitAt: "2026-11-01T00:00:00Z",
+                  refresh: { running: false, availableAt: null },
+                  ...rule,
+                })),
+                analyses: [],
+              }),
+        }),
+      },
       ruleSetupStatus: { useQuery: () => ({ data: null }) },
       startRuleSetup: {
         useMutation: () => ({
@@ -251,7 +265,7 @@ vi.mock("@/src/utils/api", () => ({
     useUtils: () => ({
       topics: {
         modelSettings: { invalidate: vi.fn() },
-        rules: { invalidate: vi.fn() },
+        maps: { invalidate: vi.fn() },
         executions: { invalidate: vi.fn() },
       },
     }),
@@ -422,9 +436,11 @@ it("puts New live map and New snapshot first in the menu", async () => {
   render(<TopicsPage />, { wrapper: LayerProvider });
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   const items = await screen.findAllByRole("menuitem");
+  // The selected live map adds Refresh map after the create entries.
   expect(items.map((item) => item.textContent)).toEqual([
     "New live map",
     "New snapshot",
+    expect.stringMatching(/^Refresh map/),
     "History",
     "Settings",
   ]);
