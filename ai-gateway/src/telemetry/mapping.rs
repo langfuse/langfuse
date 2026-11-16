@@ -14,20 +14,7 @@ const USER_ID_ATTRIBUTE: &str = "user.id";
 pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value {
     let full = facts.metadata.get("ingestion_mode").and_then(Value::as_str) == Some("full");
     let (level, message) = observation_status(&facts);
-    let mut metadata: Map<String, Value> = context
-        .metadata
-        .iter()
-        .filter(|(key, _)| !reserved_metadata(key))
-        .map(|(key, value)| (key.clone(), value.clone()))
-        .collect();
-    // Trusted key attribution and gateway facts take precedence over caller metadata.
-    metadata.extend(generation_metadata(&facts));
-    if let Some(user_agent) = &context.user_agent {
-        metadata.insert(
-            "langfuse.gateway.client.user_agent".into(),
-            json!(user_agent),
-        );
-    }
+    let metadata = observation_metadata(&facts, context);
     let observation_type = observation_type(facts.api_format);
     let mut attributes = vec![attribute("langfuse.observation.type", observation_type)];
     attributes.extend(context.attributes.iter().map(|(key, value)| {
@@ -38,12 +25,9 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
                 .map_or_else(|| value.to_string(), str::to_owned),
         )
     }));
-    if let Some((source, user_id)) = user_id_source(&facts, context) {
-        if let Some(user_id) = user_id {
-            attributes.retain(|attribute| attribute["key"] != USER_ID_ATTRIBUTE);
-            attributes.push(attribute(USER_ID_ATTRIBUTE, user_id));
-        }
-        metadata.insert("langfuse.gateway.user_id_source".into(), json!(source));
+    if let Some((_, Some(user_id))) = user_id_source(&facts, context) {
+        attributes.retain(|attribute| attribute["key"] != USER_ID_ATTRIBUTE);
+        attributes.push(attribute(USER_ID_ATTRIBUTE, user_id));
     }
     let inference = facts.inference;
     if let Some(model) = inference
@@ -120,6 +104,32 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
 /// Keys without a bound user, such as service account keys, take the caller's
 /// user ID. Only when the gateway starts the trace do they fall back to the
 /// key's name, so a caller's trace keeps the user set on its own spans.
+/// The generation's metadata as ingestion stores it, which is also what metadata
+/// pricing-tier conditions are matched against.
+pub(super) fn observation_metadata(
+    facts: &InferenceFacts,
+    context: &GenerationContext,
+) -> Map<String, Value> {
+    let mut metadata: Map<String, Value> = context
+        .metadata
+        .iter()
+        .filter(|(key, _)| !reserved_metadata(key))
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect();
+    // Trusted key attribution and gateway facts take precedence over caller metadata.
+    metadata.extend(generation_metadata(facts));
+    if let Some(user_agent) = &context.user_agent {
+        metadata.insert(
+            "langfuse.gateway.client.user_agent".into(),
+            json!(user_agent),
+        );
+    }
+    if let Some((source, _)) = user_id_source(facts, context) {
+        metadata.insert("langfuse.gateway.user_id_source".into(), json!(source));
+    }
+    metadata
+}
+
 fn user_id_source<'a>(
     facts: &'a InferenceFacts,
     context: &GenerationContext,

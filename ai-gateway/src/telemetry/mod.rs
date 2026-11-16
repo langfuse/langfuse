@@ -85,6 +85,10 @@ impl DeliveryContext {
         })
     }
 
+    pub(crate) fn observation_metadata(&self, facts: &InferenceFacts) -> Map<String, Value> {
+        mapping::observation_metadata(facts, &self.generation)
+    }
+
     pub(crate) fn generation_ids(&self) -> crate::correlation::GenerationIds {
         crate::correlation::GenerationIds {
             trace_id: self.generation.trace_id.clone(),

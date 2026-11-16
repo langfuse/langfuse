@@ -10,7 +10,7 @@ mod window;
 use std::{sync::Arc, time::Duration, time::SystemTime};
 
 use chrono::{DateTime, SecondsFormat, Utc};
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 pub(crate) use cost::PricingTierWithPrices;
 pub(crate) use window::SpendLimitInterval;
@@ -158,8 +158,11 @@ pub(crate) struct SpendRecording {
 
 impl SpendRecording {
     /// Price the finished generation and add it to the counters in the background.
-    pub(crate) fn record(self, facts: &InferenceFacts) {
-        let Some(cost) = generation_cost(facts, &self.tiers).filter(|cost| *cost > 0.0) else {
+    /// `metadata` is the generation's metadata as ingestion stores it, so metadata
+    /// pricing-tier conditions match the tier ingestion will charge.
+    pub(crate) fn record(self, facts: &InferenceFacts, metadata: &Map<String, Value>) {
+        let Some(cost) = generation_cost(facts, metadata, &self.tiers).filter(|cost| *cost > 0.0)
+        else {
             return;
         };
         let Ok(runtime) = tokio::runtime::Handle::try_current() else {
@@ -174,7 +177,11 @@ impl SpendRecording {
 
 /// What Langfuse will charge for the generation: the provider's own cost when it
 /// reports one, else its usage priced with the model's tiers.
-fn generation_cost(facts: &InferenceFacts, tiers: &[PricingTierWithPrices]) -> Option<f64> {
+fn generation_cost(
+    facts: &InferenceFacts,
+    metadata: &Map<String, Value>,
+    tiers: &[PricingTierWithPrices],
+) -> Option<f64> {
     let inference = &facts.inference;
     let usage = inference.usage_details.as_ref()?;
     let provider = facts.metadata.get("provider").and_then(Value::as_str);
@@ -188,7 +195,7 @@ fn generation_cost(facts: &InferenceFacts, tiers: &[PricingTierWithPrices]) -> O
     )
     .and_then(|details| usd_amounts(&details));
     let model_parameters = Value::Object(inference.model_parameters.clone());
-    let metadata = Value::Object(inference.request_metadata.clone());
+    let metadata = Value::Object(metadata.clone());
     let costs = calculate_model_usage_costs(
         tiers,
         &usage_units,

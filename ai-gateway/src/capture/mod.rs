@@ -358,7 +358,12 @@ impl ExecutionCapture {
         telemetry::debug_record(&facts);
         crate::observability::execution_finished(&facts);
         if let Some(spend) = self.spend.take() {
-            spend.record(&facts);
+            let metadata = self
+                .delivery
+                .as_ref()
+                .map(|(_, context)| context.observation_metadata(&facts))
+                .unwrap_or_default();
+            spend.record(&facts, &metadata);
         }
         if let Some((telemetry, context)) = self.delivery.take() {
             telemetry.record(context, facts);

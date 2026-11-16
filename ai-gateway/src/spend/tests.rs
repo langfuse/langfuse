@@ -62,12 +62,34 @@ fn prices_provider_usage_as_langfuse_ingests_it() {
         "prompt_tokens_details": { "cached_tokens": 40, "text_tokens": 60 },
         "completion_tokens_details": { "reasoning_tokens": 30 },
     });
-    let inferred = generation_cost(&xai_chat_completion(usage.clone()), &tiers()).unwrap();
+    let inferred =
+        generation_cost(&xai_chat_completion(usage.clone()), &Map::new(), &tiers()).unwrap();
     // Priority tier: 60 input, 40 cached, 20 output and 30 reasoning tokens.
     assert!((inferred - 0.328).abs() < 1e-12, "{inferred}");
 
     let mut billed = usage;
     billed["cost_in_usd_ticks"] = json!(2_000_000_000_u64);
-    let provided = generation_cost(&xai_chat_completion(billed), &tiers()).unwrap();
+    let provided = generation_cost(&xai_chat_completion(billed), &Map::new(), &tiers()).unwrap();
     assert!((provided - 0.2).abs() < 1e-12, "{provided}");
+}
+
+#[test]
+fn matches_metadata_tiers_against_the_ingested_generation_metadata() {
+    let tiers: Vec<PricingTierWithPrices> = serde_json::from_value(json!([
+        { "id": "standard", "name": "Standard", "is_default": true, "priority": 0, "conditions": [], "prices": { "input": 0.001 } },
+        {
+            "id": "team", "name": "Team", "is_default": false, "priority": 1,
+            "conditions": [{ "source": "metadata", "key": "langfuse.gateway.api_key.metadata.team", "values": ["research"] }],
+            "prices": { "input": 0.01 },
+        },
+    ]))
+    .unwrap();
+    let facts = xai_chat_completion(json!({
+        "prompt_tokens": 100,
+        "completion_tokens": 0,
+        "total_tokens": 100,
+    }));
+    let metadata = json!({ "langfuse.gateway.api_key.metadata.team": "research" });
+    let cost = generation_cost(&facts, metadata.as_object().unwrap(), &tiers).unwrap();
+    assert!((cost - 1.0).abs() < 1e-12, "{cost}");
 }
