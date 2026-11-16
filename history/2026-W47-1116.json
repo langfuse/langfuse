@@ -1,0 +1,189 @@
+{
+  "window": { "from": "2026-11-10", "to": "2026-11-16" },
+  "isoWeekNote": "2026-11-16 is a MONDAY and the trailing-7-day window is Tue 11-10 .. Mon 11-16, i.e. ISO W46 Tue-Sun plus the Monday that opens ISO W47. Filed as 2026-W47-1116.json, same convention as 2026-W43-1019 and 2026-W44-1026 (name by the ISO week of the end Monday). CALENDAR CORRECTION: the W44 file's isoWeekNote claims 2026-10-26 is a Sunday. It is a Monday. Every window in this series has been Tue..Mon, never Mon..Sun.",
+  "generatedAt": "2026-11-16",
+  "gapNote": "THREE WEEKS since the last analysis (W44, 2026-10-26). W45 and W46 were never analysed, so every vsPreviousWindow number below spans three weeks of change, not one.",
+  "dataQuality": {
+    "denseDays": ["2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13", "2026-11-15"],
+    "denseDaySampleSize": "7/day Tue-Fri, 6 on Sun (the whole day)",
+    "emptyDays": ["2026-11-14 (Sat, 0 merge_group runs)", "2026-11-16 (Mon, 0 merge_group runs before this run)"],
+    "note": "34 successful merge_group runs sampled out of 165 (41/33/41/44/0/6/0 Tue..Mon). Weekly aggregate = median of the 5 dense daily medians, same method as W42-W44. WEEKEND COLLAPSE CORRECTION: notes.md recorded a recurring 'Friday collapse' on 09-19, 09-26, 10-17 and 10-24. All four of those dates are SATURDAYS. It was always a Saturday phenomenon and it recurred for a 5th time here (Sat 11-14 = 0 runs against 44 on Fri 11-13, the densest day of the week). Friday is not thin in this repo; Saturday and Sunday are.",
+    "logAccess": "NONE. get_job_logs was filtered by integrity policy for the whole run ('lower integrity than agent requires'), and so were pull_request_read bodies/commits. get_workflow_run_logs_url returns only a signed ZIP download URL, which is not usable here. Consequence: no vitest reporter output at all this week — no slowest tests, no slowest files, no retried tests, no failed-test names. Everything below is derived from Actions run/job/step metadata plus local git history."
+  },
+  "weeklyAggregate": {
+    "perceived": 276,
+    "gated": 260,
+    "execution": 270,
+    "runnerWait": 6,
+    "webBuildStep": 53,
+    "webRunTestsStep": 96,
+    "workerBuildStep": 43,
+    "workerRunTestsStep": 105,
+    "e2eTestsJob": 183,
+    "e2eBuildStep": 63,
+    "e2eRunStep": 46,
+    "fipsMaxJob": 262,
+    "installDependenciesStep": 1,
+    "executionMinusE2e": 87,
+    "unit": "seconds; MEDIAN of the dense daily medians (11-10,11-11,11-12,11-13,11-15) — do not switch to mean, the series would break"
+  },
+  "dailyMedians": {
+    "2026-11-10": { "n": 7, "perceived": 301, "execution": 295, "runnerWait": 6, "gated": 294, "webBuildStep": 53, "webRunTestsStep": 103, "workerBuildStep": 44, "workerRunTestsStep": 112, "e2eTestsJob": 183, "e2eBuildStep": 57, "e2eRunStep": 51, "fipsMaxJob": 300, "installDependenciesStep": 2 },
+    "2026-11-11": { "n": 7, "perceived": 306, "execution": 303, "runnerWait": 9, "gated": 293, "webBuildStep": 51, "webRunTestsStep": 87, "workerBuildStep": 43, "workerRunTestsStep": 107, "e2eTestsJob": 195, "e2eBuildStep": 74, "e2eRunStep": 46, "fipsMaxJob": 260, "installDependenciesStep": 1 },
+    "2026-11-12": { "n": 7, "perceived": 276, "execution": 270, "runnerWait": 6, "gated": 260, "webBuildStep": 62, "webRunTestsStep": 100, "workerBuildStep": 43, "workerRunTestsStep": 101, "e2eTestsJob": 202, "e2eBuildStep": 80, "e2eRunStep": 53, "fipsMaxJob": 262, "installDependenciesStep": 1 },
+    "2026-11-13": { "n": 7, "perceived": 270, "execution": 265, "runnerWait": 6, "gated": 252, "webBuildStep": 53, "webRunTestsStep": 96, "workerBuildStep": 44, "workerRunTestsStep": 105, "e2eTestsJob": 168, "e2eBuildStep": 63, "e2eRunStep": 46, "fipsMaxJob": 269, "installDependenciesStep": 1 },
+    "2026-11-15": { "n": 6, "perceived": 245, "execution": 240.5, "runnerWait": 6, "gated": 218.5, "webBuildStep": 48, "webRunTestsStep": 84, "workerBuildStep": 38, "workerRunTestsStep": 98, "e2eTestsJob": 144.5, "e2eBuildStep": 35, "e2eRunStep": 45.5, "fipsMaxJob": 238.5, "installDependenciesStep": 1 }
+  },
+  "pooledPercentiles": {
+    "n": 34,
+    "perceived": { "p50": 283, "p90": 366 },
+    "gated": { "p50": 255, "p90": 360 }
+  },
+  "vsPreviousWindow": {
+    "comparator": "2026-W44-1026.json (THREE weeks earlier — W45 and W46 were not analysed)",
+    "perceived": "372.5 -> 276 (-25.9%)",
+    "gated": "331 -> 260 (-21.5%)",
+    "execution": "362.5 -> 270 (-25.5%)",
+    "runnerWait": "8.5 -> 6 (-29%, negligible in absolute terms either way)",
+    "webBuildStep": "55 -> 53 (-3.6%)",
+    "webRunTestsStep": "99.5 -> 96 (-3.5%)",
+    "workerBuildStep": "45 -> 43 (-4.4%)",
+    "workerRunTestsStep": "110 -> 105 (-4.5%)",
+    "e2eTestsJob": "209 -> 183 (-12.4%)",
+    "fipsMaxJob": "331 -> 262 (-20.8%)",
+    "perceivedP90": "529 -> 366 (-30.8%)",
+    "note": "Best week in the recorded series on every headline metric, and better than W43 (291/269.5) too, so this is not just the W44 window-composition artefact unwinding. The per-step numbers moved only 3-5% — the whole gain is in the TAIL and in fipsMaxJob, which is consistent with the FIPS breakage being repaired rather than with any test getting faster."
+  },
+  "sustainedShiftScan": {
+    "result": "NONE (improving)",
+    "method": "Dense-day perceived max/min = 306/245 = 1.25, far below the 1.5x bar. The series falls monotonically within the window (301, 306, 276, 270, 245) with no step crossing 1.5x for 3+ consecutive days. No regression to chase."
+  },
+  "timeOfDayFinding": {
+    "verdict": "PRIMARY finding of the week. Runs that start at or after 17:00 UTC pay a ~45% penalty, and that penalty IS the p90 tail.",
+    "evidence": [
+      "Of 165 successful merge_group runs, 24 (15%) started >= 17:00Z.",
+      "Sampled runs: 28 started < 17:00Z, 6 started >= 17:00Z.",
+      "gated median 247s (<17Z) vs 357s (>=17Z), +110s / +45%. Pooled gated p90 for the week is 360s, i.e. the p90 is essentially the evening median.",
+      "e2e-tests job median 172.5s (<17Z) vs 304s (>=17Z), +76%.",
+      "e2e 'Build' step median 50.5s (<17Z) vs 148s (>=17Z), 2.9x. All 5 runs with Build > 100s started between 17:11Z and 20:06Z; the other 29 runs span 4s..98s with no gap.",
+      "The slowdown is NOT confined to e2e: web Build 52 -> 65 (+25%), web run tests 88.5 -> 105.5 (+19%), worker Build 41 -> 48.5 (+18%) in the same bucket. corr(e2eBuild, hour) = 0.56; corr(e2eBuild, webRunTests) = 0.53.",
+      "runnerWait is 4-14s in every single run including the slow ones, so this is NOT queueing for a runner. 'install dependencies' is 1-2s all week, so it is not pnpm store coldness either."
+    ],
+    "hypothesis": "GitHub Actions cache-service throughput, not code. The e2e job writes a fresh ~hundreds-of-MB entry on nearly every run: key is runner.os-nextjs-e2e-<hash(pnpm-lock)>-<hash(web/**/*.{js,jsx,ts,tsx})>, so the exact key changes whenever any web source file changes, and the run falls back to restore-keys. 'Post Cache Next.js builds' takes 8-21s on every run, i.e. a new entry is saved every time. With ~45 merge_group runs/day plus ~175 pull_request runs/day all writing turbo and Next.js entries, the repo cache budget churns through the day and late-day runs restore a worse fallback. UNPROVEN — there is no cache-API reader in the toolset and no log access this week to confirm hit/miss.",
+    "whyNoDiff": "The fix lives in .github/workflows/pipeline.yml (cache key/path/save conditions, around lines 1417-1427), which this workflow is forbidden to edit even temporarily. Handed to a human as a report-only recommendation."
+  },
+  "criticalPath": {
+    "longestJob": "tests-fips (worker)",
+    "evidence": "Last-to-finish in 18/34 runs; tests-fips (web) in 3/34 -> tests-fips owns the tail in 21/34 = 62% of runs (71% in W44, so unchanged in character). Then all-ci-passed 12, notify-docker-image-release 1.",
+    "executionMinusE2e": 87,
+    "gatingGap": "tests-fips is STILL non-gating. The gap is now small: perceived median 276 vs gated 260, i.e. ~16s of fips tail past the gate, against 41s in W44. BUT the gating job that actually sets the tail is e2e-tests: corr(gated, e2eJob) = 0.69, the highest of any segment, vs corr(gated, fipsMaxEnd) = 0.50. For the MEDIAN run fips is the pole; for the SLOW run e2e is."
+  },
+  "runVolumes": {
+    "mergeGroupSuccess": 165,
+    "mergeGroupFailure": 4,
+    "mergeGroupCancelled": 0,
+    "mergeGroupTotal": 169,
+    "pullRequestSuccess": 1222,
+    "perDayMergeGroupSuccess": { "2026-11-10": 41, "2026-11-11": 33, "2026-11-12": 41, "2026-11-13": 44, "2026-11-14": 0, "2026-11-15": 6, "2026-11-16": 0 },
+    "orphan": "run 43096297000 (2026-11-11) is still in status 'queued' with no conclusion — a stale orphan, excluded from every population."
+  },
+  "failureRate": {
+    "rate": "4/169 = 2.4%",
+    "comparison": "W44 5.3%, W43 12.8% -> 2.4%. Best failure rate on record.",
+    "testShare": "2/4 = 50% (both genuine test failures)",
+    "infraShare": "0/4 = 0% (no infrastructure failure at all this week — no runner loss, no image pull failure, no timeout)",
+    "otherShare": "2/4 = 50% (one typecheck break, counted as neither test nor infrastructure)",
+    "timedOut": 0,
+    "ambiguous": 0,
+    "unInspectedAtTestLevel": 2,
+    "unInspectedNote": "Both test failures are attributed to job and failing step from metadata, but NOT to a test name, because get_job_logs was filtered for the entire run. They still count in the rate and in failuresByJob."
+  },
+  "failuresByJob": {
+    "lint": 2,
+    "tests-worker (node24, pg15, mode-azure)": 1,
+    "tests-shared": 1,
+    "note": "all-ci-passed failed in all 4 runs and is discarded as the aggregating gate. Every one of the 4 failures was gating, i.e. each ejected its PR from the merge queue."
+  },
+  "failuresByTest": {},
+  "failuresByTestNote": "EMPTY because log access was filtered all run, not because no test failed. Do not read this as 'no flaky tests'.",
+  "failureDetail": [
+    {
+      "runId": 42849698989,
+      "when": "2026-11-10T15:57:00Z",
+      "pr": 19911,
+      "sha": "35a431eb35",
+      "job": "lint",
+      "failingStep": "typecheck",
+      "stepSeconds": 17,
+      "class": "other (type error, not a test and not infrastructure)"
+    },
+    {
+      "runId": 42849700912,
+      "when": "2026-11-10T15:57:01Z",
+      "pr": 20024,
+      "sha": "a8dca6e51e",
+      "job": "lint",
+      "failingStep": "typecheck",
+      "stepSeconds": 17,
+      "class": "other — COLLATERAL",
+      "note": "Its queue branch is gh-readonly-queue/main/pr-20024-35a431eb35..., i.e. it was stacked directly on PR 19911's queue commit. One typecheck break ejected a batch of two. 19911 landed 68 min later as 3392d2947c with a NEW squash timestamp (17:05:42Z = it was re-pushed), while 20024's landing commit 78c81d9ea7 still carries the original 15:56:48Z queue-entry timestamp (re-queued unchanged). That asymmetry points at 19911 as the culprit and 20024 as the innocent bystander — inference from commit timestamps, NOT log-proven."
+    },
+    {
+      "runId": 43285356968,
+      "when": "2026-11-12T18:58:35Z",
+      "pr": 20151,
+      "sha": "b0513a23ea",
+      "job": "tests-worker (node24, pg15, mode-azure)",
+      "jobId": 131417207271,
+      "failingStep": "run tests",
+      "stepSeconds": 236,
+      "jobSeconds": 388,
+      "class": "test",
+      "note": "PROBABLE FLAKE. PR 20151 is 'feat: Adds API key masking on UX' — a web/UX change with no worker surface — and it landed as 7d483527b3 at 2026-11-13T09:22:38Z, i.e. the same PR passed the same job later. mode-azure is the Azure-blob storage mode. Cannot be promoted to a confirmed flake without the test name, which needs logs. First time mode-azure appears in this ledger."
+    },
+    {
+      "runId": 43427477371,
+      "when": "2026-11-13T12:42:39Z",
+      "pr": 20188,
+      "sha": "2d779bf8cd",
+      "job": "tests-shared",
+      "jobId": 131892367985,
+      "failingStep": "run SQL-equivalence tests",
+      "stepSeconds": 7,
+      "jobSeconds": 49,
+      "class": "test",
+      "note": "A NEW failure mode: 0b2f8929ea (ci: make the SQL-equivalence golden tests blocking, #19970, 2026-11-09T15:02Z) dropped '|| echo ::warning' from that step one day before this window opened, so golden-snapshot drift now ejects PRs instead of printing a warning. Failing in 7s with a 15-minute timeout = a deterministic snapshot mismatch, not a timeout. The queue base (5593ea5c31, 12:26Z) already contained 37f3066755 (#20096, 'remove the soft-delete pass', 11:13Z) which rewrote both golden snapshots, so PR 20188 very likely regenerated or contradicted them. PR 20188 has still not landed on main as of 82bf9dad30. Step name 'run SQL-equivalence tests' is NOT in the workflow prompt's classification table — add it as a test step."
+    }
+  ],
+  "fipsBreakage": {
+    "status": "RESOLVED — this closes W44's PRIMARY follow-up.",
+    "evidence": "0 of the 34 sampled successful merge_group runs had a failing tests-fips job. fipsMaxJob fell 331 -> 262s.",
+    "attribution": "Broken by f6c3660ced (chore(deps): bump node to 24.22.1, #19339, 2026-10-25). Two repair commits landed BEFORE this window, so the exact one cannot be isolated from in-window data: 3b1a3f0e8f (fix(docker): install the patched nodejs RPMs, #19406, 2026-10-27) and 426ba058eb (build(docker): install Red Hat's nodejs:24 again instead of the patched RPMs, #19581, 2026-11-03). 426ba058eb's own message says Red Hat's nodejs:24 errata 24.22.1-3 now carries every fix, and it deleted the vendored patches and disabled the nodejs-rpm stage — so the end state is stock UBI Node, not patched RPMs. Confirming which commit flipped tests-fips green would need run data from 10-27..11-03, which is ~75 more list_workflow_runs pages; not worth it."
+  },
+  "vitestAnalysis": {
+    "available": false,
+    "reason": "get_job_logs filtered by integrity policy for the entire run. No reporter blocks were readable, so there are no slowest-test, slowest-file or retried-test tables this week.",
+    "carryForward": "The W44 tables remain the most recent data: web event-repository.servertest.ts 23.35s/110, score-comparison-analytics.servertest.ts 16.94s/46; worker otelReplay.properties.test.ts 22.81s for 2 tests, traceBatching.test.ts 19.84s/64."
+  },
+  "ciCommitsInWindow": [
+    { "sha": "0b2f8929ea", "when": "2026-11-09 15:02", "what": "ci: make the SQL-equivalence golden tests blocking (#19970) — one day before the window; caused the 11-13 ejection" },
+    { "sha": "37f3066755", "when": "2026-11-13 11:13", "what": "refactor(query-ast): remove the soft-delete pass (#20096) — rewrote both golden SQL snapshots 89 min before the 11-13 ejection" },
+    { "sha": "7f7fa66803", "when": "2026-11-11", "what": "ci(preview): time out stalled preview image builds (#20023)" },
+    { "sha": "82bf9dad30", "when": "2026-11-16", "what": "chore(ci): migrate prettier to oxfmt (#20250) — landed at/after the window edge, watch prettier-check timing in W48" }
+  ],
+  "followUpsAnswered": {
+    "PRIMARY: worker/Dockerfile FIPS toolchain (W44)": "RESOLVED. See fipsBreakage. tests-fips is green in 34/34 sampled runs and is no longer the thing holding the tail open.",
+    "dataRetentionProcessing.test.ts Asia/Tokyo (W44 watchlist)": "UNKNOWN — needs log access, which was filtered. Keep on the watchlist, unresolved.",
+    "nativeOtelMedia.unit.test.ts (W44 watchlist)": "UNKNOWN — same reason.",
+    "app-shell-overflow.spec.ts (W44 watchlist)": "UNKNOWN — same reason.",
+    "lint failure log tail budget (W44)": "MOOT this week — the 11-10 lint failures were fully attributable from step metadata alone (step 'typecheck', 17s). No log tail was needed or possible.",
+    "does tests-fips gate yet": "Still NO. The W44 argument for gating it is weaker now: the breakage it hid has been fixed, and the fips tail past the gate is down to ~16s from ~41s."
+  },
+  "openFollowUps": [
+    "PRIMARY: the >=17:00Z penalty. gated median 357s vs 247s, driven by the e2e 'Build' step going 50.5s -> 148s. Suspect GitHub Actions cache churn from saving a new nextjs-e2e entry on essentially every run. A human should look at pipeline.yml ~1417-1427: consider saving that cache only on merge_group (restore everywhere, save on the queue), and dropping ~/.npm from the cached path since pnpm is the package manager here. This workflow cannot edit .github/workflows.",
+    "tests-worker (node24, pg15, mode-azure) 'run tests' — failed once on 11-12 for a web-only PR that then landed unchanged. Probable flake, unnamed. First mode-azure entry in the ledger; watch for recurrence in W48.",
+    "The SQL-equivalence golden step is newly blocking (#19970) and already ejected PR 20188, which is still unmerged 3 days later. Watch whether golden drift becomes a recurring ejection source now that it is gating.",
+    "Log access: if get_job_logs stays filtered, every vitest-derived section of this report is dead and the failuresByTest ledger cannot grow. This is the single biggest capability loss in the series so far.",
+    "Carried from W44, unresolved and unverifiable without logs: dataRetentionProcessing.test.ts (Asia/Tokyo), nativeOtelMedia.unit.test.ts, app-shell-overflow.spec.ts, otelReplay.properties.test.ts density."
+  ]
+}
