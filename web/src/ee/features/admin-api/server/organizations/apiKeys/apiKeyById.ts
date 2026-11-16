@@ -7,12 +7,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { z } from "zod";
-import {
-  deleteApiKey,
-  orgBoundApiKeyDeleteScope,
-  orgBoundApiKeyScopes,
-} from "@langfuse/shared/src/server/auth/apiKeys";
-import { ApiKeyId } from "@langfuse/shared/rbac";
+import { deleteApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 
 export const validateQueryParams = (
   query: unknown,
@@ -35,20 +30,9 @@ export async function handleDeleteApiKey(
   apiKeyId: string,
 ) {
   const deleted = await withTransaction(prisma, async (tx) => {
-    const apiKey = await tx.apiKey.findFirst({
-      where: {
-        id: apiKeyId,
-        orgId: organizationId,
-        scope: { in: orgBoundApiKeyScopes },
-        isInAppAgentKey: false,
-      },
-      select: { scope: true, userId: true },
-    });
-    if (!apiKey) return null;
-
     const deletedApiKey = await deleteApiKey(tx, {
-      ...orgBoundApiKeyDeleteScope(organizationId, apiKey),
-      id: ApiKeyId(apiKeyId),
+      id: apiKeyId,
+      orgId: organizationId,
       isInAppAgentKey: false,
     });
     if (deletedApiKey) {

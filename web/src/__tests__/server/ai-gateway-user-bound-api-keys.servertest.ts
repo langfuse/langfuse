@@ -165,8 +165,8 @@ describe("user-bound API keys", () => {
         session: orgSession(user, org, Role.ADMIN),
       });
       await deleteApiKeys(prisma, {
-        tenant: OrganizationId(org.id),
-        scope: UserId(user.id),
+        orgId: org.id,
+        userId: user.id,
       });
 
       expect(await boundUserOf(key.id)).toBeNull();
@@ -251,8 +251,8 @@ describe("user-bound API keys", () => {
       });
 
       const deleted = await deleteApiKeys(prisma, {
-        tenant: OrganizationId(org.id),
-        scope: UserId(user.id),
+        orgId: org.id,
+        userId: user.id,
       });
 
       expect(deleted.map((key) => key.id)).toEqual([revoked.id]);
@@ -268,7 +268,7 @@ describe("user-bound API keys", () => {
       const second = await createGatewayKey(otherOrg.id, user.id);
       const otherUserKey = await createGatewayKey(org.id, otherUser.id);
 
-      const deleted = await deleteApiKeys(prisma, { scope: UserId(user.id) });
+      const deleted = await deleteApiKeys(prisma, { userId: user.id });
 
       expect(new Set(deleted.map((key) => key.id))).toEqual(
         new Set([first.id, second.id]),

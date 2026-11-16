@@ -23,7 +23,6 @@ import {
 import { advanceSessionsExpiredAtForUser } from "@/src/features/auth/lib/sessionExpiration";
 import { invalidateCachedApiKeys } from "@langfuse/shared/src/server";
 import { deleteApiKeys } from "@langfuse/shared/src/server/auth/apiKeys";
-import { UserId } from "@langfuse/shared/rbac";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 
@@ -225,7 +224,7 @@ export const userAccountRouter = createTRPCRouter({
           select: { orgId: true },
         });
 
-        const revokedKeys = await deleteApiKeys(tx, { scope: UserId(userId) });
+        const revokedKeys = await deleteApiKeys(tx, { userId });
         for (const apiKey of revokedKeys) {
           if (!apiKey.orgId) continue;
           await auditLog(

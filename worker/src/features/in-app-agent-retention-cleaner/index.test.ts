@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InAppAgentRetentionCleaner } from "./index";
 import { Prisma } from "@prisma/client";
-import { ApiKeyId, ProjectId } from "@langfuse/shared/rbac";
 
 const mocks = vi.hoisted(() => ({
   query: vi.fn(),
@@ -87,8 +86,8 @@ describe("InAppAgentRetentionCleaner", () => {
     expect(mocks.deleteKey).toHaveBeenCalledWith(
       expect.objectContaining({ $queryRaw: mocks.query }),
       {
-        scope: ProjectId("project"),
-        id: ApiKeyId("key"),
+        id: "key",
+        projectId: "project",
         isInAppAgentKey: true,
       },
     );

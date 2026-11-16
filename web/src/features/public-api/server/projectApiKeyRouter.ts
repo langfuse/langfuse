@@ -15,7 +15,6 @@ import {
 } from "@langfuse/shared/src/server/auth/apiKeys";
 import { LangfuseNotFoundError, StringNoHTML } from "@langfuse/shared";
 import {
-  ApiKeyId,
   OrganizationId,
   ProjectId,
   SystemRoleId,
@@ -172,25 +171,10 @@ export const projectApiKeysRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "apiKeys:CUD",
       });
-      const apiKey = await ctx.prisma.apiKey.findFirst({
-        where: {
-          id: input.id,
-          projectId: input.projectId,
-          scope: "PROJECT",
-        },
-        select: { isInAppAgentKey: true },
-      });
-
-      if (!apiKey) {
-        throw new LangfuseNotFoundError("API key not found");
-      }
-
-      if (apiKey.isInAppAgentKey) return false;
-
       const deleted = await withTransaction(ctx.prisma, async (tx) => {
         const deletedApiKey = await deleteApiKey(tx, {
-          scope: ProjectId(input.projectId),
-          id: ApiKeyId(input.id),
+          id: input.id,
+          projectId: input.projectId,
           isInAppAgentKey: false,
         });
         if (deletedApiKey) {

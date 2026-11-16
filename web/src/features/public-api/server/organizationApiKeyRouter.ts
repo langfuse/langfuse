@@ -15,15 +15,9 @@ import { LangfuseNotFoundError } from "@langfuse/shared";
 import {
   createApiKey,
   deleteApiKey,
-  orgBoundApiKeyDeleteScope,
   orgBoundApiKeyScopes,
 } from "@langfuse/shared/src/server/auth/apiKeys";
-import {
-  ApiKeyId,
-  OrganizationId,
-  SystemRoleId,
-  UserId,
-} from "@langfuse/shared/rbac";
+import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { apiKeyCreationRoleSchema } from "@/src/features/public-api/server/apiKeyCreationRoleSchema";
 import { excludeGatewayApiKeys } from "@/src/features/ai-gateway/server/apiKey/excludeGatewayApiKeys";
 import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
@@ -218,25 +212,10 @@ export const organizationApiKeysRouter = createTRPCRouter({
         organizationId: input.orgId,
         scope: "organization:CRUD_apiKeys",
       });
-      const apiKey = await ctx.prisma.apiKey.findFirst({
-        where: {
-          id: input.id,
-          orgId: input.orgId,
-          scope: { in: orgBoundApiKeyScopes },
-        },
-        select: { scope: true, userId: true, isInAppAgentKey: true },
-      });
-
-      if (!apiKey) {
-        throw new LangfuseNotFoundError("API key not found");
-      }
-
-      if (apiKey.isInAppAgentKey) return false;
-
       const deleted = await withTransaction(ctx.prisma, async (tx) => {
         const deletedApiKey = await deleteApiKey(tx, {
-          ...orgBoundApiKeyDeleteScope(input.orgId, apiKey),
-          id: ApiKeyId(input.id),
+          id: input.id,
+          orgId: input.orgId,
           isInAppAgentKey: false,
         });
         if (deletedApiKey) {

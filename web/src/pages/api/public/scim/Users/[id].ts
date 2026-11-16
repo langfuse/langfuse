@@ -16,7 +16,6 @@ import {
   withSerializableRetry,
 } from "@langfuse/shared/src/server";
 import { deleteApiKeys } from "@langfuse/shared/src/server/auth/apiKeys";
-import { OrganizationId, UserId } from "@langfuse/shared/rbac";
 import { isBaseError, LangfuseConflictError } from "@langfuse/shared";
 import { z } from "zod";
 import { type NextApiRequest, type NextApiResponse } from "next";
@@ -284,8 +283,8 @@ async function deprovisionOrReject(
       });
       await deleteOrgMembership(tx, { orgId, userId });
       const revokedKeys = await deleteApiKeys(tx, {
-        tenant: OrganizationId(orgId),
-        scope: UserId(userId),
+        orgId,
+        userId,
       });
       for (const apiKey of revokedKeys) {
         await auditLog(

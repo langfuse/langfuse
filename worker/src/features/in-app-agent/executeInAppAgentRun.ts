@@ -14,7 +14,6 @@ import {
   deleteApiKey,
 } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
-  ApiKeyId,
   OrganizationId,
   ProjectId,
   SystemRoleId,
@@ -100,8 +99,8 @@ async function deleteInAppAgentMcpApiKey(params: {
   apiKeyId: string;
 }): Promise<void> {
   const deleted = await deleteApiKey(prisma, {
-    scope: ProjectId(params.projectId),
-    id: ApiKeyId(params.apiKeyId),
+    id: params.apiKeyId,
+    projectId: params.projectId,
     isInAppAgentKey: true,
   });
   if (deleted) {

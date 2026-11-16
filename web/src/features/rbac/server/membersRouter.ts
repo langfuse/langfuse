@@ -23,7 +23,6 @@ import {
   escapeSqlLikePattern,
   invalidateCachedApiKeys,
 } from "@langfuse/shared/src/server";
-import { OrganizationId, UserId } from "@langfuse/shared/rbac";
 import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -174,8 +173,8 @@ export const membersRouter = createTRPCRouter({
             userId: orgMembership.userId,
           });
           const revokedKeys = await deleteApiKeys(tx, {
-            tenant: OrganizationId(input.orgId),
-            scope: UserId(orgMembership.userId),
+            orgId: input.orgId,
+            userId: orgMembership.userId,
           });
           for (const apiKey of revokedKeys) {
             await auditLog(

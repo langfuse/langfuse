@@ -6,7 +6,6 @@ import {
   withTransaction,
 } from "@langfuse/shared/src/server";
 import { deleteApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
-import { ApiKeyId, ProjectId } from "@langfuse/shared/rbac";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { z } from "zod";
 
@@ -35,8 +34,8 @@ export async function handleDeleteApiKey(
 ) {
   const deleted = await withTransaction(prisma, async (tx) => {
     const apiKey = await deleteApiKey(tx, {
-      scope: ProjectId(projectId),
-      id: ApiKeyId(apiKeyId),
+      id: apiKeyId,
+      projectId,
       isInAppAgentKey: false,
     });
     if (apiKey) {

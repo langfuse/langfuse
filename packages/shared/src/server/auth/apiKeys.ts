@@ -15,7 +15,7 @@ import {
   type RoleAssignment,
   type RoleId,
   type TenantId,
-  UserId,
+  type UserId,
 } from "../../features/rbac/types";
 import { assignRole } from "../../features/rbac/roleAssignmentService";
 import { withTransaction } from "../utils/withTransaction";
@@ -315,24 +315,21 @@ function apiKeyRole({
   };
 }
 
-/** deleteApiKey deletes one api key in scope and returns it, or null when none matches */
+/** deleteApiKey deletes the api key with id when it belongs to the given project or organization, and returns it or null */
 export async function deleteApiKey(
   prisma: PrismaClient | Prisma.TransactionClient,
-  params: DeleteApiKeysParams & { id: ApiKeyId },
+  params: DeleteApiKeyParams,
 ): Promise<DeletedApiKey | null> {
-  const [apiKey] = await deleteMatchingApiKeys(prisma, {
-    id: untag(params.id),
-    ...apiKeyScopeWhere(params),
-  });
+  const [apiKey] = await deleteMatchingApiKeys(prisma, params);
   return apiKey ?? null;
 }
 
-/** deleteApiKeys deletes every api key in scope and returns them */
+/** deleteApiKeys deletes every api key matching params and returns them */
 export async function deleteApiKeys(
   prisma: PrismaClient | Prisma.TransactionClient,
   params: DeleteApiKeysParams,
 ): Promise<DeletedApiKey[]> {
-  return deleteMatchingApiKeys(prisma, apiKeyScopeWhere(params));
+  return deleteMatchingApiKeys(prisma, params);
 }
 
 /** deleteMatchingApiKeys deletes the api keys it finds, so a key created concurrently in scope survives */
@@ -353,53 +350,17 @@ async function deleteMatchingApiKeys(
   });
 }
 
-/** apiKeyScopeWhere maps deletion params to an api key filter */
-function apiKeyScopeWhere(
-  params: DeleteApiKeysParams,
-): Prisma.ApiKeyWhereInput {
-  return {
-    ...scopeWhere(params),
-    ...inAppAgentKeyWhere(params.isInAppAgentKey),
-  };
-}
+/** DeleteApiKeyParams names an api key and the project or organization it must belong to; isInAppAgentKey left undefined matches both kinds */
+type DeleteApiKeyParams = { id: string; isInAppAgentKey?: boolean } & (
+  | { projectId: string }
+  | { orgId: string; userId?: string }
+);
 
-/** scopeWhere filters by the columns createApiKey writes for the scope; a user scope without tenant spans every organization */
-function scopeWhere(params: DeleteApiKeysParams): Prisma.ApiKeyWhereInput {
-  if ("tenant" in params && params.tenant) {
-    return scopeColumns(params.tenant, params.scope);
-  }
-  if (hasUserScope(params.scope)) {
-    return { userId: untag(params.scope), scope: "USER" };
-  }
-  if (hasProjectKind(params.scope)) {
-    return { projectId: untag(params.scope), scope: "PROJECT" };
-  }
-  return { orgId: untag(params.scope), scope: "ORGANIZATION" };
-}
-
-/** inAppAgentKeyWhere filters on the in-app agent flag unless it is undefined */
-function inAppAgentKeyWhere(
-  isInAppAgentKey: boolean | undefined,
-): Prisma.ApiKeyWhereInput {
-  if (isInAppAgentKey === undefined) return {};
-  return { isInAppAgentKey };
-}
-
-/** orgBoundApiKeyDeleteScope is the deletion scope of an api key bound to orgId */
-export function orgBoundApiKeyDeleteScope(
-  orgId: string,
-  apiKey: { scope: ApiKeyScope; userId: string | null },
-): DeleteApiKeysParams {
-  if (apiKey.scope === "USER" && apiKey.userId) {
-    return { tenant: OrganizationId(orgId), scope: UserId(apiKey.userId) };
-  }
-  return { scope: OrganizationId(orgId) };
-}
-
-/** DeleteApiKeysParams scopes an api key deletion; isInAppAgentKey left undefined matches both kinds */
-type DeleteApiKeysParams =
-  | { scope: OrganizationId | ProjectId; isInAppAgentKey?: boolean }
-  | { tenant?: TenantId; scope: UserId; isInAppAgentKey?: boolean };
+/** DeleteApiKeysParams selects a project's api keys or a user's api keys, optionally in one organization */
+type DeleteApiKeysParams = { isInAppAgentKey?: boolean } & (
+  | { projectId: string }
+  | { userId: string; orgId?: string }
+);
 
 /** DeletedApiKey is the non-secret snapshot of a deleted api key */
 type DeletedApiKey = Prisma.ApiKeyGetPayload<{

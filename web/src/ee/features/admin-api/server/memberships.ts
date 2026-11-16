@@ -15,7 +15,7 @@ import {
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { authorize } from "@/src/features/rbac/authorize";
 import { ForbiddenError, Role } from "@langfuse/shared";
-import { OrganizationId, UserId } from "@langfuse/shared/rbac";
+import { OrganizationId } from "@langfuse/shared/rbac";
 import { prisma, type Prisma } from "@langfuse/shared/src/db";
 import { invalidateCachedApiKeys } from "@langfuse/shared/src/server";
 import { deleteApiKeys } from "@langfuse/shared/src/server/auth/apiKeys";
@@ -186,8 +186,8 @@ export async function handleDeleteMembership(
       tx,
     );
     const revokedKeys = await deleteApiKeys(tx, {
-      tenant: OrganizationId(orgId),
-      scope: UserId(before.userId),
+      orgId,
+      userId: before.userId,
     });
     for (const apiKey of revokedKeys) {
       await auditLog(

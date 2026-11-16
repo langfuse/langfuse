@@ -11,11 +11,8 @@ import {
 import {
   createApiKey,
   deleteApiKey,
-  orgBoundApiKeyDeleteScope,
-  orgBoundApiKeyScopes,
 } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
-  ApiKeyId,
   OrganizationId,
   type OrganizationScope,
   SystemRoleId,
@@ -164,19 +161,10 @@ export class GatewayApiKeyService {
       throw new LangfuseNotFoundError("Gateway key not found");
     }
     const deleted = await withTransaction(this.prisma, async (tx) => {
-      const apiKey = await tx.apiKey.findFirst({
-        where: {
-          id: params.apiKeyId,
-          orgId: params.organizationId,
-          scope: { in: orgBoundApiKeyScopes },
-        },
-        select: { scope: true, userId: true },
-      });
-      if (!apiKey) return null;
-
       const deletedApiKey = await deleteApiKey(tx, {
-        ...orgBoundApiKeyDeleteScope(params.organizationId, apiKey),
-        id: ApiKeyId(params.apiKeyId),
+        id: params.apiKeyId,
+        orgId: params.organizationId,
+        userId: params.ownerUserId,
       });
       if (deletedApiKey) {
         await auditLog(

@@ -6,7 +6,6 @@ import {
   redis,
 } from "@langfuse/shared/src/server";
 import { deleteApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
-import { ApiKeyId, ProjectId } from "@langfuse/shared/rbac";
 import {
   IN_APP_AGENT_UNSETTLED_RUN_STATUSES,
   InAppAgentRunErrorCode,
@@ -145,8 +144,8 @@ export class InAppAgentIntegrityRunner extends PeriodicExclusiveRunner {
           conversationId,
           deleteApiKey: async (apiKeyId) => {
             const deleted = await deleteApiKey(prisma, {
-              scope: ProjectId(projectId),
-              id: ApiKeyId(apiKeyId),
+              id: apiKeyId,
+              projectId: projectId,
               isInAppAgentKey: true,
             });
             if (deleted) {

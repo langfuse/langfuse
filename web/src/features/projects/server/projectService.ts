@@ -149,7 +149,7 @@ export class ProjectService {
           );
         }
         const deletedApiKeys = await deleteApiKeys(tx, {
-          scope: ProjectId(params.projectId),
+          projectId: params.projectId,
         });
         for (const apiKey of deletedApiKeys) {
           await auditLog(

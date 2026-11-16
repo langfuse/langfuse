@@ -16,7 +16,6 @@ import {
   redis,
 } from "@langfuse/shared/src/server";
 import { deleteApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
-import { ApiKeyId, ProjectId } from "@langfuse/shared/rbac";
 import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
@@ -75,8 +74,8 @@ export async function getBackgroundConversationSnapshot(params: {
     conversationId: params.conversationId,
     deleteApiKey: async (apiKeyId) => {
       const deleted = await deleteApiKey(params.prisma, {
-        scope: ProjectId(params.projectId),
-        id: ApiKeyId(apiKeyId),
+        id: apiKeyId,
+        projectId: params.projectId,
         isInAppAgentKey: true,
       });
       if (deleted) {

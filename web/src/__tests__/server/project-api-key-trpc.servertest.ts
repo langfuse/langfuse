@@ -417,7 +417,7 @@ describe("project API keys trpc", () => {
           projectId,
           id: inAppAgentKey.id,
         }),
-      ).resolves.toBe(false);
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
 
       await expect(
         prisma.apiKey.findUniqueOrThrow({ where: { id: inAppAgentKey.id } }),

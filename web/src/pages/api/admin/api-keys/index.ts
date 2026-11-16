@@ -9,7 +9,6 @@ import {
   withTransaction,
 } from "@langfuse/shared/src/server";
 import { deleteApiKeys } from "@langfuse/shared/src/server/auth/apiKeys";
-import { ProjectId } from "@langfuse/shared/rbac";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
@@ -128,7 +127,7 @@ async function deleteProjectApiKeys(projectIds: string[]) {
     });
     const deletedApiKeys = [];
     for (const project of projects) {
-      const apiKeys = await deleteApiKeys(tx, { scope: ProjectId(project.id) });
+      const apiKeys = await deleteApiKeys(tx, { projectId: project.id });
       for (const apiKey of apiKeys) {
         await auditLog(
           {

@@ -7,7 +7,6 @@ import {
   redis,
 } from "@langfuse/shared/src/server";
 import { deleteApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
-import { ApiKeyId, ProjectId } from "@langfuse/shared/rbac";
 import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/licenseCheck";
 import { cleanupRunMcpApiKey } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
@@ -86,8 +85,8 @@ export class InAppAgentRetentionCleaner extends PeriodicExclusiveRunner {
               apiKeyId: run.mcpApiKeyId,
               deleteApiKey: async (id) => {
                 const deleted = await deleteApiKey(prisma, {
-                  scope: ProjectId(run.projectId),
-                  id: ApiKeyId(id),
+                  id: id,
+                  projectId: run.projectId,
                   isInAppAgentKey: true,
                 });
                 if (deleted) {
