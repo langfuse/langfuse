@@ -13,9 +13,10 @@ import {
   useTracesWithSelection,
 } from "./facet-topics";
 
-const { fetchResults, resetTraces } = vi.hoisted(() => ({
+const { fetchResults, resetTraces, previewResults } = vi.hoisted(() => ({
   fetchResults: vi.fn(),
   resetTraces: vi.fn(),
+  previewResults: new Map<string | undefined, unknown>(),
 }));
 vi.mock("@/src/utils/api", () => ({
   api: {
@@ -24,7 +25,13 @@ vi.mock("@/src/utils/api", () => ({
     },
     useUtils: () => ({
       client: { topics: { currentResults: { query: fetchResults } } },
-      topics: { traces: { reset: resetTraces } },
+      topics: {
+        traces: { reset: resetTraces },
+        currentResults: {
+          getData: ({ ruleId }: { ruleId?: string }) =>
+            previewResults.get(ruleId),
+        },
+      },
     }),
   },
 }));
@@ -44,6 +51,7 @@ beforeEach(() => {
 afterEach(() => {
   client.clear();
   sessionStorage.clear();
+  previewResults.clear();
   vi.useRealTimers();
 });
 
@@ -191,6 +199,45 @@ describe("current Topics query", () => {
     expect(fetchResults).toHaveBeenCalledTimes(2);
     await act(() => vi.advanceTimersByTimeAsync(30000));
     expect(fetchResults).toHaveBeenCalledTimes(2);
+  });
+  it("shows a switched-to map's previewed results, else the previous map's marked by rule", async () => {
+    const results = (name: string) => ({
+      hasStoredSummaries: true,
+      facets: [{ facetId: "intent", name }],
+    });
+    fetchResults.mockReset().mockResolvedValueOnce(results("Support"));
+    const props = {
+      projectId: "project",
+      running: false,
+      refreshAfter: 0,
+      ruleId: "support",
+    };
+    const view = renderHook(__test.useCurrentTopics, {
+      initialProps: props,
+      wrapper: ({ children }: { children: ReactNode }) =>
+        createElement(QueryClientProvider, { client }, children),
+    });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(view.result.current.data).toEqual({
+      ...results("Support"),
+      ruleId: "support",
+    });
+
+    fetchResults.mockResolvedValueOnce(results("Billing"));
+    previewResults.set("billing", results("Billing"));
+    view.rerender({ ...props, ruleId: "billing" });
+    expect(view.result.current.data).toEqual({
+      ...results("Billing"),
+      ruleId: "billing",
+    });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    fetchResults.mockImplementation(() => new Promise(() => {}));
+    view.rerender({ ...props, ruleId: "sales" });
+    expect(view.result.current.data).toEqual({
+      ...results("Billing"),
+      ruleId: "billing",
+    });
   });
 });
 
