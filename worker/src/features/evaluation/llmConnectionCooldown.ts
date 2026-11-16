@@ -14,16 +14,17 @@ const MAX_COOLDOWN_MS = 300_000;
 const COOLDOWN_METRIC = "langfuse.llm.connection_cooldown";
 
 /**
- * Runs an LLM call unless its connection is cooling down after a provider 429.
- * During a cooldown it throws LLMConnectionCooldownError without calling the
- * provider; a provider 429 starts one for every worker. Unless Redis is ready
- * the call always runs.
+ * Runs an LLM call unless its connection and model are cooling down after a
+ * provider 429. Providers rate-limit per model, so other models on the same
+ * connection keep running. During a cooldown it throws
+ * LLMConnectionCooldownError without calling the provider; a provider 429
+ * starts one for every worker. Unless Redis is ready the call always runs.
  */
 export async function withLLMConnectionCooldown<T>(
-  llmApiKeyId: string,
+  target: { llmApiKeyId: string; model: string },
   call: () => Promise<T>,
 ): Promise<T> {
-  const key = `llm-connection-cooldown:${llmApiKeyId}`;
+  const key = `llm-connection-cooldown:${target.llmApiKeyId}:${target.model}`;
 
   const remainingMs = await getRemainingCooldownMs(key);
   if (remainingMs > 0) {

@@ -12,6 +12,7 @@ import {
   QueueJobs,
   getCurrentSpan,
   classifyEvaluatorLlmError,
+  LLMConnectionCooldownError,
   type EvaluatorLlmErrorClassification,
 } from "@langfuse/shared/src/server";
 import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
@@ -121,6 +122,9 @@ export const evalJobCreatorQueueProcessor = async (
   }
 };
 
+const getCooldownMs = (error: unknown) =>
+  error instanceof LLMConnectionCooldownError ? error.remainingMs : undefined;
+
 export const evalJobExecutorQueueProcessorBuilder = (
   enableRedirectToSecondaryQueue: boolean,
   queueName: string,
@@ -219,13 +223,17 @@ export const evalJobExecutorQueueProcessorBuilder = (
           ? SecondaryEvalExecutionQueue.getInstance({ shardName: queueName })
           : EvalExecutionQueue.getInstance({ shardName: queueName });
 
-        const retryResult = await retryLLMRateLimitError(job, {
-          table: "job_executions",
-          idField: "jobExecutionId",
-          queue,
-          queueName,
-          jobName: QueueJobs.EvaluationExecution,
-        });
+        const retryResult = await retryLLMRateLimitError(
+          job,
+          {
+            table: "job_executions",
+            idField: "jobExecutionId",
+            queue,
+            queueName,
+            jobName: QueueJobs.EvaluationExecution,
+          },
+          { cooldownMs: getCooldownMs(e) },
+        );
 
         if (retryResult.outcome === "scheduled") {
           // Use the deterministic execution trace ID to update the job execution
@@ -344,13 +352,17 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
         const queue = LLMAsJudgeExecutionQueue.getInstance({
           shardName: queueName,
         });
-        const retryResult = await retryLLMRateLimitError(job, {
-          table: "job_executions",
-          idField: "jobExecutionId",
-          queue,
-          queueName,
-          jobName: QueueJobs.LLMAsJudgeExecution,
-        });
+        const retryResult = await retryLLMRateLimitError(
+          job,
+          {
+            table: "job_executions",
+            idField: "jobExecutionId",
+            queue,
+            queueName,
+            jobName: QueueJobs.LLMAsJudgeExecution,
+          },
+          { cooldownMs: getCooldownMs(e) },
+        );
 
         if (retryResult.outcome === "scheduled") {
           await prisma.jobExecution.update({

@@ -70,9 +70,12 @@ vi.mock("@langfuse/shared/src/server", async () => {
     await import("../../../../packages/shared/src/server/evals/codeEvalExecution");
   const { CodeEvalDispatcherErrorCodes } =
     await import("../../../../packages/shared/src/server/evals/codeEvalDispatcherTypes");
+  const { LLMConnectionCooldownError } =
+    await import("../../../../packages/shared/src/server/llm/errors");
 
   return {
     CodeEvalDispatcherErrorCodes,
+    LLMConnectionCooldownError,
     CodeEvalExecutionError,
     QueueName: {
       LLMAsJudgeExecution: "llm-as-a-judge-execution-queue",
@@ -130,6 +133,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { processEval } from "../../features/evaluation/observationEval/observationEvalProcessor";
 import {
   LLMAsJudgeExecutionQueue,
+  LLMConnectionCooldownError,
   classifyEvaluatorLlmError,
   logger,
   recordDistribution,
@@ -312,6 +316,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
           idField: "jobExecutionId",
           queueName,
         }),
+        { cooldownMs: undefined },
       );
       expect(LLMAsJudgeExecutionQueue.getInstance).toHaveBeenCalledWith({
         shardName: queueName,
@@ -331,6 +336,24 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
         "langfuse.evaluation.execution.terminal",
         expect.anything(),
         expect.anything(),
+      );
+    });
+
+    it("reschedules a cooldown hit after the remaining cooldown", async () => {
+      const cooldownError = new LLMConnectionCooldownError(30_000);
+      (processEval as Mock).mockRejectedValue(cooldownError);
+      mockLlmError(cooldownError, true);
+      (retryLLMRateLimitError as Mock).mockResolvedValue({
+        outcome: "scheduled",
+      });
+
+      const job = createMockJob();
+      await llmAsJudgeExecutionQueueProcessor(job);
+
+      expect(retryLLMRateLimitError).toHaveBeenCalledWith(
+        job,
+        expect.anything(),
+        { cooldownMs: 30_000 },
       );
     });
 

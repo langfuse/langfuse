@@ -245,7 +245,10 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
       >[0]["modelParams"]["adapter"];
 
       const result = await withLLMConnectionCooldown(
-        params.modelConfig.apiKey.id,
+        {
+          llmApiKeyId: params.modelConfig.apiKey.id,
+          model: params.modelConfig.model,
+        },
         () =>
           generateLlmEvaluatorOutput({
             projectId: params.traceSinkParams.targetProjectId,
@@ -327,8 +330,9 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         extraHeaders,
       });
 
-      return withLLMConnectionCooldown(apiKey.id, () =>
-        client.evaluate(params.request),
+      return withLLMConnectionCooldown(
+        { llmApiKeyId: apiKey.id, model: params.modelConfig.model },
+        () => client.evaluate(params.request),
       );
     },
 

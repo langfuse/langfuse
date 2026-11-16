@@ -69,6 +69,25 @@ const getLLMQueueRetryDelaySeconds = ({
   return Math.min(jitteredDelaySeconds, remainingAgeSeconds);
 };
 
+const getCooldownDelaySeconds = ({
+  cooldownMs,
+  elapsedSeconds,
+  maxAgeSeconds,
+}: {
+  cooldownMs: number;
+  elapsedSeconds: number;
+  maxAgeSeconds: number;
+}) => {
+  // Jitter only upwards so a job never wakes before the cooldown ends.
+  const jitterMultiplier = 1 + Math.random() * LLM_QUEUE_RETRY_JITTER_FACTOR;
+  const remainingAgeSeconds = Math.max(0, maxAgeSeconds - elapsedSeconds);
+
+  return Math.min(
+    Math.ceil((cooldownMs / 1000) * jitterMultiplier),
+    remainingAgeSeconds,
+  );
+};
+
 const getInitialQueueDelayMs = (delay: unknown) =>
   typeof delay === "number" && Number.isFinite(delay) ? Math.max(0, delay) : 0;
 
@@ -145,7 +164,8 @@ async function getRetryWindowStartTimeMs(
 /**
  * Handles rate limiting and retry logic for queue jobs.
  * Automatically retries jobs that fail with 429/5xx errors unless they exceed
- * the configured retry budget or age limit.
+ * the configured retry budget or age limit. With `cooldownMs`, the job never
+ * reached the provider: it waits out the cooldown and keeps its attempt count.
  */
 export async function retryLLMRateLimitError(
   job: {
@@ -156,6 +176,7 @@ export async function retryLLMRateLimitError(
     };
   },
   config: RetryConfig,
+  options?: { cooldownMs?: number },
 ): Promise<RetryScheduleResult> {
   try {
     const jobId = job.data.payload[config.idField];
@@ -186,7 +207,10 @@ export async function retryLLMRateLimitError(
       };
     }
 
-    const currentAttempt = (job.data.retryBaggage?.attempt ?? 0) + 1;
+    const cooldownMs = options?.cooldownMs;
+    const currentAttempt =
+      (job.data.retryBaggage?.attempt ?? 0) +
+      (cooldownMs === undefined ? 1 : 0);
 
     if (currentAttempt > maxRetryAttempts) {
       logger.info(`Job ${jobId} exceeded retry attempt limit. Stop retrying.`);
@@ -197,13 +221,20 @@ export async function retryLLMRateLimitError(
       };
     }
 
-    const delaySeconds = getLLMQueueRetryDelaySeconds({
-      attempt: currentAttempt,
-      elapsedSeconds,
-      maxRetryAttempts,
-      maxAgeSeconds,
-      offsetsSeconds: config.schedule?.offsetsSeconds,
-    });
+    const delaySeconds =
+      cooldownMs === undefined
+        ? getLLMQueueRetryDelaySeconds({
+            attempt: currentAttempt,
+            elapsedSeconds,
+            maxRetryAttempts,
+            maxAgeSeconds,
+            offsetsSeconds: config.schedule?.offsetsSeconds,
+          })
+        : getCooldownDelaySeconds({
+            cooldownMs,
+            elapsedSeconds,
+            maxAgeSeconds,
+          });
     const delayMs = Math.round(delaySeconds * 1000);
 
     const retryWindowStart = new Date(retryWindowStartTimeMs);

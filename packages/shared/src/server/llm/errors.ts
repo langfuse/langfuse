@@ -45,6 +45,8 @@ export class LLMValidationError extends Error {
  * so callers classify and reschedule it exactly like the provider's own.
  */
 export class LLMConnectionCooldownError extends APICallError {
+  readonly remainingMs: number;
+
   constructor(remainingMs: number) {
     super({
       message: `The provider rate limited this LLM connection; requests are paused for another ${Math.ceil(remainingMs / 1000)}s.`,
@@ -54,6 +56,7 @@ export class LLMConnectionCooldownError extends APICallError {
       isRetryable: true,
     });
     this.name = "LLMConnectionCooldownError";
+    this.remainingMs = remainingMs;
   }
 }
 

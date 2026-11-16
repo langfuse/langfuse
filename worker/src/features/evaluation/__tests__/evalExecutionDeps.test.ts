@@ -176,8 +176,9 @@ describe("createProductionEvalExecutionDeps", () => {
     expect(mockRecordIncrement).not.toHaveBeenCalled();
   });
 
-  it("pauses an LLM connection after a provider 429 instead of calling it again", async () => {
+  it("pauses a connection's model after a provider 429, leaving its other models running", async () => {
     const llmApiKeyId = randomUUID();
+    const cooldownKey = `llm-connection-cooldown:${llmApiKeyId}:gpt-4.1`;
     if (redis?.status !== "ready") {
       await new Promise((resolve) => redis?.once("ready", resolve));
     }
@@ -208,20 +209,25 @@ describe("createProductionEvalExecutionDeps", () => {
     try {
       await expect(deps.callLLM(params)).rejects.toBe(providerRateLimit);
       const cooldownError = await deps.callLLM(params).catch((e) => e);
+      await deps.callLLM({
+        ...params,
+        modelConfig: { ...params.modelConfig, model: "gpt-4.1-mini" },
+      });
 
-      expect(mockGenerateLlmEvaluatorOutput).toHaveBeenCalledTimes(1);
+      expect(mockGenerateLlmEvaluatorOutput).toHaveBeenCalledTimes(2);
+      expect(
+        mockGenerateLlmEvaluatorOutput.mock.calls[1][0].modelParams.model,
+      ).toBe("gpt-4.1-mini");
       expect(classifyEvaluatorLlmError(cooldownError)).toMatchObject({
         statusCode: 429,
         isRetryable: true,
         blockReason: null,
       });
-      const cooldownMs = await redis?.pttl(
-        `llm-connection-cooldown:${llmApiKeyId}`,
-      );
+      const cooldownMs = await redis?.pttl(cooldownKey);
       expect(cooldownMs).toBeGreaterThan(5_000);
       expect(cooldownMs).toBeLessThanOrEqual(7_000);
     } finally {
-      await redis?.del(`llm-connection-cooldown:${llmApiKeyId}`);
+      await redis?.del(cooldownKey);
     }
   });
 
