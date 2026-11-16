@@ -138,7 +138,6 @@ FROM
             arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
         FROM events_core AS e
         WHERE (e.project_id = {param1:String})
-            AND (e.is_deleted = 0)
             AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
             AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
             AND (e.trace_id IN (
@@ -237,7 +236,6 @@ FROM
             arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
         FROM events_core AS e
         WHERE (e.project_id = {param1:String})
-            AND (e.is_deleted = 0)
             AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
             AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
             AND (e.trace_id IN (
@@ -311,7 +309,6 @@ FROM
             arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
         FROM events_core AS e
         WHERE (e.project_id = {param1:String})
-            AND (e.is_deleted = 0)
             AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
             AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
             AND (e.trace_id IN (
@@ -481,7 +478,6 @@ FROM
             arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
         FROM events_core AS e
         WHERE (e.project_id = {param1:String})
-            AND (e.is_deleted = 0)
             AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
             AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
             AND (e.trace_id IN (
@@ -583,7 +579,6 @@ FROM
             arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
         FROM events_core AS e
         WHERE (e.project_id = {param1:String})
-            AND (e.is_deleted = 0)
             AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
             AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
             AND (e.trace_id IN (
@@ -659,7 +654,6 @@ FROM
             arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
         FROM events_core AS e
         WHERE (e.project_id = {param1:String})
-            AND (e.is_deleted = 0)
             AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
             AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
             AND (e.trace_id IN (
@@ -837,7 +831,6 @@ FROM
             arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
         FROM events_core AS e
         WHERE (e.project_id = {param1:String})
-            AND (e.is_deleted = 0)
             AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
             AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
             AND (e.trace_id IN (
@@ -942,7 +935,6 @@ FROM
             arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
         FROM events_core AS e
         WHERE (e.project_id = {param1:String})
-            AND (e.is_deleted = 0)
             AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
             AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
             AND (e.trace_id IN (
@@ -1019,7 +1011,6 @@ FROM
             arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
         FROM events_core AS e
         WHERE (e.project_id = {param1:String})
-            AND (e.is_deleted = 0)
             AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
             AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
             AND (e.trace_id IN (
@@ -1201,7 +1192,6 @@ FROM
             arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
         FROM events_core AS e
         WHERE (e.project_id = {param1:String})
-            AND (e.is_deleted = 0)
             AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
             AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
             AND (e.trace_id IN (
@@ -1309,7 +1299,6 @@ FROM
             arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
         FROM events_core AS e
         WHERE (e.project_id = {param1:String})
-            AND (e.is_deleted = 0)
             AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
             AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
             AND (e.trace_id IN (
@@ -1388,7 +1377,6 @@ FROM
             arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
         FROM events_core AS e
         WHERE (e.project_id = {param1:String})
-            AND (e.is_deleted = 0)
             AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
             AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
             AND (e.trace_id IN (
