@@ -15,7 +15,11 @@ import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { createPrompt } from "./actions/createPrompt";
 import { deletePrompt } from "./actions/deletePrompt";
 import { getPromptByName } from "./actions/getPromptByName";
-import { getPromptsMeta } from "./actions/getPromptsMeta";
+import {
+  getPromptsMeta,
+  getPromptsMetaWithCursor,
+  type GetPromptsMetaCursorParams,
+} from "./actions/getPromptsMeta";
 import { updatePrompt } from "./actions/updatePrompts";
 import {
   authorizeProtectedLabelMutation,
@@ -32,6 +36,12 @@ type GetPromptForApiInput = z.infer<typeof GetPromptByNameSchema> & {
 
 export const listPromptsForApi = async (input: ListPromptsForApiInput) => {
   return await getPromptsMeta(input);
+};
+
+export const listPromptsWithCursorForApi = async (
+  input: GetPromptsMetaCursorParams,
+) => {
+  return await getPromptsMetaWithCursor(input);
 };
 
 export const getPromptForApi = async (input: GetPromptForApiInput) => {
