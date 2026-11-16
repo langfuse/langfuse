@@ -124,7 +124,8 @@ function TopicSamplingField({
       <SectionHeader
         title="Sampling rate"
         meta={null}
-        description={perDay === null ? null : dailyVolumeLabel(perDay)}
+        // A blank line holds the volume's place, so the dialog doesn't grow when it arrives.
+        description={perDay === null ? "\u00a0" : dailyVolumeLabel(perDay)}
         tooltip={tooltip}
         trailing={null}
       />

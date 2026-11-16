@@ -5,6 +5,11 @@ import { type TopicTraceQuery, type TopicTracesResult } from "./facet-topics";
 /** Which map the Topics page shows: a rule's live map, an analysis snapshot, or every rule. */
 export type TopicMapScope = { ruleId?: string; analysisId?: string };
 
+type TraceSourceInput = TopicMapScope & {
+  projectId?: string;
+  facetId?: string;
+};
+
 export const FacetTraceSource = createContext<
   ({ projectId: string; facetId: string } & TopicMapScope) | null
 >(null);
@@ -14,10 +19,12 @@ export function useFacetTopicTraces(
   query: TopicTraceQuery | null,
 ): TopicTracesResult {
   const source = useContext(FacetTraceSource);
+  const projectId = source?.projectId ?? "";
+  const facetId = source?.facetId ?? "";
   const result = api.topics.traces.useInfiniteQuery(
     {
-      projectId: source?.projectId ?? "",
-      facetId: source?.facetId ?? "",
+      projectId,
+      facetId,
       ruleId: source?.ruleId,
       analysisId: source?.analysisId,
       ...query,
@@ -25,6 +32,19 @@ export function useFacetTopicTraces(
     {
       enabled: Boolean(source) && query !== null,
       getNextPageParam: (page) => page.nextCursor ?? undefined,
+      // Another topic or filter of the same question keeps its rows until these
+      // load; another question or map starts empty.
+      placeholderData: (previous, previousQuery) => {
+        const input = (
+          previousQuery?.queryKey[1] as { input?: TraceSourceInput } | undefined
+        )?.input;
+        return input?.projectId === projectId &&
+          input.facetId === facetId &&
+          input.ruleId === source?.ruleId &&
+          input.analysisId === source?.analysisId
+          ? previous
+          : undefined;
+      },
       meta: { toastOperation: "topics.load" },
     },
   );
@@ -33,6 +53,7 @@ export function useFacetTopicTraces(
     return {
       rows: [],
       isLoading: false,
+      isStale: false,
       isLoadingMore: false,
       error: null,
       hasMore: false,
@@ -41,6 +62,7 @@ export function useFacetTopicTraces(
   return {
     rows: result.data?.pages.flatMap((page) => page.rows) ?? [],
     isLoading: result.isLoading,
+    isStale: result.isPlaceholderData,
     isLoadingMore: result.isFetchingNextPage,
     error: result.error?.message ?? null,
     hasMore: Boolean(result.hasNextPage),
