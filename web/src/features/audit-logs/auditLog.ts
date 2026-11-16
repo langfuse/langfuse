@@ -8,6 +8,8 @@ import { type AuditLogActor as StagedAuditLogActor } from "@langfuse/shared";
 import {
   deriveAuditLogEventId,
   formatSubmittedPublicKeyForLog,
+  getSystemAuditLogActorForApiKeyId,
+  getSystemAuditLogActorForUserId,
   logger,
   recordIncrement,
   stageAuditLogEvents,
@@ -107,20 +109,6 @@ export type AuditLog = {
   before?: unknown;
   after?: unknown;
 } & AuditLogActor;
-
-// Writes made by Langfuse itself rather than by a user or an API key pass these
-// sentinel actor ids. The Postgres row keeps them, because its actor type
-// cannot be SYSTEM. The staged event records a SYSTEM actor instead.
-const SYSTEM_ACTOR_USER_IDS = new Set([
-  "stripe-webhook",
-  "clickhouse-webhook",
-  "conductorone-webhook",
-]);
-const ADMIN_API_KEY_IDS = new Set(["ADMIN_KEY", "ADMIN_API_KEY"]);
-const ADMIN_API_ACTOR: StagedAuditLogActor = {
-  type: "SYSTEM",
-  name: "admin-api",
-};
 
 const STAGED_RECORD_SELECT = {
   id: true,
@@ -342,9 +330,8 @@ export function toUserActor(
   user: { id: string; name?: string | null; email?: string | null },
   access: { orgRole?: Role; projectRole?: Role; supportAccess?: boolean },
 ): StagedAuditLogActor {
-  if (SYSTEM_ACTOR_USER_IDS.has(user.id)) {
-    return { type: "SYSTEM", name: user.id };
-  }
+  const systemActor = getSystemAuditLogActorForUserId(user.id);
+  if (systemActor) return systemActor;
   return {
     type: "USER",
     userId: user.id,
@@ -362,7 +349,8 @@ export function toApiKeyActor(
   userId: string | undefined,
   creator: { name?: string | null; email?: string | null } | null | undefined,
 ): StagedAuditLogActor {
-  if (ADMIN_API_KEY_IDS.has(apiKeyId)) return ADMIN_API_ACTOR;
+  const systemActor = getSystemAuditLogActorForApiKeyId(apiKeyId);
+  if (systemActor) return systemActor;
   return {
     type: "API_KEY",
     apiKeyId,
