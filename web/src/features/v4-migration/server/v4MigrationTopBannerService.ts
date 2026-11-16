@@ -34,23 +34,20 @@ const hiddenState: V4MigrationTopBannerState = {
 /**
  * Returns one aggregate snapshot for the always-mounted top banner. Migration
  * actions are batched across every accessible project in the current scope.
- * Brownout and extended-deadline copy apply only to projects that still need
- * a migration action. Cutoff-exempt projects are the ones that skip the v3
- * shutdown.
+ * Copy applies only to projects that still need a migration action.
+ * Cutoff-exempt projects are the ones that skip the v3 shutdown.
  */
 export async function getV4MigrationTopBannerState({
   prisma,
   session,
   demoOrgId,
   isLangfuseCloud,
-  brownoutProjectIds = [],
   cutoffExemptProjectIds = [],
 }: {
   prisma: PrismaClient;
   session: Session;
   demoOrgId: string | undefined;
   isLangfuseCloud: boolean;
-  brownoutProjectIds?: readonly string[];
   cutoffExemptProjectIds?: readonly string[];
 }): Promise<V4MigrationTopBannerState> {
   const user = session.user;
@@ -86,7 +83,6 @@ export async function getV4MigrationTopBannerState({
   ): V4MigrationTopBannerState => {
     const copy = resolveV4MigrationBannerCopy({
       actionNeededProjectIds,
-      brownoutProjectIds,
       cutoffExemptProjectIds,
     });
     if (!bannerConfig.message || !copy) {

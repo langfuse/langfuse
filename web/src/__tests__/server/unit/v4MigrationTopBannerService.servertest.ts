@@ -1,6 +1,10 @@
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  V4_MIGRATION_DELAYED_DEADLINE_MESSAGE,
+  V4_MIGRATION_TOP_BANNER_MESSAGE,
+} from "@/src/features/v4-migration/v4MigrationBannerCopy";
 import { getV4MigrationTopBannerState } from "@/src/features/v4-migration/server/v4MigrationTopBannerService";
 
 const mocks = vi.hoisted(() => ({
@@ -111,8 +115,8 @@ describe("getV4MigrationTopBannerState", () => {
         isLangfuseCloud: true,
       }),
     ).resolves.toMatchObject({
-      severity: "off",
-      message: null,
+      severity: "warning",
+      message: V4_MIGRATION_TOP_BANNER_MESSAGE,
       actionNeededCount: 1,
     });
 
@@ -161,7 +165,7 @@ describe("getV4MigrationTopBannerState", () => {
     );
   });
 
-  it("uses brownout copy for freeze-list projects and the extended deadline for cutoff-exempt projects", async () => {
+  it("shows the delayed deadline only when every actionable project is cutoff-exempt", async () => {
     const banner = {
       prisma: {} as PrismaClient,
       session,
@@ -172,38 +176,23 @@ describe("getV4MigrationTopBannerState", () => {
     await expect(
       getV4MigrationTopBannerState({
         ...banner,
-        brownoutProjectIds: ["project-c"],
         cutoffExemptProjectIds: [],
       }),
     ).resolves.toMatchObject({
-      severity: "off",
-      message: null,
+      message: V4_MIGRATION_TOP_BANNER_MESSAGE,
+      variant: "deadline",
+      href: "/v4-migration",
+      linkLabel: "Check migration status",
     });
 
     await expect(
       getV4MigrationTopBannerState({
         ...banner,
-        brownoutProjectIds: ["project-a"],
-        cutoffExemptProjectIds: [],
-      }),
-    ).resolves.toMatchObject({
-      message: "If a feature does not work, it may be in a scheduled brownout.",
-      variant: "brownout",
-      href: "https://status.langfuse.com",
-      linkLabel: "See brownout times",
-      mobileLabel: "If a feature does not work:",
-    });
-
-    await expect(
-      getV4MigrationTopBannerState({
-        ...banner,
-        brownoutProjectIds: ["project-a"],
         cutoffExemptProjectIds: ["project-a"],
       }),
     ).resolves.toMatchObject({
-      message:
-        "Action required: Deadline extended by one week, until November 23, 2026. Some features may stop working after that for at least one of your projects.",
-      variant: "extended",
+      message: V4_MIGRATION_DELAYED_DEADLINE_MESSAGE,
+      variant: "delayed",
       href: "/v4-migration",
       linkLabel: "Check migration status",
     });
@@ -217,16 +206,17 @@ describe("getV4MigrationTopBannerState", () => {
     await expect(
       getV4MigrationTopBannerState({
         ...banner,
-        brownoutProjectIds: ["project-a"],
-        cutoffExemptProjectIds: ["project-c"],
+        cutoffExemptProjectIds: ["project-a"],
       }),
-    ).resolves.toMatchObject({ variant: "brownout" });
+    ).resolves.toMatchObject({ variant: "deadline" });
 
+    mocks.getMigrationActionsByProject.mockResolvedValue(
+      new Map([["project-a", noActionNeeded]]),
+    );
     await expect(
       getV4MigrationTopBannerState({
         ...banner,
-        brownoutProjectIds: [],
-        cutoffExemptProjectIds: ["project-c"],
+        cutoffExemptProjectIds: [],
       }),
     ).resolves.toMatchObject({
       severity: "off",

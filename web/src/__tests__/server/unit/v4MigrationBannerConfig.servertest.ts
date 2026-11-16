@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { V4_MIGRATION_TOP_BANNER_MESSAGE } from "@/src/features/v4-migration/v4MigrationBannerCopy";
 
 describe("v4 migration banner config", () => {
   const originalEnv = { ...process.env };
@@ -37,8 +38,7 @@ describe("v4 migration banner config", () => {
     expect(configured({ orgId: "org-c", isLangfuseCloud: true })).toMatchObject(
       {
         severity: "critical",
-        message:
-          "Action required: After November 16, 2026, some features may stop working for at least one of your projects.",
+        message: V4_MIGRATION_TOP_BANNER_MESSAGE,
         exempt: false,
       },
     );

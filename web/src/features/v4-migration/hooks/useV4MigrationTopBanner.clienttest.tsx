@@ -1,5 +1,6 @@
 import { fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { V4_MIGRATION_TOP_BANNER_MESSAGE } from "@/src/features/v4-migration/v4MigrationBannerCopy";
 import { V4MigrationTopBannerView } from "@/src/features/v4-migration/V4MigrationTopBannerView";
 import { useV4MigrationTopBanner } from "./useV4MigrationTopBanner";
 
@@ -11,12 +12,9 @@ function ConnectedBanner() {
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
   severity: "warning" as "off" | "warning" | "critical",
-  message:
-    "Action required: After November 16, 2026, some features may stop working for at least one of your projects." as
-      | string
-      | null,
+  message: null as string | null,
   actionNeededCount: 1,
-  variant: "deadline" as "deadline" | "extended" | "brownout",
+  variant: "deadline" as "deadline" | "delayed",
   organization: { id: "org-1", name: "Org 1" } as {
     id: string;
     name: string;
@@ -66,14 +64,13 @@ vi.mock("@/src/utils/api", () => ({
   },
 }));
 
-const WARNING_MESSAGE =
-  "Action required: After November 16, 2026, some features may stop working for at least one of your projects.";
+const WARNING_MESSAGE = V4_MIGRATION_TOP_BANNER_MESSAGE;
 const FIVE_MINUTES_MS = 5 * 60 * 1000;
 
 beforeEach(() => {
   mocks.capture.mockReset();
   mocks.severity = "warning";
-  mocks.message = WARNING_MESSAGE;
+  mocks.message = V4_MIGRATION_TOP_BANNER_MESSAGE;
   mocks.actionNeededCount = 1;
   mocks.variant = "deadline";
   mocks.organization = { id: "org-1", name: "Org 1" };
@@ -113,11 +110,11 @@ describe("useV4MigrationTopBanner", () => {
   });
 
   it("records another view when the variant changes at the same severity", () => {
-    mocks.variant = "brownout";
+    mocks.variant = "delayed";
     const { rerender } = renderHook(() => useV4MigrationTopBanner());
     expect(mocks.capture).toHaveBeenCalledWith(
       "v4_migration:top_banner_shown",
-      { severity: "warning", actionNeededCount: 1, variant: "brownout" },
+      { severity: "warning", actionNeededCount: 1, variant: "delayed" },
     );
 
     mocks.variant = "deadline";

@@ -32,8 +32,8 @@ export type V4MigrationTopBannerViewProps = {
 
 /**
  * One-line legacy v3 strip for the top-banner stack. The status link is
- * available to every role. There is no dismiss. Brownout windows link out to
- * the public status page; the deadline banners stay on the migration page.
+ * available to every role. There is no dismiss. The strip links to the
+ * migration page.
  */
 export function V4MigrationTopBannerView({
   severity,

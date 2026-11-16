@@ -518,7 +518,7 @@ const events = {
     "migrate_evals_with_agent_clicked",
     // Legacy v3 strip in the top-banner stack. Both carry
     // { severity, actionNeededCount, variant }; cta_clicked also carries `cta`.
-    // `variant` is deadline, extended (November 23), or brownout.
+    // `variant` is deadline or delayed (November 23).
     "top_banner_shown",
     "top_banner_cta_clicked",
     // Opt-out users on the legacy-UI top strip → migration status page.

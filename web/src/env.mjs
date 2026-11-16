@@ -766,19 +766,6 @@ export const env = createEnv({
               .filter(Boolean)
           : [],
       ),
-    // Comma-separated project ids in today's v3 brownout. Actionable projects
-    // on this list see the status-page banner.
-    LANGFUSE_V4_BROWNOUT_PROJECT_IDS: z
-      .string()
-      .optional()
-      .transform((value) =>
-        value
-          ? value
-              .split(",")
-              .map((projectId) => projectId.trim())
-              .filter(Boolean)
-          : [],
-      ),
     // Character count above which trace/observation I/O is rendered as plain
     // text instead of markdown. Served to the browser via the public tRPC
     // router, so it works as a runtime env var on prebuilt Docker images.
@@ -1426,8 +1413,6 @@ export const env = createEnv({
     LANGFUSE_V4_CUTOFF_PUBLIC_API: process.env.LANGFUSE_V4_CUTOFF_PUBLIC_API,
     LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS:
       process.env.LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS,
-    LANGFUSE_V4_BROWNOUT_PROJECT_IDS:
-      process.env.LANGFUSE_V4_BROWNOUT_PROJECT_IDS,
     LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
       process.env.LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
     LANGFUSE_SKILL_MAX_BYTES: process.env.LANGFUSE_SKILL_MAX_BYTES,

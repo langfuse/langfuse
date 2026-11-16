@@ -75,8 +75,7 @@ import {
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const V4_TIMELINE_URL = `${V4_DOCS_URL}#timeline`;
-// Consumed by the status page and the legacy UI strip. Cloud removal is
-// November 19; November 16 was the start of the brownouts.
+// Consumed by the status page and the legacy UI strip. Cloud removal date.
 export const V4_MIGRATION_DEADLINE = "November 19, 2026";
 // Headline form of the deadline; the year is noise in a title.
 const V4_MIGRATION_DEADLINE_SHORT = "November 19";
