@@ -91,10 +91,16 @@ export async function getV4MigrationTopBannerState({
       brownoutProjectIds,
       extendedOrgIds,
     });
+    if (!bannerConfig.message || !copy) {
+      return {
+        ...hiddenState,
+        actionNeededCount: actionNeededProjects.length,
+      };
+    }
     return {
       ...copy,
       severity: bannerConfig.severity,
-      message: bannerConfig.message ? copy.message : null,
+      message: copy.message,
       actionNeededCount: actionNeededProjects.length,
     };
   };

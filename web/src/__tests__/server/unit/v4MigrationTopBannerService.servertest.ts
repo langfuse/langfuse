@@ -2,7 +2,6 @@ import type { PrismaClient } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getV4MigrationTopBannerState } from "@/src/features/v4-migration/server/v4MigrationTopBannerService";
-import { V4_MIGRATION_TOP_BANNER_MESSAGE } from "@/src/features/v4-migration/v4MigrationBannerCopy";
 
 const mocks = vi.hoisted(() => ({
   bannerStateByOrgId: new Map<
@@ -111,13 +110,9 @@ describe("getV4MigrationTopBannerState", () => {
         demoOrgId: "demo-org",
         isLangfuseCloud: true,
       }),
-    ).resolves.toEqual({
-      severity: "warning",
-      message: V4_MIGRATION_TOP_BANNER_MESSAGE,
-      href: "/v4-migration",
-      linkLabel: "Check migration status",
-      mobileLabel: "Action required:",
-      variant: "deadline",
+    ).resolves.toMatchObject({
+      severity: "off",
+      message: null,
       actionNeededCount: 1,
     });
 
@@ -181,10 +176,8 @@ describe("getV4MigrationTopBannerState", () => {
         extendedOrgIds: [],
       }),
     ).resolves.toMatchObject({
-      message: V4_MIGRATION_TOP_BANNER_MESSAGE,
-      variant: "deadline",
-      href: "/v4-migration",
-      linkLabel: "Check migration status",
+      severity: "off",
+      message: null,
     });
 
     await expect(
@@ -236,8 +229,8 @@ describe("getV4MigrationTopBannerState", () => {
         extendedOrgIds: ["org-c"],
       }),
     ).resolves.toMatchObject({
-      variant: "deadline",
-      message: V4_MIGRATION_TOP_BANNER_MESSAGE,
+      severity: "off",
+      message: null,
     });
   });
 });

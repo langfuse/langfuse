@@ -766,7 +766,7 @@ export const env = createEnv({
           : [],
       ),
     // Comma-separated project ids in today's v3 brownout. Actionable projects
-    // on this list see the status-page banner instead of the deadline sentence.
+    // on this list see the status-page banner.
     LANGFUSE_V4_BROWNOUT_PROJECT_IDS: z
       .string()
       .optional()
@@ -782,9 +782,8 @@ export const env = createEnv({
     // An actionable project in one of these orgs keeps the deadline banner,
     // even when that project is also on the brownout list. The November 23
     // sentence is shown only when every actionable project is in an extended
-    // org. A session that also has a November 16 project keeps that earlier
-    // sentence, and a session that also has a brownout project sees the
-    // brownout banner.
+    // org. Any other session keeps the strip hidden, unless a brownout project
+    // shows that banner.
     LANGFUSE_V4_BANNER_EXTENDED_ORG_IDS: z
       .string()
       .optional()

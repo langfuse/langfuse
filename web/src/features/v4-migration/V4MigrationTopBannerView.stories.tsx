@@ -7,11 +7,10 @@ import {
   V4_MIGRATION_BROWNOUT_MESSAGE,
   V4_MIGRATION_EXTENDED_DEADLINE_MESSAGE,
   V4_MIGRATION_STATUS_LINK_LABEL,
-  V4_MIGRATION_TOP_BANNER_MESSAGE,
 } from "./v4MigrationBannerCopy";
 import { V4MigrationTopBannerView } from "./V4MigrationTopBannerView";
 
-const WARNING_MESSAGE = V4_MIGRATION_TOP_BANNER_MESSAGE;
+const WARNING_MESSAGE = V4_MIGRATION_EXTENDED_DEADLINE_MESSAGE;
 const CRITICAL_MESSAGE =
   "Action required: Some features may not be working for at least one of your projects.";
 

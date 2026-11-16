@@ -31,12 +31,6 @@ const migrationLink = {
   mobileLabel: V4_MIGRATION_STATUS_MOBILE_LABEL,
 } as const;
 
-const DEADLINE: V4MigrationBannerPresentation = {
-  variant: "deadline",
-  message: V4_MIGRATION_TOP_BANNER_MESSAGE,
-  ...migrationLink,
-};
-
 const EXTENDED: V4MigrationBannerPresentation = {
   variant: "extended",
   message: V4_MIGRATION_EXTENDED_DEADLINE_MESSAGE,
@@ -52,15 +46,15 @@ const BROWNOUT: V4MigrationBannerPresentation = {
 };
 
 /**
- * One sentence for the whole session. A freeze-list project outside an
- * extended organization shows the brownout. November 23 shows only when every
- * actionable project is in an extended organization. Otherwise November 16.
+ * One sentence for the whole session, or none. A freeze-list project outside
+ * an extended organization shows the brownout. November 23 shows only when
+ * every actionable project is in an extended organization.
  */
 export function resolveV4MigrationBannerCopy(params: {
   actionNeededProjects: readonly { projectId: string; orgId: string }[];
   brownoutProjectIds: readonly string[];
   extendedOrgIds: readonly string[];
-}): V4MigrationBannerPresentation {
+}): V4MigrationBannerPresentation | null {
   const brownoutProjectIds = new Set(params.brownoutProjectIds);
   const extendedOrgIds = new Set(params.extendedOrgIds);
   let extendedCount = 0;
@@ -76,5 +70,5 @@ export function resolveV4MigrationBannerCopy(params: {
   return extendedCount > 0 &&
     extendedCount === params.actionNeededProjects.length
     ? EXTENDED
-    : DEADLINE;
+    : null;
 }

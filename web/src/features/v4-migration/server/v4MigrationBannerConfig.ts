@@ -12,9 +12,10 @@ export type V4MigrationBannerConfig = {
 
 /**
  * Self-hosted deployments, exempt orgs, and severity "off" hide the banner.
- * The deadline sentence is fixed in code. Operators choose when to show it,
- * whether its severity is warning or critical, which projects are in today's
- * brownout, and which organizations keep the one-week extension.
+ * A non-null message means the strip is allowed. The sentence itself comes
+ * from the brownout or November 23 rule. Operators choose the severity,
+ * which projects are in today's brownout, and which organizations keep the
+ * one-week extension.
  */
 export function getV4MigrationBannerConfig(params: {
   orgId: string;
