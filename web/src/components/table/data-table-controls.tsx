@@ -9,6 +9,7 @@ import {
   useEffect,
   useRef,
   useCallback,
+  useId,
 } from "react";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -1663,6 +1664,7 @@ function CategoricalSelectContent({
   | "operator"
   | "onOperatorChange"
 >) {
+  const instanceId = useId();
   // "Show more values" reveals the next PORTION (it does what it says — not
   // expand-everything: value lists can run to 1000+ user IDs); "Show fewer
   // values" collapses back to the cap. Resets by unmounting on collapse.
@@ -1746,7 +1748,7 @@ function CategoricalSelectContent({
     return (
       <FilterValueCheckbox
         key={option}
-        id={`${filterKey}-${option}`}
+        id={`${instanceId}-${option}`}
         label={displayLabel}
         title={getOptionTitle?.(option, displayLabel)}
         icon={renderIcon?.(option)}

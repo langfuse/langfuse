@@ -1,6 +1,11 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { useState } from "react";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
-import { eventsTableCols, type FilterState } from "@langfuse/shared";
+import {
+  eventsTableCols,
+  type FilterState,
+  type OrderByState,
+} from "@langfuse/shared";
 import { useStore } from "zustand";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import {
@@ -18,6 +23,12 @@ import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
+import { DataTable } from "@/src/components/table/data-table";
+import { EventsNameFilterHeader } from "@/src/features/events/components/EventsNameFilterHeader";
+
+vi.mock("next/router", () => ({
+  useRouter: () => ({ query: {} }),
+}));
 
 vi.mock("use-query-params", async () => ({
   ...(await vi.importActual("use-query-params")),
@@ -75,6 +86,98 @@ function MobileDraftSearchInput() {
 function TestFilterSidebar({ layout }: { layout?: "panel" | "inline" }) {
   return <div data-layout={layout}>Facet controls</div>;
 }
+
+describe("name header filtering", () => {
+  it("edits the shared name filter without changing a restored sort", () => {
+    function Harness() {
+      const queryFilter = useSidebarFilterState(
+        {
+          tableName: "observations-events",
+          columnDefinitions: eventsTableCols,
+          defaultExpanded: ["name"],
+          facets: [{ type: "categorical", column: "name", label: "Name" }],
+        },
+        { name: ["alpha", "beta"] },
+        { stateLocation: "memory", isV4: true },
+      );
+      const [orderBy, setOrderBy] = useState<OrderByState>({
+        column: "name",
+        order: "ASC",
+      });
+      const filter = queryFilter.filters[0] as CategoricalUIFilter;
+      return (
+        <>
+          <DataTableControls queryFilter={queryFilter} />
+          <DataTable
+            tableName="observations-events"
+            columns={[
+              {
+                id: "name",
+                accessorKey: "name",
+                enableSorting: true,
+                enableHeaderSorting: false,
+                headerBlock: true,
+                header: "Name",
+                headerContent: (
+                  <EventsNameFilterHeader
+                    label="Name"
+                    filter={filter}
+                    tableName="observations-events"
+                    onOpen={() => {}}
+                  />
+                ),
+              },
+            ]}
+            orderBy={orderBy}
+            setOrderBy={setOrderBy}
+            hidePagination
+            data={{
+              isLoading: false,
+              isError: false,
+              data: [{ name: "alpha" }],
+            }}
+          />
+          <output data-testid="applied-name-filter">
+            {JSON.stringify(queryFilter.filterState)}
+          </output>
+        </>
+      );
+    }
+    render(<Harness />, { wrapper: TooltipProvider });
+    const trigger = screen.getByRole("button", { name: "Filter by name" });
+    const header = trigger.closest("th")!;
+    fireEvent.click(header);
+    expect(header).toHaveTextContent("sorted ascending");
+    captureSpy.mockClear();
+    fireEvent.click(trigger);
+    expect(captureSpy).toHaveBeenCalledExactlyOnceWith(
+      "table:column_filter_header_click",
+      { column: "name", tableName: "observations-events", isV4: true },
+      undefined,
+    );
+    const dialog = screen.getByRole("dialog");
+    const menu = within(dialog);
+    expect(menu.getByRole("tab", { name: "Text" })).toBeInTheDocument();
+    const popupCheckbox = menu.getAllByRole("checkbox")[0];
+    const sidebarCheckbox = screen
+      .getAllByRole("checkbox")
+      .find((checkbox) => !dialog.contains(checkbox))!;
+    expect(popupCheckbox.id).not.toBe(sidebarCheckbox.id);
+    fireEvent.click(menu.getByText("alpha"));
+    expect(
+      JSON.parse(screen.getByTestId("applied-name-filter").textContent!),
+    ).toContainEqual({
+      column: "name",
+      type: "stringOptions",
+      operator: "any of",
+      value: ["alpha"],
+    });
+    expect(sidebarCheckbox).toBeChecked();
+    expect(menu.getAllByRole("checkbox")[1]).not.toBeChecked();
+    expect(screen.getByRole("dialog")).toBe(dialog);
+    expect(header).toHaveTextContent("sorted ascending");
+  });
+});
 
 describe("delayed sidebar edits and search-bar commits", () => {
   const config: FilterConfig = {

@@ -27,6 +27,10 @@ declare module "@tanstack/react-table" {
      * a string.
      */
     headerLabel?: string;
+    /** Allow restored sorts while a custom header provides another action. */
+    enableHeaderSorting?: boolean;
+    /** Stateful header content; `header` remains the plain column label. */
+    headerContent?: React.ReactNode;
     isFixedPosition?: boolean; // if true, column cannot be reordered
     isPinnedLeft?: boolean; // if true, column will be pinned to left side
     isPinnedRight?: boolean; // if true, column will be pinned to right side

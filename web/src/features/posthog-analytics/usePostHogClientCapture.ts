@@ -28,6 +28,7 @@ const events = {
     "pagination_page_size_select",
     "column_visibility_change",
     "column_sorting_header_click",
+    "column_filter_header_click",
     "column_visibility_changed",
   ],
   trace: ["delete_form_open", "delete", "delete_form_submit"],

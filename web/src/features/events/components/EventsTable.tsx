@@ -186,6 +186,7 @@ import {
   useObservedMetadataRecorder,
 } from "@/src/hooks/useObservedMetadata";
 import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialogController";
+import { EventsNameFilterHeader } from "@/src/features/events/components/EventsNameFilterHeader";
 
 export type EventsTableRow = {
   // Identity fields
@@ -1325,6 +1326,25 @@ export default function ObservationsEventsTable({
   const isMobile = useIsMobile();
   const enableSorting = showToolbar;
 
+  const nameColumnHeader = (column: "name" | "traceName") => {
+    const label = getEventsColumnName(column);
+    const filter = queryFilter.filters.find(
+      (filter) => filter.column === column,
+    );
+    if (!showToolbar || externalFilterState || filter?.type !== "categorical") {
+      return label;
+    }
+    return (
+      <EventsNameFilterHeader
+        key={queryFilter.draftResetKey}
+        label={label}
+        filter={filter}
+        tableName={eventsFilterConfig.tableName}
+        onOpen={() => requestColumns([column])}
+      />
+    );
+  };
+
   const columns: LangfuseColumnDef<EventsTableRow>[] = [
     ...(showToolbar && !isMobile ? [selectActionColumn] : []),
     createDateTableColumn<EventsTableRow>({
@@ -1343,14 +1363,20 @@ export default function ObservationsEventsTable({
     createTextTableColumn<EventsTableRow>({
       accessorKey: "name",
       header: getEventsColumnName("name"),
+      headerContent: nameColumnHeader("name"),
+      headerBlock: true,
       size: 150,
       enableSorting,
+      enableHeaderSorting: false,
     }),
     createTextTableColumn<EventsTableRow>({
       accessorKey: "traceName",
       header: getEventsColumnName("traceName"),
+      headerContent: nameColumnHeader("traceName"),
+      headerBlock: true,
       size: 150,
       enableSorting: true,
+      enableHeaderSorting: false,
     }),
     createIOTableColumn<EventsTableRow>({
       accessorKey: "input",
