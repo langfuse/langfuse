@@ -896,7 +896,6 @@ export * from "./utils/headerUtils";
 export * from "./utils/formatAuthProvider";
 export * from "./traceDeletionProcessor";
 export * from "./deletionGuard";
-export * from "./forceV3Experience";
 export * from "./v4/legacyApiUsage";
 export * from "./analytics-integrations/types";
 

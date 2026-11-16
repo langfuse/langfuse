@@ -5,7 +5,6 @@ import {
   protectedOrganizationProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { isForceV3ExperienceProject } from "@langfuse/shared/src/server";
 import {
   getAccessibleOrganizationProjects,
   getProjectV4MigrationData,
@@ -19,10 +18,6 @@ import { getV4MigrationTopBannerState } from "@/src/features/v4-migration/server
 import { env } from "@/src/env.mjs";
 
 export const v4TransitionRouter = createTRPCRouter({
-  forceV3Experience: protectedProjectProcedure
-    .input(z.object({ projectId: z.string() }))
-    .query(({ input }) => isForceV3ExperienceProject(input.projectId)),
-
   migrationData: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(({ input, ctx }) =>
@@ -79,7 +74,6 @@ export const v4TransitionRouter = createTRPCRouter({
           return {
             ...summary,
             projectName: project.name,
-            forceV3Experience: isForceV3ExperienceProject(project.id),
           };
         }),
       };

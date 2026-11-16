@@ -739,7 +739,6 @@
       "src/features/evals/components/template-selector.tsx -> src/features/experiments/hooks/useExperimentEvaluatorSelection.ts",
       "src/features/evals/components/variable-mapping-card.tsx -> src/features/navigate-detail-pages/DetailPageNav.tsx",
       "src/features/evals/hooks/useEvalCapabilities.ts -> src/features/organizations/hooks.ts",
-      "src/features/evals/hooks/useEvalCapabilities.ts -> src/features/v4-migration/useForceV3Experience.ts",
       "src/features/evals/hooks/useEvalPreviewNavigation.ts -> src/features/navigate-detail-pages/context.tsx",
       "src/features/evals/pages/default-evaluation-model.tsx -> src/ee/features/billing/components/SupportOrUpgradePage.tsx",
       "src/features/evals/pages/evaluators.tsx -> src/ee/features/billing/components/SupportOrUpgradePage.tsx",
@@ -1055,7 +1054,6 @@
       "src/features/v4-migration/V4MigrationDelayBadge.tsx -> src/features/projects/hooks.ts",
       "src/features/v4-migration/V4MigrationNavItem.tsx -> src/features/projects/hooks.ts",
       "src/features/v4-migration/V4MigrationPanel.tsx -> src/features/projects/hooks.ts",
-      "src/features/v4-migration/V4MigrationPanelProvider.tsx -> src/features/projects/hooks.ts",
       "src/features/v4/server/v4TransitionSdkUsage.ts -> src/features/sdk-version/lib/sdkVersionCapabilities.ts",
       "src/features/version-update/useVersionUpdatePrompt.ts -> src/features/posthog-analytics/usePostHogClientCapture.ts",
       "src/features/widgets/components/DashboardWidget.tsx -> src/features/dashboard/hooks/useDashboardQueryScheduler.tsx",
@@ -1147,12 +1145,10 @@
       "cycle: src/components/ui/PrettyJsonView.tsx -> src/components/ui/MarkdownJsonView.tsx",
       "cycle: src/features/annotation-queues/components/session/TraceRow.tsx -> src/features/annotation-queues/components/session/index.tsx",
       "cycle: src/features/evals/v2/server/rules/ruleRepository.ts -> src/features/evals/v2/server/evaluators/evaluatorRepository.ts",
-      "cycle: src/features/notifications/showErrorToast.tsx -> src/features/notifications/ErrorNotification.tsx -> src/features/v4-migration/V4MigrationPanelProvider.tsx -> src/features/projects/hooks.ts -> src/features/organizations/hooks.ts -> src/utils/api.ts -> src/utils/trpcErrorToast.tsx",
       "cycle: src/features/traces/components/Trace.tsx -> src/features/traces/components/TracePanelDetail.tsx -> src/features/traces/components/ObservationDetailView/ConnectedObservationDetailView.tsx -> src/components/table/use-cases/scores.tsx -> src/components/table/peek/peek-trace-detail.tsx -> src/components/table/peek/hooks/usePeekData.ts -> src/features/traces/index.ts -> src/features/traces/components/TraceDetailBody.tsx",
       "cycle: src/features/traces/components/TraceDetailBody.tsx -> src/features/traces/components/Trace.tsx -> src/features/traces/components/TracePanelDetail.tsx -> src/features/traces/components/ObservationDetailView/ConnectedObservationDetailView.tsx -> src/components/table/use-cases/scores.tsx -> src/components/table/peek/peek-trace-detail.tsx -> src/features/traces/index.ts",
       "cycle: src/features/traces/components/TraceDetailView/TraceDetailView.tsx -> src/components/table/use-cases/scores.tsx -> src/components/table/peek/peek-trace-detail.tsx -> src/components/table/peek/hooks/usePeekData.ts -> src/features/traces/index.ts -> src/features/traces/components/Trace.tsx -> src/features/traces/components/TracePanelDetail.tsx",
-      "cycle: src/features/traces/index.ts -> src/features/traces/components/Trace.tsx -> src/features/traces/components/TracePanelDetail.tsx -> src/features/traces/components/ObservationDetailView/ConnectedObservationDetailView.tsx -> src/components/table/use-cases/scores.tsx -> src/components/table/peek/peek-trace-detail.tsx",
-      "cycle: src/utils/trpcErrorToast.tsx -> src/features/notifications/showErrorToast.tsx -> src/features/notifications/ErrorNotification.tsx -> src/features/v4-migration/V4MigrationPanelProvider.tsx -> src/features/projects/hooks.ts -> src/utils/api.ts"
+      "cycle: src/features/traces/index.ts -> src/features/traces/components/Trace.tsx -> src/features/traces/components/TracePanelDetail.tsx -> src/features/traces/components/ObservationDetailView/ConnectedObservationDetailView.tsx -> src/components/table/use-cases/scores.tsx -> src/components/table/peek/peek-trace-detail.tsx"
     ],
     "12": [
       "src/pages/account/settings/index.tsx -> src/components/layouts/container-page.tsx",

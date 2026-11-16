@@ -7,7 +7,6 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import type { ProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
-import { useQueryProject } from "@/src/features/projects/hooks";
 
 export type V4MigrationTargetProject = {
   id: string;
@@ -45,8 +44,7 @@ export function V4MigrationPanelProvider({
   children,
   defaultOpen = false,
 }: V4MigrationPanelProviderProps) {
-  const { project: routeProject } = useQueryProject();
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(routeProject?.id);
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
   const capture = usePostHogClientCapture();
   const [requestedOpen, setRequestedOpen] = useState(defaultOpen);
   const [targetProject, setTargetProject] =

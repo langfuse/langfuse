@@ -4,18 +4,12 @@ import { useSession } from "next-auth/react";
 import { vi } from "vitest";
 
 import { useV4UpgradeUiEnabled } from "./useV4UpgradeUiEnabled";
-import { useForceV3Experience } from "./useForceV3Experience";
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(),
 }));
 
-vi.mock("./useForceV3Experience", () => ({
-  useForceV3Experience: vi.fn(),
-}));
-
 const mockUseSession = vi.mocked(useSession);
-const mockUseForceV3Experience = vi.mocked(useForceV3Experience);
 
 const mockSessionAvailability = (v4UpgradeUiAvailable: boolean) => {
   mockUseSession.mockReturnValue({
@@ -30,10 +24,6 @@ const mockSessionAvailability = (v4UpgradeUiAvailable: boolean) => {
 };
 
 describe("useV4UpgradeUiEnabled", () => {
-  beforeEach(() => {
-    mockUseForceV3Experience.mockReturnValue(false);
-  });
-
   it("enables the UI when the deployment can act on the migration", () => {
     mockSessionAvailability(true);
 
@@ -77,15 +67,6 @@ describe("useV4UpgradeUiEnabled", () => {
         environment: { enableExperimentalFeatures: false },
       },
     } as never);
-
-    const { result } = renderHook(() => useV4UpgradeUiEnabled());
-
-    expect(result.current).toBe(false);
-  });
-
-  it("suppresses the UI for projects forced onto the v3 experience", () => {
-    mockSessionAvailability(true);
-    mockUseForceV3Experience.mockReturnValue(true);
 
     const { result } = renderHook(() => useV4UpgradeUiEnabled());
 

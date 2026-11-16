@@ -66,10 +66,6 @@ vi.mock("@/src/utils/api", () => ({
   },
 }));
 
-vi.mock("@/src/features/v4-migration/useForceV3Experience", () => ({
-  useForceV3Experience: () => false,
-}));
-
 const loadedQuery = <T>(data: T) => ({
   data,
   isError: false,
@@ -185,7 +181,6 @@ describe("account v4 migration data", () => {
       },
       apis: { status: "loaded", count: 2 },
       exports: { status: "loaded", count: 1 },
-      forceV3Experience: false,
     });
     expect(mocks.summaryByProject).toHaveBeenCalledWith(
       { orgId: "org-1" },
@@ -199,31 +194,6 @@ describe("account v4 migration data", () => {
       expect.objectContaining({ orgId: "org-1" }),
       expect.objectContaining({ enabled: true }),
     );
-  });
-
-  it("marks projects forced onto the v3 experience as partner-managed", () => {
-    const [integrationResultSet] = mocks.queryResultSets as [
-      [{ data: { projects: Record<string, unknown>[] } }],
-      ...unknown[][],
-    ];
-    integrationResultSet[0].data.projects[0].forceV3Experience = true;
-
-    const { result } = renderHook(() =>
-      useAccountV4MigrationData({
-        organizations: [
-          {
-            id: "org-1",
-            name: "Organization",
-            projects: [{ id: "project-1", name: "Project" }],
-          },
-        ],
-        enabled: true,
-      }),
-    );
-
-    expect(result.current.get("project-1")).toMatchObject({
-      forceV3Experience: true,
-    });
   });
 
   it("excludes agent-only deprecated API usage from organization readiness", () => {
@@ -369,7 +339,6 @@ describe("project v4 migration data", () => {
 describe("migration actions", () => {
   const cachedActions = (
     overrides: Partial<{
-      forceV3Experience: boolean;
       sdkActionNeeded: boolean | null;
       experimentsActionNeeded: boolean | null;
       apisActionNeeded: boolean | null;
@@ -377,7 +346,6 @@ describe("migration actions", () => {
       exportsActionNeeded: boolean;
     }> = {},
   ) => ({
-    forceV3Experience: false,
     sdkActionNeeded: null,
     experimentsActionNeeded: null,
     apisActionNeeded: null,
@@ -422,21 +390,5 @@ describe("migration actions", () => {
     );
 
     expect(result.current).toEqual({ actionNeeded: true });
-  });
-
-  it("suppresses the signal for partner-managed (forced v3) projects", () => {
-    mocks.migrationActionsUseQuery.mockReturnValue({
-      data: cachedActions({
-        forceV3Experience: true,
-        sdkActionNeeded: true,
-        evalsActionNeeded: true,
-      }),
-    });
-
-    const { result } = renderHook(() =>
-      useProjectV4MigrationActions("project-1"),
-    );
-
-    expect(result.current).toEqual({ actionNeeded: false });
   });
 });

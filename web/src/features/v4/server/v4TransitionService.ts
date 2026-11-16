@@ -9,7 +9,6 @@ import {
   type PrismaClient,
 } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
-import { isForceV3ExperienceProject } from "@langfuse/shared/src/server";
 import {
   readExperimentPostUsageCache,
   readLegacyApiUsageCache,
@@ -238,7 +237,6 @@ export const getProjectV4MigrationData = async ({
 
   return {
     projectId,
-    forceV3Experience: isForceV3ExperienceProject(projectId),
     sdkUsage: sdkUsage[0]!,
     legacyIntegrations: legacyIntegrations[0]!,
     legacyApiUsage,
@@ -253,22 +251,12 @@ export const getProjectV4MigrationData = async ({
  * read worker-maintained Redis caches when available (`null` = unknown).
  */
 export type MigrationActions = {
-  forceV3Experience: boolean;
   sdkActionNeeded: boolean | null;
   experimentsActionNeeded: boolean | null;
   apisActionNeeded: boolean | null;
   evalsActionNeeded: boolean;
   exportsActionNeeded: boolean;
 };
-
-const partnerManagedMigrationActions = {
-  forceV3Experience: true,
-  sdkActionNeeded: null,
-  experimentsActionNeeded: null,
-  apisActionNeeded: null,
-  evalsActionNeeded: false,
-  exportsActionNeeded: false,
-} satisfies MigrationActions;
 
 export const getMigrationActionsByProject = async ({
   prisma,
@@ -277,22 +265,8 @@ export const getMigrationActionsByProject = async ({
   prisma: PrismaClient;
   projectIds: string[];
 }): Promise<Map<string, MigrationActions>> => {
-  const forceV3ProjectIds = new Set(
-    projectIds.filter(isForceV3ExperienceProject),
-  );
-  const userManagedProjectIds = projectIds.filter(
-    (projectId) => !forceV3ProjectIds.has(projectId),
-  );
-
-  // Forced-v3 projects are partner-managed: every migration signal is
-  // suppressed, so an all-partner-managed scope needs no I/O.
-  if (userManagedProjectIds.length === 0) {
-    return new Map(
-      projectIds.map((projectId) => [
-        projectId,
-        partnerManagedMigrationActions,
-      ]),
-    );
+  if (projectIds.length === 0) {
+    return new Map();
   }
 
   const nowMs = Date.now();
@@ -304,14 +278,14 @@ export const getMigrationActionsByProject = async ({
     postBlobs,
     apiBlobs,
   ] = await Promise.all([
-    getTraceLevelEvalSummaries({ prisma, projectIds: userManagedProjectIds }),
+    getTraceLevelEvalSummaries({ prisma, projectIds }),
     getLegacyIntegrationSummaries({
       prisma,
-      projectIds: userManagedProjectIds,
+      projectIds,
     }),
-    getSdkUsageSeriesByProject({ projectIds: userManagedProjectIds, nowMs }),
-    readExperimentPostUsageCache(userManagedProjectIds),
-    readLegacyApiUsageCache(userManagedProjectIds),
+    getSdkUsageSeriesByProject({ projectIds, nowMs }),
+    readExperimentPostUsageCache(projectIds),
+    readLegacyApiUsageCache(projectIds),
   ]);
 
   const evalByProjectId = new Map(
@@ -321,24 +295,14 @@ export const getMigrationActionsByProject = async ({
     integrationSummaries.map((summary) => [summary.projectId, summary]),
   );
   const postBlobByProjectId = new Map(
-    userManagedProjectIds.map((projectId, index) => [
-      projectId,
-      postBlobs[index] ?? null,
-    ]),
+    projectIds.map((projectId, index) => [projectId, postBlobs[index] ?? null]),
   );
   const apiBlobByProjectId = new Map(
-    userManagedProjectIds.map((projectId, index) => [
-      projectId,
-      apiBlobs[index] ?? null,
-    ]),
+    projectIds.map((projectId, index) => [projectId, apiBlobs[index] ?? null]),
   );
 
   return new Map<string, MigrationActions>(
     projectIds.map((projectId): [string, MigrationActions] => {
-      if (forceV3ProjectIds.has(projectId)) {
-        return [projectId, partnerManagedMigrationActions];
-      }
-
       const sdkUsageSeries = seriesByProject.get(projectId) ?? [];
       const postBlob = postBlobByProjectId.get(projectId) ?? null;
       const apiBlob = apiBlobByProjectId.get(projectId) ?? null;
@@ -358,7 +322,6 @@ export const getMigrationActionsByProject = async ({
       return [
         projectId,
         {
-          forceV3Experience: false,
           sdkActionNeeded: sdkUsageSeries.some(
             (series) => series.actionLevel === "required",
           ),

@@ -26,7 +26,5 @@ export type NavigationFilterContext = {
   isLangfuseCloud: boolean;
   /** Whether Langfuse Cloud currently has a degraded or downtime incident */
   hasActiveCloudIncident: boolean;
-  /** Whether the current project must remain on v3. */
-  forceV3Experience: boolean;
   internalFeaturesEnabled: boolean;
 };

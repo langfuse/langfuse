@@ -13,7 +13,6 @@ import type { Session } from "next-auth";
 import { useEntitlements } from "@/src/features/entitlements/hooks";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
 import {
   ROUTES,
   RouteSection,
@@ -116,7 +115,6 @@ export function useFilteredNavigation(
 
   const routerProjectId = router.query.projectId as string | undefined;
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
-  const forceV3Experience = useForceV3Experience(routerProjectId);
   const routerOrganizationId = router.query.organizationId as
     | string
     | undefined;
@@ -138,7 +136,6 @@ export function useFilteredNavigation(
       uiCustomization,
       isLangfuseCloud,
       hasActiveCloudIncident,
-      forceV3Experience,
       internalFeaturesEnabled,
     }),
     [
@@ -149,7 +146,6 @@ export function useFilteredNavigation(
       uiCustomization,
       isLangfuseCloud,
       hasActiveCloudIncident,
-      forceV3Experience,
       internalFeaturesEnabled,
     ],
   );
@@ -179,7 +175,6 @@ export function useFilteredNavigation(
         pathname: route.href,
         legacyPathname: route.legacyPathname,
         v4Enabled: session?.user?.v4BetaEnabled === true,
-        forceV3Experience,
       });
       const url = pathname
         .replace("[projectId]", routerProjectId ?? "")
@@ -247,7 +242,6 @@ export function useFilteredNavigation(
     router.pathname,
     router.asPath,
     session?.user?.v4BetaEnabled,
-    forceV3Experience,
     gatewaySetupRequiredReason,
     gatewayIngestionProjectId,
     gatewayEntryHref,

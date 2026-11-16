@@ -142,8 +142,6 @@ export function AuthenticatedLayout({
   const paymentBanner = usePaymentBanner();
   const v4MigrationTopBanner = useV4MigrationTopBanner();
   const topBannerRef = useTopBannerHeight();
-  // Account-level entry: use the raw flag (same as account settings tabs), not
-  // project-scoped force-v3 suppression.
   const showV4Migration = useV4UpgradeUiFlag();
   const { organization: currentOrganization, project: currentProject } =
     useQueryProjectOrOrganization();
@@ -151,7 +149,7 @@ export function AuthenticatedLayout({
     typeof router.query.projectId === "string"
       ? router.query.projectId
       : undefined;
-  const showLegacyUiBanner = useLegacyUiBannerVisible(routerProjectId);
+  const showLegacyUiBanner = useLegacyUiBannerVisible();
   const customerDataWarning = getCustomerDataWarning({
     email: user.email,
     isLangfuseCloud,
@@ -412,7 +410,7 @@ function ConnectedAppSidebar({
 }) {
   const { isMobile } = useSidebar();
   const uiCustomization = useUiCustomization();
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(routerProjectId);
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
   const plan = usePlan();
   const capture = usePostHogClientCapture();
   const session = useSession();

@@ -22,7 +22,6 @@ function canRecoverV4(ctx: NavigationFilterContext): boolean {
   return (
     ctx.isLangfuseCloud &&
     Boolean(ctx.routerProjectId) &&
-    ctx.forceV3Experience !== true &&
     ctx.session?.environment?.v4WriteMode === "dual" &&
     ctx.session?.user?.canToggleV4 === false &&
     ctx.session?.user?.v4BetaEnabled === false
@@ -196,7 +195,6 @@ const filters = {
       hasActiveCloudIncident: ctx.hasActiveCloudIncident,
       canToggleV4: ctx.session?.user?.canToggleV4 === true,
       canRecoverV4: canRecoverV4(ctx),
-      forceV3Experience: ctx.forceV3Experience,
       v4WriteMode: ctx.session?.environment?.v4WriteMode,
       v4UpgradeUiAvailable: ctx.session?.user?.v4UpgradeUiAvailable === true,
     })

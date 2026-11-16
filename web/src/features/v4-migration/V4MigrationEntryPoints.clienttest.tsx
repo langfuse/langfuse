@@ -79,7 +79,6 @@ const migrationStatus = (
   experiments: { status: "loaded", result: "not_required" },
   apis: { status: "loaded", count: 0 },
   exports: { status: "loaded", count: 0 },
-  forceV3Experience: false,
   ...overrides,
 });
 
@@ -128,7 +127,6 @@ describe("v4 migration entry points", () => {
       <>
         <V4MigrationProjectChip
           project={{ id: "project-1", name: "Project 1" }}
-          readiness="action-needed"
         />
         <V4MigrationNavItemHarness />
       </>,

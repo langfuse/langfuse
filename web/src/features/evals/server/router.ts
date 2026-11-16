@@ -592,7 +592,6 @@ export const evalRouter = createTRPCRouter({
       });
 
       assertCanCreateLegacyEvalJob({
-        projectId: input.projectId,
         target: input.target,
       });
 

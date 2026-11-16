@@ -74,8 +74,6 @@ type V4UpgradeUiAvailabilityContext = {
  *   legacy public API routes 404, legacy evaluators are hidden and the legacy
  *   analytics integrations are no-ops, so nothing is left to act on. On Cloud we
  *   keep it so users still get an explanation once the region flips.
- *
- * Per-project exceptions are handled downstream by LANGFUSE_FORCE_V3_EXPERIENCE.
  */
 export function isV4UpgradeUiAvailable({
   isLangfuseCloud,
