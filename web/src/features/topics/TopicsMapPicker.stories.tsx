@@ -209,6 +209,7 @@ export const TestSwitchesMaps = meta.story({
     await expect(
       picker.getByRole("button", { name: /Support agent/ }),
     ).toBeVisible();
+    await expect(picker.getByText("Live maps")).toBeVisible();
     await expect(picker.getByText("Snapshots")).toBeVisible();
     await userEvent.click(
       picker.getByRole("button", { name: /Refund complaints/ }),
