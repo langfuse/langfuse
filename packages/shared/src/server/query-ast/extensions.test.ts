@@ -18,6 +18,7 @@ import {
   renderClickhouseExpression,
   renderClickhouseSelections,
 } from "./compile";
+import { ClickHouseQueryCompiler } from "./compiler";
 import { CteNamePlugin } from "./ctes";
 import { DedupLoweringPlugin } from "./dedup";
 import { getClickhouseKysely } from "./dialect";
@@ -1011,12 +1012,7 @@ describe("parametric aggregates", () => {
       ),
     );
     expect(() =>
-      compileClickhouseQuery(
-        getClickhouseKysely()
-          .selectFrom("events as e")
-          .select([named.as("q")]),
-        projectId,
-      ),
+      new ClickHouseQueryCompiler().compileExpression(named.toOperationNode()),
     ).toThrow(
       'Identifier name "quantile(0.5)(1), x" is not a plain identifier',
     );
