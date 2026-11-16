@@ -78,32 +78,32 @@ test("changed-file provider selection permits only explicit exclusions", () => {
   const needs = successfulJobs();
   needs["test-worker-llm-connections"] = { result: "skipped" };
   needs["test-ai-gateway-e2e"] = { result: "skipped" };
-  needs["llm-connections-filter"] = {
+  const selection = {
     result: "success",
-    outputs: { changed: "false" },
+    outputs: { llm_connections: "false", ai_gateway: "false" },
   };
-  needs["ai-gateway-filter"] = {
-    result: "success",
-    outputs: { changed: "false" },
-  };
+  needs["live-test-selection"] = selection;
   for (const event of ["pull_request", "merge_group", "push"]) {
     assert.deepEqual(
       evaluateGate({ event, ref: "refs/heads/main", needs }),
       [],
       event,
     );
-    for (const filter of ["llm-connections-filter", "ai-gateway-filter"]) {
+    for (const output of ["llm_connections", "ai_gateway"]) {
       for (const changed of ["true", undefined]) {
-        needs[filter].outputs.changed = changed;
+        selection.outputs[output] = changed;
         assert.notEqual(evaluateGate({ event, needs }).length, 0);
       }
-      needs[filter].outputs.changed = "false";
-      for (const result of ["failure", "cancelled", "skipped"]) {
-        needs[filter].result = result;
-        assert.notEqual(evaluateGate({ event, needs }).length, 0);
-      }
-      needs[filter].result = "success";
+      selection.outputs[output] = "false";
     }
+    for (const result of ["failure", "cancelled", "skipped", undefined]) {
+      selection.result = result;
+      assert.notEqual(evaluateGate({ event, needs }).length, 0);
+    }
+    selection.result = "success";
+    delete needs["live-test-selection"];
+    assert.notEqual(evaluateGate({ event, needs }).length, 0);
+    needs["live-test-selection"] = selection;
     for (const job of ["test-worker-llm-connections", "test-ai-gateway-e2e"]) {
       for (const result of ["failure", "cancelled", undefined]) {
         if (result) needs[job] = { result };

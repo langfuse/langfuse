@@ -56,13 +56,14 @@ function allowedFilteredSkips(event, ref, needs, fork) {
     ref.startsWith("refs/tags/")
   )
     return allowedSkips;
-  for (const [job, filter] of [
-    ["test-worker-llm-connections", "llm-connections-filter"],
-    ["test-ai-gateway-e2e", "ai-gateway-filter"],
+  const selection = needs["live-test-selection"];
+  for (const [job, output] of [
+    ["test-worker-llm-connections", "llm_connections"],
+    ["test-ai-gateway-e2e", "ai_gateway"],
   ]) {
     if (
-      needs[filter]?.result === "success" &&
-      needs[filter]?.outputs?.changed === "false"
+      selection?.result === "success" &&
+      selection.outputs?.[output] === "false"
     ) {
       allowedSkips.add(job);
     }
