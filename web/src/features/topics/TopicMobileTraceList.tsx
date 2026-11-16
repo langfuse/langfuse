@@ -10,7 +10,7 @@ import { type TopicTracesResult } from "./facet-topics";
 import { TopicTraceLoadMore } from "./TopicTraceLoadMore";
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
 
-const PAGE_SIZE = 20;
+export const PAGE_SIZE = 20;
 
 type TopicMobileTraceListProps = {
   children: ReactNode;
@@ -40,6 +40,9 @@ export function TopicMobileTraceList({
     pageIndex: Math.max(0, Math.floor(selectedRowIndex / PAGE_SIZE)),
     // Manual paging stays put until the selection or filters change again.
     manual: false,
+    // Index where this selection was shown. Null until the row is in the list,
+    // so a later load can open its page once. Refetches after that do not.
+    revealedIndex: selectedRowIndex >= 0 ? selectedRowIndex : null,
   }));
   const selectionChanged =
     pageRequest.filterKey !== filterKey ||
@@ -55,24 +58,53 @@ export function TopicMobileTraceList({
       pageSize: pageRequest.pageSize,
       pageIndex: targetPage ?? 0,
       manual: false,
+      revealedIndex: selectedRowIndex >= 0 ? selectedRowIndex : null,
     });
   } else if (
     !pageRequest.manual &&
+    pageRequest.revealedIndex === null &&
     targetPage !== null &&
     targetPage !== pageRequest.pageIndex
   ) {
-    // Rows load after the selection. Follow the trace onto its page once,
-    // and again if a pinned row settles into a later page.
-    setPageRequest({ ...pageRequest, pageIndex: targetPage });
+    // The row arrived after the selection. Open its page once.
+    setPageRequest({
+      ...pageRequest,
+      pageIndex: targetPage,
+      revealedIndex: selectedRowIndex,
+    });
+  } else if (
+    !pageRequest.manual &&
+    pageRequest.revealedIndex === null &&
+    targetPage !== null
+  ) {
+    setPageRequest({ ...pageRequest, revealedIndex: selectedRowIndex });
+  } else if (
+    !pageRequest.manual &&
+    pageRequest.revealedIndex === 0 &&
+    targetPage !== null &&
+    targetPage !== pageRequest.pageIndex &&
+    selectedRowIndex >= pageRequest.pageSize
+  ) {
+    // A trace pinned at the top settles onto its own later page once.
+    setPageRequest({
+      ...pageRequest,
+      pageIndex: targetPage,
+      revealedIndex: selectedRowIndex,
+    });
   }
   const { pageSize } = pageRequest;
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const pageIndex = Math.min(pageRequest.pageIndex, pageCount - 1);
-  // The DOM scroll position follows map selection without moving keyboard focus.
-  useEffect(() => {
-    selectedRef.current?.scrollIntoView({ block: "nearest" });
-  }, [selectedTraceId, filterKey, pageIndex]);
   const pageRows = rows.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize);
+  const selectedOnPage = pageRows.some(
+    (row) => row.traceId === selectedTraceId,
+  );
+  // Scroll when the selection, page, or the row's first appearance changes.
+  // A refresh that only shifts the row's index does not scroll again.
+  useEffect(() => {
+    if (!selectedOnPage) return;
+    selectedRef.current?.scrollIntoView({ block: "nearest" });
+  }, [selectedTraceId, filterKey, pageIndex, selectedOnPage]);
   function changePage(pagination: PaginationBarState) {
     // Reaching the last loaded page fetches the next server page.
     if (pagination.pageIndex >= pageCount - 1) traces.loadMore();
@@ -80,6 +112,7 @@ export function TopicMobileTraceList({
       filterKey,
       selectedTraceId,
       manual: true,
+      revealedIndex: pageRequest.revealedIndex,
       ...pagination,
     });
     scrollRef.current?.scrollTo({ top: 0 });
