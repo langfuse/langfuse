@@ -9,7 +9,7 @@ const monitorSeverityBadgeLayoutVariants = cva("", {
   variants: {
     layout: {
       default: "w-20 justify-center py-1",
-      inlineEnd: "ml-auto w-auto shrink-0 px-2 py-0.5 text-[10px]",
+      inlineEnd: "w-auto shrink-0 px-2 py-0.5 text-[10px]",
     },
   },
   defaultVariants: {

@@ -148,10 +148,12 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                           {renderEvaluatorAlertLastFired(alert.alertedAt)}
                         </p>
                       </div>
-                      <MonitorSeverityBadge
-                        severity={alert.severity}
-                        layout="inlineEnd"
-                      />
+                      <span className="ml-auto shrink-0">
+                        <MonitorSeverityBadge
+                          severity={alert.severity}
+                          layout="inlineEnd"
+                        />
+                      </span>
                       <ArrowUpRight size="base" color="muted" />
                     </CommandItem>
                   ))}
