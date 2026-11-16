@@ -24,10 +24,10 @@ describe("v4 migration banner config", () => {
   it("uses fixed copy and hides exempt orgs, self-hosted, and off banners", async () => {
     const configured = await loadState({
       LANGFUSE_V4_BANNER_SEVERITY: "critical",
-      LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS: " org-yelp , ,org-b",
+      LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS: " org-exempt , ,org-b",
     });
 
-    expect(configured({ orgId: "org-yelp", isLangfuseCloud: true })).toEqual({
+    expect(configured({ orgId: "org-exempt", isLangfuseCloud: true })).toEqual({
       severity: "off",
       message: null,
       exempt: true,
