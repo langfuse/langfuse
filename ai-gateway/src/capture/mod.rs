@@ -182,7 +182,7 @@ pub(crate) struct ExecutionCapture {
     metadata: Value,
     provider_model: Option<String>,
     delivery: Option<(telemetry::Telemetry, telemetry::DeliveryContext)>,
-    spend: Option<crate::spend::SpendRecording>,
+    spend_limits: Option<crate::spend::SpendRecording>,
 }
 
 impl ExecutionCapture {
@@ -204,7 +204,7 @@ impl ExecutionCapture {
             metadata: json!({}),
             provider_model: None,
             delivery: None,
-            spend: None,
+            spend_limits: None,
         }
     }
 
@@ -268,7 +268,7 @@ impl ExecutionCapture {
             }),
             provider_model: None,
             delivery: None,
-            spend: None,
+            spend_limits: None,
         }
     }
 
@@ -296,8 +296,8 @@ impl ExecutionCapture {
         self.delivery = Some((telemetry, delivery));
     }
 
-    pub(crate) fn record_spend_to(&mut self, spend: Option<crate::spend::SpendRecording>) {
-        self.spend = spend;
+    pub(crate) fn charge_on_finish(&mut self, spend_limits: Option<crate::spend::SpendRecording>) {
+        self.spend_limits = spend_limits;
     }
 
     pub(crate) fn set_provider_model(&mut self, model: &str) {
@@ -343,13 +343,13 @@ impl ExecutionCapture {
         };
         telemetry::debug_record(&facts);
         crate::observability::execution_finished(&facts);
-        if let Some(spend) = self.spend.take() {
+        if let Some(spend_limits) = self.spend_limits.take() {
             let metadata = self
                 .delivery
                 .as_ref()
                 .map(|(_, context)| context.observation_metadata(&facts))
                 .unwrap_or_default();
-            facts.charged_cost_details = spend.record(&facts, &metadata);
+            facts.charged_cost_details = spend_limits.record(&facts, &metadata);
         }
         self.deliver(facts);
     }

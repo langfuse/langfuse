@@ -217,7 +217,7 @@ impl ProviderTransport {
             ));
             return Err(ProviderError::UnmeteredRequest);
         }
-        capture.record_spend_to(permit.spend_limits.take());
+        capture.charge_on_finish(permit.spend_limits.take());
         // Capture the caller's body shape, but keep upstream-only changes out of the input.
         let body = match stream_usage {
             Some(chat_completions::StreamUsage::Requested(rewritten)) => {
