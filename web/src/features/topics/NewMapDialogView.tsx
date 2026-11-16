@@ -24,11 +24,11 @@ export function NewMapDialogView({
 }: NewMapDialogViewProps) {
   return (
     <Dialog
-      title="New map"
+      title="New live map"
       size="md"
       actions={[
         {
-          label: "Create map",
+          label: "Create live map",
           disabled: !canStart || Boolean(disabledReason),
           loading: starting,
           onClick: onStart,
@@ -37,6 +37,9 @@ export function NewMapDialogView({
     >
       <Dialog.Body separators="both">
         <div className="ph-no-capture flex flex-col gap-6">
+          <p className="text-muted-foreground">
+            Keeps updating as new traces arrive.
+          </p>
           <TopicSliceFields.Section label="Name">
             <Input
               aria-label="Map name"

@@ -526,13 +526,13 @@ it.each([
   },
 );
 
-it("puts New map and New snapshot first in the menu", async () => {
+it("puts New live map and New snapshot first in the menu", async () => {
   withSummaries();
   render(<TopicsPage />, { wrapper: LayerProvider });
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   const items = await screen.findAllByRole("menuitem");
   expect(items.map((item) => item.textContent)).toEqual([
-    "New map",
+    "New live map",
     "New snapshot",
     "History",
     "Settings",
@@ -569,7 +569,7 @@ it.each([
   const items = await screen.findAllByRole("menuitem");
   expect(items.map((item) => item.textContent)).not.toContain("Edit map");
   // Every action stays visible; without write access it is disabled with a reason.
-  for (const label of ["New map", "New snapshot"]) {
+  for (const label of ["New live map", "New snapshot"]) {
     const item = items.find((candidate) => candidate.textContent === label);
     expect(item).toBeDefined();
     expect(item!.getAttribute("aria-disabled")).toBe(canWrite ? null : "true");
