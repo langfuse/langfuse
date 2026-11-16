@@ -47,30 +47,32 @@ const DECEMBER: V4MigrationBannerPresentation = {
 
 /**
  * One sentence for the whole session, or none. December 31 shows only when
- * every actionable project belongs to a December organization. November 23
- * shows only when every actionable project is cutoff-exempt. Any other
- * actionable project gets the default message.
+ * every actionable project is on the December list. November 23 shows only
+ * when every actionable project is cutoff-exempt. Any other actionable
+ * project gets the default message.
  */
 export function resolveV4MigrationBannerCopy(params: {
-  actionNeededProjects: readonly { projectId: string; orgId: string }[];
+  actionNeededProjectIds: readonly string[];
   cutoffExemptProjectIds: readonly string[];
-  decemberOrgIds: readonly string[];
+  decemberProjectIds: readonly string[];
 }): V4MigrationBannerPresentation | null {
-  const { actionNeededProjects } = params;
-  if (actionNeededProjects.length === 0) {
+  const { actionNeededProjectIds } = params;
+  if (actionNeededProjectIds.length === 0) {
     return null;
   }
 
-  const decemberOrgIds = new Set(params.decemberOrgIds);
+  const decemberProjectIds = new Set(params.decemberProjectIds);
   if (
-    actionNeededProjects.every((project) => decemberOrgIds.has(project.orgId))
+    actionNeededProjectIds.every((projectId) =>
+      decemberProjectIds.has(projectId),
+    )
   ) {
     return DECEMBER;
   }
 
   const cutoffExemptProjectIds = new Set(params.cutoffExemptProjectIds);
-  const allExempt = actionNeededProjects.every((project) =>
-    cutoffExemptProjectIds.has(project.projectId),
+  const allExempt = actionNeededProjectIds.every((projectId) =>
+    cutoffExemptProjectIds.has(projectId),
   );
   return allExempt ? DELAYED : DEADLINE;
 }

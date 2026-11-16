@@ -746,17 +746,18 @@ export const env = createEnv({
               .filter(Boolean)
           : [],
       ),
-    // Comma-separated organization ids whose deadline is December 31, 2026.
-    // The December sentence shows only when every actionable project belongs
-    // to one of these organizations.
-    LANGFUSE_V4_BANNER_DECEMBER_ORG_IDS: z
+    // Comma-separated project ids whose deadline is December 31, 2026.
+    // The December sentence shows only when every actionable project is on
+    // this list. These projects also belong on the cutoff-exempt list so the
+    // v3 cutoff stays off until then.
+    LANGFUSE_V4_BANNER_DECEMBER_PROJECT_IDS: z
       .string()
       .optional()
       .transform((value) =>
         value
           ? value
               .split(",")
-              .map((organizationId) => organizationId.trim())
+              .map((projectId) => projectId.trim())
               .filter(Boolean)
           : [],
       ),
@@ -1423,8 +1424,8 @@ export const env = createEnv({
     LANGFUSE_V4_BANNER_SEVERITY: process.env.LANGFUSE_V4_BANNER_SEVERITY,
     LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS:
       process.env.LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS,
-    LANGFUSE_V4_BANNER_DECEMBER_ORG_IDS:
-      process.env.LANGFUSE_V4_BANNER_DECEMBER_ORG_IDS,
+    LANGFUSE_V4_BANNER_DECEMBER_PROJECT_IDS:
+      process.env.LANGFUSE_V4_BANNER_DECEMBER_PROJECT_IDS,
     LANGFUSE_V4_CUTOFF_INGESTION: process.env.LANGFUSE_V4_CUTOFF_INGESTION,
     LANGFUSE_V4_CUTOFF_PUBLIC_API: process.env.LANGFUSE_V4_CUTOFF_PUBLIC_API,
     LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS:

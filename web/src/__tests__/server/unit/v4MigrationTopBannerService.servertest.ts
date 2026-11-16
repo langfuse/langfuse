@@ -225,7 +225,7 @@ describe("getV4MigrationTopBannerState", () => {
     });
   });
 
-  it("shows the December deadline only when every actionable project is in a December organization", async () => {
+  it("shows the December deadline only when every actionable project is on the December list", async () => {
     const banner = {
       prisma: {} as PrismaClient,
       session,
@@ -236,7 +236,7 @@ describe("getV4MigrationTopBannerState", () => {
     await expect(
       getV4MigrationTopBannerState({
         ...banner,
-        decemberOrgIds: ["org-a"],
+        decemberProjectIds: ["project-a"],
         cutoffExemptProjectIds: ["project-a"],
       }),
     ).resolves.toMatchObject({
@@ -254,7 +254,7 @@ describe("getV4MigrationTopBannerState", () => {
     await expect(
       getV4MigrationTopBannerState({
         ...banner,
-        decemberOrgIds: ["org-a"],
+        decemberProjectIds: ["project-a"],
         cutoffExemptProjectIds: ["project-a", "project-c"],
       }),
     ).resolves.toMatchObject({ variant: "delayed" });

@@ -36,7 +36,7 @@ const hiddenState: V4MigrationTopBannerState = {
  * actions are batched across every accessible project in the current scope.
  * Copy applies only to projects that still need a migration action.
  * Cutoff-exempt projects skip the v3 shutdown until November 23. December
- * organizations keep their deadline until December 31.
+ * projects keep their deadline until December 31.
  */
 export async function getV4MigrationTopBannerState({
   prisma,
@@ -44,14 +44,14 @@ export async function getV4MigrationTopBannerState({
   demoOrgId,
   isLangfuseCloud,
   cutoffExemptProjectIds = [],
-  decemberOrgIds = [],
+  decemberProjectIds = [],
 }: {
   prisma: PrismaClient;
   session: Session;
   demoOrgId: string | undefined;
   isLangfuseCloud: boolean;
   cutoffExemptProjectIds?: readonly string[];
-  decemberOrgIds?: readonly string[];
+  decemberProjectIds?: readonly string[];
 }): Promise<V4MigrationTopBannerState> {
   const user = session.user;
   if (!user) {
@@ -76,48 +76,45 @@ export async function getV4MigrationTopBannerState({
     orgId: eligibleOrganizations[0]!.id,
     isLangfuseCloud,
   });
-  const projects = eligibleOrganizations.flatMap((organization) =>
+  const projectIds = eligibleOrganizations.flatMap((organization) =>
     organization.projects
       .filter((project) => !project.deletedAt)
-      .map((project) => ({
-        projectId: project.id,
-        orgId: organization.id,
-      })),
+      .map((project) => project.id),
   );
   const present = (
-    actionNeededProjects: readonly { projectId: string; orgId: string }[],
+    actionNeededProjectIds: readonly string[],
   ): V4MigrationTopBannerState => {
     const copy = resolveV4MigrationBannerCopy({
-      actionNeededProjects,
+      actionNeededProjectIds,
       cutoffExemptProjectIds,
-      decemberOrgIds,
+      decemberProjectIds,
     });
     if (!bannerConfig.message || !copy) {
       return {
         ...hiddenState,
-        actionNeededCount: actionNeededProjects.length,
+        actionNeededCount: actionNeededProjectIds.length,
       };
     }
     return {
       ...copy,
       severity: bannerConfig.severity,
       message: copy.message,
-      actionNeededCount: actionNeededProjects.length,
+      actionNeededCount: actionNeededProjectIds.length,
     };
   };
 
-  if (projects.length === 0) {
+  if (projectIds.length === 0) {
     return present([]);
   }
 
   const actionsByProject = await getMigrationActionsByProject({
     prisma,
-    projectIds: projects.map((project) => project.projectId),
+    projectIds,
   });
-  const actionNeededProjects = projects.filter((project) => {
-    const actions = actionsByProject.get(project.projectId);
+  const actionNeededProjectIds = projectIds.filter((projectId) => {
+    const actions = actionsByProject.get(projectId);
     return actions ? hasMigrationActionNeeded(actions) : false;
   });
 
-  return present(actionNeededProjects);
+  return present(actionNeededProjectIds);
 }
