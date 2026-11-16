@@ -68,6 +68,7 @@ import {
   useFinal,
   withFill,
 } from "./extensions";
+import { FunctionAllowlistPlugin } from "./functions";
 import {
   ArrayIndexNode,
   ParametricAggregateNode,
@@ -75,6 +76,7 @@ import {
 } from "./nodes";
 import type { ClickHouseDatabase } from "./schema";
 import { SchemaReferencePlugin } from "./schemaReferences";
+import { NameShadowingPlugin } from "./shadowing";
 import { TenancyInjectionPlugin } from "./tenancy";
 import { defineView, fromView } from "./views";
 
@@ -614,6 +616,8 @@ describe("compiler passes in production", () => {
     expect(compilerPasses(projectId).map((pass) => pass.constructor)).toEqual([
       SchemaReferencePlugin,
       CteNamePlugin,
+      NameShadowingPlugin,
+      FunctionAllowlistPlugin,
       EventsTableRoutingPlugin,
       TenancyInjectionPlugin,
       DedupLoweringPlugin,
