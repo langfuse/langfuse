@@ -10,6 +10,7 @@ import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { FloatingController } from "@/src/components/design-system/FloatingController/FloatingController";
+import { costFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 import { TopicFilterChip } from "./TopicFilterChip";
 import { treemapSwatchColor } from "./topic-map-colors";
@@ -26,6 +27,8 @@ import {
 } from "./topic-maps";
 
 const TOP_TOPICS = 3;
+const COST_EXPLANATION =
+  "Model cost of summarizing and embedding this map's traces, billed by your provider. Traces shared with other maps count toward each. Topic naming is not included.";
 
 /** Switches between maps and snapshots, previewing the hovered one. */
 export function TopicsMapPicker({
@@ -35,6 +38,7 @@ export function TopicsMapPicker({
   facetId,
   onSelect,
   usePreviewTopics,
+  usePreviewCost,
   processingOn,
   create,
 }: {
@@ -45,6 +49,7 @@ export function TopicsMapPicker({
   facetId: string | undefined;
   onSelect: (selection: TopicMapSelection) => void;
   usePreviewTopics: UsePreviewTopics;
+  usePreviewCost: UsePreviewCost;
   /** Automatic analysis is on for the project; live runs show Paused otherwise. */
   processingOn: boolean;
   /** Footer entries for New map and New snapshot; null hides one. */
@@ -191,6 +196,7 @@ export function TopicsMapPicker({
                 key={shownRule.id}
                 projectId={projectId}
                 usePreviewTopics={usePreviewTopics}
+                usePreviewCost={usePreviewCost}
                 rule={shownRule}
                 facetId={facetId}
                 processingOn={processingOn}
@@ -201,6 +207,7 @@ export function TopicsMapPicker({
                 key={shownAnalysis.id}
                 projectId={projectId}
                 usePreviewTopics={usePreviewTopics}
+                usePreviewCost={usePreviewCost}
                 analysis={shownAnalysis}
                 facetId={facetId}
               />
@@ -406,20 +413,41 @@ function FilterValue({ filter }: { filter: TopicRuleMap["filter"] }) {
   );
 }
 
+function CostValue({ cost }: { cost: number }) {
+  return (
+    <Tooltip label={COST_EXPLANATION} hoverableContent={false}>
+      {({ getTriggerProps }) => (
+        <span {...getTriggerProps()} className="cursor-default tabular-nums">
+          ~{costFormatter(cost)}
+        </span>
+      )}
+    </Tooltip>
+  );
+}
+
+/** A cost row once the map is priced; none while loading or unpriced. */
+function costRows(label: string, cost: number | null): [string, ReactNode][] {
+  return cost == null ? [] : [[label, <CostValue key="cost" cost={cost} />]];
+}
+
 function RulePreview({
   projectId,
   rule,
   facetId,
   usePreviewTopics,
+  usePreviewCost,
   processingOn,
 }: {
   projectId: string;
   usePreviewTopics: UsePreviewTopics;
+  usePreviewCost: UsePreviewCost;
   rule: TopicRuleMap;
   facetId: string | undefined;
   processingOn: boolean;
 }) {
-  const results = usePreviewTopics(projectId, { kind: "rule", id: rule.id });
+  const map = { kind: "rule", id: rule.id } as const;
+  const results = usePreviewTopics(projectId, map);
+  const cost = usePreviewCost(projectId, map);
   const top = topTopicsOf(results, facetId);
   return (
     <div className="flex flex-col gap-4">
@@ -434,6 +462,7 @@ function RulePreview({
           ...(rule.createdAt
             ? [["Since", topicDayLabel(rule.createdAt)] as [string, ReactNode]]
             : []),
+          ...costRows("Cost so far", cost),
         ]}
       />
       {top && <TopTopics {...top} />}
@@ -446,16 +475,17 @@ function AnalysisPreview({
   analysis,
   facetId,
   usePreviewTopics,
+  usePreviewCost,
 }: {
   projectId: string;
   usePreviewTopics: UsePreviewTopics;
+  usePreviewCost: UsePreviewCost;
   analysis: TopicAnalysisMap;
   facetId: string | undefined;
 }) {
-  const results = usePreviewTopics(projectId, {
-    kind: "analysis",
-    id: analysis.id,
-  });
+  const map = { kind: "analysis", id: analysis.id } as const;
+  const results = usePreviewTopics(projectId, map);
+  const cost = usePreviewCost(projectId, map);
   const top = topTopicsOf(results, facetId);
   return (
     <div className="flex flex-col gap-4">
@@ -465,6 +495,7 @@ function AnalysisPreview({
           ["Filter", <FilterValue key="filter" filter={analysis.filter} />],
           ["Window", topicWindowLabel(analysis.timeRange)],
           ["Traces", analysis.traceCount.toLocaleString("en-US")],
+          ...costRows("Cost", cost),
         ]}
       />
       {top && <TopTopics {...top} />}
@@ -483,6 +514,12 @@ export type UsePreviewTopics = (
   projectId: string,
   map: TopicMapSelection | null,
 ) => { facets: PreviewFacet[] | undefined; loading: boolean };
+
+/** Processing cost so far of one map for the preview pane; null hides the row. */
+export type UsePreviewCost = (
+  projectId: string,
+  map: TopicMapSelection,
+) => number | null;
 
 /** The question's largest topics, or null while loading or when there are none. */
 function topTopicsOf(

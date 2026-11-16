@@ -59,7 +59,11 @@ import {
   type TopicMapSelection,
 } from "./topic-maps";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { TopicsMapPicker, type UsePreviewTopics } from "./TopicsMapPicker";
+import {
+  TopicsMapPicker,
+  type UsePreviewCost,
+  type UsePreviewTopics,
+} from "./TopicsMapPicker";
 import {
   TopicMapStrip,
   topicAnalysisStatus,
@@ -87,6 +91,23 @@ const usePreviewTopics: UsePreviewTopics = (projectId, map) => {
   );
   const query = map?.kind === "analysis" ? analysis : rule;
   return { facets: query.data?.facets, loading: query.isLoading };
+};
+
+/** One map's processing cost for the picker preview; an unpriced map asks again on the next look. */
+const usePreviewCost: UsePreviewCost = (projectId, map) => {
+  const cost = api.topics.mapCost.useQuery(
+    {
+      projectId,
+      ruleId: map.kind === "rule" ? map.id : undefined,
+      analysisId: map.kind === "analysis" ? map.id : undefined,
+    },
+    {
+      staleTime: (query) => (query.state.data == null ? 0 : 60_000),
+      // A secondary number: a failure hides the row instead of toasting.
+      meta: { silentAllErrors: true },
+    },
+  );
+  return cost.data ?? null;
 };
 
 export default function TopicsPage() {
@@ -615,6 +636,7 @@ function TopicsWorkspaceContent({
               facetId={selectedFacetId}
               onSelect={selectMap}
               usePreviewTopics={usePreviewTopics}
+              usePreviewCost={usePreviewCost}
               processingOn={automaticProcessing.state.status === "on"}
               create={{
                 map: actions.newMap,

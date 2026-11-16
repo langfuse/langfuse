@@ -2,7 +2,11 @@ import { useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
-import { TopicsMapPicker, type UsePreviewTopics } from "./TopicsMapPicker";
+import {
+  TopicsMapPicker,
+  type UsePreviewCost,
+  type UsePreviewTopics,
+} from "./TopicsMapPicker";
 import { TopicMapStrip } from "./TopicMapStrip";
 import { TopicRuleBuildingState } from "./TopicRuleBuildingState";
 import { type TopicMapSelection, type TopicMapsOverview } from "./topic-maps";
@@ -116,6 +120,14 @@ const useStoryPreviewTopics: UsePreviewTopics = (_projectId, map) => ({
     : undefined,
 });
 
+const storyCosts: Record<string, number> = {
+  "rule-all": 1.84,
+  "rule-support": 0.37,
+  "analysis-refunds": 0.0042,
+};
+const useStoryPreviewCost: UsePreviewCost = (_projectId, map) =>
+  storyCosts[map.id] ?? null;
+
 /** The Topics page header flow: pick a map, see its strip, or the building state of a new map. */
 function MapSwitcher({ initial }: { initial: TopicMapSelection }) {
   const [selection, setSelection] = useState(initial);
@@ -137,6 +149,7 @@ function MapSwitcher({ initial }: { initial: TopicMapSelection }) {
           facetId="intent"
           onSelect={setSelection}
           usePreviewTopics={useStoryPreviewTopics}
+          usePreviewCost={useStoryPreviewCost}
           processingOn
           create={{
             map: { onSelect: fn() },
