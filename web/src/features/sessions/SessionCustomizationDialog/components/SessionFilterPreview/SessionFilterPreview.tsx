@@ -1,7 +1,12 @@
 import { type RouterOutputs } from "@/src/utils/api";
 import { type ComponentProps, useMemo, useState } from "react";
 import { type FilterState } from "@langfuse/shared";
-import { ChevronRight, MoreHorizontal } from "@langfuse/icons";
+import {
+  ArrowLeft,
+  ArrowRight,
+  ChevronRight,
+  MoreHorizontal,
+} from "@langfuse/icons";
 import { type LangfuseItemType } from "@/src/components/ItemBadge";
 import { VirtualizedTree } from "@/src/features/traces/components/VirtualizedTree";
 import { VirtualizedTreeNodeWrapper } from "@/src/features/traces/components/VirtualizedTreeNodeWrapper";
@@ -180,11 +185,20 @@ function ObservationPreviewRow({
 
 export function SessionFilterPreview({
   traces,
+  navigation,
   pending,
   error,
   invalid,
   onFilter,
 }: {
+  navigation?: {
+    sessionId: string;
+    isCurrentSession: boolean;
+    position: number;
+    total: number;
+    onPrevious: (() => void) | undefined;
+    onNext: (() => void) | undefined;
+  };
   traces:
     | Array<
         Pick<
@@ -275,8 +289,53 @@ export function SessionFilterPreview({
       aria-label="Filter preview"
       className="ph-no-capture bg-muted/30 flex min-w-0 flex-col border-t md:min-h-0 md:overflow-hidden md:border-t-0 md:border-l"
     >
-      <header className="bg-modal sticky top-0 z-10 shrink-0 border-b p-4">
-        <h3 className="font-bold">Filter preview</h3>
+      <header className="bg-modal sticky top-0 z-10 flex shrink-0 flex-col gap-2 border-b p-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-1 items-baseline gap-2">
+            <h3 className="shrink-0 font-bold">Filter preview</h3>
+            {navigation ? (
+              <span
+                className="text-muted-foreground truncate text-xs"
+                title={navigation.sessionId}
+              >
+                {navigation.isCurrentSession
+                  ? "(Current session)"
+                  : `(Session: ${navigation.sessionId})`}
+              </span>
+            ) : null}
+          </div>
+          {navigation ? (
+            <div
+              className="ml-auto flex shrink-0 items-center gap-2"
+              aria-label="Preview session navigation"
+            >
+              <button
+                type="button"
+                aria-label="Previous session"
+                className="text-muted-foreground hover:text-foreground hover:bg-accent focus-visible:ring-ring inline-flex h-7 w-7 items-center justify-center rounded-md focus-visible:ring-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+                disabled={!navigation.onPrevious}
+                onClick={navigation.onPrevious}
+              >
+                <ArrowLeft size="sm" aria-hidden="true" />
+              </button>
+              <span
+                className="text-muted-foreground text-xs"
+                aria-live="polite"
+              >
+                {navigation.position} / {navigation.total}
+              </span>
+              <button
+                type="button"
+                aria-label="Next session"
+                className="text-muted-foreground hover:text-foreground hover:bg-accent focus-visible:ring-ring inline-flex h-7 w-7 items-center justify-center rounded-md focus-visible:ring-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+                disabled={!navigation.onNext}
+                onClick={navigation.onNext}
+              >
+                <ArrowRight size="sm" aria-hidden="true" />
+              </button>
+            </div>
+          ) : null}
+        </div>
         <p className="text-muted-foreground text-xs">
           Previewing the first 5 traces, with up to 200 observations per trace.
           Observations that don’t match your filters are dimmed.
