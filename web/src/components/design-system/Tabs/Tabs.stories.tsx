@@ -216,6 +216,22 @@ export const WithIcons = meta.story({
   },
 });
 
+export const WithBadge = meta.story({
+  args: {
+    defaultValue: "intent",
+    children: (
+      <>
+        <Tabs.List variant="inset" size="sm">
+          <Tabs.Trigger value="intent" label="Intent" badge="2 new" />
+          <Tabs.Trigger value="issues" label="Issues" />
+        </Tabs.List>
+        <Tabs.Content value="intent">Intent topics</Tabs.Content>
+        <Tabs.Content value="issues">Issue topics</Tabs.Content>
+      </>
+    ),
+  },
+});
+
 export const Underline = meta.story({
   args: {
     defaultValue: "first",

@@ -1,4 +1,3 @@
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 
 export function TopicsFacetTabs({
@@ -13,31 +12,12 @@ export function TopicsFacetTabs({
         <Tabs.List variant="inset" size="sm" aria-label="Topics facets">
           {facets.map((facet) => {
             const newCount = newTopicCounts?.get(facet.facetId);
-            const newDescription = `${newCount} new ${newCount === 1 ? "topic" : "topics"} in the last run`;
-            return newCount ? (
-              <Tabs.Trigger
-                key={facet.facetId}
-                value={facet.facetId}
-                title={`${facet.name}: ${newDescription}`}
-              >
-                <span
-                  className="min-w-0 truncate leading-normal"
-                  title={facet.name}
-                >
-                  {facet.name}
-                </span>
-                <Badge
-                  size="sm"
-                  color="info"
-                  text={`${newCount} new`}
-                  title={newDescription}
-                />
-              </Tabs.Trigger>
-            ) : (
+            return (
               <Tabs.Trigger
                 key={facet.facetId}
                 value={facet.facetId}
                 label={facet.name}
+                badge={newCount ? `${newCount} new` : undefined}
               />
             );
           })}
