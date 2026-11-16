@@ -305,7 +305,6 @@ function VisualizeTabMenu({
       open={open}
       onOpenChange={(next) => setOpen(next && pressedWhileActive.current)}
       ariaLabel="Visualize as"
-      internal
       placement="bottom-end"
       items={VISUALIZATIONS.map((option) => ({
         id: option.value,
