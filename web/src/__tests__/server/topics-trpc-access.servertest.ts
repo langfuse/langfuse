@@ -278,26 +278,6 @@ describe("Topics tRPC access", () => {
         facetIds: [b.facetId],
       }),
     ).rejects.toThrow("Select facets from this project.");
-    await expect(
-      admin.trigger({
-        projectId,
-        requestId: randomUUID(),
-        operation: "process",
-        facets: [{ facetId: b.facetId, version: 1 }],
-        traceIds: [randomUUID()],
-        reuseExistingSummaries: false,
-        processingConfig: topicProcessingConfigSchema.parse({}),
-        embeddingConfig: topicEmbeddingConfigSchema.parse({}),
-      }),
-    ).rejects.toThrow("Facet version not found in this project.");
-    await expect(
-      admin.startSetup({
-        projectId,
-        requestId: randomUUID(),
-        sampling: 1,
-        facets: [{ facetId: b.facetId, version: 1 }],
-      }),
-    ).rejects.toThrow("Facet version not found in this project.");
 
     // Project B is untouched.
     expect(
@@ -344,11 +324,9 @@ describe("Topics tRPC access", () => {
       memberOfA.setupTraceCounts({ projectId: b.projectId }),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(
-      memberOfA.startSetup({
+      memberOfA.startRuleSetup({
         projectId: b.projectId,
-        requestId: randomUUID(),
-        sampling: 1,
-        facets: [{ facetId: b.facetId, version: 1 }],
+        ruleId: randomUUID(),
       }),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
