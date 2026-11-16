@@ -72,6 +72,17 @@ pub(crate) struct PricingTierMatchAttributes {
     pub metadata: BTreeMap<String, String>,
 }
 
+#[derive(Clone, Debug)]
+pub(crate) struct Model {
+    pub id: String,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct ModelWithPrices {
+    pub model: Option<Model>,
+    pub pricing_tiers: Vec<PricingTierWithPrices>,
+}
+
 /// The request's top-level model parameters and metadata.
 #[derive(Default)]
 pub(crate) struct PricingAttributes<'a> {
@@ -89,6 +100,7 @@ pub(crate) struct CalculatedCosts {
 pub(crate) struct ModelUsageCosts {
     pub cost_details: UsageCostType,
     pub total_cost: Option<f64>,
+    pub internal_model_id: Option<String>,
     pub usage_pricing_tier_id: Option<String>,
     pub usage_pricing_tier_name: Option<String>,
 }
@@ -245,7 +257,7 @@ fn to_pricing_attribute_record(value: Option<&Value>) -> BTreeMap<String, String
 
 fn get_pricing_tier_attributes(
     pricing_tiers: &[PricingTierWithPrices],
-    attributes: &PricingAttributes<'_>,
+    attributes: Option<&PricingAttributes<'_>>,
 ) -> PricingTierMatchAttributes {
     let mut attribute_sources = BTreeSet::new();
     for tier in pricing_tiers {
@@ -260,12 +272,14 @@ fn get_pricing_tier_attributes(
     }
     PricingTierMatchAttributes {
         model_parameters: if attribute_sources.contains(&AttributeSource::ModelParameters) {
-            to_pricing_attribute_record(attributes.model_parameters)
+            to_pricing_attribute_record(
+                attributes.and_then(|attributes| attributes.model_parameters),
+            )
         } else {
             BTreeMap::new()
         },
         metadata: if attribute_sources.contains(&AttributeSource::Metadata) {
-            to_pricing_attribute_record(attributes.metadata)
+            to_pricing_attribute_record(attributes.and_then(|attributes| attributes.metadata))
         } else {
             BTreeMap::new()
         },
@@ -275,7 +289,7 @@ fn get_pricing_tier_attributes(
 fn select_pricing_tier(
     pricing_tiers: &[PricingTierWithPrices],
     usage_details: &UsageCostType,
-    attributes: &PricingAttributes<'_>,
+    attributes: Option<&PricingAttributes<'_>>,
 ) -> Option<PricingTierMatchResult> {
     // Empty usage must not select a tier against a fabricated all-zero vector.
     if pricing_tiers.is_empty() || !has_pricing_tier_usage_details(usage_details) {
@@ -338,14 +352,23 @@ fn calculate_inferred_costs(
     }
 }
 
+pub(crate) struct CalculateModelUsageCostsParams<'a> {
+    pub model: &'a ModelWithPrices,
+    pub usage_details: &'a UsageCostType,
+    pub provided_cost_details: Option<&'a UsageCostType>,
+    pub attributes: Option<&'a PricingAttributes<'a>>,
+}
+
 /// Price usage with a resolved model, retaining provided-cost precedence.
 pub(crate) fn calculate_model_usage_costs(
-    pricing_tiers: &[PricingTierWithPrices],
-    usage_details: &UsageCostType,
-    provided_cost_details: Option<&UsageCostType>,
-    attributes: &PricingAttributes<'_>,
+    CalculateModelUsageCostsParams {
+        model,
+        usage_details,
+        provided_cost_details,
+        attributes,
+    }: CalculateModelUsageCostsParams<'_>,
 ) -> ModelUsageCosts {
-    let matched_tier = select_pricing_tier(pricing_tiers, usage_details, attributes);
+    let matched_tier = select_pricing_tier(&model.pricing_tiers, usage_details, attributes);
     let CalculatedCosts {
         mut cost_details,
         total_cost,
@@ -357,6 +380,7 @@ pub(crate) fn calculate_model_usage_costs(
     ModelUsageCosts {
         cost_details,
         total_cost,
+        internal_model_id: model.model.as_ref().map(|model| model.id.clone()),
         usage_pricing_tier_id: matched_tier
             .as_ref()
             .map(|tier| tier.pricing_tier_id.clone()),

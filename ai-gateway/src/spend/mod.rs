@@ -26,7 +26,10 @@ use crate::{
     },
 };
 pub(crate) use cost::UsageCostType;
-use cost::{PricingAttributes, calculate_model_usage_costs};
+use cost::{
+    CalculateModelUsageCostsParams, Model, ModelWithPrices, PricingAttributes,
+    calculate_model_usage_costs,
+};
 use store::{Expiry, RedisCounters};
 
 /// Windowed counters outlive their window by a day, so a request that started
@@ -63,7 +66,7 @@ impl SpendLimits {
         if limits.is_empty() {
             return Ok(None);
         }
-        let tiers = priced_tiers(context).ok_or(ResolutionError::SpendLimitUnpricedModel)?;
+        let model = priced_model(context).ok_or(ResolutionError::SpendLimitUnpricedModel)?;
         if !reports_usage(context.connection()) {
             return Err(ResolutionError::SpendLimitUnmeteredConnection);
         }
@@ -101,18 +104,24 @@ impl SpendLimits {
                 .into_iter()
                 .map(|window| (window.key, window.expiry))
                 .collect(),
-            tiers,
+            model,
         }))
     }
 }
 
-/// The model's pricing tiers, when Langfuse has a price for the model.
-fn priced_tiers(context: &ResolvedRequestContext) -> Option<Vec<PricingTierWithPrices>> {
-    let tiers = &context.pricing()?.tiers;
-    tiers
+/// The model with its pricing tiers, when Langfuse has a price for the model.
+fn priced_model(context: &ResolvedRequestContext) -> Option<ModelWithPrices> {
+    let pricing = context.pricing()?;
+    pricing
+        .tiers
         .iter()
         .any(|tier| !tier.prices.is_empty())
-        .then(|| tiers.clone())
+        .then(|| ModelWithPrices {
+            model: Some(Model {
+                id: pricing.model_id.clone(),
+            }),
+            pricing_tiers: pricing.tiers.clone(),
+        })
 }
 
 /// Whether a response through the connection reports the usage a request is priced by.
@@ -186,7 +195,7 @@ fn exceeded(
 pub(crate) struct SpendRecording {
     store: Arc<RedisCounters>,
     counters: Vec<(String, Expiry)>,
-    tiers: Vec<PricingTierWithPrices>,
+    model: ModelWithPrices,
 }
 
 impl SpendRecording {
@@ -200,7 +209,7 @@ impl SpendRecording {
         facts: &InferenceFacts,
         metadata: &Map<String, Value>,
     ) -> Option<UsageCostType> {
-        let cost = generation_cost(facts, metadata, &self.tiers)?;
+        let cost = generation_cost(facts, metadata, &self.model)?;
         let total = cost.total.filter(|total| *total > 0.0);
         if let (Some(total), Ok(runtime)) = (total, tokio::runtime::Handle::try_current()) {
             self.add_in_background(&runtime, total);
@@ -240,7 +249,7 @@ struct GenerationCost {
 fn generation_cost(
     facts: &InferenceFacts,
     metadata: &Map<String, Value>,
-    tiers: &[PricingTierWithPrices],
+    model: &ModelWithPrices,
 ) -> Option<GenerationCost> {
     let inference = &facts.inference;
     let usage = inference.usage_details.as_ref()?;
@@ -256,15 +265,15 @@ fn generation_cost(
     .and_then(|details| usd_amounts(&details));
     let model_parameters = Value::Object(inference.model_parameters.clone());
     let metadata = Value::Object(metadata.clone());
-    let costs = calculate_model_usage_costs(
-        tiers,
-        &usage_units,
-        provided_cost_details.as_ref(),
-        &PricingAttributes {
+    let costs = calculate_model_usage_costs(CalculateModelUsageCostsParams {
+        model,
+        usage_details: &usage_units,
+        provided_cost_details: provided_cost_details.as_ref(),
+        attributes: Some(&PricingAttributes {
             model_parameters: Some(&model_parameters),
             metadata: Some(&metadata),
-        },
-    );
+        }),
+    });
     let finite = |usd: &f64| usd.is_finite();
     Some(GenerationCost {
         total: costs.total_cost.filter(finite),

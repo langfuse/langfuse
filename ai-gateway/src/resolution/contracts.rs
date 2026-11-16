@@ -476,6 +476,7 @@ pub(crate) struct SpendLimit {
 
 #[derive(Clone, Debug, Deserialize)]
 pub(crate) struct ModelPricing {
+    pub model_id: String,
     pub tiers: Vec<crate::spend::PricingTierWithPrices>,
 }
 

@@ -47,12 +47,16 @@ fn matches_the_typescript_cost_calculation() {
             model_parameters: Some(&case.model_parameters),
             metadata: Some(&case.metadata),
         };
-        let actual = calculate_model_usage_costs(
-            &case.tiers,
-            &case.usage_details,
-            case.provided_cost_details.as_ref(),
-            &attributes,
-        );
+        let model = ModelWithPrices {
+            model: None,
+            pricing_tiers: case.tiers,
+        };
+        let actual = calculate_model_usage_costs(CalculateModelUsageCostsParams {
+            model: &model,
+            usage_details: &case.usage_details,
+            provided_cost_details: case.provided_cost_details.as_ref(),
+            attributes: Some(&attributes),
+        });
         let name = &case.name;
         assert_eq!(
             actual.usage_pricing_tier_id, case.expected.usage_pricing_tier_id,

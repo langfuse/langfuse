@@ -33,6 +33,13 @@ fn xai_chat_completion(usage: Value) -> InferenceFacts {
     }
 }
 
+fn model(pricing_tiers: Vec<PricingTierWithPrices>) -> ModelWithPrices {
+    ModelWithPrices {
+        model: None,
+        pricing_tiers,
+    }
+}
+
 fn tiers() -> Vec<PricingTierWithPrices> {
     let prices = |factor: f64| {
         json!({
@@ -64,8 +71,12 @@ fn prices_provider_usage_as_langfuse_ingests_it() {
         "prompt_tokens_details": { "cached_tokens": 40, "text_tokens": 60 },
         "completion_tokens_details": { "reasoning_tokens": 30 },
     });
-    let inferred =
-        generation_cost(&xai_chat_completion(usage.clone()), &Map::new(), &tiers()).unwrap();
+    let inferred = generation_cost(
+        &xai_chat_completion(usage.clone()),
+        &Map::new(),
+        &model(tiers()),
+    )
+    .unwrap();
     // Priority tier: 60 input, 40 cached, 20 output and 30 reasoning tokens.
     let total = inferred.total.unwrap();
     assert!((total - 0.328).abs() < 1e-12, "{total}");
@@ -74,7 +85,8 @@ fn prices_provider_usage_as_langfuse_ingests_it() {
 
     let mut billed = usage;
     billed["cost_in_usd_ticks"] = json!(2_000_000_000_u64);
-    let provided = generation_cost(&xai_chat_completion(billed), &Map::new(), &tiers()).unwrap();
+    let provided =
+        generation_cost(&xai_chat_completion(billed), &Map::new(), &model(tiers())).unwrap();
     let total = provided.total.unwrap();
     assert!((total - 0.2).abs() < 1e-12, "{total}");
     assert!(provided.provided);
@@ -97,7 +109,7 @@ fn matches_metadata_tiers_against_the_ingested_generation_metadata() {
         "total_tokens": 100,
     }));
     let metadata = json!({ "langfuse.gateway.api_key.metadata.team": "research" });
-    let cost = generation_cost(&facts, metadata.as_object().unwrap(), &tiers)
+    let cost = generation_cost(&facts, metadata.as_object().unwrap(), &model(tiers))
         .and_then(|cost| cost.total)
         .unwrap();
     assert!((cost - 1.0).abs() < 1e-12, "{cost}");
