@@ -82,7 +82,7 @@ test("changed-file provider selection permits only explicit exclusions", () => {
     result: "success",
     outputs: { llm_connections: "false", ai_gateway: "false" },
   };
-  needs["live-test-selection"] = selection;
+  needs["llm-connections-filter"] = selection;
   for (const event of ["pull_request", "merge_group", "push"]) {
     assert.deepEqual(
       evaluateGate({ event, ref: "refs/heads/main", needs }),
@@ -101,9 +101,9 @@ test("changed-file provider selection permits only explicit exclusions", () => {
       assert.notEqual(evaluateGate({ event, needs }).length, 0);
     }
     selection.result = "success";
-    delete needs["live-test-selection"];
+    delete needs["llm-connections-filter"];
     assert.notEqual(evaluateGate({ event, needs }).length, 0);
-    needs["live-test-selection"] = selection;
+    needs["llm-connections-filter"] = selection;
     for (const job of ["test-worker-llm-connections", "test-ai-gateway-e2e"]) {
       for (const result of ["failure", "cancelled", undefined]) {
         if (result) needs[job] = { result };

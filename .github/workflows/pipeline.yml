@@ -128,7 +128,7 @@ jobs:
             echo "should_skip=false" >> "$GITHUB_OUTPUT"
           fi
 
-  live-test-selection:
+  llm-connections-filter:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       llm_connections: ${{ steps.range.outputs.run_all == 'true' || steps.filter.outputs.llm_connections }}
@@ -1269,8 +1269,8 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-      - live-test-selection
-    if: ${{ !cancelled() && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.live-test-selection.outputs.llm_connections == 'true' || github.event_name == 'workflow_dispatch'))) }}
+      - llm-connections-filter
+    if: ${{ !cancelled() && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.llm-connections-filter.outputs.llm_connections == 'true' || github.event_name == 'workflow_dispatch'))) }}
     name: test-worker-llm-connections (node24, pg15)
     env:
       NODE_ENV: test
@@ -1615,8 +1615,8 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-      - live-test-selection
-    if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.live-test-selection.outputs.ai_gateway == 'true' || github.event_name == 'workflow_dispatch'))) }}
+      - llm-connections-filter
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.llm-connections-filter.outputs.ai_gateway == 'true' || github.event_name == 'workflow_dispatch'))) }}
     name: test-ai-gateway-e2e
     env:
       NODE_ENV: test
@@ -1725,7 +1725,7 @@ jobs:
     needs:
       [
         pre-job,
-        live-test-selection,
+        llm-connections-filter,
         lint,
         knip,
         format-check,
