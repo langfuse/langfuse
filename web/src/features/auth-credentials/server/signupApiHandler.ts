@@ -26,6 +26,17 @@ export function getSSOBlockedDomains() {
 }
 
 /**
+ * Whether users on this email's domain must authenticate via SSO, either via
+ * AUTH_DOMAINS_WITH_SSO_ENFORCEMENT or a custom Enterprise SSO configuration.
+ */
+export async function isSsoEnforcedForEmail(email: string): Promise<boolean> {
+  const domain = email.split("@")[1]?.toLowerCase();
+  if (!domain) return false;
+  if (getSSOBlockedDomains().includes(domain)) return true;
+  return (await getSsoAuthProviderIdForDomain(domain)) !== null;
+}
+
+/**
  * Validates that a user is eligible to sign up with email/password.
  * Returns an error message string if ineligible, or null if eligible.
  */

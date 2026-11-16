@@ -27,23 +27,20 @@ const hasInternalEmailDomain = (email: string | null | undefined) => {
 };
 
 /**
- * Platform admins, staff email domains and experimental deployments can use
- * internal surfaces. This eligibility does not grant admin permissions.
+ * Staff email domains and experimental deployments can use
+ * internal surfaces. It never grants customer data access.
  */
 export const hasInternalAccess = ({
-  isAdmin,
   isExperimentalFeaturesEnabled,
   email,
 }: {
-  isAdmin: boolean;
   isExperimentalFeaturesEnabled: boolean;
   email: string | null | undefined;
-}) => isExperimentalFeaturesEnabled || isAdmin || hasInternalEmailDomain(email);
+}) => isExperimentalFeaturesEnabled || hasInternalEmailDomain(email);
 
 export const isInternalViewEnabled = (session: Session | null | undefined) =>
   hasInternalAccess({
     email: session?.user?.email,
-    isAdmin: session?.user?.admin === true,
     isExperimentalFeaturesEnabled:
       session?.environment?.enableExperimentalFeatures === true,
   }) && session?.user?.featureFlags[INTERNAL_FEATURE_FLAG] !== false;

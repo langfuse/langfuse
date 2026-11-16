@@ -26,7 +26,11 @@ import type { NavigationFilterContext } from "../utils/navigationFilters.types";
 import { isPathActive } from "../utils/pathClassification";
 import { resolveRoutePathname } from "../utils/routePathname";
 import { api } from "@/src/utils/api";
+import { GATEWAY_PAGE_SLUGS } from "@/src/features/ai-gateway/constants/gatewayPageSlugs";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
+import { useGatewaySetupRequiredReason } from "@/src/features/ai-gateway/hooks/useGatewaySetupRequiredReason";
+import { useGatewayIngestionNavProjectId } from "@/src/features/ai-gateway/hooks/useGatewayIngestionNavProjectId";
+import { useGatewayEntryHref } from "@/src/features/ai-gateway/hooks/useGatewayEntryHref";
 
 /** Organization type from user session (can be null when not in project/org context) */
 type Organization =
@@ -63,6 +67,8 @@ function groupNavigationItems(items: NavigationItem[]): GroupedNavigation {
         ...(grouped[RouteGroup.Observability] || []),
         ...(grouped[RouteGroup.ContextManagement] || []),
         ...(grouped[RouteGroup.Evaluation] || []),
+        ...(grouped[RouteGroup.AiGateway] || []),
+        ...(grouped[RouteGroup.Infrastructure] || []),
       ]
     : [];
 
@@ -114,6 +120,11 @@ export function useFilteredNavigation(
   const routerOrganizationId = router.query.organizationId as
     | string
     | undefined;
+  const gatewaySetupRequiredReason =
+    useGatewaySetupRequiredReason(routerOrganizationId);
+  const gatewayIngestionProjectId =
+    useGatewayIngestionNavProjectId(organization);
+  const gatewayEntryHref = useGatewayEntryHref(organization?.id);
 
   // Memoize filter context to prevent unnecessary recalculations
   const filterContext = useMemo<NavigationFilterContext>(
@@ -123,14 +134,12 @@ export function useFilteredNavigation(
       session,
       enableExperimentalFeatures:
         session?.environment?.enableExperimentalFeatures ?? false,
-      cloudAdmin: Boolean(session?.user?.admin && isLangfuseCloud),
       entitlements,
       uiCustomization,
       isLangfuseCloud,
       hasActiveCloudIncident,
       forceV3Experience,
       internalFeaturesEnabled,
-      currentPath: router.asPath,
     }),
     [
       routerProjectId,
@@ -138,7 +147,6 @@ export function useFilteredNavigation(
       session,
       entitlements,
       uiCustomization,
-      router.asPath,
       isLangfuseCloud,
       hasActiveCloudIncident,
       forceV3Experience,
@@ -149,9 +157,19 @@ export function useFilteredNavigation(
   // Memoize filtered routes
   const filteredRoutes = useMemo(() => {
     return applyNavigationFilters(ROUTES, filterContext, organization).filter(
-      (route) => route.id !== "v4-migration" || migrationProject !== null,
+      (route) =>
+        (route.id !== "v4-migration" || migrationProject !== null) &&
+        (route.id !== "gateway-ingestion-project" ||
+          gatewayIngestionProjectId !== null) &&
+        (route.id !== "ai-gateway" || gatewayEntryHref !== undefined),
     );
-  }, [filterContext, organization, migrationProject]);
+  }, [
+    filterContext,
+    organization,
+    migrationProject,
+    gatewayIngestionProjectId,
+    gatewayEntryHref,
+  ]);
 
   // Map filtered routes to NavigationItems with url and isActive
   // This is O(n) - we map directly over filteredRoutes instead of re-iterating ROUTES
@@ -165,7 +183,11 @@ export function useFilteredNavigation(
       });
       const url = pathname
         .replace("[projectId]", routerProjectId ?? "")
-        .replace("[organizationId]", routerOrganizationId ?? "");
+        .replace("[organizationId]", routerOrganizationId ?? "")
+        .replace(
+          "[gatewayIngestionProjectId]",
+          gatewayIngestionProjectId ?? "",
+        );
 
       // Recursively map nested items (already filtered by applyNavigationFilters)
       const items: NavigationItem[] | undefined = route.items
@@ -178,9 +200,14 @@ export function useFilteredNavigation(
           route.id === "v4-migration" && migrationProject
             ? createElement(V4MigrationNavItem, { project: migrationProject })
             : route.menuNode,
-        url,
+        url: route.id === "ai-gateway" ? (gatewayEntryHref ?? "") : url,
+        disabledReason:
+          route.gatewayPage === GATEWAY_PAGE_SLUGS.models ||
+          route.gatewayPage === GATEWAY_PAGE_SLUGS.apiKeys
+            ? gatewaySetupRequiredReason
+            : undefined,
         isActive: route.isActive
-          ? route.isActive(router.pathname)
+          ? route.isActive(router.pathname, router.asPath)
           : isPathActive(route.href, router.pathname) ||
             Boolean(
               route.legacyPathname &&
@@ -218,7 +245,11 @@ export function useFilteredNavigation(
     routerProjectId,
     routerOrganizationId,
     router.pathname,
+    router.asPath,
     session?.user?.v4BetaEnabled,
     forceV3Experience,
+    gatewaySetupRequiredReason,
+    gatewayIngestionProjectId,
+    gatewayEntryHref,
   ]);
 }

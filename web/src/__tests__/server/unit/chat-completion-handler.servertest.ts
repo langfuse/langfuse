@@ -95,7 +95,6 @@ function createSession(projectId = baseBody.projectId) {
   return {
     user: {
       id: "user-1",
-      admin: false,
       organizations: [{ projects: [{ id: projectId, role: "ADMIN" }] }],
     },
   };
@@ -136,7 +135,6 @@ describe("chatCompletionHandler", () => {
       user: {
         id: "user-1",
         email: "member@clickhouse.com",
-        admin: false,
         featureFlags: testFeatureFlags({ internalFeatures: true }),
         organizations: [{ projects: [{ id: projectId, role: "MEMBER" }] }],
       },

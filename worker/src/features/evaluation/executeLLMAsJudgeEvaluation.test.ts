@@ -68,7 +68,7 @@ import {
  *
  * Note: Job fetching, config fetching, template fetching, and cancelled job
  * handling are now the responsibility of callers (evaluate() and
- * processObservationEval()), not this function. Tests for those scenarios
+ * processEval()), not this function. Tests for those scenarios
  * have been removed.
  */
 describe("executeLLMAsJudgeEvaluation", () => {

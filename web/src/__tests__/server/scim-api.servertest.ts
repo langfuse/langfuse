@@ -2134,13 +2134,9 @@ describe("SCIM ownership boundary", () => {
       expect(await keyExists(key.id)).toBe(false);
     });
 
-    it.each([
-      ["MEMBER", true],
-      ["VIEWER", false],
-      ["NONE", false],
-    ])(
-      "keeps gateway keys of an OWNER moved to %s only while the role can invoke the gateway",
-      async (role, kept) => {
+    it.each(["MEMBER", "VIEWER", "NONE"])(
+      "keeps gateway keys of an OWNER moved to %s, since a user key acts with its user's current roles",
+      async (role) => {
         const key = await createBoundGatewayKey(ownerId);
 
         const response = await callScimRoute(scimUserRoute, {
@@ -2156,7 +2152,7 @@ describe("SCIM ownership boundary", () => {
 
         expect(response.status).toBe(200);
         expect(await roleOf(ownerId)).toBe(role);
-        expect(await keyExists(key.id)).toBe(kept);
+        expect(await keyExists(key.id)).toBe(true);
       },
     );
   });

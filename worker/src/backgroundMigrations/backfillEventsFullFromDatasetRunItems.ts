@@ -9,6 +9,7 @@ import {
   TupleParam,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+import { Readable } from "node:stream";
 import { parseArgs } from "node:util";
 import {
   buildSpanMaps,
@@ -408,6 +409,11 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
    * moves past durably written data. Transient insert failures propagate to
    * the batch retry loop in run(); re-inserting a batch is safe because
    * events_full is a ReplacingMergeTree.
+   *
+   * Rows are passed as an object-mode stream so the client serializes them
+   * one at a time. An array is joined into a single string first, which fails
+   * with "RangeError: Invalid string length" once one trace's input and
+   * output exceed V8's maximum string length (~512 MiB).
    */
   private async insertEnrichedSpans(spans: EnrichedSpan[]): Promise<void> {
     if (spans.length === 0) return;
@@ -418,9 +424,11 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
       // plainEventTsFromSource: plain (leftover) spans keep their source
       // event_ts so an enriched copy of the same span from another batch always
       // wins; enriched spans still use now().
-      values: convertEnrichedSpansToEventRecords(spans, {
-        plainEventTsFromSource: true,
-      }),
+      values: Readable.from(
+        convertEnrichedSpansToEventRecords(spans, {
+          plainEventTsFromSource: true,
+        }),
+      ),
       clickhouse_settings: {
         log_comment: buildClickHouseLogComment({
           surface: "worker",

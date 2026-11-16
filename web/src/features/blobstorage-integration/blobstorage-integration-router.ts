@@ -24,6 +24,7 @@ import {
   BlobStorageIntegrationProcessingQueue,
   QueueJobs,
   StorageServiceFactory,
+  storageKeys,
   blobStorageEndpointConnectionValidationOptions,
   validateBlobStorageBucketHost,
   validateBlobStorageEndpoint,
@@ -460,17 +461,21 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
 
         const usesRole =
           integration.authType === StorageIntegrationAuthType.ROLE_ARN;
+        const keys = isGcs
+          ? undefined
+          : storageKeys(accessKeyId || undefined, secretAccessKey);
 
         // Create storage service with provided configuration
         const storageService = StorageServiceFactory.getInstance({
-          accessKeyId: isGcs || usesRole ? undefined : accessKeyId || undefined,
-          secretAccessKey: isGcs || usesRole ? undefined : secretAccessKey,
           credentials: usesRole
-            ? createBlobStorageRoleCredentials({
-                ...integration,
-                orgId: integration.project.orgId,
-              })
-            : undefined,
+            ? {
+                type: "role",
+                provider: createBlobStorageRoleCredentials({
+                  ...integration,
+                  orgId: integration.project.orgId,
+                }),
+              }
+            : keys,
           bucketName,
           endpoint: endpoint || undefined,
           region: region || undefined,

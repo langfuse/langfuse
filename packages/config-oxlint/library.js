@@ -1,3 +1,5 @@
+import { allowedPrismaWriters } from "./prismaWriters.js";
+
 export default {
   categories: { correctness: "off" },
   plugins: ["typescript", "react", "import", "jsx-a11y", "nextjs", "unicorn"],
@@ -136,12 +138,7 @@ export default {
         "@repo/no-restricted-prisma-writes": [
           "warn",
           {
-            models: {
-              apiKey: ["packages/shared/src/server/auth/apiKeys.ts"],
-              roleAssignment: [
-                "packages/shared/src/features/rbac/roleAssignmentService.ts",
-              ],
-            },
+            models: allowedPrismaWriters,
           },
         ],
       },

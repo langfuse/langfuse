@@ -1,9 +1,10 @@
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
-import { PlusIcon, Settings } from "@langfuse/icons";
+import { Building, PlusIcon, Settings } from "@langfuse/icons";
 import { type Session } from "next-auth";
 import { type ComponentProps, useMemo } from "react";
 import { env } from "@/src/env.mjs";
 import { createOrganizationRoute } from "@/src/features/setup/setupRoutes";
+import { isCloudPlan, planLabels } from "@langfuse/shared";
 
 type Organization = NonNullable<Session["user"]>["organizations"][number];
 
@@ -11,6 +12,8 @@ type OrganizationDropdownMenuProps = {
   children: ComponentProps<typeof DropdownMenu>["children"];
   canCreateOrganizations: boolean;
   getOrgPath: (organizationId: string) => string;
+  /** Ticked in the list; its settings get a link under the list. */
+  currentOrganizationId?: string;
 } & (
   | { state: "loading" }
   | {
@@ -20,7 +23,12 @@ type OrganizationDropdownMenuProps = {
 );
 
 export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
-  const { canCreateOrganizations, children, getOrgPath } = props;
+  const {
+    canCreateOrganizations,
+    children,
+    getOrgPath,
+    currentOrganizationId,
+  } = props;
   const organizations = props.state === "loaded" ? props.organizations : null;
 
   const items = useMemo<ComponentProps<typeof DropdownMenu>["items"]>(
@@ -43,36 +51,57 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
                 id: organization.id,
                 noCapture: true,
                 title: organization.name,
+                variant: "entity" as const,
+                icon: Building,
+                iconTile: true,
+                description:
+                  isCloudPlan(organization.plan) &&
+                  env.NEXT_PUBLIC_DEMO_ORG_ID !== organization.id
+                    ? `${planLabels[organization.plan]} plan`
+                    : undefined,
+                selected: organization.id === currentOrganizationId,
                 href: getOrgPath(organization.id),
-                secondaryAction: {
-                  href: `/organization/${organization.id}/settings`,
-                  ariaLabel: `Go to settings for ${organization.name}`,
-                  icon: Settings,
-                },
               },
             ])
         : [{ type: "loading" as const, id: "loading" }]),
-      ...(canCreateOrganizations
+      ...(currentOrganizationId || canCreateOrganizations
+        ? [{ type: "separator" as const, id: "organization-actions-separator" }]
+        : []),
+      ...(currentOrganizationId
         ? [
-            { type: "separator" as const, id: "create-separator" },
             {
               type: "item" as const,
-              id: "create",
-              title: "New Organization",
+              id: "organization-settings",
+              title: "Organization settings",
+              icon: Settings,
+              href: `/organization/${currentOrganizationId}/settings`,
               searchBehavior: "always-show" as const,
-              href: createOrganizationRoute,
+            },
+          ]
+        : []),
+      ...(canCreateOrganizations
+        ? [
+            {
+              type: "item" as const,
+              id: "new-organization",
+              title: "New organization",
               icon: PlusIcon,
+              href: createOrganizationRoute,
+              searchBehavior: "always-show" as const,
             },
           ]
         : []),
     ],
-    [canCreateOrganizations, getOrgPath, organizations],
+    [canCreateOrganizations, currentOrganizationId, getOrgPath, organizations],
   );
 
   return (
     <DropdownMenu
-      title="Organizations"
+      ariaLabel="Organizations"
       items={items}
+      width="wide"
+      // Fits every org; scrolls only when taller than the window.
+      maxHeight="calc(100dvh - 4rem)"
       search={{ placeholder: "Search organizations..." }}
       emptyText="No organization found."
     >

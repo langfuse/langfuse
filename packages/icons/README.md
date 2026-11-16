@@ -6,9 +6,11 @@ Typed icon boundary for the web app. This package wraps Lucide and the supported
 import { Search, type IconComponent } from "@langfuse/icons";
 import { SiGithub } from "@langfuse/icons/si";
 import { TbBrandAzure } from "@langfuse/icons/tb";
+import { LangfuseMark } from "@langfuse/icons/brand";
 
 <Search size="base" color="default" aria-hidden />;
 <SiGithub size="lg" aria-label="GitHub" />;
+<LangfuseMark aria-hidden />;
 ```
 
 ## API
@@ -36,7 +38,7 @@ The `color` prop accepts semantic tokens, not arbitrary SVG color strings:
 
 Colors resolve as `hsl(var(--token))` through the app's runtime CSS variables, so light/dark themes remain in CSS. Use `inherit` for icons whose hover, selected, or disabled color is owned by the parent button or menu item. An explicit color sets an inline style and takes precedence over color classes; keep conditional classes in the raw escape hatch only when the semantic API cannot express the state. `__rawStyle.color` remains an explicit override.
 
-`className`, `style`, `width`, `height`, numeric `size`, and `strokeWidth` are intentionally rejected by TypeScript. The wrapper also drops forbidden styling props at runtime. Import icons from this package, not directly from `lucide-react` or `react-icons`; the web app's import restriction enforces that boundary.
+`className`, `style`, `width`, `height`, numeric `size`, and `strokeWidth` are intentionally rejected by TypeScript. The wrapper also drops forbidden styling props at runtime. `@langfuse/icons/brand` holds hand-written Langfuse marks; they keep their brand colors, so `color` has no effect on them. Import icons from this package, not directly from `lucide-react` or `react-icons`; the web app's import restriction enforces that boundary.
 
 ## Escape hatches
 

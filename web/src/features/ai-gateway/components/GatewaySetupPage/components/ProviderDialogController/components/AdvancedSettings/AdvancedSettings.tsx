@@ -6,14 +6,15 @@ import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/Expand
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { FieldHeader } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/FieldHeader";
-import type { GatewayApiFamily } from "@/src/features/ai-gateway/types/gatewayProvider";
+import type { GatewayCustomEndpointProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 
 export type ExtraHeaderRow = { id: string; key: string; value: string };
 
-const defaultBaseUrls: Record<GatewayApiFamily, string> = {
+const defaultBaseUrls: Record<GatewayCustomEndpointProvider, string> = {
   OPENAI: "OpenAI default: https://api.openai.com/v1",
   ANTHROPIC:
     "Anthropic default: https://api.anthropic.com (excluding /v1/messages)",
+  OPENROUTER: "OpenRouter default: https://openrouter.ai/api/v1",
 };
 
 export function AdvancedSettings({
@@ -25,7 +26,7 @@ export function AdvancedSettings({
   onBaseURLChange,
   onHeadersChange,
 }: {
-  provider: GatewayApiFamily;
+  provider: GatewayCustomEndpointProvider;
   baseURL: string;
   headers: ExtraHeaderRow[];
   /** Names whose values are stored; their rows may stay blank to keep the value. */
@@ -40,6 +41,59 @@ export function AdvancedSettings({
     onBaseURLChange(event.target.value);
   };
 
+  return (
+    <div className="space-y-6">
+      <ExpandToggle
+        expanded={isExpanded}
+        onExpandedChange={setIsExpanded}
+        label="Show advanced settings"
+        expandedLabel="Hide advanced settings"
+        variant="icon"
+        iconPosition="right"
+        size="sm"
+        controls="gateway-advanced-settings"
+      />
+      {isExpanded ? (
+        <div id="gateway-advanced-settings" className="space-y-6 border-t pt-6">
+          <div className="ph-no-capture">
+            <FieldHeader
+              label="API Base URL"
+              htmlFor="gateway-base-url"
+              description={
+                <>
+                  Leave blank to use the default base URL.{" "}
+                  {isEditing ? "Changing it requires a new secret key. " : null}
+                  {defaultBaseUrls[provider]}
+                </>
+              }
+            />
+            <Input
+              id="gateway-base-url"
+              placeholder="default"
+              value={baseURL}
+              onChange={handleBaseURLChange}
+            />
+          </div>
+          <ExtraHeadersSettings
+            headers={headers}
+            storedHeaderKeys={storedHeaderKeys}
+            onHeadersChange={onHeadersChange}
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ExtraHeadersSettings({
+  headers,
+  storedHeaderKeys,
+  onHeadersChange,
+}: {
+  headers: ExtraHeaderRow[];
+  storedHeaderKeys: string[];
+  onHeadersChange: (headers: ExtraHeaderRow[]) => void;
+}) {
   const handleAddHeader = () => {
     onHeadersChange([
       ...headers,
@@ -64,69 +118,34 @@ export function AdvancedSettings({
   };
 
   return (
-    <div className="space-y-6">
-      <ExpandToggle
-        expanded={isExpanded}
-        onExpandedChange={setIsExpanded}
-        label="Show advanced settings"
-        expandedLabel="Hide advanced settings"
-        variant="icon"
-        iconPosition="right"
-        size="sm"
-        controls="gateway-advanced-settings"
+    <div
+      role="group"
+      aria-labelledby="gateway-extra-headers"
+      className="ph-no-capture space-y-2"
+    >
+      <FieldHeader
+        label="Extra Headers"
+        id="gateway-extra-headers"
+        description="Optional HTTP headers sent with every request to the provider. Header values are stored encrypted."
       />
-      {isExpanded ? (
-        <div id="gateway-advanced-settings" className="space-y-6 border-t pt-6">
-          <div>
-            <FieldHeader
-              label="API Base URL"
-              htmlFor="gateway-base-url"
-              description={
-                <>
-                  Leave blank to use the default base URL.{" "}
-                  {isEditing ? "Changing it requires a new secret key. " : null}
-                  {defaultBaseUrls[provider]}
-                </>
-              }
-            />
-            <Input
-              id="gateway-base-url"
-              placeholder="default"
-              value={baseURL}
-              onChange={handleBaseURLChange}
-            />
-          </div>
-          <div
-            role="group"
-            aria-labelledby="gateway-extra-headers"
-            className="ph-no-capture space-y-2"
-          >
-            <FieldHeader
-              label="Extra Headers"
-              id="gateway-extra-headers"
-              description="Optional HTTP headers sent with every request to the provider. Header values are stored encrypted."
-            />
-            {headers.map((header) => (
-              <ExtraHeaderField
-                key={header.id}
-                header={header}
-                isStored={storedHeaderKeys.includes(header.key)}
-                onChange={handleHeaderChange}
-                onRemove={handleRemoveHeader}
-              />
-            ))}
-            {/* Offsets the ghost padding so the icon lines up with the inputs. */}
-            <div className="-ml-3">
-              <Button
-                variant="ghost"
-                icon={PlusIcon}
-                text="Add Header"
-                onClick={handleAddHeader}
-              />
-            </div>
-          </div>
-        </div>
-      ) : null}
+      {headers.map((header) => (
+        <ExtraHeaderField
+          key={header.id}
+          header={header}
+          isStored={storedHeaderKeys.includes(header.key)}
+          onChange={handleHeaderChange}
+          onRemove={handleRemoveHeader}
+        />
+      ))}
+      {/* Offsets the ghost padding so the icon lines up with the inputs. */}
+      <div className="-ml-3">
+        <Button
+          variant="ghost"
+          icon={PlusIcon}
+          text="Add Header"
+          onClick={handleAddHeader}
+        />
+      </div>
     </div>
   );
 }

@@ -68,7 +68,6 @@ const buildSession = (orgId: string, projectId: string): Session => ({
       },
     ],
     featureFlags: testFeatureFlags(),
-    admin: true,
   },
   environment: {} as any,
 });

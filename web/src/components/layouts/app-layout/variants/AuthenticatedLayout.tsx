@@ -154,7 +154,6 @@ export function AuthenticatedLayout({
   const showLegacyUiBanner = useLegacyUiBannerVisible(routerProjectId);
   const customerDataWarning = getCustomerDataWarning({
     email: user.email,
-    isAdmin: user.admin === true,
     isLangfuseCloud,
     projectId: routerProjectId ?? null,
     organizationId:

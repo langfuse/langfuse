@@ -141,7 +141,8 @@ export const nullFilter = z.object({
   type: z.literal("null"),
   column: z.string(),
   operator: z.enum(filterOperators.null),
-  value: z.literal(""),
+  // Omitted or null values normalise to "".
+  value: z.preprocess((value) => value ?? "", z.literal("")),
 });
 export const positionInTraceFilter = z
   .object({

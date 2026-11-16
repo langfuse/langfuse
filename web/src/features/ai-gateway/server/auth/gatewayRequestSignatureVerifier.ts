@@ -24,12 +24,14 @@ const modelRoutingService = new GatewayModelRoutingService();
 const resolveBodySchema = z
   .object({
     apiFormat: GatewayApiFormatSchema,
-    model: z
-      .string()
-      .refine((model) => modelRoutingService.resolve(model, []) !== null),
+    model: z.string(),
     requestBytes: z.number().int().nonnegative(),
   })
-  .strict();
+  .strict()
+  .refine(
+    ({ apiFormat, model }) =>
+      modelRoutingService.resolve(model, [], apiFormat) !== null,
+  );
 const modelsQuerySchema = z
   .object({ api_format: GatewayApiFormatSchema })
   .strict();

@@ -186,33 +186,6 @@ const EnvSchema = z.object({
   LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
-  QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_TRACE_BATCH_READ_ENABLED: z.enum(["true", "false"]).default("false"),
-  LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_TRACE_BATCH_CONCURRENCY: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(2),
-  LANGFUSE_TRACE_BATCH_MAX_THREADS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(2),
-  LANGFUSE_TRACE_BATCH_REQUEST_TIMEOUT_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(40_000),
-  LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(100 * 1024 * 1024),
   // Traces summarized and embedded at once per Topics job, in both trace-batch and manual processing.
   LANGFUSE_TOPICS_TRACE_CONCURRENCY: z.coerce
     .number()
@@ -239,17 +212,13 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(256 * 1024 * 1024),
-  LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE: z.coerce
+  // 04:00 UTC is early morning in Europe and late evening in the Americas.
+  LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC: z.coerce
     .number()
     .int()
-    .positive()
-    .optional(),
-  LANGFUSE_TRACE_BATCH_EXPERIMENT_ID: z
-    .string()
-    .min(1)
-    .max(64)
-    .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/)
-    .optional(),
+    .min(0)
+    .max(23)
+    .default(4),
   LANGFUSE_TRACE_BATCH_MAX_SIZE: z.coerce
     .number()
     .int()
@@ -298,7 +267,7 @@ const EnvSchema = z.object({
     .number()
     .int()
     .positive()
-    .default(30_000),
+    .default(60_000),
   LANGFUSE_SECONDARY_OTEL_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z
     .string()
     .optional(),
@@ -756,8 +725,8 @@ const EnvSchema = z.object({
     .default("false"), // Use ON CLUSTER and clusterAllReplicas for cleaner operations
 
   // Audit log relay: moves audit_log_staging rows into ClickHouse audit_logs.
-  // Runs only in cloud deployments (NEXT_PUBLIC_LANGFUSE_CLOUD_REGION set),
-  // where it is on unless disabled here.
+  // Runs on Langfuse Cloud and on self-hosted instances with an enterprise
+  // license, where it is on unless disabled here.
   LANGFUSE_AUDIT_LOG_RELAY_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_AUDIT_LOG_RELAY_INTERVAL_MS: z.coerce
     .number()

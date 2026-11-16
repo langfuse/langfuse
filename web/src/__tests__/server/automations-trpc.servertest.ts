@@ -128,7 +128,6 @@ async function prepare() {
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin: true,
     },
     environment: {
       enableExperimentalFeatures: false,
@@ -347,7 +346,6 @@ describe("automations trpc", () => {
         ...session,
         user: {
           ...session.user!,
-          admin: false,
           organizations: [
             {
               ...session.user!.organizations[0],
@@ -1106,7 +1104,6 @@ describe("automations trpc", () => {
         ...session,
         user: {
           ...session.user!,
-          admin: false,
           organizations: [
             {
               ...session.user!.organizations[0],
@@ -2988,7 +2985,6 @@ describe("automations trpc", () => {
         ...session,
         user: {
           ...session.user!,
-          admin: false,
           organizations: [
             {
               ...session.user!.organizations[0],
@@ -3417,7 +3413,6 @@ describe("automations trpc", () => {
         ...session,
         user: {
           ...session.user!,
-          admin: false,
           organizations: [
             {
               ...session.user!.organizations[0],
@@ -3531,7 +3526,6 @@ describe("automations trpc", () => {
         ...session,
         user: {
           ...session.user!,
-          admin: false,
           organizations: [
             {
               ...session.user!.organizations[0],
@@ -3569,27 +3563,6 @@ describe("automations trpc", () => {
         displayRoutingKey: "R0ab...9xYz",
         region: "EU",
       });
-    });
-
-    function callerWithUser(session: Session, user: Partial<Session["user"]>) {
-      return appRouter.createCaller({
-        ...createInnerTRPCContext({
-          session: { ...session, user: { ...session.user!, ...user } },
-          headers: {},
-        }),
-        prisma,
-      });
-    }
-
-    it("lets project owners who are not admins create PagerDuty automations", async () => {
-      const { project, session } = await prepare();
-      const owner = callerWithUser(session, { admin: false });
-
-      const result = await owner.automations.createAutomation(
-        createInput(project.id),
-      );
-
-      expect(result.action.type).toBe("PAGERDUTY");
     });
 
     it("rejects a create without a routing key", async () => {

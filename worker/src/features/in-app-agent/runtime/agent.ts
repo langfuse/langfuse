@@ -1,5 +1,6 @@
 import { EventType } from "@ag-ui/core";
 import { MastraAgent } from "@ag-ui/mastra";
+import { normalizeMastraEvent, toMastraRunInput } from "./mastraAdapter";
 import { IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE } from "@langfuse/shared/in-app-agent/server/systemPrompt";
 import { Agent } from "@mastra/core/agent";
 import {
@@ -25,7 +26,6 @@ import {
   IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
 } from "@langfuse/shared/in-app-agent";
-import { getToolFailureMessage } from "@langfuse/shared/in-app-agent/server/toolErrors";
 import { IN_APP_AGENT_MAX_STEPS } from "@langfuse/shared/in-app-agent/server/tunables";
 import type { AgUiRunAgentInput, ResumeForwardedProps } from "./types";
 import {
@@ -476,7 +476,7 @@ export async function createAgUiStream(params: {
         interruptAdapter?.();
         subscription?.unsubscribe();
 
-        logger.error("Failed to persist in-app agent event", {
+        logger.error("Failed to process in-app agent event", {
           error: toLoggableError(error),
           runId: params.input.runId,
           threadId: params.input.threadId,
@@ -757,161 +757,169 @@ export async function createAgUiStream(params: {
             currentAdapter.setDeveloperGuidance(runInput.developerGuidance);
           }
 
-          subscription = currentAdapter.adapter.run(runInput.input).subscribe({
-            next(event) {
-              if (ending || closed) {
-                return;
-              }
+          const handleAdapterError = (error: unknown) => {
+            if (ending || closed) {
+              return;
+            }
 
-              if (params.signal.aborted) {
-                abortStream();
-                return;
-              }
+            if (params.signal.aborted) {
+              abortStream();
+              return;
+            }
 
-              const agUiEvents = normalizeAdapterEvent(
-                event satisfies AgUiEvent,
-                params.input,
-              );
+            if (streamedRunError !== null) {
+              closeController(async () => {
+                await recordInstrumentation("flush", (instrumentation) =>
+                  instrumentation.flush(),
+                );
+                return handleStreamedRunError();
+              });
+              return;
+            }
 
-              recordInstrumentation("recordEvents", (instrumentation) =>
-                instrumentation.recordEvents(
-                  withInAppAgentToolApprovalSidecars({
-                    events: agUiEvents,
-                    policy: params.options.langfuseMcp.toolPolicy,
-                    humanApprovedToolCallId,
-                  }),
-                ),
-              );
+            logger.error("Error in agent execution", {
+              error: toLoggableError(error),
+              runId: params.input.runId,
+              threadId: params.input.threadId,
+            });
 
-              for (const agUiEvent of agUiEvents) {
-                if (
-                  agUiEvent.type === EventType.RUN_ERROR &&
-                  streamedRunError === null
-                ) {
-                  streamedRunError = getRunErrorMessage(agUiEvent);
+            const runErrorEvent = createRunErrorEvent(params.input, error);
+            recordInstrumentation("recordEvents", (instrumentation) =>
+              instrumentation.recordEvents([runErrorEvent]),
+            );
+            enqueueEvent(runErrorEvent, () => params.options.onError?.(error));
+            closeController(() =>
+              recordInstrumentation("flush", (instrumentation) =>
+                instrumentation.flush(),
+              ),
+            );
+          };
+
+          subscription = currentAdapter.adapter
+            .run(toMastraRunInput(runInput.input))
+            .subscribe({
+              next(event) {
+                if (ending || closed) {
+                  return;
                 }
 
-                enqueueEvent(
-                  agUiEvent,
-                  agUiEvent.type === EventType.RUN_ERROR
-                    ? handleStreamedRunError
-                    : undefined,
+                if (params.signal.aborted) {
+                  abortStream();
+                  return;
+                }
+
+                let agUiEvents: AgUiEvent[];
+                try {
+                  agUiEvents = normalizeMastraEvent(event, params.input);
+                } catch (error) {
+                  failStream(error, event?.type);
+                  return;
+                }
+
+                recordInstrumentation("recordEvents", (instrumentation) =>
+                  instrumentation.recordEvents(
+                    withInAppAgentToolApprovalSidecars({
+                      events: agUiEvents,
+                      policy: params.options.langfuseMcp.toolPolicy,
+                      humanApprovedToolCallId,
+                    }),
+                  ),
                 );
 
-                if (
-                  agUiEvent.type === EventType.RUN_STARTED &&
-                  pendingSyntheticEvents.length > 0
-                ) {
-                  recordInstrumentation(
-                    "recordToolCallApproval",
-                    (instrumentation) =>
-                      instrumentation.recordToolCallApproval(
-                        runInput.toolCallApproval,
-                      ),
-                  );
-                  recordInstrumentation("recordEvents", (instrumentation) =>
-                    instrumentation.recordEvents(
-                      withInAppAgentToolApprovalSidecars({
-                        events: pendingSyntheticEvents,
-                        policy: params.options.langfuseMcp.toolPolicy,
-                        humanApprovedToolCallId,
-                      }),
-                    ),
-                  );
-                  for (const syntheticEvent of pendingSyntheticEvents) {
-                    enqueueEvent(syntheticEvent);
+                for (const agUiEvent of agUiEvents) {
+                  if (
+                    agUiEvent.type === EventType.RUN_ERROR &&
+                    streamedRunError === null
+                  ) {
+                    streamedRunError = getRunErrorMessage(agUiEvent);
                   }
-                  pendingSyntheticEvents.length = 0;
-                }
-              }
-            },
-            error(error: unknown) {
-              if (ending || closed) {
-                return;
-              }
 
-              if (params.signal.aborted) {
-                abortStream();
-                return;
-              }
-
-              if (streamedRunError !== null) {
-                closeController(async () => {
-                  await recordInstrumentation("flush", (instrumentation) =>
-                    instrumentation.flush(),
+                  enqueueEvent(
+                    agUiEvent,
+                    agUiEvent.type === EventType.RUN_ERROR
+                      ? handleStreamedRunError
+                      : undefined,
                   );
-                  return handleStreamedRunError();
-                });
-                return;
-              }
 
-              logger.error("Error in agent execution", {
-                error: toLoggableError(error),
-                runId: params.input.runId,
-                threadId: params.input.threadId,
-              });
-
-              const runErrorEvent = createRunErrorEvent(params.input, error);
-              recordInstrumentation("recordEvents", (instrumentation) =>
-                instrumentation.recordEvents([runErrorEvent]),
-              );
-              enqueueEvent(runErrorEvent, () =>
-                params.options.onError?.(error),
-              );
-              closeController(() =>
-                recordInstrumentation("flush", (instrumentation) =>
-                  instrumentation.flush(),
-                ),
-              );
-            },
-            complete() {
-              if (ending || closed) {
-                return;
-              }
-
-              if (params.signal.aborted) {
-                abortStream();
-                return;
-              }
-
-              closeController(
-                streamedRunError === null
-                  ? async () => {
-                      const truncatedByStepLimit =
-                        isTruncatedByStepLimit(stepLimitState);
-                      const truncatedByOutputLimit =
-                        isTruncatedByOutputLimit(stepLimitState);
-                      recordInstrumentation("end", (instrumentation) =>
-                        instrumentation.end(
-                          truncatedByStepLimit || truncatedByOutputLimit
-                            ? {
-                                result: {
-                                  truncatedByStepLimit,
-                                  truncatedByOutputLimit,
-                                  finishReason: stepLimitState.lastFinishReason,
-                                },
-                              }
-                            : {},
+                  if (
+                    agUiEvent.type === EventType.RUN_STARTED &&
+                    pendingSyntheticEvents.length > 0
+                  ) {
+                    recordInstrumentation(
+                      "recordToolCallApproval",
+                      (instrumentation) =>
+                        instrumentation.recordToolCallApproval(
+                          runInput.toolCallApproval,
                         ),
-                      );
-                      await recordInstrumentation("flush", (instrumentation) =>
-                        instrumentation.flush(),
-                      );
-                      return params.options.onComplete?.({
-                        reachedStepLimit: stepLimitState.wrapUp,
-                        truncatedByStepLimit,
-                        truncatedByOutputLimit,
-                      });
+                    );
+                    recordInstrumentation("recordEvents", (instrumentation) =>
+                      instrumentation.recordEvents(
+                        withInAppAgentToolApprovalSidecars({
+                          events: pendingSyntheticEvents,
+                          policy: params.options.langfuseMcp.toolPolicy,
+                          humanApprovedToolCallId,
+                        }),
+                      ),
+                    );
+                    for (const syntheticEvent of pendingSyntheticEvents) {
+                      enqueueEvent(syntheticEvent);
                     }
-                  : async () => {
-                      await recordInstrumentation("flush", (instrumentation) =>
-                        instrumentation.flush(),
-                      );
-                      return handleStreamedRunError();
-                    },
-              );
-            },
-          });
+                    pendingSyntheticEvents.length = 0;
+                  }
+                }
+              },
+              error: handleAdapterError,
+              complete() {
+                if (ending || closed) {
+                  return;
+                }
+
+                if (params.signal.aborted) {
+                  abortStream();
+                  return;
+                }
+
+                closeController(
+                  streamedRunError === null
+                    ? async () => {
+                        const truncatedByStepLimit =
+                          isTruncatedByStepLimit(stepLimitState);
+                        const truncatedByOutputLimit =
+                          isTruncatedByOutputLimit(stepLimitState);
+                        recordInstrumentation("end", (instrumentation) =>
+                          instrumentation.end(
+                            truncatedByStepLimit || truncatedByOutputLimit
+                              ? {
+                                  result: {
+                                    truncatedByStepLimit,
+                                    truncatedByOutputLimit,
+                                    finishReason:
+                                      stepLimitState.lastFinishReason,
+                                  },
+                                }
+                              : {},
+                          ),
+                        );
+                        await recordInstrumentation(
+                          "flush",
+                          (instrumentation) => instrumentation.flush(),
+                        );
+                        return params.options.onComplete?.({
+                          reachedStepLimit: stepLimitState.wrapUp,
+                          truncatedByStepLimit,
+                          truncatedByOutputLimit,
+                        });
+                      }
+                    : async () => {
+                        await recordInstrumentation(
+                          "flush",
+                          (instrumentation) => instrumentation.flush(),
+                        );
+                        return handleStreamedRunError();
+                      },
+                );
+              },
+            });
         })
         .catch((error: unknown) => {
           if (ending || closed) {
@@ -1313,12 +1321,8 @@ async function createMastraAdapter(params: {
       requestContext: new RequestContext([
         [RUN_CONTEXT_KEY, JSON.stringify(params.runContext.requestContext)],
       ]),
-      // The structured RUN_FINISHED interrupt outcome targets CopilotKit
-      // >= 1.61.2 clients; ours consumes the legacy on_interrupt CUSTOM
-      // events, so keep the pre-flag behavior.
-      emitInterruptOutcome: false,
     });
-    patchMastraApprovalChunks(adapter);
+    patchMastraToolErrors(adapter);
 
     return {
       adapter,
@@ -1463,17 +1467,10 @@ type MastraApprovalStreamChunk = {
   };
 };
 
-// @ag-ui/mastra handles Mastra's suspend()-based interrupts natively
-// (tool-call-suspended), but not the requireApproval flow used by
-// withInAppAgentToolApproval: Mastra emits a tool-call-approval chunk for
-// those tools and the bridge has no case for it, so approvals would never
-// surface as on_interrupt events. Map approvals onto the suspend protocol.
-// Non-background tool-error chunks are likewise swallowed by the bridge, so
-// convert them to tool results carrying a structured failure payload. The
-// bridge still emits TOOL_CALL_RESULT without a top-level `error` field;
-// normalizeAdapterEvent stamps that field from the structured payload so
-// instrumentation and persistence see an explicit failure.
-export function patchMastraApprovalChunks(adapter: MastraAgent) {
+// Preserve explicit failure markers for Halo persistence and instrumentation.
+// The adapter otherwise serializes tool errors as a string-valued error field,
+// which may also occur in successful tool output and is not a failure marker.
+export function patchMastraToolErrors(adapter: MastraAgent) {
   const patchableAdapter = adapter as unknown as PatchableMastraAgent;
   const createChunkProcessor = patchableAdapter.createChunkProcessor;
 
@@ -1489,38 +1486,9 @@ export function patchMastraApprovalChunks(adapter: MastraAgent) {
     const processor = createChunkProcessor.call(this, callbacks, ...rest);
 
     return {
+      ...processor,
       handleChunk(chunk: unknown) {
         const mastraChunk = chunk as MastraApprovalStreamChunk;
-
-        if (mastraChunk?.type === "tool-call-approval") {
-          const {
-            toolCallId,
-            toolName,
-            args: toolArgs,
-          } = mastraChunk.payload ?? {};
-          if (!toolCallId || !toolName) {
-            callbacks.onError(
-              new Error(
-                "Malformed tool-call-approval: missing toolCallId or toolName in payload",
-              ),
-            );
-            return true;
-          }
-
-          return processor.handleChunk({
-            ...mastraChunk,
-            type: "tool-call-suspended",
-            payload: {
-              ...mastraChunk.payload,
-              suspendPayload: {
-                type: "approval",
-                toolCallId,
-                toolName,
-                args: toolArgs,
-              },
-            },
-          });
-        }
 
         if (mastraChunk?.type === "tool-error") {
           const {
@@ -1558,9 +1526,6 @@ export function patchMastraApprovalChunks(adapter: MastraAgent) {
         }
 
         return processor.handleChunk(chunk);
-      },
-      flush() {
-        processor.flush();
       },
     };
   };
@@ -1634,38 +1599,6 @@ function compileLocalPrompt(
   return promptTemplate.replace(/{{\s*(\w+)\s*}}/g, (match, variable) => {
     return variables[variable] ?? match;
   });
-}
-
-function normalizeAdapterEvent(
-  event: AgUiEvent,
-  input: AgUiRunAgentInput,
-): AgUiEvent[] {
-  if (event.type === EventType.RUN_STARTED) {
-    const publicEvent = { ...event };
-    delete publicEvent.input;
-
-    return [
-      {
-        ...publicEvent,
-        ...(input.parentRunId ? { parentRunId: input.parentRunId } : {}),
-      },
-    ];
-  }
-
-  if (event.type === EventType.TOOL_CALL_RESULT) {
-    // Never overwrite an existing top-level error (e.g. JSON-encoded approval
-    // rejections). Only stamp when the bridge omitted the field entirely.
-    if (typeof event.error === "string" && event.error.trim()) {
-      return [event];
-    }
-
-    const failureMessage = getToolFailureMessage(undefined, event.content);
-    if (failureMessage) {
-      return [{ ...event, error: failureMessage }];
-    }
-  }
-
-  return [event];
 }
 
 function createRunErrorEvent(

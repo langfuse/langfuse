@@ -1,4 +1,5 @@
 import {
+  ClickHouseResourceError,
   recordDistribution,
   recordIncrement,
 } from "@langfuse/shared/src/server";
@@ -104,6 +105,14 @@ export class TopicMetrics {
       });
   }
 
+  /** Summary input size per format: the rendered text sent, and the JSON projection it replaced. */
+  summaryInputCharacters(format: "text" | "json", characters: number): void {
+    recordDistribution("langfuse.topics.summary_input_characters", characters, {
+      ...this.tags,
+      format,
+    });
+  }
+
   clusteringWorkload(vectors: number, dimensions: number): void {
     const tags = { dimensions: String(dimensions) };
     recordIncrement("langfuse.topics.clustering_vectors", vectors, tags);
@@ -170,6 +179,8 @@ export class TopicMetrics {
         ].includes(error.name)
       )
         reason = "storage";
+      if (ClickHouseResourceError.is(error))
+        reason = error.errorType === "TIMEOUT" ? "timeout" : "storage";
     }
     recordIncrement("langfuse.topics.errors", 1, {
       ...this.tags,

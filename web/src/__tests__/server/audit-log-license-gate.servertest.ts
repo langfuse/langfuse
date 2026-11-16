@@ -39,9 +39,9 @@ import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
 
 /**
  * Audit log records are an enterprise feature, so they are only persisted when
- * the instance is licensed for them. They are staged for ClickHouse on Cloud
- * only, where the relay runs. The actor log line that mirrors each record is
- * operator telemetry and stays on every plan.
+ * the instance is licensed for them, and every persisted record is staged for
+ * ClickHouse unless staging is switched off. The actor log line that mirrors
+ * each record is operator telemetry and stays on every plan.
  */
 describe("audit log license gate", () => {
   let orgId: string;
@@ -118,13 +118,13 @@ describe("audit log license gate", () => {
       ["an enterprise", "langfuse_ee_test"],
       ["a government", "lf_gov_test"],
     ])(
-      "persists records with %s license key, without staging them",
+      "persists and stages records with %s license key",
       async (_label, licenseKey) => {
         mocks.licenseKey = licenseKey;
 
         expect(await auditAllActorShapes()).toEqual({
           persisted: 3,
-          staged: 0,
+          staged: 3,
         });
       },
     );

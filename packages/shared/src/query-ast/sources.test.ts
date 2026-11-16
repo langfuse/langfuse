@@ -15,14 +15,17 @@ import {
 } from "../tableDefinitions/types";
 import { resolvePredicateSourceField, eventsPredicateSource } from "./sources";
 
-// Column mappings the legacy builder accepts that the registry does not
-// declare yet; `scores` resolves per filter type rather than to one field.
-const UNREGISTERED_EVENTS_MAPPINGS = [
+// The legacy `scores` mapping resolves per filter type rather than to one
+// field; the row-selection planner classifies it before the predicate.
+const UNREGISTERED_EVENTS_MAPPINGS = ["scores"];
+
+// Fields app code sends that no filter UI offers, so `eventsTableCols` lacks
+// them.
+const FIELDS_WITHOUT_FILTER_COLUMN = [
   "parentObservationId",
   "skillFilesLoaded",
   "skillNames",
   "skillVersions",
-  "scores",
 ];
 
 const mappingSelect = (column: string) => {
@@ -33,10 +36,11 @@ const mappingSelect = (column: string) => {
 };
 
 describe("events source registry", () => {
-  it("declares exactly the eventsTableCols fields", () => {
-    expect(eventsPredicateSource.fields.map((f) => f.id)).toEqual(
-      eventsTableCols.map((c) => c.id),
-    );
+  it("declares exactly the eventsTableCols fields, then the unlisted ones", () => {
+    expect(eventsPredicateSource.fields.map((f) => f.id)).toEqual([
+      ...eventsTableCols.map((c) => c.id),
+      ...FIELDS_WITHOUT_FILTER_COLUMN,
+    ]);
   });
 
   it.each(eventsTableCols.map((col) => [col.id, col] as const))(
@@ -48,9 +52,11 @@ describe("events source registry", () => {
       expect(field.aliases).toEqual(
         expect.arrayContaining((col as ColumnDefinition).aliases ?? []),
       );
-      expect(Object.keys(field.operators)).toEqual(
-        COMPATIBLE_FILTER_TYPES[col.type],
-      );
+      // Numeric metadata conditions have no FilterState column type.
+      expect(Object.keys(field.operators)).toEqual([
+        ...(COMPATIBLE_FILTER_TYPES[col.type] ?? []),
+        ...(id === "metadata" ? ["numberObject"] : []),
+      ]);
     },
   );
 

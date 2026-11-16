@@ -94,18 +94,11 @@ describe("in-app agent router", () => {
     });
   });
 
-  it("exposes the telemetry project only to internal users with project access", async () => {
+  it("exposes the telemetry project to internal users while AI telemetry is recorded", async () => {
     const fixture = await createProjectFixture();
     const telemetryFixture = await createProjectFixture();
     const staffCaller = createCallerForFixture(fixture, fixture.ownerUserId, {
       email: "member@clickhouse.com",
-    });
-    const memberCaller = createCallerForFixture(fixture, fixture.ownerUserId, {
-      email: "member@clickhouse.com",
-      additionalFixture: telemetryFixture,
-    });
-    const adminCaller = createCallerForFixture(fixture, fixture.ownerUserId, {
-      admin: true,
     });
     const externalCaller = createCallerForFixture(fixture, fixture.ownerUserId);
     const originalAiFeaturesProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
@@ -127,26 +120,17 @@ describe("in-app agent router", () => {
         staffCaller.inAppAgent.telemetryProject({
           projectId: fixture.projectId,
         }),
-      ).resolves.toEqual({ projectId: null });
-      for (const caller of [memberCaller, adminCaller]) {
-        await expect(
-          caller.inAppAgent.telemetryProject({
-            projectId: fixture.projectId,
-          }),
-        ).resolves.toEqual({ projectId: telemetryFixture.projectId });
-      }
+      ).resolves.toEqual({ projectId: telemetryFixture.projectId });
 
       await prisma.organization.update({
         where: { id: fixture.orgId },
         data: { aiTelemetryEnabled: false },
       });
-      for (const caller of [memberCaller, adminCaller]) {
-        await expect(
-          caller.inAppAgent.telemetryProject({
-            projectId: fixture.projectId,
-          }),
-        ).resolves.toEqual({ projectId: null });
-      }
+      await expect(
+        staffCaller.inAppAgent.telemetryProject({
+          projectId: fixture.projectId,
+        }),
+      ).resolves.toEqual({ projectId: null });
 
       await prisma.organization.update({
         where: { id: fixture.orgId },
@@ -156,7 +140,7 @@ describe("in-app agent router", () => {
         env as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
       ).LANGFUSE_AI_FEATURES_PROJECT_ID = undefined;
       await expect(
-        memberCaller.inAppAgent.telemetryProject({
+        staffCaller.inAppAgent.telemetryProject({
           projectId: fixture.projectId,
         }),
       ).resolves.toEqual({ projectId: null });
@@ -231,15 +215,7 @@ async function createProjectFixture() {
 function createCallerForFixture(
   fixture: Awaited<ReturnType<typeof createProjectFixture>>,
   userId: string,
-  {
-    email = `${userId}@example.com`,
-    admin = false,
-    additionalFixture,
-  }: {
-    email?: string;
-    admin?: boolean;
-    additionalFixture?: Awaited<ReturnType<typeof createProjectFixture>>;
-  } = {},
+  { email = `${userId}@example.com` }: { email?: string } = {},
 ) {
   const session: Session = {
     expires: "1",
@@ -249,32 +225,30 @@ function createCallerForFixture(
       name: "In-app Agent Router Test User",
       canCreateOrganizations: true,
       organizations: [
-        fixture,
-        ...(additionalFixture ? [additionalFixture] : []),
-      ].map((projectFixture) => ({
-        id: projectFixture.orgId,
-        name: projectFixture.orgName,
-        role: projectFixture === fixture ? "OWNER" : "VIEWER",
-        plan: "cloud:hobby",
-        cloudConfig: undefined,
-        metadata: {},
-        aiFeaturesEnabled: true,
-        aiTelemetryEnabled: true,
-        projects: [
-          {
-            id: projectFixture.projectId,
-            name: projectFixture.projectName,
-            role: projectFixture === fixture ? "ADMIN" : "VIEWER",
-            deletedAt: null,
-            retentionDays: null,
-            hasTraces: false,
-            metadata: {},
-            createdAt: new Date().toISOString(),
-          },
-        ],
-      })),
+        {
+          id: fixture.orgId,
+          name: fixture.orgName,
+          role: "OWNER",
+          plan: "cloud:hobby",
+          cloudConfig: undefined,
+          metadata: {},
+          aiFeaturesEnabled: true,
+          aiTelemetryEnabled: true,
+          projects: [
+            {
+              id: fixture.projectId,
+              name: fixture.projectName,
+              role: "ADMIN",
+              deletedAt: null,
+              retentionDays: null,
+              hasTraces: false,
+              metadata: {},
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        },
+      ],
       featureFlags: testFeatureFlags(),
-      admin,
     },
     environment: {
       enableExperimentalFeatures: false,

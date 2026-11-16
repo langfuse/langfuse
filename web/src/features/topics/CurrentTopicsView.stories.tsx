@@ -64,8 +64,6 @@ const defaultArgs: ComponentProps<typeof CurrentTopicsView> = {
     setSearchQuery: fn(),
   },
   onOpenTrace: fn(),
-  onGenerateTopics: fn(),
-  canGenerateTopics: true,
   useTraces: staticTopicTraces(rows),
   showUnassigned: true,
   peekView: {
@@ -183,7 +181,7 @@ export const EquivalentMatchesPreserveHoverAndFocus = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const stage = canvas.getByRole("group", { name: /^Interactive topic map/ });
+    const stage = canvas.getByRole("group", { name: /^Interactive scatter/ });
     await waitFor(() =>
       expect(stage.getBoundingClientRect().height).toBeGreaterThan(0),
     );
@@ -291,7 +289,7 @@ async function afterPaint() {
 type ControlledTopicsProps = ComponentProps<typeof CurrentTopicsView>;
 
 export const SummariesWithoutTopics = meta.story({
-  name: "(Test) Summaries without topics open generation",
+  name: "(Test) Summaries without topics explain the analyzed-trace minimum",
   args: {
     facet: {
       ...facet,
@@ -305,15 +303,17 @@ export const SummariesWithoutTopics = meta.story({
       })),
     },
   },
-  play: async ({ canvasElement, args }) => {
+  play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
       canvas.getByRole("region", { name: "Topic traces" }),
     ).toBeVisible();
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Generate topics" }),
-    );
-    await expect(args.onGenerateTopics).toHaveBeenCalledOnce();
+    await expect(
+      canvas.getByText("Not enough analyzed traces yet"),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: "Generate topics" }),
+    ).toBeNull();
   },
 });
 
@@ -433,7 +433,7 @@ export const TraceSelectionAcrossFacets = meta.story({
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    const stage = canvas.getByRole("group", { name: /^Interactive topic map/ });
+    const stage = canvas.getByRole("group", { name: /^Interactive scatter/ });
     await waitFor(() =>
       expect(stage.getBoundingClientRect().height).toBeGreaterThan(0),
     );
@@ -448,7 +448,7 @@ export const TraceSelectionAcrossFacets = meta.story({
       size,
     );
     function clickMap(x = at.x, y = at.y) {
-      const map = canvas.getByRole("group", { name: /^Interactive topic map/ });
+      const map = canvas.getByRole("group", { name: /^Interactive scatter/ });
       const bounds = map.getBoundingClientRect();
       map.dispatchEvent(
         new MouseEvent("click", {

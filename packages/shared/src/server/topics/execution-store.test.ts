@@ -210,6 +210,7 @@ describe("Topics execution store application contract", () => {
               facetId,
               facetVersion: version,
               status: "pending",
+              batchActionId: a.id,
               config: {
                 timeRange: {
                   from: request.timeRange.from.toISOString(),

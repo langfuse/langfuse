@@ -9,6 +9,7 @@ import {
   logger,
   StorageService,
   StorageServiceFactory,
+  storageKeys,
   streamTransformations,
   getObservationsForBlobStorageExport,
   getObservationsForBlobStorageExportRaw,
@@ -390,10 +391,13 @@ const createBlobStorageService = (
       { name: "InvalidGcsServiceAccountKey" },
     );
   }
+  const keys = useGoogleCloudStorage
+    ? undefined
+    : storageKeys(config.accessKeyId, config.secretAccessKey);
   return StorageServiceFactory.getInstance({
-    accessKeyId: useGoogleCloudStorage ? undefined : config.accessKeyId,
-    secretAccessKey: useGoogleCloudStorage ? undefined : config.secretAccessKey,
-    credentials: config.credentials,
+    credentials: config.credentials
+      ? { type: "role", provider: config.credentials }
+      : keys,
     bucketName: config.bucketName,
     endpoint: config.endpoint ?? undefined,
     region: config.region,

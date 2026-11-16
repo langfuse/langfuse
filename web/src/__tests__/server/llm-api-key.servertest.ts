@@ -47,7 +47,6 @@ describe("llmApiKey.all RPC", () => {
       ...session,
       user: {
         ...session.user!,
-        admin: false,
         organizations: [
           {
             ...session.user!.organizations[0],
@@ -109,7 +108,6 @@ describe("llmApiKey.all RPC", () => {
           },
         ],
         featureFlags: testFeatureFlags(),
-        admin: true,
       },
       environment: {} as any,
     };

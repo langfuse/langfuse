@@ -52,8 +52,10 @@ export const MenuRows = meta.story({
               badge={<Badge text="On" size="sm" />}
             />
             <HeaderActionMenuRow
-              label="Regenerate topics"
+              label="Refresh map"
               icon={<RefreshCw size="base" color="default" />}
+              disabled
+              disabledReason="Refreshed recently. Available again in 10 min."
             />
             <HeaderActionMenuRow
               label="History"

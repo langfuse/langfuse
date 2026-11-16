@@ -54,7 +54,6 @@ const caller = () => {
       id: "user-1",
       name: "Demo User",
       email: "demo@langfuse.com",
-      admin: false,
       organizations: [{ id: ORG_ID, name: "Org", role: "OWNER", projects: [] }],
     },
   } as unknown as Session;

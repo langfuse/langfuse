@@ -21,7 +21,6 @@ const session: Session = {
     name: "Background Migrations Test User",
     organizations: [],
     featureFlags: testFeatureFlags(),
-    admin: false,
   },
   environment: {
     enableExperimentalFeatures: false,

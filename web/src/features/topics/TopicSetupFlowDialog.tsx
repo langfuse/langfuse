@@ -1,28 +1,27 @@
-import { Slider } from "@/src/components/ui/Slider";
 import { useState } from "react";
+import type { FilterState } from "@langfuse/shared";
+import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
+import { TopicSliceFields } from "./TopicSliceFields";
+import type { TopicTraceFilterModel } from "./useTopicTraceFilter";
 import {
   ChevronDown,
   ChevronRight,
   Clock,
-  ArrowUpRight,
   Copy,
   Lock,
-  Plug,
   RefreshCw,
 } from "@langfuse/icons";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { Input } from "@/src/components/design-system/Input/Input";
 import { PopoverTrigger } from "@/src/components/ui/popover";
 import { JudgeModelPicker } from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import {
-  TOPIC_SETUP_BACKFILL_DAYS,
+  TOPIC_SETUP_BACKFILL_LIMIT,
   TOPIC_SETUP_WAIT_MINUTES,
   canLeaveTopicQuestions,
   isRecommendedTopicModel,
@@ -31,7 +30,6 @@ import {
   type TopicSetupStep,
   type TopicSetupWaitMinutes,
 } from "./topic-setup-flow";
-import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
 
 const STEP_TITLES: Record<TopicSetupStep, string> = {
   questions: "Set up topics",
@@ -53,7 +51,7 @@ const MODEL_ROWS = [
 
 export type TopicSetupPastCount =
   | { status: "loading" }
-  | { status: "ready"; matched: number; days: number; dailyTraces: number }
+  | { status: "ready"; matched: number; dailyTraces: number }
   | { status: "error"; message: string };
 
 export type TopicSetupFlowDialogProps = {
@@ -86,10 +84,14 @@ export type TopicSetupFlowDialogProps = {
   onSummaryChange: (model: JudgeModel) => void;
   onWaitMinutesChange: (minutes: TopicSetupWaitMinutes) => void;
   pastCount: TopicSetupPastCount;
-  projectId?: string;
   providerGroups: Array<[string, string[]]>;
   questions: TopicSetupQuestion[];
   samplePercent: number;
+  /** The first rule's observation filter; empty means every trace. */
+  projectId: string;
+  filter: FilterState;
+  onFilterChange: (filter: FilterState) => void;
+  traceFilter: TopicTraceFilterModel;
   step: TopicSetupStep;
   summary: JudgeModel | null;
   waitMinutes: TopicSetupWaitMinutes;
@@ -119,14 +121,18 @@ export function TopicSetupFlowDialog({
   onSummaryChange,
   onWaitMinutesChange,
   pastCount,
-  projectId,
   providerGroups,
   questions,
   samplePercent,
+  filter,
+  projectId,
+  onFilterChange,
+  traceFilter,
   step,
   summary,
   waitMinutes,
 }: TopicSetupFlowDialogProps) {
+  const filterValid = traceFilter.ready;
   const models = { summary, embedding, clustering };
   const onModelChange = {
     summary: onSummaryChange,
@@ -159,6 +165,7 @@ export function TopicSetupFlowDialog({
         canWrite,
         canLeaveQuestions,
         canStart,
+        filterValid,
       });
   const notice =
     pastCount.status === "ready" ? backfillNotice(pastCount.matched) : null;
@@ -166,36 +173,31 @@ export function TopicSetupFlowDialog({
   return (
     <Dialog
       title={`${STEP_TITLES[step]} · ${STEP_NUMBERS[step]}`}
+      size="lg"
       {...(viewerBlocked ? { closeLabel: "Close" } : {})}
     >
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 pb-4">
           {step === "questions" ? (
             <>
-              <section className="flex flex-col gap-2">
-                <h2 className="text-sm font-bold">What to look for</h2>
-                <div className="divide-y rounded-md border">
-                  {questions.map((question) => (
-                    <div
-                      key={question.name}
-                      className="grid grid-cols-[16px_minmax(0,1fr)] items-center gap-x-2.5 gap-y-1 px-3 py-2.5 sm:grid-cols-[16px_96px_minmax(0,1fr)]"
-                    >
-                      <Checkbox
-                        checked={question.enabled}
-                        disabled={!canWrite}
-                        aria-label={question.name}
-                        onCheckedChange={(checked) =>
-                          onQuestionEnabled(question.name, checked === true)
-                        }
-                      />
-                      <span className="text-sm font-bold">{question.name}</span>
-                      <span className="text-muted-foreground col-start-2 text-sm sm:col-start-auto">
-                        {question.description}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </section>
+              <TopicSliceFields.Facets
+                facets={questions.map((question) => ({
+                  id: question.name,
+                  name: question.name,
+                  description: question.description,
+                }))}
+                selectedIds={questions
+                  .filter((question) => question.enabled)
+                  .map((question) => question.name)}
+                disabled={!canWrite}
+                onChange={(names) =>
+                  questions.forEach((question) => {
+                    const enabled = names.includes(question.name);
+                    if (enabled !== question.enabled)
+                      onQuestionEnabled(question.name, enabled);
+                  })
+                }
+              />
               <section className="flex flex-col gap-2">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                   <h2 className="text-sm font-bold">
@@ -211,22 +213,7 @@ export function TopicSetupFlowDialog({
                   <AskAdminForConnection url={connectionSettingsUrl} />
                 )}
                 {!hasConnection && canAddConnection && (
-                  <Alert variant="warning" icon={Plug}>
-                    <Alert.Title>
-                      No AI connection in this project yet
-                    </Alert.Title>
-                    <Alert.Description>
-                      <div className="mt-2">
-                        <Button
-                          text="Add connection"
-                          variant="secondary"
-                          size="sm"
-                          icon={ArrowUpRight}
-                          onClick={onConfigureProviders}
-                        />
-                      </div>
-                    </Alert.Description>
-                  </Alert>
+                  <AddConnectionCallout onAdd={onConfigureProviders} />
                 )}
                 {!viewerBlocked && !hasConnection && (
                   <div
@@ -323,47 +310,22 @@ export function TopicSetupFlowDialog({
           ) : null}
           {step === "traces" ? (
             <div className="flex flex-col gap-4">
-              <TopicTraceFilterSection projectId={projectId} />
-              <div className="flex flex-col gap-2">
-                <span className="text-sm font-bold">Sample rate</span>
-                <div className="flex items-center gap-3">
-                  <div className="min-w-0 flex-1">
-                    <Slider
-                      min={1}
-                      max={100}
-                      step={1}
-                      value={[samplePercent]}
-                      aria-label="Sample rate"
-                      disabled={!canWrite}
-                      onValueChange={(value) =>
-                        onSamplePercentChange(value[0] ?? samplePercent)
-                      }
-                    />
-                  </div>
-                  <div className="w-20">
-                    <Input
-                      type="number"
-                      min={1}
-                      inputMode="numeric"
-                      aria-label="Sample rate percent"
-                      value={String(samplePercent)}
-                      disabled={!canWrite}
-                      onChange={(event) => {
-                        const percent = samplePercentFromInput(
-                          event.target.value,
-                        );
-                        if (percent !== null) onSamplePercentChange(percent);
-                      }}
-                    />
-                  </div>
-                  <span className="text-muted-foreground text-sm">%</span>
-                </div>
-                <p className="text-muted-foreground text-sm">
-                  {pastCount.status === "ready"
-                    ? `~${dailyEstimate(pastCount.dailyTraces, samplePercent)} new traces a day, based on the last ${TOPIC_SETUP_BACKFILL_DAYS} days`
-                    : "Share of new traces analyzed once automatic processing is on"}
-                </p>
-              </div>
+              <TopicTraceFilterSection
+                projectId={projectId}
+                filters={filter}
+                onFiltersChange={onFilterChange}
+                model={traceFilter}
+                description="Topics runs on trace-level. If this project traces several agents or AI applications, filter to one so the topic maps are specific to your use case. After first setup, you can add a map for each."
+              />
+              <TopicSliceFields.Sampling
+                value={samplePercent}
+                onChange={onSamplePercentChange}
+                dailyTraces={
+                  pastCount.status === "ready" ? pastCount.dailyTraces : null
+                }
+                disabled={!canWrite}
+                tooltip="Share of matching traces Topics analyzes. Applies to the first backfill and to new traces once automatic processing is on."
+              />
             </div>
           ) : null}
           {step === "review" ? (
@@ -476,17 +438,8 @@ function dailyEstimate(dailyTraces: number, samplePercent: number) {
 function backfillLine(count: TopicSetupPastCount) {
   if (count.status === "loading") return "Counting past traces…";
   if (count.status === "error") return "Could not count past traces";
-  if (count.matched === 0)
-    return `No past traces in the last ${TOPIC_SETUP_BACKFILL_DAYS} days`;
-  const window = count.days === 1 ? "day" : `${count.days} days`;
-  return `Include ~${count.matched.toLocaleString("en-US")} past traces from the last ${window}`;
-}
-
-function samplePercentFromInput(value: string) {
-  if (!/^\d+$/.test(value)) return null;
-  const percent = Number(value);
-  if (percent < 1 || percent > 100) return null;
-  return percent;
+  if (count.matched === 0) return "No matching traces in the last 30 days";
+  return `Runs on up to ${TOPIC_SETUP_BACKFILL_LIMIT.toLocaleString("en-US")} recent traces that match your filters`;
 }
 
 function nextStepDisabled({
@@ -494,6 +447,7 @@ function nextStepDisabled({
   canLeaveQuestions,
   canStart,
   canWrite,
+  filterValid,
   step,
 }: {
   step: TopicSetupStep;
@@ -501,10 +455,11 @@ function nextStepDisabled({
   canWrite: boolean;
   canLeaveQuestions: boolean;
   canStart: boolean;
+  filterValid: boolean;
 }) {
   if (step === "questions") return busy || !canLeaveQuestions;
   if (step === "review") return !canStart;
-  return busy || !canWrite;
+  return busy || !canWrite || !filterValid;
 }
 
 function ModelRow({
@@ -612,17 +567,38 @@ function ReviewRow({
   );
 }
 
+function AddConnectionCallout({ onAdd }: { onAdd: () => void }) {
+  return (
+    <div
+      role="alert"
+      className="bg-light-yellow flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg px-4 py-3 text-sm"
+    >
+      <p>
+        <span className="font-bold">No AI connection in this project yet.</span>{" "}
+        Add one to choose models for analysis.
+      </p>
+      <button
+        type="button"
+        onClick={onAdd}
+        className="text-dark-yellow shrink-0 text-sm font-bold hover:underline"
+      >
+        Add connection
+      </button>
+    </div>
+  );
+}
+
 function AskAdminForConnection({ url }: { url: string }) {
   return (
-    <div className="flex flex-col gap-3 rounded-lg border p-4">
-      <div className="flex items-center gap-2.5 text-sm font-bold">
+    <div className="bg-light-blue flex flex-col gap-3 rounded-lg p-4">
+      <div className="text-dark-blue flex items-center gap-2.5 text-sm font-bold">
         <Lock size="base" aria-hidden="true" />
         An admin needs to add an AI connection
       </div>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm">
         You don&apos;t have permission to add one. Share this with an admin:
       </p>
-      <div className="bg-muted flex items-center gap-2 rounded-md py-1 pr-1 pl-3">
+      <div className="bg-background/60 flex items-center gap-2 rounded-md py-1 pr-1 pl-3">
         <span className="min-w-0 flex-1 truncate font-mono text-xs" title={url}>
           {url}
         </span>

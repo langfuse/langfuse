@@ -171,17 +171,15 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
     () =>
       (evaluatorsQuery.data ?? [])
         .filter((evaluator) => evaluator.blockedAt === null)
-        .map(
-          (evaluator): BatchEvaluator => ({
-            id: evaluator.id,
-            scoreName: evaluator.name,
-            variableMapping:
-              observationVariableMappingList.safeParse(
-                evaluator.latestVersion?.variableMapping,
-              ).data ?? [],
-            prompt: evaluator.latestVersion?.prompt ?? null,
-          }),
-        ),
+        .map((evaluator): BatchEvaluator => ({
+          id: evaluator.id,
+          scoreName: evaluator.name,
+          variableMapping:
+            observationVariableMappingList.safeParse(
+              evaluator.latestVersion?.variableMapping,
+            ).data ?? [],
+          prompt: evaluator.latestVersion?.prompt ?? null,
+        })),
     [evaluatorsQuery.data],
   );
 

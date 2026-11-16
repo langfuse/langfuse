@@ -71,9 +71,9 @@ describe("organization API keys trpc", () => {
     });
   });
 
-  // Instance admins bypass both RBAC and entitlement checks, so this session
-  // cannot cover plan gating. `entitledOwnerCaller` / `unentitledOwnerCaller`
-  // below are the non-admin owners used for that.
+  // Organization-scoped API keys require the `admin-api` entitlement, so the
+  // default owner sits on a plan that carries it. `entitledOwnerCaller` /
+  // `unentitledOwnerCaller` below cover the plan gate explicitly.
   const ownerSession: Session = {
     expires: "1",
     user: {
@@ -85,14 +85,13 @@ describe("organization API keys trpc", () => {
           id: organizationId,
           name: "Test Organization",
           role: "OWNER",
-          plan: "cloud:hobby",
+          plan: "cloud:team",
           cloudConfig: undefined,
           metadata: {},
           projects: [] as SessionOrg["projects"],
         } as SessionOrg,
       ],
       featureFlags: testFeatureFlags(),
-      admin: true,
     },
     environment: {} as any,
   };
@@ -115,7 +114,6 @@ describe("organization API keys trpc", () => {
         } as SessionOrg,
       ],
       featureFlags: testFeatureFlags(),
-      admin: false,
     },
     environment: {} as any,
   };
@@ -138,7 +136,6 @@ describe("organization API keys trpc", () => {
         } as SessionOrg,
       ],
       featureFlags: testFeatureFlags(),
-      admin: false,
     },
     environment: {} as any,
   };
@@ -165,7 +162,6 @@ describe("organization API keys trpc", () => {
   const unAuthedCaller = appRouter.createCaller({ ...unAuthedCtx, prisma });
 
   // Organization-scoped API keys are a paid feature (`admin-api` entitlement).
-  // These owners are deliberately not instance admins so the plan gate applies.
   const ownerSessionOnPlan = (plan: SessionOrg["plan"]): Session => ({
     expires: "1",
     user: {
@@ -184,7 +180,6 @@ describe("organization API keys trpc", () => {
         } as SessionOrg,
       ],
       featureFlags: testFeatureFlags(),
-      admin: false,
     },
     environment: {} as any,
   });
@@ -466,6 +461,7 @@ describe("organization API keys trpc", () => {
           userName: null,
           userEmail: null,
           keyMetadata: {},
+          keyAllowedModels: null,
           ingestionProjectId: null,
           ingestionMode: null,
           plan: "cloud:hobby",
@@ -635,6 +631,7 @@ describe("organization API keys trpc", () => {
           userName: null,
           userEmail: null,
           keyMetadata: {},
+          keyAllowedModels: null,
           ingestionProjectId: null,
           ingestionMode: null,
           plan: "cloud:hobby",
@@ -763,7 +760,6 @@ describe("organization API keys trpc", () => {
             } as SessionOrg,
           ],
           featureFlags: testFeatureFlags(),
-          admin: false,
         },
         environment: {} as any,
       });

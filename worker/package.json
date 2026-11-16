@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "4.76.0",
+  "version": "4.80.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -32,8 +32,9 @@
   },
   "author": "engineering@langfuse.com",
   "dependencies": {
-    "@ag-ui/core": "^0.0.52",
-    "@ag-ui/mastra": "1.1.1",
+    "@ag-ui/core": "catalog:",
+    "@ag-ui/client": "catalog:",
+    "@ag-ui/mastra": "catalog:",
     "@repo/langfuse-skills": "workspace:*",
     "@appsignal/opentelemetry-instrumentation-bullmq": "^0.8.0",
     "@langfuse/native": "workspace:*",
@@ -69,7 +70,7 @@
     "csv-parse": "^7.0.2",
     "dd-trace": "5.131.1",
     "decimal.js": "^10.4.3",
-    "dockerode": "^4.0.9",
+    "dockerode": "^5.0.1",
     "dotenv": "^16.4.5",
     "exponential-backoff": "^3.1.2",
     "express": "^5.2.1",

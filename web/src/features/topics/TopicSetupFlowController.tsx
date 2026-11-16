@@ -1,12 +1,14 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { type FilterState } from "@langfuse/shared";
+import type { FilterState } from "@langfuse/shared";
+import { topicRuleFilterError } from "@langfuse/shared/topics";
+import { useTopicTraceFilter } from "./useTopicTraceFilter";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { env } from "@/src/env.mjs";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
-import { type ConfigureTopicsSettingsInput } from "./TopicModelSettings";
+import { type ConfigureTopicsSettingsInput } from "./useTopicSettings";
 import {
   TopicSetupFlowDialog,
   type TopicSetupPastCount,
@@ -37,6 +39,7 @@ export function TopicSetupFlowController({
   onSaveSampling: (input: {
     enabled: boolean;
     sampling: number;
+    ruleId?: string;
   }) => Promise<unknown>;
   children: (control: { openSetup: () => void }) => ReactNode;
 }) {
@@ -87,6 +90,7 @@ function TopicSetupSession({
   onSaveSampling: (input: {
     enabled: boolean;
     sampling: number;
+    ruleId?: string;
   }) => Promise<unknown>;
   closeDialog: () => void;
 }) {
@@ -114,10 +118,15 @@ function TopicSetupSession({
       utils.topics.modelSettings.invalidate({ projectId });
       utils.topics.facets.invalidate({ projectId });
       utils.topics.rules.invalidate({ projectId });
+      // The page follows the first rule's setup from the maps overview.
+      utils.topics.maps.invalidate({ projectId });
       utils.topics.tracingReadinessSettings.invalidate({ projectId });
     },
   });
-  const startSetup = api.topics.startSetup.useMutation();
+  const startRuleSetup = api.topics.startRuleSetup.useMutation({
+    onSuccess: () => utils.topics.ruleSetupStatus.invalidate({ projectId }),
+  });
+  const testModels = api.topics.testModelSettings.useMutation();
   const connectionSettingsUrl = `${window.location.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}/project/${projectId}/settings/llm-connections`;
   const connections = settings.connections.map(
     (connection): TopicSetupConnection => ({
@@ -134,20 +143,33 @@ function TopicSetupSession({
       connections,
       facets: settings.facets,
       enabledFacetIds: settings.rule ? new Set(settings.rule.facetIds) : null,
+      filter: settings.rule?.filter,
       traceIdleMs: settings.traceIdleMs,
     }),
   );
   const [error, setError] = useState<string | null>(null);
-  // One request per session, so a repeated Start resolves to the same backfill.
-  const [requestId] = useState(() => crypto.randomUUID());
   const [pending, setPending] = useState(false);
   useEffect(() => {
     capture("topics:setup_opened", { source: "start_analyzing" });
   }, [capture]);
+  const changeFilter = (filter: FilterState) =>
+    setDraft((current) => ({ ...current, filter }));
+  const traceFilter = useTopicTraceFilter({
+    projectId,
+    active: draft.step === "traces",
+    filters: draft.filter,
+    onFiltersChange: changeFilter,
+  });
+  // The rule a save created; going Back and Next again must update it, not add one.
+  const [savedRuleId, setSavedRuleId] = useState(settings.rule?.id);
   // Counted once per step 2 visit; the slider only rescales the result.
   const counts = api.topics.setupTraceCounts.useQuery(
-    { projectId },
-    { enabled: draft.step !== "questions", retry: false },
+    { projectId, filter: draft.filter },
+    {
+      enabled:
+        draft.step !== "questions" && !topicRuleFilterError(draft.filter),
+      retry: false,
+    },
   );
   const pastCount = pastTraceCount(
     counts.data,
@@ -156,7 +178,7 @@ function TopicSetupSession({
     counts.isFetching,
   );
 
-  async function saveQuestions() {
+  function resolveModels() {
     const summary = resolveTopicModelSlot(draft.summary, connections, "chat");
     const embedding = resolveTopicModelSlot(
       draft.embedding,
@@ -171,26 +193,22 @@ function TopicSetupSession({
     );
     if (!summary || !embedding || !clustering)
       throw new Error("Choose a model from a connection in this project.");
-    const filter: FilterState = [];
-    await save.mutateAsync({
-      projectId,
+    return {
       summary,
       embedding,
       embeddingDimensions: settings.stored.embeddingDimensions,
       clustering,
-      facets: draft.questions.map((question) => ({
-        name: question.name,
-        enabled: question.enabled,
-      })),
-      customFacetIds: settings.facets.flatMap((facet) =>
-        !facet.isBuiltIn && settings.rule?.facetIds.includes(facet.id)
-          ? [facet.id]
-          : [],
-      ),
-      filter,
-      traceIdleMs: draft.waitMinutes * 60_000,
-      ...(settings.rule ? { ruleId: settings.rule.id } : {}),
+    };
+  }
+
+  // Step 1 only checks the models; nothing is stored until the Traces step.
+  async function checkModels() {
+    const errors = await testModels.mutateAsync({
+      projectId,
+      ...resolveModels(),
     });
+    const messages = Object.values(errors).filter(Boolean);
+    if (messages.length > 0) throw new Error(messages.join(" "));
     capture("topics:setup_step_saved", {
       step: "questions",
       questionCount: draft.questions.filter((question) => question.enabled)
@@ -200,39 +218,42 @@ function TopicSetupSession({
     });
   }
 
-  async function persistSampling(enabled: boolean) {
+  /** Stores the models, the rule (facets and filter) and the idle time together. */
+  async function saveSetup() {
+    const saved = await save.mutateAsync({
+      projectId,
+      ...resolveModels(),
+      facets: draft.questions.map((question) => ({
+        name: question.name,
+        enabled: question.enabled,
+      })),
+      customFacetIds: settings.facets.flatMap((facet) =>
+        !facet.isBuiltIn && settings.rule?.facetIds.includes(facet.id)
+          ? [facet.id]
+          : [],
+      ),
+      filter: draft.filter,
+      traceIdleMs: draft.waitMinutes * 60_000,
+      ...(savedRuleId ? { ruleId: savedRuleId } : { name: "Default" }),
+    });
+    if (saved) setSavedRuleId(saved.id);
+    return saved?.id ?? savedRuleId;
+  }
+
+  // `ruleId` is the rule the setup just saved, before state and the rules query catch up.
+  async function persistSampling(enabled: boolean, ruleId = savedRuleId) {
     await onSaveSampling({
       enabled,
       sampling: draft.samplePercent / 100,
+      ruleId,
     });
   }
 
   async function startAnalyzing() {
+    if (!savedRuleId) throw new Error("Save the trace filter first.");
     await persistSampling(true);
-    const facets = await utils.topics.facets.fetch({ projectId });
-    const enabled = new Set<string>(
-      draft.questions
-        .filter((question) => question.enabled)
-        .map((question) => question.name),
-    );
-    const refs = facets.flatMap((facet) => {
-      const version = facet.versions[0]?.version;
-      if (!facet.isBuiltIn || !enabled.has(facet.name) || !version) return [];
-      return [{ facetId: facet.id, version }];
-    });
-    if (refs.length === 0)
-      throw new Error("Save at least one question before starting.");
-    const { traceCount: backfillCount } = await startSetup.mutateAsync({
-      projectId,
-      requestId,
-      sampling: draft.samplePercent / 100,
-      facets: refs,
-    });
-    await utils.topics.executions.invalidate({ projectId });
-    capture("topics:setup_started", {
-      backfillCount,
-      samplePercent: draft.samplePercent,
-    });
+    await startRuleSetup.mutateAsync({ projectId, ruleId: savedRuleId });
+    capture("topics:setup_started", { samplePercent: draft.samplePercent });
     closeDialog();
   }
 
@@ -242,12 +263,12 @@ function TopicSetupSession({
     setError(null);
     try {
       if (draft.step === "questions") {
-        await saveQuestions();
+        await checkModels();
         setDraft((current) => ({ ...current, step: "traces" }));
         return;
       }
       if (draft.step === "traces") {
-        await persistSampling(false);
+        await persistSampling(false, await saveSetup());
         capture("topics:setup_step_saved", {
           step: "traces",
           samplePercent: draft.samplePercent,
@@ -291,8 +312,11 @@ function TopicSetupSession({
       advancedOpen={draft.advancedOpen}
       waitMinutes={draft.waitMinutes}
       samplePercent={draft.samplePercent}
-      pastCount={pastCount}
       projectId={projectId}
+      filter={draft.filter}
+      onFilterChange={changeFilter}
+      traceFilter={traceFilter}
+      pastCount={pastCount}
       onQuestionEnabled={(name, enabled) =>
         setDraft((current) => ({
           ...current,
@@ -330,24 +354,18 @@ function TopicSetupSession({
 }
 
 function pastTraceCount(
-  counts: { finished1d: number; finished7d: number } | undefined,
+  counts: { finished7d: number; finished30d: number } | undefined,
   samplePercent: number,
   error: string | null,
   fetching: boolean,
 ): TopicSetupPastCount {
   if (counts) {
-    // Mirrors the server: 1 day when it fills the batch, else 7 days.
-    const rate = samplePercent / 100;
-    const window =
-      counts.finished1d * rate >= TOPIC_SETUP_BACKFILL_LIMIT
-        ? { days: 1, count: counts.finished1d }
-        : { days: TOPIC_SETUP_BACKFILL_DAYS, count: counts.finished7d };
+    // Setup reads at most 30 days, so that bounds what it can find.
     return {
       status: "ready",
-      days: window.days,
       matched: Math.min(
         TOPIC_SETUP_BACKFILL_LIMIT,
-        Math.round(window.count * rate),
+        Math.round((counts.finished30d * samplePercent) / 100),
       ),
       dailyTraces: counts.finished7d / TOPIC_SETUP_BACKFILL_DAYS,
     };

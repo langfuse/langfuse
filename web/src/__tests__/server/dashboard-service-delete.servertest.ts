@@ -58,7 +58,6 @@ async function createOwnerCaller() {
         },
       ],
       featureFlags: {
-        searchBar: false,
         excludeClickhouseRead: false,
         templateFlag: true,
         v4BetaToggleVisible: false,
@@ -66,7 +65,6 @@ async function createOwnerCaller() {
         experimentsV4Enabled: false,
         langfuseTopics: false,
       },
-      admin: true,
     },
     environment: {
       enableExperimentalFeatures: false,

@@ -170,7 +170,7 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
     (org) => org.id === orgId,
   );
 
-  if (!sessionOrg && ctx.session.user.admin !== true) {
+  if (!sessionOrg) {
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message: "User is not a member of this organization",
@@ -183,8 +183,7 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
         ...ctx.session,
         user: ctx.session.user,
         orgId: orgId,
-        orgRole:
-          ctx.session.user.admin === true ? Role.OWNER : sessionOrg!.role,
+        orgRole: sessionOrg.role,
       },
     },
   });
@@ -222,8 +221,7 @@ const enforceTraceAccess = t.middleware(async (opts) => {
   // Allow access if:
   // 1. User is a project member
   // 2. Trace is public
-  // 3. User is admin
-  if (!trace.public && !sessionProject && ctx.session?.user?.admin !== true) {
+  if (!trace.public && !sessionProject) {
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message:

@@ -1,9 +1,9 @@
 const STAFF_EMAIL_DOMAINS = ["@clickhouse.com", "@langfuse.com"] as const;
 
 /**
- * Real org and project memberships from the session. Admins who are not
- * members have no entry here; staff access to those resources is granted in
- * the tRPC project and organization middleware.
+ * Org and project memberships from the session, including support access
+ * grants, which the session callback adds as VIEWER memberships flagged with
+ * `supportAccess`.
  */
 type CustomerDataWarningMembership = {
   id: string;
@@ -24,7 +24,6 @@ export type CustomerDataWarning =
 
 type CustomerDataWarningInput = {
   email: string | null | undefined;
-  isAdmin: boolean;
   isLangfuseCloud: boolean;
   projectId: string | null;
   organizationId: string | null;
@@ -59,8 +58,7 @@ export function getCustomerDataWarning(
   input: CustomerDataWarningInput,
 ): CustomerDataWarning | null {
   const hasSupportAccess = input.memberships.some((m) => m.supportAccess);
-  if (!input.isLangfuseCloud || !(input.isAdmin || hasSupportAccess))
-    return null;
+  if (!input.isLangfuseCloud || !hasSupportAccess) return null;
   if (!isStaffEmail(input.email)) return null;
   const memberships = input.memberships.filter((m) => !m.supportAccess);
 

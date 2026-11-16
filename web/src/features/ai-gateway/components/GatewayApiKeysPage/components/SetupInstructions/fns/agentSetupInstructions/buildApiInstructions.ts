@@ -13,7 +13,7 @@ const LIST_MODELS_STEPS: Record<GatewayApiFamily, AgentSetupStep> = {
   OPENAI: {
     title: "List models through the OpenAI route",
     description:
-      "A model list means the gateway key and the provider credential work.",
+      "A model list means the gateway key and the provider connection work.",
     language: "sh",
     code: [
       'curl -s "$LANGFUSE_GATEWAY_HOST/openai/v1/models" \\',
@@ -23,7 +23,7 @@ const LIST_MODELS_STEPS: Record<GatewayApiFamily, AgentSetupStep> = {
   ANTHROPIC: {
     title: "List models through the Anthropic route",
     description:
-      "A model list means the gateway key and the provider credential work.",
+      "A model list means the gateway key and the provider connection work.",
     language: "sh",
     code: [
       'curl -s "$LANGFUSE_GATEWAY_HOST/anthropic/v1/models?limit=1000" \\',
@@ -37,7 +37,9 @@ export function buildApiInstructions(
   context: AgentSetupContext,
 ): AgentSetupInstructions {
   const providers: GatewayApiFamily[] =
-    context.providers.length > 0 ? context.providers : ["OPENAI", "ANTHROPIC"];
+    context.apiProviders.length > 0
+      ? context.apiProviders
+      : ["OPENAI", "ANTHROPIC"];
 
   return {
     id: "api",
@@ -47,8 +49,8 @@ export function buildApiInstructions(
       "Export the gateway host and key, then list the models through the provider routes to check the setup.",
     docsUrl: AGENT_SETUP_DOCS_URLS.api,
     warning:
-      context.providers.length === 0
-        ? "No provider credential is enabled yet. Requests fail until an organization admin adds one."
+      context.apiProviders.length === 0
+        ? "No provider connection is enabled yet. Requests fail until an organization admin adds one."
         : undefined,
     steps: [
       {

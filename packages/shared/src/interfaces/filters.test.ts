@@ -118,6 +118,23 @@ describe("eventsTableSingleFilterList", () => {
   });
 });
 
+describe("null filter value", () => {
+  it.each([{}, { value: null }])(
+    "normalises %o to an empty string",
+    (value) => {
+      const filter = {
+        type: "null",
+        column: "parentObservationId",
+        operator: "is null",
+        ...value,
+      };
+      const expected = { ...filter, value: "" };
+      expect(singleFilter.parse(filter)).toEqual(expected);
+      expect(eventsTableSingleFilter.parse(filter)).toEqual(expected);
+    },
+  );
+});
+
 describe("coerceLegacyEmptyMetadataFilters", () => {
   it.each(["contains", "starts with", "ends with"])(
     "rewrites a legacy empty-value %s metadata filter to `is set` so it parses",

@@ -1,21 +1,42 @@
-import { Lock } from "@langfuse/icons";
+import { BookOpen } from "@langfuse/icons";
 
-import Header from "@/src/components/layouts/header";
-import { GatewaySetupEmptyState } from "@/src/features/ai-gateway/components/GatewaySetupEmptyState/GatewaySetupEmptyState";
+import { Button } from "@/src/components/design-system/Button/Button";
+import { type GatewaySetupSwitchboardProps } from "@/src/features/ai-gateway/components/GatewayOverviewPage/components/GatewaySetupHero/GatewaySetupSwitchboard";
+import { GatewayIdleDiagram } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayIdleDiagram";
+import { GatewayPlaceholder } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayPlaceholder";
+import { GATEWAY_OVERVIEW_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 
 export type GatewayNotSetUpNoticeProps = {
-  title: string;
+  organizationName: string | undefined;
+  providers: GatewaySetupSwitchboardProps["providers"];
 };
 
-export function GatewayNotSetUpNotice({ title }: GatewayNotSetUpNoticeProps) {
+/** Shown to members who cannot set up the gateway while no admin has done so. */
+export function GatewayNotSetUpNotice({
+  organizationName,
+  providers,
+}: GatewayNotSetUpNoticeProps) {
   return (
-    <div className="flex flex-col gap-4">
-      <Header title={title} />
-      <GatewaySetupEmptyState
-        icon={Lock}
-        title="The AI Gateway isn't set up yet"
-        description="Ask your organization admin to set up the AI Gateway."
+    <GatewayPlaceholder.Frame
+      title="AI Gateway isn’t set up yet"
+      description={
+        <>
+          An admin or owner of{" "}
+          <span className="ph-no-capture">
+            {organizationName ?? "your organization"}
+          </span>{" "}
+          needs to connect a provider before you can create a gateway key. Ask
+          them to set it up.
+        </>
+      }
+    >
+      <Button
+        variant="outline"
+        text="Learn more about AI Gateway"
+        icon={BookOpen}
+        href={GATEWAY_OVERVIEW_DOCS_URL}
       />
-    </div>
+      <GatewayIdleDiagram providers={providers} label="Not set up" />
+    </GatewayPlaceholder.Frame>
   );
 }

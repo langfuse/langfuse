@@ -16,6 +16,7 @@ export const Default = meta.story({
     instructions: buildAgentSetupInstructions({
       ...context,
       providers: ["ANTHROPIC", "OPENAI"],
+      apiProviders: ["ANTHROPIC", "OPENAI"],
     }),
   },
 });
@@ -41,6 +42,7 @@ export const TestWarnsWithoutAnthropic = meta.story({
     instructions: buildAgentSetupInstructions({
       ...context,
       providers: ["OPENAI"],
+      apiProviders: ["OPENAI"],
     }),
   },
   play: async ({ canvasElement }) => {
@@ -48,7 +50,7 @@ export const TestWarnsWithoutAnthropic = meta.story({
     await userEvent.click(canvas.getByRole("tab", { name: "Claude" }));
 
     await expect(
-      canvas.getByText(/needs an Anthropic provider credential/),
+      canvas.getByText(/needs an Anthropic provider connection/),
     ).toBeVisible();
   },
 });

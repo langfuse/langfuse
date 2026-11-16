@@ -7,7 +7,7 @@ import { hasOwnRole } from "./hasOwnRole";
 import { env } from "@/src/env.mjs";
 import { isInternalViewEnabled } from "@/src/features/feature-flags/utils";
 
-/** Non-admins need Internal view and project permissions for demo LLM operations. */
+/** Demo LLM operations need Internal view and project permissions. */
 const demoProjectLlmScopes = new Set<ProjectScope>([
   "playground:execute",
   "topics:CUD",
@@ -23,7 +23,6 @@ type HasProjectAccessParams = (
   | {
       role: Role;
       scope: ProjectScope;
-      admin?: boolean; // prop user.admin
     }
   | {
       session: null | Session;
@@ -57,7 +56,6 @@ export const useHasProjectAccess = (p: {
   const { scope, projectId } = p;
   const session = useSession();
 
-  if (session.data?.user?.admin) return true;
   if (!projectId) return false;
 
   return hasProjectAccess({ session: session.data, scope, projectId });
@@ -65,9 +63,6 @@ export const useHasProjectAccess = (p: {
 
 // For use in UI components as function, if session is already available
 export function hasProjectAccess(p: HasProjectAccessParams): boolean {
-  const isAdmin = hasOwnRole(p) ? p.admin : p.session?.user?.admin;
-  if (isAdmin) return true;
-
   if (isDemoProjectLlmRestricted(p)) return false;
 
   const projectRole: Role | undefined = hasOwnRole(p)

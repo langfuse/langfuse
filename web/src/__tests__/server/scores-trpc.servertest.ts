@@ -103,7 +103,6 @@ describe("scores trpc", () => {
           },
         ],
         featureFlags: testFeatureFlags(),
-        admin: true,
       },
       environment: {} as any,
     };

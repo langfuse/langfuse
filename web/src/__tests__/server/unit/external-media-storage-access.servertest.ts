@@ -1,10 +1,11 @@
-import { type Organization } from "@langfuse/shared/src/db";
+import { type Organization, type PrismaClient } from "@langfuse/shared/src/db";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   cloudRegion: undefined as string | undefined,
   licenseKey: undefined as string | undefined,
   allowlist: [] as string[],
+  crossAccountRoleArn: "arn:aws:iam::210987654321:role/cross-account",
 }));
 
 // Override only the values the gate reads, so the real
@@ -28,7 +29,16 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
   };
 });
 
+vi.mock(
+  "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials",
+  async (importOriginal) => ({
+    ...(await importOriginal<object>()),
+    getCrossAccountRoleArn: () => mocks.crossAccountRoleArn,
+  }),
+);
+
 import { hasExternalMediaStorageAccess } from "@/src/ee/features/external-media-storage/server/hasExternalMediaStorageAccess";
+import { createExternalMediaStorageService } from "@/src/ee/features/external-media-storage/server/service";
 
 const organization = (cloudConfig: unknown = null) =>
   ({ id: "org-allowlisted", cloudConfig }) as Organization;
@@ -70,5 +80,43 @@ describe("hasExternalMediaStorageAccess", () => {
 
     mocks.licenseKey = "langfuse_ee_test";
     expect(hasExternalMediaStorageAccess(organization())).toBe(true);
+  });
+});
+
+describe("external media storage IAM role auth", () => {
+  beforeEach(() => {
+    setCloudRegion("EU");
+    mocks.allowlist = ["org-allowlisted"];
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  const roleAuthAvailability = (plan: "cloud:pro" | "cloud:enterprise") =>
+    createExternalMediaStorageService({
+      project: {
+        findUnique: async () => ({ organization: organization() }),
+      },
+    } as unknown as PrismaClient).getRoleAuthAvailability({
+      projectId: "project-1",
+      plan,
+    });
+
+  it("is granted by the allowlist or the plan, and otherwise offered as an upgrade", async () => {
+    const available = {
+      crossAccountRoleArn: mocks.crossAccountRoleArn,
+      roleAuthRequiresUpgrade: false,
+    };
+    await expect(roleAuthAvailability("cloud:pro")).resolves.toEqual(available);
+
+    mocks.allowlist = [];
+    await expect(roleAuthAvailability("cloud:enterprise")).resolves.toEqual(
+      available,
+    );
+    await expect(roleAuthAvailability("cloud:pro")).resolves.toEqual({
+      crossAccountRoleArn: null,
+      roleAuthRequiresUpgrade: true,
+    });
   });
 });

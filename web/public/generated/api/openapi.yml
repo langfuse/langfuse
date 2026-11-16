@@ -3560,8 +3560,9 @@ paths:
         Multiple filtering options are available via query parameters or the
         structured `filter` parameter.
 
-        When using the `filter` parameter, it takes precedence over individual
-        query parameter filters.
+        A condition in the `filter` parameter replaces the query parameter for
+        the same field. Query parameters for other fields still apply. A
+        `startTime` condition replaces both `fromStartTime` and `toStartTime`.
       operationId: observations_getMany
       tags:
         - Observations
@@ -3732,9 +3733,11 @@ paths:
         - name: filter
           in: query
           description: >-
-            JSON string containing an array of filter conditions. When provided,
-            this takes precedence over query parameter filters (userId, name,
-            type, level, environment, fromStartTime, ...).
+            JSON string containing an array of filter conditions. A condition on
+            the same field as a query parameter filter (userId, name, type,
+            level, environment, fromStartTime, ...) replaces that parameter.
+            Query parameters for other fields still apply. A `startTime`
+            condition replaces both `fromStartTime` and `toStartTime`.
 
 
             ## Filter Structure
@@ -3745,21 +3748,19 @@ paths:
 
             [
               {
-                "type": string,           // Required. One of: "datetime", "string", "number", "stringOptions", "categoryOptions", "arrayOptions", "stringObject", "numberObject", "boolean", "null"
+                "type": string,           // Required. One of: "datetime", "string", "number", "stringOptions", "arrayOptions", "stringObject", "boolean", "null"
                 "column": string,         // Required. Column to filter on (see available columns below)
                 "operator": string,       // Required. Operator based on type:
                                           // - datetime: ">", "<", ">=", "<="
-                                          // - string: "=", "contains", "does not contain", "starts with", "ends with", "matches"
-                                          // - stringOptions: "any of", "none of"
-                                          // - categoryOptions: "any of", "none of"
+                                          // - string: "=", "contains", "does not contain", "starts with", "ends with", "is not empty", "matches" (input/output only)
+                                          // - stringOptions: "any of", "none of" (works on any string column except input/output)
                                           // - arrayOptions: "any of", "none of", "all of"
                                           // - number: "=", ">", "<", ">=", "<="
                                           // - stringObject: "=", "contains", "does not contain", "starts with", "ends with", "matches", "is set", "is not set"
-                                          // - numberObject: "=", ">", "<", ">=", "<="
                                           // - boolean: "=", "<>"
                                           // - null: "is null", "is not null"
-                "value": any,             // Required (except for null type). Value to compare against. Type depends on filter type
-                "key": string             // Required only for stringObject, numberObject, and categoryOptions types when filtering on nested fields like metadata
+                "value": any,             // Required. Type depends on filter type: ISO 8601 string for datetime, JSON number for number (not a numeric string), array of strings for stringOptions/arrayOptions, boolean for boolean, and "" (empty string) for null
+                "key": string             // Required only for stringObject (the metadata key to filter on)
               }
             ]
 
@@ -3855,9 +3856,12 @@ paths:
             - `output` (string) - Observation output. Supports accelerated
             indexed literal search with the `matches` operator.
 
-            - `metadata` (stringObject/numberObject/categoryOptions) - Metadata
-            key-value pairs. Use `key` parameter to filter on specific metadata
-            keys.
+            - `metadata` (stringObject) - Metadata key-value pairs. Use the
+            `key` parameter to filter on a specific metadata key. Metadata
+            values are stored as strings, so match numbers and booleans by their
+            string form with `=` (for example `"value": "true"` or `"value":
+            "42"`); numeric comparisons such as `>` are not supported on
+            metadata.
 
 
             The `matches` operator is only supported for `input`, `output`, and
@@ -4884,12 +4888,19 @@ paths:
                   type: array
                   items:
                     type: string
+                  nullable: true
                   description: >-
                     New labels for the prompt version. Labels are unique across
                     versions. The "latest" label is reserved and managed by
                     Langfuse.
-              required:
-                - newLabels
+                removeLabels:
+                  type: array
+                  items:
+                    type: string
+                  nullable: true
+                  description: >-
+                    Labels to remove from the prompt version. The "latest" label
+                    is reserved and managed by Langfuse.
   /api/public/v2/prompts/{promptName}:
     get:
       description: Get a prompt
@@ -11010,8 +11021,8 @@ components:
           type: string
           const: ''
           description: >-
-            Required empty-string placeholder used by the runtime filter
-            contract.
+            Empty-string placeholder. Can be omitted on servers newer than
+            v4.78.0.
       required:
         - column
         - operator
@@ -15077,7 +15088,8 @@ components:
 
         | `boolean` | boolean | `=`, `<>` |
 
-        | `null` | `""` | `is null`, `is not null` |
+        | `null` | `""` (can be omitted on servers newer than v4.78.0) | `is
+        null`, `is not null` |
 
         | `stringOptions` | list of strings | `any of`, `none of` |
 

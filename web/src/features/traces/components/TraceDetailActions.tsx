@@ -5,6 +5,7 @@ import { useShareMenuItems } from "@/src/components/useShareMenuItems";
 import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { DeleteTraceDialogController } from "@/src/features/traces/components/DeleteTraceDialogController";
+import { TopicsTranscriptDialogController } from "@/src/features/traces/components/TopicsTranscriptDialogController";
 import { TraceTranscriptDialogController } from "@/src/features/traces/components/TraceTranscriptDialogController";
 import { useDownloadTraceAsJson } from "@/src/features/traces/hooks/useDownloadTraceAsJson";
 import { type useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
@@ -58,14 +59,23 @@ export function TraceDetailActions({
       traceId={trace.id}
       timestamp={trace.timestamp}
     >
-      {({ openDialog }) => (
-        <LoadedTraceDetailActions
-          trace={trace}
-          {...props}
-          onShowTranscript={openDialog}
+      {({ openDialog: openTranscriptDialog }) => (
+        <TopicsTranscriptDialogController
+          projectId={trace.projectId}
+          traceId={trace.id}
+          timestamp={trace.timestamp}
         >
-          {children}
-        </LoadedTraceDetailActions>
+          {({ openDialog: openTopicsTranscriptDialog }) => (
+            <LoadedTraceDetailActions
+              trace={trace}
+              {...props}
+              onShowTranscript={openTranscriptDialog}
+              onShowTopicsTranscript={openTopicsTranscriptDialog}
+            >
+              {children}
+            </LoadedTraceDetailActions>
+          )}
+        </TopicsTranscriptDialogController>
       )}
     </TraceTranscriptDialogController>
   );
@@ -80,10 +90,12 @@ function LoadedTraceDetailActions({
   onAfterDelete,
   isPlaceholderData,
   onShowTranscript,
+  onShowTopicsTranscript,
   children,
 }: Omit<TraceDetailActionsProps, "trace"> & {
   trace: TraceDetailData;
   onShowTranscript?: () => void;
+  onShowTopicsTranscript?: () => void;
 }) {
   const shareItems = useShareMenuItems({
     kind: "trace",
@@ -126,6 +138,18 @@ function LoadedTraceDetailActions({
                       icon: FileText,
                       badge: <FeatureReleaseStatus status="internal" />,
                       onClick: onShowTranscript,
+                    },
+                  ]
+                : []),
+              ...(onShowTopicsTranscript
+                ? [
+                    {
+                      type: "item" as const,
+                      id: "show-topics-transcript",
+                      title: "Show topics transcript",
+                      icon: FileText,
+                      badge: <FeatureReleaseStatus status="internal" />,
+                      onClick: onShowTopicsTranscript,
                     },
                   ]
                 : []),

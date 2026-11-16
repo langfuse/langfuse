@@ -41,7 +41,6 @@ import {
 } from "@/src/features/in-app-agent/server/rateLimit";
 import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/runCapacity";
 import { hasInternalAccess } from "@/src/features/feature-flags/utils";
-import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { canViewTopics } from "@/src/features/topics/topicsAccess";
 import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
 import {
@@ -231,7 +230,6 @@ export const inAppAgentRouter = createTRPCRouter({
       const rateLimitScope = getInAppAgentApiAccessScope(
         ctx.session.user,
         input.projectId,
-        projectAvailability,
       );
 
       await assertInAppAgentRateLimit(rateLimitScope, "in-app-agent-run");
@@ -285,7 +283,7 @@ export const inAppAgentRouter = createTRPCRouter({
   decideToolApproval: protectedProjectProcedureWithoutTracing
     .input(DecideToolApprovalInput)
     .mutation(async ({ ctx, input }) => {
-      const projectAvailability = await assertInAppAgentAvailable({
+      await assertInAppAgentAvailable({
         prisma: ctx.prisma,
         projectId: input.projectId,
         user: ctx.session.user,
@@ -295,7 +293,6 @@ export const inAppAgentRouter = createTRPCRouter({
       const rateLimitScope = getInAppAgentApiAccessScope(
         ctx.session.user,
         input.projectId,
-        projectAvailability,
       );
 
       await assertInAppAgentRateLimit(rateLimitScope, "in-app-agent-run");
@@ -471,8 +468,8 @@ export const inAppAgentRouter = createTRPCRouter({
   /**
    * The project this instance traces assistant turns into, where each
    * conversation is a session. Internal surface only: null when the
-   * organization opted out of AI telemetry, tracing is not configured,
-   * or the user cannot read the telemetry project's sessions.
+   * organization opted out of AI telemetry or tracing is not configured.
+   * Access to the session itself is enforced by the telemetry project.
    */
   telemetryProject: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
@@ -480,7 +477,6 @@ export const inAppAgentRouter = createTRPCRouter({
       if (
         !hasInternalAccess({
           email: ctx.session.user.email,
-          isAdmin: ctx.session.user.admin === true,
           isExperimentalFeaturesEnabled:
             env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
         })
@@ -495,19 +491,10 @@ export const inAppAgentRouter = createTRPCRouter({
         projectId: input.projectId,
         user: ctx.session.user,
       });
-      const telemetryProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
-
       return {
-        projectId:
-          projectAvailability.aiTelemetryEnabled &&
-          telemetryProjectId &&
-          hasProjectAccess({
-            session: ctx.session,
-            projectId: telemetryProjectId,
-            scope: "sessions:read",
-          })
-            ? telemetryProjectId
-            : null,
+        projectId: projectAvailability.aiTelemetryEnabled
+          ? (env.LANGFUSE_AI_FEATURES_PROJECT_ID ?? null)
+          : null,
       };
     }),
 });

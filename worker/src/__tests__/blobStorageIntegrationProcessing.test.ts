@@ -59,6 +59,7 @@ import {
   createEventsCh,
   StorageService,
   StorageServiceFactory,
+  storageKeys,
   BlobStorageIntegrationProcessingQueue,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
@@ -103,16 +104,14 @@ describe("BlobStorageIntegrationProcessingJob", () => {
 
   beforeAll(async () => {
     storageService = StorageServiceFactory.getInstance({
-      accessKeyId,
-      secretAccessKey,
+      credentials: storageKeys(accessKeyId, secretAccessKey),
       bucketName,
       endpoint,
       region,
       forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
     });
     s3StorageService = StorageServiceFactory.getInstance({
-      accessKeyId: minioAccessKeyId,
-      secretAccessKey: minioAccessKeySecret,
+      credentials: storageKeys(minioAccessKeyId, minioAccessKeySecret),
       bucketName,
       endpoint: minioEndpoint,
       region,

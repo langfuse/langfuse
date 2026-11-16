@@ -10,7 +10,6 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
   applyCommentFilters,
-  traceException,
   getTracesTable,
   getTracesTableCount,
   getScoresForTraces,
@@ -279,7 +278,8 @@ export const traceRouter = createTRPCRouter({
         scores: traceScores,
         dataTypes: LISTABLE_SCORE_TYPES,
         includeHasMetadata: true,
-        onParseError: traceException,
+        onParseError: (error) =>
+          logger.warn("Invalid score omitted from response", { error }),
       });
 
       return res.map((row) => ({
@@ -426,7 +426,8 @@ export const traceRouter = createTRPCRouter({
       const validatedScores = filterAndValidateDbScoreList({
         scores: traceScores,
         dataTypes: [...ScoreDataTypeArray],
-        onParseError: traceException,
+        onParseError: (error) =>
+          logger.warn("Invalid score omitted from response", { error }),
       });
 
       const [corrections, scores] = partition(

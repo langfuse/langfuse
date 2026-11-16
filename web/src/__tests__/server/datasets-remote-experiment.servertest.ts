@@ -44,7 +44,6 @@ const prepare = async (projectRole: "ADMIN" | "MEMBER" = "ADMIN") => {
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin: false,
     },
     environment: {} as any,
   };

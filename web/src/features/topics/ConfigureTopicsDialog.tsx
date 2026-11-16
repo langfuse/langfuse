@@ -1,10 +1,9 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { AlertTriangle, ExternalLinkIcon } from "@langfuse/icons";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
-import DocPopup from "@/src/components/layouts/doc-popup";
 import { Input } from "@/src/components/design-system/Input/Input";
-import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Button as LegacyButton } from "@/src/components/ui/button";
 import { PopoverTrigger } from "@/src/components/ui/popover";
 import {
@@ -12,28 +11,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 import {
   JudgeModelPicker,
   JudgeModelPickerTrigger,
 } from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
-import { type FilterState } from "@langfuse/shared";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
-
-type FacetDraft = {
-  id: string;
-  name: string;
-  description?: string;
-  question: string;
-  builtIn: boolean;
-  enabled: boolean;
-};
-
-const MAX_ENABLED_FACETS = 5;
-const ADD_FACET_TAB = "add-facet";
 
 export type TopicSlotCheck = {
   status: "idle" | "testing" | "ok" | "error";
@@ -45,8 +27,6 @@ export type ConfigureTopicsSaveDraft = {
   embedding: JudgeModel | null;
   embeddingDimensions: string;
   clustering: JudgeModel | null;
-  facets: FacetDraft[];
-  filters: FilterState;
   idleSeconds: string;
 };
 
@@ -55,8 +35,6 @@ export type ConfigureTopicsDraft = {
   embedding: JudgeModel | null;
   embeddingDimensions: string;
   clustering: JudgeModel | null;
-  facets: FacetDraft[];
-  filters: FilterState;
   idleSeconds: string;
   embeddingLocked: boolean;
   /**
@@ -84,6 +62,8 @@ type ConfigureTopicsDialogProps = {
   canWrite?: boolean;
   saving?: boolean;
   saveError?: string | null;
+  /** Shown only for projects whose automatic analysis is off. */
+  automaticProcessingOff?: { onTurnOn: () => void; pending: boolean };
 } & (
   | { notice: "none" }
   | {
@@ -127,6 +107,7 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
     saveError = null,
     saving = false,
     slotChecks,
+    automaticProcessingOff,
   } = props;
   const paused =
     props.notice === "paused"
@@ -141,11 +122,8 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
   const [embedding, setEmbedding] = useState(draft.embedding);
   const [dimensions, setDimensions] = useState(draft.embeddingDimensions);
   const [clustering, setClustering] = useState(draft.clustering);
-  const [facets, setFacets] = useState(draft.facets);
-  const [browsing, setBrowsing] = useState(facets[0]?.id ?? ADD_FACET_TAB);
   const [idleSeconds, setIdleSeconds] = useState(draft.idleSeconds);
   const modelsReady = Boolean(summary && embedding && clustering);
-  const enabledFacets = facets.filter((facet) => facet.enabled);
   const testsReady =
     !slotChecks ||
     (["summary", "embedding", "clustering"] as const).every(
@@ -165,10 +143,7 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
   const canSave =
     canWrite &&
     !saving &&
-    enabledFacets.length > 0 &&
     (draft.automaticProcessing ? modelsPass : changedSlotsPass);
-  const browsed = facets.find((facet) => facet.id === browsing) ?? null;
-  const atFacetCap = enabledFacets.length >= MAX_ENABLED_FACETS;
   const commitSlot = (
     slot: "summary" | "embedding" | "clustering",
     model: JudgeModel,
@@ -176,26 +151,9 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
   ) => {
     onSlotCommit?.(slot, model, nextDimensions);
   };
-  const setFacetEnabled = (id: string, enabled: boolean) => {
-    setFacets((current) => {
-      const enabledCount = current.filter((facet) => facet.enabled).length;
-      const target = current.find((facet) => facet.id === id);
-      if (
-        enabled &&
-        target &&
-        !target.enabled &&
-        enabledCount >= MAX_ENABLED_FACETS
-      )
-        return current;
-      return current.map((facet) =>
-        facet.id === id ? { ...facet, enabled } : facet,
-      );
-    });
-  };
-
   return (
     <Dialog
-      title="Configure Topics"
+      title="Settings"
       size="lg"
       actions={[
         {
@@ -218,8 +176,6 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
               embedding,
               embeddingDimensions: dimensions,
               clustering,
-              facets,
-              filters: draft.filters,
               idleSeconds,
             }),
           )
@@ -227,13 +183,30 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
             .catch(() => undefined);
         }}
       >
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-4">
-          <Alert variant="info">
-            <Alert.Description>
-              These settings apply to the whole project. Choose which traces to
-              process in Automatic processing or for each manual batch.
-            </Alert.Description>
-          </Alert>
+        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-4 pb-4">
+          <p className="bg-light-blue text-dark-blue rounded-md px-4 py-2.5 text-sm">
+            Applies to every map in this project. Questions and filters live in
+            Edit map.
+          </p>
+          {automaticProcessingOff ? (
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col gap-1">
+                <h3 className="text-sm leading-none font-bold">
+                  Automatic analysis
+                </h3>
+                <p className="text-muted-foreground text-sm">
+                  Off for this project.
+                </p>
+              </div>
+              <Button
+                text="Turn on"
+                size="sm"
+                variant="outline"
+                loading={automaticProcessingOff.pending}
+                onClick={automaticProcessingOff.onTurnOn}
+              />
+            </div>
+          ) : null}
           {paused ? (
             <PausedNotice
               shortLabel={paused.shortLabel}
@@ -242,11 +215,9 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
               onConfigureProviders={onConfigureProviders}
             />
           ) : null}
-          <Stepper
-            number={1}
+          <SettingsSection
             title="Models"
             description="The connections and models used for summaries, embeddings, and clustering."
-            compactBottomSpacing
           >
             <ModelSlot
               name="summary"
@@ -293,33 +264,10 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
                 commitSlot("clustering", model);
               }}
             />
-          </Stepper>
-          <Stepper
-            number={2}
-            title="Facets"
-            description={
-              <>
-                Choose which questions you want answered. Five can be on.
-                <DocPopup description="A facet is one question Topics answers for every trace, such as what the user asked for, how the run ended, or which issues came up. Answers to the same facet are clustered into topics." />
-              </>
-            }
-            compactBottomSpacing
-          >
-            <FacetPicker
-              facets={facets}
-              browsing={browsing}
-              browsed={browsed}
-              atCap={atFacetCap}
-              canWrite={canWrite}
-              onBrowse={setBrowsing}
-              onEnabledChange={setFacetEnabled}
-            />
-          </Stepper>
-          <Stepper
-            number={3}
+          </SettingsSection>
+          <SettingsSection
             title="Trace readiness"
             description="Set when a trace is ready to be summarized across the project."
-            compactBottomSpacing
           >
             <div className="flex items-center gap-2">
               <div className="w-24 shrink-0">
@@ -337,7 +285,7 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
                 the trace done and summarizing it.
               </p>
             </div>
-          </Stepper>
+          </SettingsSection>
         </div>
         {saveError ? (
           <p className="text-destructive px-4 pb-2 text-sm">{saveError}</p>
@@ -456,93 +404,6 @@ function SlotStatus({
   return <p className="text-muted-foreground text-xs">{recommendation}</p>;
 }
 
-function FacetPicker({
-  atCap,
-  browsed,
-  browsing,
-  canWrite,
-  facets,
-  onBrowse,
-  onEnabledChange,
-}: {
-  atCap: boolean;
-  browsed: FacetDraft | null;
-  browsing: string;
-  canWrite: boolean;
-  facets: FacetDraft[];
-  onBrowse: (id: string) => void;
-  onEnabledChange: (id: string, enabled: boolean) => void;
-}) {
-  const enabledCount = facets.filter((facet) => facet.enabled).length;
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="-m-1 max-w-full overflow-x-auto p-1">
-        <Tabs value={browsing} onValueChange={onBrowse}>
-          <Tabs.List
-            aria-label="Facets"
-            variant="inset"
-            size="sm"
-            layout="packed"
-          >
-            {facets.map((facet) => (
-              <Tabs.Trigger key={facet.id} value={facet.id} title={facet.name}>
-                <span
-                  className={`size-1.5 shrink-0 rounded-full ${facet.enabled ? "bg-dark-green" : "bg-border"}`}
-                />
-                <span className="truncate" title={facet.name}>
-                  {facet.name}
-                </span>
-              </Tabs.Trigger>
-            ))}
-            <Tabs.Trigger value={ADD_FACET_TAB} label="Add my own" />
-          </Tabs.List>
-        </Tabs>
-      </div>
-      {browsed ? (
-        <div className="flex flex-col gap-2">
-          {browsed.description && (
-            <p className="text-muted-foreground text-sm break-words">
-              {browsed.description}
-            </p>
-          )}
-          <div className="bg-muted/50 max-h-48 overflow-y-auto rounded-md border px-3 py-2 text-sm leading-5 break-words whitespace-pre-wrap">
-            {browsed.question}
-          </div>
-          <label className="flex items-center gap-2 text-sm">
-            <Switch
-              checked={browsed.enabled}
-              disabled={!canWrite || (atCap && !browsed.enabled)}
-              aria-label={`Enable ${browsed.name}`}
-              onCheckedChange={(checked) =>
-                onEnabledChange(browsed.id, checked)
-              }
-            />
-            {browsed.enabled ? "On" : "Off"}
-            {browsed.builtIn ? (
-              <span className="text-muted-foreground text-xs">Built-in</span>
-            ) : null}
-          </label>
-          {atCap && !browsed.enabled ? (
-            <p className="text-muted-foreground text-xs">
-              Five facets can be on. Turn one off to enable another.
-            </p>
-          ) : (
-            <p className="text-muted-foreground text-xs">
-              {enabledCount} of {MAX_ENABLED_FACETS} on
-            </p>
-          )}
-        </div>
-      ) : (
-        <p className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
-          <FeatureReleaseStatus status="coming-soon" />
-          Custom facets with your own questions. This setup uses the built-in
-          facets for now.
-        </p>
-      )}
-    </div>
-  );
-}
-
 function PausedNotice({
   message,
   onConfigureProviders,
@@ -596,4 +457,25 @@ function PausedNotice({
 
 function sameModel(a: JudgeModel | null, b: JudgeModel | null) {
   return a?.provider === b?.provider && a?.model === b?.model;
+}
+
+/** A titled block of the Settings dialog, styled like the scan dialogs' sections. */
+function SettingsSection({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className="flex min-w-0 flex-col gap-3">
+      <div className="flex flex-col gap-1">
+        <h3 className="text-sm font-bold">{title}</h3>
+        <p className="text-muted-foreground text-sm">{description}</p>
+      </div>
+      {children}
+    </section>
+  );
 }

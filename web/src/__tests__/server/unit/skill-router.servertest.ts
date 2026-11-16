@@ -46,7 +46,6 @@ function createCaller(
     user: {
       id: "user",
       canCreateOrganizations: false,
-      admin: false,
       organizations: [
         {
           id: "organization",
@@ -74,7 +73,6 @@ function createCaller(
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: true,
-        searchBar: false,
         v4BetaToggleVisible: false,
         observationEvals: false,
         experimentsV4Enabled: false,

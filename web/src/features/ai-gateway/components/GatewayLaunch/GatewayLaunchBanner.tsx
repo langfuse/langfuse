@@ -51,7 +51,7 @@ export function GatewayLaunchBanner({
         {({ onDismiss }) => (
           <div
             className={cn(
-              "bg-surface-section relative mt-2 mb-4 flex h-24 items-center gap-6 overflow-hidden rounded-lg pr-12 pl-6",
+              "bg-surface-section relative mt-2 mb-4 flex min-h-24 items-center gap-6 overflow-hidden rounded-lg py-4 pr-12 pl-6",
               styles.dotGrid,
               styles.bannerDots,
             )}
@@ -61,15 +61,12 @@ export function GatewayLaunchBanner({
                 <span className="text-base font-bold">AI Gateway</span>
                 <FeatureReleaseStatus status="beta" />
               </div>
-              <p
-                className="text-muted-foreground truncate text-base"
-                title="Trace and monitor your AI usage by installing the Langfuse AI Gateway in 2 minutes."
-              >
+              <p className="text-muted-foreground text-base">
                 Trace and monitor your AI usage by installing the Langfuse AI
                 Gateway in 2 minutes.
               </p>
             </div>
-            <div className="mr-12 hidden h-full w-72 shrink-0 xl:block">
+            <div className="-my-4 mr-12 hidden h-24 w-72 shrink-0 xl:block">
               <GatewaySwitchboard variant="banner" />
             </div>
             <div className="flex shrink-0 items-center gap-2">

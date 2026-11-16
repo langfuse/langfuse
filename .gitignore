@@ -133,3 +133,6 @@ ds-bundle/
 .design-sync/ds-package/public-assets.js
 .design-sync/upload-*.txt
 .design-sync/chunk-*.json
+
+# local redis snapshots
+dump.rdb

@@ -59,7 +59,6 @@ async function prepare({
       id: "user-1",
       canCreateOrganizations: false,
       name: "Demo User",
-      admin: false,
       organizations: [
         {
           id: org.id,
@@ -356,7 +355,7 @@ describe("externalMediaStorage tRPC", () => {
       ).rejects.toMatchObject({ code: "BAD_REQUEST" });
     });
 
-    it("answers FORBIDDEN without the Enterprise plan and hides the cross-account role", async () => {
+    it("answers FORBIDDEN without the Enterprise plan and offers IAM role auth as an upgrade", async () => {
       (getCrossAccountRoleArn as Mock).mockReturnValue(CROSS_ACCOUNT_ROLE_ARN);
       const { project, caller } = await prepare({ plan: "cloud:team" });
 
@@ -365,7 +364,10 @@ describe("externalMediaStorage tRPC", () => {
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
       await expect(
         caller.externalMediaStorage.get({ projectId: project.id }),
-      ).resolves.toMatchObject({ crossAccountRoleArn: null });
+      ).resolves.toMatchObject({
+        crossAccountRoleArn: null,
+        roleAuthRequiresUpgrade: true,
+      });
     });
 
     it("answers INTERNAL_SERVER_ERROR without the AWS message when the cross-account role fails", async () => {

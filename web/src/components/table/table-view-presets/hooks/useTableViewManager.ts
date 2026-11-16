@@ -97,6 +97,8 @@ const hasQueryParam = (
 ) => {
   const value = query[key];
   if (Array.isArray(value)) return value.length > 0;
+  // An empty `filter` is an explicit "no filters", matching useSidebarFilterState.
+  if (key === "filter") return value !== undefined;
   return value !== undefined && value !== "";
 };
 

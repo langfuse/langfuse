@@ -110,12 +110,7 @@ export function DecisionModelQuestionCard({
       disabled={false}
       triggerTitle={expanded ? "Collapse question" : "Expand question"}
       header={
-        <span className="grid min-w-0 grid-cols-[auto_auto_minmax(0,1fr)_auto] items-baseline gap-x-1">
-          <copy.icon
-            size="base"
-            __rawClassName="self-center"
-            aria-label={copy.label}
-          />
+        <span className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-baseline gap-x-1">
           <Badge
             color={question.scoreName.trim() ? "filled" : "warning"}
             text={question.scoreName.trim() || "score name missing"}

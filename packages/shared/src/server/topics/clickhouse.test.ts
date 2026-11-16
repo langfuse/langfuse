@@ -221,6 +221,45 @@ describe("Topics clustering capacity", () => {
     },
   );
 
+  it("selects a cohort inside ClickHouse and samples its summarized traces with the cohort seed", async () => {
+    const traces = {
+      query: "SELECT id FROM matching WHERE env = {envFilter:String}",
+      params: { envFilter: "production" },
+    };
+    const sample = { seed: "analysis-seed", limit: 20_000 };
+    await getTopicSummaryCounts(
+      "project-a",
+      [{ facetId: "facet-a", version: 1 }],
+      embedding,
+      timeRange,
+      { traces, sample },
+    );
+    const counts = mocks.query.mock.calls[0][0];
+    expect(counts.query).toContain(`AND trace_id IN (${traces.query})`);
+    expect(counts.query).toMatch(
+      /ORDER BY cityHash64\(trace_id, \{cohortSeed:String\}\), trace_id\s+LIMIT \{cohortLimit:UInt64\} BY facet_id, facet_version/,
+    );
+    expect(counts.query).not.toContain("Array(String)} AND trace_id");
+    expect(counts.params).toMatchObject({
+      envFilter: "production",
+      cohortSeed: "analysis-seed",
+      cohortLimit: 20_000,
+    });
+
+    mocks.queryStream.mockImplementation(async function* () {
+      yield row;
+    });
+    await getTopicClusteringSummaries(...args, limits, { traces, sample });
+    const [{ query, params }] = mocks.queryStream.mock.calls[0];
+    expect(query).toContain(`AND trace_id IN (${traces.query})`);
+    expect(query).toContain("LIMIT {cohortLimit:UInt64}");
+    expect(params).toMatchObject({
+      envFilter: "production",
+      cohortSeed: "analysis-seed",
+    });
+    expect(params).not.toHaveProperty("cohortTraceIds");
+  });
+
   it("returns the complete at-limit cohort and bounds the query result", async () => {
     mocks.queryStream.mockImplementation(async function* () {
       yield row;
@@ -342,7 +381,7 @@ it("bounds Topics payload reads by their storage timestamp", async () => {
       readLatestTopicAssignments(
         "project-a",
         "facet-a",
-        "published-run",
+        ["published-run"],
         timeRange,
       ),
   ];
@@ -822,7 +861,7 @@ describe("Topics classifications", () => {
         await readLatestTopicAssignments(
           "project-a",
           "facet-a",
-          "published-run",
+          ["published-run"],
           timeRange,
         ),
       ).toEqual([{ ...row, traceName: inserted.trace_name }]);
@@ -832,17 +871,17 @@ describe("Topics classifications", () => {
         to: timeRange.to.toISOString(),
         projectId: "project-a",
         facetId: "facet-a",
-        publishedRunId: "published-run",
+        publishedRunIds: ["published-run"],
       });
       expect(query).toContain("facet_id = {facetId:String}");
       expect(query).toContain(
-        "AND clustering_run_id = {publishedRunId:String}",
+        "AND clustering_run_id IN {publishedRunIds:Array(String)}",
       );
       expect(query).toContain(
-        "ORDER BY facet_version DESC, assigned_at DESC, clustering_run_id DESC, origin DESC",
+        "ORDER BY facet_version DESC, assigned_at DESC, origin DESC",
       );
       expect(query).toContain(
-        "LIMIT 1 BY project_id, facet_id, trace_id, if(trace_id = '', session_id, '')",
+        "LIMIT 1 BY project_id, facet_id, clustering_run_id, trace_id, if(trace_id = '', session_id, '')",
       );
     },
   );

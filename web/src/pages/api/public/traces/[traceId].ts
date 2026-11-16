@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
   LEGACY_PUBLIC_API_OBSERVATIONS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
@@ -24,7 +23,7 @@ import {
   getObservationsForTrace,
   getScoresForTraces,
   getTraceById,
-  traceException,
+  logger,
   traceDeletionProcessor,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
@@ -154,7 +153,8 @@ export default withMiddlewares(
         // For type consistency, we validate the scores against the v1 schema which requires a traceId
         const validatedScores = filterAndValidateDbLegacyTraceScoreList({
           scores,
-          onParseError: traceException,
+          onParseError: (error) =>
+            logger.warn("Invalid score omitted from response", { error }),
         });
 
         const obsStartTimes = observations
@@ -215,16 +215,14 @@ export default withMiddlewares(
           },
         );
 
+        const latencySeconds = latencyMs !== undefined ? latencyMs / 1000 : 0;
+
         return {
           ...trace,
           externalId: null,
           metadata: includeIO ? trace.metadata : {},
           scores: includeScores ? validatedScores : [],
-          latency: includeMetrics
-            ? latencyMs !== undefined
-              ? latencyMs / 1000
-              : 0
-            : -1,
+          latency: includeMetrics ? latencySeconds : -1,
           observations: includeObservations ? outObservations : [],
           htmlPath: `/project/${auth.scope.projectId}/traces/${traceId}`,
           totalCost: includeMetrics

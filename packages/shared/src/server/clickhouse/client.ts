@@ -229,6 +229,8 @@ export class ClickHouseClientManager {
         ...settings,
         ...auth.config,
         application: `langfuse/${VERSION.replace("v", "")}`,
+        use_multipart_params:
+          env.LANGFUSE_CLICKHOUSE_MULTIPART_QUERY_PARAMS === "true",
         keep_alive: {
           idle_socket_ttl: env.CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL,
         },
