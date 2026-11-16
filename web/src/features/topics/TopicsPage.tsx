@@ -48,6 +48,7 @@ import {
   refreshMapDisabledReason,
 } from "./prepare-topics-actions";
 import { TopicsWorkspaceGate } from "./TopicsWorkspaceGate";
+import { useTopicRuleSetupStatus } from "./useTopicRuleSetupStatus";
 import { useTopicTraceFilters } from "./useTopicTraceFilters";
 import { TopicRunDetails } from "./TopicRunDetails";
 import { TopicRunHistoryList } from "./TopicRunHistoryList";
@@ -349,16 +350,7 @@ function TopicsWorkspaceContent({
   const setupRuleId = analysisId
     ? undefined
     : (selectedRule?.id ?? maps.data?.rules[0]?.id);
-  const ruleSetup = api.topics.ruleSetupStatus.useQuery(
-    { projectId, ruleId: setupRuleId ?? "" },
-    {
-      enabled: setupRuleId !== undefined,
-      refetchInterval: (query) =>
-        query.state.data && topicRuleSetupProgress(query.state.data).active
-          ? 5000
-          : false,
-    },
-  );
+  const ruleSetup = useTopicRuleSetupStatus({ projectId, ruleId: setupRuleId });
   const setup = ruleSetup.data ? topicRuleSetupProgress(ruleSetup.data) : null;
   // A finished setup hands over to results; a failure from this visit stays until retried.
   const showSetupProgress =
@@ -435,6 +427,16 @@ function TopicsWorkspaceContent({
         isLoading: results.isLoading || !mapsSettled,
         error: results.error,
       };
+  // The page renders once, with its header, strip and results together; later
+  // loads stay inside it so its dialogs and selection survive.
+  const [firstLoadSettled, setFirstLoadSettled] = useState(false);
+  if (
+    !firstLoadSettled &&
+    (facets.isError ||
+      (facets.isSuccess &&
+        (shownResults.data !== undefined || Boolean(shownResults.error))))
+  )
+    setFirstLoadSettled(true);
   // Traces follow the results on screen, so a switch requests no traces for stale topics.
   const scope = analysisId
     ? { analysisId }
@@ -863,7 +865,7 @@ function TopicsWorkspaceContent({
     </TopicSliceDialogController>
   );
   return (
-    <TopicsWorkspaceGate isLoading={facets.isLoading} fallback={loadingPage}>
+    <TopicsWorkspaceGate isLoading={!firstLoadSettled} fallback={loadingPage}>
       {workspace}
     </TopicsWorkspaceGate>
   );
