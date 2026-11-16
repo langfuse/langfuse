@@ -4,7 +4,7 @@ import {
   TRACE_BATCH_INPUT_RETENTION_MS,
 } from "../../../../packages/shared/src/server/traceBatch/storage";
 import { env } from "../../env";
-import { TraceBatchInputCleaner } from "./index";
+import { EventsDispatchTranscriptCleaner } from "./transcriptCleaner";
 
 const mocks = vi.hoisted(() => ({
   listFilePage: vi.fn(),
@@ -44,7 +44,7 @@ vi.mock("../../utils/RedisLock", () => ({
   },
 }));
 
-describe("TraceBatchInputCleaner", () => {
+describe("EventsDispatchTranscriptCleaner", () => {
   const prefix = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${TRACE_BATCH_INPUT_PREFIX}`;
 
   beforeEach(() => {
@@ -71,7 +71,7 @@ describe("TraceBatchInputCleaner", () => {
         ],
       });
 
-    await new TraceBatchInputCleaner().processBatch();
+    await new EventsDispatchTranscriptCleaner().processBatch();
 
     expect(mocks.listFilePage).toHaveBeenNthCalledWith(1, {
       prefix,

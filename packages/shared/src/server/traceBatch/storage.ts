@@ -70,7 +70,7 @@ export class UnsupportedTraceBatchInputVersionError extends Error {
 // UTF-16 length of the complete JSON envelope, not a UTF-8 byte limit.
 export const TRACE_BATCH_INPUT_MAX_CHARACTERS = 1_000_000;
 
-/** After `LANGFUSE_S3_EVENT_UPLOAD_PREFIX`. The input cleaner lists this prefix. */
+/** After `LANGFUSE_S3_EVENT_UPLOAD_PREFIX`. The events-dispatch transcript cleaner lists this prefix. */
 export const TRACE_BATCH_INPUT_PREFIX = "trace-batch/trace/";
 
 /** Trace-batch inputs expire after three days, matching span-eval inputs. */

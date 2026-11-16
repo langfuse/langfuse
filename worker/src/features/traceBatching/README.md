@@ -324,16 +324,9 @@ dispatch on `schemaVersion`; existing objects are never rewritten.
 
 Serialize the full envelope once. Skip the entire upload if `json.length` exceeds 1,000,000; do not truncate. This measures UTF-16 code units, not UTF-8 bytes, and does not bound assembly or serialization memory. Size skips emit an info log with identifiers, actual length and limit. StorageService owns upload retries and logs: SlowDown at warning level, other failures including request timeouts at error level. Exhausted failures count the trace as failed in `langfuse.events_dispatch.trace_outcomes`.
 
-Deploy with writes disabled. Before enabling, configure and verify an enabled bucket lifecycle rule for the full `<prefix>trace-batch/trace/` path, matching span-eval retention, including noncurrent versions where applicable. A rule for `evals/` alone does not cover this path. Enable on a small worker rollout and check size-skip logs, S3 failures and Topics latency. Consumers that require files must schedule only after a successful PUT.
+Deploy with writes disabled. Before enabling, expire the full `<prefix>trace-batch/trace/` path after three days: a bucket lifecycle rule (including noncurrent versions where applicable), the transcript cleaner below, or both. A rule for `evals/` alone does not cover this path. Enable on a small worker rollout and check size-skip logs, S3 failures and Topics latency. Consumers that require files must schedule only after a successful PUT.
 
-Like temporary span-eval inputs, these objects have no ingestion deletion
-references. Trace and project deletion do not remove them. They expire after
-three days (`TRACE_BATCH_INPUT_RETENTION_MS`). The trace-batch input cleaner
-lists `<prefix>trace-batch/trace/` with the shared event-upload client and
-deletes older objects. It starts when
-`LANGFUSE_TRACE_BATCH_INPUT_CLEANER_ENABLED=true`. A bucket lifecycle rule on
-that prefix, including noncurrent versions, remains a useful backstop. A rule
-for `evals/` alone does not cover this path.
+Like temporary span-eval inputs, these objects have no ingestion deletion references. Trace and project deletion do not remove them. They expire after three days (`TRACE_BATCH_INPUT_RETENTION_MS`). `eventsDispatch/transcriptCleaner.ts` lists `<prefix>trace-batch/trace/` with the shared event-upload client, under one Redis lock, and deletes older objects. It starts when `LANGFUSE_EVENTS_DISPATCH_TRANSCRIPT_CLEANER_ENABLED=true` and emits `langfuse.events_dispatch.transcript_cleaner.{files_deleted,failures}`.
 
 ## Per-trace transcripts
 

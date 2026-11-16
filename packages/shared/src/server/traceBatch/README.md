@@ -32,8 +32,8 @@ trace-readiness revisions are independent.
 
 Objects live under `trace-batch/trace/` (after the event-upload prefix) and
 expire after three days (`TRACE_BATCH_INPUT_RETENTION_MS`). The worker
-trace-batch input cleaner deletes expired objects. Trace and project deletion
-do not.
+events-dispatch transcript cleaner deletes expired objects. Trace and project
+deletion do not.
 
 The serialization suite round-trips the live transcript fixtures through V1.
 The storage suite retains a literal V1 JSON fixture to pin the saved format:
