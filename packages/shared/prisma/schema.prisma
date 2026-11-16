@@ -1053,6 +1053,7 @@ model Model {
 
   @@unique([projectId, modelName, startDate, unit])
   @@index(modelName)
+  @@index([scope])
   @@map("models")
 }
 
