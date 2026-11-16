@@ -77,6 +77,11 @@ const STRING_OP_SYMBOL: Record<string, FilterNode["op"]> = {
   "ends with": "$",
 };
 
+/**
+ * One filter as its query-text node (`metadata.attempt:>2`,
+ * `-level:ERROR`), or null when the bar has no form for it on `registry`;
+ * the caller reports a null as skipped and preserves the filter.
+ */
 function lowerSingle(
   filter: FilterState[number],
   registry: FieldRegistry,
@@ -228,6 +233,19 @@ function lowerSingle(
       return filterNode(key, op, [filter.value]);
     }
     case "numberObject": {
+      if (
+        registry.numericMetadata &&
+        registry.columnIdOf(filter.column) === "metadata"
+      ) {
+        // The bar writes only comparisons on metadata: `metadata.k:v` is a
+        // text match, so a numeric `=` stays with the sidebar (skipped).
+        if (filter.operator === "=") return null;
+        return filterNode(
+          `metadata.${quoteIfNeeded(filter.key)}`,
+          filter.operator,
+          [String(filter.value)],
+        );
+      }
       const path = scorePathOf(filter.column, filter.key, registry);
       if (path === null) return null;
       const op = filter.operator === "=" ? "=" : filter.operator;
@@ -451,7 +469,11 @@ function normalizeFilterValues(
   ) {
     op = "=";
   }
-  const values = normalizeValuesFor(ref, f.values, scoreTypes);
+  // A metadata comparison lowers its value to a number (`>2.0` reads back `>2`).
+  const values =
+    ref.type === "metadata" && op in INVERTED_COMPARISON
+      ? f.values.map(normalizeNumberString)
+      : normalizeValuesFor(ref, f.values, scoreTypes);
   return { ...f, op, values };
 }
 

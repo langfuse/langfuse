@@ -284,7 +284,7 @@ export function MobileTopicsView({
 
 const VISUALIZATIONS = [
   { value: "treemap", label: "Treemap" },
-  { value: "map", label: "Map" },
+  { value: "map", label: "Scatter" },
 ] as const;
 
 /** Pressing the already active Visualize tab opens the view menu; the first press only selects the tab. */

@@ -35,6 +35,7 @@ import { SearchBarStoreProvider } from "@/src/features/search-bar/store/SearchBa
 import type { SearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
 import type { SearchCommit } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import type { QueryPresetSection } from "@/src/features/search-bar/lib/completions";
+import type { CompareOp } from "@/src/features/search-bar/lib/ast";
 
 type EventsSearchBarRowProps = Omit<
   React.ComponentProps<typeof EventsSearchBarRowContent>,
@@ -100,7 +101,7 @@ function EventsSearchBarRowContent({
   /** Given a filter token's field, the reason it is not applied on the current
    *  surface (e.g. the chart view can't filter on it) — dims the pill + hover.
    *  Undefined leaves all filters active. */
-  fieldReason?: (field: string) => string | null;
+  fieldReason?: (field: string, op?: CompareOp) => string | null;
   /** Reason free-text tokens are not applied on the current surface, or null. */
   freeTextReason?: string | null;
   /**

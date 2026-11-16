@@ -18,6 +18,7 @@ import {
   renderClickhouseExpression,
   renderClickhouseSelections,
 } from "./compile";
+import { ClickHouseQueryCompiler } from "./compiler";
 import { CteNamePlugin } from "./ctes";
 import { DedupLoweringPlugin } from "./dedup";
 import { getClickhouseKysely } from "./dialect";
@@ -67,6 +68,7 @@ import {
   useFinal,
   withFill,
 } from "./extensions";
+import { FunctionAllowlistPlugin } from "./functions";
 import {
   ArrayIndexNode,
   ParametricAggregateNode,
@@ -74,6 +76,7 @@ import {
 } from "./nodes";
 import type { ClickHouseDatabase } from "./schema";
 import { SchemaReferencePlugin } from "./schemaReferences";
+import { NameShadowingPlugin } from "./shadowing";
 import { TenancyInjectionPlugin } from "./tenancy";
 import { defineView, fromView } from "./views";
 
@@ -613,6 +616,8 @@ describe("compiler passes in production", () => {
     expect(compilerPasses(projectId).map((pass) => pass.constructor)).toEqual([
       SchemaReferencePlugin,
       CteNamePlugin,
+      NameShadowingPlugin,
+      FunctionAllowlistPlugin,
       EventsTableRoutingPlugin,
       TenancyInjectionPlugin,
       DedupLoweringPlugin,
@@ -1011,12 +1016,7 @@ describe("parametric aggregates", () => {
       ),
     );
     expect(() =>
-      compileClickhouseQuery(
-        getClickhouseKysely()
-          .selectFrom("events as e")
-          .select([named.as("q")]),
-        projectId,
-      ),
+      new ClickHouseQueryCompiler().compileExpression(named.toOperationNode()),
     ).toThrow(
       'Identifier name "quantile(0.5)(1), x" is not a plain identifier',
     );
