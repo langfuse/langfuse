@@ -152,7 +152,10 @@ fi
 if [ $status -ne 0 ]; then
     echo "Applying clickhouse migrations failed. Common causes:"
     echo "  1. The database is unavailable or unreachable."
-    if [ -n "$CLICKHOUSE_MIGRATION_USER" ]; then
+    if [ "$CLICKHOUSE_AUTH_MODE" = "jwt" ] && [ -z "$CLICKHOUSE_MIGRATION_USER" ]; then
+        echo "  2. ClickHouse rejected the access token, or the CLICKHOUSE_JWT_* token source is misconfigured."
+        echo "  3. The server certificate is not trusted. For a private CA, point SSL_CERT_FILE at its bundle."
+    elif [ -n "$CLICKHOUSE_MIGRATION_USER" ]; then
         echo "  2. CLICKHOUSE_MIGRATION_PASSWORD contains special characters that are not URL-encoded."
         check_clickhouse_password "$CLICKHOUSE_MIGRATION_PASSWORD" "CLICKHOUSE_MIGRATION_PASSWORD"
     else

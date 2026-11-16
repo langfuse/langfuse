@@ -176,8 +176,8 @@ const EnvSchema = z.object({
   // `password` sends CLICKHOUSE_USER and CLICKHOUSE_PASSWORD. `jwt` sends a
   // bearer token instead (ClickHouse Cloud only) from exactly one of
   // CLICKHOUSE_JWT_TOKEN, CLICKHOUSE_JWT_TOKEN_FILE or CLICKHOUSE_JWT_TOKEN_URL.
-  // In `jwt` mode CLICKHOUSE_USER and CLICKHOUSE_PASSWORD are ignored by the
-  // app; migrations keep using user and password credentials.
+  // In `jwt` mode CLICKHOUSE_USER and CLICKHOUSE_PASSWORD are ignored, and
+  // migrations send the same token unless CLICKHOUSE_MIGRATION_USER is set.
   CLICKHOUSE_AUTH_MODE: z.enum(["password", "jwt"]).default("password"),
   CLICKHOUSE_USER: z.string().optional(),
   CLICKHOUSE_PASSWORD: z.string().optional(),

@@ -57,6 +57,7 @@ function createTemporaryDirectory(prefix: string): string {
 }
 
 function runMigrationScript({
+  authMode = "password",
   clusterName,
   databaseName = "default",
   migrationLayout = "source",
@@ -66,6 +67,7 @@ function runMigrationScript({
   skipConfirm = script === "up" ? "false" : "true",
   ssl = false,
 }: {
+  authMode?: "password" | "jwt";
   clusterName?: string;
   databaseName?: string;
   migrationLayout?: MigrationLayout;
@@ -123,7 +125,13 @@ function runMigrationScript({
     }
   }
 
-  symlinkSync(fakeMigratePath, join(binaryDirectory, "migrate"));
+  symlinkSync(
+    fakeMigratePath,
+    join(
+      binaryDirectory,
+      authMode === "jwt" ? "clickhouse-jwt-migrate" : "migrate",
+    ),
+  );
 
   const env: NodeJS.ProcessEnv = {
     ...process.env,
@@ -149,6 +157,12 @@ function runMigrationScript({
     SKIP_CONFIRM: skipConfirm,
     TMPDIR: temporaryDirectory,
   };
+  if (authMode === "jwt") {
+    env.CLICKHOUSE_AUTH_MODE = "jwt";
+    env.CLICKHOUSE_JWT_TOKEN = "token";
+    delete env.CLICKHOUSE_USER;
+    delete env.CLICKHOUSE_PASSWORD;
+  }
   if (clusterName === undefined) {
     delete env.CLICKHOUSE_CLUSTER_NAME;
   } else {
@@ -240,6 +254,26 @@ describe("ClickHouse migration preparation", () => {
     );
     expect(run.args.at(-1)).toBe("up");
     expect(existsSync(run.renderedMigrationsDirectory)).toBe(false);
+  });
+
+  it("runs jwt mode through clickhouse-jwt-migrate without credentials", () => {
+    const run = runMigrationScript({
+      authMode: "jwt",
+      clusterName: "eu-west' & blue",
+      mode: "clustered",
+    });
+
+    expect(run.args.slice(0, 1)).toEqual(["-source"]);
+    expect(run.args.slice(2)).toEqual([
+      "-table-engine",
+      "ReplicatedMergeTree",
+      "-cluster",
+      encodeURIComponent(`'eu-west\\' & blue'`).replaceAll("'", "%27"),
+      "up",
+    ]);
+    expect(readMigration(run, "0001_traces.up.sql")).toContain(
+      "ON CLUSTER 'eu-west\\' & blue'",
+    );
   });
 
   it("preserves the historical default-cluster migration bytes", () => {

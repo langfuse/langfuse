@@ -11,8 +11,10 @@ if [ "$CLICKHOUSE_CLUSTER_ENABLED" != "false" ]; then
     exit 1
 fi
 
+. "$SCRIPT_DIR/jwt-migrate.sh"
+
 # Check if golang-migrate is installed
-if ! command -v migrate >/dev/null 2>&1
+if [ "$MIGRATE_WITH_JWT" != "true" ] && ! command -v migrate >/dev/null 2>&1
 then
     echo "Error: golang-migrate is not installed or not in PATH."
     echo "Please install golang-migrate via 'brew install golang-migrate' to run this script."
@@ -42,8 +44,16 @@ else
 fi
 # Drop does not execute migration SQL, so the canonical source needs no rendering.
 MIGRATIONS_DIRECTORY="$SCRIPT_DIR/../migrations/canonical"
+run_drop() {
+    if [ "$MIGRATE_WITH_JWT" = "true" ]; then
+        jwt_migrate "$MIGRATIONS_DIRECTORY" "MergeTree" "" drop "$@"
+    else
+        migrate -source "file://${MIGRATIONS_DIRECTORY}" -database "$DATABASE_URL" drop "$@"
+    fi
+}
+
 if [ "$SKIP_CONFIRM" = "1" ] || [ "$SKIP_CONFIRM" = "true" ]; then
-    migrate -source "file://${MIGRATIONS_DIRECTORY}" -database "$DATABASE_URL" drop -f
+    run_drop -f
 else
-    migrate -source "file://${MIGRATIONS_DIRECTORY}" -database "$DATABASE_URL" drop
+    run_drop
 fi

@@ -19,10 +19,10 @@ if [ -z "${CLICKHOUSE_MIGRATION_URL}" ]; then
   exit 1
 fi
 
-# Migrations authenticate with a user and password: golang-migrate cannot send
-# a ClickHouse access token. CLICKHOUSE_MIGRATION_USER and
-# CLICKHOUSE_MIGRATION_PASSWORD, when set, replace CLICKHOUSE_USER and
-# CLICKHOUSE_PASSWORD for migrations only, e.g. a DDL user next to JWT auth.
+. "$SCRIPT_DIR/jwt-migrate.sh"
+
+# CLICKHOUSE_MIGRATION_USER and CLICKHOUSE_MIGRATION_PASSWORD, when set, replace
+# CLICKHOUSE_USER and CLICKHOUSE_PASSWORD for migrations only, e.g. a DDL user.
 if [ -n "${CLICKHOUSE_MIGRATION_USER}" ]; then
   MIGRATION_USER="${CLICKHOUSE_MIGRATION_USER}"
   MIGRATION_PASSWORD="${CLICKHOUSE_MIGRATION_PASSWORD}"
@@ -31,11 +31,10 @@ else
   MIGRATION_PASSWORD="${CLICKHOUSE_PASSWORD}"
 fi
 
-if [ -z "${MIGRATION_USER}" ] || [ -z "${MIGRATION_PASSWORD}" ]; then
+if [ "$MIGRATE_WITH_JWT" != "true" ] && { [ -z "${MIGRATION_USER}" ] || [ -z "${MIGRATION_PASSWORD}" ]; }; then
   echo "Error: ClickHouse migrations need a user and a password."
-  if [ "$CLICKHOUSE_AUTH_MODE" = "jwt" ]; then
-    echo "CLICKHOUSE_AUTH_MODE is jwt. Set CLICKHOUSE_MIGRATION_USER and CLICKHOUSE_MIGRATION_PASSWORD,"
-    echo "or set LANGFUSE_AUTO_CLICKHOUSE_MIGRATION_DISABLED=true and run migrations separately."
+  if [ -n "${CLICKHOUSE_MIGRATION_USER}" ]; then
+    echo "Please set CLICKHOUSE_MIGRATION_PASSWORD next to CLICKHOUSE_MIGRATION_USER."
   else
     echo "Please set CLICKHOUSE_USER and CLICKHOUSE_PASSWORD in your environment variables."
   fi
@@ -43,7 +42,7 @@ if [ -z "${MIGRATION_USER}" ] || [ -z "${MIGRATION_PASSWORD}" ]; then
 fi
 
 # Check if golang-migrate is installed
-if ! command -v migrate >/dev/null 2>&1
+if [ "$MIGRATE_WITH_JWT" != "true" ] && ! command -v migrate >/dev/null 2>&1
 then
     echo "Error: golang-migrate is not installed or not in PATH."
     echo "Please install golang-migrate via 'brew install golang-migrate' to run this script."
@@ -67,6 +66,7 @@ export CLICKHOUSE_CLUSTER_NAME="${CLICKHOUSE_CLUSTER_NAME:-default}"
 
 MIGRATION_MODE="clustered"
 MIGRATIONS_TABLE_ENGINE="ReplicatedMergeTree"
+CLICKHOUSE_CLUSTER_NAME_ENCODED=""
 CLICKHOUSE_CLUSTER_QUERY=""
 if [ "$CLICKHOUSE_CLUSTER_ENABLED" = "false" ]; then
   MIGRATION_MODE="unclustered"
@@ -123,4 +123,8 @@ fi
 DATABASE_URL="${DATABASE_URL}${CLICKHOUSE_CLUSTER_QUERY}&x-migrations-table-engine=${MIGRATIONS_TABLE_ENGINE}"
 
 # Execute the up command against delivered or custom-rendered migrations.
-migrate -source "file://${MIGRATIONS_DIRECTORY}" -database "$DATABASE_URL" up
+if [ "$MIGRATE_WITH_JWT" = "true" ]; then
+  jwt_migrate "$MIGRATIONS_DIRECTORY" "$MIGRATIONS_TABLE_ENGINE" "$CLICKHOUSE_CLUSTER_NAME_ENCODED" up
+else
+  migrate -source "file://${MIGRATIONS_DIRECTORY}" -database "$DATABASE_URL" up
+fi

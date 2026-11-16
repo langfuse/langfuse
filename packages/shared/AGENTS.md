@@ -63,8 +63,9 @@
   a file, or an OAuth 2.0 client credentials grant. Web and worker call
   `initializeClickhouseAuth` at startup before the first query. A token change
   makes `clickhouseClient()` return a new client, so do not hold a client
-  beyond one unit of work. Migrations always use user and password, see
-  `clickhouse/scripts/up.sh`.
+  beyond one unit of work. In `jwt` mode migrations send the same token through
+  `clickhouse/jwt-migrate`, a Go wrapper around the golang-migrate driver that
+  the web image builds; `clickhouse/scripts/jwt-migrate.sh` routes to it.
 - ClickHouse SQL identifier and string quoting:
   `src/server/clickhouse/clickhouseIdentifiers.ts`
 - Ingestion masking: `src/server/ee/ingestionMasking` keeps HTTP retries and failure
