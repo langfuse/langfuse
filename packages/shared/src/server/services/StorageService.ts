@@ -35,6 +35,7 @@ import {
   type UploadPartStats,
 } from "./BufferedStreamUploader";
 import { S3ChunkedUploadStrategy } from "./S3ChunkedUploadStrategy";
+import { addS3ContentMd5Middleware } from "./s3ContentMd5";
 import {
   buildS3RequestDiagnostics,
   isS3DiagnosableError,
@@ -885,6 +886,7 @@ class S3StorageService implements StorageService {
       maxAttempts: params.maxAttempts,
     });
 
+    addS3ContentMd5Middleware(this.client);
     addS3DiagnosticsMiddleware(this.client, {
       bucketName: params.bucketName,
       endpoint: params.endpoint,
