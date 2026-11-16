@@ -7,7 +7,7 @@ const TOPICS_RESULTS_VIEWS = [
   { value: "treemap", label: "Treemap" },
   { value: "list", label: "List" },
   // Debug view of cluster assignment; Internal view only.
-  { value: "map", label: "Map", internalOnly: true },
+  { value: "map", label: "Scatter", internalOnly: true },
 ] as const;
 
 export type TopicsResultsView = (typeof TOPICS_RESULTS_VIEWS)[number]["value"];
