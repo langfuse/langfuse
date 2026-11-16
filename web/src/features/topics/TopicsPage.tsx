@@ -904,19 +904,7 @@ function ExecutionPanel({
         utils.topics.executions.invalidate({ projectId }),
       ]),
   });
-  // Trace errors start expanded for failed runs until the user toggles them.
-  const [traceErrorsToggled, setTraceErrorsToggled] = useState<boolean | null>(
-    null,
-  );
   const execution = query.data;
-  const traceErrorsOpen =
-    traceErrorsToggled ??
-    (execution?.status === "failed" &&
-      execution.facets.some((facet) => facet.counts.failed > 0));
-  const traceErrors = api.topics.traceErrors.useQuery(
-    { projectId, executionId },
-    { enabled: traceErrorsOpen },
-  );
   if (query.error || !execution) {
     return (
       <>
@@ -943,15 +931,7 @@ function ExecutionPanel({
     <TopicRunDetails
       execution={execution}
       facets={facets}
-      projectId={projectId}
       canWrite={canWrite}
-      traceErrors={{
-        open: traceErrorsOpen,
-        onOpenChange: setTraceErrorsToggled,
-        isPending: traceErrors.isPending,
-        errorMessage: traceErrors.error?.message,
-        data: traceErrors.data,
-      }}
       retry={{
         isPending: retry.isPending,
         errorMessage: retry.error?.message,

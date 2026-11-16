@@ -20,7 +20,6 @@ import {
   resolveQueueInstance,
 } from "../../queues/shardedQueueRegistry";
 import { emitV4LegacyApiUsageFreshnessMetrics } from "../v4/v4LegacyApiUsageMetrics";
-import { emitTopicStagingMetrics } from "@langfuse/shared/topics/server";
 
 type DepthType = "waiting" | "failed" | "active" | "delayed";
 const INTERVAL_CLAIM_KEY_PREFIX = "langfuse:queue-metrics-runner:claim";
@@ -28,13 +27,7 @@ const INTERVAL_CLAIM_KEY_PREFIX = "langfuse:queue-metrics-runner:claim";
 const CLAIM_TTL_INTERVAL_FRACTION = 0.9;
 /** Minimum gap between this runner's CloudWatch flushes, so a short interval does not send one PutMetricData request per tick */
 const CLOUDWATCH_FLUSH_FLOOR_MS = 10_000;
-const TOPICS_QUEUES = new Set([
-  QueueName.Topics,
-  QueueName.TopicsUpdate,
-  QueueName.TopicsEmbedding,
-  QueueName.TopicsAutomation,
-  QueueName.TopicsSetup,
-]);
+const TOPICS_QUEUES = new Set([QueueName.TopicsUpdate, QueueName.TopicsSetup]);
 
 async function emitPendingHeadAge(
   queue: Queue,
@@ -127,18 +120,6 @@ export class QueueMetricsRunner extends PeriodicRunner {
     }
 
     const promises: Promise<void>[] = [];
-
-    if (registeredNames.has(QueueName.Topics)) {
-      promises.push(
-        emitTopicStagingMetrics().catch((err) => {
-          this.markRunFailed(err);
-          logger.error(
-            "Queue metrics: failed to collect Topics staging expiry",
-            err,
-          );
-        }),
-      );
-    }
 
     promises.push(
       updateActiveIngestFailureProjectsMetric()

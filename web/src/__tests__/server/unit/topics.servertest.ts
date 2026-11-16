@@ -19,7 +19,6 @@ const mocks = vi.hoisted(() => ({
   listCurrentTopicSummaries: vi.fn(),
   createTopicExecution: vi.fn(),
   readTopicExecutionSummary: vi.fn(),
-  readTopicExecutionTraceErrors: vi.fn(),
   getTopicExecutionCosts: vi.fn(),
   getTopicSummaryCounts: vi.fn(),
   readTopicExecutionForRequest: vi.fn(),
@@ -171,7 +170,6 @@ function execution(): TopicExecution & {
         },
       },
     ],
-    traceErrors: [],
     error: null,
   };
 }
@@ -228,10 +226,6 @@ beforeEach(() => {
   mocks.getTopicExecutionCosts.mockResolvedValue({});
   mocks.getLatestFacetSummaries.mockResolvedValue([summary]);
   mocks.hasStoredTopicSummaries.mockResolvedValue(false);
-  mocks.readTopicExecutionTraceErrors.mockResolvedValue({
-    errors: [],
-    expired: false,
-  });
   mocks.readTopicExecutionForRequest.mockResolvedValue(null);
   mocks.createTopicExecution.mockResolvedValue(execution());
   mocks.getTopicRun.mockResolvedValue(run);
@@ -707,43 +701,20 @@ describe("Topics local execution access and publication", () => {
     expect(mocks.enqueueTopicExecution).not.toHaveBeenCalled();
   });
 
-  it("loads failed trace details separately from compact execution polling", async () => {
-    const failed = execution();
-    failed.status = "completed_with_errors";
-    failed.facets[0]!.counts.failed = 1;
-    failed.traceErrors = [
-      { traceId: "trace-failed", error: "Trace no longer exists" },
-    ];
-    const { traceErrors, ...compact } = failed;
-    mocks.readTopicExecutionTraceErrors.mockResolvedValue({
-      errors: traceErrors,
-      expired: false,
+  it("refuses to resume a failed manual process run", async () => {
+    mocks.readTopicExecutionSummary.mockResolvedValue({
+      ...execution(),
+      status: "failed",
+      input,
     });
-    mocks.readTopicExecutionSummary.mockResolvedValue(compact);
-    const request = { projectId, executionId: failed.id };
-
-    expect(await caller("VIEWER").execution(request)).not.toHaveProperty(
-      "traceErrors",
-    );
-    expect(mocks.readTopicExecutionTraceErrors).not.toHaveBeenCalled();
-    expect(await caller("VIEWER").traceErrors(request)).toEqual({
-      errors: traceErrors,
-      expired: false,
-    });
-    expect(mocks.readTopicExecutionTraceErrors).toHaveBeenCalledWith(compact);
-
-    mocks.readTopicExecutionSummary.mockResolvedValue(null);
-    await expect(caller("VIEWER").traceErrors(request)).rejects.toMatchObject({
-      code: "NOT_FOUND",
-    });
-    mocks.readTopicExecutionTraceErrors.mockClear();
     await expect(
-      caller("VIEWER").traceErrors({ ...request, projectId: "foreign" }),
-    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
-    await expect(
-      caller("VIEWER", false).traceErrors(request),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
-    expect(mocks.readTopicExecutionTraceErrors).not.toHaveBeenCalled();
+      caller().retry({ projectId, executionId: "execution-a" }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message:
+        "Manual runs can no longer be resumed. Start a snapshot instead.",
+    });
+    expect(mocks.enqueueTopicExecution).not.toHaveBeenCalled();
   });
 
   it("projects cost estimates into history and execution polling", async () => {

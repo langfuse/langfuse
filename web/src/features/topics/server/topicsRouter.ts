@@ -19,7 +19,6 @@ import {
 } from "@langfuse/shared/topics";
 import {
   readTopicExecutionSummary,
-  readTopicExecutionTraceErrors,
   getTopicExecutionCosts,
   enqueueTopicSnapshotSetup,
   readTopicSnapshotSummarizing,
@@ -185,6 +184,7 @@ async function executionWithRecovery(projectId: string, executionId: string) {
 }
 
 function canResume(execution: TopicExecutionSummary) {
+  if (execution.input.operation === "process") return false;
   return (
     execution.status === "failed" ||
     (execution.status === "completed_with_errors" &&
@@ -228,7 +228,9 @@ async function recoverExecutionState(execution: TopicExecutionSummary) {
         status: "failed" as const,
         phase: "interrupted",
         error:
-          "The worker stopped before this execution finished. Resume its interrupted stages.",
+          execution.input.operation === "process"
+            ? "The worker stopped before this execution finished."
+            : "The worker stopped before this execution finished. Resume its interrupted stages.",
       };
     }
   }
@@ -575,16 +577,6 @@ export const topicsRouter = createTRPCRouter({
     );
     return { ...execution, estimatedCost: costs[execution.id] ?? null };
   }),
-  traceErrors: topicsProcedure
-    .input(executionInput)
-    .query(async ({ input }) => {
-      const execution = await readTopicExecutionSummary(
-        input.projectId,
-        input.executionId,
-      );
-      if (!execution) throw new LangfuseNotFoundError("Execution not found.");
-      return readTopicExecutionTraceErrors(execution);
-    }),
   setupTraceCounts: topicsProcedure
     .input(
       projectInput.extend({
@@ -635,6 +627,10 @@ export const topicsRouter = createTRPCRouter({
         input.projectId,
         input.executionId,
       );
+      if (execution.input.operation === "process")
+        throw new InvalidRequestError(
+          "Manual runs can no longer be resumed. Start a snapshot instead.",
+        );
       if (!canResume(execution))
         throw new InvalidRequestError(
           "Only failed or interrupted executions can be resumed.",

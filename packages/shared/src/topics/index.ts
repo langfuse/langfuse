@@ -319,7 +319,6 @@ export type TopicFacetOutcome =
   | "no_topics"
   | "failed";
 export type TopicSummaryState =
-  | "summarized"
   | "complete"
   | "not_applicable"
   | "insufficient_input";
@@ -485,32 +484,11 @@ export interface TopicExecution {
   createdAt: string;
   updatedAt: string;
   facets: TopicFacetProgress[];
-  traceErrors: { traceId: string; error: string }[];
   error: string | null;
 }
 
-/** Retry state for one bounded trace batch, retained with its BullMQ job. */
-export interface TopicProcessBatchState {
-  execution: TopicExecution;
-  summaries: {
-    facetId: string;
-    facetVersion: number;
-    traceId: string;
-  }[];
-  failedTraceIds: {
-    facetId: string;
-    facetVersion: number;
-    traceIds: string[];
-  }[];
-  summarized: boolean;
-  assignedAt?: string;
-}
-
-/** Progress and history omit per-trace inputs, summary references and errors. */
-export type TopicExecutionSummary = Omit<
-  TopicExecution,
-  "input" | "traceErrors"
-> & {
+/** Progress and history omit per-trace inputs. */
+export type TopicExecutionSummary = Omit<TopicExecution, "input"> & {
   input:
     | Omit<Extract<TopicExecutionInput, { operation: "process" }>, "traceIds">
     | Extract<TopicExecutionInput, { operation: "update" }>;

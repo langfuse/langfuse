@@ -1,7 +1,10 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { api } from "@/src/utils/api";
-import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
+import { MultiSelectTagInput } from "@/src/components/design-system/MultiSelectTagInput/MultiSelectTagInput";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { GripVerticalIcon, MoreVerticalIcon } from "@langfuse/icons";
+import { VisualizationFrame } from "@/src/components/design-system/charts/internal/VisualizationFrame/VisualizationFrame";
+import { type DataCardActions } from "@/src/components/design-system/DataCard/DataCard";
 import { type FilterState, type ScoreDataTypeType } from "@langfuse/shared";
 import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
 import {
@@ -15,16 +18,14 @@ import {
 } from "@/src/features/scores/lib/helpers";
 import React, { useMemo } from "react";
 import { Separator } from "@/src/components/ui/separator";
-import { NumericScoreTimeSeriesChart } from "@/src/features/dashboard/components/score-analytics/NumericScoreTimeSeriesChart";
-import { CategoricalScoreChart } from "@/src/features/dashboard/components/score-analytics/CategoricalScoreChart";
-import { NumericScoreHistogram } from "@/src/features/dashboard/components/score-analytics/NumericScoreHistogram";
-import DocPopup from "@/src/components/layouts/doc-popup";
-import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { NumericScoreTimeSeriesCard } from "@/src/features/dashboard/components/score-analytics/NumericScoreTimeSeriesCard";
+import { CategoricalScoreCard } from "@/src/features/dashboard/components/score-analytics/CategoricalScoreCard";
+import { NumericScoreHistogramCard } from "@/src/features/dashboard/components/score-analytics/NumericScoreHistogramCard";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { type ViewVersion } from "@langfuse/shared/query";
-import { MultiSelectTagInput } from "@/src/components/design-system/MultiSelectTagInput/MultiSelectTagInput";
 
 export function ScoreAnalytics(props: {
+  actions?: DataCardActions;
   className?: string;
   agg: DashboardDateRangeAggregationOption;
   globalFilterState: FilterState;
@@ -98,138 +99,189 @@ export function ScoreAnalytics(props: {
   }, [scoreAnalyticsOptions, scoreKeyToData]);
 
   return (
-    <DashboardCard
-      className={props.className}
-      title="Scores Analytics"
-      description="Aggregate scores and averages over time"
-      isLoading={props.isLoading || scoreKeysAndProps.isPending}
-      headerClassName="grid grid-cols-[1fr_auto_auto] items-center"
-      headerChildren={
-        !scoreKeysAndProps.isPending &&
-        !props.isLoading &&
-        Boolean(scoreKeysAndProps.data?.scoreColumns.length) && (
-          <div className="w-80 max-w-full">
-            <MultiSelectTagInput
-              value={scoreAnalyticsValues.map(({ key }) => key)}
-              options={scoreSelectorOptions}
-              onValueChange={setSelectedDashboardScoreKeys}
-              placeholder="Select scores"
-              searchPlaceholder="Search scores..."
-              emptyMessage="No scores found."
-            />
+    <div className={props.className}>
+      <div className="group flex flex-col gap-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-base font-bold">Scores Analytics</h3>
+            <p className="text-muted-foreground text-sm">
+              Aggregate scores and averages over time
+            </p>
           </div>
-        )
-      }
-    >
-      {Boolean(scoreKeysAndProps.data?.scoreColumns.length) &&
-      Boolean(scoreAnalyticsValues.length) ? (
-        <div className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground grid grid-flow-row gap-4">
-          {scoreAnalyticsValues.map(({ key: scoreKey }, index) => {
-            const scoreData = scoreKeyToData.get(scoreKey);
-            if (!scoreData) return null;
-            const { name, dataType, source } = scoreData;
-
-            return (
-              <div key={scoreKey}>
-                <div>{`${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`}</div>
-                <div className="mt-2 grid gap-2 lg:grid-cols-2 lg:gap-4">
-                  {/* aggregate */}
-                  <div>
-                    <div className="text-muted-foreground mb-2 text-sm">
-                      Total aggregate scores
-                      {isNumericDataType(dataType) && (
-                        // TODO: v2 histogram aggregates all rows server-side (no 10k cap).
-                        // Make this tooltip conditional on metricsVersion.
-                        <DocPopup description="Aggregate of up to 10,000 scores" />
-                      )}
-                    </div>
-                    {isCategoricalDataType(dataType) && (
-                      <CategoricalScoreChart
-                        projectId={props.projectId}
-                        scoreData={scoreData}
-                        globalFilterState={props.globalFilterState}
-                        fromTimestamp={props.fromTimestamp}
-                        toTimestamp={props.toTimestamp}
-                        metricsVersion={props.metricsVersion}
-                        schedulerId={props.schedulerId}
-                      />
-                    )}
-                    {(isNumericDataType(dataType) ||
-                      isBooleanDataType(dataType)) && (
-                      <NumericScoreHistogram
-                        projectId={props.projectId}
-                        source={source}
-                        name={name}
-                        dataType={
-                          dataType as Extract<
-                            ScoreDataTypeType,
-                            "NUMERIC" | "BOOLEAN"
-                          >
-                        }
-                        globalFilterState={props.globalFilterState}
-                        metricsVersion={props.metricsVersion}
-                      />
-                    )}
-                  </div>
-                  {/* timeseries */}
-                  <div>
-                    <div className="text-muted-foreground mb-2 text-sm">
-                      {isNumericDataType(dataType)
-                        ? "Moving average over time"
-                        : "Scores over time"}
-                    </div>
-                    {isCategoricalDataType(dataType) && (
-                      <CategoricalScoreChart
-                        projectId={props.projectId}
-                        agg={props.agg}
-                        scoreData={scoreData}
-                        globalFilterState={props.globalFilterState}
-                        fromTimestamp={props.fromTimestamp}
-                        toTimestamp={props.toTimestamp}
-                        metricsVersion={props.metricsVersion}
-                        schedulerId={props.schedulerId}
-                      />
-                    )}
-                    {(isNumericDataType(dataType) ||
-                      isBooleanDataType(dataType)) && (
-                      <NumericScoreTimeSeriesChart
-                        agg={props.agg}
-                        source={source}
-                        name={name}
-                        dataType={
-                          dataType as Extract<
-                            ScoreDataTypeType,
-                            "NUMERIC" | "BOOLEAN"
-                          >
-                        }
-                        projectId={props.projectId}
-                        globalFilterState={props.globalFilterState}
-                        fromTimestamp={props.fromTimestamp}
-                        toTimestamp={props.toTimestamp}
-                        metricsVersion={props.metricsVersion}
-                        schedulerId={props.schedulerId}
-                        syncId={props.syncId}
-                        sync={props.sync}
-                      />
-                    )}
-                  </div>
-                </div>
-                {scoreAnalyticsValues.length - 1 > index && (
-                  <Separator className="mt-6 opacity-70" />
+          <div className="text-muted-foreground flex items-center gap-2">
+            {props.actions?.draggable && (
+              <GripVerticalIcon
+                size="base"
+                __rawClassName="drag-handle hidden cursor-grab active:cursor-grabbing lg:block"
+              />
+            )}
+            {props.actions?.buttons?.map(
+              ({ id, label, icon: Icon, onClick, disabled }) => (
+                <button
+                  key={id}
+                  type="button"
+                  aria-label={label}
+                  title={label}
+                  onClick={onClick}
+                  disabled={disabled}
+                  className="hover:text-foreground disabled:opacity-50"
+                >
+                  <Icon size="base" />
+                </button>
+              ),
+            )}
+            {Boolean(props.actions?.menu?.length) && (
+              <DropdownMenu
+                placement="bottom-end"
+                items={props.actions?.menu ?? []}
+              >
+                {({ getTriggerProps }) => (
+                  <button
+                    type="button"
+                    aria-label="Widget actions"
+                    className="hover:text-foreground"
+                    {...getTriggerProps()}
+                  >
+                    <MoreVerticalIcon size="base" />
+                  </button>
                 )}
-              </div>
-            );
-          })}
+              </DropdownMenu>
+            )}
+          </div>
         </div>
-      ) : Boolean(scoreKeysAndProps.data?.scoreColumns.length) ? (
-        <div className="flex min-h-36 w-full flex-1 items-center justify-center rounded-md border">
-          <p className="text-muted-foreground">
-            Select a score to view analytics
-          </p>
-        </div>
-      ) : (
-        <NoDataOrLoading isLoading={scoreKeysAndProps.isPending} />
-      )}
-    </DashboardCard>
+        {!props.isLoading &&
+          !scoreKeysAndProps.isPending &&
+          Boolean(scoreSelectorOptions.length) && (
+            <div className="w-full max-w-80">
+              <MultiSelectTagInput
+                aria-label="Scores"
+                value={scoreAnalyticsValues.map(({ key }) => key)}
+                options={scoreSelectorOptions}
+                onValueChange={setSelectedDashboardScoreKeys}
+                placeholder="Select scores"
+                searchPlaceholder="Search scores..."
+                emptyMessage="No scores found."
+              />
+            </div>
+          )}
+        {(props.isLoading || scoreKeysAndProps.isPending) && (
+          <VisualizationFrame
+            content={{ type: "loading", progress: { type: "spinner" } }}
+          />
+        )}
+        {!props.isLoading &&
+          !scoreKeysAndProps.isPending &&
+          scoreKeysAndProps.isError && (
+            <VisualizationFrame
+              content={{
+                type: "error",
+                message: scoreKeysAndProps.error.message,
+              }}
+            />
+          )}
+        {!props.isLoading &&
+          !scoreKeysAndProps.isPending &&
+          !scoreKeysAndProps.isError &&
+          !scoreAnalyticsValues.length && (
+            <VisualizationFrame
+              content={{
+                type: "empty",
+                message: scoreSelectorOptions.length
+                  ? "Select a score to view analytics"
+                  : "No data",
+              }}
+            />
+          )}
+        {!props.isLoading &&
+          !scoreKeysAndProps.isPending &&
+          !scoreKeysAndProps.isError && (
+            <div className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground grid grid-flow-row gap-4">
+              {scoreAnalyticsValues.map(({ key: scoreKey }, index) => {
+                const scoreData = scoreKeyToData.get(scoreKey);
+                if (!scoreData) return null;
+                const { name, dataType, source } = scoreData;
+
+                return (
+                  <div key={scoreKey}>
+                    <div>{`${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`}</div>
+                    <div className="mt-2 grid gap-2 lg:grid-cols-2 lg:gap-4">
+                      {/* aggregate */}
+                      <div className="h-96 min-w-0">
+                        {isCategoricalDataType(dataType) && (
+                          <CategoricalScoreCard
+                            projectId={props.projectId}
+                            scoreData={scoreData}
+                            globalFilterState={props.globalFilterState}
+                            fromTimestamp={props.fromTimestamp}
+                            toTimestamp={props.toTimestamp}
+                            metricsVersion={props.metricsVersion}
+                            schedulerId={props.schedulerId}
+                          />
+                        )}
+                        {(isNumericDataType(dataType) ||
+                          isBooleanDataType(dataType)) && (
+                          <NumericScoreHistogramCard
+                            projectId={props.projectId}
+                            source={source}
+                            name={name}
+                            dataType={
+                              dataType as Extract<
+                                ScoreDataTypeType,
+                                "NUMERIC" | "BOOLEAN"
+                              >
+                            }
+                            globalFilterState={props.globalFilterState}
+                            metricsVersion={props.metricsVersion}
+                          />
+                        )}
+                      </div>
+                      {/* timeseries */}
+                      <div className="h-96 min-w-0">
+                        {isCategoricalDataType(dataType) && (
+                          <CategoricalScoreCard
+                            projectId={props.projectId}
+                            agg={props.agg}
+                            scoreData={scoreData}
+                            globalFilterState={props.globalFilterState}
+                            fromTimestamp={props.fromTimestamp}
+                            toTimestamp={props.toTimestamp}
+                            metricsVersion={props.metricsVersion}
+                            schedulerId={props.schedulerId}
+                          />
+                        )}
+                        {(isNumericDataType(dataType) ||
+                          isBooleanDataType(dataType)) && (
+                          <NumericScoreTimeSeriesCard
+                            agg={props.agg}
+                            source={source}
+                            name={name}
+                            dataType={
+                              dataType as Extract<
+                                ScoreDataTypeType,
+                                "NUMERIC" | "BOOLEAN"
+                              >
+                            }
+                            projectId={props.projectId}
+                            globalFilterState={props.globalFilterState}
+                            fromTimestamp={props.fromTimestamp}
+                            toTimestamp={props.toTimestamp}
+                            metricsVersion={props.metricsVersion}
+                            schedulerId={props.schedulerId}
+                            syncId={props.syncId}
+                            sync={props.sync}
+                          />
+                        )}
+                      </div>
+                    </div>
+                    {scoreAnalyticsValues.length - 1 > index && (
+                      <Separator className="mt-6 opacity-70" />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+      </div>
+    </div>
   );
 }

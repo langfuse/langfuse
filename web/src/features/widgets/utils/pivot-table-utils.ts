@@ -18,6 +18,7 @@
  */
 import { isNotNullOrUndefined } from "@/src/utils/types";
 import { type OrderByState } from "@langfuse/shared";
+import { type FormatMetricOptions } from "../chart-library/chart-props";
 
 /**
  * Default dimension limit for pivot table data rows
@@ -81,7 +82,7 @@ export interface PivotTableConfig {
   metrics: string[];
 
   /** Per-metric units, ordered to match `metrics`. Effects label formatting */
-  units?: (string | undefined)[];
+  units?: FormatMetricOptions["unit"][];
 
   /** Maximum number of data rows to display (before totals) */
   rowLimit?: number;

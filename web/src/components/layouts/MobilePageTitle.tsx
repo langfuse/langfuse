@@ -3,7 +3,7 @@ import { ItemBadge } from "@/src/components/ItemBadge";
 import { EntityTitleTabs } from "@/src/components/EntityTitleTabs";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { MobilePageActionsContent } from "@/src/components/layouts/MobilePageActionsContent";
-import DocPopup from "@/src/components/layouts/doc-popup";
+import DocPopup, { DocPopupTrigger } from "@/src/components/layouts/doc-popup";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
 import { PageTabs } from "@/src/components/layouts/PageTabs";
 import { type PageHeaderProps } from "@/src/components/layouts/page-header";
@@ -137,7 +137,11 @@ export const MobilePageTitle = ({
                 description={help.description}
                 href={help.href}
                 className={help.className}
-              />
+              >
+                {({ getTriggerProps }) => (
+                  <DocPopupTrigger triggerProps={getTriggerProps()} />
+                )}
+              </DocPopup>
             </span>
           )}
           {titleBadges && (

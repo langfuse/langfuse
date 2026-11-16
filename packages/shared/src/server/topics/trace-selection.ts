@@ -21,15 +21,12 @@ import {
   PUBLIC_LLM_JUDGE_ENVIRONMENT,
 } from "../llm/isInternalEvalEnvironment";
 
-type SelectionRows = {
-  ids: { id: string };
-  preview: {
-    id: string;
-    timestampMs: string | number;
-    name: string;
-    environment: string;
-    matchedTraceCount: string | number;
-  };
+type PreviewRow = {
+  id: string;
+  timestampMs: string | number;
+  name: string;
+  environment: string;
+  matchedTraceCount: string | number;
 };
 
 // A summary dates from its trace's first event, and the matching observation
@@ -198,16 +195,14 @@ export async function countTopicCohortTraces(
   return Number(row?.count ?? 0);
 }
 
-/** Select unique trace identities from matching observations. */
-export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
+/** Preview up to 20 unique traces from matching observations. */
+export async function selectTopicTraceRows(
   input: z.infer<typeof topicTraceSelectionCriteriaSchema> & {
     projectId: string;
   },
   prisma: PrismaClient,
-  mode: Mode,
-): Promise<SelectionRows[Mode][]> {
-  const preview = mode === "preview";
-  const matching = await matchingObservationsQuery(input, prisma, preview);
+): Promise<PreviewRow[]> {
+  const matching = await matchingObservationsQuery(input, prisma, true);
   if (!matching) return [];
   const traces = new CTEQueryBuilder()
     .withCTE("matching_observations", {
@@ -218,7 +213,7 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
         "span_id",
         "event_ts",
         "environment",
-        ...(preview ? (["trace_name"] as const) : []),
+        "trace_name",
       ] as const,
     })
     .from("matching_observations", "m")
@@ -226,12 +221,8 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
       "m.id AS id",
       "max(m.start_time) AS latest_match",
       "argMax(m.environment, tuple(m.event_ts, m.span_id, m.environment)) AS environment",
-      ...(preview
-        ? [
-            "min(m.start_time) AS timestamp",
-            "anyIf(m.trace_name, m.trace_name != '') AS name",
-          ]
-        : []),
+      "min(m.start_time) AS timestamp",
+      "anyIf(m.trace_name, m.trace_name != '') AS name",
     )
     .groupBy("m.id")
     .havingRaw(
@@ -249,20 +240,17 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
         "id",
         "latest_match",
         "environment",
-        ...(preview ? (["name", "timestamp"] as const) : []),
+        "name",
+        "timestamp",
       ] as const,
     })
     .from("matching_traces", "t")
     .select(
       "t.id AS id",
-      ...(preview
-        ? [
-            "toUnixTimestamp64Milli(t.timestamp) AS timestampMs",
-            "count() OVER () AS matchedTraceCount",
-            "t.name AS name",
-            "t.environment AS environment",
-          ]
-        : []),
+      "toUnixTimestamp64Milli(t.timestamp) AS timestampMs",
+      "count() OVER () AS matchedTraceCount",
+      "t.name AS name",
+      "t.environment AS environment",
     )
     .orderByColumns([
       input.sampling === "random"
@@ -273,10 +261,9 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
         : { column: "t.latest_match", direction: "DESC" },
       { column: "t.id", direction: "ASC" },
     ]);
-  const limit = preview ? Math.min(input.limit ?? Infinity, 20) : input.limit;
-  if (limit !== null) selection.limit(limit);
+  selection.limit(Math.min(input.limit ?? Infinity, 20));
   const selected = selection.buildWithParams();
-  return queryClickhouse<SelectionRows[Mode]>({
+  return queryClickhouse<PreviewRow>({
     ...selected,
     params: { ...selected.params, samplingSeed: input.seed },
     preferredClickhouseService: "EventsReadOnly",

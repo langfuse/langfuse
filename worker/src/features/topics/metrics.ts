@@ -38,7 +38,6 @@ type TopicErrorReason =
   | "storage"
   | "numerical"
   | "input_too_large"
-  | "trace_too_large"
   | "definition_readback"
   | "unknown";
 
@@ -166,7 +165,6 @@ export class TopicMetrics {
       if (["AbortError", "TimeoutError"].includes(error.name))
         reason = "timeout";
       if (error.name === "TopicInputTooLarge") reason = "input_too_large";
-      if (error.name === "TopicTraceTooLarge") reason = "trace_too_large";
       if (error.name === "TopicDefinitionReadbackError")
         reason = "definition_readback";
       if (

@@ -39,7 +39,7 @@ export async function previewTopicTraces(
     ...input,
     limit: input.limit ?? TOPICS_BACKFILL_TRACE_LIMIT,
   };
-  const rows = await selectTopicTraceRows(selection, prisma, "preview");
+  const rows = await selectTopicTraceRows(selection, prisma);
   const matchedTraceCount = Number(rows[0]?.matchedTraceCount ?? 0);
   return {
     matchedTraceCount,

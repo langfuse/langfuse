@@ -59,11 +59,8 @@ describe("Topics trace selection", () => {
   });
   it("deduplicates, orders and scopes matches to the project, window and public environments", async () => {
     const input = { ...selection, projectId };
-    const [preview, ids] = await Promise.all([
-      selectTopicTraceRows(input, prisma, "preview"),
-      selectTopicTraceRows(input, prisma, "ids"),
-    ]);
-    expect(ids).toEqual([{ id: "trace-new" }, { id: "trace-old" }]);
+    const preview = await selectTopicTraceRows(input, prisma);
+    expect(preview.map(({ id }) => id)).toEqual(["trace-new", "trace-old"]);
     expect(Number(preview[0].matchedTraceCount)).toBe(2);
   });
 
@@ -87,11 +84,8 @@ describe("Topics trace selection", () => {
         },
       ],
     };
-    const [preview, ids] = await Promise.all([
-      selectTopicTraceRows(input, prisma, "preview"),
-      selectTopicTraceRows(input, prisma, "ids"),
-    ]);
-    expect(ids).toEqual([{ id: "trace-new" }]);
+    const preview = await selectTopicTraceRows(input, prisma);
+    expect(preview.map(({ id }) => id)).toEqual(["trace-new"]);
     expect(Number(preview[0].matchedTraceCount)).toBe(2);
   });
 
@@ -242,10 +236,7 @@ describe("Topics trace selection", () => {
         ),
     );
     const input = { ...selection, projectId: mixedProject, limit: 1 };
-    const [preview, ids] = await Promise.all([
-      selectTopicTraceRows(input, prisma, "preview"),
-      selectTopicTraceRows(input, prisma, "ids"),
-    ]);
+    const preview = await selectTopicTraceRows(input, prisma);
     expect(preview).toEqual([
       expect.objectContaining({
         id: "equal-timestamp",
@@ -253,7 +244,6 @@ describe("Topics trace selection", () => {
       }),
     ]);
     expect(Number(preview[0].matchedTraceCount)).toBe(2);
-    expect(ids).toEqual([{ id: "equal-timestamp" }]);
     for (const [traceId, environment] of [
       ["public-root", "langfuse-topics"],
       ["internal-root", "production"],
@@ -266,7 +256,7 @@ describe("Topics trace selection", () => {
     }
   });
 
-  it("keeps preview and ID-only trigger sampling aligned", async () => {
+  it("samples a random preview across every matched trace", async () => {
     const input = {
       ...selection,
       projectId,
@@ -287,17 +277,13 @@ describe("Topics trace selection", () => {
         },
       ],
     };
-    const [preview, ids] = await Promise.all([
-      selectTopicTraceRows(input, prisma, "preview"),
-      selectTopicTraceRows(input, prisma, "ids"),
-    ]);
+    const preview = await selectTopicTraceRows(input, prisma);
     expect(preview).toHaveLength(1);
     expect(preview[0]).toMatchObject({
       name: "agent-turn",
       environment: "test",
     });
     expect(Number(preview[0].matchedTraceCount)).toBe(2);
-    expect(ids).toEqual([{ id: preview[0].id }]);
   });
 });
 

@@ -29,7 +29,7 @@ import { AuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/AuditL
 import { ModelsSettings } from "@/src/features/models/components/ModelsSettings";
 import ConfigureRetention from "@/src/features/projects/components/ConfigureRetention";
 import ContainerPage from "@/src/components/layouts/ContainerPage";
-import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { default as ProtectedLabelsSettings } from "@/src/features/prompts/components/ProtectedLabelsSettings";
 import { SiSlack } from "@langfuse/icons/si";
 import { ScoreConfigSettings } from "@/src/features/score-configs/components/ScoreConfigSettings";
@@ -340,7 +340,9 @@ export default function ProjectSettingsPage() {
           title: "Project Settings",
         }}
       >
-        <NoDataOrLoading isLoading />
+        <div className="flex h-3/4 min-h-36 w-full items-center justify-center rounded-md">
+          <Skeleton className="h-full w-full" />
+        </div>
       </ContainerPage>
     );
   }

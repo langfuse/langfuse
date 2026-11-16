@@ -203,7 +203,7 @@ vi.mock("@/src/utils/api", () => ({
             createdAt: "2026-09-23T12:00:00Z",
             updatedAt: state.updatedAt,
             input: {
-              operation: "process",
+              operation: "update",
               embeddingConfig: { embeddingDimensions: 1024 },
             },
             facets: [],
@@ -213,7 +213,6 @@ vi.mock("@/src/utils/api", () => ({
           refetch: state.refetchExecution,
         }),
       },
-      traceErrors: { useQuery: () => ({}) },
       maps: { useQuery: () => ({ data: state.maps }) },
       ruleSetupStatus: { useQuery: () => ({ data: null }) },
       startRuleSetup: {
@@ -334,7 +333,7 @@ it("keeps the question picker reachable with the mobile header", () => {
 it("refreshes current results through retry and completion for a selected run outside history", () => {
   state.executionId = "execution";
   const view = render(<TopicsPage />, { wrapper: LayerProvider });
-  const status = screen.getByRole("dialog", { name: "Analyze traces" });
+  const status = screen.getByRole("dialog", { name: "Regenerate topics" });
   fireEvent.click(within(status).getByRole("button", { name: "Resume run" }));
   expect(state.retry).toHaveBeenCalledWith({
     projectId: "project",
