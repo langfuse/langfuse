@@ -356,8 +356,7 @@ if (
       shardName as QueueName,
       topicsTraceQueueProcessorBuilder(shardName),
       {
-        // Per-trace jobs per worker and shard; each makes one summary and one embedding call.
-        concurrency: 20,
+        concurrency: env.LANGFUSE_TOPICS_TRACE_QUEUE_PROCESSING_CONCURRENCY,
         lockDuration: 60000,
         stalledInterval: 120000,
         maxStalledCount: 3,

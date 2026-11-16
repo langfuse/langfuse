@@ -174,6 +174,12 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_TOPICS_TRACE_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  // Per-trace Topics jobs per worker and shard; each makes one summary and one embedding call.
+  LANGFUSE_TOPICS_TRACE_QUEUE_PROCESSING_CONCURRENCY: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(20),
   // 04:00 UTC is early morning in Europe and late evening in the Americas.
   LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC: z.coerce
     .number()
