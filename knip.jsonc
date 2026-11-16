@@ -51,6 +51,7 @@
     },
     "web": {
       "oxlint": { "config": ["oxlint.config.mts"] },
+      "vitest": { "config": ["vitest.*.mts"] },
       "entry": [
         // Components imported by MDX documentation, which Knip does not trace.
         ".storybook/docs/**/*.tsx",
