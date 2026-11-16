@@ -2090,6 +2090,7 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ steps.bases.outputs.base }}
             MICRO_BASE_IMAGE=${{ steps.bases.outputs.micro }}
+            BUILD_ID=${{ github.sha }}
             NEXT_PUBLIC_BUILD_ID=${{ github.sha }}
           provenance: false
           sbom: false
@@ -2105,6 +2106,7 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ steps.bases.outputs.base }}
             MICRO_BASE_IMAGE=${{ steps.bases.outputs.micro }}
+            BUILD_ID=${{ github.sha }}
             NEXT_PUBLIC_BUILD_ID=${{ github.sha }}
           provenance: false
           sbom: false
