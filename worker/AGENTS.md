@@ -20,7 +20,7 @@
 - OTEL event processing:
   `src/features/otel-ingestion/processOtelEvents.ts`; the OTEL queue calls this
   after its legacy persistence path for event normalization, evaluation
-  scheduling, direct events-table writes, and trace-batch accounting.
+  scheduling, direct events-table writes, and trace-dispatch recording.
 - Automatic evaluation scheduling: OTel ingestion, including prompt-experiment telemetry, uses
   `src/features/evaluation/fetchEvalRules.ts` and `scheduleEvals.ts` for both
   observation and transcript rules. Create scheduler dependencies once per batch.
@@ -33,7 +33,7 @@
   Prompt experiments select observation rules only on their root span. Transcript
   recording preserves Topics' exclusion of internal environments, including prompt
   experiments. The direct internal writer retains its root-only ready callback.
-- Trace batching: `src/features/traceBatching/traceBatching.ts` and `src/features/traceBatching/traceRuleRecording.ts`. Read `src/features/traceBatching/README.md` before changing mode selection, readiness/Redis state, dispatch or metrics. Preserve ingestion error boundaries and revision-guarded enqueue acknowledgement. The dispatcher enqueues ready traces only to `events-dispatch-queue`.
+- Trace batching: `src/features/traceBatching/traceBatching.ts` and `src/features/traceBatching/traceRuleRecording.ts`. Read `src/features/traceBatching/README.md` before changing recording/Redis state, dispatch or metrics. Preserve ingestion error boundaries and revision-guarded enqueue acknowledgement. The dispatcher enqueues ready traces only to `events-dispatch-queue`.
 - Events dispatch: `src/features/eventsDispatch/`, consumed only on worker-cpu, enabled by `LANGFUSE_EVENTS_DISPATCH_ENABLED`; a failed stream must not assemble its partial final trace. It routes each trace's recorded rule IDs to consumers by evaluator type (`consumers.ts`), reads ClickHouse only for routed traces, stores the transcript once and enqueues one job per consumer; consumers resolve their rule definitions themselves. The trace-transcript-eval consumer schedules LLM-as-a-judge and decision-model executions from the stored object key on `llm-as-a-judge-execution-queue`. Topics is unchanged and still receives only the project, trace, and revision. Per-trace failures return to the `{trace-dispatch:N}` maps via `RESTORE_RECORDING_SCRIPT` (backoff 5/15/45 min, then dropped); a failed read retries the whole job once. New names use events-dispatch; the Redis maps keep trace-dispatch.
 - Audit log relay: `src/features/audit-log-relay/index.ts` moves Postgres
   `audit_log_staging` rows into ClickHouse `audit_logs`, deleting them only
@@ -46,7 +46,7 @@
   and are retried after 10 minutes.
 - Evaluation terminal-outcome classification: `src/features/evaluation/evalExecutionMetrics.ts`. Keep it aligned with shared code evaluator dispatcher error codes and user-visible error mapping.
 - Service layer: `src/services/*`
-- `ClickhouseWriter.getInstance()` queues JSON rows; `getNativeInstance()` queues opaque `PreparedEvent` handles for `events_full`. Use `shutdownAll()` to drain both singletons. `IngestionService.writeEventRecord()` returns the accepted post-overflow row, including `event_bytes` in legacy sizing mode. Trace-batch intake reuses that estimate or measures JSON size only when enabled, to preserve its read-capacity guard. When v4 event writes are enabled, startup detects the `events_full` `byteSize` DEFAULT with `DESCRIBE TABLE` before queue consumers load. TypeScript writers use the DEFAULT only when confirmed; otherwise they preserve legacy estimates. Detection failures warn and continue. The mode stays fixed until restart. Native always omits `event_bytes` and requires the migration.
+- `ClickhouseWriter.getInstance()` queues JSON rows; `getNativeInstance()` queues opaque `PreparedEvent` handles for `events_full`. Use `shutdownAll()` to drain both singletons. `IngestionService.writeEventRecord()` returns the accepted post-overflow row, including `event_bytes` in legacy sizing mode. Trace-dispatch recording reuses that estimate or measures JSON size only when enabled, to preserve its read-capacity guard. When v4 event writes are enabled, startup detects the `events_full` `byteSize` DEFAULT with `DESCRIBE TABLE` before queue consumers load. TypeScript writers use the DEFAULT only when confirmed; otherwise they preserve legacy estimates. Detection failures warn and continue. The mode stays fixed until restart. Native always omits `event_bytes` and requires the migration.
 - Rust addon (`@langfuse/native`): telemetry init and the startup hello call live in `src/initialize.ts`, the health probe call in `src/api/index.ts`. Native code records its own metrics and logs; see `../packages/native/AGENTS.md`.
 - Tests: `src/__tests__/*`, `src/queues/__tests__/*`
 - Direct-event replay: `pnpm --filter worker run test:otel-replay` compares the

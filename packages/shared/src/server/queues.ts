@@ -532,7 +532,7 @@ export const TraceBatchTraceSchema = z.object({
   minStart: z.number(),
   maxStart: z.number(),
   revision: z.string(),
-  // Rule IDs recorded at ingestion and prior per-trace failures; absent in legacy mode.
+  // Rule IDs recorded at ingestion and prior per-trace failures.
   ruleIds: z.array(z.string()).optional(),
   failedCount: z.number().int().nonnegative().optional(),
   // Dispatcher estimate of the trace's retained serialized event bytes; describes the read on its span.

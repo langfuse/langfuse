@@ -15,7 +15,7 @@ Topics turns v4 traces into facet summaries, embeddings and topic assignments. T
 
 Topics requires `LANGFUSE_TOPICS_ENABLED=true` and a cloud region (`NEXT_PUBLIC_LANGFUSE_CLOUD_REGION`; `DEV` locally). Read access, configuration and processing also require the project in `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`. Keep web and worker configuration aligned. An empty allowlist disables Topics access for all projects. Trace and project deletion clean Topics data independently of these gates.
 
-Use the normal migrated Postgres, ClickHouse and Redis stack and build shared and `@langfuse/native` before starting the worker. Automatic intake additionally needs the [trace-batch dispatcher and consumer](../traceBatching/README.md). These are internal controls, not a supported self-hosting configuration surface.
+Use the normal migrated Postgres, ClickHouse and Redis stack and build shared and `@langfuse/native` before starting the worker. Automatic intake additionally needs the [trace dispatcher and the events-dispatch consumer](../traceBatching/README.md). These are internal controls, not a supported self-hosting configuration surface.
 
 Project settings resolve three LLM connections: summary, embedding and clustering (naming). Pass the resolved `TopicsModels` explicitly; credentials must not enter persisted execution or batch state. Model validation and connection lifecycle belong to [model-config.ts](../../../../packages/shared/src/server/topics/model-config.ts). The embedding model and dimensions are locked once embedded summaries exist. Discovery and later assignment must use the same embedding purpose and normalization; equal dimensions alone do not make vector spaces compatible. An execution whose frozen summary or embedding model differs from current settings must be restarted. Changing the naming model affects subsequent naming; it does not rename unchanged definitions.
 
@@ -25,7 +25,7 @@ Text-call tracing is separate from processing. It requires the source project in
 
 **Update topics** fits stored summaries in a frozen source-time window. It does not load source traces, summarize or embed. Select the latest summary per source before checking completion, facet version and embedding compatibility: a newer ineligible result must not revive an older eligible one. This check must see replacements outside the selected window, including sources moved to another minute or month. Retrying an unpublished update starts a fresh fit from current compatible summaries in that same window. Completed or skipped attempts replay their saved outcome without refitting or naming again. The previous published map remains available until publication succeeds.
 
-Automatic trace batches use the same extraction and project models without reloading observations. A facet completed since the job's enqueue time is skipped on retry; a later redispatch can produce an updated summary. A failed trace is counted without failing or rereading the whole batch. Rejected credentials or billing pause the project's automatic processing.
+Per-trace jobs from events dispatch use the same extraction and project models without reloading observations. A facet completed since the job's enqueue time is skipped on retry; a later redispatch can produce an updated summary. A failed trace is counted without failing or rereading the whole batch. Rejected credentials or billing pause the project's automatic processing.
 
 ## Continuous maps and nightly refits
 
@@ -93,7 +93,7 @@ Processing estimates sum retained summaries' `cost_details['total']` by project 
 
 Queue metrics expose backlog. Global snapshots can be emitted by several workers: use max for counts and age, not sums across reporters.
 
-Trace deletion removes summaries and assignments, including map coordinates; project deletion also removes topic definitions. Deletion does not cancel in-flight jobs, which can write afterward. Optional trace-batch input capture has its own bucket-expiry contract; see the trace-batch README.
+Trace deletion removes summaries and assignments, including map coordinates; project deletion also removes topic definitions. Deletion does not cancel in-flight jobs, which can write afterward. Stored transcripts have their own bucket-expiry contract; see the trace dispatch README.
 
 ## Verification
 

@@ -3,7 +3,6 @@
 Ingestion tracks when a trace goes idle, and a dispatcher enqueues ready traces in batches to `events-dispatch-queue`. The [events-dispatch consumer](../eventsDispatch/eventsDispatch.ts) reads each batch from ClickHouse, stores the transcript and enqueues one job per routed consumer (Topics, trace transcript evals). `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED` and `QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED` choose which service runs each role; the dispatcher runs only when events dispatch is enabled.
 
 - **Trace dispatch** (`LANGFUSE_TRACE_DISPATCH_ENABLED`, default off): tracks rule-matched traces in the `{trace-dispatch:<shard>}` maps: ingestion → Redis → dispatcher → events-dispatch jobs. A trace is admitted when it passes its project's rule sampling or the experiment sampling (`LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE`); both use the same deterministic trace-ID value.
-- **Legacy Topics readiness** (`LANGFUSE_TOPICS_ENABLED`, dispatch off): ingestion still tracks active allowlisted Topics projects in the `{trace-batch:<shard>}` maps. Nothing dispatches them, so this state only expires.
 
 ## Recording trace-rule selections
 
@@ -44,13 +43,13 @@ LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE=0.1
 LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS=14400000
 ```
 
-The new TTL is independent of legacy history retention. Sampling defaults to zero.
+Sampling defaults to zero.
 Sampled traces carry matched rule IDs or the storage-only sentinel; neither is
 executed by this experiment.
 
-The dispatcher reads at most 10,000 oldest due candidates per shard per run, hydrates 50 at a time, and reuses the existing batch selection and byte limits. New bounds contain no event count, so count budgets apply only to legacy estimates. It enqueues before removing matching revisions, preserving newer ingestion and bounds. Excess candidates stay due for the next run. Cleanup uses bounded Lua calls but may repeat; there is no hard five-second deadline. The events-dispatch consumer reads ClickHouse only for traces with at least one routed consumer rule and counts every trace's outcome in `langfuse.events_dispatch.trace_outcomes`. Storage is required: a trace whose transcript cannot be stored is not enqueued to its consumers.
+The dispatcher reads at most 10,000 oldest due candidates per shard per run, hydrates 50 at a time, and reuses the existing batch selection and byte limits. Bounds contain no event count, so event-count budgets never apply. It enqueues before removing matching revisions, preserving newer ingestion and bounds. Excess candidates stay due for the next run. Cleanup uses bounded Lua calls but may repeat; there is no hard five-second deadline. The events-dispatch consumer reads ClickHouse only for traces with at least one routed consumer rule and counts every trace's outcome in `langfuse.events_dispatch.trace_outcomes`. Storage is required: a trace whose transcript cannot be stored is not enqueued to its consumers.
 
-`langfuse.trace_batch.redis_key_bytes` / `redis_key_entries` sample the active pipeline's maps every 60 seconds per reporting worker, summed across shards: `key:pending|due` in new mode, `key:due|state|first` in legacy mode. Per-trace bounds keys have no index, so new mode additionally reports `redis_key_bytes{key:bounds,shard:sampled_mean}`, the mean `MEMORY USAGE` of the bounds keys of up to 20 random pending traces per shard; no keyspace scan. Use max/latest across reporters, never sum these global gauges.
+`langfuse.trace_batch.redis_key_bytes` / `redis_key_entries` sample the recording maps every 60 seconds per reporting worker, summed across shards: `key:pending|due`. Per-trace bounds keys have no index, so it additionally reports `redis_key_bytes{key:bounds,shard:sampled_mean}`, the mean `MEMORY USAGE` of the bounds keys of up to 20 random pending traces per shard; no keyspace scan. Use max/latest across reporters, never sum these global gauges.
 
 Metrics use `langfuse.trace_dispatch`:
 
@@ -91,117 +90,15 @@ Redis CPU/memory. Queue metrics remain under `langfuse.trace_batch`.
 
 ## Controls
 
-[worker env](../../env.ts) owns defaults and limits. The active pipeline is selected in [traceBatchSampling.ts](traceBatchSampling.ts):
+[worker env](../../env.ts) owns defaults and limits. Gates live in [traceBatchSampling.ts](traceBatchSampling.ts):
 
-- `LANGFUSE_TRACE_DISPATCH_ENABLED` selects trace dispatch; otherwise enabled Topics uses legacy readiness.
+- `LANGFUSE_TRACE_DISPATCH_ENABLED` turns on trace recording.
 - `LANGFUSE_EVENTS_DISPATCH_ENABLED` (requires trace dispatch) enables the dispatcher's target queue. `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED` runs the dispatcher; `QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED` (worker-cpu only) consumes `events-dispatch-queue` with `LANGFUSE_EVENTS_DISPATCH_CONCURRENCY` jobs. Its ClickHouse read settings (60 s limit, 2 threads, block size 512), pending-bytes cap and upload concurrency are constants in `eventsDispatch.ts`, not env vars.
 - `LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES` (experiment) also reads and stores traces without consumer rules, counted as `trace_outcomes{outcome:stored}`; consumers are still enqueued only where rules apply.
 - `LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE` admits an additional experiment cohort; it does not make those traces eligible for Topics or input capture.
 - A project's `tracing_readiness_settings.trace_idle_ms` overrides `LANGFUSE_TRACE_BATCH_IDLE_MS`. Saving refreshes its cache; failed reads fall back to the deployment value.
 
-The older `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED` and `LANGFUSE_TRACE_BATCH_SAMPLING_RATE` declarations are not consulted by the current pipeline.
-
 Cloud guards cover intake, dispatcher execution, worker registration, processing and shared queue access. Rule sampling is deterministic by trace ID. Consumers recheck active Topics settings and the rule's sample before reading ClickHouse.
-
-## Legacy Topics Redis state and expiry
-
-- `{trace-batch:<shard>}:due`: sorted set, with JSON `[projectId, traceId]` members and
-  Redis server time plus idle delay as the score.
-- `{trace-batch:<shard>}:state`: hash with the same members and JSON
-  `{minStart, maxStart, revision, historyBucket, eventUpdateCount, serializedEventBytes}` values. Bounds describe observed event start
-  times; revision protects newer ingestion from an older dispatch acknowledgment.
-- `{trace-batch}:dispatcher`: renewable dispatcher lease.
-- `{trace-batch:<shard>}:first:<bucket>`: hourly hashes retaining the minimum and
-  maximum event starts independently of pending state. Fields are the first 16 binary
-  bytes of SHA-256 of the JSON project/trace pair; values are MessagePack
-  `[minStart, maxStart, expiresAt, eventUpdateCount, serializedEventBytes]`.
-  A bounds-only tuple has unknown estimates. This accepts the negligible collision probability of a
-  128-bit identity. Key shape is independent of the processing unit.
-
-Sharding uses the shared SHA-256 shard helper on the complete project/trace pair,
-so a large project spreads across shards. Every Lua call uses only keys with
-one shard's hash tag. The single dispatcher lease covers all shards; batch
-packing combines ready traces from every shard. Queue slots are unchanged.
-
-When pending state is absent or has no bucket pointer, tracking looks up the
-bounded set of live time buckets (26 keys for the default TTL), never scans their
-fields, and atomically merges the historical bounds. Valid pending state contains
-both bounds, cumulative size estimates and its current history bucket, allowing direct movement to the new
-bucket on subsequent activity and guarded acknowledgement. The Redis server clock owns
-both retention and readiness. Values with an elapsed deadline are ignored;
-whole-key expiry at bucket end plus retention removes storage without scans.
-Physical removal can lag logical expiry by up to one hour (or the TTL for a
-shorter test override). Activity and guarded acknowledgement refresh retention,
-so the post-dispatch window lasts the configured TTL independently of idle delay.
-One live copy per identity
-is retained under a consistent TTL.
-
-No event payloads are stored here. Atomic Lua updates accumulate estimates and
-refresh bounds, revision and readiness:
-
-```text
-due = last admitted activity + effective project idle
-pending expiry = due + recovery grace
-```
-
-Tracking uses the project's configured idle duration when available. The default
-is 600 seconds outside DEV and 120 seconds in DEV, with the existing environment
-override.
-
-Both pending keys receive a whole-key `PEXPIREAT` covering the required expiry,
-preserving any existing later deadline with `PEXPIRETIME` (Redis 7+). During
-activity, cleanup removes at most 100 members per call with
-`due <= now - recovery grace`, using the existing due index. This supports
-different project idle durations without another per-member expiry index.
-Cleanup runs during ingestion and dispatch; whole-key expiry also clears abandoned
-state if all processes stop. Acknowledgement normally removes pending entries
-as soon as enqueueing succeeds, independently of their safety deadline.
-
-### Sharding and atomicity
-
-The shard is `SHA256(JSON.stringify([projectId, traceId]))[first 32 bits] % N`.
-It is stable for a fixed shard count and hashes the trace identity rather than
-the project alone. Redis Cluster then maps the shared `{trace-batch:N}` tag to
-one of its 16,384 slots; the number of logical readiness shards is independent
-of the number of Redis primaries. Standalone Redis executes the same layout.
-Use a `REDIS_KEY_PREFIX` without its own hash tag: Redis uses the first tag in
-the full key, so a tagged prefix would collapse every shard onto one slot.
-
-```mermaid
-flowchart LR
-  identity[Project + trace identity] --> hash[SHA-256 modulo shard count]
-  hash --> slot[One Redis Cluster slot per shard tag]
-  slot --> due[Due sorted set]
-  slot --> state[Pending state hash]
-  slot --> first[First-seen bucket hashes]
-```
-
-| Operation       | Atomic boundary                                                                                                                                                                            |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Track activity  | One Lua call reads retained starts and pending state, merges min/max and counters, replaces the revision, sets readiness, moves first-seen history and sets expiry. All keys share a slot. |
-| Snapshot/expiry | One Lua call removes a bounded expired cohort and returns readiness counts and the cutoff.                                                                                                 |
-| Hydrate         | One Lua call rechecks due scores and reads corresponding state/revisions. Freshly reactivated traces are not dispatched from an obsolete snapshot.                                         |
-| Acknowledge     | One Lua call compares the revision, refreshes first-seen retention from dispatch time and removes due/state only when it still matches.                                                    |
-| Enqueue         | A separate BullMQ operation precedes acknowledgement. Stable job IDs reduce duplicates if acknowledgement fails. Concurrent arrivals survive the guarded acknowledgement.                  |
-
-No application-side read-then-write decides a trace's bounds, revision or due
-score. `TIME` before tracking selects the bounded bucket keys; Lua reads Redis
-time again and rejects a stale bucket selection before mutating anything.
-Scripts serialize within a Redis primary; different primaries can execute
-different shards concurrently. Tracking, hydration and acknowledgement calls
-contain at most 50 traces; cleanup handles at most 100. Ingestion sends at most
-four tracking scripts per pipeline, all in one shard, using one Redis clock lookup
-per ingestion call. A group requiring only one script uses a direct call.
-Successful pipeline commands remain committed when a sibling
-fails; only commands rejected with `NOSCRIPT` are retried using `EVAL`. A pipeline
-is not one atomic operation; each Lua call is atomic independently.
-Dispatch still pools
-up to 1,000 hydrated candidates for locality selection, so script call size does
-not constrain queue batch packing. Scripts use cached `EVALSHA`, falling back
-to `EVAL` after a missing script cache on the selected primary. Dispatch holds one renewable lease across
-all shards, and checks/extends it while making progress. The lease excludes other
-dispatchers; it does not lock ingestion. Only each synchronous Redis command or
-Lua call blocks its primary, not the dispatcher's entire read/pack/enqueue run.
 
 Lua atomicity prevents command interleaving, but is not an ACID transaction
 across Redis, BullMQ and ClickHouse and does not roll back writes on a runtime
@@ -210,16 +107,7 @@ this pipeline's delivery contract. There is no reconciler.
 
 ## Dispatch and reads
 
-In legacy mode, one dispatcher holds the renewable lease and snapshots each shard in turn. It selects the complete due cohort at each shard's cutoff; there is no per-run trace limit. Trace-dispatch mode instead caps candidates per shard, as described under recording trace-rule selections. Each due-ID range read and the combined in-memory candidate list grow with the due cohort, even though subsequent Lua calls and selection pools are bounded. It sorts ready IDs by project and due time across shards, then hydrates and revalidates state in single-slot calls of up to 50. Locality selection combines those calls into pools of up to 1,000. Jobs contain up to the configured trace cap and weight budgets; project leftovers can share a job. The dispatcher enqueues before acknowledging matching revisions, so concurrent intake stays pending and failed enqueueing can be retried. Successful enqueues are acknowledged by shard after each hydration window, including when a later enqueue fails, so Redis calls stay bounded by 50 traces rather than job size. Stable job IDs limit duplicates.
-
-Acknowledgement removes due/state only. Late arrivals within first-seen
-retention reopen readiness with the merged historical and incoming minimum and
-maximum starts; the existing two-minute query padding reads the trace again.
-Tracking does not classify events as late by comparing timestamps. Every admitted
-event updates readiness; retained history supplies the earlier bound even when
-the incoming start equals it. History without pending state can also result from
-pending expiry, so it does not prove a previous dispatch. Concurrent arrivals
-replace the revision and survive an acknowledgement of an older snapshot.
+One dispatcher holds the renewable `{trace-dispatch}:dispatcher` lease and snapshots each shard in turn, reading at most 10,000 due candidates per shard and run. It sorts ready IDs by project and due time across shards, then hydrates and revalidates state in single-slot calls of up to 50. Locality selection combines those calls into pools of up to 1,000. Jobs contain up to the configured trace cap and weight budgets; project leftovers can share a job. The dispatcher enqueues before acknowledging matching revisions, so concurrent intake stays pending and failed enqueueing can be retried. Successful enqueues are acknowledged by shard after each hydration window, including when a later enqueue fails, so Redis calls stay bounded by 50 traces rather than job size. Stable job IDs limit duplicates.
 
 The events-dispatch consumer reads the supplied trace window. Per-trace Topics jobs check existing summaries for each facet: a summary processed since the job was enqueued is skipped on retry; a later redispatch generates and appends an updated row. There are no Redis completion markers or staged results. BullMQ still uses Redis for queue delivery.
 
@@ -394,13 +282,13 @@ At most `maxBatchSize - 1` traces are retained across all partials; oldest-due
 partials dispatch first when that budget is exceeded. The last window flushes
 all remaining partials, so carry never outlives the current dispatch run.
 
-Locality bounds selector input, not the legacy ready-ID snapshot. Measure selector duration before increasing scale, especially with distant event times that force many jobs.
+Locality bounds selector input. Measure selector duration before increasing scale, especially with distant event times that force many jobs.
 
 Compare `dispatched_batches` (tags `strategy`, `fill`), `event_time_envelope_ms`, `candidate_buffer_size` and `selector_duration_ms` under `langfuse.trace_batch`. Per-trace event span stays on the events-dispatch read span. The envelope metric includes the reader's two-minute margin on each side; the selector's envelope limit does not. Payload and Redis state are unchanged.
 
 ## Monitor dispatcher memory
 
-Legacy mode snapshots the complete ready cohort; trace-dispatch mode caps candidates per shard/run. Batch size limits jobs, not all dispatcher memory. Watch memory alongside backlog growth.
+The dispatcher caps candidates per shard and run. Batch size limits jobs, not all dispatcher memory. Watch memory alongside backlog growth.
 
 The worker enables Datadog Node runtime metrics. In Metrics Explorer, filter to
 the experiment environment and worker service, and inspect the maximum per
@@ -410,8 +298,7 @@ worker/container rather than a fleet average:
 - `runtime.node.mem.heap_used`: JavaScript heap in use.
 - `langfuse.trace_batch.snapshot_size`, `pending_traces`, `ready_traces` and
   `oldest_due_age_ms`: snapshot and backlog growth.
-- `langfuse.trace_batch.expired_traces`: tagged `source:ingestion` or
-  `source:dispatcher`. Sum within one source; the two writers are different events.
+- `langfuse.trace_batch.expired_traces{source:dispatcher}` and `langfuse.trace_dispatch.expired_traces`: pending entries expired by the dispatcher and by ingestion; the two writers are different events.
 - `langfuse.periodic_runner.duration_ms` and `completed`, filtered by
   `runner:trace_batch_dispatcher`: run duration and outcome.
 
@@ -423,6 +310,6 @@ and available instance tags in Datadog before relying on these signals.
 
 ## Mode and layout changes
 
-Redis key-layout, shard-count or legacy history-retention changes require coordinating writers and dispatchers: drain pending work using the old layout, and preserve retained history until it expires or explicitly accept losing it. Deleting pending keys is not a drain. There is no history migration or reconciler.
+Redis key-layout or shard-count changes require coordinating writers and dispatchers: drain pending work using the old layout. Deleting pending keys is not a drain. There is no history migration or reconciler.
 
 On shutdown, the dispatcher stops scheduling and waits a bounded time for its active dispatch. This wait does not cancel issued Redis commands. Queue retention options are owned by the shared events-dispatch queue accessor.

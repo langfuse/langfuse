@@ -1,7 +1,6 @@
 import { logger, recordIncrement } from "@langfuse/shared/src/server";
 import {
   getTopicsProcessingSampling,
-  isTopicsEnabled,
   isTopicsProjectEnabled,
 } from "@langfuse/shared/topics/server";
 import { env } from "../../env";
@@ -17,18 +16,6 @@ export function isTraceDispatchEnabled(): boolean {
   );
 }
 
-export function isLegacyTopicsBatchingEnabled(): boolean {
-  return (
-    Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) &&
-    !isTraceDispatchEnabled() &&
-    isTopicsEnabled()
-  );
-}
-
-export function isTraceBatchPipelineEnabled(): boolean {
-  return isTraceDispatchEnabled() || isLegacyTopicsBatchingEnabled();
-}
-
 /**
  * A trace is admitted when it passes its Topics rule's sampling or the
  * experiment's sampling. Both use the same deterministic trace-ID value, so
@@ -37,7 +24,7 @@ export function isTraceBatchPipelineEnabled(): boolean {
 export async function resolveTraceBatchSamplingRate(
   projectId: string,
 ): Promise<number> {
-  if (!isTraceBatchPipelineEnabled()) return 0;
+  if (!isTraceDispatchEnabled()) return 0;
 
   let topicsRate: number;
   try {
@@ -51,10 +38,7 @@ export async function resolveTraceBatchSamplingRate(
     });
     topicsRate = isTopicsProjectEnabled(projectId) ? 1 : 0;
   }
-  const experimentRate = isTraceDispatchEnabled()
-    ? env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE
-    : 0;
-  return Math.max(topicsRate, experimentRate);
+  return Math.max(topicsRate, env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE);
 }
 
 export function isTraceBatchSampled(
