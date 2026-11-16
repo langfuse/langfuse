@@ -95,6 +95,34 @@ describe("AI Gateway model discovery", () => {
     expect(await fetchOpenAiModelIds()).not.toContain("tts-1-hd");
   });
 
+  it("reads an OpenAI-compatible model's creation time from `created` or Azure's `created_at`, else leaves it unknown", async () => {
+    const result = await openAiModelDiscoveryAdapter.fetchCatalog({
+      credential: "sk-test",
+      config: null,
+      baseURL: "https://my-resource.openai.azure.com/openai/v1",
+      extraHeaders: {},
+      fetcher: respondWith({
+        data: [
+          { id: "openai", created: 1_700_000_000 },
+          { id: "azure", created_at: 1_700_000_000 },
+          { id: "missing" },
+          { id: "malformed", created: "yesterday", created_at: -1 },
+        ],
+      }),
+    });
+
+    expect(
+      result.success
+        ? result.models.map(({ id, createdAt }) => [id, createdAt])
+        : result.error,
+    ).toEqual([
+      ["openai", "2023-11-14T22:13:20.000Z"],
+      ["azure", "2023-11-14T22:13:20.000Z"],
+      ["missing", "1970-01-01T00:00:00.000Z"],
+      ["malformed", "1970-01-01T00:00:00.000Z"],
+    ]);
+  });
+
   it("caches an OpenAI catalog no longer than until its next shutdown", async () => {
     vi.setSystemTime(new Date("2027-01-05T23:58:00Z"));
     const redis = {
