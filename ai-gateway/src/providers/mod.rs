@@ -213,24 +213,18 @@ impl ProviderTransport {
         let provider_headers = connection_headers(&context)?;
         let stream_usage = matches!(route, Route::OpenAiChatCompletions)
             .then(|| chat_completions::request_stream_usage(&body, provider_model));
+        let mut capture = self.capture(route, &context, headers, &body, correlation);
         // A request whose usage may go unreported would escape the key's spend limits.
         if permit.spend.is_some()
             && matches!(stream_usage, Some(chat_completions::StreamUsage::Unknown))
         {
+            capture.set_provider_model(provider_model);
+            capture.reject(crate::http::provider_rejection(
+                ProviderError::UnmeteredRequest,
+            ));
             return Err(ProviderError::UnmeteredRequest);
         }
-        let mut capture = if route.captures_generation() {
-            let mut capture = ExecutionCapture::for_request(api_format, &context, headers, &body);
-            if let Some(telemetry) = &self.telemetry
-                && context.ingestion_mode() != IngestionMode::None
-            {
-                capture.deliver_to(telemetry.clone(), &context, headers, correlation);
-            }
-            capture.record_spend_to(permit.spend.take());
-            capture
-        } else {
-            ExecutionCapture::unobserved()
-        };
+        capture.record_spend_to(permit.spend.take());
         // Capture the caller's body shape, but keep upstream-only changes out of the input.
         let body = match stream_usage {
             Some(chat_completions::StreamUsage::Requested(rewritten)) => {
@@ -304,6 +298,26 @@ impl ProviderTransport {
             capture,
         );
         Ok(downstream)
+    }
+
+    fn capture(
+        &self,
+        route: Route,
+        context: &ResolvedRequestContext,
+        headers: &HeaderMap,
+        body: &[u8],
+        correlation: &mut RequestCorrelation,
+    ) -> ExecutionCapture {
+        if !route.captures_generation() {
+            return ExecutionCapture::unobserved();
+        }
+        let mut capture = ExecutionCapture::for_request(route.api_format(), context, headers, body);
+        if let Some(telemetry) = &self.telemetry
+            && context.ingestion_mode() != IngestionMode::None
+        {
+            capture.deliver_to(telemetry.clone(), context, headers, correlation);
+        }
+        capture
     }
 
     /// Relay a gateway-built response body under the execution deadlines, holding

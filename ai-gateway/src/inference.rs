@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Duration};
 
 use axum::{
     body::Body,
-    http::{HeaderMap, Response, StatusCode},
+    http::{HeaderMap, Response},
 };
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tracing::Instrument;
@@ -319,20 +319,14 @@ impl InferenceService {
                         span.record("otel.status_code", "ERROR");
                         span.record("error.type", reason);
                     }
-                    if let ResolutionError::SpendLimitExceeded(limit) = &error
-                        && route.captures_generation()
-                    {
+                    if route.captures_generation() {
                         self.record_rejection(
                             api_format,
                             &context,
                             headers,
                             body,
                             correlation,
-                            GatewayRejection {
-                                status: StatusCode::TOO_MANY_REQUESTS.as_u16(),
-                                reason,
-                                message: limit.message().to_owned(),
-                            },
+                            crate::http::resolution_rejection(&error),
                         );
                     }
                     return Err(error);
@@ -390,6 +384,12 @@ impl InferenceService {
             telemetry: None,
             spend_limits: crate::spend::SpendLimits::default(),
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_telemetry(mut self, telemetry: crate::telemetry::Telemetry) -> Self {
+        self.telemetry = Some(telemetry);
+        self
     }
 
     #[cfg(test)]

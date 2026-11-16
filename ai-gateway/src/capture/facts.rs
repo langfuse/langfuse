@@ -50,6 +50,8 @@ pub(crate) struct InputOmission {
 pub(crate) struct GatewayRejection {
     /// The HTTP status the caller received.
     pub status: u16,
+    #[serde(skip)]
+    pub origin: crate::observability::ErrorOrigin,
     /// The bounded `error.reason` of the gateway's own request telemetry.
     pub reason: &'static str,
     pub message: String,

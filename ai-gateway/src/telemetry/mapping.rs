@@ -337,7 +337,7 @@ fn upstream_metadata(facts: &InferenceFacts) -> Map<String, Value> {
 /// `error.origin`/`error.reason` values on the gateway's own request telemetry.
 fn error_classification(facts: &InferenceFacts) -> Option<(ErrorOrigin, &'static str)> {
     if let Some(rejection) = &facts.rejection {
-        Some((ErrorOrigin::Client, rejection.reason))
+        Some((rejection.origin, rejection.reason))
     } else if let Some(status) = facts.http_status.filter(|status| *status >= 400) {
         Some((ErrorOrigin::Provider, provider_status_reason(status)))
     } else if facts.inference.provider_status.as_deref() == Some("failed") {
@@ -418,7 +418,6 @@ fn usage_attributes(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::capture::GatewayRejection;
 
     fn context() -> GenerationContext {
         GenerationContext {
@@ -1420,30 +1419,6 @@ mod tests {
             assert_eq!(attrs["langfuse.observation.status_message"], expected);
             assert_eq!(attrs["langfuse.observation.level"], "ERROR");
         }
-    }
-
-    #[test]
-    fn gateway_rejections_are_caller_errors_with_the_status_the_caller_received() {
-        let mut facts = facts();
-        facts.http_status = None;
-        facts.rejection = Some(GatewayRejection {
-            status: 429,
-            reason: "spend_limit_exceeded",
-            message: "This API key has spent $10.00 of its $10.00 daily spend limit.".into(),
-        });
-        let attrs = attributes(&span(facts, &context()));
-        assert_eq!(attrs["langfuse.observation.level"], "ERROR");
-        assert_eq!(
-            attrs["langfuse.observation.status_message"],
-            "This API key has spent $10.00 of its $10.00 daily spend limit."
-        );
-        let metadata = metadata(&attrs);
-        assert_eq!(metadata["langfuse.gateway.response.status_code"], 429);
-        assert_eq!(metadata["langfuse.gateway.error.origin"], "client");
-        assert_eq!(
-            metadata["langfuse.gateway.error.type"],
-            "spend_limit_exceeded"
-        );
     }
 
     #[test]

@@ -1611,6 +1611,72 @@ async fn keys_with_spend_limits_reject_requests_they_cannot_price() {
 }
 
 #[tokio::test]
+async fn spend_limit_rejections_are_recorded_as_error_generations() {
+    let (sent, mut uploads) = tokio::sync::mpsc::unbounded_channel();
+    let web = FakeServer::start(move |request| {
+        let sent = sent.clone();
+        async move {
+            if request.uri().path().ends_with("/resolve") {
+                return spend_limited_resolution(|body| body["pricing"] = serde_json::Value::Null)
+                    .await;
+            }
+            let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
+            sent.send(crate::test_support::upload_json(&bytes)).unwrap();
+            Response::new(Body::from("{}"))
+        }
+    })
+    .await;
+    let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
+    let telemetry = crate::telemetry::Telemetry::for_test(
+        &crate::resolution::ControlPlaneConfig::new(&web.url, "service-key").unwrap(),
+    );
+    let gateway = Gateway::start(Some(
+        inference(&web, &provider).with_telemetry(telemetry.clone()),
+    ))
+    .await;
+    let response = gateway
+        .post()
+        .bearer_auth("gateway-key")
+        .body(r#"{"model":"Production key:gpt-4.1"}"#)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    telemetry
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
+        .await;
+    let payload = uploads.try_recv().unwrap();
+    let span = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
+    let attribute = |key: &str| {
+        span["attributes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|attribute| attribute["key"] == key)
+            .map(|attribute| {
+                attribute["value"]["stringValue"]
+                    .as_str()
+                    .unwrap()
+                    .to_owned()
+            })
+    };
+    assert_eq!(attribute("langfuse.observation.level").unwrap(), "ERROR");
+    assert!(
+        attribute("langfuse.observation.status_message")
+            .unwrap()
+            .contains("Langfuse has no price for this model")
+    );
+    let metadata: serde_json::Value =
+        serde_json::from_str(&attribute("langfuse.observation.metadata").unwrap()).unwrap();
+    assert_eq!(metadata["langfuse.gateway.response.status_code"], 400);
+    assert_eq!(
+        metadata["langfuse.gateway.error.type"],
+        "spend_limit_unpriced_model"
+    );
+    assert_eq!(provider.calls(), 0);
+}
+
+#[tokio::test]
 async fn anthropic_capacity_rejections_use_the_native_envelope() {
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
     let web = FakeServer::start(|_| async {

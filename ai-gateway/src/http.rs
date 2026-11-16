@@ -15,6 +15,7 @@ use tower_http::timeout::{RequestBodyDeadlineLayer, TimeoutError};
 use tracing::Instrument;
 
 use crate::{
+    capture::GatewayRejection,
     correlation::{RequestCorrelation, assign_request_id},
     inference::{
         InferenceService, MemoryReservation, provider_origin, rate_limited_reason,
@@ -22,7 +23,7 @@ use crate::{
     },
     observability::{ErrorOrigin, Wait},
     providers::{ProviderError, RequestBody, Route},
-    resolution::{ApiFormat, RateLimit, ResolutionError, SpendLimitExceeded},
+    resolution::{ApiFormat, ResolutionError, SpendLimitExceeded},
     server::GatewayLifecycleState,
 };
 
@@ -633,6 +634,34 @@ impl InferenceHttpError {
         }
     }
 
+    fn spend_limit(&self) -> Option<&SpendLimitExceeded> {
+        match self {
+            Self::Resolution(ResolutionError::SpendLimitExceeded(limit)) => Some(limit.as_ref()),
+            _ => None,
+        }
+    }
+
+    /// Rate and spend limits name the exhausted limit instead of the generic `message`.
+    fn message<'a>(&'a self, message: &'a str) -> &'a str {
+        match self {
+            Self::Resolution(ResolutionError::RateLimited(limit)) => limit.message(),
+            _ => self
+                .spend_limit()
+                .map_or(message, SpendLimitExceeded::message),
+        }
+    }
+
+    fn rejection(&self) -> GatewayRejection {
+        let (status, message, _, _) = self.classify();
+        let (origin, reason) = self.origin();
+        GatewayRejection {
+            status: status.as_u16(),
+            origin,
+            reason,
+            message: self.message(message).to_owned(),
+        }
+    }
+
     fn into_native_response(
         self,
         api_format: ApiFormat,
@@ -675,14 +704,8 @@ impl InferenceHttpError {
             );
         }
         let request_id = correlation.id();
-        let spend_limit = match &self {
-            Self::Resolution(ResolutionError::SpendLimitExceeded(limit)) => Some(limit.as_ref()),
-            _ => None,
-        };
-        let message = rate_limit
-            .map(RateLimit::message)
-            .or_else(|| spend_limit.map(SpendLimitExceeded::message))
-            .unwrap_or(message);
+        let spend_limit = self.spend_limit();
+        let message = self.message(message);
         let mut response = match api_format {
             ApiFormat::OpenAiResponses
             | ApiFormat::OpenAiChatCompletions
@@ -725,6 +748,16 @@ impl InferenceHttpError {
         }
         response
     }
+}
+
+/// The status and message a refused resolution returns, for its generation.
+pub(crate) fn resolution_rejection(error: &ResolutionError) -> GatewayRejection {
+    InferenceHttpError::Resolution(error.clone()).rejection()
+}
+
+/// The status and message a refused provider request returns, for its generation.
+pub(crate) fn provider_rejection(error: ProviderError) -> GatewayRejection {
+    InferenceHttpError::Provider(error).rejection()
 }
 
 /// Status, message, error type and error code of a rejection.
