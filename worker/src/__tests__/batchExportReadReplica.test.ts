@@ -223,4 +223,21 @@ describe("batch export ClickHouse routing", () => {
     expect(replicaQueries()).toEqual([]);
     expect(harness.requests.primary.length).toBeGreaterThan(0);
   });
+
+  it("audit log export reads the service it is passed", async () => {
+    resetRecordings();
+
+    await drain(
+      await getDatabaseReadStreamPaginated({
+        projectId,
+        tableName: BatchExportTableName.AuditLogs,
+        cutoffCreatedAt,
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        preferredClickhouseService: "ReadOnly",
+      }),
+    );
+
+    expect(servicesUsed()).toEqual(["readOnly"]);
+  });
 });

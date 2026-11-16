@@ -724,15 +724,21 @@ export const getDatabaseReadStreamPaginated = async ({
     }
 
     case "audit_logs": {
+      const project = await prisma.project.findUniqueOrThrow({
+        where: { id: projectId },
+        select: { orgId: true },
+      });
       let after: { timestamp: Date; id: string } | undefined;
 
       return new DatabaseReadStream<unknown>(
         async (pageSize: number) => {
           const auditLogs = await getAuditLogsForExport({
+            orgId: project.orgId,
             projectId,
             limit: pageSize,
             timestampBefore: cutoffCreatedAt,
             after,
+            preferredClickhouseService,
           });
           const last = auditLogs.at(-1);
           if (last) after = { timestamp: last.timestamp, id: last.id };

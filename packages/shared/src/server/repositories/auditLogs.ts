@@ -8,7 +8,10 @@ import {
   type AuditLogEvent,
   type AuditLogStagingPayload,
 } from "../../domain/auditLogs";
-import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import {
+  convertDateToClickhouseDateTime,
+  type PreferredClickhouseService,
+} from "../clickhouse/client";
 import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
@@ -137,12 +140,12 @@ export function convertAuditLogStagingRowToClickhouse(
 }
 
 /**
- * One project's audit log, or one organisation's organisation-level events,
- * which are stored with an empty `project_id`. Project events are matched on
- * `project_id` alone: each event keeps the `org_id` it was written with, so a
- * project moved to another organisation keeps its earlier history.
+ * One project's audit log, or with `projectId: null` the organisation-level
+ * events, which are stored with an empty `project_id`. Each event keeps the
+ * `org_id` it was written with, so a project moved to another organisation
+ * shows only the events recorded since it belongs to `orgId`.
  */
-type AuditLogScope = { projectId: string } | { orgId: string; projectId: null };
+type AuditLogScope = { orgId: string; projectId: string | null };
 
 /** An audit log row as the viewer lists it. Empty values are `null`. */
 export type AuditLogEntry = {
@@ -223,20 +226,15 @@ type AuditLogExportRow = Pick<
 
 // Events of users who acted through a support access grant are left out:
 // they record Langfuse staff, not members of the organisation.
-const toScopeFilter = (scope: AuditLogScope) =>
-  scope.projectId !== null
-    ? {
-        condition:
-          "project_id = {projectId: String} AND support_access = false",
-        params: { projectId: scope.projectId },
-        tags: { projectId: scope.projectId },
-      }
-    : {
-        condition:
-          "org_id = {orgId: String} AND project_id = '' AND support_access = false",
-        params: { orgId: scope.orgId },
-        tags: undefined,
-      };
+const toScopeFilter = ({ orgId, projectId }: AuditLogScope) => ({
+  condition: `
+    org_id = {orgId: String}
+    AND project_id = {projectId: String}
+    AND support_access = false
+  `,
+  params: { orgId, projectId: projectId ?? "" },
+  tags: projectId ? { projectId } : undefined,
+});
 
 const emptyToNull = (value: string) => (value === "" ? null : value);
 
@@ -304,12 +302,14 @@ export async function getAuditLogsCount(scope: AuditLogScope): Promise<number> {
  * the previous page as `after`.
  */
 export async function getAuditLogsForExport(args: {
+  orgId: string;
   projectId: string;
   limit: number;
   timestampBefore: Date;
   after?: { timestamp: Date; id: string };
+  preferredClickhouseService?: PreferredClickhouseService;
 }): Promise<AuditLogExportEntry[]> {
-  const scope = toScopeFilter({ projectId: args.projectId });
+  const scope = toScopeFilter(args);
   const rows = await queryClickhouse<AuditLogExportRow>({
     query: `
       SELECT ${AUDIT_LOG_EXPORT_COLUMNS.join(", ")}
@@ -341,6 +341,7 @@ export async function getAuditLogsForExport(args: {
         : {}),
     },
     tags: scope.tags,
+    preferredClickhouseService: args.preferredClickhouseService,
   });
   return rows.map((row) => ({
     ...toAuditLogEntry(row),

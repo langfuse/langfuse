@@ -116,10 +116,7 @@ async function getAuditLogPage(
     limit: number;
   },
 ) {
-  const scope =
-    args.projectId !== null
-      ? { projectId: args.projectId }
-      : { orgId: args.orgId, projectId: null };
+  const scope = { orgId: args.orgId, projectId: args.projectId };
   const [entries, totalCount] = await Promise.all([
     getAuditLogs({
       ...scope,
@@ -130,10 +127,7 @@ async function getAuditLogPage(
   ]);
 
   return {
-    data: await withActors(prisma, entries, {
-      orgId: args.orgId,
-      projectId: args.projectId,
-    }),
+    data: await withActors(prisma, entries, scope),
     totalCount,
   };
 }
