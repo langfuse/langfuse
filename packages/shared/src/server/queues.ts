@@ -7,7 +7,7 @@ import {
   BatchActionType,
 } from "../features/batchAction/types";
 import { BatchTableNames } from "../interfaces/tableNames";
-import { EventActionSchema } from "../domain/automations";
+import { ActionTypeSchema, EventActionSchema } from "../domain/automations";
 import { SkillVersionSchema } from "../features/skills/types";
 import { PromptDomainSchema } from "../domain/prompts";
 import { ObservationAddToDatasetConfigSchema } from "../features/batchAction/addToDatasetTypes";
@@ -358,6 +358,7 @@ export const WebhookInputSchema = z.object({
   projectId: z.string(),
   automationId: z.string(),
   executionId: z.string(),
+  actionType: ActionTypeSchema.optional(), // optional for jobs enqueued before producers set it
   payload: WebhookOutboundEnvelopeSchema,
 });
 
@@ -440,6 +441,7 @@ export enum QueueName {
   TopicsUpdate = "topics-update",
   TopicsEmbedding = "topics-embedding",
   TopicsAutomation = "topics-automation",
+  TopicsSetup = "topics-setup",
   TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
   TraceDelete = "trace-delete",
@@ -489,6 +491,7 @@ export enum QueueJobs {
   TopicsRuleRefit = "topics-rule-refit",
   TopicsEmbedding = "topics-embedding",
   TopicsAutomation = "topics-automation",
+  TopicsSetup = "topics-setup",
   TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert",
   TraceDelete = "trace-delete",
@@ -550,7 +553,9 @@ export const TopicsTraceEventSchema = z.object({
   traceId: z.string().min(1),
   revision: z.string().min(1),
   // Rules that selected the trace; the job resolves their facets at the current version.
-  ruleIds: z.array(z.string().min(1)).min(1),
+  ruleIds: z.array(z.string().min(1)),
+  // A snapshot that seeded the trace: its facets are summarized, tagged with its ID.
+  batchActionId: z.string().min(1).optional(),
   // Set on a retry: only these facets still need a summary.
   facetIds: z.array(z.string().min(1)).min(1).optional(),
 });
@@ -561,7 +566,11 @@ export const EventsDispatchEventSchema = z.object({
   timestamp: z.coerce.date(),
   id: z.string(),
   name: z.literal(QueueJobs.EventsDispatchJob),
-  payload: z.object({ traces: z.array(TraceBatchTraceSchema).min(1) }),
+  payload: z.object({
+    traces: z.array(TraceBatchTraceSchema).min(1),
+    // Set by a snapshot, which enqueues its traces directly instead of through the dispatch maps.
+    batchActionId: z.string().min(1).optional(),
+  }),
 });
 
 export const TopicEmbeddingBatchSchema = z.object({
@@ -655,6 +664,15 @@ export type TQueueJobTypes = {
     id: string;
     name: QueueJobs.TopicsAutomation;
     payload: z.infer<typeof TopicAutomationBatchSchema>;
+  };
+  [QueueName.TopicsSetup]: {
+    timestamp: Date;
+    id: string;
+    name: QueueJobs.TopicsSetup;
+    // A rule's setup, or a snapshot's summarizing before it groups.
+    payload:
+      | { projectId: string; ruleId: string }
+      | { projectId: string; executionId: string };
   };
   [QueueName.TraceBatch]: z.infer<typeof TraceBatchEventSchema>;
   [QueueName.TraceUpsert]: {

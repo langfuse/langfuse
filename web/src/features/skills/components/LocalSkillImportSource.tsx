@@ -44,7 +44,6 @@ export function LocalSkillImportSource({
     <div className="flex flex-col gap-2">
       <p className="text-muted-foreground text-sm">
         Drop files, folders, or ZIPs containing SKILL.md and supporting files.
-        ZIPs can be up to 3 MB each.
       </p>
       <div className="ph-no-capture">
         <Dropzone

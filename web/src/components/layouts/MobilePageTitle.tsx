@@ -171,7 +171,7 @@ export const MobilePageTitle = ({
                   size="icon"
                   ref={menuTriggerRef}
                   aria-label="More actions"
-                  className="ml-auto shrink-0"
+                  className={cn("shrink-0", !mobileActionButtons && "ml-auto")}
                 >
                   <MoreHorizontal size="base" color="default" />
                 </Button>

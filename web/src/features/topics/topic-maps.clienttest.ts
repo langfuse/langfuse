@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  resolveTopicMapSelection,
-  suggestTopicRuleName,
-  type TopicMapsOverview,
-} from "./topic-maps";
+import { resolveTopicMapSelection, type TopicMapsOverview } from "./topic-maps";
 
 const overview = {
   rules: [{ id: "support" }, { id: "checkout" }],
@@ -30,27 +26,5 @@ describe("resolveTopicMapSelection", () => {
       kind: "rule",
       id: "support",
     });
-  });
-});
-
-describe("rule labels", () => {
-  it("suggests a name from the filter values", () => {
-    expect(
-      suggestTopicRuleName([
-        {
-          column: "environment",
-          type: "stringOptions",
-          operator: "any of",
-          value: ["production"],
-        },
-        {
-          column: "traceName",
-          type: "stringOptions",
-          operator: "any of",
-          value: ["support-agent"],
-        },
-      ]),
-    ).toBe("production · support-agent");
-    expect(suggestTopicRuleName([])).toBe("All traces");
   });
 });

@@ -12,8 +12,11 @@ import {
   vi,
 } from "vitest";
 import {
+  createEvent,
+  createEventsCh,
   createNewRedisInstance,
   EventsDispatchQueue,
+  getTopicSetupTraceBounds,
   getQueuePrefix,
   getS3EventStorageClient,
   getTraceBatchEventStream,
@@ -47,6 +50,7 @@ import {
   getRecordingKeys,
   getRecordingTag,
   recordTraceActivity,
+  seedTraceDispatch,
 } from "../features/traceBatching/traceRuleRecording";
 import {
   isTraceBatchSampled,
@@ -1202,6 +1206,137 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(await client().pexpiretime(bounds.key)).toBe(expiresAt);
   });
 
+  it("dispatches seeded traces with their rule and merges them into live activity", async () => {
+    env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
+    env.LANGFUSE_EVENTS_DISPATCH_ENABLED = "true";
+    const live = member("project", "live");
+    const stored = member("project", "stored");
+    await recordActivity("project", [
+      { ...spanActivity("live", T0 + 2_000, 300), ruleIds: ["live-rule"] },
+    ]);
+    recordingBoundsKeys.get(0)!.push(getRecordingBoundsKey(0, stored));
+    const liveDue = Number(await client().zscore(recordingKeys.due, live));
+
+    await seedTraceDispatch(
+      "project",
+      [
+        {
+          traceId: "live",
+          minStart: T0 + 1_000,
+          maxStart: T0 + 2_000,
+          serializedEventBytes: 200,
+        },
+        {
+          traceId: "stored",
+          minStart: T0,
+          maxStart: T0 + 5_000,
+          serializedEventBytes: 50,
+        },
+      ],
+      ["setup-rule"],
+      20_000,
+    );
+
+    // Live activity keeps its later due time and its byte count, which already includes the seeded spans.
+    expect(Number(await client().zscore(recordingKeys.due, live))).toBe(
+      liveDue,
+    );
+    expect((await readRecordedBounds(live)).value).toEqual({
+      minStart: T0 + 1_000,
+      maxStart: T0 + 2_000,
+      serializedEventBytes: 300,
+    });
+    const storedDue = Number(await client().zscore(recordingKeys.due, stored));
+    expect(storedDue).toBeGreaterThan(Date.now());
+    expect(storedDue).toBeLessThan(liveDue);
+
+    for (const identity of [live, stored])
+      await client().zadd(recordingKeys.due, Date.now() - 1_000, identity);
+    await runner().processBatch();
+    const [job] = await queue.getJobs(["wait"]);
+    expect(
+      Object.fromEntries(
+        job.data.payload.traces.map((trace) => [trace.traceId, trace.ruleIds]),
+      ),
+    ).toEqual({ live: ["live-rule", "setup-rule"], stored: ["setup-rule"] });
+  });
+
+  it("spreads seeded traces' due times and keeps the maps alive past the last one", async () => {
+    const traceIds = ["s0", "s1", "s2", "s3"];
+    recordingBoundsKeys.set(
+      0,
+      traceIds.map((id) => getRecordingBoundsKey(0, member("project", id))),
+    );
+    const before = Date.now();
+    await seedTraceDispatch(
+      "project",
+      traceIds.map((traceId) => ({
+        traceId,
+        minStart: T0,
+        maxStart: T0,
+        serializedEventBytes: 10,
+      })),
+      ["setup-rule"],
+      20_000,
+      60_000,
+    );
+    const dues = await Promise.all(
+      traceIds.map(async (id) =>
+        Number(await client().zscore(recordingKeys.due, member("project", id))),
+      ),
+    );
+    // Offsets 20 s, 35 s, 50 s, 65 s from Redis' clock.
+    expect(dues[0] - before).toBeGreaterThanOrEqual(19_000);
+    expect(dues[0] - before).toBeLessThan(25_000);
+    for (let i = 1; i < dues.length; i++)
+      expect(dues[i] - dues[i - 1]).toBe(15_000);
+    for (const key of [recordingKeys.pending, recordingKeys.due])
+      expect(await client().pexpiretime(key)).toBe(
+        dues[3] + env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
+      );
+  });
+
+  it("rebuilds a stored trace's dispatch state from ClickHouse for setup", async () => {
+    env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
+    env.LANGFUSE_EVENTS_DISPATCH_ENABLED = "true";
+    const projectId = randomUUID();
+    const identity = member(projectId, "stored");
+    recordingBoundsKeys.set(0, [getRecordingBoundsKey(0, identity)]);
+    const starts = [T0 + 1_000, T0 + 50_000];
+    await createEventsCh(
+      starts.map((start) =>
+        createEvent({
+          project_id: projectId,
+          trace_id: "stored",
+          start_time: new Date(start),
+          event_ts: new Date(start),
+        }),
+      ),
+    );
+
+    const bounds = await getTopicSetupTraceBounds({
+      projectId,
+      traceIds: ["stored"],
+      from: new Date(T0),
+    });
+    await seedTraceDispatch(projectId, bounds, ["setup-rule"], 20_000);
+    await client().zadd(recordingKeys.due, Date.now() - 1_000, identity);
+    await runner().processBatch();
+
+    const [job] = await queue.getJobs(["wait"]);
+    expect(job.name).toBe(QueueJobs.EventsDispatchJob);
+    // The events-dispatch read covers the whole stored trace.
+    expect(job.data.payload.traces).toEqual([
+      expect.objectContaining({
+        traceId: "stored",
+        minStart: starts[0],
+        maxStart: starts[1],
+        serializedEventBytes: bounds[0].serializedEventBytes,
+        ruleIds: ["setup-rule"],
+      }),
+    ]);
+  });
+
   it("keeps recording state on enqueue failure and retries it", async () => {
     env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
     env.LANGFUSE_EVENTS_DISPATCH_ENABLED = "true";
@@ -1913,8 +2048,9 @@ describe("trace micro-batch scheduling with Redis", () => {
 
       env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 1_800_000;
       await trackLegacyTopicsBatchActivity(projectId, [event("capped")]);
-      expect(await dueOffset("capped")).toBeLessThan(1_780_000);
-      expect(await dueOffset("capped")).toBeGreaterThan(1_760_000);
+      const cap = 1_800_000 - env.LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS;
+      expect(await dueOffset("capped")).toBeLessThan(cap + 10_000);
+      expect(await dueOffset("capped")).toBeGreaterThan(cap - 10_000);
     } finally {
       await prisma.organization.delete({ where: { id: orgId } });
     }

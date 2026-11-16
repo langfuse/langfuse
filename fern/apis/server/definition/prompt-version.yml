@@ -24,6 +24,9 @@ service:
         body:
           properties:
             newLabels:
-              type: list<string>
+              type: optional<list<string>>
               docs: New labels for the prompt version. Labels are unique across versions. The "latest" label is reserved and managed by Langfuse.
+            removeLabels:
+              type: optional<list<string>>
+              docs: Labels to remove from the prompt version. The "latest" label is reserved and managed by Langfuse.
       response: prompts.Prompt

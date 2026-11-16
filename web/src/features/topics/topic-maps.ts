@@ -36,18 +36,6 @@ function filterValue(value: unknown): string {
   return String(value);
 }
 
-/** One chip per filter, e.g. `traceName: support-agent` or `latency > 10`. */
-function topicFilterChips(filter: FilterState) {
-  return filter.map((item) => {
-    const column =
-      "key" in item && item.key ? `${item.column}.${item.key}` : item.column;
-    const value = "value" in item ? filterValue(item.value) : "";
-    if (item.operator === "=" || item.operator === "any of")
-      return `${column}: ${value}`;
-    return `${column} ${item.operator} ${value}`.trim();
-  });
-}
-
 /** A filter as `column`, `operator` and `value`, e.g. `type`, `=`, `GENERATION`. */
 export function topicFilterParts(filter: FilterState) {
   return filter.map((item) => {
@@ -68,21 +56,6 @@ export function topicFilterParts(filter: FilterState) {
 export function filterCountLabel(filter: FilterState) {
   if (filter.length === 0) return "No filter";
   return `${filter.length} ${filter.length === 1 ? "filter" : "filters"}`;
-}
-
-/** The rule name suggested from its filters, before the user edits it. */
-export function suggestTopicRuleName(filter: FilterState) {
-  const values = filter.flatMap((item) =>
-    "value" in item ? [filterValue(item.value)] : [],
-  );
-  return values.filter(Boolean).join(" · ").slice(0, 100) || "All traces";
-}
-
-/** The analysis label suggested from its filters. */
-export function suggestTopicAnalysisLabel(filter: FilterState) {
-  return filter.length
-    ? topicFilterChips(filter).join(" · ").slice(0, 100)
-    : "All summarized traces";
 }
 
 function hoursLabel(ms: number) {

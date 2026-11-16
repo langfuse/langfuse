@@ -81,6 +81,44 @@ const keyCopy = {
     ),
     placeholder: "Enter Vercel AI Gateway API key",
   },
+  AZURE: {
+    label: "Azure API key",
+    description: (
+      <>
+        Copy a key of the resource from its overview in the{" "}
+        <DocsLink href="https://ai.azure.com">
+          Microsoft Foundry portal
+        </DocsLink>
+        , or from Keys and Endpoint in the Azure portal.
+      </>
+    ),
+    placeholder: "Enter Azure API key",
+  },
+  GOOGLE_AI_STUDIO: {
+    label: "Gemini API key",
+    description: (
+      <>
+        Create one under{" "}
+        <DocsLink href="https://aistudio.google.com/apikey">API keys</DocsLink>{" "}
+        in Google AI Studio.
+      </>
+    ),
+    placeholder: "Enter Gemini API key",
+  },
+  VERTEX: {
+    label: "Service account key (JSON)",
+    description: (
+      <>
+        Create a{" "}
+        <DocsLink href="https://cloud.google.com/iam/docs/keys-create-delete">
+          service account key
+        </DocsLink>{" "}
+        for a service account with the Vertex AI User role, then paste the whole
+        JSON file.
+      </>
+    ),
+    placeholder: "Paste service account key JSON",
+  },
 } satisfies Record<
   GatewayProvider,
   { label: string; description: ReactNode; placeholder: string }

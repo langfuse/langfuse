@@ -1,6 +1,4 @@
-import { MAX_SKILL_BYTES } from "@langfuse/shared";
 import { discoverFileSkills, readSkillArchive } from "./archive-import";
-import { MAX_SKILL_ZIP_UPLOAD_BYTES } from "./importLimits";
 
 const MAX_LOCAL_BYTES = 20 * 1024 * 1024;
 
@@ -27,15 +25,6 @@ export async function discoverLocalSkills(
   const relevantFiles = ordinaryFiles.filter(({ path }) =>
     skillDirectories.some((directory) => path.startsWith(directory)),
   );
-  for (const { path, file } of [...relevantFiles, ...archives]) {
-    const isArchive = path.toLowerCase().endsWith(".zip");
-    if (file.size > (isArchive ? MAX_SKILL_ZIP_UPLOAD_BYTES : MAX_SKILL_BYTES))
-      throw new Error(
-        isArchive
-          ? "ZIP files must be 3 MB or smaller."
-          : "Skill files must be 1 MB or smaller.",
-      );
-  }
   if (
     [...relevantFiles, ...archives].reduce(
       (total, { file }) => total + file.size,

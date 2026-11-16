@@ -7,6 +7,7 @@ import { EllipsisVertical, type IconComponent } from "@langfuse/icons";
 import Link, { type LinkProps } from "next/link";
 import { flushSync } from "react-dom";
 
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
@@ -133,9 +134,11 @@ type TabsListProps = {
   gap?: "none" | "sm" | "lg";
   layout?: "default" | "full" | "packed";
 } & (
-  | { variant: "inset"; size: TabsInsetSize; overflow?: never }
+  | { variant: "inset"; size: TabsInsetSize; overflow?: never; divider?: never }
   | {
       variant: "underline";
+      /** Omit the list divider when its containing bar already draws one. */
+      divider?: "line" | "none";
       size?: never;
       /**
        * `menu`: shows the `Tabs.Trigger` children that fit, the active one
@@ -158,6 +161,7 @@ function TabsList({
   gap,
   layout,
   overflow,
+  divider,
   size,
   variant,
 }: TabsListProps) {
@@ -258,7 +262,10 @@ function TabsList({
     );
   }
 
-  const className = tabsListVariants({ gap, layout, look, size });
+  const className = cn(
+    tabsListVariants({ gap, layout, look, size }),
+    divider === "none" && "border-b-0",
+  );
 
   if (!inRoot) {
     return (
@@ -320,7 +327,17 @@ type TabsTriggerProps = {
     }
 ) &
   (
-    | { value: string; href?: never; active?: never; onClick?: never }
+    | {
+        value: string;
+        href?: never;
+        active?: never;
+        onClick?: never;
+        /**
+         * A tab that also opens a menu: shows a down indicator and announces
+         * the menu. The caller's menu owns the press handling.
+         */
+        menu?: { open: boolean };
+      }
     | {
         /** Renders a Next.js link with `aria-current` instead of a tab. */
         href: LinkProps["href"];
@@ -335,7 +352,9 @@ function TabsTrigger(props: TabsTriggerProps) {
   const list = React.use(TabsListContext) ?? { look: "underline" as const };
   const { children, count, disabled, icon, internal, label, title, tooltip } =
     props;
-  const className = tabsTriggerVariants({ look: list.look, size: list.size });
+  const className = cn(
+    tabsTriggerVariants({ look: list.look, size: list.size }),
+  );
   const nativeTitle = tooltip ? undefined : (labelText(label, count) ?? title);
   const content = (
     <TabsTriggerContent
@@ -369,11 +388,14 @@ function TabsTrigger(props: TabsTriggerProps) {
   return (
     <TabsPrimitive.Trigger
       value={props.value}
+      aria-haspopup={props.menu ? "menu" : undefined}
+      aria-expanded={props.menu?.open}
       disabled={disabled}
       title={nativeTitle}
       className={className}
     >
       {content}
+      {props.menu ? <DropdownIndicator size="sm" nudge /> : null}
     </TabsPrimitive.Trigger>
   );
 }

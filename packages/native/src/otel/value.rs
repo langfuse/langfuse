@@ -8,17 +8,15 @@
 //! Serde builds values directly through `FastValue` and `FastValueVisitor`.
 //! `BytesVisitor` accepts Serde's decoded bytes for `JsString`, preserving surrogates.
 //! On failure, `CompatibilityParser` lets Jiter traverse JSON and borrows Serde
-//! `RawValue` tokens where Jiter cannot decode them. The enclosing batch retry is
-//! coordinated by `events::process_to_events`; malformed JSON still fails.
+//! `RawValue` tokens where Jiter cannot decode them. `input::JsonField` applies this
+//! decoding to each dynamic field independently; malformed JSON still fails.
 //!
 //! ```text
-//! input::JsonField -> deserialize_fast -> FastValue / FastValueVisitor -> Value
-//!
-//! attributes::JsonParseCache -> parse_js_string --+
-//! input::JsonField on envelope retry ------------+-> Value::parse / parse
-//!                                                    |-- FastValue -> Value
-//!                                                    `-- on error:
-//!                                                         CompatibilityParser -> Value
+//! input::JsonField -> parse_field -----------------+
+//! attributes::JsonParseCache -> parse_js_string ---+-> Value::parse / parse
+//!                                                     |-- FastValue -> Value
+//!                                                     `-- on decoding error:
+//!                                                          CompatibilityParser -> Value
 //! ```
 //!
 //! Parsers borrow input while decoding; returned values own their strings and
@@ -33,7 +31,7 @@ use std::hash::{Hash, Hasher};
 use std::ops::Index;
 use std::ops::Range;
 
-use hstr::wtf8::{CodePoint, Wtf8Buf};
+use hstr::wtf8::{CodePoint, IllFormedUtf16CodeUnits, Wtf8, Wtf8Buf};
 use indexmap::{Equivalent, IndexMap};
 use serde::de::{self, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -122,6 +120,18 @@ impl JsString {
 
     pub fn is_empty(&self) -> bool {
         self.as_bytes().is_empty()
+    }
+
+    pub(crate) fn utf16_units(&self) -> IllFormedUtf16CodeUnits<'_> {
+        let value: &Wtf8 = match self {
+            Self::Utf8(value) => Wtf8::from_str(value),
+            Self::Wtf8(value) => &value.wtf8,
+        };
+        value.to_ill_formed_utf16()
+    }
+
+    pub(crate) fn from_utf16_unit(unit: u16) -> Self {
+        Self::from_wtf8_buf(Wtf8Buf::from_ill_formed_utf16(&[unit]))
     }
 
     /// Remove a prefix while retaining the remaining JavaScript string code units.

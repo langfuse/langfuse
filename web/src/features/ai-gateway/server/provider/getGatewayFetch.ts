@@ -4,6 +4,7 @@ import {
 } from "@langfuse/shared/src/server";
 
 const ANTHROPIC_API_KEY_HEADER = "x-api-key";
+const AZURE_API_KEY_HEADER = "api-key";
 
 const allowlistedFetch: typeof fetch = async (input, init) => {
   assertLlmProviderHostAllowed(
@@ -24,12 +25,13 @@ export function getGatewayFetch(params: {
 }): typeof fetch {
   if (!params.baseURL) return allowlistedFetch;
   // A cross-origin redirect strips only `authorization`-style headers by
-  // default, so Anthropic's key and extra headers that can carry proxy
-  // credentials are listed explicitly.
+  // default, so the Anthropic and Azure keys and extra headers that can carry
+  // proxy credentials are listed explicitly.
   return createSecureLlmFetch({
     logContext: params.logContext,
     additionalSensitiveHeaders: [
       ANTHROPIC_API_KEY_HEADER,
+      AZURE_API_KEY_HEADER,
       ...Object.keys(params.extraHeaders),
     ],
   });

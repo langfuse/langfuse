@@ -14,7 +14,8 @@ import {
 import { clickhouseClient } from "@langfuse/shared/src/server/clickhouse";
 import { prisma } from "@langfuse/shared/src/db";
 import { processTopicsAutomation } from "./topicsAutomation";
-import { scheduleNightlyTopicRefits } from "./nightlyRefit";
+import { nightlyRefitSlot, scheduleNightlyTopicRefits } from "./nightlyRefit";
+import { env } from "../../env";
 
 // The refit's queue handoff and model settings are not under test; its run rows are.
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
@@ -281,7 +282,12 @@ describe("automatic Topics assignment against storage", () => {
     const [first, ...others] = await runs("pending");
     expect(others).toEqual([]);
     expect(first).toMatchObject({ ruleId: rule.id, batchActionId: null });
-    expect(enqueueTopicRuleRefit).toHaveBeenCalledWith(projectId, first.id);
+    // Nightly fits queue behind a setup's first fit.
+    expect(enqueueTopicRuleRefit).toHaveBeenCalledWith(
+      projectId,
+      first.id,
+      expect.any(Number),
+    );
 
     await prisma.topicClusteringRun.update({
       where: { id: first.id },
@@ -293,5 +299,53 @@ describe("automatic Topics assignment against storage", () => {
     expect(await runs("skipped")).toEqual([
       expect.objectContaining({ ruleId: rule.id, batchActionId: null }),
     ]);
+  });
+
+  it("skips the slot after a fit started from an hour before it, such as a manual refresh", async () => {
+    const facet = await createTopicFacet({
+      projectId,
+      name: "Refresh",
+      description: "",
+      prompt: "Describe the request.",
+    });
+    const rule = await saveTopicRule({
+      projectId,
+      facetIds: [facet.id],
+      filter: [],
+    });
+    const refresh = await createTopicRun({
+      projectId,
+      facetId: facet.id,
+      facetVersion: 1,
+      ruleId: rule.id,
+      config: { embeddingModel: "embed", dimensions: DIMENSIONS },
+    });
+    const slot = nightlyRefitSlot(
+      projectId,
+      new Date(Date.now() + 86_400_000),
+      env.LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC,
+    );
+    await prisma.topicClusteringRun.update({
+      where: { id: refresh.id },
+      data: { createdAt: new Date(slot.getTime() - 30 * 60_000) },
+    });
+    vi.mocked(getEnabledTopicsModels).mockResolvedValueOnce(
+      new Map([
+        [
+          projectId,
+          { projectId, embedding: { model: "embed", dimensions: DIMENSIONS } },
+        ],
+      ]) as Awaited<ReturnType<typeof getEnabledTopicsModels>>,
+    );
+
+    // A later tick of the same slot, more than an hour after the refresh started.
+    await scheduleNightlyTopicRefits(new Date(slot.getTime() + 2 * 3_600_000));
+
+    expect(
+      await prisma.topicClusteringRun.findMany({
+        where: { projectId, facetId: facet.id },
+        select: { id: true, status: true },
+      }),
+    ).toEqual([{ id: refresh.id, status: "pending" }]);
   });
 });

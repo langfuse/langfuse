@@ -48,8 +48,7 @@ import {
   sessionTraceFilterColumns,
 } from "../../features/filters/sessionTraceFilters";
 import { tracesTableUiColumnDefinitions } from "../tableMappings/mapTracesTable";
-import { eventsTableNativeUiColumnDefinitions } from "../tableMappings/mapEventsTable";
-import { EventsQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
+import { buildEventsObservationRowSelection } from "../queries/clickhouse-sql/events-observation-row-selection";
 
 export type SessionTraceFromEvents = {
   id: string;
@@ -84,46 +83,36 @@ export const getSessionTracesFromEvents = async (props: {
   const filters = sessionTraceFilterSchema.parse(props.filter);
   const traceFilters = new FilterList(
     createFilterFromFilterState(
-      filters.filter(
-        (filter) =>
-          !["name", "type", "level", "metadata", "isRootObservation"].includes(
-            filter.column,
-          ),
-      ),
+      filters.filter((filter) => filter.column === "traceName"),
       tracesTableUiColumnDefinitions,
       sessionTraceFilterColumns,
     ),
   ).apply();
-  const observationFilters = filters.filter((filter) =>
-    ["name", "type", "level", "metadata", "isRootObservation"].includes(
-      filter.column,
-    ),
+  const observationFilters = filters.filter(
+    (filter) => filter.column !== "traceName",
   );
   const sessionTraceIdsQuery = compileClickhouseQuery(
     builder.clearSelect().select("e.trace_id").clearGroupBy().clearOrderBy(),
     projectId,
   );
-  const observationQuery =
-    observationFilters.length > 0
-      ? new EventsQueryBuilder({ projectId: props.projectId })
-          .selectRaw("e.trace_id")
-          .when(
-            observationFilters.some((filter) => filter.column === "metadata"),
-            (builder) => builder.forceFullTable(),
-          )
-          .whereRaw("e.is_deleted = 0")
-          .whereRaw(`e.trace_id IN (${sessionTraceIdsQuery.sql})`)
-          .where(
-            new FilterList(
-              createFilterFromFilterState(
-                observationFilters,
-                eventsTableNativeUiColumnDefinitions,
-                sessionTraceFilterColumns,
-              ),
-            ).apply(),
-          )
-          .buildWithParams()
-      : null;
+  let observationQuery: {
+    query: string;
+    params: Record<string, unknown>;
+  } | null = null;
+  if (observationFilters.length > 0) {
+    const { queryBuilder } = buildEventsObservationRowSelection({
+      projectId,
+      filter: observationFilters,
+    });
+    observationQuery = queryBuilder
+      .selectRaw("e.trace_id")
+      .whereRaw("e.is_deleted = 0")
+      .whereRaw(
+        `e.trace_id IN (${sessionTraceIdsQuery.sql})`,
+        sessionTraceIdsQuery.params,
+      )
+      .buildWithParams();
+  }
   const query =
     filters.length === 0
       ? tracesQuery

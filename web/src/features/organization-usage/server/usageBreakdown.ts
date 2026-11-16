@@ -1,5 +1,8 @@
 import { type PrismaClient } from "@langfuse/shared/src/db";
-import { LISTABLE_SCORE_TYPES } from "@langfuse/shared";
+import {
+  CORRECTION_SCORES_BILLABLE_FROM,
+  LISTABLE_SCORE_TYPES,
+} from "@langfuse/shared";
 import {
   convertDateToClickhouseDateTime,
   queryClickhouse,
@@ -99,8 +102,8 @@ const getBucketStarts = (
 /**
  * Billable units per bucket, project and unit type. Mirrors the metering
  * definition used for Stripe and ClickHouse Billing: rows counted by
- * `created_at` in a half-open window, scores limited to listable data types,
- * no FINAL.
+ * `created_at` in a half-open window, no FINAL. Scores include the listable
+ * data types, plus CORRECTION rows created at or after the billing cutoff.
  */
 const getBillableUnitsByBucket = async ({
   projectIds,
@@ -133,7 +136,13 @@ const getBillableUnitsByBucket = async ({
     SELECT ${bucket} AS bucket, project_id, 'scores' AS unit_type, count() AS count
     FROM scores
     WHERE ${where}
-    AND data_type IN ({dataTypes: Array(String)})
+    AND (
+      data_type IN ({dataTypes: Array(String)})
+      OR (
+        data_type = 'CORRECTION'
+        AND created_at >= {correctionsFrom: DateTime64(3)}
+      )
+    )
     GROUP BY bucket, project_id
   `;
 
@@ -149,6 +158,9 @@ const getBillableUnitsByBucket = async ({
       start: convertDateToClickhouseDateTime(start),
       end: convertDateToClickhouseDateTime(end),
       dataTypes: LISTABLE_SCORE_TYPES,
+      correctionsFrom: convertDateToClickhouseDateTime(
+        CORRECTION_SCORES_BILLABLE_FROM,
+      ),
     },
     clickhouseConfigs: { request_timeout: 120_000 },
   });

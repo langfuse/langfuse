@@ -31,7 +31,7 @@ export class GatewayResolveRepository {
             organizationMemberships: { select: { orgId: true, role: true } },
           },
         },
-        gatewayAssociation: { select: { metadata: true } },
+        gatewayAssociation: { select: { metadata: true, allowedModels: true } },
         organization: {
           select: {
             cloudConfig: true,

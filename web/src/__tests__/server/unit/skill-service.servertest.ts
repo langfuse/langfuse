@@ -17,6 +17,12 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   };
 });
 
+const env = vi.hoisted(() => ({
+  LANGFUSE_SKILL_MAX_BYTES: 1_000_000,
+  LANGFUSE_SKILL_MAX_FILES: 200,
+}));
+vi.mock("@/src/env.mjs", () => ({ env }));
+
 vi.mock("@/src/features/audit-logs/auditLog", () => ({
   auditLog: vi.fn(),
 }));
@@ -750,6 +756,20 @@ describe("SkillService versions", () => {
       "in total",
     );
     expect(test.transaction).not.toHaveBeenCalled();
+  });
+
+  it("accepts a version above the default limit when LANGFUSE_SKILL_MAX_BYTES is raised", async () => {
+    env.LANGFUSE_SKILL_MAX_BYTES = 2_000_000;
+    try {
+      const test = setup();
+      test.params.input.files[1]!.content = "🌍".repeat(300_000);
+
+      await expect(
+        test.service.createVersion(test.params),
+      ).resolves.toMatchObject({ id: "skill" });
+    } finally {
+      env.LANGFUSE_SKILL_MAX_BYTES = 1_000_000;
+    }
   });
 
   it("only looks up latest when the default production version is missing", async () => {

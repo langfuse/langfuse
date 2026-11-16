@@ -22,9 +22,7 @@ export function EvaluatorSetupLoadingState({
               1
             </div>
             <div className="min-w-0 flex-1">
-              <h2 className="text-lg font-bold">Define evaluation</h2>
-              <Skeleton className="mt-2 h-3 w-3/4 max-w-lg" />
-              <Skeleton className="mt-2 h-3 w-1/2 max-w-sm" />
+              <h2 className="text-lg font-bold">Define evaluation method</h2>
               <Skeleton className="mt-6 h-64 w-full" />
             </div>
           </div>
@@ -79,21 +77,14 @@ export function EvaluatorSetupLoadingState({
         </aside>
       </div>
 
-      <div className="flex shrink-0 items-center gap-4 border-t px-6 py-3">
-        {isCreating ? (
-          <p className="text-muted-foreground min-w-0 flex-1 text-sm">
-            Next: attach a rule to run this evaluator on incoming observations.
-          </p>
-        ) : null}
-        <div className="ml-auto flex shrink-0 gap-2">
-          <Button type="button" variant="outline" disabled>
-            Close
-          </Button>
-          <Button type="button" disabled className="gap-1.5">
-            {isCreating ? "Create evaluator" : "Save changes"}
-            {isCreating ? <ArrowRight size="base" aria-hidden="true" /> : null}
-          </Button>
-        </div>
+      <div className="flex shrink-0 items-center justify-end gap-2 border-t px-6 py-3">
+        <Button type="button" variant="outline" disabled>
+          Close
+        </Button>
+        <Button type="button" disabled className="gap-1.5">
+          {isCreating ? "Create evaluator" : "Save changes"}
+          {isCreating ? <ArrowRight size="base" aria-hidden="true" /> : null}
+        </Button>
       </div>
     </div>
   );

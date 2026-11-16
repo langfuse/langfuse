@@ -197,6 +197,9 @@ const scoreNameOptionsForView = (
       value: category.label,
     }));
   }
+  if (view === "scores-boolean") {
+    return (filterOptions?.score_booleans ?? []).map((value) => ({ value }));
+  }
   return [];
 };
 

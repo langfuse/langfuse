@@ -241,7 +241,8 @@ export function classifyViewFiltersForTable(
   const columnMap =
     (tableVersion === "v4"
       ? VIEW_DIMENSION_TO_TABLE_COL_V4
-      : VIEW_DIMENSION_TO_TABLE_COL_V3)[view] ?? {};
+      : VIEW_DIMENSION_TO_TABLE_COL_V3
+    )[view] ?? {};
   const applicable: FilterState = [];
   const notApplicable = new Map<string, string>();
 

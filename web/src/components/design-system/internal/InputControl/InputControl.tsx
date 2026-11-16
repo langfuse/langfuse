@@ -164,7 +164,7 @@ export function InputControl({
           disabled={trailingAction.disabled}
           // Keep the action out of the tab order so Tab moves between inputs.
           tabIndex={-1}
-          className="absolute top-1/2 right-3 flex -translate-y-1/2 cursor-pointer items-center justify-center disabled:cursor-not-allowed"
+          className="absolute inset-y-0 right-0 flex w-10 cursor-pointer items-center justify-center disabled:cursor-not-allowed"
           onClick={trailingAction.onClick}
         >
           <TrailingActionIcon

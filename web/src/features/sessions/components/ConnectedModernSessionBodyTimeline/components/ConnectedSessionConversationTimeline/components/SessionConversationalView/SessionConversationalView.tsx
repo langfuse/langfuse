@@ -268,7 +268,6 @@ export function SessionConversationalView(
     <SessionViewLayout
       search={props.state === "loaded" ? props.search : ""}
       isLoading={props.state === "loading"}
-      customization={customization}
       renderSidebar={(onNavigate) =>
         sidebarProps.state === "loading" ? (
           <SessionConversationSidebar

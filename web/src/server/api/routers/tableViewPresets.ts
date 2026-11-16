@@ -120,23 +120,10 @@ export const TableViewPresetsRouter = createTRPCRouter({
         return;
       }
 
-      // Keep deletion idempotent so stale clients can safely repeat it.
-      await ctx.prisma.$transaction(async (tx) => {
-        await tx.tableViewPreset.deleteMany({
-          where: {
-            id: input.tableViewPresetsId,
-            projectId: input.projectId,
-          },
-        });
-
-        // Cleanup any default view references
-        await tx.defaultView.deleteMany({
-          where: {
-            viewId: input.tableViewPresetsId,
-            projectId: input.projectId,
-          },
-        });
-      });
+      await TableViewService.deleteTableViewPresets(
+        input.tableViewPresetsId,
+        input.projectId,
+      );
     }),
 
   getByTableName: protectedProjectProcedure
