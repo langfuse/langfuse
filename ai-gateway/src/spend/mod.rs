@@ -49,13 +49,13 @@ const COUNTER_WRITE_RETRY_DELAYS: [Duration; 3] = [
 
 #[derive(Clone, Default)]
 pub(crate) struct SpendLimits {
-    counters: Option<Arc<RedisCounters>>,
+    spend_storage: Option<Arc<RedisCounters>>,
 }
 
 impl SpendLimits {
     pub(crate) fn new(config: Option<SpendCountersConfig>) -> Self {
         Self {
-            counters: config.map(|config| Arc::new(RedisCounters::new(config))),
+            spend_storage: config.map(|config| Arc::new(RedisCounters::new(config))),
         }
     }
 
@@ -78,7 +78,7 @@ impl SpendLimits {
         if may_omit_usage(route, body, context.connection().provider_model()) {
             return Err(ResolutionError::SpendLimitUnmeteredRequest);
         }
-        let Some(store) = &self.counters else {
+        let Some(store) = &self.spend_storage else {
             tracing::warn!("key has spend limits but LANGFUSE_AI_GATEWAY_REDIS_URL is not set");
             return Err(ResolutionError::SpendLimitUnavailable);
         };
