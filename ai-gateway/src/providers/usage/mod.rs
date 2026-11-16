@@ -1,14 +1,14 @@
 //! A generation's usage as the provider that served it reports it. Every
 //! provider starts from the usage its API format reports; providers whose usage
 //! or billing departs from it adjust that in their own file.
-mod details;
 mod formats;
 mod gemini;
+mod ingestion;
 mod openrouter;
 mod vercel;
 mod xai;
 
-pub(crate) use details::UsageDetails;
+pub(crate) use ingestion::UsageDetails;
 use serde_json::Value;
 
 use crate::{resolution::ApiFormat, spend::UsageCostType};
