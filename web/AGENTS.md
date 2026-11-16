@@ -196,11 +196,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
   LFE-10645). Format TypeScript with `parser: "babel-ts"` +
   `prettier/plugins/babel` instead, as the eval-template editor does
   (`src/features/evals/components/CodeEvalTemplateFormBody.tsx`).
-- Public API routes should use
-  `src/features/public-api/server/withMiddlewares.ts`, define strict request and
-  response types in `src/features/public-api/types/*`, and update Fern sources
-  when the contract changes. Whether to add a server test follows root
-  [`AGENTS.md`](../AGENTS.md).
+- Public API routes should use `src/features/public-api/server/withMiddlewares.ts`, define strict request and response types in `src/features/public-api/types/*`, and update Fern sources when the contract changes. Whether to add a server test follows root [`AGENTS.md`](../AGENTS.md).
 - Observations v2 pages can be short or empty while `meta.cursor` exists because
   the endpoint bounds scan work. End pagination only when the cursor is absent;
   never derive completion from the number of returned rows.
