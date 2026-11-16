@@ -144,6 +144,7 @@ model Organization {
   verifiedDomains                  VerifiedDomain[]
   gatewayConfig                    GatewayConfig?
   gatewayAiConnections             GatewayAiConnection[]
+  gatewaySpendLimits               GatewaySpendLimit[]
   organizationLlmApiKeys           LlmApiKeys[]             @relation("OrganizationLlmApiKeys")
   roleAssignments                  RoleAssignment[]         @relation("RoleAssignmentTenant")
 
@@ -266,6 +267,7 @@ model ApiKey {
   createdByApiKey     ApiKey?                   @relation("ApiKeyCreatedByApiKey", fields: [createdByApiKeyId], references: [id], onDelete: SetNull)
   apiKeysCreated      ApiKey[]                  @relation("ApiKeyCreatedByApiKey")
   gatewayAssociation  GatewayApiKeyAssociation?
+  gatewaySpendLimits  GatewaySpendLimit[]
   roleAssignments     RoleAssignment[]
 
   deprecatedRoleAssignments RoleAssignment[] @relation("DeprecatedRoleAssignmentApiKey") @ignore
@@ -403,6 +405,37 @@ model GatewayApiKeyAssociation {
   allowedModels Json?  @map("allowed_models") @db.JsonB
 
   @@map("gateway_api_key_associations")
+}
+
+enum GatewaySpendLimitInterval {
+  DAILY
+  WEEKLY
+  MONTHLY
+  LIFETIME
+}
+
+// USD spend cap the AI gateway checks before each request. Windows are UTC
+// calendar windows (weeks start Monday); LIFETIME never refreshes.
+model GatewaySpendLimit {
+  id                  String                    @id @default(cuid())
+  organizationId      String                    @map("organization_id")
+  organization        Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  apiKeyId            String                    @map("api_key_id")
+  apiKey              ApiKey                    @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  interval            GatewaySpendLimitInterval
+  limitUsd            Decimal                   @map("limit_usd")
+  // Bumped on reset; the gateway's usage counters are keyed by it, so a reset starts fresh counters.
+  generation          Int                       @default(0)
+  resetAt             DateTime?                 @map("reset_at")
+  // Spend recorded in ClickHouse before the gateway counted it, valid only for the window starting at baselineWindowStart.
+  baselineSpendUsd    Decimal                   @default(0) @map("baseline_spend_usd")
+  baselineWindowStart DateTime                  @map("baseline_window_start")
+  createdAt           DateTime                  @default(now()) @map("created_at")
+  updatedAt           DateTime                  @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([apiKeyId, interval])
+  @@index([organizationId])
+  @@map("gateway_spend_limits")
 }
 
 enum InAppAgentConversationVisibilityScope {

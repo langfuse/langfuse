@@ -108,6 +108,60 @@ export const GatewayResolveResponseSchema = z
       })
       .strict()
       .nullable(),
+    // Empty in "none" mode, where spend is not recorded and limits are unavailable.
+    spend_limits: z.array(
+      z
+        .object({
+          id: z.string(),
+          interval: z.enum(["daily", "weekly", "monthly", "lifetime"]),
+          limit_usd: z.number(),
+          // Part of the gateway's usage counter key; bumped when an admin resets the limit.
+          generation: z.number().int().nonnegative(),
+          // Spend recorded before the limit existed. Counts only while the
+          // current window still starts at baseline_window_start (Unix seconds).
+          baseline_usd: z.number(),
+          baseline_window_start: z.number().int(),
+        })
+        .strict(),
+    ),
+    // Prices of the model the request is priced with; null without spend
+    // limits or when no model in the ingestion project matches.
+    pricing: z
+      .object({
+        model_id: z.string(),
+        tiers: z.array(
+          z
+            .object({
+              id: z.string(),
+              name: z.string(),
+              is_default: z.boolean(),
+              priority: z.number().int(),
+              conditions: z.array(
+                z.union([
+                  z
+                    .object({
+                      usage_detail_pattern: z.string(),
+                      operator: z.enum(["gt", "gte", "lt", "lte", "eq", "neq"]),
+                      value: z.number(),
+                      case_sensitive: z.boolean(),
+                    })
+                    .strict(),
+                  z
+                    .object({
+                      source: z.enum(["model_parameters", "metadata"]),
+                      key: z.string(),
+                      values: z.array(z.string()),
+                    })
+                    .strict(),
+                ]),
+              ),
+              prices: z.record(z.string(), z.number()),
+            })
+            .strict(),
+        ),
+      })
+      .strict()
+      .nullable(),
   })
   .strict();
 export type GatewayResolveResponse = z.infer<

@@ -41,6 +41,20 @@ export const CachedResolveContext = z.object({
    * of allowing every model.
    */
   keyAllowedModels: z.array(z.string()).nullable(),
+  /**
+   * Required, so entries cached before spend limits existed are refetched
+   * instead of letting the key spend without its limits.
+   */
+  spendLimits: z.array(
+    z.object({
+      id: z.string(),
+      interval: z.enum(["DAILY", "WEEKLY", "MONTHLY", "LIFETIME"]),
+      limitUsd: z.number(),
+      generation: z.number().int(),
+      baselineSpendUsd: z.number(),
+      baselineWindowStart: z.iso.datetime(),
+    }),
+  ),
   ingestionProjectId: z.string().nullable(),
   ingestionMode: z.enum(["NONE", "USAGE", "FULL"]).nullable(),
   plan: z.custom<Plan>((value) => plans.includes(value as Plan)),

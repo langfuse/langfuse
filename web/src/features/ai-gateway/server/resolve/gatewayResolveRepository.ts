@@ -32,6 +32,17 @@ export class GatewayResolveRepository {
           },
         },
         gatewayAssociation: { select: { metadata: true, allowedModels: true } },
+        gatewaySpendLimits: {
+          orderBy: { interval: "asc" },
+          select: {
+            id: true,
+            interval: true,
+            limitUsd: true,
+            generation: true,
+            baselineSpendUsd: true,
+            baselineWindowStart: true,
+          },
+        },
         organization: {
           select: {
             cloudConfig: true,

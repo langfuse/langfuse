@@ -2602,6 +2602,108 @@ describe("AI gateway control plane", () => {
     expect(result.ingestion?.expires_at).toBe(ingestionClaims.exp);
   });
 
+  it("resolves a key's spend limits with prices and starts fresh counters on reset", async () => {
+    configureGatewayJwtSigning();
+    const { caller, org, project } = await prepare();
+    await caller.aiGateway.updateConfig({
+      orgId: org.id,
+      defaultIngestionProjectId: project.id,
+      ingestionMode: "USAGE",
+    });
+    await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "OpenAI",
+      provider: "OPENAI",
+      credential: "sk-test-openai",
+    });
+    const gatewayKey = await caller.aiGateway.createApiKey({
+      orgId: org.id,
+      name: "Limited key",
+      metadata: {},
+    });
+    await prisma.model.create({
+      data: {
+        projectId: project.id,
+        modelName: "gpt-spend-limit",
+        matchPattern: "(?i)^(gpt-spend-limit)$",
+        unit: "TOKENS",
+        pricingTiers: {
+          create: {
+            name: "Standard",
+            isDefault: true,
+            priority: 0,
+            conditions: [],
+          },
+        },
+      },
+    });
+    const model = await prisma.model.findFirstOrThrow({
+      where: { projectId: project.id, modelName: "gpt-spend-limit" },
+      include: { pricingTiers: true },
+    });
+    await prisma.price.create({
+      data: {
+        modelId: model.id,
+        projectId: project.id,
+        pricingTierId: model.pricingTiers[0].id,
+        usageType: "input",
+        price: 0.000005,
+      },
+    });
+    const limit = await caller.aiGateway.createSpendLimit({
+      orgId: org.id,
+      apiKeyId: gatewayKey.id,
+      interval: "DAILY",
+      limitUsd: 10,
+    });
+    const resolve = () =>
+      authenticateRequest({
+        fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
+        apiFormat: "openai.chat-completions",
+        model: "OpenAI:gpt-spend-limit",
+      });
+    const todayStart = new Date();
+    todayStart.setUTCHours(0, 0, 0, 0);
+
+    const first = await resolve();
+    expect(first.spend_limits).toEqual([
+      {
+        id: limit.id,
+        interval: "daily",
+        limit_usd: 10,
+        generation: 0,
+        baseline_usd: 0,
+        baseline_window_start: todayStart.getTime() / 1000,
+      },
+    ]);
+    expect(first.pricing).toEqual({
+      model_id: model.id,
+      tiers: [
+        {
+          id: model.pricingTiers[0].id,
+          name: "Standard",
+          is_default: true,
+          priority: 0,
+          conditions: [],
+          prices: { input: 0.000005 },
+        },
+      ],
+    });
+
+    await caller.aiGateway.resetSpendLimit({ orgId: org.id, id: limit.id });
+    const afterReset = await resolve();
+    expect(afterReset.spend_limits).toMatchObject([{ generation: 1 }]);
+
+    await expect(
+      caller.aiGateway.createSpendLimit({
+        orgId: org.id,
+        apiKeyId: gatewayKey.id,
+        interval: "DAILY",
+        limitUsd: 20,
+      }),
+    ).rejects.toThrow();
+  });
+
   it("routes unprefixed models by provider and rejects unknown models", async () => {
     configureGatewayJwtSigning();
     const { caller, org, project } = await prepare();

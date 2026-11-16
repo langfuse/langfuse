@@ -24,6 +24,10 @@ import {
   getGatewayUpstream,
   getGatewayUpstreamSecret,
 } from "@/src/features/ai-gateway/server/provider/registry";
+import {
+  findResolvePricing,
+  toResolveSpendLimits,
+} from "@/src/features/ai-gateway/server/spendLimits/gatewaySpendLimitResolve";
 
 export { GatewayControlPlaneError as GatewayResolveError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 
@@ -109,6 +113,17 @@ export class GatewayResolveService {
         baseURL: context.connection.baseURL,
         credential: decryptedCredential,
       });
+      const spendLimits = toResolveSpendLimits({
+        spendLimits: context.spendLimits,
+        recordsSpend: deliversToLangfuse,
+      });
+      const pricing =
+        spendLimits.length > 0 && ingestionProjectId
+          ? await findResolvePricing({
+              projectId: ingestionProjectId,
+              providerModel: context.providerModel,
+            })
+          : null;
       const credential = await this.getUpstreamSecret({
         connectionId: context.connection.id,
         provider: context.connection.provider,
@@ -156,6 +171,8 @@ export class GatewayResolveService {
                 projectId: ingestionProjectId,
               })
             : null,
+        spend_limits: spendLimits,
+        pricing,
       };
     });
   }

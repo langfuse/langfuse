@@ -20,6 +20,7 @@ import {
   GatewayConnectionStatus,
   GatewayIngestionMode,
   GatewayProvider,
+  GatewaySpendLimitInterval,
 } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
 import { orderBy } from "@langfuse/shared";
@@ -39,6 +40,7 @@ import { GatewayAnalyticsLabelsRepository } from "./analytics/gatewayAnalyticsLa
 import { GatewayAnalyticsService } from "./analytics/gatewayAnalyticsService";
 import { GatewayConfigService } from "./config/gatewayConfigService";
 import { getKeyOwnerFilter, type GatewayUsageScope } from "./gatewayUsageScope";
+import { GatewaySpendLimitService } from "./spendLimits/gatewaySpendLimitService";
 import { GatewayTeamService } from "./team/gatewayTeamService";
 import {
   GatewayMetadataSchema,
@@ -71,6 +73,7 @@ const allowedModelsSchema = z
   .array(z.string().trim().min(1).max(500))
   .max(10_000)
   .nullable();
+const spendLimitUsdSchema = z.number().positive().max(1_000_000_000);
 const customModelSchema = z.string().trim().min(1).max(500);
 /** A key without patterns, or with an empty list, may call every enabled model. */
 const gatewayKeyAllowedModelsSchema = z
@@ -710,6 +713,76 @@ export const aiGatewayRouter = createTRPCRouter({
         organizationId: input.orgId,
         ownerUserId: getKeyOwnerFilter(usageScope),
         apiKeyId: input.id,
+        session: ctx.session,
+      });
+      return { success: true };
+    }),
+
+  /** `available` is false while gateway requests are not recorded; limits then cannot be created, changed or reset. */
+  listSpendLimits: protectedOrganizationProcedure
+    .input(organizationInput.extend({ apiKeyId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      const usageScope = getGatewayUsageScope({
+        session: ctx.session,
+        orgId: input.orgId,
+      });
+      return new GatewaySpendLimitService(ctx.prisma).list({
+        organizationId: input.orgId,
+        ownerUserId: getKeyOwnerFilter(usageScope),
+        apiKeyId: input.apiKeyId,
+      });
+    }),
+
+  createSpendLimit: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        apiKeyId: z.string(),
+        interval: z.enum(GatewaySpendLimitInterval),
+        limitUsd: spendLimitUsdSchema,
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewaySpendLimitService(ctx.prisma).create({
+        organizationId: input.orgId,
+        apiKeyId: input.apiKeyId,
+        interval: input.interval,
+        limitUsd: input.limitUsd,
+        session: ctx.session,
+      });
+    }),
+
+  updateSpendLimit: protectedOrganizationProcedure
+    .input(connectionInput.extend({ limitUsd: spendLimitUsdSchema }))
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewaySpendLimitService(ctx.prisma).update({
+        organizationId: input.orgId,
+        id: input.id,
+        limitUsd: input.limitUsd,
+        session: ctx.session,
+      });
+    }),
+
+  resetSpendLimit: protectedOrganizationProcedure
+    .input(connectionInput)
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewaySpendLimitService(ctx.prisma).reset({
+        organizationId: input.orgId,
+        id: input.id,
+        session: ctx.session,
+      });
+    }),
+
+  deleteSpendLimit: protectedOrganizationProcedure
+    .input(connectionInput)
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      await new GatewaySpendLimitService(ctx.prisma).delete({
+        organizationId: input.orgId,
+        id: input.id,
         session: ctx.session,
       });
       return { success: true };
