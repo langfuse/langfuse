@@ -169,7 +169,6 @@ describe("trace batch selection", () => {
     const batches = selectTraceBatches(
       [projectB, laterMinute, widerRange, trace0, trace1],
       2,
-      "locality",
     );
 
     expect(ids(batches)).toEqual([
@@ -186,7 +185,7 @@ describe("trace batch selection", () => {
       pendingTrace("project-a", "trace-1", 3, 10 * minute, 11 * minute),
       pendingTrace("project-a", "trace-4", 2, 10 * minute, 11 * minute),
     ];
-    const expected = selectTraceBatches(candidates, 3, "locality");
+    const expected = selectTraceBatches(candidates, 3);
 
     expect(expected.flat().map(({ trace }) => trace.traceId)).toEqual([
       "trace-1",
@@ -194,9 +193,7 @@ describe("trace batch selection", () => {
       "trace-4",
       "trace-3",
     ]);
-    expect(selectTraceBatches(candidates.toReversed(), 3, "locality")).toEqual(
-      expected,
-    );
+    expect(selectTraceBatches(candidates.toReversed(), 3)).toEqual(expected);
   });
 
   it("moves a batch boundary instead of bridging distant time ranges", () => {
@@ -213,7 +210,7 @@ describe("trace batch selection", () => {
       ),
     );
 
-    const batches = selectTraceBatches([...late, ...early], 60, "locality");
+    const batches = selectTraceBatches([...late, ...early], 60);
 
     expect(batches.map((batch) => batch.length)).toEqual([59, 60]);
     expect(
@@ -232,11 +229,7 @@ describe("trace batch selection", () => {
       pendingTrace("project-b", `trace-${index}`, 100 + index, 0, minute),
     );
 
-    const batches = selectTraceBatches(
-      [...projectB, ...projectA],
-      60,
-      "locality",
-    );
+    const batches = selectTraceBatches([...projectB, ...projectA], 60);
 
     expect(batches.map((batch) => batch.length)).toEqual([59, 60]);
     expect(
@@ -251,7 +244,7 @@ describe("trace batch selection", () => {
       pendingTrace("project", `trace-${index}`, index, 0, minute),
     );
 
-    const batches = selectTraceBatches(candidates.toReversed(), 3, "locality");
+    const batches = selectTraceBatches(candidates.toReversed(), 3);
 
     expect(
       batches.map((batch) => batch.map(({ trace }) => trace.traceId)),
@@ -272,7 +265,7 @@ describe("trace batch selection", () => {
       ),
     );
 
-    expect(ids(selectTraceBatches(candidates, 60, "locality"))).toEqual(
+    expect(ids(selectTraceBatches(candidates, 60))).toEqual(
       candidates.map((candidate) => [candidate.member]),
     );
   });
@@ -292,9 +285,9 @@ describe("trace batch selection", () => {
     );
 
     for (const cap of [4, 9]) {
-      expect(
-        ids(selectTraceBatches(cohorts.flat().toReversed(), cap, "locality")),
-      ).toEqual(ids(cohorts));
+      expect(ids(selectTraceBatches(cohorts.flat().toReversed(), cap))).toEqual(
+        ids(cohorts),
+      );
     }
   });
 
@@ -315,11 +308,7 @@ describe("trace batch selection", () => {
       168 * minute,
     );
 
-    const batches = selectTraceBatches(
-      [wouldChain, compatible, seed],
-      60,
-      "locality",
-    );
+    const batches = selectTraceBatches([wouldChain, compatible, seed], 60);
 
     expect(batches.flat()).toHaveLength(3);
     expect(
@@ -403,7 +392,7 @@ describe("trace batch selection", () => {
       pendingTrace("project", "trace-2", 1, 0, 0),
       pendingTrace("project", "trace-3", 1, 0, 0),
     ];
-    const canonical = selectTraceBatches(candidates, 3, "locality")[0];
+    const canonical = selectTraceBatches(candidates, 3)[0];
 
     const result = prepareLocalityPartials(
       candidates.toReversed().map((candidate) => [candidate]),
@@ -494,44 +483,41 @@ describe("trace batch selection", () => {
         { events: 0, bytes: 0 },
       );
 
-    it.each(["project", "locality"] as const)(
-      "closes %s batches before the event or byte budget and isolates overweight traces",
-      (strategy) => {
-        const candidates = [
-          weighted("a", 4),
-          weighted("b", 4),
-          weighted("c", 4),
-          weighted("heavy", 25),
-          weighted("bytes-1", 1, 30_000),
-          weighted("bytes-2", 1, 30_000),
-          { ...pendingTrace("project", "unknown", 1, 0, minute) },
-        ];
+    it("closes batches before the event or byte budget and isolates overweight traces", () => {
+      const candidates = [
+        weighted("a", 4),
+        weighted("b", 4),
+        weighted("c", 4),
+        weighted("heavy", 25),
+        weighted("bytes-1", 1, 30_000),
+        weighted("bytes-2", 1, 30_000),
+        { ...pendingTrace("project", "unknown", 1, 0, minute) },
+      ];
 
-        const batches = selectTraceBatches(candidates, 60, strategy, limits);
+      const batches = selectTraceBatches(candidates, 60, limits);
 
-        expect(batches.flat()).toHaveLength(candidates.length);
-        for (const batch of batches) {
-          if (batch.length === 1) continue;
-          const { events, bytes } = weightOf(batch);
-          expect(events).toBeLessThanOrEqual(limits.maxEventUpdates);
-          expect(bytes).toBeLessThanOrEqual(limits.maxSerializedEventBytes);
-        }
-        expect(
-          batches.find((batch) =>
-            batch.some(({ trace }) => trace.traceId === "heavy"),
-          ),
-        ).toHaveLength(1);
-        expect(
-          batches.some(
-            (batch) =>
-              batch.some(({ trace }) => trace.traceId === "bytes-1") &&
-              batch.some(({ trace }) => trace.traceId === "bytes-2"),
-          ),
-        ).toBe(false);
-        // Without budgets the same candidates fit one batch.
-        expect(selectTraceBatches(candidates, 60, strategy)).toHaveLength(1);
-      },
-    );
+      expect(batches.flat()).toHaveLength(candidates.length);
+      for (const batch of batches) {
+        if (batch.length === 1) continue;
+        const { events, bytes } = weightOf(batch);
+        expect(events).toBeLessThanOrEqual(limits.maxEventUpdates);
+        expect(bytes).toBeLessThanOrEqual(limits.maxSerializedEventBytes);
+      }
+      expect(
+        batches.find((batch) =>
+          batch.some(({ trace }) => trace.traceId === "heavy"),
+        ),
+      ).toHaveLength(1);
+      expect(
+        batches.some(
+          (batch) =>
+            batch.some(({ trace }) => trace.traceId === "bytes-1") &&
+            batch.some(({ trace }) => trace.traceId === "bytes-2"),
+        ),
+      ).toBe(false);
+      // Without budgets the same candidates fit one batch.
+      expect(selectTraceBatches(candidates, 60)).toHaveLength(1);
+    });
 
     it("packs light locality neighbors of a heavy trace into full batches", () => {
       const at = (
@@ -555,7 +541,7 @@ describe("trace batch selection", () => {
         ),
       ];
 
-      const batches = selectTraceBatches(candidates, 4, "locality", limits);
+      const batches = selectTraceBatches(candidates, 4, limits);
 
       expect(batches.flat()).toHaveLength(candidates.length);
       expect(batches).toHaveLength(3);
@@ -615,7 +601,6 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL;
   const originalBoundsTtl = traceDispatchConfig.boundsTtlMs;
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-  const originalStrategy = env.LANGFUSE_TRACE_BATCH_STRATEGY;
   const originalMaxSize = env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE;
   const originalMaxBatchBytes = eventsDispatchConfig.maxBatchBytes;
   const originalPendingTtl = traceDispatchConfig.pendingTtlMs;
@@ -710,7 +695,6 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL = 0;
     traceDispatchConfig.boundsTtlMs = 86_400_000;
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-    env.LANGFUSE_TRACE_BATCH_STRATEGY = "project";
     env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE = 60;
     traceDispatchConfig.defaultIdleMs = 600_000;
     traceDispatchConfig.pendingTtlMs = 7_200_000;
@@ -742,7 +726,6 @@ describe("trace micro-batch scheduling with Redis", () => {
       originalDispatchSamplingRate;
     traceDispatchConfig.boundsTtlMs = originalBoundsTtl;
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
-    env.LANGFUSE_TRACE_BATCH_STRATEGY = originalStrategy;
     env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE = originalMaxSize;
     eventsDispatchConfig.maxBatchBytes = originalMaxBatchBytes;
     traceDispatchConfig.pendingTtlMs = originalPendingTtl;
@@ -1335,42 +1318,36 @@ describe("trace micro-batch scheduling with Redis", () => {
     ]);
   });
 
-  it.each(["project", "locality"] as const)(
-    "uses recorded bytes without event counts for %s batch and trace limits",
-    async (strategy) => {
-      env.LANGFUSE_TRACE_BATCH_STRATEGY = strategy;
-      eventsDispatchConfig.maxBatchBytes = 100;
-      eventsDispatchConfig.maxTraceBytes = 100;
-      await recordActivity("project", [
-        { ...spanActivity("first", T0 + 1_000, 60), ruleIds: ["rule"] },
-        { ...spanActivity("second", T0 + 1_000, 60), ruleIds: ["rule"] },
-        { ...spanActivity("oversized", T0 + 1_000, 101), ruleIds: ["rule"] },
-      ]);
-      await client().zadd(
-        recordingKeys.due,
-        ...["first", "second", "oversized"].flatMap((traceId) => [
-          Date.now() - 1_000,
-          member("project", traceId),
-        ]),
-      );
-      await runner().processBatch();
-      const jobs = await queue.getJobs(["wait"]);
-      expect(jobs.map((job) => job.data.payload.traces.length)).toEqual([1, 1]);
-      expect(
-        jobs
-          .flatMap((job) =>
-            job.data.payload.traces.map(({ traceId }) => traceId),
-          )
-          .sort(),
-      ).toEqual(["first", "second"]);
-      expect(await client().hlen(recordingKeys.pending)).toBe(0);
-      expect(await client().zcard(recordingKeys.due)).toBe(0);
-      expect(
-        (await readRecordedBounds(member("project", "oversized"))).value
-          .serializedEventBytes,
-      ).toBe(101);
-    },
-  );
+  it("uses recorded bytes without event counts for batch and trace limits", async () => {
+    eventsDispatchConfig.maxBatchBytes = 100;
+    eventsDispatchConfig.maxTraceBytes = 100;
+    await recordActivity("project", [
+      { ...spanActivity("first", T0 + 1_000, 60), ruleIds: ["rule"] },
+      { ...spanActivity("second", T0 + 1_000, 60), ruleIds: ["rule"] },
+      { ...spanActivity("oversized", T0 + 1_000, 101), ruleIds: ["rule"] },
+    ]);
+    await client().zadd(
+      recordingKeys.due,
+      ...["first", "second", "oversized"].flatMap((traceId) => [
+        Date.now() - 1_000,
+        member("project", traceId),
+      ]),
+    );
+    await runner().processBatch();
+    const jobs = await queue.getJobs(["wait"]);
+    expect(jobs.map((job) => job.data.payload.traces.length)).toEqual([1, 1]);
+    expect(
+      jobs
+        .flatMap((job) => job.data.payload.traces.map(({ traceId }) => traceId))
+        .sort(),
+    ).toEqual(["first", "second"]);
+    expect(await client().hlen(recordingKeys.pending)).toBe(0);
+    expect(await client().zcard(recordingKeys.due)).toBe(0);
+    expect(
+      (await readRecordedBounds(member("project", "oversized"))).value
+        .serializedEventBytes,
+    ).toBe(101);
+  });
 
   it("distributes skewed projects by trace and dispatches every shard with single-slot scripts", async () => {
     const shardCount = 64;
@@ -1436,38 +1413,34 @@ describe("trace micro-batch scheduling with Redis", () => {
     }
   });
 
-  it.each(["project", "locality"] as const)(
-    "packs one project's traces across readiness shards with %s",
-    async (strategy) => {
-      traceDispatchConfig.shardCount = 16;
-      env.LANGFUSE_TRACE_BATCH_STRATEGY = strategy;
-      const traceIds = Array.from(
-        { length: 60 },
-        (_, index) => `cross-shard-${index}`,
+  it("packs one project's traces across readiness shards", async () => {
+    traceDispatchConfig.shardCount = 16;
+    const traceIds = Array.from(
+      { length: 60 },
+      (_, index) => `cross-shard-${index}`,
+    );
+    await recordActivity(
+      "project",
+      traceIds.map((traceId) => matched(traceId)),
+    );
+    for (const traceId of traceIds) {
+      const entry = member("project", traceId);
+      await client().zadd(
+        getRecordingKeys(getTraceBatchShard(entry)).due,
+        Date.now() - 1_000,
+        entry,
       );
-      await recordActivity(
-        "project",
-        traceIds.map((traceId) => matched(traceId)),
-      );
-      for (const traceId of traceIds) {
-        const entry = member("project", traceId);
-        await client().zadd(
-          getRecordingKeys(getTraceBatchShard(entry)).due,
-          Date.now() - 1_000,
-          entry,
-        );
-      }
-      await runner().processBatch();
-      const jobs = await queue.getJobs(["wait"]);
-      expect(jobs).toHaveLength(1);
-      expect(jobs[0].data.payload.traces).toHaveLength(60);
-      for (let shard = 0; shard < 16; shard++) {
-        const { due, pending } = getRecordingKeys(shard);
-        expect(await client().zcard(due)).toBe(0);
-        expect(await client().hlen(pending)).toBe(0);
-      }
-    },
-  );
+    }
+    await runner().processBatch();
+    const jobs = await queue.getJobs(["wait"]);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0].data.payload.traces).toHaveLength(60);
+    for (let shard = 0; shard < 16; shard++) {
+      const { due, pending } = getRecordingKeys(shard);
+      expect(await client().zcard(due)).toBe(0);
+      expect(await client().hlen(pending)).toBe(0);
+    }
+  });
 
   it("acknowledges enqueued batches by shard across a hydration window", async () => {
     traceDispatchConfig.shardCount = 16;
@@ -1611,7 +1584,6 @@ describe("trace micro-batch scheduling with Redis", () => {
   });
 
   it("dispatches with locality selection and records bounded selector measurements", async () => {
-    env.LANGFUSE_TRACE_BATCH_STRATEGY = "locality";
     const minute = 60_000;
     await recordActivity("project-a", [
       matched("short-1", T0 + 10 * minute),
@@ -1650,17 +1622,15 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(recordDistribution).toHaveBeenCalledWith(
       "langfuse.trace_batch.candidate_buffer_size",
       3,
-      { strategy: "locality" },
     );
     expect(recordDistribution).toHaveBeenCalledWith(
       "langfuse.trace_batch.event_time_envelope_ms",
       29_040_000,
-      { strategy: "locality" },
     );
     expect(recordIncrement).toHaveBeenCalledWith(
       "langfuse.trace_batch.dispatched_batches",
       1,
-      { strategy: "locality", fill: "partial" },
+      { fill: "partial" },
     );
     expect(
       vi
@@ -1669,7 +1639,7 @@ describe("trace micro-batch scheduling with Redis", () => {
           ([name, value, tags]) =>
             name === "langfuse.trace_batch.selector_duration_ms" &&
             Number(value) >= 0 &&
-            tags?.strategy === "locality",
+            tags === undefined,
         ),
     ).toBe(true);
   });
@@ -1701,7 +1671,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       expect(recordIncrement).toHaveBeenCalledWith(
         "langfuse.trace_batch.excluded_traces",
         1,
-        { reason, strategy: "project" },
+        { reason },
       );
       expect(warn).toHaveBeenCalledWith(
         "Trace batch excluded trace",
@@ -1974,12 +1944,9 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(await resolveTraceBatchSamplingRate("project")).toBe(0);
   });
 
-  it.each([
-    { maxSize: 60, sizes: [22, 60, 60, 60], projectCounts: [1, 1, 1, 2] },
-    { maxSize: 80, sizes: [42, 80, 80], projectCounts: [1, 1, 2] },
-  ])(
-    "dispatches cross-project batches capped at $maxSize",
-    async ({ maxSize, sizes, projectCounts }) => {
+  it.each([{ maxSize: 60 }, { maxSize: 80 }])(
+    "dispatches every trace once in batches capped at $maxSize",
+    async ({ maxSize }) => {
       env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE = maxSize;
       const traces = Array.from(
         { length: 201 },
@@ -2007,9 +1974,17 @@ describe("trace micro-batch scheduling with Redis", () => {
       await runner().processBatch();
       const jobs = await queue.getJobs(["wait"]);
       for (const job of jobs) EventsDispatchEventSchema.parse(job.data);
-      expect(
-        jobs.map((job) => job.data.payload.traces.length).sort((a, b) => a - b),
-      ).toEqual(sizes);
+      const sizes = jobs
+        .map((job) => job.data.payload.traces.length)
+        .sort((a, b) => a - b);
+      expect(sizes.every((size) => size <= maxSize)).toBe(true);
+      const projectCounts = jobs
+        .map(
+          (job) =>
+            new Set(job.data.payload.traces.map((trace) => trace.projectId))
+              .size,
+        )
+        .sort((a, b) => a - b);
       expect(
         jobs
           .flatMap((job) =>
@@ -2024,16 +1999,6 @@ describe("trace micro-batch scheduling with Redis", () => {
           member("other", "trace-0"),
         ].sort(),
       );
-      expect(
-        add.mock.calls.flatMap(([, job]) =>
-          job.payload.traces.map((trace) =>
-            member(trace.projectId, trace.traceId),
-          ),
-        ),
-      ).toEqual([
-        member("other", "trace-0"),
-        ...traces.map((traceId) => member("project", traceId)),
-      ]);
       expect(await client().zcard(recordingKeys.due)).toBe(0);
       expect(await client().hlen(recordingKeys.pending)).toBe(0);
       expect(
@@ -2072,7 +2037,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       ).toEqual(
         expectedBytes.map((value) => ({
           value,
-          tags: { scope: "batch", strategy: "project" },
+          tags: { scope: "batch" },
         })),
       );
       for (const [, job] of add.mock.calls) {
@@ -2094,81 +2059,58 @@ describe("trace micro-batch scheduling with Redis", () => {
     },
   );
 
-  it.each(["project", "locality"] as const)(
-    "dispatches the complete due cohort across hydration chunks with %s",
-    async (strategy) => {
-      env.LANGFUSE_TRACE_BATCH_STRATEGY = strategy;
-      const due = Date.now() - 100_000;
-      // Stays below the per-shard candidate limit so one run reads the whole cohort.
-      const traces = Array.from({ length: 3_041 }, (_, i) => ({
-        projectId: ["project-c", "project-a", "project-b"][i % 3],
-        traceId: `trace-${String(i).padStart(5, "0")}`,
-        due: due + Math.floor(i / 1_000) * 1_000,
-      }));
-      for (const projectId of ["project-c", "project-a", "project-b"]) {
-        await recordActivity(
-          projectId,
-          traces
-            .filter((trace) => trace.projectId === projectId)
-            .map((trace) => matched(trace.traceId)),
-        );
-      }
-      await client().zadd(
-        recordingKeys.due,
-        ...traces.flatMap((trace) => [
-          trace.due,
-          member(trace.projectId, trace.traceId),
-        ]),
+  it("dispatches the complete due cohort across hydration chunks", async () => {
+    const due = Date.now() - 100_000;
+    // Stays below the per-shard candidate limit so one run reads the whole cohort.
+    const traces = Array.from({ length: 3_041 }, (_, i) => ({
+      projectId: ["project-c", "project-a", "project-b"][i % 3],
+      traceId: `trace-${String(i).padStart(5, "0")}`,
+      due: due + Math.floor(i / 1_000) * 1_000,
+    }));
+    for (const projectId of ["project-c", "project-a", "project-b"]) {
+      await recordActivity(
+        projectId,
+        traces
+          .filter((trace) => trace.projectId === projectId)
+          .map((trace) => matched(trace.traceId)),
       );
-      const add = vi.spyOn(queue, "add");
-      await runner().processBatch();
-      const batches = add.mock.calls.map(([, job]) => job.payload.traces);
-      const assigned = batches
-        .flat()
-        .map((trace) => member(trace.projectId, trace.traceId));
-      expect(assigned).toHaveLength(traces.length);
-      expect(new Set(assigned)).toEqual(
-        new Set(traces.map((trace) => member(trace.projectId, trace.traceId))),
-      );
-      expect(batches.every((batch) => batch.length <= 60)).toBe(true);
-      const candidateSizes = vi
-        .mocked(recordDistribution)
-        .mock.calls.filter(
-          ([name]) => name === "langfuse.trace_batch.candidate_buffer_size",
-        )
-        .map(([, value]) => Number(value));
-      expect(Math.max(...candidateSizes)).toBeLessThanOrEqual(1059);
-      if (strategy === "project") {
-        expect(batches.map((batch) => batch.length)).toEqual([
-          ...Array(50).fill(60),
-          41,
-        ]);
-        const expected = traces.sort(
-          (a, b) =>
-            a.projectId.localeCompare(b.projectId) ||
-            a.due - b.due ||
-            a.traceId.localeCompare(b.traceId),
-        );
-        expect(
-          batches.flat().map((trace) => member(trace.projectId, trace.traceId)),
-        ).toEqual(
-          expected.map((trace) => member(trace.projectId, trace.traceId)),
-        );
-      } else {
-        expect(batches.length).toBeGreaterThanOrEqual(
-          Math.ceil(traces.length / 60),
-        );
-        expect(batches.length).toBeLessThanOrEqual(
-          Math.ceil(traces.length / 1000) * Math.ceil(1000 / 60),
-        );
-      }
-      expect(await client().zcard(recordingKeys.due)).toBe(0);
-      expect(await client().hlen(recordingKeys.pending)).toBe(0);
-    },
-  );
+    }
+    await client().zadd(
+      recordingKeys.due,
+      ...traces.flatMap((trace) => [
+        trace.due,
+        member(trace.projectId, trace.traceId),
+      ]),
+    );
+    const add = vi.spyOn(queue, "add");
+    await runner().processBatch();
+    const batches = add.mock.calls.map(([, job]) => job.payload.traces);
+    const assigned = batches
+      .flat()
+      .map((trace) => member(trace.projectId, trace.traceId));
+    expect(assigned).toHaveLength(traces.length);
+    expect(new Set(assigned)).toEqual(
+      new Set(traces.map((trace) => member(trace.projectId, trace.traceId))),
+    );
+    expect(batches.every((batch) => batch.length <= 60)).toBe(true);
+    const candidateSizes = vi
+      .mocked(recordDistribution)
+      .mock.calls.filter(
+        ([name]) => name === "langfuse.trace_batch.candidate_buffer_size",
+      )
+      .map(([, value]) => Number(value));
+    expect(Math.max(...candidateSizes)).toBeLessThanOrEqual(1059);
+    expect(batches.length).toBeGreaterThanOrEqual(
+      Math.ceil(traces.length / 60),
+    );
+    expect(batches.length).toBeLessThanOrEqual(
+      Math.ceil(traces.length / 1000) * Math.ceil(1000 / 60),
+    );
+    expect(await client().zcard(recordingKeys.due)).toBe(0);
+    expect(await client().hlen(recordingKeys.pending)).toBe(0);
+  });
 
   it("keeps project locality and a bounded partial tail across hydration chunks", async () => {
-    env.LANGFUSE_TRACE_BATCH_STRATEGY = "locality";
     const traces = Array.from({ length: 2_001 }, (_, index) => ({
       projectId: index % 2 === 0 ? "project-a" : "project-b",
       traceId: `trace-${String(index).padStart(4, "0")}`,
@@ -2227,7 +2169,6 @@ describe("trace micro-batch scheduling with Redis", () => {
   });
 
   it("coalesces a non-final compatible partial across a hydration boundary", async () => {
-    env.LANGFUSE_TRACE_BATCH_STRATEGY = "locality";
     const minute = 60_000;
     const early = Array.from({ length: 30 }, (_, index) => ({
       traceId: `early-${String(index).padStart(2, "0")}`,

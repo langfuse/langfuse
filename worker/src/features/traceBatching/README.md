@@ -144,7 +144,7 @@ batch; dispatcher size distributions use the cumulative estimates.
 
 The dispatcher emits `estimated_event_update_count` and
 `estimated_serialized_event_bytes` distributions under `langfuse.trace_batch`, tagged
-with `scope:trace|batch` and `strategy`. Batch totals require known estimates for
+with `scope:trace|batch`. Batch totals require known estimates for
 every member; `estimates_unavailable` counts unknown traces and affected batches.
 Estimates stay out of queue payloads and job IDs. Dispatch retries can emit
 another sample.
@@ -153,10 +153,10 @@ Serialized event bytes differ from the reader's `input_bytes`, `output_bytes` an
 
 ### Weight budgets and oversized traces
 
-Both strategies close a job before its summed estimates would exceed
+The dispatcher closes a job before its summed estimates would exceed
 `LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES` or
 `eventsDispatchConfig.maxBatchBytes` (64 MiB), in addition to the trace cap.
-Locality treats an over-budget slice like one past its time envelope, and
+An over-budget slice is treated like one past its time envelope, and
 partials coalesce only within the budget. A single trace always forms a job, so
 a trace heavier than the budget runs alone. Locality packs traces above half of
 either budget in a separate lane, so one heavy trace does not split the light
@@ -169,7 +169,7 @@ After hydration, a trace whose retained read-window estimates exceed
 `eventsDispatchConfig.maxTraceBytes` (50 MiB) is never queued or read. The
 dispatcher acknowledges it like a dispatched trace, increments
 `langfuse.trace_batch.excluded_traces` tagged with
-`reason:event_updates|serialized_bytes` and `strategy`, and logs
+`reason:event_updates|serialized_bytes`, and logs
 `Trace batch excluded oversized trace` at warn level with `projectId`, `traceId`,
 `reason` and both estimates. Group that log by `@projectId` to find repeat
 offenders. Activity after the acknowledgement starts a new pending window that
@@ -262,13 +262,9 @@ Queue/map snapshots are global and can be emitted by several workers: use max/la
 
 Events-dispatch read spans (`langfuse.events_dispatch.read.*`) carry the query ID, batch shape (trace and project counts, event window) and consumed rows and bytes. `max_block_size` is a row-count hint, not a byte or memory limit.
 
-### Opt-in locality grouping
+### Locality grouping
 
-`LANGFUSE_TRACE_BATCH_STRATEGY=locality` changes grouping only after dispatch is
-explicitly enabled in a cloud region. The default `project` strategy preserves
-project ordering and carries unfinished jobs across hydration chunks.
-
-Locality sorts each hydrated window by project, minimum start minute, maximum
+The dispatcher sorts each hydrated window by project, minimum start minute, maximum
 start minute and `xxHash32(traceId)`. It finds the fewest feasible jobs under the
 trace cap, the weight budgets and an event-time envelope of at most one hour, or
 125% of the first trace's observed span if larger. Within that job count, it minimizes project
@@ -284,7 +280,7 @@ all remaining partials, so carry never outlives the current dispatch run.
 
 Locality bounds selector input. Measure selector duration before increasing scale, especially with distant event times that force many jobs.
 
-Compare `dispatched_batches` (tags `strategy`, `fill`), `event_time_envelope_ms`, `candidate_buffer_size` and `selector_duration_ms` under `langfuse.trace_batch`. Per-trace event span stays on the events-dispatch read span. The envelope metric includes the reader's two-minute margin on each side; the selector's envelope limit does not. Payload and Redis state are unchanged.
+Compare `dispatched_batches` (tag `fill`), `event_time_envelope_ms`, `candidate_buffer_size` and `selector_duration_ms` under `langfuse.trace_batch`. Per-trace event span stays on the events-dispatch read span. The envelope metric includes the reader's two-minute margin on each side; the selector's envelope limit does not. Payload and Redis state are unchanged.
 
 ## Monitor dispatcher memory
 

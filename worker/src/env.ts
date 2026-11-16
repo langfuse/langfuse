@@ -205,9 +205,6 @@ const EnvSchema = z.object({
     .int()
     .nonnegative()
     .default(5_000),
-  LANGFUSE_TRACE_BATCH_STRATEGY: z
-    .enum(["project", "locality"])
-    .default("project"),
   LANGFUSE_SECONDARY_OTEL_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z
     .string()
     .optional(),

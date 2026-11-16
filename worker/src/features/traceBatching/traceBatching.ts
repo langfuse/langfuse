@@ -213,8 +213,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
 
     // Each range read captures one shard's due IDs. Pack the combined cohort so
     // Redis placement does not determine the ClickHouse query boundaries.
-    const strategy = env.LANGFUSE_TRACE_BATCH_STRATEGY;
-    // Project packing needs due order within each project, including across shards.
+    // Keep each project's due traces together across shards so they share hydration windows.
     members.sort(
       (a, b) =>
         compareStrings(a.projectId, b.projectId) ||
@@ -300,7 +299,6 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         if (!removed[index]) continue;
         recordIncrement("langfuse.trace_batch.excluded_traces", 1, {
           reason,
-          strategy,
         });
         logger.warn("Trace batch excluded trace", {
           projectId: entry.trace.projectId,
@@ -349,7 +347,6 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         return "partial";
       })();
       recordIncrement("langfuse.trace_batch.dispatched_batches", 1, {
-        strategy,
         fill,
       });
       recordDistribution(
@@ -357,7 +354,6 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         Math.max(...traces.map(({ maxStart }) => maxStart)) -
           Math.min(...traces.map(({ minStart }) => minStart)) +
           2 * QUERY_BUFFER_MS,
-        { strategy },
       );
       let estimatedEventUpdateCount = 0;
       let estimatedSerializedEventBytes = 0;
@@ -371,13 +367,13 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
             recordDistribution(
               "langfuse.trace_batch.estimated_event_update_count",
               entry.estimates.eventUpdateCount,
-              { scope: "trace", strategy },
+              { scope: "trace" },
             );
           } else unavailableEventCounts++;
           recordDistribution(
             "langfuse.trace_batch.estimated_serialized_event_bytes",
             entry.estimates.serializedEventBytes,
-            { scope: "trace", strategy },
+            { scope: "trace" },
           );
         } else {
           unavailableEstimates++;
@@ -388,12 +384,12 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
           recordDistribution(
             "langfuse.trace_batch.estimated_event_update_count",
             estimatedEventUpdateCount,
-            { scope: "batch", strategy },
+            { scope: "batch" },
           );
         recordDistribution(
           "langfuse.trace_batch.estimated_serialized_event_bytes",
           estimatedSerializedEventBytes,
-          { scope: "batch", strategy },
+          { scope: "batch" },
         );
       } else {
         recordIncrement(
@@ -401,17 +397,14 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
           unavailableEstimates,
           {
             scope: "trace",
-            strategy,
           },
         );
         recordIncrement("langfuse.trace_batch.estimates_unavailable", 1, {
           scope: "batch",
-          strategy,
         });
       }
     };
 
-    let projectBatchTail: PendingTrace[] = [];
     let localityPartials: PendingTrace[][] = [];
     for (
       let offset = 0;
@@ -496,48 +489,27 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       await exclude(excluded);
       if (this.stopping) return;
 
-      const carriedTraceCount =
-        strategy === "project"
-          ? projectBatchTail.length
-          : localityPartials.reduce((count, batch) => count + batch.length, 0);
-      const selectorInput =
-        strategy === "project"
-          ? [...projectBatchTail, ...hydratedCandidates]
-          : [...localityPartials.flat(), ...hydratedCandidates];
+      const carriedTraceCount = localityPartials.reduce(
+        (count, batch) => count + batch.length,
+        0,
+      );
+      const selectorInput = [...localityPartials.flat(), ...hydratedCandidates];
       recordDistribution(
         "langfuse.trace_batch.candidate_buffer_size",
         hydratedCandidates.length + carriedTraceCount,
-        { strategy },
       );
       const selectorStartedAt = performance.now();
       const selected = selectTraceBatches(
         selectorInput,
         env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE,
-        strategy,
         batchWeightLimits,
       );
       recordDistribution(
         "langfuse.trace_batch.selector_duration_ms",
         performance.now() - selectorStartedAt,
-        { strategy },
       );
 
       try {
-        if (strategy === "project") {
-          projectBatchTail = [];
-          if (
-            selected.at(-1)?.length !==
-            env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE
-          ) {
-            projectBatchTail = selected.pop() ?? [];
-          }
-          for (const batch of selected) {
-            if (this.stopping) return;
-            await enqueue(batch);
-          }
-          continue;
-        }
-
         const fullBatches = selected.filter(
           (batch) =>
             batch.length === env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE,
@@ -567,10 +539,6 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
     }
     if (this.stopping) return;
     try {
-      if (strategy === "project") {
-        if (projectBatchTail.length > 0) await enqueue(projectBatchTail);
-        return;
-      }
       for (const batch of localityPartials.toSorted(
         compareBatchesByOldestDue,
       )) {
