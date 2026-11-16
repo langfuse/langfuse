@@ -21,6 +21,8 @@ import {
   selectTopicTraceFilters,
 } from "./topic-trace-filters";
 import { TopicMobileList } from "./TopicMobileList";
+import { TopicsEmptyActions } from "./TopicsEmptyActions";
+import { type TopicsActions } from "./prepare-topics-actions";
 import { TopicMobileTraceList } from "./TopicMobileTraceList";
 import { MobileTopicVisualization } from "./MobileTopicVisualization";
 import { TopicsTraceToolbar } from "./TopicsTraceToolbar";
@@ -43,11 +45,11 @@ type MobileTopicsViewProps = {
   selectedTraceId: string | null;
   onSelectTrace: (traceId: string | null) => void;
   onOpenTrace: (traceId: string) => void;
-  onGenerateTopics: () => void;
-  canGenerateTopics: boolean;
   isV4: boolean;
   useTraces: UseTopicTraces;
   showUnassigned: boolean;
+  /** Offered under an empty topic list. */
+  mapActions: TopicsActions;
 };
 
 /** Local navigation only; query data and persisted filters stay with the caller. */
@@ -64,11 +66,10 @@ export function MobileTopicsView({
   selectedTraceId,
   onSelectTrace,
   onOpenTrace,
-  onGenerateTopics,
-  canGenerateTopics,
   isV4,
   useTraces,
   showUnassigned,
+  mapActions,
 }: MobileTopicsViewProps) {
   const [navigation, setNavigation] = useState({
     view,
@@ -193,11 +194,11 @@ export function MobileTopicsView({
             onSelectTopic={selectTopic}
             onShowAllTraces={showAllTraces}
           />
-          {facet.topics.length === 0 && canGenerateTopics && (
+          {facet.topics.length === 0 ? (
             <div className="shrink-0 border-t p-3">
-              <Button text="Generate topics" onClick={onGenerateTopics} />
+              <TopicsEmptyActions actions={mapActions} />
             </div>
-          )}
+          ) : null}
         </Tabs.Content>
         <Tabs.Content value="traces" layout="fill">
           <section
