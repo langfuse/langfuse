@@ -18,7 +18,7 @@ impl SpendLimitScope {
 }
 
 /// How often a spend limit starts over, in UTC calendar windows. Web computes
-/// the same windows in `web/src/features/ai-gateway/fns/getGatewaySpendLimitWindowStart.ts`.
+/// the same windows in `web/src/features/ai-gateway/server/spendLimits/getGatewaySpendLimitWindowStart.ts`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum SpendLimitInterval {
