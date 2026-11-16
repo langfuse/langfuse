@@ -207,7 +207,7 @@ const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
  * Rows are contiguous per (project_id, trace_id); a pair change or successful EOF
  * completes that trace's query window, not its lifetime of possible late arrivals.
  * Rows reflect the events table's current merge state, as in other event reads;
- * this read-only experiment does not deduplicate versions or enrich model data.
+ * this read does not deduplicate versions or enrich model data.
  */
 export async function* getTraceBatchEventStream(
   props: TraceBatchEventStreamProps,
@@ -217,7 +217,6 @@ export async function* getTraceBatchEventStream(
     requestTimeoutMs?: number;
     /** Server-side query limit; the client timeout should exceed it. */
     maxExecutionTimeS?: number;
-    experimentId?: string;
     queryId?: string;
   } = {},
 ): AsyncGenerator<TraceBatchEventRow> {
@@ -231,7 +230,6 @@ export async function* getTraceBatchEventStream(
     useMultipartParamsAuto: true,
     tags: {
       projectId: projectIds.length === 1 ? projectIds[0] : "MULTI_PROJECT",
-      ...(options.experimentId ? { experimentId: options.experimentId } : {}),
     },
     preferredClickhouseService: "EventsReadOnly",
     clickhouseConfigs: {

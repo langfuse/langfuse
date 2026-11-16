@@ -38,7 +38,7 @@ export const Wide = meta.story({
 });
 
 export const Compact = meta.story({
-  name: "(Test) Compact header keeps Edit map, New map and New snapshot",
+  name: "(Test) Compact header keeps Edit map, New live map and New snapshot",
   render: (args) => (
     <div className="@container/topics-header w-80 p-3">
       <TopicsHeaderActions {...args} />
@@ -54,7 +54,9 @@ export const Compact = meta.story({
     );
     const body = within(canvasElement.ownerDocument.body);
     await waitFor(() =>
-      expect(body.getByRole("menuitem", { name: "New map" })).toBeVisible(),
+      expect(
+        body.getByRole("menuitem", { name: "New live map" }),
+      ).toBeVisible(),
     );
     await expect(
       body.getByRole("menuitem", { name: "New snapshot" }),
@@ -114,6 +116,14 @@ export const RefreshCooldown = meta.story({
     await expect(item).toHaveAttribute(
       "title",
       "Refreshed recently. Available again in 10 min.",
+    );
+    // Touch screens show no title tooltip, so the reason must be on screen.
+    await waitFor(() =>
+      expect(
+        within(item).getByText(
+          "Refreshed recently. Available again in 10 min.",
+        ),
+      ).toBeVisible(),
     );
   },
 });
