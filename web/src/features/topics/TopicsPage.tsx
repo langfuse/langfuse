@@ -29,6 +29,8 @@ import { ManualTopicsFormContent } from "./ManualTopicsFormContent";
 import { cn } from "@/src/utils/tailwind";
 import { useIsHandheld } from "@/src/hooks/use-mobile";
 import { TopicsFacetTabs } from "./TopicsFacetTabs";
+import { newTopicCountsForRule } from "./new-topics";
+import { useNewTopicRuns } from "./useNewTopics";
 import { TopicsMobileControls } from "./TopicsMobileControls";
 import { resolveTopicFacetId } from "./topic-facet-selection";
 import { Spinner } from "@/src/components/layouts/Spinner";
@@ -358,6 +360,14 @@ function TopicsWorkspaceContent({
     listedRefit?.ruleId === selectedRule?.id && listedRefit?.at !== lastRefitAt
       ? lastRefitAt
       : 0;
+  const newTopicRuns = useNewTopicRuns(
+    projectId,
+    Math.max(refreshAfter, refitAfter),
+  );
+  const newTopicCounts = newTopicCountsForRule(
+    newTopicRuns ?? [],
+    selectedRule?.id,
+  );
   const refreshAvailableAt = selectedRule?.refresh.availableAt;
   const [, setCooldownEnded] = useState<string | null>(null);
   useEffect(() => {
@@ -610,6 +620,7 @@ function TopicsWorkspaceContent({
                       facets={shownFacets}
                       selectedFacet={headerFacetId}
                       onSelectFacet={traceFilters.selectFacet}
+                      newTopicCounts={newTopicCounts}
                     />
                   </span>
                 )}

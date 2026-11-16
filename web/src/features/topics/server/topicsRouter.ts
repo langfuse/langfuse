@@ -82,6 +82,7 @@ import {
   listTopicTraces,
   traceFacetResults,
 } from "./currentResults";
+import { newTopicCounts } from "./newTopics";
 import {
   previewTopicAnalysis,
   startTopicAnalysis,
@@ -391,6 +392,10 @@ export const topicsRouter = createTRPCRouter({
         ruleId: input.ruleId,
       }),
     ),
+  /** Sidebar and facet tabs: topics each rule's latest map run added. */
+  newTopics: topicsProcedure.query(({ input }) =>
+    newTopicCounts(input.projectId),
+  ),
   /** One page of a facet's traces; filters and paging run in ClickHouse. */
   traces: topicsProcedure
     .input(tracesInput)

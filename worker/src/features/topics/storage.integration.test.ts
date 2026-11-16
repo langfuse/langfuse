@@ -7,6 +7,7 @@ import type {
   TopicExecutionInput,
 } from "@langfuse/shared/topics";
 import {
+  countNewTopicVersions,
   getTopicDefinitions,
   writeTopicDefinitions,
   writeTopicSummaries,
@@ -951,6 +952,53 @@ describe("Topics definition persistence", () => {
         to: new Date("2026-10-01T00:00:00.000Z"),
       }),
     ).toEqual([]);
+  });
+
+  it("counts a run's topics as new only when it wrote them without continuing an earlier topic", async () => {
+    const createdAt = "2026-09-24T21:21:07.329Z";
+    const topic = (
+      createdByRunId: string,
+      status?: string,
+    ): TopicDefinition => ({
+      projectId,
+      topicVersionId: randomUUID(),
+      topicId: randomUUID(),
+      createdByRunId,
+      createdAt,
+      name: "topic",
+      description: "",
+      centroid: [1, 0],
+      radius: 0,
+      tags: [],
+      representativeSummaries: [],
+      metadata: status ? { continuity: { version: 1, status } } : {},
+    });
+    const topics = [
+      topic("run-b", "new"),
+      topic("run-b", "split"),
+      // Continued topics whose geometry changed get a new version from this run.
+      topic("run-b", "continued"),
+      // Unchanged topics keep the definition of the run that first wrote them.
+      topic("run-a", "new"),
+      // A map fit without a previous map has no continuity.
+      topic("run-b"),
+    ];
+    await writeTopicDefinitions(topics);
+    expect(
+      await countNewTopicVersions(
+        projectId,
+        [
+          {
+            runId: "run-b",
+            topicVersionIds: topics.map((t) => t.topicVersionId),
+          },
+        ],
+        {
+          from: new Date(createdAt),
+          to: new Date(Date.parse(createdAt) + 1),
+        },
+      ),
+    ).toEqual(new Map([["run-b", 2]]));
   });
 
   it("resolves current topics for the column and the tracing filter from each rule's published map", async () => {

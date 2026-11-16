@@ -7,6 +7,7 @@ import { EllipsisVertical, type IconComponent } from "@langfuse/icons";
 import Link, { type LinkProps } from "next/link";
 import { flushSync } from "react-dom";
 
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
@@ -312,6 +313,8 @@ type TabsTriggerProps = {
       label: string;
       /** Shown after the label in regular weight, e.g. "Called 6". */
       count?: number;
+      /** A short status after the label, e.g. "2 new". */
+      badge?: string;
       /** Rich tooltip on the label; replaces the native title. */
       tooltip?: string;
       children?: never;
@@ -320,6 +323,7 @@ type TabsTriggerProps = {
   | {
       label?: never;
       count?: never;
+      badge?: never;
       tooltip?: never;
       /** Rich-content escape hatch. */
       children: React.ReactNode;
@@ -350,18 +354,30 @@ type TabsTriggerProps = {
 function TabsTrigger(props: TabsTriggerProps) {
   // Outside a Tabs.List, fall back to the underline look instead of crashing.
   const list = React.use(TabsListContext) ?? { look: "underline" as const };
-  const { children, count, disabled, icon, internal, label, title, tooltip } =
-    props;
+  const {
+    badge,
+    children,
+    count,
+    disabled,
+    icon,
+    internal,
+    label,
+    title,
+    tooltip,
+  } = props;
   const className = cn(
     tabsTriggerVariants({ look: list.look, size: list.size }),
   );
-  const nativeTitle = tooltip ? undefined : (labelText(label, count) ?? title);
+  const nativeTitle = tooltip
+    ? undefined
+    : (labelText(label, count, badge) ?? title);
   const content = (
     <TabsTriggerContent
       icon={icon}
       internal={internal}
       label={label}
       count={count}
+      badge={badge}
       tooltip={tooltip}
     >
       {children}
@@ -401,6 +417,7 @@ function TabsTrigger(props: TabsTriggerProps) {
 }
 
 function TabsTriggerContent({
+  badge,
   children,
   count,
   icon: Icon,
@@ -409,7 +426,7 @@ function TabsTriggerContent({
   tooltip,
 }: Pick<
   TabsTriggerProps,
-  "children" | "count" | "icon" | "internal" | "label" | "tooltip"
+  "badge" | "children" | "count" | "icon" | "internal" | "label" | "tooltip"
 >) {
   return (
     <>
@@ -419,6 +436,7 @@ function TabsTriggerContent({
       ) : (
         <TabsTriggerLabel label={label} count={count} tooltip={tooltip} />
       )}
+      {badge ? <Badge size="sm" color="info" text={badge} /> : null}
       {/* In a tight row the badge gives way before the label. */}
       {internal ? (
         <span className="flex min-w-0 shrink-100 overflow-hidden">
@@ -465,9 +483,13 @@ function TabsTriggerLabel({
   );
 }
 
-function labelText(label: string | undefined, count: number | undefined) {
-  if (label === undefined || count === undefined) return label;
-  return `${label} ${count}`;
+function labelText(
+  label: string | undefined,
+  count: number | undefined,
+  badge?: string,
+) {
+  if (label === undefined) return label;
+  return [label, count, badge].filter((part) => part !== undefined).join(" ");
 }
 
 function TabsInternalBadge() {
@@ -488,7 +510,11 @@ function TabsOverflowList({
   const measureKey = JSON.stringify(
     triggers.map((trigger) => [
       trigger.props.value,
-      labelText(trigger.props.label, trigger.props.count) ??
+      labelText(
+        trigger.props.label,
+        trigger.props.count,
+        trigger.props.badge,
+      ) ??
         trigger.props.title ??
         null,
     ]),
@@ -537,6 +563,7 @@ function TabsOverflowList({
                 internal={trigger.props.internal}
                 label={trigger.props.label}
                 count={trigger.props.count}
+                badge={trigger.props.badge}
               >
                 {trigger.props.children}
               </TabsTriggerContent>
@@ -569,7 +596,11 @@ function TabsOverflowList({
                   id: trigger.props.value,
                   onClick: () => selectFromMenu(trigger.props.value),
                   title:
-                    labelText(trigger.props.label, trigger.props.count) ??
+                    labelText(
+                      trigger.props.label,
+                      trigger.props.count,
+                      trigger.props.badge,
+                    ) ??
                     trigger.props.title ??
                     trigger.props.value,
                   tooltip: trigger.props.tooltip,

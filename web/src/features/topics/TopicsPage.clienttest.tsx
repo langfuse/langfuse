@@ -210,6 +210,7 @@ vi.mock("./CurrentTopics", () => ({
     </div>
   ),
 }));
+vi.mock("./useNewTopics", () => ({ useNewTopicRuns: () => undefined }));
 vi.mock("@/src/utils/api", () => ({
   api: {
     topics: {
