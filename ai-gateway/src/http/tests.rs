@@ -1560,19 +1560,14 @@ async fn spend_limited_resolution(edit: fn(&mut serde_json::Value)) -> Response<
         .unwrap()
 }
 
-type SendTo = fn(&Gateway) -> reqwest::RequestBuilder;
-
-async fn spend_limited_request(
-    edit: fn(&mut serde_json::Value),
-    send_to: SendTo,
-    body: &'static str,
-) -> (StatusCode, String, usize) {
+async fn spend_limited_request(edit: fn(&mut serde_json::Value)) -> (StatusCode, String, usize) {
     let web = FakeServer::start(move |_| spend_limited_resolution(edit)).await;
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
     let gateway = Gateway::start(Some(inference(&web, &provider))).await;
-    let response = send_to(&gateway)
+    let response = gateway
+        .post()
         .bearer_auth("gateway-key")
-        .body(body)
+        .body(r#"{"model":"Production key:gpt-4.1"}"#)
         .send()
         .await
         .unwrap();
@@ -1584,12 +1579,7 @@ async fn spend_limited_request(
 
 #[tokio::test]
 async fn keys_with_spend_limits_fail_closed_without_spend_counters() {
-    let (status, code, provider_calls) = spend_limited_request(
-        |_| {},
-        Gateway::post,
-        r#"{"model":"Production key:gpt-4.1"}"#,
-    )
-    .await;
+    let (status, code, provider_calls) = spend_limited_request(|_| {}).await;
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(code, "gateway_unavailable");
     assert_eq!(provider_calls, 0);
@@ -1598,35 +1588,22 @@ async fn keys_with_spend_limits_fail_closed_without_spend_counters() {
 #[tokio::test]
 async fn keys_with_spend_limits_reject_requests_they_cannot_price() {
     type Edit = fn(&mut serde_json::Value);
-    let request = r#"{"model":"Production key:gpt-4.1"}"#;
-    let cases: [(Edit, SendTo, &str, &str); 4] = [
+    let cases: [(Edit, &str); 3] = [
         (
             |body| body["pricing"] = serde_json::Value::Null,
-            Gateway::post,
-            request,
             "spend_limit_unpriced_model",
         ),
         (
             |body| body["pricing"]["tiers"][0]["prices"] = serde_json::json!({}),
-            Gateway::post,
-            request,
             "spend_limit_unpriced_model",
         ),
         (
             |body| body["connection"]["base_url"] = "https://llm.internal.example/v1".into(),
-            Gateway::post,
-            request,
             "spend_limit_unmetered_connection",
         ),
-        (
-            |body| body["connection"]["api_format"] = "openai.chat-completions".into(),
-            Gateway::chat_completions,
-            r#"{"model":"Production key:gpt-4.1","stream":true,"stream_options":{"include_usage":false,"include_usage":true}}"#,
-            "spend_limit_unmetered_request",
-        ),
     ];
-    for (edit, send_to, request, expected) in cases {
-        let (status, code, provider_calls) = spend_limited_request(edit, send_to, request).await;
+    for (edit, expected) in cases {
+        let (status, code, provider_calls) = spend_limited_request(edit).await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(code, expected);
         assert_eq!(provider_calls, 0);

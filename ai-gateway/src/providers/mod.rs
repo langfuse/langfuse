@@ -14,8 +14,6 @@ use reqwest_middleware::ClientWithMiddleware;
 use reqwest_tracing::DisableOtelPropagation;
 use tokio::time::Instant;
 
-use chat_completions::StreamUsage;
-
 pub use crate::transport::ProviderError;
 use crate::{
     capture::{ExecutionCapture, RelayOutcome},
@@ -87,15 +85,6 @@ pub struct RequestPermit {
     _active: crate::observability::Active,
     deadline: Instant,
     spend_limits: Option<crate::spend::SpendRecording>,
-}
-
-/// Whether the provider may leave the request's usage out of its response.
-pub(crate) fn may_omit_usage(route: Route, body: &[u8], provider_model: &str) -> bool {
-    matches!(route, Route::OpenAiChatCompletions)
-        && matches!(
-            chat_completions::request_stream_usage(body, provider_model),
-            StreamUsage::Unknown
-        )
 }
 
 /// The validated caller body and the facts the relay needs about it.
@@ -230,11 +219,11 @@ impl ProviderTransport {
         let body = match route {
             Route::OpenAiChatCompletions => {
                 match chat_completions::request_stream_usage(&body, provider_model) {
-                    StreamUsage::Requested(rewritten) => {
+                    Some(rewritten) => {
                         drop(body);
                         rewritten
                     }
-                    _ => rewrite_model(body, model_range, provider_model)?,
+                    None => rewrite_model(body, model_range, provider_model)?,
                 }
             }
             _ => rewrite_model(body, model_range, provider_model)?,

@@ -499,7 +499,6 @@ impl InferenceHttpError {
                     R::SpendLimitUnavailable => "spend_limit_unavailable",
                     R::SpendLimitUnpricedModel => "spend_limit_unpriced_model",
                     R::SpendLimitUnmeteredConnection => "spend_limit_unmetered_connection",
-                    R::SpendLimitUnmeteredRequest => "spend_limit_unmetered_request",
                     R::Busy => "capacity",
                     R::Timeout => "timeout",
                     R::Unavailable => "unavailable",
@@ -581,7 +580,6 @@ impl InferenceHttpError {
             ),
             Self::Resolution(R::SpendLimitUnpricedModel) => SPEND_LIMIT_UNPRICED_MODEL,
             Self::Resolution(R::SpendLimitUnmeteredConnection) => SPEND_LIMIT_UNMETERED_CONNECTION,
-            Self::Resolution(R::SpendLimitUnmeteredRequest) => SPEND_LIMIT_UNMETERED_REQUEST,
             Self::InvalidBody => (
                 StatusCode::BAD_REQUEST,
                 "Invalid request body",
@@ -776,12 +774,6 @@ const SPEND_LIMIT_UNMETERED_CONNECTION: Classification = (
     "This API key has a spend limit, and this provider connection uses a custom base URL that may not report token usage. Use a connection to the provider's own API with this key.",
     "invalid_request_error",
     "spend_limit_unmetered_connection",
-);
-const SPEND_LIMIT_UNMETERED_REQUEST: Classification = (
-    StatusCode::BAD_REQUEST,
-    "This API key has a spend limit, and the gateway cannot ask the provider to report usage for this streamed request. Send one `stream` member and at most one `stream_options` object.",
-    "invalid_request_error",
-    "spend_limit_unmetered_request",
 );
 
 fn anthropic_error_type(status: StatusCode) -> &'static str {

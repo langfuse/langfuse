@@ -47,7 +47,6 @@ pub(crate) fn resolution_origin(error: &ResolutionError) -> (ErrorOrigin, &'stat
         R::SpendLimitUnmeteredConnection => {
             (ErrorOrigin::Client, "spend_limit_unmetered_connection")
         }
-        R::SpendLimitUnmeteredRequest => (ErrorOrigin::Client, "spend_limit_unmetered_request"),
         R::Unavailable => (ErrorOrigin::ControlPlane, "unavailable"),
         R::Timeout => (ErrorOrigin::ControlPlane, "timeout"),
         R::Transport => (ErrorOrigin::ControlPlane, "transport"),
@@ -310,7 +309,7 @@ impl InferenceService {
             }
             let context = resolved?;
             correlation.record_resolution(&context);
-            let spend_limits = match self.spend_limits.check(&context, route, body).await {
+            let spend_limits = match self.spend_limits.check(&context).await {
                 Ok(spend_limits) => spend_limits,
                 Err(error) => {
                     let (origin, reason) = resolution_origin(&error);
