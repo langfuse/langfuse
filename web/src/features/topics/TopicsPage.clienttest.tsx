@@ -112,17 +112,19 @@ vi.mock("./CurrentTopics", () => ({
     running: boolean;
     refreshAfter: number;
     timeRange: { from: Date; to: Date };
+    enabled?: boolean;
   }) => {
     useState(() => state.workspaceMounts++);
     state.currentTopics(input);
     return {
       ...input,
-      data: state.resultsDataAvailable
-        ? {
-            hasStoredSummaries: state.hasStoredSummaries,
-            facets: state.resultFacets,
-          }
-        : undefined,
+      data:
+        state.resultsDataAvailable && input.enabled !== false
+          ? {
+              hasStoredSummaries: state.hasStoredSummaries,
+              facets: state.resultFacets,
+            }
+          : undefined,
       isLoading: false,
     };
   },
@@ -259,7 +261,7 @@ vi.mock("@/src/utils/api", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  state.maps = undefined;
+  state.maps = { rules: [], analyses: [] };
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-10-09T12:00:00Z"));
   vi.stubGlobal(
@@ -434,18 +436,23 @@ const oneRuleMaps = {
   analyses: [],
 };
 
-it("requests results for the default map only once the maps load", () => {
+it("shows one loading page until the default map's results load", () => {
   withSummaries();
+  state.maps = undefined;
   const view = render(<TopicsPage />, { wrapper: LayerProvider });
   expect(state.currentTopics).toHaveBeenLastCalledWith(
     expect.objectContaining({ enabled: false }),
   );
+  expect(screen.queryByTestId("current-topics")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Edit map" })).toBeNull();
 
   state.maps = oneRuleMaps;
   view.rerender(<TopicsPage />);
   expect(state.currentTopics).toHaveBeenLastCalledWith(
     expect.objectContaining({ enabled: true, ruleId: "rule-1" }),
   );
+  expect(screen.getByTestId("current-topics")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Edit map" })).toBeInTheDocument();
 });
 
 it("puts New live map and New snapshot first in the menu", async () => {
