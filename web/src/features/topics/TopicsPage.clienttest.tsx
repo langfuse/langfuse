@@ -210,6 +210,7 @@ vi.mock("./CurrentTopics", () => ({
     </div>
   ),
 }));
+vi.mock("./useNewTopics", () => ({ useNewTopicRuns: () => undefined }));
 vi.mock("@/src/utils/api", () => ({
   api: {
     topics: {
@@ -302,7 +303,6 @@ vi.mock("@/src/utils/api", () => ({
       },
       traceErrors: { useQuery: () => ({}) },
       maps: { useQuery: () => ({ data: state.maps }) },
-      newTopics: { useQuery: () => ({}) },
       ruleSetupStatus: { useQuery: () => ({ data: null }) },
       startRuleSetup: {
         useMutation: () => ({

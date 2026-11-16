@@ -335,11 +335,6 @@ function TopicsWorkspaceContent({
     mapSelection?.kind === "rule"
       ? maps.data?.rules.find((rule) => rule.id === mapSelection.id)
       : undefined;
-  const newTopicRuns = useNewTopicRuns(projectId);
-  const newTopicCounts = newTopicCountsForRule(
-    newTopicRuns ?? [],
-    selectedRule?.id,
-  );
   // A refit (refresh or nightly) is no execution; its completion shows as a new lastRefitAt.
   const lastRefitAt = selectedRule?.lastRefitAt
     ? Date.parse(selectedRule.lastRefitAt)
@@ -354,6 +349,14 @@ function TopicsWorkspaceContent({
     listedRefit?.ruleId === selectedRule?.id && listedRefit?.at !== lastRefitAt
       ? lastRefitAt
       : 0;
+  const newTopicRuns = useNewTopicRuns(
+    projectId,
+    Math.max(refreshAfter, refitAfter),
+  );
+  const newTopicCounts = newTopicCountsForRule(
+    newTopicRuns ?? [],
+    selectedRule?.id,
+  );
   const refreshAvailableAt = selectedRule?.refresh.availableAt;
   const [, setCooldownEnded] = useState<string | null>(null);
   useEffect(() => {
