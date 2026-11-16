@@ -2212,7 +2212,10 @@ describe("AI gateway control plane", () => {
     });
     await expect(
       other.caller.aiGateway.updateApiKey({ ...update, orgId: other.org.id }),
-    ).rejects.toThrow("Gateway key not found");
+    ).rejects.toMatchObject({
+      code: "NOT_FOUND",
+      message: "Gateway key not found",
+    });
     await expect(viewer.aiGateway.updateApiKey(update)).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
