@@ -192,11 +192,50 @@ describe("retryLLMRateLimitError", () => {
       { cooldownMs: 30_000 },
     );
 
+    const nextRetryBaggage = { ...retryBaggage, cooldownHits: 1 };
+    expect(result).toMatchObject({
+      outcome: "scheduled",
+      retryBaggage: nextRetryBaggage,
+    });
+    expect(add).toHaveBeenCalledWith(
+      "llm-as-a-judge-execution-queue-1",
+      expect.objectContaining({ retryBaggage: nextRetryBaggage }),
+      { delay: 33_000 },
+    );
+  });
+
+  it("puts a job's later cooldown hits on the backoff schedule", async () => {
+    const add = vi.fn().mockResolvedValue(undefined);
+    const originalJobTimestamp = new Date("2026-01-01T01:00:00.000Z");
+
+    const result = await retryLLMRateLimitError(
+      {
+        data: {
+          timestamp: originalJobTimestamp,
+          payload: {
+            projectId: "project-id",
+            jobExecutionId: "job-execution-id",
+          },
+          retryBaggage: { originalJobTimestamp, attempt: 2, cooldownHits: 1 },
+        },
+      },
+      {
+        table: "job_executions",
+        idField: "jobExecutionId",
+        queue: { add },
+        queueName: "llm-as-a-judge-execution-queue-1",
+        jobName: "llm-as-a-judge-execution-job",
+      },
+      { cooldownMs: 30_000 },
+    );
+
+    // Attempt 3 targets ~82 min into the window; 60 min have passed.
+    const retryBaggage = { originalJobTimestamp, attempt: 3, cooldownHits: 2 };
     expect(result).toMatchObject({ outcome: "scheduled", retryBaggage });
     expect(add).toHaveBeenCalledWith(
       "llm-as-a-judge-execution-queue-1",
       expect.objectContaining({ retryBaggage }),
-      { delay: 33_000 },
+      { delay: 1_300_000 },
     );
   });
 
