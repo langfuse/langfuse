@@ -46,29 +46,28 @@ const BROWNOUT: V4MigrationBannerPresentation = {
 };
 
 /**
- * One sentence for the whole session, or none. A freeze-list project outside
- * an extended organization shows the brownout. November 23 shows only when
- * every actionable project is in an extended organization.
+ * One sentence for the whole session, or none. A freeze-list project that is
+ * not cutoff-exempt shows the brownout. November 23 shows only when every
+ * actionable project is cutoff-exempt.
  */
 export function resolveV4MigrationBannerCopy(params: {
-  actionNeededProjects: readonly { projectId: string; orgId: string }[];
+  actionNeededProjectIds: readonly string[];
   brownoutProjectIds: readonly string[];
-  extendedOrgIds: readonly string[];
+  cutoffExemptProjectIds: readonly string[];
 }): V4MigrationBannerPresentation | null {
   const brownoutProjectIds = new Set(params.brownoutProjectIds);
-  const extendedOrgIds = new Set(params.extendedOrgIds);
-  let extendedCount = 0;
+  const cutoffExemptProjectIds = new Set(params.cutoffExemptProjectIds);
+  let exemptCount = 0;
 
-  for (const project of params.actionNeededProjects) {
-    if (extendedOrgIds.has(project.orgId)) {
-      extendedCount += 1;
-    } else if (brownoutProjectIds.has(project.projectId)) {
+  for (const projectId of params.actionNeededProjectIds) {
+    if (cutoffExemptProjectIds.has(projectId)) {
+      exemptCount += 1;
+    } else if (brownoutProjectIds.has(projectId)) {
       return BROWNOUT;
     }
   }
 
-  return extendedCount > 0 &&
-    extendedCount === params.actionNeededProjects.length
+  return exemptCount > 0 && exemptCount === params.actionNeededProjectIds.length
     ? EXTENDED
     : null;
 }

@@ -169,7 +169,7 @@ export const v4TransitionRouter = createTRPCRouter({
       demoOrgId: env.NEXT_PUBLIC_DEMO_ORG_ID,
       isLangfuseCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
       brownoutProjectIds: env.LANGFUSE_V4_BROWNOUT_PROJECT_IDS,
-      extendedOrgIds: env.LANGFUSE_V4_BANNER_EXTENDED_ORG_IDS,
+      cutoffExemptProjectIds: env.LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS,
     }),
   ),
 });

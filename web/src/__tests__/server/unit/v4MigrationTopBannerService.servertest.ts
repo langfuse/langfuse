@@ -161,7 +161,7 @@ describe("getV4MigrationTopBannerState", () => {
     );
   });
 
-  it("uses brownout copy for freeze-list projects and the extended deadline for named orgs", async () => {
+  it("uses brownout copy for freeze-list projects and the extended deadline for cutoff-exempt projects", async () => {
     const banner = {
       prisma: {} as PrismaClient,
       session,
@@ -173,7 +173,7 @@ describe("getV4MigrationTopBannerState", () => {
       getV4MigrationTopBannerState({
         ...banner,
         brownoutProjectIds: ["project-c"],
-        extendedOrgIds: [],
+        cutoffExemptProjectIds: [],
       }),
     ).resolves.toMatchObject({
       severity: "off",
@@ -184,7 +184,7 @@ describe("getV4MigrationTopBannerState", () => {
       getV4MigrationTopBannerState({
         ...banner,
         brownoutProjectIds: ["project-a"],
-        extendedOrgIds: [],
+        cutoffExemptProjectIds: [],
       }),
     ).resolves.toMatchObject({
       message: "If a feature does not work, it may be in a scheduled brownout.",
@@ -198,7 +198,7 @@ describe("getV4MigrationTopBannerState", () => {
       getV4MigrationTopBannerState({
         ...banner,
         brownoutProjectIds: ["project-a"],
-        extendedOrgIds: ["org-a"],
+        cutoffExemptProjectIds: ["project-a"],
       }),
     ).resolves.toMatchObject({
       message:
@@ -218,7 +218,7 @@ describe("getV4MigrationTopBannerState", () => {
       getV4MigrationTopBannerState({
         ...banner,
         brownoutProjectIds: ["project-a"],
-        extendedOrgIds: ["org-c"],
+        cutoffExemptProjectIds: ["project-c"],
       }),
     ).resolves.toMatchObject({ variant: "brownout" });
 
@@ -226,7 +226,7 @@ describe("getV4MigrationTopBannerState", () => {
       getV4MigrationTopBannerState({
         ...banner,
         brownoutProjectIds: [],
-        extendedOrgIds: ["org-c"],
+        cutoffExemptProjectIds: ["project-c"],
       }),
     ).resolves.toMatchObject({
       severity: "off",

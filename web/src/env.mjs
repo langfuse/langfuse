@@ -752,8 +752,9 @@ export const env = createEnv({
     LANGFUSE_V4_CUTOFF_INGESTION: z.enum(["true", "false"]).default("false"),
     // PUBLIC_API: public API handlers that carry a v3 deprecation.
     LANGFUSE_V4_CUTOFF_PUBLIC_API: z.enum(["true", "false"]).default("false"),
-    // Comma-separated project ids that skip every cutoff.
-    // Keep in sync with worker/src/env.ts.
+    // Comma-separated project ids that skip every cutoff. The same list is the
+    // one-week banner extension: November 23 shows only when every actionable
+    // project is on it. Keep in sync with worker/src/env.ts.
     LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS: z
       .string()
       .optional()
@@ -778,24 +779,6 @@ export const env = createEnv({
               .filter(Boolean)
           : [],
       ),
-    // Comma-separated organization ids whose deadline is November 23, 2026.
-    // An actionable project in one of these orgs keeps the deadline banner,
-    // even when that project is also on the brownout list. The November 23
-    // sentence is shown only when every actionable project is in an extended
-    // org. Any other session keeps the strip hidden, unless a brownout project
-    // shows that banner.
-    LANGFUSE_V4_BANNER_EXTENDED_ORG_IDS: z
-      .string()
-      .optional()
-      .transform((value) =>
-        value
-          ? value
-              .split(",")
-              .map((organizationId) => organizationId.trim())
-              .filter(Boolean)
-          : [],
-      ),
-
     // Character count above which trace/observation I/O is rendered as plain
     // text instead of markdown. Served to the browser via the public tRPC
     // router, so it works as a runtime env var on prebuilt Docker images.
@@ -1445,8 +1428,6 @@ export const env = createEnv({
       process.env.LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS,
     LANGFUSE_V4_BROWNOUT_PROJECT_IDS:
       process.env.LANGFUSE_V4_BROWNOUT_PROJECT_IDS,
-    LANGFUSE_V4_BANNER_EXTENDED_ORG_IDS:
-      process.env.LANGFUSE_V4_BANNER_EXTENDED_ORG_IDS,
     LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
       process.env.LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
     LANGFUSE_SKILL_MAX_BYTES: process.env.LANGFUSE_SKILL_MAX_BYTES,
