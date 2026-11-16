@@ -34,3 +34,5 @@ pub use fields::{
     extract_prompt_version_lookup, extract_public, extract_tags, observation_type,
     should_skip_model_usage_and_cost,
 };
+mod payload;
+pub use payload::{extract_input_output, filter_attributes, ProviderIO};
