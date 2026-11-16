@@ -64,6 +64,8 @@ type ConfigureTopicsDialogProps = {
   saveError?: string | null;
   /** Shown only for projects whose automatic analysis is off. */
   automaticProcessingOff?: { onTurnOn: () => void; pending: boolean };
+  /** Rendered last, below the form fields. */
+  dangerZone?: ReactNode;
 } & (
   | { notice: "none" }
   | {
@@ -108,6 +110,7 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
     saving = false,
     slotChecks,
     automaticProcessingOff,
+    dangerZone,
   } = props;
   const paused =
     props.notice === "paused"
@@ -286,6 +289,7 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
               </p>
             </div>
           </SettingsSection>
+          {dangerZone}
         </div>
         {saveError ? (
           <p className="text-destructive px-4 pb-2 text-sm">{saveError}</p>

@@ -21,6 +21,8 @@ import {
 import { type ConfigureTopicsSettingsInput } from "./useTopicSettings";
 import { topicsSetupPayload } from "./topics-setup";
 import { resolveTopicModelSlot } from "./topic-setup-flow";
+import { TopicsDangerZone } from "./TopicsDangerZone";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 
 type Connection = RouterOutputs["llmApiKey"]["effective"]["data"][number];
 
@@ -87,6 +89,7 @@ function ConfigureTopicsSettings({
   }));
   const [saveError, setSaveError] = useState<string | null>(null);
   const test = api.topics.testModelSettings.useMutation();
+  const internal = useInternalFeaturesEnabled();
   const utils = api.useUtils();
   const turnOn = api.topics.setAutomaticProcessing.useMutation({
     onSuccess: () => utils.topics.modelSettings.invalidate({ projectId }),
@@ -264,9 +267,45 @@ function ConfigureTopicsSettings({
             }
           : undefined
       }
+      dangerZone={
+        canWrite && internal ? (
+          <TopicsDangerZoneController projectId={projectId} />
+        ) : null
+      }
       {...(paused
         ? { notice: "paused" as const, ...paused }
         : { notice: "none" as const })}
+    />
+  );
+}
+
+function TopicsDangerZoneController({ projectId }: { projectId: string }) {
+  const utils = api.useUtils();
+  const rules = api.topics.rules.useQuery({ projectId });
+  // Queries of a deleted rule would fail until the page selects another map, so skip them.
+  const refetchWithout = (ruleIds: string[]) =>
+    utils.topics.invalidate(undefined, {
+      predicate: ({ queryKey }) =>
+        !ruleIds.some((id) => JSON.stringify(queryKey).includes(id)),
+    });
+  const deleteRule = api.topics.deleteRule.useMutation({
+    onSuccess: (_, { id }) => refetchWithout([id]),
+  });
+  const reset = api.topics.resetData.useMutation({
+    onSuccess: () => refetchWithout((rules.data ?? []).map((rule) => rule.id)),
+  });
+  return (
+    <TopicsDangerZone
+      rules={rules.data ?? []}
+      onDeleteRule={async (id) => {
+        await deleteRule.mutateAsync({ projectId, id });
+      }}
+      onReset={async () => {
+        await reset.mutateAsync({ projectId });
+      }}
+      deletingRule={deleteRule.isPending}
+      resetting={reset.isPending}
+      error={(deleteRule.error ?? reset.error)?.message}
     />
   );
 }
