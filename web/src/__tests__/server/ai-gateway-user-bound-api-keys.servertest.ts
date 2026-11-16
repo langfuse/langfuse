@@ -194,7 +194,7 @@ describe("user-bound API keys", () => {
       ).toEqual({ createdByUserId: user.id });
     });
 
-    it("rejects a service-account key from a creator whose current role cannot manage the gateway", async () => {
+    it("rejects a service-account key from a creator whose role cannot manage the gateway", async () => {
       const org = await createOrg();
       const user = await createUser();
       await prisma.organizationMembership.create({
@@ -208,13 +208,13 @@ describe("user-bound API keys", () => {
           name: "Test key",
           metadata: {},
           issuedAs: "serviceAccount",
-          session: orgSession(user, org, Role.ADMIN),
+          session: orgSession(user, org, Role.MEMBER),
         }),
       ).rejects.toThrow(ForbiddenError);
       expect(await existingKeyIds()).toEqual(before);
     });
 
-    it("rejects a creator whose current role cannot invoke the gateway", async () => {
+    it("rejects a creator whose role cannot invoke the gateway", async () => {
       const org = await createOrg();
       const user = await createUser();
       await prisma.organizationMembership.create({
@@ -228,15 +228,16 @@ describe("user-bound API keys", () => {
           name: "Test key",
           metadata: {},
           issuedAs: "user",
-          session: orgSession(user, org, Role.OWNER),
+          session: orgSession(user, org, Role.VIEWER),
         }),
       ).rejects.toThrow(ForbiddenError);
       expect(await existingKeyIds()).toEqual(before);
     });
 
-    it("rejects a creator who is no longer a member", async () => {
+    it("rejects a creator who is not a member", async () => {
       const org = await createOrg();
       const user = await createUser();
+      const session = orgSession(user, org, Role.OWNER);
       const before = await existingKeyIds();
 
       await expect(
@@ -245,7 +246,7 @@ describe("user-bound API keys", () => {
           name: "Test key",
           metadata: {},
           issuedAs: "user",
-          session: orgSession(user, org, Role.OWNER),
+          session: { ...session, user: { ...session.user, organizations: [] } },
         }),
       ).rejects.toThrow(ForbiddenError);
       expect(await existingKeyIds()).toEqual(before);
