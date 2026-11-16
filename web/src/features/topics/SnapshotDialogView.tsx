@@ -112,9 +112,6 @@ export function SnapshotDialogView({
     >
       <Dialog.Body separators="both">
         <div className="ph-no-capture flex flex-col gap-6">
-          <p className="text-muted-foreground">
-            A map of a fixed set of traces. Supports any filter.
-          </p>
           <TopicSliceFields.Section label="Name">
             <Input
               aria-label="Snapshot name"

@@ -37,9 +37,6 @@ export function NewMapDialogView({
     >
       <Dialog.Body separators="both">
         <div className="ph-no-capture flex flex-col gap-6">
-          <p className="text-muted-foreground">
-            Keeps updating as new traces arrive.
-          </p>
           <TopicSliceFields.Section label="Name">
             <Input
               aria-label="Map name"
