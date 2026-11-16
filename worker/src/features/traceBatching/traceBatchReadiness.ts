@@ -70,7 +70,7 @@ export const SNAPSHOT_SCRIPT = `
   return {now, cutoff, pending, ready, first[2] or tostring(now), expired}
 `;
 
-export const readinessScriptHashes = new Map(
+const readinessScriptHashes = new Map(
   [SNAPSHOT_SCRIPT].map(
     (script) =>
       [script, createHash("sha1").update(script).digest("hex")] as const,
