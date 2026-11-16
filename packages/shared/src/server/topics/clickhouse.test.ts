@@ -5,7 +5,6 @@ import type {
   TopicDefinition,
   TopicSummary,
 } from "../../topics";
-import { topicSourceKey } from "../../topics";
 import {
   readTopicAssignments,
   readTopicMapAssignments,
@@ -716,26 +715,6 @@ describe("Topics summary storage", () => {
       ).toEqual([{ ...summary, traceName: inserted.trace_name }]);
     },
   );
-
-  it("scopes source references by project and facet version while ignoring trace parent sessions", () => {
-    expect(
-      topicSourceKey({ ...summaryFixture, sessionId: "parent-session" }),
-    ).toBe(topicSourceKey(summaryFixture));
-    expect(topicSourceKey({ ...summaryFixture, facetVersion: 2 })).not.toBe(
-      topicSourceKey(summaryFixture),
-    );
-    expect(
-      topicSourceKey({ ...summaryFixture, facetId: "another-facet" }),
-    ).not.toBe(topicSourceKey(summaryFixture));
-    expect(
-      topicSourceKey({ ...summaryFixture, projectId: "another-project" }),
-    ).not.toBe(topicSourceKey(summaryFixture));
-    const session = { ...summaryFixture, traceId: null, sessionId: "trace-a" };
-    expect(topicSourceKey(session)).not.toBe(topicSourceKey(summaryFixture));
-    expect(
-      topicSourceKey({ ...session, sessionId: "another-session" }),
-    ).not.toBe(topicSourceKey(session));
-  });
 });
 
 describe("Topics classifications", () => {

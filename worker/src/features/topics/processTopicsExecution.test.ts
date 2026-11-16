@@ -11,13 +11,24 @@ import type {
 } from "@langfuse/shared/topics";
 import { getTopicClusteringSummaries } from "@langfuse/shared/topics/server";
 import { TOPICS_TEXT_VERSION } from "@langfuse/shared/src/server";
-import {
-  topicExecutionInputSchema,
-  topicSourceKey,
-} from "@langfuse/shared/topics";
+import { topicExecutionInputSchema } from "@langfuse/shared/topics";
 import { TopicsProviderUnavailable } from "./provider-error";
 import { ASSEMBLED_TRANSCRIPT_ID } from "./summarizeAssembledTrace";
 
+const { topicSourceKey } = vi.hoisted(() => ({
+  topicSourceKey: (
+    row: Pick<
+      TopicSummary,
+      "projectId" | "facetId" | "facetVersion" | "traceId" | "sessionId"
+    >,
+  ) =>
+    JSON.stringify([
+      row.projectId,
+      row.facetId,
+      row.facetVersion,
+      row.traceId ?? row.sessionId,
+    ]),
+}));
 const state = vi.hoisted(() => ({
   executions: new Map<string, TopicExecution>(),
   summaries: new Map<string, TopicSummary>(),

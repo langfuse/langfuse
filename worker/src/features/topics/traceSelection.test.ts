@@ -9,7 +9,6 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import {
   getNewestTopicClusteringSummaries,
-  loadTopicTranscript,
   selectTopicTraceRows,
   summarizedTopicMatchesQuery,
   writeTopicSummaries,
@@ -244,16 +243,6 @@ describe("Topics trace selection", () => {
       }),
     ]);
     expect(Number(preview[0].matchedTraceCount)).toBe(2);
-    for (const [traceId, environment] of [
-      ["public-root", "langfuse-topics"],
-      ["internal-root", "production"],
-      ["equal-timestamp", "langfuse-topics"],
-      ["updated-root", "langfuse-topics"],
-    ]) {
-      expect(
-        await loadTopicTranscript({ projectId: mixedProject, traceId }),
-      ).toMatchObject({ environment });
-    }
   });
 
   it("samples a random preview across every matched trace", async () => {

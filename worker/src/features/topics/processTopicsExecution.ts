@@ -87,9 +87,7 @@ type FitScope = Pick<
   provisional?: boolean;
   save: (phase: string) => Promise<void>;
 };
-type AssignmentScope = Pick<FitScope, "projectId" | "embeddingConfig"> & {
-  origin: "online" | "initial";
-};
+type AssignmentScope = Pick<FitScope, "projectId" | "embeddingConfig">;
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "Topics processing failed.";
@@ -162,7 +160,7 @@ async function assignSummaries(
                 embeddingConfig: scope.embeddingConfig,
                 summaries: batch.slice(offset, offset + 64),
                 run,
-                origin: scope.origin,
+                origin: "initial",
                 assignedAt,
                 coordinates,
               }),
@@ -174,32 +172,30 @@ async function assignSummaries(
             () => writeTopicAssignments(rows),
             "storage",
           );
-          if (scope.origin === "initial") {
-            const visible = await readTopicAssignments(
-              scope.projectId,
-              { facetId: facet.facetId, version: facet.version },
-              batch,
-              run.id,
-              summaryTimeRange(batch),
-            );
-            const visibleByTrace = new Map(
-              visible.map((row) => [row.traceId, row]),
-            );
-            if (
-              rows.some((row) => {
-                const persisted = visibleByTrace.get(row.traceId);
-                return (
-                  !persisted ||
-                  persisted.topicId !== row.topicId ||
-                  persisted.topicVersionId !== row.topicVersionId ||
-                  persisted.summaryProcessedAt !== row.summaryProcessedAt
-                );
-              })
-            )
-              throw new Error(
-                "Topic assignments are not fully visible; map publication is deferred.",
+          const visible = await readTopicAssignments(
+            scope.projectId,
+            { facetId: facet.facetId, version: facet.version },
+            batch,
+            run.id,
+            summaryTimeRange(batch),
+          );
+          const visibleByTrace = new Map(
+            visible.map((row) => [row.traceId, row]),
+          );
+          if (
+            rows.some((row) => {
+              const persisted = visibleByTrace.get(row.traceId);
+              return (
+                !persisted ||
+                persisted.topicId !== row.topicId ||
+                persisted.topicVersionId !== row.topicVersionId ||
+                persisted.summaryProcessedAt !== row.summaryProcessedAt
               );
-          }
+            })
+          )
+            throw new Error(
+              "Topic assignments are not fully visible; map publication is deferred.",
+            );
           assignedCount += rows.filter((row) => row.topicId !== null).length;
           await yieldToEventLoop();
         }
@@ -328,7 +324,7 @@ async function clusterFacet(
       metrics.result("clustering", "no_topics");
       await assignSummaries(
         metrics,
-        { ...scope, origin: "initial" },
+        scope,
         facet,
         progress,
         summaries,
@@ -553,7 +549,7 @@ async function clusterFacet(
     // Readback returns the persisted classifier precision before creating any memberships.
     await assignSummaries(
       metrics,
-      { ...scope, origin: "initial" },
+      scope,
       facet,
       progress,
       summaries,
@@ -640,8 +636,6 @@ function compatibleMap(
 type PendingFacet = {
   facet: TopicFacetVersion;
   progress: TopicFacetProgress;
-  name: string;
-  builtIn: boolean;
 };
 
 async function pendingFacets(
@@ -659,13 +653,7 @@ async function pendingFacets(
     const definition = definitions.find(({ id }) => id === progress.facetId);
     if (!facet || !definition)
       throw new Error("Facet version not found in this project.");
-    progress.counts.failed = 0;
-    facets.push({
-      facet,
-      progress,
-      name: definition.name,
-      builtIn: definition.isBuiltIn,
-    });
+    facets.push({ facet, progress });
   }
   return facets;
 }
@@ -871,10 +859,7 @@ export async function processTopicUpdateExecution({
       );
     await updateTopics(metrics, models, execution);
     execution.status = execution.facets.some(
-      (facet) =>
-        facet.outcome === "failed" ||
-        facet.counts.failed > 0 ||
-        facet.error !== null,
+      (facet) => facet.outcome === "failed" || facet.error !== null,
     )
       ? "completed_with_errors"
       : "completed";

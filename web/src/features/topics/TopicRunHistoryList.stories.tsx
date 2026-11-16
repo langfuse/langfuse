@@ -77,8 +77,6 @@ function processRun(
       requestId: `request-${id}`,
       facets: facetRefs,
       embeddingConfig: { embeddingDimensions: 1024 },
-      reuseExistingSummaries: false,
-      processingConfig: { maxInputTokens: 120_000, maxOutputTokens: 512 },
     },
   };
 }

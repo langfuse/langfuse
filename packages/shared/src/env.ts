@@ -81,11 +81,6 @@ const EnvSchema = z.object({
         .map((id) => id.trim())
         .filter(Boolean),
     ),
-  LANGFUSE_TOPICS_REDIS_TTL_SECONDS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(10800),
   // NextAuth.js falls back to VERCEL_URL when NEXTAUTH_URL is unset; the
   // shared base-URL helper mirrors that (see web/src/env.mjs preprocess).
   VERCEL_URL: z.string().optional(),

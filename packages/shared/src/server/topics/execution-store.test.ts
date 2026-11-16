@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createTopicExecution,
-  readTopicExecutionForRequest,
   readTopicExecutionSummary,
   listTopicExecutions,
   writeTopicExecution,
@@ -13,17 +12,6 @@ const state = vi.hoisted(() => ({
   batches: new Map<string, Record<string, unknown>>(),
   findBatch: vi.fn(),
   writes: vi.fn(),
-}));
-vi.mock("./postgres", () => ({
-  getTopicProcessingMapIds: async (
-    _projectId: string,
-    facets: { facetId: string; version: number }[],
-  ) =>
-    facets.map(({ facetId, version }) => ({
-      facetId,
-      facetVersion: version,
-      runId: null,
-    })),
 }));
 vi.mock("../../db", () => {
   const matches = (
@@ -91,36 +79,22 @@ vi.mock("../../db", () => {
   };
 });
 
-const input: Extract<TopicExecutionInput, { operation: "process" }> = {
+const input: TopicExecutionInput = {
   projectId: "project-a",
-  requestId: "request-1",
-  operation: "process",
-  facets: [
-    { facetId: "facet", version: 1 },
-    { facetId: "facet", version: 2 },
-  ],
-  traceIds: ["trace-a", "trace-b"],
-  reuseExistingSummaries: false,
-  processingConfig: {
-    summaryModel: "us.openai.gpt-5.6-luna",
-    maxInputTokens: 8000,
-    maxOutputTokens: 512,
-  },
-  embeddingConfig: {
-    embeddingModel: "eu.cohere.embed-v4:0",
-    embeddingDimensions: 1024,
-  },
-};
-const updateInput: TopicExecutionInput = {
-  projectId: input.projectId,
   requestId: "update-1",
   operation: "update",
   timeRange: {
     from: new Date("2026-09-01T00:00:00.000Z"),
     to: new Date("2026-10-01T00:00:00.000Z"),
   },
-  facets: input.facets,
-  embeddingConfig: input.embeddingConfig,
+  facets: [
+    { facetId: "facet", version: 1 },
+    { facetId: "facet", version: 2 },
+  ],
+  embeddingConfig: {
+    embeddingModel: "eu.cohere.embed-v4:0",
+    embeddingDimensions: 1024,
+  },
   exploratory: false,
 };
 beforeEach(() => {
@@ -131,147 +105,60 @@ beforeEach(() => {
 });
 
 describe("Topics execution store application contract", () => {
-  it("returns uncapped trace input to the caller but persists only settings and aggregate progress", async () => {
-    const traceIds = Array.from(
-      { length: 2001 },
-      (_, index) => `request:${index}/opaque`,
-    );
-    const execution = await createTopicExecution(
-      {
-        ...input,
-        traceIds,
-        ruleId: "rule-a",
-      },
-      undefined,
-      "user-a",
-    );
-    expect(execution.input).toMatchObject({
-      traceIds,
-      ruleId: "rule-a",
-      processingConfig: input.processingConfig,
-    });
-    expect(state.rows.size).toBe(0);
-    expect(state.batches.size).toBe(1);
-    expect(state.batches.get(execution.id)).toMatchObject({
-      projectId: input.projectId,
-      userId: "user-a",
-      status: "QUEUED",
-      totalCount: 2001,
-    });
-    const progress = (await readTopicExecutionSummary(
-      input.projectId,
-      execution.id,
-    ))!;
-    expect(progress.facets.map((facet) => facet.counts.requested)).toEqual([
-      2001, 2001,
-    ]);
-    const noisyProgress = {
-      ...progress,
-      status: "running" as const,
-      traceErrors: [{ traceId: "failed-trace", error: "Read failed" }],
-      facets: progress.facets.map((facet) => ({
-        ...facet,
-        counts: { ...facet.counts, complete: 1 },
-      })),
-    };
-    await writeTopicExecution(noisyProgress, 1);
-    const restored = await readTopicExecutionSummary(
-      input.projectId,
-      execution.id,
-    );
-    expect(restored).toMatchObject({ status: "running" });
-    expect(restored?.facets[0].counts.complete).toBe(1);
-    const database = JSON.stringify([...state.batches.values()]);
-    for (const value of [
-      "traceIds",
-      "traceErrors",
-      "request:0/opaque",
-      "failed-trace",
-    ])
-      expect(database).not.toContain(value);
-  });
-
-  it.each([input, updateInput])(
-    "rechecks an existing $operation request after an optimistic read misses it and preserves project scope",
-    async (request) => {
+  it("rechecks an existing request after an optimistic read misses it and preserves project scope", async () => {
+    const request = input;
+    {
       const a = await createTopicExecution(request, "request-hash", "user-a");
       state.findBatch.mockResolvedValueOnce(null);
       const b = await createTopicExecution(request, "request-hash", "user-a");
       expect(a.id).toBe(b.id);
       expect(state.batches.size).toBe(1);
       expect([...state.rows.values()]).toEqual(
-        request.operation === "update"
-          ? request.facets.map(({ facetId, version }) => ({
-              id: a.facets.find(
-                (facet) =>
-                  facet.facetId === facetId && facet.facetVersion === version,
-              )!.runId,
-              projectId: request.projectId,
-              facetId,
-              facetVersion: version,
-              status: "pending",
-              batchActionId: a.id,
-              config: {
-                timeRange: {
-                  from: request.timeRange.from.toISOString(),
-                  to: request.timeRange.to.toISOString(),
-                },
-              },
-            }))
-          : [],
+        request.facets.map(({ facetId, version }) => ({
+          id: a.facets.find(
+            (facet) =>
+              facet.facetId === facetId && facet.facetVersion === version,
+          )!.runId,
+          projectId: request.projectId,
+          facetId,
+          facetVersion: version,
+          status: "pending",
+          batchActionId: a.id,
+          config: {
+            timeRange: {
+              from: request.timeRange.from.toISOString(),
+              to: request.timeRange.to.toISOString(),
+            },
+          },
+        })),
       );
       expect(await listTopicExecutions(input.projectId)).toHaveLength(1);
       const summary = (await readTopicExecutionSummary(input.projectId, a.id))!;
-      if (request.operation === "update") {
-        expect(summary.input).toMatchObject({ timeRange: request.timeRange });
-        const stored = [...state.batches.values()][0];
-        expect(stored).toMatchObject({
-          config: {
-            inputSettings: {
-              timeRange: {
-                from: request.timeRange.from.toISOString(),
-                to: request.timeRange.to.toISOString(),
-              },
+      expect(summary.input).toMatchObject({ timeRange: request.timeRange });
+      expect([...state.batches.values()][0]).toMatchObject({
+        config: {
+          inputSettings: {
+            timeRange: {
+              from: request.timeRange.from.toISOString(),
+              to: request.timeRange.to.toISOString(),
             },
           },
-        });
-      }
-      expect(
-        await readTopicExecutionForRequest(
-          input.projectId,
-          request.requestId,
-          "request-hash",
-        ),
-      ).toEqual(summary);
-      expect(summary.input).not.toHaveProperty("traceIds");
-      await expect(
-        readTopicExecutionForRequest(
-          input.projectId,
-          request.requestId,
-          "changed-hash",
-        ),
-      ).rejects.toThrow("different Topics request");
+        },
+      });
       expect(await readTopicExecutionSummary("project-b", a.id)).toBeNull();
-      expect(
-        await readTopicExecutionForRequest(
-          "project-b",
-          request.requestId,
-          "request-hash",
-        ),
-      ).toBeNull();
       expect(await listTopicExecutions("project-b")).toEqual([]);
       await expect(
         writeTopicExecution({ ...summary, projectId: "project-b" }),
       ).rejects.toThrow("does not exist");
-    },
-  );
+    }
+  });
 
-  it("rejects a different resolved cohort found during the transaction recheck", async () => {
+  it("rejects different settings for a request ID found during the transaction recheck", async () => {
     await createTopicExecution(input, "request-hash", "user-a");
     state.findBatch.mockResolvedValueOnce(null);
     await expect(
       createTopicExecution(
-        { ...input, traceIds: ["new-trace"] },
+        { ...input, exploratory: true },
         "request-hash",
         "user-a",
       ),
@@ -282,7 +169,7 @@ describe("Topics execution store application contract", () => {
     });
   });
 
-  it("ignores stale aggregate snapshots and rejects changes to the execution facets", async () => {
+  it("rejects changes to the execution facets", async () => {
     const created = await createTopicExecution(input, undefined, "user-a");
     const progress = (await readTopicExecutionSummary(
       input.projectId,
@@ -291,41 +178,25 @@ describe("Topics execution store application contract", () => {
     const newer = {
       ...progress,
       status: "running" as const,
-      phase: "embedding",
+      phase: "selecting",
       facets: progress.facets.map((facet) => ({
         ...facet,
         counts: { ...facet.counts, complete: 2 },
       })),
     };
-    await writeTopicExecution(newer, 2);
-    state.writes.mockClear();
-    await writeTopicExecution(progress, 1);
-    await writeTopicExecution(progress, 2);
-    expect(state.writes).not.toHaveBeenCalled();
-    expect(
-      await readTopicExecutionSummary(input.projectId, created.id),
-    ).toMatchObject({
-      status: "running",
-      phase: "embedding",
-      facets: newer.facets,
-    });
     await expect(
-      writeTopicExecution({ ...newer, facets: newer.facets.slice(0, 1) }, 3),
+      writeTopicExecution({ ...newer, facets: newer.facets.slice(0, 1) }),
     ).rejects.toThrow("facets cannot change");
     await expect(
-      writeTopicExecution(
-        { ...newer, facets: [newer.facets[0], newer.facets[0]] },
-        3,
-      ),
+      writeTopicExecution({
+        ...newer,
+        facets: [newer.facets[0], newer.facets[0]],
+      }),
     ).rejects.toThrow("facets cannot change");
   });
 
   it("writes update progress without modifying completed or pending clustering runs", async () => {
-    const created = await createTopicExecution(
-      updateInput,
-      undefined,
-      "user-a",
-    );
+    const created = await createTopicExecution(input, undefined, "user-a");
     const progress = (await readTopicExecutionSummary(
       input.projectId,
       created.id,
