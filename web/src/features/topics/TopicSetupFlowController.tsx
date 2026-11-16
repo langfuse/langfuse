@@ -60,8 +60,6 @@ export function TopicSetupFlowController({
           onDismiss={closeSetup}
           renderDialog={({ closeDialog }) => (
             <TopicSetupSession
-              // Rebuilds the draft with recommended models once the first connection arrives.
-              key={settings.connections.length > 0 ? "ready" : "none"}
               projectId={projectId}
               canWrite={canWrite}
               settings={settings}
@@ -137,7 +135,7 @@ function TopicSetupSession({
       withDefaultModels: connection.withDefaultModels,
     }),
   );
-  const [draft, setDraft] = useState(() =>
+  const initialDraft = () =>
     initialTopicSetupDraft({
       stored: settings.stored,
       connections,
@@ -145,8 +143,21 @@ function TopicSetupSession({
       enabledFacetIds: settings.rule ? new Set(settings.rule.facetIds) : null,
       filter: settings.rule?.filter,
       traceIdleMs: settings.traceIdleMs,
-    }),
-  );
+    });
+  const [draft, setDraft] = useState(initialDraft);
+  // A connection added in another tab fills the model slots still empty,
+  // keeping the dialog open on its step with the user's choices.
+  const [hadConnection, setHadConnection] = useState(connections.length > 0);
+  if (!hadConnection && connections.length > 0) {
+    setHadConnection(true);
+    const recommended = initialDraft();
+    setDraft((current) => ({
+      ...current,
+      summary: current.summary ?? recommended.summary,
+      embedding: current.embedding ?? recommended.embedding,
+      clustering: current.clustering ?? recommended.clustering,
+    }));
+  }
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   useEffect(() => {
