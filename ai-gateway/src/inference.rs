@@ -310,8 +310,8 @@ impl InferenceService {
             }
             let context = resolved?;
             correlation.record_resolution(&context);
-            let spend = match self.spend_limits.check(&context).await {
-                Ok(spend) => spend,
+            let spend_limits = match self.spend_limits.check(&context).await {
+                Ok(spend_limits) => spend_limits,
                 Err(error) => {
                     let (origin, reason) = resolution_origin(&error);
                     span.record("gateway.outcome", reason);
@@ -332,7 +332,7 @@ impl InferenceService {
                     return Err(error);
                 }
             };
-            Ok((self.provider.admit().with_spend_recording(spend), context))
+            Ok((self.provider.admit(spend_limits), context))
         }
         .instrument(span)
         .await

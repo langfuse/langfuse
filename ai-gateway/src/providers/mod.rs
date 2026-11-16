@@ -84,18 +84,7 @@ pub(crate) struct ProviderLimits {
 pub struct RequestPermit {
     _active: crate::observability::Active,
     deadline: Instant,
-    spend: Option<crate::spend::SpendRecording>,
-}
-
-impl RequestPermit {
-    /// Count the execution's cost toward the key's spend limits once it finishes.
-    pub(crate) fn with_spend_recording(
-        mut self,
-        spend: Option<crate::spend::SpendRecording>,
-    ) -> Self {
-        self.spend = spend;
-        self
-    }
+    spend_limits: Option<crate::spend::SpendRecording>,
 }
 
 /// The validated caller body and the facts the relay needs about it.
@@ -153,12 +142,16 @@ impl ProviderTransport {
         self
     }
 
-    /// Start the execution deadline.
-    pub fn admit(&self) -> RequestPermit {
+    /// Start the execution deadline. The execution's cost counts toward `spend_limits`
+    /// once it finishes.
+    pub(crate) fn admit(
+        &self,
+        spend_limits: Option<crate::spend::SpendRecording>,
+    ) -> RequestPermit {
         RequestPermit {
             _active: crate::observability::Active::new("execution"),
             deadline: Instant::now() + self.limits.execution.max_execution_time,
-            spend: None,
+            spend_limits,
         }
     }
 
@@ -215,7 +208,7 @@ impl ProviderTransport {
             .then(|| chat_completions::request_stream_usage(&body, provider_model));
         let mut capture = self.capture(route, &context, headers, &body, correlation);
         // A request whose usage may go unreported would escape the key's spend limits.
-        if permit.spend.is_some()
+        if permit.spend_limits.is_some()
             && matches!(stream_usage, Some(chat_completions::StreamUsage::Unknown))
         {
             capture.set_provider_model(provider_model);
@@ -224,7 +217,7 @@ impl ProviderTransport {
             ));
             return Err(ProviderError::UnmeteredRequest);
         }
-        capture.record_spend_to(permit.spend.take());
+        capture.record_spend_to(permit.spend_limits.take());
         // Capture the caller's body shape, but keep upstream-only changes out of the input.
         let body = match stream_usage {
             Some(chat_completions::StreamUsage::Requested(rewritten)) => {

@@ -587,7 +587,7 @@ async fn upstream_read_timeout_is_logged_as_timeout() {
     let _guard = tracing::subscriber::set_default(subscriber);
     let response = provider
         .forward(
-            provider.admit(),
+            provider.admit(None),
             context,
             &HeaderMap::new(),
             Bytes::from_static(br#"{"model":"requested"}"#),
@@ -642,7 +642,7 @@ async fn native_http_relay_logs_once_on_eof_drop_and_unpolled_deadline() {
         let _guard = tracing::subscriber::set_default(subscriber);
         let response = provider
             .forward(
-                provider.admit(),
+                provider.admit(None),
                 context,
                 &HeaderMap::new(),
                 Bytes::from_static(br#"{"model":"requested","input":"request-content"}"#),
@@ -705,7 +705,7 @@ async fn provider_future_finalizes_on_timeout_and_cancellation_before_headers() 
         let _guard = tracing::subscriber::set_default(subscriber);
         let headers = HeaderMap::new();
         let call = provider.forward(
-            provider.admit(),
+            provider.admit(None),
             context,
             &headers,
             Bytes::from_static(br#"{"model":"requested"}"#),
@@ -801,7 +801,7 @@ async fn client_compression_preferences_do_not_disable_capture() {
         );
         let forwarded = provider
             .forward(
-                provider.admit(),
+                provider.admit(None),
                 context,
                 &headers,
                 Bytes::from(
@@ -883,7 +883,7 @@ async fn codex_body_metadata_reaches_the_generation_without_agent_headers() {
     });
     let forwarded = provider
         .forward(
-            provider.admit(),
+            provider.admit(None),
             context,
             &HeaderMap::new(),
             Bytes::from(body.to_string()),
