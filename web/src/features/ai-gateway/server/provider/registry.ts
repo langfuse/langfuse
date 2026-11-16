@@ -1,5 +1,9 @@
 import { z } from "zod/v4";
 import {
+  PricingTierAttributeConditionSchema,
+  PricingTierUsageConditionSchema,
+} from "@langfuse/shared";
+import {
   bedrockRuntimeOrigin,
   decodeBedrockApiKey,
   GatewayBedrockConfigSchema,
@@ -58,6 +62,23 @@ const gatewayProviderIds = [
 ] as const;
 export type GatewayProviderId = (typeof gatewayProviderIds)[number];
 
+/** Also the cached shape, so resolve passes the key's limits through unchanged. */
+export const GatewayResolveSpendLimitsSchema = z.array(
+  z
+    .object({
+      id: z.string(),
+      interval: z.enum(["daily", "weekly", "monthly", "total"]),
+      limit_usd: z.number(),
+      // Part of the gateway's usage counter key; bumped when an admin resets the limit.
+      generation: z.number().int().nonnegative(),
+      // Spend recorded before the limit existed. Counts only while the
+      // current window still starts at baseline_window_start (Unix seconds).
+      baseline_usd: z.number(),
+      baseline_window_start: z.number().int(),
+    })
+    .strict(),
+);
+
 export const GatewayResolveResponseSchema = z
   .object({
     version: z.literal(1),
@@ -108,22 +129,7 @@ export const GatewayResolveResponseSchema = z
       })
       .strict()
       .nullable(),
-    // Empty in "none" mode, where spend is not recorded and limits are unavailable.
-    spend_limits: z.array(
-      z
-        .object({
-          id: z.string(),
-          interval: z.enum(["daily", "weekly", "monthly", "total"]),
-          limit_usd: z.number(),
-          // Part of the gateway's usage counter key; bumped when an admin resets the limit.
-          generation: z.number().int().nonnegative(),
-          // Spend recorded before the limit existed. Counts only while the
-          // current window still starts at baseline_window_start (Unix seconds).
-          baseline_usd: z.number(),
-          baseline_window_start: z.number().int(),
-        })
-        .strict(),
-    ),
+    spend_limits: GatewayResolveSpendLimitsSchema,
     // Prices of the model the request is priced with; null without spend
     // limits or when no model in the ingestion project matches.
     pricing: z
@@ -141,14 +147,14 @@ export const GatewayResolveResponseSchema = z
                   z
                     .object({
                       usage_detail_pattern: z.string(),
-                      operator: z.enum(["gt", "gte", "lt", "lte", "eq", "neq"]),
+                      operator: PricingTierUsageConditionSchema.shape.operator,
                       value: z.number(),
                       case_sensitive: z.boolean(),
                     })
                     .strict(),
                   z
                     .object({
-                      source: z.enum(["model_parameters", "metadata"]),
+                      source: PricingTierAttributeConditionSchema.shape.source,
                       key: z.string(),
                       values: z.array(z.string()),
                     })

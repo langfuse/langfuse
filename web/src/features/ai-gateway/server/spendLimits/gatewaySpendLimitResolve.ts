@@ -1,29 +1,6 @@
 import { findModel } from "@langfuse/shared/src/server";
 
-import type { CachedResolveContext } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import type { GatewayResolveResponse } from "@/src/features/ai-gateway/server/provider/registry";
-
-/** The key's limits as the gateway enforces them; none while requests are not recorded. */
-export function toResolveSpendLimits(params: {
-  spendLimits: CachedResolveContext["spendLimits"];
-  recordsSpend: boolean;
-}): GatewayResolveResponse["spend_limits"] {
-  if (!params.recordsSpend) return [];
-  return params.spendLimits.map((limit) => ({
-    id: limit.id,
-    interval: limit.interval.toLowerCase() as
-      | "daily"
-      | "weekly"
-      | "monthly"
-      | "total",
-    limit_usd: limit.limitUsd,
-    generation: limit.generation,
-    baseline_usd: limit.baselineSpendUsd,
-    baseline_window_start: Math.floor(
-      new Date(limit.baselineWindowStart).getTime() / 1000,
-    ),
-  }));
-}
 
 /**
  * Prices the gateway charges the request's spend at. Matched on the model sent

@@ -177,11 +177,15 @@ export class GatewayApiKeyAuthenticator {
       ),
       spendLimits: row.gatewaySpendLimits.map((limit) => ({
         id: limit.id,
-        interval: limit.interval,
-        limitUsd: limit.limitUsd.toNumber(),
+        interval: limit.interval.toLowerCase() as Lowercase<
+          typeof limit.interval
+        >,
+        limit_usd: limit.limitUsd.toNumber(),
         generation: limit.generation,
-        baselineSpendUsd: limit.baselineSpendUsd.toNumber(),
-        baselineWindowStart: limit.baselineWindowStart.toISOString(),
+        baseline_usd: limit.baselineSpendUsd.toNumber(),
+        baseline_window_start: Math.floor(
+          limit.baselineWindowStart.getTime() / 1000,
+        ),
       })),
       ingestionProjectId: projectIsUsable
         ? (gatewayConfig?.defaultIngestionProjectId ?? null)
