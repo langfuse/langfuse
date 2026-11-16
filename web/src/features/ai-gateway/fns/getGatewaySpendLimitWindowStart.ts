@@ -4,7 +4,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Start of the UTC calendar window `now` falls in: midnight, the Monday of the
- * week, or the 1st of the month. A lifetime limit never refreshes, so its one
+ * week, or the 1st of the month. A total limit never refreshes, so its one
  * window starts at the Unix epoch.
  *
  * The gateway computes the same windows in `ai-gateway/src/spend/window.rs`
@@ -27,7 +27,7 @@ export function getGatewaySpendLimitWindowStart(
       return new Date(midnight - ((now.getUTCDay() + 6) % 7) * DAY_MS);
     case "MONTHLY":
       return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    case "LIFETIME":
+    case "TOTAL":
       return new Date(0);
   }
 }

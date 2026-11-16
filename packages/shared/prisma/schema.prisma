@@ -411,11 +411,11 @@ enum GatewaySpendLimitInterval {
   DAILY
   WEEKLY
   MONTHLY
-  LIFETIME
+  TOTAL
 }
 
 // USD spend cap the AI gateway checks before each request. Windows are UTC
-// calendar windows (weeks start Monday); LIFETIME never refreshes.
+// calendar windows (weeks start Monday); TOTAL never refreshes.
 model GatewaySpendLimit {
   id                  String                    @id @default(cuid())
   organizationId      String                    @map("organization_id")

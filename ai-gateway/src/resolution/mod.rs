@@ -544,7 +544,7 @@ impl RateLimit {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpendLimitExceeded {
     message: Box<str>,
-    /// Until the window ends; a lifetime limit never refreshes.
+    /// Until the window ends; a total limit never refreshes.
     retry_after_secs: Option<u64>,
 }
 

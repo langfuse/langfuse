@@ -113,7 +113,7 @@ export const GatewayResolveResponseSchema = z
       z
         .object({
           id: z.string(),
-          interval: z.enum(["daily", "weekly", "monthly", "lifetime"]),
+          interval: z.enum(["daily", "weekly", "monthly", "total"]),
           limit_usd: z.number(),
           // Part of the gateway's usage counter key; bumped when an admin resets the limit.
           generation: z.number().int().nonnegative(),

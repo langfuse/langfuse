@@ -62,10 +62,10 @@ export class GatewaySpendLimitService {
             apiKeyId: apiKey.id,
             since: limits.map((limit, index) =>
               spendSince({
-                // A lifetime limit's baseline holds the spend before the limit
+                // A total limit's baseline holds the spend before the limit
                 // existed, so only spend since then is read on every list.
                 windowStart:
-                  limit.interval === "LIFETIME"
+                  limit.interval === "TOTAL"
                     ? limit.createdAt
                     : windowStarts[index]!,
                 apiKeyCreatedAt: apiKey.createdAt,
@@ -87,7 +87,7 @@ export class GatewaySpendLimitService {
           spend === null
             ? null
             : spend[index]! +
-              (limit.interval === "LIFETIME"
+              (limit.interval === "TOTAL"
                 ? limit.baselineSpendUsd.toNumber()
                 : 0),
       })),

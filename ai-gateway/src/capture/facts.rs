@@ -59,6 +59,9 @@ pub(crate) struct InferenceFacts {
     pub response_body_bytes: u64,
     pub metadata: Value,
     pub outcome: RelayOutcome,
+    /// What a spend-limited key was charged, priced from the model's tiers. The
+    /// generation carries it so Langfuse stores the amount the limit counted.
+    pub charged_cost_details: Option<crate::spend::UsageCostType>,
     #[serde(flatten)]
     pub inference: ProviderFacts,
 }

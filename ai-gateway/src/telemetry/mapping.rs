@@ -49,6 +49,7 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
             &facts.metadata,
             &usage,
             inference.provider_metadata.as_ref(),
+            facts.charged_cost_details.as_ref(),
         ));
     }
     if full {
@@ -392,12 +393,14 @@ fn usage_attributes(
     metadata: &Value,
     usage: &Value,
     provider_metadata: Option<&Value>,
+    charged_cost_details: Option<&crate::spend::UsageCostType>,
 ) -> Vec<Value> {
     let provider = metadata.get("provider").and_then(Value::as_str);
     let usage_details = crate::capture::langfuse_usage_details(api_format, provider, usage)
         .map(|projected| attribute("langfuse.observation.usage_details", projected.to_string()));
     let cost_details =
         crate::providers::usage::provided_cost_details(provider, usage, provider_metadata)
+            .or_else(|| charged_cost_details.and_then(|cost| serde_json::to_value(cost).ok()))
             .map(|cost| attribute("langfuse.observation.cost_details", cost.to_string()));
     usage_details.into_iter().chain(cost_details).collect()
 }
@@ -428,6 +431,7 @@ mod tests {
             response_body_bytes: 256,
             metadata: json!({"ingestion_mode": "full", "key_id": "key", "key_metadata": {"team": "search"}}),
             outcome: RelayOutcome::Eof,
+            charged_cost_details: None,
             inference: crate::capture::ProviderFacts::default(),
         };
         facts.inference.model = Some("actual-model".into());
@@ -973,6 +977,29 @@ mod tests {
         attrs
             .get("langfuse.observation.usage_details")
             .map(|value| serde_json::from_str(value.as_str().unwrap()).unwrap())
+    }
+
+    #[test]
+    fn a_spend_limited_key_s_charge_becomes_the_generation_cost() {
+        let cost_details = |provider: &str, usage: Value| {
+            let mut facts = facts();
+            facts.metadata["provider"] = json!(provider);
+            facts.inference.usage_details = Some(usage);
+            facts.charged_cost_details =
+                Some([("input".into(), 0.1), ("total".into(), 0.1)].into());
+            attributes(&span(facts, &context()))
+                .get("langfuse.observation.cost_details")
+                .map(|value| serde_json::from_str::<Value>(value.as_str().unwrap()).unwrap())
+        };
+        assert_eq!(
+            cost_details("openai", json!({"input_tokens": 20})),
+            Some(json!({"input": 0.1, "total": 0.1}))
+        );
+        // The provider's own cost wins, as it does when the charge is priced.
+        assert_eq!(
+            cost_details("openrouter", json!({"input_tokens": 20, "cost": 0.25})),
+            Some(json!({"total": 0.25}))
+        );
     }
 
     #[test]

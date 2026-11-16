@@ -9,7 +9,7 @@ pub(crate) enum SpendLimitInterval {
     Daily,
     Weekly,
     Monthly,
-    Lifetime,
+    Total,
 }
 
 impl SpendLimitInterval {
@@ -18,24 +18,24 @@ impl SpendLimitInterval {
             Self::Daily => "daily",
             Self::Weekly => "weekly",
             Self::Monthly => "monthly",
-            Self::Lifetime => "lifetime",
+            Self::Total => "total",
         }
     }
 
     /// Midnight, the Monday of the week, or the 1st of the month `now` falls
-    /// in. The single lifetime window starts at the Unix epoch.
+    /// in. The single total window starts at the Unix epoch.
     pub(crate) fn window_start(self, now: DateTime<Utc>) -> DateTime<Utc> {
         let date = now.date_naive();
         let start = match self {
             Self::Daily => date,
             Self::Weekly => date - Duration::days(i64::from(date.weekday().num_days_from_monday())),
             Self::Monthly => date.with_day(1).unwrap_or(date),
-            Self::Lifetime => return DateTime::UNIX_EPOCH,
+            Self::Total => return DateTime::UNIX_EPOCH,
         };
         midnight(start)
     }
 
-    /// When the window starting at `start` closes; never for lifetime.
+    /// When the window starting at `start` closes; never for total.
     pub(crate) fn window_end(self, start: DateTime<Utc>) -> Option<DateTime<Utc>> {
         let date = start.date_naive();
         let end = match self {
@@ -49,7 +49,7 @@ impl SpendLimitInterval {
                 };
                 NaiveDate::from_ymd_opt(year, month, 1)?
             }
-            Self::Lifetime => return None,
+            Self::Total => return None,
         };
         Some(midnight(end))
     }
@@ -87,7 +87,7 @@ mod tests {
                 "2026-12-01T00:00:00Z",
                 Some("2027-01-01T00:00:00Z"),
             ),
-            (SpendLimitInterval::Lifetime, "1970-01-01T00:00:00Z", None),
+            (SpendLimitInterval::Total, "1970-01-01T00:00:00Z", None),
         ];
         for (interval, start, end) in cases {
             let window_start = interval.window_start(now);

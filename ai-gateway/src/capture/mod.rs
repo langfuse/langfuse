@@ -340,7 +340,7 @@ impl ExecutionCapture {
             return;
         };
         let (api_format, inference) = protocol.into_facts();
-        let facts = InferenceFacts {
+        let mut facts = InferenceFacts {
             api_format,
             start_time_unix_ms: self.start_time_unix_ms,
             duration_ms: self.started.elapsed().as_millis(),
@@ -353,6 +353,7 @@ impl ExecutionCapture {
             response_body_bytes: self.response_body_bytes,
             metadata: std::mem::take(&mut self.metadata),
             outcome,
+            charged_cost_details: None,
             inference,
         };
         telemetry::debug_record(&facts);
@@ -363,7 +364,7 @@ impl ExecutionCapture {
                 .as_ref()
                 .map(|(_, context)| context.observation_metadata(&facts))
                 .unwrap_or_default();
-            spend.record(&facts, &metadata);
+            facts.charged_cost_details = spend.record(&facts, &metadata);
         }
         if let Some((telemetry, context)) = self.delivery.take() {
             telemetry.record(context, facts);

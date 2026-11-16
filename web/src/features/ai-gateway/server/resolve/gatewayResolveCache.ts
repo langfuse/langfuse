@@ -48,7 +48,7 @@ export const CachedResolveContext = z.object({
   spendLimits: z.array(
     z.object({
       id: z.string(),
-      interval: z.enum(["DAILY", "WEEKLY", "MONTHLY", "LIFETIME"]),
+      interval: z.enum(["DAILY", "WEEKLY", "MONTHLY", "TOTAL"]),
       limitUsd: z.number(),
       generation: z.number().int(),
       baselineSpendUsd: z.number(),

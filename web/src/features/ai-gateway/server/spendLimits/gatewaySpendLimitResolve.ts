@@ -15,7 +15,7 @@ export function toResolveSpendLimits(params: {
       | "daily"
       | "weekly"
       | "monthly"
-      | "lifetime",
+      | "total",
     limit_usd: limit.limitUsd,
     generation: limit.generation,
     baseline_usd: limit.baselineSpendUsd,

@@ -25,14 +25,15 @@ use crate::{
         SpendLimitExceeded,
     },
 };
-use cost::{PricingAttributes, UsageCostType, calculate_model_usage_costs};
+pub(crate) use cost::UsageCostType;
+use cost::{PricingAttributes, calculate_model_usage_costs};
 use store::{Expiry, RedisCounters};
 
 /// Windowed counters outlive their window by a day, so a request that started
 /// just before the window ended still finds its counter.
 const WINDOW_EXPIRY_GRACE_SECONDS: i64 = 24 * 60 * 60;
-/// A lifetime counter idle for longer than this starts over.
-const LIFETIME_COUNTER_EXPIRY: Duration = Duration::from_hours(400 * 24);
+/// A total counter idle for longer than this starts over.
+const TOTAL_COUNTER_EXPIRY: Duration = Duration::from_hours(400 * 24);
 /// Backoff between attempts to add a finished request's cost while Redis is unavailable.
 const COUNTER_WRITE_RETRY_DELAYS: [Duration; 3] = [
     Duration::from_millis(250),
@@ -140,7 +141,7 @@ impl Window {
             limit.generation,
             start.timestamp()
         );
-        let expiry = end.map_or(Expiry::After(LIFETIME_COUNTER_EXPIRY), |end| {
+        let expiry = end.map_or(Expiry::After(TOTAL_COUNTER_EXPIRY), |end| {
             Expiry::At(end.timestamp() + WINDOW_EXPIRY_GRACE_SECONDS)
         });
         Self {
@@ -188,15 +189,23 @@ pub(crate) struct SpendRecording {
 impl SpendRecording {
     /// Price the finished generation and add it to the counters in the background.
     /// `metadata` is the generation's metadata as ingestion stores it, so metadata
-    /// pricing-tier conditions match the tier ingestion will charge.
-    pub(crate) fn record(self, facts: &InferenceFacts, metadata: &Map<String, Value>) {
-        let Some(cost) = generation_cost(facts, metadata, &self.tiers).filter(|cost| *cost > 0.0)
-        else {
-            return;
-        };
-        let Ok(runtime) = tokio::runtime::Handle::try_current() else {
-            return;
-        };
+    /// pricing-tier conditions match the tier ingestion will charge. Returns the
+    /// cost details priced from the model's tiers, so the generation can carry the
+    /// amount the key was charged; none when the provider reported its own cost.
+    pub(crate) fn record(
+        self,
+        facts: &InferenceFacts,
+        metadata: &Map<String, Value>,
+    ) -> Option<UsageCostType> {
+        let cost = generation_cost(facts, metadata, &self.tiers)?;
+        let total = cost.total.filter(|total| *total > 0.0);
+        if let (Some(total), Ok(runtime)) = (total, tokio::runtime::Handle::try_current()) {
+            self.add_in_background(&runtime, total);
+        }
+        (!cost.provided && !cost.details.is_empty()).then_some(cost.details)
+    }
+
+    fn add_in_background(self, runtime: &tokio::runtime::Handle, cost: f64) {
         runtime.spawn(async move {
             // A retry after a timeout may count the cost twice; overcounting keeps the key
             // within its limit. A cost still unwritten after the last retry is lost.
@@ -216,13 +225,20 @@ impl SpendRecording {
     }
 }
 
+struct GenerationCost {
+    details: UsageCostType,
+    total: Option<f64>,
+    /// The provider reported the cost, so the generation already carries it.
+    provided: bool,
+}
+
 /// What Langfuse will charge for the generation: the provider's own cost when it
 /// reports one, else its usage priced with the model's tiers.
 fn generation_cost(
     facts: &InferenceFacts,
     metadata: &Map<String, Value>,
     tiers: &[PricingTierWithPrices],
-) -> Option<f64> {
+) -> Option<GenerationCost> {
     let inference = &facts.inference;
     let usage = inference.usage_details.as_ref()?;
     let provider = facts.metadata.get("provider").and_then(Value::as_str);
@@ -246,7 +262,16 @@ fn generation_cost(
             metadata: Some(&metadata),
         },
     );
-    costs.total_cost.filter(|cost| cost.is_finite())
+    let finite = |usd: &f64| usd.is_finite();
+    Some(GenerationCost {
+        total: costs.total_cost.filter(finite),
+        details: costs
+            .cost_details
+            .into_iter()
+            .filter(|(_, usd)| finite(usd))
+            .collect(),
+        provided: provided_cost_details.is_some(),
+    })
 }
 
 fn usd_amounts(details: &Value) -> Option<UsageCostType> {

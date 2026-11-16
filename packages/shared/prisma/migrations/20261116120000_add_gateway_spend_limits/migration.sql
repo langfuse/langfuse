@@ -1,5 +1,5 @@
 DO $$ BEGIN
-  CREATE TYPE "GatewaySpendLimitInterval" AS ENUM ('DAILY', 'WEEKLY', 'MONTHLY', 'LIFETIME');
+  CREATE TYPE "GatewaySpendLimitInterval" AS ENUM ('DAILY', 'WEEKLY', 'MONTHLY', 'TOTAL');
 EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;

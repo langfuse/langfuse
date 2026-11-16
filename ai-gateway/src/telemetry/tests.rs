@@ -33,6 +33,7 @@ fn facts(project: &str) -> InferenceFacts {
         response_body_bytes: 0,
         metadata: json!({"key_id": project, "ingestion_mode": "usage"}),
         outcome: RelayOutcome::Eof,
+        charged_cost_details: None,
         inference: crate::capture::ProviderFacts::default(),
     }
 }
