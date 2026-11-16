@@ -2650,7 +2650,7 @@ describe("AI gateway control plane", () => {
         price: 0.000005,
       },
     });
-    const limit = await caller.aiGateway.createSpendLimit({
+    const limit = await caller.aiGateway.spendLimits.create({
       orgId: org.id,
       scope: { type: "API_KEY", apiKeyId: gatewayKey.id },
       interval: "DAILY",
@@ -2691,12 +2691,12 @@ describe("AI gateway control plane", () => {
       ],
     });
 
-    await caller.aiGateway.resetSpendLimit({ orgId: org.id, id: limit.id });
+    await caller.aiGateway.spendLimits.reset({ orgId: org.id, id: limit.id });
     const afterReset = await resolve();
     expect(afterReset.spend_limits).toMatchObject([{ generation: 1 }]);
 
     await expect(
-      caller.aiGateway.createSpendLimit({
+      caller.aiGateway.spendLimits.create({
         orgId: org.id,
         scope: { type: "API_KEY", apiKeyId: gatewayKey.id },
         interval: "DAILY",
