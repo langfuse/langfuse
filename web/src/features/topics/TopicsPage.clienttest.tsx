@@ -77,12 +77,6 @@ vi.mock("@/src/components/table/peek/hooks/usePeekNavigation", () => ({
 vi.mock("@/src/components/table/peek/TablePeekViewTraceDetail", () => ({
   TablePeekViewTraceDetail: () => null,
 }));
-vi.mock(
-  "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled",
-  () => ({
-    useInternalFeaturesEnabled: () => false,
-  }),
-);
 vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
   useHasProjectAccess: () => state.canWrite,
 }));
