@@ -40,8 +40,10 @@ import { GatewayAnalyticsService } from "./analytics/gatewayAnalyticsService";
 import { GatewayConfigService } from "./config/gatewayConfigService";
 import { getKeyOwnerFilter, type GatewayUsageScope } from "./gatewayUsageScope";
 import { GatewayTeamService } from "./team/gatewayTeamService";
-import { GatewayMetadataSchema } from "@/src/features/ai-gateway/server/provider/registry";
-import { GatewayBedrockConfigSchema } from "@/src/features/ai-gateway/server/provider/bedrock";
+import {
+  GatewayMetadataSchema,
+  GatewayProviderConfigSchema,
+} from "@/src/features/ai-gateway/server/provider/registry";
 import type { GatewayApiFamily } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
 import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
@@ -70,6 +72,14 @@ const allowedModelsSchema = z
   .max(10_000)
   .nullable();
 const customModelSchema = z.string().trim().min(1).max(500);
+/** A key without patterns, or with an empty list, may call every enabled model. */
+const gatewayKeyAllowedModelsSchema = z
+  .array(z.string().trim().min(1).max(500))
+  .max(100)
+  .nullish()
+  .transform((patterns) =>
+    patterns && patterns.length > 0 ? [...new Set(patterns)] : null,
+  );
 
 function requireGatewayAdmin(params: { session: Session; orgId: string }) {
   requireGatewayEnabledForOrganization(params.orgId);
@@ -218,7 +228,8 @@ export const aiGatewayRouter = createTRPCRouter({
         }
         if (
           connection.provider === "XAI" ||
-          connection.provider === "GOOGLE_AI_STUDIO"
+          connection.provider === "GOOGLE_AI_STUDIO" ||
+          connection.provider === "VERTEX"
         ) {
           return ["OPENAI"] satisfies GatewayApiFamily[];
         }
@@ -230,12 +241,14 @@ export const aiGatewayRouter = createTRPCRouter({
           env.LANGFUSE_AI_GATEWAY_PUBLIC_URL,
         ),
         // Agent clients call the OpenAI route with the Responses API, which
-        // Google AI Studio lacks; plain API calls also work over Chat Completions.
+        // Google AI Studio and Vertex AI lack; plain API calls also work over Chat Completions.
         providers: [
           ...new Set(
             connections
               .filter(
-                (connection) => connection.provider !== "GOOGLE_AI_STUDIO",
+                (connection) =>
+                  connection.provider !== "GOOGLE_AI_STUDIO" &&
+                  connection.provider !== "VERTEX",
               )
               .flatMap(families),
           ),
@@ -349,7 +362,7 @@ export const aiGatewayRouter = createTRPCRouter({
         id: z.string().optional(),
         provider: z.enum(GatewayProvider),
         credential: z.string().min(1),
-        config: GatewayBedrockConfigSchema.optional(),
+        config: GatewayProviderConfigSchema.optional(),
         ...connectionEndpointInput,
       }),
     )
@@ -387,7 +400,7 @@ export const aiGatewayRouter = createTRPCRouter({
         name: connectionNameSchema,
         provider: z.enum(GatewayProvider),
         credential: z.string().min(1),
-        config: GatewayBedrockConfigSchema.optional(),
+        config: GatewayProviderConfigSchema.optional(),
         ...connectionEndpointInput,
       }),
     )
@@ -620,6 +633,7 @@ export const aiGatewayRouter = createTRPCRouter({
       organizationInput.extend({
         name: z.string().trim().min(1, "Gateway keys need a name").max(500),
         metadata: GatewayMetadataSchema.default({}),
+        allowedModels: gatewayKeyAllowedModelsSchema,
         expiresAt: z
           .date()
           .nullish()
@@ -648,11 +662,40 @@ export const aiGatewayRouter = createTRPCRouter({
         organizationId: input.orgId,
         name: input.name,
         metadata: input.metadata,
+        allowedModels: input.allowedModels,
         expiresAt: input.expiresAt,
         issuedAs: input.issuedAs,
         session: ctx.session,
       });
       return key;
+    }),
+
+  updateApiKey: protectedOrganizationProcedure
+    .input(
+      connectionInput.extend({
+        name: z.string().trim().min(1, "Gateway keys need a name").max(500),
+        metadata: GatewayMetadataSchema,
+        allowedModels: gatewayKeyAllowedModelsSchema,
+        /** The patterns the editor loaded; the write is rejected if they changed since. */
+        previousAllowedModels: z.array(z.string()).nullable(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      const usageScope = getGatewayUsageScope({
+        session: ctx.session,
+        orgId: input.orgId,
+      });
+      return new GatewayApiKeyService(ctx.prisma, redis).update({
+        organizationId: input.orgId,
+        ownerUserId: getKeyOwnerFilter(usageScope),
+        apiKeyId: input.id,
+        name: input.name,
+        metadata: input.metadata,
+        allowedModels: input.allowedModels,
+        previousAllowedModels: input.previousAllowedModels,
+        session: ctx.session,
+      });
     }),
 
   revokeApiKey: protectedOrganizationProcedure

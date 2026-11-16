@@ -18,12 +18,16 @@ import {
   renderClickhouseExpression,
   renderClickhouseSelections,
 } from "./compile";
+import { ClickHouseQueryCompiler } from "./compiler";
+import { CteNamePlugin } from "./ctes";
+import { DedupLoweringPlugin } from "./dedup";
 import { getClickhouseKysely } from "./dialect";
 import {
   QueryCompileError,
   TypeCompatibilityError,
   UnscopedRelationError,
 } from "./errors";
+import { EventsTableRoutingPlugin } from "./eventsRouting";
 import {
   arrayDistinct,
   arrayExists,
@@ -64,12 +68,15 @@ import {
   useFinal,
   withFill,
 } from "./extensions";
+import { FunctionAllowlistPlugin } from "./functions";
 import {
   ArrayIndexNode,
   ParametricAggregateNode,
   asOperationNode,
 } from "./nodes";
 import type { ClickHouseDatabase } from "./schema";
+import { SchemaReferencePlugin } from "./schemaReferences";
+import { NameShadowingPlugin } from "./shadowing";
 import { TenancyInjectionPlugin } from "./tenancy";
 import { defineView, fromView } from "./views";
 
@@ -599,10 +606,56 @@ describe("three-part references", () => {
   });
 });
 
+describe("compiler passes in production", () => {
+  const events = () => getClickhouseKysely().selectFrom("events as e");
+
+  // Each pass suite applies its pass alone (passHarness.ts), so only this
+  // test catches a pass dropped from, or reordered in, the production list.
+  // A new pass goes here, in order, next to its own pass-alone suite.
+  it("are the passes the pass suites test, in their order", () => {
+    expect(compilerPasses(projectId).map((pass) => pass.constructor)).toEqual([
+      SchemaReferencePlugin,
+      CteNamePlugin,
+      NameShadowingPlugin,
+      FunctionAllowlistPlugin,
+      EventsTableRoutingPlugin,
+      TenancyInjectionPlugin,
+      DedupLoweringPlugin,
+    ]);
+  });
+
+  // An entry point that skipped a pass would leave its effect out.
+  it.each([
+    [
+      "compileClickhouseQuery",
+      () => compileClickhouseQuery(events().select("e.span_id"), projectId),
+    ],
+    [
+      "compileClickhouseCondition",
+      () =>
+        compileClickhouseCondition(
+          events().where("e.name", "=", "x"),
+          projectId,
+          "f_",
+        ),
+    ],
+  ])("%s runs every pass", (_name, compile) => {
+    const spies = compilerPasses(projectId).map((pass) =>
+      vi.spyOn(Object.getPrototypeOf(pass), "transformQuery"),
+    );
+    try {
+      compile();
+      for (const spy of spies) expect(spy).toHaveBeenCalled();
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+    }
+  });
+});
+
 describe("compileClickhouseCondition", () => {
   const events = () => getClickhouseKysely().selectFrom("events as e");
 
-  it("compiles the WHERE with what tenancy and soft-delete inject, typing binds from the FROM relation", () => {
+  it("compiles the WHERE with what tenancy injects, typing binds from the FROM relation", () => {
     expect(
       compileClickhouseCondition(
         events().where("e.prompt_version", "=", 3).where("e.name", "=", "x"),
@@ -610,27 +663,10 @@ describe("compileClickhouseCondition", () => {
         "f_",
       ),
     ).toEqual({
-      sql: "e.project_id = {f_1:String} and e.is_deleted = 0 and e.prompt_version = {f_2:UInt16} and e.name = {f_3:String}",
+      sql: "e.project_id = {f_1:String} and e.prompt_version = {f_2:UInt16} and e.name = {f_3:String}",
       params: { f_1: projectId, f_2: 3, f_3: "x" },
       requiresEventsFull: false,
     });
-  });
-
-  // A pass the condition path skipped would leave its effect out of the splice.
-  it("runs every compiler pass", () => {
-    const spies = compilerPasses(projectId).map((pass) =>
-      vi.spyOn(Object.getPrototypeOf(pass), "transformQuery"),
-    );
-    try {
-      compileClickhouseCondition(
-        events().where("e.name", "=", "x"),
-        projectId,
-        "f_",
-      );
-      for (const spy of spies) expect(spy).toHaveBeenCalled();
-    } finally {
-      for (const spy of spies) spy.mockRestore();
-    }
   });
 
   it("rejects sum() over a String column at the runtime validation pass", () => {
@@ -980,12 +1016,7 @@ describe("parametric aggregates", () => {
       ),
     );
     expect(() =>
-      compileClickhouseQuery(
-        getClickhouseKysely()
-          .selectFrom("events as e")
-          .select([named.as("q")]),
-        projectId,
-      ),
+      new ClickHouseQueryCompiler().compileExpression(named.toOperationNode()),
     ).toThrow(
       'Identifier name "quantile(0.5)(1), x" is not a plain identifier',
     );

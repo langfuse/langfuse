@@ -130,7 +130,6 @@ export function TopicTraceList({
       className={cn(
         "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
         divider === "side" && "border-t lg:border-t-0 lg:border-l",
-        divider === "top" && "border-t",
         !divider && "rounded-md border",
       )}
     >
@@ -211,7 +210,8 @@ type TopicTraceListProps = {
   tracePanelRef?: (element: HTMLElement | null) => void;
   /** Lets a neighbouring panel match this header's height. */
   headerRef?: RefObject<HTMLDivElement | null>;
-  divider?: "top" | "side";
+  /** `none` when the parent draws the divider, e.g. a resize handle. */
+  divider?: "side" | "none";
 };
 
 const APPROXIMATE_COUNT_FROM = 1_000;

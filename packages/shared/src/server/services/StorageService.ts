@@ -1250,13 +1250,9 @@ class GoogleCloudStorageService implements StorageService {
       try {
         this.storage = new Storage({
           universeDomain: env.GOOGLE_CLOUD_UNIVERSE_DOMAIN,
-          // Cast: Storage types authClient against its nested google-auth-library@11;
-          // shared keeps @10 for @ai-sdk/google-vertex. Runtime accepts this JWT.
           authClient: createGoogleCloudStorageAuthClient(
             params.googleCloudCredentials,
-          ) as unknown as NonNullable<
-            ConstructorParameters<typeof Storage>[0]
-          >["authClient"],
+          ),
         });
       } catch (err) {
         logger.error("Failed to parse Google Cloud Storage credentials", err);

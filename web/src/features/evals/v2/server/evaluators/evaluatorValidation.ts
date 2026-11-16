@@ -5,13 +5,13 @@ import {
   observationVariableMappingList,
 } from "@langfuse/shared";
 import {
+  DECISION_MODEL_CONNECTIONS_HINT,
   DefaultEvalModelService,
   getClientInitiatedNonStreamingLlmTimeoutMs,
   getLLMErrorInfo,
   isAllowedDecisionModel,
   isDecisionModelAdapter,
-  LLMAdapter,
-  OPENAI_DECISION_MODEL_IDS,
+  unsupportedDecisionModelMessage,
 } from "@langfuse/shared/src/server";
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
 import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
@@ -224,7 +224,7 @@ export async function getDecisionModelConfigurationError(params: {
     params.definition.model,
   );
   if (!modelConfig.valid) {
-    return `No decision-model connection found for evaluator "${params.name}". ${modelConfig.error}. Add an OpenAI connection using ${OPENAI_DECISION_MODEL_IDS.join(", ")}, or a TypeSafe connection, under Settings → LLM Connections (/project/${params.projectId}/settings/llm-connections) first.`;
+    return `No decision-model connection found for evaluator "${params.name}". ${modelConfig.error}. Add ${DECISION_MODEL_CONNECTIONS_HINT} under Settings → LLM Connections (/project/${params.projectId}/settings/llm-connections) first.`;
   }
   if (
     !isAllowedDecisionModel(
@@ -232,10 +232,13 @@ export async function getDecisionModelConfigurationError(params: {
       modelConfig.config.model,
     )
   ) {
-    if (modelConfig.config.apiKey.adapter === LLMAdapter.OpenAI) {
-      return `Model "${modelConfig.config.model}" is not supported for decision models. Use ${OPENAI_DECISION_MODEL_IDS.join(", ")}.`;
-    }
-    return `Connection "${params.definition.provider}" is not a decision-model connection. Decision-model evaluators need an OpenAI connection using ${OPENAI_DECISION_MODEL_IDS.join(", ")}, or a TypeSafe connection.`;
+    return (
+      unsupportedDecisionModelMessage(
+        modelConfig.config.apiKey.adapter,
+        modelConfig.config.model,
+      ) ??
+      `Connection "${params.definition.provider}" is not a decision-model connection. Decision-model evaluators need ${DECISION_MODEL_CONNECTIONS_HINT}.`
+    );
   }
   return null;
 }

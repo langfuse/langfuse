@@ -352,6 +352,8 @@ describe("withMiddlewares error handling", () => {
           tag_schema_version: "1",
           surface: "publicapi",
           route: "GET /api/public/test",
+          projectSize: "unknown",
+          queryWindow: "none",
         },
       );
 
@@ -380,6 +382,8 @@ describe("withMiddlewares error handling", () => {
             tag_schema_version: "1",
             surface: "publicapi",
             route: "GET /api/public/test",
+            projectSize: "unknown",
+            queryWindow: "none",
           },
         }),
       );

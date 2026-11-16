@@ -36,7 +36,7 @@ type SelectionRows = {
 // can follow later in the trace. A trace that matches more than an hour after
 // it starts is missed when it starts within that hour before the window's end.
 const TRACE_SPAN_MARGIN_MS = 60 * 60_000;
-const SUMMARIZED_MATCH_TIMEOUT_SECONDS = 60;
+const NO_COHORT_TRACES = { query: "SELECT '' AS id LIMIT 0", params: {} };
 
 /**
  * Observations in a window that meet every filter, with their trace ID; null
@@ -114,22 +114,15 @@ async function matchingObservationsQuery(
 }
 
 /**
- * IDs of the traces that meet a rule filter, among those whose summary of the
- * facet dates from the window. The summarized traces bound the result and the
- * query's memory, whatever the project's event volume.
- *
- * Reads the window's events on every call, and the nightly refit repeats it
- * per rule and facet over up to 30 days. A filter on a wide column (metadata,
- * tags) reads that column for every event in the window; the summarized-trace
- * condition does not narrow that read. Revisit this if the
- * `topics-refit-filter-match` route shows up in ClickHouse load or timeouts.
+ * Subquery of traces meeting a rule filter among those with a summary of the
+ * facet in the window; the summarized traces bound its set and memory.
  */
-export async function selectSummarizedTopicMatches(
+export async function summarizedTopicMatchesQuery(
   input: Parameters<typeof matchingObservationsQuery>[0] & {
     facet: TopicFacetRef;
   },
   prisma: PrismaClient,
-): Promise<string[]> {
+): Promise<TopicCohortTraces> {
   const matching = await matchingObservationsQuery(
     { ...input, to: new Date(input.to.getTime() + TRACE_SPAN_MARGIN_MS) },
     prisma,
@@ -154,23 +147,12 @@ export async function selectSummarizedTopicMatches(
       },
     },
   );
-  if (!matching) return [];
-  const rows = await queryClickhouse<{ id: string }>({
-    query: `SELECT DISTINCT id FROM (${matching.query})`,
-    params: matching.params,
-    preferredClickhouseService: "EventsReadOnly",
-    tags: { projectId: input.projectId, route: "topics-refit-filter-match" },
-    // The client must outlast the server limit for the timeout to be reported as one.
-    clickhouseConfigs: {
-      request_timeout: (SUMMARIZED_MATCH_TIMEOUT_SECONDS + 15) * 1000,
-    },
-    clickhouseSettings: {
-      max_threads: 2,
-      max_execution_time: SUMMARIZED_MATCH_TIMEOUT_SECONDS,
-      timeout_overflow_mode: "throw",
-    },
-  });
-  return rows.map((row) => row.id);
+  return matching
+    ? {
+        query: `SELECT DISTINCT id FROM (${matching.query})`,
+        params: matching.params,
+      }
+    : NO_COHORT_TRACES;
 }
 
 /**
@@ -195,12 +177,7 @@ export async function selectTopicCohortTraces(
   input: Parameters<typeof topicMatchingTraceIdsQuery>[0],
   prisma: PrismaClient,
 ): Promise<TopicCohortTraces> {
-  return (
-    (await topicMatchingTraceIdsQuery(input, prisma)) ?? {
-      query: "SELECT '' AS id LIMIT 0",
-      params: {},
-    }
-  );
+  return (await topicMatchingTraceIdsQuery(input, prisma)) ?? NO_COHORT_TRACES;
 }
 
 export async function countTopicCohortTraces(

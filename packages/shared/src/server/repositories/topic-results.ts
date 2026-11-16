@@ -138,14 +138,22 @@ function summaryConditionSql(
   }
 }
 
-/** Conditions on the resolved assignment; they filter `current`. */
+/**
+ * Conditions on the resolved assignment; they filter `current`. For summary rows
+ * (`acrossMaps`), a topic matches if any rule's map assigned it, and statuses
+ * apply to the trace's best result across maps.
+ */
 function assignmentConditionSql(
   condition: TopicResultCondition,
   params: SqlParams,
+  acrossMaps = false,
 ) {
   switch (condition.column) {
     case "topicId": {
-      const matches = `(topic_status = 'assigned' AND topic_id IN ${params.add("Array(String)", condition.match.values)})`;
+      const topicIds = params.add("Array(String)", condition.match.values);
+      const matches = acrossMaps
+        ? `hasAny(key_topic_ids, ${topicIds})`
+        : `(topic_status = 'assigned' AND topic_id IN ${topicIds})`;
       return condition.match.operator === "none of"
         ? `NOT ${matches}`
         : matches;
@@ -225,6 +233,41 @@ function currentResultsSql(
     FROM summaries
     LEFT JOIN assignments ON a_trace_id = trace_id AND a_facet_id = facet_id
   )`;
+}
+
+/**
+ * Selects the batch's candidate rows. A summary row is one per trace and facet: filters
+ * see every map's assignment, and the row shows the best one (a filtered topic, then
+ * assigned, outlier, newest).
+ */
+function resolveRowsSql(args: {
+  input: { conditions: TopicResultCondition[]; select: string };
+  params: SqlParams;
+  source: "summaries" | "current";
+  perRun: boolean;
+  inCandidates: string;
+  assignmentConditions: string[];
+}) {
+  const conditionSql = args.assignmentConditions
+    .map((sql) => `AND ${sql}`)
+    .join(" ");
+  if (args.perRun || args.source === "summaries")
+    return `SELECT ${args.input.select} FROM ${args.source} WHERE ${args.inCandidates} ${conditionSql}`;
+  const positiveTopics = args.input.conditions.flatMap((condition) =>
+    condition.column === "topicId" && condition.match.operator === "any of"
+      ? [args.params.add("Array(String)", condition.match.values)]
+      : [],
+  );
+  // Continues the WITH clause of `currentResultsSql`.
+  return `, ranked AS (
+      SELECT *,
+        groupArrayIf(topic_id, topic_status = 'assigned') OVER (PARTITION BY facet_id, trace_id) AS key_topic_ids,
+        row_number() OVER (PARTITION BY facet_id, trace_id ORDER BY
+          ${positiveTopics.map((ids) => `(topic_status = 'assigned' AND topic_id IN ${ids}) DESC, `).join("")}matched DESC,
+          topic_status = 'assigned' DESC, assigned_at DESC) AS key_rank
+      FROM current WHERE ${args.inCandidates}
+    )
+    SELECT ${args.input.select} FROM ranked WHERE key_rank = 1 ${conditionSql}`;
 }
 
 type ListInput = {
@@ -435,10 +478,11 @@ async function listCurrentRows<T extends CandidateRow>(
     const traceIds = params.add("Array(String)", [
       ...new Set(found.map((row) => row.trace_id)),
     ]);
+    const perRun = input.kind === "assignments";
     const assignmentConditions = input.conditions.flatMap(
-      (condition) => assignmentConditionSql(condition, params) ?? [],
+      (condition) => assignmentConditionSql(condition, params, !perRun) ?? [],
     );
-    if (input.kind === "assignments")
+    if (perRun)
       assignmentConditions.push("topic_status IN ('assigned', 'outlier')");
     const source =
       input.kind === "summaries" &&
@@ -446,7 +490,6 @@ async function listCurrentRows<T extends CandidateRow>(
       !input.includeAssignment
         ? "summaries"
         : "current";
-    const perRun = input.kind === "assignments";
     const candidateTuples = `arrayZip(${params.add(
       "Array(String)",
       found.map((row) => row.facet_id),
@@ -464,19 +507,13 @@ async function listCurrentRows<T extends CandidateRow>(
           )}`
         : ""
     })`;
-    // A summary row resolves once: the map whose assignment matched, newest first.
-    let order = "";
-    if (perRun) order = `, clustering_run_id ${direction}`;
-    else if (source === "current") order = ", matched DESC, assigned_at DESC";
+    const inCandidates = `has(${candidateTuples}, (facet_id, trace_id, unit_start_time${perRun ? ", clustering_run_id" : ""}))`;
+    const orderSql = `ORDER BY unit_start_time ${direction}, trace_id ${direction}, facet_id ${direction}${perRun ? `, clustering_run_id ${direction}` : ""}`;
     const resolved = await queryClickhouse<T>({
       ...READ_OPTIONS,
       query: `WITH ${currentResultsSql(summaryConditions, [`trace_id IN ${traceIds}`])}
-        SELECT ${input.select}
-        FROM ${source}
-        WHERE has(${candidateTuples}, (facet_id, trace_id, unit_start_time${perRun ? ", clustering_run_id" : ""}))
-          ${assignmentConditions.map((sql) => `AND ${sql}`).join(" ")}
-        ORDER BY unit_start_time ${direction}, trace_id ${direction}, facet_id ${direction}${order}
-        ${!perRun && source === "current" ? "LIMIT 1 BY facet_id, trace_id" : ""}`,
+        ${resolveRowsSql({ input, params, source, perRun, inCandidates, assignmentConditions })}
+        ${orderSql}`,
       params: {
         ...baseParams,
         ...params.values,

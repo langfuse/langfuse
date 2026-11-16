@@ -112,4 +112,14 @@ describe("DecisionModelSelector", () => {
       );
     },
   );
+
+  it("explains when the evaluator's connection cannot run decision models", () => {
+    connection.adapter = "anthropic";
+
+    renderWithSelectedModel("claude-sonnet-5");
+
+    expect(
+      screen.getByText(/"jev" is not a decision-model connection/),
+    ).toBeInTheDocument();
+  });
 });

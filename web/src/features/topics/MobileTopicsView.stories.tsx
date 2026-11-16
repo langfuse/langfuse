@@ -2,9 +2,11 @@ import { useState, type ComponentProps } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { Button } from "@/src/components/design-system/Button/Button";
+import { PINCH_ZOOM_RATE } from "@/src/utils/panZoomGestures";
 import preview from "../../../.storybook/preview";
 import { MobileTopicsView } from "./MobileTopicsView";
 import { TopicsMobileControls } from "./TopicsMobileControls";
+import { prepareTopicsActions } from "./prepare-topics-actions";
 import { staticTopicTraces, storyFacet } from "./topic-story-traces";
 
 const topics = [
@@ -121,6 +123,23 @@ function MobileExample(args: ComponentProps<typeof MobileTopicsView>) {
   );
 }
 
+const mapActionHandlers = {
+  onEditRun: fn(),
+  onNewMap: fn(),
+  onNewSnapshot: fn(),
+};
+const mapActions = prepareTopicsActions({
+  automaticProcessing: { state: { status: "on" }, saving: false },
+  canWrite: true,
+  configureAvailable: true,
+  menuOnly: false,
+  onConfigure: fn(),
+  onHistory: fn(),
+  ...mapActionHandlers,
+  showUnassigned: true,
+  onShowUnassignedChange: fn(),
+});
+
 const defaultArgs: ComponentProps<typeof MobileTopicsView> = {
   projectId: "storybook-topics",
   facet,
@@ -134,10 +153,9 @@ const defaultArgs: ComponentProps<typeof MobileTopicsView> = {
   onSearchQueryChange: fn(),
   onSelectTrace: fn(),
   onOpenTrace: fn(),
-  onGenerateTopics: fn(),
-  canGenerateTopics: true,
   useTraces: staticTopicTraces(rows),
   showUnassigned: true,
+  mapActions,
 };
 
 const meta = preview.meta({
@@ -155,6 +173,27 @@ export const AwaitingTopics = meta.story({
       rows.filter((row) => row.topicId === null),
     ),
     useTraces: staticTopicTraces(rows.filter((row) => row.topicId === null)),
+  },
+});
+export const MapEntryPointsWithoutTopics = meta.story({
+  name: "(Test) Offer the map entry points under an empty topic list",
+  args: {
+    facet: storyFacet(
+      { ...facet, topics: [], map: null },
+      rows.filter((row) => row.topicId === null),
+    ),
+    useTraces: staticTopicTraces(rows.filter((row) => row.topicId === null)),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    for (const [label, handler] of [
+      ["Edit map", mapActionHandlers.onEditRun],
+      ["New map", mapActionHandlers.onNewMap],
+      ["New snapshot", mapActionHandlers.onNewSnapshot],
+    ] as const) {
+      await userEvent.click(await canvas.findByRole("button", { name: label }));
+      await expect(handler).toHaveBeenCalledOnce();
+    }
   },
 });
 export const BrowseAndOpenTrace = meta.story({
@@ -274,7 +313,9 @@ export const FitFilteredMap = meta.story({
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("tab", { name: "Visualize" }));
-    await userEvent.click(canvas.getByRole("button", { name: "Fit map (0)" }));
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Fit scatter (0)" }),
+    );
     await expect(
       canvas.getByRole("tab", { name: "Visualize" }),
     ).toHaveAttribute("data-state", "active");
@@ -346,6 +387,42 @@ export const PreviewTreemap = meta.story({
     const trace = canvas.getByRole("button", { name: "Open trace access-0" });
     await expect(trace).toBeVisible();
     await expect(args.onOpenTrace).not.toHaveBeenCalled();
+  },
+});
+
+export const PreviewZoomedTreemap = meta.story({
+  name: "(Test) A zoomed treemap previews inside the visible area",
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("tab", { name: "Visualize" }));
+    const billing = canvas.getByRole("button", {
+      name: `${topics[0].name}, 21 traces`,
+    });
+    const scroller = canvas.getByRole("region", { name: "Topics" })
+      .parentElement as HTMLElement;
+    const before = billing.getBoundingClientRect().height;
+    billing.dispatchEvent(
+      new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        ctrlKey: true,
+        // Two zoom levels: four times the treemap height.
+        deltaY: -2 / PINCH_ZOOM_RATE,
+      }),
+    );
+    await waitFor(() =>
+      expect(billing.getBoundingClientRect().height).toBeGreaterThan(
+        before * 3,
+      ),
+    );
+    scroller.scrollTop = 0;
+    await userEvent.click(billing);
+    const visible = scroller.getBoundingClientRect();
+    const preview = (
+      await canvas.findByRole("tooltip")
+    ).getBoundingClientRect();
+    await expect(preview.top).toBeGreaterThanOrEqual(visible.top);
+    await expect(preview.top).toBeLessThan(visible.bottom);
   },
 });
 
