@@ -45,7 +45,7 @@ export function RolePermissionPopup({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         closeOnInteractionOutside
-        className="min-h-[25.5rem] min-w-[32rem]"
+        className="min-h-[25.5rem] sm:min-w-[32rem]"
       >
         {role && shown && Icon && (
           <>
