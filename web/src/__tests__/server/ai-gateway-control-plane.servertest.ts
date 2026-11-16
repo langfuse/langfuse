@@ -2701,7 +2701,23 @@ describe("AI gateway control plane", () => {
         interval: "DAILY",
         limitUsd: 20,
       }),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+
+    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    try {
+      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined });
+      await expect(
+        caller.aiGateway.updateConfig({
+          orgId: org.id,
+          defaultIngestionProjectId: null,
+          ingestionMode: "NONE",
+        }),
+      ).rejects.toThrow("Delete all gateway spend limits");
+    } finally {
+      Object.assign(env, {
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
+      });
+    }
   });
 
   it("routes unprefixed models by provider and rejects unknown models", async () => {

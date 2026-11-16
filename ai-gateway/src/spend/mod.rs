@@ -28,6 +28,12 @@ use store::{Expiry, RedisCounters};
 const WINDOW_EXPIRY_GRACE_SECONDS: i64 = 24 * 60 * 60;
 /// A lifetime counter idle for longer than this starts over.
 const LIFETIME_COUNTER_EXPIRY: Duration = Duration::from_hours(400 * 24);
+/// Backoff between attempts to add a finished request's cost while Redis is unavailable.
+const COUNTER_WRITE_RETRY_DELAYS: [Duration; 3] = [
+    Duration::from_millis(250),
+    Duration::from_secs(1),
+    Duration::from_secs(4),
+];
 
 #[derive(Clone, Default)]
 pub(crate) struct SpendLimits {
@@ -169,7 +175,19 @@ impl SpendRecording {
             return;
         };
         runtime.spawn(async move {
-            // The store logs failures; the next check sees the spend once Redis recovers.
+            // A retry after a timeout may count the cost twice; overcounting keeps the key
+            // within its limit. A cost still unwritten after the last retry is lost.
+            for delay in COUNTER_WRITE_RETRY_DELAYS {
+                if self
+                    .store
+                    .add_to_counters(&self.counters, cost)
+                    .await
+                    .is_ok()
+                {
+                    return;
+                }
+                tokio::time::sleep(delay).await;
+            }
             let _ = self.store.add_to_counters(&self.counters, cost).await;
         });
     }
