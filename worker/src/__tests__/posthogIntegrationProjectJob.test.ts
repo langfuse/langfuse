@@ -407,6 +407,15 @@ describe("handlePostHogIntegrationProjectJob v3 export cutoff", () => {
     expect(h.getTraces).toHaveBeenCalledTimes(1);
     expect(h.posthogIntegrationUpdateMany).not.toHaveBeenCalled();
   });
+
+  it("keeps the legacy export on a legacy write mode", async () => {
+    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(h.getTraces).toHaveBeenCalledTimes(1);
+    expect(h.posthogIntegrationUpdateMany).not.toHaveBeenCalled();
+  });
 });
 
 // LFE-11009: enriched sources on legacy write mode must fail loudly instead

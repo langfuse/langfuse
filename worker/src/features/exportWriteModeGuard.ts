@@ -17,7 +17,7 @@ import { env } from "../env";
 class V3ExportSourceRemovedError extends Error {
   constructor(legacyRemediation: string) {
     super(
-      `Please upgrade this integration: it exports the Langfuse v3 traces and observations tables, which Langfuse Cloud no longer writes for this project, so it was disabled. ${legacyRemediation} Then enable the integration again.`,
+      `Please upgrade this integration: Langfuse Cloud no longer exports the Langfuse v3 traces and observations tables, so it was disabled. ${legacyRemediation} Then enable the integration again.`,
     );
     this.name = "V3ExportSourceRemovedError";
   }
@@ -67,8 +67,11 @@ function assertExportSourceNotCutOff(
   legacyRemediation: string,
   projectId: string,
 ): void {
+  // Never on a legacy write mode, where the legacy tables are still the only
+  // ones written.
   if (
     !isLegacyExportSource(exportSource) ||
+    !areEnrichedWritesActive(env.LANGFUSE_MIGRATION_V4_WRITE_MODE) ||
     !isV4CutoffActive({
       cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
       enabled: env.LANGFUSE_V4_CUTOFF_EXPORTS,
