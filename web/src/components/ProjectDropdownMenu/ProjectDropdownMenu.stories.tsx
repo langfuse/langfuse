@@ -150,5 +150,16 @@ export const TestActionsStayInView = meta.story({
       menu.getByRole("link", { name: "Project 40" }).getBoundingClientRect()
         .top,
     ).toBeGreaterThan(menuBottom);
+
+    for (let step = 0; step < 15; step++) {
+      await userEvent.keyboard("{ArrowDown}");
+    }
+    const focused = canvasElement.ownerDocument.activeElement;
+    await expect(focused).toHaveAccessibleName("Project 15");
+    await expect(focused?.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      menu
+        .getByRole("menuitem", { name: "Project settings" })
+        .getBoundingClientRect().top,
+    );
   },
 });

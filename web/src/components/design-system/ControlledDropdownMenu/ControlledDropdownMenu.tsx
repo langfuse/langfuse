@@ -374,6 +374,21 @@ function DropdownMenuNode({
   }, [onOpenChange]);
   const { register, recompute, top, bottom } =
     useScrollGradients<HTMLDivElement>(true);
+  // Keyboard navigation scrolls focused rows clear of the pinned footer.
+  const footerRef = React.useCallback((footer: HTMLDivElement | null) => {
+    const container = footer?.parentElement;
+    if (!footer || !container) return;
+    const sync = () => {
+      container.style.scrollPaddingBottom = `${footer.offsetHeight}px`;
+    };
+    sync();
+    const observer = new ResizeObserver(sync);
+    observer.observe(footer);
+    return () => {
+      observer.disconnect();
+      container.style.scrollPaddingBottom = "";
+    };
+  }, []);
   const { context, floatingStyles, refs } = useFloating({
     nodeId,
     open: isOpen,
@@ -1009,7 +1024,10 @@ function DropdownMenuNode({
                 {visibleItems.slice(0, footerStart).map(renderItem)}
               </div>
               {footerStart < visibleItems.length ? (
-                <div className={menuFooterVariants({ showGradient: bottom })}>
+                <div
+                  ref={footerRef}
+                  className={menuFooterVariants({ showGradient: bottom })}
+                >
                   {visibleItems
                     .slice(footerStart)
                     .map((item, offset) =>
