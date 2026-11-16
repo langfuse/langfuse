@@ -437,15 +437,29 @@ model GatewaySpendLimit {
   // Spend recorded in ClickHouse before the gateway counted it, valid only for the window starting at baselineWindowStart.
   baselineSpendUsd    Decimal                   @default(0) @map("baseline_spend_usd")
   baselineWindowStart DateTime                  @map("baseline_window_start")
-  // Gateway members may change only the limits they created; admins may change all.
+  // Whoever last created, updated or reset the limit. Gateway members may change only their own limits; admins may change all.
   createdByUserId     String?                   @map("created_by_user_id")
   createdByUser       User?                     @relation("GatewaySpendLimitCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
   createdAt           DateTime                  @default(now()) @map("created_at")
   updatedAt           DateTime                  @default(now()) @updatedAt @map("updated_at")
+  alerts              GatewaySpendLimitAlert[]
 
   @@unique([apiKeyId, interval])
   @@index([organizationId])
   @@map("gateway_spend_limits")
+}
+
+/// One "limit reached" notification per limit, generation and window, so the gateway may report a limit any number of times.
+model GatewaySpendLimitAlert {
+  id           String            @id @default(cuid())
+  spendLimitId String            @map("spend_limit_id")
+  spendLimit   GatewaySpendLimit @relation(fields: [spendLimitId], references: [id], onDelete: Cascade)
+  generation   Int
+  windowStart  DateTime          @map("window_start")
+  createdAt    DateTime          @default(now()) @map("created_at")
+
+  @@unique([spendLimitId, generation, windowStart], map: "gateway_spend_limit_alerts_limit_generation_window_key")
+  @@map("gateway_spend_limit_alerts")
 }
 
 enum InAppAgentConversationVisibilityScope {

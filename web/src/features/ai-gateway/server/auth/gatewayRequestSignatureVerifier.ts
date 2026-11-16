@@ -32,6 +32,12 @@ const resolveBodySchema = z
     ({ apiFormat, model }) =>
       modelRoutingService.resolve(model, [], apiFormat) !== null,
   );
+const spendLimitAlertBodySchema = z
+  .object({
+    limitId: z.string().min(1),
+    generation: z.number().int().nonnegative(),
+  })
+  .strict();
 const modelsQuerySchema = z
   .object({ api_format: GatewayApiFormatSchema })
   .strict();
@@ -52,6 +58,11 @@ type GatewayResolveHandler = (
     model: string;
     requestBytes: number;
   },
+) => Promise<unknown>;
+
+type GatewaySpendLimitAlertHandler = (
+  params: GatewayControlPlaneHandlerParams &
+    z.infer<typeof spendLimitAlertBodySchema>,
 ) => Promise<unknown>;
 
 type GatewayModelsHandler = (
@@ -133,6 +144,15 @@ export function withGatewayResolveSignatureVerification(
   );
 }
 
+export function withGatewaySpendLimitAlertSignatureVerification(
+  handler: GatewaySpendLimitAlertHandler,
+) {
+  return withGatewayControlPlaneAuth(
+    ({ body, ...params }) => handler({ ...params, ...body }),
+    spendLimitAlertBodySchema,
+  );
+}
+
 export function withGatewayModelsSignatureVerification(
   handler: GatewayModelsHandler,
 ) {
@@ -180,9 +200,7 @@ export function withGatewayModelsSignatureVerification(
   };
 }
 
-function withGatewayControlPlaneAuth<
-  Body extends { apiFormat: GatewayApiFormat },
->(
+function withGatewayControlPlaneAuth<Body>(
   handler: (
     params: GatewayControlPlaneHandlerParams & { body: Body },
   ) => Promise<unknown>,

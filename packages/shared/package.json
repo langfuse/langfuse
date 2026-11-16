@@ -59,6 +59,10 @@
       "import": "./dist/src/server/services/email/aiGatewayInvitation/GatewayInvitationEmailTemplate.js",
       "require": "./dist/src/server/services/email/aiGatewayInvitation/GatewayInvitationEmailTemplate.js"
     },
+    "./src/server/services/email/aiGatewaySpendLimit/GatewaySpendLimitEmailTemplate": {
+      "import": "./dist/src/server/services/email/aiGatewaySpendLimit/GatewaySpendLimitEmailTemplate.js",
+      "require": "./dist/src/server/services/email/aiGatewaySpendLimit/GatewaySpendLimitEmailTemplate.js"
+    },
     "./src/server/clickhouse": {
       "import": "./dist/src/server/clickhouse/index.js",
       "require": "./dist/src/server/clickhouse/index.js"

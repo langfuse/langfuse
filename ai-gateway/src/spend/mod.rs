@@ -3,7 +3,9 @@
 //! cost is added to them. Requests are not reserved, so concurrent requests
 //! can overshoot a limit by what they cost. A request the gateway could not
 //! price afterwards, because Langfuse has no price for the model or the
-//! connection may not report usage, is rejected before it is forwarded.
+//! connection may not report usage, is rejected before it is forwarded. Web is
+//! told when a key reaches a limit, so it can email the key's owners.
+mod alert;
 mod cost;
 mod store;
 mod window;
@@ -23,16 +25,17 @@ use crate::{
     config::SpendCountersConfig,
     providers::usage::{UsageDetails, provider_usage, reports_billed_cost},
     resolution::{
-        Provider, ProviderConnection, ResolutionError, ResolvedRequestContext, SpendLimit,
-        SpendLimitExceeded,
+        ControlPlaneClient, Provider, ProviderConnection, ResolutionError, ResolvedRequestContext,
+        SpendLimit, SpendLimitExceeded,
     },
 };
+use alert::{CountedLimit, SpendAlerts};
 pub(crate) use cost::UsageCostType;
 use cost::{
     CalculateModelUsageCostsParams, Model, ModelWithPrices, PricingAttributes,
     calculate_model_usage_costs,
 };
-use store::{Counter, RedisCounters};
+use store::RedisCounters;
 
 /// Backoff between attempts to add a finished request's cost while Redis is unavailable.
 const COUNTER_WRITE_RETRY_DELAYS: [Duration; 3] = [
@@ -60,12 +63,17 @@ impl SpendLimitScope {
 #[derive(Clone, Default)]
 pub(crate) struct SpendLimits {
     spend_storage: Option<Arc<RedisCounters>>,
+    control_plane: Option<Arc<ControlPlaneClient>>,
 }
 
 impl SpendLimits {
-    pub(crate) fn new(config: Option<SpendCountersConfig>) -> Self {
+    pub(crate) fn new(
+        config: Option<SpendCountersConfig>,
+        control_plane: Arc<ControlPlaneClient>,
+    ) -> Self {
         Self {
             spend_storage: config.map(|config| Arc::new(RedisCounters::new(config))),
+            control_plane: Some(control_plane),
         }
     }
 
@@ -74,6 +82,8 @@ impl SpendLimits {
     pub(crate) async fn check(
         &self,
         context: &ResolvedRequestContext,
+        gateway_key: &str,
+        request_id: &str,
     ) -> Result<Option<SpendRecording>, ResolutionError> {
         let limits = context.spend_limits();
         if limits.is_empty() {
@@ -99,18 +109,31 @@ impl SpendLimits {
         let usage = current_usage(store, limits, organization_id, now)
             .await
             .map_err(|_| ResolutionError::SpendLimitUnavailable)?;
+        let alerts = self
+            .control_plane
+            .as_ref()
+            .map(|control_plane| SpendAlerts {
+                control_plane: Arc::clone(control_plane),
+                gateway_key: gateway_key.to_owned(),
+                request_id: request_id.to_owned(),
+            });
         if let Some(exceeded) = usage.iter().find(|usage| usage.is_exceeded()) {
+            if let Some(alerts) = alerts {
+                let exceeded = usage.iter().filter(|usage| usage.is_exceeded());
+                alerts.report_in_background(
+                    Arc::clone(store),
+                    exceeded.map(LimitUsage::counted).collect(),
+                );
+            }
             return Err(ResolutionError::SpendLimitExceeded(Box::new(
                 exceeded.rejection(now),
             )));
         }
         Ok(Some(SpendRecording {
             store: Arc::clone(store),
-            counters: usage
-                .into_iter()
-                .map(|usage| usage.window.counter)
-                .collect(),
+            limits: usage.iter().map(LimitUsage::counted).collect(),
             model,
+            alerts,
         }))
     }
 }
@@ -164,6 +187,7 @@ fn reports_usage(connection: &ProviderConnection) -> bool {
 struct LimitUsage<'a> {
     limit: &'a SpendLimit,
     window: Window,
+    baseline: f64,
     spent: f64,
 }
 
@@ -179,12 +203,22 @@ impl<'a> LimitUsage<'a> {
         Self {
             limit,
             window,
+            baseline,
             spent: counted.unwrap_or(0.0) + baseline,
         }
     }
 
     fn is_exceeded(&self) -> bool {
         self.spent >= self.limit.limit_usd
+    }
+
+    fn counted(&self) -> CountedLimit {
+        CountedLimit {
+            id: self.limit.id.clone(),
+            generation: self.limit.generation,
+            counter: self.window.counter.clone(),
+            reached_at_usd: self.limit.limit_usd - self.baseline,
+        }
     }
 
     fn rejection(&self, now: DateTime<Utc>) -> SpendLimitExceeded {
@@ -214,8 +248,9 @@ impl<'a> LimitUsage<'a> {
 /// Adds an admitted request's cost to the counters it was checked against.
 pub(crate) struct SpendRecording {
     store: Arc<RedisCounters>,
-    counters: Vec<Counter>,
+    limits: Vec<CountedLimit>,
     model: ModelWithPrices,
+    alerts: Option<SpendAlerts>,
 }
 
 impl SpendRecording {
@@ -241,13 +276,26 @@ impl SpendRecording {
         runtime.spawn(async move {
             // A retry after a timeout may count the cost twice; overcounting keeps the key
             // within its limit. A cost still unwritten after the last retry is lost.
+            let counters = || self.limits.iter().map(|limit| &limit.counter);
+            let mut added = self.store.add(counters(), cost).await;
             for delay in COUNTER_WRITE_RETRY_DELAYS {
-                if self.store.add(&self.counters, cost).await.is_ok() {
-                    return;
+                if added.is_ok() {
+                    break;
                 }
                 tokio::time::sleep(delay).await;
+                added = self.store.add(counters(), cost).await;
             }
-            let _ = self.store.add(&self.counters, cost).await;
+            let (Ok(totals), Some(alerts)) = (added, self.alerts) else {
+                return;
+            };
+            let reached = self
+                .limits
+                .into_iter()
+                .zip(totals)
+                .filter(|(limit, total)| *total >= limit.reached_at_usd)
+                .map(|(limit, _)| limit)
+                .collect();
+            alerts.report(self.store, reached).await;
         });
     }
 }

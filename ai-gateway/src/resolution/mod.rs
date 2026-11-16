@@ -22,6 +22,7 @@ use std::{
 
 const RESOLVE_PATH: &str = "/api/internal/ai-gateway/v1/resolve";
 const MODELS_PATH: &str = "/api/internal/ai-gateway/v1/models";
+const SPEND_LIMIT_ALERTS_PATH: &str = "/api/internal/ai-gateway/v1/spend-limit-alerts";
 /// Unauthenticated, and without query params it skips the database checks.
 pub(crate) const HEALTH_PATH: &str = "/api/public/health";
 const REQUEST_ID_HEADER: &str = "langfuse-gateway-request-id";
@@ -232,6 +233,42 @@ impl ControlPlaneClient {
         )?;
         self.execute(request, self.config.models_limits, reserve)
             .await
+    }
+
+    /// Tell Web the gateway key reached a spend limit, so it emails the key's owner and
+    /// the organization's owners. Web sends one email per limit generation and window,
+    /// however often a limit is reported.
+    ///
+    /// # Errors
+    /// Returns the same sanitized errors as [`Self::resolve`].
+    pub(crate) async fn report_spend_limit_reached(
+        &self,
+        gateway_key: &str,
+        limit_id: &str,
+        generation: u32,
+        request_id: &str,
+    ) -> Result<(), ResolutionError> {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| ResolutionError::Unavailable)?;
+        let body = serde_json::to_vec(&serde_json::json!({
+            "limitId": limit_id,
+            "generation": generation,
+        }))
+        .map_err(|_| ResolutionError::Configuration)?;
+        let request = self
+            .authenticated_request(
+                Method::POST,
+                self.config.endpoint(SPEND_LIMIT_ALERTS_PATH),
+                gateway_key,
+                timestamp.as_secs(),
+                request_id,
+            )?
+            .header(CONTENT_TYPE, "application/json")
+            .body(body);
+        self.execute_retrying_once(request, self.config.resolve_limits)
+            .await
+            .map(drop)
     }
 
     async fn resolve_at(

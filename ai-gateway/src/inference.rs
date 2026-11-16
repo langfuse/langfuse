@@ -21,7 +21,7 @@ use crate::{
 };
 
 pub struct InferenceService {
-    control_plane: ControlPlaneClient,
+    control_plane: Arc<ControlPlaneClient>,
     provider: ProviderTransport,
     request_limits: RequestLimits,
     memory_budget: Arc<Semaphore>,
@@ -143,8 +143,9 @@ impl InferenceService {
         let telemetry =
             crate::telemetry::Telemetry::new(&control_plane, config.telemetry_buffer_bytes)?;
         crate::observability::record_memory_budget(config.request_limits.memory_budget_bytes);
+        let control_plane = Arc::new(ControlPlaneClient::new(control_plane)?);
         Ok(Self {
-            control_plane: ControlPlaneClient::new(control_plane)?,
+            control_plane: Arc::clone(&control_plane),
             provider: ProviderTransport::new(
                 config.execution_limits,
                 config.outbound_policy.clone(),
@@ -154,7 +155,10 @@ impl InferenceService {
             request_limits: config.request_limits,
             memory_budget: Arc::new(Semaphore::new(config.request_limits.memory_budget_bytes)),
             telemetry: Some(telemetry),
-            spend_limits: crate::spend::SpendLimits::new(config.spend_counters.clone()),
+            spend_limits: crate::spend::SpendLimits::new(
+                config.spend_counters.clone(),
+                control_plane,
+            ),
         })
     }
 
@@ -312,7 +316,11 @@ impl InferenceService {
             if !route.captures_generation() {
                 return Ok((self.provider.admit(None), context));
             }
-            let spend_limits = match self.spend_limits.check(&context).await {
+            let spend_limits = match self
+                .spend_limits
+                .check(&context, gateway_key, correlation.id())
+                .await
+            {
                 Ok(spend_limits) => spend_limits,
                 Err(error) => {
                     let (origin, reason) = resolution_origin(&error);
@@ -379,7 +387,7 @@ impl InferenceService {
     #[cfg(test)]
     pub(crate) fn for_test(control_plane: ControlPlaneClient, provider: ProviderTransport) -> Self {
         Self {
-            control_plane,
+            control_plane: Arc::new(control_plane),
             provider,
             request_limits: RequestLimits::default(),
             memory_budget: Arc::new(Semaphore::new(RequestLimits::default().memory_budget_bytes)),

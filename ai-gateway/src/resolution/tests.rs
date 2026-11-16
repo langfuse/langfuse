@@ -228,6 +228,36 @@ async fn fetches_models_from_the_control_plane() {
 }
 
 #[tokio::test]
+async fn reports_reached_spend_limits_to_the_control_plane() {
+    let web = FakeWeb::start(|request| async move {
+        assert_eq!(request.method(), "POST");
+        assert_eq!(
+            request.uri(),
+            "/api/internal/ai-gateway/v1/spend-limit-alerts"
+        );
+        assert_eq!(request.headers()[AUTHORIZATION], "Bearer gw_test_alice");
+        assert!(
+            request
+                .headers()
+                .contains_key("langfuse-gateway-authorization")
+        );
+        assert_eq!(request.headers()["langfuse-gateway-request-id"], REQUEST_ID);
+        assert_eq!(
+            to_bytes(request.into_body(), 1024).await.unwrap(),
+            r#"{"generation":2,"limitId":"limit-1"}"#
+        );
+        response(json!({}))
+    })
+    .await;
+
+    web.control_plane()
+        .report_spend_limit_reached(GATEWAY_KEY, "limit-1", 2, REQUEST_ID)
+        .await
+        .unwrap();
+    assert_eq!(web.calls(), 1);
+}
+
+#[tokio::test]
 async fn model_catalogs_have_a_larger_response_limit_than_resolution() {
     let body = "x".repeat(300 * 1024);
     let web = FakeWeb::start(move |_| {

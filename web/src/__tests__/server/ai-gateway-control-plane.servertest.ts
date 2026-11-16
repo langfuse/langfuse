@@ -80,6 +80,7 @@ import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gatewa
 import { GatewayModelsService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
 import { GatewayModelsResponseSchema } from "@/src/features/ai-gateway/server/provider/registry";
 import { GatewayApiKeyService } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyService";
+import { GatewaySpendLimitAlertService } from "@/src/features/ai-gateway/server/spendLimits/gatewaySpendLimitAlertService";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 import { getGatewaySetupRedirect } from "@/src/features/ai-gateway/server/gatewaySetupRedirect";
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
@@ -2800,6 +2801,64 @@ describe("AI gateway control plane", () => {
         NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
       });
     }
+  });
+
+  it("emails the key owner and organization owners once per limit window", async () => {
+    Object.assign(env, {
+      SMTP_CONNECTION_URL: "smtp://localhost:1025",
+      EMAIL_FROM_ADDRESS: "gateway@example.test",
+    });
+    const owner = await prepare();
+    await owner.caller.aiGateway.updateConfig({
+      orgId: owner.org.id,
+      defaultIngestionProjectId: owner.project.id,
+      ingestionMode: "USAGE",
+    });
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const memberKey = await member.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Member key",
+      metadata: {},
+    });
+    const limit = await member.aiGateway.spendLimits.create({
+      orgId: owner.org.id,
+      scope: { type: "API_KEY", apiKeyId: memberKey.id },
+      interval: "DAILY",
+      limitUsd: 10,
+    });
+    const memberEmail = (
+      await prisma.apiKey.findUniqueOrThrow({
+        where: { id: memberKey.id },
+        select: { user: { select: { email: true } } },
+      })
+    ).user!.email!;
+    const alerts = new GatewaySpendLimitAlertService(prisma);
+    const report = (generation: number) =>
+      alerts.reportReached({
+        fastHashedSecretKey: createShaHash(memberKey.secretKey, env.SALT),
+        limitId: limit.id,
+        generation,
+        now: new Date("2026-11-16T15:00:00Z"),
+      });
+
+    await report(0);
+    await report(0);
+    await report(1);
+
+    expect(addNotificationJobs).toHaveBeenCalledOnce();
+    expect(queuedNotifications()).toEqual([
+      expect.objectContaining({
+        to: memberEmail,
+        audience: "keyOwner",
+        keyName: "Member key",
+        limitUsd: 10,
+        resetsAt: "2026-11-17T00:00:00.000Z",
+      }),
+      expect.objectContaining({
+        to: owner.user.email,
+        audience: "orgOwner",
+      }),
+    ]);
   });
 
   it("routes unprefixed models by provider and rejects unknown models", async () => {

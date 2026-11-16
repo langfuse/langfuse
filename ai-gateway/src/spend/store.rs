@@ -34,7 +34,10 @@ impl Connection {
         }
     }
 
-    async fn query_pipeline(&mut self, pipeline: &redis::Pipeline) -> redis::RedisResult<()> {
+    async fn query_pipeline<T: redis::FromRedisValue>(
+        &mut self,
+        pipeline: &redis::Pipeline,
+    ) -> redis::RedisResult<T> {
         match self {
             Self::Single(connection) => run_pipeline(pipeline, connection).await,
             Self::Cluster(connection) => run_pipeline(pipeline, connection).await,
@@ -42,10 +45,10 @@ impl Connection {
     }
 }
 
-async fn run_pipeline(
+async fn run_pipeline<T: redis::FromRedisValue>(
     pipeline: &redis::Pipeline,
     connection: &mut (impl ConnectionLike + Send),
-) -> redis::RedisResult<()> {
+) -> redis::RedisResult<T> {
     pipeline.query_async(connection).await
 }
 
@@ -128,11 +131,16 @@ impl RedisCounters {
             .map_err(|_| Unavailable)
     }
 
-    pub(crate) async fn add(&self, counters: &[Counter], usd: f64) -> Result<(), Unavailable> {
+    /// Adds `usd` to each counter and returns their new totals.
+    pub(crate) async fn add<'a>(
+        &self,
+        counters: impl IntoIterator<Item = &'a Counter>,
+        usd: f64,
+    ) -> Result<Vec<f64>, Unavailable> {
         let mut connection = self.connection().await?;
         let mut pipeline = redis::pipe();
         for Counter { key, expiry } in counters {
-            pipeline.cmd("INCRBYFLOAT").arg(key).arg(usd).ignore();
+            pipeline.cmd("INCRBYFLOAT").arg(key).arg(usd);
             match expiry {
                 Expiry::At(unix_seconds) => pipeline.cmd("EXPIREAT").arg(key).arg(*unix_seconds),
                 Expiry::After(duration) => pipeline.cmd("EXPIRE").arg(key).arg(duration.as_secs()),
@@ -144,5 +152,37 @@ impl RedisCounters {
             .map_err(|_| Unavailable)?
             .inspect_err(|error| tracing::warn!(%error, "spend counter update failed"))
             .map_err(|_| Unavailable)
+    }
+
+    /// Sets `key` unless it is set, expiring like a counter. Returns whether it was set.
+    pub(crate) async fn claim(&self, key: &str, expiry: Expiry) -> Result<bool, Unavailable> {
+        let mut connection = self.connection().await?;
+        let mut command = redis::cmd("SET");
+        command.arg(key).arg(1).arg("NX");
+        match expiry {
+            Expiry::At(unix_seconds) => command.arg("EXAT").arg(unix_seconds),
+            Expiry::After(duration) => command.arg("EX").arg(duration.as_secs()),
+        };
+        tokio::time::timeout(
+            OPERATION_TIMEOUT,
+            connection.query::<Option<String>>(&command),
+        )
+        .await
+        .map_err(|_| Unavailable)?
+        .inspect_err(|error| tracing::warn!(%error, "spend counter claim failed"))
+        .map(|set| set.is_some())
+        .map_err(|_| Unavailable)
+    }
+
+    pub(crate) async fn release(&self, key: &str) -> Result<(), Unavailable> {
+        let mut connection = self.connection().await?;
+        tokio::time::timeout(
+            OPERATION_TIMEOUT,
+            connection.query(redis::cmd("DEL").arg(key)),
+        )
+        .await
+        .map_err(|_| Unavailable)?
+        .inspect_err(|error| tracing::warn!(%error, "spend counter release failed"))
+        .map_err(|_| Unavailable)
     }
 }
