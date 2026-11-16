@@ -125,7 +125,12 @@ export function TopicMobileTraceList({
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
       >
         {children}
-        <ul className="divide-y">
+        <ul
+          className={cn(
+            "divide-y transition-opacity",
+            traces.isStale && "opacity-60",
+          )}
+        >
           {pageRows.map((row) => (
             <li key={row.traceId}>
               <button

@@ -12,6 +12,7 @@ import {
 } from "react";
 import { useMediaQuery } from "react-responsive";
 import { DataTable } from "@/src/components/table/data-table";
+import { cn } from "@/src/utils/tailwind";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
@@ -480,7 +481,10 @@ function CurrentTraceTable({
           data: rows.map((row) => ({ ...row, id: row.traceId })),
         }}
         topAlignCells
-        className="min-h-0 overscroll-contain"
+        className={cn(
+          "min-h-0 overscroll-contain transition-opacity",
+          traces.isStale && "opacity-60",
+        )}
         cellPadding="relaxed"
         noResultsMessage="No matches. Adjust or clear your filters."
         rowSelection={selectedTraceId ? { [selectedTraceId]: true } : {}}

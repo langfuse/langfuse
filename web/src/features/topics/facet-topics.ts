@@ -17,6 +17,8 @@ export type TopicTraceQuery = Omit<
 export type TopicTracesResult = {
   rows: FacetRow[];
   isLoading: boolean;
+  /** The rows are the previous topic's or filter's while this one's load. */
+  isStale: boolean;
   isLoadingMore: boolean;
   error: string | null;
   hasMore: boolean;
