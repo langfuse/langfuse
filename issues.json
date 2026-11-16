@@ -545,7 +545,8 @@
     "number": null,
     "url": null,
     "openedAt": "2026-11-16",
-    "status": "open",
+    "status": "superseded-by-2026-11-16-pass2",
+    "supersededNote": "Same window, same day. A second run at 08:26Z had job-log access (restored by efa754e00e / #20284 at 08:16:35Z) and refiled with test-level attribution, vitest tables, and 11-16 added as a 6th dense day. This entry's timing numbers are a 5-dense-day subset of pass 2's; its 'no flake evidence' and 'unInspected' statements are OBSOLETE, not wrong-at-the-time. Read pass 2 instead.",
     "window": {
       "from": "2026-11-10",
       "to": "2026-11-16"
@@ -597,6 +598,69 @@
       "Workflow-prompt gap: the failing-step classification table has no entry for 'run SQL-equivalence tests'. It is a test step.",
       "CAPABILITY LOSS: if get_job_logs stays blocked by integrity policy, every vitest-derived section of this report is dead and failuresByTest can never grow. missing_tool filed 2026-11-16.",
       "Carried from W44, still unverified because logs were unreadable: dataRetentionProcessing.test.ts (Asia/Tokyo), nativeOtelMedia.unit.test.ts, app-shell-overflow.spec.ts, otelReplay.properties.test.ts per-test density.",
+      "chore(ci): migrate prettier to oxfmt (82bf9dad30, #20250) landed at the window edge - check prettier-check job timing in W48."
+    ]
+  },
+  {
+    "title": "CI Runtime Report: 2026-11-10..11-16 (trailing 7 days)",
+    "number": null,
+    "url": null,
+    "openedAt": "2026-11-16",
+    "pass": 2,
+    "status": "open",
+    "window": {
+      "from": "2026-11-10",
+      "to": "2026-11-16"
+    },
+    "note": "Number/url are null (structural: safe-outputs creates the issue after the agent exits, and no issue-read MCP tool exists to backfill). Identify by label ci-performance, assignee wochinge, title prefix, opened 2026-11-16, and by being the SECOND 2026-11-16 issue. Do NOT re-file missing_tool for the issue-reader gap; filed three times already (08-24, 09-07, and the get_job_logs one on 2026-11-16 which is now RESOLVED by #20284 - do not re-file that either).",
+    "supersedes": "The first 2026-11-16 entry (same window, no log access).",
+    "headline": "Best week on record: perceived 372.5 -> 273s (-26.7%), gated 331 -> 256s (-22.7%), merge-queue failure rate 5.3% -> 2.3% (4 of 177), zero infrastructure failures, tests-fips green in 42/42 measured runs. Job-log access was restored mid-run, so all 4 failures are now attributed to a named test or file and the vitest tables are alive for the first time since W44. The new PRIMARY finding replaces pass 1's: e2e 'Build' is bimodal (26-28s vs 86-110s) and Next.js build-cache restore predicts the mode on 8/8 runs, inside a single 92-minute morning window - so the mechanism is cache hit/miss, not time of day.",
+    "weeklyAggregate": {
+      "perceived": 273,
+      "gated": 256,
+      "execution": 267.5,
+      "runnerWait": 6,
+      "webBuildStep": 53,
+      "webRunTestsStep": 92.5,
+      "workerBuildStep": 43,
+      "workerRunTestsStep": 103.8,
+      "e2eTestsJob": 189,
+      "e2eBuildStep": 68.5,
+      "e2eRunStep": 46.5,
+      "fipsMaxJob": 261,
+      "unit": "seconds; median of the 6 dense daily medians (11-10,11-11,11-12,11-13,11-15,11-16)"
+    },
+    "pooled": {
+      "note": "Two disjoint sub-samples; pass 1 did not persist its 34 per-run values so they cannot be repooled.",
+      "pass1": { "n": 34, "perceivedP50": 283, "perceivedP90": 366, "gatedP50": 255, "gatedP90": 360 },
+      "pass2": { "n": 8, "perceivedP50": 257.5, "perceivedP90": 349, "gatedP50": 235.5 }
+    },
+    "totalRuns": {
+      "success": 173,
+      "failed": 4,
+      "cancelled": 0,
+      "failureRate": "2.3%",
+      "testShare": "2/4",
+      "infraShare": "0/4",
+      "otherShare": "2/4 (typecheck)"
+    },
+    "suggestedDiff": false,
+    "suggestedDiffReason": "Three candidates, each blocked for a different reason. (1) The highest-value fix is the e2e Build cache behaviour, which lives in .github/workflows/pipeline.yml (~1417-1427) - forbidden to edit even temporarily, so it is report-only. (2) The one CONFIRMED flaky test (correctionScoreBilling.test.ts) has a known mechanism but no safe fix without a product decision: it asserts that 3 rows sharing the complete ReplacingMergeTree sort key stay distinct, and the same count(*)-without-FINAL pattern is in the production billing queries, so 'fixing the test' may be papering over a billing-count question. (3) Nothing can be verified in-sandbox anyway: node_modules is absent, pnpm/turbo are not installed, and there is no DB connectivity, so no vitest run can confirm any diff. Shipping an unverified diff would violate the standing rule.",
+    "appliedOnMain": null,
+    "expectedImpact": null,
+    "lastCheckedAt": "2026-11-16",
+    "flakyTests": "ONE CONFIRMED: worker/src/__tests__/correctionScoreBilling.test.ts > 'counts CORRECTION score rows from the billing cutoff' was tagged [flaky] with retries=2 by the reporter on run 43748763040, which SUCCEEDED - the reporter observed it fail twice then pass, which is the strong evidence standard. Mechanism is schema-level and certain: it inserts 3 rows sharing the complete ReplacingMergeTree ORDER BY tuple (project_id, toDate(timestamp), name, id) and asserts none are collapsed. ONE PROBABLE, unchanged from pass 1 but now named: worker executeInAppAgentRun.test.ts > 'passes repository skills when no managed tag is configured' exhausted 3 retries on run 43285356968 (mode-azure, 11-12). Zero failed and zero retried tests in the other 7 sampled jobs.",
+    "followUps": [
+      "PRIMARY, report-only (human must edit .github/workflows/pipeline.yml): e2e 'Build' bimodality. Restore seconds vs Build seconds across all 8 runs on 11-16: 1->89, 1->110, 1->103, 2->99, 1->86, 1->104, 4->28, 3->26. Restore <=2s means nothing was restored. 'Post Cache Next.js builds' cost 10-15s on ALL 8, so the exact key missed every time and a new entry was written every time. Suggested: restore everywhere but save only on merge_group, and drop ~/.npm from the cached path. Worth ~60-80s on the majority of runs. Mechanism for WHY the fallback is warm on some runs is unproven - no cache-API reader exists in the toolset.",
+      "CORRECTION to pass 1: the >=17:00Z penalty is a proxy, not a mechanism. The same 3.6x Build swing occurs inside a 92-minute morning window. Do not carry 'evening is slow' forward as a cause.",
+      "worker/src/__tests__/correctionScoreBilling.test.ts - confirmed flake, needs a product decision first (are repeated saves of one score id billable?). The production queries getScoreCountsByProjectInCreationInterval and getScoreCountsByProjectAndDay are bare count(*) with no FINAL over the same ReplacingMergeTree, so the same non-determinism is in the billing path, not only the test.",
+      "worker executeInAppAgentRun.test.ts (mode-azure) - probable flake, watch for recurrence in W48.",
+      "The SQL-equivalence golden step became blocking on 2026-11-09 via 0b2f8929ea (#19970) and ejected PR 20188 on 11-13 in 7s via a snapshot mismatch in experiments.golden.test.ts. PR 20188 still unmerged. Watch whether golden drift becomes a recurring ejection source.",
+      "Workflow-prompt gap, still unfixed: the failing-step classification table has no entry for 'run SQL-equivalence tests'. It is a test step.",
+      "Web shard import cost is 567-687s against 335-390s of actual test time - ~1.8x, and it dominates the largest shard. Several hoist attempts are on the DEAD list; a different angle is needed.",
+      "Storybook shard setup is 36-46s, about 40% of that shard's wall time, and unique to it. Never investigated. Candidate for W48.",
+      "W44 watchlist resolution: dataRetentionProcessing.test.ts and nativeOtelMedia.unit.test.ts showed NO evidence of recurrence across 8 sampled jobs (absent from retried and from the top-14 slowest) - drop to low priority. app-shell-overflow.spec.ts is STILL unknown: it is a Playwright spec and the sample covered vitest shards only.",
+      "Persist per-run percentile arrays per day, not just the daily median, so a same-day second pass can repool without re-paging the API.",
       "chore(ci): migrate prettier to oxfmt (82bf9dad30, #20250) landed at the window edge - check prettier-check job timing in W48."
     ]
   }

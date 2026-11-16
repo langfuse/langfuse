@@ -1,5 +1,138 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="920" height="560" viewBox="0 0 920 560" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
-<style>.t{font-size:14px;font-weight:600;fill:#1f2328}.ax{font-size:11px;fill:#59636e}.lg{font-size:11.5px;fill:#1f2328}.grid{stroke:#d8dee4;stroke-width:1}.sub{font-size:11.5px;fill:#59636e}.hd{font-size:17px;font-weight:700;fill:#1f2328}</style>
-<rect width="920" height="560" fill="#ffffff"/>
-<text x="62" y="26" class="hd">langfuse CI/CD merge-queue runtime &#8212; window 2026-11-10 .. 2026-11-16 (filed 2026-W47-1116)</text>
-<text x="62" y="48" class="t">Weekly (seconds, median of dense daily medians; dashed = W45/W46 not analysed)</text><line x1="62" y1="260.0" x2="770" y2="260.0" class="grid"/><text x="54" y="264.0" class="ax" text-anchor="end">0</text><line x1="62" y1="212.5" x2="770" y2="212.5" class="grid"/><text x="54" y="216.5" class="ax" text-anchor="end">140</text><line x1="62" y1="165.0" x2="770" y2="165.0" class="grid"/><text x="54" y="169.0" class="ax" text-anchor="end">280</text><line x1="62" y1="117.5" x2="770" y2="117.5" class="grid"/><text x="54" y="121.5" class="ax" text-anchor="end">420</text><line x1="62" y1="70.0" x2="770" y2="70.0" class="grid"/><text x="54" y="74.0" class="ax" text-anchor="end">560</text><text x="62.0" y="278" class="ax" text-anchor="middle">W38</text><text x="140.7" y="278" class="ax" text-anchor="middle">W39</text><text x="219.3" y="278" class="ax" text-anchor="middle">W40</text><text x="298.0" y="278" class="ax" text-anchor="middle">W41</text><text x="376.7" y="278" class="ax" text-anchor="middle">W42</text><text x="455.3" y="278" class="ax" text-anchor="middle">W43</text><text x="534.0" y="278" class="ax" text-anchor="middle">W44</text><text x="612.7" y="278" class="ax" text-anchor="middle">W45</text><text x="691.3" y="278" class="ax" text-anchor="middle">W46</text><text x="770.0" y="278" class="ax" text-anchor="middle">W47</text><path d="M62.0 196.8 L140.7 180.6 L219.3 183.2 L298.0 186.5 L376.7 174.7 L455.3 161.3 L534.0 133.6 M770.0 166.4" fill="none" stroke="#3987e5" stroke-width="2.4" stroke-linejoin="round"/><circle cx="62.0" cy="196.8" r="3.1" fill="#3987e5"/><circle cx="140.7" cy="180.6" r="3.1" fill="#3987e5"/><circle cx="219.3" cy="183.2" r="3.1" fill="#3987e5"/><circle cx="298.0" cy="186.5" r="3.1" fill="#3987e5"/><circle cx="376.7" cy="174.7" r="3.1" fill="#3987e5"/><circle cx="455.3" cy="161.3" r="3.1" fill="#3987e5"/><circle cx="534.0" cy="133.6" r="3.1" fill="#3987e5"/><circle cx="770.0" cy="166.4" r="3.1" fill="#3987e5"/><rect x="782" y="70" width="11" height="11" fill="#3987e5" rx="2"/><text x="799" y="79" class="lg">perceived</text><path d="M62.0 190.5 L140.7 158.1 L219.3 159.6 L298.0 157.5 L376.7 157.4 L455.3 121.6 L534.0 80.5 M770.0 135.8" fill="none" stroke="#de5a20" stroke-width="2.4" stroke-linejoin="round"/><circle cx="62.0" cy="190.5" r="3.1" fill="#de5a20"/><circle cx="140.7" cy="158.1" r="3.1" fill="#de5a20"/><circle cx="219.3" cy="159.6" r="3.1" fill="#de5a20"/><circle cx="298.0" cy="157.5" r="3.1" fill="#de5a20"/><circle cx="376.7" cy="157.4" r="3.1" fill="#de5a20"/><circle cx="455.3" cy="121.6" r="3.1" fill="#de5a20"/><circle cx="534.0" cy="80.5" r="3.1" fill="#de5a20"/><circle cx="770.0" cy="135.8" r="3.1" fill="#de5a20"/><rect x="782" y="90" width="11" height="11" fill="#de5a20" rx="2"/><text x="799" y="99" class="lg">perceived p90</text><path d="M62.0 207.2 L140.7 196.9 L219.3 193.2 L298.0 203.3 L376.7 206.6 L455.3 204.9 L534.0 189.1 M770.0 197.9" fill="none" stroke="#8875e0" stroke-width="2.4" stroke-linejoin="round"/><circle cx="62.0" cy="207.2" r="3.1" fill="#8875e0"/><circle cx="140.7" cy="196.9" r="3.1" fill="#8875e0"/><circle cx="219.3" cy="193.2" r="3.1" fill="#8875e0"/><circle cx="298.0" cy="203.3" r="3.1" fill="#8875e0"/><circle cx="376.7" cy="206.6" r="3.1" fill="#8875e0"/><circle cx="455.3" cy="204.9" r="3.1" fill="#8875e0"/><circle cx="534.0" cy="189.1" r="3.1" fill="#8875e0"/><circle cx="770.0" cy="197.9" r="3.1" fill="#8875e0"/><rect x="782" y="110" width="11" height="11" fill="#8875e0" rx="2"/><text x="799" y="119" class="lg">e2e-tests job</text><text x="62" y="296" class="sub">perceived 372.5 -&gt; 276 (-25.9%) and p90 529 -&gt; 366 (-30.8%) against W44, three weeks earlier. Best week on record.</text><text x="62" y="330" class="t">Daily medians this window (seconds); Sat 11-14 and Mon 11-16 had 0 merge_group runs</text><line x1="62" y1="522.0" x2="770" y2="522.0" class="grid"/><text x="54" y="526.0" class="ax" text-anchor="end">0</text><line x1="62" y1="479.5" x2="770" y2="479.5" class="grid"/><text x="54" y="483.5" class="ax" text-anchor="end">80</text><line x1="62" y1="437.0" x2="770" y2="437.0" class="grid"/><text x="54" y="441.0" class="ax" text-anchor="end">160</text><line x1="62" y1="394.5" x2="770" y2="394.5" class="grid"/><text x="54" y="398.5" class="ax" text-anchor="end">240</text><line x1="62" y1="352.0" x2="770" y2="352.0" class="grid"/><text x="54" y="356.0" class="ax" text-anchor="end">320</text><text x="62.0" y="540" class="ax" text-anchor="middle">Tue 11-10</text><text x="239.0" y="540" class="ax" text-anchor="middle">Wed 11-11</text><text x="416.0" y="540" class="ax" text-anchor="middle">Thu 11-12</text><text x="593.0" y="540" class="ax" text-anchor="middle">Fri 11-13</text><text x="770.0" y="540" class="ax" text-anchor="middle">Sun 11-15</text><path d="M62.0 362.1 L239.0 359.4 L416.0 375.4 L593.0 378.6 L770.0 391.8" fill="none" stroke="#3987e5" stroke-width="2.4" stroke-linejoin="round"/><circle cx="62.0" cy="362.1" r="3.1" fill="#3987e5"/><circle cx="239.0" cy="359.4" r="3.1" fill="#3987e5"/><circle cx="416.0" cy="375.4" r="3.1" fill="#3987e5"/><circle cx="593.0" cy="378.6" r="3.1" fill="#3987e5"/><circle cx="770.0" cy="391.8" r="3.1" fill="#3987e5"/><rect x="782" y="352" width="11" height="11" fill="#3987e5" rx="2"/><text x="799" y="361" class="lg">perceived</text><path d="M62.0 365.8 L239.0 366.3 L416.0 383.9 L593.0 388.1 L770.0 405.9" fill="none" stroke="#de5a20" stroke-width="2.4" stroke-linejoin="round"/><circle cx="62.0" cy="365.8" r="3.1" fill="#de5a20"/><circle cx="239.0" cy="366.3" r="3.1" fill="#de5a20"/><circle cx="416.0" cy="383.9" r="3.1" fill="#de5a20"/><circle cx="593.0" cy="388.1" r="3.1" fill="#de5a20"/><circle cx="770.0" cy="405.9" r="3.1" fill="#de5a20"/><rect x="782" y="372" width="11" height="11" fill="#de5a20" rx="2"/><text x="799" y="381" class="lg">gated</text><path d="M62.0 424.8 L239.0 418.4 L416.0 414.7 L593.0 432.8 L770.0 445.2" fill="none" stroke="#8875e0" stroke-width="2.4" stroke-linejoin="round"/><circle cx="62.0" cy="424.8" r="3.1" fill="#8875e0"/><circle cx="239.0" cy="418.4" r="3.1" fill="#8875e0"/><circle cx="416.0" cy="414.7" r="3.1" fill="#8875e0"/><circle cx="593.0" cy="432.8" r="3.1" fill="#8875e0"/><circle cx="770.0" cy="445.2" r="3.1" fill="#8875e0"/><rect x="782" y="392" width="11" height="11" fill="#8875e0" rx="2"/><text x="799" y="401" class="lg">e2e-tests job</text><text x="62" y="550" class="sub">165 successful / 4 failed merge_group runs = 2.4% failure rate (W44 5.3%, W43 12.8%). 0 infrastructure failures. tests-fips green in 34/34 sampled runs.</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="814" viewBox="0 0 900 814" font-family="ui-sans-serif,-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="900" height="814" fill="#ffffff"/>
+  <style>.t{font-size:13px;font-weight:600;fill:#1f2430}.ax{font-size:11px;fill:#5b6472}.lg{font-size:11px;fill:#1f2430}.lgv{font-size:10px;fill:#8a94a3}.g{stroke:#e6e9ef;stroke-width:1}</style>
+  <text x="58" y="22.0" class="t">Daily medians — merge_group runs (seconds). Sat 11-14 omitted: 0 runs.</text>
+  <line x1="58.0" y1="230.0" x2="704.0" y2="230.0" class="g"/>
+  <text x="50.0" y="234.0" class="ax" text-anchor="end">0</text>
+  <line x1="58.0" y1="181.0" x2="704.0" y2="181.0" class="g"/>
+  <text x="50.0" y="185.0" class="ax" text-anchor="end">100</text>
+  <line x1="58.0" y1="132.0" x2="704.0" y2="132.0" class="g"/>
+  <text x="50.0" y="136.0" class="ax" text-anchor="end">200</text>
+  <line x1="58.0" y1="83.0" x2="704.0" y2="83.0" class="g"/>
+  <text x="50.0" y="87.0" class="ax" text-anchor="end">300</text>
+  <line x1="58.0" y1="34.0" x2="704.0" y2="34.0" class="g"/>
+  <text x="50.0" y="38.0" class="ax" text-anchor="end">400</text>
+  <text x="58.0" y="248.0" class="ax" text-anchor="middle">11-10</text>
+  <text x="187.2" y="248.0" class="ax" text-anchor="middle">11-11</text>
+  <text x="316.4" y="248.0" class="ax" text-anchor="middle">11-12</text>
+  <text x="445.6" y="248.0" class="ax" text-anchor="middle">11-13</text>
+  <text x="574.8" y="248.0" class="ax" text-anchor="middle">11-15</text>
+  <text x="704.0" y="248.0" class="ax" text-anchor="middle">11-16</text>
+  <polyline points="58.0,82.5 187.2,80.1 316.4,94.8 445.6,97.7 574.8,109.9 704.0,103.8" fill="none" stroke="#3987e5" stroke-width="2.5"/>
+  <circle cx="58.0" cy="82.5" r="3.5" fill="#3987e5"/>
+  <circle cx="187.2" cy="80.1" r="3.5" fill="#3987e5"/>
+  <circle cx="316.4" cy="94.8" r="3.5" fill="#3987e5"/>
+  <circle cx="445.6" cy="97.7" r="3.5" fill="#3987e5"/>
+  <circle cx="574.8" cy="109.9" r="3.5" fill="#3987e5"/>
+  <circle cx="704.0" cy="103.8" r="3.5" fill="#3987e5"/>
+  <line x1="720.0" y1="50.0" x2="742.0" y2="50.0" stroke="#3987e5" stroke-width="2.5"/>
+  <text x="748.0" y="54.0" class="lg">perceived (wall)</text>
+  <text x="748.0" y="66.0" class="lgv">last 257.5s</text>
+  <polyline points="58.0,85.9 187.2,86.4 316.4,102.6 445.6,106.5 574.8,122.9 704.0,114.6" fill="none" stroke="#de5a20" stroke-width="2.5"/>
+  <circle cx="58.0" cy="85.9" r="3.5" fill="#de5a20"/>
+  <circle cx="187.2" cy="86.4" r="3.5" fill="#de5a20"/>
+  <circle cx="316.4" cy="102.6" r="3.5" fill="#de5a20"/>
+  <circle cx="445.6" cy="106.5" r="3.5" fill="#de5a20"/>
+  <circle cx="574.8" cy="122.9" r="3.5" fill="#de5a20"/>
+  <circle cx="704.0" cy="114.6" r="3.5" fill="#de5a20"/>
+  <line x1="720.0" y1="70.0" x2="742.0" y2="70.0" stroke="#de5a20" stroke-width="2.5"/>
+  <text x="748.0" y="74.0" class="lg">gated (to all-ci-passed)</text>
+  <text x="748.0" y="86.0" class="lgv">last 235.5s</text>
+  <polyline points="58.0,85.4 187.2,81.5 316.4,97.7 445.6,100.2 574.8,112.2 704.0,106.3" fill="none" stroke="#8875e0" stroke-width="2.5"/>
+  <circle cx="58.0" cy="85.4" r="3.5" fill="#8875e0"/>
+  <circle cx="187.2" cy="81.5" r="3.5" fill="#8875e0"/>
+  <circle cx="316.4" cy="97.7" r="3.5" fill="#8875e0"/>
+  <circle cx="445.6" cy="100.2" r="3.5" fill="#8875e0"/>
+  <circle cx="574.8" cy="112.2" r="3.5" fill="#8875e0"/>
+  <circle cx="704.0" cy="106.3" r="3.5" fill="#8875e0"/>
+  <line x1="720.0" y1="90.0" x2="742.0" y2="90.0" stroke="#8875e0" stroke-width="2.5"/>
+  <text x="748.0" y="94.0" class="lg">execution (job union)</text>
+  <text x="748.0" y="106.0" class="lgv">last 252.5s</text>
+  <text x="58" y="282.0" class="t">Daily medians — job / step level (seconds)</text>
+  <line x1="58.0" y1="490.0" x2="704.0" y2="490.0" class="g"/>
+  <text x="50.0" y="494.0" class="ax" text-anchor="end">0</text>
+  <line x1="58.0" y1="441.0" x2="704.0" y2="441.0" class="g"/>
+  <text x="50.0" y="445.0" class="ax" text-anchor="end">75</text>
+  <line x1="58.0" y1="392.0" x2="704.0" y2="392.0" class="g"/>
+  <text x="50.0" y="396.0" class="ax" text-anchor="end">150</text>
+  <line x1="58.0" y1="343.0" x2="704.0" y2="343.0" class="g"/>
+  <text x="50.0" y="347.0" class="ax" text-anchor="end">225</text>
+  <line x1="58.0" y1="294.0" x2="704.0" y2="294.0" class="g"/>
+  <text x="50.0" y="298.0" class="ax" text-anchor="end">300</text>
+  <text x="58.0" y="508.0" class="ax" text-anchor="middle">11-10</text>
+  <text x="187.2" y="508.0" class="ax" text-anchor="middle">11-11</text>
+  <text x="316.4" y="508.0" class="ax" text-anchor="middle">11-12</text>
+  <text x="445.6" y="508.0" class="ax" text-anchor="middle">11-13</text>
+  <text x="574.8" y="508.0" class="ax" text-anchor="middle">11-15</text>
+  <text x="704.0" y="508.0" class="ax" text-anchor="middle">11-16</text>
+  <polyline points="58.0,422.7 187.2,433.2 316.4,424.7 445.6,427.3 574.8,435.1 704.0,431.9" fill="none" stroke="#3987e5" stroke-width="2.5"/>
+  <circle cx="58.0" cy="422.7" r="3.5" fill="#3987e5"/>
+  <circle cx="187.2" cy="433.2" r="3.5" fill="#3987e5"/>
+  <circle cx="316.4" cy="424.7" r="3.5" fill="#3987e5"/>
+  <circle cx="445.6" cy="427.3" r="3.5" fill="#3987e5"/>
+  <circle cx="574.8" cy="435.1" r="3.5" fill="#3987e5"/>
+  <circle cx="704.0" cy="431.9" r="3.5" fill="#3987e5"/>
+  <line x1="720.0" y1="310.0" x2="742.0" y2="310.0" stroke="#3987e5" stroke-width="2.5"/>
+  <text x="748.0" y="314.0" class="lg">web 'run tests'</text>
+  <text x="748.0" y="326.0" class="lgv">last 89s</text>
+  <polyline points="58.0,416.8 187.2,420.1 316.4,424.0 445.6,421.4 574.8,426.0 704.0,423.0" fill="none" stroke="#de5a20" stroke-width="2.5"/>
+  <circle cx="58.0" cy="416.8" r="3.5" fill="#de5a20"/>
+  <circle cx="187.2" cy="420.1" r="3.5" fill="#de5a20"/>
+  <circle cx="316.4" cy="424.0" r="3.5" fill="#de5a20"/>
+  <circle cx="445.6" cy="421.4" r="3.5" fill="#de5a20"/>
+  <circle cx="574.8" cy="426.0" r="3.5" fill="#de5a20"/>
+  <circle cx="704.0" cy="423.0" r="3.5" fill="#de5a20"/>
+  <line x1="720.0" y1="330.0" x2="742.0" y2="330.0" stroke="#de5a20" stroke-width="2.5"/>
+  <text x="748.0" y="334.0" class="lg">worker 'run tests'</text>
+  <text x="748.0" y="346.0" class="lgv">last 102.5s</text>
+  <polyline points="58.0,370.4 187.2,362.6 316.4,358.0 445.6,380.2 574.8,395.6 704.0,356.7" fill="none" stroke="#8875e0" stroke-width="2.5"/>
+  <circle cx="58.0" cy="370.4" r="3.5" fill="#8875e0"/>
+  <circle cx="187.2" cy="362.6" r="3.5" fill="#8875e0"/>
+  <circle cx="316.4" cy="358.0" r="3.5" fill="#8875e0"/>
+  <circle cx="445.6" cy="380.2" r="3.5" fill="#8875e0"/>
+  <circle cx="574.8" cy="395.6" r="3.5" fill="#8875e0"/>
+  <circle cx="704.0" cy="356.7" r="3.5" fill="#8875e0"/>
+  <line x1="720.0" y1="350.0" x2="742.0" y2="350.0" stroke="#8875e0" stroke-width="2.5"/>
+  <text x="748.0" y="354.0" class="lg">e2e-tests job</text>
+  <text x="748.0" y="366.0" class="lgv">last 204s</text>
+  <text x="58" y="542.0" class="t">Weekly aggregate across recorded windows (seconds)</text>
+  <line x1="58.0" y1="750.0" x2="704.0" y2="750.0" class="g"/>
+  <text x="50.0" y="754.0" class="ax" text-anchor="end">0</text>
+  <line x1="58.0" y1="701.0" x2="704.0" y2="701.0" class="g"/>
+  <text x="50.0" y="705.0" class="ax" text-anchor="end">113</text>
+  <line x1="58.0" y1="652.0" x2="704.0" y2="652.0" class="g"/>
+  <text x="50.0" y="656.0" class="ax" text-anchor="end">225</text>
+  <line x1="58.0" y1="603.0" x2="704.0" y2="603.0" class="g"/>
+  <text x="50.0" y="607.0" class="ax" text-anchor="end">338</text>
+  <line x1="58.0" y1="554.0" x2="704.0" y2="554.0" class="g"/>
+  <text x="50.0" y="558.0" class="ax" text-anchor="end">450</text>
+  <text x="58.0" y="768.0" class="ax" text-anchor="middle">W42</text>
+  <text x="273.3" y="768.0" class="ax" text-anchor="middle">W43</text>
+  <text x="488.7" y="768.0" class="ax" text-anchor="middle">W44</text>
+  <text x="704.0" y="768.0" class="ax" text-anchor="middle">W47</text>
+  <polyline points="58.0,640.5 273.3,623.3 488.7,587.8 704.0,631.1" fill="none" stroke="#3987e5" stroke-width="2.5"/>
+  <circle cx="58.0" cy="640.5" r="3.5" fill="#3987e5"/>
+  <circle cx="273.3" cy="623.3" r="3.5" fill="#3987e5"/>
+  <circle cx="488.7" cy="587.8" r="3.5" fill="#3987e5"/>
+  <circle cx="704.0" cy="631.1" r="3.5" fill="#3987e5"/>
+  <line x1="720.0" y1="570.0" x2="742.0" y2="570.0" stroke="#3987e5" stroke-width="2.5"/>
+  <text x="748.0" y="574.0" class="lg">perceived (wall)</text>
+  <text x="748.0" y="586.0" class="lgv">last 273s</text>
+  <polyline points="58.0,651.4 273.3,632.6 488.7,605.8 704.0,638.5" fill="none" stroke="#de5a20" stroke-width="2.5"/>
+  <circle cx="58.0" cy="651.4" r="3.5" fill="#de5a20"/>
+  <circle cx="273.3" cy="632.6" r="3.5" fill="#de5a20"/>
+  <circle cx="488.7" cy="605.8" r="3.5" fill="#de5a20"/>
+  <circle cx="704.0" cy="638.5" r="3.5" fill="#de5a20"/>
+  <line x1="720.0" y1="590.0" x2="742.0" y2="590.0" stroke="#de5a20" stroke-width="2.5"/>
+  <text x="748.0" y="594.0" class="lg">gated (to all-ci-passed)</text>
+  <text x="748.0" y="606.0" class="lgv">last 256s</text>
+  <polyline points="58.0,644.2 273.3,625.3 488.7,592.1 704.0,633.5" fill="none" stroke="#8875e0" stroke-width="2.5"/>
+  <circle cx="58.0" cy="644.2" r="3.5" fill="#8875e0"/>
+  <circle cx="273.3" cy="625.3" r="3.5" fill="#8875e0"/>
+  <circle cx="488.7" cy="592.1" r="3.5" fill="#8875e0"/>
+  <circle cx="704.0" cy="633.5" r="3.5" fill="#8875e0"/>
+  <line x1="720.0" y1="610.0" x2="742.0" y2="610.0" stroke="#8875e0" stroke-width="2.5"/>
+  <text x="748.0" y="614.0" class="lg">execution (job union)</text>
+  <text x="748.0" y="626.0" class="lgv">last 267.5s</text>
+  <text x="58" y="806" class="lgv">langfuse/langfuse pipeline.yml — window 2026-11-10..2026-11-16, successful merge_group runs. Generated 2026-11-16 (second pass, with job logs).</text>
+</svg>

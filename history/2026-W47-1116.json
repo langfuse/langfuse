@@ -2,101 +2,105 @@
   "window": { "from": "2026-11-10", "to": "2026-11-16" },
   "isoWeekNote": "2026-11-16 is a MONDAY and the trailing-7-day window is Tue 11-10 .. Mon 11-16, i.e. ISO W46 Tue-Sun plus the Monday that opens ISO W47. Filed as 2026-W47-1116.json, same convention as 2026-W43-1019 and 2026-W44-1026 (name by the ISO week of the end Monday). CALENDAR CORRECTION: the W44 file's isoWeekNote claims 2026-10-26 is a Sunday. It is a Monday. Every window in this series has been Tue..Mon, never Mon..Sun.",
   "generatedAt": "2026-11-16",
+  "twoPassNote": "THIS FILE WAS WRITTEN TWICE ON 2026-11-16. Pass 1 (08:0xZ) had ZERO job-log access and recorded timing only. Pass 2 (08:26Z) ran after efa754e00e (#20284, merged 08:16:35Z) restored get_job_logs, and added: test-level attribution for all 4 merge-queue failures, the first vitest reporter tables since W44, one CONFIRMED flaky test, and 8 fresh 11-16 runs that turned 11-16 into a 6th dense day. Pass-1 timing for 11-10..11-15 is reused unchanged; the weekly aggregate below is RECOMPUTED over 6 dense days and therefore differs from the numbers pass 1 published.",
   "gapNote": "THREE WEEKS since the last analysis (W44, 2026-10-26). W45 and W46 were never analysed, so every vsPreviousWindow number below spans three weeks of change, not one.",
   "dataQuality": {
-    "denseDays": ["2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13", "2026-11-15"],
-    "denseDaySampleSize": "7/day Tue-Fri, 6 on Sun (the whole day)",
-    "emptyDays": ["2026-11-14 (Sat, 0 merge_group runs)", "2026-11-16 (Mon, 0 merge_group runs before this run)"],
-    "note": "34 successful merge_group runs sampled out of 165 (41/33/41/44/0/6/0 Tue..Mon). Weekly aggregate = median of the 5 dense daily medians, same method as W42-W44. WEEKEND COLLAPSE CORRECTION: notes.md recorded a recurring 'Friday collapse' on 09-19, 09-26, 10-17 and 10-24. All four of those dates are SATURDAYS. It was always a Saturday phenomenon and it recurred for a 5th time here (Sat 11-14 = 0 runs against 44 on Fri 11-13, the densest day of the week). Friday is not thin in this repo; Saturday and Sunday are.",
-    "logAccess": "NONE. get_job_logs was filtered by integrity policy for the whole run ('lower integrity than agent requires'), and so were pull_request_read bodies/commits. get_workflow_run_logs_url returns only a signed ZIP download URL, which is not usable here. Consequence: no vitest reporter output at all this week — no slowest tests, no slowest files, no retried tests, no failed-test names. Everything below is derived from Actions run/job/step metadata plus local git history."
+    "denseDays": ["2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13", "2026-11-15", "2026-11-16"],
+    "denseDaySampleSize": "7/day Tue-Fri, 6 on Sun, 8 on Mon 11-16 (all of them)",
+    "emptyDays": ["2026-11-14 (Sat, 0 merge_group runs)"],
+    "partialDayNote": "2026-11-16 is the day this run executed and is INCOMPLETE — it covers 06:50Z..08:22Z only. Its 8 runs are the whole day so far, not a sample, but the day is cut off at 08:22Z and will look different in the W48 comparator.",
+    "note": "42 successful merge_group runs measured out of 173. Weekly aggregate = median of the 6 dense daily medians, same method as W42-W44. WEEKEND COLLAPSE CORRECTION: notes.md recorded a recurring 'Friday collapse' on 09-19, 09-26, 10-17 and 10-24. All four of those dates are SATURDAYS. It was always a Saturday phenomenon and it recurred for a 5th time here (Sat 11-14 = 0 runs against 44 on Fri 11-13, the densest day of the week). Friday is not thin in this repo; Saturday and Sunday are.",
+    "logAccess": "RESTORED mid-run by efa754e00e (#20284), which set GH_AW_GITHUB_MIN_INTEGRITY: 'none' scoped to this repo. Actions job logs carry baseline integrity 'none' and gh-aw v1.2.2 applies min-integrity 'approved' to the GitHub MCP server on public repos, which is why every get_job_logs call failed in pass 1. get_job_logs now returns full content. NOTE the results are large (100-300 KB) and always land in a tool-result file; parse them with a Node script, never open them whole."
   },
   "weeklyAggregate": {
-    "perceived": 276,
-    "gated": 260,
-    "execution": 270,
+    "perceived": 273,
+    "gated": 256,
+    "execution": 267.5,
     "runnerWait": 6,
     "webBuildStep": 53,
-    "webRunTestsStep": 96,
+    "webRunTestsStep": 92.5,
     "workerBuildStep": 43,
-    "workerRunTestsStep": 105,
-    "e2eTestsJob": 183,
-    "e2eBuildStep": 63,
-    "e2eRunStep": 46,
-    "fipsMaxJob": 262,
+    "workerRunTestsStep": 103.8,
+    "e2eTestsJob": 189,
+    "e2eBuildStep": 68.5,
+    "e2eRunStep": 46.5,
+    "fipsMaxJob": 261,
     "installDependenciesStep": 1,
-    "executionMinusE2e": 87,
-    "unit": "seconds; MEDIAN of the dense daily medians (11-10,11-11,11-12,11-13,11-15) — do not switch to mean, the series would break"
+    "executionMinusE2e": 78.5,
+    "unit": "seconds; MEDIAN of the 6 dense daily medians (11-10,11-11,11-12,11-13,11-15,11-16) — do not switch to mean, the series would break",
+    "supersedes": "Pass 1 published perceived 276 / gated 260 / execution 270 over 5 dense days. The shift is from adding 11-16, not from any recomputation of 11-10..11-15."
   },
   "dailyMedians": {
     "2026-11-10": { "n": 7, "perceived": 301, "execution": 295, "runnerWait": 6, "gated": 294, "webBuildStep": 53, "webRunTestsStep": 103, "workerBuildStep": 44, "workerRunTestsStep": 112, "e2eTestsJob": 183, "e2eBuildStep": 57, "e2eRunStep": 51, "fipsMaxJob": 300, "installDependenciesStep": 2 },
     "2026-11-11": { "n": 7, "perceived": 306, "execution": 303, "runnerWait": 9, "gated": 293, "webBuildStep": 51, "webRunTestsStep": 87, "workerBuildStep": 43, "workerRunTestsStep": 107, "e2eTestsJob": 195, "e2eBuildStep": 74, "e2eRunStep": 46, "fipsMaxJob": 260, "installDependenciesStep": 1 },
     "2026-11-12": { "n": 7, "perceived": 276, "execution": 270, "runnerWait": 6, "gated": 260, "webBuildStep": 62, "webRunTestsStep": 100, "workerBuildStep": 43, "workerRunTestsStep": 101, "e2eTestsJob": 202, "e2eBuildStep": 80, "e2eRunStep": 53, "fipsMaxJob": 262, "installDependenciesStep": 1 },
     "2026-11-13": { "n": 7, "perceived": 270, "execution": 265, "runnerWait": 6, "gated": 252, "webBuildStep": 53, "webRunTestsStep": 96, "workerBuildStep": 44, "workerRunTestsStep": 105, "e2eTestsJob": 168, "e2eBuildStep": 63, "e2eRunStep": 46, "fipsMaxJob": 269, "installDependenciesStep": 1 },
-    "2026-11-15": { "n": 6, "perceived": 245, "execution": 240.5, "runnerWait": 6, "gated": 218.5, "webBuildStep": 48, "webRunTestsStep": 84, "workerBuildStep": 38, "workerRunTestsStep": 98, "e2eTestsJob": 144.5, "e2eBuildStep": 35, "e2eRunStep": 45.5, "fipsMaxJob": 238.5, "installDependenciesStep": 1 }
+    "2026-11-15": { "n": 6, "perceived": 245, "execution": 240.5, "runnerWait": 6, "gated": 218.5, "webBuildStep": 48, "webRunTestsStep": 84, "workerBuildStep": 38, "workerRunTestsStep": 98, "e2eTestsJob": 144.5, "e2eBuildStep": 35, "e2eRunStep": 45.5, "fipsMaxJob": 238.5, "installDependenciesStep": 1 },
+    "2026-11-16": { "n": 8, "perceived": 257.5, "execution": 252.5, "runnerWait": 5.5, "gated": 235.5, "webBuildStep": 53, "webRunTestsStep": 89, "workerBuildStep": 40, "workerRunTestsStep": 102.5, "e2eTestsJob": 204, "e2eBuildStep": 94, "e2eRunStep": 47, "fipsMaxJob": 245, "installDependenciesStep": 1, "partial": "06:50Z-08:22Z only" }
   },
   "pooledPercentiles": {
-    "n": 34,
-    "perceived": { "p50": 283, "p90": 366 },
-    "gated": { "p50": 255, "p90": 360 }
+    "note": "NOT merged into one pool. Pass 1 measured 34 runs (11-10..11-15) but recorded only its aggregates, so the 34 individual values no longer exist in memory. Reported as two disjoint sub-samples. Do not average them.",
+    "pass1": { "n": 34, "days": "2026-11-10..2026-11-15", "perceived": { "p50": 283, "p90": 366 }, "gated": { "p50": 255, "p90": 360 } },
+    "pass2": { "n": 8, "days": "2026-11-16", "perceived": { "p50": 257.5, "p90": 349, "min": 244, "max": 349 }, "gated": { "p50": 235.5, "min": 224, "max": 348 } },
+    "lesson": "Future runs should persist the per-run perceived/gated arrays (or at least p50/p75/p90/p99) per day, not just the daily median, so a later pass can repool without re-paging the API."
   },
   "vsPreviousWindow": {
     "comparator": "2026-W44-1026.json (THREE weeks earlier — W45 and W46 were not analysed)",
-    "perceived": "372.5 -> 276 (-25.9%)",
-    "gated": "331 -> 260 (-21.5%)",
-    "execution": "362.5 -> 270 (-25.5%)",
+    "perceived": "372.5 -> 273 (-26.7%)",
+    "gated": "331 -> 256 (-22.7%)",
+    "execution": "362.5 -> 267.5 (-26.2%)",
     "runnerWait": "8.5 -> 6 (-29%, negligible in absolute terms either way)",
     "webBuildStep": "55 -> 53 (-3.6%)",
-    "webRunTestsStep": "99.5 -> 96 (-3.5%)",
+    "webRunTestsStep": "99.5 -> 92.5 (-7.0%)",
     "workerBuildStep": "45 -> 43 (-4.4%)",
-    "workerRunTestsStep": "110 -> 105 (-4.5%)",
-    "e2eTestsJob": "209 -> 183 (-12.4%)",
-    "fipsMaxJob": "331 -> 262 (-20.8%)",
-    "perceivedP90": "529 -> 366 (-30.8%)",
-    "note": "Best week in the recorded series on every headline metric, and better than W43 (291/269.5) too, so this is not just the W44 window-composition artefact unwinding. The per-step numbers moved only 3-5% — the whole gain is in the TAIL and in fipsMaxJob, which is consistent with the FIPS breakage being repaired rather than with any test getting faster."
+    "workerRunTestsStep": "110 -> 103.8 (-5.6%)",
+    "e2eTestsJob": "209 -> 189 (-9.6%)",
+    "fipsMaxJob": "331 -> 261 (-21.1%)",
+    "note": "Best week in the recorded series on every headline metric, and better than W43 (291/269.5) too, so this is not just the W44 window-composition artefact unwinding. The per-step numbers moved only 4-7% — the whole gain is in the TAIL and in fipsMaxJob, which is consistent with the FIPS breakage being repaired rather than with any test getting faster."
   },
   "sustainedShiftScan": {
     "result": "NONE (improving)",
-    "method": "Dense-day perceived max/min = 306/245 = 1.25, far below the 1.5x bar. The series falls monotonically within the window (301, 306, 276, 270, 245) with no step crossing 1.5x for 3+ consecutive days. No regression to chase."
+    "method": "Dense-day perceived max/min = 306/245 = 1.25, far below the 1.5x bar. The series falls through the window (301, 306, 276, 270, 245, 257.5) with no step crossing 1.5x for 3+ consecutive days. No regression to chase."
   },
-  "timeOfDayFinding": {
-    "verdict": "PRIMARY finding of the week. Runs that start at or after 17:00 UTC pay a ~45% penalty, and that penalty IS the p90 tail.",
+  "e2eBuildCacheFinding": {
+    "verdict": "PRIMARY finding of the week, and it REPLACES the mechanism pass 1 proposed. The e2e 'Build' step is bimodal, and the mode is set by whether the Next.js build cache restored anything — not by time of day.",
     "evidence": [
-      "Of 165 successful merge_group runs, 24 (15%) started >= 17:00Z.",
-      "Sampled runs: 28 started < 17:00Z, 6 started >= 17:00Z.",
-      "gated median 247s (<17Z) vs 357s (>=17Z), +110s / +45%. Pooled gated p90 for the week is 360s, i.e. the p90 is essentially the evening median.",
-      "e2e-tests job median 172.5s (<17Z) vs 304s (>=17Z), +76%.",
-      "e2e 'Build' step median 50.5s (<17Z) vs 148s (>=17Z), 2.9x. All 5 runs with Build > 100s started between 17:11Z and 20:06Z; the other 29 runs span 4s..98s with no gap.",
-      "The slowdown is NOT confined to e2e: web Build 52 -> 65 (+25%), web run tests 88.5 -> 105.5 (+19%), worker Build 41 -> 48.5 (+18%) in the same bucket. corr(e2eBuild, hour) = 0.56; corr(e2eBuild, webRunTests) = 0.53.",
-      "runnerWait is 4-14s in every single run including the slow ones, so this is NOT queueing for a runner. 'install dependencies' is 1-2s all week, so it is not pnpm store coldness either."
+      "All 8 of the 11-16 runs started 06:50Z-08:22Z, i.e. all in pass 1's 'fast' <17:00Z bucket, yet e2e Build ranged 26s..110s.",
+      "Per-run, e2e 'Cache Next.js builds' restore seconds vs e2e 'Build' seconds: 1s->89, 1s->110, 1s->103, 2s->99, 1s->86, 1s->104, 4s->28, 3s->26.",
+      "That separates perfectly on 8/8 runs: restore <=2s => Build 86-110s (median ~101); restore >=3s => Build 26-28s. A 1s restore means nothing was restored at all.",
+      "'Post Cache Next.js builds' took 10-15s on ALL 8 runs, including the two fast ones, so the exact primary key missed every time and a new entry was written every time. The two fast runs were rescued by a restore-keys fallback that was still warm.",
+      "e2e 'Run e2e tests' was 43-51s on all 8 runs regardless of Build. Only Build moves.",
+      "runnerWait 4-9s and 'install dependencies' 1-2s on all 8, so neither runner queueing nor pnpm store coldness is involved."
     ],
-    "hypothesis": "GitHub Actions cache-service throughput, not code. The e2e job writes a fresh ~hundreds-of-MB entry on nearly every run: key is runner.os-nextjs-e2e-<hash(pnpm-lock)>-<hash(web/**/*.{js,jsx,ts,tsx})>, so the exact key changes whenever any web source file changes, and the run falls back to restore-keys. 'Post Cache Next.js builds' takes 8-21s on every run, i.e. a new entry is saved every time. With ~45 merge_group runs/day plus ~175 pull_request runs/day all writing turbo and Next.js entries, the repo cache budget churns through the day and late-day runs restore a worse fallback. UNPROVEN — there is no cache-API reader in the toolset and no log access this week to confirm hit/miss.",
+    "relationToPass1": "Pass 1 measured gated 247s (<17Z) vs 357s (>=17Z) and e2e Build 50.5s vs 148s on a 34-run sample, and attributed it to hour-of-day cache churn. The hour correlation is probably real as a PROXY, but 11-16 shows the same 3.6x Build swing inside a 92-minute morning span, so the hour is not the mechanism. Cache restore hit/miss is. Treat pass 1's 'evening penalty' as 'runs that miss the fallback', which happens to be likelier late in the day.",
+    "unproven": "WHY some runs find a warm fallback and others do not. The cache key is runner.os-nextjs-e2e-<hash(pnpm-lock)>-<hash(web/**/*.{js,jsx,ts,tsx})>, so it changes whenever any web source changes. A plausible mechanism is save latency vs merge-queue cadence: the entry is written at the END of the e2e job (~3-4 min in) while queue runs start 1-3 min apart, so a run often starts before the run that would populate its key has saved. NOT CONFIRMED — the toolset has no cache-API reader, and the 3 head SHAs of the fast runs (45a0789c59, 8e0140cd6a, 869714b4a9) landed after this checkout so their file lists are not inspectable locally.",
     "whyNoDiff": "The fix lives in .github/workflows/pipeline.yml (cache key/path/save conditions, around lines 1417-1427), which this workflow is forbidden to edit even temporarily. Handed to a human as a report-only recommendation."
   },
   "criticalPath": {
     "longestJob": "tests-fips (worker)",
-    "evidence": "Last-to-finish in 18/34 runs; tests-fips (web) in 3/34 -> tests-fips owns the tail in 21/34 = 62% of runs (71% in W44, so unchanged in character). Then all-ci-passed 12, notify-docker-image-release 1.",
-    "executionMinusE2e": 87,
-    "gatingGap": "tests-fips is STILL non-gating. The gap is now small: perceived median 276 vs gated 260, i.e. ~16s of fips tail past the gate, against 41s in W44. BUT the gating job that actually sets the tail is e2e-tests: corr(gated, e2eJob) = 0.69, the highest of any segment, vs corr(gated, fipsMaxEnd) = 0.50. For the MEDIAN run fips is the pole; for the SLOW run e2e is."
+    "evidence": "Last-to-finish in 18/34 pass-1 runs; tests-fips (web) in 3/34 -> tests-fips owns the tail in 21/34 = 62% of runs (71% in W44, so unchanged in character). Then all-ci-passed 12, notify-docker-image-release 1.",
+    "executionMinusE2e": 78.5,
+    "gatingGap": "tests-fips is STILL non-gating. The gap is small: perceived median 273 vs gated 256, i.e. ~17s of fips tail past the gate, against 41s in W44. BUT the gating job that actually sets the tail is e2e-tests: corr(gated, e2eJob) = 0.69, the highest of any segment, vs corr(gated, fipsMaxEnd) = 0.50. For the MEDIAN run fips is the pole; for the SLOW run e2e is."
   },
   "runVolumes": {
-    "mergeGroupSuccess": 165,
+    "mergeGroupSuccess": 173,
     "mergeGroupFailure": 4,
     "mergeGroupCancelled": 0,
-    "mergeGroupTotal": 169,
+    "mergeGroupTotal": 177,
     "pullRequestSuccess": 1222,
-    "perDayMergeGroupSuccess": { "2026-11-10": 41, "2026-11-11": 33, "2026-11-12": 41, "2026-11-13": 44, "2026-11-14": 0, "2026-11-15": 6, "2026-11-16": 0 },
+    "perDayMergeGroupSuccess": { "2026-11-10": 41, "2026-11-11": 33, "2026-11-12": 41, "2026-11-13": 44, "2026-11-14": 0, "2026-11-15": 6, "2026-11-16": 8 },
     "orphan": "run 43096297000 (2026-11-11) is still in status 'queued' with no conclusion — a stale orphan, excluded from every population."
   },
   "failureRate": {
-    "rate": "4/169 = 2.4%",
-    "comparison": "W44 5.3%, W43 12.8% -> 2.4%. Best failure rate on record.",
-    "testShare": "2/4 = 50% (both genuine test failures)",
+    "rate": "4/177 = 2.3%",
+    "comparison": "W44 5.3%, W43 12.8% -> 2.3%. Best failure rate on record.",
+    "testShare": "2/4 = 50% (both genuine test failures, both now named)",
     "infraShare": "0/4 = 0% (no infrastructure failure at all this week — no runner loss, no image pull failure, no timeout)",
-    "otherShare": "2/4 = 50% (one typecheck break, counted as neither test nor infrastructure)",
+    "otherShare": "2/4 = 50% (one typecheck break ejecting a batch of two, counted as neither test nor infrastructure)",
     "timedOut": 0,
     "ambiguous": 0,
-    "unInspectedAtTestLevel": 2,
-    "unInspectedNote": "Both test failures are attributed to job and failing step from metadata, but NOT to a test name, because get_job_logs was filtered for the entire run. They still count in the rate and in failuresByJob."
+    "unInspectedAtTestLevel": 0,
+    "unInspectedNote": "Pass 1 recorded 2 un-inspected. Pass 2 closed both from job logs. All 4 failures are now attributed to a failing step AND to the specific test or file that broke."
   },
   "failuresByJob": {
     "lint": 2,
@@ -104,8 +108,27 @@
     "tests-shared": 1,
     "note": "all-ci-passed failed in all 4 runs and is discarded as the aggregating gate. Every one of the 4 failures was gating, i.e. each ejected its PR from the merge queue."
   },
-  "failuresByTest": {},
-  "failuresByTestNote": "EMPTY because log access was filtered all run, not because no test failed. Do not read this as 'no flaky tests'.",
+  "failuresByTest": {
+    "worker/src/features/in-app-agent/executeInAppAgentRun.test.ts > executeInAppAgentRun > passes repository skills when no managed tag is configured": {
+      "runs": [43285356968],
+      "job": "tests-worker (node24, pg15, mode-azure)",
+      "retries": 3,
+      "class": "test — probable flake",
+      "evidence": "Appeared in both 'Retried tests (1):' with a [failed] tag and 'Failed tests (1):'. Exhausted its retries in this run."
+    },
+    "packages/shared/src/server/repositories/experiments.golden.test.ts > golden: experiments simple aggregates family > getExperimentsStartTime experimentIds=set": {
+      "runs": [43427477371],
+      "job": "tests-shared",
+      "class": "test — deterministic snapshot mismatch",
+      "evidence": "Snapshot mismatch, failed in 7s against a 15-minute timeout, followed by ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL. Not a timeout."
+    },
+    "web/src/__tests__/server/projectsRouter-defaultScoreConfigs.servertest.ts": {
+      "runs": [42849698989, 42849700912],
+      "job": "lint",
+      "class": "other — typecheck, not a test execution failure",
+      "evidence": "error TS2353 at line 48 col 7: an object literal specified a property not present in the target type. The file is owned by 3392d2947c (#19911), which upgrades pass 1's commit-timestamp inference to log-proven attribution."
+    }
+  },
   "failureDetail": [
     {
       "runId": 42849698989,
@@ -115,7 +138,8 @@
       "job": "lint",
       "failingStep": "typecheck",
       "stepSeconds": 17,
-      "class": "other (type error, not a test and not infrastructure)"
+      "class": "other (type error, not a test and not infrastructure)",
+      "note": "PASS 2 UPGRADE: the typecheck error is TS2353 in web/src/__tests__/server/projectsRouter-defaultScoreConfigs.servertest.ts(48,7). git log shows that file is owned by 3392d2947c (#19911). PR 19911 is therefore the log-proven culprit, not an inference."
     },
     {
       "runId": 42849700912,
@@ -126,7 +150,7 @@
       "failingStep": "typecheck",
       "stepSeconds": 17,
       "class": "other — COLLATERAL",
-      "note": "Its queue branch is gh-readonly-queue/main/pr-20024-35a431eb35..., i.e. it was stacked directly on PR 19911's queue commit. One typecheck break ejected a batch of two. 19911 landed 68 min later as 3392d2947c with a NEW squash timestamp (17:05:42Z = it was re-pushed), while 20024's landing commit 78c81d9ea7 still carries the original 15:56:48Z queue-entry timestamp (re-queued unchanged). That asymmetry points at 19911 as the culprit and 20024 as the innocent bystander — inference from commit timestamps, NOT log-proven."
+      "note": "Its queue branch is gh-readonly-queue/main/pr-20024-35a431eb35..., i.e. it was stacked directly on PR 19911's queue commit, and it failed on the SAME TS2353 error in a file it does not own. One typecheck break ejected a batch of two. 19911 landed 68 min later as 3392d2947c; 20024 re-queued unchanged and landed as 78c81d9ea7."
     },
     {
       "runId": 43285356968,
@@ -139,7 +163,9 @@
       "stepSeconds": 236,
       "jobSeconds": 388,
       "class": "test",
-      "note": "PROBABLE FLAKE. PR 20151 is 'feat: Adds API key masking on UX' — a web/UX change with no worker surface — and it landed as 7d483527b3 at 2026-11-13T09:22:38Z, i.e. the same PR passed the same job later. mode-azure is the Azure-blob storage mode. Cannot be promoted to a confirmed flake without the test name, which needs logs. First time mode-azure appears in this ledger."
+      "test": "src/features/in-app-agent/executeInAppAgentRun.test.ts > executeInAppAgentRun > passes repository skills when no managed tag is configured",
+      "retries": 3,
+      "note": "PASS 2: named from the reporter blocks. Still PROBABLE flake, not confirmed: PR 20151 touched web/UX only, has no worker surface, and landed unchanged as 7d483527b3 the next morning, so the same worker job passed later on the same code. That is the weaker flake-evidence variant (the test was never observed passing in the same reporter block). mode-azure is the Azure-blob storage mode."
     },
     {
       "runId": 43427477371,
@@ -152,38 +178,80 @@
       "stepSeconds": 7,
       "jobSeconds": 49,
       "class": "test",
-      "note": "A NEW failure mode: 0b2f8929ea (ci: make the SQL-equivalence golden tests blocking, #19970, 2026-11-09T15:02Z) dropped '|| echo ::warning' from that step one day before this window opened, so golden-snapshot drift now ejects PRs instead of printing a warning. Failing in 7s with a 15-minute timeout = a deterministic snapshot mismatch, not a timeout. The queue base (5593ea5c31, 12:26Z) already contained 37f3066755 (#20096, 'remove the soft-delete pass', 11:13Z) which rewrote both golden snapshots, so PR 20188 very likely regenerated or contradicted them. PR 20188 has still not landed on main as of 82bf9dad30. Step name 'run SQL-equivalence tests' is NOT in the workflow prompt's classification table — add it as a test step."
+      "test": "src/server/repositories/experiments.golden.test.ts > golden: experiments simple aggregates family > getExperimentsStartTime experimentIds=set",
+      "note": "PASS 2: named from the log; the failure is a snapshot mismatch. 0b2f8929ea (#19970, 2026-11-09) made this step blocking one day before the window opened, so golden drift now ejects PRs instead of warning. The queue base already contained 37f3066755 (#20096) which rewrote both golden snapshots 89 min earlier. PR 20188 had still not landed as of efa754e00e. Step name 'run SQL-equivalence tests' is NOT in the workflow prompt's classification table — add it as a test step."
     }
   ],
   "fipsBreakage": {
     "status": "RESOLVED — this closes W44's PRIMARY follow-up.",
-    "evidence": "0 of the 34 sampled successful merge_group runs had a failing tests-fips job. fipsMaxJob fell 331 -> 262s.",
-    "attribution": "Broken by f6c3660ced (chore(deps): bump node to 24.22.1, #19339, 2026-10-25). Two repair commits landed BEFORE this window, so the exact one cannot be isolated from in-window data: 3b1a3f0e8f (fix(docker): install the patched nodejs RPMs, #19406, 2026-10-27) and 426ba058eb (build(docker): install Red Hat's nodejs:24 again instead of the patched RPMs, #19581, 2026-11-03). 426ba058eb's own message says Red Hat's nodejs:24 errata 24.22.1-3 now carries every fix, and it deleted the vendored patches and disabled the nodejs-rpm stage — so the end state is stock UBI Node, not patched RPMs. Confirming which commit flipped tests-fips green would need run data from 10-27..11-03, which is ~75 more list_workflow_runs pages; not worth it."
+    "evidence": "0 of the 42 measured successful merge_group runs had a failing tests-fips job. fipsMaxJob fell 331 -> 261s.",
+    "attribution": "Broken by f6c3660ced (#19339, node 24.22.1 bump, 2026-10-25). Two repair commits landed BEFORE this window, so the exact one cannot be isolated from in-window data: 3b1a3f0e8f (#19406, 2026-10-27) and 426ba058eb (#19581, 2026-11-03). The end state is stock UBI Node, not vendored patched RPMs. Confirming which commit flipped tests-fips green would need run data from 10-27..11-03, which is ~75 more list_workflow_runs pages; not worth it."
   },
   "vitestAnalysis": {
-    "available": false,
-    "reason": "get_job_logs filtered by integrity policy for the entire run. No reporter blocks were readable, so there are no slowest-test, slowest-file or retried-test tables this week.",
-    "carryForward": "The W44 tables remain the most recent data: web event-repository.servertest.ts 23.35s/110, score-comparison-analytics.servertest.ts 16.94s/46; worker otelReplay.properties.test.ts 22.81s for 2 tests, traceBatching.test.ts 19.84s/64."
+    "available": true,
+    "sample": "8 job logs across 5 successful merge_group runs: 43435928773 (web+worker+storybook, 11-13), 43436958484 (web, 11-13), 43748763040 (worker, 11-15), 43819592212 (web+storybook, 11-16), 43829966782 (web, 11-16).",
+    "retriedTests": [
+      {
+        "test": "worker/src/__tests__/correctionScoreBilling.test.ts > counts CORRECTION score rows from the billing cutoff",
+        "retries": 2,
+        "tag": "flaky",
+        "run": 43748763040,
+        "status": "CONFIRMED FLAKE — the reporter itself tagged it [flaky] on a run that SUCCEEDED, i.e. it failed twice then passed. This is the strong evidence standard, not an inference from retry count.",
+        "mechanism": "The test writes 3 score rows that share the same id (one randomUUID reused) at cutoff+0ms/+1s/+2s and asserts all 3 are still counted. The scores table is ReplacingMergeTree(event_ts, is_deleted) ORDER BY (project_id, toDate(timestamp), name, id). CORRECTION_SCORES_BILLABLE_FROM is 2026-11-23T00:00:00.000Z, an exact UTC day boundary, so toDate(timestamp) is identical for all 3 rows. All 3 therefore share the COMPLETE sort key and are exact ReplacingMergeTree duplicates. Both getScoreCountsByProjectInCreationInterval and getScoreCountsByProjectAndDay are bare count(*) with no FINAL. Whether the assertions toBe(4)/toBe(3) hold depends on whether a background merge fires between the inserts and the SELECT, which is not deterministic.",
+        "productQuestion": "The same non-determinism exists in the production billing queries, which are the same count(*)-without-FINAL. If repeated saves of one score id are meant to be billable, the count decays as merges run; if they are not, the pre-merge count over-counts. Flagged for a human — this run cannot see product intent."
+      }
+    ],
+    "failedTestsOnSuccessfulRuns": "NONE across all 8 sampled jobs.",
+    "slowestFiles": [
+      { "file": "web/src/__tests__/server/repositories/event-repository.servertest.ts", "medianSeconds": 28.14, "tests": 110, "seenInRuns": 4, "w44": 23.35 },
+      { "file": "worker/src/__tests__/otelReplay.properties.test.ts", "medianSeconds": 23.92, "tests": 2, "seenInRuns": 2, "w44": 22.81 },
+      { "file": "web/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/SessionConversationalView.stories.tsx", "medianSeconds": 18.82, "tests": 23, "seenInRuns": 2 },
+      { "file": "worker/src/__tests__/traceDispatch.test.ts", "medianSeconds": 18.24, "tests": 82, "seenInRuns": 2 },
+      { "file": "web/src/__tests__/server/score-comparison-analytics.servertest.ts", "medianSeconds": 17.13, "tests": 46, "seenInRuns": 4, "w44": 16.94 },
+      { "file": "web/src/features/traces/components/TraceTimelineDense/TimelineDense.stories.tsx", "medianSeconds": 14.18, "tests": 56, "seenInRuns": 2 },
+      { "file": "web/src/__tests__/server/traces-api.servertest.ts", "medianSeconds": 13.0, "tests": 84, "seenInRuns": 4 },
+      { "file": "web/src/__tests__/server/ingestion-api.servertest.ts", "medianSeconds": 12.63, "tests": 67, "seenInRuns": 4 },
+      { "file": "web/src/__tests__/server/queryBuilder.servertest.ts", "medianSeconds": 12.09, "tests": 116, "seenInRuns": 4 },
+      { "file": "worker/src/__tests__/batchExport.test.ts", "medianSeconds": 11.63, "tests": 72, "seenInRuns": 2 }
+    ],
+    "slowestTests": [
+      { "test": "worker traceDispatch.test.ts > trace micro-batch scheduling with Redis > ingests through BullMQ, postpones readiness on new activity", "medianSeconds": 12.75 },
+      { "test": "worker otelReplay.properties.test.ts > OTEL replay adversarial properties > persists edge-biased recursive JSON input/output and recursive metadata", "medianSeconds": 12.2 },
+      { "test": "worker otelReplay.properties.test.ts > OTEL replay adversarial properties > persists broad recursive JSON input/output and recursive metadata", "medianSeconds": 11.73 },
+      { "test": "web SessionConversationalView.stories.tsx (two story cases)", "medianSeconds": 4.66 },
+      { "test": "web event-repository.servertest.ts > Update methods > should allow to set/unset bookmarked", "medianSeconds": 3.45 }
+    ],
+    "shardShape": {
+      "web": "380-381 files / 7616-7623 tests. Duration 77.94-91.02s wall, but import 567.61-686.98s against tests 334.64-389.87s. IMPORT COST IS ~1.8x TEST COST and is the dominant term in the web shard.",
+      "worker": "232-233 files / 3158-3162 tests. Duration 96.13-96.32s wall, import 199.36-214.87s, tests 152.64-167.60s.",
+      "storybook": "396-397 files / 2155-2167 tests. Duration 91.67-111.86s wall, setup 36.11-46.24s, import 50.28-68.12s, tests 234.67-275.80s. Setup is ~40% of wall here and is unique to this shard."
+    },
+    "otelReplayNote": "Pass-2 check of a pass-1 curiosity: otelReplay.properties.test.ts summed 47.42s for 2 tests on the FAILED 11-12 mode-azure run vs 23.92s median on healthy runs. The failed run had a test exhausting 3 retries in the same shard, so this is most plausibly worker contention on a degraded run, not a regression. 23.92s vs W44's 22.81s is flat. Do not chase."
   },
   "ciCommitsInWindow": [
-    { "sha": "0b2f8929ea", "when": "2026-11-09 15:02", "what": "ci: make the SQL-equivalence golden tests blocking (#19970) — one day before the window; caused the 11-13 ejection" },
-    { "sha": "37f3066755", "when": "2026-11-13 11:13", "what": "refactor(query-ast): remove the soft-delete pass (#20096) — rewrote both golden SQL snapshots 89 min before the 11-13 ejection" },
-    { "sha": "7f7fa66803", "when": "2026-11-11", "what": "ci(preview): time out stalled preview image builds (#20023)" },
-    { "sha": "82bf9dad30", "when": "2026-11-16", "what": "chore(ci): migrate prettier to oxfmt (#20250) — landed at/after the window edge, watch prettier-check timing in W48" }
+    { "sha": "0b2f8929ea", "when": "2026-11-09 15:02", "pr": 19970, "what": "made the SQL-equivalence golden tests blocking; one day before the window; caused the 11-13 ejection" },
+    { "sha": "37f3066755", "when": "2026-11-13 11:13", "pr": 20096, "what": "rewrote both golden SQL snapshots 89 min before the 11-13 ejection" },
+    { "sha": "7f7fa66803", "when": "2026-11-11", "pr": 20023, "what": "preview image build timeout" },
+    { "sha": "82bf9dad30", "when": "2026-11-16", "pr": 20250, "what": "prettier -> oxfmt migration; watch prettier-check timing in W48" },
+    { "sha": "efa754e00e", "when": "2026-11-16 08:16", "pr": 20284, "what": "restored this workflow's job-log access (GH_AW_GITHUB_MIN_INTEGRITY none, repo-scoped)" }
   ],
   "followUpsAnswered": {
-    "PRIMARY: worker/Dockerfile FIPS toolchain (W44)": "RESOLVED. See fipsBreakage. tests-fips is green in 34/34 sampled runs and is no longer the thing holding the tail open.",
-    "dataRetentionProcessing.test.ts Asia/Tokyo (W44 watchlist)": "UNKNOWN — needs log access, which was filtered. Keep on the watchlist, unresolved.",
-    "nativeOtelMedia.unit.test.ts (W44 watchlist)": "UNKNOWN — same reason.",
-    "app-shell-overflow.spec.ts (W44 watchlist)": "UNKNOWN — same reason.",
-    "lint failure log tail budget (W44)": "MOOT this week — the 11-10 lint failures were fully attributable from step metadata alone (step 'typecheck', 17s). No log tail was needed or possible.",
-    "does tests-fips gate yet": "Still NO. The W44 argument for gating it is weaker now: the breakage it hid has been fixed, and the fips tail past the gate is down to ~16s from ~41s."
+    "PRIMARY: worker/Dockerfile FIPS toolchain (W44)": "RESOLVED. tests-fips is green in 42/42 measured runs and is no longer holding the tail open.",
+    "dataRetentionProcessing.test.ts Asia/Tokyo (W44 watchlist)": "NO EVIDENCE OF RECURRENCE. Absent from the retried list and from the top-14 slowest files across 8 sampled jobs. Not proof of a fix; it simply did not misbehave in the sample. Drop to low priority.",
+    "nativeOtelMedia.unit.test.ts (W44 watchlist)": "NO EVIDENCE OF RECURRENCE, same basis. Drop to low priority.",
+    "app-shell-overflow.spec.ts (W44 watchlist)": "STILL UNKNOWN. It is a Playwright e2e spec and the sample covered vitest shards only. Needs an e2e job log to resolve.",
+    "otelReplay.properties.test.ts density (W44)": "MEASURED: 23.92s for 2 tests, vs 22.81s in W44. Flat. Still the #2 slowest file in the repo on 2 tests. notes.md already records numRuns/split/concurrency as DEAD; only the untried angle (shrink generated-value depth) remains, and nothing this week justifies spending on it.",
+    "lint failure log tail budget (W44)": "ANSWERED. A failed 'typecheck' step needs a targeted grep, not a bigger tail: at tail 800 the log showed only the exit-code line. Grepping /error TS\\d+|\\.tsx?\\(\\d+,\\d+\\)/ surfaced the real TS2353 immediately. Record this as the lint recipe.",
+    "does tests-fips gate yet": "Still NO. The W44 argument for gating it is weaker now: the breakage it hid has been fixed, and the fips tail past the gate is down to ~17s from ~41s.",
+    "Log access (pass 1's biggest worry)": "RESOLVED by efa754e00e (#20284). Every vitest-derived section is alive again."
   },
   "openFollowUps": [
-    "PRIMARY: the >=17:00Z penalty. gated median 357s vs 247s, driven by the e2e 'Build' step going 50.5s -> 148s. Suspect GitHub Actions cache churn from saving a new nextjs-e2e entry on essentially every run. A human should look at pipeline.yml ~1417-1427: consider saving that cache only on merge_group (restore everywhere, save on the queue), and dropping ~/.npm from the cached path since pnpm is the package manager here. This workflow cannot edit .github/workflows.",
-    "tests-worker (node24, pg15, mode-azure) 'run tests' — failed once on 11-12 for a web-only PR that then landed unchanged. Probable flake, unnamed. First mode-azure entry in the ledger; watch for recurrence in W48.",
-    "The SQL-equivalence golden step is newly blocking (#19970) and already ejected PR 20188, which is still unmerged 3 days later. Watch whether golden drift becomes a recurring ejection source now that it is gating.",
-    "Log access: if get_job_logs stays filtered, every vitest-derived section of this report is dead and the failuresByTest ledger cannot grow. This is the single biggest capability loss in the series so far.",
-    "Carried from W44, unresolved and unverifiable without logs: dataRetentionProcessing.test.ts (Asia/Tokyo), nativeOtelMedia.unit.test.ts, app-shell-overflow.spec.ts, otelReplay.properties.test.ts density."
+    "PRIMARY: e2e 'Build' is bimodal (26-28s vs 86-110s) and the Next.js build-cache restore predicts the mode on 8/8 runs. Every run writes a new cache entry (Post step 10-15s) yet the exact key misses every time. A human should look at pipeline.yml ~1417-1427: consider restoring everywhere but SAVING only on merge_group, and dropping ~/.npm from the cached path since pnpm is the package manager. Worth ~60-80s on the majority of runs. This workflow cannot edit .github/workflows.",
+    "CONFIRMED FLAKE: worker/src/__tests__/correctionScoreBilling.test.ts asserts that 3 rows sharing the full ReplacingMergeTree sort key stay distinct. Needs a human decision on whether repeated saves of one score id are billable before it can be fixed, because the same count(*)-without-FINAL pattern is in the production billing queries.",
+    "PROBABLE FLAKE, watch for recurrence: worker executeInAppAgentRun.test.ts > 'passes repository skills when no managed tag is configured' exhausted 3 retries on 11-12 in mode-azure. First mode-azure entry in the ledger.",
+    "The SQL-equivalence golden step is newly blocking (#19970) and already ejected PR 20188, which is still unmerged. Watch whether golden drift becomes a recurring ejection source.",
+    "Web shard import cost (567-687s) is ~1.8x its test cost (335-390s) and is the dominant term in the biggest shard. notes.md lists several hoist attempts as DEAD; a fresh angle is needed rather than another hoist.",
+    "Storybook shard setup is 36-46s, ~40% of its wall time, and is unique to that shard. Never investigated. Candidate for W48.",
+    "Persist per-day per-run percentile arrays, not just daily medians, so a second pass in the same day can repool without re-paging the API."
   ]
 }
