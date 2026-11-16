@@ -199,7 +199,8 @@ export function TopicSetupFlowDialog({
       size="lg"
       {...(viewerBlocked ? { closeLabel: "Close" } : {})}
     >
-      <div className="flex min-h-0 flex-1 flex-col">
+      {/* Every step keeps the first step's height, so the centered dialog doesn't move between steps. */}
+      <div className="flex min-h-0 flex-1 flex-col sm:min-h-[min(36rem,70vh)]">
         <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 pb-4">
           {step === "questions" ? (
             <>

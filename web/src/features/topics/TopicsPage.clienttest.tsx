@@ -633,6 +633,14 @@ it("shows one loading page until the default map's results load", () => {
   expect(screen.getByRole("button", { name: "Edit map" })).toBeInTheDocument();
 });
 
+it("keeps the workspace mounted when setup gives the project its first facets", () => {
+  state.hasStoredSummaries = false;
+  const view = renderTopicsPage();
+  state.facets = [facet("intent", [1])];
+  view.rerender(<TopicsPage />);
+  expect(state.workspaceMounts).toBe(1);
+});
+
 it("leaves creating and refreshing maps to the map picker, not the menu", async () => {
   withSummaries();
   renderTopicsPage();

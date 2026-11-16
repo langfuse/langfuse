@@ -72,8 +72,6 @@ export function TopicSetupFlowController({
           onDismiss={closeSetup}
           renderDialog={({ closeDialog }) => (
             <TopicSetupSession
-              // Rebuilds the draft with recommended models once the first connection arrives.
-              key={settings.connections.length > 0 ? "ready" : "none"}
               projectId={projectId}
               canWrite={canWrite}
               settings={settings}
@@ -155,7 +153,7 @@ function TopicSetupSession({
       withDefaultModels: connection.withDefaultModels,
     }),
   );
-  const [draft, setDraft] = useState(() =>
+  const initialDraft = () =>
     initialTopicSetupDraft({
       stored: settings.stored,
       connections,
@@ -164,8 +162,16 @@ function TopicSetupSession({
       filter: settings.rule?.filter,
       name: settings.rule?.name,
       traceIdleMs: settings.traceIdleMs,
-    }),
-  );
+    });
+  const [draft, setDraft] = useState(initialDraft);
+  // Slots the user hasn't picked follow the recommendation for the current
+  // connections, so one added in another tab fills them without a reset.
+  const recommended = initialDraft();
+  const models = {
+    summary: draft.summary ?? recommended.summary,
+    embedding: draft.embedding ?? recommended.embedding,
+    clustering: draft.clustering ?? recommended.clustering,
+  };
   const mapName = topicSetupMapName(draft);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -195,15 +201,15 @@ function TopicSetupSession({
   );
 
   function resolveModels() {
-    const summary = resolveTopicModelSlot(draft.summary, connections, "chat");
+    const summary = resolveTopicModelSlot(models.summary, connections, "chat");
     const embedding = resolveTopicModelSlot(
-      draft.embedding,
+      models.embedding,
       connections,
       "embedding",
       settings.stored.embedding,
     );
     const clustering = resolveTopicModelSlot(
-      draft.clustering,
+      models.clustering,
       connections,
       "chat",
     );
@@ -334,9 +340,9 @@ function TopicSetupSession({
       canWrite={canWrite}
       error={error}
       questions={draft.questions}
-      summary={draft.summary}
-      embedding={draft.embedding}
-      clustering={draft.clustering}
+      summary={models.summary}
+      embedding={models.embedding}
+      clustering={models.clustering}
       providerGroups={topicProviderGroups(
         connections,
         "chat",
