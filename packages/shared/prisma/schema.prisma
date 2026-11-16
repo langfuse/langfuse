@@ -291,6 +291,7 @@ enum SystemRole {
   SCORES_INGEST
   INGEST
   AI_GATEWAY
+  APPLICATION
 }
 
 model RoleAssignment {

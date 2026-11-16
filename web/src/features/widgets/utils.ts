@@ -310,12 +310,13 @@ export function getWidgetMetricPresentation(params: {
     (measureDefinition?.unit === "USD" ||
       measureDefinition?.unit === "milliseconds")
   ) {
+    const unit = measureDefinition.unit;
     return {
-      label: widgetUnitLabels[measureDefinition.unit],
+      label: widgetUnitLabels[unit],
       metricFormatter: (value, options) =>
         formatMetric(value, {
           ...options,
-          unit: measureDefinition.unit,
+          unit,
           usdPrecision: params.usdPrecision,
         }),
     };

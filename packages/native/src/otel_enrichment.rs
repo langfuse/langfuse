@@ -122,13 +122,30 @@ fn has_provided_costs(event: &OwnedEvent) -> bool {
         .any(|value| !value.is_null())
 }
 
+/// Omit oversized counts before bucket arithmetic and pricing so one bad value
+/// cannot corrupt other counts or make UInt64 conversion reject the batch.
+pub(crate) fn check_usage_upper_bound(value: f64) -> Option<f64> {
+    // Converting u64::MAX to f64 rounds up to 2^64, the first unrepresentable count.
+    if value >= u64::MAX as f64 {
+        metrics::counter!(
+            "langfuse.ingestion.usage_details.validation_failure",
+            "reason" => "uint64_overflow", "write_path" => "events"
+        )
+        .increment(1);
+        return None;
+    }
+    Some(value)
+}
+
 /// Convert usage to finite, non-negative numbers before tier matching. Numeric strings
 /// such as "100" become 100, following TypeScript's `normalizeProvidedUsageDetails`.
 fn normalize_usage(values: &IndexMap<String, Value>) -> IndexMap<String, Value> {
     values
         .iter()
         .filter_map(|(key, value)| {
-            let number = number(value).filter(|number| number.is_finite() && *number >= 0.0)?;
+            let number = number(value)
+                .filter(|number| number.is_finite() && *number >= 0.0)
+                .and_then(check_usage_upper_bound)?;
             Some((key.clone(), number_value(number)))
         })
         .collect()
@@ -148,7 +165,9 @@ fn add_usage_total(mut usage: IndexMap<String, Value>) -> IndexMap<String, Value
         }
     } else if !usage.is_empty() {
         let total = usage.values().filter_map(number).sum::<f64>();
-        usage.insert("total".to_owned(), number_value(total));
+        if let Some(total) = check_usage_upper_bound(total) {
+            usage.insert("total".to_owned(), number_value(total));
+        }
     }
     usage
 }
@@ -220,10 +239,14 @@ fn number(value: &Value) -> Option<f64> {
     }
 }
 
-fn number_value(value: f64) -> Value {
-    if value.is_finite() && value.fract() == 0.0 && value >= 0.0 {
-        if let Ok(integer) = u64::try_from(value as u128) {
-            return Value::Number(Number::from(integer));
+pub(crate) fn number_value(value: f64) -> Value {
+    if value.is_finite() && value.fract() == 0.0 {
+        if value >= 0.0 {
+            if let Ok(integer) = u64::try_from(value as u128) {
+                return Value::Number(Number::from(integer));
+            }
+        } else if value >= i64::MIN as f64 {
+            return Value::Number(Number::from(value as i64));
         }
     }
     Number::from_f64(value).map_or(Value::Null, Value::Number)
@@ -547,22 +570,29 @@ mod tests {
     }
 
     #[test]
-    fn normalizes_usage_and_adds_total() {
-        let event = OwnedEvent {
-            provided_usage_details: IndexMap::from([
-                ("input".into(), json!("2")),
-                ("output".into(), json!(3)),
-            ]),
-            ..OwnedEvent::default()
-        };
-        let result = enrich(
-            &event,
-            &json!({"model": null, "pricingTiers": []}),
-            &mut PricingRegexCache::default(),
-        );
-        assert_eq!(result.usage_details["input"], json!(2));
-        assert_eq!(result.usage_details["output"], json!(3));
-        assert_eq!(result.usage_details["total"], json!(5));
+    fn normalizes_usage_and_adds_a_representable_total() {
+        let huge = u64::MAX as f64;
+        for (provided_usage_details, expected) in [
+            (
+                IndexMap::from([("input".into(), json!("2")), ("output".into(), json!(3))]),
+                json!({"input": 2, "output": 3, "total": 5}),
+            ),
+            (
+                IndexMap::from([
+                    ("input".into(), json!(huge / 2.0)),
+                    ("output".into(), json!(huge / 2.0)),
+                    ("oversized".into(), json!(huge)),
+                ]),
+                json!({"input": huge / 2.0, "output": huge / 2.0}),
+            ),
+        ] {
+            let event = OwnedEvent {
+                provided_usage_details,
+                ..OwnedEvent::default()
+            };
+            let result = enrich(&event, &Value::Null, &mut PricingRegexCache::default());
+            assert_eq!(json!(result.usage_details), expected);
+        }
     }
 
     #[test]
