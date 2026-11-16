@@ -42,9 +42,9 @@ function evaluateCondition(
     const flags = condition.caseSensitive ? "" : "i";
     const regex = new RegExp(condition.usageDetailPattern, flags);
 
-    // Find all keys matching the pattern
-    const matchingKeys = Object.keys(usageDetails).filter((key) =>
-      regex.test(key),
+    // Non-BMP keys do not contribute to usage-condition sums.
+    const matchingKeys = Object.keys(usageDetails).filter(
+      (key) => !NON_BMP_CHARACTER_PATTERN.test(key) && regex.test(key),
     );
 
     // Sum values of matching keys
@@ -125,8 +125,6 @@ export function matchPricingTier(
     NON_BMP_CHARACTER_PATTERN.test(key),
   );
   if (nonBmpUsageDetailKeys.length > 0) {
-    // Log-only: the native bounded matcher cannot handle non-BMP keys.
-    // Keep matching them here until the guard is enforced.
     logger.warn("Pricing tier usage keys contain non-BMP characters", {
       usageDetailKeys: nonBmpUsageDetailKeys,
     });

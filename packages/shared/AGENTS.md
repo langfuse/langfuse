@@ -35,6 +35,7 @@
   generation in the full thread.
 - Domain model types: `src/domain/*`
 - Repository layer: `src/server/repositories/*`
+- Audit snapshots and replay: `src/server/repositories/auditLogs.ts`; `getAuditLogResourceRefs` derives bulk trace refs from the persisted snapshot for live staging and backfill.
 - Billing ledger: the append-only `billable_events` table (created by
   `clickhouse/scripts/dev-tables.sh`, applied by hand on Cloud, not
   migration-managed) read via `src/server/repositories/billable-events.ts`.

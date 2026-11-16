@@ -298,9 +298,7 @@ worker/container rather than a fleet average:
 - `runtime.node.mem.heap_used`: JavaScript heap in use.
 - `langfuse.trace_batch.snapshot_size`, `pending_traces`, `ready_traces` and
   `oldest_due_age_ms`: snapshot and backlog growth.
-- `langfuse.trace_batch.expired_traces{source:dispatcher}` and
-  `langfuse.trace_dispatch.expired_traces`: pending entries expired by the
-  dispatcher and by ingestion; the two writers are different events.
+- `langfuse.trace_batch.expired_traces{source:dispatcher}` and `langfuse.trace_dispatch.expired_traces`: pending entries expired by the dispatcher and by ingestion; the two writers are different events.
 - `langfuse.periodic_runner.duration_ms` and `completed`, filtered by
   `runner:trace_batch_dispatcher`: run duration and outcome.
 

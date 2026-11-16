@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, react/no-unstable-nested-components */
+/* eslint-disable react/no-unstable-nested-components */
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
@@ -49,7 +49,7 @@ import {
   compareViewChartDataToDataPoints,
   getCompareViewChartUnit,
 } from "@/src/features/dashboard/lib/chart-data-adapters";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import { DatasetCompareChart } from "./DatasetCompareChart/DatasetCompareChart";
 import {
   addPrefixToScoreKeys,
   convertScoreColumnsToAnalyticsData,
@@ -68,7 +68,7 @@ import {
   ResizableHandle,
 } from "@/src/components/ui/resizable";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { VisualizationFrame } from "@/src/components/design-system/charts/internal/VisualizationFrame/VisualizationFrame";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
@@ -343,16 +343,16 @@ function DatasetRunsTableInternal(
       isFixedPosition: true,
       isPinnedLeft: true,
       header: ({ table }) => {
+        const checked = (() => {
+          if (table.getIsAllPageRowsSelected()) return true;
+          if (table.getIsSomePageRowsSelected())
+            return "indeterminate" as const;
+          return false;
+        })();
         return (
           <div className="flex h-full items-center">
             <Checkbox
-              checked={
-                table.getIsAllPageRowsSelected()
-                  ? true
-                  : table.getIsSomePageRowsSelected()
-                    ? "indeterminate"
-                    : false
-              }
+              checked={checked}
               onCheckedChange={(value) => {
                 table.toggleAllPageRowsSelected(!!value);
                 if (!value) {
@@ -582,10 +582,15 @@ function DatasetRunsTableInternal(
                     className="flex h-full max-w-full min-w-80 flex-col gap-2"
                   >
                     <span className="shrink-0 text-sm font-bold">{title}</span>
-                    <NoDataOrLoading
-                      isLoading={runsMetrics.isPending}
-                      className="min-h-[200px]"
-                    />
+                    <div className="min-h-[200px] flex-1">
+                      <VisualizationFrame
+                        content={
+                          runsMetrics.isPending
+                            ? { type: "loading", progress: { type: "spinner" } }
+                            : { type: "empty" }
+                        }
+                      />
+                    </div>
                   </div>
                 );
               }
@@ -611,11 +616,19 @@ function DatasetRunsTableInternal(
                     className="flex h-full max-w-full min-w-80 flex-col gap-2"
                   >
                     <span className="shrink-0 text-sm font-bold">{title}</span>
-                    <NoDataOrLoading
-                      isLoading={runsMetrics.isPending}
-                      description="No chart data available for the selected runs."
-                      className="min-h-[200px]"
-                    />
+                    <div className="min-h-[200px] flex-1">
+                      <VisualizationFrame
+                        content={
+                          runsMetrics.isPending
+                            ? { type: "loading", progress: { type: "spinner" } }
+                            : {
+                                type: "empty",
+                                description:
+                                  "No chart data available for the selected runs.",
+                              }
+                        }
+                      />
+                    </div>
                   </div>
                 );
               }
@@ -627,14 +640,10 @@ function DatasetRunsTableInternal(
                 >
                   <span className="shrink-0 text-sm font-bold">{title}</span>
                   <div className="min-h-[200px] min-w-0 flex-1">
-                    <Chart
+                    <DatasetCompareChart
                       chartType={chartType}
                       data={dataPoints}
-                      rowLimit={Math.max(dataPoints.length, 1)}
-                      chartConfig={{
-                        type: chartType,
-                        unit: getCompareViewChartUnit(key),
-                      }}
+                      unit={getCompareViewChartUnit(key)}
                     />
                   </div>
                 </div>
@@ -681,23 +690,22 @@ function DatasetRunsTableInternal(
         <DataTable
           tableName="datasetRuns"
           columns={columns}
-          data={
-            runs.isPending
-              ? { isLoading: true, isError: false }
-              : runs.isError
-                ? {
-                    isLoading: false,
-                    isError: true,
-                    error: runs.error.message,
-                  }
-                : {
-                    isLoading: false,
-                    isError: false,
-                    data: (runsWithMetrics.rows ?? []).map((t) =>
-                      convertToTableRow(t),
-                    ),
-                  }
-          }
+          data={(() => {
+            if (runs.isPending) return { isLoading: true, isError: false };
+            if (runs.isError)
+              return {
+                isLoading: false,
+                isError: true,
+                error: runs.error.message,
+              };
+            return {
+              isLoading: false,
+              isError: false,
+              data: (runsWithMetrics.rows ?? []).map((t) =>
+                convertToTableRow(t),
+              ),
+            };
+          })()}
           pagination={{
             totalCount: runs.data?.totalRuns ?? null,
             onChange: setPaginationState,
@@ -751,23 +759,20 @@ function DatasetRunsTableInternal(
       <DataTable
         tableName="datasetRuns"
         columns={columns}
-        data={
-          runs.isPending
-            ? { isLoading: true, isError: false }
-            : runs.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: runs.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: (runsWithMetrics.rows ?? []).map((t) =>
-                    convertToTableRow(t),
-                  ),
-                }
-        }
+        data={(() => {
+          if (runs.isPending) return { isLoading: true, isError: false };
+          if (runs.isError)
+            return {
+              isLoading: false,
+              isError: true,
+              error: runs.error.message,
+            };
+          return {
+            isLoading: false,
+            isError: false,
+            data: (runsWithMetrics.rows ?? []).map((t) => convertToTableRow(t)),
+          };
+        })()}
         pagination={{
           totalCount: runs.data?.totalRuns ?? null,
           onChange: setPaginationState,
