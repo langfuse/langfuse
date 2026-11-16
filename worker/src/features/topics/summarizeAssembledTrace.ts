@@ -48,7 +48,7 @@ const BUILT_IN_FACETS = new Set(
   DEFAULT_TOPIC_FACETS.map((facet) => facet.name),
 );
 
-// Stored as transcript_id on every summary; the value predates the trace-batch rename.
+// Stored as `transcript_id` on every summary.
 export const ASSEMBLED_TRANSCRIPT_ID = "trace-batch";
 
 type TraceFacet = {
