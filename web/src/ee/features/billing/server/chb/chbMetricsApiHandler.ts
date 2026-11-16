@@ -10,6 +10,7 @@ import {
   compareWithBillingLedger,
   getObservationCountsByProjectInCreationInterval,
   getScoreCountsByProjectInCreationInterval,
+  getTopicFacetSummaryCountsByProjectInCreationInterval,
   getTraceCountsByProjectInCreationInterval,
   logger,
   recordIncrement,
@@ -132,23 +133,29 @@ export async function chbMetricsApiHandler(req: NextRequest) {
       );
     }
 
-    const [traceCounts, observationCounts, scoreCounts] = await Promise.all([
-      getTraceCountsByProjectInCreationInterval({
-        start,
-        end,
-        projectId: resourceId,
-      }),
-      getObservationCountsByProjectInCreationInterval({
-        start,
-        end,
-        projectId: resourceId,
-      }),
-      getScoreCountsByProjectInCreationInterval({
-        start,
-        end,
-        projectId: resourceId,
-      }),
-    ]);
+    const [traceCounts, observationCounts, scoreCounts, facetSummaryCounts] =
+      await Promise.all([
+        getTraceCountsByProjectInCreationInterval({
+          start,
+          end,
+          projectId: resourceId,
+        }),
+        getObservationCountsByProjectInCreationInterval({
+          start,
+          end,
+          projectId: resourceId,
+        }),
+        getScoreCountsByProjectInCreationInterval({
+          start,
+          end,
+          projectId: resourceId,
+        }),
+        getTopicFacetSummaryCountsByProjectInCreationInterval({
+          start,
+          end,
+          projectId: resourceId,
+        }),
+      ]);
 
     // Not awaited, so the comparison never delays CHB's poll, and it never
     // throws. Windows longer than an hour are skipped.
@@ -172,6 +179,9 @@ export async function chbMetricsApiHandler(req: NextRequest) {
           traces: { sum: sumForProject(traceCounts, resourceId) },
           observations: { sum: sumForProject(observationCounts, resourceId) },
           scores: { sum: sumForProject(scoreCounts, resourceId) },
+          facetSummaries: {
+            sum: sumForProject(facetSummaryCounts, resourceId),
+          },
         },
       },
       { status: 200 },

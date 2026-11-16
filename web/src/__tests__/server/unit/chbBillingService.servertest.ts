@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   traceCounts: vi.fn(),
   observationCounts: vi.fn(),
   scoreCounts: vi.fn(),
+  facetSummaryCounts: vi.fn(),
 }));
 
 vi.mock("@/src/env.mjs", () => ({ env: mocks.env }));
@@ -28,6 +29,8 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     getTraceCountsByProjectInCreationInterval: mocks.traceCounts,
     getObservationCountsByProjectInCreationInterval: mocks.observationCounts,
     getScoreCountsByProjectInCreationInterval: mocks.scoreCounts,
+    getTopicFacetSummaryCountsByProjectInCreationInterval:
+      mocks.facetSummaryCounts,
   };
 });
 
@@ -814,13 +817,16 @@ describe("chbBillingService", () => {
       mocks.scoreCounts.mockResolvedValue([
         { projectId: "project-2", count: 5 },
       ]);
+      mocks.facetSummaryCounts.mockResolvedValue([
+        { projectId: "project-1", count: 20 },
+      ]);
 
       const usage = await service().getUsage(ORG_ID);
 
       // CHB's calendar month, not the org's cycle anchored on the 15th or its
       // cached counter
       expect(usage).toEqual({
-        usageCount: 165,
+        usageCount: 185,
         usageType: "units",
         billingPeriod: {
           start: new Date("2026-10-01T00:00:00Z"),
@@ -838,6 +844,7 @@ describe("chbBillingService", () => {
       expect(mocks.traceCounts).toHaveBeenCalledWith(interval);
       expect(mocks.observationCounts).toHaveBeenCalledWith(interval);
       expect(mocks.scoreCounts).toHaveBeenCalledWith(interval);
+      expect(mocks.facetSummaryCounts).toHaveBeenCalledWith(interval);
     });
 
     it("falls back to the cached cycle counter without an attached plan", async () => {

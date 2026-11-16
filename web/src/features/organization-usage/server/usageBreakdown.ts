@@ -4,11 +4,17 @@ import {
   LISTABLE_SCORE_TYPES,
 } from "@langfuse/shared";
 import {
+  BILLABLE_TOPIC_FACET_SUMMARY_SQL,
+  billableTopicFacetSummaryParams,
   convertDateToClickhouseDateTime,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
 
-type BillableUnitType = "traces" | "observations" | "scores";
+type BillableUnitType =
+  | "traces"
+  | "observations"
+  | "scores"
+  | "facet_summaries";
 
 type UsageBreakdownGranularity = "hour" | "day" | "week" | "month";
 
@@ -31,11 +37,14 @@ const getUsageBreakdownGranularity = (
 };
 
 /** UTC bucket expression; weeks start on Monday. Must match `startOfBucket`. */
-const BUCKET_SQL: Record<UsageBreakdownGranularity, string> = {
-  hour: "toStartOfHour(created_at, 'UTC')",
-  day: "toStartOfDay(created_at, 'UTC')",
-  week: "toDateTime(toStartOfWeek(created_at, 1, 'UTC'), 'UTC')",
-  month: "toDateTime(toStartOfMonth(created_at, 'UTC'), 'UTC')",
+const BUCKET_SQL: Record<
+  UsageBreakdownGranularity,
+  (column: string) => string
+> = {
+  hour: (column) => `toStartOfHour(${column}, 'UTC')`,
+  day: (column) => `toStartOfDay(${column}, 'UTC')`,
+  week: (column) => `toDateTime(toStartOfWeek(${column}, 1, 'UTC'), 'UTC')`,
+  month: (column) => `toDateTime(toStartOfMonth(${column}, 'UTC'), 'UTC')`,
 };
 
 const startOfBucket = (
@@ -104,6 +113,7 @@ const getBucketStarts = (
  * definition used for Stripe and ClickHouse Billing: rows counted by
  * `created_at` in a half-open window, no FINAL. Scores include the listable
  * data types, plus CORRECTION rows created at or after the billing cutoff.
+ * Topics facet summaries are counted by `processed_at` instead.
  */
 const getBillableUnitsByBucket = async ({
   projectIds,
@@ -116,7 +126,8 @@ const getBillableUnitsByBucket = async ({
   end: Date;
   granularity: UsageBreakdownGranularity;
 }) => {
-  const bucket = `toUnixTimestamp(${BUCKET_SQL[granularity]})`;
+  const bucket = `toUnixTimestamp(${BUCKET_SQL[granularity]("created_at")})`;
+  const facetSummaryBucket = `toUnixTimestamp(${BUCKET_SQL[granularity]("processed_at")})`;
   const where = `
     project_id IN {projectIds: Array(String)}
     AND created_at >= {start: DateTime64(3)}
@@ -144,6 +155,12 @@ const getBillableUnitsByBucket = async ({
       )
     )
     GROUP BY bucket, project_id
+    UNION ALL
+    SELECT ${facetSummaryBucket} AS bucket, project_id, 'facet_summaries' AS unit_type, uniqExact${BILLABLE_TOPIC_FACET_SUMMARY_SQL.unit} AS count
+    FROM topic_facet_summaries
+    WHERE project_id IN {projectIds: Array(String)}
+    AND ${BILLABLE_TOPIC_FACET_SUMMARY_SQL.condition}
+    GROUP BY bucket, project_id
   `;
 
   const rows = await queryClickhouse<{
@@ -155,8 +172,7 @@ const getBillableUnitsByBucket = async ({
     query,
     params: {
       projectIds,
-      start: convertDateToClickhouseDateTime(start),
-      end: convertDateToClickhouseDateTime(end),
+      ...billableTopicFacetSummaryParams({ start, end }),
       dataTypes: LISTABLE_SCORE_TYPES,
       correctionsFrom: convertDateToClickhouseDateTime(
         CORRECTION_SCORES_BILLABLE_FROM,

@@ -8,6 +8,7 @@ import {
   compareWithBillingLedger,
   getObservationCountsByProjectInCreationInterval,
   getScoreCountsByProjectInCreationInterval,
+  getTopicFacetSummaryCountsByProjectInCreationInterval,
   getTraceCountsByProjectInCreationInterval,
   logger,
 } from "@langfuse/shared/src/server";
@@ -218,6 +219,11 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     start: meterIntervalStart,
     end: meterIntervalEnd,
   });
+  const facetSummaryCountsByProject =
+    await getTopicFacetSummaryCountsByProjectInCreationInterval({
+      start: meterIntervalStart,
+      end: meterIntervalEnd,
+    });
 
   // setup stripe client
   const stripe = new Stripe(env.STRIPE_SECRET_KEY);
@@ -313,7 +319,11 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     const countTraces = traceCountsByProject
       .filter((p) => org.projectIds.includes(p.projectId))
       .reduce((sum, p) => sum + p.count, 0);
-    const countEvents = countScores + countTraces + countObservations;
+    const countFacetSummaries = facetSummaryCountsByProject
+      .filter((p) => org.projectIds.includes(p.projectId))
+      .reduce((sum, p) => sum + p.count, 0);
+    const countEvents =
+      countScores + countTraces + countObservations + countFacetSummaries;
     logger.info(
       `[CLOUD USAGE METERING] Job for org ${org.id} - ${stripeCustomerId} stripe customer id - ${countEvents} events`,
     );
@@ -362,6 +372,13 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
       countEvents,
       {
         unit: "events",
+      },
+    );
+    recordIncrement(
+      "langfuse.queue.cloud_usage_metering_queue.processed_facet_summaries",
+      countFacetSummaries,
+      {
+        unit: "facet_summaries",
       },
     );
     countProcessedOrgs++;

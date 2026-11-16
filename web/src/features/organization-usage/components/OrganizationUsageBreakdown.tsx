@@ -45,6 +45,7 @@ const UNIT_TYPE_LABELS: Record<
   traces: "Traces",
   observations: "Observations",
   scores: "Scores",
+  facet_summaries: "Facet summaries",
 };
 
 const GRANULARITY_LABELS: Record<UsageBreakdown["granularity"], string> = {
@@ -200,7 +201,7 @@ export const OrganizationUsageBreakdown = ({ orgId }: { orgId: string }) => {
           <p className="text-muted-foreground text-sm">
             {chart && breakdown.data
               ? `${numberFormatter(chart.total, 0)} units, ${GRANULARITY_LABELS[breakdown.data.granularity]} buckets (UTC)`
-              : "Units (traces, observations, scores)"}
+              : "Units (traces, observations, scores, facet summaries)"}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

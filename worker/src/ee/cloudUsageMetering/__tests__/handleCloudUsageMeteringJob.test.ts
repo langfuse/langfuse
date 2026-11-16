@@ -11,6 +11,7 @@ const {
   mockObservationCounts,
   mockTraceCounts,
   mockScoreCounts,
+  mockFacetSummaryCounts,
   mockLoggerInfo,
   mockLoggerWarn,
   mockLoggerError,
@@ -28,6 +29,7 @@ const {
   mockObservationCounts: vi.fn(),
   mockTraceCounts: vi.fn(),
   mockScoreCounts: vi.fn(),
+  mockFacetSummaryCounts: vi.fn(),
   mockLoggerInfo: vi.fn(),
   mockLoggerWarn: vi.fn(),
   mockLoggerError: vi.fn(),
@@ -70,6 +72,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
   getObservationCountsByProjectInCreationInterval: mockObservationCounts,
   getTraceCountsByProjectInCreationInterval: mockTraceCounts,
   getScoreCountsByProjectInCreationInterval: mockScoreCounts,
+  getTopicFacetSummaryCountsByProjectInCreationInterval: mockFacetSummaryCounts,
   logger: {
     info: mockLoggerInfo,
     warn: mockLoggerWarn,
@@ -159,6 +162,9 @@ describe("handleCloudUsageMeteringJob", () => {
     ]);
     mockTraceCounts.mockResolvedValue([{ projectId: "project-1", count: 3 }]);
     mockScoreCounts.mockResolvedValue([{ projectId: "project-1", count: 2 }]);
+    mockFacetSummaryCounts.mockResolvedValue([
+      { projectId: "project-1", count: 4 },
+    ]);
   });
 
   afterEach(() => {
@@ -181,6 +187,13 @@ describe("handleCloudUsageMeteringJob", () => {
     await handleCloudUsageMeteringJob(createJob());
 
     expect(identifiersFromCalls()).toEqual(firstRun);
+  });
+
+  it("meters facet summaries as events, not as observations", async () => {
+    await handleCloudUsageMeteringJob(createJob());
+
+    expect(callsForMeter("tracing_events")[0][0].payload.value).toBe("14");
+    expect(callsForMeter("tracing_observations")[0][0].payload.value).toBe("5");
   });
 
   it("derives the identifier from the meter, the org and the interval", async () => {
