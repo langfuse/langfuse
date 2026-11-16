@@ -827,15 +827,15 @@ const EnvSchema = z.object({
   // Ignored on self-hosted deployments.
   // EVALS: trace and dataset LLM-as-a-Judge evaluators. New jobs are not created.
   LANGFUSE_V4_CUTOFF_EVALS: z.enum(["true", "false"]).default("false"),
-  // OTEL_DIRECT_WRITE: OTel batches write events_full directly instead of the
-  // dual-write staging path, as LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR=direct
-  // does for the whole deployment. Legacy tables are still written.
-  LANGFUSE_V4_CUTOFF_OTEL_DIRECT_WRITE: z
+  // OTEL_EVENTS_ONLY: OTel batches write events_full directly and skip the
+  // legacy traces/observations tables, as LANGFUSE_MIGRATION_V4_WRITE_MODE=events_only
+  // does for the whole deployment.
+  LANGFUSE_V4_CUTOFF_OTEL_EVENTS_ONLY: z
     .enum(["true", "false"])
     .default("false"),
   // EXPORTS: blob storage, PostHog and Mixpanel integrations on a legacy export
-  // source export like the enriched observations source (observations_v2 and
-  // scores). The persisted source is not changed.
+  // source are disabled on their next run, with an error asking to switch to the
+  // enriched observations source.
   LANGFUSE_V4_CUTOFF_EXPORTS: z.enum(["true", "false"]).default("false"),
   // Comma-separated project ids that skip every cutoff.
   // Keep in sync with web/src/env.mjs.

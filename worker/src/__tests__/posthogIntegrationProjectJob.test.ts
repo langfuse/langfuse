@@ -381,13 +381,22 @@ describe("handlePostHogIntegrationProjectJob v3 export cutoff", () => {
     (env as any).LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS = undefined;
   });
 
-  it("exports a legacy source as enriched observations and scores", async () => {
+  it("disables a legacy source with an upgrade error and exports nothing", async () => {
     await handlePostHogIntegrationProjectJob(makeJob());
 
-    expect(h.getEvents).toHaveBeenCalledTimes(1);
-    expect(h.getScores).toHaveBeenCalledTimes(1);
+    expect(h.posthogIntegrationUpdateMany).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          enabled: false,
+          lastError: expect.stringContaining("Please upgrade"),
+        }),
+      }),
+    );
+    expect(h.dispatchProjectNotification).toHaveBeenCalledTimes(1);
     expect(h.getTraces).not.toHaveBeenCalled();
-    expect(h.getGenerations).not.toHaveBeenCalled();
+    expect(h.getEvents).not.toHaveBeenCalled();
+    expect(h.getScores).not.toHaveBeenCalled();
+    expect(h.posthogIntegrationUpdate).not.toHaveBeenCalled();
   });
 
   it("keeps the legacy export for an exempt project", async () => {
@@ -396,7 +405,7 @@ describe("handlePostHogIntegrationProjectJob v3 export cutoff", () => {
     await handlePostHogIntegrationProjectJob(makeJob());
 
     expect(h.getTraces).toHaveBeenCalledTimes(1);
-    expect(h.getEvents).not.toHaveBeenCalled();
+    expect(h.posthogIntegrationUpdateMany).not.toHaveBeenCalled();
   });
 });
 

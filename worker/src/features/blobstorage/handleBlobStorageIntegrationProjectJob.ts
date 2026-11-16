@@ -81,10 +81,7 @@ import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { env } from "../../env";
-import {
-  assertExportSourceWritable,
-  effectiveExportSource,
-} from "../exportWriteModeGuard";
+import { assertExportSourceWritable } from "../exportWriteModeGuard";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
 import { isExportCaughtUp } from "../../services/exportStalenessMetric";
 import {
@@ -1283,13 +1280,10 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
   try {
     // The catch persists lastError and notifies admins.
-    const exportSource = effectiveExportSource(
-      blobStorageIntegration.exportSource,
-      projectId,
-    );
     assertExportSourceWritable(
-      exportSource,
+      blobStorageIntegration.exportSource,
       "Select the enriched export source (OBSERVATIONS_V2) in the blob storage integration settings.",
+      projectId,
     );
 
     // Preflight the persisted integration endpoint once per job inside the
@@ -1414,8 +1408,8 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
       // Traces and observations - for TRACES_OBSERVATIONS and TRACES_OBSERVATIONS_EVENTS
       if (
-        exportSource === "TRACES_OBSERVATIONS" ||
-        exportSource === "TRACES_OBSERVATIONS_EVENTS"
+        blobStorageIntegration.exportSource === "TRACES_OBSERVATIONS" ||
+        blobStorageIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
       ) {
         processPromises.push(
           processBlobStorageExport({ ...executionConfig, table: "traces" }),
@@ -1429,8 +1423,8 @@ export const handleBlobStorageIntegrationProjectJob = async (
       // Events - for EVENTS and TRACES_OBSERVATIONS_EVENTS
       // events are stored in the observations_v2 directory in blob storage
       if (
-        exportSource === "EVENTS" ||
-        exportSource === "TRACES_OBSERVATIONS_EVENTS"
+        blobStorageIntegration.exportSource === "EVENTS" ||
+        blobStorageIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
       ) {
         processPromises.push(
           processBlobStorageExport({
@@ -1450,7 +1444,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       storageService,
       prefix: blobStorageIntegration.prefix || undefined,
       projectId,
-      exportSource,
+      exportSource: blobStorageIntegration.exportSource,
       minTimestamp,
       maxTimestamp,
       files: runFiles,
@@ -1458,7 +1452,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
     // Cloud-only v3-deprecation notice; both sides best-effort (never fail the run).
     if (isCloud) {
-      if (isLegacyExportSource(exportSource)) {
+      if (isLegacyExportSource(blobStorageIntegration.exportSource)) {
         await writeBlobExportDeprecationNotice({
           storageService,
           prefix: blobStorageIntegration.prefix || undefined,

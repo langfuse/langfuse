@@ -16,7 +16,9 @@ export type CustomerFaultReason =
   | "ssrf_blocked_endpoint"
   | "invalid_endpoint_url"
   | "credentials"
-  | "bucket_or_container";
+  | "bucket_or_container"
+  // The Cloud v3 cutoff removed the integration's legacy export source.
+  | "v3_export_source_removed";
 
 // AWS SDK v3 sets `.name`/`.Code`; Azure RestError sets `.code`. S3-compatible
 // providers (incl. GCS S3-interop) surface the S3 codes.
@@ -162,6 +164,9 @@ function classifyCustomerFaultLink(
 ): CustomerFaultReason | undefined {
   const outbound = classifyOutboundUrlFault(err);
   if (outbound) return outbound;
+  if ((err as { name?: unknown }).name === "V3ExportSourceRemovedError") {
+    return "v3_export_source_removed";
+  }
 
   const codes = extractErrorCodes(err);
   if (codes.some((c) => CREDENTIAL_FAULT_CODES.has(c))) return "credentials";

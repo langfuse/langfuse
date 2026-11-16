@@ -256,6 +256,7 @@ describe("handleMixpanelIntegrationProjectJob v3 export cutoff", () => {
   beforeEach(() => {
     h.timeline.length = 0;
     h.mixpanelIntegrationUpdate.mockClear();
+    h.mixpanelIntegrationUpdateMany.mockClear();
     h.db.integration = h.defaultIntegration();
     (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "EU";
@@ -269,14 +270,14 @@ describe("handleMixpanelIntegrationProjectJob v3 export cutoff", () => {
     (env as any).LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS = undefined;
   });
 
-  it("exports only scores and enriched observations for a legacy source", async () => {
+  it("disables a legacy source and exports nothing", async () => {
     await handleMixpanelIntegrationProjectJob(makeJob());
 
-    expect(h.timeline.filter((entry) => entry.endsWith(":start"))).toEqual([
-      "scores:start",
-      "events:start",
-    ]);
-    expect(h.mixpanelIntegrationUpdate).toHaveBeenCalledTimes(1);
+    expect(h.mixpanelIntegrationUpdateMany).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ data: { enabled: false } }),
+    );
+    expect(h.timeline).toEqual([]);
+    expect(h.mixpanelIntegrationUpdate).not.toHaveBeenCalled();
   });
 });
 

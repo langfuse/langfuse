@@ -31,10 +31,7 @@ import { decrypt } from "@langfuse/shared/encryption";
 import { PostHog } from "posthog-node";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
 import { isExportCaughtUp } from "../../services/exportStalenessMetric";
-import {
-  assertExportSourceWritable,
-  effectiveExportSource,
-} from "../exportWriteModeGuard";
+import { assertExportSourceWritable } from "../exportWriteModeGuard";
 import { classifyCustomerFault } from "../integrations/customerFaultClassification";
 import { env, v4WritesToLegacyTables } from "../../env";
 
@@ -359,13 +356,10 @@ export const handlePostHogIntegrationProjectJob = async (
 
     // Fail loudly before exporting empty data and advancing lastSyncAt
     // (LFE-10148, LFE-11009); the catch below logs and BullMQ retries.
-    const exportSource = effectiveExportSource(
-      postHogIntegration.exportSource,
-      projectId,
-    );
     assertExportSourceWritable(
-      exportSource,
+      postHogIntegration.exportSource,
       "Select the enriched observations export source in the PostHog integration settings.",
+      projectId,
     );
 
     // Reuse one client and process streams sequentially so their aggregate
@@ -390,8 +384,8 @@ export const handlePostHogIntegrationProjectJob = async (
 
       // Traces and observations - for TRACES_OBSERVATIONS and TRACES_OBSERVATIONS_EVENTS
       if (
-        exportSource === "TRACES_OBSERVATIONS" ||
-        exportSource === "TRACES_OBSERVATIONS_EVENTS"
+        postHogIntegration.exportSource === "TRACES_OBSERVATIONS" ||
+        postHogIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
       ) {
         await processPostHogTraces(posthog, executionConfig);
         await processPostHogGenerations(posthog, executionConfig);
@@ -399,8 +393,8 @@ export const handlePostHogIntegrationProjectJob = async (
 
       // Events - for EVENTS and TRACES_OBSERVATIONS_EVENTS
       if (
-        exportSource === "EVENTS" ||
-        exportSource === "TRACES_OBSERVATIONS_EVENTS"
+        postHogIntegration.exportSource === "EVENTS" ||
+        postHogIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
       ) {
         await processPostHogEvents(posthog, executionConfig);
       }

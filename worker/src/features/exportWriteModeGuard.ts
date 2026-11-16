@@ -10,32 +10,17 @@ import { isV4CutoffActive } from "@langfuse/shared/src/server/v4Cutoff";
 import { env } from "../env";
 
 /**
- * The export source a run uses. While the Cloud v3 export cutoff applies to the
- * project, a legacy source exports like EVENTS: observations_v2 and scores, no
- * legacy traces or observations. The persisted source stays as configured.
+ * Raised when the Cloud v3 export cutoff applies to an integration on a legacy
+ * export source. Classified as a customer fault, so each export handler
+ * disables the integration and records this message instead of retrying.
  */
-export function effectiveExportSource(
-  exportSource: AnalyticsIntegrationExportSource,
-  projectId: string,
-): AnalyticsIntegrationExportSource {
-  if (
-    !isLegacyExportSource(exportSource) ||
-    !isV4CutoffActive({
-      cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-      enabled: env.LANGFUSE_V4_CUTOFF_EXPORTS,
-      exemptProjectIds: env.LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS,
-      projectId,
-    })
-  ) {
-    return exportSource;
+class V3ExportSourceRemovedError extends Error {
+  constructor(legacyRemediation: string) {
+    super(
+      `Please upgrade this integration: it exports the Langfuse v3 traces and observations tables, which Langfuse Cloud no longer writes for this project, so it was disabled. ${legacyRemediation} Then enable the integration again.`,
+    );
+    this.name = "V3ExportSourceRemovedError";
   }
-  recordIncrement("langfuse.v4_cutoff", 1, { surface: "exports" });
-  logger.info("Langfuse v3 cutoff", {
-    surface: "exports",
-    projectId,
-    exportSource,
-  });
-  return "EVENTS";
 }
 
 /**
@@ -46,12 +31,16 @@ export function effectiveExportSource(
  * events_only (LFE-10148), enriched sources on legacy mode (LFE-11009).
  * `legacyRemediation` is the per-integration closing sentence of the
  * legacy-source error; the enriched error is integration-neutral (the fix is
- * the write mode, not an integration setting).
+ * the write mode, not an integration setting). While the Cloud v3 export cutoff
+ * applies to the project, a legacy source throws V3ExportSourceRemovedError,
+ * which the handlers treat as a customer fault and disable on.
  */
 export function assertExportSourceWritable(
   exportSource: AnalyticsIntegrationExportSource,
   legacyRemediation: string,
+  projectId: string,
 ): void {
+  assertExportSourceNotCutOff(exportSource, legacyRemediation, projectId);
   const validation = validateExportSource(exportSource, {
     // No dates: the Cloud cutoffs gate writes, not running exports.
     isCloud: false,
@@ -71,4 +60,29 @@ export function assertExportSourceWritable(
   throw new Error(
     `The configured export source reads the legacy traces/observations tables, but this deployment runs LANGFUSE_MIGRATION_V4_WRITE_MODE=events_only and no longer writes them. ${legacyRemediation}`,
   );
+}
+
+function assertExportSourceNotCutOff(
+  exportSource: AnalyticsIntegrationExportSource,
+  legacyRemediation: string,
+  projectId: string,
+): void {
+  if (
+    !isLegacyExportSource(exportSource) ||
+    !isV4CutoffActive({
+      cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+      enabled: env.LANGFUSE_V4_CUTOFF_EXPORTS,
+      exemptProjectIds: env.LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS,
+      projectId,
+    })
+  ) {
+    return;
+  }
+  recordIncrement("langfuse.v4_cutoff", 1, { surface: "exports" });
+  logger.info("Langfuse v3 cutoff", {
+    surface: "exports",
+    projectId,
+    exportSource,
+  });
+  throw new V3ExportSourceRemovedError(legacyRemediation);
 }

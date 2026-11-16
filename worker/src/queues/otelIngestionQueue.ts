@@ -618,7 +618,18 @@ export const otelIngestionQueueProcessorBuilder = (
       });
       const events: IngestionEventType[] =
         await processor.processToIngestionEvents(parsedSpans);
-      const writesToLegacyTables = v4WritesToLegacyTables(env);
+      // Cloud v3 cutoff, per project: events_only behaviour for this batch.
+      // Never on a legacy write mode, where events_full is not written.
+      const v4CutoffForcesDirect =
+        v4WritesToEventsTable(env) &&
+        isV4CutoffActive({
+          cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+          enabled: env.LANGFUSE_V4_CUTOFF_OTEL_EVENTS_ONLY,
+          exemptProjectIds: env.LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS,
+          projectId,
+        });
+      const writesToLegacyTables =
+        v4WritesToLegacyTables(env) && !v4CutoffForcesDirect;
       if (earlyBatch && writesToLegacyTables) {
         await restoreInlineMedia(
           earlyBatch,
@@ -762,17 +773,6 @@ export const otelIngestionQueueProcessorBuilder = (
       // the Postgres lookup stays off the path for batches already routed by a
       // header. resolveOtelWritePath remains authoritative for the rule; this
       // guard is purely an optimization.
-      // Cloud v3 shutdown switch, per project. Never on a legacy write mode,
-      // where events_full is not written.
-      const v4CutoffForcesDirect =
-        v4WritesToEventsTable(env) &&
-        isV4CutoffActive({
-          cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-          enabled: env.LANGFUSE_V4_CUTOFF_OTEL_DIRECT_WRITE,
-          exemptProjectIds: env.LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS,
-          projectId,
-        });
-
       const orgCutoffForcesDirect =
         !headerBasedDirectWrite &&
         !envForcesDirect &&
@@ -795,11 +795,12 @@ export const otelIngestionQueueProcessorBuilder = (
         path: writePath,
       });
 
-      // V4 events_only mode: skip the legacy traces/observations write paths.
-      // The direct events_full write below is the sole destination — env
-      // validation already guarantees useDirectEventWrite is true here, so
-      // observations and traces don't need the mergeAndWrite / IngestionQueue
-      // detour that would otherwise populate the legacy tables.
+      // V4 events_only mode or the Cloud v3 cutoff: skip the legacy
+      // traces/observations write paths. The direct events_full write below is
+      // the sole destination — env validation (events_only) or the cutoff's
+      // write path guarantees useDirectEventWrite is true here, so observations
+      // and traces don't need the mergeAndWrite / IngestionQueue detour that
+      // would otherwise populate the legacy tables.
       const skipLegacyWrites = !writesToLegacyTables;
       const shouldProcessLegacyMedia = shouldProcessLegacyOtelMedia({
         mediaUploadEnabled: env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true",
