@@ -66,6 +66,10 @@ func newTokenSource(getenv func(string) string, httpClient *http.Client) (tokenS
 	if source.clientID == "" || source.clientSecret == "" {
 		return nil, errors.New("CLICKHOUSE_JWT_CLIENT_ID and CLICKHOUSE_JWT_CLIENT_SECRET are required when CLICKHOUSE_JWT_TOKEN_URL is set")
 	}
+	// The request carries the client secret and the response the token.
+	if !isSecureTokenURL(source.tokenURL) {
+		return nil, errors.New("CLICKHOUSE_JWT_TOKEN_URL must use https, except on localhost")
+	}
 	switch source.authMethod {
 	case "":
 		source.authMethod = "client_secret_basic"
@@ -74,6 +78,22 @@ func newTokenSource(getenv func(string) string, httpClient *http.Client) (tokenS
 		return nil, errors.New("CLICKHOUSE_JWT_CLIENT_AUTH_METHOD must be client_secret_basic or client_secret_post")
 	}
 	return source.token, nil
+}
+
+// isSecureTokenURL accepts https, and plain http only on the local host.
+func isSecureTokenURL(raw string) bool {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	switch parsed.Scheme {
+	case "https":
+		return true
+	case "http":
+		host := parsed.Hostname()
+		return host == "localhost" || host == "127.0.0.1" || host == "::1"
+	}
+	return false
 }
 
 // fileTokenSource reads the file on every call, so a token the platform renews

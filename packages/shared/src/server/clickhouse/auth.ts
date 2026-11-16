@@ -136,24 +136,25 @@ export class FileTokenSource implements ClickhouseTokenSource {
       return cached.token;
     }
 
-    let token: string;
+    // A file that is being rewritten in place can be read while it is empty,
+    // so an empty file is handled like one that cannot be read.
+    let token = "";
+    let problem = "the file is empty";
     try {
       token = readFileSync(this.path, "utf8").trim();
     } catch (error) {
+      problem = error instanceof Error ? error.message : String(error);
+    }
+    if (!token) {
       if (cached && now < (readJwtExpiryMs(cached.token) ?? Infinity)) {
         logger.warn("Failed to re-read ClickHouse token file; reusing token", {
           path: this.path,
-          error: error instanceof Error ? error.message : String(error),
+          error: problem,
         });
         return cached.token;
       }
       throw new ClickhouseAuthError(
-        `Cannot read ClickHouse token file ${this.path}: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-    if (!token) {
-      throw new ClickhouseAuthError(
-        `ClickHouse token file ${this.path} is empty`,
+        `Cannot read ClickHouse token file ${this.path}: ${problem}`,
       );
     }
 
@@ -200,6 +201,8 @@ export class ClientCredentialsTokenSource implements ClickhouseTokenSource {
   private inFlight: Promise<string> | null = null;
   private renewalTimer: NodeJS.Timeout | null = null;
   private retryDelayMs = TOKEN_RETRY_INITIAL_DELAY_MS;
+  /** After a failed request, lookups start no new one before this time; the timer retries then. */
+  private nextAttemptAtMs = 0;
   private closed = false;
 
   constructor(private readonly config: ClientCredentialsConfig) {}
@@ -211,14 +214,12 @@ export class ClientCredentialsTokenSource implements ClickhouseTokenSource {
   currentToken(): string {
     const cached = this.cached;
     const now = Date.now();
-    if (cached && now >= cached.renewAtMs) {
-      this.renew().catch(() => {});
-    }
-    if (cached && now < cached.expiresAtMs) return cached.token;
+    if (cached && now < cached.renewAtMs) return cached.token;
 
-    if (!cached) this.renew().catch(() => {});
+    if (now >= this.nextAttemptAtMs) this.renew().catch(() => {});
+    if (cached && now < cached.expiresAtMs) return cached.token;
     throw new ClickhouseAuthError(
-      "No valid ClickHouse access token is available yet; a token request is in progress",
+      "No valid ClickHouse access token is available; a token request is in progress or waiting to be retried",
     );
   }
 
@@ -234,6 +235,7 @@ export class ClientCredentialsTokenSource implements ClickhouseTokenSource {
       .then(
         (token) => {
           this.retryDelayMs = TOKEN_RETRY_INITIAL_DELAY_MS;
+          this.nextAttemptAtMs = 0;
           this.schedule(this.cached!.renewAtMs - Date.now());
           return token;
         },
@@ -242,6 +244,7 @@ export class ClientCredentialsTokenSource implements ClickhouseTokenSource {
             tokenUrl: this.config.tokenUrl,
             error: error instanceof Error ? error.message : String(error),
           });
+          this.nextAttemptAtMs = Date.now() + this.retryDelayMs;
           this.schedule(this.retryDelayMs);
           this.retryDelayMs = Math.min(
             this.retryDelayMs * 2,
@@ -349,11 +352,18 @@ const createTokenSource = (): ClickhouseTokenSource => {
   );
 };
 
-let tokenSource: ClickhouseTokenSource | null = null;
+declare global {
+  var clickhouseTokenSource: ClickhouseTokenSource | undefined;
+}
 
+// One source per process, not per copy of this module: the web server bundles
+// its startup hook and its route handlers separately, and the token obtained
+// at startup must be the one the route handlers send.
 const getTokenSource = (): ClickhouseTokenSource => {
-  if (!tokenSource) tokenSource = createTokenSource();
-  return tokenSource;
+  if (!globalThis.clickhouseTokenSource) {
+    globalThis.clickhouseTokenSource = createTokenSource();
+  }
+  return globalThis.clickhouseTokenSource;
 };
 
 /** The credentials to use for a ClickHouse connection opened now. */
@@ -388,6 +398,6 @@ export const initializeClickhouseAuth = async (): Promise<void> => {
 };
 
 export const resetClickhouseAuthForTests = (): void => {
-  tokenSource?.close();
-  tokenSource = null;
+  globalThis.clickhouseTokenSource?.close();
+  globalThis.clickhouseTokenSource = undefined;
 };

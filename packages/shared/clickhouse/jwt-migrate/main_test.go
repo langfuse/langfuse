@@ -167,6 +167,7 @@ func TestConnectionOptions(t *testing.T) {
 		"no token source":      {with(map[string]string{"CLICKHOUSE_JWT_TOKEN": ""}), "found none"},
 		"two token sources":    {with(map[string]string{"CLICKHOUSE_JWT_TOKEN_FILE": "/run/token"}), "found CLICKHOUSE_JWT_TOKEN, CLICKHOUSE_JWT_TOKEN_FILE"},
 		"token URL, no client": {with(map[string]string{"CLICKHOUSE_JWT_TOKEN": "", "CLICKHOUSE_JWT_TOKEN_URL": "https://idp.example.com/token"}), "CLICKHOUSE_JWT_CLIENT_ID"},
+		"plain HTTP token URL": {with(map[string]string{"CLICKHOUSE_JWT_TOKEN": "", "CLICKHOUSE_JWT_TOKEN_URL": "http://idp.example.com/token", "CLICKHOUSE_JWT_CLIENT_ID": "langfuse", "CLICKHOUSE_JWT_CLIENT_SECRET": "s3cret"}), "must use https"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := connectionOptions(environment(tc.env), nil)

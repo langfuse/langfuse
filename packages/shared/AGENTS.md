@@ -61,7 +61,10 @@
 - ClickHouse authentication: `src/server/clickhouse/auth.ts`. `password` mode
   sends user and password; `jwt` mode sends a bearer token from a static value,
   a file, or an OAuth 2.0 client credentials grant. Web and worker call
-  `initializeClickhouseAuth` at startup before the first query. A token change
+  `initializeClickhouseAuth` at startup before the first query; web does so in
+  `instrumentation.ts`, on every replica. The token source is kept once per
+  process on `globalThis`, because the web server loads this module separately
+  for its startup hook and for its route handlers. A token change
   makes `clickhouseClient()` return a new client, so do not hold a client
   beyond one unit of work. In `jwt` mode migrations send the same token through
   `clickhouse/jwt-migrate`, a Go wrapper around the golang-migrate driver that

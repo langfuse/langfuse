@@ -3,9 +3,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../env", () => ({ env: { LANGFUSE_LOG_LEVEL: "error" } }));
+const mockEnv = vi.hoisted(
+  () => ({ LANGFUSE_LOG_LEVEL: "error" }) as Record<string, string>,
+);
+vi.mock("../../env", () => ({ env: mockEnv }));
 
-import { ClientCredentialsTokenSource, FileTokenSource } from "./auth";
+import {
+  ClientCredentialsTokenSource,
+  FileTokenSource,
+  initializeClickhouseAuth,
+  resetClickhouseAuthForTests,
+} from "./auth";
 
 const tokenResponse = (accessToken: string, expiresIn: number) =>
   new Response(
@@ -58,6 +66,70 @@ describe("ClientCredentialsTokenSource", () => {
     expect(source.currentToken()).toBe("token-b");
     source.close();
   });
+
+  it("leaves retries to the backoff while lookups keep arriving", async () => {
+    fetchMock
+      .mockResolvedValueOnce(tokenResponse("token-a", 600))
+      .mockRejectedValue(new Error("connect ECONNREFUSED"));
+    const source = new ClientCredentialsTokenSource({
+      tokenUrl: "https://idp.example.com/oauth2/token",
+      clientId: "langfuse",
+      clientSecret: "s3cret",
+      authMethod: "client_secret_post",
+    });
+    await source.initialize();
+
+    // The renewal at half the token's life fails; the first retry is a second later.
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    for (let lookup = 0; lookup < 5; lookup++) {
+      expect(source.currentToken()).toBe("token-a");
+      await vi.advanceTimersByTimeAsync(100);
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(600);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    source.close();
+  });
+});
+
+describe("getClickhouseAuth", () => {
+  const jwtEnv = {
+    CLICKHOUSE_AUTH_MODE: "jwt",
+    CLICKHOUSE_JWT_TOKEN_URL: "https://idp.example.com/oauth2/token",
+    CLICKHOUSE_JWT_CLIENT_ID: "langfuse",
+    CLICKHOUSE_JWT_CLIENT_SECRET: "s3cret",
+    CLICKHOUSE_JWT_CLIENT_AUTH_METHOD: "client_secret_basic",
+  };
+  const fetchMock = vi.fn<typeof fetch>();
+
+  beforeEach(() => {
+    Object.assign(mockEnv, jwtEnv);
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    resetClickhouseAuthForTests();
+    for (const key of Object.keys(jwtEnv)) delete mockEnv[key];
+    vi.unstubAllGlobals();
+  });
+
+  it("serves the token obtained at startup to every copy of the module", async () => {
+    fetchMock.mockResolvedValueOnce(tokenResponse("token-a", 3600));
+    await initializeClickhouseAuth();
+
+    // The web server loads this module once for its startup hook and again
+    // for its route handlers.
+    vi.resetModules();
+    const routeHandlers = await import("./auth.js");
+
+    expect(routeHandlers.getClickhouseAuth().config).toEqual({
+      access_token: "token-a",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("FileTokenSource", () => {
@@ -84,5 +156,14 @@ describe("FileTokenSource", () => {
     vi.advanceTimersByTime(30_000);
 
     expect(source.currentToken()).toBe("token-b");
+
+    // A file caught halfway through a rewrite is empty.
+    writeFileSync(path, "");
+    vi.advanceTimersByTime(30_000);
+
+    expect(source.currentToken()).toBe("token-b");
+    expect(() => new FileTokenSource(path).currentToken()).toThrow(
+      "the file is empty",
+    );
   });
 });

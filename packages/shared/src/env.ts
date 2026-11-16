@@ -183,7 +183,8 @@ const EnvSchema = z.object({
   CLICKHOUSE_PASSWORD: z.string().optional(),
   CLICKHOUSE_JWT_TOKEN: z.string().optional(),
   CLICKHOUSE_JWT_TOKEN_FILE: z.string().optional(),
-  // OAuth 2.0 token endpoint, called with the client credentials grant.
+  // OAuth 2.0 token endpoint, called with the client credentials grant. Must
+  // use https unless it is on localhost.
   CLICKHOUSE_JWT_TOKEN_URL: z.url().optional(),
   CLICKHOUSE_JWT_CLIENT_ID: z.string().optional(),
   CLICKHOUSE_JWT_CLIENT_SECRET: z.string().optional(),
@@ -970,6 +971,18 @@ const validateClickhouseAuth = (
     });
   }
   if (values.CLICKHOUSE_JWT_TOKEN_URL !== undefined) {
+    // The request carries the client secret and the response the token.
+    const tokenUrl = URL.parse(values.CLICKHOUSE_JWT_TOKEN_URL);
+    const isLocalHttp =
+      tokenUrl?.protocol === "http:" &&
+      ["localhost", "127.0.0.1", "[::1]"].includes(tokenUrl.hostname);
+    if (tokenUrl?.protocol !== "https:" && !isLocalHttp) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["CLICKHOUSE_JWT_TOKEN_URL"],
+        message: "CLICKHOUSE_JWT_TOKEN_URL must use https, except on localhost",
+      });
+    }
     for (const key of [
       "CLICKHOUSE_JWT_CLIENT_ID",
       "CLICKHOUSE_JWT_CLIENT_SECRET",

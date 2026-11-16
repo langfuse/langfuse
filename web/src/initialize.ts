@@ -16,12 +16,10 @@ import {
   UserId,
 } from "@langfuse/shared/rbac";
 import {
-  initializeClickhouseAuth,
   initializeClickhouseCompatibility,
   logger,
 } from "@langfuse/shared/src/server";
 
-await initializeClickhouseAuth();
 await initializeClickhouseCompatibility();
 
 // Warn if LANGFUSE_INIT_* variables are set but LANGFUSE_INIT_ORG_ID is missing
