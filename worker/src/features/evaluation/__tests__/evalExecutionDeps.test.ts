@@ -231,6 +231,43 @@ describe("createProductionEvalExecutionDeps", () => {
     }
   });
 
+  it("does not pause a model when one request exceeds its token limit", async () => {
+    const llmApiKeyId = randomUUID();
+    if (redis?.status !== "ready") {
+      await new Promise((resolve) => redis?.once("ready", resolve));
+    }
+    const requestTooLarge = Object.assign(
+      new Error(
+        "Request too large for gpt-4.1 on tokens per min (TPM): Limit 30000, Requested 50000.",
+      ),
+      {
+        [Symbol.for("vercel.ai.error")]: true,
+        [Symbol.for("vercel.ai.error.AI_APICallError")]: true,
+        name: "AI_APICallError",
+        statusCode: 429,
+        isRetryable: true,
+      },
+    );
+    mockGenerateLlmEvaluatorOutput.mockRejectedValueOnce(requestTooLarge);
+    const deps = createProductionEvalExecutionDeps();
+
+    await expect(
+      deps.callLLM({
+        messages: [{ role: "user", type: "user", content: "Judge this" }],
+        modelConfig: {
+          ...modelConfig,
+          apiKey: { ...modelConfig.apiKey, id: llmApiKeyId },
+        },
+        structuredOutputSchema,
+        traceSinkParams,
+      } as any),
+    ).rejects.toBe(requestTooLarge);
+
+    expect(
+      await redis?.exists(`llm-connection-cooldown:${llmApiKeyId}:gpt-4.1`),
+    ).toBe(0);
+  });
+
   it("enqueues eval scores to read only their own S3 file", async () => {
     const deps = createProductionEvalExecutionDeps();
 

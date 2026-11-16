@@ -12,6 +12,7 @@ const DEFAULT_COOLDOWN_MS = 60_000;
 const MIN_COOLDOWN_MS = 5_000;
 const MAX_COOLDOWN_MS = 300_000;
 const COOLDOWN_METRIC = "langfuse.llm.connection_cooldown";
+const REDIS_DEADLINE_MS = 1_000;
 
 /**
  * Runs an LLM call unless its connection and model are cooling down after a
@@ -39,14 +40,22 @@ export async function withLLMConnectionCooldown<T>(
   try {
     return await call();
   } catch (error) {
-    const llmError = classifyEvaluatorLlmError(error);
-    // A 429 with a block reason (e.g. exhausted billing) pauses the evaluator
-    // instead, so it must not hold back the connection's other evaluators.
-    if (llmError?.statusCode === 429 && llmError.blockReason === null) {
-      await startCooldown(key, error);
-    }
+    if (isModelRateLimit(error)) await startCooldown(key, error);
     throw error;
   }
+}
+
+/**
+ * Only a 429 about the model's rate state pauses other calls. A billing 429
+ * pauses its evaluator instead, and "Request too large" rejects this one input.
+ */
+function isModelRateLimit(error: unknown): boolean {
+  const llmError = classifyEvaluatorLlmError(error);
+  return (
+    llmError?.statusCode === 429 &&
+    llmError.blockReason === null &&
+    !/request too large/i.test(llmError.message)
+  );
 }
 
 async function getRemainingCooldownMs(key: string): Promise<number> {
@@ -55,7 +64,7 @@ async function getRemainingCooldownMs(key: string): Promise<number> {
   if (redis?.status !== "ready") return 0;
   try {
     // PTTL is negative when the key does not exist.
-    return Math.max(0, await redis.pttl(key));
+    return Math.max(0, await withRedisDeadline(redis.pttl(key)));
   } catch (error) {
     logger.warn("Failed to read LLM connection cooldown", { key, error });
     recordIncrement(COOLDOWN_METRIC, 1, { outcome: "redis_error" });
@@ -74,7 +83,10 @@ async function startCooldown(key: string, rateLimitError: unknown) {
   );
   try {
     // NX: later 429s inside the window must not extend it.
-    if ((await redis.set(key, "1", "PX", cooldownMs, "NX")) === "OK") {
+    const result = await withRedisDeadline(
+      redis.set(key, "1", "PX", cooldownMs, "NX"),
+    );
+    if (result === "OK") {
       recordIncrement(COOLDOWN_METRIC, 1, { outcome: "set" });
     }
   } catch (error) {
@@ -90,5 +102,23 @@ function getRetryAfterMs(
   if (Number.isFinite(retryAfterMs)) return retryAfterMs;
   const retryAfterSeconds = Number.parseFloat(headers?.["retry-after"] ?? "");
   if (Number.isFinite(retryAfterSeconds)) return retryAfterSeconds * 1000;
-  return undefined;
+  const retryAt = Date.parse(headers?.["retry-after"] ?? "");
+  return Number.isFinite(retryAt) ? retryAt - Date.now() : undefined;
+}
+
+// A command sent just before a disconnect waits for the reconnect, so the
+// status check alone does not keep an outage from holding the call.
+async function withRedisDeadline<T>(command: Promise<T>): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error("LLM connection cooldown Redis call timed out")),
+      REDIS_DEADLINE_MS,
+    );
+  });
+  try {
+    return await Promise.race([command, deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
