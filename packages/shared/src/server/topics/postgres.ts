@@ -15,6 +15,7 @@ import {
 } from "../../topics";
 import { isEqual } from "lodash";
 import {
+  countNewTopicVersions,
   getTopicDefinitions,
   getTopicNames,
   writeTopicDefinitions,
@@ -516,6 +517,30 @@ export async function getCurrentTopicMapRows(
   const unique = new Map<string, CurrentTopicMap>();
   for (const map of maps) if (map) unique.set(map.run.id, map);
   return [...unique.values()];
+}
+
+/** Per rule and facet, how many topics the rule's current map run added. */
+export async function getNewTopicCounts(projectId: string, facetIds: string[]) {
+  const maps = (await getCurrentTopicMapRows(projectId, facetIds)).flatMap(
+    ({ ruleId, run }) => (ruleId ? [{ ruleId, run }] : []),
+  );
+  const fitted = maps.filter(({ run }) => run.topicVersionIds.length);
+  const counts = fitted.length
+    ? await countNewTopicVersions(
+        projectId,
+        fitted.map(({ run }) => ({
+          runId: run.id,
+          topicVersionIds: run.topicVersionIds,
+        })),
+        definitionTimeRange(fitted.map(({ run }) => run)),
+      )
+    : new Map<string, number>();
+  return maps.map(({ ruleId, run }) => ({
+    ruleId,
+    facetId: run.facetId,
+    runId: run.id,
+    newTopicCount: counts.get(run.id) ?? 0,
+  }));
 }
 
 /** Current map IDs of the facets; current results count only these runs' assignments. */

@@ -209,6 +209,49 @@ export async function getTopicNames(
   return names;
 }
 
+/**
+ * Per run, how many of its topic versions first appeared in it: the run wrote
+ * the version and matched it against a previous map without continuing an
+ * earlier topic. A version a refit leaves unchanged keeps the run, and so the
+ * continuity, that wrote it. A fit without a previous map of the same facet
+ * version records no continuity, so none of its topics count.
+ */
+export async function countNewTopicVersions(
+  projectId: string,
+  runs: { runId: string; topicVersionIds: string[] }[],
+  timeRange: TopicTimeRange,
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  const pairs = runs.flatMap(({ runId, topicVersionIds }) =>
+    topicVersionIds.map((id) => [id, runId] as const),
+  );
+  for (const batch of chunk(pairs, LOOKUP_BATCH_SIZE)) {
+    const rows = await queryClickhouse<{ runId: string; count: string }>({
+      query: `SELECT runId, count() AS count FROM (
+          SELECT created_by_run_id AS runId,
+            JSONExtractString(metadata, 'continuity', 'status') AS status
+          FROM topics
+          WHERE project_id = {projectId:String}
+            AND (id, created_by_run_id) IN arrayZip({ids:Array(String)}, {runIds:Array(String)})
+            AND created_at >= {from:DateTime64(3)} AND created_at < {to:DateTime64(3)}
+          ORDER BY created_at DESC LIMIT 1 BY project_id, id
+        )
+        WHERE status NOT IN ('', 'continued')
+        GROUP BY runId`,
+      params: {
+        projectId,
+        ids: batch.map(([id]) => id),
+        runIds: batch.map(([, runId]) => runId),
+        ...timeRangeParams(timeRange),
+      },
+      tags: { route: "topics-new-counts", projectId },
+    });
+    for (const row of rows)
+      counts.set(row.runId, (counts.get(row.runId) ?? 0) + Number(row.count));
+  }
+  return counts;
+}
+
 /** RowBinary column order matches the explicit definition INSERT below. */
 function encodeTopicDefinition(row: TopicDefinition): Buffer {
   const parts: Buffer[] = [];
