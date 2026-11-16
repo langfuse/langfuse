@@ -278,6 +278,18 @@ describe("Topics tRPC access", () => {
         facetIds: [b.facetId],
       }),
     ).rejects.toThrow("Select facets from this project.");
+    const foreignSlice = {
+      projectId,
+      filter: [],
+      timeRange: { from: new Date(Date.now() - 86_400_000), to: new Date() },
+      facets: [{ facetId: b.facetId, version: 1 }],
+    };
+    await expect(admin.previewAnalysis(foreignSlice)).rejects.toThrow(
+      "Facet version not found in this project.",
+    );
+    await expect(
+      admin.startAnalysis({ ...foreignSlice, label: "Foreign facet" }),
+    ).rejects.toThrow("Facet version not found in this project.");
 
     // Project B is untouched.
     expect(
