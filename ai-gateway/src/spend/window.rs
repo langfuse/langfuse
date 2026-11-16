@@ -1,21 +1,16 @@
+use std::time::Duration as StdDuration;
+
 use chrono::{DateTime, Datelike, Duration, NaiveDate, TimeZone, Utc};
 use serde::Deserialize;
 
-/// What a spend limit caps. Resolve returns only the limits that apply to the
-/// request, so the scope just names the subject in errors.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub(crate) enum SpendLimitScope {
-    ApiKey,
-}
+use super::store::{Counter, Expiry};
+use crate::resolution::SpendLimit;
 
-impl SpendLimitScope {
-    pub(crate) fn subject(self) -> &'static str {
-        match self {
-            Self::ApiKey => "This API key",
-        }
-    }
-}
+/// Windowed counters outlive their window by a day, so a request that started
+/// just before the window ended still finds its counter.
+const WINDOW_EXPIRY_GRACE_SECONDS: i64 = 24 * 60 * 60;
+/// A total counter idle for longer than this starts over.
+const TOTAL_COUNTER_EXPIRY: StdDuration = StdDuration::from_hours(400 * 24);
 
 /// How often a spend limit starts over, in UTC calendar windows. Web computes
 /// the same windows in `web/src/features/ai-gateway/server/spendLimits/getGatewaySpendLimitWindowStart.ts`.
@@ -68,6 +63,37 @@ impl SpendLimitInterval {
             Self::Total => return None,
         };
         Some(midnight(end))
+    }
+}
+
+/// The window of a limit that `now` falls in, and the counter its spend is added to.
+pub(super) struct Window {
+    pub counter: Counter,
+    pub start: DateTime<Utc>,
+    pub end: Option<DateTime<Utc>>,
+}
+
+impl Window {
+    pub(super) fn current(organization_id: &str, limit: &SpendLimit, now: DateTime<Utc>) -> Self {
+        let start = limit.interval.window_start(now);
+        let end = limit.interval.window_end(start);
+        // A reset bumps the generation, so counting starts over in a new key. All
+        // limits of a request belong to one organization, so tagging the
+        // organization keeps them on one cluster slot for a single MGET.
+        let key = format!(
+            "ai-gateway:spend:{{{organization_id}}}:{}:{}:{}",
+            limit.id,
+            limit.generation,
+            start.timestamp()
+        );
+        let expiry = end.map_or(Expiry::After(TOTAL_COUNTER_EXPIRY), |end| {
+            Expiry::At(end.timestamp() + WINDOW_EXPIRY_GRACE_SECONDS)
+        });
+        Self {
+            counter: Counter { key, expiry },
+            start,
+            end,
+        }
     }
 }
 

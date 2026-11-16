@@ -11,10 +11,12 @@ mod window;
 use std::{sync::Arc, time::Duration, time::SystemTime};
 
 use chrono::{DateTime, SecondsFormat, Utc};
+use serde::Deserialize;
 use serde_json::{Map, Value};
 
 pub(crate) use cost::PricingTierWithPrices;
-pub(crate) use window::{SpendLimitInterval, SpendLimitScope};
+pub(crate) use window::SpendLimitInterval;
+use window::Window;
 
 use crate::{
     capture::InferenceFacts,
@@ -33,19 +35,30 @@ use cost::{
     CalculateModelUsageCostsParams, Model, ModelWithPrices, PricingAttributes,
     calculate_model_usage_costs,
 };
-use store::{Counter, Expiry, RedisCounters};
+use store::{Counter, RedisCounters};
 
-/// Windowed counters outlive their window by a day, so a request that started
-/// just before the window ended still finds its counter.
-const WINDOW_EXPIRY_GRACE_SECONDS: i64 = 24 * 60 * 60;
-/// A total counter idle for longer than this starts over.
-const TOTAL_COUNTER_EXPIRY: Duration = Duration::from_hours(400 * 24);
 /// Backoff between attempts to add a finished request's cost while Redis is unavailable.
 const COUNTER_WRITE_RETRY_DELAYS: [Duration; 3] = [
     Duration::from_millis(250),
     Duration::from_secs(1),
     Duration::from_secs(4),
 ];
+
+/// What a spend limit caps. Resolve returns only the limits that apply to the
+/// request, so the scope just names the subject in errors.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum SpendLimitScope {
+    ApiKey,
+}
+
+impl SpendLimitScope {
+    pub(crate) fn subject(self) -> &'static str {
+        match self {
+            Self::ApiKey => "This API key",
+        }
+    }
+}
 
 #[derive(Clone, Default)]
 pub(crate) struct SpendLimits {
@@ -146,37 +159,6 @@ fn priced_model(context: &ResolvedRequestContext) -> Option<ModelWithPrices> {
 /// connection always carries its resource's base URL and reports usage as `OpenAI` does.
 fn reports_usage(connection: &ProviderConnection) -> bool {
     connection.provider() == Provider::Azure || !connection.has_custom_base_url()
-}
-
-/// The window of a limit that `now` falls in, and the counter its spend is added to.
-struct Window {
-    counter: Counter,
-    start: DateTime<Utc>,
-    end: Option<DateTime<Utc>>,
-}
-
-impl Window {
-    fn current(organization_id: &str, limit: &SpendLimit, now: DateTime<Utc>) -> Self {
-        let start = limit.interval.window_start(now);
-        let end = limit.interval.window_end(start);
-        // A reset bumps the generation, so counting starts over in a new key. All
-        // limits of a request belong to one organization, so tagging the
-        // organization keeps them on one cluster slot for a single MGET.
-        let key = format!(
-            "ai-gateway:spend:{{{organization_id}}}:{}:{}:{}",
-            limit.id,
-            limit.generation,
-            start.timestamp()
-        );
-        let expiry = end.map_or(Expiry::After(TOTAL_COUNTER_EXPIRY), |end| {
-            Expiry::At(end.timestamp() + WINDOW_EXPIRY_GRACE_SECONDS)
-        });
-        Self {
-            counter: Counter { key, expiry },
-            start,
-            end,
-        }
-    }
 }
 
 /// What a limit's scope has spent in the limit's current window.
