@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ScoreDataTypeEnum, type ScoreConfigDataType } from "@langfuse/shared";
 import { useId, useState } from "react";
@@ -18,7 +17,7 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { Textarea } from "@/src/components/ui/textarea";
-import DocPopup from "@/src/components/layouts/doc-popup";
+import DocPopup, { DocPopupTrigger } from "@/src/components/layouts/doc-popup";
 import {
   isBooleanDataType,
   isCategoricalDataType,
@@ -177,7 +176,7 @@ export function UpsertScoreConfigDialogContent({
                 </FormItem>
               )}
             />
-            {isNumericDataType(dataType) ? (
+            {isNumericDataType(dataType) && (
               <>
                 <FormField
                   control={form.control}
@@ -226,7 +225,8 @@ export function UpsertScoreConfigDialogContent({
                   )}
                 />
               </>
-            ) : isTextDataType(dataType) ? null : (
+            )}
+            {!isNumericDataType(dataType) && !isTextDataType(dataType) && (
               <div className="grid grid-flow-row gap-2">
                 <FormField
                   control={form.control}
@@ -243,7 +243,13 @@ export function UpsertScoreConfigDialogContent({
                                   ? "category"
                                   : "boolean"
                               } label is mapped to an integer value internally.`}
-                            />
+                            >
+                              {({ getTriggerProps }) => (
+                                <DocPopupTrigger
+                                  triggerProps={getTriggerProps()}
+                                />
+                              )}
+                            </DocPopup>
                           </FormLabel>
                           <FormLabel>Label</FormLabel>
                         </div>

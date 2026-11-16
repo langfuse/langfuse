@@ -34,7 +34,7 @@ const costByTypeQuery = {
 
 describe("queryBuilder pairExpand ARRAY JOIN aliases", () => {
   it("does not re-alias usageType in a single-level usageByType timeseries", async () => {
-    // Dashboard ModelUsageChart (v2) compiles this shape. ClickHouse rejects
+    // Dashboard ModelUsageCard (v2) compiles this shape. ClickHouse rejects
     // `usageType AS usageType` in the same SELECT as `ARRAY JOIN … AS usageType`.
     const { query } = await new QueryBuilder(undefined, "v2").build(
       usageByTypeTimeseries,

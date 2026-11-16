@@ -19,11 +19,7 @@ as "preset" placements.
 
 ## Structure
 
-- `components/` — the legacy curated Home cards (TracesBarListChart,
-  ModelCostTable, …) rendered by `home-preset-registry.tsx` as preset
-  placements, plus dashboard-scoped dialogs/selectors. Cards receive a
-  **required** `metricsVersion` from the preset context — they never read the
-  session themselves.
+- `components/` — the legacy curated Home cards (TracesBarListCard, ModelCostTableCard, …) rendered by `home-preset-registry.tsx` as preset placements, plus dashboard-scoped dialogs/selectors. Cards receive a **required** `metricsVersion` from the preset context — they never read the session themselves.
 - `hooks/` — `DashboardQuerySchedulerProvider.tsx`: the scheduler controller hook,
   provider/context, executeQuery cache policy, and
   `useScheduledDashboardExecuteQuery` (the one entry point widgets use to run
@@ -89,7 +85,4 @@ because `parseSSEBuffer` has non-dashboard consumers).
 
 ## Development Context
 
-Read `.agents/skills/frontend-large-feature-architecture/SKILL.md` (and its
-`references/local-feature-state.md`) before adding state or effects here. For
-chart/formatting work, `web/src/features/widgets/chart-library/ARCHITECTURE.md`
-owns the data → preparer → visualiser contract.
+Read `.agents/skills/frontend-large-feature-architecture/SKILL.md` (and its `references/local-feature-state.md`) before adding state or effects here. For chart/formatting work, read `web/src/features/widgets/components/usePreparedWidgetChart.ts` and `web/src/components/design-system/charts/internal/VisualizationFrame/VisualizationFrame.tsx` for the data → preparer → visualiser contract.
