@@ -12,7 +12,6 @@ import {
   QueueJobs,
   getCurrentSpan,
   classifyEvaluatorLlmError,
-  getLLMRetryAfterMs,
   type EvaluatorLlmErrorClassification,
 } from "@langfuse/shared/src/server";
 import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
@@ -22,6 +21,7 @@ import { retryLLMRateLimitError } from "../features/utils/retry-handler";
 import { isUnrecoverableError } from "../errors/UnrecoverableError";
 import { retryObservationNotFound } from "../features/evaluation/retryObservationNotFound";
 import { isObservationNotFoundError } from "../errors/ObservationNotFoundError";
+import { getLLMRetryDelayMs } from "../features/evaluation/llmConnectionCooldown";
 import { env } from "../env";
 import {
   getLlmEvalTerminalErrorAttribution,
@@ -229,7 +229,7 @@ export const evalJobExecutorQueueProcessorBuilder = (
             queueName,
             jobName: QueueJobs.EvaluationExecution,
           },
-          { providerDelayMs: getLLMRetryAfterMs(e) },
+          { providerDelayMs: getLLMRetryDelayMs(e) },
         );
 
         if (retryResult.outcome === "scheduled") {
@@ -358,7 +358,7 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
             queueName,
             jobName: QueueJobs.LLMAsJudgeExecution,
           },
-          { providerDelayMs: getLLMRetryAfterMs(e) },
+          { providerDelayMs: getLLMRetryDelayMs(e) },
         );
 
         if (retryResult.outcome === "scheduled") {

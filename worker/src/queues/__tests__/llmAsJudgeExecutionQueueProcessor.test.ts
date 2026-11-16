@@ -358,6 +358,32 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       );
     });
 
+    it("waits at least the cooldown its own provider 429 starts", async () => {
+      const rateLimitError = new Error("Rate limit exceeded");
+      (processEval as Mock).mockRejectedValue(rateLimitError);
+      vi.mocked(classifyEvaluatorLlmError).mockReturnValue({
+        kind: "provider",
+        message: rateLimitError.message,
+        statusCode: 429,
+        isRetryable: true,
+        error: rateLimitError,
+        blockReason: null,
+      });
+      (retryLLMRateLimitError as Mock).mockResolvedValue({
+        outcome: "scheduled",
+      });
+
+      const job = createMockJob();
+      await llmAsJudgeExecutionQueueProcessor(job);
+
+      // Without retry-after the cooldown lasts its 60 s default.
+      expect(retryLLMRateLimitError).toHaveBeenCalledWith(
+        job,
+        expect.anything(),
+        { providerDelayMs: 60_000 },
+      );
+    });
+
     it("should not rethrow error after scheduling retry", async () => {
       const rateLimitError = new Error("Rate limit exceeded");
       (processEval as Mock).mockRejectedValue(rateLimitError);

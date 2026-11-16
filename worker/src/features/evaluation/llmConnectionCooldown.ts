@@ -46,6 +46,19 @@ export async function withLLMConnectionCooldown<T>(
 }
 
 /**
+ * How long a rate-limited eval job waits before calling the model again: the
+ * remaining cooldown it hit, the cooldown its own 429 starts, or otherwise the
+ * provider's retry-after.
+ */
+export function getLLMRetryDelayMs(error: unknown): number | undefined {
+  const retryAfterMs = getLLMRetryAfterMs(error);
+  if (error instanceof LLMConnectionCooldownError || !isModelRateLimit(error)) {
+    return retryAfterMs;
+  }
+  return getCooldownMs(retryAfterMs);
+}
+
+/**
  * Only a 429 about the model's rate state pauses other calls. A billing 429
  * pauses its evaluator instead, and "Request too large" rejects this one input.
  */
@@ -74,11 +87,7 @@ async function getRemainingCooldownMs(key: string): Promise<number> {
 
 async function startCooldown(key: string, rateLimitError: unknown) {
   if (redis?.status !== "ready") return;
-  const retryAfterMs = getLLMRetryAfterMs(rateLimitError);
-  const cooldownMs = Math.min(
-    MAX_COOLDOWN_MS,
-    Math.max(MIN_COOLDOWN_MS, retryAfterMs ?? DEFAULT_COOLDOWN_MS),
-  );
+  const cooldownMs = getCooldownMs(getLLMRetryAfterMs(rateLimitError));
   try {
     // NX: later 429s inside the window must not extend it.
     const result = await withRedisDeadline(
@@ -91,6 +100,13 @@ async function startCooldown(key: string, rateLimitError: unknown) {
     logger.warn("Failed to start LLM connection cooldown", { key, error });
     recordIncrement(COOLDOWN_METRIC, 1, { outcome: "redis_error" });
   }
+}
+
+function getCooldownMs(retryAfterMs: number | undefined): number {
+  return Math.min(
+    MAX_COOLDOWN_MS,
+    Math.max(MIN_COOLDOWN_MS, retryAfterMs ?? DEFAULT_COOLDOWN_MS),
+  );
 }
 
 // A command sent just before a disconnect waits for the reconnect, so the
