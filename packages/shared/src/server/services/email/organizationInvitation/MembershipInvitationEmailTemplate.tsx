@@ -21,6 +21,7 @@ interface MembershipInvitationTemplateProps {
   receiverEmail: string;
   inviteLink: string;
   userExists: boolean;
+  ssoEnforced?: boolean;
   emailFromAddress: string;
   langfuseCloudRegion?: string;
 }
@@ -32,10 +33,17 @@ export const MembershipInvitationTemplate = ({
   receiverEmail,
   inviteLink,
   userExists,
+  ssoEnforced = false,
   emailFromAddress,
   langfuseCloudRegion,
 }: MembershipInvitationTemplateProps) => {
   const previewText = `Join ${invitedByUsername} on Langfuse`;
+  let signInHint = "(you need to create an account with this email address)";
+  if (userExists) {
+    signInHint = "(sign in with your existing account)";
+  } else if (ssoEnforced) {
+    signInHint = "(sign in with your company's SSO using this email address)";
+  }
 
   return (
     <Html>
@@ -78,9 +86,7 @@ export const MembershipInvitationTemplate = ({
                 Accept Invitation
               </Button>
               <Text className="mt-2 text-xs leading-3 text-muted-foreground">
-                {userExists
-                  ? "(sign in with your existing account)"
-                  : "(you need to create an account with this email address)"}
+                {signInHint}
               </Text>
             </Section>
             <Text className="text-sm leading-6 text-black">

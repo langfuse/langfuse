@@ -128,13 +128,11 @@ describe("useIsFeatureEnabled", () => {
     });
     const { result } = renderHook(() => ({
       internal: useInternalFeaturesEnabled(),
-      searchBar: useIsFeatureEnabled("searchBar"),
       aiGateway: useIsFeatureEnabled("aiGateway"),
       langfuseTopics: useIsFeatureEnabled("langfuseTopics"),
     }));
     expect(result.current).toEqual({
       internal: expected,
-      searchBar: false,
       aiGateway: false,
       langfuseTopics: false,
     });

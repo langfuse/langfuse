@@ -23,7 +23,6 @@ import { PARAM_NAME } from "./extensions";
 import { FinalTableNode, type ClickHouseSelectQueryNode } from "./nodes";
 import { selectRelations } from "./relations";
 import { SchemaReferencePlugin } from "./schemaReferences";
-import { SoftDeleteFilterPlugin } from "./softDelete";
 import {
   TenancyInjectionPlugin,
   assertRelationFree,
@@ -51,13 +50,13 @@ export type ClickhouseCompilable = {
  * compile without a tenancy scope — omitting it is a compile-time type error.
  * The query reads exactly that one project. CTE names that could mean two
  * relations are rejected (`ctes.ts`). The logical `events` relation is
- * routed to `events_core` or `events_full`, soft-deleted rows are filtered
- * out, tenancy is injected from that project, per-table dedup is applied from
- * the registry, and the dialect compiler refuses to emit SQL unless the tree
- * was identity-stamped by the tenancy and dedup passes (a copied property is
- * not enough). The runtime `requireProjectId` guard remains as
- * defense-in-depth for the one case the type cannot express (an empty
- * `projectId`) and for callers reaching this through an `any` boundary.
+ * routed to `events_core` or `events_full`, tenancy is injected from that
+ * project, per-table dedup is applied from the registry, and the dialect
+ * compiler refuses to emit SQL unless the tree was identity-stamped by the
+ * tenancy and dedup passes (a copied property is not enough). The runtime
+ * `requireProjectId` guard remains as defense-in-depth for the one case the
+ * type cannot express (an empty `projectId`) and for callers reaching this
+ * through an `any` boundary.
  */
 export function compileClickhouseQuery(
   query: ClickhouseCompilable,
@@ -82,7 +81,6 @@ export function compilerPasses(projectId: string): KyselyPlugin[] {
     new SchemaReferencePlugin(),
     new CteNamePlugin(),
     new EventsTableRoutingPlugin(),
-    new SoftDeleteFilterPlugin(),
     new TenancyInjectionPlugin(requireProjectId(projectId)),
     new DedupLoweringPlugin(),
   ];
@@ -114,18 +112,19 @@ export type CompiledCondition = CompiledClickhouseQuery & {
  * (`selectFrom("events as e").where("e.name", "=", "x")`), the project, and a
  * placeholder prefix (`f_`).
  *
- * Output: `{ sql: "e.project_id = {f_1:String} and e.is_deleted = 0 and
- * e.name = {f_2:String}", params: { f_1: "proj", f_2: "x" },
+ * Output: `{ sql: "e.project_id = {f_1:String} and e.name =
+ * {f_2:String}", params: { f_1: "proj", f_2: "x" },
  * requiresEventsFull: false }`.
  *
  * Behavior:
  * - runs {@link compilerPasses} and the type check, as
  *   {@link compileClickhouseQuery} does, so the WHERE carries what tenancy
- *   and soft-delete inject;
+ *   injects;
  * - binds take the types of the FROM relation;
  * - `requiresEventsFull` is the routing verdict: the caller reads
- *   `events_full` when it is set. A caller that wants the truncated copy
- *   reads `events_truncated`, which never sets it.
+ *   `events_full` when it is set. Over `events_truncated` it is set by the
+ *   same conditions; a caller that then reads `events_full` cuts its
+ *   selected truncated columns itself.
  *
  * Errors (`QueryCompileError`):
  * - no WHERE;
@@ -184,15 +183,13 @@ function assertSelectWithWhere(
 
 /**
  * Select fields a spliced condition may carry: the FROM and WHERE it is
- * compiled from, and the `includeDeleted()` marker the soft-delete pass
- * already acted on. A select list is rejected: a WHERE reference to one of
- * its aliases would read a column of the caller's query instead.
+ * compiled from. A select list is rejected: a WHERE reference to one of its
+ * aliases would read a column of the caller's query instead.
  */
 const CONDITION_SELECT_FIELDS: ReadonlySet<string> = new Set([
   "kind",
   "from",
   "where",
-  "includeDeleted",
 ]);
 
 /**
@@ -257,6 +254,12 @@ export function renderClickhouseSelections<O>(
   return Object.fromEntries(rendered) as Record<keyof O & string, string>;
 }
 
+/**
+ * SQL text of a relation-free fragment. Runs none of {@link compilerPasses}:
+ * the fragment has no FROM of its own for them to scope, route or dedup (the
+ * raw-SQL query it is spliced into owns that), and one with a subquery or raw
+ * relation throws here.
+ */
 function renderNode(node: OperationNode): string {
   assertRelationFree(node);
   return new ClickHouseQueryCompiler().compileExpression(node);

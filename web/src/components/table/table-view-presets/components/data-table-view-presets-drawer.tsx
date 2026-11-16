@@ -427,7 +427,6 @@ function TableViewPresetsDrawerContentBody({
   const handleCreateView = (createdView: { name: string }) => {
     capture("saved_views:create", {
       tableName,
-      name: createdView.name,
     });
 
     createMutation.mutate({
@@ -451,7 +450,6 @@ function TableViewPresetsDrawerContentBody({
     capture("saved_views:update_config", {
       tableName,
       viewId: updatedView.id,
-      name: updatedView.name,
     });
 
     // Column order/visibility are the visitor's per-table localStorage, which
@@ -495,7 +493,6 @@ function TableViewPresetsDrawerContentBody({
     capture("saved_views:update_name", {
       tableName,
       viewId: updatedView.id,
-      name: updatedView.name,
     });
 
     updateNameMutation.mutate({

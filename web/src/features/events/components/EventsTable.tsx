@@ -9,7 +9,6 @@ import {
   toObservedOptions,
   withMetadataPathOptions,
 } from "@/src/features/search-bar/lib/observed-options";
-import { useSearchBarEnabled } from "@/src/features/search-bar/hooks/useSearchBarEnabled";
 import { useFullTextSearch } from "@/src/features/search-bar/hooks/useFullTextSearch";
 
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
@@ -22,6 +21,7 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import isEqual from "lodash/isEqual";
 import { startOfMinute } from "date-fns";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
@@ -92,6 +92,7 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useLiveTableDateRange } from "@/src/hooks/useLiveTableDateRange";
 import {
   isLiveTailTimeSort,
+  paginationWindowResetKey,
   usePaginationWindowPin,
 } from "@/src/components/table/hooks/usePaginationWindowPin";
 import {
@@ -545,9 +546,9 @@ export default function ObservationsEventsTable({
     persistAsDefault: false,
   });
 
-  // Facets describe the whole window (see facetStartTimeFilter below); the paged
-  // row/count queries take the pinned upper bound instead, so offset paging does
-  // not repeat or skip rows while the window keeps taking in newly ingested ones.
+  // Facets describe the live window (see facetStartTimeFilter below). Row and
+  // count queries freeze both bounds once the reader leaves page 1, so offset
+  // paging does not repeat, skip, or recount rows while new ones arrive.
   const {
     range: rowsDateRange,
     pinOnLeavingFirstPage,
@@ -555,7 +556,15 @@ export default function ObservationsEventsTable({
   } = usePaginationWindowPin(
     dateRange,
     limitRows ? 0 : paginationState.page - 1,
-    { enabled: isLiveTailTimeSort(orderByState, "startTime") },
+    {
+      enabled: isLiveTailTimeSort(orderByState, "startTime"),
+      resetKey: paginationWindowResetKey({
+        orderBy: orderByState,
+        pageSize: paginationState.limit,
+        timeRange,
+        externalRange: externalDateRange,
+      }),
+    },
   );
   const dateRangeFilter: FilterState = toStartTimeFilterState(rowsDateRange);
 
@@ -602,11 +611,22 @@ export default function ObservationsEventsTable({
     (change: ExplicitFilterStateChange) => {
       onAppRootExplicitFilterStateChange(change);
       demoteViewOnUserFilterEdit(change, viewControllersRef.current);
-      if (change.origin === "user" && change.action === "clear") {
-        resetSearchBarDraftRef.current?.(change.nextFilters);
+      if (change.origin === "user") {
+        // A search-bar blur commits the current filters even when they did
+        // not change. That write is still origin "user", so only a real edit
+        // or an explicit clear may move the paging window.
+        if (
+          change.action === "clear" ||
+          !isEqual(change.previousFilters, change.nextFilters)
+        ) {
+          resetPin();
+        }
+        if (change.action === "clear") {
+          resetSearchBarDraftRef.current?.(change.nextFilters);
+        }
       }
     },
-    [onAppRootExplicitFilterStateChange],
+    [onAppRootExplicitFilterStateChange, resetPin],
   );
 
   // Route-state half of the sidebar filters, ahead of the facet-options query
@@ -791,17 +811,13 @@ export default function ObservationsEventsTable({
     requestColumns(queryFilter.expanded);
   }, [queryFilter.expanded, requestColumns]);
 
-  // Grammar search bar: an ADDITIONAL editor that coexists with the facet
-  // sidebar, and the two stay in sync. Generally available on the v4 events
-  // tables (no longer a per-user Feature Preview opt-in — useSearchBarEnabled()
-  // is now always true). The sidebar's FilterState (+ the table's full-text
-  // search) remains the single source of truth — the bar reads from and writes
-  // to it. Only the legacy toolbar search field is replaced (full-text search —
-  // bare text and content:/input:/output: — goes inline in the bar); the
-  // sidebar and time/refresh controls stay.
-  const searchBarEnabled = useSearchBarEnabled();
-  const searchBarMode =
-    searchBarEnabled && showSearchBar && !externalFilterState;
+  // Grammar search bar: an additional editor that coexists with the facet
+  // sidebar, and the two stay in sync. The sidebar's FilterState (+ the table's
+  // full-text search) remains the single source of truth — the bar reads from
+  // and writes to it. Only the legacy toolbar search field is replaced
+  // (full-text search — bare text and content:/input:/output: — goes inline in
+  // the bar); the sidebar and time/refresh controls stay.
+  const searchBarMode = showSearchBar && !externalFilterState;
   const searchRegistry = eventsSearchRegistry(
     [
       ...(eventsFilterConfig.omittedFilterColumns ?? []),
@@ -2450,9 +2466,9 @@ export default function ObservationsEventsTable({
                                   pageSize: paginationState.limit,
                                 })
                               : updater;
-                          // Leaving page 1 freezes the paged set at the newest
-                          // row still on screen, so page 2 continues where this
-                          // page ends even if rows keep arriving.
+                          // Leaving page 1 freezes both bounds at the newest
+                          // row still on screen. Later pages pass their own
+                          // top row; the hook keeps the page-1 snapshot.
                           pinOnLeavingFirstPage(
                             newState.pageIndex,
                             rows[0]?.startTime ?? undefined,

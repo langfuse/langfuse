@@ -9,6 +9,7 @@ import type {
 import {
   listTopicFacets,
   listTopicRules,
+  readTopicExecutionSummary,
 } from "@langfuse/shared/topics/server";
 import { processTopicsTrace } from "./processTopicsTrace";
 import { summarizeAssembledTrace } from "./summarizeAssembledTrace";
@@ -36,6 +37,7 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   isValidTopicSummary: () => true,
   listTopicFacets: vi.fn(),
   listTopicRules: vi.fn(),
+  readTopicExecutionSummary: vi.fn(),
   topicSummaryRecord: (row: unknown) => ({ summary: row }),
   topicAssignmentRecord: (row: unknown) => ({ assignment: row }),
 }));
@@ -159,6 +161,34 @@ describe("processTopicsTrace", () => {
       .filter(([table]) => table === "topic_assignments")
       .map(([, record]) => record.assignment.runId);
     expect(assigned).toEqual(["rule-map", "mapped-map"]);
+  });
+
+  it("summarizes a snapshot's facets without a rule and tags the summaries with the snapshot", async () => {
+    vi.mocked(readTopicExecutionSummary).mockResolvedValue({
+      status: "running",
+      input: { operation: "update", facets: [{ facetId: "tone", version: 2 }] },
+    } as never);
+    vi.mocked(summarizeAssembledTrace).mockResolvedValue({
+      outcome: "summarized",
+      rows: [row("tone", "complete")],
+    });
+
+    await expect(
+      processTopicsTrace(
+        { ...event, ruleIds: [], batchActionId: "snapshot" },
+        { scheduleRetry },
+      ),
+    ).resolves.toEqual({ outcome: "summarized" });
+    expect(vi.mocked(summarizeAssembledTrace).mock.calls[0][0]).toMatchObject({
+      facets: [expect.objectContaining({ name: "tone" })],
+      executionId: "snapshot",
+    });
+    // No rule matched, so nothing is assigned online; the snapshot's fit assigns.
+    expect(
+      mocks.addToQueue.mock.calls.filter(
+        ([table]) => table === "topic_assignments",
+      ),
+    ).toEqual([]);
   });
 
   it("skips the trace when its rules no longer select a facet", async () => {

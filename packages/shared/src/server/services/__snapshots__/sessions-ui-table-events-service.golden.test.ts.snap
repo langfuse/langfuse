@@ -68,7 +68,6 @@ exports[`golden: sessions simple aggregates family > getSessionTracesFromEvents 
     any(e.experiment_id) AS experiment_id
 FROM events_full AS e
 WHERE (e.project_id = {param1:String})
-    AND (e.is_deleted = 0)
     AND (e.session_id = {param2:String})
 GROUP BY
     trace_id,
