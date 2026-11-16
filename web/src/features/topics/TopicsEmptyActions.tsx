@@ -27,7 +27,6 @@ export function TopicsEmptyActions({ actions }: { actions: TopicsActions }) {
   const entries = candidates.flatMap(({ entry, ...item }) =>
     entry ? [{ ...item, entry }] : [],
   );
-  if (entries.length === 0) return null;
   // Touch screens never show a tooltip, so a disabled entry point spells out why.
   const reasons = [
     ...new Set(entries.flatMap(({ entry }) => entry.disabledReason ?? [])),
