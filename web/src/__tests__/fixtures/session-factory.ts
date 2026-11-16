@@ -78,7 +78,9 @@ type SessionOrganization = SessionUser["organizations"][number];
 type SessionProject = SessionOrganization["projects"][number];
 
 /** TestOrganization is an organization's id and the user's role on it, plus the fields that differ from the defaults. */
-type TestOrganization = Partial<Omit<SessionOrganization, "projects">> & {
+export type TestOrganization = Partial<
+  Omit<SessionOrganization, "projects">
+> & {
   id: string;
   role: Role;
   projects?: TestProject[];

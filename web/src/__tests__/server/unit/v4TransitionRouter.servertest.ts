@@ -6,6 +6,7 @@ import { v4TransitionRouter } from "@/src/features/v4/server/v4TransitionRouter"
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { queryClickhouse } from "@langfuse/shared/src/server";
 import { createSession } from "@/src/__tests__/fixtures/session-factory";
+import { type Role } from "@langfuse/shared";
 
 vi.mock("@/src/server/auth", () => ({
   getServerAuthSession: vi.fn(),
@@ -378,18 +379,13 @@ const createCaller = (
     ...(prisma ? { prisma: prisma as unknown as PrismaClient } : {}),
   });
 
-type SessionUser = NonNullable<Session["user"]>;
-type OrganizationRole = SessionUser["organizations"][number]["role"];
-type ProjectRole =
-  SessionUser["organizations"][number]["projects"][number]["role"];
-
 const transitionSession = ({
   orgRole = "OWNER",
   projectRole = "ADMIN",
   onlyFirstProject = false,
 }: {
-  orgRole?: OrganizationRole;
-  projectRole?: ProjectRole;
+  orgRole?: Role;
+  projectRole?: Role;
   onlyFirstProject?: boolean;
 } = {}): Session =>
   createSession({
@@ -431,10 +427,10 @@ const transitionSession = ({
     environment: { selfHostedInstancePlan: "cloud:hobby" },
   });
 
-const createSessionWithOrgRole = (role: OrganizationRole): Session =>
+const createSessionWithOrgRole = (role: Role): Session =>
   transitionSession({ orgRole: role, onlyFirstProject: role === "NONE" });
 
-const createSessionWithProjectRole = (role: ProjectRole): Session =>
+const createSessionWithProjectRole = (role: Role): Session =>
   transitionSession({ projectRole: role });
 
 const session: Session = transitionSession();

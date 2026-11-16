@@ -1,21 +1,23 @@
-import { type Session } from "next-auth";
-
 import { OrganizationLandingService } from "@/src/features/organizations/server/organizationLandingService";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
-import { createSession } from "@/src/__tests__/fixtures/session-factory";
+import {
+  createSession,
+  type TestOrganization,
+} from "@/src/__tests__/fixtures/session-factory";
 
 vi.mock("@/src/env.mjs", async (importOriginal) => {
   const actual = await importOriginal<{ env: Record<string, unknown> }>();
   return { env: { ...actual.env, NEXT_PUBLIC_DEMO_ORG_ID: "org-demo" } };
 });
 
-type Organization = NonNullable<Session["user"]>["organizations"][number];
-
-const organization = (id: string, overrides: Partial<Organization> = {}) => ({
+const organization = (
+  id: string,
+  overrides: Partial<TestOrganization> = {},
+): TestOrganization => ({
   id,
   name: id,
-  role: "MEMBER" as const,
-  plan: "oss" as const,
+  role: "MEMBER",
+  plan: "oss",
   projects: [{ id: `${id}-project` }],
   featureFlags: testFeatureFlags(),
   ...overrides,
