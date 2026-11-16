@@ -240,9 +240,12 @@ describe("NullFilter metadata filters on events tables", () => {
         [{ column, type: "null", operator: "is null", value: "" }],
         eventsTableUiColumnDefinitions,
       );
+      const tagsSelect = eventsTableUiColumnDefinitions.find(
+        (c) => c.uiTableId === column,
+      )?.clickhouseSelect;
       expect({ column, query: filter.apply().query }).toEqual({
         column,
-        query: 'empty(e."tags")',
+        query: `empty(${tagsSelect})`,
       });
     }
   });

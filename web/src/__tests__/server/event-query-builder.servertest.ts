@@ -708,7 +708,7 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
   it.each([
     ["userId", "is not null", `(e.user_id != '' AND e.user_id IS NOT NULL)`],
     ["name", "is null", `(e.name = '' OR e.name IS NULL)`],
-    ["traceTags", "is not null", `notEmpty(e."tags")`],
+    ["traceTags", "is not null", `notEmpty(e.tags)`],
   ] as const)(
     "treats an empty %s as null (%s)",
     (column, operator, expected) => {

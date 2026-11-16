@@ -27,6 +27,11 @@ import {
   NullFilter,
 } from "./clickhouse-filter";
 import { assertValidFtsMatchFilter, isFtsEventsTable } from "./fts";
+import {
+  EVENTS_FIELD_LOWERINGS,
+  eventsFieldSql,
+  type ScalarFieldLowering,
+} from "../../repositories/events-predicate-fields";
 
 class QueryBuilderError extends Error {
   constructor(message: string) {
@@ -203,11 +208,7 @@ export const createFilterFromFilterState = (
           field: column.clickhouseSelect,
           operator: frontEndFilter.operator,
           tablePrefix: column.queryPrefix,
-          ...resolveNullFilterEmptiness(
-            column,
-            columnMapping,
-            columnDefinitions,
-          ),
+          ...resolveNullFilterEmptiness(column, columnDefinitions),
         });
       default:
         // eslint-disable-next-line no-case-declarations
@@ -218,36 +219,51 @@ export const createFilterFromFilterState = (
   });
 };
 
-// Events columns resolve their type from `eventsTableCols` when the caller
-// passes no definitions, so every events query lowers alike. An id without its
-// own events definition (e.g. `tags`) borrows the type of another id that
-// selects the same column (`traceTags`). Events string columns are
-// non-nullable and store a missing value as ''.
+// Events columns follow the predicate lowering (`lowerNull`): the mapping SQL is
+// rendered from `EVENTS_FIELD_LOWERINGS`, so the field with the same SQL gives
+// its kind. A missing array is empty and a missing string is ''. Other columns
+// (e.g. dashboard expressions) only read array emptiness from their definition.
 const resolveNullFilterEmptiness = (
   column: UiColumnMappings[number],
-  columnMapping: UiColumnMappings,
   columnDefinitions?: ColumnDefinition[],
 ) => {
   const isEventsColumn = isFtsEventsTable(column.clickhouseTableName);
-  const definitionOf = (id: string | undefined) =>
-    columnDefinitions?.find((c) => c.id === id) ??
-    (isEventsColumn ? eventsTableCols.find((c) => c.id === id) : undefined);
+  const lowering = isEventsColumn
+    ? eventsFieldLoweringBySql().get(column.clickhouseSelect)
+    : undefined;
+  if (lowering) {
+    return {
+      emptyEqualsNull:
+        column.emptyEqualsNull ||
+        lowering.emptyEqualsNull ||
+        lowering.kind === "string",
+      emptyArrayEqualsNull: lowering.kind === "array",
+    };
+  }
   const columnType = (
-    definitionOf(column.uiTableId) ??
+    columnDefinitions?.find((c) => c.id === column.uiTableId) ??
     (isEventsColumn
-      ? columnMapping
-          .filter((m) => m.clickhouseSelect === column.clickhouseSelect)
-          .map((m) => definitionOf(m.uiTableId))
-          .find((d) => d !== undefined)
+      ? eventsTableCols.find((c) => c.id === column.uiTableId)
       : undefined)
   )?.type;
-  const isEventsString =
-    isEventsColumn &&
-    (columnType === "string" || columnType === "stringOptions");
   return {
-    emptyEqualsNull: column.emptyEqualsNull || isEventsString,
+    emptyEqualsNull: column.emptyEqualsNull,
     emptyArrayEqualsNull: columnType === "arrayOptions",
   };
+};
+
+let loweringBySql: Map<string, ScalarFieldLowering> | undefined;
+const eventsFieldLoweringBySql = () => {
+  if (!loweringBySql) {
+    loweringBySql = new Map(
+      Object.entries(EVENTS_FIELD_LOWERINGS).flatMap(([id, lowering]) =>
+        lowering.kind === "metadata"
+          ? []
+          : [[eventsFieldSql(id), lowering] as const],
+      ),
+    );
+  }
+  return loweringBySql;
 };
 
 const validateEventsTableMatchesFilter = (

@@ -540,11 +540,7 @@ function lowerNull(
     return op === "is null" ? empty(value) : notEmpty(value);
   }
   const value = lowering.value(eb);
-  if (
-    lowering.emptyEqualsNull ||
-    lowering.kind === "string" ||
-    lowering.kind === "nullableString"
-  ) {
+  if (lowering.emptyEqualsNull || lowering.kind === "string") {
     return op === "is null"
       ? isEmptyOrNull(eb, value)
       : eb.and([eb(value, "!=", literal("")), eb(value, "is not", null)]);
