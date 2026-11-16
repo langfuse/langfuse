@@ -1,7 +1,9 @@
 //! Per-key spend limits. Before forwarding, a key's counters for the current
 //! windows are checked against its limits; after the response, the request's
 //! cost is added to them. Requests are not reserved, so concurrent requests
-//! can overshoot a limit by what they cost.
+//! can overshoot a limit by what they cost. A request the gateway could not
+//! price afterwards, because Langfuse has no price for the model or the
+//! connection may not report usage, is rejected before it is forwarded.
 mod cost;
 mod store;
 mod usage;
@@ -18,7 +20,10 @@ pub(crate) use window::SpendLimitInterval;
 use crate::{
     capture::InferenceFacts,
     config::SpendCountersConfig,
-    resolution::{ResolutionError, ResolvedRequestContext, SpendLimit, SpendLimitExceeded},
+    resolution::{
+        Provider, ProviderConnection, ResolutionError, ResolvedRequestContext, SpendLimit,
+        SpendLimitExceeded,
+    },
 };
 use cost::{PricingAttributes, UsageCostType, calculate_model_usage_costs};
 use store::{Expiry, RedisCounters};
@@ -57,6 +62,10 @@ impl SpendLimits {
         if limits.is_empty() {
             return Ok(None);
         }
+        let tiers = priced_tiers(context).ok_or(ResolutionError::SpendLimitUnpricedModel)?;
+        if !reports_usage(context.connection()) {
+            return Err(ResolutionError::SpendLimitUnmeteredConnection);
+        }
         let Some(store) = &self.counters else {
             tracing::warn!("key has spend limits but LANGFUSE_AI_GATEWAY_REDIS_URL is not set");
             return Err(ResolutionError::SpendLimitUnavailable);
@@ -91,12 +100,26 @@ impl SpendLimits {
                 .into_iter()
                 .map(|window| (window.key, window.expiry))
                 .collect(),
-            tiers: context
-                .pricing()
-                .map(|pricing| pricing.tiers.clone())
-                .unwrap_or_default(),
+            tiers,
         }))
     }
+}
+
+/// The model's pricing tiers, when Langfuse has a price for the model.
+fn priced_tiers(context: &ResolvedRequestContext) -> Option<Vec<PricingTierWithPrices>> {
+    let tiers = &context.pricing()?.tiers;
+    tiers
+        .iter()
+        .any(|tier| !tier.prices.is_empty())
+        .then(|| tiers.clone())
+}
+
+/// Whether a response through the connection reports the usage a request is priced by.
+/// Every provider API the gateway speaks reports usage, but a user-entered base URL can
+/// front any compatible server, so only the provider's own API is trusted. An Azure
+/// connection always carries its resource's base URL and reports usage as `OpenAI` does.
+fn reports_usage(connection: &ProviderConnection) -> bool {
+    connection.provider() == Provider::Azure || !connection.has_custom_base_url()
 }
 
 struct Window {

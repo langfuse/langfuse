@@ -596,6 +596,12 @@ pub enum ResolutionError {
     /// The key has spend limits, but its spend cannot be read.
     #[error("spend limit unavailable")]
     SpendLimitUnavailable,
+    /// The key has spend limits, but Langfuse has no price for the model.
+    #[error("spend limit cannot price the model")]
+    SpendLimitUnpricedModel,
+    /// The key has spend limits, but the connection may not report usage.
+    #[error("spend limit cannot meter the connection")]
+    SpendLimitUnmeteredConnection,
     /// The gateway's memory budget cannot cover another request.
     #[error("gateway at capacity")]
     Busy,

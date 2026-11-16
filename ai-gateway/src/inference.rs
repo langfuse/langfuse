@@ -42,6 +42,10 @@ pub(crate) fn resolution_origin(error: &ResolutionError) -> (ErrorOrigin, &'stat
         R::RateLimited(limit) => (ErrorOrigin::Client, rate_limited_reason(limit.kind())),
         R::SpendLimitExceeded(_) => (ErrorOrigin::Client, "spend_limit_exceeded"),
         R::SpendLimitUnavailable => (ErrorOrigin::Gateway, "spend_limit_unavailable"),
+        R::SpendLimitUnpricedModel => (ErrorOrigin::Client, "spend_limit_unpriced_model"),
+        R::SpendLimitUnmeteredConnection => {
+            (ErrorOrigin::Client, "spend_limit_unmetered_connection")
+        }
         R::Unavailable => (ErrorOrigin::ControlPlane, "unavailable"),
         R::Timeout => (ErrorOrigin::ControlPlane, "timeout"),
         R::Transport => (ErrorOrigin::ControlPlane, "transport"),

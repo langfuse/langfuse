@@ -1536,26 +1536,34 @@ async fn organization_rate_limits_become_provider_native_429s_with_retry_after()
     assert_eq!(provider.calls(), 0);
 }
 
-#[tokio::test]
-async fn keys_with_spend_limits_fail_closed_without_spend_counters() {
-    let web = FakeServer::start(|_| async {
-        let bytes = to_bytes(resolution_response("provider-secret").into_body(), 4096)
-            .await
-            .unwrap();
-        let mut body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        body["spend_limits"] = serde_json::json!([{
-            "id": "limit-1", "interval": "daily", "limit_usd": 10, "generation": 0,
-            "baseline_usd": 0, "baseline_window_start": 0,
-        }]);
-        Response::builder()
-            .header("content-type", "application/json")
-            .body(Body::from(body.to_string()))
-            .unwrap()
-    })
-    .await;
+/// A resolution for a key with a daily spend limit, changed by `edit`.
+async fn spend_limited_resolution(edit: fn(&mut serde_json::Value)) -> Response<Body> {
+    let bytes = to_bytes(resolution_response("provider-secret").into_body(), 4096)
+        .await
+        .unwrap();
+    let mut body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    body["spend_limits"] = serde_json::json!([{
+        "id": "limit-1", "interval": "daily", "limit_usd": 10, "generation": 0,
+        "baseline_usd": 0, "baseline_window_start": 0,
+    }]);
+    body["pricing"] = serde_json::json!({
+        "model_id": "model-1",
+        "tiers": [{
+            "id": "tier-1", "name": "Standard", "is_default": true, "priority": 0,
+            "conditions": [], "prices": { "input": 0.000_001 },
+        }],
+    });
+    edit(&mut body);
+    Response::builder()
+        .header("content-type", "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap()
+}
+
+async fn spend_limited_request(edit: fn(&mut serde_json::Value)) -> (StatusCode, String, usize) {
+    let web = FakeServer::start(move |_| spend_limited_resolution(edit)).await;
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
     let gateway = Gateway::start(Some(inference(&web, &provider))).await;
-
     let response = gateway
         .post()
         .bearer_auth("gateway-key")
@@ -1563,10 +1571,43 @@ async fn keys_with_spend_limits_fail_closed_without_spend_counters() {
         .send()
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    let status = response.status();
     let body: serde_json::Value = serde_json::from_str(&response.text().await.unwrap()).unwrap();
-    assert_eq!(body["error"]["code"], "gateway_unavailable");
-    assert_eq!(provider.calls(), 0);
+    let code = body["error"]["code"].as_str().unwrap().to_owned();
+    (status, code, provider.calls())
+}
+
+#[tokio::test]
+async fn keys_with_spend_limits_fail_closed_without_spend_counters() {
+    let (status, code, provider_calls) = spend_limited_request(|_| {}).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(code, "gateway_unavailable");
+    assert_eq!(provider_calls, 0);
+}
+
+#[tokio::test]
+async fn keys_with_spend_limits_reject_requests_they_cannot_price() {
+    type Edit = fn(&mut serde_json::Value);
+    let cases: [(Edit, &str); 3] = [
+        (
+            |body| body["pricing"] = serde_json::Value::Null,
+            "spend_limit_unpriced_model",
+        ),
+        (
+            |body| body["pricing"]["tiers"][0]["prices"] = serde_json::json!({}),
+            "spend_limit_unpriced_model",
+        ),
+        (
+            |body| body["connection"]["base_url"] = "https://llm.internal.example/v1".into(),
+            "spend_limit_unmetered_connection",
+        ),
+    ];
+    for (edit, expected) in cases {
+        let (status, code, provider_calls) = spend_limited_request(edit).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(code, expected);
+        assert_eq!(provider_calls, 0);
+    }
 }
 
 #[tokio::test]

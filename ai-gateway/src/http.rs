@@ -495,6 +495,8 @@ impl InferenceHttpError {
                     R::RateLimited(limit) => rate_limited_reason(limit.kind()),
                     R::SpendLimitExceeded(_) => "spend_limit_exceeded",
                     R::SpendLimitUnavailable => "spend_limit_unavailable",
+                    R::SpendLimitUnpricedModel => "spend_limit_unpriced_model",
+                    R::SpendLimitUnmeteredConnection => "spend_limit_unmetered_connection",
                     R::Busy => "capacity",
                     R::Timeout => "timeout",
                     R::Unavailable => "unavailable",
@@ -516,7 +518,7 @@ impl InferenceHttpError {
         }
     }
 
-    fn classify(&self) -> (StatusCode, &'static str, &'static str, &'static str) {
+    fn classify(&self) -> Classification {
         use ResolutionError as R;
         match self {
             Self::Credential | Self::Resolution(R::InvalidCredential | R::Authentication) => (
@@ -550,13 +552,7 @@ impl InferenceHttpError {
                 "requests",
                 "rate_limit_exceeded",
             ),
-            // OpenAI's type for an exhausted budget; the message names the limit.
-            Self::Resolution(R::SpendLimitExceeded(_)) => (
-                StatusCode::TOO_MANY_REQUESTS,
-                "Spend limit exceeded",
-                "insufficient_quota",
-                "spend_limit_exceeded",
-            ),
+            Self::Resolution(R::SpendLimitExceeded(_)) => SPEND_LIMIT_EXCEEDED,
             Self::Resolution(R::NoRoute) => (
                 StatusCode::NOT_FOUND,
                 "No eligible provider connection",
@@ -581,7 +577,10 @@ impl InferenceHttpError {
                 "invalid_request_error",
                 "unsupported_content_encoding",
             ),
-            Self::InvalidBody | Self::Provider(ProviderError::UnmeteredRequest) => (
+            Self::Resolution(R::SpendLimitUnpricedModel) => SPEND_LIMIT_UNPRICED_MODEL,
+            Self::Resolution(R::SpendLimitUnmeteredConnection) => SPEND_LIMIT_UNMETERED_CONNECTION,
+            Self::Provider(ProviderError::UnmeteredRequest) => SPEND_LIMIT_UNMETERED_REQUEST,
+            Self::InvalidBody => (
                 StatusCode::BAD_REQUEST,
                 "Invalid request body",
                 "invalid_request_error",
@@ -726,6 +725,35 @@ impl InferenceHttpError {
         response
     }
 }
+
+/// Status, message, error type and error code of a rejection.
+type Classification = (StatusCode, &'static str, &'static str, &'static str);
+
+/// `OpenAI`'s type for an exhausted budget; the message names the limit.
+const SPEND_LIMIT_EXCEEDED: Classification = (
+    StatusCode::TOO_MANY_REQUESTS,
+    "Spend limit exceeded",
+    "insufficient_quota",
+    "spend_limit_exceeded",
+);
+const SPEND_LIMIT_UNPRICED_MODEL: Classification = (
+    StatusCode::BAD_REQUEST,
+    "This API key has a spend limit, and Langfuse has no price for this model. Add a model price in Langfuse to use the model with this key.",
+    "invalid_request_error",
+    "spend_limit_unpriced_model",
+);
+const SPEND_LIMIT_UNMETERED_CONNECTION: Classification = (
+    StatusCode::BAD_REQUEST,
+    "This API key has a spend limit, and this provider connection uses a custom base URL that may not report token usage. Use a connection to the provider's own API with this key.",
+    "invalid_request_error",
+    "spend_limit_unmetered_connection",
+);
+const SPEND_LIMIT_UNMETERED_REQUEST: Classification = (
+    StatusCode::BAD_REQUEST,
+    "This API key has a spend limit, and the gateway cannot ask the provider to report usage for this streamed request. Send one `stream` member and at most one `stream_options` object.",
+    "invalid_request_error",
+    "spend_limit_unmetered_request",
+);
 
 fn anthropic_error_type(status: StatusCode) -> &'static str {
     match status {
