@@ -936,3 +936,4 @@ export { getTracingCountsByProjectInCreationIntervalFromEventsTable } from "./re
 export { AI_GATEWAY_KEY_ID_METADATA_KEY } from "./otel/OtelIngestionProcessor";
 export { aiGatewayIngestionApiKey } from "./otel/OtelIngestionProcessor";
 export { isAiGatewayIngestionApiKey } from "./otel/OtelIngestionProcessor";
+export { executeCustomerSql } from "./sql-interface/execute";
