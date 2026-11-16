@@ -1,4 +1,3 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
@@ -15,6 +14,7 @@ import {
 } from "@langfuse/shared/rbac";
 import { env } from "@/src/env.mjs";
 import { randomUUID } from "crypto";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 vi.mock("@/src/env.mjs", async (importOriginal) => {
   const actual = await importOriginal<{ env: typeof env }>();
@@ -62,40 +62,16 @@ describe("project API keys trpc", () => {
   ) {
     const { projectId, orgId, publicKey } = await createOrgProjectAndApiKey();
 
-    const session: Session = {
-      expires: "1",
-      user: {
-        id: "user-1",
-        canCreateOrganizations: true,
-        name: "Demo User",
-        organizations: [
-          {
-            id: orgId,
-            name: "Test Organization",
-            role: "OWNER",
-            plan: "cloud:hobby",
-            cloudConfig: undefined,
-            metadata: {},
-            aiFeaturesEnabled: false,
-            aiTelemetryEnabled: true,
-            projects: [
-              {
-                id: projectId,
-                role: projectRole,
-                retentionDays: 30,
-                deletedAt: null,
-                hasTraces: false,
-                name: "Test Project",
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        ],
-        featureFlags: testFeatureFlags(),
-      },
-      environment: {} as any,
-    };
+    const session: Session = createSession({
+      organizations: [
+        {
+          id: orgId,
+          role: "OWNER",
+          aiTelemetryEnabled: true,
+          projects: [{ id: projectId, role: projectRole }],
+        },
+      ],
+    });
 
     const ctx = createInnerTRPCContext({ session, headers: {} });
     const caller = appRouter.createCaller({ ...ctx, prisma });

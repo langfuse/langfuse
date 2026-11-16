@@ -1,6 +1,7 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { randomUUID } from "crypto";
 import type { Session } from "next-auth";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 import { z } from "zod";
@@ -361,44 +362,30 @@ function createInAppAgentSession(params: {
   userId: string;
   includeProjectMembership?: boolean;
 }): Session {
-  return {
+  return createSession({
     expires: new Date(Date.now() + 60_000).toISOString(),
-    environment: { enableExperimentalFeatures: false },
     user: {
       id: params.userId,
       name: "Test User",
       email: "test@example.com",
       image: null,
       featureFlags: testFeatureFlags({ templateFlag: false }),
-      organizations:
-        (params.includeProjectMembership ?? true)
-          ? [
-              {
-                id: params.orgId,
-                name: "Test Org",
-                plan: "cloud:team",
-                role: "OWNER",
-                metadata: {},
-                aiFeaturesEnabled: true,
-                aiTelemetryEnabled: false,
-                cloudConfig: { plan: "Team" },
-                projects: [
-                  {
-                    id: params.projectId,
-                    name: "Test Project",
-                    role: "ADMIN",
-                    retentionDays: 30,
-                    hasTraces: false,
-                    deletedAt: null,
-                    metadata: {},
-                    createdAt: new Date().toISOString(),
-                  },
-                ],
-              },
-            ]
-          : [],
     },
-  } as Session;
+    organizations:
+      (params.includeProjectMembership ?? true)
+        ? [
+            {
+              id: params.orgId,
+              name: "Test Org",
+              plan: "cloud:team",
+              role: "OWNER",
+              aiFeaturesEnabled: true,
+              cloudConfig: { plan: "Team" },
+              projects: [{ id: params.projectId, role: "ADMIN" }],
+            },
+          ]
+        : [],
+  });
 }
 
 async function withInAppAgentCloudEnv<T>(run: () => Promise<T>): Promise<T> {

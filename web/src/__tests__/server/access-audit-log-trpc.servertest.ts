@@ -1,4 +1,3 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { type Plan, Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgMembership } from "@langfuse/shared/memberships";
@@ -9,6 +8,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 async function accessAuditLogEnabled(orgId: string) {
   const org = await prisma.organization.findUniqueOrThrow({
@@ -33,31 +33,23 @@ async function setup({ role, plan }: { role: Role; plan: Plan }) {
   });
   await createOrgMembership(prisma, { userId, orgId, role });
 
-  const session: Session = {
-    expires: "1",
+  const session: Session = createSession({
     user: {
       id: userId,
-      canCreateOrganizations: true,
       name: "Access Audit Test User",
       email: `access-audit-${userId.slice(0, 8)}@test.com`,
-      organizations: [
-        {
-          id: orgId,
-          name: "Access audit log",
-          role,
-          plan,
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          accessAuditLogEnabled: false,
-          projects: [],
-        },
-      ],
-      featureFlags: testFeatureFlags(),
     },
-    environment: {} as any,
-  };
+    organizations: [
+      {
+        id: orgId,
+        role,
+        name: "Access audit log",
+        plan,
+        aiTelemetryEnabled: true,
+        accessAuditLogEnabled: false,
+      },
+    ],
+  });
   const ctx = createInnerTRPCContext({ session, headers: {} });
   return { orgId, caller: appRouter.createCaller({ ...ctx, prisma }) };
 }

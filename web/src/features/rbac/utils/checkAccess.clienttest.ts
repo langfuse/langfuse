@@ -6,6 +6,7 @@ import { type ProjectScope } from "@langfuse/shared";
 import { type Role } from "@langfuse/shared/src/db";
 import { type Session } from "next-auth";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 vi.mock("@/src/env.mjs", () => ({
   env: { NEXT_PUBLIC_DEMO_PROJECT_ID: "demo-project" },
@@ -14,25 +15,19 @@ vi.mock("@/src/env.mjs", () => ({
 function projectSession(
   projectId: string,
   role: Role,
-  user: Partial<NonNullable<Session["user"]>> = {},
+  user: Partial<Omit<NonNullable<Session["user"]>, "organizations">> = {},
 ) {
-  return {
-    user: {
-      email: "user@example.com",
-      featureFlags: testFeatureFlags(),
-      organizations: [{ projects: [{ id: projectId, role }] }],
-      ...user,
-    },
-  } as Session;
+  return createSession({
+    user: { email: "user@example.com", ...user },
+    organizations: [{ id: "org-1", role, projects: [{ id: projectId }] }],
+  });
 }
 
 describe("RBAC access checks", () => {
   it("allows organization members to invoke the gateway", () => {
     const canInvoke = (role: Role) =>
       hasOrganizationAccess({
-        session: {
-          user: { organizations: [{ id: "org-1", role, projects: [] }] },
-        } as unknown as Session,
+        session: createSession({ organizations: [{ id: "org-1", role }] }),
         organizationId: "org-1",
         scope: "gateway:invoke",
       });

@@ -2,6 +2,7 @@ import { type Session } from "next-auth";
 
 import { OrganizationLandingService } from "@/src/features/organizations/server/organizationLandingService";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 vi.mock("@/src/env.mjs", async (importOriginal) => {
   const actual = await importOriginal<{ env: Record<string, unknown> }>();
@@ -10,28 +11,15 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
 
 type Organization = NonNullable<Session["user"]>["organizations"][number];
 
-const organization = (
-  id: string,
-  overrides: Partial<Organization> = {},
-): Organization =>
-  ({
-    id,
-    name: id,
-    role: "MEMBER",
-    plan: "oss",
-    projects: [{ id: `${id}-project`, role: "MEMBER" }],
-    featureFlags: testFeatureFlags(),
-    ...overrides,
-  }) as unknown as Organization;
-
-const session = (organizations: Organization[]) =>
-  ({
-    user: {
-      featureFlags: testFeatureFlags(),
-      organizations,
-    },
-    environment: { aiGatewayDeployed: true },
-  }) as unknown as Session;
+const organization = (id: string, overrides: Partial<Organization> = {}) => ({
+  id,
+  name: id,
+  role: "MEMBER" as const,
+  plan: "oss" as const,
+  projects: [{ id: `${id}-project` }],
+  featureFlags: testFeatureFlags(),
+  ...overrides,
+});
 
 const demoOrganization = organization("org-demo");
 const gatewayOnlyOrganization = organization("org-gateway", {
@@ -76,8 +64,11 @@ it.each([
   },
 ])("lands on $name", ({ organizations, lastProjectId, expected }) => {
   expect(
-    new OrganizationLandingService(session(organizations)).landingPath(
-      lastProjectId,
-    ),
+    new OrganizationLandingService(
+      createSession({
+        organizations,
+        environment: { aiGatewayDeployed: true },
+      }),
+    ).landingPath(lastProjectId),
   ).toBe(expected);
 });

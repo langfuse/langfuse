@@ -10,9 +10,9 @@ import {
   deleteOrgMembership,
   updateOrgMembership,
 } from "@langfuse/shared/memberships";
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const prepare = async () => {
   const { project, org } = await createOrgProjectAndApiKey();
@@ -42,43 +42,20 @@ const prepare = async () => {
     userId: string,
     role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER",
   ) => {
-    const session: Session = {
-      expires: "1",
-      user: {
-        id: userId,
-        canCreateOrganizations: true,
-        name: "Session view test user",
-        featureFlags: testFeatureFlags(),
-        organizations: [
-          {
-            id: org.id,
-            name: org.name,
-            role: "OWNER",
-            plan: "cloud:team",
-            cloudConfig: undefined,
-            metadata: {},
-            aiFeaturesEnabled: false,
-            aiTelemetryEnabled: true,
-            projects: [
-              {
-                id: project.id,
-                role,
-                retentionDays: 30,
-                deletedAt: null,
-                hasTraces: false,
-                name: project.name,
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        ],
-      },
-      environment: {
-        enableExperimentalFeatures: false,
-        selfHostedInstancePlan: "cloud:hobby",
-      },
-    };
+    const session: Session = createSession({
+      user: { id: userId, name: "Session view test user" },
+      organizations: [
+        {
+          id: org.id,
+          role: "OWNER",
+          name: org.name,
+          plan: "cloud:team",
+          aiTelemetryEnabled: true,
+          projects: [{ id: project.id, role, name: project.name }],
+        },
+      ],
+      environment: { selfHostedInstancePlan: "cloud:hobby" },
+    });
     return appRouter.createCaller({
       ...createInnerTRPCContext({ session, headers: {} }),
       prisma,

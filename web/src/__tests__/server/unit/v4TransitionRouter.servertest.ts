@@ -5,6 +5,7 @@ import type { PrismaClient } from "@langfuse/shared/src/db";
 import { v4TransitionRouter } from "@/src/features/v4/server/v4TransitionRouter";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { queryClickhouse } from "@langfuse/shared/src/server";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 vi.mock("@/src/server/auth", () => ({
   getServerAuthSession: vi.fn(),
@@ -382,83 +383,61 @@ type OrganizationRole = SessionUser["organizations"][number]["role"];
 type ProjectRole =
   SessionUser["organizations"][number]["projects"][number]["role"];
 
-const createSessionWithOrgRole = (role: OrganizationRole): Session => ({
-  ...session,
-  user: {
-    ...session.user!,
-    organizations: session.user!.organizations.map((organization) => ({
-      ...organization,
-      role,
-      projects:
-        role === "NONE"
-          ? organization.projects.filter((project) => project.id === projectId)
-          : organization.projects,
-    })),
-  },
-});
-
-const createSessionWithProjectRole = (role: ProjectRole): Session => ({
-  ...session,
-  user: {
-    ...session.user!,
-    organizations: session.user!.organizations.map((organization) => ({
-      ...organization,
-      projects: organization.projects.map((project) => ({
-        ...project,
-        role,
-      })),
-    })),
-  },
-});
-
-const session: Session = {
-  expires: "1",
-  user: {
-    id: "user-v4-transition",
-    name: "V4 Transition User",
-    email: "v4-transition@example.com",
-    canCreateOrganizations: true,
+const transitionSession = ({
+  orgRole = "OWNER",
+  projectRole = "ADMIN",
+  onlyFirstProject = false,
+}: {
+  orgRole?: OrganizationRole;
+  projectRole?: ProjectRole;
+  onlyFirstProject?: boolean;
+} = {}): Session =>
+  createSession({
+    user: {
+      id: "user-v4-transition",
+      name: "V4 Transition User",
+      email: "v4-transition@example.com",
+      featureFlags: testFeatureFlags({ templateFlag: false }),
+    },
     organizations: [
       {
         id: orgId,
+        role: orgRole,
         name: "V4 Transition Org",
-        role: "OWNER",
-        plan: "cloud:hobby",
-        cloudConfig: undefined,
-        metadata: {},
         aiFeaturesEnabled: true,
         aiTelemetryEnabled: true,
         projects: [
           {
             id: projectId,
+            role: projectRole,
             name: "V4 Transition Project",
-            role: "ADMIN",
-            deletedAt: null,
             retentionDays: null,
-            hasTraces: false,
-            metadata: {},
             createdAt: new Date(0).toISOString(),
           },
-          {
-            id: secondProjectId,
-            name: "Second Project",
-            role: "ADMIN",
-            deletedAt: null,
-            retentionDays: null,
-            hasTraces: false,
-            metadata: {},
-            createdAt: new Date(0).toISOString(),
-          },
+          ...(onlyFirstProject
+            ? []
+            : [
+                {
+                  id: secondProjectId,
+                  role: projectRole,
+                  name: "Second Project",
+                  retentionDays: null,
+                  createdAt: new Date(0).toISOString(),
+                },
+              ]),
         ],
       },
     ],
-    featureFlags: testFeatureFlags({ templateFlag: false }),
-  },
-  environment: {
-    enableExperimentalFeatures: false,
-    selfHostedInstancePlan: "cloud:hobby",
-  },
-};
+    environment: { selfHostedInstancePlan: "cloud:hobby" },
+  });
+
+const createSessionWithOrgRole = (role: OrganizationRole): Session =>
+  transitionSession({ orgRole: role, onlyFirstProject: role === "NONE" });
+
+const createSessionWithProjectRole = (role: ProjectRole): Session =>
+  transitionSession({ projectRole: role });
+
+const session: Session = transitionSession();
 
 const accessibleProjectsFindManyArgs = {
   where: {

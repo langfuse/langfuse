@@ -1,4 +1,3 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { AnnotationQueueObjectType, type Plan } from "@langfuse/shared";
@@ -6,6 +5,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const HOBBY_LIMIT_MESSAGE =
   /Maximum number of annotation queues reached on Hobby plan/;
@@ -20,40 +20,25 @@ describe("annotation queues trpc", () => {
     projectRole: "ADMIN" | "NONE" = "ADMIN",
     plan: Plan = "cloud:hobby",
   ) => {
-    const session: Session = {
-      expires: "1",
-      user: {
-        id: "user-1",
-        name: "Demo User",
-        canCreateOrganizations: true,
-        organizations: [
-          {
-            id: setup.org.id,
-            name: setup.org.name,
-            role: "MEMBER",
-            plan,
-            cloudConfig: undefined,
-            metadata: {},
-            aiFeaturesEnabled: false,
-            aiTelemetryEnabled: true,
-            projects: [
-              {
-                id: setup.project.id,
-                role: projectRole,
-                name: setup.project.name,
-                deletedAt: null,
-                retentionDays: null,
-                hasTraces: false,
-                createdAt: new Date().toISOString(),
-                metadata: {},
-              },
-            ],
-          },
-        ],
-        featureFlags: testFeatureFlags(),
-      },
-      environment: {} as Session["environment"],
-    };
+    const session: Session = createSession({
+      organizations: [
+        {
+          id: setup.org.id,
+          role: "MEMBER",
+          name: setup.org.name,
+          plan,
+          aiTelemetryEnabled: true,
+          projects: [
+            {
+              id: setup.project.id,
+              role: projectRole,
+              name: setup.project.name,
+              retentionDays: null,
+            },
+          ],
+        },
+      ],
+    });
 
     const ctx = createInnerTRPCContext({ session, headers: {} });
 

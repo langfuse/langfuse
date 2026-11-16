@@ -108,6 +108,7 @@ import {
   AI_GATEWAY_SERVICE_NAME,
 } from "@langfuse/shared";
 import type { QueryType } from "@langfuse/shared/query";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const cleanupOrganizations: string[] = [];
 const cleanupUsers: string[] = [];
@@ -194,6 +195,40 @@ async function authenticateRequest(
   });
 }
 
+function gatewaySession(params: {
+  user: { id: string; name: string | null };
+  org: { id: string; name: string };
+  project: { id: string; name: string; createdAt: Date };
+  role: Role;
+  projectRole?: Role;
+}) {
+  return createSession({
+    user: {
+      id: params.user.id,
+      name: params.user.name,
+      featureFlags: testFeatureFlags({ templateFlag: false }),
+    },
+    organizations: [
+      {
+        id: params.org.id,
+        role: params.role,
+        name: params.org.name,
+        plan: "oss",
+        aiTelemetryEnabled: true,
+        projects: [
+          {
+            id: params.project.id,
+            role: params.projectRole ?? params.role,
+            retentionDays: 0,
+            name: params.project.name,
+            createdAt: params.project.createdAt.toISOString(),
+          },
+        ],
+      },
+    ],
+  });
+}
+
 async function prepare(role: Role = Role.OWNER) {
   const suffix = randomUUID();
   const user = await prisma.user.create({
@@ -210,40 +245,7 @@ async function prepare(role: Role = Role.OWNER) {
   cleanupUsers.push(user.id);
   env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.push(org.id);
 
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: user.id,
-      name: user.name,
-      canCreateOrganizations: true,
-      featureFlags: testFeatureFlags({ templateFlag: false }),
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role,
-          cloudConfig: undefined,
-          plan: "oss",
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [
-            {
-              id: project.id,
-              role,
-              retentionDays: 0,
-              deletedAt: null,
-              hasTraces: false,
-              name: project.name,
-              metadata: {},
-              createdAt: project.createdAt.toISOString(),
-            },
-          ],
-        },
-      ],
-    },
-    environment: {} as Session["environment"],
-  };
+  const session = gatewaySession({ user, org, project, role });
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const orgSession = {
     ...session,
@@ -279,26 +281,13 @@ async function createCallerForOrganizationRole(
   });
   cleanupUsers.push(user.id);
 
-  const session: Session = {
-    ...setup.session,
-    user: {
-      ...setup.session.user,
-      id: user.id,
-      name: user.name,
-      organizations: setup.session.user.organizations.map((organization) =>
-        organization.id === setup.org.id
-          ? {
-              ...organization,
-              role,
-              projects: organization.projects.map((project) => ({
-                ...project,
-                role: projectRole,
-              })),
-            }
-          : organization,
-      ),
-    },
-  };
+  const session = gatewaySession({
+    user,
+    org: setup.org,
+    project: setup.project,
+    role,
+    projectRole,
+  });
   const ctx = createInnerTRPCContext({ session, headers: {} });
   return appRouter.createCaller({ ...ctx, prisma });
 }
@@ -468,16 +457,13 @@ describe("AI gateway control plane", () => {
 
   it("redirects gateway managers to Setup until ingestion is set up", async () => {
     const owner = await prepare();
-    const memberSession = {
-      ...owner.session,
-      user: {
-        ...owner.session.user,
-        organizations: owner.session.user.organizations.map((org) => ({
-          ...org,
-          role: Role.MEMBER,
-        })),
-      },
-    };
+    const memberSession = gatewaySession({
+      user: owner.user,
+      org: owner.org,
+      project: owner.project,
+      role: Role.MEMBER,
+      projectRole: Role.OWNER,
+    });
     const redirectFor = (session: Session, slug: string) =>
       getGatewaySetupRedirect({
         prisma,
