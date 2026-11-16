@@ -192,6 +192,10 @@ overrides:
   # Hono 4.13.16 fixes middleware bypasses, multipart validation,
   # CSS injection, and hyperlink-auditing CSRF. All dependents allow it.
   hono: 4.13.16
+  # CVE-2026-126204: MemoryStore.resetClient lets in-flight requests extend
+  # the next window's limit, fixed in 8.7.2. @modelcontextprotocol/sdk declares
+  # ^8.2.1, which the vulnerable 8.6.1 already satisfies.
+  express-rate-limit: 8.7.2
   # CVE-2026-126345: malicious MLSD listings crash basic-ftp before 6.2.4.
   # get-uri still requires v5; its Client APIs are compatible with v6,
   # including v6's restriction on third-party FTP data connections.

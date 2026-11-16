@@ -168,7 +168,7 @@ export function prepareTopicsActions({
   if (newMap)
     menu.unshift({
       id: "new-map",
-      label: "New map",
+      label: "New live map",
       icon: Plus,
       ...newMap,
     });

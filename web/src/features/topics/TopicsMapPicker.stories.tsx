@@ -151,7 +151,7 @@ function MapSwitcher({ initial }: { initial: TopicMapSelection }) {
         <TopicMapStrip.Analysis analysis={selectedAnalysis} />
       ) : null}
       {selectedRule?.enabled !== false && selectedRule?.lastRefitAt === null ? (
-        <TopicRuleBuildingState rule={selectedRule} />
+        <TopicRuleBuildingState rule={selectedRule} mapBuilt={false} />
       ) : (
         <div className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
           Topics of the selected map
@@ -209,6 +209,7 @@ export const TestSwitchesMaps = meta.story({
     await expect(
       picker.getByRole("button", { name: /Support agent/ }),
     ).toBeVisible();
+    await expect(picker.getByText("Live maps")).toBeVisible();
     await expect(picker.getByText("Snapshots")).toBeVisible();
     await userEvent.click(
       picker.getByRole("button", { name: /Refund complaints/ }),

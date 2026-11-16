@@ -60,10 +60,6 @@ vi.mock("../../queues/shardedQueueRegistry", () => ({
   })),
 }));
 
-vi.mock("@langfuse/shared/topics/server", () => ({
-  emitTopicStagingMetrics: vi.fn(),
-}));
-
 vi.mock("../v4/v4LegacyApiUsageMetrics", () => ({
   emitV4LegacyApiUsageFreshnessMetrics:
     mocks.emitV4LegacyApiUsageFreshnessMetrics,

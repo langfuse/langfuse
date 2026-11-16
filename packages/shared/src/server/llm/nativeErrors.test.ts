@@ -1,10 +1,11 @@
 import { EvaluatorBlockReason } from "@prisma/client";
 import { APICallError, NoOutputGeneratedError, RetryError } from "ai";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { classifyEvaluatorLlmError } from "../evals/classifyEvaluatorLlmError";
 import {
   getLLMErrorInfo,
+  getLLMRetryAfterMs,
   LLMValidationError,
   type LLMValidationErrorCode,
 } from "./errors";
@@ -111,6 +112,25 @@ describe("getLLMErrorInfo", () => {
 
   it("does not turn unknown application errors into user-visible LLM failures", () => {
     expect(getLLMErrorInfo(new Error("database password leaked"))).toBeNull();
+  });
+});
+
+describe("getLLMRetryAfterMs", () => {
+  it("reads an HTTP-date Retry-After as the time until that date", () => {
+    vi.useFakeTimers({ now: new Date("2026-01-01T00:00:00.000Z") });
+    try {
+      const error = new APICallError({
+        message: "Rate limit reached",
+        url: "https://api.example.com/v1/messages",
+        requestBodyValues: {},
+        statusCode: 429,
+        responseHeaders: { "retry-after": "Thu, 01 Jan 2026 00:01:30 GMT" },
+      });
+
+      expect(getLLMRetryAfterMs(error)).toBe(90_000);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

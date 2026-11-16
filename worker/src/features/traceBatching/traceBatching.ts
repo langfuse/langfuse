@@ -8,10 +8,8 @@ import {
   recordGauge,
   recordIncrement,
   TraceBatchTraceSchema,
-  TraceBatchQueue,
   EventsDispatchQueue,
 } from "@langfuse/shared/src/server";
-import { isEventsDispatchEnabled } from "../eventsDispatch/eventsDispatch";
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 import {
@@ -333,18 +331,8 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
     enqueued: number;
   }): Promise<void> {
     if (!redis) throw new Error("Trace batching requires Redis");
-    // Events dispatch replaces trace-batch jobs; both read the same trace-dispatch maps.
-    const eventsDispatch = isEventsDispatchEnabled();
-    const eventsDispatchQueue = eventsDispatch
-      ? EventsDispatchQueue.getInstance()
-      : null;
-    const queue = eventsDispatch ? null : TraceBatchQueue.getInstance();
-    if (!eventsDispatchQueue && !queue)
-      throw new Error(
-        eventsDispatch
-          ? "Events dispatch queue is unavailable"
-          : "Trace batch queue is unavailable",
-      );
+    const queue = EventsDispatchQueue.getInstance();
+    if (!queue) throw new Error("Events dispatch queue is unavailable");
     const dispatchEnabled = isTraceDispatchEnabled();
     const getKeys = (shard: number) => {
       if (!dispatchEnabled) return getTraceBatchReadinessKeys(shard);
@@ -564,28 +552,16 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         .digest("hex");
       // Stable IDs reduce duplicate delivery if enqueue succeeds but ACK fails.
       // Reads remain retry-safe even if regrouping produces a different job ID.
-      if (eventsDispatchQueue)
-        await eventsDispatchQueue.add(
-          QueueJobs.EventsDispatchJob,
-          {
-            id,
-            timestamp: new Date(),
-            name: QueueJobs.EventsDispatchJob,
-            payload: { traces },
-          },
-          { jobId: id },
-        );
-      else
-        await queue!.add(
-          QueueJobs.TraceBatch,
-          {
-            id,
-            timestamp: new Date(),
-            name: QueueJobs.TraceBatch,
-            payload: { traces },
-          },
-          { jobId: id },
-        );
+      await queue.add(
+        QueueJobs.EventsDispatchJob,
+        {
+          id,
+          timestamp: new Date(),
+          name: QueueJobs.EventsDispatchJob,
+          payload: { traces },
+        },
+        { jobId: id },
+      );
       enqueued.push(...batch);
       counts.enqueued += batch.length;
       recordDistribution("langfuse.trace_batch.size", batch.length);
