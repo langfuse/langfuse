@@ -129,6 +129,7 @@ export const GatewayResolveResponseSchema = z
       })
       .strict()
       .nullable(),
+    // Empty in "none" mode, where spend is not recorded.
     spend_limits: GatewayResolveSpendLimitsSchema,
     // Prices of the model the request is priced with; null without spend
     // limits or when no model in the ingestion project matches.

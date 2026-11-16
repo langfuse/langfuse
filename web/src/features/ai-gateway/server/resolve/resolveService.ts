@@ -110,8 +110,10 @@ export class GatewayResolveService {
         baseURL: context.connection.baseURL,
         credential: decryptedCredential,
       });
+      // NONE mode records no spend, so it enforces no limits.
+      const spendLimits = deliversToLangfuse ? context.spendLimits : [];
       const pricing =
-        context.spendLimits.length > 0 && ingestionProjectId
+        spendLimits.length > 0 && ingestionProjectId
           ? await findResolvePricing({
               projectId: ingestionProjectId,
               providerModel: context.providerModel,
@@ -164,7 +166,7 @@ export class GatewayResolveService {
                 projectId: ingestionProjectId,
               })
             : null,
-        spend_limits: context.spendLimits,
+        spend_limits: spendLimits,
         pricing,
       };
     });
