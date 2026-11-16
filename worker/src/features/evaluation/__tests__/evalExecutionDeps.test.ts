@@ -178,6 +178,9 @@ describe("createProductionEvalExecutionDeps", () => {
 
   it("pauses an LLM connection after a provider 429 instead of calling it again", async () => {
     const llmApiKeyId = randomUUID();
+    if (redis?.status !== "ready") {
+      await new Promise((resolve) => redis?.once("ready", resolve));
+    }
     // The AI SDK identifies an APICallError by these markers.
     const providerRateLimit = Object.assign(
       new Error("per-key concurrency limit reached"),

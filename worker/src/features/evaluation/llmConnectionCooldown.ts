@@ -1,4 +1,5 @@
 import {
+  classifyEvaluatorLlmError,
   getCurrentSpan,
   getLLMErrorInfo,
   LLMConnectionCooldownError,
@@ -15,8 +16,8 @@ const COOLDOWN_METRIC = "langfuse.llm.connection_cooldown";
 /**
  * Runs an LLM call unless its connection is cooling down after a provider 429.
  * During a cooldown it throws LLMConnectionCooldownError without calling the
- * provider; a provider 429 starts one for every worker. Without Redis the call
- * always runs.
+ * provider; a provider 429 starts one for every worker. Unless Redis is ready
+ * the call always runs.
  */
 export async function withLLMConnectionCooldown<T>(
   llmApiKeyId: string,
@@ -37,7 +38,10 @@ export async function withLLMConnectionCooldown<T>(
   try {
     return await call();
   } catch (error) {
-    if (getLLMErrorInfo(error)?.providerError?.statusCode === 429) {
+    const llmError = classifyEvaluatorLlmError(error);
+    // A 429 with a block reason (e.g. exhausted billing) pauses the evaluator
+    // instead, so it must not hold back the connection's other evaluators.
+    if (llmError?.statusCode === 429 && llmError.blockReason === null) {
       await startCooldown(key, error);
     }
     throw error;
@@ -45,7 +49,9 @@ export async function withLLMConnectionCooldown<T>(
 }
 
 async function getRemainingCooldownMs(key: string): Promise<number> {
-  if (!redis) return 0;
+  // ioredis queues commands while disconnected, so an outage would stall the
+  // call instead of failing open.
+  if (redis?.status !== "ready") return 0;
   try {
     // PTTL is negative when the key does not exist.
     return Math.max(0, await redis.pttl(key));
@@ -57,7 +63,7 @@ async function getRemainingCooldownMs(key: string): Promise<number> {
 }
 
 async function startCooldown(key: string, rateLimitError: unknown) {
-  if (!redis) return;
+  if (redis?.status !== "ready") return;
   const retryAfterMs = getRetryAfterMs(
     getLLMErrorInfo(rateLimitError)?.providerError?.responseHeaders,
   );
