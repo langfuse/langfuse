@@ -4,6 +4,14 @@ export const IN_APP_AGENT_REDIRECT_TOOL_NAME = "langfuse_proposeRedirect";
 // Persisted in transcripts like the redirect tool name; do not rename.
 export const IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME = "langfuse_askUserQuestions";
 
+// Persisted in transcripts like the redirect tool name; do not rename.
+export const IN_APP_AGENT_EDIT_SKILL_DRAFT_TOOL_NAME =
+  "langfuse_editSkillDraft";
+export const IN_APP_AGENT_READ_SKILL_DRAFT_TOOL_NAME =
+  "langfuse_readSkillDraft";
+export const IN_APP_AGENT_CREATE_SKILL_FROM_DRAFT_TOOL_NAME =
+  "langfuse_createSkillFromDraft";
+
 export const IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE = "tool_call_rejected";
 
 export const IN_APP_AGENT_GENERIC_ERROR_MESSAGE =

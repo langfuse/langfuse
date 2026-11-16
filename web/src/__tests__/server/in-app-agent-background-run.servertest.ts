@@ -18,6 +18,7 @@ import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
   IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
   IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
+  IN_APP_AGENT_READ_SKILL_DRAFT_TOOL_NAME,
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
   type InAppAgentQuestionnaireAnswers,
@@ -949,6 +950,83 @@ describe("in-app agent background runs", () => {
         },
       }),
     ).toBe(1);
+  });
+
+  it("accepts one browser tool result per call and continues from it", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const runId = createInAppAgentRunId();
+    await prisma.inAppAgentRun.create({
+      data: {
+        id: runId,
+        projectId,
+        conversationId: conversation.id,
+        triggeredByUserId: userId,
+        status: InAppAgentRunStatus.SUCCEEDED,
+        finishedAt: new Date(),
+        request: { kind: "userMessage", context: [] },
+      },
+    });
+    await prisma.inAppAgentEvent.create({
+      data: {
+        projectId,
+        conversationId: conversation.id,
+        runId,
+        sequenceNumber: 0,
+        type: EventType.TOOL_CALL_START,
+        event: {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: "tool-call-1",
+          toolCallName: IN_APP_AGENT_READ_SKILL_DRAFT_TOOL_NAME,
+        },
+      },
+    });
+    const submit = (result: unknown) =>
+      caller.submitBrowserToolResult({
+        projectId,
+        conversationId: conversation.id,
+        runId,
+        toolCallId: "tool-call-1",
+        result,
+      });
+
+    // The result must fit the tool the run called.
+    await expect(submit({ status: "created" })).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+
+    const { runId: continuationRunId } = await submit({ status: "notFound" });
+    // Another tab reporting the same call is too late.
+    await expect(submit({ status: "notFound" })).rejects.toMatchObject({
+      code: "CONFLICT",
+    });
+
+    const continuation = await prisma.inAppAgentRun.findFirstOrThrow({
+      where: { id: continuationRunId, projectId },
+    });
+    expect(continuation).toMatchObject({
+      status: InAppAgentRunStatus.QUEUED,
+      request: {
+        kind: "browserToolResult",
+        parentRunId: runId,
+        toolCallId: "tool-call-1",
+      },
+    });
+    const runStarted = await prisma.inAppAgentEvent.findFirstOrThrow({
+      where: { projectId, runId: continuationRunId },
+    });
+    expect(runStarted.event).toMatchObject({
+      type: EventType.RUN_STARTED,
+      input: {
+        messages: [
+          {
+            role: "tool",
+            toolCallId: "tool-call-1",
+            content: JSON.stringify({ status: "notFound" }),
+          },
+        ],
+      },
+    });
   });
 
   it("validates questionnaire answers against the persisted questions", async () => {

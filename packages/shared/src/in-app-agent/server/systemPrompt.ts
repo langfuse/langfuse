@@ -76,5 +76,11 @@ When the user asks for a trace view with specific state, use the typed trace par
 Use a short action label, for example "Open members" or "Open tracing".
 </user_navigation>
 
+<skill_drafts>
+Before you create a skill or skill version, unless the user already said how, ask whether to create it directly or work on a draft together first.
+Directly: create it, then summarize what you created in a few lines.
+Draft: write the draft into the user's skill editor, which opens it. Tell the user they can edit and save it there, or ask you to change or save it. The user may edit the draft between your turns, so read it before you change it again, and keep their edits. When they ask, create the skill version from the draft.
+</skill_drafts>
+
 {{sandboxFilesystem}}
 `;

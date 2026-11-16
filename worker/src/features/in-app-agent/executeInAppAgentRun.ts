@@ -22,6 +22,7 @@ import {
   InAppAgentRunErrorCode,
   InAppAgentRunRequestSchema,
   InAppAgentRunStatus,
+  getInAppAgentBrowserToolDefinitions,
   getInAppAgentInstrumentationTraceId,
   parseInAppAgentInterruptEvent,
   type AgUiEvent,
@@ -357,6 +358,12 @@ export async function executeInAppAgentRun(params: {
       alwaysAllowedTools: conversation.alwaysAllowedTools,
     });
 
+    // The skill draft browser tools end in a skill version, so they need the
+    // same access.
+    const browserTools = toolPolicy.available.has("createSkillVersion")
+      ? getInAppAgentBrowserToolDefinitions()
+      : [];
+
     const allowedToolNames = getInAppAgentMcpAllowedToolNames(
       toolPolicy,
       approvedRegistryToolName,
@@ -462,7 +469,7 @@ export async function executeInAppAgentRun(params: {
     let interruptRequest: InAppAgentToolApprovalRequest | undefined;
 
     const stream = await createAgUiStream({
-      input: agentInput,
+      input: { ...agentInput, tools: browserTools },
       signal: abortController.signal,
       options: {
         onEvent: async (event) => {

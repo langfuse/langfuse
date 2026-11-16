@@ -19,7 +19,9 @@ import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
   InAppAgentRunStatusSchema,
+  isInAppAgentBrowserToolName,
   parseInAppAgentApprovalDecisionEvent,
+  parseInAppAgentBrowserToolResult,
   parseInAppAgentInterruptEvent,
   validateInAppAgentToolInputs,
   type AgUiContext,
@@ -39,6 +41,7 @@ import {
   cancelConversationRunsInTransaction,
   cleanupTerminalRunMcpApiKeys,
   classifyStaleRun,
+  createBrowserToolResultRun,
   createQueuedRun,
   decideToolApproval,
   reconcileConversationRuns,
@@ -433,6 +436,56 @@ export async function decideBackgroundApproval(params: {
     alwaysAllowToolName,
     toolInputs: params.toolInputs,
     decidedByUserId: params.userId,
+    model: params.model,
+  });
+
+  await enqueueInAppAgentRun({
+    prisma: params.prisma,
+    projectId: params.projectId,
+    runId: continuationRun.id,
+  });
+
+  return { runId: continuationRun.id };
+}
+
+/**
+ * Continue a run that ended on a browser tool call with the result the user's
+ * browser reports. The result must fit the tool the run called.
+ */
+export async function submitBackgroundBrowserToolResult(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  conversationId: string;
+  runId: string;
+  toolCallId: string;
+  result: unknown;
+  userId: string;
+  model: string | undefined;
+}) {
+  await getOwnedConversationOrThrow({
+    prisma: params.prisma,
+    projectId: params.projectId,
+    conversationId: params.conversationId,
+    userId: params.userId,
+  });
+
+  const continuationRun = await createBrowserToolResultRun({
+    prisma: params.prisma,
+    projectId: params.projectId,
+    conversationId: params.conversationId,
+    parentRunId: params.runId,
+    continuationRunId: createInAppAgentRunId(),
+    toolCallId: params.toolCallId,
+    buildResultContent: (toolName) => {
+      const result = isInAppAgentBrowserToolName(toolName)
+        ? parseInAppAgentBrowserToolResult(toolName, params.result)
+        : undefined;
+      if (!result?.success) {
+        throw new InvalidRequestError("Invalid browser tool result");
+      }
+      return JSON.stringify(result.data);
+    },
+    triggeredByUserId: params.userId,
     model: params.model,
   });
 

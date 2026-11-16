@@ -50,6 +50,7 @@ import {
   getBackgroundConversationSnapshot,
   serializeConversationLatestRun,
   startBackgroundRun,
+  submitBackgroundBrowserToolResult,
 } from "@/src/features/in-app-agent/server/backgroundRunService";
 
 const CONVERSATION_LIST_LIMIT = 50;
@@ -80,6 +81,13 @@ const StartRunInput = ConversationIdInput.extend({
 
 const CancelRunInput = ConversationIdInput.extend({
   runId: z.string(),
+});
+
+const SubmitBrowserToolResultInput = ConversationIdInput.extend({
+  runId: z.string(),
+  toolCallId: z.string(),
+  /** Validated against the persisted tool call in the service. */
+  result: z.unknown(),
 });
 
 const DecideToolApprovalInput = ConversationIdInput.extend({
@@ -315,6 +323,42 @@ export const inAppAgentRouter = createTRPCRouter({
         approved: input.approved,
         approvalScope: input.approvalScope,
         toolInputs: input.toolInputs,
+        userId: ctx.session.user.id,
+        model: modelConfig.modelId,
+      });
+    }),
+
+  submitBrowserToolResult: protectedProjectProcedureWithoutTracing
+    .input(SubmitBrowserToolResultInput)
+    .mutation(async ({ ctx, input }) => {
+      await assertInAppAgentAvailable({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        user: ctx.session.user,
+      });
+      const modelConfig = assertInAppAgentModelConfigured();
+
+      const rateLimitScope = getInAppAgentApiAccessScope(
+        ctx.session.user,
+        input.projectId,
+      );
+
+      // The result starts a fresh run, like an approval continuation.
+      await assertInAppAgentRateLimit(rateLimitScope, "in-app-agent-run");
+      await assertInAppAgentRunCapacity({
+        prisma: ctx.prisma,
+        orgId: rateLimitScope.orgId,
+        plan: rateLimitScope.plan,
+        userId: ctx.session.user.id,
+      });
+
+      return submitBackgroundBrowserToolResult({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        conversationId: input.conversationId,
+        runId: input.runId,
+        toolCallId: input.toolCallId,
+        result: input.result,
         userId: ctx.session.user.id,
         model: modelConfig.modelId,
       });

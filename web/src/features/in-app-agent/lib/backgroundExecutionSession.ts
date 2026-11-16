@@ -32,6 +32,12 @@ export type ApprovalDecision = {
   toolInputs?: InAppAgentToolInputs;
 };
 
+export type BrowserToolResult = {
+  runId: string;
+  toolCallId: string;
+  result: unknown;
+};
+
 export type BackgroundExecutionRunView = {
   id: string;
   status: InAppAgentRunStatus;
@@ -73,6 +79,7 @@ export type BackgroundExecutionSession = {
   run(command: BackgroundExecutionRunCommand): Promise<void> | null;
   cancel(): Promise<void>;
   decide(input: ApprovalDecision): Promise<void>;
+  submitBrowserToolResult(input: BrowserToolResult): Promise<void>;
   detach(): void;
   dispose(): void;
   getSnapshot(): BackgroundExecutionView;
@@ -129,6 +136,9 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
   private readonly decideApproval: (
     input: ApprovalDecision,
   ) => Promise<unknown>;
+  private readonly submitBrowserToolResultCommand?: (
+    input: BrowserToolResult,
+  ) => Promise<unknown>;
   private readonly onSettled?: () => void;
   private readonly onHydratedSnapshot?: (
     snapshot: BackgroundExecutionHydration,
@@ -145,6 +155,7 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     hydrate: () => Promise<BackgroundExecutionHydration>;
     cancelRun: (runId: string) => Promise<unknown>;
     decideApproval: (input: ApprovalDecision) => Promise<unknown>;
+    submitBrowserToolResult?: (input: BrowserToolResult) => Promise<unknown>;
     subscriber?: BackgroundExecutionAgentSubscriber;
     onSettled?: () => void;
     /**
@@ -161,6 +172,7 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     this.hydrate = config.hydrate;
     this.cancelRun = config.cancelRun;
     this.decideApproval = config.decideApproval;
+    this.submitBrowserToolResultCommand = config.submitBrowserToolResult;
     this.onSettled = config.onSettled;
     this.onHydratedSnapshot = config.onHydratedSnapshot;
     this.onError = config.onError;
@@ -356,6 +368,16 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
       throw error;
     }
     this.resolveApproval(input.toolCallId);
+    await this.refreshAttachmentAfterCommand(attachmentGeneration);
+  }
+
+  /** Reports a browser tool's result, then follows the run it starts. */
+  async submitBrowserToolResult(input: BrowserToolResult): Promise<void> {
+    if (!this.submitBrowserToolResultCommand) {
+      throw new Error("This session cannot report browser tool results");
+    }
+    const attachmentGeneration = this.attachGeneration;
+    await this.submitBrowserToolResultCommand(input);
     await this.refreshAttachmentAfterCommand(attachmentGeneration);
   }
 

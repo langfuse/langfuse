@@ -181,6 +181,9 @@ vi.mock("@/src/utils/api", () => ({
       decideToolApproval: {
         useMutation: () => providerMocks.mutations.decideToolApproval,
       },
+      submitBrowserToolResult: {
+        useMutation: () => ({ mutateAsync: vi.fn() }),
+      },
     },
   },
 }));

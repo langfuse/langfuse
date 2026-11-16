@@ -3,9 +3,11 @@
 // covered by the client-bundle scan.
 export * from "./schema";
 export * from "./approvalEvents";
+export * from "./browserTools";
 export * from "./constants";
 export * from "./interrupts";
 export * from "./messages";
 export * from "./questionnaire";
+export * from "./skillDraft";
 export * from "./toolInputs";
 export * from "../features/inAppAgent/types";

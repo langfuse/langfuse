@@ -92,6 +92,8 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { HaloIcon } from "@/src/features/in-app-agent/components/HaloIcon";
+import { InAppAgentBrowserToolCard } from "@/src/features/in-app-agent/components/InAppAgentBrowserToolCard";
+import { type PendingBrowserToolCall } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
@@ -661,6 +663,8 @@ export type InAppAgentWindowProps = {
   onApproveToolCall: (approvalId: string) => Promise<void>;
   onAlwaysAllowToolCall?: (approvalId: string) => Promise<void>;
   onRejectToolCall: (approvalId: string) => Promise<void>;
+  /** A browser tool call waiting for the user to run or decline it. */
+  pendingBrowserToolCall?: PendingBrowserToolCall;
   onAnswerQuestionnaire: (
     approvalId: string,
     answers: InAppAgentQuestionnaireAnswers,
@@ -769,6 +773,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onApproveToolCall,
     onAlwaysAllowToolCall,
     onRejectToolCall,
+    pendingBrowserToolCall,
     onAnswerQuestionnaire,
     onOpenConversationHistory,
     onSelectConversation,
@@ -1283,6 +1288,16 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             </ol>
           </div>
         </ConversationScroller>
+        {pendingBrowserToolCall ? (
+          <div className="shrink-0 px-1.5 pt-1.5 pb-2">
+            <div className={cn(isExpanded && "mx-auto max-w-3xl")}>
+              <InAppAgentBrowserToolCard
+                call={pendingBrowserToolCall}
+                isCompact={!isExpanded}
+              />
+            </div>
+          </div>
+        ) : null}
         {pendingToolCalls.length > 0 ? (
           <div className="shrink-0 px-1.5 pt-1.5 pb-2">
             <div
