@@ -107,6 +107,9 @@ vi.mock("./AutomaticProcessingDialogController", () => ({
     children: (control: { openDialog: () => void }) => ReactNode;
   }) => children({ openDialog: state.openAutomaticProcessing }),
 }));
+vi.mock("./useTopicRuleSetupStatus", () => ({
+  useTopicRuleSetupStatus: () => ({ data: null }),
+}));
 vi.mock("./CurrentTopics", () => ({
   useCurrentTopics: (input: {
     running: boolean;
@@ -215,7 +218,6 @@ vi.mock("@/src/utils/api", () => ({
         }),
       },
       maps: { useQuery: () => ({ data: state.maps, isError: false }) },
-      ruleSetupStatus: { useQuery: () => ({ data: null }) },
       startRuleSetup: {
         useMutation: () => ({
           isPending: false,

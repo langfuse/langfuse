@@ -1,5 +1,5 @@
 /* eslint-disable react/no-unstable-nested-components */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronLeft } from "@langfuse/icons";
 import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -48,6 +48,7 @@ import {
   refreshMapDisabledReason,
 } from "./prepare-topics-actions";
 import { TopicsWorkspaceGate } from "./TopicsWorkspaceGate";
+import { useTopicRuleSetupStatus } from "./useTopicRuleSetupStatus";
 import { useTopicTraceFilters } from "./useTopicTraceFilters";
 import { TopicRunDetails } from "./TopicRunDetails";
 import { TopicRunHistoryList } from "./TopicRunHistoryList";
@@ -349,28 +350,8 @@ function TopicsWorkspaceContent({
   const setupRuleId = analysisId
     ? undefined
     : (selectedRule?.id ?? maps.data?.rules[0]?.id);
-  const ruleSetup = api.topics.ruleSetupStatus.useQuery(
-    { projectId, ruleId: setupRuleId ?? "" },
-    {
-      enabled: setupRuleId !== undefined,
-      refetchInterval: (query) =>
-        query.state.data && topicRuleSetupProgress(query.state.data).active
-          ? 5000
-          : false,
-    },
-  );
+  const ruleSetup = useTopicRuleSetupStatus({ projectId, ruleId: setupRuleId });
   const setup = ruleSetup.data ? topicRuleSetupProgress(ruleSetup.data) : null;
-  // A finished setup's map shows on the next poll; refetch now so the full
-  // progress bar hands over to the map without waiting for it.
-  const setupActive = Boolean(setup?.active);
-  const setupWasActive = useRef(setupActive);
-  useEffect(() => {
-    if (setupWasActive.current && !setupActive) {
-      utils.topics.maps.invalidate({ projectId });
-      utils.topics.currentResults.invalidate({ projectId });
-    }
-    setupWasActive.current = setupActive;
-  }, [setupActive, projectId, utils]);
   // A finished setup hands over to results; a failure from this visit stays until retried.
   const showSetupProgress =
     setup !== null &&
