@@ -13,6 +13,7 @@ import {
 import { draftsSemanticallyEqual } from "../../store/searchBarStore";
 import { deriveQueryTokens } from "../../lib/fns/deriveQueryTokens";
 import { EVENTS_FIELD_REGISTRY, type FieldRegistry } from "../../lib/fields";
+import type { CompareOp } from "../../lib/ast";
 import { getRecentSearches } from "../../lib/recent-searches";
 import {
   scoreTypeContextFromObserved,
@@ -63,7 +64,7 @@ export function SearchComposer({
   onRequestColumns?: (columns: readonly string[]) => void;
   presetSections?: QueryPresetSection[];
   onQueryPresetPick?: (presetId: string) => void;
-  fieldReason?: (field: string) => string | null;
+  fieldReason?: (field: string, op?: CompareOp) => string | null;
   freeTextReason?: string | null;
   registry?: FieldRegistry;
 }) {

@@ -178,6 +178,7 @@ import {
   chartSearchFieldReason,
   CHART_SEARCH_QUERY_REASON,
 } from "@/src/features/chart-view/lib/chartFilterCompatibility";
+import type { CompareOp } from "@/src/features/search-bar/lib/ast";
 import { getEventsTableStatePolicy } from "@/src/features/events/lib/eventsTableStatePolicy";
 import {
   useFacetOptionsWithObservedMetadata,
@@ -2012,8 +2013,8 @@ export default function ObservationsEventsTable({
                       erroredColumns={erroredColumns}
                       fieldReason={
                         chartActive
-                          ? (name: string) =>
-                              chartSearchFieldReason(name, searchRegistry)
+                          ? (name: string, op?: CompareOp) =>
+                              chartSearchFieldReason(name, searchRegistry, op)
                           : undefined
                       }
                       freeTextReason={
@@ -2153,8 +2154,8 @@ export default function ObservationsEventsTable({
                     erroredColumns={erroredColumns}
                     fieldReason={
                       chartActive
-                        ? (name: string) =>
-                            chartSearchFieldReason(name, searchRegistry)
+                        ? (name: string, op?: CompareOp) =>
+                            chartSearchFieldReason(name, searchRegistry, op)
                         : undefined
                     }
                     freeTextReason={

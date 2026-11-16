@@ -1,4 +1,6 @@
 import { type FilterCondition, type FilterState } from "@langfuse/shared";
+import type { CompareOp } from "@/src/features/search-bar/lib/ast";
+import { isComparison } from "@/src/features/search-bar/lib/adapter";
 import {
   type FieldRegistry,
   resolveField,
@@ -184,16 +186,23 @@ export function toChartFilters(filterState: FilterState): FilterState {
  * it is forwarded. Resolves a grammar field name (`level`, `user`, `latency`,
  * `scores.accuracy`, `metadata.region`) to its filter column via the bar's own
  * `resolveField`, so a token deactivates identically to its sidebar facet.
+ * `op` is the token's operator: a numeric metadata comparison lowers to a
+ * filter shape the chart drops.
  */
 export function chartSearchFieldReason(
   fieldName: string,
   registry?: FieldRegistry,
+  op?: CompareOp,
 ): string | null {
   const ref = resolveField(fieldName, registry);
   if (!ref) return null;
-  // A metadata dot-path lowers to the keyed `stringObject` shape the chart
-  // query accepts, so it deactivates only if the column policy says so.
-  if (ref.type === "metadata") return chartFilterExclusionReason("metadata");
+  if (ref.type === "metadata") {
+    // Comparisons lower to `numberObject`, which the chart query rejects;
+    // everything else lowers to the keyed `stringObject` shape it accepts.
+    if (ref.numeric === true && op !== undefined && isComparison(op))
+      return CHART_UNSUPPORTED_FIELD_REASON;
+    return chartFilterExclusionReason("metadata");
+  }
   if (ref.type === "keyedOptions")
     return chartFilterExclusionReason(ref.column);
   if (ref.type === "scores")
