@@ -6,14 +6,11 @@ import {
   createTopicRun,
   enqueueTopicRuleRefit,
   getEnabledTopicsModels,
-  readTopicAssignments,
   saveTopicRule,
-  saveTopicRun,
   writeTopicSummaries,
 } from "@langfuse/shared/topics/server";
 import { clickhouseClient } from "@langfuse/shared/src/server/clickhouse";
 import { prisma } from "@langfuse/shared/src/db";
-import { processTopicsAutomation } from "./topicsAutomation";
 import { nightlyRefitSlot, scheduleNightlyTopicRefits } from "./nightlyRefit";
 import { env } from "../../env";
 
@@ -34,7 +31,7 @@ const embeddingConfig = {
   embeddingDimensions: DIMENSIONS,
 };
 
-describe("automatic Topics assignment against storage", () => {
+describe("nightly Topics refits against storage", () => {
   const orgId = randomUUID();
   const projectId = randomUUID();
 
@@ -89,139 +86,6 @@ describe("automatic Topics assignment against storage", () => {
         clickhouse_settings: { mutations_sync: "1" },
       });
     await prisma.organization.deleteMany({ where: { id: orgId } });
-  });
-
-  async function publishedMap(
-    name: string,
-    owner: { batchActionId?: string; ruleId?: string } = {},
-    existingFacet?: Awaited<ReturnType<typeof createTopicFacet>>,
-  ) {
-    const facet =
-      existingFacet ??
-      (await createTopicFacet({
-        projectId,
-        name,
-        description: "",
-        prompt: "Describe the request.",
-      }));
-    const pending = await createTopicRun({
-      projectId,
-      facetId: facet.id,
-      facetVersion: 1,
-      config: { embeddingModel: "embed", dimensions: DIMENSIONS },
-      ...owner,
-    });
-    await saveTopicRun({
-      ...pending,
-      status: "completed",
-      finishedAt: new Date().toISOString(),
-      topics: [
-        {
-          projectId,
-          topicVersionId: randomUUID(),
-          topicId: randomUUID(),
-          createdByRunId: pending.id,
-          createdAt: new Date().toISOString(),
-          tags: [],
-          name: "Billing",
-          description: "",
-          centroid: vector(1),
-          radius: 0.1,
-          representativeSummaries: [],
-          metadata: {},
-        },
-      ],
-    });
-    return { facet, pending };
-  }
-
-  it("assigns a batch's stored summaries to the serving map once, even when the job repeats", async () => {
-    const { facet, pending } = await publishedMap("Assignment");
-    // The batch window ends 1 ms after its latest summary, as the enqueue computes it.
-    const near = summary(facet.id, "2026-10-14T10:00:00.000Z", vector(1, 0.01));
-    const far = summary(facet.id, "2026-10-14T10:05:00.000Z", vector(0, 1));
-    await writeTopicSummaries([near, far]);
-    const timeRange = {
-      from: new Date(near.unitStartTime),
-      to: new Date(Date.parse(far.unitStartTime) + 1),
-    };
-    const batch = {
-      projectId,
-      traceIds: [near.traceId!, far.traceId!],
-      facets: [{ facetId: facet.id, version: 1 }],
-      embeddingConfig,
-      timeRange,
-    };
-
-    await processTopicsAutomation(batch);
-    await processTopicsAutomation(batch);
-
-    const assignments = await readTopicAssignments(
-      projectId,
-      { facetId: facet.id, version: 1 },
-      [near, far],
-      pending.id,
-      timeRange,
-    );
-    expect(
-      Object.fromEntries(
-        assignments.map((row) => [row.traceId, row.topicId !== null]),
-      ),
-    ).toEqual({ [near.traceId!]: true, [far.traceId!]: false });
-    const stored = await clickhouseClient().query({
-      query: `SELECT count() AS count FROM topic_assignments
-        WHERE project_id = {projectId:String} AND facet_id = {facetId:String}`,
-      query_params: { projectId, facetId: facet.id },
-      format: "JSONEachRow",
-    });
-    const [{ count }] = await stored.json<{ count: number | string }>();
-    expect(Number(count)).toBe(2);
-  });
-
-  it("assigns online traces to a snapshot only until its facet version has a continuous map", async () => {
-    const assignOnce = async (unitStartTime: string) => {
-      const row = summary(facet.id, unitStartTime, vector(1, 0.01));
-      await writeTopicSummaries([row]);
-      const timeRange = {
-        from: new Date(unitStartTime),
-        to: new Date(Date.parse(unitStartTime) + 1),
-      };
-      await processTopicsAutomation({
-        projectId,
-        traceIds: [row.traceId!],
-        facets: [{ facetId: facet.id, version: 1 }],
-        embeddingConfig,
-        timeRange,
-      });
-      return async (runId: string) =>
-        (
-          await readTopicAssignments(
-            projectId,
-            { facetId: facet.id, version: 1 },
-            [row],
-            runId,
-            timeRange,
-          )
-        ).length;
-    };
-    // A run from before runs had owners ranks like a snapshot.
-    const { facet } = await publishedMap("Snapshot");
-    const { pending: snapshot } = await publishedMap(
-      "Snapshot",
-      { batchActionId: "manual-execution" },
-      facet,
-    );
-    const beforeMap = await assignOnce("2026-10-14T10:00:00.000Z");
-    expect(await beforeMap(snapshot.id)).toBe(1);
-
-    const { pending: map } = await publishedMap(
-      "Snapshot",
-      { ruleId: "rule" },
-      facet,
-    );
-    await publishedMap("Snapshot", { batchActionId: "later-execution" }, facet);
-    const afterMap = await assignOnce("2026-10-14T11:00:00.000Z");
-    expect(await afterMap(map.id)).toBe(1);
   });
 
   it("fits each rule facet once per nightly slot, tagged with the rule, and skips a quiet night", async () => {
