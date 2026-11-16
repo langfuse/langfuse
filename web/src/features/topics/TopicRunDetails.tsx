@@ -130,7 +130,7 @@ function questionNote(progress: FacetProgress, minimum: number | null) {
       : `${formatCount(unclustered)} summaries didn’t form clear groups. Try a larger, more varied set of traces.`;
   }
   if (progress.outcome === "awaiting_topics")
-    return `${formatCount(c.complete)} summaries are ready. Start a new scan to group them.`;
+    return `${formatCount(c.complete)} summaries are ready. Create a new snapshot to group them.`;
   return null;
 }
 
@@ -195,13 +195,16 @@ export function TopicRunDetails({
   onBack,
 }: TopicRunDetailsProps) {
   const isUpdate = execution.input.operation === "update";
+  // A summarizing snapshot counts traces, as a process run does.
+  const summarizing = execution.phase === "summarizing";
+  const perTrace = !isUpdate || summarizing;
   const counts = execution.facets.map((facet) => facet.counts);
-  const total = isUpdate
-    ? counts.reduce((sum, c) => sum + c.requested, 0)
-    : Math.max(0, ...counts.map((c) => c.requested));
-  const complete = isUpdate
-    ? counts.reduce((sum, c) => sum + c.complete, 0)
-    : Math.min(total, ...counts.map((c) => c.complete));
+  const total = perTrace
+    ? Math.max(0, ...counts.map((c) => c.requested))
+    : counts.reduce((sum, c) => sum + c.requested, 0);
+  const complete = perTrace
+    ? Math.min(total, ...counts.map((c) => c.complete))
+    : counts.reduce((sum, c) => sum + c.complete, 0);
   const isBusy = busy(execution.status);
   const costLabel = (() => {
     if (isUpdate) return "Estimated cost";
@@ -231,7 +234,7 @@ export function TopicRunDetails({
       ? ["small sample"]
       : []),
   ].join(" · ");
-  const showBar = !isUpdate && total > 0 && (isBusy || failed);
+  const showBar = perTrace && total > 0 && (isBusy || failed);
   const summaryLabel = (() => {
     if (isBusy)
       return (
@@ -241,7 +244,7 @@ export function TopicRunDetails({
     return isUpdate ? "Summaries" : "Summarized";
   })();
   const summaryValue = (() => {
-    if (isUpdate) return formatCount(total);
+    if (!perTrace) return formatCount(total);
     return total > 0
       ? `${formatCount(complete)} / ${formatCount(total)}`
       : null;

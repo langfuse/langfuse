@@ -845,6 +845,9 @@ export async function getTopicExecutionCosts(
   );
 }
 
+// Bounds the preview count; a 14-day cohort takes about 10 s on the largest tenants.
+const COHORT_SUMMARY_COUNT_TIMEOUT_SECONDS = 30;
+
 /** Count current compatible summaries without loading summary text or vectors. */
 export async function getTopicSummaryCounts(
   projectId: string,
@@ -887,6 +890,20 @@ export async function getTopicSummaryCounts(
       publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
     },
     tags: { route: "topics-summary-counts", projectId },
+    // A cohort scans events, so keep it off the primary like the other preview reads.
+    ...(cohort
+      ? {
+          preferredClickhouseService: "EventsReadOnly" as const,
+          // The client must outlast the server limit for the timeout to be reported as one.
+          clickhouseConfigs: {
+            request_timeout: (COHORT_SUMMARY_COUNT_TIMEOUT_SECONDS + 15) * 1000,
+          },
+          clickhouseSettings: {
+            max_execution_time: COHORT_SUMMARY_COUNT_TIMEOUT_SECONDS,
+            timeout_overflow_mode: "throw" as const,
+          },
+        }
+      : {}),
   });
   return facets.map(({ facetId, version }) => ({
     facetId,

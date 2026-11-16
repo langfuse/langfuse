@@ -55,12 +55,16 @@ export function limitTranscript(
   if (JSON.stringify(transcript).length <= maxCharacters) return transcript;
 
   const entries: Entry[] = transcript.threads.flatMap((thread, threadIndex) => [
-    ...thread.conversationHistory.map(
-      (message): Entry => ({ threadIndex, kind: "history", message }),
-    ),
-    ...thread.currentTurn.messages.map(
-      (message): Entry => ({ threadIndex, kind: "current", message }),
-    ),
+    ...thread.conversationHistory.map((message): Entry => ({
+      threadIndex,
+      kind: "history",
+      message,
+    })),
+    ...thread.currentTurn.messages.map((message): Entry => ({
+      threadIndex,
+      kind: "current",
+      message,
+    })),
   ]);
   const build = (selected: Entry[], textLimit: number): Transcript | null => {
     if (!selected.length) return null;

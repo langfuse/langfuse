@@ -8,6 +8,7 @@ const HERO_PROVIDER_ORDER: GatewayProvider[] = [
   "XAI",
   "VERCEL",
   "AZURE",
+  "GOOGLE_AI_STUDIO",
   "VERTEX",
 ];
 

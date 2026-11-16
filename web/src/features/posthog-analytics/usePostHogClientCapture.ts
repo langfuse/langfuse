@@ -558,7 +558,9 @@ const events = {
 
 // type that represents all possible event names, e.g. "trace:delete"
 type EventName = {
-  [Resource in keyof typeof events]: `${Resource}:${(typeof events)[Resource][number]}`;
+  [
+    Resource in keyof typeof events
+  ]: `${Resource}:${(typeof events)[Resource][number]}`;
 }[keyof typeof events];
 
 type TypedEventMap = AnnotationEventMap &

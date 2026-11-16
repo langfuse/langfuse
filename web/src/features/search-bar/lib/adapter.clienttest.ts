@@ -462,8 +462,55 @@ describe("astToFilterState", () => {
         value: "eu",
       },
     ]);
-    expect(lower("metadata.region:>5").errors.length).toBeGreaterThan(0);
     expect(lower("-metadata.region:eu").errors.length).toBeGreaterThan(0);
+  });
+
+  it("lowers metadata comparisons to numberObject filters where the view compiles them", () => {
+    expect(lower("metadata.attempt:>=2.5").filters).toEqual([
+      {
+        type: "numberObject",
+        column: "metadata",
+        key: "attempt",
+        operator: ">=",
+        value: 2.5,
+      },
+    ]);
+    expect(lower("metadata.attempt:>abc").errors).toEqual([
+      '"metadata.attempt" expects a number, got "abc"',
+    ]);
+    expect(lower("-metadata.attempt:>2").errors).toEqual([
+      "negated comparisons on metadata are not representable — use the opposite comparison (e.g. metadata.attempt:<=n)",
+    ]);
+    const textOnly = createFieldRegistry({
+      ...EVENTS_FIELD_REGISTRY,
+      numericMetadata: false,
+    });
+    expect(
+      astToFilterState(parse("metadata.attempt:>2").ast, undefined, textOnly)
+        .errors,
+    ).toEqual([
+      "metadata filters match text — > comparisons are not supported",
+    ]);
+    // A numeric `=` has no bar form (`metadata.k:v` is a text match).
+    const numericFilters: FilterState = [
+      {
+        type: "numberObject",
+        column: "metadata",
+        key: "attempt",
+        operator: ">",
+        value: 2,
+      },
+      {
+        type: "numberObject",
+        column: "metadata",
+        key: "attempt",
+        operator: "=",
+        value: 3,
+      },
+    ];
+    const { text, skippedFilters } = filterStateToQueryText(numericFilters);
+    expect(text).toBe("metadata.attempt:>2");
+    expect(skippedFilters).toEqual([numericFilters[1]]);
   });
 
   it("lowers score paths to numeric or categorical columns", () => {

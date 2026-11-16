@@ -1,5 +1,6 @@
 import { tracesTableCols } from "@langfuse/shared";
 import {
+  dropNumericMetadataFilters,
   omitFilterFacets,
   type FilterConfig,
 } from "@/src/features/filters/lib/filter-config";
@@ -15,6 +16,8 @@ export const traceFilterConfig: FilterConfig = {
   // dropped rather than silently narrowing the rows nobody can widen again.
   // The shared definition stays for the public API.
   columnDefinitions: tracesTableCols.filter((col) => col.id !== "bookmarked"),
+
+  migrateFilterState: dropNumericMetadataFilters,
 
   defaultExpanded: ["environment", "traceName"],
 
