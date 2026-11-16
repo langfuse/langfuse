@@ -1228,18 +1228,20 @@ describe("Projects API", () => {
       >(
         "POST",
         `/api/public/projects/${projectId}/apiKeys`,
-        { role: "INGEST" },
+        { role: "APPLICATION" },
         createBasicAuthHeader(orgApiKey, orgSecretKey),
       );
       createdApiKeyId = response.body.id;
       expect(response.status).toBe(201);
-      expect(response.body.role).toBe("INGEST");
+      expect(response.body.role).toBe("APPLICATION");
 
       const stored = await prisma.apiKey.findUniqueOrThrow({
         where: { id: response.body.id },
         include: { roleAssignments: true },
       });
-      expect(stored.roleAssignments).toMatchObject([{ systemRole: "INGEST" }]);
+      expect(stored.roleAssignments).toMatchObject([
+        { systemRole: "APPLICATION" },
+      ]);
     });
 
     it("should create a new API key with valid organization API key", async () => {
