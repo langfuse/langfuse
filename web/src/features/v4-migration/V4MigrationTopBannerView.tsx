@@ -44,7 +44,7 @@ export function V4MigrationTopBannerView({
   onStatusClick,
 }: V4MigrationTopBannerViewProps) {
   const fullText = `${message} ${linkLabel}`;
-  const external = href.startsWith("https://") || href.startsWith("http://");
+  const external = href.startsWith("http");
 
   return (
     <div

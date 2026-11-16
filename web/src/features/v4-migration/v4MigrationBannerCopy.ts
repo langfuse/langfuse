@@ -25,61 +25,56 @@ export type V4MigrationBannerPresentation = {
   mobileLabel: string;
 };
 
-const deadlinePresentation = (
-  message: string,
-): V4MigrationBannerPresentation => ({
-  variant: "deadline",
-  message,
+const migrationLink = {
   href: V4_MIGRATION_STATUS_HREF,
   linkLabel: V4_MIGRATION_STATUS_LINK_LABEL,
   mobileLabel: V4_MIGRATION_STATUS_MOBILE_LABEL,
-});
+} as const;
+
+const DEADLINE: V4MigrationBannerPresentation = {
+  variant: "deadline",
+  message: V4_MIGRATION_TOP_BANNER_MESSAGE,
+  ...migrationLink,
+};
+
+const EXTENDED: V4MigrationBannerPresentation = {
+  variant: "extended",
+  message: V4_MIGRATION_EXTENDED_DEADLINE_MESSAGE,
+  ...migrationLink,
+};
+
+const BROWNOUT: V4MigrationBannerPresentation = {
+  variant: "brownout",
+  message: V4_MIGRATION_BROWNOUT_MESSAGE,
+  href: V4_BROWNOUT_STATUS_URL,
+  linkLabel: V4_BROWNOUT_LINK_LABEL,
+  mobileLabel: V4_BROWNOUT_MOBILE_LABEL,
+};
 
 /**
- * Brownout copy applies when an actionable project is on the freeze list and
- * its organization is outside the one-week extension. The November 23 sentence
- * applies only when every actionable project belongs to an extended
- * organization, so a project still on the November 16 deadline stays visible.
- * A session that also has a brownout project sees the brownout, because a
- * feature may already be down.
+ * One sentence for the whole session. A freeze-list project outside an
+ * extended organization shows the brownout. November 23 shows only when every
+ * actionable project is in an extended organization. Otherwise November 16.
  */
 export function resolveV4MigrationBannerCopy(params: {
   actionNeededProjects: readonly { projectId: string; orgId: string }[];
   brownoutProjectIds: readonly string[];
   extendedOrgIds: readonly string[];
-  deadlineMessage: string;
 }): V4MigrationBannerPresentation {
   const brownoutProjectIds = new Set(params.brownoutProjectIds);
   const extendedOrgIds = new Set(params.extendedOrgIds);
-  const hasBrownout = params.actionNeededProjects.some(
-    (project) =>
-      brownoutProjectIds.has(project.projectId) &&
-      !extendedOrgIds.has(project.orgId),
-  );
-  if (hasBrownout) {
-    return {
-      variant: "brownout",
-      message: V4_MIGRATION_BROWNOUT_MESSAGE,
-      href: V4_BROWNOUT_STATUS_URL,
-      linkLabel: V4_BROWNOUT_LINK_LABEL,
-      mobileLabel: V4_BROWNOUT_MOBILE_LABEL,
-    };
+  let extendedCount = 0;
+
+  for (const project of params.actionNeededProjects) {
+    if (extendedOrgIds.has(project.orgId)) {
+      extendedCount += 1;
+    } else if (brownoutProjectIds.has(project.projectId)) {
+      return BROWNOUT;
+    }
   }
 
-  const everyActionableProjectIsExtended =
-    params.actionNeededProjects.length > 0 &&
-    params.actionNeededProjects.every((project) =>
-      extendedOrgIds.has(project.orgId),
-    );
-  if (everyActionableProjectIsExtended) {
-    return {
-      variant: "extended",
-      message: V4_MIGRATION_EXTENDED_DEADLINE_MESSAGE,
-      href: V4_MIGRATION_STATUS_HREF,
-      linkLabel: V4_MIGRATION_STATUS_LINK_LABEL,
-      mobileLabel: V4_MIGRATION_STATUS_MOBILE_LABEL,
-    };
-  }
-
-  return deadlinePresentation(params.deadlineMessage);
+  return extendedCount > 0 &&
+    extendedCount === params.actionNeededProjects.length
+    ? EXTENDED
+    : DEADLINE;
 }

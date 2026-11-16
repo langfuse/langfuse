@@ -90,15 +90,11 @@ export async function getV4MigrationTopBannerState({
       actionNeededProjects,
       brownoutProjectIds,
       extendedOrgIds,
-      deadlineMessage: bannerConfig.message ?? "",
     });
     return {
+      ...copy,
       severity: bannerConfig.severity,
       message: bannerConfig.message ? copy.message : null,
-      href: copy.href,
-      linkLabel: copy.linkLabel,
-      mobileLabel: copy.mobileLabel,
-      variant: copy.variant,
       actionNeededCount: actionNeededProjects.length,
     };
   };

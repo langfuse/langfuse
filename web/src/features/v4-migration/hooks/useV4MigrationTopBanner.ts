@@ -9,12 +9,7 @@ import {
 import { useIsForceV3ExperienceSettled } from "@/src/features/v4-migration/useForceV3Experience";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import type { V4MigrationTopBannerViewProps } from "@/src/features/v4-migration/V4MigrationTopBannerView";
-import {
-  V4_MIGRATION_STATUS_HREF,
-  V4_MIGRATION_STATUS_LINK_LABEL,
-  V4_MIGRATION_STATUS_MOBILE_LABEL,
-  type V4MigrationBannerVariant,
-} from "@/src/features/v4-migration/v4MigrationBannerCopy";
+import { type V4MigrationBannerVariant } from "@/src/features/v4-migration/v4MigrationBannerCopy";
 import { api } from "@/src/utils/api";
 
 const QUERY_STALE_TIME_MS = 5 * 60 * 1000;
@@ -84,9 +79,9 @@ export function useV4MigrationTopBanner(): V4MigrationTopBannerViewProps | null 
   return {
     severity: bannerSeverity,
     message: state.message,
-    href: state.href ?? V4_MIGRATION_STATUS_HREF,
-    linkLabel: state.linkLabel ?? V4_MIGRATION_STATUS_LINK_LABEL,
-    mobileLabel: state.mobileLabel ?? V4_MIGRATION_STATUS_MOBILE_LABEL,
+    href: state.href,
+    linkLabel: state.linkLabel,
+    mobileLabel: state.mobileLabel,
     onStatusClick: () => {
       capture("v4_migration:top_banner_cta_clicked", {
         ...analytics,

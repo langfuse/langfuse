@@ -2,6 +2,7 @@ import type { PrismaClient } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getV4MigrationTopBannerState } from "@/src/features/v4-migration/server/v4MigrationTopBannerService";
+import { V4_MIGRATION_TOP_BANNER_MESSAGE } from "@/src/features/v4-migration/v4MigrationBannerCopy";
 
 const mocks = vi.hoisted(() => ({
   bannerStateByOrgId: new Map<
@@ -112,7 +113,7 @@ describe("getV4MigrationTopBannerState", () => {
       }),
     ).resolves.toEqual({
       severity: "warning",
-      message: "Action required.",
+      message: V4_MIGRATION_TOP_BANNER_MESSAGE,
       href: "/v4-migration",
       linkLabel: "Check migration status",
       mobileLabel: "Action required:",
@@ -180,7 +181,7 @@ describe("getV4MigrationTopBannerState", () => {
         extendedOrgIds: [],
       }),
     ).resolves.toMatchObject({
-      message: "Action required.",
+      message: V4_MIGRATION_TOP_BANNER_MESSAGE,
       variant: "deadline",
       href: "/v4-migration",
       linkLabel: "Check migration status",
@@ -236,7 +237,7 @@ describe("getV4MigrationTopBannerState", () => {
       }),
     ).resolves.toMatchObject({
       variant: "deadline",
-      message: "Action required.",
+      message: V4_MIGRATION_TOP_BANNER_MESSAGE,
     });
   });
 });
