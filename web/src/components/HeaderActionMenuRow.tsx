@@ -33,13 +33,16 @@ export const HeaderActionMenuRow = React.forwardRef<
       className={cn(
         "w-full justify-start gap-2 font-normal",
         variant === "destructive" && "text-destructive hover:text-destructive",
-        visibleReason &&
-          "h-auto items-start py-1 text-left whitespace-normal [&>svg]:translate-y-0.5",
+        visibleReason && "h-auto items-start py-1 text-left whitespace-normal",
       )}
       title={disabledReason}
       {...props}
     >
-      {icon}
+      {visibleReason && icon ? (
+        <span className="shrink-0 translate-y-0.5">{icon}</span>
+      ) : (
+        icon
+      )}
       {visibleReason ? (
         <span className="flex min-w-0 flex-col">
           {label}

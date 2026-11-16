@@ -567,7 +567,9 @@ it.each([
   expect(editMap).toHaveProperty("disabled", !canWrite);
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   const items = await screen.findAllByRole("menuitem");
-  expect(items.map((item) => item.textContent)).not.toContain("Edit map");
+  expect(items.some((item) => item.textContent?.startsWith("Edit map"))).toBe(
+    false,
+  );
   // Every action stays visible; without write access it is disabled with a reason.
   for (const label of ["New live map", "New snapshot"]) {
     const item = items.find((candidate) =>
