@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { arrayMove } from "@dnd-kit/sortable";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, waitFor, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
 import { Dialog } from "../Dialog/Dialog";
 import { DialogController } from "../DialogController/DialogController";
@@ -21,7 +21,13 @@ export const TestMixedHeights = meta.story({
       </div>
     ),
   },
-  play: async ({ canvasElement }) => {
+  play: async ({ canvasElement, args, userEvent }) => {
+    // Pending viewport resize events cancel mouse drags; deliver them before pickup.
+    await new Promise<void>((resolve) => {
+      canvasElement.ownerDocument.defaultView!.requestAnimationFrame(() =>
+        resolve(),
+      );
+    });
     const canvas = within(canvasElement);
     const handle = canvas.getByRole("button", { name: "Reorder Short" });
     const row = handle.closest("li")!;
@@ -30,30 +36,38 @@ export const TestMixedHeights = meta.story({
       .closest("li")!;
     const original = row.getBoundingClientRect();
     const destination = target.getBoundingClientRect();
-    await userEvent.pointer({
-      target: handle,
-      keys: "[MouseLeft>]",
-      coords: { clientX: original.left + 10, clientY: original.top + 16 },
-    });
-    await userEvent.pointer({
-      target: handle,
-      coords: { clientX: original.left + 10, clientY: original.top + 24 },
-    });
-    await waitFor(() => expect(handle).toHaveAttribute("aria-pressed", "true"));
-    await userEvent.pointer({
-      target,
-      coords: {
-        clientX: original.left + 10,
-        clientY: destination.top + destination.height / 2,
-      },
-    });
-    await waitFor(() =>
-      expect(target.getBoundingClientRect().top).toBeLessThan(destination.top),
-    );
-    await expect(
-      Math.abs(row.getBoundingClientRect().height - original.height),
-    ).toBeLessThan(1);
-    await userEvent.pointer({ keys: "[/MouseLeft]" });
+    try {
+      await userEvent.pointer({
+        target: handle,
+        keys: "[MouseLeft>]",
+        coords: { clientX: original.left + 10, clientY: original.top + 16 },
+      });
+      await userEvent.pointer({
+        target: handle,
+        coords: { clientX: original.left + 10, clientY: original.top + 24 },
+      });
+      await waitFor(() =>
+        expect(handle).toHaveAttribute("aria-pressed", "true"),
+      );
+      await userEvent.pointer({
+        target,
+        coords: {
+          clientX: original.left + 10,
+          clientY: destination.top + destination.height / 2,
+        },
+      });
+      await waitFor(() =>
+        expect(target.getBoundingClientRect().top).toBeLessThan(
+          destination.top,
+        ),
+      );
+      await expect(
+        Math.abs(row.getBoundingClientRect().height - original.height),
+      ).toBeLessThan(1);
+    } finally {
+      await userEvent.pointer({ keys: "[/MouseLeft]" });
+    }
+    await waitFor(() => expect(args.onReorder).toHaveBeenCalledWith(0, 1));
   },
 });
 
@@ -91,7 +105,7 @@ export const TestSortingInDialog = meta.story({
       </DialogController>
     );
   },
-  play: async ({ canvasElement, args }) => {
+  play: async ({ canvasElement, args, userEvent }) => {
     const body = within(canvasElement.ownerDocument.body);
     body.getByRole("button", { name: "Reorder Second" }).focus();
     await userEvent.keyboard(" ");
@@ -115,23 +129,28 @@ export const TestSortingInDialog = meta.story({
     ).not.toHaveAttribute("aria-pressed", "true");
     const handle = body.getByRole("button", { name: "Reorder Second" });
     const bounds = handle.getBoundingClientRect();
-    await userEvent.pointer({
-      target: handle,
-      keys: "[MouseLeft>]",
-      coords: { clientX: bounds.left + 5, clientY: bounds.top + 5 },
-    });
-    await userEvent.pointer({
-      target: handle,
-      coords: { clientX: bounds.left + 5, clientY: bounds.top + 15 },
-    });
-    await waitFor(() => expect(handle).toHaveAttribute("aria-pressed", "true"));
-    await userEvent.keyboard("{Escape}");
-    await expect(
-      body.getByRole("dialog", { name: "Reorder choices" }),
-    ).toHaveAttribute("data-state", "open");
-    await expect(handle).not.toHaveAttribute("aria-pressed", "true");
-    await expect(args.onReorder).toHaveBeenCalledTimes(1);
-    await userEvent.pointer({ keys: "[/MouseLeft]" });
+    try {
+      await userEvent.pointer({
+        target: handle,
+        keys: "[MouseLeft>]",
+        coords: { clientX: bounds.left + 5, clientY: bounds.top + 5 },
+      });
+      await userEvent.pointer({
+        target: handle,
+        coords: { clientX: bounds.left + 5, clientY: bounds.top + 15 },
+      });
+      await waitFor(() =>
+        expect(handle).toHaveAttribute("aria-pressed", "true"),
+      );
+      await userEvent.keyboard("{Escape}");
+      await expect(
+        body.getByRole("dialog", { name: "Reorder choices" }),
+      ).toHaveAttribute("data-state", "open");
+      await expect(handle).not.toHaveAttribute("aria-pressed", "true");
+      await expect(args.onReorder).toHaveBeenCalledTimes(1);
+    } finally {
+      await userEvent.pointer({ keys: "[/MouseLeft]" });
+    }
     await userEvent.keyboard("{Escape}");
     await waitFor(() =>
       expect(
