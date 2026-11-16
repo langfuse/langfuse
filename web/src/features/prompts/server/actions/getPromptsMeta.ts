@@ -112,7 +112,12 @@ export const getPromptsMetaWithCursor = async (
   };
 };
 
-const PromptsCursorV3 = z.object({ lastName: z.string() });
+// Postgres rejects NUL in text parameters, so such a cursor can never match a stored name.
+const PromptsCursorV3 = z.object({
+  lastName: z.string().refine((s) => !s.includes("\u0000"), {
+    message: "Invalid cursor format",
+  }),
+});
 type PromptsCursorV3 = z.infer<typeof PromptsCursorV3>;
 
 export const EncodedPromptsCursorV3 = z
