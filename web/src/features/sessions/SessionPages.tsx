@@ -1446,6 +1446,9 @@ const LoadedSessionEventsPage: React.FC<{
                   isOpen={isOpen}
                   projectId={projectId}
                   sessionId={sessionId}
+                  sessionIds={(detailPagelists.sessions ?? []).map(
+                    ({ id }) => id,
+                  )}
                   initialFilters={traceFilters}
                   initialUnmatchedTraces={unmatchedTraces}
                   initialViewMode={viewMode}
@@ -1560,6 +1563,9 @@ const LoadedSessionEventsPage: React.FC<{
                 <ConnectedSessionCustomizationDialog
                   projectId={projectId}
                   sessionId={sessionId}
+                  sessionIds={(detailPagelists.sessions ?? []).map(
+                    ({ id }) => id,
+                  )}
                   isOpen={isOpen}
                   initialFilters={state.view.filters}
                   initialUnmatchedTraces={state.view.unmatchedTraces}

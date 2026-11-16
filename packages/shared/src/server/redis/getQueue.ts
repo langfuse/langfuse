@@ -8,7 +8,6 @@ import { DatasetRunItemUpsertQueue } from "./datasetRunItemUpsert";
 import { ExperimentCreateQueue } from "./experimentCreateQueue";
 import { TraceDeleteQueue } from "./traceDelete";
 import { TopicsSetupQueue, TopicsUpdateQueue } from "../topics/queue";
-import { TraceBatchQueue } from "./traceBatch";
 import { EventsDispatchQueue } from "./eventsDispatchQueue";
 import { ProjectDeleteQueue } from "./projectDelete";
 import { PostHogIntegrationQueue } from "./postHogIntegrationQueue";
@@ -56,8 +55,6 @@ export function getQueue(
       return TopicsUpdateQueue.getInstance();
     case QueueName.TopicsSetup:
       return TopicsSetupQueue.getInstance();
-    case QueueName.TraceBatch:
-      return TraceBatchQueue.getInstance();
     case QueueName.EventsDispatch:
       return EventsDispatchQueue.getInstance();
     case QueueName.BatchExport:
