@@ -11,7 +11,6 @@ import {
   writeTopicExecution,
   getTopicFacetVersion,
   listTopicFacets,
-  listTopicSummaries,
   writeTopicAssignments,
   readTopicAssignments,
   readTopicRunTraceIds,
@@ -373,23 +372,15 @@ async function clusterFacet(
       }[] = [];
       for (let start = 0; start < previousTraceIds.length; start += 1000) {
         const traceIds = previousTraceIds.slice(start, start + 1000);
-        const [previousSummaries, previousAssignments] = await Promise.all([
-          listTopicSummaries(
-            scope.projectId,
-            { facetId: facet.facetId, facetVersion: facet.version, traceIds },
-            previousTimeRange,
-          ),
-          readTopicAssignments(
-            scope.projectId,
-            facetRef,
-            traceIds.map((traceId) => ({ traceId, sessionId: null })),
-            previous.id,
-            previousTimeRange,
-          ),
-        ]);
-        const eligible = new Set(previousSummaries.map((row) => row.traceId));
+        const previousAssignments = await readTopicAssignments(
+          scope.projectId,
+          facetRef,
+          traceIds.map((traceId) => ({ traceId, sessionId: null })),
+          previous.id,
+          previousTimeRange,
+        );
         for (const row of previousAssignments) {
-          if (row.traceId !== null && eligible.has(row.traceId))
+          if (row.traceId !== null)
             previousMemberships.push({
               traceId: row.traceId,
               topicVersionId: row.topicVersionId,

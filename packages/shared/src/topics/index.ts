@@ -319,7 +319,6 @@ export type TopicFacetOutcome =
   | "no_topics"
   | "failed";
 export type TopicSummaryState =
-  | "summarized"
   | "complete"
   | "not_applicable"
   | "insufficient_input";

@@ -489,6 +489,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           externalEndpoint: undefined,
           connectionValidation:
             blobStorageEndpointConnectionValidationOptions(),
+          sendContentMd5: true,
         });
 
         // Create a test file
