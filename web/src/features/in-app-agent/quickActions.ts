@@ -71,6 +71,7 @@ export type InAppAgentSubmitOptions = {
   entryPoint?:
     | "chat"
     | "add-widget-modal"
+    | "command_menu"
     | "evaluators-empty-state"
     | "skill-editor";
 };

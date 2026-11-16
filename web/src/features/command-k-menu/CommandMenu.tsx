@@ -9,6 +9,7 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/src/components/ui/command";
+import { useCommandState } from "cmdk";
 import { useRouter } from "next/router";
 import {
   BotMessageSquare,
@@ -29,7 +30,14 @@ import {
 } from "@langfuse/icons";
 import { useTheme } from "next-themes";
 import { keepPreviousData } from "@tanstack/react-query";
-import { Fragment, useCallback, useEffect, memo, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  memo,
+  useRef,
+  useState,
+} from "react";
 import { useSession } from "next-auth/react";
 import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -326,6 +334,58 @@ function CreateActionItem({
       <Plus size="base" />
       {action.title}
     </CommandItem>
+  );
+}
+
+function useAssistantQueryOffer() {
+  const isLauncherVisible = useIsInAppAgentLauncherVisible();
+  const search = useCommandState((state) => state.search);
+  const filteredCount = useCommandState((state) => state.filtered.count);
+  const query = search.trim();
+
+  return {
+    query,
+    offer: isLauncherVisible && query.length > 0 && filteredCount === 0,
+  };
+}
+
+function CommandMenuEmpty() {
+  const { offer } = useAssistantQueryOffer();
+
+  if (offer) return null;
+
+  return <CommandEmpty>No results found.</CommandEmpty>;
+}
+
+function AssistantQueryFallback({
+  onAsk,
+  offeredQueryRef,
+}: {
+  onAsk: (query: string) => void;
+  offeredQueryRef: { current: string | null };
+}) {
+  const { offer, query } = useAssistantQueryOffer();
+  const label = `Ask Assistant "${query}"`;
+  // The fallback item is force-mounted, so cmdk never selects it. Enter on
+  // the input reads the query offered for this render from the ref.
+  offeredQueryRef.current = offer ? query : null;
+
+  if (!offer) return null;
+
+  return (
+    <CommandGroup forceMount heading="Assistant">
+      <CommandItem
+        forceMount
+        className="bg-accent text-primary"
+        value={`ask-assistant:${query}`}
+        onSelect={() => onAsk(query)}
+      >
+        <BotMessageSquare size="base" />
+        <span className="min-w-0 flex-1 truncate" title={label}>
+          {label}
+        </span>
+      </CommandItem>
+    </CommandGroup>
   );
 }
 
@@ -893,7 +953,9 @@ function CommandMenuComponent({
   mainNavigation: NavigationItem[];
 }) {
   const { open, setOpen } = useCommandMenu();
+  const { openAssistant, submit } = useInAppAiAgent();
   const capture = usePostHogClientCapture();
+  const offeredQueryRef = useRef<string | null>(null);
   const { project } = useQueryProjectOrOrganization();
   const { isV4 } = useReadPath();
   const [search, setSearch] = useState("");
@@ -921,6 +983,7 @@ function CommandMenuComponent({
 
   // Closing drops the pending query so the next open does not search the previous text.
   const clearSearch = useCallback(() => {
+    offeredQueryRef.current = null;
     debouncedSearchChange.cancel();
     setSearch("");
     setDebouncedSearch("");
@@ -992,6 +1055,19 @@ function CommandMenuComponent({
     setOpen(false);
   };
 
+  const askAssistant = (query: string) => {
+    // Enter on the input and a click can both reach here in one tick.
+    if (offeredQueryRef.current === null) return;
+    offeredQueryRef.current = null;
+    handleNavigate();
+    if (!openAssistant("command_menu")) return;
+    // submit reports its own failure in the assistant; catch avoids an unhandled rejection.
+    submit(query, {
+      newConversation: true,
+      entryPoint: "command_menu",
+    }).catch(() => undefined);
+  };
+
   return (
     <CommandDialog
       open={open}
@@ -1011,9 +1087,28 @@ function CommandMenuComponent({
           setSearch(value);
           debouncedSearchChange(value);
         }}
+        onKeyDown={(event) => {
+          const query = offeredQueryRef.current;
+          if (
+            event.key !== "Enter" ||
+            event.nativeEvent.isComposing ||
+            query === null ||
+            query !== search.trim()
+          ) {
+            return;
+          }
+
+          event.preventDefault();
+          event.stopPropagation();
+          askAssistant(query);
+        }}
       />
       <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
+        <CommandMenuEmpty />
+        <AssistantQueryFallback
+          onAsk={askAssistant}
+          offeredQueryRef={offeredQueryRef}
+        />
         {idNavigationItem && (
           <IdNavigationGroup
             heading="Tracing"
