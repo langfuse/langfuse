@@ -15,7 +15,6 @@ import {
   ChevronDown,
   ExternalLink,
   Loader2,
-  MessageSquare,
   Pencil,
   Sparkles,
   TriangleAlert,
@@ -990,7 +989,7 @@ function SkillEditMenu(
     halo: { skillName: string; version: number };
   },
 ) {
-  const { isRunning, editSkill, improveSkill } = useSkillHaloActions();
+  const { isRunning, improveSkill } = useSkillHaloActions();
   const { skillName, version } = props.halo;
   const haloBusy = isRunning
     ? { reason: "Halo is still working on another request." }
@@ -1005,18 +1004,6 @@ function SkillEditMenu(
           title: props.hasDraft ? "Resume draft" : "Edit manually",
           icon: Pencil,
           onClick: props.onEditManually,
-        },
-        {
-          type: "item",
-          id: "edit-with-halo",
-          title: "Edit with Halo",
-          tooltip: "Tell Halo what to change.",
-          icon: MessageSquare,
-          disabled: haloBusy,
-          onClick: () => {
-            props.onBeforeHalo?.();
-            return editSkill(skillName, version);
-          },
         },
         {
           type: "item",

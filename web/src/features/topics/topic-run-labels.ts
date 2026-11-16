@@ -10,13 +10,13 @@ const operationLabels: Record<TopicOperation, string> = {
   update: "Regenerate topics",
 };
 
-/** A run's name in History: one-off scans carry their own name. */
+/** A run's name in History: snapshots carry their own name. */
 export function runLabel(input: {
   operation: TopicOperation;
   analysis?: { label: string };
 }) {
   return input.operation === "update" && input.analysis
-    ? `One-off scan · ${input.analysis.label}`
+    ? `Snapshot · ${input.analysis.label}`
     : operationLabels[input.operation];
 }
 

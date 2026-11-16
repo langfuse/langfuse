@@ -7,7 +7,7 @@ import type { TopicTraceFilterModel } from "./useTopicTraceFilter";
 import { TopicSliceFields } from "./TopicSliceFields";
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
 
-/** The Edit scan dialog without data fetching; stories render it directly. */
+/** The Edit map dialog without data fetching; stories render it directly. */
 export function TopicRuleDialogView({
   projectId,
   facets,
@@ -31,7 +31,7 @@ export function TopicRuleDialogView({
 }: TopicRuleDialogViewProps) {
   return (
     <Dialog
-      title="Edit scan"
+      title="Edit map"
       size="md"
       actions={[
         {
@@ -46,7 +46,7 @@ export function TopicRuleDialogView({
         <div className="ph-no-capture flex flex-col gap-6">
           <TopicSliceFields.Section label="Name">
             <Input
-              aria-label="Scan name"
+              aria-label="Map name"
               value={ruleName}
               maxLength={100}
               onChange={(event) => onNameChange(event.target.value)}
@@ -63,7 +63,7 @@ export function TopicRuleDialogView({
             onFiltersChange={onFilterChange}
             model={traceFilter}
           />
-          <TopicSliceFields.AutoAnalyze
+          <TopicSliceFields.LiveUpdates
             on={!paused}
             onChange={(on) => onPausedChange(!on)}
           >
@@ -71,9 +71,9 @@ export function TopicRuleDialogView({
               value={samplingPercent}
               onChange={onSamplingPercentChange}
               dailyTraces={dailyTraces}
-              tooltip="Share of new matching traces this scan analyzes."
+              tooltip="Share of new matching traces this map analyzes."
             />
-          </TopicSliceFields.AutoAnalyze>
+          </TopicSliceFields.LiveUpdates>
           {filterError && filter.length ? (
             <TopicsErrorMessage message={filterError} />
           ) : null}

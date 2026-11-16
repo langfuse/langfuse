@@ -256,6 +256,8 @@ export type DropdownMenuItemDefinition =
 
 type DropdownMenuProps = {
   ariaLabel?: string;
+  /** Blocks the portaled menu's text and attributes from session replay. */
+  noCapture?: boolean;
   children: (controls: {
     getTriggerProps: (
       props?: React.HTMLProps<HTMLElement>,
@@ -321,6 +323,7 @@ function ControlledDropdownMenu(
 
 function DropdownMenuNode({
   ariaLabel,
+  noCapture,
   children,
   description,
   disabled = false,
@@ -497,7 +500,10 @@ function DropdownMenuNode({
               }}
               className={menuVariants({
                 width,
-                className: description && "w-80",
+                className: cn(
+                  description && "w-80",
+                  noCapture && "ph-no-capture",
+                ),
               })}
               style={{ ...floatingStyles, maxHeight }}
               {...getFloatingProps({ onScroll: recompute })}

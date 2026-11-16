@@ -10,12 +10,12 @@ use super::super::attributes::{
 };
 use super::super::types::JsonObject;
 use super::super::value::{JsString, Value};
-use super::{definition_data, string_value_js, NormalizedTools};
+use super::{definition_data, definition_name_js, string_value_js, NormalizedTools};
 
 /// Extract tool definitions and calls from borrowed normalized values.
 pub(super) struct ToolColumns<'a> {
     result: NormalizedTools,
-    names: HashSet<JsString>,
+    names: HashSet<(u8, JsString)>,
     calls: HashSet<CallIdentity>,
     cache: &'a mut JsonParseCache,
 }
@@ -70,14 +70,19 @@ impl<'a> ToolColumns<'a> {
         let Some(data) = definition_data(&parsed) else {
             return;
         };
-        let name = data.get("name").and_then(string_value_js);
-        // Index columns use UTF-8 names. Store a key containing an unpaired UTF-16 surrogate only
-        // in the payload because lossy replacement would merge distinct names.
-        let Some(name) = name.filter(|name| {
-            !name.is_empty() && name.as_utf8().is_some() && self.names.insert(name.clone())
-        }) else {
+        let Some(name) = data.get("name").and_then(definition_name_js) else {
             return;
         };
+        // Index columns use UTF-8 names. Store a key containing an unpaired UTF-16 surrogate only
+        // in the payload because lossy replacement would merge distinct names.
+        if name.as_utf8().is_none() {
+            return;
+        }
+        if let Some(identity) = data.get("name").and_then(super::definition_name_identity) {
+            if !self.names.insert(identity) {
+                return;
+            }
+        }
         let description = first(data, &["description", "desc"])
             .and_then(string_value_js)
             .unwrap_or_default();

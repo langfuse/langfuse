@@ -304,6 +304,10 @@ export { CORRECTION_SCORES_BILLABLE_FROM } from "./domain/scores";
 export { type ListableScoreDataType } from "./domain/scores";
 export { type ListableScore } from "./domain/scores";
 export { TableViewPresetTableName } from "./domain/table-view-presets";
+export {
+  SessionViewInputSchema,
+  SessionViewPreferencesSchema,
+} from "./domain/session-views";
 export { SystemTableViewPresetCategory } from "./domain/table-view-presets";
 export { SYSTEM_TABLE_VIEW_PRESET_CATEGORY_META } from "./domain/table-view-presets";
 export { SYSTEM_TABLE_VIEW_PRESET_CATEGORIES_ORDERED } from "./domain/table-view-presets";

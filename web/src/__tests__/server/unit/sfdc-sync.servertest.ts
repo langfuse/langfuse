@@ -35,13 +35,11 @@ const { envMock, prismaMock, loggerMock, fetchMock } = vi.hoisted(() => {
           async (): Promise<{ sfdcOrgId: string | null } | null> => null,
         ),
         update: vi.fn(async () => ({})),
-        create: vi.fn(
-          async (): Promise<unknown> => ({
-            id: "org-new",
-            name: "New Org",
-            createdAt: new Date("2026-06-01T08:30:00.900Z"),
-          }),
-        ),
+        create: vi.fn(async (): Promise<unknown> => ({
+          id: "org-new",
+          name: "New Org",
+          createdAt: new Date("2026-06-01T08:30:00.900Z"),
+        })),
       },
       organizationMembership: {
         findFirst: vi.fn(async (): Promise<unknown> => null),
@@ -51,6 +49,10 @@ const { envMock, prismaMock, loggerMock, fetchMock } = vi.hoisted(() => {
         create: vi.fn(async (args: { data: unknown }) => args.data),
         update: vi.fn(async (): Promise<unknown> => ({})),
         upsert: vi.fn(async (): Promise<unknown> => ({})),
+      },
+      sessionView: {
+        findMany: vi.fn(async (): Promise<unknown[]> => []),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
       },
       projectMembership: {
         create: vi.fn(async (args: { data: unknown }) => args.data),

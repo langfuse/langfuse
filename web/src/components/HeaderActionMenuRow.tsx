@@ -22,6 +22,8 @@ export const HeaderActionMenuRow = React.forwardRef<
   { label, icon, badge, variant = "default", disabledReason, ...props },
   ref,
 ) {
+  // Touch screens never show the title tooltip, so a disabled row spells out why.
+  const visibleReason = props.disabled ? disabledReason : undefined;
   return (
     <Button
       ref={ref}
@@ -31,12 +33,24 @@ export const HeaderActionMenuRow = React.forwardRef<
       className={cn(
         "w-full justify-start gap-2 font-normal",
         variant === "destructive" && "text-destructive hover:text-destructive",
+        visibleReason && "h-auto items-start py-1 text-left whitespace-normal",
       )}
       title={disabledReason}
       {...props}
     >
-      {icon}
-      {label}
+      {visibleReason && icon ? (
+        <span className="shrink-0 translate-y-0.5">{icon}</span>
+      ) : (
+        icon
+      )}
+      {visibleReason ? (
+        <span className="flex min-w-0 flex-col">
+          {label}
+          <span className="text-muted-foreground text-xs">{visibleReason}</span>
+        </span>
+      ) : (
+        label
+      )}
       {badge}
     </Button>
   );

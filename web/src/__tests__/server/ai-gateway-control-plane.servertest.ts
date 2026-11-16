@@ -2185,6 +2185,51 @@ describe("AI gateway control plane", () => {
     });
   });
 
+  it("rejects key edits from another organization and from members without gateway:invoke", async () => {
+    const owner = await prepare();
+    const other = await prepare();
+    const viewer = await createCallerForOrganizationRole(owner, Role.VIEWER);
+    const ownerKey = await owner.caller.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Owner key",
+      metadata: { team: "search" },
+      allowedModels: ["openai:*"],
+    });
+    const update = {
+      orgId: owner.org.id,
+      id: ownerKey.id,
+      name: "Hijacked",
+      metadata: {},
+      allowedModels: [],
+      previousAllowedModels: ["openai:*"],
+    };
+
+    await expect(
+      other.caller.aiGateway.updateApiKey(update),
+    ).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+      message: "User is not a member of this organization",
+    });
+    await expect(
+      other.caller.aiGateway.updateApiKey({ ...update, orgId: other.org.id }),
+    ).rejects.toMatchObject({
+      code: "NOT_FOUND",
+      message: "Gateway key not found",
+    });
+    await expect(viewer.aiGateway.updateApiKey(update)).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+
+    const [unchanged] = (
+      await owner.caller.aiGateway.listApiKeys({ orgId: owner.org.id })
+    ).data;
+    expect(unchanged).toMatchObject({
+      metadata: { team: "search" },
+      allowedModels: ["openai:*"],
+      apiKey: { note: "Owner key" },
+    });
+  });
+
   it("lets only gateway managers issue service-account keys", async () => {
     const owner = await prepare();
     const member = await createCallerForOrganizationRole(owner, Role.MEMBER);

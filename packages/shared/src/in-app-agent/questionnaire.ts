@@ -118,19 +118,17 @@ export function createInAppAgentQuestionnaireAnswersSchema(
         }
       }
     })
-    .transform(
-      (answers): InAppAgentQuestionnaireResult => ({
-        type: "questionnaireAnswers",
-        answers: questions.map((question, index) => {
-          const answer = toAnswerLabels(question, answers[index]);
-          return {
-            question: question.question,
-            answer,
-            skipped: answer.length === 0,
-          };
-        }),
+    .transform((answers): InAppAgentQuestionnaireResult => ({
+      type: "questionnaireAnswers",
+      answers: questions.map((question, index) => {
+        const answer = toAnswerLabels(question, answers[index]);
+        return {
+          question: question.question,
+          answer,
+          skipped: answer.length === 0,
+        };
       }),
-    );
+    }));
 }
 
 /**
