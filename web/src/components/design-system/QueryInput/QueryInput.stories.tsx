@@ -458,6 +458,136 @@ export const TestControlledSelection = meta.story({
   },
 });
 
+const tooltipQuery = "alpha beta";
+
+const tooltipTokens: ComponentProps<typeof QueryInput>["tokens"] = [
+  {
+    id: "alpha",
+    from: 0,
+    to: 5,
+    raw: "alpha",
+    kind: "filter",
+    editable: true,
+    error: null,
+    explanation: { subject: "Alpha", predicate: "is the first filter" },
+    inactiveReason: null,
+  },
+  {
+    id: "beta",
+    from: 6,
+    to: 10,
+    raw: "beta",
+    kind: "filter",
+    editable: true,
+    error: null,
+    explanation: { subject: "Beta", predicate: "is the second filter" },
+    inactiveReason: null,
+  },
+];
+
+const tooltipCompletions: QueryCompletionPlan = {
+  options: [
+    {
+      id: "keep",
+      label: "alpha",
+      edit: { next: tooltipQuery, caret: 1, keepOpen: false },
+      onApplied: fn(),
+    },
+  ],
+  autoHighlight: false,
+  loading: false,
+};
+
+function placeCaretInToken(token: HTMLElement, text: string, offset: number) {
+  const node = Array.from(token.childNodes).find(
+    (child) => child.nodeType === Node.TEXT_NODE && child.textContent === text,
+  );
+  if (node === undefined) throw new Error(`Expected token text ${text}`);
+  const range = token.ownerDocument.createRange();
+  range.setStart(node, offset);
+  range.collapse(true);
+  const selection = token.ownerDocument.defaultView?.getSelection() ?? null;
+  if (selection === null) throw new Error("Expected a selection");
+  selection.removeAllRanges();
+  selection.addRange(range);
+  token.ownerDocument.dispatchEvent(new Event("selectionchange"));
+}
+
+async function typeInsideFirstToken(canvasElement: HTMLElement) {
+  const canvas = within(canvasElement);
+  const input = canvas.getByRole("combobox", { name: "Query" });
+  const alpha = canvas.getAllByTestId("search-bar-token")[0];
+  if (alpha === undefined) throw new Error("Expected a token");
+  await userEvent.click(input);
+  placeCaretInToken(alpha, "alpha", 1);
+  await userEvent.hover(alpha);
+  await userEvent.keyboard("x");
+  await waitFor(() =>
+    expect(canvas.getByTestId("search-bar-surface")).toHaveAttribute(
+      "data-composer-text",
+      "axlpha beta",
+    ),
+  );
+  await expect(input).toHaveAttribute("aria-expanded", "true");
+  return { canvas, input };
+}
+
+export const TestTokenTooltipWhileTyping = meta.story({
+  name: "(Test) Token tooltip stays hidden while typing",
+  args: {
+    value: tooltipQuery,
+    tokens: tooltipTokens,
+    completions: tooltipCompletions,
+    placeholder: "Filter",
+  },
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    const { canvas, input } = await typeInsideFirstToken(canvasElement);
+    await waitFor(() =>
+      expect(
+        body.queryByTestId("search-bar-token-tooltip"),
+      ).not.toBeInTheDocument(),
+    );
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(input).toHaveAttribute("aria-expanded", "false"),
+    );
+    const beta = canvas.getAllByTestId("search-bar-token")[1];
+    if (beta === undefined) throw new Error("Expected a second token");
+    await userEvent.hover(beta);
+    await expect(
+      await body.findByTestId("search-bar-token-tooltip"),
+    ).toHaveTextContent("Beta is the second filter");
+  },
+});
+
+export const TestCaretTokenErrorAfterSuggestionsClose = meta.story({
+  name: "(Test) Caret token error returns after suggestions close",
+  args: {
+    value: tooltipQuery,
+    tokens: tooltipTokens.map((token) =>
+      token.id === "alpha" ? { ...token, error: "Unknown field" } : token,
+    ),
+    diagnostics: [{ message: "Unknown field" }],
+    completions: tooltipCompletions,
+    placeholder: "Filter",
+  },
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    const { input } = await typeInsideFirstToken(canvasElement);
+    await waitFor(() =>
+      expect(
+        body.queryByTestId("search-bar-token-tooltip"),
+      ).not.toBeInTheDocument(),
+    );
+    await userEvent.keyboard("{Escape}");
+    await expect(
+      await body.findByTestId("search-bar-token-tooltip"),
+    ).toHaveTextContent("Unknown field");
+    await expect(input).toHaveAttribute("aria-expanded", "false");
+  },
+});
+
 export const TestCompletionEdit = meta.story({
   name: "(Test) Completion preserves focus and supports undo",
   play: async ({ canvasElement, args }) => {
