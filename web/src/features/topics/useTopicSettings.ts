@@ -88,7 +88,10 @@ export function useTopicSettings({
       : null;
 
   const configurationError =
-    settings.error ?? readinessSettings.error ?? connections.error;
+    settings.error ??
+    readinessSettings.error ??
+    connections.error ??
+    maps.error;
 
   return {
     configure: {
