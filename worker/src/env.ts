@@ -161,7 +161,7 @@ const EnvSchema = z.object({
     .positive()
     .max(2 * 24 * 60 * 60 * 1_000)
     .default(24 * 60 * 60 * 1_000),
-  // Requires trace dispatch; the dispatcher then enqueues events-dispatch jobs instead of trace-batch jobs.
+  // Requires trace dispatch; the dispatcher enqueues events-dispatch jobs.
   LANGFUSE_EVENTS_DISPATCH_ENABLED: z.enum(["true", "false"]).default("false"),
   QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
@@ -175,14 +175,6 @@ const EnvSchema = z.object({
   LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES: z
     .enum(["true", "false"])
     .default("false"),
-  LANGFUSE_TRACE_BATCH_INGESTION_ENABLED: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_TRACE_BATCH_SAMPLING_RATE: z.coerce
-    .number()
-    .min(0)
-    .max(1)
-    .default(0),
   LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -245,12 +237,6 @@ const EnvSchema = z.object({
     .default("project"),
   LANGFUSE_TRACE_BATCH_IDLE_MS: z.coerce.number().int().positive(),
   LANGFUSE_TRACE_BATCH_SHARD_COUNT: z.coerce.number().int().min(1).max(256),
-  LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .max(2 * 24 * 60 * 60 * 1_000)
-    .default(24 * 60 * 60 * 1_000),
   // Recovery grace after readiness; whole-key expiry includes the idle interval.
   LANGFUSE_TRACE_BATCH_PENDING_TTL_MS: z.coerce
     .number()

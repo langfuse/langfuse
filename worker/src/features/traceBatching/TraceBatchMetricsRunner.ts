@@ -6,16 +6,9 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { PeriodicRunner } from "../../utils/PeriodicRunner";
-import {
-  getTraceBatchFirstKeys,
-  getTraceBatchReadinessKeys,
-  MEMORY_SCRIPT,
-} from "./traceBatchReadiness";
+import { MEMORY_SCRIPT } from "./traceBatchReadiness";
 import { getRecordingBoundsKey, getRecordingKeys } from "./traceRuleRecording";
-import {
-  isTraceBatchPipelineEnabled,
-  isTraceDispatchEnabled,
-} from "./traceBatchSampling";
+import { isTraceDispatchEnabled } from "./traceBatchSampling";
 
 const METRIC_PREFIX = "langfuse.trace_batch";
 const MEMORY_INTERVAL_MS = 60_000;
@@ -44,7 +37,7 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
   }
 
   protected async execute(): Promise<void> {
-    if (!isTraceBatchPipelineEnabled()) return;
+    if (!isTraceDispatchEnabled()) return;
 
     const collections = [
       this.collectQueueDepth(),
@@ -56,7 +49,7 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
       now - this.lastMemorySampleAt >= MEMORY_INTERVAL_MS
     ) {
       this.lastMemorySampleAt = now;
-      collections.push(this.collectMemory());
+      collections.push(this.collectRecordingMemory());
     }
 
     // Each collection remains useful if another fails. Never replace a failed
@@ -107,31 +100,6 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
     );
   }
 
-  /** Sample the maps of the active pipeline; the other pipeline's keys only expire. */
-  private async collectMemory(): Promise<void> {
-    if (!redis) throw new Error("Trace batch metrics require Redis");
-    if (isTraceDispatchEnabled()) return this.collectRecordingMemory();
-    const clock = await redis.time();
-    const now = Number(clock[0]) * 1_000 + Math.floor(Number(clock[1]) / 1_000);
-    const totals = [0, 0, 0, 0, 0, 0];
-    for (let shard = 0; shard < env.LANGFUSE_TRACE_BATCH_SHARD_COUNT; shard++) {
-      const keys = [
-        getTraceBatchReadinessKeys(shard).due,
-        getTraceBatchReadinessKeys(shard).state,
-        ...getTraceBatchFirstKeys(shard, now).keys,
-      ];
-      const values = (await redis.eval(
-        MEMORY_SCRIPT,
-        keys.length,
-        ...keys,
-      )) as number[];
-      values.forEach((value, index) => (totals[index] += Number(value)));
-    }
-    // Per-shard series would multiply custom metrics by the shard count on
-    // every reporting worker; only the summed totals are emitted.
-    this.recordMapMemory(totals, ["due", "state", "first"]);
-  }
-
   /** Bounds are one key per trace without an index; sample the bounds of a few pending traces per shard instead of scanning. */
   private async collectRecordingMemory(): Promise<void> {
     if (!redis) throw new Error("Trace batch metrics require Redis");
@@ -146,9 +114,7 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
         due,
         pending,
       )) as number[];
-      values
-        .slice(0, 4)
-        .forEach((value, index) => (totals[index] += Number(value)));
+      values.forEach((value, index) => (totals[index] += Number(value)));
       const members = (await redis.hrandfield(pending, BOUNDS_SAMPLE_SIZE)) as
         | string[]
         | null;
