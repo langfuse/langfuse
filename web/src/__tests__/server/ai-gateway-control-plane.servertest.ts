@@ -2185,6 +2185,74 @@ describe("AI gateway control plane", () => {
     });
   });
 
+  it("lets members limit their own keys and change only the limits they created", async () => {
+    const owner = await prepare();
+    await owner.caller.aiGateway.updateConfig({
+      orgId: owner.org.id,
+      defaultIngestionProjectId: owner.project.id,
+      ingestionMode: "USAGE",
+    });
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const ownerKey = await owner.caller.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Owner key",
+      metadata: {},
+    });
+    const memberKey = await member.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Member key",
+      metadata: {},
+    });
+    const create = (
+      caller: typeof member,
+      apiKeyId: string,
+      interval: "DAILY" | "MONTHLY",
+    ) =>
+      caller.aiGateway.spendLimits.create({
+        orgId: owner.org.id,
+        scope: { type: "API_KEY", apiKeyId },
+        interval,
+        limitUsd: 10,
+      });
+
+    await expect(create(member, ownerKey.id, "DAILY")).rejects.toThrow(
+      "Gateway key not found",
+    );
+    const memberLimit = await create(member, memberKey.id, "DAILY");
+    const ownerLimit = await create(owner.caller, memberKey.id, "MONTHLY");
+
+    await expect(
+      member.aiGateway.spendLimits.update({
+        orgId: owner.org.id,
+        id: ownerLimit.id,
+        limitUsd: 1000,
+      }),
+    ).rejects.toThrow("Spend limit not found");
+    await expect(
+      member.aiGateway.spendLimits.delete({
+        orgId: owner.org.id,
+        id: ownerLimit.id,
+      }),
+    ).rejects.toThrow("Spend limit not found");
+    await member.aiGateway.spendLimits.update({
+      orgId: owner.org.id,
+      id: memberLimit.id,
+      limitUsd: 20,
+    });
+    await owner.caller.aiGateway.spendLimits.delete({
+      orgId: owner.org.id,
+      id: memberLimit.id,
+    });
+
+    const listed = await member.aiGateway.spendLimits.list({
+      orgId: owner.org.id,
+      scope: { type: "API_KEY", apiKeyId: memberKey.id },
+    });
+    expect(listed.limits).toMatchObject([
+      { id: ownerLimit.id, createdByUserId: owner.user.id },
+    ]);
+  });
+
   it("rejects key edits from another organization and from members without gateway:invoke", async () => {
     const owner = await prepare();
     const other = await prepare();

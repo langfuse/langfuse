@@ -14,6 +14,10 @@ import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { getGatewaySpendLimitWindowStart } from "@/src/features/ai-gateway/fns/getGatewaySpendLimitWindowStart";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import {
+  getKeyOwnerFilter,
+  type GatewayUsageScope,
+} from "@/src/features/ai-gateway/server/gatewayUsageScope";
 import { getGatewaySpendSince } from "./gatewaySpendRepository";
 import {
   GatewaySpendLimitRepository,
@@ -33,6 +37,9 @@ const GATEWAY_SPEND_LIMITS_UNAVAILABLE_REASON =
  * gateway requests are recorded. Every write drops the cached /resolve context
  * of the keys the scope covers, so the gateway sees the change on their next
  * request.
+ *
+ * Gateway managers may change every limit. Other gateway members may add
+ * limits to their own keys and change only the limits they created.
  */
 export class GatewaySpendLimitService {
   private readonly repository: GatewaySpendLimitRepository;
@@ -48,7 +55,7 @@ export class GatewaySpendLimitService {
    */
   async list(params: {
     organizationId: string;
-    ownerUserId?: string;
+    usageScope: GatewayUsageScope;
     scope: GatewaySpendLimitScope;
   }) {
     const subject = await this.requireSubject(params);
@@ -101,6 +108,7 @@ export class GatewaySpendLimitService {
 
   async create(params: {
     organizationId: string;
+    usageScope: GatewayUsageScope;
     scope: GatewaySpendLimitScope;
     interval: GatewaySpendLimitInterval;
     limitUsd: number;
@@ -125,6 +133,7 @@ export class GatewaySpendLimitService {
         limitUsd: params.limitUsd,
         baselineSpendUsd: baselineSpendUsd ?? 0,
         baselineWindowStart: windowStart,
+        createdByUserId: params.session.user.id,
       });
     } catch (error) {
       if (
@@ -148,6 +157,7 @@ export class GatewaySpendLimitService {
 
   async update(params: {
     organizationId: string;
+    usageScope: GatewayUsageScope;
     id: string;
     limitUsd: number;
     session: OrgAuthedContext["session"];
@@ -168,6 +178,7 @@ export class GatewaySpendLimitService {
   /** Starts the current window over at zero spend, for the gateway and for the recorded spend shown. */
   async reset(params: {
     organizationId: string;
+    usageScope: GatewayUsageScope;
     id: string;
     session: OrgAuthedContext["session"];
   }) {
@@ -191,6 +202,7 @@ export class GatewaySpendLimitService {
   /** Deleting stays possible without ingestion, so a limit can always be removed. */
   async delete(params: {
     organizationId: string;
+    usageScope: GatewayUsageScope;
     id: string;
     session: OrgAuthedContext["session"];
   }) {
@@ -203,14 +215,14 @@ export class GatewaySpendLimitService {
   /** What the scope applies to, if the caller may see it. */
   private async requireSubject(params: {
     organizationId: string;
-    ownerUserId?: string;
+    usageScope: GatewayUsageScope;
     scope: GatewaySpendLimitScope;
   }) {
     switch (params.scope.type) {
       case "API_KEY": {
         const apiKey = await this.repository.getGatewayApiKey({
           organizationId: params.organizationId,
-          ownerUserId: params.ownerUserId,
+          ownerUserId: getKeyOwnerFilter(params.usageScope),
           apiKeyId: params.scope.apiKeyId,
         });
         if (!apiKey) throw new LangfuseNotFoundError("Gateway key not found");
@@ -228,11 +240,21 @@ export class GatewaySpendLimitService {
     }
   }
 
-  private async requireLimit(params: { organizationId: string; id: string }) {
-    const before = await this.repository.get(params);
+  /** The limit, if the caller may change it. */
+  private async requireLimit(params: {
+    organizationId: string;
+    usageScope: GatewayUsageScope;
+    id: string;
+  }) {
+    const before = await this.repository.get({
+      organizationId: params.organizationId,
+      id: params.id,
+      createdByUserId: getKeyOwnerFilter(params.usageScope),
+    });
     if (!before) throw new LangfuseNotFoundError("Spend limit not found");
     const subject = await this.requireSubject({
       organizationId: params.organizationId,
+      usageScope: params.usageScope,
       scope: toGatewaySpendLimitScope(before),
     });
     return { before, subject };
@@ -296,6 +318,7 @@ function toGatewaySpendLimit(limit: GatewaySpendLimitRecord) {
     limitUsd: limit.limitUsd.toNumber(),
     generation: limit.generation,
     resetAt: limit.resetAt,
+    createdByUserId: limit.createdByUserId,
     createdAt: limit.createdAt,
     updatedAt: limit.updatedAt,
   };

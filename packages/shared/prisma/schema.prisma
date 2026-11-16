@@ -97,6 +97,7 @@ model User {
   evaluatorsCreated         Evaluator[]                 @relation("EvaluatorCreatedByUser")
   evaluatorVersionsCreated  EvaluatorVersion[]          @relation("EvaluatorVersionCreatedByUser")
   evaluationRulesCreated    EvaluationRule[]            @relation("EvaluationRuleCreatedByUser")
+  gatewaySpendLimitsCreated GatewaySpendLimit[]         @relation("GatewaySpendLimitCreatedByUser")
 
   deprecatedRoleAssignments RoleAssignment[] @relation("DeprecatedRoleAssignmentUser") @ignore
 
@@ -436,6 +437,9 @@ model GatewaySpendLimit {
   // Spend recorded in ClickHouse before the gateway counted it, valid only for the window starting at baselineWindowStart.
   baselineSpendUsd    Decimal                   @default(0) @map("baseline_spend_usd")
   baselineWindowStart DateTime                  @map("baseline_window_start")
+  // Gateway members may change only the limits they created; admins may change all.
+  createdByUserId     String?                   @map("created_by_user_id")
+  createdByUser       User?                     @relation("GatewaySpendLimitCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
   createdAt           DateTime                  @default(now()) @map("created_at")
   updatedAt           DateTime                  @default(now()) @updatedAt @map("updated_at")
 

@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS "gateway_spend_limits" (
     "reset_at" TIMESTAMP(3),
     "baseline_spend_usd" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "baseline_window_start" TIMESTAMP(3) NOT NULL,
+    "created_by_user_id" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -31,6 +32,9 @@ CREATE TABLE IF NOT EXISTS "gateway_spend_limits" (
     CONSTRAINT "gateway_spend_limits_api_key_id_fkey"
         FOREIGN KEY ("api_key_id") REFERENCES "api_keys"("id")
         ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "gateway_spend_limits_created_by_user_id_fkey"
+        FOREIGN KEY ("created_by_user_id") REFERENCES "users"("id")
+        ON DELETE SET NULL ON UPDATE CASCADE,
     CONSTRAINT "gateway_spend_limits_scope_check"
         CHECK ("scope" <> 'API_KEY' OR "api_key_id" IS NOT NULL)
 );
