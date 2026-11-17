@@ -174,6 +174,18 @@ describe("buildProjectsOverview", () => {
 });
 
 describe("filterProjectsOverview", () => {
+  it("keeps a matching organization without projects in the all-projects search", () => {
+    const result = filterProjectsOverview(build(), {
+      search: "zephyr",
+      status: "all",
+    });
+
+    expect(result.organizations.map((organization) => organization.id)).toEqual(
+      ["zephyr"],
+    );
+    expect(result.organizations[0].projects).toEqual([]);
+  });
+
   it("counts tabs after the search and drops organizations without a match", () => {
     const result = filterProjectsOverview(build(), {
       search: "s",

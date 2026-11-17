@@ -14,8 +14,8 @@ const matchesStatus = (
 /**
  * Applies the overview's search and status tabs. The search matches project
  * and organization names; the tab counts are taken after the search so they
- * describe what the tab would show. Organizations without a match are left
- * out unless nothing narrows the list.
+ * describe what the tab would show. The All tab retains organizations whose
+ * names match even when they have no projects.
  */
 export function filterProjectsOverview(
   organizations: OrganizationOverview[],
@@ -52,7 +52,13 @@ export function filterProjectsOverview(
           matchesStatus(project, status),
       ),
     }))
-    .filter((organization) => !isNarrowed || organization.projects.length > 0);
+    .filter(
+      (organization) =>
+        !isNarrowed ||
+        organization.projects.length > 0 ||
+        (status === "all" &&
+          organization.name.toLocaleLowerCase().includes(needle)),
+    );
 
   return { organizations: filtered, counts };
 }

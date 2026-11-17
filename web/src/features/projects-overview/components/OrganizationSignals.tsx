@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Progress } from "@/src/components/design-system/Progress/Progress";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type OrganizationOverview } from "@/src/features/projects-overview/fns/projectsOverview/buildProjectsOverview";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 
 const numberFormat = new Intl.NumberFormat("en-US");
 const percentFormat = new Intl.NumberFormat("en-US", {
@@ -55,6 +56,10 @@ function UsageTile({
   organizationId: string;
   usage: NonNullable<OrganizationOverview["usage"]>;
 }) {
+  const canManageBilling = useHasOrganizationAccess({
+    organizationId,
+    scope: "langfuseCloudBilling:CRUD",
+  });
   const label =
     usage.periodKind === "billing-cycle"
       ? "Usage this billing period"
@@ -99,7 +104,7 @@ function UsageTile({
         {usage.limit === null ? "No limit on this plan · " : null}
         {usage.periodKind === "billing-cycle" ? "Resets " : "Through "}
         {dateFormat.format(usage.periodEnd)}
-        {usage.limit !== null ? (
+        {usage.limit !== null && canManageBilling ? (
           <>
             {" · "}
             <Link
