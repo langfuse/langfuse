@@ -7,11 +7,12 @@ import {
 } from "@langfuse/shared";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
+import { getSkillRequestBodySizeLimit } from "@/src/features/skills/server/skill-request-body-limit";
 import { SkillService } from "@/src/features/skills/server/skill-service";
 
 export const config = {
   api: {
-    bodyParser: { sizeLimit: "4.5mb" },
+    bodyParser: { sizeLimit: getSkillRequestBodySizeLimit() },
   },
 };
 
