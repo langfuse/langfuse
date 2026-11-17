@@ -682,12 +682,11 @@ function MetricContent({ metric }: { metric: HeaderMetric }) {
           <div className="ph-no-capture flex max-h-[70vh] w-120 flex-col overflow-y-auto px-4">
             <div className="flex items-center justify-between gap-2 border-b py-2.5">
               <span className="text-sm font-bold">{metric.title}</span>
-              {/* Custom content skips Metric's outbound arrow; `linkText` carries its own. */}
-              <Metric href={metric.href}>
-                <span className="py-0.5 whitespace-nowrap underline-offset-2 group-hover/metric:underline">
-                  {metric.linkText}
-                </span>
-              </Metric>
+              <Metric
+                href={metric.href}
+                value={metric.linkText}
+                linkIcon="none"
+              />
             </div>
             {metric.rows.map((row) => {
               // Several or captioned values get a line each under the label.
