@@ -116,6 +116,7 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
         params.delete(PEEK_PARAM);
         params.delete(PEEK_VIEW_PARAM);
         params.delete("aggregation");
+        params.delete("sessionPeek");
         config?.queryParams?.forEach((param) => params.delete(param));
       } else {
         // Re-clicking the already-peeked row is a no-op open — don't count it.
@@ -128,6 +129,7 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
           });
         }
         // Clear all query params that are set in the config
+        params.delete("sessionPeek");
         config?.queryParams?.forEach((param) => params.delete(param));
 
         // Open peek view
@@ -179,6 +181,7 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
     params.delete(PEEK_PARAM);
     params.delete(PEEK_VIEW_PARAM);
     params.delete("aggregation");
+    params.delete("sessionPeek");
     config?.queryParams?.forEach((param) => params.delete(param));
 
     router.push(
@@ -202,11 +205,10 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
       // Keep all existing query params
       const params = new URLSearchParams(url.search);
 
-      // Update any query params that exist in entry.params
-      if (entry.params) {
-        // Clear all query params that are set in the config
-        config?.queryParams?.forEach((param) => params.delete(param));
+      params.delete("sessionPeek");
+      config?.queryParams?.forEach((param) => params.delete(param));
 
+      if (entry.params) {
         Object.entries(entry.params).forEach(([key, value]) => {
           params.set(key, encodeURIComponent(value));
         });
@@ -252,7 +254,8 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
       const pathId = resolved
         ? resolved.traceId
         : (params.get(pathParam) ?? params.get(PEEK_PARAM));
-      const pathname = `${config?.expandConfig?.basePath}/${pathId}`;
+      if (!pathId) return;
+      const pathname = `${config?.expandConfig?.basePath}/${encodeURIComponent(pathId)}`;
       const forwardedParams = [
         ...new Set([...(config.queryParams ?? []), "aggregation"]),
       ];
@@ -264,7 +267,9 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
             resolved && param === "timestamp"
               ? (resolved.timestamp?.toISOString() ?? null)
               : params.get(param);
-          return value ? `${param}=${value}` : null;
+          return value
+            ? `${encodeURIComponent(param)}=${encodeURIComponent(value)}`
+            : null;
         })
         .filter(Boolean)
         .join("&");

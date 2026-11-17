@@ -33,10 +33,15 @@ vi.mock("../contexts/SelectionProvider", () => ({
 vi.mock("../contexts/TraceDataProvider", () => ({
   useTraceData: () => ({
     trace: { id: "trace", projectId: "project", environment: "default" },
-    sessionTraces: [
-      { id: "trace", projectId: "project", environment: "default" },
-      { id: "other-trace", projectId: "project", environment: "default" },
-    ],
+    scope: {
+      type: "session",
+      projectId: "project",
+      sessionId: "session",
+      traces: [
+        { id: "trace", projectId: "project", environment: "default" },
+        { id: "other-trace", projectId: "project", environment: "default" },
+      ],
+    },
     observations: [
       { id: "first", traceId: "trace", environment: "default" },
       { id: "second", traceId: "trace", environment: "default" },
