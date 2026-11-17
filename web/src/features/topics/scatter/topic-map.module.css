@@ -72,5 +72,5 @@
 
 :global(.dark) .lookLabel {
   color: hsl(var(--foreground-secondary));
-  text-shadow: none;
+  text-shadow: var(--look-label-shadow);
 }
