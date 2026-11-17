@@ -25,7 +25,7 @@ export async function resolveTraceBatchSamplingRate(
     topicsRate = await getTopicsProcessingSampling(projectId);
   } catch (error) {
     // Preserve Topics intake during an outage; consumers still check project models.
-    recordIncrement("langfuse.trace_batch.topics_gate_failures", 1);
+    recordIncrement("langfuse.trace_dispatch.topics_gate_failures", 1);
     logger.warn("Failed to read Topics processing state, using allowlist", {
       projectId,
       error,

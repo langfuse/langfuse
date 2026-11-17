@@ -17,10 +17,15 @@ on:
 
 permissions: {}
 
+# Cancel superseded PR runs; keep other events independent with a unique group per run.
+concurrency:
+  group: ${{ github.workflow }}-${{ (github.event_name == 'pull_request' || github.event_name == 'pull_request_target') && format('pr-{0}', github.event.pull_request.number) || format('run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'pull_request_target' }}
+
 jobs:
   aws-preview:
     name: Auto-label AWS preview
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     # AWS_PREVIEW_ECR_PUSH_ROLE_ARN is the feature flag: unset => preview system
     # off, so don't label.
     if: vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != ''
@@ -49,7 +54,7 @@ jobs:
 
   related-previews:
     name: Auto-label related previews
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     permissions:
       actions: write
       pull-requests: write

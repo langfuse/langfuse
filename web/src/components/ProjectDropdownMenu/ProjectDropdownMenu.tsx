@@ -37,11 +37,10 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
     () => [
       ...(projects
         ? projects.map((project) => ({
-            type: "item" as const,
+            type: "entity" as const,
             id: project.id,
             noCapture: true,
             title: project.name,
-            variant: "entity" as const,
             icon: House,
             selected: project.id === currentProjectId,
             href: getProjectPath(project.id),

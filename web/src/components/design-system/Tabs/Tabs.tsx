@@ -7,7 +7,6 @@ import { EllipsisVertical, type IconComponent } from "@langfuse/icons";
 import Link, { type LinkProps } from "next/link";
 import { flushSync } from "react-dom";
 
-import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
@@ -334,11 +333,6 @@ type TabsTriggerProps = {
         href?: never;
         active?: never;
         onClick?: never;
-        /**
-         * A tab that also opens a menu: shows a down indicator and announces
-         * the menu. The caller's menu owns the press handling.
-         */
-        menu?: { open: boolean };
       }
     | {
         /** Renders a Next.js link with `aria-current` instead of a tab. */
@@ -390,14 +384,11 @@ function TabsTrigger(props: TabsTriggerProps) {
   return (
     <TabsPrimitive.Trigger
       value={props.value}
-      aria-haspopup={props.menu ? "menu" : undefined}
-      aria-expanded={props.menu?.open}
       disabled={disabled}
       title={nativeTitle}
       className={className}
     >
       {content}
-      {props.menu ? <DropdownIndicator size="sm" nudge /> : null}
     </TabsPrimitive.Trigger>
   );
 }

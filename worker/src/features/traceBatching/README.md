@@ -48,7 +48,7 @@ executed by this experiment.
 
 The dispatcher reads at most 10,000 oldest due candidates per shard per run, hydrates 50 at a time, and reuses the existing batch selection and byte limits. Bounds contain no event count, so event-count budgets never apply. It enqueues before removing matching revisions, preserving newer ingestion and bounds. Excess candidates stay due for the next run. Cleanup uses bounded Lua calls but may repeat; there is no hard five-second deadline. The events-dispatch consumer reads ClickHouse only for traces with at least one routed consumer rule and counts every trace's outcome in `langfuse.events_dispatch.trace_outcomes`. Storage is required: a trace whose transcript cannot be stored is not enqueued to its consumers.
 
-`langfuse.trace_batch.redis_key_bytes` / `redis_key_entries` sample the recording maps every 60 seconds per reporting worker, summed across shards: `key:pending|due`. Per-trace bounds keys have no index, so it additionally reports `redis_key_bytes{key:bounds,shard:sampled_mean}`, the mean `MEMORY USAGE` of the bounds keys of up to 20 random pending traces per shard; no keyspace scan. Use max/latest across reporters, never sum these global gauges.
+`langfuse.trace_dispatch.redis_key_bytes` / `redis_key_entries` sample the recording maps every 60 seconds per reporting worker, summed across shards: `key:pending|due`. Per-trace bounds keys have no index, so it additionally reports `redis_key_bytes{key:bounds,shard:sampled_mean}`, the mean `MEMORY USAGE` of the bounds keys of up to 20 random pending traces per shard; no keyspace scan. Use max/latest across reporters, never sum these global gauges.
 
 Metrics use `langfuse.trace_dispatch`:
 
@@ -64,7 +64,7 @@ Metrics use `langfuse.trace_dispatch`:
 - `recording_batches` / `recording_duration_ms`: flush outcome and duration. Recording failures warn without failing ingestion; metrics collection failures fail the `trace_batch_metrics` runner.
 
 Compare admitted volume with ingestion latency, worker CPU/RSS, Postgres load and
-Redis CPU/memory. Queue metrics remain under `langfuse.trace_batch`.
+Redis CPU/memory. Queue metrics are under `langfuse.events_dispatch`.
 
 ## Readiness requirements
 
@@ -93,7 +93,7 @@ The gate and the tuning constants live in [eventsDispatch/config.ts](../eventsDi
 
 - `LANGFUSE_EVENTS_DISPATCH_ENABLED` turns on recording at ingestion, the dispatcher and the consumer.
 - `QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED` (worker-cpu only) consumes `events-dispatch-queue`, one job at a time, and runs the dispatcher. Its ClickHouse read settings (60 s limit, 2 threads, block size 512), pending-bytes cap and upload concurrency are constants in `eventsDispatch.ts`.
-- `LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE` (default 120) caps traces per events-dispatch job.
+- `LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE` (default 120, at most 1,000) caps traces per events-dispatch job.
 - `LANGFUSE_EVENTS_DISPATCH_STORE_ALL_EXPERIMENTAL` also reads and stores traces without consumer rules, counted as `trace_outcomes{outcome:stored}`; consumers are still enqueued only where rules apply.
 - `LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL` admits an additional experiment cohort; it does not make those traces eligible for Topics or input capture.
 - A project's `tracing_readiness_settings.trace_idle_ms` overrides the default idle time (10 minutes, 2 in DEV). Saving refreshes its cache; failed reads fall back to the default.
@@ -142,40 +142,15 @@ rows or query memory; the two-minute query buffer can include additional rows.
 Tracking-volume metrics still count only updates accepted in the current ingestion
 batch; dispatcher size distributions use the cumulative estimates.
 
-The dispatcher emits `estimated_event_update_count` and
-`estimated_serialized_event_bytes` distributions under `langfuse.trace_batch`, tagged
-with `scope:trace|batch` and `strategy`. Batch totals require known estimates for
-every member; `estimates_unavailable` counts unknown traces and affected batches.
-Estimates stay out of queue payloads and job IDs. Dispatch retries can emit
-another sample.
+The dispatcher emits `estimated_serialized_event_bytes` distributions under `langfuse.events_dispatch`, tagged with `scope:trace|batch`. Batch totals require known estimates for every member; `estimates_unavailable` counts unknown traces and affected batches. Estimates stay out of queue payloads and job IDs. Dispatch retries can emit another sample.
 
 Serialized event bytes differ from the reader's `input_bytes`, `output_bytes` and `metadata_bytes` metrics: they include the serialized event fields and JSON encoding, and do not represent RAM, network transfer or ClickHouse scan bytes. Events-dispatch read spans report the estimated and actual payload bytes per batch.
 
 ### Weight budgets and oversized traces
 
-Both strategies close a job before its summed estimates would exceed
-`LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES` or
-`eventsDispatchConfig.maxBatchBytes` (64 MiB), in addition to the trace cap.
-Locality treats an over-budget slice like one past its time envelope, and
-partials coalesce only within the budget. A single trace always forms a job, so
-a trace heavier than the budget runs alone. Locality packs traces above half of
-either budget in a separate lane, so one heavy trace does not split the light
-traces around it into extra jobs. Unknown estimates weigh nothing.
-Budget-limited jobs report `fill:partial`; the `scope:batch` estimate
-distributions show how close jobs run to the budget.
+The dispatcher closes a job before its summed byte estimates would exceed `eventsDispatchConfig.maxBatchBytes` (64 MiB), in addition to the trace cap. An over-budget slice is treated like one past its time envelope, and partials coalesce only within the budget. A single trace always forms a job, so a trace heavier than the budget runs alone. Locality packs traces above half of the budget in a separate lane, so one heavy trace does not split the light traces around it into extra jobs. Unknown estimates weigh nothing. Budget-limited jobs report `fill:partial`; the `scope:batch` estimate distributions show how close jobs run to the budget.
 
-After hydration, a trace whose retained read-window estimates exceed
-`LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES` or
-`eventsDispatchConfig.maxTraceBytes` (50 MiB) is never queued or read. The
-dispatcher acknowledges it like a dispatched trace, increments
-`langfuse.trace_batch.excluded_traces` tagged with
-`reason:event_updates|serialized_bytes` and `strategy`, and logs
-`Trace batch excluded oversized trace` at warn level with `projectId`, `traceId`,
-`reason` and both estimates. Group that log by `@projectId` to find repeat
-offenders. Activity after the acknowledgement starts a new pending window that
-is evaluated again using its retained cumulative estimates, so a trace that keeps
-growing may be logged more than once.
-Traces with unknown estimates are never excluded.
+After hydration, a trace whose retained byte estimate exceeds `eventsDispatchConfig.maxTraceBytes` (50 MiB) is never queued or read. The dispatcher acknowledges it like a dispatched trace, increments `langfuse.trace_dispatch.excluded_traces` tagged with `reason:serialized_bytes|start_too_old`, and logs `Trace batch excluded oversized trace` at warn level with `projectId`, `traceId`, `reason` and the byte estimate. Group that log by `@projectId` to find repeat offenders. Activity after the acknowledgement starts a new pending window that is evaluated again using its retained cumulative estimates, so a trace that keeps growing may be logged more than once. Traces with unknown estimates are never excluded.
 
 Events dispatch streams full `events_full` payloads through `getTraceBatchEventStream` in `@langfuse/shared`. Exact `(projectId, traceId)` pairs protect tenant boundaries; project, trace hash and a shared outer time window prune reads. Each selected trace also gets its own interval, so unrelated batch companions cannot widen the payload returned for that trace. `TRACE_QUERY_BUFFER_MS` pads each recorded interval by two minutes on both sides. This fixed margin neither waits for arrivals nor guarantees trace completeness; repeated intervals for the same pair form a union without duplicating rows. Queries use response compression and chunked multipart parameters for up to 10,000 UUID-sized trace/project IDs. The read timeout fails the job rather than accepting partial results. Beyond the dispatcher's weight budgets and trace exclusion, this does not cap observation count, query memory or dispatcher snapshot memory.
 
@@ -228,16 +203,15 @@ Events dispatch assembles each trace with `assembleTranscriptContext`; the [shar
 
 ## Capacity measurements
 
-The following metrics use the `langfuse.trace_batch` prefix. All additions are
-inside the existing cloud experiment paths; normal ingestion with tracking
-disabled performs no new aggregation or Redis calls.
+Queue metrics use the `langfuse.events_dispatch` prefix; map and dispatcher
+snapshot metrics use `langfuse.trace_dispatch`. Normal ingestion with dispatch
+disabled performs no aggregation or Redis calls for them.
 
-| Metric                                                | Kind / tags                          | Meaning                                                                                                                                                                                                                                                      |
-| ----------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `event_updates`, `serialized_event_bytes`             | Counters; `stage:eligible\|recorded` | Accepted, valid-start-time updates before sampling, and in Redis-acknowledged chunks. Repeated updates count again. Selected volume is `sampling_decisions`.                                                                                                 |
-| `queue_depth`                                         | Gauge; `type:delayed`                | Delayed `events-dispatch-queue` jobs. Waiting, active, and failed depth stay on `langfuse.queue.events_dispatch.depth`. Request rate, wait time, and processing time use the generic `langfuse.queue.events_dispatch` series, the same as every other queue. |
-| `queue_waiting_head_age_ms`                           | Gauge                                | Maximum creation age of the next FIFO `events-dispatch-queue` jobs in waiting/paused lists. Zero when empty.                                                                                                                                                 |
-| `pending_traces`, `ready_traces`, `oldest_due_age_ms` | Gauges, untagged                     | Dispatcher snapshot summed (age: maximum) across shards, emitted by the current dispatcher lease holder.                                                                                                                                                     |
+| Metric                                                | Kind / tags           | Meaning                                                                                                                                                                                                                                                      |
+| ----------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `queue_depth`                                         | Gauge; `type:delayed` | Delayed `events-dispatch-queue` jobs. Waiting, active, and failed depth stay on `langfuse.queue.events_dispatch.depth`. Request rate, wait time, and processing time use the generic `langfuse.queue.events_dispatch` series, the same as every other queue. |
+| `queue_waiting_head_age_ms`                           | Gauge                 | Maximum creation age of the next FIFO `events-dispatch-queue` jobs in waiting/paused lists. Zero when empty.                                                                                                                                                 |
+| `pending_traces`, `ready_traces`, `oldest_due_age_ms` | Gauges, untagged      | Dispatcher snapshot summed (age: maximum) across shards, emitted by the current dispatcher lease holder.                                                                                                                                                     |
 
 The eligible and recorded counters reuse the already-computed serialized size and
 per-trace aggregates. Recorded volume is emitted after each acknowledged Lua
@@ -262,18 +236,9 @@ Queue/map snapshots are global and can be emitted by several workers: use max/la
 
 Events-dispatch read spans (`langfuse.events_dispatch.read.*`) carry the query ID, batch shape (trace and project counts, event window) and consumed rows and bytes. `max_block_size` is a row-count hint, not a byte or memory limit.
 
-### Opt-in locality grouping
+### Locality grouping
 
-`LANGFUSE_TRACE_BATCH_STRATEGY=locality` changes grouping only after dispatch is
-explicitly enabled in a cloud region. The default `project` strategy preserves
-project ordering and carries unfinished jobs across hydration chunks.
-
-Locality sorts each hydrated window by project, minimum start minute, maximum
-start minute and `xxHash32(traceId)`. It finds the fewest feasible jobs under the
-trace cap, the weight budgets and an event-time envelope of at most one hour, or
-125% of the first trace's observed span if larger. Within that job count, it minimizes project
-boundaries, then minute × trace count, then gaps between trace hashes. These are
-read-locality proxies, not measured ClickHouse scan costs.
+The dispatcher sorts each hydrated window by project, minimum start minute, maximum start minute and `xxHash32(traceId)`. It finds the fewest feasible jobs under the trace cap, the weight budgets and an event-time envelope of at most one hour, or 125% of the first trace's observed span if larger. Within that job count, it minimizes project boundaries, then minute × trace count, then gaps between trace hashes. These are read-locality proxies, not measured ClickHouse scan costs.
 
 Locality combines each window of at most 1,000 hydrated candidates with retained
 partials. Compatible same-project partials may merge when their buffered time
@@ -284,7 +249,7 @@ all remaining partials, so carry never outlives the current dispatch run.
 
 Locality bounds selector input. Measure selector duration before increasing scale, especially with distant event times that force many jobs.
 
-Compare `dispatched_batches` (tags `strategy`, `fill`), `event_time_envelope_ms`, `candidate_buffer_size` and `selector_duration_ms` under `langfuse.trace_batch`. Per-trace event span stays on the events-dispatch read span. The envelope metric includes the reader's two-minute margin on each side; the selector's envelope limit does not. Payload and Redis state are unchanged.
+Compare `langfuse.events_dispatch.dispatched_batches` (tag `fill`) and `event_time_envelope_ms` with `langfuse.trace_dispatch.candidate_buffer_size` and `selector_duration_ms`. Per-trace event span stays on the events-dispatch read span. The envelope metric includes the reader's two-minute margin on each side; the selector's envelope limit does not. Payload and Redis state are unchanged.
 
 ## Monitor dispatcher memory
 
@@ -296,9 +261,9 @@ worker/container rather than a fleet average:
 
 - `runtime.node.mem.rss`: total process memory; compare with the container limit.
 - `runtime.node.mem.heap_used`: JavaScript heap in use.
-- `langfuse.trace_batch.snapshot_size`, `pending_traces`, `ready_traces` and
+- `langfuse.trace_dispatch.snapshot_size`, `pending_traces`, `ready_traces` and
   `oldest_due_age_ms`: snapshot and backlog growth.
-- `langfuse.trace_batch.expired_traces{source:dispatcher}` and `langfuse.trace_dispatch.expired_traces`: pending entries expired by the dispatcher and by ingestion; the two writers are different events.
+- `langfuse.trace_dispatch.expired_traces{source:dispatcher}` and `langfuse.trace_dispatch.expired_traces`: pending entries expired by the dispatcher and by ingestion; the two writers are different events.
 - `langfuse.periodic_runner.duration_ms` and `completed`, filtered by
   `runner:trace_batch_dispatcher`: run duration and outcome.
 

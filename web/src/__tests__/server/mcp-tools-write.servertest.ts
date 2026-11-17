@@ -124,8 +124,7 @@ import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { encrypt } from "@langfuse/shared/encryption";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import {
   createApiKey,
   createBasicAuthHeader,

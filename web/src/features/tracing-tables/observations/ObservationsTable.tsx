@@ -125,6 +125,7 @@ import {
   REFRESH_INTERVALS,
   type RefreshInterval,
 } from "@/src/components/table/utils/refresh-intervals";
+import { useEffectiveRefreshInterval } from "@/src/components/table/hooks/useEffectiveRefreshInterval";
 import {
   ObservationsTableStoreProvider,
   useObservationsTableStore,
@@ -250,18 +251,19 @@ export default function ObservationsTable({
     },
     [allowedValues, setRawRefreshInterval],
   );
+  const effectiveRefreshInterval = useEffectiveRefreshInterval(refreshInterval);
 
   const [refreshTick, setRefreshTick] = useState(0);
   const [manualRefreshTrigger, setManualRefreshTrigger] = useState(0); // resets the interval when manual refresh is called
 
   // Auto-increment refresh tick to force date range recalculation
   useEffect(() => {
-    if (!refreshInterval) return;
+    if (!effectiveRefreshInterval) return;
     const id = setInterval(() => {
       setRefreshTick((t) => t + 1);
-    }, refreshInterval);
+    }, effectiveRefreshInterval);
     return () => clearInterval(id);
-  }, [refreshInterval, manualRefreshTrigger]);
+  }, [effectiveRefreshInterval, manualRefreshTrigger]);
 
   const handleRefresh = useCallback(() => {
     setRefreshTick((t) => t + 1);
@@ -1406,6 +1408,9 @@ export default function ObservationsTable({
                 tableName={observationsFilterConfig.tableName}
                 registry={searchRegistry}
                 filterState={queryFilter.searchBarFilterState}
+                managedEnvironmentPolicy={
+                  queryFilter.managedEnvironmentPolicyConfig
+                }
                 setFilterState={queryFilter.setFilterState}
                 observed={observedOptions}
                 isV4={false}

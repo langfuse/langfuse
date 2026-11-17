@@ -18,7 +18,7 @@ export async function resolveTraceIdleMs(projectId: string): Promise<number> {
   try {
     ({ traceIdleMs } = await getTracingReadinessSettings(projectId));
   } catch (error) {
-    recordIncrement("langfuse.trace_batch.idle_time_read_failures", 1);
+    recordIncrement("langfuse.trace_dispatch.idle_time_read_failures", 1);
     logger.warn("Failed to read trace idle time, using the default", {
       projectId,
       error,

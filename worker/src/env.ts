@@ -161,12 +161,12 @@ const EnvSchema = z.object({
     .positive()
     .max(2 * 24 * 60 * 60 * 1_000)
     .default(12 * 60 * 60 * 1_000),
-  // Traces per events-dispatch job.
+  // Traces per events-dispatch job; the locality selector's tables grow with its square.
   LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE: z.coerce
     .number()
     .int()
     .positive()
-    .max(10_000)
+    .max(1_000)
     .default(120),
   // Experiment: also records traces without a matching rule, by deterministic trace-ID sample.
   LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL: z.coerce
@@ -194,20 +194,6 @@ const EnvSchema = z.object({
     .min(0)
     .max(23)
     .default(4),
-  // Event-count budgets use ingestion-time estimates; 0 disables a budget.
-  LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES: z.coerce
-    .number()
-    .int()
-    .nonnegative()
-    .default(1_500),
-  LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES: z.coerce
-    .number()
-    .int()
-    .nonnegative()
-    .default(5_000),
-  LANGFUSE_TRACE_BATCH_STRATEGY: z
-    .enum(["project", "locality"])
-    .default("project"),
   LANGFUSE_SECONDARY_OTEL_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z
     .string()
     .optional(),
@@ -656,7 +642,8 @@ const EnvSchema = z.object({
 
   // Audit log relay: moves audit_log_staging rows into ClickHouse audit_logs.
   // Runs on Langfuse Cloud and on self-hosted instances with an enterprise
-  // license, where it is on unless disabled here.
+  // license, where it is on unless disabled here. While it is off, staged
+  // events wait in Postgres and are missing from the audit-log viewer.
   LANGFUSE_AUDIT_LOG_RELAY_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_AUDIT_LOG_RELAY_INTERVAL_MS: z.coerce
     .number()
