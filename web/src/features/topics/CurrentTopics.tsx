@@ -153,7 +153,11 @@ function CurrentFacet({
           peekView={peekView}
           tracePanelRef={tracePanelRef}
           useTraces={useFacetTopicTraces}
-          scatter={{ query: mapResult, onOpenTrace: peekNavigation.openPeek }}
+          scatter={{
+            query: mapResult,
+            onOpenTrace: peekNavigation.openPeek,
+            traceFilters,
+          }}
         />
       );
     if (view === "list")

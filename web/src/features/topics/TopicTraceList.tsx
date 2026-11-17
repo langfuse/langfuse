@@ -1,6 +1,7 @@
 /* eslint-disable react/no-unstable-nested-components */
 import {
   type PointerEvent,
+  type ReactNode,
   useContext,
   type RefObject,
   type UIEvent,
@@ -67,6 +68,7 @@ export function TopicTraceList({
   tracePanelRef,
   headerRef,
   divider,
+  toolbar,
 }: TopicTraceListProps) {
   const { rows } = traces;
   const onScrollCapture = (event: UIEvent<HTMLElement>) => {
@@ -177,6 +179,7 @@ export function TopicTraceList({
           </p>
         )}
       </div>
+      {toolbar}
       <DataTable
         tableName="topics-topic-traces"
         columns={columns}
@@ -212,6 +215,8 @@ type TopicTraceListProps = {
   headerRef?: RefObject<HTMLDivElement | null>;
   /** `none` when the parent draws the divider, e.g. a resize handle. */
   divider?: "side" | "none";
+  /** Search and filters between the header and the table. */
+  toolbar?: ReactNode;
 };
 
 const APPROXIMATE_COUNT_FROM = 1_000;

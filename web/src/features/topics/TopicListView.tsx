@@ -5,6 +5,7 @@ import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { TopicsEmptyState } from "./TopicsEmptyState";
 import {
   type Facet,
+  orderedFacetTopics,
   type TopicTraceQuery,
   type UseTopicTraces,
 } from "./facet-topics";
@@ -20,6 +21,9 @@ import {
   UNASSIGNED_SWATCH_COLOR,
 } from "./topic-map-colors";
 import { TopicEmbeddingMap } from "./TopicEmbeddingMap";
+import { TopicsTraceToolbar } from "./TopicsTraceToolbar";
+import { topicTraceQuery } from "./topic-trace-filters";
+import { type useTopicTraceFilters } from "./useTopicTraceFilters";
 
 /** Only the largest topics keep their map color; the rest are grey. */
 const COLORED_RANKS = 3;
@@ -34,6 +38,8 @@ type TopicListViewProps = {
   scatter?: {
     query: ComponentProps<typeof TopicEmbeddingMap>["query"];
     onOpenTrace: (traceId: string) => void;
+    /** The page's trace search and filters, shown above the trace list. */
+    traceFilters?: ReturnType<typeof useTopicTraceFilters>;
   };
 };
 
@@ -58,7 +64,25 @@ export function TopicListView({
       );
   const selected =
     topics.find((topic) => topic.id === selectedTopicId) ?? topics[0];
-  const traces = useTraces(selected ? topicQuery(selected.id) : null);
+  const search = scatter?.traceFilters;
+  const searchTopics = orderedFacetTopics(facet);
+  const isSearching = Boolean(
+    search && (search.filters.length > 0 || search.searchQuery?.trim()),
+  );
+  const traces = useTraces(listQuery());
+  function listQuery(): TopicTraceQuery | null {
+    if (isSearching && search)
+      return topicTraceQuery(search.filters, search.searchQuery, searchTopics);
+    return selected ? topicQuery(selected.id) : null;
+  }
+  // Picking a topic replaces an active search.
+  function selectTopic(topicId: string | null) {
+    if (isSearching && search) {
+      search.setFilters([]);
+      search.setSearchQuery(null);
+    }
+    setSelectedTopicId(topicId);
+  }
   const maxCount = Math.max(1, ...topics.map((topic) => topic.count));
   const isWide = useMediaQuery({ query: "(min-width: 1024px)" });
   const mapTopics = useScatterMapTopics(facet);
@@ -89,8 +113,10 @@ export function TopicListView({
             maxCount={maxCount}
             selected={topic.id === selected.id}
             onSelect={() =>
-              setSelectedTopicId(
-                scatter && topic.id === selectedTopicId ? null : topic.id,
+              selectTopic(
+                scatter && topic.id === selectedTopicId && !isSearching
+                  ? null
+                  : topic.id,
               )
             }
           />
@@ -113,10 +139,10 @@ export function TopicListView({
                 topics={mapTopics}
                 selectedTopic={null}
                 matchingTraceIds={highlightedTraceIds}
-                onSelectTopic={setSelectedTopicId}
+                onSelectTopic={selectTopic}
                 onSelectTrace={(traceId) => {
                   if (traceId) scatter.onOpenTrace(traceId);
-                  else setSelectedTopicId(null);
+                  else selectTopic(null);
                 }}
                 selectedTraceId={null}
                 fillContainer
@@ -130,25 +156,37 @@ export function TopicListView({
       }
       traces={
         <TopicTraceList
-          key={selected.id}
+          key={isSearching ? "search" : selected.id}
           projectId={projectId}
-          title={selected.name}
+          title={isSearching ? "Matching traces" : selected.name}
           description={
-            selected.id === UNASSIGNED_TOPIC_ID
+            isSearching || selected.id === UNASSIGNED_TOPIC_ID
               ? undefined
               : selected.description
           }
-          swatchColor={selected.color}
+          swatchColor={isSearching ? undefined : selected.color}
           traces={traces}
-          totalCount={selected.count}
+          totalCount={isSearching ? traces.rows.length : selected.count}
           tracingTopic={
-            selected.id === UNASSIGNED_TOPIC_ID
+            isSearching || selected.id === UNASSIGNED_TOPIC_ID
               ? undefined
               : { facet, name: selected.name }
           }
           peekView={peekView}
           tracePanelRef={tracePanelRef}
           divider="none"
+          toolbar={
+            search && (
+              <TopicsTraceToolbar
+                projectId={projectId}
+                topics={searchTopics}
+                filters={search.filters}
+                onFiltersChange={search.setFilters}
+                searchQuery={search.searchQuery}
+                onSearchQueryChange={search.setSearchQuery}
+              />
+            )
+          }
         />
       }
     />
