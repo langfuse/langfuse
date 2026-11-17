@@ -159,10 +159,6 @@ function FloatingController({
     getTriggerProps: (
       props?: React.HTMLProps<HTMLElement>,
     ) => ReturnType<ReturnType<typeof useInteractions>["getReferenceProps"]>;
-    /** Positions the surface separately while trigger interactions stay on the DOM reference. */
-    setPositionReference?: ReturnType<
-      typeof useFloating
-    >["refs"]["setPositionReference"];
   }) => React.ReactNode;
   renderContent: (
     props: React.HTMLProps<HTMLDivElement> & {
@@ -186,7 +182,7 @@ function FloatingController({
   role?: "tooltip" | "dialog";
   hoverableContent?: boolean;
   isScrollable?: boolean;
-}): React.ReactElement {
+}) {
   const isOpen = enabled && open;
   const layerContainer = useLayerContainer(
     overlayRole === "tooltip" ? "tooltip" : "popover",
@@ -237,7 +233,6 @@ function FloatingController({
   return (
     <>
       {children({
-        setPositionReference: refs.setPositionReference,
         getTriggerProps: (triggerProps) => ({
           ...getReferenceProps(triggerProps),
           ref: getTriggerRef(triggerProps?.ref),

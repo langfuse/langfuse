@@ -58,6 +58,26 @@ describe("desktop expansion preference", () => {
     ).toBe(true);
   });
 
+  it("closes only the expanded-only organization menu when collapsing desktop navigation", () => {
+    const { store, actions } = setup({
+      [SIDEBAR_EXPANDED_STORAGE_KEY]: "true",
+    });
+    actions.setActiveMenu("organization");
+
+    actions.setExpanded(false);
+
+    expect(store.getState()).toMatchObject({
+      isExpanded: false,
+      activeMenu: null,
+    });
+    for (const menu of ["account", "version", "workspace"] as const) {
+      actions.setExpanded(true);
+      actions.setActiveMenu(menu);
+      actions.setExpanded(false);
+      expect(store.getState().activeMenu).toBe(menu);
+    }
+  });
+
   it("toggles desktop expansion with the shortcut and remembers it", () => {
     const { store, storage, actions } = setup();
 

@@ -1,5 +1,8 @@
 import { useEffect } from "react";
-import { useAppShellSidebarActions } from "@/src/features/app-shell/contexts/AppShellSidebarProvider";
+import {
+  useAppShellSidebarActions,
+  useAppShellSidebarStoreApi,
+} from "@/src/features/app-shell/contexts/AppShellSidebarProvider";
 import { type SidebarLayout } from "@/src/features/app-shell/stores/sidebarStore";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
@@ -12,6 +15,7 @@ const WORKSPACE_SWITCHER_SHORTCUT_KEY = "o";
  */
 export function useSidebarShortcuts(layout: SidebarLayout) {
   const { toggleFromShortcut, openSwitcher } = useAppShellSidebarActions();
+  const store = useAppShellSidebarStoreApi();
   const capture = usePostHogClientCapture();
 
   useEffect(() => {
@@ -21,9 +25,12 @@ export function useSidebarShortcuts(layout: SidebarLayout) {
       const key = event.key.toLowerCase();
       if (key === SIDEBAR_TOGGLE_SHORTCUT_KEY) {
         event.preventDefault();
+        const { isExpanded, activeMenu } = store.getState();
         if (
           layout === "desktop" &&
-          document.activeElement?.closest("[data-sidebar-expanded-only]")
+          isExpanded &&
+          (activeMenu === "organization" ||
+            document.activeElement?.closest("[data-sidebar-expanded-only]"))
         ) {
           document
             .querySelector<HTMLElement>("[data-sidebar-expansion-control]")
@@ -32,12 +39,17 @@ export function useSidebarShortcuts(layout: SidebarLayout) {
         toggleFromShortcut(layout);
       } else if (key === WORKSPACE_SWITCHER_SHORTCUT_KEY) {
         event.preventDefault();
+        if (store.getState().activeMenu === "organization") {
+          document
+            .querySelector<HTMLElement>("[data-sidebar-workspace-control]")
+            ?.focus();
+        }
         capture("app_shell:workspace_switcher_opened", { source: "shortcut" });
         openSwitcher(layout);
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [layout, toggleFromShortcut, openSwitcher, capture]);
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, [layout, toggleFromShortcut, openSwitcher, capture, store]);
 }

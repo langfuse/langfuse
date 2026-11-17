@@ -1,6 +1,7 @@
 import { useState, type ComponentProps, type ReactNode, type Ref } from "react";
 import Link from "next/link";
 import { cva } from "class-variance-authority";
+import { ArrowUpRight } from "@langfuse/icons";
 import { FloatingController } from "@/src/components/design-system/FloatingController/FloatingController";
 import { cn } from "@/src/utils/tailwind";
 import styles from "./SidebarNavItem.module.css";
@@ -21,6 +22,7 @@ const rowVariants = cva(
 type RowContentProps = {
   leading: ReactNode;
   label: string;
+  external?: boolean;
   isLabelBold?: boolean;
   trailing?: ReactNode;
 };
@@ -28,25 +30,27 @@ type RowContentProps = {
 function RowContent({
   leading,
   label,
+  external,
   isLabelBold,
   trailing,
   isCollapsed,
-  leadingRef,
 }: RowContentProps & {
   isCollapsed: boolean;
-  leadingRef?: Ref<HTMLSpanElement>;
 }) {
   return (
     <>
-      <span ref={leadingRef} className={styles.leading} aria-hidden="true">
+      <span className={styles.leading} aria-hidden="true">
         {leading}
       </span>
       <span className={styles.content} aria-hidden={isCollapsed}>
-        <span
-          title={label}
-          className={cn(styles.label, isLabelBold && "font-bold")}
-        >
-          {label}
+        <span className={styles.caption}>
+          <span
+            title={label}
+            className={cn(styles.label, isLabelBold && "font-bold")}
+          >
+            {label}
+          </span>
+          {external && <ArrowUpRight size="sm" color="tertiary" aria-hidden />}
         </span>
         {trailing ? <span className={styles.trailing}>{trailing}</span> : null}
       </span>
@@ -113,7 +117,7 @@ function SidebarNavLink({
   };
   return (
     <RailEntry isCollapsed={isCollapsed} label={content.label}>
-      {({ getTriggerProps, setPositionReference }) => (
+      {({ getTriggerProps }) => (
         <Link
           {...linkProps}
           {...getTriggerProps({ ref, onClick })}
@@ -124,11 +128,7 @@ function SidebarNavLink({
             styles.row,
           )}
         >
-          <RowContent
-            {...content}
-            isCollapsed={isCollapsed}
-            leadingRef={setPositionReference}
-          />
+          <RowContent {...content} isCollapsed={isCollapsed} />
         </Link>
       )}
     </RailEntry>
@@ -139,6 +139,7 @@ function SidebarNavButton({
   ref,
   leading,
   label,
+  external,
   isLabelBold,
   trailing,
   isCollapsed = false,
@@ -153,7 +154,7 @@ function SidebarNavButton({
       isCollapsed={isCollapsed}
       label={buttonProps["aria-label"] ?? label}
     >
-      {({ getTriggerProps, setPositionReference }) => (
+      {({ getTriggerProps }) => (
         <button
           {...getTriggerProps({ ...buttonProps, ref })}
           type="button"
@@ -167,10 +168,10 @@ function SidebarNavButton({
           <RowContent
             leading={leading}
             label={label}
+            external={external}
             isLabelBold={isLabelBold}
             trailing={trailing}
             isCollapsed={isCollapsed}
-            leadingRef={setPositionReference}
           />
         </button>
       )}

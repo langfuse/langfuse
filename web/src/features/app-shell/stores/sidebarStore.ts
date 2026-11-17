@@ -1,7 +1,7 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 
 export type SidebarLayout = "desktop" | "mobile";
-export type SidebarMenu = "workspace" | "account" | "version";
+export type SidebarMenu = "workspace" | "account" | "version" | "organization";
 
 export type SidebarStoreState = {
   /** Desktop preference: full navigation when true, a persistent icon rail otherwise. */
@@ -67,7 +67,12 @@ export function createSidebarStore({
     const setExpanded = (isExpanded: boolean) => {
       if (get().isExpanded === isExpanded) return;
       writeExpanded(storage, isExpanded);
-      set({ isExpanded });
+      const activeMenu = get().activeMenu;
+      set({
+        isExpanded,
+        activeMenu:
+          !isExpanded && activeMenu === "organization" ? null : activeMenu,
+      });
     };
     const setMobileOpen = (isMobileOpen: boolean) => {
       set({

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 import {
   AppNavigationProvider,
@@ -24,10 +24,12 @@ function AppShellFrame({
   const isMobile = useAppShellSidebar((state) => state.isMobile);
   const { setMobileOpen, close } = useAppShellSidebarActions();
   const session = useSession();
+  const mobileNavigationTriggerRef = useRef<HTMLButtonElement>(null);
   const [navigation] = useState<AppNavigation>(() => ({
     shell: "next",
     SidebarControl: SidebarExpansionToggle,
     openMobileNavigation: () => setMobileOpen(true),
+    mobileNavigationTriggerRef,
     closeTransientNavigation: close,
   }));
 
@@ -36,7 +38,12 @@ function AppShellFrame({
 
   return (
     <AppNavigationProvider value={navigation}>
-      <ShellSidebar isMobile={isMobile}>{sidebar}</ShellSidebar>
+      <ShellSidebar
+        isMobile={isMobile}
+        mobileNavigationTriggerRef={mobileNavigationTriggerRef}
+      >
+        {sidebar}
+      </ShellSidebar>
       {/* `min-w-0`, not a `100vw`-derived width: viewport units ignore
           scrollbars, so a definite width would overflow beside the sidebar
           once a space-taking vertical scrollbar shows. */}

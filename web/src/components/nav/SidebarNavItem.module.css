@@ -34,9 +34,17 @@
   transition-delay: 0ms;
 }
 
-.label {
+.caption {
+  display: flex;
   min-width: 0;
   flex: 1 1 auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.label {
+  min-width: 0;
+  flex: 0 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
 }

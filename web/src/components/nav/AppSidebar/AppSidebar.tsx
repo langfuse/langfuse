@@ -372,10 +372,14 @@ function SidebarOrganizationSwitcher({
   organization,
   organizations,
   canCreateOrganizations,
+  menuControl,
 }: {
   organization: { id: string; name: string };
   organizations: OrganizationOption[] | null;
   canCreateOrganizations: boolean;
+  menuControl?: React.ComponentProps<
+    typeof OrganizationDropdownMenu
+  >["menuControl"];
 }) {
   const { getOrgPath } = useOrgProjectSwitchPaths();
   const plan = organizations?.find((org) => org.id === organization.id)?.plan;
@@ -398,6 +402,7 @@ function SidebarOrganizationSwitcher({
         canCreateOrganizations={canCreateOrganizations}
         getOrgPath={getOrgPath}
         currentOrganizationId={organization.id}
+        menuControl={menuControl}
       >
         {({ getTriggerProps }) => (
           <button

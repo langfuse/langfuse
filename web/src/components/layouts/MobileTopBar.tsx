@@ -36,6 +36,7 @@ export const MobileTopBar = ({
       <div className="flex min-w-0 flex-1 items-center gap-2">
         {showHamburger ? (
           <Button
+            ref={appNavigation.mobileNavigationTriggerRef}
             variant="ghost"
             size="icon"
             className="h-9 w-9"

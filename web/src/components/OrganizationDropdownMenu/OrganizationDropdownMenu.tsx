@@ -1,4 +1,5 @@
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { ControlledDropdownMenu } from "@/src/components/design-system/ControlledDropdownMenu/ControlledDropdownMenu";
 import { Building, PlusIcon, Settings } from "@langfuse/icons";
 import { type Session } from "next-auth";
 import { type ComponentProps, useMemo } from "react";
@@ -14,6 +15,11 @@ type OrganizationDropdownMenuProps = {
   getOrgPath: (organizationId: string) => string;
   /** Ticked in the list; its settings get a link under the list. */
   currentOrganizationId?: string;
+  /** Persistent navigation can own dismissal while sharing the same menu and trigger. */
+  menuControl?: Pick<
+    ComponentProps<typeof ControlledDropdownMenu>,
+    "open" | "onOpenChange"
+  >;
 } & (
   | { state: "loading" }
   | {
@@ -94,18 +100,21 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
     [canCreateOrganizations, currentOrganizationId],
   );
 
-  return (
-    <DropdownMenu
-      ariaLabel="Organizations"
-      items={items}
-      footerItems={footerItems}
-      width="wide"
-      // Caps the list; settings and New stay pinned below it.
-      maxHeight="min(28rem, calc(100dvh - 4rem))"
-      search={{ placeholder: "Search organizations..." }}
-      emptyText="No organization found."
-    >
-      {children}
-    </DropdownMenu>
+  const menuProps: ComponentProps<typeof DropdownMenu> = {
+    ariaLabel: "Organizations",
+    items,
+    footerItems,
+    width: "wide",
+    // Caps the list; settings and New stay pinned below it.
+    maxHeight: "min(28rem, calc(100dvh - 4rem))",
+    search: { placeholder: "Search organizations..." },
+    emptyText: "No organization found.",
+    children,
+  };
+
+  return props.menuControl ? (
+    <ControlledDropdownMenu {...menuProps} {...props.menuControl} />
+  ) : (
+    <DropdownMenu {...menuProps} />
   );
 }

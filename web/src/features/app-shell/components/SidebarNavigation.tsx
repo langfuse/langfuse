@@ -68,6 +68,7 @@ function NavigationEntry({
       opensInNewTab={item.newTab === true}
       leading={item.icon ? <item.icon size="base" /> : null}
       label={item.title}
+      external={item.external}
       trailing={
         item.label ? <NavigationItemLabel label={item.label} /> : undefined
       }

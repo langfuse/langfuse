@@ -3,6 +3,7 @@ import {
   useContext,
   type ComponentType,
   type ReactNode,
+  type RefObject,
 } from "react";
 
 /**
@@ -22,6 +23,8 @@ export type AppNavigation = {
   /** Optional desktop page-header control; shells with their own expansion control omit it. */
   SidebarControl: ComponentType | null;
   openMobileNavigation: () => void;
+  /** The real hamburger remains the focus-return target for persistent mobile navigation. */
+  mobileNavigationTriggerRef?: RefObject<HTMLButtonElement | null>;
   /** Closes temporary navigation, such as the workspace switcher or mobile menu. */
   closeTransientNavigation: () => void;
 };

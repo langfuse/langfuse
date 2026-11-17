@@ -5,8 +5,9 @@ import { WorkspaceGlyph } from "@/src/features/app-shell/components/WorkspaceGly
 import { WorkspaceSwitcherPopover } from "@/src/features/app-shell/components/WorkspaceSwitcherPopover";
 import {
   useAppShellSidebar,
-  useAppShellSidebarActions,
+  useAppShellSidebarStoreApi,
 } from "@/src/features/app-shell/contexts/AppShellSidebarProvider";
+import { createSidebarMenuControls } from "@/src/features/app-shell/fns/createSidebarMenuControls";
 import { useSidebarSurface } from "@/src/features/app-shell/contexts/SidebarSurfaceProvider";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -21,7 +22,11 @@ export function SidebarWorkspaceSwitcher() {
   const isOpen = useAppShellSidebar(
     (state) => state.activeMenu === "workspace",
   );
-  const { setSwitcherOpen } = useAppShellSidebarActions();
+  const store = useAppShellSidebarStoreApi();
+  const { onOpenChange, onCloseAutoFocus } = createSidebarMenuControls(
+    store,
+    "workspace",
+  );
   const capture = usePostHogClientCapture();
 
   const title = project?.name ?? organization?.name ?? "Choose a project";
@@ -35,14 +40,16 @@ export function SidebarWorkspaceSwitcher() {
         if (nextIsOpen) {
           capture("app_shell:workspace_switcher_opened", { source: "sidebar" });
         }
-        setSwitcherOpen(nextIsOpen);
+        onOpenChange(nextIsOpen);
       }}
+      onCloseAutoFocus={onCloseAutoFocus}
       side={surface === "mobile" ? "bottom" : "right"}
     >
       {({ Trigger }) => (
         <Trigger asChild>
           <button
             type="button"
+            data-sidebar-workspace-control=""
             aria-label={`Switch project or organization. Current: ${title}`}
             className={cn(
               "ph-no-capture hover:bg-sidebar-accent focus-visible:ring-sidebar-ring data-[state=open]:bg-sidebar-accent rounded-md outline-hidden transition-colors focus-visible:ring-2",

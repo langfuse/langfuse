@@ -14,25 +14,31 @@ import { WorkspaceSwitcherMenu } from "@/src/features/app-shell/components/Works
 export function WorkspaceSwitcherPopover({
   isOpen,
   onOpenChange,
+  onCloseAutoFocus,
   side,
   children,
 }: {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
+  onCloseAutoFocus?: (event: Event) => void;
   side: "bottom" | "right";
   children: (control: { Trigger: typeof PopoverTrigger }) => ReactNode;
 }) {
   return (
     <Popover open={isOpen} onOpenChange={onOpenChange}>
       {children({ Trigger: PopoverTrigger })}
-      <PopoverContent
-        side={side}
-        align="start"
-        sideOffset={6}
-        className="ph-no-capture w-[min(22rem,calc(100vw-1rem))] overflow-hidden p-0"
-      >
-        <WorkspaceSwitcherMenu onDone={() => onOpenChange(false)} />
-      </PopoverContent>
+      {/* Every opening owns a fresh focus scope, including rapid close/reopen. */}
+      {isOpen && (
+        <PopoverContent
+          onCloseAutoFocus={onCloseAutoFocus}
+          side={side}
+          align="start"
+          sideOffset={6}
+          className="ph-no-capture w-[min(22rem,calc(100vw-1rem))] overflow-hidden p-0"
+        >
+          <WorkspaceSwitcherMenu onDone={() => onOpenChange(false)} />
+        </PopoverContent>
+      )}
     </Popover>
   );
 }

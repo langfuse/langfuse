@@ -5,7 +5,12 @@ import { IconButton } from "@/src/components/design-system/IconButton/IconButton
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { AppSidebar } from "@/src/components/nav/AppSidebar/AppSidebar";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
-import { useAppShellSidebarActions } from "@/src/features/app-shell/contexts/AppShellSidebarProvider";
+import {
+  useAppShellSidebar,
+  useAppShellSidebarActions,
+  useAppShellSidebarStoreApi,
+} from "@/src/features/app-shell/contexts/AppShellSidebarProvider";
+import { createSidebarMenuControls } from "@/src/features/app-shell/fns/createSidebarMenuControls";
 import { useSidebarSurface } from "@/src/features/app-shell/contexts/SidebarSurfaceProvider";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { SidebarPanel } from "./SidebarPanel";
@@ -20,6 +25,11 @@ export function SidebarOrganizationHeader() {
   const customization = useUiCustomization();
   const surface = useSidebarSurface();
   const { setMobileOpen } = useAppShellSidebarActions();
+  const store = useAppShellSidebarStoreApi();
+  const open = useAppShellSidebar(
+    (state) => state.activeMenu === "organization",
+  );
+  const { onOpenChange } = createSidebarMenuControls(store, "organization");
   const isCollapsed = surface === "collapsed";
 
   return (
@@ -68,6 +78,7 @@ export function SidebarOrganizationHeader() {
             canCreateOrganizations={
               session.data?.user?.canCreateOrganizations === true
             }
+            menuControl={{ open, onOpenChange }}
           />
         )}
       </div>

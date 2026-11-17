@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode, type RefObject } from "react";
 import {
   FloatingFocusManager,
   FloatingOverlay,
@@ -23,9 +23,11 @@ import motion from "./sidebarMotion.module.css";
 /** One persistent navigation surface changes its layout and mobile modality. */
 export function ShellSidebar({
   isMobile,
+  mobileNavigationTriggerRef,
   children,
 }: {
   isMobile: boolean;
+  mobileNavigationTriggerRef: RefObject<HTMLButtonElement | null>;
   children: ReactNode;
 }) {
   const isExpanded = useAppShellSidebar((state) => state.isExpanded);
@@ -80,7 +82,7 @@ export function ShellSidebar({
           disabled={!isModal}
           modal
           outsideElementsInert
-          returnFocus
+          returnFocus={mobileNavigationTriggerRef}
           initialFocus={0}
         >
           <aside
