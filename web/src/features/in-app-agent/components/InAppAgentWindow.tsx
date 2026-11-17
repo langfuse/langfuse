@@ -248,6 +248,10 @@ function formatScreenContextNotice(
     return "Current experiment run in context";
   }
 
+  if (description.type === "topics") {
+    return "Current topics view in context";
+  }
+
   if (
     description.type === "trace-list" ||
     description.type === "observations-list" ||
