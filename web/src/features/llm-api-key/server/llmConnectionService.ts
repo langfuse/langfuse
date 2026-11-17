@@ -33,7 +33,7 @@ import {
   type JSONValue,
 } from "@langfuse/shared";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
-import { getOrCreateBedrockRoleExternalId } from "@langfuse/shared/src/server/ee/bedrockRoleAuth/bedrockRoleCredentials";
+import { deriveBedrockExternalId } from "@langfuse/shared/src/server/ee/bedrockRoleAuth/bedrockRoleCredentials";
 import {
   assertStorageRolePartition,
   getCrossAccountRoleArn,
@@ -109,7 +109,11 @@ export type SafeLlmConnection = {
  * Set only for a project connection whose organization's plan includes Bedrock
  * IAM role auth. Without it, IAM role credentials are rejected.
  */
-export type BedrockIamRoleAccess = { projectId: string };
+export type BedrockIamRoleAccess = {
+  projectId: string;
+  /** From the form, which shows the derived external ID before saving. */
+  externalIdNonce?: string;
+};
 
 type LlmConnectionWithAvailableModels = SafeLlmConnection & {
   availableModels: string[];
@@ -125,6 +129,8 @@ type TestLlmConnectionParams = Omit<
   validateBaseUrlBeforeTest?: boolean;
   validateSecretBeforeTest?: boolean;
   bedrockIamRole?: BedrockIamRoleAccess;
+  /** Encrypted external ID stored on the connection being tested. */
+  externalId?: string | null;
 };
 
 const toSafeConnection = (connection: LlmApiKeys): SafeLlmConnection => {
@@ -173,6 +179,32 @@ function parseBedrockIamRole(secretKey: string) {
   }
 }
 
+function isBedrockIamRole(adapter: LLMAdapter, secretKey: string) {
+  return adapter === LLMAdapter.Bedrock && parseBedrockIamRole(secretKey);
+}
+
+/** The connection's stored external ID, else one derived from the form's nonce. Encrypted. */
+function resolveBedrockExternalId(params: {
+  bedrockIamRole: BedrockIamRoleAccess | undefined;
+  storedExternalId?: string | null;
+}): string {
+  if (params.storedExternalId) {
+    return params.storedExternalId;
+  }
+  const nonce = params.bedrockIamRole?.externalIdNonce;
+  if (!params.bedrockIamRole || !nonce) {
+    throw new InvalidRequestError(
+      "The external ID for IAM role auth is missing. Reopen the form and try again.",
+    );
+  }
+  return encrypt(
+    deriveBedrockExternalId({
+      projectId: params.bedrockIamRole.projectId,
+      nonce,
+    }),
+  );
+}
+
 function getDisplaySecretKey(secretKey: string): string {
   if (secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
     return "Default AWS credentials";
@@ -189,10 +221,10 @@ function getDisplaySecretKey(secretKey: string): string {
     : `...${secretKey.slice(-4)}`;
 }
 
-async function validateBedrockSecretKey(
+function validateBedrockSecretKey(
   secretKey: string,
   bedrockIamRole: BedrockIamRoleAccess | undefined,
-): Promise<void> {
+): void {
   if (secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
     return;
   }
@@ -210,8 +242,6 @@ async function validateBedrockSecretKey(
       );
     }
     assertStorageRolePartition(iamRole.roleArn);
-    // The role trusts this external ID, so it must exist before the first call.
-    await getOrCreateBedrockRoleExternalId(bedrockIamRole.projectId);
     return;
   }
 
@@ -316,11 +346,11 @@ async function validateBaseUrlForWrite(params: {
   }
 }
 
-async function validateSecret(params: {
+function validateSecret(params: {
   adapter: LLMAdapter;
   secretKey: string;
   bedrockIamRole?: BedrockIamRoleAccess;
-}): Promise<void> {
+}): void {
   const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
   if (params.secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
@@ -332,7 +362,7 @@ async function validateSecret(params: {
   }
 
   if (params.adapter === LLMAdapter.Bedrock) {
-    await validateBedrockSecretKey(params.secretKey, params.bedrockIamRole);
+    validateBedrockSecretKey(params.secretKey, params.bedrockIamRole);
   }
 
   if (params.secretKey === VERTEXAI_USE_DEFAULT_CREDENTIALS) {
@@ -361,12 +391,13 @@ async function testLlmConnection(
       await validateBaseUrl(params);
     }
     if (params.validateSecretBeforeTest !== false) {
-      await validateSecret({
+      validateSecret({
         adapter: params.adapter,
         secretKey: params.secretKey,
         bedrockIamRole: params.bedrockIamRole,
       });
     }
+    const iamRole = isBedrockIamRole(params.adapter, params.secretKey);
 
     const model = params.customModels?.length
       ? params.customModels[0]
@@ -424,13 +455,15 @@ async function testLlmConnection(
         },
         connection: {
           secretKey: encrypt(params.secretKey),
-          // An IAM role is assumed with its project's external ID.
           projectId:
             params.projectId ??
-            (params.adapter === LLMAdapter.Bedrock &&
-            parseBedrockIamRole(params.secretKey)
-              ? params.bedrockIamRole?.projectId
-              : undefined),
+            (iamRole ? params.bedrockIamRole?.projectId : undefined),
+          externalId: iamRole
+            ? resolveBedrockExternalId({
+                bedrockIamRole: params.bedrockIamRole,
+                storedExternalId: params.externalId,
+              })
+            : undefined,
           extraHeaders: params.extraHeaders
             ? encrypt(JSON.stringify(params.extraHeaders))
             : undefined,
@@ -570,10 +603,16 @@ export class LlmConnectionService {
     bedrockIamRole?: BedrockIamRoleAccess;
   }): Promise<SafeLlmConnection> {
     await validateBaseUrlForWrite(params.input);
-    await validateSecret({
+    validateSecret({
       ...params.input,
       bedrockIamRole: params.bedrockIamRole,
     });
+    const externalId = isBedrockIamRole(
+      params.input.adapter,
+      params.input.secretKey,
+    )
+      ? resolveBedrockExternalId({ bedrockIamRole: params.bedrockIamRole })
+      : undefined;
 
     let key: LlmApiKeys;
     try {
@@ -592,6 +631,7 @@ export class LlmConnectionService {
             adapter: params.input.adapter,
             secretKey: encrypt(params.input.secretKey),
             displaySecretKey: getDisplaySecretKey(params.input.secretKey),
+            externalId,
             baseURL: params.input.baseURL,
             withDefaultModels: params.input.withDefaultModels,
             customModels: params.input.customModels,
@@ -642,7 +682,7 @@ export class LlmConnectionService {
     ) {
       await validateBaseUrlForWrite(params.input);
     }
-    await validateSecret(params.input);
+    validateSecret(params.input);
 
     const encryptedSecretKey = encrypt(params.input.secretKey);
     const displaySecretKey = getDisplaySecretKey(params.input.secretKey);
@@ -749,12 +789,21 @@ export class LlmConnectionService {
       await validateBaseUrlForWrite(params.input);
     }
     if (params.input.secretKey) {
-      await validateSecret({
+      validateSecret({
         adapter: params.input.adapter,
         secretKey: params.input.secretKey,
         bedrockIamRole: params.bedrockIamRole,
       });
     }
+    // Kept once stored, so a changed role ARN keeps the trusted external ID.
+    const externalId =
+      params.input.secretKey &&
+      isBedrockIamRole(params.input.adapter, params.input.secretKey)
+        ? resolveBedrockExternalId({
+            bedrockIamRole: params.bedrockIamRole,
+            storedExternalId: existingKey.externalId,
+          })
+        : undefined;
 
     const extraHeaders = resolveUpdatedExtraHeaders({
       inputHeaders: params.input.extraHeaders,
@@ -781,6 +830,7 @@ export class LlmConnectionService {
               displaySecretKey: getDisplaySecretKey(params.input.secretKey),
             }
           : {}),
+        externalId,
         extraHeaders: encryptedExtraHeaders,
         extraHeaderKeys,
         baseURL: params.input.baseURL,
@@ -864,6 +914,7 @@ export class LlmConnectionService {
         validateBaseUrlBeforeTest: isBaseURLChanged,
         validateSecretBeforeTest: hasNewSecretKey,
         bedrockIamRole: params.bedrockIamRole,
+        externalId: existingKey.externalId,
       });
     } catch (error) {
       logger.error(error);

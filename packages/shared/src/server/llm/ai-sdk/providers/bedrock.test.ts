@@ -7,7 +7,7 @@ import {
 } from "../../../../interfaces/customLLMProviderConfigSchemas";
 
 const fromNodeProviderChain = vi.hoisted(() => vi.fn(() => vi.fn()));
-const findExternalId = vi.hoisted(() => vi.fn());
+const findProject = vi.hoisted(() => vi.fn());
 const getStorageRoleCredentialsProvider = vi.hoisted(() =>
   vi.fn(() => async () => ({
     accessKeyId: "ASIA123",
@@ -20,7 +20,7 @@ vi.mock("@aws-sdk/credential-providers", () => ({
   fromNodeProviderChain,
 }));
 vi.mock("../../../../db", () => ({
-  prisma: { llmConnectionExternalId: { findUnique: findExternalId } },
+  prisma: { project: { findUnique: findProject } },
 }));
 vi.mock("../../../../encryption", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../../encryption")>()),
@@ -213,17 +213,15 @@ describe("resolveBedrockProviderAuth", () => {
     ).toThrow("Invalid Bedrock credentials");
   });
 
-  it("assumes an IAM role with the project's external ID, limited to model invocation", async () => {
+  it("assumes an IAM role with the connection's external ID, limited to model invocation", async () => {
     const roleArn = "arn:aws:iam::123456789012:role/langfuse-bedrock";
-    findExternalId.mockResolvedValue({
-      externalId: "encrypted:lf-external-id",
-      project: { orgId: "org-1" },
-    });
+    findProject.mockResolvedValue({ orgId: "org-1" });
 
     const auth = resolveBedrockProviderAuth({
       secretKey: JSON.stringify({ roleArn }),
       allowDefaultCredentials: false,
       projectId: "project-1",
+      externalId: "encrypted:lf-external-id",
     });
 
     expect(auth.apiKey).toBe("");
@@ -248,6 +246,7 @@ describe("resolveBedrockProviderAuth", () => {
           roleArn: "arn:aws:iam::123456789012:role/langfuse-bedrock",
         }),
         allowDefaultCredentials: false,
+        externalId: "encrypted:lf-external-id",
       }),
     ).toThrow("only available for project LLM connections");
   });

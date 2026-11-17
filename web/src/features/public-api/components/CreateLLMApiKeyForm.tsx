@@ -19,6 +19,7 @@ import {
   type TypeSafeUpstream,
 } from "@langfuse/shared";
 import { ChevronDown, PlusIcon, TrashIcon } from "@langfuse/icons";
+import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -342,6 +343,9 @@ export function CreateLLMApiKeyForm({
   // guidance instead. This is purely UI state and never reaches the form value.
   const [showOtherModelInfo, setShowOtherModelInfo] = useState(false);
   const [adapterSelectOpen, setAdapterSelectOpen] = useState(false);
+  // The server derives a Bedrock IAM role external ID from it, so the form can
+  // show the ID before the connection exists.
+  const [bedrockExternalIdNonce] = useState(() => uuidv4());
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
 
@@ -790,7 +794,11 @@ export function CreateLLMApiKeyForm({
     try {
       let testResult;
       if (owner.scope === "project") {
-        const input = { ...connectionInput, projectId: owner.projectId };
+        const input = {
+          ...connectionInput,
+          projectId: owner.projectId,
+          bedrockExternalIdNonce,
+        };
         testResult =
           mode === "create"
             ? await mutTestLLMApiKey.mutateAsync(input)
@@ -818,7 +826,11 @@ export function CreateLLMApiKeyForm({
 
     let mutation;
     if (owner.scope === "project") {
-      const input = { ...connectionInput, projectId: owner.projectId };
+      const input = {
+        ...connectionInput,
+        projectId: owner.projectId,
+        bedrockExternalIdNonce,
+      };
       mutation =
         mode === "create"
           ? mutCreateLlmApiKey.mutateAsync(input)
@@ -1168,6 +1180,8 @@ export function CreateLLMApiKeyForm({
                       bedrockIamRoleAuth.data?.crossAccountRoleArn ? (
                         <BedrockRoleSetupInstructions
                           projectId={owner.projectId}
+                          nonce={bedrockExternalIdNonce}
+                          connectionId={existingKey?.id}
                           crossAccountRoleArn={
                             bedrockIamRoleAuth.data.crossAccountRoleArn
                           }

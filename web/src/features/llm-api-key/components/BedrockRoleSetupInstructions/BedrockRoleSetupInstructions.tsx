@@ -7,15 +7,19 @@ import { api } from "@/src/utils/api";
 
 export function BedrockRoleSetupInstructions({
   projectId,
+  nonce,
+  connectionId,
   crossAccountRoleArn,
 }: {
   projectId: string;
+  /** The form's nonce; saving the connection with it stores this external ID. */
+  nonce: string;
+  connectionId?: string;
   crossAccountRoleArn: string;
 }) {
-  // Langfuse generates the project's external ID when it is first shown.
   const externalIdReveal = useExternalIdReveal(true);
   const externalIdQuery = api.llmApiKey.bedrockExternalId.useQuery(
-    { projectId },
+    { projectId, nonce, connectionId },
     {
       enabled: externalIdReveal.enabled,
       select: (data) => data.externalId,
@@ -28,7 +32,7 @@ export function BedrockRoleSetupInstructions({
         crossAccountRoleArn={crossAccountRoleArn}
         externalId={externalIdReveal.toRevealable(externalIdQuery)}
         permissionPolicy={BEDROCK_ROLE_PERMISSION_POLICY}
-        description="Let the Langfuse cross-account role assume your role with this external ID, then allow the role to invoke Bedrock models. All Bedrock connections in this project use the same external ID."
+        description="Let the Langfuse cross-account role assume your role with this external ID, then allow the role to invoke Bedrock models. The external ID belongs to this connection and stays the same when you change the role."
       />
     </RoleAuthSetupSection>
   );

@@ -102,6 +102,7 @@ function resolveSlot(
     connection: {
       projectId: projectId ?? key.projectId ?? undefined,
       secretKey: key.secretKey,
+      externalId: key.externalId,
       extraHeaders: key.extraHeaders,
       baseURL: key.baseURL,
       config: key.config as LLMConnection["config"],

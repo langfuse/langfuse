@@ -40,6 +40,8 @@ export type CreateSecureFetch = (
  */
 export async function buildAiSdkModel(params: {
   projectId?: string;
+  /** Encrypted external ID for Bedrock IAM role auth. */
+  externalId?: string | null;
   model: { adapter: LLMAdapter; id: string };
   modelConfig: AiSdkModelConfig;
   /**
@@ -110,6 +112,7 @@ export async function buildAiSdkModel(params: {
     case LLMAdapter.Bedrock:
       return buildBedrockModel({
         projectId: params.projectId,
+        externalId: params.externalId,
         modelId: model.id,
         apiKey,
         config,
@@ -159,6 +162,8 @@ export async function buildAiSdkModel(params: {
  */
 export async function buildAiSdkEmbeddingModel(params: {
   projectId?: string;
+  /** Encrypted external ID for Bedrock IAM role auth. */
+  externalId?: string | null;
   model: { adapter: LLMAdapter; id: string };
   apiKey: string;
   baseURL?: string | null;
@@ -194,6 +199,7 @@ export async function buildAiSdkEmbeddingModel(params: {
     case LLMAdapter.Bedrock:
       return buildBedrockEmbeddingModel({
         projectId: params.projectId,
+        externalId: params.externalId,
         modelId: model.id,
         apiKey,
         config,
