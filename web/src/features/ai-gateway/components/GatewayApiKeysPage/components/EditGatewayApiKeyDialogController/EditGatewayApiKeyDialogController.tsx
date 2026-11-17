@@ -2,7 +2,12 @@ import type { ComponentProps, ReactNode } from "react";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { ConnectedGatewayApiKeyDialog } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/ConnectedGatewayApiKeyDialog/ConnectedGatewayApiKeyDialog";
-import type { GatewayApiKeyFormValues } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/types/gatewayApiKeyFormSchema";
+import { getLoadedGatewayApiKeySections } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/fns/getLoadedGatewayApiKeySections";
+import {
+  emptyGatewaySpendBudget,
+  type GatewayApiKeyFormValues,
+} from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/types/gatewayApiKeyFormSchema";
+import type { GatewaySpendBudgetInterval } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
 import { restoreGatewayApiKeyMetadataTypes } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/fns/restoreGatewayApiKeyMetadataTypes";
 import { toGatewayApiKeyMetadataRows } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/fns/toGatewayApiKeyMetadataRows";
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
@@ -18,6 +23,7 @@ import {
 type EditableGatewayApiKey = {
   metadata: unknown;
   allowedModels: unknown;
+  spendLimit: { interval: GatewaySpendBudgetInterval; limitUsd: number } | null;
   apiKey: {
     id: string;
     note: string | null;
@@ -69,6 +75,7 @@ export function EditGatewayApiKeyDialogController({
           previousAllowedModels: parseGatewayAllowedModels(
             apiKey.allowedModels,
           ),
+          spendLimit: input.spendLimit,
         });
         capture("ai_gateway:api_key_updated", {
           orgId: organizationId,
@@ -121,12 +128,19 @@ function toEditableGatewayApiKeyFields(
   apiKey: EditableGatewayApiKey,
 ): GatewayApiKeyFormValues {
   const { expiresAt } = apiKey.apiKey;
-  return {
+  const values = {
     issuedAs: apiKey.apiKey.user === null ? "serviceAccount" : "user",
     name: apiKey.apiKey.note ?? "",
     expiryPreset: expiresAt === null ? "never" : "custom",
     customExpiry: expiresAt === null ? "" : localDateInputValue(expiresAt),
     metadata: toGatewayApiKeyMetadataRows(apiKey.metadata),
     modelPatterns: parseGatewayAllowedModels(apiKey.allowedModels) ?? [],
-  };
+    spendBudget: apiKey.spendLimit
+      ? {
+          interval: apiKey.spendLimit.interval,
+          limitUsd: String(apiKey.spendLimit.limitUsd),
+        }
+      : emptyGatewaySpendBudget,
+  } satisfies Omit<GatewayApiKeyFormValues, "sections">;
+  return { ...values, sections: getLoadedGatewayApiKeySections(values) };
 }

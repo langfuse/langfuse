@@ -43,7 +43,11 @@ import {
   requireGatewayAdmin,
   requireGatewayInvoke,
 } from "./gatewayAccess";
-import { gatewaySpendLimitRouter } from "./spendLimits/gatewaySpendLimitRouter";
+import {
+  gatewayApiKeySpendLimitInput,
+  gatewaySpendLimitRouter,
+} from "./spendLimits/gatewaySpendLimitRouter";
+import { GatewaySpendLimitService } from "./spendLimits/gatewaySpendLimitService";
 import { GatewaySpendLimitRepository } from "./spendLimits/gatewaySpendLimitRepository";
 import { GatewayTeamService } from "./team/gatewayTeamService";
 import {
@@ -613,6 +617,7 @@ export const aiGatewayRouter = createTRPCRouter({
             message: "Expiration date must be in the future",
           }),
         issuedAs: z.enum(["user", "serviceAccount"]).default("user"),
+        spendLimit: gatewayApiKeySpendLimitInput.nullish(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -630,7 +635,12 @@ export const aiGatewayRouter = createTRPCRouter({
           scope,
         });
       }
-      const key = await new GatewayApiKeyService(ctx.prisma, redis).create({
+      const spendLimits = new GatewaySpendLimitService(ctx.prisma);
+      if (input.spendLimit) {
+        await spendLimits.requireAvailable(input.orgId);
+      }
+      const apiKeys = new GatewayApiKeyService(ctx.prisma, redis);
+      const key = await apiKeys.create({
         organizationId: input.orgId,
         name: input.name,
         metadata: input.metadata,
@@ -639,6 +649,28 @@ export const aiGatewayRouter = createTRPCRouter({
         issuedAs: input.issuedAs,
         session: ctx.session,
       });
+      if (input.spendLimit) {
+        try {
+          await spendLimits.setForApiKey({
+            organizationId: input.orgId,
+            usageScope: getGatewayUsageScope({
+              session: ctx.session,
+              orgId: input.orgId,
+            }),
+            apiKeyId: key.id,
+            limit: input.spendLimit,
+            session: ctx.session,
+          });
+        } catch (error) {
+          // A key asked for with a budget must not stay usable without one.
+          await apiKeys.revoke({
+            organizationId: input.orgId,
+            apiKeyId: key.id,
+            session: ctx.session,
+          });
+          throw error;
+        }
+      }
       return key;
     }),
 
@@ -650,6 +682,8 @@ export const aiGatewayRouter = createTRPCRouter({
         allowedModels: gatewayKeyAllowedModelsSchema,
         /** The patterns the editor loaded; the write is rejected if they changed since. */
         previousAllowedModels: z.array(z.string()).nullable(),
+        /** Null removes the key's spend limits; omitted leaves them unchanged. */
+        spendLimit: gatewayApiKeySpendLimitInput.nullish(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -658,7 +692,7 @@ export const aiGatewayRouter = createTRPCRouter({
         session: ctx.session,
         orgId: input.orgId,
       });
-      return new GatewayApiKeyService(ctx.prisma, redis).update({
+      const updated = await new GatewayApiKeyService(ctx.prisma, redis).update({
         organizationId: input.orgId,
         ownerUserId: getKeyOwnerFilter(usageScope),
         apiKeyId: input.id,
@@ -668,6 +702,16 @@ export const aiGatewayRouter = createTRPCRouter({
         previousAllowedModels: input.previousAllowedModels,
         session: ctx.session,
       });
+      if (input.spendLimit !== undefined) {
+        await new GatewaySpendLimitService(ctx.prisma).setForApiKey({
+          organizationId: input.orgId,
+          usageScope,
+          apiKeyId: input.id,
+          limit: input.spendLimit,
+          session: ctx.session,
+        });
+      }
+      return updated;
     }),
 
   revokeApiKey: protectedOrganizationProcedure

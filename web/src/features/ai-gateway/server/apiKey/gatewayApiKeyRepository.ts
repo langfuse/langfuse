@@ -23,6 +23,21 @@ const GATEWAY_API_KEY_SELECT = {
   },
 } as const;
 
+/** List rows also carry the key's spend limit, so the edit dialog can show it. */
+const GATEWAY_API_KEY_LIST_SELECT = {
+  ...GATEWAY_API_KEY_SELECT,
+  apiKey: {
+    select: {
+      ...GATEWAY_API_KEY_SELECT.apiKey.select,
+      gatewaySpendLimits: {
+        select: { interval: true, limitUsd: true },
+        orderBy: { createdAt: "asc" },
+        take: 1,
+      },
+    },
+  },
+} as const;
+
 export class GatewayApiKeyRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -83,15 +98,27 @@ export class GatewayApiKeyRepository {
     };
     const findPage = this.prisma.gatewayApiKeyAssociation.findMany({
       where,
-      select: GATEWAY_API_KEY_SELECT,
+      select: GATEWAY_API_KEY_LIST_SELECT,
       orderBy: [gatewayApiKeyOrderBy(params.orderBy), { apiKeyId: "asc" }],
       take: params.limit,
       skip: params.page * params.limit,
     });
-    const [data, totalCount] = await Promise.all([
+    const [rows, totalCount] = await Promise.all([
       findPage,
       this.prisma.gatewayApiKeyAssociation.count({ where }),
     ]);
+    const data = rows.map(
+      ({ apiKey: { gatewaySpendLimits, ...apiKey }, ...row }) => ({
+        ...row,
+        apiKey,
+        spendLimit: gatewaySpendLimits[0]
+          ? {
+              interval: gatewaySpendLimits[0].interval,
+              limitUsd: gatewaySpendLimits[0].limitUsd.toNumber(),
+            }
+          : null,
+      }),
+    );
     return { data, totalCount };
   }
 

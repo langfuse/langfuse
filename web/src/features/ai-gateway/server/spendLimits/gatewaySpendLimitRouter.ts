@@ -1,6 +1,8 @@
 import { z } from "zod/v4";
 import { GatewaySpendLimitInterval } from "@langfuse/shared/src/db";
 
+import { GATEWAY_SPEND_BUDGET_MAX_USD } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
+
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
@@ -12,7 +14,13 @@ import { GatewaySpendLimitScopeSchema } from "./gatewaySpendLimitScope";
 
 const organizationInput = z.object({ orgId: z.string() });
 const spendLimitInput = organizationInput.extend({ id: z.string() });
-const limitUsdSchema = z.number().positive().max(1_000_000_000);
+const limitUsdSchema = z.number().positive().max(GATEWAY_SPEND_BUDGET_MAX_USD);
+
+/** A key's single spend limit, as set together with the key. */
+export const gatewayApiKeySpendLimitInput = z.object({
+  interval: z.enum(GatewaySpendLimitInterval),
+  limitUsd: limitUsdSchema,
+});
 
 /** Admits gateway members; managers act on every limit, others on their own keys and the limits they created. */
 function authorize(params: { session: AuthedSession; orgId: string }) {

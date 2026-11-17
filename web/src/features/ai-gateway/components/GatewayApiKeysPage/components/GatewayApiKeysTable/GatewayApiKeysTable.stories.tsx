@@ -15,6 +15,7 @@ const apiKeys = [
   {
     metadata: { user: "Marc Klingen", environment: "production" },
     allowedModels: null,
+    spendLimit: { interval: "MONTHLY" as const, limitUsd: 500 },
     apiKey: {
       id: "gateway-key-production",
       publicKey: "pk-lf-gw-...4fa2",
@@ -39,6 +40,7 @@ const manyApiKeys = Array.from({ length: 30 }, (_, index) => ({
     index % 4 === 0
       ? ["openai:*", "anthropic:claude-sonnet-*", "-*preview*"]
       : null,
+  spendLimit: null,
   apiKey: {
     id: `gateway-key-${index + 1}`,
     publicKey: `pk-lf-gw-${String(index + 1).padStart(4, "0")}`,

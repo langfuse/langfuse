@@ -2266,6 +2266,73 @@ describe("AI gateway control plane", () => {
     ]);
   });
 
+  it("sets a key's spend budget together with the key", async () => {
+    const { caller, org, project } = await prepare();
+    const spendLimit = { interval: "MONTHLY" as const, limitUsd: 50 };
+
+    await expect(
+      caller.aiGateway.createApiKey({
+        orgId: org.id,
+        name: "Unrecorded",
+        metadata: {},
+        spendLimit,
+      }),
+    ).rejects.toThrow("Please switch to ingestion mode usage");
+    await caller.aiGateway.updateConfig({
+      orgId: org.id,
+      defaultIngestionProjectId: project.id,
+      ingestionMode: "USAGE",
+    });
+    const key = await caller.aiGateway.createApiKey({
+      orgId: org.id,
+      name: "Budgeted",
+      metadata: {},
+      spendLimit,
+    });
+    const listKeys = () => caller.aiGateway.listApiKeys({ orgId: org.id });
+    const listLimits = async () =>
+      (
+        await caller.aiGateway.spendLimits.list({
+          orgId: org.id,
+          scope: { type: "API_KEY", apiKeyId: key.id },
+        })
+      ).limits;
+    const update = (
+      budget:
+        | typeof spendLimit
+        | { interval: "WEEKLY"; limitUsd: number }
+        | null,
+    ) =>
+      caller.aiGateway.updateApiKey({
+        orgId: org.id,
+        id: key.id,
+        name: "Budgeted",
+        metadata: {},
+        allowedModels: null,
+        previousAllowedModels: null,
+        spendLimit: budget,
+      });
+
+    expect((await listKeys()).data).toMatchObject([
+      { apiKey: { id: key.id }, spendLimit },
+    ]);
+    const [created] = await listLimits();
+
+    await update(spendLimit);
+    expect(await listLimits()).toMatchObject([
+      { id: created!.id, countingStartedAt: created!.countingStartedAt },
+    ]);
+
+    await update({ interval: "WEEKLY", limitUsd: 50 });
+    expect(await listLimits()).toMatchObject([
+      { interval: "WEEKLY", limitUsd: 50 },
+    ]);
+
+    await update(null);
+    expect(await listLimits()).toEqual([]);
+    expect((await listKeys()).data).toMatchObject([{ spendLimit: null }]);
+  });
+
   it("rejects key edits from another organization and from members without gateway:invoke", async () => {
     const owner = await prepare();
     const other = await prepare();

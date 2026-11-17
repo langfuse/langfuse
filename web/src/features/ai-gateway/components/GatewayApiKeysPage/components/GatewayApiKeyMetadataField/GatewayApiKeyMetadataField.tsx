@@ -39,10 +39,7 @@ export function GatewayApiKeyMetadataField<
       }
     >
       {({ getTriggerProps }) => (
-        <FormField
-          label="Metadata (optional)"
-          registerLabelTooltip={getTriggerProps}
-        >
+        <FormField label="Metadata" registerLabelTooltip={getTriggerProps}>
           {(field) => (
             <div
               id={field.id}

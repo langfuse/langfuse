@@ -80,6 +80,28 @@ export const WithError = meta.story({
   args: { errorMessage: "Gateway key name already exists." },
 });
 
+export const WithAllSections = meta.story({
+  args: {
+    defaultValues: {
+      issuedAs: "user",
+      name: "laptop",
+      expiryPreset: "custom",
+      customExpiry: "2099-01-01",
+      metadata: [{ key: "team", value: "growth" }],
+      modelPatterns: ["openai:*"],
+      spendBudget: { interval: "MONTHLY", limitUsd: "250" },
+      sections: ["expiration", "spendBudget", "models", "metadata"],
+    },
+  },
+});
+
+export const SpendBudgetUnavailable = meta.story({
+  args: {
+    spendBudgetUnavailableReason:
+      "Spend budgets need recorded gateway requests. Switch the gateway ingestion to usage to set one.",
+  },
+});
+
 const editArgs = {
   title: "Edit gateway key",
   submitLabel: "Save changes",
@@ -91,6 +113,13 @@ const editArgs = {
     customExpiry: "2020-01-01",
     metadata: [{ key: "environment", value: "production" }],
     modelPatterns: ["openai:*", "-*mini*"],
+    spendBudget: { interval: "MONTHLY" as const, limitUsd: "250" },
+    sections: [
+      "expiration" as const,
+      "spendBudget" as const,
+      "models" as const,
+      "metadata" as const,
+    ],
   },
 };
 
@@ -111,11 +140,15 @@ export const SavesEditableFields = meta.story({
     await expect(
       screen.getByLabelText("Custom expiration date"),
     ).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: "Remove expiration" }),
+    ).toBeNull();
 
     const name = screen.getByRole("textbox", { name: /name/i });
     await userEvent.clear(name);
     await userEvent.type(name, " search-backend ");
     await userEvent.click(screen.getByRole("button", { name: "Clear models" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Weekly" }));
     await userEvent.click(saveButton);
 
     await waitFor(() =>
@@ -124,33 +157,68 @@ export const SavesEditableFields = meta.story({
           name: "search-backend",
           metadata: { environment: "production" },
           allowedModels: null,
+          spendLimit: { interval: "WEEKLY", limitUsd: 250 },
         }),
       ),
     );
   },
 });
 
-export const MoreOptionsExpanded = meta.story({
-  name: "(Test) More options expanded",
+const sectionRemoveButtonNames =
+  /^Remove (expiration|spend budget|model restriction|metadata)$/;
+
+export const AddedSectionsGoToTheBottom = meta.story({
+  name: "(Test) Added sections go below the others",
   play: async () => {
     await userEvent.click(
-      await screen.findByRole("button", { name: "More options" }),
+      await screen.findByRole("button", { name: "Additional metadata" }),
     );
+    await userEvent.click(screen.getByRole("button", { name: "Spend budget" }));
+    await userEvent.click(screen.getByRole("button", { name: "Expiration" }));
+
+    const shownSections = () =>
+      screen
+        .getAllByRole("button", { name: sectionRemoveButtonNames })
+        .map((button) => button.getAttribute("aria-label"));
+    expect(shownSections()).toEqual([
+      "Remove metadata",
+      "Remove spend budget",
+      "Remove expiration",
+    ]);
+    expect(screen.queryByRole("button", { name: "Spend budget" })).toBeNull();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Remove metadata" }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Additional metadata" }),
+    );
+
+    expect(shownSections()).toEqual([
+      "Remove spend budget",
+      "Remove expiration",
+      "Remove metadata",
+    ]);
+  },
+});
+
+export const CustomExpirationMustBeInTheFuture = meta.story({
+  name: "(Test) Custom expiration must lie in the future",
+  play: async () => {
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Expiration" }),
+    );
+    expect(screen.queryByRole("radio", { name: "Never" })).toBeNull();
     await userEvent.click(screen.getByRole("radio", { name: "Custom" }));
-    await userEvent.click(screen.getByRole("button", { name: "Add metadata" }));
-
-    expect(
-      screen.getByRole("radio", { name: "Custom", checked: true }),
-    ).toBeVisible();
-    expect(screen.getByLabelText("Custom expiration date")).toBeVisible();
-
     await userEvent.type(
       screen.getByLabelText("Custom expiration date"),
       "2020-01-01",
     );
 
     expect(await screen.findByText("Choose a future date.")).toBeVisible();
-    expect(screen.getByRole("textbox", { name: "Metadata key" })).toBeVisible();
+    await expect(
+      screen.getByRole("button", { name: "Create key" }),
+    ).toBeDisabled();
   },
 });
 
@@ -161,9 +229,25 @@ export const SubmitsResolvedOptions = meta.story({
       await screen.findByRole("textbox", { name: /name/i }),
       " laptop ",
     );
-    await userEvent.click(screen.getByRole("button", { name: "More options" }));
+    await userEvent.click(screen.getByRole("button", { name: "Expiration" }));
     await userEvent.click(screen.getByRole("radio", { name: "1 week" }));
-    await userEvent.click(screen.getByRole("button", { name: "Add metadata" }));
+    await userEvent.click(screen.getByRole("button", { name: "Spend budget" }));
+    const amount = screen.getByRole("textbox", { name: "Amount" });
+    await userEvent.type(amount, "0");
+    expect(
+      await screen.findByText("Enter an amount greater than $0."),
+    ).toBeVisible();
+    await userEvent.clear(amount);
+    await userEvent.type(amount, "25.5");
+    await userEvent.click(screen.getByRole("radio", { name: "Never" }));
+    expect(
+      screen.getByText(
+        "Requests with this key are rejected once the limit is reached.",
+      ),
+    ).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Additional metadata" }),
+    );
     await userEvent.type(
       screen.getByRole("textbox", { name: "Metadata key" }),
       " team ",
@@ -173,12 +257,12 @@ export const SubmitsResolvedOptions = meta.story({
       "growth",
     );
     await userEvent.click(screen.getByRole("button", { name: "Add metadata" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Restrict models" }),
+    );
     await userEvent.type(
       screen.getByRole("combobox", { name: "Models" }),
       "openai:*, -*mini*, gpt",
-    );
-    await userEvent.click(
-      screen.getByRole("button", { name: "Fewer options" }),
     );
 
     await userEvent.click(screen.getByRole("button", { name: "Create key" }));
@@ -192,7 +276,39 @@ export const SubmitsResolvedOptions = meta.story({
         expiresAt: expect.any(Date),
         expiryPreset: "1w",
         issuedAs: "user",
+        spendLimit: { interval: "TOTAL", limitUsd: 25.5 },
       }),
+    );
+  },
+});
+
+export const RemovedSectionsDropTheirValues = meta.story({
+  name: "(Test) Removed sections drop their values",
+  play: async ({ args }) => {
+    await userEvent.type(
+      await screen.findByRole("textbox", { name: /name/i }),
+      "laptop",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Expiration" }));
+    await userEvent.click(screen.getByRole("button", { name: "Spend budget" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Amount" }), "25");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Remove expiration" }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Remove spend budget" }),
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Create key" }));
+
+    await waitFor(() =>
+      expect(args.onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          expiresAt: null,
+          expiryPreset: "never",
+          spendLimit: null,
+        }),
+      ),
     );
   },
 });
@@ -201,7 +317,7 @@ export const AllowedModelsPreview = meta.story({
   name: "(Test) Allowed models follow the model patterns",
   play: async () => {
     await userEvent.click(
-      await screen.findByRole("button", { name: "More options" }),
+      await screen.findByRole("button", { name: "Restrict models" }),
     );
     const modelsInput = screen.getByRole("combobox", { name: "Models" });
 
@@ -237,7 +353,7 @@ export const SuggestsModelPatterns = meta.story({
   name: "(Test) Suggests connections, models and the typed pattern",
   play: async () => {
     await userEvent.click(
-      await screen.findByRole("button", { name: "More options" }),
+      await screen.findByRole("button", { name: "Restrict models" }),
     );
     const modelsInput = screen.getByRole("combobox", { name: "Models" });
     await userEvent.click(modelsInput);
@@ -275,7 +391,7 @@ export const EditsModelPatterns = meta.story({
   name: "(Test) Model pattern chips can be edited with the keyboard",
   play: async () => {
     await userEvent.click(
-      await screen.findByRole("button", { name: "More options" }),
+      await screen.findByRole("button", { name: "Restrict models" }),
     );
     const modelsInput = screen.getByRole("combobox", { name: "Models" });
 

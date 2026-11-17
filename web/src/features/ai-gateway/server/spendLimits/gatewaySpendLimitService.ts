@@ -1,4 +1,5 @@
 import {
+  ForbiddenError,
   InvalidRequestError,
   LangfuseConflictError,
   LangfuseNotFoundError,
@@ -201,6 +202,61 @@ export class GatewaySpendLimitService {
       after,
     });
     return toGatewaySpendLimit(after);
+  }
+
+  /** Throws unless limits can be created, so a caller can check before writing anything else. */
+  async requireAvailable(organizationId: string) {
+    await this.requireRecordingProjectId(organizationId);
+  }
+
+  /**
+   * Makes `limit` the key's only spend limit, or removes all of them when it
+   * is null. An unchanged limit is left alone, so it keeps counting. The new
+   * limit is written before others are removed, so a refused write leaves the
+   * key's limits as they were.
+   */
+  async setForApiKey(params: {
+    organizationId: string;
+    usageScope: GatewayUsageScope;
+    apiKeyId: string;
+    limit: { interval: GatewaySpendLimitInterval; limitUsd: number } | null;
+    session: OrgAuthedContext["session"];
+  }) {
+    const { limit, ...access } = params;
+    const scope = { type: "API_KEY", apiKeyId: params.apiKeyId } as const;
+    await this.requireSubject({ ...access, scope });
+    const existing = await this.repository.list({
+      organizationId: params.organizationId,
+      scope,
+    });
+    const kept = limit
+      ? existing.find((candidate) => candidate.interval === limit.interval)
+      : undefined;
+    const isUnchanged =
+      kept !== undefined && kept.limitUsd.toNumber() === limit?.limitUsd;
+    const changed = existing.filter(
+      (candidate) => candidate !== kept || !isUnchanged,
+    );
+    const ownerUserId = getKeyOwnerFilter(params.usageScope);
+    if (
+      ownerUserId !== undefined &&
+      changed.some((candidate) => candidate.ownerUserId !== ownerUserId)
+    ) {
+      throw new ForbiddenError(
+        "A gateway admin set this key's spend budget, so only an admin can change it.",
+      );
+    }
+
+    if (limit && !kept) {
+      await this.create({ ...access, scope, ...limit });
+    } else if (limit && kept && !isUnchanged) {
+      await this.update({ ...access, id: kept.id, limitUsd: limit.limitUsd });
+    }
+    for (const candidate of existing) {
+      if (candidate !== kept) {
+        await this.delete({ ...access, id: candidate.id });
+      }
+    }
   }
 
   /** Deleting stays possible without ingestion, so a limit can always be removed. */
