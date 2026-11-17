@@ -145,6 +145,13 @@ function getValueStringLength(value: unknown): number {
   }
 }
 
+/** Rows that open on click: nested values or values too long to show in full. */
+function isJsonRowExpandable(row: JsonTableRow): boolean {
+  return (
+    row.hasChildren || getValueStringLength(row.value) > MAX_CELL_DISPLAY_CHARS
+  );
+}
+
 function getTruncatedValue(value: string, maxChars: number): string {
   if (value.length <= maxChars) {
     return value;
@@ -349,7 +356,10 @@ export const ValueCell = memo(
         )}
       >
         <span
-          className={cn("cursor-text", singleLine && "block truncate")}
+          className={cn(
+            !isJsonRowExpandable(row.original) && "cursor-text",
+            singleLine && "block truncate",
+          )}
           title={previewTitle}
         >
           {content}
@@ -413,4 +423,4 @@ export const ValueCell = memo(
 ValueCell.displayName = "ValueCell";
 
 // Export utilities that might be needed elsewhere
-export { getValueStringLength };
+export { getValueStringLength, isJsonRowExpandable };
