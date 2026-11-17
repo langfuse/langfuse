@@ -2,8 +2,8 @@ import type { GatewayAnalyticsLabelSource } from "@/src/features/ai-gateway/comp
 
 /** Each tab lists spend per one key column; selecting a row filters the chart by that column. */
 export const GATEWAY_SPEND_TABS = {
-  apiKeys: { label: "API keys", column: "aiGatewayKeyId" },
   users: { label: "Users", column: "aiGatewayKeyOwnerUserId" },
+  apiKeys: { label: "API keys", column: "aiGatewayKeyId" },
 } as const satisfies Record<
   GatewayAnalyticsLabelSource,
   { label: string; column: string }

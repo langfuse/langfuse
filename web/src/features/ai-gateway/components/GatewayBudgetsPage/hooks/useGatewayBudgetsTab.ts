@@ -5,5 +5,5 @@ import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/Gatew
 /** The Budgets page tab, kept in the `tab` query parameter. */
 export function useGatewayBudgetsTab(): GatewaySpendTab {
   const router = useRouter();
-  return router.query.tab === "users" ? "users" : "apiKeys";
+  return router.query.tab === "apiKeys" ? "apiKeys" : "users";
 }

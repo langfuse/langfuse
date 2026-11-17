@@ -14,12 +14,12 @@ export function buildGatewayBudgetsTabs(
   return {
     activeTab,
     tabs: [
-      { value: "apiKeys", label: GATEWAY_SPEND_TABS.apiKeys.label, href },
+      { value: "users", label: GATEWAY_SPEND_TABS.users.label, href },
       {
-        value: "users",
-        label: GATEWAY_SPEND_TABS.users.label,
+        value: "apiKeys",
+        label: GATEWAY_SPEND_TABS.apiKeys.label,
         href,
-        querySelector: () => ({ tab: "users" }),
+        querySelector: () => ({ tab: "apiKeys" }),
       },
     ],
   };
