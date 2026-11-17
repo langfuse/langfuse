@@ -516,7 +516,7 @@ const CREATE_EXPLANATIONS: Record<
     points: [
       {
         icon: Layers,
-        text: `Builds the first map from up to ${TOPIC_SETUP_BACKFILL_LIMIT.toLocaleString("en-US")} recent matching traces.`,
+        text: `Builds the first map from existing summaries, plus up to ${TOPIC_SETUP_BACKFILL_LIMIT.toLocaleString("en-US")} newly summarized recent traces.`,
       },
       {
         icon: Radio,
