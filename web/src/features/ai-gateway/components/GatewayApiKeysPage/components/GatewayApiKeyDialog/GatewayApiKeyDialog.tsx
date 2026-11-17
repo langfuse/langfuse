@@ -80,7 +80,10 @@ type GatewayApiKeySubmission = Omit<
 };
 
 /** Fields shown but locked, e.g. the ones a key cannot change after creation. */
-type GatewayApiKeyDisabledField = "issuedAs" | "expiration";
+type GatewayApiKeyDisabledField = "issuedAs" | "expiration" | "spendBudget";
+
+const LOCKED_SPEND_BUDGET_REASON =
+  "This key has more than one spend limit, so it can't be changed here. Its limits stay as they are.";
 
 type GatewayApiKeyDialogProps = {
   title: string;
@@ -207,6 +210,7 @@ export function GatewayApiKeyDialog({
             form={form}
             enabledModels={enabledModels}
             isExpirationDisabled={isExpirationDisabled}
+            isSpendBudgetDisabled={disabledFields.includes("spendBudget")}
             spendBudgetUnavailableReason={spendBudgetUnavailableReason}
           />
           {errorMessage !== null ? (
@@ -273,19 +277,22 @@ function OptionalSections({
   form,
   enabledModels,
   isExpirationDisabled,
+  isSpendBudgetDisabled,
   spendBudgetUnavailableReason,
 }: {
   form: UseFormReturn<GatewayApiKeyFormValues>;
   enabledModels: GatewayEnabledModels | undefined;
   isExpirationDisabled: boolean;
+  isSpendBudgetDisabled: boolean;
   spendBudgetUnavailableReason: string | undefined;
 }) {
+  const isLocked = (section: GatewayApiKeySection) =>
+    (section === "expiration" && isExpirationDisabled) ||
+    (section === "spendBudget" && isSpendBudgetDisabled);
   const sections = useWatch({ control: form.control, name: "sections" });
   const update = { shouldDirty: true, shouldValidate: true } as const;
   const addableSections = gatewayApiKeySections.filter(
-    (section) =>
-      !sections.includes(section) &&
-      !(section === "expiration" && isExpirationDisabled),
+    (section) => !sections.includes(section) && !isLocked(section),
   );
 
   const handleAdd = (section: GatewayApiKeySection) => {
@@ -335,7 +342,11 @@ function OptionalSections({
         return (
           <GatewayApiKeySpendBudgetField
             control={form.control}
-            disabledReason={spendBudgetUnavailableReason}
+            disabledReason={
+              isSpendBudgetDisabled
+                ? LOCKED_SPEND_BUDGET_REASON
+                : spendBudgetUnavailableReason
+            }
           />
         );
       case "models":
@@ -359,12 +370,11 @@ function OptionalSections({
     <>
       {sections.map((section) => {
         const removeLabel = sectionLabels[section].remove;
-        const isLocked = section === "expiration" && isExpirationDisabled;
         return (
           <OptionalSection
             key={section}
             remove={
-              removeLabel && !isLocked
+              removeLabel && !isLocked(section)
                 ? { label: removeLabel, onRemove: () => handleRemove(section) }
                 : undefined
             }

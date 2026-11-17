@@ -164,6 +164,29 @@ export const SavesEditableFields = meta.story({
   },
 });
 
+export const LockedSpendBudget = meta.story({
+  name: "(Test) A key with several spend limits keeps its budget locked",
+  args: {
+    ...editArgs,
+    disabledFields: [
+      "issuedAs" as const,
+      "expiration" as const,
+      "spendBudget" as const,
+    ],
+  },
+  play: async () => {
+    await expect(
+      await screen.findByRole("radio", { name: "Weekly" }),
+    ).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: "Remove spend budget" }),
+    ).toBeNull();
+    await expect(
+      screen.getByText(/more than one spend limit/),
+    ).toBeInTheDocument();
+  },
+});
+
 const sectionRemoveButtonNames =
   /^Remove (expiration|spend budget|model restriction|metadata field)$/;
 

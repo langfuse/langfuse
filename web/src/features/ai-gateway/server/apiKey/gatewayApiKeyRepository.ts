@@ -23,7 +23,10 @@ const GATEWAY_API_KEY_SELECT = {
   },
 } as const;
 
-/** List rows also carry the key's spend limit, so the edit dialog can show it. */
+/**
+ * List rows also carry the key's first spend limit, so the edit dialog can show
+ * it, and whether there are more, which the dialog cannot edit.
+ */
 const GATEWAY_API_KEY_LIST_SELECT = {
   ...GATEWAY_API_KEY_SELECT,
   apiKey: {
@@ -32,7 +35,7 @@ const GATEWAY_API_KEY_LIST_SELECT = {
       gatewaySpendLimits: {
         select: { interval: true, limitUsd: true },
         orderBy: { createdAt: "asc" },
-        take: 1,
+        take: 2,
       },
     },
   },
@@ -117,6 +120,7 @@ export class GatewayApiKeyRepository {
               limitUsd: gatewaySpendLimits[0].limitUsd.toNumber(),
             }
           : null,
+        hasSeveralSpendLimits: gatewaySpendLimits.length > 1,
       }),
     );
     return { data, totalCount };

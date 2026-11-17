@@ -26,6 +26,7 @@ type GatewayApiKey = {
   metadata: unknown;
   allowedModels: unknown;
   spendLimit: { interval: GatewaySpendBudgetInterval; limitUsd: number } | null;
+  hasSeveralSpendLimits: boolean;
   apiKey: {
     id: string;
     publicKey: string;
