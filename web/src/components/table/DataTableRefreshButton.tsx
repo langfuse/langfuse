@@ -20,10 +20,10 @@ interface DataTableRefreshButtonProps {
   interval: RefreshInterval;
   setInterval: (interval: RefreshInterval) => void;
   /**
-   * Space-tight variant (e.g. the mobile Filters sheet header): the split
-   * control drops the "Off" label when auto-refresh is disabled and gains an
-   * accent border (plus the interval label, e.g. "30s") once an interval is
-   * set. Default (non-compact) is unchanged.
+   * Space-tight variant: the split control drops the "Off" label when
+   * auto-refresh is disabled and gains an accent border (plus the interval
+   * label, e.g. "30s") once an interval is set. Below `md` the interval side
+   * is hidden either way. Default (non-compact) is unchanged at `md` and up.
    */
   compact?: boolean;
 }
@@ -51,8 +51,9 @@ export function DataTableRefreshButton({
         onClick={onRefresh}
         aria-busy={isSpinning}
         className={cn(
-          "rounded-r-none border-r-0",
-          compact && isActive && "border-primary",
+          // Split button only while the interval selector is visible (`md`+).
+          "md:rounded-r-none md:border-r-0",
+          compact && isActive && "md:border-primary",
         )}
         title="Refresh"
       >
@@ -62,51 +63,54 @@ export function DataTableRefreshButton({
           __rawClassName={cn(isSpinning && "animate-spin")}
         />
       </Button>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="outline"
-            size="icon"
-            className={cn(
-              "w-auto rounded-l-none border-l-0 px-2",
-              compact && isActive && "border-primary text-primary",
-            )}
-          >
-            <ChevronDown size="base" color="default" />
-            {compact ? (
-              // Drop the "Off" label; surface the interval only when set.
-              isActive && (
-                <span className="ml-1 text-sm">{activeInterval?.label}</span>
-              )
-            ) : (
-              <span className="ml-1 text-sm">
-                {activeInterval?.label ?? "Off"}
-              </span>
-            )}
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuRadioGroup
-            value={String(interval)}
-            onValueChange={(value) =>
-              setInterval(
-                value === "null" ? null : (Number(value) as RefreshInterval),
-              )
-            }
-          >
-            {REFRESH_INTERVALS.map((option) => (
-              <DropdownMenuRadioItem
-                key={String(option.value)}
-                value={String(option.value)}
-              >
-                {option.label === "Off"
-                  ? "Auto-refresh off"
-                  : `Every ${option.label}`}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {/* Below `md` the interval selector is hidden; manual refresh stays. */}
+      <div className="hidden md:contents">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              className={cn(
+                "w-auto rounded-l-none border-l-0 px-2",
+                compact && isActive && "border-primary text-primary",
+              )}
+            >
+              <ChevronDown size="base" color="default" />
+              {compact ? (
+                // Drop the "Off" label; surface the interval only when set.
+                isActive && (
+                  <span className="ml-1 text-sm">{activeInterval?.label}</span>
+                )
+              ) : (
+                <span className="ml-1 text-sm">
+                  {activeInterval?.label ?? "Off"}
+                </span>
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuRadioGroup
+              value={String(interval)}
+              onValueChange={(value) =>
+                setInterval(
+                  value === "null" ? null : (Number(value) as RefreshInterval),
+                )
+              }
+            >
+              {REFRESH_INTERVALS.map((option) => (
+                <DropdownMenuRadioItem
+                  key={String(option.value)}
+                  value={String(option.value)}
+                >
+                  {option.label === "Off"
+                    ? "Auto-refresh off"
+                    : `Every ${option.label}`}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
   );
 }

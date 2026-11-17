@@ -114,6 +114,7 @@ import {
   REFRESH_INTERVALS,
   type RefreshInterval,
 } from "@/src/components/table/utils/refresh-intervals";
+import { useEffectiveRefreshInterval } from "@/src/components/table/hooks/useEffectiveRefreshInterval";
 import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
@@ -229,6 +230,7 @@ function TracesTableInternal({
     },
     [allowedValues, setRawRefreshInterval],
   );
+  const effectiveRefreshInterval = useEffectiveRefreshInterval(refreshInterval);
 
   const [manualRefreshTrigger, setManualRefreshTrigger] = useState(0); // resets the interval when manual refresh is called
   const { setDetailPageList } = useDetailPageLists();
@@ -252,10 +254,10 @@ function TracesTableInternal({
   }, [invalidateTableQueries]);
 
   useEffect(() => {
-    if (!refreshInterval) return;
-    const id = setInterval(invalidateTableQueries, refreshInterval);
+    if (!effectiveRefreshInterval) return;
+    const id = setInterval(invalidateTableQueries, effectiveRefreshInterval);
     return () => clearInterval(id);
-  }, [refreshInterval, manualRefreshTrigger, invalidateTableQueries]);
+  }, [effectiveRefreshInterval, manualRefreshTrigger, invalidateTableQueries]);
 
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
