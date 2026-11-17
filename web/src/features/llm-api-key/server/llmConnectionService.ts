@@ -13,7 +13,6 @@ import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   BedrockConfigSchema,
   BedrockCredentialSchema,
-  BedrockIamRoleSchema,
   ChatMessageRole,
   EvaluatorBlockReason,
   GCPServiceAccountKeySchema,
@@ -26,6 +25,7 @@ import {
   LLMConnectionConfigSchema,
   LLMAdapter,
   OpenAIConfigSchema,
+  parseBedrockIamRole,
   supportedModels,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   VertexAIConfigSchema,
@@ -169,15 +169,6 @@ const toSafeConnection = (connection: LlmApiKeys): SafeLlmConnection => {
 
   throw new Error(`LLM connection "${connection.id}" has no owner`);
 };
-
-function parseBedrockIamRole(secretKey: string) {
-  try {
-    const parsed = BedrockIamRoleSchema.safeParse(JSON.parse(secretKey));
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
-  }
-}
 
 function isBedrockIamRole(adapter: LLMAdapter, secretKey: string) {
   return adapter === LLMAdapter.Bedrock && parseBedrockIamRole(secretKey);

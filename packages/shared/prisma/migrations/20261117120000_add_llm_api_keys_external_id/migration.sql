@@ -1,1 +1,1 @@
-ALTER TABLE "llm_api_keys" ADD COLUMN "external_id" TEXT;
+ALTER TABLE "llm_api_keys" ADD COLUMN IF NOT EXISTS "external_id" TEXT;

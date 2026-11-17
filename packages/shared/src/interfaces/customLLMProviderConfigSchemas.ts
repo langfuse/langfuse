@@ -69,6 +69,15 @@ export const BedrockIamRoleSchema = z
   .strict();
 export type BedrockIamRole = z.infer<typeof BedrockIamRoleSchema>;
 
+export function parseBedrockIamRole(secretKey: string): BedrockIamRole | null {
+  try {
+    const parsed = BedrockIamRoleSchema.safeParse(JSON.parse(secretKey));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
 export const BEDROCK_ROLE_ACTIONS = [
   "bedrock:InvokeModel",
   "bedrock:InvokeModelWithResponseStream",

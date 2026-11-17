@@ -7,8 +7,8 @@ import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   BedrockConfigSchema,
   BedrockCredentialSchema,
-  BedrockIamRoleSchema,
   type LLMConnectionConfig,
+  parseBedrockIamRole,
 } from "../../../../interfaces/customLLMProviderConfigSchemas";
 import { createBedrockRoleCredentialProvider } from "../../../ee/bedrockRoleAuth/bedrockRoleCredentials";
 import { parseOutboundUrl } from "../../../outbound-url/validation";
@@ -143,15 +143,6 @@ export function canUseBedrockDefaultCredentials(projectId?: string): boolean {
     Array.isArray(allowedProjects) &&
     allowedProjects.includes(projectId),
   );
-}
-
-function parseBedrockIamRole(secretKey: string) {
-  try {
-    const parsed = BedrockIamRoleSchema.safeParse(JSON.parse(secretKey));
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
-  }
 }
 
 /**

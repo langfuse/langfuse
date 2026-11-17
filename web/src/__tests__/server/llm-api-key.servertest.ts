@@ -1101,13 +1101,19 @@ describe("llmApiKey.all RPC", () => {
       ).resolves.toEqual({ crossAccountRoleArn: null, requiresUpgrade: true });
       await expect(
         hobby.llmApiKey.bedrockExternalId({ projectId, nonce }),
-      ).rejects.toThrow("not available");
+      ).rejects.toMatchObject({
+        code: "FORBIDDEN",
+        message: expect.stringContaining("not available"),
+      });
       await expect(
         hobby.llmApiKey.create({
           ...connectionInput(),
           bedrockExternalIdNonce: nonce,
         }),
-      ).rejects.toThrow("Enterprise plan");
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: expect.stringContaining("Enterprise plan"),
+      });
 
       const enterprise = callerWithPlan("cloud:enterprise");
       const { externalId } = await enterprise.llmApiKey.bedrockExternalId({
@@ -1123,7 +1129,12 @@ describe("llmApiKey.all RPC", () => {
       ).not.toBe(externalId);
       await expect(
         enterprise.llmApiKey.create(connectionInput()),
-      ).rejects.toThrow("external ID for IAM role auth is missing");
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: expect.stringContaining(
+          "external ID for IAM role auth is missing",
+        ),
+      });
 
       await expect(
         enterprise.llmApiKey.test({
@@ -1183,7 +1194,12 @@ describe("llmApiKey.all RPC", () => {
           ...input,
           orgId,
         }),
-      ).rejects.toThrow("only available for project LLM connections");
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: expect.stringContaining(
+          "only available for project LLM connections",
+        ),
+      });
     });
   });
 

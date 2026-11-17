@@ -43,6 +43,7 @@ import {
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { TypeSafeUpstreamCards } from "@/src/features/llm-api-key/components/TypeSafeUpstreamCards/TypeSafeUpstreamCards";
 import { BedrockRoleSetupInstructions } from "@/src/features/llm-api-key/components/BedrockRoleSetupInstructions/BedrockRoleSetupInstructions";
+import { useBedrockIamRoleAuth } from "@/src/features/llm-api-key/useBedrockIamRoleAuth";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   api,
@@ -508,12 +509,10 @@ export function CreateLLMApiKeyForm({
     mode === "update" &&
     currentAdapter === LLMAdapter.Bedrock &&
     isMatchingBedrockAuthMethod(currentAuthMethod, existingKey?.authMethod);
-  const bedrockIamRoleAuth = api.llmApiKey.bedrockIamRoleAuth.useQuery(
-    { projectId: owner.scope === "project" ? owner.projectId : "" },
-    {
-      enabled:
-        owner.scope === "project" && currentAdapter === LLMAdapter.Bedrock,
-    },
+  const bedrockIamRoleAuth = useBedrockIamRoleAuth(
+    owner.scope === "project" && currentAdapter === LLMAdapter.Bedrock
+      ? owner.projectId
+      : null,
   );
   const usesIamRole = existingKey?.authMethod === AuthMethod.IamRole;
   // A connection that already uses a role keeps the option visible so it can be
