@@ -22,7 +22,7 @@ import {
   type StorageService,
 } from "@langfuse/shared/src/server";
 import { metricAggregations, viewDeclarations } from "@langfuse/shared/query";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
 
 const CORE_DATA_EXPORT_PAGE_SIZE = 1_000;
@@ -632,6 +632,103 @@ export const uploadTableCoreDataJsonl = async <TRow>({
 
   logger.info(`[CORE DATA] Finished table ${tableName} (${rowCount} rows)`);
 };
+
+type MediaUsageDailyQueryRow = {
+  projectId: string;
+  contentType: string;
+  createdDate: string;
+  isUploaded: boolean;
+  uploadHttpStatus: number | null;
+  mediaCount: bigint | number;
+  totalContentLength: bigint | number;
+};
+
+/** Exports the BigInt aggregates as numbers, since JSON.stringify throws on BigInt. */
+export const mapMediaUsageDailyToCoreDataRow = (
+  row: MediaUsageDailyQueryRow,
+  snapshotAt: Date,
+) => ({
+  projectId: row.projectId,
+  contentType: row.contentType,
+  createdDate: row.createdDate,
+  isUploaded: row.isUploaded,
+  uploadHttpStatus: row.uploadHttpStatus,
+  mediaCount: Number(row.mediaCount),
+  totalContentLength: Number(row.totalContentLength),
+  snapshotAt,
+});
+
+// Null statuses sort last. The IS NULL flag makes every keyset column
+// non-null so a row comparison can resume without skipping or repeating a group.
+const mediaUsageDailyKeysetFilter = (
+  lastRow: MediaUsageDailyQueryRow | null,
+) => {
+  if (!lastRow) return Prisma.empty;
+
+  return Prisma.sql`
+    WHERE (
+      "projectId",
+      "createdDate",
+      "contentType",
+      "isUploaded",
+      ("uploadHttpStatus" IS NULL),
+      COALESCE("uploadHttpStatus", 0)
+    ) > (
+      ${lastRow.projectId}::text,
+      ${lastRow.createdDate}::text,
+      ${lastRow.contentType}::text,
+      ${lastRow.isUploaded}::boolean,
+      ${lastRow.uploadHttpStatus === null}::boolean,
+      ${lastRow.uploadHttpStatus ?? 0}::int
+    )
+  `;
+};
+
+// One GROUP BY over media per page. `created_at` is timestamp without time
+// zone stored as UTC, so to_char's calendar date is the UTC day and does not
+// follow the session TimeZone. The (project_id, created_at) index is not used.
+export const fetchMediaUsageDailyPage = ({
+  lastRow,
+  take,
+}: TablePageArgs<MediaUsageDailyQueryRow>): Promise<
+  MediaUsageDailyQueryRow[]
+> =>
+  prisma.$queryRaw<MediaUsageDailyQueryRow[]>`
+    SELECT
+      "projectId",
+      "contentType",
+      "createdDate",
+      "isUploaded",
+      "uploadHttpStatus",
+      "mediaCount",
+      "totalContentLength"
+    FROM (
+      SELECT
+        project_id AS "projectId",
+        content_type AS "contentType",
+        to_char(created_at, 'YYYY-MM-DD') AS "createdDate",
+        (uploaded_at IS NOT NULL) AS "isUploaded",
+        upload_http_status AS "uploadHttpStatus",
+        COUNT(*)::bigint AS "mediaCount",
+        SUM(content_length)::bigint AS "totalContentLength"
+      FROM media
+      GROUP BY
+        project_id,
+        content_type,
+        to_char(created_at, 'YYYY-MM-DD'),
+        (uploaded_at IS NOT NULL),
+        upload_http_status
+    ) AS media_usage
+    ${mediaUsageDailyKeysetFilter(lastRow)}
+    ORDER BY
+      "projectId" ASC,
+      "createdDate" ASC,
+      "contentType" ASC,
+      "isUploaded" ASC,
+      ("uploadHttpStatus" IS NULL) ASC,
+      COALESCE("uploadHttpStatus", 0) ASC
+    LIMIT ${take}
+  `;
 
 // One entry per exported table. The tableName doubles as the S3 object base
 // name — keep names stable, downstream DWH consumers depend on them.
@@ -1856,6 +1953,16 @@ export const coreDataTableExports: Array<
           },
         }),
     }),
+  (args) => {
+    const snapshotAt = new Date();
+    return uploadTableCoreDataJsonl({
+      ...args,
+      tableName: "mediaUsageDaily",
+      /** Counts and bytes only. Omits ids, hashes, bucket locations, errors, and media association tables. */
+      fetchPage: fetchMediaUsageDailyPage,
+      mapRow: (row) => mapMediaUsageDailyToCoreDataRow(row, snapshotAt),
+    });
+  },
 ];
 
 export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {
