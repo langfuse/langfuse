@@ -27,6 +27,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 
 import { BillingService } from "@/src/ee/features/billing/server/stripe/stripeBillingService";
 import { type OrgAuthedContext } from "@/src/server/api/trpc";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const ORG_ID = "org-1";
 
@@ -41,8 +42,11 @@ const stripe = { subscriptions };
 const ctx = {
   prisma: { organization: { findUnique } },
   session: {
+    ...createSession({
+      user: { id: "user-1", email: "user@example.com" },
+      organizations: [{ id: ORG_ID, role: "OWNER" }],
+    }),
     orgId: ORG_ID,
-    user: { id: "user-1", email: "user@example.com" },
   },
 } as unknown as OrgAuthedContext;
 
