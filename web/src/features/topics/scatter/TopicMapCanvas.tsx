@@ -1,6 +1,7 @@
 import { useEffect, useEffectEvent, useRef } from "react";
 import {
   prepareMapNodes,
+  stageScale,
   type Camera,
   type MapPosition,
   type Size,
@@ -210,11 +211,11 @@ function drawMap(
   context.setTransform(ratio, 0, 0, ratio, 0, 0);
   context.clearRect(0, 0, size.width, size.height);
   const theme = getComputedStyle(canvas);
-  const surface = `hsl(${theme.getPropertyValue("--background").trim()})`;
   const { mark, rgbOf } = canvasColors(theme);
   // Blurred topic fields under ringed dots; an active dot gets an outline.
   drawLookFields(context, frame, LOOK, rgbOf, ratio);
-  const ring = rgbOf(lookBackground(LOOK, surface));
+  const ring = rgbOf(lookBackground(theme));
+  const stage = stageScale(size);
   for (const node of frame.nodes) {
     const active = emphasis.get(node.point.traceId) ?? 0;
     drawLookDot(
@@ -225,6 +226,7 @@ function drawMap(
       ring,
       node.matchesFilters ? 1 : 0.08 + active * 0.92,
       camera.zoom,
+      stage,
     );
     if (active > 0.001) {
       context.globalAlpha = active * 0.7;

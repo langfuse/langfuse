@@ -419,7 +419,7 @@ export function TopicMapExplorer({
           role="toolbar"
           aria-label="Scatter controls"
           className={cn(
-            "bg-background/85 absolute top-2 right-2 z-20 flex items-center gap-0.5 rounded-md p-0.5",
+            "bg-sidebar absolute top-2 right-2 z-20 flex items-center gap-0.5 rounded-md p-0.5",
             styles.lookChrome,
           )}
           onPointerDown={stopPointerPropagation}
@@ -736,7 +736,7 @@ function MapGrain({ opacity }: { opacity: number }) {
   return (
     <svg
       aria-hidden
-      className="pointer-events-none absolute inset-0 h-full w-full mix-blend-multiply"
+      className="pointer-events-none absolute inset-0 h-full w-full mix-blend-soft-light"
       style={{ opacity }}
     >
       <filter id={id}>

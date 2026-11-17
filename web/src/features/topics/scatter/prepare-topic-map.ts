@@ -90,6 +90,12 @@ function pointBounds(points: { x: number; y: number }[]): Bounds {
   return { minX, maxX, minY, maxY };
 }
 
+/** A larger stage, such as fullscreen, draws marks up to 1.4 times larger. */
+export function stageScale(size: { width: number; height: number }) {
+  const space = Math.sqrt((size.width * size.height) / (640 * 480));
+  return Math.min(1.4, Math.max(1, 1 + (space - 1) * 0.25));
+}
+
 function baseScale(bounds: Bounds, size: Size) {
   return Math.min(
     Math.max(size.width - 100, 1) / Math.max(bounds.maxX - bounds.minX, 0.1),
@@ -136,11 +142,14 @@ export function zoomCamera(
   const after = baseScale(bounds, size) * zoom;
   const dx = (anchor.x - 0.5) * size.width;
   const dy = (anchor.y - 0.5) * size.height;
-  return {
-    x: camera.x + dx / before - dx / after,
-    y: camera.y - dy / before + dy / after,
-    zoom,
-  };
+  return clampCamera(
+    {
+      x: camera.x + dx / before - dx / after,
+      y: camera.y - dy / before + dy / after,
+      zoom,
+    },
+    bounds,
+  );
 }
 
 export function panCamera(
@@ -151,7 +160,19 @@ export function panCamera(
   size: Size,
 ): Camera {
   const scale = baseScale(bounds, size) * camera.zoom;
-  return { ...camera, x: camera.x - dx / scale, y: camera.y + dy / scale };
+  return clampCamera(
+    { ...camera, x: camera.x - dx / scale, y: camera.y + dy / scale },
+    bounds,
+  );
+}
+
+/** Keeps the view's center over the data, so the map never pans out of sight. */
+function clampCamera(camera: Camera, bounds: Bounds): Camera {
+  return {
+    ...camera,
+    x: Math.min(bounds.maxX, Math.max(bounds.minX, camera.x)),
+    y: Math.min(bounds.maxY, Math.max(bounds.minY, camera.y)),
+  };
 }
 
 function visualDepth(id: string) {
@@ -447,8 +468,7 @@ export function prepareMapTextLabels(
     if (above) {
       if (zone.id === "outliers" || zone.id === "awaiting_map") continue;
       // A larger stage, such as fullscreen, reads at a larger size.
-      const space = Math.sqrt((size.width * size.height) / (640 * 480));
-      const scale = Math.min(1.4, Math.max(1, 1 + (space - 1) * 0.25));
+      const scale = stageScale(size);
       const fontSize = above.fontSize * scale;
       const lineHeight = above.lineHeight * scale;
       const textWidth = zone.name.length * fontSize * 0.62;

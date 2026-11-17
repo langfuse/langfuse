@@ -1,6 +1,10 @@
 /** Rendering values for the new scatter: blurred topic fields, ringed dots, grain and labels. */
 import { type CSSProperties } from "react";
-import { screenPoint, type TopicMapNodeFrame } from "./prepare-topic-map";
+import {
+  screenPoint,
+  stageScale,
+  type TopicMapNodeFrame,
+} from "./prepare-topic-map";
 
 export type TopicMapLookName = "scatter1";
 
@@ -40,7 +44,8 @@ type TopicMapLook = {
 
 export const TOPIC_MAP_LOOKS: Record<TopicMapLookName, TopicMapLook> = {
   scatter1: {
-    background: "#fcfcfa",
+    // The nav bar's background, so the map reads as part of the frame.
+    background: "hsl(var(--sidebar-background))",
     field: {
       kind: "ring",
       everyNth: 3,
@@ -63,7 +68,7 @@ export const TOPIC_MAP_LOOKS: Record<TopicMapLookName, TopicMapLook> = {
       lineHeight: 16,
       tracking: "0",
       color: "#27272a",
-      shadow: "0 0 8px rgb(252 252 250 / 0.7)",
+      shadow: "0 0 8px hsl(var(--sidebar-background) / 0.7)",
     },
   },
 };
@@ -179,7 +184,7 @@ export function drawLookFields(
   const draw = layer.getContext("2d");
   if (!draw || !target) return;
   draw.setTransform(ratio, 0, 0, ratio, 0, 0);
-  const scale = camera.zoom;
+  const scale = camera.zoom * stageScale(size);
   for (const zone of frame.zones) {
     if (zone.id === "outliers" || zone.id === "awaiting_map") continue;
     const [r, g, b] = rgbOf(lookFieldColor(name, zone.color));
@@ -241,14 +246,15 @@ export function drawLookDot(
   background: Rgb,
   opacity: number,
   zoom: number,
+  stage: number,
 ) {
   const { dot } = TOPIC_MAP_LOOKS[name];
-  // Dots grow gently as you zoom in: 6px at the fit, about 10px at 300%.
-  const radius = (dot.size * Math.sqrt(Math.max(1, zoom))) / 2;
+  // Dots grow gently as you zoom in (6px at the fit, about 10px at 300%) and on a larger stage.
+  const radius = (dot.size * stage * Math.sqrt(Math.max(1, zoom))) / 2;
   const [r, g, b] = rgb.map((value) => Math.round(value * dot.shade));
   context.globalAlpha = opacity * dot.ringAlpha;
   context.beginPath();
-  context.arc(center.x, center.y, radius + dot.ring, 0, 2 * Math.PI);
+  context.arc(center.x, center.y, radius + dot.ring * stage, 0, 2 * Math.PI);
   context.fillStyle = `rgb(${background.join(", ")})`;
   context.fill();
   context.globalAlpha = opacity;
@@ -258,7 +264,7 @@ export function drawLookDot(
   context.fill();
 }
 
-/** The stage background, for dot rings; `surface` is the resolved theme background. */
-export function lookBackground(name: TopicMapLookName, surface: string) {
-  return isDark() ? surface : TOPIC_MAP_LOOKS[name].background;
+/** The stage background resolved for canvas, for dot rings. */
+export function lookBackground(theme: CSSStyleDeclaration) {
+  return `hsl(${theme.getPropertyValue("--sidebar-background").trim()})`;
 }
