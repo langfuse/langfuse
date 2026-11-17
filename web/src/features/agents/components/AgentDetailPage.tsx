@@ -109,43 +109,54 @@ function AgentDetail({
               <Tabs.Trigger value="info" label="Info" />
             </Tabs.List>
           </div>
+          {/* Only the active tab may own and normalize the URL filters. */}
           <Tabs.Content value="overview" layout="fill">
-            <AgentEnvironmentLayout input={input}>
-              <AgentOverview input={input} />
-            </AgentEnvironmentLayout>
+            {tab === "overview" && (
+              <AgentEnvironmentLayout input={input}>
+                <AgentOverview input={input} />
+              </AgentEnvironmentLayout>
+            )}
           </Tabs.Content>
           <Tabs.Content value="sessions" layout="fill">
-            <AgentSessionsTable input={input} />
+            {tab === "sessions" && <AgentSessionsTable input={input} />}
           </Tabs.Content>
           <Tabs.Content value="runs" layout="fill">
-            <AgentActivityTable input={input} mode="runs" />
+            {tab === "runs" && <AgentActivityTable input={input} mode="runs" />}
           </Tabs.Content>
           <Tabs.Content value="traces" layout="fill">
-            <AgentActivityTable input={input} mode="traces" />
+            {tab === "traces" && (
+              <AgentActivityTable input={input} mode="traces" />
+            )}
           </Tabs.Content>
           <Tabs.Content value="tools" layout="fill">
-            <AgentActivityTable input={input} mode="tools" />
+            {tab === "tools" && (
+              <AgentActivityTable input={input} mode="tools" />
+            )}
           </Tabs.Content>
           <Tabs.Content value="info" layout="fill">
-            <AgentEnvironmentLayout input={input}>
-              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pt-4">
-                {query.isPending && <Skeleton className="mx-4 h-20" />}
-                {query.isError && (
-                  <AgentQueryError
-                    retry={() => {
-                      query.refetch();
-                    }}
-                  />
-                )}
-                {query.data && <AgentSummaryStats stats={query.data.stats} />}
-                <AgentInfoPanel input={input} />
-              </div>
-            </AgentEnvironmentLayout>
+            {tab === "info" && (
+              <AgentEnvironmentLayout input={input}>
+                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pt-4">
+                  {query.isPending && <Skeleton className="mx-4 h-20" />}
+                  {query.isError && (
+                    <AgentQueryError
+                      retry={() => {
+                        query.refetch();
+                      }}
+                    />
+                  )}
+                  {query.data && <AgentSummaryStats stats={query.data.stats} />}
+                  <AgentInfoPanel input={input} />
+                </div>
+              </AgentEnvironmentLayout>
+            )}
           </Tabs.Content>
           <Tabs.Content value="skills" layout="fill">
-            <AgentEnvironmentLayout input={input}>
-              <AgentSkillsTable input={input} />
-            </AgentEnvironmentLayout>
+            {tab === "skills" && (
+              <AgentEnvironmentLayout input={input}>
+                <AgentSkillsTable input={input} />
+              </AgentEnvironmentLayout>
+            )}
           </Tabs.Content>
         </Tabs>
       </div>
