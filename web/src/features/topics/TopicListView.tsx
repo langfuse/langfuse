@@ -84,7 +84,11 @@ export function TopicListView({
   const rows = (
     <ul
       aria-label="Topics"
-      className="scroll-fade-y flex min-h-0 flex-1 flex-col gap-px overflow-y-auto p-4"
+      className={cn(
+        "scroll-fade-y flex min-h-0 flex-col gap-px overflow-y-auto p-4",
+        // Exploratory scatter looks: five rows and the top of the sixth, so the list reads as scrollable.
+        scatter?.look ? "h-52 shrink-0" : "flex-1",
+      )}
     >
       {topics.map((topic, rank) => (
         <li key={topic.id}>
@@ -112,7 +116,12 @@ export function TopicListView({
       topics={
         scatter && facet.map ? (
           <div className="flex min-h-0 flex-1 flex-col">
-            <div className="flex min-h-0 basis-3/5 flex-col">
+            <div
+              className={cn(
+                "flex min-h-0 flex-col",
+                scatter.look ? "flex-1" : "basis-3/5",
+              )}
+            >
               <TopicEmbeddingMap
                 key={facet.map.runId}
                 query={scatter.query}
