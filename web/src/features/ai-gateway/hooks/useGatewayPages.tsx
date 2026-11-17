@@ -11,6 +11,9 @@ import { GatewayNotDeployedNotice } from "@/src/features/ai-gateway/components/G
 import { GatewayIngestionHeaderAction } from "@/src/features/ai-gateway/components/GatewayOverviewPage/components/GatewayIngestionHeaderAction/GatewayIngestionHeaderAction";
 import { GatewayOverviewPage } from "@/src/features/ai-gateway/components/GatewayOverviewPage/GatewayOverviewPage";
 import { GatewayBudgetsPage } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/GatewayBudgetsPage";
+import { GatewayBudgetsHeaderActions } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsHeaderActions/GatewayBudgetsHeaderActions";
+import { buildGatewayBudgetsTabs } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/fns/buildGatewayBudgetsTabs";
+import { useGatewayBudgetsTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewayBudgetsTab";
 import { buildGatewayModelsTabs } from "@/src/features/ai-gateway/components/GatewayModelsPage/fns/buildGatewayModelsTabs";
 import { useGatewayModelsPageState } from "@/src/features/ai-gateway/components/GatewayModelsPage/hooks/useGatewayModelsPageState";
 import { GATEWAY_MODELS_TABS } from "@/src/features/ai-gateway/constants/gatewayModelsTabs";
@@ -63,6 +66,7 @@ export function useGatewayPages(): GatewayPageEntry[] {
     scope: "organizationMembers:CUD",
   });
   const { activeTab: modelsTab } = useGatewayModelsPageState();
+  const budgetsTab = useGatewayBudgetsTab();
   const overviewSetup = useGatewayOverviewSetupVisit(organization?.id);
   const memberLabelsQuery = api.aiGateway.getAnalyticsLabels.useQuery(
     { orgId: organization?.id ?? "" },
@@ -203,6 +207,19 @@ export function useGatewayPages(): GatewayPageEntry[] {
           : "Spend of your requests made through the AI Gateway, in total or per gateway key, and the budgets of your keys.",
         href: GATEWAY_ANALYTICS_DOCS_URL,
       },
+      actions:
+        access.canManageGateway &&
+        !access.showNotDeployedNotice &&
+        !showsNotSetUpNotice ? (
+          <GatewayBudgetsHeaderActions
+            organizationId={organization.id}
+            tab={budgetsTab}
+          />
+        ) : undefined,
+      tabsProps:
+        access.showNotDeployedNotice || showsNotSetUpNotice
+          ? undefined
+          : buildGatewayBudgetsTabs(organization.id, budgetsTab),
       scrollable: true,
       hideTitle: showsNotSetUpNotice || access.showNotDeployedNotice,
       show: visible[GATEWAY_PAGE_SLUGS.budgets],

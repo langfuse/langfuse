@@ -5,13 +5,14 @@ import { WidgetChartCard } from "./WidgetChartCard";
 export function ConnectedWidgetChartCard({
   title,
   description,
+  filter,
   tabs,
   actions,
   isDisplayLoading = false,
   ...query
 }: Pick<
   ComponentProps<typeof WidgetChartCard>,
-  "title" | "description" | "tabs" | "actions"
+  "title" | "description" | "filter" | "tabs" | "actions"
 > &
   Pick<ComponentProps<typeof WidgetContent>, "layoutHint"> & {
     isDisplayLoading?: boolean;
@@ -43,6 +44,7 @@ export function ConnectedWidgetChartCard({
       {...chart}
       title={title}
       description={description}
+      filter={filter}
       tabs={tabs}
       actions={actions}
       content={visualization}

@@ -13,7 +13,7 @@ import { cn } from "@/src/utils/tailwind";
 
 type GatewayAnalyticsWidgetCardProps = Pick<
   ComponentProps<typeof ConnectedWidgetChartCard>,
-  "tabs" | "actions"
+  "filter" | "tabs" | "actions"
 > & {
   fetchQuery: GatewayAnalyticsFetchQuery;
   widget: GatewayAnalyticsWidget;
@@ -33,6 +33,7 @@ export function GatewayAnalyticsWidgetCard({
   granularity,
   dimensionLabelMap,
   isWaitingForLabels = false,
+  filter,
   tabs,
   actions,
 }: GatewayAnalyticsWidgetCardProps) {
@@ -52,6 +53,7 @@ export function GatewayAnalyticsWidgetCard({
       <ConnectedWidgetChartCard
         title={widget.name}
         description={widget.description}
+        filter={filter}
         tabs={tabs}
         actions={actions}
         isDisplayLoading={isWaitingForLabels}

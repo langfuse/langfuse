@@ -18,10 +18,9 @@ export function ConnectedGatewayApiKeysTable({
   emptyState,
   onRowClick,
   selectedRowId,
-  toolbarActions,
 }: Pick<
   ComponentProps<typeof GatewayApiKeysTable>,
-  "onRowClick" | "selectedRowId" | "toolbarActions"
+  "onRowClick" | "selectedRowId"
 > & {
   organizationId: string;
   /** Shown above the table; the no-keys placeholder explains keys itself. */
@@ -139,7 +138,6 @@ export function ConnectedGatewayApiKeysTable({
                   onRevoke={openRevokeDialog}
                   onRowClick={onRowClick}
                   selectedRowId={selectedRowId}
-                  toolbarActions={toolbarActions}
                 />
               </div>
             </div>

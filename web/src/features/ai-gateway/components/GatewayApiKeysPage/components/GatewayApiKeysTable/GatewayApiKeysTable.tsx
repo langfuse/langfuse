@@ -1,10 +1,7 @@
 import { Pencil, Trash } from "@langfuse/icons";
 import { formatDistanceToNowStrict } from "date-fns";
 
-import {
-  SettingsTable,
-  type SettingsTableProps,
-} from "@/src/components/SettingsTable/SettingsTable";
+import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createBadgeListTableColumn } from "@/src/components/design-system/table/columns/createBadgeListTableColumn";
@@ -74,20 +71,18 @@ export function GatewayApiKeysTable({
   setOrderBy,
   onRowClick,
   selectedRowId,
-  toolbarActions,
 }: Pick<
   TableProps<GatewayApiKey>,
   "orderBy" | "setOrderBy" | "onRowClick" | "selectedRowId"
-> &
-  Pick<SettingsTableProps<GatewayApiKey>, "toolbarActions"> & {
-    data: AsyncTableData<GatewayApiKey[]>;
-    lastUsed: GatewayApiKeysLastUsedState;
-    spend: GatewayApiKeysSpendState;
-    onEdit: (apiKey: GatewayApiKey) => void;
-    onRevoke: (apiKeyId: string) => void;
-    pagination: PaginationBarProps;
-    search: { value: string; onChange: (value: string) => void };
-  }) {
+> & {
+  data: AsyncTableData<GatewayApiKey[]>;
+  lastUsed: GatewayApiKeysLastUsedState;
+  spend: GatewayApiKeysSpendState;
+  onEdit: (apiKey: GatewayApiKey) => void;
+  onRevoke: (apiKeyId: string) => void;
+  pagination: PaginationBarProps;
+  search: { value: string; onChange: (value: string) => void };
+}) {
   const hasSearch = search.value.trim().length > 0;
   /** An out-of-range page is also empty; it keeps the table so its pagination can page back. */
   const hasNoKeys = !hasSearch && pagination.totalCount === 0;
@@ -232,7 +227,6 @@ export function GatewayApiKeysTable({
         },
       ]}
       pagination={pagination}
-      toolbarActions={toolbarActions}
       search={
         hasNoKeys
           ? undefined

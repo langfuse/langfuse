@@ -1,6 +1,4 @@
-import { useMemo } from "react";
 import type { FilterState } from "@langfuse/shared";
-import { X } from "@langfuse/icons";
 
 import { GatewayAnalyticsWidgetCard } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsWidgetCard/GatewayAnalyticsWidgetCard";
 import { GATEWAY_COST_OVER_TIME_WIDGET } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/constants/gatewayAnalyticsWidgets";
@@ -22,6 +20,12 @@ type GatewaySpendChartProps = {
 
 const NO_FILTERS: FilterState = [];
 
+const SPEND_WIDGET = {
+  ...GATEWAY_COST_OVER_TIME_WIDGET,
+  name: "Spend",
+  description: "Select a row below to see only its spend.",
+};
+
 export function GatewaySpendChart({
   fetchQuery,
   timeRange,
@@ -30,19 +34,6 @@ export function GatewaySpendChart({
   selection,
   onClearSelection,
 }: GatewaySpendChartProps) {
-  const selectionLabel = selection?.label;
-  const widget = useMemo(
-    () => ({
-      ...GATEWAY_COST_OVER_TIME_WIDGET,
-      name: "Spend over time",
-      description:
-        selectionLabel === undefined
-          ? "Spend of all gateway requests. Select a row below to see its spend."
-          : `Spend of ${selectionLabel}`,
-    }),
-    [selectionLabel],
-  );
-
   const handleIntervalChange = (value: string) => {
     const option = GATEWAY_SPEND_INTERVALS.find(
       (candidate) => candidate.value === value,
@@ -53,29 +44,21 @@ export function GatewaySpendChart({
   return (
     <GatewayAnalyticsWidgetCard
       fetchQuery={fetchQuery}
-      widget={widget}
+      widget={SPEND_WIDGET}
       timeRange={timeRange}
       filters={selection?.filters ?? NO_FILTERS}
       granularity={interval}
+      filter={
+        selection
+          ? { text: selection.label, onRemove: onClearSelection }
+          : undefined
+      }
       tabs={{
         value: interval,
         options: [...GATEWAY_SPEND_INTERVALS],
         onValueChange: handleIntervalChange,
+        variant: "toggle",
       }}
-      actions={
-        selection
-          ? {
-              buttons: [
-                {
-                  id: "show-total",
-                  label: "Show total",
-                  icon: X,
-                  onClick: onClearSelection,
-                },
-              ],
-            }
-          : undefined
-      }
     />
   );
 }

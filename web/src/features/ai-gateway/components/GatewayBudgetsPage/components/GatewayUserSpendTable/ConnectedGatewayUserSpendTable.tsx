@@ -17,7 +17,7 @@ type GatewayUserBudgetRows = Extract<
 
 type ConnectedGatewayUserSpendTableProps = Pick<
   GatewayUserSpendTableProps,
-  "onRowClick" | "selectedRowId" | "toolbarActions"
+  "onRowClick" | "selectedRowId"
 > & {
   organizationId: string;
   fetchQuery: GatewayAnalyticsFetchQuery;
@@ -34,7 +34,6 @@ export function ConnectedGatewayUserSpendTable({
   timeRange,
   onRowClick,
   selectedRowId,
-  toolbarActions,
 }: ConnectedGatewayUserSpendTableProps) {
   const { canManageGateway } = useGatewaySettingsAccess(organizationId);
   const data = useGatewayUserSpend({ organizationId, fetchQuery, timeRange });
@@ -87,7 +86,6 @@ export function ConnectedGatewayUserSpendTable({
           data={pageData}
           onRowClick={onRowClick}
           selectedRowId={selectedRowId}
-          toolbarActions={toolbarActions}
           onEditBudget={
             canManageGateway
               ? (row) =>
