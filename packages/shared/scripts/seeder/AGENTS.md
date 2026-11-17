@@ -56,7 +56,8 @@ progress output. Full usage and the need→command table live in the
 - `scenarios/` — one file per scenario plus shared `rng.ts`, `payload.ts`,
   `event-mirror.ts` (v3 observation → v4 `events_full` row), `verify.ts`
 - `seed-postgres.ts`, `seed-clickhouse.ts`, `utils/` — the pre-existing
-  `pnpm run dx` seed path (unchanged by the CLI)
+  `pnpm run dx` seed path; `seed-clickhouse.ts` also runs the
+  `gateway-budgets` scenario, so local dx and PR previews get AI Gateway spend
 - `README.md` — design rationale, contract, and roadmap
 
 ## Rules for changes

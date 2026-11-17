@@ -10,6 +10,7 @@ import { GatewayProvidersHeaderActions } from "@/src/features/ai-gateway/compone
 import { GatewayNotDeployedNotice } from "@/src/features/ai-gateway/components/GatewayNotDeployedNotice/GatewayNotDeployedNotice";
 import { GatewayIngestionHeaderAction } from "@/src/features/ai-gateway/components/GatewayOverviewPage/components/GatewayIngestionHeaderAction/GatewayIngestionHeaderAction";
 import { GatewayOverviewPage } from "@/src/features/ai-gateway/components/GatewayOverviewPage/GatewayOverviewPage";
+import { GatewayBudgetsPage } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/GatewayBudgetsPage";
 import { buildGatewayModelsTabs } from "@/src/features/ai-gateway/components/GatewayModelsPage/fns/buildGatewayModelsTabs";
 import { useGatewayModelsPageState } from "@/src/features/ai-gateway/components/GatewayModelsPage/hooks/useGatewayModelsPageState";
 import { GATEWAY_MODELS_TABS } from "@/src/features/ai-gateway/constants/gatewayModelsTabs";
@@ -185,6 +186,26 @@ export function useGatewayPages(): GatewayPageEntry[] {
           : buildGatewayModelsTabs(organization.id, modelsTab),
       hideTitle: showsNotSetUpNotice || access.showNotDeployedNotice,
       show: visible[GATEWAY_PAGE_SLUGS.models],
+      disabledReason,
+    },
+    {
+      title: "Budgets",
+      slug: GATEWAY_PAGE_SLUGS.budgets,
+      cmdKKeywords: ["gateway", "budgets", "spend", "cost", "keys", "users"],
+      content: access.showNotDeployedNotice ? (
+        <GatewayNotDeployedNotice />
+      ) : (
+        <GatewayBudgetsPage organizationId={organization.id} />
+      ),
+      help: {
+        description: access.canManageGateway
+          ? "Spend of requests made through the AI Gateway, in total or per gateway key or user, and the budgets of gateway keys."
+          : "Spend of your requests made through the AI Gateway, in total or per gateway key, and the budgets of your keys.",
+        href: GATEWAY_ANALYTICS_DOCS_URL,
+      },
+      scrollable: true,
+      hideTitle: showsNotSetUpNotice || access.showNotDeployedNotice,
+      show: visible[GATEWAY_PAGE_SLUGS.budgets],
       disabledReason,
     },
     {

@@ -69,7 +69,12 @@ export function GatewayApiKeysTable({
   search,
   orderBy,
   setOrderBy,
-}: Pick<TableProps<GatewayApiKey>, "orderBy" | "setOrderBy"> & {
+  onRowClick,
+  selectedRowId,
+}: Pick<
+  TableProps<GatewayApiKey>,
+  "orderBy" | "setOrderBy" | "onRowClick" | "selectedRowId"
+> & {
   data: AsyncTableData<GatewayApiKey[]>;
   lastUsed: GatewayApiKeysLastUsedState;
   spend: GatewayApiKeysSpendState;
@@ -201,6 +206,8 @@ export function GatewayApiKeysTable({
       data={data}
       orderBy={orderBy}
       setOrderBy={setOrderBy}
+      onRowClick={onRowClick}
+      selectedRowId={selectedRowId}
       actions={(row) => [
         {
           id: "edit",
