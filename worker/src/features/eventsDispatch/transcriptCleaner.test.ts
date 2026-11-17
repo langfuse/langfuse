@@ -1,87 +1,68 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { randomUUID } from "crypto";
+import { createRequire } from "node:module";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  getS3EventStorageClient,
   TRACE_BATCH_INPUT_PREFIX,
-  TRACE_BATCH_INPUT_RETENTION_MS,
-} from "../../../../packages/shared/src/server/traceBatch/storage";
+} from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { EventsDispatchTranscriptCleaner } from "./transcriptCleaner";
 
-const mocks = vi.hoisted(() => ({
-  listFilePage: vi.fn(),
-  deleteFiles: vi.fn(),
-}));
+// MinIO only stamps objects with the current time, so the test moves the
+// retention window instead of the clock; a shifted clock breaks request signing.
+const retention = vi.hoisted(() => ({ ms: 0 }));
 
-vi.mock("@langfuse/shared/src/server", async () => {
-  const storage =
-    await import("../../../../packages/shared/src/server/traceBatch/storage");
-  return {
-    logger: { info: vi.fn(), error: vi.fn(), debug: vi.fn(), warn: vi.fn() },
-    recordIncrement: vi.fn(),
-    recordGauge: vi.fn(),
-    recordDistribution: vi.fn(),
-    traceException: vi.fn(),
-    getCurrentSpan: vi.fn(),
-    instrumentAsync: async (
-      _config: unknown,
-      fn: (span: { setAttribute: () => void }) => unknown,
-    ) => fn({ setAttribute() {} }),
-    contextWithLangfuseProps: () => ({}),
-    getS3EventStorageClient: () => mocks,
-    TRACE_BATCH_INPUT_PREFIX: storage.TRACE_BATCH_INPUT_PREFIX,
-    TRACE_BATCH_INPUT_RETENTION_MS: storage.TRACE_BATCH_INPUT_RETENTION_MS,
-  };
-});
-
-vi.mock("../../utils/RedisLock", () => ({
-  RedisLock: class {
-    key = "test-lock";
-    async extend() {
-      return true;
-    }
-    async withLock<T>(operation: () => Promise<T>) {
-      return operation();
-    }
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
+  get TRACE_BATCH_INPUT_RETENTION_MS() {
+    return retention.ms;
   },
 }));
 
+// The compiled @langfuse/shared reads its env through Node's require cache.
+const sharedEnv = createRequire(import.meta.url)("@langfuse/shared/src/env")
+  .env as { LANGFUSE_S3_LIST_MAX_KEYS: number };
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 describe("EventsDispatchTranscriptCleaner", () => {
-  const prefix = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${TRACE_BATCH_INPUT_PREFIX}`;
+  const originalPrefix = env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX;
+  const originalMaxKeys = sharedEnv.LANGFUSE_S3_LIST_MAX_KEYS;
+  const storage = getS3EventStorageClient(env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET);
 
   beforeEach(() => {
-    vi.clearAllMocks();
-    mocks.deleteFiles.mockResolvedValue(undefined);
+    env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX = `${originalPrefix}transcript-cleaner-test-${randomUUID()}/`;
+    sharedEnv.LANGFUSE_S3_LIST_MAX_KEYS = 2;
   });
 
-  it("deletes objects older than the retention window and keeps newer ones", async () => {
-    const fresh = `${prefix}fresh.json`;
-    const expired = `${prefix}old.json`;
-    mocks.listFilePage
-      .mockResolvedValueOnce({
-        files: [{ file: fresh, createdAt: new Date() }],
-        continuationToken: "page-2",
-      })
-      .mockResolvedValueOnce({
-        files: [
-          {
-            file: expired,
-            createdAt: new Date(
-              Date.now() - TRACE_BATCH_INPUT_RETENTION_MS - 60_000,
-            ),
-          },
-        ],
-      });
+  afterEach(() => {
+    env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX = originalPrefix;
+    sharedEnv.LANGFUSE_S3_LIST_MAX_KEYS = originalMaxKeys;
+  });
 
+  const upload = (fileName: string) =>
+    storage.uploadFile({
+      fileName,
+      fileType: "application/json",
+      data: "{}",
+    });
+
+  it("deletes expired transcripts across list pages and keeps newer ones", async () => {
+    const prefix = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${TRACE_BATCH_INPUT_PREFIX}`;
+    const expired = ["a1", "a2", "a3"].map((name) => `${prefix}${name}.json`);
+    const fresh = `${prefix}b.json`;
+
+    await Promise.all(expired.map(upload));
+    // Object timestamps have one-second precision.
+    await sleep(1_100);
+    const cutoff = Date.now();
+    await sleep(1_100);
+    await upload(fresh);
+
+    retention.ms = Date.now() - cutoff;
     await new EventsDispatchTranscriptCleaner().processBatch();
 
-    expect(mocks.listFilePage).toHaveBeenNthCalledWith(1, {
-      prefix,
-      continuationToken: undefined,
-    });
-    expect(mocks.listFilePage).toHaveBeenNthCalledWith(2, {
-      prefix,
-      continuationToken: "page-2",
-    });
-    expect(mocks.deleteFiles).toHaveBeenCalledTimes(1);
-    expect(mocks.deleteFiles).toHaveBeenCalledWith([expired]);
+    const remaining = await storage.listFiles(prefix);
+    expect(remaining.map((f) => f.file)).toEqual([fresh]);
   });
 });

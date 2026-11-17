@@ -1509,7 +1509,7 @@ class GoogleCloudStorageService implements StorageService {
           file: file.name,
           createdAt: new Date(file.metadata.timeCreated ?? new Date()),
         })),
-        continuationToken: nextQuery.pageToken || undefined,
+        continuationToken: nextQuery?.pageToken || undefined,
       };
     } catch (err) {
       logger.error(

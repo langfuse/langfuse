@@ -13,7 +13,7 @@ const METRIC_PREFIX = "langfuse.events_dispatch.transcript_cleaner";
 /** Pause after a full pass of the prefix. */
 const INTERVAL_MS = 60 * 60 * 1000;
 
-/** Expired objects deleted per run. */
+/** Expired objects deleted per run. Checked between pages, so a run can exceed it by up to one list page. */
 const MAX_DELETES_PER_RUN = 1_000;
 
 /** Pages listed per run. A saved continuation token resumes the next run. */
