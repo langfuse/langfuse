@@ -118,10 +118,8 @@ const config: StorybookConfig = {
       titlePrefix: "Playground",
     },
   ],
-  // `storybook build --test` (CI) only checks that the static build succeeds.
-  // Of the features it strips, only react-docgen costs much — it parses every
-  // imported source file and dominated build time — so keep the rest (MDX
-  // docs, the docs addon, autodocs, tree-shaking) and build them as deployed.
+  // `storybook build --test` (CI) skips react-docgen and sourcemaps; MDX docs,
+  // the docs addon, autodocs and tree-shaking stay on.
   build: {
     test: {
       disableBlocks: false,
