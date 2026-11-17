@@ -24,11 +24,8 @@ import {
 } from "@/src/components/ui/dialog";
 import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+  type DropdownMenuItemDefinition,
+} from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { DeleteEvalTemplateDialog } from "@/src/features/evals/components/DeleteEvalTemplateDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { EvalTemplateForm } from "@/src/features/evals/components/EvalTemplateForm";
@@ -154,59 +151,79 @@ const EvalTemplateRowActionsMenu = ({
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-xs" aria-label="actions">
-            <span className="sr-only relative">Open menu</span>
-            <MoreVertical size="sm" color="default" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-          {showClone ? (
-            <DropdownMenuItem
-              aria-label="clone"
-              disabled={!hasAccess}
-              onClick={(e) => {
-                e.stopPropagation();
-                onClone();
-              }}
+      <div onClick={(event) => event.stopPropagation()}>
+        <DropdownMenu
+          title="Actions"
+          placement="bottom-end"
+          items={[
+            ...(showClone
+              ? ([
+                  {
+                    type: "item",
+                    id: "clone",
+                    title: "Clone",
+                    icon: Copy,
+                    disabled: hasAccess
+                      ? undefined
+                      : {
+                          reason:
+                            "You do not have permission to clone templates.",
+                        },
+                    onClick: onClone,
+                  },
+                ] satisfies DropdownMenuItemDefinition[])
+              : []),
+            ...(showEditAndDelete
+              ? ([
+                  {
+                    type: "item",
+                    id: "edit",
+                    title: "Edit",
+                    icon: Pen,
+                    disabled: hasAccess
+                      ? undefined
+                      : {
+                          reason:
+                            "You do not have permission to edit templates.",
+                        },
+                    onClick: onEdit,
+                  },
+                  {
+                    type: "item",
+                    id: "delete",
+                    title: "Delete",
+                    icon: Trash,
+                    variant: "destructive",
+                    disabled: hasTemplateWriteAccess
+                      ? undefined
+                      : {
+                          reason:
+                            "You do not have permission to delete templates.",
+                        },
+                    onClick: () => {
+                      capture("eval_templates:delete_form_open", {
+                        source: "table-single-row",
+                      });
+                      setIsDeleteDialogOpen(true);
+                    },
+                  },
+                ] satisfies DropdownMenuItemDefinition[])
+              : []),
+          ]}
+        >
+          {({ getTriggerProps }) => (
+            <Button
+              {...getTriggerProps()}
+              variant="ghost"
+              size="icon-xs"
+              aria-label="actions"
             >
-              <Copy size="base" color="default" __rawClassName="mr-2" />
-              Clone
-            </DropdownMenuItem>
-          ) : null}
-          {showEditAndDelete ? (
-            <>
-              <DropdownMenuItem
-                aria-label="edit"
-                disabled={!hasAccess}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEdit();
-                }}
-              >
-                <Pen size="base" color="default" __rawClassName="mr-2" />
-                Edit
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                aria-label="delete"
-                disabled={!hasTemplateWriteAccess}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  capture("eval_templates:delete_form_open", {
-                    source: "table-single-row",
-                  });
-                  setIsDeleteDialogOpen(true);
-                }}
-              >
-                <Trash size="base" color="default" __rawClassName="mr-2" />
-                Delete
-              </DropdownMenuItem>
-            </>
-          ) : null}
-        </DropdownMenuContent>
-      </DropdownMenu>
+              <span className="sr-only relative">Open menu</span>
+              <MoreVertical size="sm" color="default" />
+            </Button>
+          )}
+        </DropdownMenu>
+      </div>
       {isDeleteDialogOpen !== undefined ? (
         <DeleteEvalTemplateDialog
           projectId={projectId}
@@ -482,7 +499,7 @@ export default function EvalsTemplateTable({
       detailNavigationKey: "eval-templates",
       peekEventOptions: {
         ignoredSelectors: [
-          "[aria-label='apply'], [aria-label='actions'], [aria-label='edit'], [aria-label='clone'], [aria-label='delete']",
+          "[aria-label='apply'], [aria-label='actions'], [role='menu']",
         ],
       },
       ...peekNavigationProps,
