@@ -44,6 +44,8 @@ export const getCookieName = (name: string) =>
 export type ProjectCookie = {
   origin: string;
   projectId: string;
+  /** Absent on cookies written before the cookie was scoped to a user. */
+  userId?: string;
 };
 
 /** getRequestOrigin derives the request's own origin from forwarded headers, never from client input. */
@@ -83,8 +85,10 @@ export const readProjectCookie = (
       typeof (parsed as ProjectCookie).origin === "string" &&
       typeof (parsed as ProjectCookie).projectId === "string"
     ) {
-      const { origin, projectId } = parsed as ProjectCookie;
-      return { origin, projectId };
+      const { origin, projectId, userId } = parsed as ProjectCookie;
+      return typeof userId === "string"
+        ? { origin, projectId, userId }
+        : { origin, projectId };
     }
   } catch {
     // malformed cookie -> treat as absent
@@ -92,17 +96,27 @@ export const readProjectCookie = (
   return null;
 };
 
-/** serializeProjectCookie builds the Set-Cookie header value for the project cookie. */
-export const serializeProjectCookie = (value: ProjectCookie): string => {
+const serializeProjectCookieValue = (value: string, maxAgeSeconds: number) => {
   const options = getCookieOptions();
   const parts = [
-    `${projectCookieName}=${encodeURIComponent(JSON.stringify(value))}`,
+    `${projectCookieName}=${value}`,
     `Path=${options.path}`,
     "SameSite=Lax",
-    `Max-Age=${projectCookieMaxAgeSeconds}`,
+    `Max-Age=${maxAgeSeconds}`,
   ];
   if (options.domain) parts.push(`Domain=${options.domain}`);
   if (options.httpOnly) parts.push("HttpOnly");
   if (options.secure) parts.push("Secure");
   return parts.join("; ");
 };
+
+/** serializeProjectCookie builds the Set-Cookie header value for the project cookie. */
+export const serializeProjectCookie = (value: ProjectCookie): string =>
+  serializeProjectCookieValue(
+    encodeURIComponent(JSON.stringify(value)),
+    projectCookieMaxAgeSeconds,
+  );
+
+/** serializeClearedProjectCookie expires the project cookie, e.g. once its project is gone. */
+export const serializeClearedProjectCookie = (): string =>
+  serializeProjectCookieValue("", 0);

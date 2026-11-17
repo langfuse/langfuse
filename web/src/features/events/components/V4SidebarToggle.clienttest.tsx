@@ -4,7 +4,7 @@ import { SessionProvider } from "next-auth/react";
 import { V4SidebarToggle } from "./V4SidebarToggle";
 
 vi.mock("next/router", () => ({
-  useRouter: () => ({ query: {}, pathname: "/" }),
+  useRouter: () => ({ query: {}, pathname: "/organizations" }),
 }));
 
 vi.mock("@/src/utils/api", () => ({

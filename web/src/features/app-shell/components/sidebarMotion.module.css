@@ -93,6 +93,7 @@
   justify-content: center;
 }
 
+.workspace,
 .account,
 .version {
   display: flex;
@@ -104,8 +105,16 @@
   text-align: start;
 }
 
+.workspace,
 .account {
   block-size: 2.75rem;
+}
+
+.workspace {
+  box-shadow: inset 0 0 0 1px
+    hsl(var(--sidebar-border) / var(--sidebar-label-opacity, 1));
+  transition: box-shadow var(--sidebar-motion-duration, 0ms)
+    var(--sidebar-motion-ease, ease);
 }
 
 .version {

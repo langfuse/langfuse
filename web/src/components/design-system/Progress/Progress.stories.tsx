@@ -22,3 +22,19 @@ export const Complete = meta.story({
     value: 100,
   },
 });
+
+export const NearLimit = meta.story({
+  args: {
+    value: 88,
+    tone: "warning",
+    label: "Usage of the plan limit",
+  },
+});
+
+export const OverLimit = meta.story({
+  args: {
+    value: 100,
+    tone: "critical",
+    label: "Usage of the plan limit",
+  },
+});

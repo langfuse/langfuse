@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
+import { useSession } from "next-auth/react";
 import {
   AppNavigationProvider,
   type AppNavigation,
@@ -10,6 +11,7 @@ import {
   useAppShellSidebar,
   useAppShellSidebarActions,
 } from "@/src/features/app-shell/contexts/AppShellSidebarProvider";
+import { useRecordRecentProject } from "@/src/features/app-shell/hooks/useRecordRecentProject";
 import { useSidebarShortcuts } from "@/src/features/app-shell/hooks/useSidebarShortcuts";
 
 function AppShellFrame({
@@ -21,6 +23,7 @@ function AppShellFrame({
 }) {
   const isMobile = useAppShellSidebar((state) => state.isMobile);
   const { setMobileOpen, close } = useAppShellSidebarActions();
+  const session = useSession();
   const mobileNavigationTriggerRef = useRef<HTMLButtonElement>(null);
   const [navigation] = useState<AppNavigation>(() => ({
     shell: "next",
@@ -31,6 +34,7 @@ function AppShellFrame({
   }));
 
   useSidebarShortcuts(isMobile ? "mobile" : "desktop");
+  useRecordRecentProject(session.data?.user?.id ?? "anonymous");
 
   return (
     <AppNavigationProvider value={navigation}>

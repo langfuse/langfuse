@@ -16,7 +16,7 @@ export function SidebarDemoNotice() {
         label="Use Demo App"
       />
       <SidebarNavItem
-        href="/"
+        href="/organizations"
         isActive={false}
         opensInNewTab={false}
         leading={<LayoutGrid size="base" />}
