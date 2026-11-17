@@ -459,30 +459,13 @@ headers, hop-by-hop headers and upstream framing are excluded.
 
 ## Spend limits
 
-A key with spend limits is checked before its request reaches the provider: when a
-limit's counted spend has reached its limit, the request fails with 429. A request for a
-model without a Langfuse price fails with 400, unless its provider reports billed cost, and a key whose counters cannot be read
-fails with 503. After the response, its cost is added to the counter of every limit
-of the key. The cost is the provider's billed cost when it reports one, else the
-usage priced as Langfuse prices the generation.
+A key with spend limits is checked before its request reaches the provider: when a limit's counted spend has reached its limit, the request fails with 429. A request for a model without a Langfuse price fails with 400, unless its provider reports billed cost, and a key whose counters cannot be read fails with 503. After the response, its cost is added to the counter of every limit of the key. The cost is the provider's billed cost when it reports one, else the usage priced as Langfuse prices the generation.
 
-Limits are soft. Spend is added only once a response completes, so requests already
-in flight when a limit is reached still complete and can carry spend past the limit.
-A response that ends before its usage is reported, such as a stream the client
-disconnects from, adds nothing. A successful response that adds nothing counts in
-`gateway.spend.uncharged` with `reason=zero_cost` (usage priced at $0) or
-`reason=no_usage` (no usage reported), and logs a warning; `reason=backlog` counts
-costs dropped because too many counter writes were pending.
+Limits are soft. Spend is added only once a response completes, so requests already in flight when a limit is reached still complete and can carry spend past the limit. A response that ends before its usage is reported, such as a stream the client disconnects from, adds nothing. A successful response that adds nothing counts in `gateway.spend.uncharged` with `reason=zero_cost` (usage priced at $0) or `reason=no_usage` (no usage reported), and logs a warning; `reason=backlog` counts costs dropped because too many counter writes were pending.
 
-Counters live in the Redis at `LANGFUSE_AI_GATEWAY_REDIS_URL`, under keys prefixed
-`gateway-spend:`. Run a dedicated Redis 7 or later with `maxmemory-policy noeviction`:
-counters of `total` limits never expire, and an evicted counter resets its limit's spend.
-Daily, weekly and monthly counters expire 10 minutes after their window ends.
+Counters live in the Redis at `LANGFUSE_AI_GATEWAY_REDIS_URL`, under keys prefixed `gateway-spend:`. Run a dedicated Redis 7 or later with `maxmemory-policy noeviction`: counters of `total` limits never expire, and an evicted counter resets its limit's spend. Daily, weekly and monthly counters expire 10 minutes after their window ends.
 
-The gateway connects to Redis at startup. Each Redis call times out after 500 ms.
-After three failed calls in a row, calls fail at once for one second, so keys with
-limits get their 503 without waiting; after that, one failed call fails them again
-for a second and one successful call ends it.
+The gateway connects to Redis at startup. Each Redis call times out after 500 ms. After three failed calls in a row, calls fail at once for one second, so keys with limits get their 503 without waiting; after that, one failed call fails them again for a second and one successful call ends it.
 
 ## Langfuse uploads
 
