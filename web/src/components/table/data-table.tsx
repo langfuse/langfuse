@@ -198,6 +198,22 @@ function isValidCssVariableName({
   return regex.test(name);
 }
 
+function fixedTableColumnWidth(
+  columnDef: LangfuseColumnDef<unknown>,
+  headerId: string,
+): CSSProperties["width"] {
+  if (columnDef.isFlexWidth) return "auto";
+  if (
+    isValidCssVariableName({
+      name: headerId,
+      includesHyphens: false,
+    })
+  ) {
+    return `calc(var(--header-${headerId}-size) * 1px)`;
+  }
+  return 150;
+}
+
 // These are the important styles to make sticky column pinning work!
 const getCommonPinningStyles = <TData,>(
   column: Column<TData>,
@@ -572,6 +588,40 @@ export function DataTable<TData extends object, TValue>({
           </div>
           <Table>
             <TableHeader className="sticky top-0 z-20">
+              {/* First row owns the fixed-layout column widths. The banner
+                  row below is one spanning cell and must not be first, or the
+                  browser divides that cell across every column. */}
+              <tr
+                aria-hidden="true"
+                className="h-0 border-0"
+                style={{ height: 0, borderBottom: "none" }}
+              >
+                {table
+                  .getHeaderGroups()
+                  .at(-1)
+                  ?.headers.filter((header) => header.column.getIsVisible())
+                  .map((header) => {
+                    const columnDef = header.column
+                      .columnDef as LangfuseColumnDef<unknown>;
+                    return (
+                      <td
+                        key={header.id}
+                        className={cn(
+                          "h-0 border-0 p-0",
+                          columnDef.hideBelowMd && "hidden md:table-cell",
+                        )}
+                        style={{
+                          width: fixedTableColumnWidth(columnDef, header.id),
+                          height: 0,
+                          padding: 0,
+                          borderWidth: 0,
+                          lineHeight: 0,
+                          fontSize: 0,
+                        }}
+                      />
+                    );
+                  })}
+              </tr>
               {/* The select-all banner portals into this row so it sticks with
                   the header, under any metric strip rendered above the table.
                   An empty slot collapses the row. */}
@@ -599,22 +649,9 @@ export function DataTable<TData extends object, TValue>({
                     const columnDef = header.column
                       .columnDef as LangfuseColumnDef<unknown>;
                     const sortingEnabled = columnDef.enableSorting;
-                    // if the header id does not translate to a valid css variable name, default to 150px as width
-                    // may only happen for dynamic columns, as column names are user defined
-                    const width = (() => {
-                      if (columnDef.isFlexWidth) {
-                        return "auto";
-                      }
-                      if (
-                        isValidCssVariableName({
-                          name: header.id,
-                          includesHyphens: false,
-                        })
-                      ) {
-                        return `calc(var(--header-${header.id}-size) * 1px)`;
-                      }
-                      return 150;
-                    })();
+                    // Dynamic column names are user defined and may not be a
+                    // valid CSS variable. Those fall back to 150px.
+                    const width = fixedTableColumnWidth(columnDef, header.id);
 
                     return header.column.getIsVisible() ? (
                       <TableHead
