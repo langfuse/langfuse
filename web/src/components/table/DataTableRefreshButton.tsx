@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { RefreshCw, ChevronDown } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -9,6 +10,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { cn } from "@/src/utils/tailwind";
 import { useAnimatedBusy } from "@/src/hooks/useAnimatedBusy";
+import { useIsMobile } from "@/src/hooks/use-mobile";
 import {
   REFRESH_INTERVALS,
   type RefreshInterval,
@@ -42,6 +44,11 @@ export function DataTableRefreshButton({
   // while it spins either: the flash of the disabled state read as a glitch, and
   // refreshing again mid-flight is harmless.
   const { active: isSpinning } = useAnimatedBusy(isRefreshing);
+  const isMobile = useIsMobile();
+  const [menuOpen, setMenuOpen] = useState(false);
+  // The menu is portaled, so hiding the trigger does not close it. Drop an
+  // open menu when the viewport crosses below `md`.
+  if (isMobile && menuOpen) setMenuOpen(false);
 
   return (
     <div className="flex items-center">
@@ -65,7 +72,12 @@ export function DataTableRefreshButton({
       </Button>
       {/* Below `md` the interval selector is hidden; manual refresh stays. */}
       <div className="hidden md:contents">
-        <DropdownMenu>
+        <DropdownMenu
+          open={!isMobile && menuOpen}
+          onOpenChange={(next) => {
+            if (!isMobile) setMenuOpen(next);
+          }}
+        >
           <DropdownMenuTrigger asChild>
             <Button
               variant="outline"
