@@ -1,5 +1,5 @@
 import type { RouterOutputs } from "@/src/utils/api";
-import { topicColor } from "../topic-map-colors";
+import { topicColor, UNASSIGNED_SWATCH_COLOR } from "../topic-map-colors";
 
 export type MapData = Pick<
   RouterOutputs["topics"]["map"],
@@ -179,7 +179,7 @@ export function prepareTopicMap(
         : (point.topicId ?? "outliers"),
     color:
       (point.topicId ? known.get(point.topicId)?.color : undefined) ??
-      topicColor(-1),
+      UNASSIGNED_SWATCH_COLOR,
     // This is decorative depth, independent of embedding distance or quality.
     depth: visualDepth(point.traceId),
   }));
@@ -208,7 +208,7 @@ export function prepareTopicMap(
         topic?.name ??
         (id === "awaiting_map" ? "Assignment unavailable" : "Outliers"),
       description,
-      color: topic?.color ?? topicColor(-1),
+      color: topic?.color ?? UNASSIGNED_SWATCH_COLOR,
       points: members,
       bounds: pointBounds(members),
       ...center,

@@ -70,6 +70,7 @@ export function TopicTraceList({
   divider,
   toolbar,
   topicColors,
+  emptyMessage = "No trace summaries.",
 }: TopicTraceListProps) {
   const { rows } = traces;
   const onScrollCapture = (event: UIEvent<HTMLElement>) => {
@@ -121,7 +122,7 @@ export function TopicTraceList({
                 row.original.topicName ??
                 row.original.outcome.replaceAll("_", " ");
               return (
-                <span className={cn("flex min-w-0 items-center gap-2", CELL)}>
+                <span className={cn(CELL, "flex min-w-0 items-center gap-2")}>
                   <span
                     aria-hidden
                     className="size-2.5 shrink-0 rounded-xs"
@@ -167,6 +168,7 @@ export function TopicTraceList({
         !divider && "rounded-md border",
       )}
     >
+      {toolbar}
       <div ref={headerRef} className="flex shrink-0 flex-col gap-1 px-4 py-3">
         <div className="flex h-7 items-center justify-between gap-4">
           <p className="text-muted-foreground flex min-w-0 items-center gap-2">
@@ -211,7 +213,6 @@ export function TopicTraceList({
           </p>
         )}
       </div>
-      {toolbar}
       <DataTable
         tableName="topics-topic-traces"
         columns={columns}
@@ -223,7 +224,7 @@ export function TopicTraceList({
         }}
         className="min-h-0 overscroll-contain"
         cellPadding="relaxed"
-        noResultsMessage="No trace summaries."
+        noResultsMessage={emptyMessage}
         peekView={peekView}
       />
       {traces.hasMore && <TopicTraceLoadMore traces={traces} />}
@@ -247,8 +248,10 @@ type TopicTraceListProps = {
   headerRef?: RefObject<HTMLDivElement | null>;
   /** `none` when the parent draws the divider, e.g. a resize handle. */
   divider?: "side" | "none";
-  /** Search and filters between the header and the table. */
+  /** Search and filters above the header. */
   toolbar?: ReactNode;
+  /** Shown when the list is empty, e.g. for a search that matches nothing. */
+  emptyMessage?: string;
   /** Adds a Topic column, colored per topic ID. */
   topicColors?: ReadonlyMap<string, string>;
 };

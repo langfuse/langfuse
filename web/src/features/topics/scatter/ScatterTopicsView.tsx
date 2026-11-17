@@ -1,5 +1,11 @@
-import { useMemo, useState, type ComponentProps } from "react";
+import { useMemo, useState, type ComponentProps, type ReactNode } from "react";
 import { useMediaQuery } from "react-responsive";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+  useDefaultLayout,
+} from "@/src/components/ui/resizable";
 import { cn } from "@/src/utils/tailwind";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { TopicsEmptyState } from "../TopicsEmptyState";
@@ -41,8 +47,8 @@ export function ScatterTopicsView({
   const topics = withScatterColors(
     prepareTopicDisplay(facet, "treemap").topics,
   );
-  const selected =
-    topics.find((topic) => topic.id === selectedTopicId) ?? topics[0];
+  // Nothing is picked at first, so the list starts with every trace.
+  const selected = topics.find((topic) => topic.id === selectedTopicId);
   const searchTopics = orderedFacetTopics(facet);
   const isSearching =
     traceFilters.filters.length > 0 ||
@@ -55,7 +61,7 @@ export function ScatterTopicsView({
         traceFilters.searchQuery,
         searchTopics,
       );
-    return selected ? topicQuery(selected.id) : null;
+    return selected ? topicQuery(selected.id) : {};
   }
   // Picking a topic replaces an active search; picking the highlighted one again clears it.
   function selectTopic(topicId: string | null) {
@@ -64,6 +70,14 @@ export function ScatterTopicsView({
       traceFilters.setSearchQuery(null);
     }
     setSelectedTopicId(topicId);
+  }
+  function listTitle() {
+    if (isSearching) return "Matching traces";
+    return selected ? selected.name : "All traces";
+  }
+  function listCount() {
+    if (isSearching) return traces.rows.length;
+    return selected ? selected.count : facet.counts.total;
   }
   const maxCount = Math.max(1, ...topics.map((topic) => topic.count));
   const isWide = useMediaQuery({ query: "(min-width: 1024px)" });
@@ -80,17 +94,13 @@ export function ScatterTopicsView({
         .map((point) => point.traceId),
     );
   }, [mapData, selectedTopicId]);
-  if (facet.topics.length === 0 || !selected) {
+  if (facet.topics.length === 0) {
     return <TopicsEmptyState />;
   }
   const rows = (
     <ul
       aria-label="Topics"
-      className={cn(
-        "scroll-fade-y flex min-h-0 flex-col gap-px overflow-y-auto p-4",
-        // Five rows and the top of the sixth, so the list reads as scrollable.
-        facet.map ? "h-52 shrink-0" : "flex-1",
-      )}
+      className="scroll-fade-y flex min-h-0 flex-1 flex-col gap-px overflow-y-auto p-4"
     >
       {topics.map((topic, rank) => (
         <li key={topic.id}>
@@ -98,7 +108,7 @@ export function ScatterTopicsView({
             topic={topic}
             maxCount={maxCount}
             faded={rank >= 6}
-            selected={topic.id === selected.id}
+            selected={topic.id === selected?.id}
             onSelect={() =>
               selectTopic(
                 topic.id === selectedTopicId && !isSearching ? null : topic.id,
@@ -116,8 +126,8 @@ export function ScatterTopicsView({
       defaultTopicsSize="50%"
       topics={
         facet.map ? (
-          <div className="flex min-h-0 flex-1 flex-col">
-            <div className="flex min-h-0 flex-1 flex-col">
+          <MapAndRowsSplit
+            map={
               <ScatterMap
                 key={facet.map.runId}
                 query={mapResult}
@@ -132,34 +142,35 @@ export function ScatterTopicsView({
                 selectedTraceId={null}
                 fillContainer
               />
-            </div>
-            {rows}
-          </div>
+            }
+            rows={rows}
+          />
         ) : (
           rows
         )
       }
       traces={
         <TopicTraceList
-          key={isSearching ? "search" : selected.id}
+          key={isSearching ? "search" : (selected?.id ?? "all")}
           projectId={projectId}
-          title={isSearching ? "Matching traces" : selected.name}
+          title={listTitle()}
           description={
-            isSearching || selected.id === UNASSIGNED_TOPIC_ID
+            isSearching || !selected || selected.id === UNASSIGNED_TOPIC_ID
               ? undefined
               : selected.description
           }
-          swatchColor={isSearching ? undefined : selected.color}
+          swatchColor={isSearching ? undefined : selected?.color}
           traces={traces}
-          totalCount={isSearching ? traces.rows.length : selected.count}
+          totalCount={listCount()}
           tracingTopic={
-            isSearching || selected.id === UNASSIGNED_TOPIC_ID
+            isSearching || !selected || selected.id === UNASSIGNED_TOPIC_ID
               ? undefined
               : { facet, name: selected.name }
           }
           peekView={peekView}
           tracePanelRef={tracePanelRef}
           divider="none"
+          emptyMessage={isSearching ? "No matches." : undefined}
           topicColors={new Map(topics.map((topic) => [topic.id, topic.color]))}
           toolbar={
             <TopicsTraceToolbar
@@ -169,6 +180,7 @@ export function ScatterTopicsView({
               onFiltersChange={traceFilters.setFilters}
               searchQuery={traceFilters.searchQuery}
               onSearchQueryChange={traceFilters.setSearchQuery}
+              divider={false}
             />
           }
         />
@@ -188,6 +200,42 @@ type ScatterTopicsViewProps = {
   tracePanelRef?: (element: HTMLElement | null) => void;
   useTraces: UseTopicTraces;
 };
+
+const MAP_AND_ROWS_PANEL_IDS = ["map", "rows"];
+
+/** The map above the topic rows; the handle trades map height for more rows. */
+function MapAndRowsSplit({ map, rows }: { map: ReactNode; rows: ReactNode }) {
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: "topics-scatter-new-map-rows",
+    panelIds: MAP_AND_ROWS_PANEL_IDS,
+    storage: "local",
+  });
+  return (
+    <ResizablePanelGroup
+      orientation="vertical"
+      defaultLayout={defaultLayout}
+      onLayoutChanged={onLayoutChanged}
+      className="min-h-0 min-w-0 flex-1"
+    >
+      <ResizablePanel id="map" minSize="30%" className="flex flex-col">
+        {map}
+      </ResizablePanel>
+      <ResizableHandle
+        withHandle="hover"
+        aria-label="Resize topic map and topics"
+      />
+      {/* Five rows and the top of the sixth, so the list reads as scrollable. */}
+      <ResizablePanel
+        id="rows"
+        defaultSize="13rem"
+        minSize="6rem"
+        className="flex flex-col"
+      >
+        {rows}
+      </ResizablePanel>
+    </ResizablePanelGroup>
+  );
+}
 
 /** One line per topic, with a short bar beside the count. */
 function TopicRow({
