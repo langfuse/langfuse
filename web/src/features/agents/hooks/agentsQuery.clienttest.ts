@@ -10,6 +10,7 @@ import {
   agentTabQuery,
 } from "./agentsQuery";
 import { normalizeAgentUrl } from "../server/agentRoute";
+import { APP_ROOT_FILTER_STATE } from "@/src/features/events/lib/appRootDefaultFilterPolicy";
 
 const now = new Date("2026-11-05T12:00:00Z").getTime();
 const scope: AgentScope = {
@@ -20,6 +21,30 @@ const scope: AgentScope = {
 };
 
 describe("Agent query boundaries", () => {
+  it("opens Traces with a visible root filter alongside the selected environment", () => {
+    const environment = {
+      column: "environment",
+      type: "stringOptions" as const,
+      operator: "any of" as const,
+      value: ["production"],
+    };
+    const next = agentTabQuery(
+      {
+        tab: "overview",
+        identityKind: "id",
+        dateRange: "meta:last7Days",
+        filter: encodeFiltersGeneric([environment]),
+      },
+      "traces",
+    );
+    expect(decodeFiltersGeneric(next.filter as string)).toEqual([
+      environment,
+      ...APP_ROOT_FILTER_STATE,
+    ]);
+    expect(next.identityKind).toBe("id");
+    expect(next.dateRange).toBe("meta:last7Days");
+  });
+
   it("keeps visible environment predicates across tabs while leaving other filters behind", () => {
     const environments = [
       {

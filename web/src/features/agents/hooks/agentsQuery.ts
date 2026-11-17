@@ -6,6 +6,7 @@ import {
 } from "@langfuse/shared/agents";
 import { encodeFiltersGeneric } from "@langfuse/shared";
 import { decodeAndNormalizeFilters } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { APP_ROOT_FILTER_STATE } from "@/src/features/events/lib/appRootDefaultFilterPolicy";
 import { TIME_RANGES, type TimeRange } from "@/src/utils/date-range-utils";
 import { agentEnvironmentFilterConfig } from "../config/agentFilters";
 
@@ -100,9 +101,11 @@ export function agentTabQuery(
     "chartType",
   ])
     delete next[key];
-  const environmentFilter = agentEnvironmentFilters(query.filter);
-  if (environmentFilter.length)
-    next.filter = encodeFiltersGeneric(environmentFilter);
+  const filters = [
+    ...agentEnvironmentFilters(query.filter),
+    ...(tab === "traces" ? APP_ROOT_FILTER_STATE : []),
+  ];
+  if (filters.length > 0) next.filter = encodeFiltersGeneric(filters);
   return next;
 }
 
