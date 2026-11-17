@@ -87,9 +87,7 @@ export function SessionCustomizationDialog({
     if (filters === null) return;
     const present = hasPreset(filters, filter);
     const remaining = filters.filter(
-      (existing) =>
-        existing.column !== filter.column ||
-        existing.operator !== filter.operator,
+      (existing) => existing.column !== filter.column,
     );
     filterInput.applyFilters(present ? remaining : [...remaining, filter]);
   };
