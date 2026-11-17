@@ -658,9 +658,11 @@ export const mapMediaUsageDailyToCoreDataRow = (
   snapshotAt,
 });
 
-// `created_at` is timestamp without time zone stored as UTC, so to_char's
-// calendar date is the UTC day and does not follow the session TimeZone. The
-// (project_id, created_at) index is not used: this is one full scan of media.
+// `created_at` is timestamp without time zone. The day is read from the stored
+// wall-clock value, so it is the UTC day only if the writer stored UTC. The raw
+// insert in mediaService omits created_at, so the column default applies and
+// uses the session TimeZone. The (project_id, created_at) index is not used:
+// this is one full scan of media.
 const queryMediaUsageDaily = () =>
   prisma.$queryRaw<MediaUsageDailyQueryRow[]>`
     SELECT
