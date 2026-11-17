@@ -1533,6 +1533,20 @@ describe("Clickhouse Scores Repository Test", () => {
           value: 0,
           string_value: "Should be excluded",
         }),
+        createTraceScore({
+          project_id: isolatedProjectId,
+          trace_id: runTraceId,
+          name: "quality-score",
+          data_type: "NUMERIC",
+          value: 10,
+        }),
+        createTraceScore({
+          project_id: isolatedProjectId,
+          trace_id: runTraceId,
+          name: "quality_score",
+          data_type: "NUMERIC",
+          value: 20,
+        }),
       ];
       await createScoresCh(scores);
 
@@ -1565,6 +1579,18 @@ describe("Clickhouse Scores Repository Test", () => {
       if (booleanAgg.type === "CATEGORICAL") {
         expect(booleanAgg.values).toEqual(["true"]);
         expect(booleanAgg.valueCounts).toEqual([{ value: "true", count: 1 }]);
+      }
+
+      // Scores with different delimiter variants should group into a single aggregate
+      const normalizedAgg = runScores!["quality_score-API-NUMERIC"];
+      expect(normalizedAgg).toBeDefined();
+      expect(normalizedAgg.type).toBe("NUMERIC");
+      if (normalizedAgg.type === "NUMERIC") {
+        expect(normalizedAgg.average).toBe(15);
+        expect(normalizedAgg.values).toHaveLength(2);
+        expect(normalizedAgg.values).toContain(10);
+        expect(normalizedAgg.values).toContain(20);
+        expect(normalizedAgg.id).toBeUndefined();
       }
     });
   });

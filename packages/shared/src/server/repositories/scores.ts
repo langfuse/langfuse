@@ -446,7 +446,7 @@ export const getAggregatedTraceScoresForDatasetRuns = async (
   const query = `
     SELECT
       run_id,
-      name,
+      normalized_name as name,
       source,
       data_type,
       count() as count,
@@ -463,7 +463,7 @@ export const getAggregatedTraceScoresForDatasetRuns = async (
         dri.dataset_run_id as run_id,
         s.id as id,
         s.timestamp as timestamp,
-        s.name as name,
+        replaceAll(replaceAll(s.name, '-', '_'), '.', '_') as normalized_name,
         s.value as value,
         s.source as source,
         s.comment as comment,
@@ -485,7 +485,7 @@ export const getAggregatedTraceScoresForDatasetRuns = async (
       ORDER BY s.event_ts DESC
       LIMIT 1 BY s.id, s.project_id, dri.dataset_run_id
     )
-    GROUP BY run_id, name, source, data_type
+    GROUP BY run_id, normalized_name, source, data_type
   `;
 
   type AggregatedScoreRow = {
