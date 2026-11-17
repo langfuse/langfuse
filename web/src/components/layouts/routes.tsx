@@ -23,7 +23,7 @@ import {
   Beaker,
   Waypoints,
   Box,
-  CircleDollarSign,
+  Gauge,
   KeyRound,
   ArrowUpRight,
 } from "@langfuse/icons";
@@ -135,7 +135,7 @@ export const ROUTES: Route[] = [
       {
         title: "Budgets",
         slug: GATEWAY_PAGE_SLUGS.budgets,
-        icon: CircleDollarSign,
+        icon: Gauge,
       },
       {
         title: "Gateway keys",

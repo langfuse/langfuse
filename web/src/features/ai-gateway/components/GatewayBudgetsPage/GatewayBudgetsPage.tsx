@@ -114,7 +114,7 @@ export function GatewayBudgetsPage({
           triggerClassName="px-2"
         />
       </PageHeaderControlsPortal>
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2">
         <Tabs value={tab} onValueChange={handleTabChange}>
           <Tabs.List variant="inset" size="md" aria-label="Spend by">
             <Tabs.Trigger
@@ -155,7 +155,7 @@ export function GatewayBudgetsPage({
                   {
                     id: "add-budget",
                     label: "Add budget",
-                    variant: "secondary" as const,
+                    variant: "default" as const,
                     icon: <Plus size="base" aria-hidden="true" />,
                     onClick: () => openDialog(tab),
                   },
