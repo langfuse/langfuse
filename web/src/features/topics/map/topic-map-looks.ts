@@ -39,7 +39,7 @@ type TopicMapLook = {
 
 export const TOPIC_MAP_LOOKS: Record<TopicMapLookName, TopicMapLook> = {
   scatter1: {
-    background: "#f7f8fb",
+    background: "#fcfcfa",
     field: {
       kind: "ring",
       everyNth: 3,
@@ -55,7 +55,7 @@ export const TOPIC_MAP_LOOKS: Record<TopicMapLookName, TopicMapLook> = {
       lineHeight: 14,
       tracking: "0.01em",
       color: "#27272a",
-      shadow: "0 0 3px #f7f8fb, 0 0 6px #f7f8fb",
+      shadow: "0 0 3px #fcfcfa, 0 0 6px #fcfcfa",
     },
   },
   scatter2: {
