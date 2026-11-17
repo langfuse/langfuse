@@ -12,6 +12,7 @@ import {
   type AccessAuditRecorder,
 } from "@/src/features/audit-logs/server/auditedQuery";
 import { recordMcpAccess } from "@/src/features/audit-logs/server/recordAccessEvent";
+import type { Tool } from "@modelcontextprotocol/server";
 import type { ApiAction } from "@/src/features/public-api/server/enforceAuth";
 import type { ServerContext } from "../types";
 
@@ -93,7 +94,7 @@ export interface ToolDefinition<TName extends string = string> {
   name: TName;
   description: string;
   action: ApiAction;
-  inputSchema: Record<string, unknown>;
+  inputSchema: Tool["inputSchema"];
   annotations?: {
     readOnlyHint?: boolean;
     destructiveHint?: boolean;
@@ -103,7 +104,9 @@ export interface ToolDefinition<TName extends string = string> {
 
 type JsonSchemaObject = Record<string, unknown>;
 
-function isObjectJsonSchema(schema: JsonSchemaObject): boolean {
+function isObjectJsonSchema(
+  schema: JsonSchemaObject,
+): schema is Tool["inputSchema"] {
   return schema.type === "object";
 }
 

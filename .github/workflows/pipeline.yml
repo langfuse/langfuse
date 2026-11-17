@@ -677,6 +677,10 @@ jobs:
       - name: Load default env (for prisma generate)
         run: |
           cp .env.dev.example .env
+      - name: Build icons for package tests
+        run: pnpm --filter @langfuse/icons run build
+      - name: Run icons package tests
+        run: pnpm --filter @langfuse/icons run test
       - name: generate prisma client
         run: pnpm --filter=shared run db:generate
       - name: run shared tests

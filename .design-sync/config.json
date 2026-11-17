@@ -164,7 +164,8 @@
         "design-components-dropdownmenu--test-search-behavior",
         "design-components-dropdownmenu--test-secondary-action-layout",
         "design-components-dropdownmenu--test-trigger-and-items",
-        "design-components-dropdownmenu--test-clears-the-search"
+        "design-components-dropdownmenu--test-clears-the-search",
+        "design-components-dropdownmenu--test-header-action-keyboard"
       ]
     },
     "HoverCard": {
@@ -205,7 +206,8 @@
     "SearchInput": {
       "skip": [
         "design-components-searchinput--test-submits-on-enter",
-        "design-components-searchinput--test-opens-dropdown"
+        "design-components-searchinput--test-opens-dropdown",
+        "design-components-searchinput--test-clears-the-value"
       ]
     },
     "SwitchInput": {
@@ -339,6 +341,22 @@
       "skip": [
         "design-components-asyncselectinput--external-results"
       ]
+    },
+    "TabBar": {
+      "skip": [
+        "design-components-tabbar--selected-tab-revealed",
+        "design-components-tabbar--compact"
+      ],
+      "cardMode": "column"
+    },
+    "VisualizationFrame": {
+      "cardMode": "column"
+    },
+    "DataCard": {
+      "cardMode": "column"
+    },
+    "LangfuseWordmark": {
+      "cardMode": "column"
     }
   },
   "extraFonts": [
