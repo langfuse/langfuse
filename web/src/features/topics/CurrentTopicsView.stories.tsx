@@ -181,7 +181,7 @@ export const EquivalentMatchesPreserveHoverAndFocus = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const stage = canvas.getByRole("group", { name: /^Interactive topic map/ });
+    const stage = canvas.getByRole("group", { name: /^Interactive scatter/ });
     await waitFor(() =>
       expect(stage.getBoundingClientRect().height).toBeGreaterThan(0),
     );
@@ -433,7 +433,7 @@ export const TraceSelectionAcrossFacets = meta.story({
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    const stage = canvas.getByRole("group", { name: /^Interactive topic map/ });
+    const stage = canvas.getByRole("group", { name: /^Interactive scatter/ });
     await waitFor(() =>
       expect(stage.getBoundingClientRect().height).toBeGreaterThan(0),
     );
@@ -448,7 +448,7 @@ export const TraceSelectionAcrossFacets = meta.story({
       size,
     );
     function clickMap(x = at.x, y = at.y) {
-      const map = canvas.getByRole("group", { name: /^Interactive topic map/ });
+      const map = canvas.getByRole("group", { name: /^Interactive scatter/ });
       const bounds = map.getBoundingClientRect();
       map.dispatchEvent(
         new MouseEvent("click", {

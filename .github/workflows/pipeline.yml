@@ -131,7 +131,8 @@ jobs:
   llm-connections-filter:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
-      changed: ${{ steps.filter.outputs.llm_connections }}
+      llm_connections: ${{ steps.range.outputs.run_all == 'true' || steps.filter.outputs.llm_connections }}
+      ai_gateway: ${{ steps.range.outputs.run_all == 'true' || steps.filter.outputs.ai_gateway }}
     timeout-minutes: 15
     permissions:
       contents: read
@@ -139,49 +140,26 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Recommended for paths-filter action
-          # may save additional git fetch roundtrip if
-          # merge-base is found within latest N commits
+          # Recent history can avoid a fetch while finding the diff base.
           fetch-depth: 20
           persist-credentials: false
+      - name: Check changed-file range
+        id: range
+        # The PR files API caps at 3,000 files; unknown ranges need both suites.
+        env:
+          RUN_ALL: >-
+            ${{ (github.event_name == 'pull_request' &&
+                (!github.event.pull_request.changed_files || github.event.pull_request.changed_files >= 3000)) ||
+                (github.event_name == 'push' &&
+                (!github.event.before || github.event.before == '0000000000000000000000000000000000000000')) }}
+        run: echo "run_all=$RUN_ALL" >> "$GITHUB_OUTPUT"
       - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
         id: filter
+        if: ${{ steps.range.outputs.run_all == 'false' }}
         with:
-          filters: |
-            llm_connections:
-              - 'packages/shared/package.json'
-              - 'packages/shared/src/server/llm/**'
-              - 'worker/src/__tests__/llmConnections.test.ts'
-
-  ai-gateway-filter:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    outputs:
-      changed: ${{ steps.filter.outputs.ai_gateway }}
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      pull-requests: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 20
-          persist-credentials: false
-      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
-        id: filter
-        with:
-          filters: |
-            ai_gateway:
-              - 'ai-gateway/**'
-              - 'packages/shared/prisma/migrations/**/*gateway*/**'
-              - 'web/src/__e2e__/ai-gateway/**'
-              - 'web/src/features/ai-gateway/**'
-              - 'web/src/features/public-api/server/createAuthedProjectAPIRoute.ts'
-              - 'web/src/pages/api/internal/ai-gateway/**'
-              - 'web/src/pages/api/public/ingestion.ts'
-              - 'web/src/pages/api/public/media/**'
-              - 'web/src/pages/api/public/otel/v1/traces/**'
-              - 'web/src/server/utils/hmac.ts'
-              - 'web/src/server/utils/jwt.ts'
+          base: ${{ github.event_name == 'push' && github.event.before || '' }}
+          ref: ${{ github.event_name == 'push' && github.sha || '' }}
+          filters: .github/ci-paths.yml
 
   tests-ai-gateway:
     timeout-minutes: 20
@@ -214,7 +192,7 @@ jobs:
       - name: Check Rust dependency bans, licenses, and sources
         run: cargo deny --locked check bans licenses sources
       - name: Run Rust tests
-        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" cargo test --locked
+        run: cargo test --locked
       # Persistent layer cache, so the toolchain and compiled-dependency layers
       # are reused until the Dockerfile, Cargo.toml or Cargo.lock change.
       - name: Setup Blacksmith Builder
@@ -289,15 +267,62 @@ jobs:
         run: node --test scripts/agents/sync-agent-shims.test.mjs
       - name: cursor PR label tests
         run: node --test scripts/github/label-cursor-prs.test.mjs
-      - name: merge-queue retry helper tests
-        run: bash scripts/ci/retry-on-merge-queue.test.sh
       - name: vitest CI reporter tests
         run: node --test scripts/vitest/ci-reporter.test.mjs
+      - name: merge gate tests
+        run: node --test scripts/ci/merge-gate.test.mjs
       - name: Load default env
         run: |
           cp .env.dev.example .env
       - name: lint web
         run: pnpm turbo run lint --filter=!ai-gateway --filter=!@langfuse/native --concurrency=3 -- --threads=4
+
+  typecheck:
+    name: typecheck and native checks
+    timeout-minutes: 12
+    runs-on: blacksmith-16vcpu-ubuntu-2404
+    needs:
+      - pre-job
+    # pre-job only runs on push events; everywhere else it resolves as skipped
+    # at run creation, so this job starts immediately (!cancelled() lets the
+    # condition evaluate despite the skipped dependency).
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          install: false
+          cache: false
+      - name: Use Node.js ${{ env.NODE_VERSION }} without cache
+        if: env.CI_CACHE_ALLOWED != 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # zizmor: ignore[cache-poisoning] typecheck job dependency cache only; no released artifacts are built or published from this cached state
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+      - name: Setup Turbo remote cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        continue-on-error: true
+        uses: rharkor/caching-for-turbo@2238fae6eb9a9936f92356f54cb3660200d105e7 # v2.5.1
+        with:
+          provider: github
+          cache-prefix: ${{ runner.os }}-${{ runner.arch }}-node${{ env.NODE_VERSION }}-turbo-ci-
+          use-relative-cache-path: true
+          server-port: "0"
+      - name: install dependencies
+        run: |
+          pnpm i
+      - name: Load default env
+        run: |
+          cp .env.dev.example .env
       # Rust packages lint separately (ai-gateway in its own job).
       - name: lint native addon (rustfmt, clippy)
         run: pnpm --filter @langfuse/native run lint
@@ -347,7 +372,7 @@ jobs:
       - name: run knip
         run: pnpm exec knip
 
-  prettier-check:
+  format-check:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
@@ -372,7 +397,7 @@ jobs:
           package-manager-cache: false
       - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
         if: env.CI_CACHE_ALLOWED == 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # zizmor: ignore[cache-poisoning] prettier check dependency cache only; no released artifacts are built or published from this cached state
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # zizmor: ignore[cache-poisoning] formatting check dependency cache only; no released artifacts are built or published from this cached state
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "pnpm"
@@ -388,25 +413,21 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          if [ "$EVENT_NAME" = "pull_request" ]; then
-            BASE_SHA="$PR_BASE_SHA"
-          else
-            BASE_SHA=$(git merge-base origin/main HEAD)
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            pnpm run format:check
+            exit 0
           fi
+          BASE_SHA="$PR_BASE_SHA"
 
           echo "Checking files changed from $BASE_SHA to HEAD"
 
-          if git diff --quiet --exit-code --diff-filter=d "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css'; then
-            echo "No JS/TS/CSS files changed - skipping prettier check"
+          if ! git diff --quiet "$BASE_SHA" HEAD -- '.oxfmtrc.*' '**/.oxfmtrc.*' 'oxfmt.config.*' '**/oxfmt.config.*' '.editorconfig' '**/.editorconfig'; then
+            pnpm run format:check
+          elif git diff --quiet --exit-code --diff-filter=d "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.mjs' '*.cjs' '*.ts' '*.tsx' '*.mts' '*.cts' '*.css'; then
+            echo "No JS/TS/CSS files changed - skipping formatting check"
           else
-            # --experimental-cli is intentionally omitted: its glob resolver treats bracket characters
-            # in Next.js dynamic-route paths (e.g. [projectId]) as glob character classes, causing
-            # "No files matching the given patterns were found" (exit 123) for any PR that touches a
-            # file inside a bracket-named directory. Standard prettier resolves explicit paths correctly.
-            # Parallelism and the ephemeral cache (the only extras --experimental-cli adds) provide no
-            # benefit when checking a handful of per-PR changed files.
-            git diff --name-only -z --diff-filter=d "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css' \
-              | xargs -0 --no-run-if-empty pnpm prettier --check --
+            git diff --name-only -z --diff-filter=d "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.mjs' '*.cjs' '*.ts' '*.tsx' '*.mts' '*.cts' '*.css' \
+              | xargs -0 --no-run-if-empty pnpm exec oxfmt --check --
           fi
 
   tests-eslint-plugin:
@@ -444,7 +465,7 @@ jobs:
         run: |
           pnpm install
       - name: run eslint-plugin tests
-        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" pnpm --filter @repo/eslint-plugin run test
+        run: pnpm --filter @repo/eslint-plugin run test
 
   tests-in-app-agent-sandbox-runtime:
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -490,9 +511,9 @@ jobs:
       - name: typecheck sandbox runtime
         run: pnpm --filter @repo/in-app-agent-sandbox-runtime run typecheck
       - name: run sandbox runtime unit tests
-        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" pnpm --filter @repo/in-app-agent-sandbox-runtime run test
+        run: pnpm --filter @repo/in-app-agent-sandbox-runtime run test
       - name: run sandbox runtime docker e2e tests
-        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" pnpm --filter @repo/in-app-agent-sandbox-runtime run test:e2e
+        run: pnpm --filter @repo/in-app-agent-sandbox-runtime run test:e2e
 
   tests-storybook:
     runs-on: blacksmith-8vcpu-ubuntu-2404
@@ -642,13 +663,17 @@ jobs:
       - name: Load default env (for prisma generate)
         run: |
           cp .env.dev.example .env
+      - name: Build icons for package tests
+        run: pnpm --filter @langfuse/icons run build
+      - name: Run icons package tests
+        run: pnpm --filter @langfuse/icons run test
       - name: generate prisma client
         run: pnpm --filter=shared run db:generate
       - name: run shared tests
         # The clickhouse binary isn't installed yet, so the SQL-equivalence
         # tests skip here (they run for real in the dedicated step below); every
         # other shared test hard-fails as usual.
-        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" pnpm --filter @langfuse/shared run test
+        run: pnpm --filter @langfuse/shared run test
       - name: Install ClickHouse binary for SQL-equivalence tests
         # `clickhouse format` (from clickhouse-common-static) normalizes SQL for
         # the equivalence snapshots. Its output is version-specific, so pin the
@@ -1047,7 +1072,7 @@ jobs:
 
   tests-worker:
     timeout-minutes: 20
-    runs-on: ${{ matrix.deploy-mode == '-redis-cluster' && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
+    runs-on: blacksmith-16vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -1056,7 +1081,7 @@ jobs:
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     env:
-      VITEST_MAX_WORKERS: ${{ matrix.deploy-mode == '-redis-cluster' && '8' || '4' }}
+      VITEST_MAX_WORKERS: "8"
       NODE_ENV: test
     strategy:
       fail-fast: false
@@ -1156,10 +1181,20 @@ jobs:
           pnpm --filter @langfuse/native run test
           pnpm --filter worker run test:native-codec
       - name: run tests
+        id: worker-suite
         run: pnpm --filter=worker run test:exclude-llm-connections
         env:
+          VITEST_CI_TIMINGS_PATH: ${{ runner.temp }}/vitest-worker.json
           LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: ${{ matrix.deploy-mode == '' && 'http://localhost:4566' || '' }}
           LANGFUSE_TEST_FLOCI_ENDPOINT: ${{ matrix.deploy-mode == '' && 'http://localhost:4566' || '' }}
+      - name: Upload worker file timings
+        if: ${{ always() && steps.worker-suite.outcome != '' && steps.worker-suite.outcome != 'skipped' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: vitest-worker-node${{ matrix.node-version }}-pg${{ matrix.postgres-version }}-mode${{ matrix.deploy-mode || '-default' }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/vitest-worker.json
+          if-no-files-found: error
+          retention-days: 7
 
   tests-fips:
     # Runs the web and worker suites the way a FIPS host would: on the UBI
@@ -1169,7 +1204,7 @@ jobs:
     # ERR_OSSL_EVP_UNSUPPORTED. Databases and migrations run on the runner as
     # in tests-web/tests-worker; install, build, the web and worker processes
     # and the tests run in the container (scripts/ci/fips-tests.sh).
-    # Not part of all-ci-passed yet.
+    # Compatibility signal; not part of the required merge gate.
     timeout-minutes: 45
     runs-on: ${{ matrix.runner }}
     needs:
@@ -1296,7 +1331,7 @@ jobs:
     needs:
       - pre-job
       - llm-connections-filter
-    if: ${{ !cancelled() && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.llm-connections-filter.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'))) }}
+    if: ${{ !cancelled() && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.llm-connections-filter.outputs.llm_connections == 'true' || github.event_name == 'workflow_dispatch'))) }}
     name: test-worker-llm-connections (node24, pg15)
     env:
       NODE_ENV: test
@@ -1418,16 +1453,16 @@ jobs:
           cache-prefix: ${{ runner.os }}-${{ runner.arch }}-node${{ env.NODE_VERSION }}-turbo-ci-
           use-relative-cache-path: true
           server-port: "0"
-      - name: Cache Next.js builds
+      # Restore-only: the nextjs-e2e job in warm-caches.yml is the only writer
+      # and saves this cache from main after every push.
+      - name: Restore Next.js build cache
         if: env.CI_CACHE_ALLOWED == 'true'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] e2e-only Next.js cache; not part of any artifact build or publishing flow
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] e2e-only Next.js cache saved from main; not part of any artifact build or publishing flow
         with:
-          path: |
-            ~/.npm
-            ${{ github.workspace }}/web/.next/cache
-          key: ${{ runner.os }}-nextjs-e2e-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('web/**/*.js', 'web/**/*.jsx', 'web/**/*.ts', 'web/**/*.tsx') }}
+          path: web/.next/cache
+          key: ${{ runner.os }}-nextjs-e2e-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-nextjs-e2e-${{ hashFiles('**/pnpm-lock.yaml') }}-
+            ${{ runner.os }}-nextjs-e2e-${{ hashFiles('pnpm-lock.yaml') }}-
             ${{ runner.os }}-nextjs-e2e-
       - name: install dependencies
         run: |
@@ -1499,7 +1534,7 @@ jobs:
           cat /tmp/playwright-install.log
           exit "$(cat /tmp/playwright-install.exit)"
       - name: Run e2e tests
-        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" pnpm --filter=web run test:e2e
+        run: pnpm --filter=web run test:e2e
       # Playwright writes a screenshot, an error context and a trace for every
       # failure, and the reporter prints the command to open them — but they
       # die with the runner, so a flake here is reported with no way to see
@@ -1566,6 +1601,17 @@ jobs:
           cache-prefix: ${{ runner.os }}-${{ runner.arch }}-node${{ env.NODE_VERSION }}-turbo-ci-
           use-relative-cache-path: true
           server-port: "0"
+      # Same web build as e2e-tests (identical turbo task hash), so it shares
+      # that job's restore-only Next.js cache.
+      - name: Restore Next.js build cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] e2e-only Next.js cache saved from main; not part of any artifact build or publishing flow
+        with:
+          path: web/.next/cache
+          key: ${{ runner.os }}-nextjs-e2e-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-e2e-${{ hashFiles('pnpm-lock.yaml') }}-
+            ${{ runner.os }}-nextjs-e2e-
       # The next two downloads/startups have no dependency on the build, so
       # they run in the background and the build overlaps them. Later steps
       # wait on their marker files.
@@ -1638,11 +1684,11 @@ jobs:
 
   test-ai-gateway-e2e:
     timeout-minutes: 25
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
-      - ai-gateway-filter
-    if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.ai-gateway-filter.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'))) }}
+      - llm-connections-filter
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.llm-connections-filter.outputs.ai_gateway == 'true' || github.event_name == 'workflow_dispatch'))) }}
     name: test-ai-gateway-e2e
     env:
       NODE_ENV: test
@@ -1750,9 +1796,12 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       [
+        pre-job,
+        llm-connections-filter,
         lint,
+        typecheck,
         knip,
-        prettier-check,
+        format-check,
         tests-ai-gateway,
         tests-eslint-plugin,
         tests-in-app-agent-sandbox-runtime,
@@ -1775,27 +1824,15 @@ jobs:
     outputs:
       success: ${{ steps.set-success-output.outputs.success }}
     steps:
-      - name: Set check result as an output
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Require every planned CI job to pass
         id: set-success-output
-        run: |
-          if [[ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
-            echo "success=false" >> $GITHUB_OUTPUT
-          else
-            echo "success=true" >> $GITHUB_OUTPUT
-          fi
-      - name: Successful deploy
-        if: ${{ !(contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
-        run: exit 0
-        working-directory: .
-      - name: Failing deploy
-        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
-        run: exit 1
-        working-directory: .
-      - name: Output job results
-        run: |
-          echo "Job results: ${STEPS_SET_SUCCESS_OUTPUT_OUTPUTS_SUCCESS}"
         env:
-          STEPS_SET_SUCCESS_OUTPUT_OUTPUTS_SUCCESS: ${{ steps.set-success-output.outputs.success }}
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          IS_FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+        run: node scripts/ci/merge-gate.mjs
 
   # The alert lives in its own job because only a job-level `cancelled()` tells
   # whether the run was cancelled. Inside a step of the always() gate it reads
@@ -1818,120 +1855,6 @@ jobs:
           message: "❌ CI failed on ${{ github.ref_name }}"
           webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}
           ignore-job: all-ci-passed
-
-  # A merge-queue run that only went green because a step was retried still hides
-  # a real flake, and the retry means nobody is forced to look at it. Collect the
-  # markers scripts/ci/retry-on-merge-queue.sh leaves in the job logs and report
-  # them, so the flake gets fixed instead of silently re-rolled on every merge.
-  #
-  # Runs after the all-ci-passed gate and is not itself a required check, so it
-  # never delays a merge.
-  notify-flaky-merge-queue:
-    needs: all-ci-passed
-    if: ${{ github.event_name == 'merge_group' && needs.all-ci-passed.outputs.success == 'true' }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      actions: read
-    steps:
-      - name: Collect flaky jobs
-        id: flaky
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-          RUN_ID: ${{ github.run_id }}
-        run: |
-          # grep returns 1 on "no match", which is the normal case here.
-          set +e
-          set +o pipefail
-
-          # Keep in sync with FLAKY_MARKER in scripts/ci/retry-on-merge-queue.sh.
-          # Split so this job's own log — the runner echoes `run:` bodies into
-          # it — can never match the marker and report this job as flaky.
-          MARKER="LANGFUSE_CI_FLAKY""_RETRY_SUCCEEDED"
-          FLAKY=""
-          # A failed lookup must not read as "nothing was retried" — that would
-          # silently drop the very report this job exists to produce. Track it
-          # and fail the job at the end, after reporting whatever was found.
-          INCOMPLETE=0
-
-          JOBS_JSON="$(gh api "repos/$REPOSITORY/actions/runs/$RUN_ID/jobs?per_page=100" --paginate)"
-          if [ "$?" -ne 0 ] || [ -z "$JOBS_JSON" ]; then
-            echo "::error title=Flaky-CI check failed::Could not list this run's jobs; a flaky retry may have gone unreported."
-            echo "flaky=false" >>"$GITHUB_OUTPUT"
-            exit 1
-          fi
-
-          # Only succeeded jobs can have been rescued by a retry; a job that
-          # failed anyway is already reported through the normal failure path.
-          JOBS_TSV="$(jq -r '.jobs[] | select(.conclusion == "success") | "\(.id)\t\(.name)"' <<<"$JOBS_JSON")"
-          if [ "$?" -ne 0 ]; then
-            echo "::error title=Flaky-CI check failed::Could not parse this run's job list; a flaky retry may have gone unreported."
-            echo "flaky=false" >>"$GITHUB_OUTPUT"
-            exit 1
-          fi
-
-          while IFS=$'\t' read -r JOB_ID JOB_NAME; do
-            [ -n "$JOB_ID" ] || continue
-            JOB_LOG="$(gh api "repos/$REPOSITORY/actions/jobs/$JOB_ID/logs" 2>/dev/null)"
-            if [ "$?" -ne 0 ]; then
-              echo "::error title=Flaky-CI check incomplete::Could not download the log for '$JOB_NAME'; if it was retried, that went unreported."
-              INCOMPLETE=1
-              continue
-            fi
-            if grep -qF "$MARKER" <<<"$JOB_LOG"; then
-              if [ -n "$FLAKY" ]; then
-                FLAKY="$(printf '%s\n• %s' "$FLAKY" "$JOB_NAME")"
-              else
-                FLAKY="• $JOB_NAME"
-              fi
-            fi
-          done <<<"$JOBS_TSV"
-
-          if [ -z "$FLAKY" ]; then
-            echo "No retried steps in this run."
-            echo "flaky=false" >>"$GITHUB_OUTPUT"
-            exit "$INCOMPLETE"
-          fi
-
-          echo "Flaky jobs in this run:"
-          printf '%s\n' "$FLAKY"
-          echo "flaky=true" >>"$GITHUB_OUTPUT"
-
-          DELIM="FLAKY_EOF_${RANDOM}${RANDOM}"
-          {
-            echo "jobs<<$DELIM"
-            printf '%s\n' "$FLAKY"
-            echo "$DELIM"
-          } >>"$GITHUB_OUTPUT"
-
-          {
-            echo "### ⚠️ Flaky CI in the merge queue"
-            echo
-            echo "These jobs failed once and passed on retry:"
-            echo
-            printf '%s\n' "$FLAKY"
-          } >>"$GITHUB_STEP_SUMMARY"
-
-          exit "$INCOMPLETE"
-      # always(): an incomplete collection fails the step above on purpose, but
-      # the flakes it did find still need to reach Slack.
-      - name: Notify Slack
-        if: ${{ always() && steps.flaky.outputs.flaky == 'true' }}
-        uses: slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c # v3.0.3
-        with:
-          webhook: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}
-          webhook-type: webhook-trigger
-          payload: |
-            title: "⚠️ Flaky CI in merge queue"
-            message: "⚠️ CI passed only after a retry on ${{ github.ref_name }}"
-            ref: "${{ github.ref_name }}"
-            actor: "${{ github.actor }}"
-            event: "${{ github.event_name }}"
-            commit: "${{ github.sha }}"
-            workflow_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-            failure_reason: ${{ toJSON(steps.flaky.outputs.jobs) }}
 
   build-docker-image-release:
     needs: all-ci-passed

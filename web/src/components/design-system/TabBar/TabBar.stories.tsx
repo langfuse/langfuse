@@ -1,4 +1,5 @@
-import { expect, fn, userEvent, within } from "storybook/test";
+import { type ComponentProps, useState } from "react";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { TabBar } from "./TabBar";
@@ -122,6 +123,56 @@ export const Wide = Default.extend({
     await expect(button).toHaveTextContent("Manage views");
     await userEvent.click(button);
     await expect(args.manageAction?.onClick).toHaveBeenCalledOnce();
+  },
+});
+
+function SavedViewsLoadingLater(props: ComponentProps<typeof TabBar>) {
+  const [loaded, setLoaded] = useState(false);
+  const unsaved = props.tabs.filter((tab) => tab.value === "unsaved");
+  const saved = props.tabs.filter((tab) => tab.value !== "unsaved");
+  return (
+    <>
+      <TabBar
+        {...props}
+        tabs={
+          loaded
+            ? [...saved, { value: "errors", label: "Errors only" }, ...unsaved]
+            : [saved[0]!, ...unsaved]
+        }
+      />
+      <button type="button" onClick={() => setLoaded(true)}>
+        Load saved views
+      </button>
+    </>
+  );
+}
+
+export const SelectedTabRevealed = Default.extend({
+  name: "(Test) Selected tab scrolled into view",
+  decorators: [
+    (Story) => (
+      <div className="w-[320px]">
+        <Tabs defaultValue="unsaved">
+          <Story />
+        </Tabs>
+      </div>
+    ),
+  ],
+  render: (args) => <SavedViewsLoadingLater {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Load saved views" }),
+    );
+    const tab = canvas.getByRole("tab", { name: "Unsaved view" });
+    const scroller = tab.closest('[role="tablist"]')!.parentElement!;
+    await expect(scroller.scrollWidth).toBeGreaterThan(scroller.clientWidth);
+    // scrollLeft snaps to whole pixels, so allow a subpixel overshoot.
+    await waitFor(() =>
+      expect(tab.getBoundingClientRect().right).toBeLessThanOrEqual(
+        scroller.getBoundingClientRect().right + 1,
+      ),
+    );
   },
 });
 

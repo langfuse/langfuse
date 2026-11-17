@@ -1284,6 +1284,51 @@ describe("extractToolsFromObservation", () => {
         "get_dad_joke_suggestion",
       ]);
     });
+
+    it("should extract tools and calls from an OpenAI Responses response object", () => {
+      const result = normalizeToolsForObservation(
+        { input: [{ role: "user", content: "Weather in Berlin?" }] },
+        {
+          object: "response",
+          output: [
+            {
+              arguments: { city: "Berlin", units: ["celsius"] },
+              call_id: "call_1",
+              name: "get_weather",
+              type: "function_call",
+              id: "fc_1",
+              caller: null,
+              namespace: null,
+              status: "completed",
+            },
+          ],
+          tools: [
+            {
+              name: "get_weather",
+              parameters: {
+                properties: { city: { title: "City", type: "string" } },
+                required: ["city"],
+                type: "object",
+              },
+              strict: false,
+              type: "function",
+              allowed_callers: null,
+              defer_loading: null,
+              description: "Get the current weather for a city.",
+              output_schema: null,
+            },
+          ],
+        },
+        undefined,
+      );
+
+      expect(Object.keys(result.toolDefinitions)).toEqual(["get_weather"]);
+      expect(result.toolCallNames).toEqual(["get_weather"]);
+      expect(JSON.parse(result.toolCalls[0])).toMatchObject({
+        id: "call_1",
+        arguments: JSON.stringify({ city: "Berlin", units: ["celsius"] }),
+      });
+    });
   });
 
   describe("Transformation functions", () => {

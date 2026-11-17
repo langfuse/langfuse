@@ -58,6 +58,7 @@ const DIAGRAM_LABELS = {
   BEDROCK: "Bedrock",
   VERCEL: "Vercel",
   AZURE: "Azure",
+  GOOGLE_AI_STUDIO: "Google AI",
   VERTEX: "Vertex AI",
 } satisfies Record<GatewayProvider, string>;
 

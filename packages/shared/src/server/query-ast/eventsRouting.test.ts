@@ -267,7 +267,7 @@ describe("logical events routing", () => {
           .selectFrom("events as e")
           .select((eb) => eb.fn<string>("COLUMNS", [eb.val("^inp")]).as("x")),
       ),
-    ).toThrow(QueryCompileError);
+    ).toThrow('COLUMNS(…) cannot expand the logical "events" relation');
     expect(() =>
       routeAlone(
         db
@@ -276,7 +276,7 @@ describe("logical events routing", () => {
             eb.fn.agg<string>("columns", [eb.val("^inp")]).as("x"),
           ),
       ),
-    ).toThrow(QueryCompileError);
+    ).toThrow('columns(…) cannot expand the logical "events" relation');
   });
 
   it("rejects FINAL around the logical relation", () => {

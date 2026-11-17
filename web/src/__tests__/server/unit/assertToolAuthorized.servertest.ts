@@ -1,6 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
-
 import { ForbiddenError } from "@langfuse/shared";
 import {
   OrganizationId,
@@ -31,6 +29,7 @@ import {
 import type { ServerContext } from "@/src/features/mcp/types";
 import { type Policy } from "@/src/features/rbac/types";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+import { ProtocolErrorCode } from "@modelcontextprotocol/server";
 
 const { assertToolAuthorized } = __test;
 
@@ -93,7 +92,7 @@ describe("assertToolAuthorized", () => {
       ),
     ).toThrow(
       expect.objectContaining({
-        code: ErrorCode.InvalidRequest,
+        code: ProtocolErrorCode.InvalidRequest,
         message: expect.stringContaining(
           'Access denied. The "prompts:CUD" permission is required to access this resource.',
         ),
@@ -118,7 +117,7 @@ describe("assertToolAuthorized", () => {
       }),
     ).toThrow(
       expect.objectContaining({
-        code: ErrorCode.InvalidRequest,
+        code: ProtocolErrorCode.InvalidRequest,
         message: expect.stringContaining(
           "Access denied. You do not have permission to access this resource.",
         ),
@@ -147,7 +146,7 @@ describe("assertToolAuthorized", () => {
       assertToolAuthorized(tool("prompts:CUD"), serverContext()),
     ).toThrow(
       expect.objectContaining({
-        code: ErrorCode.InvalidRequest,
+        code: ProtocolErrorCode.InvalidRequest,
         message: expect.stringContaining(
           "Authentication failed. Please check your API key.",
         ),

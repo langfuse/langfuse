@@ -18,6 +18,7 @@ import {
   enqueueTopicExecution,
   enqueueTopicSnapshotSetup,
   getTopicRuleRefits,
+  getTopicRuleRefreshStatuses,
   getTopicSummaryCounts,
   getTopicsModels,
   listTopicAnalysisExecutions,
@@ -47,10 +48,15 @@ export async function topicMapsOverview(projectId: string) {
     getTopicRuleRefits(projectId),
     listTopicAnalysisExecutions(projectId),
   ]);
+  const refreshes = await getTopicRuleRefreshStatuses(
+    projectId,
+    rules.map((rule) => rule.id),
+  );
   return {
-    rules: rules.map((rule) => ({
+    rules: rules.map((rule, index) => ({
       ...rule,
       lastRefitAt: refits.get(rule.id)?.toISOString() ?? null,
+      refresh: refreshes[index],
     })),
     analyses: executions.filter(isAnalysis).map((execution) => ({
       id: execution.id,

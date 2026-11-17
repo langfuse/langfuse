@@ -41,16 +41,14 @@ export function MobileTopicVisualization({
   }
   if (view === "treemap") {
     return treemapTopics.length > 0 ? (
-      <div className="flex min-h-0 flex-1 p-4">
-        <TopicTreemap
-          key={facet.facetId}
-          total={facet.counts.total}
-          topics={treemapTopics}
-          selectedTopicId={selectedTopicId}
-          onSelectTopic={onSelectTopic}
-          previewOnSelect
-        />
-      </div>
+      <TopicTreemap
+        key={facet.facetId}
+        total={facet.counts.total}
+        topics={treemapTopics}
+        selectedTopicId={selectedTopicId}
+        onSelectTopic={onSelectTopic}
+        previewOnSelect
+      />
     ) : (
       <p className="text-muted-foreground p-4 text-sm">
         No topics in this time range. Browse traces to read their summaries.

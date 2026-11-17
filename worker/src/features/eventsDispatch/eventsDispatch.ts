@@ -17,7 +17,6 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { EXPERIMENT_RULE_ID } from "../evaluation/traceTranscriptEval/scheduleTraceTranscriptEvals";
-import { isTraceDispatchEnabled } from "../traceBatching/traceBatchSampling";
 import { getTraceBatchShard } from "../traceBatching/traceBatchReadiness";
 import {
   evalRecording,
@@ -35,6 +34,7 @@ import {
   traceKey,
   type TraceEventObservation,
 } from "./traceEvents";
+import { traceDispatchConfig } from "./config";
 
 type DispatchTrace = z.infer<
   typeof EventsDispatchEventSchema
@@ -69,12 +69,6 @@ const UPLOAD_CONCURRENCY = 20;
 
 const inputStorage = createTraceBatchInputStorage();
 
-export function isEventsDispatchEnabled(): boolean {
-  return (
-    isTraceDispatchEnabled() && env.LANGFUSE_EVENTS_DISPATCH_ENABLED === "true"
-  );
-}
-
 /**
  * Routes each trace's recorded rules to consumers. Traces without any end here,
  * before ClickHouse, unless the store-all experiment keeps them for storage only.
@@ -94,7 +88,7 @@ async function selectTraces(traces: DispatchTrace[], batchActionId?: string) {
   }
   let unresolved = 0;
   const withoutConsumers = (trace: DispatchTrace) => {
-    if (env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES === "true")
+    if (env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_EXPERIMENTAL === "true")
       readable.set(traceKey(trace.projectId, trace.traceId), {
         trace,
         jobs: [],
@@ -411,7 +405,7 @@ async function restoreFailedTraces(
           ...members.map((member) => getRecordingBoundsKey(shard, member)),
         ],
         [
-          env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
+          traceDispatchConfig.pendingTtlMs,
           ...chunk.flatMap(({ trace, ruleIds }, index) => {
             const failedCount = trace.failedCount ?? 0;
             return [

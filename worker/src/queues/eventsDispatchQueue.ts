@@ -8,10 +8,8 @@ import {
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import { JOB_MAX_AGE_MS } from "../features/eventsDispatch/consumers";
-import {
-  isEventsDispatchEnabled,
-  processEventsDispatchJob,
-} from "../features/eventsDispatch/eventsDispatch";
+import { processEventsDispatchJob } from "../features/eventsDispatch/eventsDispatch";
+import { isEventsDispatchEnabled } from "../features/eventsDispatch/config";
 
 export const eventsDispatchQueueProcessor: Processor<
   TQueueJobTypes[QueueName.EventsDispatch]

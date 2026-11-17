@@ -20,9 +20,11 @@ import { DedupLoweringPlugin } from "./dedup";
 import { QueryCompileError } from "./errors";
 import { EventsTableRoutingPlugin } from "./eventsRouting";
 import { PARAM_NAME } from "./extensions";
+import { FunctionAllowlistPlugin, assertAllowedCalls } from "./functions";
 import { FinalTableNode, type ClickHouseSelectQueryNode } from "./nodes";
 import { selectRelations } from "./relations";
 import { SchemaReferencePlugin } from "./schemaReferences";
+import { NameShadowingPlugin } from "./shadowing";
 import {
   TenancyInjectionPlugin,
   assertRelationFree,
@@ -37,19 +39,21 @@ export type CompiledClickhouseQuery = {
 
 /**
  * Anything Kysely will give us a SelectQueryNode for, including plugin-wrapped
- * builders. Kept structural so UNION / `$if` chains stay assignable.
+ * builders. Kept structural so UNION / `$if` chains stay assignable. A delete,
+ * update or insert builder is not assignable: the passes scope selects only.
  */
 export type ClickhouseCompilable = {
   withPlugin(plugin: KyselyPlugin): ClickhouseCompilable;
-  toOperationNode(): RootOperationNode;
+  toOperationNode(): SelectQueryNode;
 };
 
 /**
  * The choke point. Every query that should produce ClickHouse SQL goes
  * through here: the `projectId` parameter is required, so a caller cannot
  * compile without a tenancy scope — omitting it is a compile-time type error.
- * The query reads exactly that one project. CTE names that could mean two
- * relations are rejected (`ctes.ts`). The logical `events` relation is
+ * The query reads exactly that one project. Only selects compile. CTE names
+ * that could mean two relations are rejected (`ctes.ts`), and so are names
+ * ClickHouse would read before a relation's (`shadowing.ts`). The logical `events` relation is
  * routed to `events_core` or `events_full`, tenancy is injected from that
  * project, per-table dedup is applied from the registry, and the dialect
  * compiler refuses to emit SQL unless the tree was identity-stamped by the
@@ -57,13 +61,19 @@ export type ClickhouseCompilable = {
  * `requireProjectId` guard remains as defense-in-depth for the one case the
  * type cannot express (an empty `projectId`) and for callers reaching this
  * through an `any` boundary.
+ *
+ * `paramPrefix` names the placeholders (`<prefix>1`, `<prefix>2`, …). Pass
+ * one when the SQL is spliced into a query that binds its own parameters;
+ * the rules of {@link compileClickhouseCondition} apply.
  */
 export function compileClickhouseQuery(
   query: ClickhouseCompilable,
   projectId: string,
+  paramPrefix?: string,
 ): CompiledClickhouseQuery {
+  if (paramPrefix !== undefined) assertParamPrefix(paramPrefix);
   const stamped = applyCompilerPasses(query, projectId);
-  const compiler = new ClickHouseQueryCompiler();
+  const compiler = new ClickHouseQueryCompiler(paramPrefix);
   const compiled = compiler.compileQuery(stamped, createQueryId());
   return {
     sql: compiled.sql,
@@ -80,6 +90,8 @@ export function compilerPasses(projectId: string): KyselyPlugin[] {
   return [
     new SchemaReferencePlugin(),
     new CteNamePlugin(),
+    new NameShadowingPlugin(),
+    new FunctionAllowlistPlugin(),
     new EventsTableRoutingPlugin(),
     new TenancyInjectionPlugin(requireProjectId(projectId)),
     new DedupLoweringPlugin(),
@@ -91,6 +103,12 @@ function applyCompilerPasses(
   query: ClickhouseCompilable,
   projectId: string,
 ): RootOperationNode {
+  // Behind an `any` boundary a delete/update/insert root still gets here.
+  if (!SelectQueryNode.is(query.toOperationNode())) {
+    throw new QueryCompileError(
+      "Only select queries compile: the compiler passes scope the relations a select reads, not the rows a delete, update or insert writes.",
+    );
+  }
   const node = compilerPasses(projectId)
     .reduce((plugged, pass) => plugged.withPlugin(pass), query)
     .toOperationNode();
@@ -262,6 +280,7 @@ export function renderClickhouseSelections<O>(
  */
 function renderNode(node: OperationNode): string {
   assertRelationFree(node);
+  assertAllowedCalls(node);
   return new ClickHouseQueryCompiler().compileExpression(node);
 }
 

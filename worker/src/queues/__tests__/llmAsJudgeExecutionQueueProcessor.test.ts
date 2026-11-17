@@ -70,9 +70,13 @@ vi.mock("@langfuse/shared/src/server", async () => {
     await import("../../../../packages/shared/src/server/evals/codeEvalExecution");
   const { CodeEvalDispatcherErrorCodes } =
     await import("../../../../packages/shared/src/server/evals/codeEvalDispatcherTypes");
+  const { LLMConnectionCooldownError, getLLMRetryAfterMs } =
+    await import("../../../../packages/shared/src/server/llm/errors");
 
   return {
     CodeEvalDispatcherErrorCodes,
+    LLMConnectionCooldownError,
+    getLLMRetryAfterMs,
     CodeEvalExecutionError,
     QueueName: {
       LLMAsJudgeExecution: "llm-as-a-judge-execution-queue",
@@ -130,6 +134,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { processEval } from "../../features/evaluation/observationEval/observationEvalProcessor";
 import {
   LLMAsJudgeExecutionQueue,
+  LLMConnectionCooldownError,
   classifyEvaluatorLlmError,
   logger,
   recordDistribution,
@@ -312,6 +317,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
           idField: "jobExecutionId",
           queueName,
         }),
+        { providerDelayMs: undefined },
       );
       expect(LLMAsJudgeExecutionQueue.getInstance).toHaveBeenCalledWith({
         shardName: queueName,
@@ -331,6 +337,50 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
         "langfuse.evaluation.execution.terminal",
         expect.anything(),
         expect.anything(),
+      );
+    });
+
+    it("waits at least the remaining cooldown after a cooldown hit", async () => {
+      const cooldownError = new LLMConnectionCooldownError(30_000);
+      (processEval as Mock).mockRejectedValue(cooldownError);
+      mockLlmError(cooldownError, true);
+      (retryLLMRateLimitError as Mock).mockResolvedValue({
+        outcome: "scheduled",
+      });
+
+      const job = createMockJob();
+      await llmAsJudgeExecutionQueueProcessor(job);
+
+      expect(retryLLMRateLimitError).toHaveBeenCalledWith(
+        job,
+        expect.anything(),
+        { providerDelayMs: 30_000 },
+      );
+    });
+
+    it("waits at least the cooldown its own provider 429 starts", async () => {
+      const rateLimitError = new Error("Rate limit exceeded");
+      (processEval as Mock).mockRejectedValue(rateLimitError);
+      vi.mocked(classifyEvaluatorLlmError).mockReturnValue({
+        kind: "provider",
+        message: rateLimitError.message,
+        statusCode: 429,
+        isRetryable: true,
+        error: rateLimitError,
+        blockReason: null,
+      });
+      (retryLLMRateLimitError as Mock).mockResolvedValue({
+        outcome: "scheduled",
+      });
+
+      const job = createMockJob();
+      await llmAsJudgeExecutionQueueProcessor(job);
+
+      // Without retry-after the cooldown lasts its 60 s default.
+      expect(retryLLMRateLimitError).toHaveBeenCalledWith(
+        job,
+        expect.anything(),
+        { providerDelayMs: 60_000 },
       );
     });
 
