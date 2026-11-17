@@ -26,6 +26,9 @@ const displayValue = (
  */
 export function getFacetSummary(filter: UIFilter): string | null {
   if (filter.type === "categorical") {
+    if (filter.conditionCount !== undefined) {
+      return `${filter.conditionCount} condition${filter.conditionCount === 1 ? "" : "s"}`;
+    }
     if (!filter.isActive) {
       // "All" only makes sense once there are several options to keep; while
       // options are loading, absent, or a lone value the header stays quiet.
@@ -77,16 +80,8 @@ export function getFacetSummary(filter: UIFilter): string | null {
       parts.push(displayValue(filter.value[0], filter.displayByValue));
     } else if (
       filter.value.length > 1 &&
-      filter.value.length === filter.options.length &&
-      filter.operator === "any of"
-    ) {
-      // An explicit keep-everything filter (the managed-env column persists
-      // an all-selected override): an ACTIVE "All" chip reads truer than
-      // "N selected".
-      parts.push("All");
-    } else if (
-      filter.value.length > 1 &&
       (filter.value.length < filter.options.length ||
+        filter.operator === "any of" ||
         filter.operator === "all of")
     ) {
       parts.push(`${filter.value.length} selected`);
@@ -140,6 +135,7 @@ export function getFacetSummary(filter: UIFilter): string | null {
  */
 export function getFacetSummaryValue(filter: UIFilter): string | null {
   if (filter.type !== "categorical") return null;
+  if (filter.conditionCount !== undefined) return null;
   if (filter.textFilters && filter.textFilters.length > 0) return null;
 
   if (!filter.isActive) {

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { expect, waitFor, within } from "storybook/test";
+import preview from "../../../.storybook/preview";
 import { AppNavigationProvider } from "./AppNavigationProvider";
 import { UserMenuItems, type UserNavigationItem } from "./UserMenuItems";
 import {
@@ -8,8 +9,11 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 
-it("keeps ordinary account actions in navigation and closes it before opening a dialog", () => {
-  function AccountNavigation() {
+const meta = preview.meta({ component: UserMenuItems });
+
+export const DialogHandoff = meta.story({
+  name: "(Test) Account dialog releases navigation first",
+  render: () => {
     const [navigationOpen, setNavigationOpen] = useState(true);
     const [themeSelected, setThemeSelected] = useState(false);
     const [navigationWasOpen, setNavigationWasOpen] = useState<boolean | null>(
@@ -25,11 +29,10 @@ it("keeps ordinary account actions in navigation and closes it before opening a 
         type: "action",
         name: "Feature preview",
         handoff: "dialog",
-        onClick: () => {
+        onClick: () =>
           setNavigationWasOpen(
             document.querySelector('[aria-label="Navigation"]') !== null,
-          );
-        },
+          ),
       },
     ];
     return (
@@ -61,21 +64,22 @@ it("keeps ordinary account actions in navigation and closes it before opening a 
         )}
       </AppNavigationProvider>
     );
-  }
+  },
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(canvas.getByRole("button", { name: "Account" }));
+    await userEvent.click(await body.findByRole("menuitem", { name: "Theme" }));
+    await expect(canvas.getByText("Theme selected")).toBeVisible();
+    await waitFor(() =>
+      expect(canvas.getByRole("region", { name: "Navigation" })).toBeVisible(),
+    );
 
-  render(<AccountNavigation />);
-  fireEvent.keyDown(screen.getByRole("button", { name: "Account" }), {
-    key: "Enter",
-  });
-  fireEvent.click(screen.getByRole("menuitem", { name: "Theme" }));
-  expect(screen.getByText("Theme selected")).toBeVisible();
-  expect(screen.getByRole("region", { name: "Navigation" })).toBeVisible();
-
-  fireEvent.keyDown(screen.getByRole("button", { name: "Account" }), {
-    key: "Enter",
-  });
-  fireEvent.click(screen.getByRole("menuitem", { name: "Feature preview" }));
-  expect(
-    screen.getByRole("dialog", { name: "Feature preview" }),
-  ).toHaveAttribute("data-navigation-was-open", "false");
+    await userEvent.click(canvas.getByRole("button", { name: "Account" }));
+    await userEvent.click(
+      await body.findByRole("menuitem", { name: "Feature preview" }),
+    );
+    await expect(
+      canvas.getByRole("dialog", { name: "Feature preview" }),
+    ).toHaveAttribute("data-navigation-was-open", "false");
+  },
 });

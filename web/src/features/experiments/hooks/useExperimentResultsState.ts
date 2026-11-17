@@ -8,6 +8,8 @@ import {
 } from "use-query-params";
 import { MAX_SELECTED_EXPERIMENTS } from "@/src/features/experiments/constants/comparison";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import { carryPersistedSidebarFilterQuery } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
+import { buildExperimentFilterContextId } from "../lib/experiment-filter-context";
 
 /**
  * How the selected experiments are laid out against each other: one row per item
@@ -33,13 +35,14 @@ const asDiffMode = (value: unknown): ExperimentDiffMode | undefined =>
 const dedupe = (ids: (string | null | undefined)[]): string[] =>
   Array.from(new Set(ids.filter((id): id is string => Boolean(id))));
 
-export function useExperimentResultsState() {
+export function useExperimentResultsState(projectId: string | undefined) {
   const [state, setState] = useQueryParams({
     baseline: withDefault(StringParam, undefined),
     c: withDefault(ArrayParam, []),
     layout: withDefault(StringParam, undefined),
     diff: withDefault(StringParam, undefined),
     itemVisibility: withDefault(StringParam, "baseline-only"),
+    filter: StringParam,
   });
 
   // The URL keeps the explicit baseline separate from comparison IDs, but
@@ -67,13 +70,36 @@ export function useExperimentResultsState() {
       0,
       MAX_SELECTED_EXPERIMENTS,
     );
-    setState(
-      {
-        baseline,
-        c: baseline ? ids.filter((id) => id !== baseline) : ids,
-      },
-      updateType,
-    );
+    const nextComparisonIds = baseline
+      ? ids.filter((id) => id !== baseline)
+      : ids;
+    setState((latest) => {
+      if (projectId) {
+        const latestBaselineId = latest.baseline ?? undefined;
+        const latestComparisonIds = dedupe([
+          latestBaselineId,
+          ...(latest.c ?? []),
+        ])
+          .slice(0, MAX_SELECTED_EXPERIMENTS)
+          .filter((id) => id !== latestBaselineId);
+        // The URL transport evaluates this after earlier batched filter writes.
+        carryPersistedSidebarFilterQuery({
+          tableName: "experiment-items",
+          fromContextId: buildExperimentFilterContextId({
+            projectId,
+            baselineId: latestBaselineId,
+            comparisonIds: latestComparisonIds,
+          }),
+          toContextId: buildExperimentFilterContextId({
+            projectId,
+            baselineId: baseline,
+            comparisonIds: nextComparisonIds,
+          }),
+          urlQuery: latest.filter,
+        });
+      }
+      return { baseline, c: nextComparisonIds };
+    }, updateType);
   };
 
   // Selecting a baseline moves it to the front of the selection and marks it,
