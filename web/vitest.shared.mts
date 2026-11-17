@@ -53,7 +53,6 @@ export default defineConfig({
       : ["default"],
     silent: "passed-only",
     globals: true,
-    retry: process.env.CI ? 3 : 0,
     // DB-roundtrip tests routinely exceed the default 300ms threshold.
     slowTestThreshold: process.env.CI ? 2_000 : 300,
     testTimeout: 30_000,
