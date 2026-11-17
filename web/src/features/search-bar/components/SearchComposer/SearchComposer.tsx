@@ -208,7 +208,7 @@ export function SearchComposer({
     )
       return false;
     store.getState().actions.setDraft(nextState.query);
-    if (commit("pick") === null) return false;
+    if (commit("facet") === null) return false;
     if (valuePickerFocusRef.current !== null)
       valuePickerFocusRef.current.from =
         nextState.expression === null ? null : nextState.span.from;

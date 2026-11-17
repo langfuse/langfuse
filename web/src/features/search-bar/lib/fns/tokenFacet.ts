@@ -135,7 +135,8 @@ function tokenManagedPolicy(
 ) {
   const ref = registry.resolveField(state.template.key);
   if (
-    !policy?.hiddenEnvironments.length ||
+    policy === undefined ||
+    policy.hiddenEnvironments.length === 0 ||
     ref?.type !== "field" ||
     (ref.field.filterColumn ?? ref.field.id) !== policy.managedEnvironmentColumn
   )

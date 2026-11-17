@@ -1,5 +1,5 @@
 import { useState, type ComponentProps } from "react";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, mocked, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../../../.storybook/preview";
 import { SearchComposer } from "./SearchComposer";
 import { WORD_JOINER } from "@/src/components/design-system/QueryTokens/QueryTokens.constants";
@@ -381,18 +381,68 @@ export const TestPickerKeyboardFocus = meta.story({
     },
   },
   args: {
-    initialDraft: `userId:(${Array.from({ length: 13 }, (_, index) => `value-${index}`).join(" OR ")}) `,
-    observed: { userId: [] },
+    initialDraft: "userId:(value-0 OR value-1 OR value-2) ",
+    observed: {},
+    onRequestColumns: fn(),
   },
-  play: async ({ canvasElement }) => {
+  render: function LoadingPicker(args) {
+    const [observed, setObserved] = useState(args.observed);
+    return (
+      <ComposerHost
+        {...args}
+        observed={observed}
+        onRequestColumns={async (columns) => {
+          await args.onRequestColumns?.(columns);
+          if (columns.includes("userId")) {
+            setObserved({
+              userId: Array.from({ length: 13 }, (_, index) => ({
+                value: `value-${index}`,
+              })),
+            });
+          }
+        }}
+      />
+    );
+  },
+  play: async ({ canvasElement, args }) => {
+    let resolveValues: (() => void) | undefined;
+    if (args.onRequestColumns === undefined)
+      throw new Error("Expected a column request callback");
+    mocked(args.onRequestColumns).mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveValues = resolve;
+        }),
+    );
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
     await userEvent.click(
-      canvas.getByRole("button", { name: /Edit.*13 values/ }),
+      canvas.getByRole("button", { name: /Edit.*3 values/ }),
     );
     const dialog = await body.findByRole("dialog", {
       name: "Edit filter values",
     });
+    const checkbox = within(dialog).getByRole("checkbox", { name: "value-0" });
+    await expect(checkbox).toHaveFocus();
+    if (resolveValues === undefined)
+      throw new Error("Expected the picker to request column values");
+    resolveValues();
+    const loadedCheckbox = await within(dialog).findByRole("checkbox", {
+      name: "value-3",
+    });
+    await expect(checkbox).toHaveFocus();
+    await expect(
+      within(dialog).getByRole("checkbox", { name: "value-0" }),
+    ).toBe(checkbox);
+    await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}");
+    await expect(loadedCheckbox).toHaveFocus();
+    await userEvent.keyboard(" ");
+    await expect(loadedCheckbox).toBeChecked();
+    await expect(loadedCheckbox).toHaveFocus();
+    await expect(
+      canvas.getByRole("button", { name: /Edit.*4 values/ }),
+    ).toBeVisible();
+    await userEvent.keyboard("{ArrowUp}{ArrowUp}{ArrowUp}{ArrowUp}");
     const search = within(dialog).getByRole("textbox", {
       name: "Filter values",
     });
@@ -422,7 +472,6 @@ export const TestPickerKeyboardFocus = meta.story({
       }
     });
     await userEvent.keyboard("{ArrowDown}");
-    const checkbox = within(dialog).getByRole("checkbox", { name: "value-0" });
     await expect(checkbox).toHaveFocus();
     await userEvent.keyboard("{ArrowDown}");
     await expect(

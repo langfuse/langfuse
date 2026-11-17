@@ -99,11 +99,18 @@ export function CategoricalFilterSelect({
       ]
     : filteredOptions;
 
-  // Selection changes must not move or unmount the focused row. Keep the
-  // current visible order while a row has focus, then resume normal pinning.
-  const visibleOptions =
-    focusedOptions ?? orderedOptions.slice(0, visibleCount);
-  const canShowMore = orderedOptions.length > visibleCount;
+  // Keep visible rows in place while a row has focus, including when selection
+  // changes their pinning. Incoming options still join the bounded list.
+  const focusedOptionSet = new Set(focusedOptions);
+  const currentOptions =
+    focusedOptions === null
+      ? orderedOptions
+      : [
+          ...focusedOptions,
+          ...orderedOptions.filter((option) => !focusedOptionSet.has(option)),
+        ];
+  const visibleOptions = currentOptions.slice(0, visibleCount);
+  const canShowMore = currentOptions.length > visibleCount;
   const canShowFewer = visibleCount > MAX_VISIBLE_OPTIONS;
 
   const renderOption = (option: string) => {

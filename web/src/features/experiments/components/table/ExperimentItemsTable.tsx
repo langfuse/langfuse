@@ -672,7 +672,8 @@ export default function ExperimentItemsTable({
     experimentItemsFilterConfig,
     scoreFilterOptions,
     {
-      stateLocation: "url",
+      stateLocation: "urlAndSessionStorage",
+      sessionFilterContextId: projectId,
       onExplicitFilterStateChange,
       loading: isFilterOptionsLoading,
       // v4-only surface — drives `isV4` on filters:* analytics.

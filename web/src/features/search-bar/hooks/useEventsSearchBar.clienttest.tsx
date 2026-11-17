@@ -74,6 +74,69 @@ function setupSplitEcho() {
 }
 
 describe("useEventsSearchBar.commit", () => {
+  it("keeps real recent searches across facet edits while retaining deliberate submissions", () => {
+    const projectId = "facet-edit-recents";
+    localStorage.removeItem(`lf-search-bar-recents:${projectId}`);
+    for (let index = 0; index < 8; index++) {
+      recentSearches.recordRecentSearch(projectId, `name:=prior-${index}`);
+    }
+    const saved = recentSearches.getRecentSearches(projectId);
+    const { result } = renderHook(() => {
+      const [filters, setFilters] = useState<FilterState>([]);
+      return {
+        ...useEventsSearchBar({
+          projectId,
+          tableName: "observations",
+          enabled: true,
+          filterState: filters,
+          searchQuery: null,
+          searchType: DEFAULT_SEARCH_TYPE,
+          observed: undefined,
+          setFilterState: setFilters,
+          setSearchQuery: () => {},
+          setSearchType: () => {},
+        }),
+        filters,
+      };
+    });
+    for (let index = 0; index < 9; index++) {
+      act(() =>
+        result.current.store
+          .getState()
+          .actions.setDraft(`name:(selected-${index} OR stable OR other)`),
+      );
+      act(() => result.current.commit("facet"));
+    }
+    expect(result.current.filters).toEqual([
+      {
+        type: "stringOptions",
+        column: "name",
+        operator: "any of",
+        value: ["selected-8", "stable", "other"],
+      },
+    ]);
+    expect(recentSearches.getRecentSearches(projectId)).toEqual(saved);
+    act(() => result.current.commit("blur"));
+    expect(recentSearches.getRecentSearches(projectId)).toEqual(saved);
+    expect(
+      capture.mock.calls.filter(
+        ([event, metadata]) =>
+          event === "filters:search_submitted" && metadata.trigger === "facet",
+      ),
+    ).toHaveLength(9);
+    expect(JSON.stringify(capture.mock.calls)).not.toContain("selected-");
+
+    act(() => result.current.commit("enter"));
+    expect(recentSearches.getRecentSearches(projectId)).toEqual([
+      "name:(selected-8 OR stable OR other)",
+      ...saved.slice(0, 7),
+    ]);
+    act(() => result.current.store.getState().actions.setDraft("name:changed"));
+    act(() => result.current.commit("blur"));
+    expect(recentSearches.getRecentSearches(projectId)[0]).toBe("name:changed");
+    localStorage.removeItem(`lf-search-bar-recents:${projectId}`);
+  });
+
   it("keeps a mixed commit intact while the filter echoes before the search URL", () => {
     const { result, rerender, setSearchQuery } = setupSplitEcho();
 
