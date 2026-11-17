@@ -60,7 +60,6 @@ const TRANSIENT_DISCOVERY_ERRORS = new Set<ModelDiscoveryError>([
   "provider_error",
   "timeout",
 ]);
-const GATEWAY_UNAVAILABLE_CODE = "gateway_unavailable";
 
 const openAiModelListSchema = z
   .object({
@@ -100,7 +99,14 @@ const anthropicModelListSchema = z
   })
   .strict();
 
-const gatewayErrorSchema = z.object({ error: z.object({ code: z.string() }) });
+// The Anthropic route reports the gateway's `gateway_unavailable` 503 as
+// Anthropic's `overloaded_error` type, without a code.
+const gatewayUnavailableSchema = z.object({
+  error: z.union([
+    z.object({ code: z.literal("gateway_unavailable") }),
+    z.object({ type: z.literal("overloaded_error") }),
+  ]),
+});
 
 type Admin = Awaited<ReturnType<typeof createGatewayAdmin>>;
 type CreateConnectionInput = Parameters<
@@ -812,10 +818,7 @@ async function isGatewayUnavailable(response: Response) {
     .clone()
     .json()
     .catch(() => null);
-  return (
-    gatewayErrorSchema.safeParse(body).data?.error.code ===
-    GATEWAY_UNAVAILABLE_CODE
-  );
+  return gatewayUnavailableSchema.safeParse(body).success;
 }
 
 async function readJsonResponse<T = unknown>(
