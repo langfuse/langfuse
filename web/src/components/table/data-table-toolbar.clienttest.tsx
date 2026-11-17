@@ -267,7 +267,7 @@ describe("DataTableToolbar select-all banner gate", () => {
     );
 
     const slot = document.querySelector("[data-select-all-banner-slot]");
-    let unregister = () => undefined;
+    let unregister: () => void = () => undefined;
     act(() => {
       unregister = registerSelectAllBannerSlot(slot as HTMLElement);
     });
