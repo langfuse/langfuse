@@ -1,30 +1,30 @@
 import { SquareArrowOutUpRight } from "@langfuse/icons";
 import { type SystemRole } from "@langfuse/shared/src/db";
-import { systemRoleAccessRights } from "@langfuse/shared/rbac";
 
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { SelectItem } from "@/src/components/ui/select";
-import { roleIcons } from "@/src/features/rbac/components/roleIcons";
+import {
+  roleDisplay,
+  type RoleDisplay,
+} from "@/src/features/rbac/components/roleDisplay";
 
 /** RoleSelectItem adds a permission preview to a role option. */
 export const RoleSelectItem = ({
   role,
-  transformName = (name) => name,
+  display = roleDisplay,
   isProjectRole,
   disabledReason,
   onViewPermissions,
 }: {
   role: SystemRole;
-  /** transformName rewrites the role name before it is shown. */
-  transformName?: (name: string) => string;
+  /** display overrides how the role is presented. */
+  display?: (role: SystemRole) => RoleDisplay;
   isProjectRole?: boolean;
   /** disabledReason makes the option unselectable and explains why. */
   disabledReason?: string;
   onViewPermissions: (role: SystemRole) => void;
 }) => {
-  const def = systemRoleAccessRights[role];
-  const label = transformName(def.name);
-  const Icon = roleIcons[role];
+  const { name: label, description, Icon } = display(role);
   const keepDefaultNote = role === "NONE" && isProjectRole;
 
   return (
@@ -34,15 +34,13 @@ export const RoleSelectItem = ({
       className="group pl-2 [&>span:not([data-checkmark])]:flex-1 [&>span[data-checkmark]]:hidden"
     >
       <div className="flex w-full items-start gap-2 text-left">
-        <Icon size="base" __rawClassName="mt-0.5" />
+        <Icon size="base" __rawClassName="mt-1" />
         <div className="flex flex-col">
           <span className="font-bold">
             {label}
             {keepDefaultNote ? " (keep default role)" : ""}
           </span>
-          <span className="text-muted-foreground text-xs">
-            {def.description}
-          </span>
+          <span className="text-muted-foreground text-xs">{description}</span>
           {disabledReason !== undefined && (
             <span className="text-muted-foreground text-xs italic">
               {disabledReason}

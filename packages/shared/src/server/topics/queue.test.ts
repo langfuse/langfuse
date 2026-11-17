@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { topicExecutionInputSchema, type TopicExecution } from "../../topics";
+import {
+  topicEmbeddingConfigSchema,
+  topicExecutionInputSchema,
+  type TopicExecutionSummary,
+} from "../../topics";
 import {
   TopicsUpdateQueue,
   enqueueTopicExecution,
@@ -21,23 +25,28 @@ vi.mock("./config", () => ({ isTopicsEnabled: () => true }));
 const execution = (
   operation: "process" | "update" = "update",
   count = 1,
-): TopicExecution => ({
+): TopicExecutionSummary => ({
   id: "run",
   projectId: "project-a",
-  input: topicExecutionInputSchema.parse({
-    projectId: "project-a",
-    requestId: "request",
-    facets: [{ facetId: "facet", version: 1 }],
-    operation,
-    ...(operation === "process"
-      ? { traceIds: Array.from({ length: count }, (_, i) => `trace-${i}`) }
-      : {
+  input:
+    operation === "process"
+      ? {
+          operation,
+          projectId: "project-a",
+          requestId: "request",
+          facets: [{ facetId: "facet", version: 1 }],
+          embeddingConfig: topicEmbeddingConfigSchema.parse({}),
+        }
+      : topicExecutionInputSchema.parse({
+          projectId: "project-a",
+          requestId: "request",
+          facets: [{ facetId: "facet", version: 1 }],
+          operation,
           timeRange: {
             from: new Date("2026-09-01T00:00:00.000Z"),
             to: new Date("2026-10-01T00:00:00.000Z"),
           },
         }),
-  }),
   status: "queued",
   phase: "queued",
   createdAt: "2026-09-16T00:00:00.000Z",
