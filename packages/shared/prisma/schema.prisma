@@ -449,16 +449,21 @@ model GatewaySpendLimit {
   @@map("gateway_spend_limits")
 }
 
-/// One "limit reached" notification per limit, generation and window, so the gateway may report a limit any number of times.
-model GatewaySpendLimitAlert {
-  id           String            @id @default(cuid())
-  spendLimitId String            @map("spend_limit_id")
-  spendLimit   GatewaySpendLimit @relation(fields: [spendLimitId], references: [id], onDelete: Cascade)
-  generation   Int
-  windowStart  DateTime          @map("window_start")
-  createdAt    DateTime          @default(now()) @map("created_at")
+enum GatewaySpendLimitAlertType {
+  EXCEEDED
+}
 
-  @@unique([spendLimitId, generation, windowStart], map: "gateway_spend_limit_alerts_limit_generation_window_key")
+/// One notification per limit, alert type, generation and window, so the gateway may report a limit any number of times.
+model GatewaySpendLimitAlert {
+  id           String                     @id @default(cuid())
+  spendLimitId String                     @map("spend_limit_id")
+  spendLimit   GatewaySpendLimit          @relation(fields: [spendLimitId], references: [id], onDelete: Cascade)
+  type         GatewaySpendLimitAlertType
+  generation   Int
+  windowStart  DateTime                   @map("window_start")
+  createdAt    DateTime                   @default(now()) @map("created_at")
+
+  @@unique([spendLimitId, type, generation, windowStart], map: "gateway_spend_limit_alerts_limit_type_generation_window_key")
   @@map("gateway_spend_limit_alerts")
 }
 

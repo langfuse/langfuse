@@ -42,3 +42,25 @@ CREATE TABLE IF NOT EXISTS "gateway_spend_limits" (
 CREATE UNIQUE INDEX IF NOT EXISTS "gateway_spend_limits_api_key_id_interval_key" ON "gateway_spend_limits"("api_key_id", "interval");
 
 CREATE INDEX IF NOT EXISTS "gateway_spend_limits_organization_id_idx" ON "gateway_spend_limits"("organization_id");
+
+DO $$ BEGIN
+  CREATE TYPE "GatewaySpendLimitAlertType" AS ENUM ('EXCEEDED');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS "gateway_spend_limit_alerts" (
+    "id" TEXT NOT NULL,
+    "spend_limit_id" TEXT NOT NULL,
+    "type" "GatewaySpendLimitAlertType" NOT NULL,
+    "generation" INTEGER NOT NULL,
+    "window_start" TIMESTAMP(3) NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "gateway_spend_limit_alerts_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "gateway_spend_limit_alerts_spend_limit_id_fkey"
+        FOREIGN KEY ("spend_limit_id") REFERENCES "gateway_spend_limits"("id")
+        ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "gateway_spend_limit_alerts_limit_type_generation_window_key" ON "gateway_spend_limit_alerts"("spend_limit_id", "type", "generation", "window_start");

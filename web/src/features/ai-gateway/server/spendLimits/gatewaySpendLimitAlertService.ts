@@ -1,9 +1,10 @@
 import { createHash, randomUUID } from "crypto";
 
 import { Role } from "@langfuse/shared";
-import type {
-  GatewaySpendLimitInterval,
-  PrismaClient,
+import {
+  GatewaySpendLimitAlertType,
+  type GatewaySpendLimitInterval,
+  type PrismaClient,
 } from "@langfuse/shared/src/db";
 import {
   NotificationQueue,
@@ -70,6 +71,7 @@ export class GatewaySpendLimitAlertService {
     );
     const alert = {
       spendLimitId: limit.id,
+      type: GatewaySpendLimitAlertType.EXCEEDED,
       generation: limit.generation,
       windowStart,
     };
@@ -124,7 +126,7 @@ export class GatewaySpendLimitAlertService {
           name: QueueJobs.NotificationJob as const,
         },
         opts: {
-          jobId: `ai-gateway-spend-limit-${limit.id}-${limit.generation}-${windowStart.getTime()}-${createHash("sha256").update(to).digest("hex")}`,
+          jobId: `ai-gateway-spend-limit-${limit.id}-${alert.type}-${limit.generation}-${windowStart.getTime()}-${createHash("sha256").update(to).digest("hex")}`,
         },
       };
     });
