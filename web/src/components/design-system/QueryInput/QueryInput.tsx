@@ -381,7 +381,10 @@ function QueryInputSurface({
       <Slot
         className={cn(
           "relative",
-          size === "large" ? "min-h-9 px-2 py-1.25" : "min-h-8 px-2 py-0.75",
+          // Side padding matches the gap above and below a chip, so the first chip sits evenly.
+          size === "large"
+            ? "min-h-9 px-1.75 py-1.25"
+            : "min-h-8 px-1.25 py-0.75",
           { "pr-20": trailing === "button", "pr-8": trailing === "icon" },
           tone === "muted" && "bg-muted/30",
         )}
@@ -903,31 +906,33 @@ function QueryInputEditor({
   const removeTargetId = hoveredTokenId ?? focusedTokenId ?? focusTokenId;
   const removeTarget =
     segments.find((s) => s.editable && s.id === removeTargetId) ?? null;
-  // The hovered/caret token's diagnostic, shown as a styled per-token tooltip
-  // once diagnostics are revealed — replaces the native title.
-  // Shown even while the suggestions popover is open (you still need to see why
-  // the block is red); the tooltip flips ABOVE the block then, so it doesn't
-  // collide with the popover that drops BELOW the bar (see the render below).
+  const caretTokenId = caretSegment?.id ?? null;
+  const hoveredSegment =
+    segments.find((segment) => segment.id === hoveredTokenId) ?? null;
+  const focusedSegment =
+    segments.find((segment) => segment.id === focusedTokenId) ?? null;
+  const hoveredOtherSegment =
+    hoveredSegment !== null && hoveredSegment.id !== caretTokenId
+      ? hoveredSegment
+      : null;
+  // Suggestions suppress the caret tooltip, while errors on other hovered
+  // tokens remain visible above the suggestions.
+  const errorSegment =
+    plan !== null
+      ? hoveredOtherSegment
+      : (hoveredSegment ?? focusedSegment ?? caretSegment);
   const errorTarget =
-    !tooltipDismissed && showTokenDiagnostics && removeTarget?.error !== null
-      ? removeTarget
+    !tooltipDismissed &&
+    showTokenDiagnostics &&
+    errorSegment !== null &&
+    errorSegment.editable &&
+    errorSegment.error !== null
+      ? errorSegment
       : null;
 
-  // Plain-language explanation of a token, in the same slot — an
-  // error wins it. Hover always explains; the caret path only while the popover
-  // is closed, so it never stacks a tooltip over the suggestions you are typing
-  // against.
   const explainTarget = (() => {
-    if (tooltipDismissed) return null;
-    if (errorTarget !== null) return null;
-    if (hoveredTokenId !== null) {
-      return segments.find((segment) => segment.id === hoveredTokenId) ?? null;
-    }
-    if (focusedTokenId !== null) {
-      return segments.find((segment) => segment.id === focusedTokenId) ?? null;
-    }
-    if (plan === null) return caretSegment;
-    return null;
+    if (tooltipDismissed || errorTarget !== null || plan !== null) return null;
+    return hoveredOtherSegment ?? focusedSegment ?? caretSegment;
   })();
   const explainTargetId = explainTarget?.id ?? null;
   const collectionPreview =
@@ -1688,7 +1693,7 @@ function QueryInputEditor({
                 // to clip against — otherwise the placeholder grows to its full
                 // text width and runs under the top-right "Ask AI" button. The
                 // reserved gap matches the surface's pr-20/pr-8.
-                "text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 truncate font-mono text-xs",
+                "text-muted-foreground pointer-events-none absolute top-1/2 left-2.75 -translate-y-1/2 truncate font-mono text-xs",
                 // Mirror the surface's right reservation exactly: the "Ask AI"
                 // button (right-20) is hidden while diagnostics show, when the
                 // error icon takes over the top-right corner (right-8).

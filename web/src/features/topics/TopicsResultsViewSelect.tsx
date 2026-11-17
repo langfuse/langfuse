@@ -4,8 +4,8 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 
 const TOPICS_RESULTS_VIEWS = [
   { value: "treemap", label: "Treemap" },
-  { value: "list", label: "List" },
-  { value: "map", label: "Scatter" },
+  { value: "map", label: "Scatter (old)" },
+  { value: "scatter", label: "Scatter (new)" },
 ] as const;
 
 export type TopicsResultsView = (typeof TOPICS_RESULTS_VIEWS)[number]["value"];
