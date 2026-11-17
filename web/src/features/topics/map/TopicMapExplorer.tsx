@@ -652,7 +652,7 @@ function MapLabels({
             }
             onTransitionEnd={handleHoverTransitionEnd}
             className={cn(
-              "bg-background/85 text-foreground pointer-events-none absolute overflow-hidden rounded-lg border px-3 py-2.5 text-left text-xs leading-relaxed shadow-md backdrop-blur-sm",
+              "bg-background text-foreground pointer-events-none absolute flex flex-col overflow-hidden rounded-lg border text-left shadow-md",
               styles.hoverCard,
               active ? styles.enter : styles.exit,
             )}
@@ -663,45 +663,52 @@ function MapLabels({
               maxHeight: rect.height,
               // Percentages use the rendered height; clamp keeps the card inside its reserved bounds.
               translate: `0 clamp(${rect.y - rect.anchorY}px, ${-100 * rect.anchorFraction}%, calc(${rect.y + rect.height - rect.anchorY}px - 100%))`,
-              borderLeftColor: trace?.point.color ?? zone!.color,
-              borderLeftWidth: 2,
             }}
           >
-            {trace ? (
-              <>
-                {trace.topicName && (
-                  <span
-                    className="mb-1 line-clamp-2"
-                    style={{ color: trace.point.color }}
-                  >
-                    {trace.topicName}
-                  </span>
-                )}
-                <span className="line-clamp-6">{trace.excerpt}</span>
-                {previewOnSelect && (
-                  <span className="text-muted-foreground mt-2 block text-[10px]">
-                    Tap again to view trace
-                  </span>
-                )}
-              </>
-            ) : (
-              <>
-                <span
-                  className="block text-xs font-bold"
-                  style={{ color: zone!.color }}
-                >
-                  {zone!.name}
-                </span>
-                <span className="text-muted-foreground mb-1 block text-[10px]">
-                  {zone!.countLabel} · {zone!.shareLabel}
-                </span>
-                <span className="line-clamp-3 text-[11px]">{zone!.detail}</span>
-              </>
+            {(trace ? trace.topicName : zone!.name) && (
+              <HoverCardHeader
+                color={trace?.point.color ?? zone!.color}
+                title={(trace ? trace.topicName : zone!.name)!}
+              />
             )}
+            <div className="min-h-0 px-3 py-2.5 text-sm leading-relaxed">
+              {trace ? (
+                <>
+                  <span className="line-clamp-6">{trace.excerpt}</span>
+                  {previewOnSelect && (
+                    <span className="text-muted-foreground mt-2 block text-xs">
+                      Tap again to view trace
+                    </span>
+                  )}
+                </>
+              ) : (
+                <>
+                  <span className="text-muted-foreground mb-1 block font-mono text-xs">
+                    {zone!.countLabel} · {zone!.shareLabel}
+                  </span>
+                  <span className="line-clamp-3">{zone!.detail}</span>
+                </>
+              )}
+            </div>
           </div>
         );
       })}
     </div>
+  );
+}
+
+function HoverCardHeader({ color, title }: { color: string; title: string }) {
+  return (
+    <span className="bg-muted/50 flex shrink-0 items-center gap-2 border-b px-3 py-2 text-xs">
+      <span
+        aria-hidden
+        className="size-2.5 shrink-0 rounded-xs"
+        style={{ backgroundColor: color }}
+      />
+      <span className="text-muted-foreground truncate" title={title}>
+        {title}
+      </span>
+    </span>
   );
 }
 
@@ -742,14 +749,6 @@ function MapBackgroundLabels({ store }: { store: TopicMapStore }) {
             >
               {label.title}
             </span>
-            {label.description.length > 0 && (
-              <span
-                className="mt-1 line-clamp-2 block text-[11px] leading-relaxed"
-                style={{ opacity: label.detailOpacity }}
-              >
-                {label.description}
-              </span>
-            )}
           </div>
         ))}
     </div>

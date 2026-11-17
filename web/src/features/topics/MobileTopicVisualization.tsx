@@ -5,6 +5,7 @@ import { TopicEmbeddingMap } from "./TopicEmbeddingMap";
 import { TopicGrid } from "./TopicGrid";
 import { TopicTreemap } from "./TopicTreemap";
 import { prepareTopicGrid } from "./prepare-topic-grid";
+import { useScatterMapTopics } from "./TopicListView";
 
 type MobileTopicVisualizationProps = {
   view: "treemap" | "map" | "grid";
@@ -35,6 +36,7 @@ export function MobileTopicVisualization({
   onSelectTopic,
   onSelectTrace,
 }: MobileTopicVisualizationProps) {
+  const mapTopics = useScatterMapTopics(facet);
   function selectMapTopic(topicId: string | null) {
     // Fitting the camera leaves the trace filters and active panel intact.
     if (topicId !== null) onSelectTopic(topicId);
@@ -68,7 +70,7 @@ export function MobileTopicVisualization({
         <TopicEmbeddingMap
           key={facet.map.runId}
           query={mapResult}
-          topics={facet.map.topics}
+          topics={mapTopics}
           selectedTopic={null}
           selectedTraceId={selectedTraceId}
           matchingTraceIds={matchingTraceIds}

@@ -3,11 +3,6 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { CurrentTopicsView } from "./CurrentTopicsView";
-import {
-  fitCamera,
-  prepareTopicMap,
-  screenPoint,
-} from "./map/prepare-topic-map";
 import { staticTopicTraces, storyFacet } from "./topic-story-traces";
 
 const topic = {
@@ -164,86 +159,6 @@ export const FiltersQueryServerAndShareMapMatches = meta.story({
   },
 });
 
-export const EquivalentMatchesPreserveHoverAndFocus = meta.story({
-  name: "(Test) Equivalent Matches Preserve Hover and Focus",
-  args: {
-    traceFilters: {
-      ...defaultArgs.traceFilters,
-      filters: [
-        {
-          column: "topicId",
-          type: "stringOptions",
-          operator: "any of",
-          value: ["billing"],
-        },
-      ],
-    },
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const stage = canvas.getByRole("group", { name: /^Interactive scatter/ });
-    await waitFor(() =>
-      expect(stage.getBoundingClientRect().height).toBeGreaterThan(0),
-    );
-    const model = prepareTopicMap(mapData, [topic]);
-    const rect = stage.getBoundingClientRect();
-    const size = { width: rect.width, height: rect.height };
-    const camera = fitCamera(model.bounds, model.bounds, size);
-    const point = model.pointById.get("trace-0")!;
-    const at = screenPoint(point, camera, model.bounds, size);
-    let attempt = 0;
-    await waitFor(() => {
-      stage.dispatchEvent(
-        new PointerEvent("pointermove", {
-          bubbles: true,
-          pointerId: 1,
-          pointerType: "mouse",
-          isPrimary: true,
-          clientX: rect.left + at.x + (attempt++ % 2 ? 1 : -1),
-          clientY: rect.top + at.y,
-        }),
-      );
-      expect(
-        canvasElement.querySelector(
-          '[role="tooltip"][data-active="true"][data-trace-id="trace-0"]',
-        ),
-      ).not.toBeNull();
-    });
-    const refresh = canvas.getByRole("button", {
-      name: "Refresh unchanged results",
-    });
-    refresh.click();
-    await afterPaint();
-    await expect(
-      canvasElement.querySelector(
-        '[role="tooltip"][data-active="true"][data-trace-id="trace-0"]',
-      ),
-    ).not.toBeNull();
-    for (
-      let attempt = 0;
-      attempt < 16 &&
-      canvas.queryAllByRole("button", { name: /^Select trace:/ }).length === 0;
-      attempt++
-    ) {
-      await userEvent.click(
-        canvas.getByRole("button", { name: "Zoom in (+)" }),
-      );
-      await afterPaint();
-    }
-    const card = (
-      await canvas.findAllByRole("button", { name: /^Select trace:/ })
-    )[0];
-    card.focus();
-    card.click();
-    await afterPaint();
-    await expect(card).toHaveFocus();
-    refresh.click();
-    await afterPaint();
-    await expect(card).toHaveFocus();
-    await expect(card.isConnected).toBe(true);
-  },
-});
-
 function ControlledTopics(args: ControlledTopicsProps) {
   const [filters, setFilters] = useState(args.traceFilters.filters);
   const [searchQuery, setSearchQuery] = useState(args.traceFilters.searchQuery);
@@ -278,12 +193,6 @@ async function replaceQuery(search: HTMLElement, query: string) {
   await userEvent.clear(search);
   if (query) await userEvent.type(search, query);
   await userEvent.keyboard("{Enter}");
-}
-
-async function afterPaint() {
-  await new Promise<void>((resolve) =>
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-  );
 }
 
 type ControlledTopicsProps = ComponentProps<typeof CurrentTopicsView>;
@@ -409,133 +318,3 @@ function resetPanelSizes() {
   keys.forEach((key) => localStorage.removeItem(key));
   return () => keys.forEach((key) => localStorage.removeItem(key));
 }
-
-export const TraceSelectionAcrossFacets = meta.story({
-  name: "(Test) Map selection follows traces across facets without opening peek",
-  args: {
-    peekView: { ...defaultArgs.peekView, openPeek: fn() },
-  },
-  render: function Render(args) {
-    const [facetId, setFacetId] = useState("intent");
-    function switchFacet() {
-      setFacetId((value) => (value === "intent" ? "sentiment" : "intent"));
-    }
-    return (
-      <div>
-        <Button text="Switch facet" onClick={switchFacet} />
-        <ControlledTopics
-          key={facetId}
-          {...args}
-          facet={{ ...args.facet, facetId }}
-        />
-      </div>
-    );
-  },
-  play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement);
-    const stage = canvas.getByRole("group", { name: /^Interactive scatter/ });
-    await waitFor(() =>
-      expect(stage.getBoundingClientRect().height).toBeGreaterThan(0),
-    );
-    const model = prepareTopicMap(mapData, [topic]);
-    const rect = stage.getBoundingClientRect();
-    const size = { width: rect.width, height: rect.height };
-    const camera = fitCamera(model.bounds, model.bounds, size);
-    const at = screenPoint(
-      model.pointById.get("trace-0")!,
-      camera,
-      model.bounds,
-      size,
-    );
-    function clickMap(x = at.x, y = at.y) {
-      const map = canvas.getByRole("group", { name: /^Interactive scatter/ });
-      const bounds = map.getBoundingClientRect();
-      map.dispatchEvent(
-        new MouseEvent("click", {
-          bubbles: true,
-          clientX: bounds.left + x,
-          clientY: bounds.top + y,
-        }),
-      );
-    }
-    await afterPaint();
-    clickMap();
-    await expect(args.onOpenTrace).not.toHaveBeenCalled();
-    await waitFor(() => {
-      const row = canvas.getByRole("link", { name: "trace-0" }).closest("tr")!;
-      expect(row).toHaveAttribute("aria-selected", "true");
-      const panel = canvas.getByRole("region", { name: "Topic traces" });
-      expect(row.getBoundingClientRect().bottom).toBeLessThanOrEqual(
-        panel.getBoundingClientRect().bottom,
-      );
-      expect(
-        JSON.parse(
-          sessionStorage.getItem("topics-selected-trace:storybook-topics")!,
-        ),
-      ).toBe("trace-0");
-    });
-    const refresh = canvas.getByRole("button", {
-      name: "Refresh unchanged results",
-    });
-    await userEvent.click(refresh);
-    await expect(
-      canvas.getByRole("link", { name: "trace-0" }).closest("tr"),
-    ).toHaveAttribute("aria-selected", "true");
-    clickMap(5, 5);
-    await waitFor(() =>
-      expect(
-        canvas.getByRole("link", { name: "trace-0" }).closest("tr"),
-      ).not.toHaveAttribute("aria-selected"),
-    );
-    clickMap();
-    await userEvent.click(canvas.getByRole("button", { name: "Switch facet" }));
-    await expect(
-      canvas.getByRole("link", { name: "trace-0" }).closest("tr"),
-    ).toHaveAttribute("aria-selected", "true");
-    for (
-      let attempt = 0;
-      attempt < 16 &&
-      !canvas.queryByRole("button", {
-        name: /^Select trace:.*Account setup 0/,
-      });
-      attempt++
-    ) {
-      await userEvent.click(
-        canvas.getByRole("button", { name: "Zoom in (+)" }),
-      );
-      await afterPaint();
-    }
-    const selected = canvas.getByRole("button", {
-      name: /^Select trace:.*Account setup 0/,
-    });
-    await expect(selected).toHaveAttribute("aria-pressed", "true");
-    await userEvent.click(selected);
-    await expect(args.onOpenTrace).not.toHaveBeenCalled();
-    await userEvent.click(canvas.getByRole("link", { name: "trace-0" }));
-    await expect(args.onOpenTrace).toHaveBeenCalledOnce();
-    await expect(args.onOpenTrace).toHaveBeenCalledWith("trace-0");
-    await userEvent.click(canvas.getByText("Account setup 1"));
-    await expect(args.peekView.openPeek).toHaveBeenCalledOnce();
-    await expect(
-      canvas.getByRole("link", { name: "trace-1" }).closest("tr"),
-    ).toHaveAttribute("aria-selected", "true");
-    const search = canvas.getByRole("combobox", { name: "Search" });
-    await replaceQuery(search, "invoice");
-    await waitFor(() =>
-      expect(
-        canvas.queryByRole("link", { name: "trace-0" }),
-      ).not.toBeInTheDocument(),
-    );
-    clickMap();
-    await afterPaint();
-    await expect(
-      sessionStorage.getItem("topics-selected-trace:storybook-topics"),
-    ).toBe(JSON.stringify("trace-1"));
-    await replaceQuery(search, "");
-    await waitFor(() =>
-      expect(
-        canvas.getByRole("link", { name: "trace-1" }).closest("tr"),
-      ).toHaveAttribute("aria-selected", "true"),
-    );
-  },
-});

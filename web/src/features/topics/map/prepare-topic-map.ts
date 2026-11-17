@@ -5,15 +5,19 @@ export type MapData = Pick<
   RouterOutputs["topics"]["map"],
   "points" | "missingSummaryCount" | "unpositionedCount"
 >;
-export type MapTopic = { id: string; name: string; description?: string };
+export type MapTopic = {
+  id: string;
+  name: string;
+  description?: string;
+  /** A CSS color; topics without one take the map's own palette. */
+  color?: string;
+};
 export type Bounds = { minX: number; maxX: number; minY: number; maxY: number };
 export type Camera = { x: number; y: number; zoom: number };
 
-/** Deepest zoom, as a multiple of the whole-map fit. */
-const MAX_ZOOM = 10;
-/** A trace is a small rounded square at the whole-map fit. */
-const POINT_SIZE = 6;
-const POINT_RADIUS = 2;
+/** Zoom limits, as multiples of the whole-map fit. */
+const MIN_ZOOM = 0.8;
+const MAX_ZOOM = 3;
 export type Size = { width: number; height: number };
 export type MapPoint = MapData["points"][number] & {
   groupId: string;
@@ -121,7 +125,7 @@ export function fitCamera(bounds: Bounds, whole: Bounds, size: Size): Camera {
     y: (bounds.minY + bounds.maxY) / 2,
     zoom: Math.min(
       MAX_ZOOM,
-      Math.max(0.4, baseScale(bounds, size) / baseScale(whole, size)),
+      Math.max(MIN_ZOOM, baseScale(bounds, size) / baseScale(whole, size)),
     ),
   };
 }
@@ -146,7 +150,10 @@ export function zoomCamera(
   bounds: Bounds,
   size: Size,
 ): Camera {
-  const zoom = Math.min(MAX_ZOOM, Math.max(0.4, camera.zoom * 2 ** levels));
+  const zoom = Math.min(
+    MAX_ZOOM,
+    Math.max(MIN_ZOOM, camera.zoom * 2 ** levels),
+  );
   const before = baseScale(bounds, size) * camera.zoom;
   const after = baseScale(bounds, size) * zoom;
   const dx = (anchor.x - 0.5) * size.width;
@@ -181,7 +188,10 @@ export function prepareTopicMap(
   topics: MapTopic[],
 ): TopicMapModel {
   const known = new Map(
-    topics.map((topic, i) => [topic.id, { ...topic, color: topicColor(i) }]),
+    topics.map((topic, i) => [
+      topic.id,
+      { ...topic, color: topic.color ?? topicColor(i) },
+    ]),
   );
   const points: MapPoint[] = data.points.map((point) => ({
     ...point,
@@ -189,7 +199,9 @@ export function prepareTopicMap(
       point.outcome === "unassigned"
         ? "awaiting_map"
         : (point.topicId ?? "outliers"),
-    color: topicColor(topics.findIndex((t) => t.id === point.topicId)),
+    color:
+      (point.topicId ? known.get(point.topicId)?.color : undefined) ??
+      topicColor(-1),
     // This is decorative depth, independent of embedding distance or quality.
     depth: visualDepth(point.traceId),
   }));
@@ -240,6 +252,15 @@ function smoothStep(from: number, to: number, value: number) {
   return progress * progress * (3 - 2 * progress);
 }
 
+/**
+ * Zoom as the reader sees it: a bigger stage shows the same fit at a larger
+ * scale, so points grow and labels and summaries appear sooner.
+ */
+function detailZoom(zoom: number, size: Size) {
+  const space = Math.sqrt((size.width * size.height) / (640 * 480));
+  return zoom * Math.min(3, Math.max(1, space));
+}
+
 export function nodeDetailBlend(zoom: number) {
   return smoothStep(3, 10, zoom);
 }
@@ -257,6 +278,7 @@ export function prepareMapNodes(
   matchingTraceIds?: ReadonlySet<string>,
 ): TopicMapNodeFrame {
   const full = readingNodeSize(size);
+  const zoom = detailZoom(camera.zoom, size);
   const blend = nodeDetailBlend(camera.zoom);
   const cells = new Map<string, number[]>();
   const cellWidth = full.width + 8;
@@ -265,11 +287,8 @@ export function prepareMapNodes(
     const worldPosition = { x: point.x, y: point.y };
     const projected = screenPoint(worldPosition, camera, model.bounds, size);
     const depth = point.depth * (1 - blend);
-    const center = {
-      x: projected.x + pointer.x * depth * 6,
-      y: projected.y + pointer.y * depth * 6,
-    };
-    const diameter = POINT_SIZE * Math.sqrt(Math.min(camera.zoom, 16));
+    const center = projected;
+    const diameter = (5 + depth) * Math.sqrt(Math.min(zoom, 4));
     const matchesFilters =
       (!readingTopic || point.groupId === readingTopic) &&
       (!matchingTraceIds || matchingTraceIds.has(point.traceId));
@@ -351,7 +370,7 @@ export function prepareMapNodes(
         height,
       },
       cornerRadius:
-        POINT_RADIUS + (Math.min(8, smaller / 2) - POINT_RADIUS) * textOpacity,
+        smaller / 2 + (Math.min(8, smaller / 2) - smaller / 2) * textOpacity,
       expansion,
       backgroundOpacity: textOpacity,
       strokeOpacity: textOpacity,
@@ -386,20 +405,18 @@ type MapTextLabel = {
   kind: "zone";
   title: string;
   color: string;
-  description: string;
   rect: MapRectangle;
   fontSize: number;
   opacity: number;
-  detailOpacity: number;
 };
 
 export function prepareMapTextLabels(frame: TopicMapNodeFrame): MapTextLabel[] {
   const { camera, model, size, readingTopic, matchingTraceIds } = frame;
-  const visibility = smoothStep(1.5, 3, camera.zoom);
+  const zoom = detailZoom(camera.zoom, size);
+  const visibility = smoothStep(1.5, 3, zoom);
   if (!visibility) return [];
-  const detailOpacity = smoothStep(3.5, 7, camera.zoom);
   const labels: MapTextLabel[] = [];
-  const fontSize = 15 + smoothStep(3, 8, camera.zoom) * 3;
+  const fontSize = 15 + smoothStep(3, 8, zoom) * 3;
   const visible = (rect: MapRectangle) =>
     rect.x + rect.width > 0 &&
     rect.y + rect.height > 0 &&
@@ -415,7 +432,7 @@ export function prepareMapTextLabels(frame: TopicMapNodeFrame): MapTextLabel[] {
       Math.min(2, Math.ceil((zone.name.length * fontSize * 0.55) / width)) *
       fontSize *
       1.2;
-    const height = titleHeight + 40 * detailOpacity;
+    const height = titleHeight;
     const topLeft = screenPoint(
       { x: zone.bounds.minX, y: zone.bounds.maxY },
       camera,
@@ -463,14 +480,12 @@ export function prepareMapTextLabels(frame: TopicMapNodeFrame): MapTextLabel[] {
       kind: "zone",
       title: zone.name,
       color: zone.color,
-      description: zone.description,
       rect,
       fontSize,
       opacity:
         visibility *
         (readingTopic && readingTopic !== zone.id ? 0.4 : 0.6) *
         (matchesFilters ? 1 : 0.15),
-      detailOpacity,
     });
   }
 

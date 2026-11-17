@@ -206,6 +206,7 @@ function drawMap(
   context.clearRect(0, 0, size.width, size.height);
   const theme = getComputedStyle(canvas);
   const surface = `hsl(${theme.getPropertyValue("--background").trim()})`;
+  const { paint, mark } = canvasColors(theme);
   const cloudVisibility = 1 - nodeDetailBlend(camera.zoom);
   context.globalAlpha = cloudVisibility;
   for (const zone of frame.zones) {
@@ -224,9 +225,9 @@ function drawMap(
     context.translate(x, y);
     context.scale(rx, ry);
     const gradient = context.createRadialGradient(0, 0, 0, 0, 0, 1);
-    gradient.addColorStop(0, `${zone.color}24`);
-    gradient.addColorStop(0.7, `${zone.color}0c`);
-    gradient.addColorStop(1, `${zone.color}00`);
+    gradient.addColorStop(0, paint(zone.color, 0.14));
+    gradient.addColorStop(0.7, paint(zone.color, 0.05));
+    gradient.addColorStop(1, paint(zone.color, 0));
     context.fillStyle = gradient;
     context.beginPath();
     context.arc(0, 0, 1, 0, Math.PI * 2);
@@ -242,7 +243,7 @@ function drawMap(
     context.beginPath();
     context.roundRect(rect.x, rect.y, rect.width, rect.height, cornerRadius);
     context.globalAlpha = opacity;
-    context.fillStyle = point.color;
+    context.fillStyle = mark(point.color);
     context.fill();
     if (node.backgroundOpacity > 0) {
       context.globalAlpha = node.backgroundOpacity * Math.min(1, opacity + 0.2);
@@ -251,7 +252,7 @@ function drawMap(
     }
     if (node.strokeOpacity > 0 || active > 0) {
       context.globalAlpha = (node.strokeOpacity * 0.4 + active * 0.6) * opacity;
-      context.strokeStyle = point.color;
+      context.strokeStyle = mark(point.color);
       context.lineWidth = 1 + active;
       context.stroke();
     }
@@ -270,6 +271,55 @@ function drawMap(
     }
   }
   context.globalAlpha = 1;
+}
+
+/**
+ * Resolves `var(--token)` colors, which canvas cannot read, to RGB so that
+ * fading a color keeps its hue instead of passing through grey.
+ */
+function canvasColors(theme: CSSStyleDeclaration) {
+  const resolved = new Map<string, [number, number, number]>();
+  const probe = document.createElement("canvas").getContext("2d", {
+    willReadFrequently: true,
+  });
+  const toRgb = (color: string): [number, number, number] => {
+    const token = /^var\((--[\w-]+)\)$/.exec(color)?.[1];
+    const value = token ? theme.getPropertyValue(token).trim() || color : color;
+    if (!probe) return [148, 163, 184];
+    probe.clearRect(0, 0, 1, 1);
+    probe.fillStyle = value;
+    probe.fillRect(0, 0, 1, 1);
+    const [r = 0, g = 0, b = 0] = probe.getImageData(0, 0, 1, 1).data;
+    return [r, g, b];
+  };
+  const rgbOf = (color: string) => {
+    let rgb = resolved.get(color);
+    if (!rgb) {
+      rgb = toRgb(color);
+      resolved.set(color, rgb);
+    }
+    return rgb;
+  };
+  const paint = (color: string, alpha = 1) => {
+    const [r, g, b] = rgbOf(color);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+  /** Small marks read lighter than bars, so they lean 30% towards the hue's foreground shade. */
+  const mark = (color: string) => {
+    const foreground = color.replace(/-highlight\)$/, "-foreground)");
+    if (
+      foreground === color ||
+      !theme.getPropertyValue(foreground.slice(4, -1))
+    )
+      return paint(color);
+    const base = rgbOf(color);
+    const shade = rgbOf(foreground);
+    const [r, g, b] = base.map((value, i) =>
+      Math.round(value + (shade[i]! - value) * 0.3),
+    );
+    return `rgb(${r}, ${g}, ${b})`;
+  };
+  return { paint, mark };
 }
 
 type TopicMapCanvasProps = {

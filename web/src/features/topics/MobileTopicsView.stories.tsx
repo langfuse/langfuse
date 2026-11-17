@@ -334,21 +334,23 @@ export const FitFilteredMap = meta.story({
     await expect(
       canvas.getByRole("tab", { name: "Visualize" }),
     ).toHaveAttribute("data-state", "active");
-    for (
-      let attempt = 0;
-      attempt < 12 &&
-      canvas.queryAllByRole("button", { name: /^Select trace:/ }).length === 0;
-      attempt++
-    ) {
-      await userEvent.click(
-        canvas.getByRole("button", { name: "Zoom in (+)" }),
-      );
-      await new Promise<void>((resolve) =>
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-      );
-    }
-    const trace = await canvas.findByRole("button", { name: /^Select trace:/ });
-    await userEvent.click(trace);
+    // The unassigned trace sits at the projection's center, so it is drawn at the stage's center.
+    const stage = canvas.getByRole("group", { name: /^Interactive scatter/ });
+    const tapCenter = async () => {
+      const rect = stage.getBoundingClientRect();
+      await userEvent.pointer({
+        keys: "[MouseLeft]",
+        target: stage,
+        coords: {
+          clientX: rect.left + rect.width / 2,
+          clientY: rect.top + rect.height / 2,
+        },
+      });
+    };
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    );
+    await tapCenter();
     await expect(
       canvas.getByRole("tab", { name: "Visualize" }),
     ).toHaveAttribute("data-state", "active");
@@ -367,7 +369,7 @@ export const FitFilteredMap = meta.story({
     await expect(
       canvas.getByRole("tooltip", { name: /^Trace summary:/ }),
     ).toBeVisible();
-    await userEvent.click(trace);
+    await tapCenter();
     await expect(
       canvas.getByRole("button", { name: "Open trace unassigned" }),
     ).toBeVisible();

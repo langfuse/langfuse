@@ -15,7 +15,10 @@ import {
 } from "./prepare-topic-display";
 import { TopicTraceList } from "./TopicTraceList";
 import { TopicsSplit } from "./TopicsSplit";
-import { UNASSIGNED_SWATCH_COLOR } from "./topic-map-colors";
+import {
+  scatterSwatchColor,
+  UNASSIGNED_SWATCH_COLOR,
+} from "./topic-map-colors";
 import { TopicEmbeddingMap } from "./TopicEmbeddingMap";
 
 /** Only the largest topics keep their map color; the rest are grey. */
@@ -27,7 +30,7 @@ type TopicListViewProps = {
   peekView: DataTablePeekViewProps;
   tracePanelRef?: (element: HTMLElement | null) => void;
   useTraces: UseTopicTraces;
-  /** Draws the scatter above the topic rows, in the map's colors. Picking the highlighted topic again clears the highlight. */
+  /** Draws the scatter above the topic rows. Picking the highlighted topic again clears the highlight. */
   scatter?: {
     query: ComponentProps<typeof TopicEmbeddingMap>["query"];
     onOpenTrace: (traceId: string) => void;
@@ -44,9 +47,11 @@ export function TopicListView({
   scatter,
 }: TopicListViewProps) {
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
+  const treemapTopics = prepareTopicDisplay(facet, "treemap").topics;
+  // Scatter rows are the map's legend, so they take the scatter's colors.
   const topics = scatter
-    ? prepareTopicDisplay(facet, "map").topics
-    : prepareTopicDisplay(facet, "treemap").topics.map((topic, rank) =>
+    ? withScatterColors(treemapTopics)
+    : treemapTopics.map((topic, rank) =>
         rank < COLORED_RANKS
           ? topic
           : { ...topic, color: UNASSIGNED_SWATCH_COLOR },
@@ -56,6 +61,7 @@ export function TopicListView({
   const traces = useTraces(selected ? topicQuery(selected.id) : null);
   const maxCount = Math.max(1, ...topics.map((topic) => topic.count));
   const isWide = useMediaQuery({ query: "(min-width: 1024px)" });
+  const mapTopics = useScatterMapTopics(facet);
   const mapData = scatter?.query.data;
   const highlightedTraceIds = useMemo(() => {
     if (selectedTopicId === null || mapData?.status !== "ready")
@@ -104,7 +110,7 @@ export function TopicListView({
               <TopicEmbeddingMap
                 key={facet.map.runId}
                 query={scatter.query}
-                topics={facet.map.topics}
+                topics={mapTopics}
                 selectedTopic={null}
                 matchingTraceIds={highlightedTraceIds}
                 onSelectTopic={setSelectedTopicId}
@@ -192,6 +198,37 @@ function TopicRow({
       </span>
     </button>
   );
+}
+
+/** Topics in the scatter's six colors, by rank; Unassigned stays grey. */
+function withScatterColors(topics: TopicDisplay[]) {
+  return topics.map((topic, rank) =>
+    topic.id === UNASSIGNED_TOPIC_ID
+      ? topic
+      : { ...topic, color: scatterSwatchColor(rank) },
+  );
+}
+
+/**
+ * The map's topics in the scatter colors. The array only changes with the
+ * map or the topic ranking, so a refresh keeps the map's camera and hover.
+ */
+export function useScatterMapTopics(facet: Facet) {
+  const mapTopics = facet.map?.topics;
+  const rankKey = facet.topics.map((topic) => topic.id).join("\n");
+  return useMemo(() => {
+    const ranks = new Map(rankKey.split("\n").map((id, rank) => [id, rank]));
+    return (mapTopics ?? []).map((topic) => {
+      const rank = ranks.get(topic.id);
+      return {
+        ...topic,
+        color:
+          rank === undefined
+            ? UNASSIGNED_SWATCH_COLOR
+            : scatterSwatchColor(rank),
+      };
+    });
+  }, [mapTopics, rankKey]);
 }
 
 function topicQuery(topicId: string): TopicTraceQuery {

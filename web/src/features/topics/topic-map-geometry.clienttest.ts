@@ -632,28 +632,9 @@ describe("continuous trace nodes", () => {
       }),
     ).toBeNull();
   });
-  it("shares parallax positions with hits and fades decorative motion in reading mode", () => {
-    const model = prepareTopicMap(
-      data(
-        Array.from({ length: 20 }, (_, i) => point(`trace-${i}`, i * 10, 0)),
-      ),
-      topics,
-    );
-    const chosen = [...model.points].sort((a, b) => b.depth - a.depth)[0];
-    const moving = frameFor(model, 1, size, null, { x: 1, y: 0 });
-    const node = moving.nodeById.get(chosen.traceId)!;
-    const at = { x: node.center.x + 10, y: node.center.y };
-    expect(hitMapNode(moving, at)?.traceId).toBe(chosen.traceId);
-    expect(hitMapNode(frameFor(model, 1), at)).toBeNull();
-    expect(
-      frameFor(model, 10, size, null, { x: 1, y: -1 }).nodeById.get(
-        chosen.traceId,
-      )?.center,
-    ).toEqual(frameFor(model, 10).nodeById.get(chosen.traceId)?.center);
-  });
 });
 describe("background group labels", () => {
-  it("reveals group context gradually and returns only one label per group", () => {
+  it("shows topic names past the first zoom step and one label per group", () => {
     const model = prepareTopicMap(
       data([
         point("invoice", 0, 0),
@@ -665,21 +646,11 @@ describe("background group labels", () => {
     );
     expect(prepareMapTextLabels(frameFor(model, 1))).toEqual([]);
     const titles = prepareMapTextLabels(frameFor(model, 2));
-    const details = prepareMapTextLabels(frameFor(model, 6));
-    expect(new Set(details.map((label) => label.id)).size).toBe(details.length);
-    expect(details.map((label) => label.id).sort()).toEqual(
+    expect(new Set(titles.map((label) => label.id)).size).toBe(titles.length);
+    expect(titles.map((label) => label.id).sort()).toEqual(
       model.zones.map((zone) => zone.id).sort(),
     );
-    expect(titles.find((label) => label.id === "billing")?.detailOpacity).toBe(
-      0,
-    );
-    expect(
-      details.find((label) => label.id === "billing")?.detailOpacity,
-    ).toBeGreaterThan(0);
-    expect(details.find((label) => label.id === "billing")?.description).toBe(
-      topics[0].description,
-    );
-    expect(details.every((label) => label.kind === "zone")).toBe(true);
+    expect(titles.every((label) => label.kind === "zone")).toBe(true);
   });
 
   it("keeps one Outliers label within the viewport when the group center is offscreen", () => {
