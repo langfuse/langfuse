@@ -209,6 +209,62 @@ function setSelectionRange(
   range.setEnd(focus.node, focus.offset);
   selection.removeAllRanges();
   selection.addRange(range);
+  // Restoring a range does not scroll. The field clips at four lines, so
+  // keep the caret inside that box after a controlled edit.
+  scrollSelectionIntoView(root);
+}
+
+function scrollSelectionIntoView(root: HTMLElement): void {
+  const selection = window.getSelection();
+  if (selection === null || selection.rangeCount === 0) return;
+  const focusNode = selection.focusNode;
+  if (focusNode === null || !root.contains(focusNode)) return;
+
+  const range = selection.getRangeAt(0).cloneRange();
+  range.collapse(false);
+  let rect = range.getClientRects()[0];
+  if (
+    (rect === undefined || rect.height === 0) &&
+    focusNode.nodeType === Node.TEXT_NODE &&
+    selection.focusOffset > 0
+  ) {
+    range.setStart(focusNode, selection.focusOffset - 1);
+    range.setEnd(focusNode, selection.focusOffset);
+    rect = range.getClientRects()[0];
+  }
+  if (rect === undefined || rect.height === 0) return;
+
+  const bounds = root.getBoundingClientRect();
+  if (rect.bottom > bounds.bottom) {
+    root.scrollTop += rect.bottom - bounds.bottom;
+  } else if (rect.top < bounds.top) {
+    root.scrollTop -= bounds.top - rect.top;
+  }
+  if (rect.right > bounds.right) {
+    root.scrollLeft += rect.right - bounds.right;
+  } else if (rect.left < bounds.left) {
+    root.scrollLeft -= bounds.left - rect.left;
+  }
+}
+
+function visibleClientRect(
+  rects: DOMRectList | null,
+  visible: (rect: DOMRect) => boolean,
+  edge: "first" | "last",
+): DOMRect | null {
+  if (rects === null) return null;
+  if (edge === "first") {
+    for (let index = 0; index < rects.length; index++) {
+      const rect = rects[index];
+      if (rect !== undefined && visible(rect)) return rect;
+    }
+    return null;
+  }
+  for (let index = rects.length - 1; index >= 0; index--) {
+    const rect = rects[index];
+    if (rect !== undefined && visible(rect)) return rect;
+  }
+  return null;
 }
 
 function replaceRange(
@@ -424,7 +480,7 @@ function QueryInputSurface({
 
 function QueryInputText({ children }: { children: React.ReactNode }) {
   return (
-    <Slot className="min-h-6 font-mono text-xs leading-6 break-words whitespace-pre-wrap">
+    <Slot className="scrollbar-visible max-h-24 min-h-6 overflow-y-auto overscroll-contain font-mono text-xs leading-6 break-words whitespace-pre-wrap">
       {children}
     </Slot>
   );
@@ -1339,19 +1395,34 @@ function QueryInputEditor({
       return el === null ? null : el.getClientRects();
     };
 
-    const removeRects = rectsOf(removeTargetIdActual);
-    const lastRect = removeRects?.[removeRects.length - 1] ?? null;
-    if (container === null || lastRect === null) {
+    const rootRect = root?.getBoundingClientRect() ?? null;
+    const visibleInInput = (rect: DOMRect) =>
+      rootRect !== null &&
+      rect.bottom > rootRect.top &&
+      rect.top < rootRect.bottom &&
+      rect.right > rootRect.left &&
+      rect.left < rootRect.right;
+
+    const removeRect = visibleClientRect(
+      rectsOf(removeTargetIdActual),
+      visibleInInput,
+      "last",
+    );
+    if (container === null || removeRect === null) {
       setRemovePosition(null);
     } else {
       const containerRect = container.getBoundingClientRect();
       setRemovePosition({
-        left: lastRect.right - containerRect.left - 6,
-        top: lastRect.top - containerRect.top - 8,
+        left: removeRect.right - containerRect.left - 6,
+        top: removeRect.top - containerRect.top - 8,
       });
     }
 
-    const tooltipRect = rectsOf(tooltipTargetId)?.[0] ?? null;
+    const tooltipRect = visibleClientRect(
+      rectsOf(tooltipTargetId),
+      visibleInInput,
+      "first",
+    );
     setTooltipPosition(
       tooltipRect === null
         ? null
@@ -1458,6 +1529,7 @@ function QueryInputEditor({
               // dropping the dragged text. Drop is unsupported anyway; selection
               // and copy/cut/paste stay fully functional.
               onDragStart={(e) => e.preventDefault()}
+              onScroll={measurePositions}
               onKeyDown={onKeyDown}
               onCopy={onCopy}
               onCut={onCut}
