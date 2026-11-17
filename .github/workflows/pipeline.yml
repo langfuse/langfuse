@@ -1670,7 +1670,7 @@ jobs:
 
   test-ai-gateway-e2e:
     timeout-minutes: 25
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
       - llm-connections-filter
