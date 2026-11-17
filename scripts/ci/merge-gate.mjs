@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 export const requiredJobs = [
   "lint",
+  "typecheck",
   "knip",
   "format-check",
   "tests-ai-gateway",

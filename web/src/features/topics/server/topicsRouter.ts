@@ -31,7 +31,6 @@ import {
   getLatestFacetSummaries,
   createTopicFacet,
   createTopicFacetVersion,
-  listTopicRules,
   getTopicRule,
   saveTopicRule,
   getTopicRun,
@@ -438,7 +437,6 @@ export const topicsRouter = createTRPCRouter({
         return createTopicFacetVersion({ ...input, facetId: input.facetId });
       return createTopicFacet(input);
     }),
-  rules: topicsProcedure.query(({ input }) => listTopicRules(input.projectId)),
   saveRule: topicsWriteProcedure
     .input(
       topicRuleConfigSchema.extend({

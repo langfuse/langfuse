@@ -1331,8 +1331,8 @@ model TracingReadinessSettings {
   updatedBy     String? @map("updated_by")
   updatedByUser User?   @relation("UpdatedByUser", fields: [updatedBy], references: [id], onDelete: SetNull)
 
-  // A trace is due this long after its latest event. Null uses
-  // LANGFUSE_TRACE_BATCH_IDLE_MS. Bounds are enforced on write, not in the DB.
+  // A trace is due this long after its latest event. Null uses the worker's
+  // default idle time. Bounds are enforced on write, not in the DB.
   traceIdleMs Int? @map("trace_idle_ms")
 
   @@map("tracing_readiness_settings")

@@ -67,7 +67,6 @@ import { experimentCreateQueueProcessor } from "./queues/experimentQueue";
 import { traceDeleteProcessor } from "./queues/traceDelete";
 import { topicsTraceQueueProcessorBuilder } from "./queues/topicsTraceQueue";
 import { eventsDispatchQueueProcessor } from "./queues/eventsDispatchQueue";
-import { isEventsDispatchEnabled } from "./features/eventsDispatch/eventsDispatch";
 import { TraceBatchDispatcher } from "./features/traceBatching/traceBatching";
 import { TraceBatchMetricsRunner } from "./features/traceBatching/TraceBatchMetricsRunner";
 import { projectDeleteProcessor } from "./queues/projectDelete";
@@ -124,6 +123,10 @@ import { isTopicsEnabled } from "@langfuse/shared/topics/server";
 import { topicsUpdateQueueProcessor } from "./queues/topicsQueue";
 import { topicsSetupQueueProcessor } from "./queues/topicsSetupQueue";
 import { TopicsNightlyRefitRunner } from "./features/topics/nightlyRefit";
+import {
+  isEventsDispatchEnabled,
+  eventsDispatchConfig,
+} from "./features/eventsDispatch/config";
 
 const app = express();
 
@@ -155,16 +158,13 @@ ClickhouseReadSkipCache.getInstance(prisma)
     logger.error("Error initializing ClickhouseReadSkipCache", err);
   });
 
-// Events dispatch is the dispatcher's only target; every service still opts into its roles.
-const traceBatchDispatcherEnabled =
-  isEventsDispatchEnabled() &&
-  env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED === "true";
+// The events-dispatch consumer host (worker-cpu) also runs the dispatcher that feeds it.
 const eventsDispatchConsumerEnabled =
   isEventsDispatchEnabled() &&
   env.QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED === "true";
 
 export let traceBatchDispatcher: TraceBatchDispatcher | null = null;
-if (traceBatchDispatcherEnabled) {
+if (eventsDispatchConsumerEnabled) {
   traceBatchDispatcher = new TraceBatchDispatcher();
   traceBatchDispatcher.start();
 }
@@ -174,12 +174,12 @@ if (eventsDispatchConsumerEnabled) {
   WorkerManager.register(
     QueueName.EventsDispatch,
     eventsDispatchQueueProcessor,
-    { concurrency: env.LANGFUSE_EVENTS_DISPATCH_CONCURRENCY },
+    { concurrency: eventsDispatchConfig.consumerConcurrency },
   );
 }
 
 export let traceBatchMetricsRunner: TraceBatchMetricsRunner | null = null;
-if (traceBatchDispatcherEnabled || eventsDispatchConsumerEnabled) {
+if (eventsDispatchConsumerEnabled) {
   traceBatchMetricsRunner = new TraceBatchMetricsRunner();
   traceBatchMetricsRunner.start();
 }
