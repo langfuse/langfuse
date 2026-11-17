@@ -5,7 +5,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 const TOPICS_RESULTS_VIEWS = [
   { value: "treemap", label: "Treemap" },
   { value: "list", label: "List" },
-  { value: "map", label: "Scatter" },
+  { value: "map", label: "Scatter 0" },
   // Exploratory scatter looks
   { value: "scatter1", label: "Scatter 1" },
   { value: "scatter2", label: "Scatter 2" },
