@@ -4,29 +4,26 @@ import { X } from "@langfuse/icons";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 
 type OptionalSectionProps = {
-  /** Names the remove button, e.g. "Remove expiration". */
-  removeLabel: string;
-  /** Undefined hides the remove button, e.g. for a setting that is locked. */
-  onRemove?: () => void;
+  /**
+   * The remove button, e.g. labelled "Remove expiration". Undefined hides it,
+   * e.g. for a setting that is locked or removes itself.
+   */
+  remove?: { label: string; onRemove: () => void };
   children: ReactNode;
 };
 
 /** A boxed optional setting of the key form, removable from its top corner. */
-export function OptionalSection({
-  removeLabel,
-  onRemove,
-  children,
-}: OptionalSectionProps) {
+export function OptionalSection({ remove, children }: OptionalSectionProps) {
   return (
     <section className="bg-surface-section relative rounded-lg border p-3">
       {children}
-      {onRemove ? (
+      {remove ? (
         <div className="absolute top-1.5 right-1.5">
           <IconButton
             icon={X}
-            label={removeLabel}
+            label={remove.label}
             size="sm"
-            onClick={onRemove}
+            onClick={remove.onRemove}
           />
         </div>
       ) : null}

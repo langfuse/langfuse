@@ -43,14 +43,15 @@ const emptyValues: GatewayApiKeyFormValues = {
   sections: [],
 };
 
+// Metadata has no section remove button: removing its last row removes it.
 const sectionLabels: Record<
   GatewayApiKeySection,
-  { add: string; remove: string }
+  { add: string; remove?: string }
 > = {
   expiration: { add: "Expiration", remove: "Remove expiration" },
   spendBudget: { add: "Spend budget", remove: "Remove spend budget" },
   models: { add: "Restrict models", remove: "Remove model restriction" },
-  metadata: { add: "Additional metadata", remove: "Remove metadata" },
+  metadata: { add: "Additional metadata" },
 };
 
 const issuedAsDescriptions: Record<
@@ -344,25 +345,33 @@ function OptionalSections({
           />
         );
       case "metadata":
-        return <GatewayApiKeyMetadataField control={form.control} />;
+        return (
+          <GatewayApiKeyMetadataField
+            control={form.control}
+            onRemoveLast={() => handleRemove("metadata")}
+          />
+        );
     }
   };
 
   return (
     <>
-      {sections.map((section) => (
-        <OptionalSection
-          key={section}
-          removeLabel={sectionLabels[section].remove}
-          onRemove={
-            section === "expiration" && isExpirationDisabled
-              ? undefined
-              : () => handleRemove(section)
-          }
-        >
-          {renderSection(section)}
-        </OptionalSection>
-      ))}
+      {sections.map((section) => {
+        const removeLabel = sectionLabels[section].remove;
+        const isLocked = section === "expiration" && isExpirationDisabled;
+        return (
+          <OptionalSection
+            key={section}
+            remove={
+              removeLabel && !isLocked
+                ? { label: removeLabel, onRemove: () => handleRemove(section) }
+                : undefined
+            }
+          >
+            {renderSection(section)}
+          </OptionalSection>
+        );
+      })}
       {addableSections.length > 0 ? (
         <div className="flex flex-wrap gap-2">
           {addableSections.map((section) => (

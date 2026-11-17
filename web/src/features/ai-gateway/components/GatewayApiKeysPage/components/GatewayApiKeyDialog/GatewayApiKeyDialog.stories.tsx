@@ -165,7 +165,7 @@ export const SavesEditableFields = meta.story({
 });
 
 const sectionRemoveButtonNames =
-  /^Remove (expiration|spend budget|model restriction|metadata)$/;
+  /^Remove (expiration|spend budget|model restriction|metadata field)$/;
 
 export const AddedSectionsGoToTheBottom = meta.story({
   name: "(Test) Added sections go below the others",
@@ -181,15 +181,20 @@ export const AddedSectionsGoToTheBottom = meta.story({
         .getAllByRole("button", { name: sectionRemoveButtonNames })
         .map((button) => button.getAttribute("aria-label"));
     expect(shownSections()).toEqual([
-      "Remove metadata",
+      "Remove metadata field",
       "Remove spend budget",
       "Remove expiration",
     ]);
     expect(screen.queryByRole("button", { name: "Spend budget" })).toBeNull();
 
+    // Removing the last metadata row removes the metadata section.
     await userEvent.click(
-      screen.getByRole("button", { name: "Remove metadata" }),
+      screen.getByRole("button", { name: "Remove metadata field" }),
     );
+    expect(shownSections()).toEqual([
+      "Remove spend budget",
+      "Remove expiration",
+    ]);
     await userEvent.click(
       screen.getByRole("button", { name: "Additional metadata" }),
     );
@@ -197,7 +202,7 @@ export const AddedSectionsGoToTheBottom = meta.story({
     expect(shownSections()).toEqual([
       "Remove spend budget",
       "Remove expiration",
-      "Remove metadata",
+      "Remove metadata field",
     ]);
   },
 });
