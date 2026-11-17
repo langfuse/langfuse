@@ -131,6 +131,10 @@ export function StudioWidgetEditor({
               key={query.id}
               query={query}
               isV4={readPath === "v4"}
+              timeSeries={
+                config.display.timeSeries ??
+                config.display.chartType.endsWith("TIME_SERIES")
+              }
               projectId={projectId}
               dateRange={dateRange}
               onChange={(next) => {
@@ -201,6 +205,17 @@ export function StudioWidgetEditor({
               setConfig({
                 ...config,
                 display: { ...config.display, chartType, timeSeries },
+                queries: timeSeries
+                  ? config.queries
+                  : config.queries.map((query) => {
+                      const orderBy = query.orderBy?.filter(
+                        (order) => order.field !== "time_dimension",
+                      );
+                      return {
+                        ...query,
+                        orderBy: orderBy?.length ? orderBy : undefined,
+                      };
+                    }),
               });
               track("configuration_changed", {
                 ...metadata,

@@ -4,6 +4,62 @@ import { createStudioWidget } from "./catalog";
 import { prepareStudioChart } from "./prepareStudioChart";
 
 describe("studio chart preparation", () => {
+  it("keeps histogram populations and breakdowns identifiable in equal bins", () => {
+    const config = createStudioWidget();
+    config.display.chartType = "HISTOGRAM";
+    config.queries = ["a", "b"].map((id) => ({
+      ...config.queries[0]!,
+      id,
+      label: id === "a" ? "Production" : "Staging",
+      view: "scores-numeric",
+      metrics: [{ id: "scores", measure: "value", aggregation: "histogram" }],
+      dimensions: [{ field: "name" }],
+    }));
+    const populations = [
+      { queryId: "a", label: "Production · Accuracy", name: "Accuracy" },
+      { queryId: "a", label: "Production · Relevance", name: "Relevance" },
+      { queryId: "b", label: "Staging · Accuracy", name: "Accuracy" },
+    ];
+    const result: StudioResult = {
+      status: "complete",
+      series: populations.map((population) => ({
+        id: `${population.queryId}.scores:${population.name}`,
+        queryId: population.queryId,
+        metricId: "scores",
+        label: population.label,
+        dimensions: { name: population.name },
+        unit: "scores",
+        aggregation: "histogram",
+      })),
+      rows: populations.flatMap((population, index) =>
+        ["[0, 0.5)", "No value"].map((dimension) => ({
+          seriesId: `${population.queryId}.scores:${population.name}`,
+          queryId: population.queryId,
+          metricId: "scores",
+          label: population.label,
+          dimensions: { bin: dimension },
+          dimension,
+          time: null,
+          value: index + 1,
+        })),
+      ),
+      summaries: [],
+      diagnostics: [],
+      warnings: [],
+    };
+    const prepared = prepareStudioChart(result, config);
+    expect(prepared.data.map((point) => point.dimension)).toEqual([
+      "Production · Accuracy · [0, 0.5)",
+      "Production · Accuracy · No value",
+      "Production · Relevance · [0, 0.5)",
+      "Production · Relevance · No value",
+      "Staging · Accuracy · [0, 0.5)",
+      "Staging · Accuracy · No value",
+    ]);
+    expect(prepared.data.map((point) => point.metric)).toEqual([
+      1, 1, 2, 2, 3, 3,
+    ]);
+  });
   it("keeps equal display names independent and retains full-period summaries for a breakdown", () => {
     const config = createStudioWidget();
     config.display.chartType = "LINE_TIME_SERIES";

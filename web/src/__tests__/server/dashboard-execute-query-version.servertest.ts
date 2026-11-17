@@ -36,7 +36,10 @@ describe("dashboard.executeQuery version contract", () => {
     orgId = org.orgId;
   });
 
-  function makeCaller(options: { v4BetaEnabled: boolean }) {
+  function makeCaller(options: {
+    v4BetaEnabled: boolean;
+    project?: { projectId: string; orgId: string };
+  }) {
     const session: Session = {
       expires: "1",
       user: {
@@ -46,7 +49,7 @@ describe("dashboard.executeQuery version contract", () => {
         v4BetaEnabled: options.v4BetaEnabled,
         organizations: [
           {
-            id: orgId,
+            id: options.project?.orgId ?? orgId,
             name: "Test Organization",
             role: "OWNER",
             plan: "cloud:hobby",
@@ -56,7 +59,7 @@ describe("dashboard.executeQuery version contract", () => {
             aiTelemetryEnabled: true,
             projects: [
               {
-                id: projectId,
+                id: options.project?.projectId ?? projectId,
                 role: "ADMIN",
                 retentionDays: 30,
                 deletedAt: null,
@@ -109,6 +112,98 @@ describe("dashboard.executeQuery version contract", () => {
     await expect(
       caller.dashboard.executeQuery({ projectId, query, version: "v2" }),
     ).resolves.toBeDefined();
+  });
+
+  it("builds each formula only from its referenced query or expression domains", async () => {
+    const project = await createOrgProjectAndApiKey();
+    const fixtureProjectId = project.projectId;
+    const caller = makeCaller({ v4BetaEnabled: true, project });
+    const timestamp = new Date();
+    const marker = randomUUID();
+    await createEventsCh(
+      ["model-a", "model-b"].map((model) =>
+        createEvent({
+          project_id: fixtureProjectId,
+          provided_model_name: model,
+          metadata_names: ["fixture"],
+          metadata_values: [marker],
+          start_time: timestamp,
+        }),
+      ),
+    );
+    const filters = [
+      {
+        column: "metadata",
+        type: "stringObject",
+        key: "fixture",
+        operator: "=",
+        value: marker,
+      },
+    ];
+    const config = StudioWidgetConfigSchema.parse({
+      version: 1,
+      title: "Formula domain",
+      description: "",
+      queries: [
+        {
+          id: "a",
+          label: "All records",
+          view: "observations",
+          metrics: [{ id: "count", measure: "count", aggregation: "count" }],
+          dimensions: [],
+          filters,
+        },
+        {
+          id: "models",
+          label: "By model",
+          view: "observations",
+          metrics: [{ id: "count", measure: "count", aggregation: "count" }],
+          dimensions: [{ field: "providedModelName" }],
+          filters,
+        },
+      ],
+      expressions: [
+        { id: "twice", label: "Twice", formula: "a.count * 2" },
+        { id: "fourTimes", label: "Four times", formula: "twice * 2" },
+      ],
+      display: { chartType: "VERTICAL_BAR", showHeadline: true },
+    });
+    const result = await caller.dashboardStudio.execute({
+      projectId: fixtureProjectId,
+      config,
+      version: "v2",
+      fromTimestamp: new Date(timestamp.getTime() - 60000).toISOString(),
+      toTimestamp: new Date(timestamp.getTime() + 60000).toISOString(),
+    });
+    expect(result.status, JSON.stringify(result.diagnostics)).toBe("complete");
+    expect(
+      result.rows
+        .filter((row) => row.queryId === "twice")
+        .map((row) => ({ value: row.value, dimensions: row.dimensions })),
+    ).toEqual([{ value: 4, dimensions: {} }]);
+    expect(
+      result.rows
+        .filter((row) => row.queryId === "fourTimes")
+        .map((row) => row.value),
+    ).toEqual([8]);
+    expect(
+      result.summaries
+        .filter((row) => row.queryId === "fourTimes")
+        .map((row) => row.value),
+    ).toEqual([8]);
+    const constant = await caller.dashboardStudio.execute({
+      projectId: fixtureProjectId,
+      config: {
+        ...config,
+        expressions: [{ id: "constant", label: "Constant", formula: "2 * 3" }],
+      },
+      version: "v2",
+      fromTimestamp: new Date(timestamp.getTime() - 60000).toISOString(),
+      toTimestamp: new Date(timestamp.getTime() + 60000).toISOString(),
+    });
+    expect(constant.warnings).toContain(
+      "Expressions must reference a query measure or an earlier expression",
+    );
   });
 
   it("keeps same-name score attachments separate without joining trace or observation data", async () => {

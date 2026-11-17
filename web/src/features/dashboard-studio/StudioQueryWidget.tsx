@@ -183,7 +183,7 @@ export function StudioQueryWidget({
             valueFormatter: studioMetricFormatter(prepared.unit),
           };
     }
-    return chart.visualization;
+    return chart.confirmation ?? chart.visualization;
   })();
   const headline = (() => {
     if (!config.display.showHeadline) return undefined;

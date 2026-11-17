@@ -24,7 +24,8 @@ function chartDimension(
   if (config.display.chartType === "HISTOGRAM") {
     const label = row.dimension ?? row.label;
     const suffix = bucketUnit === "milliseconds" ? "ms" : bucketUnit;
-    return suffix && label !== "No value" ? `${label} ${suffix}` : label;
+    const bin = suffix && label !== "No value" ? `${label} ${suffix}` : label;
+    return `${row.label} · ${bin}`;
   }
   if (
     config.display.timeSeries ||

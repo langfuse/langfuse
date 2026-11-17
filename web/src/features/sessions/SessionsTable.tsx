@@ -888,6 +888,9 @@ export default function SessionsTable({
               key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
               isV4={isV4}
               filterState={queryFilter.searchBarFilterState}
+              managedEnvironmentPolicy={
+                queryFilter.managedEnvironmentPolicyConfig
+              }
               setFilterState={setFiltersWrapper}
               projectId={projectId}
               tableName={sessionsFilterConfig.tableName}

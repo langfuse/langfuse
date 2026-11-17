@@ -101,6 +101,7 @@ export async function executeStudioWidget(
   const complete = new Set<string>();
   const units = new Map<string, string | undefined>();
   const shapes = new Map<string, string>();
+  const sourceViewsByRef = new Map<string, Set<string>>();
   const aggregations = new Map<string, string>();
   let resultCellCount = 0;
   const allSeries = new Map<string, StudioSeries>();
@@ -118,6 +119,7 @@ export async function executeStudioWidget(
       const ref = `${source.id}.${metric.id}`;
       const unit = rawMetricUnit(source.view, metric, input.version);
       units.set(ref, unit);
+      sourceViewsByRef.set(ref, new Set([source.view]));
       aggregations.set(ref, metric.aggregation);
       shapes.set(
         ref,
@@ -436,23 +438,20 @@ export async function executeStudioWidget(
     const rows = [...queryResults.values()].flatMap((value) =>
       summary ? value.summaries : value.rows,
     );
-    const contexts = new Map<
-      string,
-      { row: StudioRow; values: Map<string, StudioExpressionValue> }
-    >();
+    const rowsByRef = new Map<string, StudioRow[]>();
     for (const row of rows) {
-      const key = JSON.stringify([
-        row.time,
-        Object.entries(row.dimensions).sort(([a], [b]) => a.localeCompare(b)),
-      ]);
-      const context = contexts.get(key) ?? { row, values: new Map() };
       const ref = `${row.queryId}.${row.metricId}`;
-      context.values.set(ref, { value: row.value, unit: units.get(ref) });
-      contexts.set(key, context);
+      const group = rowsByRef.get(ref) ?? [];
+      group.push(row);
+      rowsByRef.set(ref, group);
     }
     const computed: StudioRow[] = [];
     for (const expression of input.config.expressions) {
       const refs = studioFormulaReferences(expression.formula);
+      if (refs.length === 0)
+        throw new Error(
+          "Expressions must reference a query measure or an earlier expression",
+        );
       const shapeSet = new Set(refs.map((ref) => shapes.get(ref)));
       if (refs.some((ref) => !units.has(ref)))
         throw new Error(`Unknown reference in expression ${expression.id}`);
@@ -470,11 +469,7 @@ export async function executeStudioWidget(
           `Expression ${expression.id} needs a shared breakdown domain before top-N truncation. Use a time series or ungrouped inputs.`,
         );
       const sourceViews = new Set(
-        refs.flatMap((ref) =>
-          input.config.queries
-            .filter((source) => source.id === ref.split(".")[0])
-            .map((source) => source.view),
-        ),
+        refs.flatMap((ref) => [...(sourceViewsByRef.get(ref) ?? [])]),
       );
       if (hasBreakdown && sourceViews.size > 1)
         throw new Error(
@@ -489,6 +484,25 @@ export async function executeStudioWidget(
       );
       units.set(expression.id, validation.unit);
       shapes.set(expression.id, [...shapeSet][0] ?? "[]");
+      sourceViewsByRef.set(expression.id, sourceViews);
+      const contexts = new Map<
+        string,
+        { row: StudioRow; values: Map<string, StudioExpressionValue> }
+      >();
+      for (const ref of refs) {
+        for (const row of rowsByRef.get(ref) ?? []) {
+          const key = JSON.stringify([
+            row.time,
+            Object.entries(row.dimensions).sort(([a], [b]) =>
+              a.localeCompare(b),
+            ),
+          ]);
+          const context = contexts.get(key) ?? { row, values: new Map() };
+          context.values.set(ref, { value: row.value, unit: units.get(ref) });
+          contexts.set(key, context);
+        }
+      }
+      const expressionOutput: StudioRow[] = [];
       for (const context of contexts.values()) {
         for (const ref of refs) {
           if (context.values.has(ref)) continue;
@@ -525,16 +539,18 @@ export async function executeStudioWidget(
           throw new Error(
             "This widget exceeds the 100,000 result-cell limit. Narrow its time range or breakdown.",
           );
-        if (!expression.hidden)
-          computed.push({
-            ...context.row,
-            seriesId: id,
-            label,
-            queryId: expression.id,
-            metricId: expression.id,
-            value: value.value,
-          });
+        const output = {
+          ...context.row,
+          seriesId: id,
+          label,
+          queryId: expression.id,
+          metricId: expression.id,
+          value: value.value,
+        };
+        expressionOutput.push(output);
+        if (!expression.hidden) computed.push(output);
       }
+      rowsByRef.set(expression.id, expressionOutput);
     }
     return computed;
   };

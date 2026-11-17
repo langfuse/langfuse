@@ -182,19 +182,35 @@ function MetricEditor({
 export function StudioSeriesEditor({
   query,
   isV4,
+  timeSeries,
   projectId,
   dateRange,
-  onChange,
+  onChange: onQueryChange,
   onRemove,
 }: {
   query: StudioQuery;
   isV4: boolean;
+  timeSeries: boolean;
   projectId: string;
   dateRange: { from: Date; to: Date };
   onChange: (query: StudioQuery) => void;
   onRemove: (() => void) | undefined;
 }) {
   const source = getStudioSource(query.view, isV4);
+  const onChange = (next: StudioQuery) => {
+    const fields = new Set([
+      ...next.metrics
+        .filter((metric) => metric.aggregation !== "histogram")
+        .map((metric) => `${metric.aggregation}_${metric.measure}`),
+      ...next.dimensions.map((dimension) => dimension.field),
+      ...next.metrics.flatMap(
+        (metric) => source.measures[metric.measure]?.requiresDimension ?? [],
+      ),
+      ...(timeSeries ? ["time_dimension"] : []),
+    ]);
+    const orderBy = next.orderBy?.filter((order) => fields.has(order.field));
+    onQueryChange({ ...next, orderBy: orderBy?.length ? orderBy : undefined });
+  };
   return (
     <section className="bg-background flex flex-col gap-3 rounded-lg border p-3">
       <div className="flex items-center justify-between gap-2">
@@ -235,6 +251,7 @@ export function StudioSeriesEditor({
             dimensions: [],
             metrics: [{ id: "count", measure: "count", aggregation: "count" }],
             filters: [],
+            orderBy: undefined,
           })
         }
       />
@@ -387,16 +404,29 @@ export function StudioSeriesEditor({
             placeholder="Automatic"
             options={[
               { value: "automatic", label: "Automatic" },
-              ...query.metrics.map((metric) => ({
-                value: `${metric.aggregation}_${metric.measure}`,
-                label:
-                  metric.label ||
-                  `${metric.percentile ? `p${metric.percentile}` : metric.aggregation} ${readableField(metric.measure)}`,
+              ...query.metrics
+                .filter((metric) => metric.aggregation !== "histogram")
+                .map((metric) => ({
+                  value: `${metric.aggregation}_${metric.measure}`,
+                  label:
+                    metric.label ||
+                    `${metric.percentile ? `p${metric.percentile}` : metric.aggregation} ${readableField(metric.measure)}`,
+                })),
+              ...[
+                ...new Set([
+                  ...query.dimensions.map((dimension) => dimension.field),
+                  ...query.metrics.flatMap(
+                    (metric) =>
+                      source.measures[metric.measure]?.requiresDimension ?? [],
+                  ),
+                ]),
+              ].map((field) => ({
+                value: field,
+                label: readableField(field),
               })),
-              ...query.dimensions.map((dimension) => ({
-                value: dimension.field,
-                label: readableField(dimension.field),
-              })),
+              ...(timeSeries
+                ? [{ value: "time_dimension", label: "Time" }]
+                : []),
             ]}
             onValueChange={(field) =>
               onChange({
