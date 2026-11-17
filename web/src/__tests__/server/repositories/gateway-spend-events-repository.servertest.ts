@@ -6,19 +6,21 @@ const eventsTableAvailable = vi.hoisted(
 );
 
 import { AI_GATEWAY_SERVICE_NAME } from "@langfuse/shared";
-import { createEvent, createEventsCh } from "@langfuse/shared/src/server";
+import {
+  createEvent,
+  createEventsCh,
+  getGatewayApiKeysSpendSinceFromEvents,
+} from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import waitForExpect from "wait-for-expect";
 
-import { getGatewayApiKeysSpendSince } from "./gatewaySpendRepository";
-
 const maybe = eventsTableAvailable ? describe : describe.skip;
 
-describe("gateway spend repository liveness", () => {
+describe("gateway spend events repository liveness", () => {
   it("does not hang when the events table is unavailable", () => {});
 });
 
-maybe("getGatewayApiKeysSpendSince", () => {
+maybe("getGatewayApiKeysSpendSinceFromEvents", () => {
   it("sums each key's gateway spend from its own start", async () => {
     const projectId = randomUUID();
     const gatewayEvent = (apiKeyId: string, startTime: string, cost: number) =>
@@ -44,7 +46,7 @@ maybe("getGatewayApiKeysSpendSince", () => {
     ]);
 
     await waitForExpect(async () => {
-      const spend = await getGatewayApiKeysSpendSince({
+      const spend = await getGatewayApiKeysSpendSinceFromEvents({
         projectId,
         apiKeys: [
           { apiKeyId: "daily", since: new Date("2026-11-17T00:00:00Z") },

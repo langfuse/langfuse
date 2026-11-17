@@ -9,6 +9,10 @@ import {
   type GatewaySpendLimitInterval,
   type PrismaClient,
 } from "@langfuse/shared/src/db";
+import {
+  getGatewayApiKeySpendSinceFromEvents,
+  getGatewayApiKeysSpendSinceFromEvents,
+} from "@langfuse/shared/src/server";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
@@ -20,10 +24,6 @@ import {
   getKeyOwnerFilter,
   type GatewayUsageScope,
 } from "@/src/features/ai-gateway/server/gatewayUsageScope";
-import {
-  getGatewayApiKeysSpendSince,
-  getGatewaySpendSince,
-} from "./gatewaySpendRepository";
 import {
   GatewaySpendLimitRepository,
   type GatewaySpendLimitRecord,
@@ -85,7 +85,7 @@ export class GatewaySpendLimitService {
     );
     let spend: number[] | null = null;
     if (recordingProjectId && limits.length > 0) {
-      spend = await getGatewaySpendSince({
+      spend = await getScopeSpendSince({
         projectId: recordingProjectId,
         scope: params.scope,
         since: limits.map(
@@ -154,7 +154,7 @@ export class GatewaySpendLimitService {
     );
     const spend = new Map(
       (
-        await getGatewayApiKeysSpendSince({
+        await getGatewayApiKeysSpendSinceFromEvents({
           projectId: recordingProjectId,
           apiKeys: counted,
         })
@@ -187,7 +187,7 @@ export class GatewaySpendLimitService {
       countingStartedAt,
     );
     // A total limit's window starts at the epoch, so the subject's creation bounds the scan.
-    const [baselineSpendUsd] = await getGatewaySpendSince({
+    const [baselineSpendUsd] = await getScopeSpendSince({
       projectId: recordingProjectId,
       scope: params.scope,
       since: [
@@ -460,4 +460,20 @@ function toGatewaySpendLimit(limit: GatewaySpendLimitRecord) {
     createdAt: limit.createdAt,
     updatedAt: limit.updatedAt,
   };
+}
+
+/** USD the scope spent since each `since`, in the gateway ingestion project. */
+function getScopeSpendSince(params: {
+  projectId: string;
+  scope: GatewaySpendLimitScope;
+  since: Date[];
+}) {
+  switch (params.scope.type) {
+    case "API_KEY":
+      return getGatewayApiKeySpendSinceFromEvents({
+        projectId: params.projectId,
+        apiKeyId: params.scope.apiKeyId,
+        since: params.since,
+      });
+  }
 }
