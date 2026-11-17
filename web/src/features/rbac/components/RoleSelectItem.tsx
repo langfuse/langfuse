@@ -46,7 +46,7 @@ export const RoleSelectItem = ({
               {keepDefaultNote ? " (keep default role)" : ""}
             </span>
             {showPermissionCount && (
-              <span className="shrink-0 tabular-nums">
+              <span className="flex shrink-0 tabular-nums">
                 <RolePermissionCountBadge role={role} size="xs" />
               </span>
             )}

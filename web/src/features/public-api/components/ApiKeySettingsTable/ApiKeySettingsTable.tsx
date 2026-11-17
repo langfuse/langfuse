@@ -172,7 +172,7 @@ function PermissionsCell({
       aria-label={`View ${permissionSet?.name ?? countLabel}`}
       className="group/permissions flex min-w-0 items-center gap-2 text-left focus-visible:outline-none"
     >
-      <span className="flex min-w-0 flex-col items-start">
+      <span className="flex min-w-0 flex-col items-start leading-tight">
         {permissionSet && <PermissionSetLabel permissionSet={permissionSet} />}
         <span
           className="text-muted-foreground max-w-full truncate text-[0.6875rem]"
