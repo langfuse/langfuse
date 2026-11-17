@@ -173,11 +173,12 @@ impl InferenceService {
         })
     }
 
-    /// Pre-connect the resolver and telemetry clients to Web, so the first request on a new
-    /// gateway skips connection setup. Best-effort: a slow or unavailable Web is only logged.
+    /// Pre-connect the resolver and telemetry clients to Web, and the spend counters to
+    /// Redis, so the first request on a new gateway skips connection setup. Best-effort:
+    /// a slow or unavailable Web or Redis is only logged.
     pub async fn open_connections(&self) {
         let deadline = tokio::time::Instant::now() + CONNECTION_WARMUP_TIMEOUT;
-        let (resolver, ingestion) = tokio::join!(
+        let (resolver, ingestion, spend_counters) = tokio::join!(
             tokio::time::timeout_at(deadline, self.control_plane.open_connection()),
             async {
                 match &self.telemetry {
@@ -187,7 +188,14 @@ impl InferenceService {
                     None => Ok(true),
                 }
             },
+            tokio::time::timeout_at(deadline, self.spend_limits.open_connection()),
         );
+        match spend_counters {
+            Ok(Some(true) | None) => {}
+            Ok(Some(false)) | Err(_) => {
+                tracing::warn!("gateway could not pre-connect to the spend counter redis");
+            }
+        }
         let resolver = resolver.unwrap_or(false);
         let ingestion = ingestion.unwrap_or(false);
         if resolver && ingestion {

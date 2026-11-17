@@ -90,6 +90,15 @@ impl SpendLimits {
         }
     }
 
+    /// Connects to the counter Redis ahead of the first request. `None` when no Redis
+    /// is configured.
+    pub(crate) async fn open_connection(&self) -> Option<bool> {
+        match &self.counters {
+            Some(counters) => Some(counters.open_connection().await),
+            None => None,
+        }
+    }
+
     pub(crate) fn tasks(&self) -> SpendTasks {
         SpendTasks(Arc::clone(&self.tasks))
     }

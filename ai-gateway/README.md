@@ -472,9 +472,14 @@ disconnects from, adds nothing. A successful response that adds nothing counts i
 costs dropped because too many counter writes were pending.
 
 Counters live in the Redis at `LANGFUSE_AI_GATEWAY_REDIS_URL`, under keys prefixed
-`gateway-spend:`. Run a dedicated Redis with `maxmemory-policy noeviction`: counters
-of `total` limits never expire, and an evicted counter resets its limit's spend.
+`gateway-spend:`. Run a dedicated Redis 7 or later with `maxmemory-policy noeviction`:
+counters of `total` limits never expire, and an evicted counter resets its limit's spend.
 Daily, weekly and monthly counters expire 10 minutes after their window ends.
+
+The gateway connects to Redis at startup. Each Redis call times out after 500 ms.
+After three failed calls in a row, calls fail at once for one second, so keys with
+limits get their 503 without waiting; after that, one failed call fails them again
+for a second and one successful call ends it.
 
 ## Langfuse uploads
 

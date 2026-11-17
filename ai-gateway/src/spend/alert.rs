@@ -38,18 +38,24 @@ impl SpendAlerts {
         store: Arc<RedisCounters>,
         limits: impl IntoIterator<Item = CountedLimit>,
     ) {
-        let mut claimed = Vec::new();
-        for limit in limits.into_iter().filter(|limit| !limit.alerted) {
+        let unreported: Vec<CountedLimit> =
+            limits.into_iter().filter(|limit| !limit.alerted).collect();
+        let claims = store
+            .claim(
+                unreported
+                    .iter()
+                    .map(|limit| (limit.alerted_flag.as_str(), limit.counter.expires_at)),
+            )
+            .await;
+        let claimed: Vec<CountedLimit> = match claims {
+            Ok(set) => unreported
+                .into_iter()
+                .zip(set)
+                .filter_map(|(limit, set)| set.then_some(limit))
+                .collect(),
             // When Redis is unavailable, Web's own record still sends one email per window.
-            if !matches!(
-                store
-                    .claim(&limit.alerted_flag, limit.counter.expires_at)
-                    .await,
-                Ok(false)
-            ) {
-                claimed.push(limit);
-            }
-        }
+            Err(_) => unreported,
+        };
         if claimed.is_empty() {
             return;
         }
@@ -68,9 +74,9 @@ impl SpendAlerts {
         if let Err(error) = reported {
             let limit_ids: Vec<&str> = claimed.iter().map(|limit| limit.id.as_str()).collect();
             tracing::warn!(%error, ?limit_ids, "spend limit alert failed");
-            for limit in &claimed {
-                let _ = store.release(&limit.alerted_flag).await;
-            }
+            let _ = store
+                .release(claimed.iter().map(|limit| limit.alerted_flag.as_str()))
+                .await;
         }
     }
 }
