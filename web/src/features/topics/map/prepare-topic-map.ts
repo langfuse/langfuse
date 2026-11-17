@@ -413,6 +413,8 @@ type MapTextLabel = {
   color: string;
   rect: MapRectangle;
   fontSize: number;
+  /** Exploratory scatter looks */
+  lineHeight?: number;
   opacity: number;
 };
 
@@ -469,10 +471,16 @@ export function prepareMapTextLabels(
     if (right < left || bottom < top) continue;
     // Exploratory scatter looks
     if (above) {
-      const textWidth = zone.name.length * above.fontSize * 0.62;
-      const labelWidth = Math.min(220, textWidth);
+      if (zone.id === "outliers" || zone.id === "awaiting_map") continue;
+      // A larger stage, such as fullscreen, reads at a larger size.
+      const space = Math.sqrt((size.width * size.height) / (640 * 480));
+      const scale = Math.min(1.4, Math.max(1, 1 + (space - 1) * 0.25));
+      const fontSize = above.fontSize * scale;
+      const lineHeight = above.lineHeight * scale;
+      const textWidth = zone.name.length * fontSize * 0.62;
+      const labelWidth = Math.min(220 * scale, textWidth);
       const labelHeight =
-        Math.min(2, Math.ceil(textWidth / labelWidth)) * above.lineHeight;
+        Math.min(2, Math.ceil(textWidth / labelWidth)) * lineHeight;
       const x = Math.max(
         12 + labelWidth / 2,
         Math.min(size.width - 12 - labelWidth / 2, (left + right) / 2),
@@ -498,7 +506,8 @@ export function prepareMapTextLabels(
         title: zone.name,
         color: zone.color,
         rect,
-        fontSize: above.fontSize,
+        fontSize,
+        lineHeight,
         opacity:
           visibility *
           (readingTopic && readingTopic !== zone.id ? 0.4 : 1) *

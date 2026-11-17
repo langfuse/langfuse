@@ -794,6 +794,8 @@ function MapBackgroundLabels({
                 top: label.rect.y,
                 width: label.rect.width,
                 opacity: label.opacity,
+                fontSize: label.fontSize,
+                lineHeight: `${label.lineHeight}px`,
               }}
             >
               {label.title}
