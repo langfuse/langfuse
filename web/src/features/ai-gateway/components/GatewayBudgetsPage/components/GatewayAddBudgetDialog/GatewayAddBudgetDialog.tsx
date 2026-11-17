@@ -157,7 +157,7 @@ export function GatewayAddBudgetDialog({
               />
             )}
           </Form.Field>
-          <GatewaySpendBudgetField
+          <GatewaySpendBudgetField.Inputs
             subject={targetType === "users" ? "user" : "key"}
             control={form.control}
             disabledReason={unavailableReason}

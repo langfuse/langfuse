@@ -118,7 +118,7 @@ export function GatewayEditBudgetDialog({
               <>Applies to requests with {name}.</>
             )}
           </p>
-          <GatewaySpendBudgetField
+          <GatewaySpendBudgetField.Inputs
             subject={subject}
             control={form.control}
             disabledReason={unavailableReason}
