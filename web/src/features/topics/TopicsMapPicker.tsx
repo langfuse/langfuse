@@ -11,6 +11,7 @@ import {
   Sparkles,
   type IconComponent,
 } from "@langfuse/icons";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
@@ -225,6 +226,7 @@ export function TopicsMapPicker({
               <CreatePreview
                 entry={shown.entry}
                 disabledReason={create?.[shown.entry]?.disabledReason}
+                processingOn={processingOn}
               />
             )}
           </div>
@@ -502,7 +504,6 @@ const CREATE_EXPLANATIONS: Record<
   CreateKind,
   {
     title: string;
-    badge: ReactNode;
     summary: string;
     points: { icon: IconComponent; text: string }[];
     bestFor: string;
@@ -510,7 +511,6 @@ const CREATE_EXPLANATIONS: Record<
 > = {
   map: {
     title: "New live map",
-    badge: <LiveBadge paused={false} />,
     summary:
       "Groups the traces that match a filter into topics, and keeps sorting new traces into them as they arrive.",
     points: [
@@ -531,7 +531,6 @@ const CREATE_EXPLANATIONS: Record<
   },
   snapshot: {
     title: "New snapshot",
-    badge: <SnapshotBadge />,
     summary:
       "Groups the traces that match a filter in a past time window into topics, once.",
     points: [
@@ -556,14 +555,30 @@ const CREATE_EXPLANATIONS: Record<
 function CreatePreview({
   entry,
   disabledReason,
+  processingOn,
 }: {
   entry: CreateKind;
   disabledReason?: string;
+  processingOn: boolean;
 }) {
   const explanation = CREATE_EXPLANATIONS[entry];
+  const notice =
+    disabledReason ??
+    (entry === "map" && !processingOn
+      ? "Automatic analysis is off, so a new map stays paused until it’s turned on."
+      : undefined);
   return (
     <div className="flex flex-col gap-4">
-      <PreviewHeader name={explanation.title} badge={explanation.badge} />
+      <PreviewHeader
+        name={explanation.title}
+        badge={
+          entry === "map" ? (
+            <LiveBadge paused={!processingOn} />
+          ) : (
+            <SnapshotBadge />
+          )
+        }
+      />
       <p className="text-muted-foreground text-sm">{explanation.summary}</p>
       <ul className="flex flex-col gap-2.5 text-sm">
         {explanation.points.map(({ icon: Icon, text }) => (
@@ -579,10 +594,10 @@ function CreatePreview({
         <span className="text-muted-foreground">Best for: </span>
         {explanation.bestFor}
       </p>
-      {disabledReason ? (
-        <div className="bg-light-yellow text-dark-yellow rounded-md px-4 py-2.5 text-sm">
-          {disabledReason}
-        </div>
+      {notice ? (
+        <Alert variant="warning">
+          <Alert.Description>{notice}</Alert.Description>
+        </Alert>
       ) : null}
     </div>
   );
