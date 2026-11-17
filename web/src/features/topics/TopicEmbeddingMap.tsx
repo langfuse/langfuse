@@ -27,7 +27,8 @@ export function TopicEmbeddingMap({
         </Alert.Description>
       </Alert>
     );
-  if (!query.data) return <TopicMapLoading fillContainer={fillContainer} />;
+  if (!query.data)
+    return <TopicMapLoading fillContainer={fillContainer} look={look} />;
   if (query.data.status !== "ready")
     return (
       <p className="text-muted-foreground rounded-lg border p-4 text-sm">
