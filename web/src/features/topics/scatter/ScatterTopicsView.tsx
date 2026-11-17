@@ -134,12 +134,11 @@ export function ScatterTopicsView({
       aria-label="Topics"
       className="scroll-fade-y flex min-h-0 flex-1 flex-col gap-px overflow-y-auto p-2"
     >
-      {topics.map((topic, rank) => (
+      {topics.map((topic) => (
         <li key={topic.id}>
           <TopicRow
             topic={topic}
             maxCount={maxCount}
-            faded={rank >= 6}
             selected={topic.id === selected?.id}
             onSelect={() => selectTopic(topic.id)}
           />
@@ -271,13 +270,11 @@ function TopicRow({
   maxCount,
   selected,
   onSelect,
-  faded,
 }: {
   topic: TopicDisplay;
   maxCount: number;
   selected: boolean;
   onSelect: () => void;
-  faded: boolean;
 }) {
   return (
     <button
@@ -301,7 +298,7 @@ function TopicRow({
       </span>
       <span aria-hidden className="bg-muted h-1 w-36 shrink-0 rounded-full">
         <span
-          className={cn("block h-full rounded-full", faded && "opacity-60")}
+          className="block h-full rounded-full"
           style={{
             width: `${(topic.count / maxCount) * 100}%`,
             backgroundColor: topic.color,
@@ -315,7 +312,7 @@ function TopicRow({
   );
 }
 
-/** Topics in the scatter's six colors, by rank; Unassigned stays grey. */
+/** Topics in the scatter colors, by rank; Unassigned stays grey. */
 function withScatterColors(topics: TopicDisplay[]) {
   return topics.map((topic, rank) =>
     topic.id === UNASSIGNED_TOPIC_ID

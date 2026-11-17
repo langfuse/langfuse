@@ -227,7 +227,7 @@ export function prepareTopicMap(
       id,
       name:
         topic?.name ??
-        (id === "awaiting_map" ? "Assignment unavailable" : "Outliers"),
+        (id === "awaiting_map" ? "Assignment unavailable" : "Unassigned"),
       description,
       color: topic?.color ?? UNASSIGNED_SWATCH_COLOR,
       points: members,

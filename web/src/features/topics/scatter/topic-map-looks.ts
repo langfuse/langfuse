@@ -119,6 +119,8 @@ const CATEGORY_HUES: Record<string, number> = {
   green: 135,
   amber: 70,
   pink: 350,
+  peach: 45,
+  olive: 100,
 };
 
 type Rgb = [number, number, number];
