@@ -328,7 +328,7 @@ const IN_APP_AGENT_FOCUSED_QUICK_ACTIONS = {
       description: "See the largest topics and what they cover",
       icon: Layers,
       prompt:
-        "Summarize the topics in the current view (use the facet and map selected in the URL, or all active facets if none is selected): list the largest topics by trace count over the last seven days, describe what each covers based on a sample of its trace summaries, and say how many traces are outliers or still awaiting a map.",
+        "Summarize the live topics of the facet selected in the current URL (or all active facets if none is selected): list the largest topics by trace count over the last seven days, describe what each covers based on a sample of its trace summaries, and say how many traces are outliers or still awaiting a map. If the URL selects a snapshot (map=analysis:...), first say that you can only read live topic maps, not snapshots, and ask whether to continue with the live topics.",
     },
     {
       id: "spot-trending-topics",
@@ -336,7 +336,7 @@ const IN_APP_AGENT_FOCUSED_QUICK_ACTIONS = {
       description: "Compare topic volume with the previous week",
       icon: TrendingUp,
       prompt:
-        "Compare topic trace counts in the current view (use the facet and map selected in the URL, or all active facets if none is selected) for the last seven days against the seven days before, highlight topics that are new, growing, or shrinking, and explain what drives the biggest changes based on a sample of their trace summaries.",
+        "Compare the live topics' trace counts for the facet selected in the current URL (or all active facets if none is selected) over the last seven days against the seven days before, highlight topics that are new, growing, or shrinking, and explain what drives the biggest changes based on a sample of their trace summaries. If the URL selects a snapshot (map=analysis:...), first say that you can only read live topic maps, not snapshots, and ask whether to continue with the live topics.",
     },
     {
       id: "create-dataset-from-topic",
@@ -344,7 +344,7 @@ const IN_APP_AGENT_FOCUSED_QUICK_ACTIONS = {
       description: "Cover a production topic in your evaluations",
       icon: Database,
       prompt:
-        "Help me build a dataset (up to 10 items) from a topic's traces so that topic is covered when I evaluate and run experiments. First suggest the largest topics in the current view, ask which one to use and what to name the dataset, then add up to ten representative traces assigned to that topic as items with inputs and expected outputs.",
+        "Help me build a dataset (up to 10 items) from a topic's traces so that topic is covered when I evaluate and run experiments. First suggest the largest live topics of the facet selected in the current URL (or of all active facets), ask which one to use and what to name the dataset, then add up to ten representative traces assigned to that topic as items with inputs and expected outputs.",
     },
   ],
   experimentRun: [
