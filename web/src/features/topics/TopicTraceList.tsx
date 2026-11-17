@@ -240,7 +240,7 @@ type TopicTraceListProps = {
   description?: string;
   swatchColor?: string;
   traces: TopicTracesResult;
-  /** Approximate count of the listed traces; null when only the loaded rows are known. */
+  /** Count of the listed traces; null when only the loaded rows are known. */
   totalCount: number | null;
   /** The listed topic, so Open in Tracing can filter by it instead of trace IDs. */
   tracingTopic?: { facet: Facet; name: string };
@@ -258,11 +258,7 @@ type TopicTraceListProps = {
   topicColors?: ReadonlyMap<string, string>;
 };
 
-const APPROXIMATE_COUNT_FROM = 1_000;
-
-/** Counts are distinct-trace estimates; only large ones read as approximate. */
 function traceCountLabel(count: number | null) {
   if (count === null) return "Traces";
-  const approximate = count >= APPROXIMATE_COUNT_FROM ? "~" : "";
-  return `${approximate}${count.toLocaleString()} traces`;
+  return `${count.toLocaleString()} traces`;
 }
