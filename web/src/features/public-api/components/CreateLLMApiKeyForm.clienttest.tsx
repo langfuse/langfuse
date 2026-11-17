@@ -28,6 +28,7 @@ vi.mock("@/src/utils/api", () => {
           useMutation: () => ({ mutateAsync: mocks.testProject }),
         },
         testUpdate: mutation,
+        bedrockIamRoleAuth: { useQuery: () => ({ data: undefined }) },
       },
       organizationLlmApiKey: {
         all: { useQuery: () => ({ data: { data: [] } }) },
