@@ -163,7 +163,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         const [clock, , pending, ready, oldest, expired] = snapshot.map(Number);
         now = clock;
         cutoff = String(snapshot[1]);
-        recordIncrement("langfuse.trace_batch.expired_traces", expired, {
+        recordIncrement("langfuse.trace_dispatch.expired_traces", expired, {
           source: "dispatcher",
         });
         if (expired < CLEANUP_SIZE) {
@@ -190,7 +190,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       );
       counts.fetched += dueMembers.length / 2;
       recordDistribution(
-        "langfuse.trace_batch.snapshot_size",
+        "langfuse.trace_dispatch.snapshot_size",
         dueMembers.length / 2,
       );
       for (let index = 0; index < dueMembers.length; index += 2) {
@@ -206,9 +206,9 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
     }
     // The lease moves between workers after every run, so per-shard series
     // would multiply custom metrics by the shard count on each dispatcher.
-    recordGauge("langfuse.trace_batch.pending_traces", totals.pending);
-    recordGauge("langfuse.trace_batch.ready_traces", totals.ready);
-    recordGauge("langfuse.trace_batch.oldest_due_age_ms", totals.oldestAge);
+    recordGauge("langfuse.trace_dispatch.pending_traces", totals.pending);
+    recordGauge("langfuse.trace_dispatch.ready_traces", totals.ready);
+    recordGauge("langfuse.trace_dispatch.oldest_due_age_ms", totals.oldestAge);
     if (this.stopping) return;
 
     // Each range read captures one shard's due IDs. Pack the combined cohort so
@@ -270,7 +270,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       if (enqueued.length === 0) return;
       const removed = await acknowledge(enqueued.splice(0));
       recordIncrement(
-        "langfuse.trace_batch.reactivated_traces",
+        "langfuse.trace_dispatch.reactivated_traces",
         removed.filter((wasRemoved) => !wasRemoved).length,
       );
     };
@@ -291,7 +291,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       const removed = await acknowledge(excluded.map(({ entry }) => entry));
       for (const [index, { entry, reason }] of excluded.entries()) {
         if (!removed[index]) continue;
-        recordIncrement("langfuse.trace_batch.excluded_traces", 1, {
+        recordIncrement("langfuse.trace_dispatch.excluded_traces", 1, {
           reason,
         });
         logger.warn("Trace batch excluded trace", {
@@ -325,9 +325,9 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       );
       enqueued.push(...batch);
       counts.enqueued += batch.length;
-      recordDistribution("langfuse.trace_batch.size", batch.length);
+      recordDistribution("langfuse.events_dispatch.batch_size", batch.length);
       recordDistribution(
-        "langfuse.trace_batch.project_count",
+        "langfuse.events_dispatch.batch_project_count",
         new Set(traces.map((trace) => trace.projectId)).size,
       );
       const fill = (() => {
@@ -339,11 +339,11 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         }
         return "partial";
       })();
-      recordIncrement("langfuse.trace_batch.dispatched_batches", 1, {
+      recordIncrement("langfuse.events_dispatch.dispatched_batches", 1, {
         fill,
       });
       recordDistribution(
-        "langfuse.trace_batch.event_time_envelope_ms",
+        "langfuse.events_dispatch.event_time_envelope_ms",
         Math.max(...traces.map(({ maxStart }) => maxStart)) -
           Math.min(...traces.map(({ minStart }) => minStart)) +
           2 * QUERY_BUFFER_MS,
@@ -354,7 +354,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         if (entry.estimates) {
           estimatedSerializedEventBytes += entry.estimates.serializedEventBytes;
           recordDistribution(
-            "langfuse.trace_batch.estimated_serialized_event_bytes",
+            "langfuse.events_dispatch.estimated_serialized_event_bytes",
             entry.estimates.serializedEventBytes,
             { scope: "trace" },
           );
@@ -364,19 +364,19 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       }
       if (unavailableEstimates === 0) {
         recordDistribution(
-          "langfuse.trace_batch.estimated_serialized_event_bytes",
+          "langfuse.events_dispatch.estimated_serialized_event_bytes",
           estimatedSerializedEventBytes,
           { scope: "batch" },
         );
       } else {
         recordIncrement(
-          "langfuse.trace_batch.estimates_unavailable",
+          "langfuse.events_dispatch.estimates_unavailable",
           unavailableEstimates,
           {
             scope: "trace",
           },
         );
-        recordIncrement("langfuse.trace_batch.estimates_unavailable", 1, {
+        recordIncrement("langfuse.events_dispatch.estimates_unavailable", 1, {
           scope: "batch",
         });
       }
@@ -424,7 +424,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         }
       }
       recordIncrement(
-        "langfuse.trace_batch.skipped_traces",
+        "langfuse.trace_dispatch.skipped_traces",
         candidates.length - hydratedByMember.size,
       );
       const hydratedCandidates: PendingTrace[] = [];
@@ -465,7 +465,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       );
       const selectorInput = [...localityPartials.flat(), ...hydratedCandidates];
       recordDistribution(
-        "langfuse.trace_batch.candidate_buffer_size",
+        "langfuse.trace_dispatch.candidate_buffer_size",
         hydratedCandidates.length + carriedTraceCount,
       );
       const selectorStartedAt = performance.now();
@@ -475,7 +475,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         batchWeightLimits,
       );
       recordDistribution(
-        "langfuse.trace_batch.selector_duration_ms",
+        "langfuse.trace_dispatch.selector_duration_ms",
         performance.now() - selectorStartedAt,
       );
 
