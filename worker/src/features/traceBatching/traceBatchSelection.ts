@@ -8,6 +8,8 @@ export const QUERY_BUFFER_MS = 2 * 60_000;
 const MINUTE_MS = 60_000;
 const NARROW_BATCH_MAX_ENVELOPE_MS = 60 * MINUTE_MS;
 const WIDE_MAX_EXPANSION_RATIO = 0.25;
+// Traces spanning longer than this never share a batch with shorter ones.
+const WIDE_TRACE_SPAN_MS = 24 * 60 * MINUTE_MS;
 
 export type TraceBatchStrategy = "project" | "locality";
 export type PendingTrace = {
@@ -105,6 +107,10 @@ export const compareStrings = (left: string, right: string) => {
 const toMinuteBucket = (timestamp: number) => Math.floor(timestamp / MINUTE_MS);
 
 const getSpanMs = ({ trace }: PendingTrace) => trace.maxStart - trace.minStart;
+
+// The batch read's time window covers its widest trace for every companion.
+const isWideTrace = (entry: PendingTrace) =>
+  getSpanMs(entry) > WIDE_TRACE_SPAN_MS;
 
 const allowedEnvelopeMs = (seed: PendingTrace) =>
   Math.max(
@@ -366,7 +372,8 @@ const selectLocalityBatches = (
  * then minimizes minute × trace-hash cells, then splits the largest hash gaps.
  * Both strategies also close a multi-trace batch before its estimated event
  * updates or serialized bytes would exceed `weightLimits`. Locality packs
- * traces above half of either budget in a separate lane.
+ * traces above half of either budget, and traces spanning more than a day,
+ * in separate lanes.
  *
  * Selection uses O(n × k × maxBatchSize) time and
  * O(n × min(n, maxBatchSize) + n × k) memory, where k is the fewest feasible
@@ -414,17 +421,19 @@ export function selectTraceBatches(
 
   // Two heavy traces cannot share a batch on the dimension that makes them
   // heavy, so packing them separately keeps them from fragmenting the light
-  // traces around them in locality order.
-  const light: PendingTrace[] = [];
-  const heavy: PendingTrace[] = [];
-  for (const candidate of candidates) {
-    if (isHeavyTrace(candidate, weightLimits)) heavy.push(candidate);
-    else light.push(candidate);
-  }
-  return [
-    ...selectLocalityBatches(light, maxBatchSize, weightLimits),
-    ...selectLocalityBatches(heavy, maxBatchSize, weightLimits),
-  ];
+  // traces around them in locality order. Wide traces get their own lanes so
+  // their multi-day read window never applies to narrow companions.
+  const lanes: PendingTrace[][] = [[], [], [], []];
+  for (const candidate of candidates)
+    lanes[
+      (isHeavyTrace(candidate, weightLimits) ? 2 : 0) +
+        (isWideTrace(candidate) ? 1 : 0)
+    ].push(candidate);
+  return lanes.flatMap((lane) =>
+    lane.length > 0
+      ? selectLocalityBatches(lane, maxBatchSize, weightLimits)
+      : [],
+  );
 }
 
 export const compareBatchesByOldestDue = (
@@ -443,6 +452,8 @@ const canCoalesceLocalityPartials = (
   weightLimits: TraceBatchWeightLimits,
 ) => {
   if (left.length + right.length > maxBatchSize) return false;
+  // Partials come from one width lane each; keep wide and narrow lanes apart.
+  if (left.some(isWideTrace) !== right.some(isWideTrace)) return false;
   const projectId = left[0]?.trace.projectId;
   if (
     !projectId ||
