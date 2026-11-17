@@ -8,7 +8,6 @@ import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
   DEFAULT_TOPIC_FACETS,
   topicEmbeddingConfigSchema,
-  topicProcessingConfigSchema,
 } from "@langfuse/shared/topics";
 import {
   createTopicExecution,
@@ -129,11 +128,13 @@ async function topicsProject(userId: string) {
     {
       projectId,
       requestId: randomUUID(),
-      operation: "process",
+      operation: "update",
       facets: [{ facetId: facet.id, version: 1 }],
-      traceIds: [randomUUID()],
-      reuseExistingSummaries: false,
-      processingConfig: topicProcessingConfigSchema.parse({}),
+      timeRange: {
+        from: new Date(Date.now() - 86_400_000),
+        to: new Date(),
+      },
+      exploratory: false,
       embeddingConfig: topicEmbeddingConfigSchema.parse({}),
     },
     undefined,

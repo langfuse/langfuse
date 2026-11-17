@@ -45,18 +45,20 @@ export function useTopicSettings({
   const readinessSettings = api.topics.tracingReadinessSettings.useQuery({
     projectId,
   });
-  const rules = api.topics.rules.useQuery({ projectId });
+  // The maps overview lists the rules too; one query keeps them in one cache.
+  const maps = api.topics.maps.useQuery({ projectId });
+  const rules = maps.data?.rules;
   const connections = api.llmApiKey.effective.useQuery({ projectId });
   const configured = Boolean(
     settings.data?.summary &&
     settings.data.embedding &&
     settings.data.clustering,
   );
-  const rule = rules.data?.length === 1 ? rules.data[0] : null;
+  const rule = rules?.length === 1 ? rules[0] : null;
   const automaticProcessing = useAutomaticProcessing({
     projectId,
     rule,
-    hasRules: Boolean(rules.data?.length),
+    hasRules: Boolean(rules?.length),
     stored: settings.data,
   });
 
@@ -71,7 +73,7 @@ export function useTopicSettings({
     settings.data &&
     readinessSettings.data &&
     connections.data &&
-    rules.isSuccess &&
+    rules !== undefined &&
     facetsReady
       ? {
           projectId,
@@ -81,12 +83,15 @@ export function useTopicSettings({
           connections: connections.data.data,
           facets,
           rule,
-          ruleCount: rules.data.length,
+          ruleCount: rules.length,
         }
       : null;
 
   const configurationError =
-    settings.error ?? readinessSettings.error ?? connections.error;
+    settings.error ??
+    readinessSettings.error ??
+    connections.error ??
+    maps.error;
 
   return {
     configure: {

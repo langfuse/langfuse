@@ -5,13 +5,13 @@ import type { Session } from "next-auth";
 import type * as topicsServer from "@langfuse/shared/topics/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  topicProcessingConfigSchema,
   topicEmbeddingConfigSchema,
   DEFAULT_TOPIC_FACETS,
   TOPICS_ANALYSIS_SAMPLING_SEED,
   TOPICS_SLICE_MAX_TRACES,
   type TopicExecution,
   type TopicExecutionInput,
+  type TopicManualRunInput,
 } from "@langfuse/shared/topics";
 
 const mocks = vi.hoisted(() => ({
@@ -21,7 +21,6 @@ const mocks = vi.hoisted(() => ({
   readTopicExecutionSummary: vi.fn(),
   getTopicExecutionCosts: vi.fn(),
   getTopicSummaryCounts: vi.fn(),
-  readTopicExecutionForRequest: vi.fn(),
   listTopicExecutions: vi.fn(),
   listTopicFacets: vi.fn(),
   readLatestTopicAssignments: vi.fn(),
@@ -98,16 +97,11 @@ const timeRange = {
   from: new Date("2026-09-16T00:00:00Z"),
   to: new Date("2026-09-23T00:00:00Z"),
 };
-const input: Extract<TopicExecutionInput, { operation: "process" }> = {
+const input: TopicManualRunInput = {
   projectId,
   requestId: "request-a",
   operation: "process",
   facets: selectedFacets,
-  traceIds: ["trace-a"],
-  reuseExistingSummaries: false,
-  processingConfig: topicProcessingConfigSchema.parse({
-    summaryModel: "us.openai.gpt-5.6-luna",
-  }),
   embeddingConfig: topicEmbeddingConfigSchema.parse({
     embeddingModel: "eu.cohere.embed-v4:0",
   }),
@@ -134,7 +128,7 @@ function caller(role: "ADMIN" | "VIEWER" = "ADMIN", langfuseTopics = true) {
 }
 
 function execution(): TopicExecution & {
-  input: Extract<TopicExecutionInput, { operation: "update" }>;
+  input: TopicExecutionInput;
 } {
   return {
     id: "execution-a",
@@ -226,7 +220,6 @@ beforeEach(() => {
   mocks.getTopicExecutionCosts.mockResolvedValue({});
   mocks.getLatestFacetSummaries.mockResolvedValue([summary]);
   mocks.hasStoredTopicSummaries.mockResolvedValue(false);
-  mocks.readTopicExecutionForRequest.mockResolvedValue(null);
   mocks.createTopicExecution.mockResolvedValue(execution());
   mocks.getTopicRun.mockResolvedValue(run);
   mocks.getTopicRuns.mockResolvedValue([]);
@@ -258,7 +251,7 @@ describe("Topics project allowlist", () => {
     ["current results", () => outside().currentResults({ projectId })],
     ["topic map", () => outside().map({ projectId, runId: "run-a" })],
     ["facets", () => outside().facets({ projectId })],
-    ["rules", () => outside().rules({ projectId })],
+    ["maps", () => outside().maps({ projectId })],
     ["runs", () => outside().executions({ projectId })],
     ["model settings", () => outside().modelSettings({ projectId })],
     ["tracing filter options", () => outside().filterOptions({ projectId })],
@@ -419,7 +412,6 @@ describe("Topics filtered trace preview", () => {
     });
     expect(response).toMatchObject({
       matchedTraceCount: 123,
-      selectedTraceCount: 100,
       traces: [
         {
           id: "trace/a:1",
@@ -453,27 +445,6 @@ describe("Topics filtered trace preview", () => {
       samplingSeed: "sample-seed",
     });
     expect(request.preferredClickhouseService).toBe("EventsReadOnly");
-  });
-
-  it("caps manual backfill selection while preserving the full matching count", async () => {
-    mocks.queryClickhouse.mockResolvedValue([
-      {
-        id: "trace-a",
-        timestampMs: "1789430400000",
-        name: "Agent",
-        environment: "default",
-        matchedTraceCount: String(TOPICS_BACKFILL_TRACE_LIMIT + 1),
-      },
-    ]);
-    const response = await caller().previewTraces({
-      ...selection,
-      limit: null,
-    });
-    expect(response.matchedTraceCount).toBe(1001);
-    expect(response.selectedTraceCount).toBe(1000);
-    expect(mocks.queryClickhouse.mock.calls[0][0].params.limit).toBe(20);
-    await caller().previewTraces({ ...selection, limit: 500 });
-    expect(mocks.queryClickhouse.mock.calls[1][0].params.limit).toBe(20);
   });
 
   it("rejects oversized previews before querying", async () => {
