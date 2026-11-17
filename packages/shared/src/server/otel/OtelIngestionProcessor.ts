@@ -44,10 +44,11 @@ import { isValidDateString, flattenJsonToPathArrays } from "./utils";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { isNullOrUndefined } from "../../utils/isNullOrUndefined";
 import { defineOwnValue } from "../../utils/objects";
-import { AGENT_METADATA_KEYS } from "../../features/agents/api";
 import {
+  type AgentIdentity,
+  hasAgentIdentityContext,
   agentSpanKey,
-  resolveAgentBatchMetadata,
+  resolveAgentBatchIdentity,
   type AgentSpan,
 } from "./agentMetadata";
 
@@ -229,7 +230,7 @@ type PreparedOtelSpan = AgentSpan & { observationType: ObservationType };
 type PreparedOtelBatch = {
   spans: WeakMap<object, PreparedOtelSpan>;
   resources: WeakMap<object, Record<string, unknown>>;
-  metadata: Map<string, Record<string, string>>;
+  identities: Map<string, AgentIdentity | null>;
 };
 
 interface CreateObservationEventParams {
@@ -248,7 +249,7 @@ interface CreateObservationEventParams {
   isLangfuseSDKSpans: boolean;
   startTimeISO: string;
   endTimeISO: string;
-  agentMetadata: Record<string, string>;
+  agentIdentity: AgentIdentity | null;
 }
 
 type NanoTimestamp =
@@ -731,10 +732,11 @@ export class OtelIngestionProcessor {
                     typeof normalizedTools.metadata === "object"
                       ? normalizedTools.metadata
                       : {}),
-                    ...preparedBatch.metadata.get(
-                      agentSpanKey(traceId, spanId),
-                    ),
                   },
+                  agentIdentity:
+                    preparedBatch.identities.get(
+                      agentSpanKey(traceId, spanId),
+                    ) ?? null,
 
                   // Instrumentation metadata
                   source: "otel",
@@ -1015,19 +1017,7 @@ export class OtelIngestionProcessor {
             ),
             attributes,
           };
-          if (!hasAgentData)
-            hasAgentData =
-              prepared.isAgent ||
-              [
-                "langfuse.agent.id",
-                "gen_ai.agent.id",
-                "langfuse.agent.name",
-                "gen_ai.agent.name",
-              ].some(
-                (key) =>
-                  typeof attributes[key] === "string" &&
-                  attributes[key].trim().length > 0,
-              );
+          if (!hasAgentData) hasAgentData = hasAgentIdentityContext(prepared);
           preparedSpans.set(span, prepared);
           spans.push(prepared);
         }
@@ -1036,7 +1026,7 @@ export class OtelIngestionProcessor {
     return {
       spans: preparedSpans,
       resources,
-      metadata: hasAgentData ? resolveAgentBatchMetadata(spans) : new Map(),
+      identities: hasAgentData ? resolveAgentBatchIdentity(spans) : new Map(),
     };
   }
 
@@ -1153,9 +1143,9 @@ export class OtelIngestionProcessor {
       isLangfuseSDKSpans,
       startTimeISO,
       endTimeISO,
-      agentMetadata:
-        preparedBatch.metadata.get(agentSpanKey(traceId, prepared.spanId)) ??
-        {},
+      agentIdentity:
+        preparedBatch.identities.get(agentSpanKey(traceId, prepared.spanId)) ??
+        null,
     });
     events.push(observationEvent);
 
@@ -1340,7 +1330,7 @@ export class OtelIngestionProcessor {
       isLangfuseSDKSpans,
       startTimeISO,
       endTimeISO,
-      agentMetadata,
+      agentIdentity,
       spanId,
       observationType: mappedObservationType,
       observationName: name,
@@ -1411,7 +1401,6 @@ export class OtelIngestionProcessor {
         typeof normalizedToolMetadata.metadata === "object"
           ? normalizedToolMetadata.metadata
           : {}),
-        ...agentMetadata,
       },
       level,
       statusMessage:
@@ -1484,6 +1473,7 @@ export class OtelIngestionProcessor {
       type: getIngestionEventType(),
       timestamp: new Date().toISOString(),
       body: observation,
+      agentIdentity,
     } as unknown as IngestionEventType;
   }
 
@@ -2814,7 +2804,6 @@ export class OtelIngestionProcessor {
       ...topLevelMetadata,
       ...langfuseMetadata,
     };
-    for (const key of Object.values(AGENT_METADATA_KEYS)) delete metadata[key];
     return metadata;
   }
 

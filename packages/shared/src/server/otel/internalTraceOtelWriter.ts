@@ -16,7 +16,6 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 
 import { ObservationTypeDomain } from "../../domain/observations";
-import { AGENT_METADATA_KEYS } from "../../features/agents/api";
 import type { InternalTraceEventInput } from "../llm/internalTraceEvents";
 import { logger } from "../logger";
 import {
@@ -59,6 +58,7 @@ export function internalTraceEventToOtelAttributes(
     | "input"
     | "output"
     | "metadata"
+    | "agentIdentity"
     | "type"
     | "modelName"
     | "modelParameters"
@@ -82,11 +82,11 @@ export function internalTraceEventToOtelAttributes(
   const metadataJson = asOtelAttributeString(eventInput.metadata);
   const agentAttributes: Attributes = {};
   for (const [key, attribute] of [
-    [AGENT_METADATA_KEYS.id, "langfuse.agent.id"],
-    [AGENT_METADATA_KEYS.name, "langfuse.agent.name"],
-    [AGENT_METADATA_KEYS.runId, "langfuse.agent.run_id"],
+    ["id", "langfuse.agent.id"],
+    ["name", "langfuse.agent.name"],
+    ["runId", "langfuse.agent.run_id"],
   ] as const) {
-    const value = eventInput.metadata?.[key];
+    const value = eventInput.agentIdentity?.[key];
     if (typeof value === "string" && value.trim().length > 0)
       agentAttributes[attribute] = value;
   }

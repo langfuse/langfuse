@@ -61,6 +61,7 @@
 - Canonical ClickHouse migration templates (rendered for clustered and unclustered installs): `clickhouse/migrations/canonical/*`. `events_full.event_bytes` defaults to `byteSize` of customer payload, identifiers and descriptions (migration 0056), excluding internal bookkeeping and copied experiment metadata. Keep this estimate stable across small schema additions; include new large customer payload fields via a new migration. Core and billing projections preserve the untruncated payload estimate. Inserts may omit it; reads require it.
 - ClickHouse SQL identifier and string quoting:
   `src/server/clickhouse/clickhouseIdentifiers.ts`
+- Agent identity: `src/server/otel/agentMetadata.ts` resolves typed attribution independently of user metadata. OTel adapters carry it in an internal `agentIdentity` envelope; public JSON ingestion accepts explicit dotted agent attributes in metadata. Dedicated observation/staging/event columns retain identity and run ownership across updates. Never use user `langfuse_agent_*` metadata as internal transport or strip those user keys.
 - Ingestion masking: `src/server/ee/ingestionMasking` keeps HTTP retries and failure
   policy independent of in-memory representation. The callback always exchanges JSON;
   the optional transport supplies reusable JSON text or UTF-8 bytes and validates

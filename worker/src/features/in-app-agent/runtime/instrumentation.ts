@@ -1,7 +1,6 @@
 import { EventType } from "@ag-ui/core";
 import { Buffer } from "node:buffer";
 import { getInternalTracingHandler, logger } from "@langfuse/shared/src/server";
-import { AGENT_METADATA_KEYS } from "@langfuse/shared/agents";
 
 import {
   getInAppAgentInstrumentationObservationId,
@@ -912,9 +911,12 @@ export class InAppAgentInstrumentation {
       metadata: {
         ...this.metadata,
         ...body.metadata,
-        [AGENT_METADATA_KEYS.id]: "langfuse:halo",
-        [AGENT_METADATA_KEYS.name]: "Halo",
-        [AGENT_METADATA_KEYS.runId]: this.rootObservationId,
+      },
+      agentIdentity: {
+        id: "langfuse:halo",
+        name: "Halo",
+        runId: this.rootObservationId,
+        source: "native",
       },
     });
   }

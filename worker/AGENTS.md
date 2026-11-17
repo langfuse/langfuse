@@ -97,6 +97,8 @@
 
 ## Processor Conventions
 
+- Agent attribution uses a trusted `agentIdentity` envelope only on internal OTel events. The OTel queue restores it after public-schema validation; public ingestion must continue stripping unknown envelope fields. Legacy observations and staging persist dedicated agent columns, and propagation copies them into events. User metadata remains unchanged, including keys that resemble internal agent identifiers.
+
 - Batch exports in `src/features/batchExport/handleBatchExportJob.ts` parse persisted queries with `PersistedBatchExportQuerySchema`. Agent-scoped exports use a versioned envelope; preserve the scope when selecting rows and score columns. Do not parse the envelope as an ordinary query or drop unsupported scope fields, which would broaden the exported dataset.
 - Keep queue handlers idempotent where possible.
 - Preserve metrics/tracing patterns in `workerManager` and queue processors.

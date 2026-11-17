@@ -108,6 +108,11 @@ describe("handleEventPropagationJob", () => {
             event_ts: oldEnoughForPropagation,
           }),
           ingestion_api_key: "pk-lf-propagation-test",
+          agent_id: "researcher",
+          agent_name: "Researcher",
+          agent_run_id: "recorded-run",
+          agent_identity_source: "native",
+          metadata: { langfuse_agent_id: "customer-value" },
           ingestion_sdk_name: "langfuse-js",
           ingestion_sdk_version: "4.2.0",
           s3_first_seen_timestamp: toClickhouseDateTime(
@@ -151,6 +156,11 @@ describe("handleEventPropagationJob", () => {
       const rows = await queryClickhouse<{
         trace_id: string;
         span_id: string;
+        agent_id: string;
+        agent_name: string;
+        agent_run_id: string;
+        agent_identity_source: string;
+        customer_agent_id: string;
         parent_span_id: string;
         name: string;
         type: string;
@@ -167,6 +177,11 @@ describe("handleEventPropagationJob", () => {
           SELECT
             trace_id,
             span_id,
+            agent_id,
+            agent_name,
+            agent_run_id,
+            agent_identity_source,
+            metadata_values[indexOf(metadata_names, 'langfuse_agent_id')] AS customer_agent_id,
             parent_span_id,
             name,
             type,
@@ -195,6 +210,11 @@ describe("handleEventPropagationJob", () => {
         {
           trace_id: traceId,
           span_id: observationId,
+          agent_id: "researcher",
+          agent_name: "Researcher",
+          agent_run_id: "recorded-run",
+          agent_identity_source: "native",
+          customer_agent_id: "customer-value",
           parent_span_id: `t-${traceId}`,
           name: "propagated-observation",
           type: "GENERATION",

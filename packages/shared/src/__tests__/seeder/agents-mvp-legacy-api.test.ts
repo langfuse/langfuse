@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AGENT_METADATA_KEYS as K } from "../../features/agents/api";
 
 vi.mock("../../features/agents/server", () => ({
   getAgentDetail: vi.fn(),
@@ -27,26 +26,25 @@ const observationRows = [
   {
     id: rootId,
     type: "AGENT",
-    metadata: {
-      [K.name]: rootName,
-      [K.runId]: rootId,
-      [K.source]: "span-name",
-    },
+    metadata: {},
   },
   {
     id: childId,
     type: "AGENT",
     metadata: {
-      [K.id]: agentId,
-      [K.name]: childName,
-      [K.runId]: childId,
-      [K.source]: "gen-ai",
+      "gen_ai.agent.id": agentId,
+      "gen_ai.agent.name": childName,
+      "langfuse.agent.run_id": rootId,
     },
   },
   {
     id: modelId,
     type: "GENERATION",
-    metadata: { [K.id]: agentId, [K.name]: childName, [K.runId]: childId },
+    metadata: {
+      "gen_ai.agent.id": agentId,
+      "gen_ai.agent.name": childName,
+      "langfuse.agent.run_id": childId,
+    },
   },
   { id: `${ctx.idPrefix}-legacy-api-plain`, type: "SPAN", metadata: {} },
 ];

@@ -1,5 +1,4 @@
 import { z } from "zod/v4";
-import { AGENT_METADATA_KEYS } from "../../../src/features/agents/api";
 import {
   getAgentDetail,
   getAgentRuns,
@@ -206,19 +205,13 @@ export async function seedAgentsMvpLegacyApi(
       ]);
       if (
         root.type === "AGENT" &&
-        root.metadata?.[AGENT_METADATA_KEYS.name] === rootName &&
-        root.metadata?.[AGENT_METADATA_KEYS.runId] === rootId &&
-        root.metadata?.[AGENT_METADATA_KEYS.source] === "span-name" &&
         child.type === "AGENT" &&
-        child.metadata?.[AGENT_METADATA_KEYS.id] === agentId &&
-        child.metadata?.[AGENT_METADATA_KEYS.runId] === childId &&
+        child.metadata?.["gen_ai.agent.id"] === agentId &&
+        child.metadata?.["langfuse.agent.run_id"] === rootId &&
         model.type === "GENERATION" &&
-        model.metadata?.[AGENT_METADATA_KEYS.id] === agentId &&
-        model.metadata?.[AGENT_METADATA_KEYS.runId] === childId &&
+        model.metadata?.["gen_ai.agent.id"] === agentId &&
+        model.metadata?.["langfuse.agent.run_id"] === childId &&
         plain.type === "SPAN" &&
-        Object.values(AGENT_METADATA_KEYS).every(
-          (key) => !plain.metadata?.[key],
-        ) &&
         rootAgent?.stats.runs === 1 &&
         rootAgent.stats.modelCalls === 0 &&
         childAgent?.stats.runs === 1 &&
@@ -243,7 +236,7 @@ export async function seedAgentsMvpLegacyApi(
     await new Promise((resolve) => setTimeout(resolve, 2_000));
   }
   throw new SeedError(
-    "Legacy JSON API fixture readback did not match normalized metadata and typed agent fields.",
+    "Legacy JSON API fixture readback did not match preserved metadata and typed agent fields.",
     "confirm the updated worker and observation-to-events bridge are running; queued legacy propagation can take several minutes",
   );
 }

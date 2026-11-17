@@ -5,13 +5,6 @@ import {
   stringOptionsFilter,
 } from "../../interfaces/filters";
 
-export const AGENT_METADATA_KEYS = {
-  id: "langfuse_agent_id",
-  name: "langfuse_agent_name",
-  runId: "langfuse_agent_run_id",
-  source: "langfuse_agent_identity_source",
-} as const;
-
 export const AGENT_LIMITS = {
   idLength: 256,
   runIdLength: 800,

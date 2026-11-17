@@ -34,6 +34,7 @@ vi.mock("../../ClickhouseWriter/eventByteAccounting", () => ({
 
 import { IngestionService } from "../../IngestionService";
 import {
+  createIngestionEventSchema,
   createTraceScore,
   createTrace,
   type ObservationEvent,
@@ -95,8 +96,10 @@ describe("IngestionService unit tests", () => {
       metadata: Record<string, any> = {},
       name = "Research",
       id = "run-id",
+      agentIdentity?: ObservationEvent["agentIdentity"],
     ): ObservationEvent => ({
       id: `event-${id}`,
+      ...(agentIdentity !== undefined ? { agentIdentity } : {}),
       timestamp: "2026-11-05T11:00:00Z",
       type,
       body: {
@@ -108,13 +111,136 @@ describe("IngestionService unit tests", () => {
       },
     });
 
+    it("preserves user metadata and dedicated ownership through a partial update", async () => {
+      const metadata = {
+        "langfuse.agent.id": "actual-agent",
+        langfuse_agent_id: "user-value",
+        langfuse_agent_run_id: "user-owner",
+        langfuse_agent_identity_source: "user-source",
+      };
+      const saved = await ingest([event("agent-create", metadata)]);
+      const update: ObservationEvent = {
+        id: "partial-update",
+        type: "span-update",
+        timestamp: "2026-11-05T11:01:00Z",
+        body: { id: "run-id", endTime: "2026-11-05T11:01:00Z" },
+      };
+      for (const record of [...saved, ...(await ingest([update], saved[0]))]) {
+        expect(record.metadata).toEqual(metadata);
+        expect(record).toMatchObject({
+          agent_id: "actual-agent",
+          agent_name: "Research",
+          agent_run_id: "run-id",
+          agent_identity_source: "native",
+        });
+      }
+    });
+
+    it("ignores public ownership envelopes and clears an inherited owner when a child changes agent", async () => {
+      const spoofed = createIngestionEventSchema().parse({
+        ...event("generation-create", {
+          langfuse_agent_id: "user-agent",
+          langfuse_agent_run_id: "user-run",
+        }),
+        agentIdentity: { id: "forged", runId: "forged-run", source: "native" },
+      });
+      expect(spoofed).not.toHaveProperty("agentIdentity");
+      for (const record of await ingest([spoofed as ObservationEvent])) {
+        expect(record.agent_id).toBe("");
+        expect(record.agent_run_id).toBe("");
+        expect(record.metadata).toEqual({
+          langfuse_agent_id: "user-agent",
+          langfuse_agent_run_id: "user-run",
+        });
+      }
+      const [stored] = await ingest([
+        event("generation-create", {}, "Model", "model-id", {
+          id: "first-agent",
+          name: "First agent",
+          runId: "first-run",
+          source: "gen-ai",
+        }),
+      ]);
+      for (const record of await ingest(
+        [
+          {
+            id: "changed-agent",
+            type: "generation-update",
+            timestamp: "2026-11-05T11:01:00Z",
+            body: {
+              id: "model-id",
+              metadata: {
+                "langfuse.agent.id": "second-agent",
+                "langfuse.agent.name": "Second agent",
+              },
+            },
+          },
+        ],
+        stored,
+      )) {
+        expect(record).toMatchObject({
+          agent_id: "second-agent",
+          agent_name: "Second agent",
+          agent_run_id: "",
+          agent_identity_source: "native",
+        });
+      }
+    });
+
+    it("retains ownership for context-free OTLP completions but clears authoritative invalid frames", async () => {
+      const [stored] = await ingest([
+        event("generation-create", {}, "Model", "model-id", {
+          id: "first-agent",
+          name: "First agent",
+          runId: "first-run",
+          source: "gen-ai",
+        }),
+      ]);
+      const completion = {
+        id: "otel-completion",
+        type: "generation-update" as const,
+        timestamp: "2026-11-05T11:01:00Z",
+        body: {
+          id: "model-id",
+          endTime: "2026-11-05T11:01:00Z",
+          output: "Complete",
+          metadata: { "langfuse.agent.id": "user-value" },
+        },
+      };
+      for (const record of await ingest(
+        [{ ...completion, agentIdentity: null }],
+        stored,
+      )) {
+        expect(record).toMatchObject({
+          agent_id: "first-agent",
+          agent_name: "First agent",
+          agent_run_id: "first-run",
+          agent_identity_source: "gen-ai",
+        });
+        expect(record.metadata["langfuse.agent.id"]).toBe("user-value");
+        expect(record).not.toHaveProperty("agentIdentity");
+      }
+      for (const record of await ingest(
+        [{ ...completion, agentIdentity: {} }],
+        stored,
+      )) {
+        expect(record).toMatchObject({
+          agent_id: "",
+          agent_name: "",
+          agent_run_id: "",
+          agent_identity_source: "",
+        });
+        expect(record.metadata["langfuse.agent.id"]).toBe("user-value");
+      }
+    });
+
     it("discovers an ordinary agent-create by name and owns its agent run in both writes", async () => {
       for (const record of await ingest([event("agent-create")])) {
         expect(record.type).toBe("AGENT");
-        expect(record.metadata).toMatchObject({
-          langfuse_agent_name: "Research",
-          langfuse_agent_run_id: "run-id",
-          langfuse_agent_identity_source: "span-name",
+        expect(record).toMatchObject({
+          agent_name: "Research",
+          agent_run_id: "run-id",
+          agent_identity_source: "span-name",
         });
       }
     });
@@ -129,30 +255,30 @@ describe("IngestionService unit tests", () => {
           count: 2,
         }),
       ])) {
-        expect(record.metadata).toMatchObject({
-          langfuse_agent_id: "stable-research",
-          langfuse_agent_name: "Research renamed",
-          langfuse_agent_run_id: "run-id",
-          langfuse_agent_identity_source: "native",
-          count: "2",
+        expect(record).toMatchObject({
+          agent_id: "stable-research",
+          agent_name: "Research renamed",
+          agent_run_id: "run-id",
+          agent_identity_source: "native",
         });
+        expect(record.metadata.count).toBe("2");
       }
     });
 
     it("preserves normalized OTel identity and provenance across the legacy adapter", async () => {
       for (const record of await ingest([
-        event("generation-create", {
-          langfuse_agent_id: "stable-research",
-          langfuse_agent_name: "Research",
-          langfuse_agent_run_id: "owning-run",
-          langfuse_agent_identity_source: "gen-ai",
+        event("generation-create", {}, "Research", "run-id", {
+          id: "stable-research",
+          name: "Research",
+          runId: "owning-run",
+          source: "gen-ai",
         }),
       ])) {
-        expect(record.metadata).toMatchObject({
-          langfuse_agent_id: "stable-research",
-          langfuse_agent_name: "Research",
-          langfuse_agent_run_id: "owning-run",
-          langfuse_agent_identity_source: "gen-ai",
+        expect(record).toMatchObject({
+          agent_id: "stable-research",
+          agent_name: "Research",
+          agent_run_id: "owning-run",
+          agent_identity_source: "gen-ai",
         });
       }
     });
@@ -161,19 +287,24 @@ describe("IngestionService unit tests", () => {
       "preserves a normalized configuration's missing agent run owner (retained raw attributes: %s)",
       async (hasRawAttributes) => {
         const saved = await ingest([
-          event("agent-create", {
-            langfuse_agent_id: "configured-research",
-            langfuse_agent_name: "Research",
-            langfuse_agent_identity_source: "gen-ai",
-            ...(hasRawAttributes
+          event(
+            "agent-create",
+            hasRawAttributes
               ? { attributes: { "gen_ai.operation.name": "create_agent" } }
-              : {}),
-          }),
+              : {},
+            "Research",
+            "run-id",
+            {
+              id: "configured-research",
+              name: "Research",
+              source: "gen-ai",
+            },
+          ),
         ]);
         for (const record of saved) {
-          expect(record.metadata.langfuse_agent_id).toBe("configured-research");
-          expect(record.metadata.langfuse_agent_identity_source).toBe("gen-ai");
-          expect(record.metadata.langfuse_agent_run_id).toBeUndefined();
+          expect(record.agent_id).toBe("configured-research");
+          expect(record.agent_identity_source).toBe("gen-ai");
+          expect(record.agent_run_id).toBe("");
         }
         const partial = (metadata: Record<string, any>): ObservationEvent => ({
           id: "configuration-update",
@@ -185,39 +316,34 @@ describe("IngestionService unit tests", () => {
           [partial({ note: "retained" })],
           saved[0],
         ))
-          expect(record.metadata.langfuse_agent_run_id).toBeUndefined();
+          expect(record.agent_run_id).toBe("");
         for (const [operation, owner] of [
           ["invoke_agent", "run-id"],
-          ["create_agent", undefined],
+          ["create_agent", ""],
           ["chat", "run-id"],
-          [42, undefined],
+          [42, ""],
         ] as const) {
           for (const record of await ingest(
             [partial({ "gen_ai.operation.name": operation })],
             saved[0],
           ))
-            expect(record.metadata.langfuse_agent_run_id).toBe(owner);
+            expect(record.agent_run_id).toBe(owner);
         }
       },
     );
 
     it("preserves an OTel child's inherited name-fallback identity without raw attributes", async () => {
       for (const record of await ingest([
-        event(
-          "generation-create",
-          {
-            langfuse_agent_name: "Owning agent",
-            langfuse_agent_run_id: "owning-run",
-            langfuse_agent_identity_source: "span-name",
-          },
-          "Model",
-          "model-id",
-        ),
+        event("generation-create", {}, "Model", "model-id", {
+          name: "Owning agent",
+          runId: "owning-run",
+          source: "span-name",
+        }),
       ])) {
-        expect(record.metadata).toMatchObject({
-          langfuse_agent_name: "Owning agent",
-          langfuse_agent_run_id: "owning-run",
-          langfuse_agent_identity_source: "span-name",
+        expect(record).toMatchObject({
+          agent_name: "Owning agent",
+          agent_run_id: "owning-run",
+          agent_identity_source: "span-name",
         });
       }
     });
@@ -243,11 +369,12 @@ describe("IngestionService unit tests", () => {
           langfuse_agent_id: false,
         }),
       ])) {
-        expect(record.metadata.langfuse_agent_id).toBeUndefined();
-        expect(record.metadata).toMatchObject({
-          langfuse_agent_name: "Research",
-          langfuse_agent_run_id: "run-id",
-          langfuse_agent_identity_source: "span-name",
+        expect(record.agent_id).toBe("");
+        expect(record.metadata.langfuse_agent_id).toBe("false");
+        expect(record).toMatchObject({
+          agent_name: "Research",
+          agent_run_id: "run-id",
+          agent_identity_source: "span-name",
         });
       }
     });
@@ -261,8 +388,8 @@ describe("IngestionService unit tests", () => {
           "gen_ai.agent.name": name,
         }),
       ])) {
-        expect(record.metadata.langfuse_agent_id).toBe(id);
-        expect(record.metadata.langfuse_agent_name).toBe(name);
+        expect(record.agent_id).toBe(id);
+        expect(record.agent_name).toBe(name);
       }
       for (const record of await ingest([
         event("agent-create", {
@@ -270,14 +397,14 @@ describe("IngestionService unit tests", () => {
           "gen_ai.agent.id": "must-not-merge",
         }),
       ])) {
-        expect(record.metadata.langfuse_agent_id).toBeUndefined();
-        expect(record.metadata.langfuse_agent_name).toBeUndefined();
-        expect(record.metadata.langfuse_agent_run_id).toBeUndefined();
+        expect(record.agent_id).toBe("");
+        expect(record.agent_name).toBe("");
+        expect(record.agent_run_id).toBe("");
       }
       for (const record of await ingest([
         event("agent-create", { "gen_ai.agent.name": "🦉".repeat(201) }),
       ])) {
-        expect(record.metadata.langfuse_agent_name).toBeUndefined();
+        expect(record.agent_name).toBe("");
       }
     });
 
@@ -293,11 +420,11 @@ describe("IngestionService unit tests", () => {
       );
       nested.body.parentObservationId = "outer-run";
       for (const record of await ingest([nested])) {
-        expect(record.metadata).toMatchObject({
-          langfuse_agent_name: "Verify",
-          langfuse_agent_run_id: "nested-run",
+        expect(record).toMatchObject({
+          agent_name: "Verify",
+          agent_run_id: "nested-run",
         });
-        expect(record.metadata.langfuse_agent_id).toBeUndefined();
+        expect(record.agent_id).toBe("");
       }
       const model = event(
         "generation-create",
@@ -311,9 +438,9 @@ describe("IngestionService unit tests", () => {
       model.body.parentObservationId = "nested-run";
       for (const record of await ingest([model])) {
         expect(record.type).toBe("GENERATION");
-        expect(record.metadata).toMatchObject({
-          langfuse_agent_name: "Verify",
-          langfuse_agent_run_id: "nested-run",
+        expect(record).toMatchObject({
+          agent_name: "Verify",
+          agent_run_id: "nested-run",
         });
       }
     });
@@ -334,21 +461,21 @@ describe("IngestionService unit tests", () => {
         ],
         stored,
       )) {
-        expect(record.metadata.langfuse_agent_id).toBeUndefined();
-        expect(record.metadata).toMatchObject({
-          langfuse_agent_name: "Research",
-          langfuse_agent_run_id: "run-id",
-          note: "kept",
+        expect(record.agent_id).toBe("");
+        expect(record).toMatchObject({
+          agent_name: "Research",
+          agent_run_id: "run-id",
         });
+        expect(record.metadata.note).toBe("kept");
       }
     });
 
     it("uses the latest merged observation name for a name fallback", async () => {
       for (const record of await ingest([
-        event("agent-create", {
-          langfuse_agent_name: "Old name",
-          langfuse_agent_run_id: "run-id",
-          langfuse_agent_identity_source: "span-name",
+        event("agent-create", {}, "Old name", "run-id", {
+          name: "Old name",
+          runId: "run-id",
+          source: "span-name",
         }),
         {
           id: "update",
@@ -357,10 +484,10 @@ describe("IngestionService unit tests", () => {
           body: { id: "run-id", name: "New name", type: "AGENT" },
         },
       ])) {
-        expect(record.metadata).toMatchObject({
-          langfuse_agent_name: "New name",
-          langfuse_agent_run_id: "run-id",
-          langfuse_agent_identity_source: "span-name",
+        expect(record).toMatchObject({
+          agent_name: "New name",
+          agent_run_id: "run-id",
+          agent_identity_source: "span-name",
         });
       }
     });
@@ -373,24 +500,25 @@ describe("IngestionService unit tests", () => {
       { addToQueue: vi.fn() } as any,
       {} as any,
     );
-    for (const [metadata, expected, type = "SPAN"] of [
+    for (const [agentIdentity, expected, type = "SPAN"] of [
+      [null, { agent_id: "", agent_name: "", agent_run_id: "" }],
       [
         {
-          langfuse_agent_id: "x".repeat(257),
-          langfuse_agent_name: "must-not-fallback",
+          id: "x".repeat(257),
+          name: "must-not-fallback",
         },
         { agent_id: "", agent_name: "", agent_run_id: "" },
       ],
       [
-        { langfuse_agent_id: 42, langfuse_agent_name: ["invalid"] },
+        { id: 42, name: ["invalid"] },
         { agent_id: "", agent_name: "", agent_run_id: "" },
       ],
       [
         {
-          langfuse_agent_id: "🦉".repeat(256),
-          langfuse_agent_name: "🦉".repeat(200),
-          langfuse_agent_run_id: "r".repeat(800),
-          langfuse_agent_identity_source: "gen-ai",
+          id: "🦉".repeat(256),
+          name: "🦉".repeat(200),
+          runId: "r".repeat(800),
+          source: "gen-ai",
         },
         {
           agent_id: "🦉".repeat(256),
@@ -401,10 +529,10 @@ describe("IngestionService unit tests", () => {
       ],
       [
         {
-          langfuse_agent_id: "configured",
-          langfuse_agent_name: "Research",
-          langfuse_agent_identity_source: "gen-ai",
-          langfuse_agent_run_id: "",
+          id: "configured",
+          name: "Research",
+          source: "gen-ai",
+          runId: "",
         },
         {
           agent_id: "configured",
@@ -416,9 +544,9 @@ describe("IngestionService unit tests", () => {
       ],
       [
         {
-          langfuse_agent_id: "configured",
-          langfuse_agent_name: "Research",
-          langfuse_agent_identity_source: "gen-ai",
+          id: "configured",
+          name: "Research",
+          source: "gen-ai",
         },
         {
           agent_id: "configured",
@@ -437,7 +565,12 @@ describe("IngestionService unit tests", () => {
           type,
           name: "ordinary",
           startTimeISO: "2026-11-05T11:00:00Z",
-          metadata: { ...metadata },
+          metadata: {
+            "langfuse.agent.id": "user-value",
+            langfuse_agent_id: "user-collision",
+          },
+          agentIdentity:
+            agentIdentity as unknown as ObservationEvent["agentIdentity"],
         },
         "synthetic.json",
       );
@@ -445,7 +578,7 @@ describe("IngestionService unit tests", () => {
     }
   });
 
-  it("strips reserved identity keys from merged traces before staging can override observation identity", async () => {
+  it("preserves colliding user metadata on merged traces", async () => {
     const service = new IngestionService(
       {} as any,
       {} as any,
@@ -467,7 +600,13 @@ describe("IngestionService unit tests", () => {
         }),
       ],
     });
-    expect(record.metadata).toEqual({ keep: "visible" });
+    expect(record.metadata).toEqual({
+      langfuse_agent_id: "x".repeat(257),
+      langfuse_agent_name: "forged-trace-agent",
+      langfuse_agent_run_id: "foreign-owner",
+      langfuse_agent_identity_source: "native",
+      keep: "visible",
+    });
   });
 
   it("persists full normalized agent columns before metadata overflow can shorten identity values", async () => {
@@ -491,11 +630,12 @@ describe("IngestionService unit tests", () => {
         source: "otel",
         startTimeISO: "2026-11-05T11:00:00Z",
         endTimeISO: "2026-11-05T11:00:01Z",
-        metadata: {
-          langfuse_agent_id: id,
-          langfuse_agent_name: "Research",
-          langfuse_agent_run_id: "run-id",
-          langfuse_agent_identity_source: "gen-ai",
+        metadata: { note: "x".repeat(300), langfuse_agent_id: "user-value" },
+        agentIdentity: {
+          id,
+          name: "Research",
+          runId: "run-id",
+          source: "gen-ai",
         },
       },
       "raw-agent-event.json",

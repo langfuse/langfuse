@@ -1,4 +1,11 @@
-import { AGENT_LIMITS, AGENT_METADATA_KEYS } from "../../features/agents/api";
+import { AGENT_LIMITS } from "../../features/agents/api";
+
+export type AgentIdentity = {
+  id?: string;
+  name?: string;
+  runId?: string;
+  source?: Source;
+};
 
 type Source = "native" | "gen-ai" | "span-name";
 type Attribute = { value: string; source: Source };
@@ -23,7 +30,7 @@ const within = (value: string, limit: number) =>
   value.length <= limit * 2 && Array.from(value).length <= limit;
 
 /** Exact observation-level identity; run references are scoped to its trace. */
-export const extractAgentMetadata = ({
+export const extractAgentIdentity = ({
   attributes,
   isAgent,
   name,
@@ -33,7 +40,7 @@ export const extractAgentMetadata = ({
   isAgent: boolean;
   name: string;
   spanId: string;
-}): Record<string, string> => {
+}): AgentIdentity => {
   const id = firstString(attributes, "langfuse.agent.id", "gen_ai.agent.id");
   if (id && !within(id.value, AGENT_LIMITS.idLength)) return {};
   const explicitName = firstString(
@@ -65,10 +72,10 @@ export const extractAgentMetadata = ({
   )
     runId = explicitRun;
   return {
-    ...(id ? { [AGENT_METADATA_KEYS.id]: id.value } : {}),
-    ...(validName ? { [AGENT_METADATA_KEYS.name]: validName.value } : {}),
-    ...(runId ? { [AGENT_METADATA_KEYS.runId]: runId } : {}),
-    [AGENT_METADATA_KEYS.source]: identity.source,
+    ...(id ? { id: id.value } : {}),
+    ...(validName ? { name: validName.value } : {}),
+    ...(runId ? { runId: runId } : {}),
+    source: identity.source,
   };
 };
 
@@ -84,21 +91,34 @@ export type AgentSpan = {
 export const agentSpanKey = (traceId: string, spanId: string) =>
   JSON.stringify([traceId, spanId]);
 
+/** Presence distinguishes missing context from explicitly invalid instrumentation. */
+export const hasAgentIdentityContext = (
+  span: Pick<AgentSpan, "isAgent" | "attributes">,
+) =>
+  span.isAgent ||
+  [
+    "langfuse.agent.id",
+    "gen_ai.agent.id",
+    "langfuse.agent.name",
+    "gen_ai.agent.name",
+    "langfuse.agent.run_id",
+  ].some((key) => Object.hasOwn(span.attributes, key));
+
 /** Resolve only this batch; absent parents stay unattributed across batches. */
-export const resolveAgentBatchMetadata = (spans: AgentSpan[]) => {
+export const resolveAgentBatchIdentity = (spans: AgentSpan[]) => {
   const nodes = new Map(
     spans.map((span) => [agentSpanKey(span.traceId, span.spanId), span]),
   );
-  const metadata = new Map(
+  const identities = new Map<string, AgentIdentity | null>(
     spans.map((span) => [
       agentSpanKey(span.traceId, span.spanId),
-      extractAgentMetadata(span),
+      hasAgentIdentityContext(span) ? extractAgentIdentity(span) : null,
     ]),
   );
   for (const span of spans) {
     if (span.isAgent) continue;
     const key = agentSpanKey(span.traceId, span.spanId);
-    const own = metadata.get(key)!;
+    const own = identities.get(key) ?? {};
     const explicitId = firstString(
       span.attributes,
       "langfuse.agent.id",
@@ -111,12 +131,19 @@ export const resolveAgentBatchMetadata = (spans: AgentSpan[]) => {
       "langfuse.agent.name",
       "gen_ai.agent.name",
     );
+    const hasExplicitIdentity = [
+      "langfuse.agent.id",
+      "gen_ai.agent.id",
+      "langfuse.agent.name",
+      "gen_ai.agent.name",
+    ].some((attribute) => Object.hasOwn(span.attributes, attribute));
+    if (hasExplicitIdentity && !explicitId && !explicitName) continue;
     const invalidName =
       explicitName && !within(explicitName.value, AGENT_LIMITS.nameLength);
     if (invalidName && !explicitId) continue;
     const explicitRun = span.attributes["langfuse.agent.run_id"];
     if (explicitRun === span.spanId) {
-      delete own[AGENT_METADATA_KEYS.runId];
+      delete own.runId;
       continue;
     }
     let parent =
@@ -129,118 +156,94 @@ export const resolveAgentBatchMetadata = (spans: AgentSpan[]) => {
       const ancestor = nodes.get(agentSpanKey(span.traceId, parent));
       if (!ancestor) break;
       if (ancestor.isAgent) {
-        const inherited = metadata.get(
-          agentSpanKey(ancestor.traceId, ancestor.spanId),
-        )!;
+        const inherited =
+          identities.get(agentSpanKey(ancestor.traceId, ancestor.spanId)) ?? {};
         let idMatches = true;
-        if (own[AGENT_METADATA_KEYS.id])
-          idMatches =
-            own[AGENT_METADATA_KEYS.id] === inherited[AGENT_METADATA_KEYS.id];
-        else if (own[AGENT_METADATA_KEYS.name])
-          idMatches =
-            own[AGENT_METADATA_KEYS.name] ===
-            inherited[AGENT_METADATA_KEYS.name];
+        if (own.id) idMatches = own.id === inherited.id;
+        else if (own.name) idMatches = own.name === inherited.name;
         if (idMatches) {
-          const merged: Record<string, string> = {
+          const merged: AgentIdentity = {
             ...inherited,
             ...own,
-            ...(!own[AGENT_METADATA_KEYS.id] &&
-            inherited[AGENT_METADATA_KEYS.id]
+            ...(!own.id && inherited.id
               ? {
-                  [AGENT_METADATA_KEYS.source]:
-                    inherited[AGENT_METADATA_KEYS.source],
+                  source: inherited.source,
                 }
               : {}),
           };
-          if (invalidName) delete merged[AGENT_METADATA_KEYS.name];
+          if (invalidName) delete merged.name;
           if (ancestor.attributes["gen_ai.operation.name"] === "create_agent")
-            delete merged[AGENT_METADATA_KEYS.runId];
-          metadata.set(key, merged);
-        } else delete own[AGENT_METADATA_KEYS.runId];
+            delete merged.runId;
+          identities.set(key, merged);
+        } else delete own.runId;
         break;
       }
       if (explicitRun) {
-        delete own[AGENT_METADATA_KEYS.runId];
+        delete own.runId;
         break;
       }
       parent = ancestor.parentSpanId;
     }
   }
-  return metadata;
+  return identities;
 };
 
-/** Validate observation identity while preserving already normalized attribution frames. */
-export const normalizeAgentObservationMetadata = ({
-  metadata: originalMetadata,
+/** Reconcile explicit attributes with dedicated identity retained across updates. */
+export const normalizeAgentIdentity = ({
+  identity = {},
   attributes: incomingAttributes,
   isAgent,
   name,
   spanId,
-}: Parameters<typeof extractAgentMetadata>[0] & {
-  metadata: Record<string, unknown>;
-}): Record<string, unknown> => {
-  const metadata = { ...originalMetadata };
-  const attributes: Record<string, unknown> = {
-    "gen_ai.operation.name": metadata["gen_ai.operation.name"],
-    ...incomingAttributes,
-  };
+}: Parameters<typeof extractAgentIdentity>[0] & {
+  identity?: AgentIdentity;
+}): AgentIdentity => {
+  const attributes = { ...incomingAttributes };
   const operation = incomingAttributes["gen_ai.operation.name"];
   const hasIncomingOperation =
     typeof operation === "string" && operation.trim().length > 0;
-  for (const [reserved, native, standard] of [
-    [AGENT_METADATA_KEYS.id, "langfuse.agent.id", "gen_ai.agent.id"],
-    [AGENT_METADATA_KEYS.name, "langfuse.agent.name", "gen_ai.agent.name"],
-    [
-      AGENT_METADATA_KEYS.runId,
-      "langfuse.agent.run_id",
-      "langfuse.agent.run_id",
-    ],
-  ]) {
-    // A span-name identity follows a renamed observation rather than becoming explicit.
-    if (
-      reserved === AGENT_METADATA_KEYS.name &&
-      isAgent &&
-      metadata[AGENT_METADATA_KEYS.source] === "span-name"
-    )
-      continue;
+  for (const [key, native, standard] of [
+    ["id", "langfuse.agent.id", "gen_ai.agent.id"],
+    ["name", "langfuse.agent.name", "gen_ai.agent.name"],
+    ["runId", "langfuse.agent.run_id", "langfuse.agent.run_id"],
+  ] as const) {
+    if (key === "name" && isAgent && identity.source === "span-name") continue;
     if (attributes[native] === undefined && attributes[standard] === undefined)
-      attributes[native] = metadata[reserved];
+      attributes[native] = identity[key];
   }
-  const agentMetadata = extractAgentMetadata({
+  const normalized = extractAgentIdentity({
     attributes,
     isAgent,
     name,
     spanId,
   });
-  const source = metadata[AGENT_METADATA_KEYS.source];
-  const isNormalizedSource =
-    source === "native" || source === "gen-ai" || source === "span-name";
-  const hasNormalizedIdentity = [
-    AGENT_METADATA_KEYS.id,
-    AGENT_METADATA_KEYS.name,
-  ].some(
-    (key) =>
-      typeof metadata[key] === "string" && metadata[key].trim().length > 0,
-  );
-  // Canonical frames without an owner describe configuration rather than an agent run.
+  const identityKey = normalized.id ? "id" : "name";
+  const sameIdentity =
+    normalized[identityKey] &&
+    normalized[identityKey] === identity[identityKey];
+  if (
+    sameIdentity &&
+    (identity.source === "native" ||
+      identity.source === "gen-ai" ||
+      identity.source === "span-name")
+  )
+    normalized.source = identity.source;
+  // Configuration spans have identity but no execution owner.
   if (
     isAgent &&
-    isNormalizedSource &&
-    hasNormalizedIdentity &&
-    (metadata[AGENT_METADATA_KEYS.runId] === undefined ||
-      metadata[AGENT_METADATA_KEYS.runId] === "") &&
+    identity.source &&
+    (identity.id || identity.name) &&
+    !identity.runId &&
     !hasIncomingOperation
   )
-    delete agentMetadata[AGENT_METADATA_KEYS.runId];
-  const identityKey = agentMetadata[AGENT_METADATA_KEYS.id]
-    ? AGENT_METADATA_KEYS.id
-    : AGENT_METADATA_KEYS.name;
+    delete normalized.runId;
+  // An inherited owner cannot survive an explicit change of logical agent.
   if (
-    agentMetadata[identityKey] &&
-    agentMetadata[identityKey] === metadata[identityKey] &&
-    isNormalizedSource
+    !isAgent &&
+    (identity.id || identity.name) &&
+    !sameIdentity &&
+    incomingAttributes["langfuse.agent.run_id"] === undefined
   )
-    agentMetadata[AGENT_METADATA_KEYS.source] = source;
-  for (const key of Object.values(AGENT_METADATA_KEYS)) delete metadata[key];
-  return { ...metadata, ...agentMetadata };
+    delete normalized.runId;
+  return normalized;
 };

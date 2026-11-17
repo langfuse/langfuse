@@ -264,7 +264,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     #[test]
-    fn owned_row_preserves_normalized_agent_ownership_from_metadata() {
+    fn owned_row_preserves_explicit_agent_ownership_without_using_user_metadata() {
         let timestamp = "2026-11-17 12:00:00.000".to_owned();
         let row = crate::native_schema::OtelStorageRow {
             start_time: timestamp.clone(),
@@ -279,15 +279,29 @@ mod tests {
                 "langfuse_agent_identity_source".into(),
             ],
             metadata_values: vec![
-                "researcher".into(),
-                "Researcher".into(),
-                "root-agent-span".into(),
-                "native".into(),
+                "customer-id".into(),
+                "Customer label".into(),
+                "customer-run".into(),
+                "customer-source".into(),
             ],
             ..Default::default()
         };
 
-        let prepared = row.into_prepared().expect("valid owned row");
+        let unattributed = row.clone().into_prepared().expect("valid owned row");
+        assert!(unattributed.agent_id.is_empty());
+        assert!(unattributed.agent_name.is_empty());
+        assert!(unattributed.agent_run_id.is_empty());
+        assert!(unattributed.agent_identity_source.is_empty());
+
+        let prepared = crate::native_schema::OtelStorageRow {
+            agent_id: Some("researcher".into()),
+            agent_name: Some("Researcher".into()),
+            agent_run_id: Some("root-agent-span".into()),
+            agent_identity_source: Some("native".into()),
+            ..row
+        }
+        .into_prepared()
+        .expect("valid owned row");
 
         assert_eq!(prepared.agent_id, "researcher");
         assert_eq!(prepared.agent_name, "Researcher");

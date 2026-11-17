@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { idSchema } from "../ingestion/types";
-import { AGENT_METADATA_KEYS as K } from "../../features/agents/api";
 import {
   agentSpanKey,
-  extractAgentMetadata,
-  resolveAgentBatchMetadata,
+  extractAgentIdentity,
+  resolveAgentBatchIdentity,
   type AgentSpan,
 } from "./agentMetadata";
 
@@ -21,7 +20,7 @@ const span = (overrides: Partial<AgentSpan> = {}): AgentSpan => ({
 describe("agent metadata boundaries", () => {
   it("uses independent native precedence, preserving exact IDs and names", () => {
     expect(
-      extractAgentMetadata(
+      extractAgentIdentity(
         span({
           attributes: {
             "langfuse.agent.id": "  Stable ID  ",
@@ -32,19 +31,19 @@ describe("agent metadata boundaries", () => {
         }),
       ),
     ).toMatchObject({
-      [K.id]: "  Stable ID  ",
-      [K.name]: "Research / résumé?",
-      [K.source]: "native",
-      [K.runId]: "run",
+      ["id"]: "  Stable ID  ",
+      ["name"]: "Research / résumé?",
+      ["source"]: "native",
+      ["runId"]: "run",
     });
   });
 
   it("only falls back to an observation name for a recognized agent", () => {
-    expect(extractAgentMetadata(span())).toMatchObject({
-      [K.name]: "Observed agent",
-      [K.source]: "span-name",
+    expect(extractAgentIdentity(span())).toMatchObject({
+      ["name"]: "Observed agent",
+      ["source"]: "span-name",
     });
-    expect(extractAgentMetadata(span({ isAgent: false }))).toEqual({});
+    expect(extractAgentIdentity(span({ isAgent: false }))).toEqual({});
   });
 
   it("rejects a non-agent's explicit ownership reference to itself", () => {
@@ -55,17 +54,17 @@ describe("agent metadata boundaries", () => {
         "langfuse.agent.run_id": "run",
       },
     });
-    expect(extractAgentMetadata(malformed)).not.toHaveProperty(K.runId);
+    expect(extractAgentIdentity(malformed)).not.toHaveProperty("runId");
     expect(
-      resolveAgentBatchMetadata([malformed, span({ spanId: "outer" })]).get(
+      resolveAgentBatchIdentity([malformed, span({ spanId: "outer" })]).get(
         agentSpanKey("trace", "run"),
       ),
-    ).not.toHaveProperty(K.runId);
+    ).not.toHaveProperty("runId");
   });
 
   it("does not count agent creation as an agent run", () => {
     expect(
-      extractAgentMetadata(
+      extractAgentIdentity(
         span({
           attributes: {
             "gen_ai.operation.name": "create_agent",
@@ -73,11 +72,11 @@ describe("agent metadata boundaries", () => {
           },
         }),
       ),
-    ).not.toHaveProperty(K.runId);
+    ).not.toHaveProperty("runId");
   });
 
   it("bounds Unicode without truncating or merging oversized explicit IDs", () => {
-    const boundary = extractAgentMetadata(
+    const boundary = extractAgentIdentity(
       span({
         attributes: {
           "gen_ai.agent.id": "界".repeat(256),
@@ -85,9 +84,9 @@ describe("agent metadata boundaries", () => {
         },
       }),
     );
-    expect(boundary[K.id]).toHaveLength(256);
+    expect(boundary["id"]).toHaveLength(256);
     expect(
-      extractAgentMetadata(
+      extractAgentIdentity(
         span({
           attributes: {
             "langfuse.agent.id": "界".repeat(257),
@@ -97,7 +96,7 @@ describe("agent metadata boundaries", () => {
         }),
       ),
     ).toEqual({});
-    const validId = extractAgentMetadata(
+    const validId = extractAgentIdentity(
       span({
         attributes: {
           "gen_ai.agent.id": "stable",
@@ -105,8 +104,8 @@ describe("agent metadata boundaries", () => {
         },
       }),
     );
-    expect(validId[K.id]).toBe("stable");
-    expect(validId).not.toHaveProperty(K.name);
+    expect(validId["id"]).toBe("stable");
+    expect(validId).not.toHaveProperty("name");
   });
 
   it("keeps supported legacy parent IDs independent from the shorter logical identity limit", () => {
@@ -126,14 +125,14 @@ describe("agent metadata boundaries", () => {
         "langfuse.agent.run_id": owner,
       },
     });
-    expect(extractAgentMetadata(leaf)[K.runId]).toBe(owner);
+    expect(extractAgentIdentity(leaf)["runId"]).toBe(owner);
     expect(
-      resolveAgentBatchMetadata([leaf, root]).get(
+      resolveAgentBatchIdentity([leaf, root]).get(
         agentSpanKey("trace", "model"),
-      )?.[K.runId],
+      )?.["runId"],
     ).toBe(owner);
     expect(
-      extractAgentMetadata(
+      extractAgentIdentity(
         span({
           ...leaf,
           attributes: {
@@ -142,9 +141,9 @@ describe("agent metadata boundaries", () => {
           },
         }),
       ),
-    ).not.toHaveProperty(K.runId);
+    ).not.toHaveProperty("runId");
     expect(
-      extractAgentMetadata(
+      extractAgentIdentity(
         span({
           ...leaf,
           attributes: {
@@ -152,10 +151,10 @@ describe("agent metadata boundaries", () => {
             "langfuse.agent.run_id": "🦉".repeat(800),
           },
         }),
-      )[K.runId],
+      )["runId"],
     ).toBe("🦉".repeat(800));
     expect(
-      extractAgentMetadata(
+      extractAgentIdentity(
         span({
           ...leaf,
           attributes: {
@@ -164,7 +163,7 @@ describe("agent metadata boundaries", () => {
           },
         }),
       ),
-    ).not.toHaveProperty(K.runId);
+    ).not.toHaveProperty("runId");
   });
 
   it("keeps explicit references when their parent is outside the batch", () => {
@@ -178,8 +177,8 @@ describe("agent metadata boundaries", () => {
       },
     });
     expect(
-      resolveAgentBatchMetadata([leaf]).get(agentSpanKey("trace", "model")),
-    ).toMatchObject({ [K.id]: "stable", [K.runId]: "external-run" });
+      resolveAgentBatchIdentity([leaf]).get(agentSpanKey("trace", "model")),
+    ).toMatchObject({ ["id"]: "stable", ["runId"]: "external-run" });
   });
 
   it("does not infer an owner across traces, cyclic ancestry or invalid nested agents", () => {
@@ -205,15 +204,16 @@ describe("agent metadata boundaries", () => {
       parentSpanId: "cycle",
       isAgent: false,
     });
-    const result = resolveAgentBatchMetadata([
+    const result = resolveAgentBatchIdentity([
       foreign,
       leaf,
       cycle,
       invalid,
       root,
     ]);
-    for (const row of [foreign, leaf, cycle])
-      expect(result.get(agentSpanKey(row.traceId, row.spanId))).toEqual({});
+    for (const row of [foreign, cycle])
+      expect(result.get(agentSpanKey(row.traceId, row.spanId))).toBeNull();
+    expect(result.get(agentSpanKey(leaf.traceId, leaf.spanId))).toEqual({});
   });
 
   it("does not attach an explicitly different identity to a nearby agent run", () => {
@@ -226,15 +226,15 @@ describe("agent metadata boundaries", () => {
         "langfuse.agent.run_id": "run",
       },
     });
-    const result = resolveAgentBatchMetadata([
+    const result = resolveAgentBatchIdentity([
       leaf,
       span({ attributes: { "gen_ai.agent.id": "outer" } }),
     ]);
     expect(result.get(agentSpanKey("trace", "model"))).toMatchObject({
-      [K.id]: "different",
+      ["id"]: "different",
     });
     expect(result.get(agentSpanKey("trace", "model"))).not.toHaveProperty(
-      K.runId,
+      "runId",
     );
   });
 });

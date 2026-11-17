@@ -5,7 +5,6 @@ import {
   buildActivityDemoLiveBatch,
 } from "../../../scripts/seeder/scenarios/agents-activity-demo-replay";
 import { buildActivityDemoApiPayload } from "../../../scripts/seeder/scenarios/agents-activity-demo-api-plan";
-import { AGENT_METADATA_KEYS } from "../../features/agents/api";
 import { PostScoreBody } from "../../features/scores/interfaces/api/shared";
 import {
   OtelIngestionProcessor,
@@ -238,9 +237,9 @@ describe("Opt-in synthetic activity replay", () => {
       expect(event.scopeName).toBe(expected.scope_name || "langfuse-seed-cli");
       expect(event.scopeVersion).toBe(expected.scope_version || "1");
       if (expected.agent_id)
-        expect(event.metadata).toMatchObject({
-          [AGENT_METADATA_KEYS.id]: expected.agent_id,
-          [AGENT_METADATA_KEYS.runId]: expected.agent_run_id,
+        expect(event.agentIdentity).toMatchObject({
+          id: expected.agent_id,
+          runId: expected.agent_run_id,
         });
       if (expected.type === "GENERATION") {
         expect(event.modelName).toBe(expected.provided_model_name);

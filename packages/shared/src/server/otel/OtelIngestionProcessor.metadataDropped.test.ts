@@ -45,7 +45,6 @@ import {
 } from "./OtelIngestionProcessor";
 import * as serverBarrel from "../index";
 import { flattenJsonToPathArrays } from "./utils";
-import { AGENT_METADATA_KEYS } from "../../features/agents/api";
 
 const METRIC = "langfuse.ingestion.metadata_dropped";
 const ARRAY_ATTRIBUTE_DROPPED_METRIC =
@@ -110,7 +109,7 @@ const getObservations = async (path: "v3" | "v4", batch: ResourceSpan[]) => {
 
   return (await processor.processToIngestionEvents(batch))
     .filter((event) => event.type !== "trace-create")
-    .map((event) => event.body);
+    .map((event) => ({ ...event.body, agentIdentity: event.agentIdentity }));
 };
 
 const rawEmptyAttributes = (prefix: string) => [
@@ -120,6 +119,36 @@ const rawEmptyAttributes = (prefix: string) => [
 ];
 
 describe("agent identity normalization", () => {
+  it.each(["v3", "v4"] as const)(
+    "%s distinguishes absent OTel context from invalid explicit identity without reading user metadata",
+    async (path) => {
+      const metadata = {
+        "langfuse.agent.id": "user-value",
+        "langfuse.agent.run_id": "user-owner",
+      };
+      const attributes = [
+        {
+          key: "langfuse.observation.metadata",
+          value: { stringValue: JSON.stringify(metadata) },
+        },
+      ];
+      const [unattributed] = await getObservations(
+        path,
+        buildBatch(attributes),
+      );
+      expect(unattributed.metadata).toMatchObject(metadata);
+      expect(unattributed.agentIdentity).toBeNull();
+      const [invalid] = await getObservations(
+        path,
+        buildBatch([
+          ...attributes,
+          { key: "langfuse.agent.id", value: { intValue: 42 } },
+        ]),
+      );
+      expect(invalid.agentIdentity).toEqual({});
+    },
+  );
+
   it.each(["v3", "v4"] as const)(
     "%s decodes and classifies each span once",
     async (path) => {
@@ -147,9 +176,9 @@ describe("agent identity normalization", () => {
       });
       const rows = await getObservations(path, batch);
       expect(rows).toHaveLength(1);
-      expect(rows[0].metadata).toMatchObject({
-        [AGENT_METADATA_KEYS.id]: "queued-agent",
-        [AGENT_METADATA_KEYS.runId]: "0123456789abcdef",
+      expect(rows[0].agentIdentity).toMatchObject({
+        id: "queued-agent",
+        runId: "0123456789abcdef",
       });
     },
   );
@@ -189,12 +218,12 @@ describe("agent identity normalization", () => {
       ];
       const rows = await getObservations(path, batch);
       const model = rows.find((row) => row.name === "model")!;
-      expect(model.metadata).toMatchObject({
-        [AGENT_METADATA_KEYS.name]: "Nested agent",
-        [AGENT_METADATA_KEYS.runId]: "2222222222222222",
-        [AGENT_METADATA_KEYS.source]: "span-name",
+      expect(model.agentIdentity).toMatchObject({
+        name: "Nested agent",
+        runId: "2222222222222222",
+        source: "span-name",
       });
-      expect(model.metadata).not.toHaveProperty(AGENT_METADATA_KEYS.id);
+      expect(model.agentIdentity).not.toHaveProperty("id");
     },
   );
 
@@ -222,18 +251,19 @@ describe("agent identity normalization", () => {
             key: "langfuse.observation.metadata",
             value: {
               stringValue: JSON.stringify({
-                [AGENT_METADATA_KEYS.id]: "forged",
+                langfuse_agent_id: "forged",
               }),
             },
           },
         ]),
       );
       expect(rows).toHaveLength(1);
-      expect(rows[0].metadata).toMatchObject({
-        [AGENT_METADATA_KEYS.id]: "stable-research",
-        [AGENT_METADATA_KEYS.name]: "Researcher renamed",
-        [AGENT_METADATA_KEYS.runId]: "0123456789abcdef",
-        [AGENT_METADATA_KEYS.source]: "native",
+      expect(rows[0].metadata).toMatchObject({ langfuse_agent_id: "forged" });
+      expect(rows[0].agentIdentity).toMatchObject({
+        id: "stable-research",
+        name: "Researcher renamed",
+        runId: "0123456789abcdef",
+        source: "native",
       });
     },
   );

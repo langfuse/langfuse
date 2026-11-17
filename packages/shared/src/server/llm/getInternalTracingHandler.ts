@@ -16,6 +16,7 @@ import { traceException } from "../instrumentation";
 import { publishAiFeatureTraceViaOtelIngestion } from "../otel/internalAiFeatureOtelWriter";
 
 export type InternalObservation = {
+  agentIdentity?: InternalTraceEventInput["agentIdentity"];
   id: string;
   traceId: string;
   parentObservationId?: string | null;
@@ -97,6 +98,7 @@ export function getInternalTracingHandler(
       sessionId: observation.sessionId ?? params.sessionId,
       tags: observation.tags,
       metadata: { ...params.metadata, ...observation.metadata },
+      agentIdentity: observation.agentIdentity,
       toolDefinitions: convertDefinitionsToMap(toolDefinitions),
       toolCalls: toolCalls.tool_calls,
       toolCallNames: toolCalls.tool_call_names,

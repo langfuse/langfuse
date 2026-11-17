@@ -1,7 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { Cluster, Redis } from "ioredis";
 import { v4 } from "uuid";
-import { AGENT_METADATA_KEYS } from "@langfuse/shared/agents";
 import {
   InvalidRequestError,
   LangfuseNotFoundError,
@@ -52,7 +51,8 @@ import {
   EventRecordInsertType,
   InternalTraceEventInput,
   flattenJsonToPathArrays,
-  normalizeAgentObservationMetadata,
+  normalizeAgentIdentity,
+  type AgentIdentity,
   getDatasetItemById,
   normalizeToolsForObservation,
   hasNoEvalConfigsCache,
@@ -100,6 +100,11 @@ function parseEventModelParameters(
     return value;
   }
 }
+
+// The canonical context is transient and stripped by observationRecordInsertSchema before storage.
+type ObservationRecordWithIdentity = ObservationRecordInsertType & {
+  agentIdentity?: AgentIdentity | null;
+};
 
 type InsertRecord =
   | TraceRecordInsertType
@@ -171,6 +176,20 @@ const immutableEntityKeys: {
     "dataset_item_metadata",
   ],
 };
+
+const agentIdentityFromRecord = (
+  record?: ObservationRecordInsertType | null,
+): AgentIdentity => ({
+  id: record?.agent_id || undefined,
+  name: record?.agent_name || undefined,
+  runId: record?.agent_run_id || undefined,
+  source:
+    record?.agent_identity_source === "native" ||
+    record?.agent_identity_source === "gen-ai" ||
+    record?.agent_identity_source === "span-name"
+      ? record.agent_identity_source
+      : undefined,
+});
 
 export class IngestionService {
   private promptService: PromptService;
@@ -271,17 +290,25 @@ export class IngestionService {
     const modelParameters = parseEventModelParameters(
       eventData.modelParameters,
     );
-    const metadata = normalizeAgentObservationMetadata({
-      metadata: eventData.metadata ?? {},
-      attributes: eventData.metadata ?? {},
+    const metadata = eventData.metadata ?? {};
+    let identityName = eventData.name ?? "";
+    if (eventData.agentIdentity !== undefined) {
+      identityName =
+        typeof eventData.agentIdentity?.name === "string"
+          ? eventData.agentIdentity.name
+          : "";
+    }
+    const identity = normalizeAgentIdentity({
+      identity: eventData.agentIdentity ?? undefined,
+      attributes: eventData.agentIdentity === undefined ? metadata : {},
       isAgent: eventData.type === "AGENT",
-      name: eventData.name ?? "",
+      name: identityName,
       spanId: eventData.spanId,
     });
-    const agentId = metadata[AGENT_METADATA_KEYS.id];
-    const agentName = metadata[AGENT_METADATA_KEYS.name];
-    const agentRunId = metadata[AGENT_METADATA_KEYS.runId];
-    const agentIdentitySource = metadata[AGENT_METADATA_KEYS.source];
+    const agentId = identity.id;
+    const agentName = identity.name;
+    const agentRunId = identity.runId;
+    const agentIdentitySource = identity.source;
     const spanAttribution = resolveAiGatewayAttribution({
       ingestionApiKey: eventData.ingestionApiKey,
       metadata,
@@ -1176,8 +1203,6 @@ export class IngestionService {
     const traceMetadata = {
       ...((mergedRecord.metadata as Record<string, unknown>) ?? {}),
     };
-    for (const key of Object.values(AGENT_METADATA_KEYS))
-      delete traceMetadata[key];
     mergedRecord.metadata = convertRecordValuesToString(traceMetadata);
 
     return traceRecordInsertSchema.parse(mergedRecord);
@@ -1185,7 +1210,7 @@ export class IngestionService {
 
   private async mergeObservationRecords(params: {
     projectId: string;
-    observationRecords: ObservationRecordInsertType[];
+    observationRecords: ObservationRecordWithIdentity[];
     clickhouseObservationRecord?: ObservationRecordInsertType | null;
   }): Promise<ObservationRecordInsertType> {
     const { observationRecords, clickhouseObservationRecord } = params;
@@ -1201,12 +1226,15 @@ export class IngestionService {
       immutableEntityKeys[TableName.Observations],
     );
 
-    const metadata: Record<string, unknown> = {
-      ...((mergedRecord.metadata as Record<string, unknown>) ?? {}),
-    };
-    const attributes: Record<string, unknown> = {};
-    // Stored metadata is stringified; only incoming attributes retain their original types.
+    let identity = agentIdentityFromRecord(clickhouseObservationRecord);
     for (const record of observationRecords) {
+      if (record.agentIdentity !== undefined) {
+        // Null means no context in this batch; an empty frame explicitly clears attribution.
+        if (record.agentIdentity !== null) identity = record.agentIdentity;
+        continue;
+      }
+      const attributes: Record<string, unknown> = {};
+      // Incoming metadata retains original types before storage stringification.
       for (const key of [
         "langfuse.agent.id",
         "gen_ai.agent.id",
@@ -1215,20 +1243,32 @@ export class IngestionService {
         "langfuse.agent.run_id",
         "gen_ai.operation.name",
       ]) {
-        if (record.metadata && Object.hasOwn(record.metadata, key)) {
+        if (record.metadata && Object.hasOwn(record.metadata, key))
           attributes[key] = record.metadata[key];
-        }
+      }
+      if (
+        Object.keys(attributes).length > 0 ||
+        record.name !== undefined ||
+        !clickhouseObservationRecord
+      ) {
+        identity = normalizeAgentIdentity({
+          identity,
+          attributes,
+          isAgent: mergedRecord.type === "AGENT",
+          name: typeof mergedRecord.name === "string" ? mergedRecord.name : "",
+          spanId: typeof mergedRecord.id === "string" ? mergedRecord.id : "",
+        });
       }
     }
-    mergedRecord.metadata = convertRecordValuesToString(
-      normalizeAgentObservationMetadata({
-        metadata,
-        attributes,
-        isAgent: mergedRecord.type === "AGENT",
-        name: typeof mergedRecord.name === "string" ? mergedRecord.name : "",
-        spanId: typeof mergedRecord.id === "string" ? mergedRecord.id : "",
-      }),
-    );
+    Object.assign(mergedRecord, {
+      agent_id: identity.id ?? "",
+      agent_name: identity.name ?? "",
+      agent_run_id: identity.runId ?? "",
+      agent_identity_source: identity.source ?? "",
+      metadata: convertRecordValuesToString(
+        (mergedRecord.metadata as Record<string, unknown>) ?? {},
+      ),
+    });
 
     const parsedObservationRecord =
       observationRecordInsertSchema.parse(mergedRecord);
@@ -1863,7 +1903,8 @@ export class IngestionService {
           : {}),
       };
 
-      const observationRecord: ObservationRecordInsertType = {
+      const observationRecord: ObservationRecordWithIdentity = {
+        agentIdentity: obs.agentIdentity,
         id: entityId,
         trace_id: obs.body.traceId ?? v4(),
         type: observationType,

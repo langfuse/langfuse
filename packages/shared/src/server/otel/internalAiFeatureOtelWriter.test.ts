@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AGENT_METADATA_KEYS } from "../../features/agents/api";
 import { createIngestionEventSchema } from "../ingestion/types";
 import { buildInternalTraceEventInputs } from "../llm/internalTraceEvents";
 import {
@@ -153,13 +152,11 @@ describe("publishAiFeatureTraceViaOtelIngestion", () => {
     const { eventInputs } = buildInternalTraceEventInputs({
       processedEvents: processedEvents.map((event) => ({
         ...event,
-        body: {
-          ...event.body,
-          metadata: {
-            [AGENT_METADATA_KEYS.id]: "langfuse:halo",
-            [AGENT_METADATA_KEYS.name]: "Halo",
-            [AGENT_METADATA_KEYS.runId]: RUN_ID,
-          },
+        agentIdentity: {
+          id: "langfuse:halo",
+          name: "Halo",
+          runId: RUN_ID,
+          source: "native" as const,
         },
       })),
       traceId: TRACE_ID,
@@ -182,18 +179,18 @@ describe("publishAiFeatureTraceViaOtelIngestion", () => {
         ],
       },
     ];
-    const expectedMetadata = {
-      [AGENT_METADATA_KEYS.id]: "langfuse:halo",
-      [AGENT_METADATA_KEYS.name]: "Halo",
-      [AGENT_METADATA_KEYS.runId]: RUN_ID,
-      [AGENT_METADATA_KEYS.source]: "native",
+    const expectedIdentity = {
+      id: "langfuse:halo",
+      name: "Halo",
+      runId: RUN_ID,
+      source: "native",
     };
     const processor = await createProcessor();
     const [native] = await processor.processToEvent(childBatch);
     expect(native).toMatchObject({
       spanId: `${RUN_ID}-llm-0`,
       type: "GENERATION",
-      metadata: expectedMetadata,
+      agentIdentity: expectedIdentity,
     });
     vi.spyOn(
       processor as unknown as { getSeenTracesSet: () => Promise<Set<string>> },
@@ -201,8 +198,8 @@ describe("publishAiFeatureTraceViaOtelIngestion", () => {
     ).mockResolvedValue(new Set());
     const legacy = await processor.processToIngestionEvents(childBatch);
     expect(
-      legacy.find((event) => event.type === "generation-create")?.body,
-    ).toMatchObject({ metadata: expectedMetadata });
+      legacy.find((event) => event.type === "generation-create"),
+    ).toMatchObject({ agentIdentity: expectedIdentity });
   });
 
   it("preserves agent and tool observation types from SDK event types", async () => {
@@ -319,11 +316,10 @@ describe("publishAiFeatureTraceViaOtelIngestion", () => {
     expect(batchedGeneration?.traceName).toBeNull();
     expect(batchedGeneration).toEqual({
       ...independentEvent,
-      metadata: {
-        ...independentEvent?.metadata,
-        [AGENT_METADATA_KEYS.name]: "agent-turn",
-        [AGENT_METADATA_KEYS.runId]: RUN_ID,
-        [AGENT_METADATA_KEYS.source]: "span-name",
+      agentIdentity: {
+        name: "agent-turn",
+        runId: RUN_ID,
+        source: "span-name",
       },
     });
   });

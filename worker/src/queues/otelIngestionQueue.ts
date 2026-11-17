@@ -628,15 +628,18 @@ export const otelIngestionQueueProcessorBuilder = (
       );
       let firstParseError: z.ZodError | undefined;
       const observations = candidateObservations
-        .map((o) => ingestionSchema.safeParse(o))
-        .flatMap((o) => {
+        .map((event) => ({
+          result: ingestionSchema.safeParse(event),
+          agentIdentity: event.agentIdentity,
+        }))
+        .flatMap(({ result: o, agentIdentity }) => {
           if (!o.success) {
             if (firstParseError === undefined) {
               firstParseError = o.error;
             }
             return [];
           }
-          return [o.data];
+          return [{ ...o.data, agentIdentity }];
         });
 
       // Per-observation parse failures are near-pure noise (customer-sent data
