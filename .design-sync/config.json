@@ -326,7 +326,8 @@
     },
     "ProjectDropdownMenu": {
       "skip": [
-        "playground-projectdropdownmenu--test-search"
+        "playground-projectdropdownmenu--test-search",
+        "playground-projectdropdownmenu--test-actions-stay-in-view"
       ]
     },
     "OrganizationDropdownMenu": {
