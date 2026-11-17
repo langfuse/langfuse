@@ -1,7 +1,7 @@
 /* eslint-disable react/no-unstable-nested-components */
 import {
   type PointerEvent,
-  type ReactNode,
+  type ComponentProps,
   useContext,
   type RefObject,
   type UIEvent,
@@ -22,6 +22,8 @@ import {
   topicTracesHref,
 } from "./facet-topics";
 import { FacetTraceSource } from "./useFacetTopicTraces";
+import { UNASSIGNED_TOPIC_ID } from "./prepare-topic-display";
+import { TopicsTraceToolbar } from "./TopicsTraceToolbar";
 
 /** With the table's own 4px (8px on the first column), cells end up 16px from each edge. */
 const CELL = "block px-3";
@@ -68,7 +70,7 @@ export function TopicTraceList({
   tracePanelRef,
   headerRef,
   divider,
-  toolbar,
+  search,
   topicColors,
   emptyMessage = "No trace summaries.",
 }: TopicTraceListProps) {
@@ -128,7 +130,7 @@ export function TopicTraceList({
                     className="size-2.5 shrink-0 rounded-xs"
                     style={{
                       backgroundColor: topicColors.get(
-                        row.original.topicId ?? "",
+                        row.original.topicId ?? UNASSIGNED_TOPIC_ID,
                       ),
                     }}
                   />
@@ -168,7 +170,7 @@ export function TopicTraceList({
         !divider && "rounded-md border",
       )}
     >
-      {toolbar}
+      {search && <TopicsTraceToolbar {...search} divider={false} />}
       <div ref={headerRef} className="flex shrink-0 flex-col gap-1 px-4 py-3">
         <div className="flex h-7 items-center justify-between gap-4">
           <p className="text-muted-foreground flex min-w-0 items-center gap-2">
@@ -238,8 +240,8 @@ type TopicTraceListProps = {
   description?: string;
   swatchColor?: string;
   traces: TopicTracesResult;
-  /** Approximate count of the listed topic's traces. */
-  totalCount: number;
+  /** Approximate count of the listed traces; null when only the loaded rows are known. */
+  totalCount: number | null;
   /** The listed topic, so Open in Tracing can filter by it instead of trace IDs. */
   tracingTopic?: { facet: Facet; name: string };
   peekView: DataTablePeekViewProps;
@@ -249,7 +251,7 @@ type TopicTraceListProps = {
   /** `none` when the parent draws the divider, e.g. a resize handle. */
   divider?: "side" | "none";
   /** Search and filters above the header. */
-  toolbar?: ReactNode;
+  search?: Omit<ComponentProps<typeof TopicsTraceToolbar>, "divider">;
   /** Shown when the list is empty, e.g. for a search that matches nothing. */
   emptyMessage?: string;
   /** Adds a Topic column, colored per topic ID. */
@@ -259,7 +261,8 @@ type TopicTraceListProps = {
 const APPROXIMATE_COUNT_FROM = 1_000;
 
 /** Counts are distinct-trace estimates; only large ones read as approximate. */
-function traceCountLabel(count: number) {
+function traceCountLabel(count: number | null) {
+  if (count === null) return "Traces";
   const approximate = count >= APPROXIMATE_COUNT_FROM ? "~" : "";
   return `${approximate}${count.toLocaleString()} traces`;
 }

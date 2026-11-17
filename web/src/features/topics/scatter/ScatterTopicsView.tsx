@@ -27,7 +27,6 @@ import {
   scatterSwatchColor,
   UNASSIGNED_SWATCH_COLOR,
 } from "../topic-map-colors";
-import { TopicsTraceToolbar } from "../TopicsTraceToolbar";
 import { filterTopicTraces, topicTraceQuery } from "../topic-trace-filters";
 import { type useTopicTraceFilters } from "../useTopicTraceFilters";
 import { ScatterMap } from "./ScatterMap";
@@ -39,6 +38,7 @@ export function ScatterTopicsView({
   mapResult,
   onOpenTrace,
   traceFilters,
+  showUnassigned,
   peekView,
   tracePanelRef,
   useTraces,
@@ -65,8 +65,10 @@ export function ScatterTopicsView({
         traceFilters.filters,
         traceFilters.searchQuery,
         searchTopics,
+        { assignedOnly: !showUnassigned },
       );
-    return selected ? topicQuery(selected.id) : {};
+    if (selected) return topicQuery(selected.id);
+    return showUnassigned ? {} : { assigned: true };
   }
   // Picking a topic replaces the search with its filter; picking it again, or null, clears it.
   function selectTopic(topicId: string | null) {
@@ -77,12 +79,17 @@ export function ScatterTopicsView({
         : topicFilters(topicId),
     );
   }
+  // Map resets (Fit, Escape, an empty click) drop a picked topic but keep a typed search.
+  function clearPickedTopic() {
+    if (selected) selectTopic(null);
+  }
   function listTitle() {
     if (isSearching) return "Matching traces";
     return selected ? selected.name : "All traces";
   }
   function listCount() {
-    if (isSearching) return traces.rows.length;
+    // A search's total is unknown; the list only holds the loaded pages.
+    if (isSearching) return null;
     return selected ? selected.count : facet.counts.total;
   }
   const maxCount = Math.max(1, ...topics.map((topic) => topic.count));
@@ -161,10 +168,15 @@ export function ScatterTopicsView({
                 topics={mapTopics}
                 selectedTopic={null}
                 matchingTraceIds={highlightedTraceIds}
-                onSelectTopic={selectTopic}
+                onSelectTopic={(topicId) =>
+                  topicId === null ? clearPickedTopic() : selectTopic(topicId)
+                }
                 onSelectTrace={(traceId) => {
-                  if (traceId) onOpenTrace(traceId);
-                  else selectTopic(null);
+                  if (!traceId) return clearPickedTopic();
+                  // The trace peek opens outside the fullscreen map.
+                  if (document.fullscreenElement)
+                    document.exitFullscreen().catch(() => undefined);
+                  onOpenTrace(traceId);
                 }}
                 selectedTraceId={null}
                 fillContainer
@@ -199,17 +211,14 @@ export function ScatterTopicsView({
           divider="none"
           emptyMessage={isSearching ? "No matches." : undefined}
           topicColors={new Map(topics.map((topic) => [topic.id, topic.color]))}
-          toolbar={
-            <TopicsTraceToolbar
-              projectId={projectId}
-              topics={searchTopics}
-              filters={traceFilters.filters}
-              onFiltersChange={traceFilters.setFilters}
-              searchQuery={traceFilters.searchQuery}
-              onSearchQueryChange={traceFilters.setSearchQuery}
-              divider={false}
-            />
-          }
+          search={{
+            projectId,
+            topics: searchTopics,
+            filters: traceFilters.filters,
+            onFiltersChange: traceFilters.setFilters,
+            searchQuery: traceFilters.searchQuery,
+            onSearchQueryChange: traceFilters.setSearchQuery,
+          }}
         />
       }
     />
@@ -223,6 +232,8 @@ type ScatterTopicsViewProps = {
   onOpenTrace: (traceId: string) => void;
   /** The page's trace search and filters, shown above the trace list. */
   traceFilters: ReturnType<typeof useTopicTraceFilters>;
+  /** Off hides unassigned traces from the search results too. */
+  showUnassigned: boolean;
   peekView: DataTablePeekViewProps;
   tracePanelRef?: (element: HTMLElement | null) => void;
   useTraces: UseTopicTraces;

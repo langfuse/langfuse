@@ -55,13 +55,11 @@
   background-color: hsl(var(--sidebar-background));
 }
 
-.lookChrome,
-.lookChrome button {
+.lookChrome {
   color: #6b6b6b;
 }
 
-:global(.dark) .lookChrome,
-:global(.dark) .lookChrome button {
+:global(.dark) .lookChrome {
   color: hsl(var(--muted-foreground));
 }
 

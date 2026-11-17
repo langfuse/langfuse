@@ -169,6 +169,7 @@ function CurrentFacet({
           mapResult={mapResult}
           onOpenTrace={peekNavigation.openPeek}
           traceFilters={traceFilters}
+          showUnassigned={showUnassigned}
           peekView={peekView}
           tracePanelRef={tracePanelRef}
           useTraces={useFacetTopicTraces}

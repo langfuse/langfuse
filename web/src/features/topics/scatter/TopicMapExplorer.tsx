@@ -419,7 +419,7 @@ export function TopicMapExplorer({
           role="toolbar"
           aria-label="Scatter controls"
           className={cn(
-            "bg-sidebar absolute top-2 right-2 z-20 flex items-center gap-0.5 rounded-md p-0.5",
+            "bg-sidebar absolute top-2 right-2 z-2 flex items-center gap-0.5 rounded-md p-0.5",
             styles.lookChrome,
           )}
           onPointerDown={stopPointerPropagation}
@@ -429,11 +429,13 @@ export function TopicMapExplorer({
           <IconButton
             icon={LocateFixed}
             label="Fit scatter (0)"
+            variant="toolbar"
             onClick={handleFitMap}
           />
           <IconButton
             icon={Minus}
             label="Zoom out (-)"
+            variant="toolbar"
             onClick={handleZoomOut}
           />
           <ZoomReadout
@@ -441,10 +443,16 @@ export function TopicMapExplorer({
             initialCamera={initialCamera}
             scope={selectedTopic}
           />
-          <IconButton icon={Plus} label="Zoom in (+)" onClick={handleZoomIn} />
+          <IconButton
+            icon={Plus}
+            label="Zoom in (+)"
+            variant="toolbar"
+            onClick={handleZoomIn}
+          />
           <IconButton
             icon={fullscreen ? X : Maximize2}
             label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            variant="toolbar"
             onClick={handleToggleFullscreen}
           />
         </div>
