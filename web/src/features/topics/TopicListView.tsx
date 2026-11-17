@@ -20,6 +20,8 @@ import {
   UNASSIGNED_SWATCH_COLOR,
 } from "./topic-map-colors";
 import { TopicEmbeddingMap } from "./TopicEmbeddingMap";
+// Exploratory scatter looks
+import { type TopicMapLookName } from "./map/topic-map-looks";
 
 /** Only the largest topics keep their map color; the rest are grey. */
 const COLORED_RANKS = 3;
@@ -34,6 +36,8 @@ type TopicListViewProps = {
   scatter?: {
     query: ComponentProps<typeof TopicEmbeddingMap>["query"];
     onOpenTrace: (traceId: string) => void;
+    /** Exploratory scatter looks */
+    look?: TopicMapLookName;
   };
 };
 
@@ -119,6 +123,7 @@ export function TopicListView({
                   else setSelectedTopicId(null);
                 }}
                 selectedTraceId={null}
+                look={scatter.look}
                 fillContainer
               />
             </div>

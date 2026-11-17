@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -18,6 +19,13 @@ import { usePanZoomGestures } from "@/src/hooks/usePanZoomGestures";
 import { cn } from "@/src/utils/tailwind";
 import { TopicMapCanvas } from "./TopicMapCanvas";
 import styles from "./topic-map.module.css";
+// Exploratory scatter looks
+import {
+  lookGrainOpacity,
+  lookStyle,
+  TOPIC_MAP_LOOKS,
+  type TopicMapLookName,
+} from "./topic-map-looks";
 import {
   clearTopicMapHover,
   createTopicMapStore,
@@ -73,6 +81,7 @@ export function TopicMapExplorer({
   matchingTraceIds,
   fillContainer = false,
   previewOnSelect = false,
+  look,
 }: TopicMapExplorerProps) {
   // Projection preparation is independent of the high-frequency camera store.
   const model = useMemo(() => prepareTopicMap(data, topics), [data, topics]);
@@ -399,8 +408,9 @@ export function TopicMapExplorer({
             ? "min-h-0 flex-1"
             : "h-[clamp(380px,64vh,820px)] min-h-[340px]",
           gestures.isDragging ? "cursor-grabbing" : "cursor-grab",
+          look && styles.look,
         )}
-        style={{ touchAction: "none" }}
+        style={{ touchAction: "none", ...(look && lookStyle(look)) }}
         {...gestures.pointerHandlers}
         onPointerMove={handlePointerMove}
         onPointerLeave={handlePointerLeave}
@@ -411,7 +421,10 @@ export function TopicMapExplorer({
         <div
           role="toolbar"
           aria-label="Scatter controls"
-          className="bg-background/85 absolute top-2 right-2 z-20 flex items-center gap-0.5 rounded-md p-0.5"
+          className={cn(
+            "bg-background/85 absolute top-2 right-2 z-20 flex items-center gap-0.5 rounded-md p-0.5",
+            look && styles.lookChrome,
+          )}
           onPointerDown={stopPointerPropagation}
           onPointerMove={stopPointerPropagation}
           onPointerEnter={handleControlPointerEnter}
@@ -438,7 +451,7 @@ export function TopicMapExplorer({
             onClick={handleToggleFullscreen}
           />
         </div>
-        <MapBackgroundLabels store={store} />
+        {!look && <MapBackgroundLabels store={store} />}
         <TopicMapCanvas
           model={model}
           size={size}
@@ -447,7 +460,14 @@ export function TopicMapExplorer({
           selectedTopic={selectedTopic}
           selectedTraceId={selectedTraceId}
           matchingTraceIds={matchingTraceIds}
+          look={look}
         />
+        {look && (
+          <>
+            <MapGrain opacity={lookGrainOpacity(look)} />
+            <MapBackgroundLabels store={store} look={look} />
+          </>
+        )}
         <MapLabels
           model={model}
           size={size}
@@ -463,7 +483,12 @@ export function TopicMapExplorer({
             No plotted summaries in this selection. Try a wider time range.
           </div>
         )}
-        <div className="text-muted-foreground pointer-events-none absolute right-4 bottom-3 left-4 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+        <div
+          className={cn(
+            "text-muted-foreground pointer-events-none absolute right-4 bottom-3 left-4 flex flex-wrap items-center justify-between gap-2 text-[11px]",
+            look && styles.lookChrome,
+          )}
+        >
           <LayoutReadout
             store={store}
             population={
@@ -714,8 +739,70 @@ function HoverCardHeader({ color, title }: { color: string; title: string }) {
   );
 }
 
-function MapBackgroundLabels({ store }: { store: TopicMapStore }) {
+/** Exploratory scatter looks: monochrome film grain over the fields and dots. */
+function MapGrain({ opacity }: { opacity: number }) {
+  const id = useId();
+  return (
+    <svg
+      aria-hidden
+      className="pointer-events-none absolute inset-0 h-full w-full mix-blend-multiply"
+      style={{ opacity }}
+    >
+      <filter id={id}>
+        <feTurbulence
+          type="fractalNoise"
+          baseFrequency="0.85"
+          numOctaves="2"
+          stitchTiles="stitch"
+        />
+        <feColorMatrix type="saturate" values="0" />
+      </filter>
+      <rect width="100%" height="100%" filter={`url(#${id})`} />
+    </svg>
+  );
+}
+
+function MapBackgroundLabels({
+  store,
+  look,
+}: {
+  store: TopicMapStore;
+  look?: TopicMapLookName;
+}) {
   const frame = useStore(store, (state) => state.frame);
+  // Exploratory scatter looks
+  if (look && frame) {
+    const { size, lineHeight } = TOPIC_MAP_LOOKS[look].label;
+    return (
+      <div
+        className="pointer-events-none absolute inset-0 overflow-hidden"
+        aria-hidden
+      >
+        {prepareMapTextLabels(frame, { fontSize: size, lineHeight }).map(
+          (label) => (
+            <div
+              key={label.id}
+              data-topic-background-label={label.id}
+              title={label.title}
+              className={cn(
+                "absolute truncate text-center",
+                styles.lookLabel,
+                styles.backgroundLabel,
+              )}
+              style={{
+                left: label.rect.x,
+                top: label.rect.y,
+                width: label.rect.width,
+                opacity: label.opacity,
+              }}
+            >
+              {label.title}
+            </div>
+          ),
+        )}
+      </div>
+    );
+  }
   return (
     <div
       className="pointer-events-none absolute inset-0 overflow-hidden"
@@ -770,6 +857,8 @@ function mapCoverageLabel(
 }
 
 export type TopicMapExplorerProps = {
+  /** Exploratory scatter looks */
+  look?: TopicMapLookName;
   data: MapData;
   topics: MapTopic[];
   selectedTopic: string | null;

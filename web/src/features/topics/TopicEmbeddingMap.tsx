@@ -2,6 +2,8 @@ import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { type RouterOutputs } from "@/src/utils/api";
 import { TopicMapExplorer as EmbeddingMapView } from "@/src/features/topics/map/TopicMapExplorer";
 import { TopicMapLoading } from "./TopicMapLoading";
+// Exploratory scatter looks
+import { type TopicMapLookName } from "./map/topic-map-looks";
 
 export function TopicEmbeddingMap({
   query,
@@ -13,6 +15,7 @@ export function TopicEmbeddingMap({
   matchingTraceIds,
   fillContainer = false,
   previewOnSelect = false,
+  look,
 }: TopicEmbeddingMapProps) {
   if (query.error)
     return (
@@ -42,6 +45,7 @@ export function TopicEmbeddingMap({
       matchingTraceIds={matchingTraceIds}
       fillContainer={fillContainer}
       previewOnSelect={previewOnSelect}
+      look={look}
     />
   );
 }
@@ -59,6 +63,8 @@ type TopicEmbeddingMapProps = {
   matchingTraceIds?: ReadonlySet<string>;
   fillContainer?: boolean;
   previewOnSelect?: boolean;
+  /** Exploratory scatter looks */
+  look?: TopicMapLookName;
 };
 
 type Topic = Pick<

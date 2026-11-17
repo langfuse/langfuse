@@ -14,6 +14,13 @@ import {
   publishTopicMapFrame,
   type TopicMapStore,
 } from "./topic-map-store";
+// Exploratory scatter looks
+import {
+  drawLookDot,
+  drawLookFields,
+  lookBackground,
+  type TopicMapLookName,
+} from "./topic-map-looks";
 
 export function TopicMapCanvas({
   model,
@@ -23,6 +30,7 @@ export function TopicMapCanvas({
   selectedTopic,
   selectedTraceId,
   matchingTraceIds,
+  look,
 }: TopicMapCanvasProps) {
   const ref = useRef<HTMLCanvasElement>(null);
   const presentation = useRef<Presentation | null>(null);
@@ -129,7 +137,7 @@ export function TopicMapCanvas({
       if (strength) scene.emphasis.set(point.traceId, strength);
       else scene.emphasis.delete(point.traceId);
     }
-    drawMap(ref.current, frame, scene.emphasis);
+    drawMap(ref.current, frame, scene.emphasis, look);
     scene.frame = frame;
     publishTopicMapFrame(store, frame, cameraMoving);
     return unsettled;
@@ -176,6 +184,7 @@ export function TopicMapCanvas({
     selectedTopic,
     selectedTraceId,
     matchingTraceIds,
+    look,
   ]);
   return (
     <canvas
@@ -190,6 +199,7 @@ function drawMap(
   canvas: HTMLCanvasElement,
   frame: TopicMapNodeFrame,
   emphasis: ReadonlyMap<string, number>,
+  look?: TopicMapLookName,
 ) {
   const context = canvas.getContext("2d");
   if (!context) return;
@@ -206,7 +216,33 @@ function drawMap(
   context.clearRect(0, 0, size.width, size.height);
   const theme = getComputedStyle(canvas);
   const surface = `hsl(${theme.getPropertyValue("--background").trim()})`;
-  const { paint, mark } = canvasColors(theme);
+  const { paint, mark, rgbOf } = canvasColors(theme);
+  // Exploratory scatter looks: fields replace the glows, dots replace the marks.
+  if (look) {
+    drawLookFields(context, frame, look, rgbOf, ratio);
+    const ring = rgbOf(lookBackground(look, surface));
+    for (const node of frame.nodes) {
+      const active = emphasis.get(node.point.traceId) ?? 0;
+      drawLookDot(
+        context,
+        look,
+        node.center,
+        rgbOf(node.point.color),
+        ring,
+        node.matchesFilters ? 1 : 0.08 + active * 0.92,
+      );
+      if (active > 0.001) {
+        context.globalAlpha = active * 0.7;
+        context.lineWidth = 1.5;
+        context.strokeStyle = mark(node.point.color);
+        context.beginPath();
+        context.arc(node.center.x, node.center.y, 7, 0, 2 * Math.PI);
+        context.stroke();
+      }
+    }
+    context.globalAlpha = 1;
+    return;
+  }
   const cloudVisibility = 1 - nodeDetailBlend(camera.zoom);
   context.globalAlpha = cloudVisibility;
   for (const zone of frame.zones) {
@@ -319,10 +355,12 @@ function canvasColors(theme: CSSStyleDeclaration) {
     );
     return `rgb(${r}, ${g}, ${b})`;
   };
-  return { paint, mark };
+  return { paint, mark, rgbOf };
 }
 
 type TopicMapCanvasProps = {
+  /** Exploratory scatter looks */
+  look?: TopicMapLookName;
   model: TopicMapModel;
   size: Size;
   camera: Camera;

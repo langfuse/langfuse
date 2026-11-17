@@ -95,7 +95,7 @@ function CurrentFacet({
   // Only the Map view needs the run's projection.
   const mapQuery = useCurrentTopicMap(
     projectId,
-    (isHandheld ? mobileVisualization.view : view) === "map"
+    isScatterView(isHandheld ? mobileVisualization.view : view)
       ? resultFacet.map?.runId
       : undefined,
   );
@@ -144,7 +144,7 @@ function CurrentFacet({
           mapActions={mapActions}
         />
       );
-    if (view === "map")
+    if (isScatterView(view))
       return (
         <TopicListView
           key={facet.facetId}
@@ -153,7 +153,11 @@ function CurrentFacet({
           peekView={peekView}
           tracePanelRef={tracePanelRef}
           useTraces={useFacetTopicTraces}
-          scatter={{ query: mapResult, onOpenTrace: peekNavigation.openPeek }}
+          scatter={{
+            query: mapResult,
+            onOpenTrace: peekNavigation.openPeek,
+            look: view === "map" ? undefined : view,
+          }}
         />
       );
     if (view === "list")
@@ -329,3 +333,8 @@ function useCurrentTopicMap(projectId: string, runId: string | undefined) {
 }
 
 export const __test = { useCurrentTopics, useMobileTraceSelection };
+
+/** Exploratory scatter looks: "scatter1" and "scatter2" share the Scatter view. */
+function isScatterView(view: string): view is "map" | "scatter1" | "scatter2" {
+  return view === "map" || view === "scatter1" || view === "scatter2";
+}

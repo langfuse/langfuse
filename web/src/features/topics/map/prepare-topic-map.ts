@@ -416,7 +416,13 @@ type MapTextLabel = {
   opacity: number;
 };
 
-export function prepareMapTextLabels(frame: TopicMapNodeFrame): MapTextLabel[] {
+/** Exploratory scatter looks: one fixed-size line above each cluster. */
+type LabelAbove = { fontSize: number; lineHeight: number };
+
+export function prepareMapTextLabels(
+  frame: TopicMapNodeFrame,
+  above?: LabelAbove,
+): MapTextLabel[] {
   const { camera, model, size, readingTopic, matchingTraceIds } = frame;
   const zoom = detailZoom(camera.zoom, size);
   const visibility = smoothStep(1.5, 3, zoom);
@@ -458,6 +464,45 @@ export function prepareMapTextLabels(frame: TopicMapNodeFrame): MapTextLabel[] {
     // A zone keeps one geographic label as its center moves beyond the viewport.
     // Clamping to the visible intersection is continuous through pan and zoom.
     if (right < left || bottom < top) continue;
+    // Exploratory scatter looks
+    if (above) {
+      const labelWidth = Math.min(
+        220,
+        zone.name.length * above.fontSize * 0.62,
+      );
+      const x = Math.max(
+        12 + labelWidth / 2,
+        Math.min(size.width - 12 - labelWidth / 2, (left + right) / 2),
+      );
+      // The zoom toolbar holds the top-right corner.
+      const underToolbar = x + labelWidth / 2 > size.width - 220;
+      let y = topLeft.y - above.lineHeight - 10;
+      if (y < 12 || (underToolbar && y < 46)) y = bottomRight.y + 10;
+      y = Math.max(12, Math.min(size.height - above.lineHeight - 12, y));
+      const rect = {
+        x: x - labelWidth / 2,
+        y,
+        width: labelWidth,
+        height: above.lineHeight,
+      };
+      if (!visible(rect)) continue;
+      const matchesFilters =
+        !matchingTraceIds ||
+        zone.points.some((point) => matchingTraceIds.has(point.traceId));
+      labels.push({
+        id: zone.id,
+        kind: "zone",
+        title: zone.name,
+        color: zone.color,
+        rect,
+        fontSize: above.fontSize,
+        opacity:
+          visibility *
+          (readingTopic && readingTopic !== zone.id ? 0.4 : 1) *
+          (matchesFilters ? 1 : 0.15),
+      });
+      continue;
+    }
     const center = screenPoint(zone, camera, model.bounds, size);
     const xInset = Math.min(width / 2 + 12, (right - left) / 2);
     const yInset = Math.min(height / 2 + 12, (bottom - top) / 2);
