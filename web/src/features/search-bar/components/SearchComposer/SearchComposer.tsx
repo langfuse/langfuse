@@ -271,7 +271,7 @@ export function SearchComposer({
       (field.field.syncMode === "exactOption" ||
         field.field.syncMode === "arrayOption")
     ) {
-      onRequestColumns?.([field.field.filterColumn ?? field.field.id]);
+      onRequestColumns?.([field.field.id]);
     }
     controller.setAutocompleteOpen(false);
     openPopover();

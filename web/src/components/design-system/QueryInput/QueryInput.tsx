@@ -339,7 +339,6 @@ function QueryInputPreview(
       error={false}
       trailing="none"
       tone={props.tone}
-      readOnly
     >
       <div>
         <QueryInputText>
@@ -361,21 +360,21 @@ function QueryInputSurface({
   error,
   trailing,
   tone = "default",
-  readOnly = false,
+  focused = false,
   children,
 }: {
   size: React.ComponentProps<typeof QueryInputEditor>["size"];
   error: boolean;
   trailing: "none" | "icon" | "button";
   tone?: "default" | "muted";
-  readOnly?: boolean;
+  focused?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <InputControl
       contentLayout="none"
       height="auto"
-      focusTarget={readOnly ? "self" : "field"}
+      focused={focused}
       error={error}
     >
       <Slot
@@ -1009,9 +1008,10 @@ function QueryInputEditor({
         return;
       }
       if (event.key === "Escape") {
-        if (!tooltipDismissed && tooltipTargetId !== null)
+        if (!tooltipDismissed && tooltipTargetId !== null) {
           event.preventDefault();
-        setTooltipDismissed(true);
+          setTooltipDismissed(true);
+        }
       } else if (
         (event.key === "ArrowLeft" || event.key === "ArrowRight") &&
         !event.shiftKey &&
@@ -1197,8 +1197,10 @@ function QueryInputEditor({
     }
 
     if (event.key === "Escape") {
-      if (!tooltipDismissed && tooltipTargetId !== null) event.preventDefault();
-      setTooltipDismissed(true);
+      if (!tooltipDismissed && tooltipTargetId !== null) {
+        event.preventDefault();
+        setTooltipDismissed(true);
+      }
       if (autocompleteOpen) {
         event.preventDefault();
         setAutocompleteOpen(false);
@@ -1669,6 +1671,7 @@ function QueryInputEditor({
       <QueryInputSurface
         size={size}
         error={showGlobalDiagnostics}
+        focused={editorFocused}
         trailing={
           action !== undefined && !showGlobalDiagnostics ? "button" : "icon"
         }
@@ -1733,7 +1736,6 @@ function QueryInputEditor({
               autoCapitalize="none"
               inputMode="text"
               data-testid="search-bar-input"
-              data-input-control-field
               className="ph-no-capture max-h-24 overflow-y-auto caret-[hsl(var(--foreground))] outline-none"
               onScroll={measurePositions}
               onInput={(event) => {

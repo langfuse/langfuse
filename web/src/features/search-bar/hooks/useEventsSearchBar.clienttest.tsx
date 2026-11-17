@@ -74,13 +74,27 @@ function setupSplitEcho() {
 }
 
 describe("useEventsSearchBar.commit", () => {
-  it("keeps real recent searches across facet edits while retaining deliberate submissions", () => {
-    const projectId = "facet-edit-recents";
-    localStorage.removeItem(`lf-search-bar-recents:${projectId}`);
-    for (let index = 0; index < 8; index++) {
+  it("keeps real recent searches across facet edits while retaining deliberate submissions", ({
+    onTestFinished,
+  }) => {
+    const projectId = crypto.randomUUID();
+    const storageKeys = new Set(Object.keys(localStorage));
+    onTestFinished(() => {
+      for (const key of Object.keys(localStorage)) {
+        if (!storageKeys.has(key)) localStorage.removeItem(key);
+      }
+    });
+    let saved: string[] = [];
+    for (let index = 0; ; index++) {
       recentSearches.recordRecentSearch(projectId, `name:=prior-${index}`);
+      const next = recentSearches.getRecentSearches(projectId);
+      const atCapacity = next.length === saved.length;
+      saved = next;
+      if (atCapacity) break;
     }
-    const saved = recentSearches.getRecentSearches(projectId);
+    expect(saved.length).toBeGreaterThan(0);
+    const facetEdits = saved.length + 1;
+    const lastSelected = `selected-${facetEdits - 1}`;
     const { result } = renderHook(() => {
       const [filters, setFilters] = useState<FilterState>([]);
       return {
@@ -99,7 +113,7 @@ describe("useEventsSearchBar.commit", () => {
         filters,
       };
     });
-    for (let index = 0; index < 9; index++) {
+    for (let index = 0; index < facetEdits; index++) {
       act(() =>
         result.current.store
           .getState()
@@ -112,7 +126,7 @@ describe("useEventsSearchBar.commit", () => {
         type: "stringOptions",
         column: "name",
         operator: "any of",
-        value: ["selected-8", "stable", "other"],
+        value: [lastSelected, "stable", "other"],
       },
     ]);
     expect(recentSearches.getRecentSearches(projectId)).toEqual(saved);
@@ -123,18 +137,17 @@ describe("useEventsSearchBar.commit", () => {
         ([event, metadata]) =>
           event === "filters:search_submitted" && metadata.trigger === "facet",
       ),
-    ).toHaveLength(9);
+    ).toHaveLength(facetEdits);
     expect(JSON.stringify(capture.mock.calls)).not.toContain("selected-");
 
     act(() => result.current.commit("enter"));
     expect(recentSearches.getRecentSearches(projectId)).toEqual([
-      "name:(selected-8 OR stable OR other)",
-      ...saved.slice(0, 7),
+      `name:(${lastSelected} OR stable OR other)`,
+      ...saved.slice(0, -1),
     ]);
     act(() => result.current.store.getState().actions.setDraft("name:changed"));
     act(() => result.current.commit("blur"));
     expect(recentSearches.getRecentSearches(projectId)[0]).toBe("name:changed");
-    localStorage.removeItem(`lf-search-bar-recents:${projectId}`);
   });
 
   it("keeps a mixed commit intact while the filter echoes before the search URL", () => {

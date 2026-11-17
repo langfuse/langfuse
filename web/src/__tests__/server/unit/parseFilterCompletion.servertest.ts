@@ -21,11 +21,32 @@ describe("parseRefinedFilters", () => {
       status: "complete",
       filters: [],
     });
-    expect(
-      parseRefinedFilters(
-        `\`\`\`json\n${JSON.stringify({ filters: [filter] })}\n\`\`\``,
-      ),
-    ).toMatchObject({ status: "complete", filters: [filter] });
+    for (const language of [
+      "json",
+      "markdown",
+      "",
+      "application-json",
+      "json title=filters",
+    ]) {
+      expect(
+        parseRefinedFilters(
+          `\`\`\`${language}\n${JSON.stringify({ filters: [filter] })}\n\`\`\``,
+        ),
+      ).toMatchObject({ status: "complete", filters: [filter] });
+    }
+    const fenced = `\`\`\`markdown\n${JSON.stringify([filter])}\n\`\`\``;
+    for (const incomplete of [
+      `Here are the filters:\n${fenced}`,
+      `${fenced}\nUpdated filters`,
+      `${fenced}\n${fenced}`,
+      `\`\`\`markdown\n${JSON.stringify([filter])}`,
+      `\`\`\`markdown\n${JSON.stringify([filter]).slice(0, -1)}\n\`\`\``,
+    ]) {
+      expect(parseRefinedFilters(incomplete)).toEqual({
+        status: "incomplete",
+        unknownScoreNames: [],
+      });
+    }
     const draftThenTruncated = `${JSON.stringify([filter])}\nUpdated filters:\n[{"type":"stringOptions","column":"name","operator":"any of","value":["unfinished`;
     expect(parseRefinedFilters(draftThenTruncated)).toEqual({
       status: "incomplete",

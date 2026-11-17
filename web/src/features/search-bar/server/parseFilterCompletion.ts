@@ -26,7 +26,7 @@ export function parseRefinedFilters(
   | (GeneratedFilters & { status: "complete" })
   | Extract<AiFilterResult, { status: "incomplete" }> {
   const trimmed = completion.trim();
-  const fenced = /^```(?:json)?\s*\n?([\s\S]*?)\n?```$/i.exec(trimmed);
+  const fenced = /^```[^\r\n`]*\r?\n([\s\S]*?)\r?\n?```$/.exec(trimmed);
   let parsed: unknown;
   try {
     parsed = JSON.parse(fenced?.[1] ?? trimmed);

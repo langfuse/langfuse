@@ -38,8 +38,10 @@ const inputControlVariants = cva(
         self: null,
         within:
           "focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
-        field:
-          "has-[[data-input-control-field]:focus]:ring-2 has-[[data-input-control-field]:focus]:ring-ring has-[[data-input-control-field]:focus]:ring-offset-2",
+      },
+      focused: {
+        true: "ring-ring ring-2 ring-offset-2",
+        false: null,
       },
       prefixed: {
         true: "flex min-w-0 items-center overflow-hidden focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
@@ -77,10 +79,9 @@ const inputControlVariants = cva(
           "focus-within:ring-destructive/40 focus-within:ring-offset-0",
       },
       {
-        focusTarget: "field",
+        focused: true,
         error: true,
-        className:
-          "has-[[data-input-control-field]:focus]:ring-destructive/40 has-[[data-input-control-field]:focus]:ring-offset-0",
+        className: "ring-destructive/40 ring-offset-0",
       },
     ],
   },
@@ -90,7 +91,10 @@ type InputControlProps = Omit<
   ComponentPropsWithoutRef<typeof Slot>,
   "className" | "prefix"
 > &
-  Pick<VariantProps<typeof inputControlVariants>, "height" | "focusTarget"> & {
+  Pick<
+    VariantProps<typeof inputControlVariants>,
+    "height" | "focusTarget" | "focused"
+  > & {
     contentLayout: "none" | "text" | "spread";
     error?: boolean;
     disabled?: boolean;
@@ -114,6 +118,7 @@ export function InputControl({
   contentLayout,
   height,
   focusTarget,
+  focused,
   error,
   disabled,
   trailingAction,
@@ -123,6 +128,7 @@ export function InputControl({
   const controlClassName = inputControlVariants({
     height,
     focusTarget,
+    focused,
     prefixed: prefix !== undefined,
     error,
     disabled,

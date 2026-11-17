@@ -730,6 +730,14 @@ export const TestCollectionPreviewHover = TestPreviewEscapeInDialog.extend({
         name: "Edit Status any of 3 values",
       });
       await userEvent.hover(collection);
+      await expect(
+        body.queryByTestId("search-bar-token-tooltip"),
+      ).not.toBeInTheDocument();
+      await userEvent.keyboard("{Escape}");
+      await waitFor(() =>
+        expect(body.queryByRole("listbox")).not.toBeInTheDocument(),
+      );
+      await expect(dialog).toBeVisible();
       const preview = await body.findByTestId("search-bar-token-tooltip");
       const expectInsideViewport = () => {
         const bounds = preview.getBoundingClientRect();

@@ -673,7 +673,11 @@ export default function ExperimentItemsTable({
     scoreFilterOptions,
     {
       stateLocation: "urlAndSessionStorage",
-      sessionFilterContextId: projectId,
+      sessionFilterContextId: JSON.stringify([
+        projectId,
+        baselineId ?? null,
+        comparisonIds.slice().sort(),
+      ]),
       onExplicitFilterStateChange,
       loading: isFilterOptionsLoading,
       // v4-only surface — drives `isV4` on filters:* analytics.

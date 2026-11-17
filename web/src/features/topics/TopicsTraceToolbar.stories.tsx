@@ -228,6 +228,9 @@ export const Exclusions = meta.story({
 
 export const TopicAutocomplete = meta.story({
   name: "(Test) Topic Autocomplete Uses Stable IDs",
+  args: {
+    topics: [...topics, { id: "support", name: "Technical support" }],
+  },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
@@ -257,6 +260,30 @@ export const TopicAutocomplete = meta.story({
     await expect(canvas.getByTestId("search-bar-token")).toHaveTextContent(
       'topic:"Billing questions"',
     );
+    await replaceQuery(
+      search,
+      'topic:("Billing questions" OR "Project setup")',
+    );
+    await userEvent.click(
+      canvas.getByRole("button", { name: /Edit.*2 values/ }),
+    );
+    const dialog = await body.findByRole("dialog", {
+      name: "Edit filter values",
+    });
+    const unselectedTopic = within(dialog).getByRole("checkbox", {
+      name: "Technical support",
+    });
+    await expect(unselectedTopic).not.toBeChecked();
+    await userEvent.click(unselectedTopic);
+    await expect(unselectedTopic).toBeChecked();
+    await expect(args.onFiltersChange).toHaveBeenLastCalledWith([
+      {
+        column: "topicId",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["billing", "setup", "support"],
+      },
+    ]);
   },
 });
 

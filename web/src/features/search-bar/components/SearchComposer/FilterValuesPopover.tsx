@@ -153,7 +153,7 @@ function optionSource(
 ) {
   if (ref?.type === "field")
     return {
-      optionKey: ref.field.filterColumn ?? ref.field.id,
+      optionKey: ref.field.id,
       requestable:
         ref.field.syncMode === "exactOption" ||
         ref.field.syncMode === "arrayOption",
