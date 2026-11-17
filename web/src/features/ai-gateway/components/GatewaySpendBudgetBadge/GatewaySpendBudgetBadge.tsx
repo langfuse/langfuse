@@ -48,6 +48,13 @@ export function GatewaySpendBudgetBadge({
     requestsBySubject[subject],
   );
 
+  const color =
+    spentUsd === undefined
+      ? "filled"
+      : budgetColor(spentUsd, spendLimit.limitUsd);
+  const text =
+    spentUsd === undefined ? limit : `${formatUsd(spentUsd)} / ${limit}`;
+
   return (
     <CustomTooltip
       content={
@@ -59,20 +66,11 @@ export function GatewaySpendBudgetBadge({
     >
       {({ getTriggerProps }) => (
         <span {...getTriggerProps()} tabIndex={0} className="inline-flex">
-          <Badge
-            color={
-              spentUsd === undefined
-                ? "filled"
-                : budgetColor(spentUsd, spendLimit.limitUsd)
-            }
-            size="md"
-            interactive
-            text={
-              spentUsd === undefined
-                ? limit
-                : `${formatUsd(spentUsd)} / ${limit}`
-            }
-          />
+          {color === "filled" ? (
+            <span className="font-mono text-xs whitespace-nowrap">{text}</span>
+          ) : (
+            <Badge color={color} size="md" interactive text={text} />
+          )}
         </span>
       )}
     </CustomTooltip>
