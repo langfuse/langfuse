@@ -488,16 +488,23 @@ export class GatewaySpendLimitService {
       params.interval,
       countingStartedAt,
     );
-    // A total limit's window starts at the epoch, so the subject's creation bounds the scan.
-    const [baselineSpendUsd] = await getScopeSpendSince({
-      projectId: params.recordingProjectId,
-      scope: params.scope,
-      since: [
-        new Date(
-          Math.max(windowStart.getTime(), params.subjectCreatedAt.getTime()),
-        ),
-      ],
-    });
+    // A user's total budget counts from its creation, not over the user's history.
+    // Otherwise a total limit's window starts at the epoch, so the subject's creation bounds the scan.
+    const [baselineSpendUsd] =
+      params.scope.type === "USER" && params.interval === "TOTAL"
+        ? [0]
+        : await getScopeSpendSince({
+            projectId: params.recordingProjectId,
+            scope: params.scope,
+            since: [
+              new Date(
+                Math.max(
+                  windowStart.getTime(),
+                  params.subjectCreatedAt.getTime(),
+                ),
+              ),
+            ],
+          });
     let limit: GatewaySpendLimitRecord;
     try {
       limit = await this.repository.create({
