@@ -13,7 +13,7 @@ import {
 import { draftsSemanticallyEqual } from "../../store/searchBarStore";
 import { deriveQueryTokens } from "../../lib/fns/deriveQueryTokens";
 import { EVENTS_FIELD_REGISTRY, type FieldRegistry } from "../../lib/fields";
-import type { CompareOp } from "../../lib/ast";
+import type { CompareOp, Span } from "../../lib/ast";
 import { getRecentSearches } from "../../lib/recent-searches";
 import {
   scoreTypeContextFromObserved,
@@ -38,7 +38,6 @@ import {
   createTokenFacetState,
   type TokenFacetState,
 } from "../../lib/fns/tokenFacet";
-import type { Span } from "../../lib/ast";
 
 type ValuePickerState = {
   state: TokenFacetState;

@@ -71,9 +71,10 @@ import {
 import { MAX_QUERY_LENGTH } from "../lib/validate";
 import {
   AI_FILTER_MAX_OUTPUT_TOKENS,
-  AI_REFINEMENT_INCOMPLETE_MESSAGE,
+  AI_REFINEMENT_MAX_OUTPUT_TOKENS,
   aiRefinementBudgetError,
 } from "../lib/ai-refine-budget";
+import type { AiFilterResult } from "../lib/ai-filter-result";
 
 // Caps shared with `observedScoreNamesFromOptions` (the client-side builder),
 // which sends a set as undefined instead of ever exceeding them.
@@ -109,44 +110,34 @@ const REGISTRIES_BY_ID: Record<(typeof REGISTRY_IDS)[number], FieldRegistry> = {
   users: USERS_FIELD_REGISTRY,
 };
 
-const GenerateFilterInput = z
-  .object({
-    projectId: z.string(),
-    prompt: z.string().min(1).max(2048),
-    registryId: z.enum(REGISTRY_IDS).default("events"),
-    /** Existing bar query text, so the model refines the current filters. */
-    currentQuery: z.string().max(MAX_QUERY_LENGTH).optional(),
-    /** Project data context (observed values, metadata keys, result count) built
-     *  on the client from already-loaded filterOptions + visible rows. */
-    dataContext: z.string().max(16000).optional(),
-    /** Observed score names by column type (from filterOptions), used to
-     *  validate/correct the score names the model returns. A set left undefined
-     *  means that column hasn't loaded client-side — it is not enforced. */
-    scoreNames: z
-      .object({
-        numeric: scoreNameList.optional(),
-        categorical: scoreNameList.optional(),
-        booleans: scoreNameList.optional(),
-        traceNumeric: scoreNameList.optional(),
-        traceCategorical: scoreNameList.optional(),
-        traceBooleans: scoreNameList.optional(),
-      })
-      .optional(),
-  })
-  .superRefine((input, context) => {
-    const message = aiRefinementBudgetError(
-      input.currentQuery,
-      REGISTRIES_BY_ID[input.registryId],
-      input.scoreNames,
-    );
-    if (message)
-      context.addIssue({ code: "custom", path: ["currentQuery"], message });
-  });
+const GenerateFilterInput = z.object({
+  projectId: z.string(),
+  prompt: z.string().min(1).max(2048),
+  registryId: z.enum(REGISTRY_IDS).default("events"),
+  /** Existing bar query text, so the model refines the current filters. */
+  currentQuery: z.string().max(MAX_QUERY_LENGTH).optional(),
+  /** Project data context (observed values, metadata keys, result count) built
+   *  on the client from already-loaded filterOptions + visible rows. */
+  dataContext: z.string().max(16000).optional(),
+  /** Observed score names by column type (from filterOptions), used to
+   *  validate/correct the score names the model returns. A set left undefined
+   *  means that column hasn't loaded client-side — it is not enforced. */
+  scoreNames: z
+    .object({
+      numeric: scoreNameList.optional(),
+      categorical: scoreNameList.optional(),
+      booleans: scoreNameList.optional(),
+      traceNumeric: scoreNameList.optional(),
+      traceCategorical: scoreNameList.optional(),
+      traceBooleans: scoreNameList.optional(),
+    })
+    .optional(),
+});
 
 export const searchBarRouter = createTRPCRouter({
   generateFilter: protectedProjectProcedure
     .input(GenerateFilterInput)
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }): Promise<AiFilterResult> => {
       try {
         const baseRegistry = REGISTRIES_BY_ID[input.registryId];
         // Defence in depth for the client gate above: a view that has no AI
@@ -305,7 +296,9 @@ export const searchBarRouter = createTRPCRouter({
         const llmCompletion = await generateLangfuseAIText({
           messages,
           model,
-          maxTokens: AI_FILTER_MAX_OUTPUT_TOKENS,
+          maxTokens: input.currentQuery?.trim()
+            ? AI_REFINEMENT_MAX_OUTPUT_TOKENS
+            : AI_FILTER_MAX_OUTPUT_TOKENS,
           timeout: getClientInitiatedNonStreamingLlmTimeoutMs(),
           traceSinkParams: aiTelemetryEnabled
             ? getLangfuseAITraceSinkParams({
@@ -352,13 +345,15 @@ export const searchBarRouter = createTRPCRouter({
         // dead filter that silently matches nothing.
         const parsed = input.currentQuery?.trim()
           ? parseRefinedFilters(llmCompletion, input.scoreNames, registry)
-          : parseGeneratedFilters(llmCompletion, input.scoreNames, registry);
-        if (parsed === null) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: AI_REFINEMENT_INCOMPLETE_MESSAGE,
-          });
-        }
+          : {
+              ...parseGeneratedFilters(
+                llmCompletion,
+                input.scoreNames,
+                registry,
+              ),
+              status: "complete" as const,
+            };
+        if (parsed.status === "incomplete") return parsed;
         const { filters, queryText, droppedCount, unknownScoreNames } = parsed;
 
         if (droppedCount > 0) {
@@ -409,7 +404,7 @@ export const searchBarRouter = createTRPCRouter({
           }
         }
 
-        return { filters, queryText, unknownScoreNames };
+        return { status: "complete", filters, queryText, unknownScoreNames };
       } catch (error) {
         // Already-shaped rejections (auth / precondition / not-found) are
         // expected control flow, not backend faults — rethrow them without

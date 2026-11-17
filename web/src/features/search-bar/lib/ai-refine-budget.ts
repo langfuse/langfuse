@@ -4,6 +4,7 @@ import { parse } from "./langQ";
 import type { ObservedScoreNames } from "./observed-options";
 
 export const AI_FILTER_MAX_OUTPUT_TOKENS = 2048;
+export const AI_REFINEMENT_MAX_OUTPUT_TOKENS = 8192;
 
 export const AI_REFINEMENT_BUDGET_MESSAGE =
   "This filter list is too large to refine with AI. Edit the filters in the search bar or reduce the selection first.";
@@ -16,7 +17,7 @@ export const AI_REFINEMENT_FULL_TEXT_MESSAGE =
 // compact UTF-8 representation at one byte per token, conservatively reserving
 // half the output allowance for changes and formatting. This avoids assuming
 // the usual four characters per token for IDs, escapes, or non-ASCII values.
-const MAX_REFINEMENT_PAYLOAD_BYTES = AI_FILTER_MAX_OUTPUT_TOKENS / 2;
+const MAX_REFINEMENT_PAYLOAD_BYTES = AI_REFINEMENT_MAX_OUTPUT_TOKENS / 2;
 
 export function aiRefinementBudgetError(
   query: string | undefined,

@@ -61,10 +61,7 @@ Common flags: `--project` (defaults to the seeded example project),
 `--environment`, `--seed`, `--id-prefix`, `--dry-run` (instant, arithmetic
 counts, writes nothing), `--json` (machine mode: pure-JSON stdout).
 
-Use `filter-variety --traces 1200 --names 240` for filter/search work on both
-Traces and Observations. Every requested name appears on a real root observation;
-repeated workflows produce varied counts. Generations link to existing project
-prompts when available. A fresh `--id-prefix` adds an independent fixture.
+Use `filter-variety --traces 1200 --names 240` for filter/search work on both Traces and Observations. Every requested name appears on a real root observation; repeated workflows produce varied counts. Generations link to existing project prompts when available. A fresh `--id-prefix` adds an independent fixture.
 
 For queue setup testing, use `annotation-queue --setup-demo --core-items 4`.
 It seeds Answer quality and Safety review queues with different, nonalphabetical

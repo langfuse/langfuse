@@ -185,6 +185,20 @@ export function SearchBarAiPrompt({
         setError("Filters changed while generating — try again.");
         return;
       }
+      if (result.status === "incomplete") {
+        capture("filters:ai_generate_failed", {
+          tableName,
+          refineMode,
+          reason: "incomplete",
+          isV4,
+        });
+        setError(
+          result.unknownScoreNames.length > 0
+            ? `${unknownScoresMessage(result.unknownScoreNames)} Your existing filters were not changed.`
+            : AI_REFINEMENT_INCOMPLETE_MESSAGE,
+        );
+        return;
+      }
       if (result.filters.length === 0) {
         capture("filters:ai_generate_failed", {
           tableName,
@@ -233,8 +247,7 @@ export function SearchBarAiPrompt({
       });
       if (
         error instanceof TRPCClientError &&
-        (error.message === AI_REFINEMENT_INCOMPLETE_MESSAGE ||
-          error.message === AI_REFINEMENT_BUDGET_MESSAGE ||
+        (error.message === AI_REFINEMENT_BUDGET_MESSAGE ||
           error.message === AI_REFINEMENT_FULL_TEXT_MESSAGE)
       ) {
         setError(error.message);
@@ -375,7 +388,7 @@ export function SearchBarAiPrompt({
         <div
           id={errorId}
           role="status"
-          className="text-destructive mt-1 px-1 font-sans text-xs"
+          className="ph-no-capture text-destructive mt-1 px-1 font-sans text-xs"
         >
           {displayedError}
         </div>

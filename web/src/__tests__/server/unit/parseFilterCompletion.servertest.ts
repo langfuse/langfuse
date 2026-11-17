@@ -13,20 +13,43 @@ describe("parseRefinedFilters", () => {
     value: ["ERROR"],
   };
   it("keeps a complete refinement and rejects truncated or invalid replacements", () => {
-    expect(parseRefinedFilters(JSON.stringify([filter]))?.filters).toEqual([
-      filter,
-    ]);
-    expect(parseRefinedFilters("[]")?.filters).toEqual([]);
+    expect(parseRefinedFilters(JSON.stringify([filter]))).toMatchObject({
+      status: "complete",
+      filters: [filter],
+    });
+    expect(parseRefinedFilters("[]")).toMatchObject({
+      status: "complete",
+      filters: [],
+    });
     expect(
       parseRefinedFilters(
         `\`\`\`json\n${JSON.stringify({ filters: [filter] })}\n\`\`\``,
-      )?.filters,
-    ).toEqual([filter]);
+      ),
+    ).toMatchObject({ status: "complete", filters: [filter] });
     const draftThenTruncated = `${JSON.stringify([filter])}\nUpdated filters:\n[{"type":"stringOptions","column":"name","operator":"any of","value":["unfinished`;
-    expect(parseRefinedFilters(draftThenTruncated)).toBeNull();
+    expect(parseRefinedFilters(draftThenTruncated)).toEqual({
+      status: "incomplete",
+      unknownScoreNames: [],
+    });
     expect(
       parseRefinedFilters(JSON.stringify([filter, { type: "not-a-filter" }])),
-    ).toBeNull();
+    ).toEqual({ status: "incomplete", unknownScoreNames: [] });
+  });
+  it("rejects the complete replacement while retaining unknown-score details", () => {
+    const completion = JSON.stringify([
+      filter,
+      {
+        type: "numberObject",
+        column: "scores_avg",
+        key: "private-score",
+        operator: ">",
+        value: 0.5,
+      },
+    ]);
+    expect(parseRefinedFilters(completion, { numeric: ["accuracy"] })).toEqual({
+      status: "incomplete",
+      unknownScoreNames: ["private-score"],
+    });
   });
 });
 

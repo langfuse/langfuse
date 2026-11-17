@@ -130,20 +130,11 @@ follow-up.)
 
 ## Value collections
 
-Complete two-value groups stay fully written inline and open the same checkbox
-picker as larger lists. Lists with more than two values show the first value and
-remaining count; OR matching is implicit in the compact presentation, while
-all-of and exclusion remain explicit. The interaction metadata is independent of
-compaction. Only the values are an editing atom. Keys, negation, and experiment
-targets stay editable in the bar. Canonical token text and source spans remain
-complete, and selecting the entire query copies its complete expression. An
-unknown or temporarily empty key retains its collapsed values while typing,
-with the value picker disabled until the field resolves. Scalar values,
-incomplete groups, and invalid value syntax remain ordinary editable text.
+Complete two-value groups stay fully written inline and open the same checkbox picker as larger lists. Lists with more than two values show the first value and remaining count; OR matching is implicit in the compact presentation, while all-of and exclusion remain explicit. The interaction metadata is independent of compaction. Only the values are an editing atom. Keys, negation, and experiment targets stay editable in the bar. Canonical token text and source spans remain complete, and selecting the entire query copies its complete expression. An unknown or temporarily empty key retains its value collection while typing, with the value picker disabled until the field resolves. Scalar values, incomplete groups, and invalid value syntax remain ordinary editable text.
 
 `SearchComposer` opens a value-anchored popup with the same `CategoricalFilterSelect` used by the sidebar: checkboxes, observed values and counts, search, Only/All gestures, and array matching modes. Every selection applies immediately. The popup edits only its condition, preserving companion conditions and experiment targets, and remains open when the collection shrinks below the collapse threshold. Stored values remain available when absent from current observations. All query editing stays in the bar; key autocomplete replaces the key without consuming its values. Queries may contain up to 65,536 characters; URL-backed search phrases retain a 2,048-character limit and structured filters use the bounded-URL storage fallback.
 
-The parser also bounds expression nesting to 128 levels and whole-query token count to 1,024. A grouped value list is one token, so these complexity limits keep large membership lists available while rejecting pathological expression trees and diagnostic-heavy input. Composer projection renders excessively complex input as one editable error region; the raw lexer keeps individual value boundaries for autocomplete inside large groups. The picker preserves array matching mode through singleton values and edits an enclosing NOT together with its condition. Leaves under a compound NOT remain editable text when the picker cannot resolve their owning expression.
+The parser bounds expression nesting to 128 levels and whole-query token count to 1,024. A grouped value list is one token, so these limits preserve large membership lists. Validation keeps the first 100 diagnostics plus an overflow diagnostic that preserves the severity of omitted errors. This bounds diagnostic merging and display for malformed lists without truncating source or accepting invalid input. Composer projection renders excessively complex input as one editable error region; the raw lexer keeps individual value boundaries for autocomplete inside large groups. The picker preserves array matching mode through singleton values and edits an enclosing NOT together with its condition. Leaves under a compound NOT remain editable text when the picker cannot resolve their owning expression.
 
 Oversized filters use session storage and survive same-tab refreshes; the plain page URL does not carry them. Save a table view to share a large selection across browsers.
 
@@ -211,7 +202,7 @@ committedText ──resetTo──▶ store.draft ──(type/pick/remove)──�
 - **User-authored filters are never auto-removed.** The bar reads a display
   projection of the sidebar's **explicit** `FilterState`, so the
   managed-environment implicit default (`environment none of [hidden internal
-envs]`, derived into _effective_ state by
+  envs]`, derived into _effective_ state by
   `features/filters/lib/managedEnvironmentPolicy.ts`) never shows as a token.
   That policy strips the implicit `none of [hidden]` default (which the facet
   also re-creates on "clear back to default") and keeps
@@ -352,16 +343,8 @@ traces table). Self-hosted uses Ask AI on this bar only.
   `applyFilters` (it preserves grammar-less `skippedFilters` like a commit, then
   writes `setFilterState`), so on returning to grammar mode `resetTo` re-derives
   the generated filters as editable pills. There is no separate AI→bar sync path.
-- **Refinement is a complete replacement.** Client and server share a preflight
-  budget based on the UTF-8 JSON the model must return, reserving half its
-  2,048-token output allowance for edits and formatting. Manual query editing
-  retains its separate 65,536-character limit. Refinement accepts only a complete
-  JSON array or wrapper; truncated fragments and dropped conditions leave the
-  current filters unchanged. Ordinary generation keeps its existing parser.
-- **Full-text refinement is refused.** The response owns `FilterState` but has
-  no `searchQuery`/`searchType` lanes. The preflight points back to the bar rather
-  than letting `applyFilters` clear search state the model cannot preserve.
-  Cancellation and a changed draft still discard stale AI responses.
+- **Refinement is a complete replacement.** Client and server share a budget based on the UTF-8 JSON the model must return, reserving half its 8,192-token refinement allowance for edits and formatting. Ordinary generation retains its 2,048-token allowance. The server checks the budget after resolving display labels to stored IDs, matching the client's registry. Manual query editing retains its separate 65,536-character limit. Refinement accepts only a complete JSON array or wrapper; truncated fragments and dropped conditions return a typed incomplete outcome and leave current filters unchanged. Rejected score names remain available for a specific explanation. Ordinary generation keeps its existing parser.
+- **Full-text refinement is refused.** The response owns `FilterState` but has no `searchQuery`/`searchType` lanes. The preflight points back to the bar rather than letting `applyFilters` clear search state the model cannot preserve. Cancellation and a changed draft still discard stale AI responses.
 
 ## Metadata key suggestions (client-side observed map)
 
@@ -437,9 +420,7 @@ lowering, the URL contract, and the facet sidebar are **already shared** with
 the bar. The only thing forked per view is the **front half**: the field
 registry + grammar + value validation. Keep it that way.
 
-A shared filter contract does not imply that every compound predicate fits one
-facet control. Such conditions stay editable individually in the bar and must
-remain read-only in a sidebar control that cannot represent them faithfully.
+A shared filter contract does not imply that every compound predicate fits one facet control. Such conditions stay editable individually in the bar and must remain read-only in a sidebar control that cannot represent them faithfully.
 
 **The multi-view seam is implemented.** Parser, validator, adapter, reverse
 adapter, serializer, completion planner, token projection, store, and AI prompt
@@ -581,10 +562,7 @@ real consumer and validate it against that view's backend filter contract.
   `defaultTextField` view must also pin its phrase/round-trip behaviour
   explicitly, as the sessions block does.
 
-- **The shared `QueryInput` owns contenteditable behavior** — source/DOM mapping
-  has focused client coverage, while keyboard, clipboard, undo, and composer
-  integration behavior run in browser stories. `SearchComposer` owns query
-  completions, commits, and the value picker.
+- **The shared `QueryInput` owns contenteditable behavior** — source/DOM mapping has focused client coverage, while keyboard, clipboard, undo, and composer integration behavior run in browser stories. `SearchComposer` owns query completions, commits, and the value picker.
 - **Client integration coverage** in `web/src/components/table/data-table-controls.clienttest.tsx`
   exercises real sidebar inputs, filter state, and bar commits: delayed string
   and numeric edits preserve newly committed bar filters, and clearing a facet
