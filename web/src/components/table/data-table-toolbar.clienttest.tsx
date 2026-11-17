@@ -11,6 +11,21 @@ import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSea
 import { useStore } from "zustand";
 
 const captureSpy = vi.fn();
+
+beforeEach(() => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 vi.mock("posthog-js/react", () => ({
   usePostHog: () => ({ capture: captureSpy }),
 }));
@@ -340,20 +355,7 @@ describe("DataTableToolbar presentation controls", () => {
   });
 
   function openRowHeightMenu() {
-    const button = screen.getByRole("button", { name: /Row height/ });
-    act(() => {
-      // Radix opens the menu on pointerdown. jsdom has no PointerEvent, so
-      // this is a MouseEvent that still carries button and coordinates.
-      button.dispatchEvent(
-        new MouseEvent("pointerdown", {
-          bubbles: true,
-          cancelable: true,
-          button: 0,
-          clientX: 1,
-          clientY: 1,
-        }),
-      );
-    });
+    fireEvent.click(screen.getByRole("button", { name: /Row height/ }));
   }
 
   it("keeps the row-height menu to the presets unless a free height is enabled", () => {
