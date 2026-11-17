@@ -582,6 +582,9 @@ export function UsersTable({
               key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
               isV4={isV4}
               filterState={queryFilter.searchBarFilterState}
+              managedEnvironmentPolicy={
+                queryFilter.managedEnvironmentPolicyConfig
+              }
               setFilterState={setFiltersWrapper}
               search={{ query: searchQuery, setQuery: handleSearchChange }}
               projectId={projectId}

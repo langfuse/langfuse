@@ -1479,6 +1479,9 @@ function TracesTableInternal({
                 tableName={tracesFilterConfig.tableName}
                 registry={searchRegistry}
                 filterState={queryFilter.searchBarFilterState}
+                managedEnvironmentPolicy={
+                  queryFilter.managedEnvironmentPolicyConfig
+                }
                 setFilterState={queryFilter.setFilterState}
                 observed={observedOptions}
                 isV4={false}
