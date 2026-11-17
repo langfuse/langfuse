@@ -102,7 +102,7 @@ function UsageTile({
           </span>
         )}
         {usage.limit === null ? "No limit on this plan · " : null}
-        {usage.periodKind === "billing-cycle" ? "Resets " : "Through "}
+        {"Resets "}
         {dateFormat.format(usage.periodEnd)}
         {usage.limit !== null && canManageBilling ? (
           <>
