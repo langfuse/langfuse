@@ -54,7 +54,14 @@ export type DashboardStudioEventProperties = {
   durationMs?: number;
   scope?: "display" | "widget" | "dashboard";
   interaction?: "show" | "hide" | "isolate" | "reset" | "apply";
-  target?: "chart" | "table" | "summary" | "diagnostics";
+  target?:
+    | "chart"
+    | "table"
+    | "summary"
+    | "diagnostics"
+    | "configuration_data"
+    | "configuration_visualization"
+    | "configuration_details";
   reason?: "validation" | "permission" | "network" | "unknown";
 };
 

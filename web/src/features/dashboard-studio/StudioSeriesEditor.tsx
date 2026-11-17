@@ -26,12 +26,10 @@ function MetricEditor({
   const measure = source.measures[metric.measure];
   const aggregations = getValidAggregationsForMeasureType(measure?.type);
   return (
-    <div className="bg-muted/40 flex flex-col gap-2 rounded-md p-2">
-      <div className="flex items-center gap-2">
-        <span className="text-muted-foreground min-w-12 font-mono text-xs">
-          {metric.id}
-        </span>
-        <div className="min-w-0 flex-1">
+    <div className="flex flex-col gap-2 rounded-md border p-2">
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(100px,0.7fr)_auto] items-center gap-2">
+        <div className="flex min-w-0 flex-col gap-1">
+          <span className="text-muted-foreground text-xs">Measure</span>
           <SelectInput
             aria-label="Measure"
             placeholder="Measure"
@@ -57,61 +55,73 @@ function MetricEditor({
             }}
           />
         </div>
-        {onRemove ? (
-          <IconButton
-            icon={TrashIcon}
-            label="Remove metric"
-            size="sm"
-            onClick={onRemove}
-          />
-        ) : null}
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <SelectInput
-          aria-label="Aggregation"
-          placeholder="Aggregation"
-          value={metric.aggregation}
-          options={aggregations.map((value) => ({
-            value,
-            label: value.startsWith("p")
-              ? `${value.slice(1)}th percentile`
-              : readableField(value),
-          }))}
-          onValueChange={(aggregation) =>
-            onChange({
-              ...metric,
-              aggregation,
-              percentile: undefined,
-              summary: undefined,
-            })
-          }
-        />
-        <Input
-          aria-label="Metric label"
-          placeholder="Optional metric label"
-          value={metric.label ?? ""}
-          onChange={(event) =>
-            onChange({ ...metric, label: event.target.value })
-          }
-        />
-      </div>
-      {metric.aggregation.startsWith("p") ? (
-        <label className="flex items-center gap-2 text-xs">
-          Custom percentile
-          <Input
-            aria-label="Custom percentile"
-            type="number"
-            min={0.01}
-            max={99.99}
-            value={metric.percentile ?? Number(metric.aggregation.slice(1))}
-            onChange={(event) =>
+        <div className="flex min-w-0 flex-col gap-1">
+          <span className="text-muted-foreground text-xs">Aggregation</span>
+          <SelectInput
+            aria-label="Aggregation"
+            placeholder="Aggregation"
+            value={metric.aggregation}
+            options={aggregations.map((value) => ({
+              value,
+              label: value.startsWith("p")
+                ? `${value.slice(1)}th percentile`
+                : readableField(value),
+            }))}
+            onValueChange={(aggregation) =>
               onChange({
                 ...metric,
-                percentile: Number(event.target.value),
+                aggregation,
+                percentile: undefined,
                 summary: undefined,
               })
             }
           />
+        </div>
+        {onRemove ? (
+          <div className="self-end">
+            <IconButton
+              icon={TrashIcon}
+              label="Remove metric"
+              size="sm"
+              onClick={onRemove}
+            />
+          </div>
+        ) : null}
+      </div>
+      <details className="text-xs">
+        <summary className="text-muted-foreground cursor-pointer">
+          <span className="font-mono">{metric.id}</span> · options
+        </summary>
+        <div className="pt-2">
+          <Input
+            aria-label="Metric label"
+            placeholder="Optional metric label"
+            value={metric.label ?? ""}
+            onChange={(event) =>
+              onChange({ ...metric, label: event.target.value })
+            }
+          />
+        </div>
+      </details>
+      {metric.aggregation.startsWith("p") ? (
+        <label className="flex items-center gap-2 text-xs">
+          Custom percentile
+          <div className="w-24 shrink-0">
+            <Input
+              aria-label="Custom percentile"
+              type="number"
+              min={0.01}
+              max={99.99}
+              value={metric.percentile ?? Number(metric.aggregation.slice(1))}
+              onChange={(event) =>
+                onChange({
+                  ...metric,
+                  percentile: Number(event.target.value),
+                  summary: undefined,
+                })
+              }
+            />
+          </div>
         </label>
       ) : null}
       {measure?.requiresDimension || metric.summary ? (
@@ -212,8 +222,8 @@ export function StudioSeriesEditor({
     onQueryChange({ ...next, orderBy: orderBy?.length ? orderBy : undefined });
   };
   return (
-    <section className="bg-background flex flex-col gap-3 rounded-lg border p-3">
-      <div className="flex items-center justify-between gap-2">
+    <section className="bg-background flex min-w-0 flex-col overflow-hidden rounded-lg border">
+      <div className="bg-muted/30 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b px-3 py-2 sm:grid-cols-[auto_minmax(0,1fr)_minmax(160px,220px)_auto]">
         <span className="bg-primary/10 text-primary rounded px-2 py-1 font-mono text-xs font-bold">
           {query.id.toUpperCase()}
         </span>
@@ -227,6 +237,29 @@ export function StudioSeriesEditor({
             placeholder="Series name"
           />
         </div>
+        <div className="col-span-full row-start-2 min-w-0 sm:col-span-1 sm:row-start-auto">
+          <SelectInput
+            aria-label={`Series ${query.id} source`}
+            placeholder="Choose data"
+            value={query.view}
+            options={[...studioSourceOptions]}
+            onValueChange={(view) =>
+              onChange({
+                ...query,
+                view,
+                scoreTarget: view.startsWith("scores-")
+                  ? (query.scoreTarget ?? "all")
+                  : undefined,
+                dimensions: [],
+                metrics: [
+                  { id: "count", measure: "count", aggregation: "count" },
+                ],
+                filters: [],
+                orderBy: undefined,
+              })
+            }
+          />
+        </div>
         {onRemove ? (
           <IconButton
             label="Remove series"
@@ -236,242 +269,241 @@ export function StudioSeriesEditor({
           />
         ) : null}
       </div>
-      <SelectInput
-        aria-label={`Series ${query.id} source`}
-        placeholder="Choose data"
-        value={query.view}
-        options={[...studioSourceOptions]}
-        onValueChange={(view) =>
-          onChange({
-            ...query,
-            view,
-            scoreTarget: view.startsWith("scores-")
-              ? (query.scoreTarget ?? "all")
-              : undefined,
-            dimensions: [],
-            metrics: [{ id: "count", measure: "count", aggregation: "count" }],
-            filters: [],
-            orderBy: undefined,
-          })
-        }
-      />
-      {query.view.startsWith("scores-") ? (
-        <label className="flex flex-col gap-1.5 text-xs font-bold">
-          Score target
-          <SelectInput
-            aria-label={`Series ${query.id} score target`}
-            value={query.scoreTarget ?? "all"}
-            placeholder="All score targets"
-            options={[
-              { value: "all", label: "All score targets" },
-              { value: "trace", label: "Trace scores" },
-              { value: "observation", label: "Observation scores" },
-              { value: "session", label: "Session scores" },
-              { value: "experiment", label: "Experiment scores" },
-            ]}
-            onValueChange={(scoreTarget) => onChange({ ...query, scoreTarget })}
-          />
-        </label>
-      ) : null}
-      <div className="flex flex-col gap-2">
-        <p className="text-xs font-bold">Measure</p>
-        {query.metrics.map((metric, index) => (
-          <MetricEditor
-            key={metric.id}
-            metric={metric}
-            source={source}
-            onChange={(next) =>
-              onChange({
-                ...query,
-                metrics: query.metrics.map((item) =>
-                  item.id === metric.id ? next : item,
-                ),
-              })
-            }
-            onRemove={
-              query.metrics.length > 1
-                ? () =>
-                    onChange({
-                      ...query,
-                      metrics: query.metrics.filter(
-                        (_, itemIndex) => itemIndex !== index,
-                      ),
-                    })
-                : undefined
-            }
-          />
-        ))}
-        {query.metrics.length < 10 ? (
-          <Button
-            text="Add metric"
-            icon={PlusIcon}
-            size="sm"
-            variant="ghost"
-            onClick={() => {
-              const id = `metric_${Date.now()}`;
-              onChange({
-                ...query,
-                metrics: [
-                  ...query.metrics,
-                  { id, measure: "count", aggregation: "count" },
-                ],
-              });
-            }}
-          />
-        ) : null}
-      </div>
-      <StudioFilterEditor
-        projectId={projectId}
-        view={query.view}
-        isV4={isV4}
-        dateRange={dateRange}
-        filters={query.filters}
-        onChange={(filters) => onChange({ ...query, filters })}
-      />
-      <div className="flex flex-col gap-2">
-        <p className="text-xs font-bold">Break down by</p>
-        {query.dimensions.map((dimension, index) => (
-          <div className="flex items-center gap-2" key={index}>
-            <div className="min-w-0 flex-1">
+      <div className="grid min-w-0 gap-4 p-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)_minmax(0,0.8fr)]">
+        <div className="flex min-w-0 flex-col gap-3">
+          {query.view.startsWith("scores-") ? (
+            <label className="flex flex-col gap-1.5 text-xs font-bold">
+              Score target
               <SelectInput
-                aria-label="Breakdown field"
-                placeholder="Field"
-                value={dimension.field}
-                options={Object.entries(source.dimensions)
-                  .filter(([, definition]) => !definition.uiHidden)
-                  .map(([value]) => ({ value, label: readableField(value) }))}
-                onValueChange={(field) =>
+                aria-label={`Series ${query.id} score target`}
+                value={query.scoreTarget ?? "all"}
+                placeholder="All score targets"
+                options={[
+                  { value: "all", label: "All score targets" },
+                  { value: "trace", label: "Trace scores" },
+                  { value: "observation", label: "Observation scores" },
+                  { value: "session", label: "Session scores" },
+                  { value: "experiment", label: "Experiment scores" },
+                ]}
+                onValueChange={(scoreTarget) =>
+                  onChange({ ...query, scoreTarget })
+                }
+              />
+            </label>
+          ) : null}
+          <div className="flex flex-col gap-2">
+            <p className="text-xs font-bold">Metrics</p>
+            {query.metrics.map((metric, index) => (
+              <MetricEditor
+                key={metric.id}
+                metric={metric}
+                source={source}
+                onChange={(next) =>
                   onChange({
                     ...query,
-                    dimensions: query.dimensions.map((item, itemIndex) =>
-                      itemIndex === index ? { field } : item,
+                    metrics: query.metrics.map((item) =>
+                      item.id === metric.id ? next : item,
+                    ),
+                  })
+                }
+                onRemove={
+                  query.metrics.length > 1
+                    ? () =>
+                        onChange({
+                          ...query,
+                          metrics: query.metrics.filter(
+                            (_, itemIndex) => itemIndex !== index,
+                          ),
+                        })
+                    : undefined
+                }
+              />
+            ))}
+            {query.metrics.length < 10 ? (
+              <Button
+                text="Add metric"
+                icon={PlusIcon}
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  let index = 1;
+                  while (
+                    query.metrics.some(
+                      (metric) => metric.id === `metric_${index}`,
+                    )
+                  )
+                    index++;
+                  const id = `metric_${index}`;
+                  onChange({
+                    ...query,
+                    metrics: [
+                      ...query.metrics,
+                      { id, measure: "count", aggregation: "count" },
+                    ],
+                  });
+                }}
+              />
+            ) : null}
+          </div>
+        </div>
+        <div className="min-w-0">
+          <StudioFilterEditor
+            projectId={projectId}
+            view={query.view}
+            isV4={isV4}
+            dateRange={dateRange}
+            filters={query.filters}
+            onChange={(filters) => onChange({ ...query, filters })}
+          />
+        </div>
+        <div className="flex min-w-0 flex-col gap-2">
+          <p className="text-xs font-bold">Break down by</p>
+          {query.dimensions.map((dimension, index) => (
+            <div className="flex items-center gap-2" key={index}>
+              <div className="min-w-0 flex-1">
+                <SelectInput
+                  aria-label="Breakdown field"
+                  placeholder="Field"
+                  value={dimension.field}
+                  options={Object.entries(source.dimensions)
+                    .filter(([, definition]) => !definition.uiHidden)
+                    .map(([value]) => ({ value, label: readableField(value) }))}
+                  onValueChange={(field) =>
+                    onChange({
+                      ...query,
+                      dimensions: query.dimensions.map((item, itemIndex) =>
+                        itemIndex === index ? { field } : item,
+                      ),
+                    })
+                  }
+                />
+              </div>
+              <IconButton
+                icon={TrashIcon}
+                label="Remove breakdown"
+                size="sm"
+                onClick={() =>
+                  onChange({
+                    ...query,
+                    dimensions: query.dimensions.filter(
+                      (_, itemIndex) => itemIndex !== index,
                     ),
                   })
                 }
               />
             </div>
-            <IconButton
-              icon={TrashIcon}
-              label="Remove breakdown"
+          ))}
+          {query.dimensions.length < 3 ? (
+            <Button
+              text="Add breakdown"
+              icon={PlusIcon}
+              variant="ghost"
               size="sm"
               onClick={() =>
                 onChange({
                   ...query,
-                  dimensions: query.dimensions.filter(
-                    (_, itemIndex) => itemIndex !== index,
-                  ),
+                  dimensions: [
+                    ...query.dimensions,
+                    {
+                      field:
+                        Object.keys(source.dimensions).find(
+                          (field) =>
+                            !source.dimensions[field]?.uiHidden &&
+                            !query.dimensions.some(
+                              (item) => item.field === field,
+                            ),
+                        ) ?? "name",
+                    },
+                  ],
                 })
               }
             />
-          </div>
-        ))}
-        {query.dimensions.length < 3 ? (
-          <Button
-            text="Add breakdown"
-            icon={PlusIcon}
-            variant="ghost"
-            size="sm"
-            onClick={() =>
-              onChange({
-                ...query,
-                dimensions: [
-                  ...query.dimensions,
-                  {
-                    field:
-                      Object.keys(source.dimensions).find(
-                        (field) =>
-                          !source.dimensions[field]?.uiHidden &&
-                          !query.dimensions.some(
-                            (item) => item.field === field,
-                          ),
-                      ) ?? "name",
-                  },
-                ],
-              })
-            }
-          />
-        ) : null}
-      </div>
-      <details className="rounded-md border p-2">
-        <summary className="cursor-pointer text-xs font-bold">
-          Sort results
-        </summary>
-        <div className="flex flex-col gap-2 pt-2">
-          <SelectInput
-            noCapture
-            aria-label="Sort by"
-            value={query.orderBy?.[0]?.field ?? "automatic"}
-            placeholder="Automatic"
-            options={[
-              { value: "automatic", label: "Automatic" },
-              ...query.metrics
-                .filter((metric) => metric.aggregation !== "histogram")
-                .map((metric) => ({
-                  value: `${metric.aggregation}_${metric.measure}`,
-                  label:
-                    metric.label ||
-                    `${metric.percentile ? `p${metric.percentile}` : metric.aggregation} ${readableField(metric.measure)}`,
-                })),
-              ...[
-                ...new Set([
-                  ...query.dimensions.map((dimension) => dimension.field),
-                  ...query.metrics.flatMap(
-                    (metric) =>
-                      source.measures[metric.measure]?.requiresDimension ?? [],
-                  ),
-                ]),
-              ].map((field) => ({
-                value: field,
-                label: readableField(field),
-              })),
-              ...(timeSeries
-                ? [{ value: "time_dimension", label: "Time" }]
-                : []),
-            ]}
-            onValueChange={(field) =>
-              onChange({
-                ...query,
-                orderBy:
-                  field === "automatic"
-                    ? undefined
-                    : [
-                        {
-                          field,
-                          direction: query.orderBy?.[0]?.direction ?? "desc",
-                        },
-                      ],
-              })
-            }
-          />
-          <SelectInput
-            aria-label="Sort direction"
-            value={query.orderBy?.[0]?.direction ?? "desc"}
-            placeholder="Direction"
-            disabled={!query.orderBy?.length}
-            options={[
-              { value: "desc", label: "Largest first" },
-              { value: "asc", label: "Smallest first" },
-            ]}
-            onValueChange={(direction) => {
-              const field = query.orderBy?.[0]?.field;
-              if (field)
-                onChange({ ...query, orderBy: [{ field, direction }] });
-            }}
-          />
-          <p className="text-muted-foreground text-xs">
-            For category charts and tables. Time series follow time order.
-          </p>
+          ) : null}
         </div>
-      </details>
-      <label className="text-muted-foreground flex items-center gap-2 text-xs">
-        <Checkbox
-          checked={query.hidden ?? false}
-          onCheckedChange={(hidden) =>
-            onChange({ ...query, hidden: hidden === true })
-          }
-        />
-        Use only in formulas
-      </label>
+      </div>
+      <div className="flex flex-wrap items-start gap-x-5 gap-y-2 border-t px-3 py-2">
+        <details className="min-w-48 flex-1 rounded-md">
+          <summary className="cursor-pointer text-xs font-bold">
+            Sort results
+          </summary>
+          <div className="flex flex-col gap-2 pt-2">
+            <SelectInput
+              noCapture
+              aria-label="Sort by"
+              value={query.orderBy?.[0]?.field ?? "automatic"}
+              placeholder="Automatic"
+              options={[
+                { value: "automatic", label: "Automatic" },
+                ...query.metrics
+                  .filter((metric) => metric.aggregation !== "histogram")
+                  .map((metric) => ({
+                    value: `${metric.aggregation}_${metric.measure}`,
+                    label:
+                      metric.label ||
+                      `${metric.percentile ? `p${metric.percentile}` : metric.aggregation} ${readableField(metric.measure)}`,
+                  })),
+                ...[
+                  ...new Set([
+                    ...query.dimensions.map((dimension) => dimension.field),
+                    ...query.metrics.flatMap(
+                      (metric) =>
+                        source.measures[metric.measure]?.requiresDimension ??
+                        [],
+                    ),
+                  ]),
+                ].map((field) => ({
+                  value: field,
+                  label: readableField(field),
+                })),
+                ...(timeSeries
+                  ? [{ value: "time_dimension", label: "Time" }]
+                  : []),
+              ]}
+              onValueChange={(field) =>
+                onChange({
+                  ...query,
+                  orderBy:
+                    field === "automatic"
+                      ? undefined
+                      : [
+                          {
+                            field,
+                            direction: query.orderBy?.[0]?.direction ?? "desc",
+                          },
+                        ],
+                })
+              }
+            />
+            <SelectInput
+              aria-label="Sort direction"
+              value={query.orderBy?.[0]?.direction ?? "desc"}
+              placeholder="Direction"
+              disabled={!query.orderBy?.length}
+              options={[
+                { value: "desc", label: "Largest first" },
+                { value: "asc", label: "Smallest first" },
+              ]}
+              onValueChange={(direction) => {
+                const field = query.orderBy?.[0]?.field;
+                if (field)
+                  onChange({ ...query, orderBy: [{ field, direction }] });
+              }}
+            />
+            <p className="text-muted-foreground text-xs">
+              For category charts and tables. Time series follow time order.
+            </p>
+          </div>
+        </details>
+        <label className="text-muted-foreground flex items-center gap-2 text-xs">
+          <Checkbox
+            checked={query.hidden ?? false}
+            onCheckedChange={(hidden) =>
+              onChange({ ...query, hidden: hidden === true })
+            }
+          />
+          Use only in formulas
+        </label>
+      </div>
     </section>
   );
 }

@@ -18,12 +18,7 @@ export function StudioFilterEditor({
 }) {
   return (
     <div className="ph-no-capture flex flex-col gap-2">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-bold">Only include</p>
-        <span className="text-muted-foreground text-xs">
-          All conditions match
-        </span>
-      </div>
+      <p className="text-xs font-bold">Filters</p>
       <ConnectedMetricsFilterBuilder
         version={isV4 ? "v2" : "v1"}
         view={view}

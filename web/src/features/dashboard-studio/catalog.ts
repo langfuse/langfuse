@@ -44,7 +44,7 @@ export function createStudioQuery(id = "a"): StudioQuery {
 export function createStudioWidget(): StudioWidgetConfig {
   return {
     version: 1,
-    title: "What do you want to understand?",
+    title: "New chart",
     description: "",
     queries: [createStudioQuery()],
     expressions: [],

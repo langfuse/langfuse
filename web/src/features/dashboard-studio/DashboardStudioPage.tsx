@@ -296,8 +296,9 @@ function StudioWorkspace({
   };
   return (
     <Page
-      scrollable
+      scrollable={!editor}
       headerProps={{
+        hideTitleRow: Boolean(editor),
         title: "Dashboard studio",
         breadcrumb: [
           { name: "Dashboards", href: `/project/${projectId}/dashboards` },
@@ -308,325 +309,334 @@ function StudioWorkspace({
         ],
       }}
     >
-      <div className="bg-background border-b px-5 py-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="ph-no-capture flex flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold tracking-tight">
-                {initialDashboard.name}
-              </h1>
-              <Badge text="Studio" color="violet" />
-              {isDirty ? (
-                <Badge text="Unsaved changes" color="warning" />
-              ) : null}
-            </div>
-            <p className="text-muted-foreground max-w-2xl text-sm">
-              Build widgets here, compare any populations, and give the numbers
-              a story.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              text="View dashboard"
-              href={`/project/${projectId}/dashboards/${initialDashboard.id}?dateRange=${rangeToString(timeRange)}`}
-              variant="outline"
-            />
-            {canEdit ? (
-              <Button
-                text="Save dashboard"
-                loading={update.isPending || updateFilters.isPending}
-                disabled={!isDirty}
-                onClick={saveDashboard}
-              />
-            ) : null}
-          </div>
-        </div>
-      </div>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
-        <div className="flex flex-wrap items-center gap-2">
-          {canEdit ? (
-            <>
-              <Button
-                text="Add chart"
-                icon={PlusIcon}
-                variant="outline"
-                onClick={() => {
-                  openEditor({
-                    ...geometry(),
-                    type: "query",
-                    config: createStudioWidget(),
-                  });
-                  track("chart_added", { widgetKind: "query" });
-                }}
-              />
-              <Button
-                text="Add text"
-                icon={TypeIcon}
-                variant="outline"
-                onClick={() => {
-                  openEditor({
-                    ...geometry(),
-                    type: "text",
-                    y_size: 2,
-                    title: "",
-                    content:
-                      "## Start with the question\n\nAdd context, explain a result, or introduce the next section.",
-                  });
-                  track("text_added", { widgetKind: "text" });
-                }}
-              />
-              <StudioMetadataComparisonController
-                onCreate={(keys) => {
-                  openEditor({
-                    ...geometry(),
-                    type: "query",
-                    config: createMetadataComparison(keys),
-                  });
-                  track("template_selected", {
-                    widgetKind: "query",
-                    queryCount: 2,
-                  });
-                }}
-              >
-                {({ openDialog }) => (
-                  <Button
-                    text="Compare metadata"
-                    icon={BarChart3Icon}
-                    variant="ghost"
-                    onClick={() => openDialog()}
-                  />
-                )}
-              </StudioMetadataComparisonController>
-              <Button
-                text="Paste"
-                icon={ClipboardPasteIcon}
-                variant="ghost"
-                onClick={() => {
-                  readTextFromClipboard().then((text) => {
-                    const placement = text ? parseStudioPlacement(text) : null;
-                    if (!placement) {
-                      setMessage(
-                        "Copy a studio widget first, then paste it here.",
-                      );
-                      return;
-                    }
-                    store
-                      .getState()
-                      .actions.put({ ...placement, ...geometry() });
-                    track("widget_pasted", { widgetKind: placement.type });
-                  });
-                }}
-              />
-              <Button
-                text="Undo"
-                icon={Undo2Icon}
-                variant="ghost"
-                disabled={!canUndo}
-                onClick={() => store.getState().actions.undo()}
-              />
-              {isDirty ? (
-                <Button
-                  text="Discard"
-                  variant="ghost"
-                  onClick={() => {
-                    store.getState().actions.discard();
-                    setFilters(savedFilters);
-                    setEditor(null);
-                    track("changes_discarded", { scope: "dashboard" });
-                  }}
-                />
-              ) : null}
-            </>
-          ) : (
-            <p className="text-muted-foreground text-sm">
-              {initialDashboard.owner === "LANGFUSE"
-                ? "Clone this dashboard to make it your own."
-                : "You have view access to this dashboard."}
-            </p>
-          )}
-        </div>
-        <div className="w-80 max-w-full">
-          <DateRangeInput
-            value={"range" in timeRange ? timeRange.range : "custom"}
-            customValue="custom"
-            range={dateRange}
-            presets={DASHBOARD_AGGREGATION_OPTIONS.map((value) => ({
-              value,
-              label: dashboardDateRangeAggregationSettings[value].label,
-            }))}
-            onPresetChange={(range) => {
-              setTimeRange({ range });
-              track("date_range_changed", { scope: "dashboard" });
-            }}
-            onCustomChange={(range) => {
-              setTimeRange(range);
-              track("date_range_changed", { scope: "dashboard" });
-            }}
-          />
-        </div>
-      </div>
-      <div className="border-b px-5 py-3">
-        <StudioDashboardFilters
-          projectId={projectId}
-          isV4={readPath === "v4"}
-          timeRange={timeRange}
-          filters={filters}
-          onChange={(nextFilters) => {
-            setFilters(nextFilters);
-            track("filter_applied", {
-              scope: "dashboard",
-              filterCount: nextFilters.length,
-            });
-          }}
-        />
-      </div>
-      {message ? (
-        <div role="status" className="ph-no-capture bg-muted px-5 py-3 text-sm">
-          {message}
-        </div>
-      ) : null}
-      <div
-        className={
-          editor
-            ? "grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_460px]"
-            : "min-h-0 flex-1"
-        }
-      >
-        <div className="bg-muted/20 min-w-0 p-4">
-          <DashboardQuerySchedulerProvider store={scheduler}>
-            {canEdit ? (
-              <div className="pb-4">
-                <StudioPresetGallery
-                  legacyPlacements={definition.widgets.filter(
-                    (item) => item.type === "preset",
-                  )}
-                  onAdd={(presetId, configs) => {
-                    addConfigs(configs, null);
-                    track("template_selected", {
-                      presetId,
-                      queryCount: configs.length,
-                      widgetKind: "query",
-                    });
-                  }}
-                  onCompare={(placement) => {
-                    setMigration(placement);
-                    setEditor(null);
-                    track("migration_previewed", {
-                      widgetKind: "preset",
-                      presetId: placement.presetId as HomeDashboardPresetId,
-                    });
-                  }}
-                />
-              </div>
-            ) : null}
-            {migration ? (
-              <div className="pb-4">
-                <StudioMigrationPanel
-                  projectId={projectId}
-                  dashboardId={initialDashboard.id}
-                  placement={migration}
-                  readPath={readPath}
-                  dateRange={dateRange}
-                  filterState={filters}
-                  onReplace={(configs) => {
-                    addConfigs(configs, migration);
-                    track("migration_applied", {
-                      widgetKind: "preset",
-                      presetId: migration.presetId as HomeDashboardPresetId,
-                    });
-                  }}
-                  onKeepBoth={(configs) => addConfigs(configs, null)}
-                  onCancel={() => setMigration(null)}
-                />
-              </div>
-            ) : null}
-            <DashboardGrid
-              widgets={definition.widgets}
-              onChange={(widgets) =>
-                store
-                  .getState()
-                  .actions.replace({ ...store.getState().definition, widgets })
-              }
-              canEdit={canEdit}
-              dashboardId={initialDashboard.id}
+      {editor ? (
+        <DashboardQuerySchedulerProvider store={scheduler}>
+          {editor?.type === "query" ? (
+            <StudioWidgetEditor
+              key={editor.id}
+              initialValue={editor.config}
+              isNew={!definition.widgets.some((item) => item.id === editor.id)}
               projectId={projectId}
               readPath={readPath}
               dateRange={dateRange}
               filterState={filters}
-              onDeleteWidget={(id) => {
-                const placement = store
-                  .getState()
-                  .definition.widgets.find((item) => item.id === id);
-                store.getState().actions.remove(id);
-                track("widget_deleted", { widgetKind: placement?.type });
+              onApply={(config) => {
+                store.getState().actions.put({ ...editor, config });
+                setEditor(null);
               }}
-              dashboardOwner={initialDashboard.owner}
-              onEditStudioPlacement={openEditor}
-              onDuplicateStudioPlacement={(placement) => {
-                store.getState().actions.duplicate(placement);
-                track("widget_duplicated", { widgetKind: placement.type });
-              }}
-              onDuplicatePreset={(placement) =>
-                store.getState().actions.duplicate(placement)
-              }
+              onCancel={cancelEditor}
             />
-          </DashboardQuerySchedulerProvider>
-          {!definition.widgets.length ? (
-            <div className="flex min-h-80 flex-col items-center justify-center gap-4 rounded-xl border border-dashed p-10 text-center">
-              <BarChart3Icon size="xl" />
-              <div>
-                <h2 className="text-lg font-bold">
-                  A dashboard starts with a question
-                </h2>
-                <p className="text-muted-foreground text-sm">
-                  Compare metadata coverage, monitor costs, or follow quality
-                  over time.
+          ) : null}
+          {editor?.type === "text" ? (
+            <StudioTextEditor
+              key={editor.id}
+              initialValue={editor}
+              isNew={!definition.widgets.some((item) => item.id === editor.id)}
+              onApply={(value) => {
+                store.getState().actions.put({ ...editor, ...value });
+                setEditor(null);
+                track("widget_saved", { widgetKind: "text" });
+              }}
+              onCancel={cancelEditor}
+            />
+          ) : null}
+        </DashboardQuerySchedulerProvider>
+      ) : (
+        <>
+          <div className="bg-background border-b px-5 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="ph-no-capture flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl font-bold tracking-tight">
+                    {initialDashboard.name}
+                  </h1>
+                  <Badge text="Studio" color="violet" />
+                  {isDirty ? (
+                    <Badge text="Unsaved changes" color="warning" />
+                  ) : null}
+                </div>
+                <p className="text-muted-foreground max-w-2xl text-sm">
+                  Build widgets here, compare any populations, and give the
+                  numbers a story.
                 </p>
               </div>
-              {canEdit ? (
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
-                  text="Build your first widget"
-                  icon={PlusIcon}
-                  onClick={() =>
-                    openEditor({
-                      ...geometry(),
-                      type: "query",
-                      config: createStudioWidget(),
-                    })
-                  }
+                  text="View dashboard"
+                  href={`/project/${projectId}/dashboards/${initialDashboard.id}?dateRange=${rangeToString(timeRange)}`}
+                  variant="outline"
                 />
-              ) : null}
+                {canEdit ? (
+                  <Button
+                    text="Save dashboard"
+                    loading={update.isPending || updateFilters.isPending}
+                    disabled={!isDirty}
+                    onClick={saveDashboard}
+                  />
+                ) : null}
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
+            <div className="flex flex-wrap items-center gap-2">
+              {canEdit ? (
+                <>
+                  <Button
+                    text="Add chart"
+                    icon={PlusIcon}
+                    variant="outline"
+                    onClick={() => {
+                      openEditor({
+                        ...geometry(),
+                        type: "query",
+                        config: createStudioWidget(),
+                      });
+                      track("chart_added", { widgetKind: "query" });
+                    }}
+                  />
+                  <Button
+                    text="Add text"
+                    icon={TypeIcon}
+                    variant="outline"
+                    onClick={() => {
+                      openEditor({
+                        ...geometry(),
+                        type: "text",
+                        y_size: 2,
+                        title: "",
+                        content:
+                          "## Start with the question\n\nAdd context, explain a result, or introduce the next section.",
+                      });
+                      track("text_added", { widgetKind: "text" });
+                    }}
+                  />
+                  <StudioMetadataComparisonController
+                    onCreate={(keys) => {
+                      openEditor({
+                        ...geometry(),
+                        type: "query",
+                        config: createMetadataComparison(keys),
+                      });
+                      track("template_selected", {
+                        widgetKind: "query",
+                        queryCount: 2,
+                      });
+                    }}
+                  >
+                    {({ openDialog }) => (
+                      <Button
+                        text="Compare metadata"
+                        icon={BarChart3Icon}
+                        variant="ghost"
+                        onClick={() => openDialog()}
+                      />
+                    )}
+                  </StudioMetadataComparisonController>
+                  <Button
+                    text="Paste"
+                    icon={ClipboardPasteIcon}
+                    variant="ghost"
+                    onClick={() => {
+                      readTextFromClipboard().then((text) => {
+                        const placement = text
+                          ? parseStudioPlacement(text)
+                          : null;
+                        if (!placement) {
+                          setMessage(
+                            "Copy a studio widget first, then paste it here.",
+                          );
+                          return;
+                        }
+                        store
+                          .getState()
+                          .actions.put({ ...placement, ...geometry() });
+                        track("widget_pasted", { widgetKind: placement.type });
+                      });
+                    }}
+                  />
+                  <Button
+                    text="Undo"
+                    icon={Undo2Icon}
+                    variant="ghost"
+                    disabled={!canUndo}
+                    onClick={() => store.getState().actions.undo()}
+                  />
+                  {isDirty ? (
+                    <Button
+                      text="Discard"
+                      variant="ghost"
+                      onClick={() => {
+                        store.getState().actions.discard();
+                        setFilters(savedFilters);
+                        setEditor(null);
+                        track("changes_discarded", { scope: "dashboard" });
+                      }}
+                    />
+                  ) : null}
+                </>
+              ) : (
+                <p className="text-muted-foreground text-sm">
+                  {initialDashboard.owner === "LANGFUSE"
+                    ? "Clone this dashboard to make it your own."
+                    : "You have view access to this dashboard."}
+                </p>
+              )}
+            </div>
+            <div className="w-80 max-w-full">
+              <DateRangeInput
+                value={"range" in timeRange ? timeRange.range : "custom"}
+                customValue="custom"
+                range={dateRange}
+                presets={DASHBOARD_AGGREGATION_OPTIONS.map((value) => ({
+                  value,
+                  label: dashboardDateRangeAggregationSettings[value].label,
+                }))}
+                onPresetChange={(range) => {
+                  setTimeRange({ range });
+                  track("date_range_changed", { scope: "dashboard" });
+                }}
+                onCustomChange={(range) => {
+                  setTimeRange(range);
+                  track("date_range_changed", { scope: "dashboard" });
+                }}
+              />
+            </div>
+          </div>
+          <div className="border-b px-5 py-3">
+            <StudioDashboardFilters
+              projectId={projectId}
+              isV4={readPath === "v4"}
+              timeRange={timeRange}
+              filters={filters}
+              onChange={(nextFilters) => {
+                setFilters(nextFilters);
+                track("filter_applied", {
+                  scope: "dashboard",
+                  filterCount: nextFilters.length,
+                });
+              }}
+            />
+          </div>
+          {message ? (
+            <div
+              role="status"
+              className="ph-no-capture bg-muted px-5 py-3 text-sm"
+            >
+              {message}
             </div>
           ) : null}
-        </div>
-        {editor?.type === "query" ? (
-          <StudioWidgetEditor
-            key={editor.id}
-            initialValue={editor.config}
-            projectId={projectId}
-            readPath={readPath}
-            dateRange={dateRange}
-            filterState={filters}
-            onApply={(config) => {
-              store.getState().actions.put({ ...editor, config });
-              setEditor(null);
-            }}
-            onCancel={cancelEditor}
-          />
-        ) : null}
-        {editor?.type === "text" ? (
-          <StudioTextEditor
-            key={editor.id}
-            initialValue={editor}
-            onApply={(value) => {
-              store.getState().actions.put({ ...editor, ...value });
-              setEditor(null);
-              track("widget_saved", { widgetKind: "text" });
-            }}
-            onCancel={cancelEditor}
-          />
-        ) : null}
-      </div>
+          <div className="min-h-0 flex-1">
+            <div className="bg-muted/20 min-w-0 p-4">
+              <DashboardQuerySchedulerProvider store={scheduler}>
+                {canEdit ? (
+                  <div className="pb-4">
+                    <StudioPresetGallery
+                      legacyPlacements={definition.widgets.filter(
+                        (item) => item.type === "preset",
+                      )}
+                      onAdd={(presetId, configs) => {
+                        addConfigs(configs, null);
+                        track("template_selected", {
+                          presetId,
+                          queryCount: configs.length,
+                          widgetKind: "query",
+                        });
+                      }}
+                      onCompare={(placement) => {
+                        setMigration(placement);
+                        setEditor(null);
+                        track("migration_previewed", {
+                          widgetKind: "preset",
+                          presetId: placement.presetId as HomeDashboardPresetId,
+                        });
+                      }}
+                    />
+                  </div>
+                ) : null}
+                {migration ? (
+                  <div className="pb-4">
+                    <StudioMigrationPanel
+                      projectId={projectId}
+                      dashboardId={initialDashboard.id}
+                      placement={migration}
+                      readPath={readPath}
+                      dateRange={dateRange}
+                      filterState={filters}
+                      onReplace={(configs) => {
+                        addConfigs(configs, migration);
+                        track("migration_applied", {
+                          widgetKind: "preset",
+                          presetId: migration.presetId as HomeDashboardPresetId,
+                        });
+                      }}
+                      onKeepBoth={(configs) => addConfigs(configs, null)}
+                      onCancel={() => setMigration(null)}
+                    />
+                  </div>
+                ) : null}
+                <DashboardGrid
+                  widgets={definition.widgets}
+                  onChange={(widgets) =>
+                    store.getState().actions.replace({
+                      ...store.getState().definition,
+                      widgets,
+                    })
+                  }
+                  canEdit={canEdit}
+                  dashboardId={initialDashboard.id}
+                  projectId={projectId}
+                  readPath={readPath}
+                  dateRange={dateRange}
+                  filterState={filters}
+                  onDeleteWidget={(id) => {
+                    const placement = store
+                      .getState()
+                      .definition.widgets.find((item) => item.id === id);
+                    store.getState().actions.remove(id);
+                    track("widget_deleted", { widgetKind: placement?.type });
+                  }}
+                  dashboardOwner={initialDashboard.owner}
+                  onEditStudioPlacement={openEditor}
+                  onDuplicateStudioPlacement={(placement) => {
+                    store.getState().actions.duplicate(placement);
+                    track("widget_duplicated", { widgetKind: placement.type });
+                  }}
+                  onDuplicatePreset={(placement) =>
+                    store.getState().actions.duplicate(placement)
+                  }
+                />
+              </DashboardQuerySchedulerProvider>
+              {!definition.widgets.length ? (
+                <div className="flex min-h-80 flex-col items-center justify-center gap-4 rounded-xl border border-dashed p-10 text-center">
+                  <BarChart3Icon size="xl" />
+                  <div>
+                    <h2 className="text-lg font-bold">
+                      A dashboard starts with a question
+                    </h2>
+                    <p className="text-muted-foreground text-sm">
+                      Compare metadata coverage, monitor costs, or follow
+                      quality over time.
+                    </p>
+                  </div>
+                  {canEdit ? (
+                    <Button
+                      text="Build your first widget"
+                      icon={PlusIcon}
+                      onClick={() =>
+                        openEditor({
+                          ...geometry(),
+                          type: "query",
+                          config: createStudioWidget(),
+                        })
+                      }
+                    />
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </>
+      )}
     </Page>
   );
 }
