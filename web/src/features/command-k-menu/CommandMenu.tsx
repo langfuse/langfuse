@@ -1059,13 +1059,27 @@ function CommandMenuComponent({
     // Enter on the input and a click can both reach here in one tick.
     if (offeredQueryRef.current === null) return;
     offeredQueryRef.current = null;
-    handleNavigate();
-    if (!openAssistant("command_menu")) return;
-    // submit reports its own failure in the assistant; catch avoids an unhandled rejection.
+
+    if (!openAssistant("command_menu")) {
+      offeredQueryRef.current = query;
+      return;
+    }
+
+    // Close only after Halo accepts the question. A refusal leaves the query in the menu.
     submit(query, {
       newConversation: true,
       entryPoint: "command_menu",
-    }).catch(() => undefined);
+    })
+      .then((accepted) => {
+        if (!accepted) {
+          offeredQueryRef.current = query;
+          return;
+        }
+        handleNavigate();
+      })
+      .catch(() => {
+        offeredQueryRef.current = query;
+      });
   };
 
   return (
