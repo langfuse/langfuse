@@ -168,7 +168,7 @@ jobs:
   report:
     needs: repair
     if: always() && needs.repair.outputs.authorized == 'true'
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 5
     permissions:
       pull-requests: write

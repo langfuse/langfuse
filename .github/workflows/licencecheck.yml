@@ -78,7 +78,7 @@ jobs:
     # Same policy as license_check, applied to the Rust crates in the
     # ai-gateway binary and in the native addon shipped in the worker image;
     # the shared allow-list lives in the repository-root deny.toml.
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     permissions:
       contents: read
     steps:
@@ -110,7 +110,7 @@ jobs:
   notify_failure:
     needs: [license_check, rust_license_check]
     if: ${{ failure() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     permissions:
       contents: read
       actions: read # notify-slack-failure reads the failed jobs' logs
