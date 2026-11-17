@@ -24,8 +24,8 @@ vi.mock("@langfuse/shared/src/db", () => ({
 }));
 
 vi.mock("@langfuse/shared/rbac/server", () => ({
-  assignRole: vi.fn(),
-  revokeExpiringRolesForPrincipal: vi.fn(),
+  replaceRolesForPrincipal: vi.fn(),
+  revokeRolesForPrincipal: vi.fn(),
 }));
 
 import { verifyConductorOneRequest } from "@/src/ee/features/support-access/server/conductorOneAuth";

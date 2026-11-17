@@ -22,6 +22,7 @@ import {
 } from "@langfuse/shared/rbac/server";
 import { env } from "@/src/env.mjs";
 import { C1_PROVISION_EVENT } from "@/src/ee/features/support-access/server/conductorOnePayload";
+import { supportAccessTag } from "@/src/ee/features/support-access/server/supportAccess";
 import { conductorOneWebhookHandler } from "@/src/ee/features/support-access/server/conductorOneWebhook";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -361,6 +362,7 @@ describe("support access in the product", () => {
         orgId,
         ownerId: OrganizationId(orgId),
         systemRole: "VIEWER",
+        tags: [supportAccessTag],
         expiresAt: expect.any(Date),
       }),
     );
@@ -371,6 +373,34 @@ describe("support access in the product", () => {
     expect(
       await getRoleAssignmentsForPrincipal(prisma, UserId(user.id)),
     ).not.toContainEqual(expect.objectContaining({ orgId }));
+  });
+
+  it("leaves expiring roles it did not create when it grants and revokes", async () => {
+    const { email, user, orgId } = await createFixture();
+    const otherRole = {
+      tenantId: OrganizationId(orgId),
+      ownerId: OrganizationId(orgId),
+      principalId: UserId(user.id),
+      roleId: SystemRoleId("MEMBER"),
+      tags: [],
+      expiresAt: new Date(Date.now() + 60_000),
+    };
+    await assignRole(prisma, otherRole);
+
+    await grant(email, orgId);
+    const body = provisionBody({ email, orgId, type: revokeType });
+    await callWebhook(body, `Bearer ${await sign(body)}`);
+
+    const assignments = await getRoleAssignmentsForPrincipal(
+      prisma,
+      UserId(user.id),
+    );
+    expect(assignments).toContainEqual(
+      expect.objectContaining({ orgId, systemRole: "MEMBER", tags: [] }),
+    );
+    expect(assignments).not.toContainEqual(
+      expect.objectContaining({ tags: [supportAccessTag] }),
+    );
   });
 
   it("ignores an expiring role once it has expired", async () => {

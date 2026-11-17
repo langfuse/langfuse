@@ -52,48 +52,51 @@ export async function assignRole(
         ...ownerAndTenantFields,
         ...principalFields(ra.principalId),
         ...roleFields,
+        tags: ra.tags,
         expiresAt: ra.expiresAt,
       },
     });
   });
 }
 
-/** replaceRolesForPrincipal revokes all existing roles for a principal on an owner before assigning the principal a new role. */
+/** replaceRolesForPrincipal revokes a principal's roles on an owner that carry the new assignment's tags before assigning the principal a new role. */
 export async function replaceRolesForPrincipal(
   prisma: Prisma.TransactionClient,
-  ra: Omit<RoleAssignment, "id" | "createdAt" | "updatedAt" | "expiresAt">,
+  ra: Omit<RoleAssignment, "id" | "createdAt" | "updatedAt">,
 ): Promise<StoredRoleAssignment> {
   return await withTransaction(prisma, async (tx) => {
     await revokeRolesForPrincipal(tx, {
       tenantId: ra.tenantId,
       principalId: ra.principalId,
       ownerId: ra.ownerId,
+      tags: ra.tags,
     });
     return await assignRole(tx, ra);
   });
 }
 
-/** revokeRolesForPrincipal removes a principal's assignments in a tenant, optionally limited to one owner. */
+/** revokeRolesForPrincipal removes a principal's assignments in a tenant, optionally limited to one owner and to the assignments carrying every given tag. */
 export async function revokeRolesForPrincipal(
   prisma: Prisma.TransactionClient,
   {
     tenantId,
     principalId,
     ownerId,
-  }: { tenantId: TenantId; principalId: PrincipalId; ownerId?: OwnerId },
+    tags,
+  }: {
+    tenantId: TenantId;
+    principalId: PrincipalId;
+    ownerId?: OwnerId;
+    tags?: string[];
+  },
 ): Promise<void> {
   await prisma.roleAssignment.deleteMany({
-    where: { orgId: untag(tenantId), principalId, ownerId },
-  });
-}
-
-/** revokeExpiringRolesForPrincipal removes a principal's expiring assignments, optionally limited to one owner. */
-export async function revokeExpiringRolesForPrincipal(
-  prisma: Prisma.TransactionClient,
-  { principalId, ownerId }: { principalId: PrincipalId; ownerId?: OwnerId },
-): Promise<void> {
-  await prisma.roleAssignment.deleteMany({
-    where: { principalId, ownerId, expiresAt: { not: null } },
+    where: {
+      orgId: untag(tenantId),
+      principalId,
+      ownerId,
+      tags: tags?.length ? { hasEvery: tags } : undefined,
+    },
   });
 }
 

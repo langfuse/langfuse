@@ -3,9 +3,12 @@ import { z } from "zod/v4";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import {
-  assignRole,
-  revokeExpiringRolesForPrincipal,
+  replaceRolesForPrincipal,
+  revokeRolesForPrincipal,
 } from "@langfuse/shared/rbac/server";
+
+/** supportAccessTag marks the role assignments ConductorOne support grants create, so only support access replaces and revokes them. */
+export const supportAccessTag = "source:c1";
 
 // users.support_access, e.g.
 // { "<orgId>": { "role": "VIEWER", "expiresAt": "2026-10-27T04:15:37.316Z" } }
@@ -94,22 +97,18 @@ export async function grantSupportAccess(
       SET support_access = COALESCE(support_access, '{}'::jsonb)
         || jsonb_build_object(${orgId}::text, ${JSON.stringify(entry)}::jsonb)
       WHERE id = ${userId}`;
-    await revokeExpiringRolesForPrincipal(tx, {
-      principalId: UserId(userId),
-      ownerId: OrganizationId(orgId),
-    });
-    await assignRole(tx, {
+    await replaceRolesForPrincipal(tx, {
       tenantId: OrganizationId(orgId),
       ownerId: OrganizationId(orgId),
       principalId: UserId(userId),
       roleId: SystemRoleId("VIEWER"),
-      tags: [],
+      tags: [supportAccessTag],
       expiresAt,
     });
   });
 }
 
-/** revokeAllSupportAccess clears a user's support grants and their expiring assignments. */
+/** revokeAllSupportAccess clears a user's support grants and the role assignments they created. */
 export async function revokeAllSupportAccess(user: {
   id: string;
   supportAccess: SupportAccess;
@@ -119,9 +118,13 @@ export async function revokeAllSupportAccess(user: {
       where: { id: user.id },
       data: { supportAccess: Prisma.DbNull },
     });
-    await revokeExpiringRolesForPrincipal(tx, {
-      principalId: UserId(user.id),
-    });
+    for (const orgId of Object.keys(user.supportAccess)) {
+      await revokeRolesForPrincipal(tx, {
+        tenantId: OrganizationId(orgId),
+        principalId: UserId(user.id),
+        tags: [supportAccessTag],
+      });
+    }
   });
   return Object.keys(user.supportAccess);
 }
