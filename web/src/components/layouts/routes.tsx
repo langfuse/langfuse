@@ -162,7 +162,7 @@ export const ROUTES: Route[] = [
     icon: ListTree,
     show: ({ visibleGatewayPages }) =>
       visibleGatewayPages[GATEWAY_PAGE_SLUGS.models],
-    label: <ArrowUpRight size="base" color="tertiary" aria-hidden />,
+    label: <ExternalLinkArrow />,
     group: RouteGroup.AiGateway,
     section: RouteSection.Main,
   },
@@ -305,7 +305,7 @@ export const ROUTES: Route[] = [
     href: "",
     icon: Waypoints,
     show: ({ projectId }) => projectId !== undefined,
-    label: <ArrowUpRight size="base" color="tertiary" aria-hidden />,
+    label: <ExternalLinkArrow />,
     group: RouteGroup.Infrastructure,
     section: RouteSection.Main,
   },
@@ -418,6 +418,15 @@ function GatewayKeyReminderDot() {
       className="size-1.75 shrink-0 rounded-full bg-orange-400"
     />
   ) : null;
+}
+
+/** Sits closer to the title than the row gap, so it reads as part of it. */
+function ExternalLinkArrow() {
+  return (
+    <span className="-ml-1 flex" aria-hidden>
+      <ArrowUpRight size="base" color="tertiary" />
+    </span>
+  );
 }
 
 function TopicsInternalBadge() {
