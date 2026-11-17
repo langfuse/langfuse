@@ -425,7 +425,8 @@ export function prepareMapTextLabels(
 ): MapTextLabel[] {
   const { camera, model, size, readingTopic, matchingTraceIds } = frame;
   const zoom = detailZoom(camera.zoom, size);
-  const visibility = smoothStep(1.5, 3, zoom);
+  // Exploratory scatter looks label the map from the whole-map fit.
+  const visibility = above ? 1 : smoothStep(1.5, 3, zoom);
   if (!visibility) return [];
   const labels: MapTextLabel[] = [];
   const fontSize = 15 + smoothStep(3, 8, zoom) * 3;
@@ -540,6 +541,13 @@ export function prepareMapTextLabels(
     });
   }
 
+  // Exploratory scatter looks: larger topics keep their label when labels collide.
+  if (above) {
+    const sizes = new Map(
+      frame.zones.map((zone) => [zone.id, zone.points.length]),
+    );
+    labels.sort((a, b) => (sizes.get(b.id) ?? 0) - (sizes.get(a.id) ?? 0));
+  }
   const shown: MapTextLabel[] = [];
   for (const label of labels) {
     let separation = 1;
