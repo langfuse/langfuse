@@ -81,8 +81,8 @@ const allowedModelsSchema = z
   .nullable();
 const customModelSchema = z.string().trim().min(1).max(500);
 
-/** A key's single spend limit, as set together with the key. */
-const gatewayApiKeySpendLimitInput = z.object({
+/** A key's or user's single spend limit. */
+const gatewaySpendLimitInput = z.object({
   interval: z.enum(GatewaySpendLimitInterval),
   limitUsd: z.number().positive().max(GATEWAY_SPEND_BUDGET_MAX_USD),
 });
@@ -626,6 +626,69 @@ export const aiGatewayRouter = createTRPCRouter({
       });
     }),
 
+  getUsersSpend: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        userIds: z.array(z.string()).max(100),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      return new GatewaySpendLimitService(ctx.prisma).getUsersSpend({
+        organizationId: input.orgId,
+        usageScope: getGatewayUsageScope({
+          session: ctx.session,
+          orgId: input.orgId,
+        }),
+        userIds: input.userIds,
+      });
+    }),
+
+  createUserSpendLimit: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        userId: z.string(),
+        spendLimit: gatewaySpendLimitInput,
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      await new GatewaySpendLimitService(ctx.prisma).createForUser({
+        organizationId: input.orgId,
+        userId: input.userId,
+        limit: input.spendLimit,
+        session: ctx.session,
+      });
+    }),
+
+  updateUserSpendLimit: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        userId: z.string(),
+        spendLimit: gatewaySpendLimitInput,
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      await new GatewaySpendLimitService(ctx.prisma).updateForUser({
+        organizationId: input.orgId,
+        userId: input.userId,
+        limit: input.spendLimit,
+        session: ctx.session,
+      });
+    }),
+
+  deleteUserSpendLimit: protectedOrganizationProcedure
+    .input(organizationInput.extend({ userId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      await new GatewaySpendLimitService(ctx.prisma).deleteForUser({
+        organizationId: input.orgId,
+        userId: input.userId,
+        session: ctx.session,
+      });
+    }),
+
   // Returns the plaintext secret key once, so the procedure must not be traced.
   createApiKey: protectedOrganizationProcedureWithoutTracing
     .input(
@@ -640,7 +703,7 @@ export const aiGatewayRouter = createTRPCRouter({
             message: "Expiration date must be in the future",
           }),
         issuedAs: z.enum(["user", "serviceAccount"]).default("user"),
-        spendLimit: gatewayApiKeySpendLimitInput.nullish(),
+        spendLimit: gatewaySpendLimitInput.nullish(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -706,7 +769,7 @@ export const aiGatewayRouter = createTRPCRouter({
         /** The patterns the editor loaded; the write is rejected if they changed since. */
         previousAllowedModels: z.array(z.string()).nullable(),
         /** Null removes the key's spend limits; omitted leaves them unchanged. */
-        spendLimit: gatewayApiKeySpendLimitInput.nullish(),
+        spendLimit: gatewaySpendLimitInput.nullish(),
       }),
     )
     .mutation(async ({ input, ctx }) => {

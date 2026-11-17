@@ -19,8 +19,10 @@ export type GatewayUserSpendRow = {
 };
 
 /**
- * Key owners by spend in the time range, highest first. Service keys have no
- * owner and are left out; members without gateway management only get themselves.
+ * Key owners by spend in the time range, highest first, then the other users
+ * with no spend, so a budget can be set before a user spends anything.
+ * Service keys have no owner and are left out; members without gateway
+ * management only get themselves.
  */
 export function useGatewayUserSpend({
   organizationId,
@@ -68,17 +70,23 @@ export function useGatewayUserSpend({
       return { status: "error", error: "Spend per user could not be loaded." };
     }
     if (!result.data || isLabelsPending) return { status: "loading" };
-    return {
-      status: "success",
-      data: result.data.map((row) => {
-        const id = String(row.aiGatewayKeyOwnerUserId);
-        return {
-          id,
-          name: labels.users.get(id) ?? id,
-          email: emails.get(id) ?? null,
-          spendUsd: Number(row.sum_totalCost ?? 0),
-        };
-      }),
-    };
+    const toRow = (id: string, spendUsd: number): GatewayUserSpendRow => ({
+      id,
+      name: labels.users.get(id) ?? id,
+      email: emails.get(id) ?? null,
+      spendUsd,
+    });
+    const spenders = result.data.map((row) =>
+      toRow(
+        String(row.aiGatewayKeyOwnerUserId),
+        Number(row.sum_totalCost ?? 0),
+      ),
+    );
+    const spenderIds = new Set(spenders.map(({ id }) => id));
+    const others = [...labels.users.keys()]
+      .filter((id) => !spenderIds.has(id))
+      .map((id) => toRow(id, 0))
+      .toSorted((a, b) => a.name.localeCompare(b.name));
+    return { status: "success", data: [...spenders, ...others] };
   }, [result.isError, result.data, isLabelsPending, labels.users, emails]);
 }

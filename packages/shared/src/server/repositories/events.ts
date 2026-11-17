@@ -30,7 +30,10 @@ import {
 } from "../clickhouse/client";
 import { instrumentAsync, recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
-import { AI_GATEWAY_SERVICE_NAME } from "../../features/ai-gateway/constants";
+import {
+  AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY,
+  AI_GATEWAY_SERVICE_NAME,
+} from "../../features/ai-gateway/constants";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
 import type { ClickHouseDatabase } from "../query-ast/schema";
@@ -4541,6 +4544,57 @@ export const getGatewayApiKeysSpendSinceFromEvents = async (params: {
 
   return rows.map((row) => ({
     id: row.api_key_id,
+    spendUsd: Number(row.spend),
+  }));
+};
+
+/** Gateway ingestion stamps the calling key's owner on every generation. */
+const GATEWAY_KEY_OWNER_USER_ID_EXPRESSION = `e.metadata_values[indexOf(e.metadata_names, '${AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY}')]`;
+
+/**
+ * USD each user's gateway keys spent since the user's own `since`, in one scan
+ * from the earliest. Users without spend in their window are absent from the
+ * result.
+ */
+export const getGatewayUsersSpendSinceFromEvents = async (params: {
+  projectId: string;
+  users: { userId: string; since: Date }[];
+}): Promise<{ id: string; spendUsd: number }[]> => {
+  if (params.users.length === 0) return [];
+
+  const earliest = new Date(
+    Math.min(...params.users.map(({ since }) => since.getTime())),
+  );
+  const { query, params: queryParams } = new EventsAggQueryBuilder({
+    projectId: params.projectId,
+    groupByColumn: GATEWAY_KEY_OWNER_USER_ID_EXPRESSION,
+    selectExpression: `${GATEWAY_KEY_OWNER_USER_ID_EXPRESSION} as user_id, toString(sum(e.total_cost)) as spend`,
+  })
+    .whereRaw("e.start_time >= {earliest: DateTime64(3)}", {
+      earliest: convertDateToClickhouseDateTime(earliest),
+    })
+    .whereRaw("e.service_name = {gatewayServiceName: String}", {
+      gatewayServiceName: AI_GATEWAY_SERVICE_NAME,
+    })
+    .whereRaw(
+      `${GATEWAY_KEY_OWNER_USER_ID_EXPRESSION} IN {userIds: Array(String)}`,
+      { userIds: params.users.map(({ userId }) => userId) },
+    )
+    .whereRaw(
+      `toUnixTimestamp64Milli(e.start_time) >= arrayElement({sinceMs: Array(Int64)}, indexOf({userIds: Array(String)}, ${GATEWAY_KEY_OWNER_USER_ID_EXPRESSION}))`,
+      { sinceMs: params.users.map(({ since }) => since.getTime()) },
+    )
+    .buildWithParams();
+
+  const rows = await queryClickhouse<{ user_id: string; spend: string }>({
+    query,
+    params: queryParams,
+    tags: { projectId: params.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => ({
+    id: row.user_id,
     spendUsd: Number(row.spend),
   }));
 };

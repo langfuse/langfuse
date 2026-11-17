@@ -12,13 +12,17 @@ import {
 import {
   getGatewayApiKeySpendSinceFromEvents,
   getGatewayApiKeysSpendSinceFromEvents,
+  getGatewayUsersSpendSinceFromEvents,
 } from "@langfuse/shared/src/server";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { getGatewaySpendLimitWindowStart } from "@/src/features/ai-gateway/fns/gatewaySpendLimitWindow";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
-import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import {
+  invalidateGatewayResolveCacheForApiKey,
+  invalidateGatewayResolveCacheForOrganization,
+} from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { GatewayApiKeyRepository } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyRepository";
 import {
   getKeyOwnerFilter,
@@ -33,17 +37,29 @@ import type { GatewaySpendLimitScope } from "./gatewaySpendLimitScope";
 const GATEWAY_SPEND_LIMITS_UNAVAILABLE_REASON =
   "Please switch to ingestion mode usage to enable this";
 
+type SpendLimitInput = {
+  interval: GatewaySpendLimitInterval;
+  limitUsd: number;
+};
+
 type SetForApiKeyParams = {
   organizationId: string;
   usageScope: GatewayUsageScope;
   apiKeyId: string;
-  limit: { interval: GatewaySpendLimitInterval; limitUsd: number } | null;
+  limit: SpendLimitInput | null;
+  session: OrgAuthedContext["session"];
+};
+
+type UserSpendLimitParams = {
+  organizationId: string;
+  userId: string;
   session: OrgAuthedContext["session"];
 };
 
 /**
- * Gateway spend limits, each capping one scope (today: an API key, set
- * together with the key). Spend is read from the gateway ingestion project, so
+ * Gateway spend limits, each capping one scope: an API key, set together with
+ * the key, or a user, capping all of the user's keys in the organization and
+ * set only by gateway managers. Spend is read from the gateway ingestion project, so
  * limits can only be set while gateway requests are recorded. Every write
  * drops the cached /resolve context of the keys the scope covers, so the
  * gateway sees the change on their next request.
@@ -118,6 +134,116 @@ export class GatewaySpendLimitService {
     };
   }
 
+  /**
+   * Each user's first user limit, with what ClickHouse has recorded against it
+   * in its current window; `spentUsd` is absent while spend is not recorded.
+   * Users without a limit are absent. Members see only their own.
+   */
+  async getUsersSpend(params: {
+    organizationId: string;
+    usageScope: GatewayUsageScope;
+    userIds: string[];
+  }) {
+    const ownUserId = getKeyOwnerFilter(params.usageScope);
+    const limits = await this.repository.listFirstForUsers({
+      organizationId: params.organizationId,
+      userIds:
+        ownUserId === undefined
+          ? params.userIds
+          : params.userIds.filter((userId) => userId === ownUserId),
+    });
+    const recordingProjectId =
+      limits.length > 0
+        ? await this.getRecordingProjectId(params.organizationId)
+        : null;
+    const now = new Date();
+    const counted = limits.flatMap((limit) =>
+      limit.userId
+        ? [
+            {
+              limit,
+              userId: limit.userId,
+              since: new Date(
+                Math.max(
+                  getGatewaySpendLimitWindowStart(
+                    limit.interval,
+                    now,
+                  ).getTime(),
+                  limit.countingStartedAt.getTime(),
+                ),
+              ),
+            },
+          ]
+        : [],
+    );
+    const spend = recordingProjectId
+      ? new Map(
+          (
+            await getGatewayUsersSpendSinceFromEvents({
+              projectId: recordingProjectId,
+              users: counted,
+            })
+          ).map(({ id, spendUsd }) => [id, spendUsd]),
+        )
+      : null;
+    return counted.map(({ limit, userId }) => ({
+      id: userId,
+      spendLimit: {
+        interval: limit.interval,
+        limitUsd: limit.limitUsd.toNumber(),
+      },
+      spentUsd: spend
+        ? (spend.get(userId) ?? 0) + baselineUsd(limit, now)
+        : undefined,
+    }));
+  }
+
+  /** Gives a user without one a spend limit. */
+  async createForUser(
+    params: UserSpendLimitParams & { limit: SpendLimitInput },
+  ) {
+    await this.setForUser({ ...params, hasLimit: false });
+  }
+
+  /** Replaces the user's spend limit; a new interval starts counting anew. */
+  async updateForUser(
+    params: UserSpendLimitParams & { limit: SpendLimitInput },
+  ) {
+    await this.setForUser({ ...params, hasLimit: true });
+  }
+
+  async deleteForUser(params: UserSpendLimitParams) {
+    await this.setForUser({ ...params, limit: null, hasLimit: true });
+  }
+
+  /** Callers must be gateway managers; `hasLimit` is whether the user must already have a limit. */
+  private async setForUser(
+    params: UserSpendLimitParams & {
+      limit: SpendLimitInput | null;
+      hasLimit: boolean;
+    },
+  ) {
+    const scope = { type: "USER", userId: params.userId } as const;
+    const existing = await this.repository.list({
+      organizationId: params.organizationId,
+      scope,
+    });
+    if (params.hasLimit && existing.length === 0) {
+      throw new LangfuseNotFoundError("This user has no spend budget");
+    }
+    if (!params.hasLimit && existing.length > 0) {
+      throw new LangfuseConflictError("This user already has a spend budget");
+    }
+    const apply = await this.prepareSet({
+      organizationId: params.organizationId,
+      usageScope: { scope: "organization" },
+      scope,
+      limit: params.limit,
+      session: params.session,
+    });
+    await apply();
+  }
+
   /** Throws unless limits can be set, so a caller can check before writing anything else. */
   async requireAvailable(organizationId: string) {
     await this.requireRecordingProjectId(organizationId);
@@ -138,12 +264,28 @@ export class GatewaySpendLimitService {
    * Runs the checks of `setForApiKey` and returns the write, so a caller can
    * refuse a request before changing anything else.
    */
-  async prepareSetForApiKey(
+  prepareSetForApiKey(
     params: SetForApiKeyParams,
   ): Promise<() => Promise<void>> {
-    const { limit, organizationId, session } = params;
-    const scope = { type: "API_KEY", apiKeyId: params.apiKeyId } as const;
-    const subject = await this.requireSubject({ ...params, scope });
+    return this.prepareSet({
+      ...params,
+      scope: { type: "API_KEY", apiKeyId: params.apiKeyId },
+    });
+  }
+
+  /**
+   * Makes `limit` the scope's only spend limit, or removes all of them when it
+   * is null, after checking the caller may.
+   */
+  private async prepareSet(params: {
+    organizationId: string;
+    usageScope: GatewayUsageScope;
+    scope: GatewaySpendLimitScope;
+    limit: SpendLimitInput | null;
+    session: OrgAuthedContext["session"];
+  }): Promise<() => Promise<void>> {
+    const { limit, organizationId, session, scope } = params;
+    const subject = await this.requireSubject(params);
     const existing = await this.repository.list({ organizationId, scope });
     const kept = limit
       ? existing.find((candidate) => candidate.interval === limit.interval)
@@ -302,6 +444,24 @@ export class GatewaySpendLimitService {
           },
         };
       }
+      case "USER": {
+        const membership = await this.prisma.organizationMembership.findUnique({
+          where: {
+            orgId_userId: {
+              orgId: params.organizationId,
+              userId: params.scope.userId,
+            },
+          },
+          select: { createdAt: true },
+        });
+        if (!membership) throw new LangfuseNotFoundError("User not found");
+        return {
+          createdAt: membership.createdAt,
+          // Every key of the user resolves the limit, so all of them are dropped.
+          invalidateResolveCache: () =>
+            invalidateGatewayResolveCacheForOrganization(params.organizationId),
+        };
+      }
     }
   }
 
@@ -365,5 +525,17 @@ function getScopeSpendSince(params: {
         apiKeyId: params.scope.apiKeyId,
         since: params.since,
       });
+    case "USER": {
+      const { userId } = params.scope;
+      return Promise.all(
+        params.since.map(async (since) => {
+          const [spend] = await getGatewayUsersSpendSinceFromEvents({
+            projectId: params.projectId,
+            users: [{ userId, since }],
+          });
+          return spend?.spendUsd ?? 0;
+        }),
+      );
+    }
   }
 }

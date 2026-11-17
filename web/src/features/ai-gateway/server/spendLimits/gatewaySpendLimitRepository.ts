@@ -12,6 +12,7 @@ const GATEWAY_SPEND_LIMIT_SELECT = {
   id: true,
   scope: true,
   apiKeyId: true,
+  userId: true,
   interval: true,
   limitUsd: true,
   countingStartedAt: true,
@@ -67,6 +68,24 @@ export class GatewaySpendLimitRepository {
       select: GATEWAY_SPEND_LIMIT_SELECT,
       orderBy: { createdAt: "asc" },
       distinct: ["apiKeyId"],
+    });
+  }
+
+  /** Each user's first user limit in the organization. */
+  async listFirstForUsers(params: {
+    organizationId: string;
+    userIds: string[];
+  }) {
+    if (params.userIds.length === 0) return [];
+    return this.prisma.gatewaySpendLimit.findMany({
+      where: {
+        organizationId: params.organizationId,
+        scope: "USER",
+        userId: { in: params.userIds },
+      },
+      select: GATEWAY_SPEND_LIMIT_SELECT,
+      orderBy: { createdAt: "asc" },
+      distinct: ["userId"],
     });
   }
 

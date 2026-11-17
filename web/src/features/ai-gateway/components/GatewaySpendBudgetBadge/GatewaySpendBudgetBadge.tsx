@@ -17,18 +17,30 @@ const intervalLabels: Record<GatewaySpendBudgetInterval, string> = {
   TOTAL: "total",
 };
 
-type GatewayApiKeyBudgetBadgeProps = {
+const requestsBySubject = {
+  key: "Requests with this key",
+  user: "Requests with this user's keys",
+} as const;
+
+type GatewaySpendBudgetBadgeProps = {
+  /** What the budget caps: one key, or all keys of a user. */
+  subject: keyof typeof requestsBySubject;
   spendLimit: { interval: GatewaySpendBudgetInterval; limitUsd: number };
   /** Undefined while spend is not recorded, so only the limit is shown. */
   spentUsd: number | undefined;
 };
 
-export function GatewayApiKeyBudgetBadge({
+export function GatewaySpendBudgetBadge({
+  subject,
   spendLimit,
   spentUsd,
-}: GatewayApiKeyBudgetBadgeProps) {
+}: GatewaySpendBudgetBadgeProps) {
   const limit = `${formatUsd(spendLimit.limitUsd)} ${intervalLabels[spendLimit.interval]}`;
-  const { title, description } = describeBudget(spendLimit, spentUsd);
+  const { title, description } = describeBudget(
+    spendLimit,
+    spentUsd,
+    requestsBySubject[subject],
+  );
 
   return (
     <CustomTooltip
@@ -62,8 +74,9 @@ export function GatewayApiKeyBudgetBadge({
 }
 
 function describeBudget(
-  { interval, limitUsd }: GatewayApiKeyBudgetBadgeProps["spendLimit"],
+  { interval, limitUsd }: GatewaySpendBudgetBadgeProps["spendLimit"],
   spentUsd: number | undefined,
+  requests: string,
 ) {
   if (spentUsd === undefined) {
     return {
@@ -77,8 +90,8 @@ function describeBudget(
     return {
       title: "Budget reached",
       description: resetsAt
-        ? `Requests with this key are rejected until the budget resets on ${resetsAt}.`
-        : "Requests with this key are rejected until an admin raises or removes the budget.",
+        ? `${requests} are rejected until the budget resets on ${resetsAt}.`
+        : `${requests} are rejected until an admin raises or removes the budget.`,
     };
   }
   const used = `${Math.floor((spentUsd / limitUsd) * 100)}% of the budget is used.`;

@@ -1,10 +1,8 @@
 import { z } from "zod";
 
 import type { GatewayApiKeyExpirationPreset } from "@/src/features/ai-gateway/constants/gatewayApiKeyExpirationOptions";
-import {
-  GATEWAY_SPEND_BUDGET_MAX_USD,
-  type GatewaySpendBudgetInterval,
-} from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
+import type { GatewaySpendBudgetInterval } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
+import { getGatewaySpendBudgetLimitError } from "@/src/features/ai-gateway/fns/getGatewaySpendBudgetLimitError";
 import { editableGatewayApiKeyFieldsSchema } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/types/editableGatewayApiKeyFieldsSchema";
 import { resolveGatewayApiKeyExpiration } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/fns/resolveGatewayApiKeyExpiration";
 
@@ -44,7 +42,9 @@ const baseSchema = editableGatewayApiKeyFieldsSchema.extend({
 export const gatewayApiKeyFormFieldsSchema = baseSchema.superRefine(
   (values, context) => {
     if (!values.sections.includes("spendBudget")) return;
-    const message = getSpendBudgetLimitError(values.spendBudget.limitUsd);
+    const message = getGatewaySpendBudgetLimitError(
+      values.spendBudget.limitUsd,
+    );
     if (message) {
       context.addIssue({
         code: "custom",
@@ -54,17 +54,6 @@ export const gatewayApiKeyFormFieldsSchema = baseSchema.superRefine(
     }
   },
 );
-
-function getSpendBudgetLimitError(value: string) {
-  const limitUsd = Number(value.trim() || NaN);
-  if (!Number.isFinite(limitUsd) || limitUsd <= 0) {
-    return "Enter an amount greater than $0.";
-  }
-  if (limitUsd > GATEWAY_SPEND_BUDGET_MAX_USD) {
-    return "Enter at most $1,000,000,000.";
-  }
-  return null;
-}
 
 export const gatewayApiKeyFormSchema = gatewayApiKeyFormFieldsSchema.refine(
   (values) =>

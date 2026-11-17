@@ -13,7 +13,7 @@ import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { AddSectionButton } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/components/AddSectionButton/AddSectionButton";
-import { GatewayApiKeySpendBudgetField } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/components/GatewayApiKeySpendBudgetField/GatewayApiKeySpendBudgetField";
+import { GatewaySpendBudgetField } from "@/src/features/ai-gateway/components/GatewaySpendBudgetField/GatewaySpendBudgetField";
 import { OptionalSection } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/components/OptionalSection/OptionalSection";
 import { GatewayApiKeyExpirationField } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/components/GatewayApiKeyExpirationField/GatewayApiKeyExpirationField";
 import { GatewayApiKeyMetadataField } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyMetadataField/GatewayApiKeyMetadataField";
@@ -340,7 +340,8 @@ function OptionalSections({
         );
       case "spendBudget":
         return (
-          <GatewayApiKeySpendBudgetField
+          <GatewaySpendBudgetField
+            subject="key"
             control={form.control}
             disabledReason={
               isSpendBudgetDisabled

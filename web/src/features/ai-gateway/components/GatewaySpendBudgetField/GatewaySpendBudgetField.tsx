@@ -5,20 +5,40 @@ import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/Cust
 import { Form } from "@/src/components/design-system/Form/Form";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
 import { Input } from "@/src/components/design-system/Input/Input";
-import { gatewaySpendBudgetIntervalOptions } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
+import {
+  gatewaySpendBudgetIntervalOptions,
+  type GatewaySpendBudgetInterval,
+} from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
 import { PresetOption } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/components/PresetOption/PresetOption";
-import type { GatewayApiKeyFormValues } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/types/gatewayApiKeyFormSchema";
 
-type GatewayApiKeySpendBudgetFieldProps = {
-  control: Control<GatewayApiKeyFormValues>;
+type GatewaySpendBudgetFormValues = {
+  spendBudget: { interval: GatewaySpendBudgetInterval; limitUsd: string };
+};
+
+const requestsBySubject = {
+  key: "requests with this key",
+  user: "requests with this user's keys",
+} as const;
+
+type GatewaySpendBudgetFieldProps<T extends GatewaySpendBudgetFormValues> = {
+  control: Control<T>;
+  /** What the budget caps: one key, or all keys of a user. */
+  subject: keyof typeof requestsBySubject;
   /** Locks the budget and explains why, e.g. while spend is not recorded. */
   disabledReason?: string;
 };
 
-export function GatewayApiKeySpendBudgetField({
-  control,
+export function GatewaySpendBudgetField<
+  T extends GatewaySpendBudgetFormValues,
+>({
+  control: formControl,
+  subject,
   disabledReason,
-}: GatewayApiKeySpendBudgetFieldProps) {
+}: GatewaySpendBudgetFieldProps<T>) {
+  // React Hook Form cannot narrow the paths of a generic form; every form here has `spendBudget`.
+  const control =
+    formControl as unknown as Control<GatewaySpendBudgetFormValues>;
+  const requests = requestsBySubject[subject];
   const radioName = useId();
   const interval = useWatch({ control, name: "spendBudget.interval" });
   const disabled = disabledReason !== undefined;
@@ -27,8 +47,8 @@ export function GatewayApiKeySpendBudgetField({
     <CustomTooltip
       content={
         <span>
-          Caps what requests with this key may cost, in USD. Spend is counted
-          from the traces the gateway records.
+          Caps what {requests} may cost, in USD. Spend is counted from the
+          traces the gateway records.
         </span>
       }
     >
@@ -38,8 +58,8 @@ export function GatewayApiKeySpendBudgetField({
           description={
             disabledReason ??
             (interval === "TOTAL"
-              ? "Requests with this key are rejected once the limit is reached."
-              : "Requests with this key are rejected once the limit is reached, until it resets.")
+              ? `${capitalize(requests)} are rejected once the limit is reached.`
+              : `${capitalize(requests)} are rejected once the limit is reached, until it resets.`)
           }
           registerLabelTooltip={getTriggerProps}
         >
@@ -107,4 +127,8 @@ export function GatewayApiKeySpendBudgetField({
       )}
     </CustomTooltip>
   );
+}
+
+function capitalize(text: string) {
+  return `${text[0]!.toUpperCase()}${text.slice(1)}`;
 }

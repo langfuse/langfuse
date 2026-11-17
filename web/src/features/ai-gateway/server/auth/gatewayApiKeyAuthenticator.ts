@@ -175,7 +175,13 @@ export class GatewayApiKeyAuthenticator {
       keyAllowedModels: parseGatewayAllowedModels(
         row.gatewayAssociation?.allowedModels ?? null,
       ),
-      spendLimits: row.gatewaySpendLimits.map((limit) => ({
+      // The key's limits, then its owner's limits in the key's organization.
+      spendLimits: [
+        ...row.gatewaySpendLimits,
+        ...(row.user?.gatewaySpendLimits ?? []).filter(
+          (limit) => limit.organizationId === organizationId,
+        ),
+      ].map((limit) => ({
         id: limit.id,
         scope: limit.scope.toLowerCase() as Lowercase<typeof limit.scope>,
         interval: limit.interval.toLowerCase() as Lowercase<

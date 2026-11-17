@@ -25,9 +25,9 @@ import { countRows, escapeLike } from "./verify";
  * ingestion project. Adds --users gateway-only members, one gateway key each
  * plus a service key bound to no user, and spreads requests over the past
  * --days with a growth trend, quiet weekends and a few heavy users, so daily,
- * weekly and monthly spend all differ. A handful of the busiest keys get
- * spend limits sized from their seeded spend, from barely used to over the
- * limit.
+ * weekly and monthly spend all differ. A handful of the busiest keys and
+ * users get spend limits sized from their seeded spend, from barely used to
+ * over the limit.
  */
 
 const DAY_MS = 86_400_000;
@@ -104,6 +104,17 @@ const BUDGETS: ReadonlyArray<{
   { rank: 2, interval: "TOTAL", usage: 0.55 },
   { rank: 4, interval: "WEEKLY", usage: 0.3 },
   { rank: 7, interval: "TOTAL", usage: 0.08 },
+];
+
+/** Limits on the busiest users by rank, on users whose key has no limit of its own. */
+const USER_BUDGETS: ReadonlyArray<{
+  rank: number;
+  interval: GatewaySpendLimitInterval;
+  usage: number;
+}> = [
+  { rank: 3, interval: "MONTHLY", usage: 1.25 },
+  { rank: 5, interval: "WEEKLY", usage: 0.6 },
+  { rank: 8, interval: "TOTAL", usage: 0.2 },
 ];
 
 /** Limit for a key whose window has no spend yet, e.g. on the first day of a month. */
@@ -280,9 +291,10 @@ const run = async (
       "pass the window the Budgets page should cover, e.g. --days 90",
     );
   }
-  if (requestsPerDay < 1 || userCount < BUDGETS.length * 2) {
+  const minUsers = BUDGETS.length + USER_BUDGETS.length + 2;
+  if (requestsPerDay < 1 || userCount < minUsers) {
     throw new SeedError(
-      `--requests-per-day must be >= 1 and --users >= ${BUDGETS.length * 2}`,
+      `--requests-per-day must be >= 1 and --users >= ${minUsers}`,
       "pass e.g. --requests-per-day 300 --users 36",
     );
   }
@@ -331,7 +343,7 @@ const run = async (
     counts: {
       users: userCount,
       keys: userCount + 1,
-      spendLimits: BUDGETS.length,
+      spendLimits: BUDGETS.length + USER_BUDGETS.length,
       events,
     },
     links: [`${ctx.baseUrl}/organization/${project.orgId}/ai-gateway/budgets`],
@@ -405,20 +417,27 @@ const run = async (
     await createEventsCh(batch);
   }
 
+  const now = new Date();
+  const limitUsdFor = (
+    budget: { interval: GatewaySpendLimitInterval; usage: number },
+    keyId: string,
+  ) => {
+    const since = windowStartMs(budget.interval, now);
+    const spendUsd = spendRecords
+      .filter((record) => record.keyId === keyId)
+      .filter((record) => record.startTime >= since)
+      .reduce((sum, record) => sum + record.costUsd, 0);
+    return spendUsd > 0
+      ? roundUpLimit(spendUsd / budget.usage)
+      : FALLBACK_LIMIT_USD;
+  };
   const userKeysByRank = keys
     .filter((key) => key.userId !== null)
     .toSorted((a, b) => b.weight - a.weight);
-  const now = new Date();
   const countingStartedAt = new Date(dayStartToday - (days + 1) * DAY_MS);
   for (const budget of BUDGETS) {
     const key = userKeysByRank[budget.rank];
-    const since = windowStartMs(budget.interval, now);
-    const spendUsd = spendRecords
-      .filter((record) => record.keyId === key.id)
-      .filter((record) => record.startTime >= since)
-      .reduce((sum, record) => sum + record.costUsd, 0);
-    const limitUsd =
-      spendUsd > 0 ? roundUpLimit(spendUsd / budget.usage) : FALLBACK_LIMIT_USD;
+    const limitUsd = limitUsdFor(budget, key.id);
     // The page shows a key's first limit only, so each key keeps exactly one.
     await prisma.gatewaySpendLimit.deleteMany({
       where: { apiKeyId: key.id, interval: { not: budget.interval } },
@@ -440,6 +459,38 @@ const run = async (
     });
   }
 
+  // Each seeded user owns one key, so the user's spend is that key's spend.
+  for (const budget of USER_BUDGETS) {
+    const key = userKeysByRank[budget.rank];
+    const userId = key.userId!;
+    const limitUsd = limitUsdFor(budget, key.id);
+    await prisma.gatewaySpendLimit.deleteMany({
+      where: {
+        organizationId: project.orgId,
+        userId,
+        interval: { not: budget.interval },
+      },
+    });
+    await prisma.gatewaySpendLimit.upsert({
+      where: {
+        organizationId_userId_interval: {
+          organizationId: project.orgId,
+          userId,
+          interval: budget.interval,
+        },
+      },
+      create: {
+        organizationId: project.orgId,
+        scope: "USER",
+        userId,
+        interval: budget.interval,
+        limitUsd,
+        countingStartedAt,
+      },
+      update: { limitUsd, countingStartedAt, baselineSpendUsd: 0 },
+    });
+  }
+
   const verified = {
     events: await countRows(
       "events_core",
@@ -452,9 +503,21 @@ const run = async (
     ),
     spendLimits: await prisma.gatewaySpendLimit.count({
       where: {
-        apiKeyId: {
-          in: BUDGETS.map((budget) => userKeysByRank[budget.rank].id),
-        },
+        OR: [
+          {
+            apiKeyId: {
+              in: BUDGETS.map((budget) => userKeysByRank[budget.rank].id),
+            },
+          },
+          {
+            organizationId: project.orgId,
+            userId: {
+              in: USER_BUDGETS.map(
+                (budget) => userKeysByRank[budget.rank].userId!,
+              ),
+            },
+          },
+        ],
       },
     }),
   };
@@ -468,9 +531,9 @@ const run = async (
         : undefined,
     );
   }
-  if (verified.spendLimits !== BUDGETS.length) {
+  if (verified.spendLimits !== summary.counts.spendLimits) {
     throw new SeedError(
-      `Readback mismatch: expected ${BUDGETS.length} spend limits, found ${verified.spendLimits}`,
+      `Readback mismatch: expected ${summary.counts.spendLimits} spend limits, found ${verified.spendLimits}`,
     );
   }
 
@@ -485,7 +548,7 @@ const run = async (
 export const gatewayBudgetsScenario: ScenarioDefinition = {
   name: "gateway-budgets",
   description:
-    "AI Gateway spend for the Budgets page in the organization's gateway ingestion project: --users gateway-only members with one gateway key each, plus a service key, and requests over the past --days with a growth trend and quiet weekends. Five of the busiest keys get spend limits from barely used to over the limit. Runs as part of `pnpm run ch:seed`.",
+    "AI Gateway spend for the Budgets page in the organization's gateway ingestion project: --users gateway-only members with one gateway key each, plus a service key, and requests over the past --days with a growth trend and quiet weekends. Five of the busiest keys and three busy users get spend limits from barely used to over the limit. Runs as part of `pnpm run ch:seed`.",
   supportsV4: true,
   flags: [
     {

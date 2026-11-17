@@ -116,6 +116,45 @@ fn matches_metadata_tiers_against_the_ingested_generation_metadata() {
 }
 
 #[test]
+fn a_spent_user_limit_rejects_the_key_and_counts_across_the_users_keys() {
+    let limit = |id: &str, scope: &str| -> SpendLimit {
+        serde_json::from_value(json!({
+            "id": id, "scope": scope, "interval": "total", "limit_usd": 10,
+            "counting_started_at": 0, "baseline_usd": 0,
+        }))
+        .unwrap()
+    };
+    let key_limit = limit("key-limit", "api_key");
+    let user_limit = limit("user-limit", "user");
+    let now = DateTime::<Utc>::from(SystemTime::now());
+    let usage = |limit, counted| {
+        LimitUsage::new(
+            limit,
+            Window::current("org", limit, now),
+            Some(counted),
+            false,
+        )
+    };
+
+    let key = usage(&key_limit, 2.0);
+    let user = usage(&user_limit, 12.0);
+    // The counter is keyed by the limit alone, so every key of the user adds to it.
+    assert_eq!(
+        user.window.counter.key,
+        "gateway-spend:{org}:user-limit:0:0"
+    );
+    let exceeded = [key, user]
+        .into_iter()
+        .find(LimitUsage::is_exceeded)
+        .unwrap();
+    assert_eq!(exceeded.limit.id, "user-limit");
+    assert_eq!(
+        exceeded.rejection(now).message(),
+        "This key's user has spent $12.00 of its $10.00 total spend limit. An admin can raise or remove the limit."
+    );
+}
+
+#[test]
 fn prices_anthropic_token_names_with_the_generic_prices_of_older_claude_models() {
     let mut facts = xai_chat_completion(json!({ "input_tokens": 100, "output_tokens": 20 }));
     facts.api_format = ApiFormat::AnthropicMessages;

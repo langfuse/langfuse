@@ -69,3 +69,15 @@ export const SeveralLimits = meta.story({
     ],
   },
 });
+
+export const UserLimit = meta.story({
+  args: {
+    audience: "orgOwner",
+    scope: {
+      type: "USER" as const,
+      name: "Grace Hopper",
+      email: "grace@company.com",
+    },
+    link: "https://cloud.langfuse.com/organization/org-1/ai-gateway/budgets",
+  },
+});
