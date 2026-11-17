@@ -33,9 +33,11 @@ use openai_responses::OpenAiResponsesCapture;
 
 pub(crate) const MAX_INPUT_CAPTURE_BYTES: usize = 5 * 1024 * 1024;
 pub(crate) const MAX_OUTPUT_CAPTURE_BYTES: usize = 1024 * 1024;
-/// Largest JSON body or single SSE event read for usage. Usage can sit next to
-/// a large output, such as a base64 image in a completed Responses event, so this
-/// is larger than the output kept for telemetry.
+/// Largest JSON body or single SSE event read for usage of a request charged to
+/// spend limits. Usage can sit next to a large output, such as a base64 image in a
+/// completed Responses event, so this is larger than the output kept for telemetry.
+/// Other requests read up to `MAX_OUTPUT_CAPTURE_BYTES`, which the fixed request
+/// overhead reservation covers.
 pub(crate) const MAX_RESPONSE_PARSE_BYTES: usize = 8 * 1024 * 1024;
 const MAX_ITEMS: usize = 256;
 const MAX_FACT_STRING: usize = 512;
@@ -103,13 +105,13 @@ impl ProtocolCapture {
         }
     }
 
-    fn push_bytes(&mut self, bytes: &[u8]) -> bool {
+    fn push_bytes(&mut self, bytes: &[u8], parse_limit: usize) -> bool {
         match self {
-            Self::OpenAiResponses(capture) => capture.push_bytes(bytes),
-            Self::OpenAiChatCompletions(capture) => capture.push_bytes(bytes),
-            Self::OpenAiDecisions(capture) => capture.push_bytes(bytes),
+            Self::OpenAiResponses(capture) => capture.push_bytes(bytes, parse_limit),
+            Self::OpenAiChatCompletions(capture) => capture.push_bytes(bytes, parse_limit),
+            Self::OpenAiDecisions(capture) => capture.push_bytes(bytes, parse_limit),
             Self::OpenAiEmbeddings(capture) => capture.push_bytes(bytes),
-            Self::AnthropicMessages(capture) => capture.push_bytes(bytes),
+            Self::AnthropicMessages(capture) => capture.push_bytes(bytes, parse_limit),
         }
     }
 
@@ -163,6 +165,8 @@ pub(crate) struct ExecutionCapture {
     provider_model: Option<String>,
     delivery: Option<(telemetry::Telemetry, telemetry::DeliveryContext)>,
     spend_limits: Option<crate::spend::SpendRecording>,
+    /// Largest JSON body or single SSE event read from the response.
+    response_parse_limit: usize,
 }
 
 impl ExecutionCapture {
@@ -185,6 +189,7 @@ impl ExecutionCapture {
             provider_model: None,
             delivery: None,
             spend_limits: None,
+            response_parse_limit: MAX_OUTPUT_CAPTURE_BYTES,
         }
     }
 
@@ -249,6 +254,7 @@ impl ExecutionCapture {
             provider_model: None,
             delivery: None,
             spend_limits: None,
+            response_parse_limit: MAX_OUTPUT_CAPTURE_BYTES,
         }
     }
 
@@ -276,7 +282,12 @@ impl ExecutionCapture {
         self.delivery = Some((telemetry, delivery));
     }
 
+    /// A charged request parses responses up to `MAX_RESPONSE_PARSE_BYTES` to find
+    /// their usage; its admission reserved the memory for that.
     pub(crate) fn charge_on_finish(&mut self, spend_limits: Option<crate::spend::SpendRecording>) {
+        if spend_limits.is_some() {
+            self.response_parse_limit = MAX_RESPONSE_PARSE_BYTES;
+        }
         self.spend_limits = spend_limits;
     }
 
@@ -301,7 +312,7 @@ impl ExecutionCapture {
                 self.first_byte_ms
                     .get_or_insert_with(|| self.started.elapsed().as_millis());
             }
-            if protocol.push_bytes(bytes) {
+            if protocol.push_bytes(bytes, self.response_parse_limit) {
                 self.completion_start_ms
                     .get_or_insert_with(|| self.started.elapsed().as_millis());
             }

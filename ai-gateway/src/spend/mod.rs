@@ -171,7 +171,12 @@ async fn current_usage<'a>(
     let keys: Vec<String> = windows
         .iter()
         .map(|window| window.counter.key.clone())
-        .chain(windows.iter().map(|window| window.counter.alerted_flag()))
+        .chain(
+            limits
+                .iter()
+                .zip(&windows)
+                .map(|(limit, window)| window.counter.alerted_flag(limit.limit_usd)),
+        )
         .collect();
     let mut values = store.read(keys).await?;
     let flags = values.split_off(windows.len());
@@ -236,6 +241,7 @@ impl<'a> LimitUsage<'a> {
             id: self.limit.id.clone(),
             counting_started_at: self.limit.counting_started_at,
             window_start: self.window.start.timestamp_millis(),
+            alerted_flag: self.window.counter.alerted_flag(self.limit.limit_usd),
             counter: self.window.counter.clone(),
             reached_at_usd: self.limit.limit_usd - self.baseline,
             alerted: self.alerted,

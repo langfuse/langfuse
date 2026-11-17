@@ -70,7 +70,8 @@ pub(crate) fn provider_origin(error: ProviderError) -> (ErrorOrigin, &'static st
 }
 
 /// Bytes one in-flight request holds from the shared memory budget: a fixed overhead
-/// for response capture and connection buffers, plus its body as it arrives. It is held
+/// for response capture and connection buffers, plus its body as it arrives, plus the
+/// larger response parse of a request charged to spend limits. It is held
 /// with the execution and released once the response ends.
 pub(crate) struct MemoryReservation {
     bytes: OwnedSemaphorePermit,
@@ -97,18 +98,31 @@ impl MemoryReservation {
         else {
             return Ok(());
         };
-        let reserved = u32::try_from(missing)
+        self.try_acquire(missing, phase)
+    }
+
+    /// Grow the reservation by `bytes` on top of what it holds, without waiting.
+    ///
+    /// # Errors
+    /// Returns [`ResolutionError::Busy`] when the shared budget cannot cover `bytes`,
+    /// recording the rejection under `phase`.
+    pub(crate) fn try_reserve_more(
+        &mut self,
+        bytes: usize,
+        phase: &'static str,
+    ) -> Result<(), ResolutionError> {
+        self.try_acquire(bytes, phase)
+    }
+
+    fn try_acquire(&mut self, bytes: usize, phase: &'static str) -> Result<(), ResolutionError> {
+        let reserved = u32::try_from(bytes)
             .ok()
-            .and_then(|missing| {
-                Arc::clone(&self.budget)
-                    .try_acquire_many_owned(missing)
-                    .ok()
-            })
+            .and_then(|bytes| Arc::clone(&self.budget).try_acquire_many_owned(bytes).ok())
             .ok_or_else(|| {
                 crate::observability::rejected(phase);
                 ResolutionError::Busy
             })?;
-        crate::observability::memory_reserved(missing);
+        crate::observability::memory_reserved(bytes);
         self.bytes.merge(reserved);
         Ok(())
     }

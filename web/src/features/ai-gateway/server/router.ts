@@ -692,6 +692,16 @@ export const aiGatewayRouter = createTRPCRouter({
         session: ctx.session,
         orgId: input.orgId,
       });
+      const setSpendLimit =
+        input.spendLimit === undefined
+          ? undefined
+          : await new GatewaySpendLimitService(ctx.prisma).prepareSetForApiKey({
+              organizationId: input.orgId,
+              usageScope,
+              apiKeyId: input.id,
+              limit: input.spendLimit,
+              session: ctx.session,
+            });
       const updated = await new GatewayApiKeyService(ctx.prisma, redis).update({
         organizationId: input.orgId,
         ownerUserId: getKeyOwnerFilter(usageScope),
@@ -702,15 +712,7 @@ export const aiGatewayRouter = createTRPCRouter({
         previousAllowedModels: input.previousAllowedModels,
         session: ctx.session,
       });
-      if (input.spendLimit !== undefined) {
-        await new GatewaySpendLimitService(ctx.prisma).setForApiKey({
-          organizationId: input.orgId,
-          usageScope,
-          apiKeyId: input.id,
-          limit: input.spendLimit,
-          session: ctx.session,
-        });
-      }
+      await setSpendLimit?.();
       return updated;
     }),
 

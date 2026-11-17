@@ -435,22 +435,29 @@ async fn oversized_and_malformed_events_do_not_prevent_later_facts() {
 }
 
 #[tokio::test]
-async fn reads_usage_from_a_completed_event_carrying_a_generated_image() {
-    let mut observer = observer("usage").await;
-    record_response(&mut observer, "text/event-stream");
+async fn reads_usage_next_to_a_generated_image_only_for_charged_requests() {
     let image = "A".repeat(3 * MAX_OUTPUT_CAPTURE_BYTES);
-    observer.push_bytes(
-        event(
-            "response.completed",
-            json!({"response":{"id":"resp-1","status":"completed","usage":{"input_tokens":10,"output_tokens":4160,"total_tokens":4170},"output":[{"type":"image_generation_call","result":image}]}}),
-        )
-        .as_bytes(),
+    let completed = event(
+        "response.completed",
+        json!({"response":{"id":"resp-1","status":"completed","usage":{"input_tokens":10,"output_tokens":4160,"total_tokens":4170},"output":[{"type":"image_generation_call","result":image}]}}),
     );
-    observer.end_body();
-    assert_eq!(
-        captured(&observer).facts.usage_details.as_ref().unwrap()["total_tokens"],
-        4170
-    );
+    for charged in [false, true] {
+        let mut observer = observer("usage").await;
+        if charged {
+            observer.response_parse_limit = MAX_RESPONSE_PARSE_BYTES;
+        }
+        record_response(&mut observer, "text/event-stream");
+        observer.push_bytes(completed.as_bytes());
+        observer.end_body();
+        assert_eq!(
+            captured(&observer)
+                .facts
+                .usage_details
+                .as_ref()
+                .map(|usage| usage["total_tokens"].clone()),
+            charged.then(|| json!(4170)),
+        );
+    }
 }
 
 #[tokio::test]

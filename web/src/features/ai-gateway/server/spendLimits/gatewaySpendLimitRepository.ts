@@ -103,7 +103,14 @@ export class GatewaySpendLimitRepository {
     });
   }
 
-  updateLimit(params: { id: string; limitUsd: number; userId: string }) {
+  /**
+   * A new amount can be reached again in the same window, so its alerts are
+   * cleared. Run it in a transaction so both writes land together.
+   */
+  async updateLimit(params: { id: string; limitUsd: number; userId: string }) {
+    await this.prisma.gatewaySpendLimitAlert.deleteMany({
+      where: { spendLimitId: params.id },
+    });
     return this.prisma.gatewaySpendLimit.update({
       where: { id: params.id },
       data: { limitUsd: params.limitUsd, ownerUserId: params.userId },

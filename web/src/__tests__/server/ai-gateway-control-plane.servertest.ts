@@ -2930,6 +2930,14 @@ describe("AI gateway control plane", () => {
         audience: "orgOwner",
       }),
     ]);
+
+    await member.aiGateway.spendLimits.update({
+      orgId: owner.org.id,
+      id: limit.id,
+      limitUsd: 20,
+    });
+    await report(limit.countingStartedAt, "2026-11-16T00:00:00Z");
+    expect(addNotificationJobs).toHaveBeenCalledTimes(2);
   });
 
   it("routes unprefixed models by provider and rejects unknown models", async () => {

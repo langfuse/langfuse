@@ -32,6 +32,14 @@ import {
 const GATEWAY_SPEND_LIMITS_UNAVAILABLE_REASON =
   "Please switch to ingestion mode usage to enable this";
 
+type SetForApiKeyParams = {
+  organizationId: string;
+  usageScope: GatewayUsageScope;
+  apiKeyId: string;
+  limit: { interval: GatewaySpendLimitInterval; limitUsd: number } | null;
+  session: OrgAuthedContext["session"];
+};
+
 /**
  * Gateway spend limits, each capping one scope (today: an API key). Spend is
  * read from the gateway ingestion project, so limits are only available while
@@ -165,11 +173,13 @@ export class GatewaySpendLimitService {
   }) {
     const { before, subject } = await this.requireLimit(params);
     await this.requireRecordingProjectId(params.organizationId);
-    const after = await this.repository.updateLimit({
-      id: before.id,
-      limitUsd: params.limitUsd,
-      userId: params.session.user.id,
-    });
+    const after = await this.prisma.$transaction((tx) =>
+      new GatewaySpendLimitRepository(tx).updateLimit({
+        id: before.id,
+        limitUsd: params.limitUsd,
+        userId: params.session.user.id,
+      }),
+    );
     await subject.invalidateResolveCache();
     await this.audit({
       session: params.session,
@@ -215,13 +225,18 @@ export class GatewaySpendLimitService {
    * limit is written before others are removed, so a refused write leaves the
    * key's limits as they were.
    */
-  async setForApiKey(params: {
-    organizationId: string;
-    usageScope: GatewayUsageScope;
-    apiKeyId: string;
-    limit: { interval: GatewaySpendLimitInterval; limitUsd: number } | null;
-    session: OrgAuthedContext["session"];
-  }) {
+  async setForApiKey(params: SetForApiKeyParams) {
+    const apply = await this.prepareSetForApiKey(params);
+    await apply();
+  }
+
+  /**
+   * Runs the checks of `setForApiKey` and returns the write, so a caller can
+   * refuse a request before changing anything else.
+   */
+  async prepareSetForApiKey(
+    params: SetForApiKeyParams,
+  ): Promise<() => Promise<void>> {
     const { limit, ...access } = params;
     const scope = { type: "API_KEY", apiKeyId: params.apiKeyId } as const;
     await this.requireSubject({ ...access, scope });
@@ -247,16 +262,22 @@ export class GatewaySpendLimitService {
       );
     }
 
-    if (limit && !kept) {
-      await this.create({ ...access, scope, ...limit });
-    } else if (limit && kept && !isUnchanged) {
-      await this.update({ ...access, id: kept.id, limitUsd: limit.limitUsd });
+    if (limit && !isUnchanged) {
+      await this.requireRecordingProjectId(params.organizationId);
     }
-    for (const candidate of existing) {
-      if (candidate !== kept) {
-        await this.delete({ ...access, id: candidate.id });
+
+    return async () => {
+      if (limit && !kept) {
+        await this.create({ ...access, scope, ...limit });
+      } else if (limit && kept && !isUnchanged) {
+        await this.update({ ...access, id: kept.id, limitUsd: limit.limitUsd });
       }
-    }
+      for (const candidate of existing) {
+        if (candidate !== kept) {
+          await this.delete({ ...access, id: candidate.id });
+        }
+      }
+    };
   }
 
   /** Deleting stays possible without ingestion, so a limit can always be removed. */

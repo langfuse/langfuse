@@ -22,6 +22,7 @@ pub(super) struct CountedLimit {
     /// Unix milliseconds.
     pub window_start: i64,
     pub counter: Counter,
+    pub alerted_flag: String,
     /// The counter's value at which the limit is reached: the limit less the baseline.
     pub reached_at_usd: f64,
     /// The limit's alert flag was already set when the request was checked.
@@ -36,12 +37,9 @@ impl SpendAlerts {
         limits: impl IntoIterator<Item = CountedLimit>,
     ) {
         for limit in limits.into_iter().filter(|limit| !limit.alerted) {
-            let flag = limit.counter.alerted_flag();
+            let flag = &limit.alerted_flag;
             // When Redis is unavailable, Web's own record still sends one email per window.
-            if matches!(
-                store.claim(&flag, limit.counter.expires_at).await,
-                Ok(false)
-            ) {
+            if matches!(store.claim(flag, limit.counter.expires_at).await, Ok(false)) {
                 continue;
             }
             let reported = self
@@ -56,7 +54,7 @@ impl SpendAlerts {
                 .await;
             if let Err(error) = reported {
                 tracing::warn!(%error, limit_id = %limit.id, "spend limit alert failed");
-                let _ = store.release(&flag).await;
+                let _ = store.release(flag).await;
             }
         }
     }

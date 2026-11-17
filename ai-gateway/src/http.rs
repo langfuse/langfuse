@@ -15,7 +15,7 @@ use tower_http::timeout::{RequestBodyDeadlineLayer, TimeoutError};
 use tracing::Instrument;
 
 use crate::{
-    capture::GatewayRejection,
+    capture::{GatewayRejection, MAX_OUTPUT_CAPTURE_BYTES, MAX_RESPONSE_PARSE_BYTES},
     correlation::{RequestCorrelation, assign_request_id},
     inference::{
         InferenceService, MemoryReservation, provider_origin, rate_limited_reason,
@@ -233,7 +233,7 @@ async fn relay(
     correlation
         .observation()
         .record_wait(Wait::RequestBody, started.elapsed());
-    let (bytes, reservation) = read?;
+    let (bytes, mut reservation) = read?;
     let request_bytes = bytes.len();
     correlation
         .observation()
@@ -250,6 +250,14 @@ async fn relay(
         )
         .await
         .map_err(InferenceHttpError::Resolution)?;
+    if permit.charges_spend() {
+        reservation
+            .try_reserve_more(
+                MAX_RESPONSE_PARSE_BYTES - MAX_OUTPUT_CAPTURE_BYTES,
+                "spend_capture",
+            )
+            .map_err(InferenceHttpError::Resolution)?;
+    }
     inference
         .forward(
             permit,

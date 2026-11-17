@@ -62,9 +62,10 @@ pub(crate) struct Counter {
 
 impl Counter {
     /// Set once the counter's limit was reported reached in its window. Shares the
-    /// counter's hash tag, so it is read in the same `MGET`.
-    pub(crate) fn alerted_flag(&self) -> String {
-        format!("{}:alerted", self.key)
+    /// counter's hash tag, so it is read in the same `MGET`. Keyed by the limit's
+    /// amount, so a changed amount is reported again.
+    pub(crate) fn alerted_flag(&self, limit_usd: f64) -> String {
+        format!("{}:alerted:{limit_usd}", self.key)
     }
 }
 

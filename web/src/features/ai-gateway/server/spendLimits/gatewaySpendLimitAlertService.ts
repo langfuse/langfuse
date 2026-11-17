@@ -85,12 +85,13 @@ export class GatewaySpendLimitAlertService {
     };
     if (!(await this.claimAlert(alert))) return;
 
-    const recipients = await this.getRecipients(limit);
-    const jobs = recipients.map((recipient) =>
-      toNotificationJob(limit, alert, recipient),
-    );
     try {
-      await queue.addBulk(jobs);
+      const recipients = await this.getRecipients(limit);
+      await queue.addBulk(
+        recipients.map((recipient) =>
+          toNotificationJob(limit, alert, recipient),
+        ),
+      );
     } catch (error) {
       // Without the alert, the gateway's next report sends the emails again.
       await this.prisma.gatewaySpendLimitAlert.deleteMany({ where: alert });

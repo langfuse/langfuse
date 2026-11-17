@@ -87,6 +87,13 @@ pub struct RequestPermit {
     spend_limits: Option<crate::spend::SpendRecording>,
 }
 
+impl RequestPermit {
+    /// The execution's cost counts toward spend limits.
+    pub(crate) fn charges_spend(&self) -> bool {
+        self.spend_limits.is_some()
+    }
+}
+
 /// The validated caller body and the facts the relay needs about it.
 pub(crate) struct RequestBody {
     pub bytes: Bytes,
