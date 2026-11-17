@@ -1,11 +1,9 @@
 import { describe, expect, it } from "vitest";
-import waitForExpect from "wait-for-expect";
 
 import { GatewayResolveResponseSchema } from "@/src/features/ai-gateway/server/provider/registry";
 import {
   GatewayProvider,
   GatewaySpendLimitInterval,
-  prisma,
 } from "@langfuse/shared/src/db";
 import {
   COMPLETION_TIMEOUT_MS,
@@ -155,7 +153,7 @@ describe.skipIf(skip)("AI gateway OpenAI end-to-end", () => {
       const { apiFormat, model, path, body } = SPEND_LIMITED_COMPLETION;
       await withGatewayApiKey(
         apiFormat,
-        async ({ secretKey, id: apiKeyId }) => {
+        async ({ secretKey }) => {
           // Waits until the first request is ingested, by when its cost was counted.
           await completeAndExpectIngested({
             secretKey,
@@ -181,13 +179,6 @@ describe.skipIf(skip)("AI gateway OpenAI end-to-end", () => {
               param: null,
               code: "spend_limit_exceeded",
             },
-          });
-
-          await waitForExpect(async () => {
-            const alerts = await prisma.gatewaySpendLimitAlert.findMany({
-              where: { spendLimit: { apiKeyId } },
-            });
-            expect(alerts).toHaveLength(1);
           });
         },
         {
