@@ -17,16 +17,16 @@ const intervalLabels: Record<GatewaySpendBudgetInterval, string> = {
   TOTAL: "total",
 };
 
-type GatewayApiKeyBudgetCellProps = {
+type GatewayApiKeyBudgetBadgeProps = {
   spendLimit: { interval: GatewaySpendBudgetInterval; limitUsd: number };
   /** Undefined while spend is not recorded, so only the limit is shown. */
   spentUsd: number | undefined;
 };
 
-export function GatewayApiKeyBudgetCell({
+export function GatewayApiKeyBudgetBadge({
   spendLimit,
   spentUsd,
-}: GatewayApiKeyBudgetCellProps) {
+}: GatewayApiKeyBudgetBadgeProps) {
   const limit = `${formatUsd(spendLimit.limitUsd)} ${intervalLabels[spendLimit.interval]}`;
   if (spentUsd === undefined) {
     return <Badge color="filled" size="md" text={limit} />;

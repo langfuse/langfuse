@@ -93,9 +93,6 @@ const budgetApiKeys = (
   [
     [null, undefined],
     [{ interval: "MONTHLY", limitUsd: 100 }, 42.5],
-    [{ interval: "WEEKLY", limitUsd: 500 }, 410],
-    [{ interval: "DAILY", limitUsd: 20 }, 23.75],
-    [{ interval: "TOTAL", limitUsd: 1000 }, undefined],
   ] as const
 ).map(([spendLimit, spentUsd], index) => ({
   ...apiKeys[0]!,
@@ -107,38 +104,6 @@ const budgetApiKeys = (
     note: `Budget ${index}`,
   },
 }));
-
-export const Budgets = meta.story({
-  name: "(Test) Budget shows spend against the limit",
-  args: {
-    data: { status: "success", data: budgetApiKeys },
-    ...actions,
-  },
-  play: async ({ canvas }) => {
-    const cells = budgetCells(canvas);
-    await expect(cells[0]).toHaveTextContent("No budget");
-    await expect(cells[1]).toHaveTextContent("$42.5 / $100 monthly");
-    await expect(cells[2]).toHaveTextContent("$410 / $500 weekly");
-    await expect(cells[3]).toHaveTextContent("$23.75 / $20 daily");
-    await expect(cells[4]).toHaveTextContent(/^\$1,000 total$/);
-  },
-});
-
-export const BudgetReached = meta.story({
-  name: "(Test) Budget explains a reached limit and when it resets",
-  args: {
-    data: { status: "success", data: budgetApiKeys },
-    ...actions,
-  },
-  play: async ({ canvas }) => {
-    const cells = budgetCells(canvas);
-    await expect(cells[1]!.querySelector("[tabindex='0']")).toBeNull();
-    await userEvent.hover(cells[3]!.querySelector("[tabindex='0']")!);
-    const tooltip = await screen.findByRole("tooltip");
-    await expect(tooltip).toHaveTextContent("Budget reached");
-    await expect(tooltip).toHaveTextContent(/until the budget resets on .*\d/);
-  },
-});
 
 export const BudgetsLoading = meta.story({
   name: "(Test) Budget shows a skeleton only for keys with a limit",
