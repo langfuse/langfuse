@@ -86,11 +86,13 @@ export function TopicListView({
       aria-label="Topics"
       className="scroll-fade-y flex min-h-0 flex-1 flex-col gap-px overflow-y-auto p-4"
     >
-      {topics.map((topic) => (
+      {topics.map((topic, rank) => (
         <li key={topic.id}>
           <TopicRow
             topic={topic}
             maxCount={maxCount}
+            compact={Boolean(scatter?.look)}
+            faded={rank >= 6}
             selected={topic.id === selected.id}
             onSelect={() =>
               setSelectedTopicId(
@@ -165,12 +167,52 @@ function TopicRow({
   maxCount,
   selected,
   onSelect,
+  compact = false,
+  faded = false,
 }: {
   topic: TopicDisplay;
   maxCount: number;
   selected: boolean;
   onSelect: () => void;
+  /** Exploratory scatter looks: one line, with a short bar beside the count. */
+  compact?: boolean;
+  faded?: boolean;
 }) {
+  if (compact)
+    return (
+      <button
+        type="button"
+        aria-pressed={selected}
+        onClick={onSelect}
+        className={cn(
+          "hover:bg-muted focus-visible:ring-ring flex w-full items-center gap-4 rounded-md px-3 py-1.5 text-left focus-visible:ring-2 focus-visible:outline-hidden",
+          selected && "bg-muted",
+        )}
+      >
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate text-sm",
+            selected && "font-bold",
+            topic.id === UNASSIGNED_TOPIC_ID && "text-muted-foreground",
+          )}
+          title={topic.name}
+        >
+          {topic.name}
+        </span>
+        <span aria-hidden className="bg-muted h-1 w-36 shrink-0 rounded-full">
+          <span
+            className={cn("block h-full rounded-full", faded && "opacity-60")}
+            style={{
+              width: `${(topic.count / maxCount) * 100}%`,
+              backgroundColor: topic.color,
+            }}
+          />
+        </span>
+        <span className="text-muted-foreground w-8 shrink-0 text-right font-mono text-xs">
+          {topic.count.toLocaleString()}
+        </span>
+      </button>
+    );
   return (
     <button
       type="button"
