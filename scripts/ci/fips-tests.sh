@@ -108,9 +108,7 @@ case "$SUITE" in
 
     cd web
     NODE_COMPILE_CACHE=/tmp/node-compile-cache npx dotenv -e ../.env.test -e ../.env -- \
-      vitest run --project server --project server-isolated \
-      --project server-shared-source --project server-unit \
-      --project server-shared-source-unit \
+      vitest run --project 'server*' \
       --maxWorkers="${VITEST_MAX_WORKERS:-8}" --passWithNoTests "$@"
     ;;
 
