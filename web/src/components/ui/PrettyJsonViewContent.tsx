@@ -38,6 +38,7 @@ import {
 import {
   ValueCell,
   getValueStringLength,
+  isJsonRowExpandable,
 } from "@/src/components/table/ValueCell";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 
@@ -57,7 +58,7 @@ function getEmptyValueDisplay(value: unknown): string | null {
   if (value === null) return "null";
   if (value === undefined) return "undefined";
   if (value === "") return "empty string";
-  if (Array.isArray(value) && value.length === 0) return "empty array";
+  if (Array.isArray(value) && value.length === 0) return "empty list";
   if (
     typeof value === "object" &&
     !Array.isArray(value) &&
@@ -153,9 +154,7 @@ const JsonTableRowComponent = memo(
     stickyTopLevelKey,
   }: JsonTableRowProps) => {
     // Hook is now at top level of this component ✅
-    const isExpandable =
-      row.original.hasChildren ||
-      getValueStringLength(row.original.value) > MAX_CELL_DISPLAY_CHARS;
+    const isExpandable = isJsonRowExpandable(row.original);
 
     const { props: rowClickProps } = useClickWithoutSelection({
       onClick: () => {
@@ -177,10 +176,9 @@ const JsonTableRowComponent = memo(
             : undefined
         }
         data-observation-id={row.id}
-        data-expandable={isExpandable ? "" : undefined}
         {...rowClickProps}
         className={cn(
-          "group/json-row hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
+          "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
           isExpandable ? "cursor-pointer" : "",
           row.original.level === 0 && stickyTopLevelKey
             ? "bg-background sticky top-0 z-10 shadow-xs"
@@ -315,7 +313,8 @@ function JsonPrettyTable({
         </div>
         <span
           className={cn(
-            "min-w-0 cursor-text group-data-[expandable]/json-row:cursor-pointer",
+            "min-w-0",
+            !isJsonRowExpandable(row.original) && "cursor-text",
             KEY_CLASSES,
           )}
         >
