@@ -73,7 +73,7 @@ second run on that dataset whose chat output is long enough to need a taller
 comparison row. Set `NEXTAUTH_URL` to your local app URL when using a port
 other than 3000.
 
-For Topics discovery, held-out assignment, or evaluation fixtures, follow the [Topics fixture walkthrough](../../../packages/shared/scripts/seeder/README.md#topics). For Topics results UI checks without model keys, `pnpm run seed -- topics-map` publishes ready-made maps.
+For Topics discovery, held-out assignment, or evaluation fixtures, follow the [Topics fixture walkthrough](../../../packages/shared/scripts/seeder/README.md#topics). For Topics results UI checks without model keys, `pnpm run seed -- topics-map` publishes ready-made maps. Add `--size dense` for a 4,000-trace map with 35 topics and many outliers, to check how the views scale.
 
 ## Contract
 
