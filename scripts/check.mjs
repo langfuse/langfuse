@@ -559,7 +559,8 @@ function planRepositoryChecks(
 ) {
   const formatted = files.filter(
     (file) =>
-      /\.(js|jsx|ts|tsx|css)$/.test(file) && exists(resolve(root, file)),
+      /\.(js|jsx|mjs|cjs|ts|tsx|mts|cts|css)$/.test(file) &&
+      exists(resolve(root, file)),
   );
   const repositoryFormatting =
     options.all ||
