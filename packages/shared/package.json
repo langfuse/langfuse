@@ -31,6 +31,10 @@
       "import": "./dist/src/server/index.js",
       "require": "./dist/src/server/index.js"
     },
+    "./src/server/v4Cutoff": {
+      "import": "./dist/src/server/v4Cutoff.js",
+      "require": "./dist/src/server/v4Cutoff.js"
+    },
     "./src/server/query-ast/schema": {
       "import": "./dist/src/server/query-ast/schema.js",
       "require": "./dist/src/server/query-ast/schema.js"

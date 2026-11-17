@@ -116,6 +116,7 @@ const ALLOWED_FUNCTIONS: ReadonlySet<string> = new Set([
   "max",
   "medianExact",
   "min",
+  "minOrNull",
   "quantile",
   "rank",
   "sum",

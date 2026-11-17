@@ -365,17 +365,17 @@ describe("executeInAppAgentRun", () => {
   it("passes repository skills when no managed tag is configured", async () => {
     const { projectId, run } = await seedBackgroundRun();
     let selectedSkills: unknown;
+    let selectedEntries: unknown;
     scenarioRef.current = async (params) => {
       selectedSkills = params.options.skillSource;
+      selectedEntries = await params.options.skillSource.readdir("/skills");
       await completingScenario(params);
     };
 
     await executeInAppAgentRun({ projectId, runId: run.id });
 
     expect(selectedSkills).toBeInstanceOf(InAppAgentSkillSource);
-    if (!(selectedSkills instanceof InAppAgentSkillSource))
-      throw new Error("Missing skill source");
-    expect(await selectedSkills.readdir("/skills")).toEqual(
+    expect(selectedEntries).toEqual(
       LANGFUSE_HALO_SKILLS.map(({ frontmatter }) => ({
         name: frontmatter.name,
         type: "directory",

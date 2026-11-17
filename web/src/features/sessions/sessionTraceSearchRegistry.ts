@@ -9,6 +9,7 @@ export const SESSION_TRACE_FIELD_REGISTRY = fieldRegistryFromColumns(
   {
     id: "sessionTraces",
     allowFreeText: false,
+    allowPresence: false,
     defaultSearchType: [],
     metadata: false,
     searchPlaceholder: "Filter observations… e.g. level:=ERROR",
@@ -16,12 +17,37 @@ export const SESSION_TRACE_FIELD_REGISTRY = fieldRegistryFromColumns(
       "name:=agent",
       "traceName:=chat",
       "type:=GENERATION",
+      "type:(AGENT OR TOOL)",
       "level:=ERROR",
+      "level:(ERROR OR WARNING)",
       "environment:=production",
+      "environment:(production OR staging)",
       "isRootObservation:true",
     ],
     fields: {
-      name: { aliases: ["observationName"] },
+      name: {
+        aliases: ["observationName"],
+        operators: ["=", "exact", "~"],
+        negatedOperators: ["=", "exact", "~"],
+      },
+      traceName: {
+        operators: ["=", "exact", "~"],
+        negatedOperators: ["=", "exact", "~"],
+      },
+      type: {
+        operators: ["=", "exact"],
+        negatedOperators: [],
+        suggestObservedValues: true,
+        exactSuggestions: true,
+      },
+      level: {
+        operators: ["=", "exact"],
+        negatedOperators: [],
+        suggestObservedValues: true,
+        exactSuggestions: true,
+      },
+      environment: { operators: ["=", "exact"], negatedOperators: [] },
+      isRootObservation: { operators: ["=", "exact"] },
     },
     filterStateErrors: (filters) =>
       sessionTraceFilterSchema.safeParse(filters).success

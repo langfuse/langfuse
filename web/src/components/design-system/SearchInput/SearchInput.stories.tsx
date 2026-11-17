@@ -7,12 +7,6 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { SearchInput } from "./SearchInput";
 
-/** Args shared by both modes, for stories that set `mode` themselves. */
-type SharedStoryArgs = Pick<
-  ComponentProps<typeof SearchInput>,
-  "value" | "onChange" | "placeholder" | "disabled"
->;
-
 function InteractiveSearchInput(props: ComponentProps<typeof SearchInput>) {
   const [value, setValue] = useState(props.value);
 
@@ -63,41 +57,10 @@ export const WithValue = meta.story({
 
 /** `default` for embedded toolbars, `large` for full-page lists. */
 export const Sizes = meta.story({
-  render: (args: SharedStoryArgs) => (
+  render: (args) => (
     <div className="flex flex-col gap-3">
       <InteractiveSearchInput {...args} onSubmit={() => {}} size="default" />
       <InteractiveSearchInput {...args} onSubmit={() => {}} size="large" />
-    </div>
-  ),
-});
-
-/** `filter` mode narrows a list as you type: the icon is decorative and Enter does nothing. */
-export const FilterMode = meta.story({
-  render: (args: SharedStoryArgs) => (
-    <InteractiveSearchInput
-      mode="filter"
-      value={args.value}
-      onChange={args.onChange}
-      placeholder="Search projects..."
-    />
-  ),
-});
-
-/** `borderless` for surfaces that frame the field themselves, e.g. a menu header. */
-export const Borderless = meta.story({
-  render: (args: SharedStoryArgs) => (
-    <div className="bg-popover w-72 rounded-md border">
-      <div className="border-b">
-        <InteractiveSearchInput
-          mode="filter"
-          variant="borderless"
-          size="large"
-          value={args.value}
-          onChange={args.onChange}
-          placeholder="Search projects..."
-        />
-      </div>
-      <div className="px-3 py-2 text-sm">Project A</div>
     </div>
   ),
 });
@@ -124,26 +87,6 @@ export const TestSubmitsOnEnter = meta.story({
     await userEvent.type(input, "Prompt name{enter}");
     await expect(input).toHaveValue("Prompt name");
     await expect(args.onSubmit).toHaveBeenCalledWith("Prompt name");
-  },
-});
-
-export const TestFilterModeDoesNotSubmit = meta.story({
-  name: "(Test) Filter Mode Does Not Submit",
-  render: (args: SharedStoryArgs) => (
-    <InteractiveSearchInput
-      mode="filter"
-      value={args.value}
-      onChange={args.onChange}
-      placeholder={args.placeholder}
-    />
-  ),
-  play: async ({ args, canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.type(canvas.getByRole("searchbox"), "Prompt{enter}");
-    await expect(args.onChange).toHaveBeenLastCalledWith("Prompt");
-    await expect(
-      canvas.queryByRole("button", { name: "Search" }),
-    ).not.toBeInTheDocument();
   },
 });
 

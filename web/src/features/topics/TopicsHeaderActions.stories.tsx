@@ -12,7 +12,6 @@ const defaultArgs: ComponentProps<typeof TopicsHeaderActions> = {
     automaticProcessing: { state: { status: "off" }, saving: false },
     configureAvailable: true,
     canWrite: true,
-    menuOnly: false,
     onConfigure: fn(),
     onHistory: fn(),
     onNewMap: fn(),
@@ -73,7 +72,6 @@ export const RefreshCooldown = meta.story({
       automaticProcessing: { state: { status: "on" }, saving: false },
       configureAvailable: true,
       canWrite: true,
-      menuOnly: false,
       onConfigure: fn(),
       onHistory: fn(),
       onNewMap: fn(),
@@ -116,6 +114,14 @@ export const RefreshCooldown = meta.story({
     await expect(item).toHaveAttribute(
       "title",
       "Refreshed recently. Available again in 10 min.",
+    );
+    // Touch screens show no title tooltip, so the reason must be on screen.
+    await waitFor(() =>
+      expect(
+        within(item).getByText(
+          "Refreshed recently. Available again in 10 min.",
+        ),
+      ).toBeVisible(),
     );
   },
 });

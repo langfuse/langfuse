@@ -52,7 +52,7 @@ export const IntegrationExportFailedEmailTemplate = ({
               <Img
                 src="https://static.langfuse.com/langfuse_logo_transactional_email.png"
                 width="40"
-                height="40"
+                height="26"
                 alt="Langfuse"
                 className="mx-auto my-0"
               />
