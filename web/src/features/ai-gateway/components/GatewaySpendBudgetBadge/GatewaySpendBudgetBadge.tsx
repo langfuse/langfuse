@@ -28,14 +28,20 @@ type GatewaySpendBudgetBadgeProps = {
   spendLimit: { interval: GatewaySpendBudgetInterval; limitUsd: number };
   /** Undefined while spend is not recorded, so only the limit is shown. */
   spentUsd: number | undefined;
+  /** "amounts" leaves out the interval, for tables that show it in a column of its own. */
+  format?: "withInterval" | "amounts";
 };
 
 export function GatewaySpendBudgetBadge({
   subject,
   spendLimit,
   spentUsd,
+  format = "withInterval",
 }: GatewaySpendBudgetBadgeProps) {
-  const limit = `${formatUsd(spendLimit.limitUsd)} ${intervalLabels[spendLimit.interval]}`;
+  const limit =
+    format === "amounts"
+      ? formatUsd(spendLimit.limitUsd)
+      : `${formatUsd(spendLimit.limitUsd)} ${intervalLabels[spendLimit.interval]}`;
   const { title, description } = describeBudget(
     spendLimit,
     spentUsd,

@@ -10,7 +10,7 @@ import { GatewaySpendBudgetField } from "@/src/features/ai-gateway/components/Ga
 import type { GatewaySpendBudgetInterval } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
 import { getGatewaySpendBudgetLimitError } from "@/src/features/ai-gateway/fns/getGatewaySpendBudgetLimitError";
 
-const gatewayUserBudgetFormSchema = z.object({
+const gatewayEditBudgetFormSchema = z.object({
   spendBudget: z.object({
     interval: z.custom<GatewaySpendBudgetInterval>(),
     limitUsd: z.string().superRefine((value, context) => {
@@ -20,18 +20,21 @@ const gatewayUserBudgetFormSchema = z.object({
   }),
 });
 
-type GatewayUserBudgetFormValues = z.infer<typeof gatewayUserBudgetFormSchema>;
+type GatewayEditBudgetFormValues = z.infer<typeof gatewayEditBudgetFormSchema>;
 
 type GatewaySpendLimit = {
   interval: GatewaySpendBudgetInterval;
   limitUsd: number;
 };
 
-type GatewayUserBudgetDialogProps = {
-  userName: string;
-  /** The user's current budget; null for a user without one. */
-  spendLimit: GatewaySpendLimit | null;
-  /** Why a budget cannot be set or changed; undefined when it can. */
+const titles = { key: "Edit key budget", user: "Edit user budget" } as const;
+
+type GatewayEditBudgetDialogProps = {
+  /** What the budget caps: one key, or all keys of a user. */
+  subject: keyof typeof titles;
+  subjectName: string;
+  spendLimit: GatewaySpendLimit;
+  /** Why the budget cannot be changed; undefined when it can. */
   unavailableReason?: string;
   errorMessage: string | null;
   isSubmitting: boolean;
@@ -39,56 +42,55 @@ type GatewayUserBudgetDialogProps = {
   onRemove: () => void;
 };
 
-/** Sets, changes or removes the budget that caps all of a user's gateway keys. */
-export function GatewayUserBudgetDialog({
-  userName,
+/** Changes or removes the budget of a key or of all of a user's keys. */
+export function GatewayEditBudgetDialog({
+  subject,
+  subjectName,
   spendLimit,
   unavailableReason,
   errorMessage,
   isSubmitting,
   onSubmit,
   onRemove,
-}: GatewayUserBudgetDialogProps) {
+}: GatewayEditBudgetDialogProps) {
   const formId = useId();
-  const form = useForm<GatewayUserBudgetFormValues>({
-    resolver: zodResolver(gatewayUserBudgetFormSchema),
+  const form = useForm<GatewayEditBudgetFormValues>({
+    resolver: zodResolver(gatewayEditBudgetFormSchema),
     defaultValues: {
-      spendBudget: spendLimit
-        ? {
-            interval: spendLimit.interval,
-            limitUsd: String(spendLimit.limitUsd),
-          }
-        : { interval: "MONTHLY", limitUsd: "" },
+      spendBudget: {
+        interval: spendLimit.interval,
+        limitUsd: String(spendLimit.limitUsd),
+      },
     },
     mode: "onChange",
   });
 
-  const handleValidSubmit = (values: GatewayUserBudgetFormValues) => {
+  const handleValidSubmit = (values: GatewayEditBudgetFormValues) => {
     onSubmit({
       interval: values.spendBudget.interval,
       limitUsd: Number(values.spendBudget.limitUsd.trim()),
     });
   };
 
+  const name = (
+    <span className="text-foreground font-medium">{subjectName}</span>
+  );
+
   return (
     <Dialog
-      title={spendLimit ? "Edit user budget" : "Set user budget"}
+      title={titles[subject]}
       size="md"
       noCapture
       actions={[
-        ...(spendLimit
-          ? [
-              {
-                label: "Remove budget",
-                type: "button" as const,
-                variant: "destructive" as const,
-                disabled: isSubmitting,
-                onClick: onRemove,
-              },
-            ]
-          : []),
         {
-          label: spendLimit ? "Save changes" : "Set budget",
+          label: "Remove budget",
+          type: "button",
+          variant: "destructive",
+          disabled: isSubmitting,
+          onClick: onRemove,
+        },
+        {
+          label: "Save changes",
           type: "submit",
           form: formId,
           loading: isSubmitting,
@@ -107,12 +109,17 @@ export function GatewayUserBudgetDialog({
           onSubmit={form.handleSubmit(handleValidSubmit)}
         >
           <p className="text-muted-foreground text-sm">
-            Applies to every gateway key of{" "}
-            <span className="text-foreground font-medium">{userName}</span>, in
-            addition to each key&apos;s own budget.
+            {subject === "user" ? (
+              <>
+                Applies to every gateway key of {name}, in addition to each
+                key&apos;s own budget.
+              </>
+            ) : (
+              <>Applies to requests with {name}.</>
+            )}
           </p>
           <GatewaySpendBudgetField
-            subject="user"
+            subject={subject}
             control={form.control}
             disabledReason={unavailableReason}
           />

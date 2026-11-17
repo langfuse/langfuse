@@ -143,6 +143,28 @@ export class GatewayApiKeyRepository {
     return rows.map((row) => row.apiKeyId);
   }
 
+  /** How many gateway keys each of the users has in the organization; users without keys are absent. */
+  async countGatewayApiKeysByUser(params: {
+    organizationId: string;
+    userIds: string[];
+  }) {
+    if (params.userIds.length === 0) return new Map<string, number>();
+    const counts = await this.prisma.apiKey.groupBy({
+      by: ["userId"],
+      where: {
+        ...gatewayApiKeyWhere(params),
+        userId: { in: params.userIds },
+        gatewayAssociation: { isNot: null },
+      },
+      _count: { _all: true },
+    });
+    return new Map(
+      counts.flatMap(({ userId, _count }) =>
+        userId ? [[userId, _count._all] as const] : [],
+      ),
+    );
+  }
+
   getGatewayApiKey(params: {
     organizationId: string;
     ownerUserId?: string;

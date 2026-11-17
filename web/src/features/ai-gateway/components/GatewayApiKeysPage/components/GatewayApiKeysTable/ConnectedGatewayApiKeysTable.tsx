@@ -1,4 +1,4 @@
-import { type ComponentProps, type ReactNode, useState } from "react";
+import { type ReactNode, useState } from "react";
 import type { OrderByState } from "@langfuse/shared";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
@@ -16,12 +16,7 @@ export function ConnectedGatewayApiKeysTable({
   organizationId,
   description,
   emptyState,
-  onRowClick,
-  selectedRowId,
-}: Pick<
-  ComponentProps<typeof GatewayApiKeysTable>,
-  "onRowClick" | "selectedRowId"
-> & {
+}: {
   organizationId: string;
   /** Shown above the table; the no-keys placeholder explains keys itself. */
   description: ReactNode;
@@ -136,8 +131,6 @@ export function ConnectedGatewayApiKeysTable({
                   }}
                   onEdit={openEditDialog}
                   onRevoke={openRevokeDialog}
-                  onRowClick={onRowClick}
-                  selectedRowId={selectedRowId}
                 />
               </div>
             </div>

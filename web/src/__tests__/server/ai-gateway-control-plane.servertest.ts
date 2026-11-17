@@ -2410,6 +2410,34 @@ describe("AI gateway control plane", () => {
     expect(await userBudget(member)).toEqual([
       { id: userId, spendLimit: { interval: "MONTHLY", limitUsd: 20 } },
     ]);
+    const budgets = async (caller: typeof member, scope: "API_KEY" | "USER") =>
+      (
+        await caller.aiGateway.listBudgets({ orgId: owner.org.id, scope })
+      ).rows.map(({ subjectId, keyCount, spendLimit, isEditable }) => ({
+        subjectId,
+        keyCount,
+        spendLimit,
+        isEditable,
+      }));
+    const userBudgetRow = {
+      subjectId: userId,
+      keyCount: 2,
+      spendLimit: { interval: "MONTHLY", limitUsd: 20 },
+    };
+    expect(await budgets(owner.caller, "USER")).toEqual([
+      { ...userBudgetRow, isEditable: true },
+    ]);
+    expect(await budgets(member, "USER")).toEqual([
+      { ...userBudgetRow, isEditable: false },
+    ]);
+    expect(await budgets(member, "API_KEY")).toEqual([
+      {
+        subjectId: memberKeys[1].id,
+        keyCount: undefined,
+        spendLimit: { interval: "DAILY", limitUsd: 5 },
+        isEditable: true,
+      },
+    ]);
     expect(await resolvedScopes(memberKeys[0].secretKey)).toEqual([
       { scope: "user", limit_usd: 20 },
     ]);

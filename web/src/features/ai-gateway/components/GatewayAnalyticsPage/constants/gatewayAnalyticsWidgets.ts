@@ -23,7 +23,7 @@ export const GATEWAY_COST_OVER_TIME_WIDGET: GatewayAnalyticsWidget = {
   size: "full",
 };
 
-export const GATEWAY_COST_BY_USER_WIDGET: GatewayAnalyticsWidget = {
+const GATEWAY_COST_BY_USER_WIDGET: GatewayAnalyticsWidget = {
   id: "cost-by-user",
   name: "Cost by user",
   description: `Top ${BREAKDOWN_ROW_LIMIT} users by cost; service keys are excluded`,

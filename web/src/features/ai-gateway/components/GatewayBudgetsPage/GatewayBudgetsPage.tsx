@@ -1,15 +1,14 @@
-import { type ComponentProps, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useGatewayAnalyticsFetchQuery } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayAnalyticsFetchQuery";
-import { useGatewayAnalyticsLabels } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayAnalyticsLabels";
 import { ConnectedGatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/ConnectedGatewayNotSetUpNotice";
-import { ConnectedGatewayApiKeysTable } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/ConnectedGatewayApiKeysTable";
 import { GatewaySpendChart } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewaySpendChart/GatewaySpendChart";
-import { ConnectedGatewayUserSpendTable } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayUserSpendTable/ConnectedGatewayUserSpendTable";
+import { ConnectedGatewayBudgetsTable } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsTable/ConnectedGatewayBudgetsTable";
+import type { GatewayBudgetRow } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsTable/GatewayBudgetsTable";
 import type { GatewaySpendInterval } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendIntervals";
 import { useGatewayBudgetsTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewayBudgetsTab";
 import { toGatewaySpendFilters } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/fns/toGatewaySpendFilters";
@@ -24,19 +23,6 @@ type GatewayBudgetsPageProps = {
   organizationId: string;
 };
 
-const noKeysMessage = (
-  <p className="text-muted-foreground text-sm">
-    No gateway keys yet. Create one on the Gateway keys page.
-  </p>
-);
-
-type ApiKeyRowClickHandler = NonNullable<
-  ComponentProps<typeof ConnectedGatewayApiKeysTable>["onRowClick"]
->;
-type UserRowClickHandler = NonNullable<
-  ComponentProps<typeof ConnectedGatewayUserSpendTable>["onRowClick"]
->;
-
 /**
  * Spend over time for the whole gateway, or for one key or user once its row
  * is selected. Managers see all usage; everyone else only their own, which
@@ -49,14 +35,13 @@ export function GatewayBudgetsPage({
   const { canManageGateway, isIngestionConfigured, isRecording } =
     useGatewaySettingsAccess(organizationId);
   const fetchQuery = useGatewayAnalyticsFetchQuery(organizationId);
-  const { labels } = useGatewayAnalyticsLabels(organizationId);
   const tab = useGatewayBudgetsTab();
   // A selection belongs to the tab it was made on, so switching tabs shows the total.
   const [selected, setSelected] = useState<{
     tab: typeof tab;
-    id: string;
+    row: GatewayBudgetRow;
   } | null>(null);
-  const selectedId = selected?.tab === tab ? selected.id : null;
+  const selectedRow = selected?.tab === tab ? selected.row : null;
   const [spendInterval, setSpendInterval] =
     useState<GatewaySpendInterval>("day");
   const [timeRange, setTimeRange] = useState<TimeRange>({
@@ -66,24 +51,19 @@ export function GatewayBudgetsPage({
     () => toAbsoluteTimeRange(timeRange),
     [timeRange],
   );
-  const selection = useMemo(() => {
-    if (selectedId === null) return null;
-    return {
-      label: labels[tab].get(selectedId) ?? selectedId,
-      filters: toGatewaySpendFilters(tab, selectedId),
-    };
-  }, [labels, tab, selectedId]);
+  const selection = useMemo(
+    () =>
+      selectedRow
+        ? {
+            label: selectedRow.name,
+            filters: toGatewaySpendFilters(tab, selectedRow.subjectId),
+          }
+        : null,
+    [tab, selectedRow],
+  );
 
-  const toggleSelection = (id: string) => {
-    setSelected(selectedId === id ? null : { tab, id });
-  };
-
-  const handleApiKeyRowClick: ApiKeyRowClickHandler = (row) => {
-    toggleSelection(row.apiKey.id);
-  };
-
-  const handleUserRowClick: UserRowClickHandler = (row) => {
-    toggleSelection(row.id);
+  const handleRowClick = (row: GatewayBudgetRow) => {
+    setSelected(selectedRow?.id === row.id ? null : { tab, row });
   };
 
   const handleClearSelection = () => {
@@ -129,24 +109,13 @@ export function GatewayBudgetsPage({
             onClearSelection={handleClearSelection}
           />
         )}
-        {tab === "apiKeys" && (
-          <ConnectedGatewayApiKeysTable
-            organizationId={organizationId}
-            description={null}
-            emptyState={noKeysMessage}
-            onRowClick={handleApiKeyRowClick}
-            selectedRowId={selectedId}
-          />
-        )}
-        {tab === "users" && canQueryAnalytics && (
-          <ConnectedGatewayUserSpendTable
-            organizationId={organizationId}
-            fetchQuery={fetchQuery}
-            timeRange={absoluteTimeRange}
-            onRowClick={handleUserRowClick}
-            selectedRowId={selectedId}
-          />
-        )}
+        <ConnectedGatewayBudgetsTable
+          key={tab}
+          organizationId={organizationId}
+          tab={tab}
+          selectedRowId={selectedRow?.id ?? null}
+          onRowClick={handleRowClick}
+        />
       </div>
     </>
   );

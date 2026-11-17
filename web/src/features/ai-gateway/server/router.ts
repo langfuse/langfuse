@@ -658,6 +658,50 @@ export const aiGatewayRouter = createTRPCRouter({
       });
     }),
 
+  listBudgets: protectedOrganizationProcedure
+    .input(
+      offsetPaginatedOrganizationInput.extend({
+        scope: z.enum(["API_KEY", "USER"]),
+        searchQuery: z.string().trim().optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      return new GatewaySpendLimitService(ctx.prisma).listBudgets({
+        organizationId: input.orgId,
+        usageScope: getGatewayUsageScope({
+          session: ctx.session,
+          orgId: input.orgId,
+        }),
+        scope: input.scope,
+        searchQuery: input.searchQuery,
+        page: input.page,
+        limit: input.limit,
+      });
+    }),
+
+  /** Null removes the key's budget. Members may change only budgets they set on their own keys. */
+  setApiKeySpendLimit: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        apiKeyId: z.string(),
+        spendLimit: gatewaySpendLimitInput.nullable(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      await new GatewaySpendLimitService(ctx.prisma).setForApiKey({
+        organizationId: input.orgId,
+        usageScope: getGatewayUsageScope({
+          session: ctx.session,
+          orgId: input.orgId,
+        }),
+        apiKeyId: input.apiKeyId,
+        limit: input.spendLimit,
+        session: ctx.session,
+      });
+    }),
+
   createApiKeySpendLimit: protectedOrganizationProcedure
     .input(
       organizationInput.extend({

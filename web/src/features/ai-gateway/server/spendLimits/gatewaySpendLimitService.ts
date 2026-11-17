@@ -198,6 +198,122 @@ export class GatewaySpendLimitService {
     }));
   }
 
+  /**
+   * One page of key or user budgets, with what ClickHouse has recorded against
+   * each in its current window; `spentUsd` is absent while spend is not
+   * recorded. Members see only their own keys' budgets and their own user
+   * budget, and may edit only key budgets they set.
+   */
+  async listBudgets(params: {
+    organizationId: string;
+    usageScope: GatewayUsageScope;
+    scope: "API_KEY" | "USER";
+    searchQuery?: string;
+    page: number;
+    limit: number;
+  }) {
+    const ownUserId = getKeyOwnerFilter(params.usageScope);
+    const { rows, totalCount } = await this.repository.listPage({
+      organizationId: params.organizationId,
+      scope: params.scope,
+      ownerUserId: ownUserId,
+      searchQuery: params.searchQuery,
+      page: params.page,
+      limit: params.limit,
+    });
+    const recordingProjectId =
+      rows.length > 0
+        ? await this.getRecordingProjectId(params.organizationId)
+        : null;
+    const now = new Date();
+    const sinceOf = (limit: GatewaySpendLimitRecord) =>
+      new Date(
+        Math.max(
+          getGatewaySpendLimitWindowStart(limit.interval, now).getTime(),
+          limit.countingStartedAt.getTime(),
+        ),
+      );
+    const isEditable = (limit: GatewaySpendLimitRecord) =>
+      ownUserId === undefined ||
+      (params.scope === "API_KEY" && limit.ownerUserId === ownUserId);
+    const toBudget = (
+      limit: GatewaySpendLimitRecord,
+      spend: number | null,
+    ) => ({
+      id: limit.id,
+      spendLimit: {
+        interval: limit.interval,
+        limitUsd: limit.limitUsd.toNumber(),
+      },
+      spentUsd: spend === null ? undefined : spend + baselineUsd(limit, now),
+      isEditable: isEditable(limit),
+    });
+
+    if (params.scope === "API_KEY") {
+      const keyed = rows.flatMap((row) =>
+        row.apiKeyId && row.apiKey
+          ? [{ row, apiKeyId: row.apiKeyId, apiKey: row.apiKey }]
+          : [],
+      );
+      const spend = recordingProjectId
+        ? new Map(
+            (
+              await getGatewayApiKeysSpendSinceFromEvents({
+                projectId: recordingProjectId,
+                apiKeys: keyed.map(({ row, apiKeyId }) => ({
+                  apiKeyId,
+                  since: sinceOf(row),
+                })),
+              })
+            ).map(({ id, spendUsd }) => [id, spendUsd]),
+          )
+        : null;
+      return {
+        totalCount,
+        rows: keyed.map(({ row, apiKeyId, apiKey }) => ({
+          ...toBudget(row, spend ? (spend.get(apiKeyId) ?? 0) : null),
+          subjectId: apiKeyId,
+          name: apiKey.note ?? apiKey.displaySecretKey,
+          user: apiKey.user,
+          keyCount: undefined,
+        })),
+      };
+    }
+
+    const owned = rows.flatMap((row) =>
+      row.userId && row.user
+        ? [{ row, userId: row.userId, user: row.user }]
+        : [],
+    );
+    const [spend, keyCounts] = await Promise.all([
+      recordingProjectId
+        ? getGatewayUsersSpendSinceFromEvents({
+            projectId: recordingProjectId,
+            users: owned.map(({ row, userId }) => ({
+              userId,
+              since: sinceOf(row),
+            })),
+          }).then(
+            (spent) => new Map(spent.map(({ id, spendUsd }) => [id, spendUsd])),
+          )
+        : null,
+      this.apiKeys.countGatewayApiKeysByUser({
+        organizationId: params.organizationId,
+        userIds: owned.map(({ userId }) => userId),
+      }),
+    ]);
+    return {
+      totalCount,
+      rows: owned.map(({ row, userId, user }) => ({
+        ...toBudget(row, spend ? (spend.get(userId) ?? 0) : null),
+        subjectId: userId,
+        name: user.name || (user.email ?? userId),
+        user,
+        keyCount: keyCounts.get(userId) ?? 0,
+      })),
+    };
+  }
+
   /** Gives a key without one a spend limit; callers must be gateway managers. */
   async createForApiKey(params: {
     organizationId: string;
