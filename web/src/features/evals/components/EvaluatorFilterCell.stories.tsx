@@ -2,6 +2,7 @@ import { expect } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
 import type { FilterState } from "@langfuse/shared";
+import { formatFilterPreview } from "@/src/components/table/table-view-presets/lib/viewPreview";
 import { EvaluatorFilterCell } from "@/src/features/evals/components/EvaluatorFilterCell";
 
 const SHORT_FILTER = [
@@ -32,6 +33,25 @@ const LONG_FILTER = [
   },
 ] satisfies FilterState;
 
+const SHORT_FILTER_TITLE = SHORT_FILTER.map(formatFilterPreview).join(" · ");
+
+async function assertNoHorizontalScrollContainer(
+  view: Window,
+  root: HTMLElement,
+) {
+  const overflowX = view.getComputedStyle(root).overflowX;
+  await expect(overflowX === "hidden" || overflowX === "clip").toBe(true);
+
+  for (const node of root.querySelectorAll("*")) {
+    if (!(node instanceof HTMLElement)) continue;
+    const descendantOverflowX = view.getComputedStyle(node).overflowX;
+    await expect(descendantOverflowX).not.toBe("auto");
+    await expect(descendantOverflowX).not.toBe("scroll");
+  }
+
+  await expect(root.querySelector(".overflow-x-auto")).toBeNull();
+}
+
 const meta = preview.meta({
   component: EvaluatorFilterCell,
 });
@@ -60,15 +80,13 @@ export const NoPerCellHorizontalScrollbar = meta.story({
   args: {
     filterState: SHORT_FILTER,
   },
-  play: async ({ canvasElement }) => {
-    const cell = canvasElement.firstElementChild;
-    if (!(cell instanceof HTMLElement)) {
-      throw new Error("Expected EvaluatorFilterCell root element");
+  play: async ({ canvas }) => {
+    const cell = canvas.getByTitle(SHORT_FILTER_TITLE);
+    const view = cell.ownerDocument.defaultView;
+    if (!view) {
+      throw new Error("Expected a document view");
     }
-    const overflowX =
-      cell.ownerDocument.defaultView!.getComputedStyle(cell).overflowX;
-    await expect(overflowX).not.toBe("auto");
-    await expect(overflowX).not.toBe("scroll");
+    await assertNoHorizontalScrollContainer(view, cell);
   },
 });
 
