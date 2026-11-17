@@ -154,6 +154,22 @@ export class GatewayApiKeyRepository {
     });
   }
 
+  /** What a spend limit on the key needs: when the key was created, and the hash its resolve cache is keyed by. */
+  getGatewayApiKeyForSpendLimits(params: {
+    organizationId: string;
+    ownerUserId?: string;
+    apiKeyId: string;
+  }) {
+    return this.prisma.apiKey.findFirst({
+      where: {
+        id: params.apiKeyId,
+        ...gatewayApiKeyWhere(params),
+        gatewayAssociation: { isNot: null },
+      },
+      select: { createdAt: true, fastHashedSecretKey: true },
+    });
+  }
+
   /**
    * Writes only while the key is still in scope and its patterns are the ones
    * the editor loaded, so a connection rename committed in between is not

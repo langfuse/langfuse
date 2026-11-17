@@ -15,6 +15,7 @@ import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { getGatewaySpendLimitWindowStart } from "./gatewaySpendLimitWindow";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import { GatewayApiKeyRepository } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyRepository";
 import {
   getKeyOwnerFilter,
   type GatewayUsageScope,
@@ -56,9 +57,11 @@ type SetForApiKeyParams = {
  */
 export class GatewaySpendLimitService {
   private readonly repository: GatewaySpendLimitRepository;
+  private readonly apiKeys: GatewayApiKeyRepository;
 
   constructor(private readonly prisma: PrismaClient) {
     this.repository = new GatewaySpendLimitRepository(prisma);
+    this.apiKeys = new GatewayApiKeyRepository(prisma);
   }
 
   /**
@@ -359,7 +362,7 @@ export class GatewaySpendLimitService {
   }) {
     switch (params.scope.type) {
       case "API_KEY": {
-        const apiKey = await this.repository.getGatewayApiKey({
+        const apiKey = await this.apiKeys.getGatewayApiKeyForSpendLimits({
           organizationId: params.organizationId,
           ownerUserId: getKeyOwnerFilter(params.usageScope),
           apiKeyId: params.scope.apiKeyId,

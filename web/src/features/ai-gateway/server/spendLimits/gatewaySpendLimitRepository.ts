@@ -3,8 +3,6 @@ import type {
   Prisma,
   PrismaClient,
 } from "@langfuse/shared/src/db";
-import { orgBoundApiKeyScopes } from "@langfuse/shared/src/server/auth/apiKeys";
-
 import {
   type GatewaySpendLimitScope,
   toScopeColumns,
@@ -31,26 +29,6 @@ export class GatewaySpendLimitRepository {
   constructor(
     private readonly prisma: PrismaClient | Prisma.TransactionClient,
   ) {}
-
-  /** The gateway key, if it is in the organization and, with ownerUserId, owned by that user. */
-  getGatewayApiKey(params: {
-    organizationId: string;
-    ownerUserId?: string;
-    apiKeyId: string;
-  }) {
-    return this.prisma.apiKey.findFirst({
-      where: {
-        id: params.apiKeyId,
-        orgId: params.organizationId,
-        scope: { in: orgBoundApiKeyScopes },
-        gatewayAssociation: { isNot: null },
-        ...(params.ownerUserId !== undefined && {
-          userId: params.ownerUserId,
-        }),
-      },
-      select: { id: true, createdAt: true, fastHashedSecretKey: true },
-    });
-  }
 
   async hasAny(organizationId: string) {
     const limit = await this.prisma.gatewaySpendLimit.findFirst({
