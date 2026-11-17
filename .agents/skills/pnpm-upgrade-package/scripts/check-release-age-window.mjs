@@ -23,7 +23,9 @@ if (!packageName) {
 }
 
 const repoRoot = process.cwd();
-const workspaceConfig = readWorkspaceConfig(join(repoRoot, "pnpm-workspace.yaml"));
+const workspaceConfig = readWorkspaceConfig(
+  join(repoRoot, "pnpm-workspace.yaml"),
+);
 const minimumReleaseAgeMinutes = workspaceConfig.minimumReleaseAge ?? 0;
 const thresholdMs = Date.now() - minimumReleaseAgeMinutes * 60 * 1000;
 const REGISTRY_FETCH_TIMEOUT_MS = 30_000;
@@ -32,7 +34,10 @@ const workspaceReferenceCache = new Map();
 
 const getWorkspaceReferences = (name) => {
   if (!workspaceReferenceCache.has(name)) {
-    workspaceReferenceCache.set(name, findLocalPackageReferences(repoRoot, name));
+    workspaceReferenceCache.set(
+      name,
+      findLocalPackageReferences(repoRoot, name),
+    );
   }
 
   return workspaceReferenceCache.get(name);
@@ -159,7 +164,10 @@ function collectManifestEntries(manifest, fields) {
   );
 }
 
-async function analyzeManifestEntries(entries, { includeWorkspace = false } = {}) {
+async function analyzeManifestEntries(
+  entries,
+  { includeWorkspace = false } = {},
+) {
   const exact = [];
   const range = [];
 
@@ -228,7 +236,11 @@ function printRootPnpmControls(rootPnpm) {
   }
 }
 
-function printVersionEntries(title, entries, { includeWorkspace = false } = {}) {
+function printVersionEntries(
+  title,
+  entries,
+  { includeWorkspace = false } = {},
+) {
   printSectionHeader(title);
   if (entries.length === 0) {
     console.log("- none");
@@ -254,7 +266,9 @@ function printVersionEntries(title, entries, { includeWorkspace = false } = {}) 
         `  installed in workspace: ${entry.isInstalledInWorkspace ? "yes" : "no"}`,
       );
       for (const reference of entry.workspaceReferences) {
-        console.log(`  workspace reference: ${formatWorkspaceReference(reference)}`);
+        console.log(
+          `  workspace reference: ${formatWorkspaceReference(reference)}`,
+        );
       }
     }
     if (entry.matchingExcludeEntries.length > 0) {
@@ -280,7 +294,9 @@ function printRangeEntries(title, entries) {
       `- ${entry.name}: ${entry.spec} (manual review; via ${entry.fields.join(", ")})`,
     );
     for (const reference of entry.workspaceReferences ?? []) {
-      console.log(`  workspace reference: ${formatWorkspaceReference(reference)}`);
+      console.log(
+        `  workspace reference: ${formatWorkspaceReference(reference)}`,
+      );
     }
   }
 }
@@ -333,7 +349,9 @@ const result = {
   thresholdIso: new Date(thresholdMs).toISOString(),
   latestRegistryVersion: latestVersion,
   latestRegistryPublishedAt:
-    latestVersion != null ? packageMetadata.time?.[latestVersion] ?? null : null,
+    latestVersion != null
+      ? (packageMetadata.time?.[latestVersion] ?? null)
+      : null,
   latestInstallableWithoutNewExclude,
   targetPublishedAt: targetInstallability.publishedAt,
   targetIsYoungerThanMinimumReleaseAge:
@@ -371,9 +389,13 @@ printRootPnpmControls(rootPnpm);
 printSectionHeader("Release-age window:");
 console.log(`minimumReleaseAge: ${minimumReleaseAgeMinutes} minutes`);
 console.log(`Threshold: ${result.thresholdIso}`);
-console.log(`Latest registry version: ${result.latestRegistryVersion ?? "unknown"}`);
+console.log(
+  `Latest registry version: ${result.latestRegistryVersion ?? "unknown"}`,
+);
 if (result.latestRegistryPublishedAt) {
-  console.log(`Latest registry published at: ${result.latestRegistryPublishedAt}`);
+  console.log(
+    `Latest registry published at: ${result.latestRegistryPublishedAt}`,
+  );
 }
 if (latestInstallableWithoutNewExclude) {
   console.log(

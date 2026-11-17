@@ -20,10 +20,12 @@ D=../../web/src/components/design-system
   echo 'else globalThis.process.env = Object.assign({}, env, globalThis.process.env);'
 } > process-shim.js
 # Public assets: DS components load web/public files via
-# `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/<file>`. The bundle ships no loose files,
+# `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/<file>` or, after
+# `const basePath = env.NEXT_PUBLIC_BASE_PATH ?? ""`, `${basePath}/<file>`.
+# The bundle ships no loose files,
 # so embed each as a data URL and remap matching <img src> values at runtime.
 # copy-css.sh injects the same script into the reference iframe.html.
-ASSETS="$(cd "$D" && grep -rhoE 'NEXT_PUBLIC_BASE_PATH \?\? ""\}/[A-Za-z0-9._/-]+' --include='*.tsx' --exclude='*.stories.tsx' . \
+ASSETS="$(cd "$D" && grep -rhoE '(NEXT_PUBLIC_BASE_PATH \?\? ""|\{basePath)\}/[A-Za-z0-9._/-]+' --include='*.tsx' --exclude='*.stories.tsx' . \
   | sed -E 's|.*\}/||' | LC_ALL=C sort -u)"
 # shellcheck disable=SC2086
 node - ../../web/public $ASSETS > public-assets.js <<'JS'

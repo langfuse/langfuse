@@ -615,7 +615,10 @@ export { clickhouseCompliantRandomCharacters } from "./repositories/clickhouse";
 export { OBSERVATIONS_TO_TRACE_INTERVAL_DAYS } from "./repositories/constants";
 export { OBSERVATIONS_TO_TRACE_INTERVAL } from "./repositories/constants";
 export { TRACE_TO_OBSERVATIONS_INTERVAL } from "./repositories/constants";
-export { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./repositories/constants";
+export {
+  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
+  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_HOURS,
+} from "./repositories/constants";
 export { isStorableTraceSessionId } from "./repositories/trace-sessions";
 export { storableTraceSessionIds } from "./repositories/trace-sessions";
 export { getPublicSessionsFilter } from "./repositories/trace-sessions";
@@ -714,6 +717,7 @@ export { getExperimentItemsCountFromEvents } from "./repositories/experiments";
 export { getExperimentItemsFilterOptions } from "./repositories/experiments";
 export { getExperimentScoreOptions } from "./repositories/experiments";
 export { getExperimentItemsFromEvents } from "./repositories/experiments";
+export { getExperimentsStartTime } from "./repositories/experiments";
 export { type ExperimentOutputData } from "./repositories/experiments";
 export { type ExperimentItemBatchIO } from "./repositories/experiments";
 export { getExperimentItemsBatchIO } from "./repositories/experiments";
@@ -729,6 +733,10 @@ export { type StageAuditLogEventInput } from "./repositories/auditLogs";
 export { stageAuditLogEvents } from "./repositories/auditLogs";
 export { deriveAuditLogEventId } from "./repositories/auditLogs";
 export { convertAuditLogStagingRowToClickhouse } from "./repositories/auditLogs";
+export { type AuditLogEntry } from "./repositories/auditLogs";
+export { getAuditLogs } from "./repositories/auditLogs";
+export { getAuditLogsCount } from "./repositories/auditLogs";
+export { getAuditLogsForExport } from "./repositories/auditLogs";
 export { convertPostgresAuditLogToClickhouse } from "./repositories/auditLogs";
 export { getAuditLogResourceRefs } from "./repositories/auditLogs";
 export { getSystemAuditLogActorForUserId } from "./repositories/auditLogs";
@@ -890,6 +898,7 @@ export { createObservationsCh } from "./test-utils/clickhouse-helpers";
 export { createEventsCh } from "./test-utils/clickhouse-helpers";
 export { createScoresCh } from "./test-utils/clickhouse-helpers";
 export { createDatasetRunItemsCh } from "./test-utils/clickhouse-helpers";
+export { createAuditLogsCh } from "./test-utils/clickhouse-helpers";
 export { createBasicAuthHeader } from "./test-utils/org-factory";
 export { type CreateOrgProjectAndApiKeyOptions } from "./test-utils/org-factory";
 export { createOrgProjectAndApiKey } from "./test-utils/org-factory";
