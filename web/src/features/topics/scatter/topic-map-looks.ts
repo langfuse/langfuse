@@ -124,7 +124,7 @@ const CATEGORY_HUES: Record<string, number> = {
   olive: 100,
 };
 
-type Rgb = [number, number, number];
+export type Rgb = [number, number, number];
 
 /** The color a look paints a topic's field in. */
 function lookFieldColor(name: TopicMapLookName, color: string) {
@@ -308,6 +308,19 @@ export function lookDotColor(name: TopicMapLookName, color: string) {
   return `oklch(${vivid.lightness} ${vivid.chroma} ${CATEGORY_HUES[hue]})`;
 }
 
+// Canvas parses every new color string, so each color gets one string per shade.
+const cssRgbCache = new WeakMap<Rgb, Map<number, string>>();
+function cssRgb(rgb: Rgb, shade: number) {
+  let byShade = cssRgbCache.get(rgb);
+  if (!byShade) cssRgbCache.set(rgb, (byShade = new Map()));
+  let value = byShade.get(shade);
+  if (!value) {
+    value = `rgb(${rgb.map((channel) => Math.round(channel * shade)).join(", ")})`;
+    byShade.set(shade, value);
+  }
+  return value;
+}
+
 /** A dot in its topic color, darkened by the look's shade and ringed in the stage background. */
 export function drawLookDot(
   context: CanvasRenderingContext2D,
@@ -322,18 +335,17 @@ export function drawLookDot(
   const { dot } = TOPIC_MAP_LOOKS[name];
   // Dots grow gently as you zoom in (6px at the fit, about 10px at 300%) and on a larger stage.
   const radius = (dot.size * stage * Math.sqrt(Math.max(1, zoom))) / 2;
-  const [r, g, b] = rgb.map((value) => Math.round(value * dot.shade));
   // On dark, a mid-dark ring separates crowded dots without a hard black outline.
   const dark = isDark();
   context.globalAlpha = opacity * (dark ? DARK.ringAlpha : dot.ringAlpha);
   context.beginPath();
   context.arc(center.x, center.y, radius + dot.ring * stage, 0, 2 * Math.PI);
-  context.fillStyle = dark ? DARK.ring : `rgb(${background.join(", ")})`;
+  context.fillStyle = dark ? DARK.ring : cssRgb(background, 1);
   context.fill();
   context.globalAlpha = opacity;
   context.beginPath();
   context.arc(center.x, center.y, radius, 0, 2 * Math.PI);
-  context.fillStyle = `rgb(${r}, ${g}, ${b})`;
+  context.fillStyle = cssRgb(rgb, dot.shade);
   context.fill();
 }
 

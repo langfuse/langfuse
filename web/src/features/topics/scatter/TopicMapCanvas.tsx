@@ -18,6 +18,7 @@ import {
   drawLookFields,
   lookBackground,
   lookDotColor,
+  type Rgb,
   LOOK,
 } from "./topic-map-looks";
 
@@ -225,13 +226,20 @@ function drawMap(
   // Unassigned dots go down first so topic colors sit on top.
   const unassigned = frame.nodes.filter((node) => isUnassigned(node));
   const assigned = frame.nodes.filter((node) => !isUnassigned(node));
+  // One resolved color per topic, not per dot.
+  const dotColors = new Map<string, Rgb>();
   for (const node of [...unassigned, ...assigned]) {
     const active = emphasis.get(node.point.traceId) ?? 0;
+    let rgb = dotColors.get(node.point.color);
+    if (!rgb) {
+      rgb = rgbOf(lookDotColor(LOOK, node.point.color));
+      dotColors.set(node.point.color, rgb);
+    }
     drawLookDot(
       context,
       LOOK,
       node.center,
-      rgbOf(lookDotColor(LOOK, node.point.color)),
+      rgb,
       ring,
       node.matchesFilters ? 1 : DIMMED + active * (1 - DIMMED),
       camera.zoom,
