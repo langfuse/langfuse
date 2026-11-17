@@ -41,7 +41,7 @@ const FIRST_NAMES = [
   "Farid",
   "Grace",
   "Hiro",
-  "Ines",
+  "Isla",
   "Jonas",
   "Kira",
   "Liam",
