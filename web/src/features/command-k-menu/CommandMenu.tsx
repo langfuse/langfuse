@@ -1,4 +1,5 @@
 /* eslint-disable @repo/no-null-render, @typescript-eslint/no-use-before-define */
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import {
   CommandDialog,
   CommandEmpty,
@@ -337,7 +338,7 @@ function CreateActionItem({
   );
 }
 
-function useAssistantQueryOffer(resultsSettled: boolean) {
+function useAssistantQueryOffer() {
   const isLauncherVisible = useIsInAppAgentLauncherVisible();
   const search = useCommandState((state) => state.search);
   const filteredCount = useCommandState((state) => state.filtered.count);
@@ -345,17 +346,30 @@ function useAssistantQueryOffer(resultsSettled: boolean) {
 
   return {
     query,
-    offer:
-      resultsSettled &&
-      isLauncherVisible &&
-      query.length > 0 &&
-      filteredCount === 0,
+    // Present for every non-empty query, so the row does not pop in after search settles.
+    offer: isLauncherVisible && query.length > 0,
+    // forceMount keeps this row out of cmdk's filtered count.
+    unmatched: filteredCount === 0,
   };
 }
 
-function CommandMenuEmpty({ resultsSettled }: { resultsSettled: boolean }) {
-  const { offer } = useAssistantQueryOffer(resultsSettled);
+function CommandMenuEmpty({
+  entitySearchPending,
+}: {
+  entitySearchPending: boolean;
+}) {
+  const { query, offer } = useAssistantQueryOffer();
 
+  if (query.length > 0 && entitySearchPending) {
+    return (
+      <CommandEmpty className="text-muted-foreground flex items-center gap-2 px-2 py-2.5 text-sm">
+        <Spinner variant="muted" size="xs" display="inline" />
+        Searching…
+      </CommandEmpty>
+    );
+  }
+
+  // Ask Halo is the unmatched state. "No results found." is only for when Halo is unavailable.
   if (offer) return null;
 
   return <CommandEmpty>No results found.</CommandEmpty>;
@@ -408,17 +422,15 @@ function commitsImeComposition(event: {
 function CommandMenuInput({
   search,
   onSearchChange,
-  resultsSettled,
   lockRef,
   onAccepted,
 }: {
   search: string;
   onSearchChange: (value: string) => void;
-  resultsSettled: boolean;
   lockRef: { current: string | null };
   onAccepted: () => void;
 }) {
-  const { offer, query } = useAssistantQueryOffer(resultsSettled);
+  const { offer, query, unmatched } = useAssistantQueryOffer();
   const ask = useAskHalo(lockRef, onAccepted);
 
   return (
@@ -432,6 +444,7 @@ function CommandMenuInput({
           event.key !== "Enter" ||
           commitsImeComposition(event.nativeEvent) ||
           !offer ||
+          !unmatched ||
           query !== search.trim()
         ) {
           return;
@@ -446,15 +459,13 @@ function CommandMenuInput({
 }
 
 function AssistantQueryFallback({
-  resultsSettled,
   lockRef,
   onAccepted,
 }: {
-  resultsSettled: boolean;
   lockRef: { current: string | null };
   onAccepted: () => void;
 }) {
-  const { offer, query } = useAssistantQueryOffer(resultsSettled);
+  const { offer, query } = useAssistantQueryOffer();
   const ask = useAskHalo(lockRef, onAccepted);
 
   if (!offer) return null;
@@ -463,12 +474,7 @@ function AssistantQueryFallback({
 
   return (
     <CommandGroup forceMount heading="Halo">
-      <CommandItem
-        forceMount
-        className="bg-accent text-primary"
-        value={`ask-halo:${query}`}
-        onSelect={() => ask(query)}
-      >
+      <CommandItem forceMount value="ask-halo" onSelect={() => ask(query)}>
         <BotMessageSquare size="base" />
         <span className="min-w-0 flex-1 truncate" title={label}>
           {label}
@@ -1052,14 +1058,11 @@ function CommandMenuComponent({
   const flatNavigation = flattenNavigation(mainNavigation);
   const createActions = useCreateActions(mainNavigation);
   const pageShortcuts = usePageShortcuts(mainNavigation);
-  const { entityGroups, entityBaseUrls, entitiesFetching } = useEntityGroups(
+  const { entityGroups, entityBaseUrls, entitySearchPending } = useEntityGroups(
     mainNavigation,
     search,
     debouncedSearch,
   );
-  // Server-searched entities stay empty until the debounce and the fetch settle.
-  const resultsSettled =
-    search.trim() === debouncedSearch.trim() && !entitiesFetching;
   const isSearching = search !== "";
   const idNavigationItem = getIdNavigationItem(search, project?.id, isV4);
 
@@ -1163,17 +1166,10 @@ function CommandMenuComponent({
           setSearch(value);
           debouncedSearchChange(value);
         }}
-        resultsSettled={resultsSettled}
         lockRef={askLockRef}
         onAccepted={handleNavigate}
       />
       <CommandList>
-        <CommandMenuEmpty resultsSettled={resultsSettled} />
-        <AssistantQueryFallback
-          resultsSettled={resultsSettled}
-          lockRef={askLockRef}
-          onAccepted={handleNavigate}
-        />
         {idNavigationItem && (
           <IdNavigationGroup
             heading="Tracing"
@@ -1212,6 +1208,11 @@ function CommandMenuComponent({
         <OrganizationSettingsGroup onNavigate={handleNavigate} />
         <AiGatewayGroup onNavigate={handleNavigate} />
         <AccountSettingsGroup onNavigate={handleNavigate} />
+        <AssistantQueryFallback
+          lockRef={askLockRef}
+          onAccepted={handleNavigate}
+        />
+        <CommandMenuEmpty entitySearchPending={entitySearchPending} />
       </CommandList>
     </CommandDialog>
   );
@@ -1376,7 +1377,7 @@ function useEntityGroups(
 ): {
   entityGroups: EntityGroupData[];
   entityBaseUrls: string[];
-  entitiesFetching: boolean;
+  entitySearchPending: boolean;
 } {
   const session = useSession();
   const { project } = useQueryProjectOrOrganization();
@@ -1431,11 +1432,17 @@ function useEntityGroups(
     entityBaseUrls: [promptsUrl, datasetsUrl, queuesUrl, evaluatorsUrl].filter(
       (url): url is string => url !== null,
     ),
-    entitiesFetching:
-      prompts.isFetching ||
-      datasets.isFetching ||
-      queues.isFetching ||
-      evaluators.isFetching,
+    // Pages and loaded name lists match on the keystroke. Only a list that is
+    // still loading, or the debounced evaluator search, can still add rows.
+    entitySearchPending:
+      (promptsUrl !== null && prompts.isPending) ||
+      (datasetsUrl !== null && datasets.isPending) ||
+      (queuesUrl !== null && queues.isPending) ||
+      (evaluatorsUrl !== null &&
+        search.trim().length > 0 &&
+        (search.trim() !== debouncedSearch.trim() ||
+          evaluators.isFetching ||
+          evaluators.isPending)),
   };
 }
 
