@@ -91,6 +91,7 @@ describe("AI gateway provider registry", () => {
         apiFormat: "anthropic.messages",
         config,
         baseURL: null,
+        credential: "unused",
       }),
     ).toEqual({
       baseUrl:
@@ -103,6 +104,7 @@ describe("AI gateway provider registry", () => {
         apiFormat: "openai.chat-completions",
         config,
         baseURL: null,
+        credential: "unused",
       }),
     ).toEqual({
       baseUrl: "https://bedrock-runtime.eu-central-1.amazonaws.com/openai/v1",
@@ -114,6 +116,7 @@ describe("AI gateway provider registry", () => {
         apiFormat: "openai.responses",
         config: { region: "evil.example/x" },
         baseURL: null,
+        credential: "unused",
       }),
     ).toThrow();
   });
@@ -166,6 +169,7 @@ describe("AI gateway provider registry", () => {
         config: null,
         baseURL:
           "https://contoso.services.ai.azure.com/api/projects/my-project",
+        credential: "azure-key",
       });
     expect(upstream("openai.embeddings")).toEqual({
       baseUrl: "https://contoso.services.ai.azure.com/openai/v1",
@@ -270,7 +274,10 @@ describe("AI gateway provider registry", () => {
       },
     } as unknown as PrismaClient;
     const service = new GatewayModelsService(prisma, redis);
-    const context = { organizationId: "org-1" } as GatewayApiKeyAuthContext;
+    const context = {
+      organizationId: "org-1",
+      keyAllowedModels: null,
+    } as GatewayApiKeyAuthContext;
 
     const messages = await service.list({
       context,
@@ -328,7 +335,10 @@ describe("AI gateway provider registry", () => {
     try {
       await expect(
         new GatewayModelsService(prisma, redis).list({
-          context: { organizationId: "org-1" } as GatewayApiKeyAuthContext,
+          context: {
+            organizationId: "org-1",
+            keyAllowedModels: null,
+          } as GatewayApiKeyAuthContext,
           apiFormat: "openai.responses",
         }),
       ).rejects.toThrow("Gateway model discovery is temporarily unavailable");

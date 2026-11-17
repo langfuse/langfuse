@@ -38,6 +38,7 @@ import {
 import {
   ValueCell,
   getValueStringLength,
+  isJsonRowExpandable,
 } from "@/src/components/table/ValueCell";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 
@@ -57,6 +58,7 @@ function getEmptyValueDisplay(value: unknown): string | null {
   if (value === null) return "null";
   if (value === undefined) return "undefined";
   if (value === "") return "empty string";
+  if (Array.isArray(value) && value.length === 0) return "empty list";
   if (
     typeof value === "object" &&
     !Array.isArray(value) &&
@@ -152,9 +154,7 @@ const JsonTableRowComponent = memo(
     stickyTopLevelKey,
   }: JsonTableRowProps) => {
     // Hook is now at top level of this component ✅
-    const isExpandable =
-      row.original.hasChildren ||
-      getValueStringLength(row.original.value) > MAX_CELL_DISPLAY_CHARS;
+    const isExpandable = isJsonRowExpandable(row.original);
 
     const { props: rowClickProps } = useClickWithoutSelection({
       onClick: () => {
@@ -311,7 +311,13 @@ function JsonPrettyTable({
             </Button>
           ) : null}
         </div>
-        <span className={cn("min-w-0 cursor-text", KEY_CLASSES)}>
+        <span
+          className={cn(
+            "min-w-0",
+            !isJsonRowExpandable(row.original) && "cursor-text",
+            KEY_CLASSES,
+          )}
+        >
           {itemBadgeType && (
             <span className="mr-1 inline-block align-middle">
               <ItemBadge type={itemBadgeType} isSmall={true} />

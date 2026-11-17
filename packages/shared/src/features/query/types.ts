@@ -102,6 +102,9 @@ export const viewDeclaration = z.object({
       joinConditionSql: z.string(),
       timeDimension: z.string(),
       useFinal: z.boolean().optional(),
+      // Join a server-built subquery instead of the raw table. The query
+      // builder owns its time and tenancy filters; `timeDimension` is unused.
+      source: z.enum(["eventsTraceAttributes"]).optional(),
     }),
   ),
   // Segments are used to apply "constant" filters to the query. For example, if we only want one type of observations.

@@ -1,6 +1,7 @@
 import type { FilterState } from "@langfuse/shared";
 import type { TopicFacet, TopicFacetRef } from "@langfuse/shared/topics";
 import type { RouterOutputs } from "@/src/utils/api";
+import { formatCompactRelativeTime } from "@/src/utils/dates";
 
 export type TopicMapsOverview = RouterOutputs["topics"]["maps"];
 export type TopicRuleMap = TopicMapsOverview["rules"][number];
@@ -36,18 +37,6 @@ function filterValue(value: unknown): string {
   return String(value);
 }
 
-/** One chip per filter, e.g. `traceName: support-agent` or `latency > 10`. */
-function topicFilterChips(filter: FilterState) {
-  return filter.map((item) => {
-    const column =
-      "key" in item && item.key ? `${item.column}.${item.key}` : item.column;
-    const value = "value" in item ? filterValue(item.value) : "";
-    if (item.operator === "=" || item.operator === "any of")
-      return `${column}: ${value}`;
-    return `${column} ${item.operator} ${value}`.trim();
-  });
-}
-
 /** A filter as `column`, `operator` and `value`, e.g. `type`, `=`, `GENERATION`. */
 export function topicFilterParts(filter: FilterState) {
   return filter.map((item) => {
@@ -70,35 +59,14 @@ export function filterCountLabel(filter: FilterState) {
   return `${filter.length} ${filter.length === 1 ? "filter" : "filters"}`;
 }
 
-/** The rule name suggested from its filters, before the user edits it. */
-export function suggestTopicRuleName(filter: FilterState) {
-  const values = filter.flatMap((item) =>
-    "value" in item ? [filterValue(item.value)] : [],
-  );
-  return values.filter(Boolean).join(" · ").slice(0, 100) || "All traces";
-}
-
-/** The analysis label suggested from its filters. */
-export function suggestTopicAnalysisLabel(filter: FilterState) {
-  return filter.length
-    ? topicFilterChips(filter).join(" · ").slice(0, 100)
-    : "All summarized traces";
-}
-
-function hoursLabel(ms: number) {
-  const hours = Math.round(ms / 3_600_000);
-  if (hours < 1) return `${Math.max(1, Math.round(ms / 60_000))} min`;
-  return `${hours} h`;
-}
-
-/** "Updated 2 h ago" for a rule map. */
+/** "Updated 2h ago" or "Updated 27d ago" for a rule map. */
 export function topicRuleFreshness(
   rule: Pick<TopicRuleMap, "enabled" | "lastRefitAt">,
   now: number,
 ) {
   if (rule.enabled === false) return "Paused · map frozen";
   if (!rule.lastRefitAt) return "First clustering pending";
-  return `Updated ${hoursLabel(now - Date.parse(rule.lastRefitAt))} ago`;
+  return `Updated ${formatCompactRelativeTime(new Date(rule.lastRefitAt), now)}`;
 }
 
 /** The selected facets at their current prompt versions. */

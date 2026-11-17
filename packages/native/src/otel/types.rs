@@ -11,6 +11,7 @@
 use std::collections::{BTreeMap, HashSet};
 
 use chrono::{DateTime, NaiveDateTime, SecondsFormat, Utc};
+use indexmap::IndexMap;
 
 use super::attributes::{for_each_javascript_object_entry_owned, javascript_json_stringify};
 use super::value::{Object, Value};
@@ -23,7 +24,7 @@ pub type JsonObject = Object;
 pub struct EnrichmentResult {
     pub prompt_id: Option<String>,
     pub model_id: Option<String>,
-    pub usage_details: BTreeMap<String, Value>,
+    pub usage_details: IndexMap<String, Value>,
     pub cost_details: BTreeMap<String, Value>,
     pub usage_pricing_tier_id: Option<String>,
     pub usage_pricing_tier_name: Option<String>,
@@ -62,7 +63,7 @@ pub struct OwnedEvent {
     pub row: crate::native_schema::OtelStorageRow,
     pub prompt_version_lookup: Option<f64>,
     pub model_parameters: Option<Value>,
-    pub provided_usage_details: BTreeMap<String, Value>,
+    pub provided_usage_details: IndexMap<String, Value>,
     pub provided_cost_details: BTreeMap<String, Value>,
     pub input: Option<Value>,
     pub output: Option<Value>,
@@ -97,7 +98,7 @@ impl Default for OwnedEvent {
             model_parameters: None,
             input: None,
             output: None,
-            provided_usage_details: BTreeMap::new(),
+            provided_usage_details: IndexMap::new(),
             provided_cost_details: BTreeMap::new(),
             metadata: JsonObject::new(),
             skills_available: Vec::new(),
@@ -141,7 +142,10 @@ impl OwnedEvent {
     }
 }
 
-fn storage_map(values: BTreeMap<String, Value>) -> BTreeMap<String, serde_json::Value> {
+fn storage_map<I>(values: I) -> BTreeMap<String, serde_json::Value>
+where
+    I: IntoIterator<Item = (String, Value)>,
+{
     values
         .into_iter()
         .map(|(key, value)| (key, value.into_serde_lossy()))

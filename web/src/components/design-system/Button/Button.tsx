@@ -31,7 +31,13 @@ const buttonVariants = cva(
         sm: "h-7 px-2 text-xs",
       },
     },
-    compoundVariants: [{ variant: "text", class: "h-auto px-0 py-0" }],
+    compoundVariants: [
+      { variant: "text", class: "h-auto px-0 py-0" },
+      {
+        variant: "outline",
+        class: "aria-pressed:border-primary aria-pressed:bg-primary/5",
+      },
+    ],
     defaultVariants: {
       variant: "primary",
       size: "default",
@@ -72,7 +78,11 @@ type ButtonProps = {
       "data-state"?: string;
     } & Pick<
       ButtonHTMLAttributes<HTMLButtonElement>,
-      "id" | "aria-controls" | "aria-expanded" | "aria-haspopup"
+      | "id"
+      | "aria-controls"
+      | "aria-expanded"
+      | "aria-haspopup"
+      | "aria-pressed"
     >)
 );
 
@@ -141,6 +151,7 @@ export function Button(props: ButtonProps) {
       aria-controls={props["aria-controls"]}
       aria-expanded={props["aria-expanded"]}
       aria-haspopup={props["aria-haspopup"]}
+      aria-pressed={props["aria-pressed"]}
       data-state={props["data-state"]}
     >
       <span

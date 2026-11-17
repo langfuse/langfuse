@@ -7,32 +7,31 @@ import {
 } from "./topic-maps";
 
 function Strip({
-  trailing,
+  status,
   controls,
   options,
 }: {
-  trailing?: string;
+  status?: string;
   controls?: ReactNode;
   options?: ReactNode;
 }) {
   return (
-    <div className="ph-no-capture flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-2 text-sm">
-      {controls && (
-        <span className="hidden items-center gap-3 md:flex">{controls}</span>
-      )}
+    // Below md the controls and options move to the handheld row and the status to the title row.
+    <div className="ph-no-capture hidden shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-2 text-sm md:flex">
+      {controls && <span className="flex items-center gap-3">{controls}</span>}
       <span className="ml-auto flex items-center gap-6">
-        {trailing && (
+        {status && (
           <span className="text-muted-foreground whitespace-nowrap">
-            {trailing}
+            {status}
           </span>
         )}
-        {options && <span className="hidden md:flex">{options}</span>}
+        {options && <span className="flex">{options}</span>}
       </span>
     </div>
   );
 }
 
-/** The selected live map's controls; a status line only while paused or building. */
+/** The selected live map's controls and when its map was last fitted or refreshed. */
 function TopicRuleStrip({
   rule,
   now,
@@ -51,15 +50,21 @@ function TopicRuleStrip({
 }) {
   return (
     <Strip
-      trailing={ruleTrailing(rule, now, mapShown)}
+      status={topicRuleStatus(rule, now, mapShown)}
       controls={controls}
       options={options}
     />
   );
 }
 
-function ruleTrailing(rule: TopicRuleMap, now: number, mapShown: boolean) {
-  if (rule.enabled === false || (!rule.lastRefitAt && !mapShown))
+/** A live map's status line, e.g. "Updated 2h ago"; empty when there is nothing to say. */
+export function topicRuleStatus(
+  rule: TopicRuleMap,
+  now: number,
+  mapShown: boolean,
+) {
+  if (rule.refresh.running) return "Refreshing map…";
+  if (rule.enabled === false || rule.lastRefitAt || !mapShown)
     return topicRuleFreshness(rule, now);
   return "";
 }
@@ -76,11 +81,16 @@ function TopicAnalysisStrip({
 }) {
   return (
     <Strip
-      trailing={`${analysis.traceCount.toLocaleString("en-US")} traces · ${topicWindowLabel(analysis.timeRange)}`}
+      status={topicAnalysisStatus(analysis)}
       controls={controls}
       options={options}
     />
   );
+}
+
+/** A past run's status line: its trace count and period. */
+export function topicAnalysisStatus(analysis: TopicAnalysisMap) {
+  return `${analysis.traceCount.toLocaleString("en-US")} traces · ${topicWindowLabel(analysis.timeRange)}`;
 }
 
 /** The row under the Topics header for a live map or a past run. */

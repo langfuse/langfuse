@@ -48,7 +48,7 @@ export const CloudSpendAlertEmailTemplate = ({
               <Img
                 src="https://static.langfuse.com/langfuse_logo_transactional_email.png"
                 width="40"
-                height="40"
+                height="26"
                 alt="Langfuse"
                 className="mx-auto my-0"
               />
@@ -116,11 +116,10 @@ export const CloudSpendAlertEmailTemplate = ({
               </Heading>
               <Text className="text-gray-700 text-sm leading-6">
                 • Ingestions and billing continue as normal
-                <br />
-                • This email is informational; it reflects a threshold you
+                <br />• This email is informational; it reflects a threshold you
                 configured
-                <br />
-                • Manage thresholds or review usage in your billing settings
+                <br />• Manage thresholds or review usage in your billing
+                settings
                 <br />• This alert won’t trigger again until the next billing
                 cycle
               </Text>

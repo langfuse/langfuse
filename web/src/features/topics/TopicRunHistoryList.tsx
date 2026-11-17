@@ -102,7 +102,8 @@ function ActiveRun({
     total,
     ...run.facets.map((facet) => facet.counts.complete),
   );
-  const showProgress = run.input.operation === "process" && total > 0;
+  // A snapshot shows a bar only while it summarizes its traces.
+  const showProgress = run.phase === "summarizing" && total > 0;
   return (
     <div
       role="status"
@@ -139,11 +140,7 @@ function ActiveRun({
         </div>
       )}
       <div className="flex items-center justify-between gap-2.5 text-xs">
-        <span className="text-muted-foreground">
-          {run.input.operation === "process"
-            ? "Estimated cost so far"
-            : "Estimated cost"}
-        </span>
+        <span className="text-muted-foreground">Estimated cost</span>
         <span className="font-mono">
           {formatTopicRunCost(run.input.operation, run.estimatedCost)}
         </span>
