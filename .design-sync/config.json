@@ -164,8 +164,8 @@
         "design-components-dropdownmenu--test-search-behavior",
         "design-components-dropdownmenu--test-secondary-action-layout",
         "design-components-dropdownmenu--test-trigger-and-items",
-        "design-components-dropdownmenu--test-header-action-keyboard",
-        "design-components-dropdownmenu--test-clears-the-search"
+        "design-components-dropdownmenu--test-clears-the-search",
+        "design-components-dropdownmenu--test-header-action-keyboard"
       ]
     },
     "HoverCard": {
@@ -260,7 +260,8 @@
     "KeyValueFilterBuilder": {
       "cardMode": "column",
       "skip": [
-        "playground-keyvaluefilterbuilder--test-observed-key-suggestion-preserves-value"
+        "playground-keyvaluefilterbuilder--test-observed-key-suggestion-preserves-value",
+        "playground-keyvaluefilterbuilder--test-session-replay-block"
       ]
     },
     "MediaTag": {
@@ -325,15 +326,20 @@
         "design-components-expandtoggle--toggles-state"
       ]
     },
-    "AsyncSelectInput": {
-      "skip": [
-        "design-components-asyncselectinput--external-results"
-      ]
-    },
     "ProjectDropdownMenu": {
       "skip": [
         "playground-projectdropdownmenu--test-search",
         "playground-projectdropdownmenu--test-actions-stay-in-view"
+      ]
+    },
+    "OrganizationDropdownMenu": {
+      "skip": [
+        "playground-organizationdropdownmenu--test-search"
+      ]
+    },
+    "AsyncSelectInput": {
+      "skip": [
+        "design-components-asyncselectinput--external-results"
       ]
     },
     "TabBar": {
