@@ -5300,6 +5300,16 @@ paths:
           schema:
             type: integer
             nullable: true
+        - name: includeTotal
+          in: query
+          description: >-
+            Set to `true` to return `meta.totalItems`, the number of prompts
+            matching the filters. Defaults to `false`; counting adds latency on
+            large projects.
+          required: false
+          schema:
+            type: boolean
+            nullable: true
         - name: fromUpdatedAt
           in: query
           description: >-
@@ -13778,6 +13788,12 @@ components:
       properties:
         limit:
           type: integer
+        totalItems:
+          type: integer
+          nullable: true
+          description: >-
+            number of total items given the current filters/selection (if any).
+            Only present when `includeTotal=true`.
       required:
         - limit
       allOf:

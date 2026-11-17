@@ -101,6 +101,9 @@ service:
           limit:
             type: optional<integer>
             docs: limit of items per page
+          includeTotal:
+            type: optional<boolean>
+            docs: Set to `true` to return `meta.totalItems`, the number of prompts matching the filters. Defaults to `false`; counting adds latency on large projects.
           fromUpdatedAt:
             type: optional<datetime>
             docs: Optional filter to only include prompt versions created/updated on or after a certain datetime (ISO 8601)
@@ -173,6 +176,9 @@ types:
       - pagination.CursorMetaResponse
     properties:
       limit: integer
+      totalItems:
+        type: optional<integer>
+        docs: number of total items given the current filters/selection (if any). Only present when `includeTotal=true`.
 
   PromptMetaListV3Response:
     properties:
