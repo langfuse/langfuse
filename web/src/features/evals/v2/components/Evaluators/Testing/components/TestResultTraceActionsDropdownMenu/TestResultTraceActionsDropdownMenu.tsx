@@ -1,13 +1,9 @@
 /* eslint-disable @repo/component-file-structure */
-import { forwardRef, type ComponentProps, type ReactNode } from "react";
+import { forwardRef, type ComponentProps } from "react";
 import { ExternalLink, MoreVertical } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/src/components/ui/dropdown-menu";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 
 export const TestResultTraceActionsTrigger = forwardRef<
   HTMLButtonElement,
@@ -27,12 +23,12 @@ export const TestResultTraceActionsTrigger = forwardRef<
   );
 });
 
-export function TestResultTraceActions({
+export function TestResultTraceActionsDropdownMenu({
   children,
   executionTraceId,
   onOpenExecutionTrace,
 }: {
-  children: ReactNode;
+  children: ComponentProps<typeof DropdownMenu>["children"];
   executionTraceId: string | null;
   onOpenExecutionTrace: ((executionTraceId: string) => void) | null;
 }) {
@@ -42,16 +38,23 @@ export function TestResultTraceActions({
       : null;
 
   return (
-    <DropdownMenu>
+    <DropdownMenu
+      placement="bottom-end"
+      items={
+        openExecutionTrace
+          ? [
+              {
+                type: "item",
+                id: "open-execution-trace",
+                title: "Open execution trace",
+                icon: ExternalLink,
+                onClick: openExecutionTrace,
+              },
+            ]
+          : []
+      }
+    >
       {children}
-      <DropdownMenuContent align="end">
-        {openExecutionTrace ? (
-          <DropdownMenuItem onClick={openExecutionTrace}>
-            <ExternalLink size="base" color="default" __rawClassName="mr-2" />
-            Open execution trace
-          </DropdownMenuItem>
-        ) : null}
-      </DropdownMenuContent>
     </DropdownMenu>
   );
 }
