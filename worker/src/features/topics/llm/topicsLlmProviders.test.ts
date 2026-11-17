@@ -1,207 +1,34 @@
 import { describe, expect, test } from "vitest";
-import { encrypt } from "@langfuse/shared/encryption";
-import { LLMAdapter } from "@langfuse/shared";
+import { DEFAULT_TOPIC_FACETS } from "@langfuse/shared/topics";
 import {
-  DEFAULT_TOPIC_FACETS,
-  topicProcessingConfigSchema,
-} from "@langfuse/shared/topics";
-import type { TopicsModel, TopicsModels } from "@langfuse/shared/topics/server";
-import {
+  embedTopicSummaries,
   nameTopicGroup,
   prepareTopicNamingGroup,
   summarizeTopicTraceFacets,
 } from "./models";
+import {
+  resolveTopicsLlmCombination,
+  TOPICS_LLM_COMBINATIONS,
+} from "./topicsLlmCombinations";
 
 /**
  * Topics LLM provider tests
  *
- * Real summary and naming calls through each provider, using the same prompt,
- * schema and parsing as processing. They assert that each call succeeds and
- * returns a parseable, non-empty result, never what the model wrote.
+ * Real summary, embedding and naming calls for every combination registered
+ * in `topicsLlmCombinations.ts`, using the same prompts, schemas and parsing
+ * as processing. They assert that each call succeeds and returns a parseable,
+ * non-empty result, never what the model wrote.
  *
- * Required environment variables (tests FAIL if not set), shared with
- * `src/__tests__/llmConnections.test.ts`:
- * - LANGFUSE_LLM_CONNECTION_OPENAI_KEY
- * - LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY
- * - LANGFUSE_LLM_CONNECTION_AZURE_KEY, _AZURE_BASE_URL, _AZURE_MODEL (Azure suite is currently skipped)
- * - LANGFUSE_LLM_CONNECTION_BEDROCK_ACCESS_KEY_ID, _BEDROCK_SECRET_ACCESS_KEY, _BEDROCK_REGION
- * - LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY
- * - LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY
- * - LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY
- *
- * Optional: LANGFUSE_LLM_CONNECTION_BEDROCK_GPT_MODEL, a Bedrock GPT-5.6+
- * model or inference profile available in the Bedrock region. Cached summary
- * prompts on those models use InvokeModel instead of Converse; the suite is
- * skipped without it.
+ * Requires the `LANGFUSE_LLM_CONNECTION_*` secrets of llmConnections.test.ts;
+ * a combination whose secrets are missing fails.
  */
 
 const TIMEOUT_MS = 120_000;
-const PROJECT_ID = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
-
-type ProviderCase = {
-  name: string;
-  requiredEnv: string[];
-  skip?: boolean;
-  model: () => Omit<TopicsModel, "slot">;
-};
-
-const env = (name: string) => process.env[name]!;
-
-const bedrockAccessKeys = () =>
-  encrypt(
-    JSON.stringify({
-      accessKeyId: env("LANGFUSE_LLM_CONNECTION_BEDROCK_ACCESS_KEY_ID"),
-      secretAccessKey: env("LANGFUSE_LLM_CONNECTION_BEDROCK_SECRET_ACCESS_KEY"),
-    }),
-  );
-const bedrockAccessKeyEnv = [
-  "LANGFUSE_LLM_CONNECTION_BEDROCK_ACCESS_KEY_ID",
-  "LANGFUSE_LLM_CONNECTION_BEDROCK_SECRET_ACCESS_KEY",
-  "LANGFUSE_LLM_CONNECTION_BEDROCK_REGION",
-];
-
-const providers: ProviderCase[] = [
-  {
-    name: "OpenAI",
-    requiredEnv: ["LANGFUSE_LLM_CONNECTION_OPENAI_KEY"],
-    model: () => ({
-      provider: "openai",
-      adapter: LLMAdapter.OpenAI,
-      model: "gpt-5-mini",
-      connection: {
-        secretKey: encrypt(env("LANGFUSE_LLM_CONNECTION_OPENAI_KEY")),
-      },
-    }),
-  },
-  {
-    name: "Anthropic",
-    requiredEnv: ["LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY"],
-    model: () => ({
-      provider: "anthropic",
-      adapter: LLMAdapter.Anthropic,
-      model: "claude-sonnet-4-6",
-      connection: {
-        secretKey: encrypt(env("LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY")),
-      },
-    }),
-  },
-  {
-    name: "Azure",
-    // Skipped until CI has a valid Azure OpenAI key, like llmConnections.test.ts.
-    skip: true,
-    requiredEnv: [
-      "LANGFUSE_LLM_CONNECTION_AZURE_KEY",
-      "LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL",
-      "LANGFUSE_LLM_CONNECTION_AZURE_MODEL",
-    ],
-    model: () => ({
-      provider: "azure",
-      adapter: LLMAdapter.Azure,
-      model: env("LANGFUSE_LLM_CONNECTION_AZURE_MODEL"),
-      connection: {
-        secretKey: encrypt(env("LANGFUSE_LLM_CONNECTION_AZURE_KEY")),
-        baseURL: env("LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL"),
-      },
-    }),
-  },
-  {
-    name: "Bedrock",
-    requiredEnv: bedrockAccessKeyEnv,
-    model: () => ({
-      provider: "bedrock",
-      adapter: LLMAdapter.Bedrock,
-      model: "eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
-      connection: {
-        secretKey: bedrockAccessKeys(),
-        config: { region: env("LANGFUSE_LLM_CONNECTION_BEDROCK_REGION") },
-      },
-    }),
-  },
-  {
-    name: "Bedrock (API Key)",
-    requiredEnv: [
-      "LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY",
-      "LANGFUSE_LLM_CONNECTION_BEDROCK_REGION",
-    ],
-    model: () => ({
-      provider: "bedrock",
-      adapter: LLMAdapter.Bedrock,
-      model: "eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
-      connection: {
-        secretKey: encrypt(
-          JSON.stringify({
-            apiKey: env("LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY"),
-          }),
-        ),
-        config: { region: env("LANGFUSE_LLM_CONNECTION_BEDROCK_REGION") },
-      },
-    }),
-  },
-  {
-    name: "Bedrock GPT (InvokeModel)",
-    skip: !process.env.LANGFUSE_LLM_CONNECTION_BEDROCK_GPT_MODEL,
-    requiredEnv: [
-      ...bedrockAccessKeyEnv,
-      "LANGFUSE_LLM_CONNECTION_BEDROCK_GPT_MODEL",
-    ],
-    model: () => ({
-      provider: "bedrock",
-      adapter: LLMAdapter.Bedrock,
-      model: env("LANGFUSE_LLM_CONNECTION_BEDROCK_GPT_MODEL"),
-      connection: {
-        secretKey: bedrockAccessKeys(),
-        config: { region: env("LANGFUSE_LLM_CONNECTION_BEDROCK_REGION") },
-      },
-    }),
-  },
-  {
-    name: "VertexAI",
-    requiredEnv: ["LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY"],
-    model: () => ({
-      provider: "google-vertex-ai",
-      adapter: LLMAdapter.VertexAI,
-      model: "gemini-2.5-flash-lite",
-      connection: {
-        secretKey: encrypt(env("LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY")),
-        config: null,
-      },
-    }),
-  },
-  {
-    name: "GoogleAIStudio",
-    requiredEnv: ["LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY"],
-    model: () => ({
-      provider: "google-ai-studio",
-      adapter: LLMAdapter.GoogleAIStudio,
-      model: "gemini-3.1-flash-lite",
-      connection: {
-        secretKey: encrypt(env("LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY")),
-      },
-    }),
-  },
-];
-
-function topicsModels(provider: ProviderCase): TopicsModels {
-  const missing = provider.requiredEnv.filter((name) => !process.env[name]);
-  if (missing.length)
-    throw new Error(
-      `${missing.join(", ")} not set. This test calls ${provider.name} with real credentials. Set the environment variables to run it.`,
-    );
-  const model = provider.model();
-  return {
-    projectId: PROJECT_ID,
-    enabled: true,
-    summary: { ...model, slot: "summary" },
-    // Embeddings are not called here; the slot only completes the type.
-    embedding: { ...model, slot: "embedding", dimensions: 1024 },
-    clustering: { ...model, slot: "clustering" },
-  };
-}
 
 const facets = DEFAULT_TOPIC_FACETS.map(({ name, prompt }, index) => ({
   key: `${name.toLowerCase()}_${index + 1}`,
   facet: {
-    projectId: PROJECT_ID,
+    projectId: "topics-llm-provider-test",
     facetId: `facet-${index + 1}`,
     version: 1,
     prompt,
@@ -221,32 +48,29 @@ const transcript = `<run_facts>user messages: 2; assistant messages: 2; tool cal
 </this_run>
 <end_of_run>assistant reply</end_of_run>`;
 
-const namingMembers = [
+const summaries = [
   "Export last month's orders to CSV after the full export timed out.",
   "Export a quarter of invoices to CSV split into smaller files.",
   "Download the customer list as a spreadsheet after a failed export.",
   "Export order history to CSV grouped by region.",
-].map((summary) => ({ summary }));
+];
 
 describe("Topics LLM provider tests", () => {
-  for (const provider of providers) {
-    (provider.skip ? describe.skip : describe)(provider.name, () => {
+  for (const combination of TOPICS_LLM_COMBINATIONS) {
+    (combination.skip ? describe.skip : describe)(combination.name, () => {
       test(
-        "facet summarization returns every facet with a summary",
+        `facet summarization (${combination.summary.model})`,
         async () => {
-          const models = topicsModels(provider);
+          const { models, config } = resolveTopicsLlmCombination(combination);
 
           const { output } = await summarizeTopicTraceFacets(
             models,
             facets,
             transcript,
-            topicProcessingConfigSchema.parse({}),
+            config,
           );
 
-          const entries = output as Record<
-            string,
-            { summary: string; status: string }
-          >;
+          const entries = output as Record<string, { summary: string }>;
           expect(Object.keys(entries).sort()).toEqual(
             facets.map(({ key }) => key).sort(),
           );
@@ -260,12 +84,31 @@ describe("Topics LLM provider tests", () => {
       );
 
       test(
-        "cluster naming returns a name, description and evidence",
+        `summary embeddings (${combination.embedding.model})`,
         async () => {
-          const models = topicsModels(provider);
+          const { models } = resolveTopicsLlmCombination(combination);
+
+          const { embeddings } = await embedTopicSummaries(
+            models.embedding,
+            summaries.slice(0, 2),
+            models.embedding.dimensions,
+            models.projectId,
+          );
+
+          expect(embeddings).toHaveLength(2);
+          for (const vector of embeddings)
+            expect(vector).toHaveLength(models.embedding.dimensions);
+        },
+        TIMEOUT_MS,
+      );
+
+      test(
+        `cluster naming (${combination.clustering.model})`,
+        async () => {
+          const { models } = resolveTopicsLlmCombination(combination);
           const prepared = await prepareTopicNamingGroup(
             {
-              members: [...namingMembers],
+              members: summaries.map((summary) => ({ summary })),
               contrasts: [
                 {
                   id: "c1",
