@@ -21,6 +21,7 @@ import {
 import { TRPCError } from "@trpc/server";
 import { assertLegacyTracingIoSearchCanCreateBatchJob } from "@/src/features/traces/server/legacyIoSearch";
 import { prisma } from "@langfuse/shared/src/db";
+import { type ProjectAuthedContext } from "@/src/server/api/trpc";
 
 type CreateBatchActionJob = {
   projectId: string;
@@ -32,16 +33,10 @@ type CreateBatchActionJob = {
   >;
   tableName: BatchExportTableName;
   actionType: BatchActionType;
-  session: {
-    user: {
-      id: string;
-      v4BetaEnabled?: boolean | null;
-    };
-    orgId: string;
-    orgRoles: string[];
-    projectId?: string;
-    projectRoles?: string[];
-  };
+  session: Pick<
+    ProjectAuthedContext["session"],
+    "user" | "policies" | "orgId" | "projectId"
+  >;
   query: BatchActionQuery;
   targetId?: string;
   // Call-site decision on whether this action reads from the events table

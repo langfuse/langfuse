@@ -38,6 +38,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 import tracesHandler from "@/src/pages/api/public/traces";
 import {
   createDatasetItemForApi,
@@ -449,15 +450,22 @@ describe("audit log staging", () => {
 
       await auditLog({
         session: {
-          user: {
-            id: "user-1",
-            name: "Ada Lovelace",
-            email: "ada@example.com",
-          },
+          ...createSession({
+            user: {
+              id: "user-1",
+              name: "Ada Lovelace",
+              email: "ada@example.com",
+            },
+            organizations: [
+              {
+                id: orgId,
+                role: "ADMIN",
+                projects: [{ id: projectId, role: "MEMBER" }],
+              },
+            ],
+          }),
           orgId,
           projectId,
-          orgRoles: ["system/ADMIN"],
-          projectRoles: ["system/MEMBER"],
         },
         resourceType: "prompt",
         resourceId,
@@ -497,18 +505,19 @@ describe("audit log staging", () => {
 
       await auditLog({
         session: {
-          user: {
-            id: "support-user-1",
-            name: "Grace Hopper",
-            email: "grace@example.com",
+          ...createSession({
+            user: {
+              id: "support-user-1",
+              name: "Grace Hopper",
+              email: "grace@example.com",
+            },
             organizations: [
-              { id: randomUUID() },
-              { id: orgId, supportAccess: true },
+              { id: randomUUID(), role: "OWNER" },
+              { id: orgId, role: "VIEWER", supportAccess: true },
             ],
-          },
+          }),
           orgId,
           projectId,
-          orgRoles: ["system/VIEWER"],
         },
         resourceType: "comment",
         resourceId,
@@ -559,13 +568,13 @@ describe("audit log staging", () => {
       // Per actor: what the Postgres row keeps, and the actor staged for it.
       const cases: {
         actor:
-          | { session: { user: { id: string }; orgId: string } }
+          | { userId: string; orgId: string }
           | { apiKeyId: string; orgId: string };
         record: { userId: string | null; apiKeyId: string | null };
         staged: AuditLogActor;
       }[] = [
         {
-          actor: { session: { user: { id: "stripe-webhook" }, orgId } },
+          actor: { userId: "stripe-webhook", orgId },
           record: { userId: "stripe-webhook", apiKeyId: null },
           staged: { type: "SYSTEM", name: "stripe-webhook" },
         },
@@ -623,7 +632,7 @@ describe("audit log staging", () => {
       const error = vi.spyOn(logger, "error");
 
       await auditLog({
-        session: { user: { id: "user-1" }, orgId },
+        session: { ...createSession(), orgId },
         resourceType: "prompt",
         resourceId,
         action: "delete",
@@ -650,7 +659,7 @@ describe("audit log staging", () => {
 
         await auditLog(
           {
-            session: { user: { id: "user-1" }, orgId },
+            session: { ...createSession(), orgId },
             resourceType: "prompt",
             resourceId,
             action: "delete",
@@ -677,7 +686,7 @@ describe("audit log staging", () => {
         prisma.$transaction(async (tx) => {
           await auditLog(
             {
-              session: { user: { id: "user-1" }, orgId },
+              session: { ...createSession(), orgId },
               resourceType: "prompt",
               resourceId,
               action: "delete",

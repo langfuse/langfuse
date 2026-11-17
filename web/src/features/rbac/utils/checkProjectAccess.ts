@@ -60,21 +60,18 @@ export const useHasProjectAccess = (p: {
 // For use in UI components as function, if session is already available
 export function hasProjectAccess(p: HasProjectAccessParams): boolean {
   if (isDemoProjectLlmRestricted(p)) return false;
-  return isAuthorizedOnProject(p);
+  const { session, projectId, scope } = p;
+  const org = getOrganization(session, projectId);
+  if (!session || !org) return false;
+  return authorize(session, OrganizationId(org.id), scope, ProjectId(projectId))
+    .success;
 }
 
-/** isAuthorizedOnProject authorizes scope through the session's policies on a project the session lists. */
-function isAuthorizedOnProject({
-  session,
-  projectId,
-  scope,
-}: HasProjectAccessParams): boolean {
-  const org = session?.user?.organizations.find((candidate) =>
-    candidate.projects.some((project) => project.id === projectId),
+/** getOrganization finds the session's organization that lists projectId. */
+function getOrganization(session: Session | null, projectId: string) {
+  return session?.user?.organizations.find((org) =>
+    org.projects.some((project) => project.id === projectId),
   );
-  if (!session || !org) return false;
-  const tenant = OrganizationId(org.id);
-  return authorize(session, tenant, scope, ProjectId(projectId)).success;
 }
 
 /** isDemoProjectLlmRestricted reports whether scope is an LLM operation on the demo project the user may not run outside the internal view. */

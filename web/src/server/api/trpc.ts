@@ -111,8 +111,6 @@ import {
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 import { env } from "@/src/env.mjs";
 import { isBaseError, parseIO } from "@langfuse/shared";
-import { OrganizationId, ProjectId, type RoleId } from "@langfuse/shared/rbac";
-import { rolesFor } from "@/src/features/rbac/utils/rolesFor";
 import { recordBackendActivity } from "@/src/features/posthog-analytics/server/backendActivity";
 
 setUpSuperjson();
@@ -411,7 +409,6 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
     { projectId, orgId: sessionProject.organization.id },
     ctx.requestSpan,
   );
-  const tenant = OrganizationId(sessionProject.organization.id);
 
   return next({
     ctx: {
@@ -420,9 +417,7 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
         ...ctx.session,
         user: ctx.session.user,
         orgId: sessionProject.organization.id,
-        orgRoles: rolesFor(ctx.session, tenant, tenant),
         projectId: projectId,
-        projectRoles: rolesFor(ctx.session, tenant, ProjectId(projectId)),
       },
     },
   });
@@ -483,15 +478,12 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
     organizationId: orgId,
   });
 
-  const tenant = OrganizationId(orgId);
-
   return next({
     ctx: {
       session: {
         ...ctx.session,
         user: ctx.session.user,
         orgId: orgId,
-        orgRoles: rolesFor(ctx.session, tenant, tenant),
       },
     },
   });
@@ -650,7 +642,6 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
 
     return next({
       ctx: {
-        session: { ...ctx.session },
         trace, // pass the trace to the next middleware so we do not need to fetch it again
       },
     });
@@ -725,11 +716,7 @@ const enforceSessionAccess = t.middleware(async (opts) => {
 
   addUserToSpan({ projectId }, ctx.requestSpan);
 
-  return next({
-    ctx: {
-      session: { ...ctx.session },
-    },
-  });
+  return next({ ctx });
 });
 
 export const protectedGetSessionProcedure = withOtelTracingProcedure
@@ -791,15 +778,12 @@ export type AuthedSession = NonNullable<TRPCContext["session"]> & {
 export type ProjectAuthedContext = Omit<TRPCContext, "session"> & {
   session: AuthedSession & {
     orgId: string;
-    orgRoles: RoleId[];
     projectId: string;
-    projectRoles: RoleId[];
   };
 };
 // After `enforceIsAuthedAndOrgMember`
 export type OrgAuthedContext = Omit<TRPCContext, "session"> & {
   session: AuthedSession & {
     orgId: string;
-    orgRoles: RoleId[];
   };
 };

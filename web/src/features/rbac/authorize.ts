@@ -6,6 +6,7 @@ import {
   type OrganizationId,
   type ProjectId,
   type ResourceId,
+  type RoleId,
   type TenantId,
 } from "@langfuse/shared/rbac";
 
@@ -39,6 +40,18 @@ export function authorize(
   return { success: true };
 }
 
+/** rolesFor lists the roles whose policies govern resource in tenant, an exact resource match taking precedence over a wildcard. */
+export function rolesFor(
+  ctx: Pick<AuthorizationContext, "policies">,
+  tenant: TenantId,
+  resource: ResourceId,
+): RoleId[] {
+  const roleIds = ctx.policies.flatMap((policies) =>
+    matchesResource(policies, tenant, resource).map((policy) => policy.roleId),
+  );
+  return [...new Set(roleIds)];
+}
+
 /** authorizePolicySet allows action on resource when the set grants it and denies none of it. */
 function authorizePolicySet(
   policies: Policy[],
@@ -55,7 +68,7 @@ function authorizePolicySet(
 }
 
 /** matchesResource selects the tenant's policies for resource, preferring exact matches over wildcards. */
-export function matchesResource(
+function matchesResource(
   policies: Policy[],
   tenant: TenantId,
   resource: ResourceId,
