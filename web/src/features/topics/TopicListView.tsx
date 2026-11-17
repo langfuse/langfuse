@@ -100,9 +100,9 @@ export function TopicListView({
   );
   return (
     <TopicsSplit
-      id={scatter ? "topics-scatter-split-half" : "topics-list-split"}
+      id={scatter ? "topics-scatter-split-half" : "topics-list-split-half"}
       orientation={isWide ? "horizontal" : "vertical"}
-      defaultTopicsSize={isWide && !scatter ? "40%" : "50%"}
+      defaultTopicsSize="50%"
       topics={
         scatter && facet.map ? (
           <div className="flex min-h-0 flex-1 flex-col">
