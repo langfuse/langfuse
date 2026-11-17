@@ -181,7 +181,7 @@ function TopicRow({
           {topic.count.toLocaleString()}
         </span>
       </span>
-      <span aria-hidden className="bg-muted h-1.5 w-full rounded-full">
+      <span aria-hidden className="bg-muted h-1 w-full rounded-full">
         <span
           className="block h-full rounded-full"
           style={{
