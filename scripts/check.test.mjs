@@ -1,8 +1,59 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { createPlan, parseOptions, runPlan } from "./check.mjs";
+
+test("the check CLI executes when reached through a filesystem alias", () => {
+  const directory = mkdtempSync(resolve(".check-test-"));
+  try {
+    const alias = resolve(directory, "check.mjs");
+    symlinkSync(resolve("scripts/check.mjs"), alias);
+    for (const flags of [[], ["--preserve-symlinks-main"]]) {
+      const result = spawnSync(process.execPath, [...flags, alias, "--help"], {
+        encoding: "utf8",
+      });
+      assert.equal(result.status, 0, result.stderr);
+      assert.match(result.stdout, /Usage: pnpm check/);
+      const invalid = spawnSync(
+        process.execPath,
+        [...flags, alias, "--invalid"],
+        {
+          encoding: "utf8",
+        },
+      );
+      assert.equal(invalid.status, 1, invalid.stderr);
+      assert.match(invalid.stderr, /Unknown argument/);
+    }
+    const importCheck = `await import(${JSON.stringify(pathToFileURL(resolve("scripts/check.mjs")).href)}); console.log("imported");`;
+    for (const launcher of [
+      resolve(directory, "missing"),
+      resolve(alias, "child"),
+      directory,
+    ]) {
+      const imported = spawnSync(
+        process.execPath,
+        ["--input-type=module", "--eval", importCheck, launcher],
+        { encoding: "utf8" },
+      );
+      assert.equal(imported.status, 0, imported.stderr);
+      assert.match(imported.stdout, /imported/);
+    }
+    const loop = resolve(directory, "loop");
+    symlinkSync(loop, loop);
+    const invalidLauncher = spawnSync(
+      process.execPath,
+      ["--input-type=module", "--eval", importCheck, loop],
+      { encoding: "utf8" },
+    );
+    assert.equal(invalidLauncher.status, 1, invalidLauncher.stderr);
+    assert.match(invalidLauncher.stderr, /ELOOP/);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
 
 test("formatter config changes check the whole repository without source changes", () => {
   const plan = createPlan([".oxfmtrc.json"], [], { only: ["format"] }, "HEAD", {
