@@ -141,7 +141,7 @@ const presenceCache = new WeakMap<TopicMapModel, Map<string, number>>();
 /**
  * Field strength per topic. A field stacked under many others only adds to one
  * wash, so it fades from full (one other topic covers its center) to 10%
- * (three or more).
+ * (three or more), then scales by the map's average.
  */
 function fieldPresence(model: TopicMapModel) {
   const cached = presenceCache.get(model);
@@ -165,7 +165,7 @@ function fieldPresence(model: TopicMapModel) {
       return [zone.id, Math.max(spread * 1.5, extent * 0.08)];
     }),
   );
-  const presence = new Map(
+  const own = new Map(
     topics.map((zone) => {
       const covering = topics.filter(
         (other) =>
@@ -175,6 +175,13 @@ function fieldPresence(model: TopicMapModel) {
       ).length;
       return [zone.id, 1 - 0.9 * Math.min(1, Math.max(0, covering - 1) / 2)];
     }),
+  );
+  // A crowded map also softens its isolated topics, by the map's average strength.
+  const average =
+    [...own.values()].reduce((sum, value) => sum + value, 0) /
+    Math.max(1, own.size);
+  const presence = new Map(
+    [...own].map(([id, value]) => [id, value * average]),
   );
   presenceCache.set(model, presence);
   return presence;
