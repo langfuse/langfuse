@@ -48,7 +48,7 @@ export const TOPIC_MAP_LOOKS: Record<TopicMapLookName, TopicMapLook> = {
       blur: 16,
       opacity: 0.55,
     },
-    grain: 0.4,
+    grain: 0.28,
     dot: {
       size: 6,
       ring: 1,
@@ -74,7 +74,7 @@ export const TOPIC_MAP_LOOKS: Record<TopicMapLookName, TopicMapLook> = {
       blur: 22,
       opacity: 0.35,
     },
-    grain: 0.4,
+    grain: 0.28,
     // Scatter 1's thin ring, in saturated tones so nearby hues stay apart.
     dot: {
       size: 6,
