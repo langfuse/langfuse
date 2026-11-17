@@ -370,6 +370,7 @@ export { type GetScoresForTracesProps } from "./repositories/scores";
 export { getScoresForSessions } from "./repositories/scores";
 export { getScoresForExperiments } from "./repositories/scores";
 export { getTraceScoresForDatasetRuns } from "./repositories/scores";
+export { getAggregatedTraceScoresForDatasetRuns } from "./repositories/scores";
 export { getScoresForExperimentItems } from "./repositories/scores";
 export { getScoresForTraces } from "./repositories/scores";
 export { getScoresAndCorrectionsForTraces } from "./repositories/scores";

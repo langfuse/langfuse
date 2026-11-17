@@ -29,6 +29,10 @@ import type { APIScoreV3 } from "../../features/scores/interfaces/api/v3/schemas
 import type { ScoreFieldGroupV3 } from "../../features/scores/interfaces/api/v3/endpoints";
 import { filterAndValidateV3GetScoreList } from "../../features/scores/interfaces/api/v3/validation";
 import {
+  type ScoreAggregate,
+  composeAggregateScoreKey,
+} from "../../features/scores/interfaces/ui/types";
+import {
   commandClickhouse,
   type ClickhouseQueryOpts,
   queryClickhouse,
@@ -431,6 +435,149 @@ export const getTraceScoresForDatasetRuns = async (
     datasetRunId: row.run_id,
     hasMetadata: !!row.has_metadata,
   }));
+};
+
+export const getAggregatedTraceScoresForDatasetRuns = async (
+  projectId: string,
+  datasetRunIds: string[],
+): Promise<Map<string, ScoreAggregate>> => {
+  if (datasetRunIds.length === 0) return new Map();
+
+  const query = `
+    SELECT
+      run_id,
+      name,
+      source,
+      data_type,
+      count() as count,
+      avg(value) as avg_value,
+      groupArrayIf(value, data_type = 'NUMERIC') as numeric_values,
+      groupArrayIf(string_value, data_type IN ('CATEGORICAL', 'BOOLEAN')) as string_values,
+      any(id) as id,
+      any(comment) as comment,
+      any(execution_trace_id) as execution_trace_id,
+      any(has_metadata) as has_metadata,
+      any(timestamp) as timestamp
+    FROM (
+      SELECT
+        dri.dataset_run_id as run_id,
+        s.id as id,
+        s.timestamp as timestamp,
+        s.name as name,
+        s.value as value,
+        s.source as source,
+        s.comment as comment,
+        s.data_type as data_type,
+        multiIf(
+          s.data_type = 'BOOLEAN', if(s.value = 1 OR s.string_value = 'True', 'true', 'false'),
+          s.data_type = 'CATEGORICAL', coalesce(s.string_value, 'n/a'),
+          ''
+        ) as string_value,
+        s.execution_trace_id as execution_trace_id,
+        length(mapKeys(s.metadata)) > 0 AS has_metadata
+      FROM dataset_run_items_rmt dri
+      JOIN scores s ${shouldSkipScoresDedup(projectId) ? "" : "FINAL"} ON dri.trace_id = s.trace_id
+        AND dri.project_id = s.project_id
+      WHERE dri.project_id = {projectId: String}
+        AND dri.dataset_run_id IN {datasetRunIds: Array(String)}
+        AND s.project_id = {projectId: String}
+        AND s.data_type IN ({dataTypes: Array(String)})
+      ORDER BY s.event_ts DESC
+      LIMIT 1 BY s.id, s.project_id, dri.dataset_run_id
+    )
+    GROUP BY run_id, name, source, data_type
+  `;
+
+  type AggregatedScoreRow = {
+    run_id: string;
+    name: string;
+    source: string;
+    data_type: string;
+    count: string | number;
+    avg_value: string | number;
+    numeric_values: number[];
+    string_values: string[];
+    id: string | null;
+    comment: string | null;
+    execution_trace_id: string | null;
+    has_metadata: 0 | 1 | string | number;
+    timestamp: string | null;
+  };
+
+  const rows = await queryClickhouse<AggregatedScoreRow>({
+    query,
+    params: {
+      projectId,
+      datasetRunIds,
+      dataTypes: AGGREGATABLE_SCORE_TYPES,
+    },
+    tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
+  });
+
+  const resultMap = new Map<string, ScoreAggregate>();
+
+  for (const row of rows) {
+    let runScores = resultMap.get(row.run_id);
+    if (!runScores) {
+      runScores = {};
+      resultMap.set(row.run_id, runScores);
+    }
+
+    const key = composeAggregateScoreKey({
+      name: row.name,
+      source: row.source as ScoreSourceType,
+      dataType: row.data_type as ScoreDataTypeType,
+    });
+
+    const count = Number(row.count);
+    if (count === 0) continue;
+    const isSingle = count === 1;
+
+    const baseData = {
+      comment: isSingle ? (row.comment ?? null) : undefined,
+      executionTraceId: isSingle ? (row.execution_trace_id ?? null) : undefined,
+      id: isSingle ? (row.id ?? undefined) : undefined,
+      hasMetadata: isSingle ? Boolean(Number(row.has_metadata) > 0) : undefined,
+      timestamp:
+        isSingle && row.timestamp
+          ? parseClickhouseUTCDateTimeFormat(row.timestamp)
+          : undefined,
+    };
+
+    if (row.data_type === "NUMERIC") {
+      const numericValues = (row.numeric_values ?? []).map(Number);
+      runScores[key] = {
+        type: "NUMERIC",
+        values: numericValues,
+        average: Number(row.avg_value),
+        ...baseData,
+      };
+    } else {
+      const stringValues = [...(row.string_values ?? [])].sort((a, b) =>
+        a.localeCompare(b),
+      );
+      const valueCountsMap: Record<string, number> = {};
+      for (const val of stringValues) {
+        valueCountsMap[val] = (valueCountsMap[val] || 0) + 1;
+      }
+      const valueCounts = Object.entries(valueCountsMap).map(
+        ([value, count]) => ({
+          value,
+          count,
+        }),
+      );
+
+      runScores[key] = {
+        type: "CATEGORICAL",
+        values: stringValues,
+        valueCounts,
+        ...baseData,
+      };
+    }
+  }
+
+  return resultMap;
 };
 
 const experimentItemEventsQuery = (experimentIds: string[]) =>

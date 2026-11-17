@@ -13,6 +13,7 @@ import {
   queryScoreRecordsForExperimentItems,
   queryScoreRecordsForExperiments,
   getTraceScoresForDatasetRuns,
+  getAggregatedTraceScoresForDatasetRuns,
   getScoreNames,
   createTracesCh,
   createObservationsCh,
@@ -1476,6 +1477,95 @@ describe("Clickhouse Scores Repository Test", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].dataType).toBe("BOOLEAN");
+    });
+
+    it("getAggregatedTraceScoresForDatasetRuns should aggregate scores in ClickHouse and exclude TEXT scores", async () => {
+      const dataset = await prisma.dataset.create({
+        data: { projectId: isolatedProjectId, name: v4() },
+      });
+      const datasetRun = await prisma.datasetRuns.create({
+        data: {
+          projectId: isolatedProjectId,
+          name: v4(),
+          datasetId: dataset.id,
+        },
+      });
+      const runTraceId = v4();
+      const runTrace = createTrace({
+        id: runTraceId,
+        project_id: isolatedProjectId,
+      });
+      await createTracesCh([runTrace]);
+
+      const datasetRunItem = createDatasetRunItem({
+        project_id: isolatedProjectId,
+        dataset_run_id: datasetRun.id,
+        dataset_id: dataset.id,
+        dataset_run_name: datasetRun.name,
+        dataset_item_id: v4(),
+        trace_id: runTraceId,
+      });
+      await createDatasetRunItemsCh([datasetRunItem]);
+
+      const singleNumericScore = createTraceScore({
+        project_id: isolatedProjectId,
+        trace_id: runTraceId,
+        name: "single-numeric",
+        data_type: "NUMERIC",
+        value: 42,
+        comment: "single comment",
+      });
+      const scores = [
+        singleNumericScore,
+        createTraceScore({
+          project_id: isolatedProjectId,
+          trace_id: runTraceId,
+          name: "trace-boolean",
+          data_type: "BOOLEAN",
+          value: 1,
+          string_value: "True",
+        }),
+        createTraceScore({
+          project_id: isolatedProjectId,
+          trace_id: runTraceId,
+          name: "trace-free-form",
+          data_type: "TEXT",
+          value: 0,
+          string_value: "Should be excluded",
+        }),
+      ];
+      await createScoresCh(scores);
+
+      const aggregatedMap = await getAggregatedTraceScoresForDatasetRuns(
+        isolatedProjectId,
+        [datasetRun.id],
+      );
+
+      const runScores = aggregatedMap.get(datasetRun.id);
+      expect(runScores).toBeDefined();
+
+      // TEXT score should be excluded
+      expect(runScores!["trace_free_form-API-TEXT"]).toBeUndefined();
+
+      // Single numeric score should preserve BaseAggregate fields
+      const numericAgg = runScores!["single_numeric-API-NUMERIC"];
+      expect(numericAgg).toBeDefined();
+      expect(numericAgg.type).toBe("NUMERIC");
+      if (numericAgg.type === "NUMERIC") {
+        expect(numericAgg.average).toBe(42);
+        expect(numericAgg.values).toEqual([42]);
+        expect(numericAgg.id).toBe(singleNumericScore.id);
+        expect(numericAgg.comment).toBe("single comment");
+      }
+
+      // Boolean score should be aggregated as CATEGORICAL
+      const booleanAgg = runScores!["trace_boolean-API-BOOLEAN"];
+      expect(booleanAgg).toBeDefined();
+      expect(booleanAgg.type).toBe("CATEGORICAL");
+      if (booleanAgg.type === "CATEGORICAL") {
+        expect(booleanAgg.values).toEqual(["true"]);
+        expect(booleanAgg.valueCounts).toEqual([{ value: "true", count: 1 }]);
+      }
     });
   });
 });

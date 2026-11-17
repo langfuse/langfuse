@@ -53,7 +53,7 @@ import {
   getDatasetRunItemsCountByDatasetIdCh,
   getDatasetRunsTableMetricsCh,
   getScoresForExperiments,
-  getTraceScoresForDatasetRuns,
+  getAggregatedTraceScoresForDatasetRuns,
   getDatasetRunItemsCountCh,
   getNumericScoresGroupedByName,
   getBooleanScoresGroupedByName,
@@ -755,10 +755,13 @@ export const datasetRouter = createTRPCRouter({
 
       // Only fetch scores for runs that have metrics (runs without dataset_run_items_rmt won't have trace scores)
       const runsWithMetricsIds = runsWithMetrics.map((run) => run.id);
-      const [traceScores, runScores] = await Promise.all([
+      const [aggregatedTraceScores, runScores] = await Promise.all([
         runsWithMetricsIds.length > 0
-          ? getTraceScoresForDatasetRuns(input.projectId, runsWithMetricsIds)
-          : [],
+          ? getAggregatedTraceScoresForDatasetRuns(
+              input.projectId,
+              runsWithMetricsIds,
+            )
+          : new Map(),
         getScoresForExperiments({
           projectId: input.projectId,
           runIds: runsWithMetrics.map((run) => run.id),
@@ -777,11 +780,12 @@ export const datasetRouter = createTRPCRouter({
           avgTotalCost: run.avgTotalCost ?? null,
           totalCost: run.totalCost ?? null,
           avgLatency: run.avgLatency ?? null,
-          scores: aggregateScores(
-            traceScores.filter((s) => s.datasetRunId === run.id),
-          ),
+          scores: aggregatedTraceScores.get(run.id) ?? {},
           runScores: aggregateScores(
-            runScores.filter((s) => s.datasetRunId === run.id),
+            runScores.filter(
+              (s: { datasetRunId?: string | null }) =>
+                s.datasetRunId === run.id,
+            ),
           ),
         };
       });

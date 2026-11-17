@@ -1,8 +1,31 @@
 import {
   ListableScoreDataType,
+  ScoreDataTypeType,
   ScoreSourceType,
 } from "../../../../domain/scores";
 import { MetadataDomain } from "../../../../domain/traces";
+
+/**
+ * Normalizes score names for comparison by converting - and . to _
+ * "-" and "." reserved for splitting in namespace
+ */
+export const normalizeScoreName = (name: string): string => {
+  return name.replaceAll(/[-\.]/g, "_");
+};
+
+export const composeAggregateScoreKey = ({
+  name,
+  source,
+  dataType,
+}: {
+  name: string;
+  source: ScoreSourceType;
+  dataType: ScoreDataTypeType;
+  keyPrefix?: string;
+}): string => {
+  const formattedName = normalizeScoreName(name);
+  return `${formattedName}-${source}-${dataType}`;
+};
 
 export type BaseAggregate = {
   comment?: string | null;
