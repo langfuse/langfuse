@@ -55,9 +55,9 @@ export const TOPIC_MAP_LOOKS: Record<TopicMapLookName, TopicMapLook> = {
     field: {
       kind: "disc",
       everyNth: 1,
-      base: 120,
+      base: 84,
       border: 0,
-      blur: 34,
+      blur: 22,
       opacity: 0.5,
     },
     grain: 0.24,
