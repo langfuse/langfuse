@@ -67,7 +67,12 @@ const run = async (
   params: Record<string, string | number | boolean>,
 ): Promise<SeedSummary> => {
   const startedAt = Date.now();
-  const dayStart = utcDayStartMs();
+  // Window ends at today's UTC midnight and steps back one minute per trace.
+  // These timestamps are ClickHouse ORDER BY keys, so they stay on
+  // utcDayStartMs() plus stateless jitter and a same-day re-run overwrites
+  // in place. The newest row is one minute before midnight, and jitter stays
+  // inside that minute, so every timestamp is at or before now.
+  const endMs = utcDayStartMs();
   const traceIds = Array.from(
     { length: TRACE_COUNT },
     (_, index) => `${ctx.idPrefix}-t${String(index).padStart(2, "0")}`,
@@ -106,7 +111,7 @@ const run = async (
   traceIds.forEach((traceId, index) => {
     const bin = binOfCopy(index);
     const timestamp =
-      dayStart + (index + 1) * 60_000 + jitter(ctx.seed, index, 1000);
+      endMs - (TRACE_COUNT - index) * 60_000 + jitter(ctx.seed, index, 1000);
     traces.push(
       createTrace({
         id: traceId,
@@ -174,7 +179,8 @@ const run = async (
     );
   }
 
-  const firstTimestamp = dayStart + 60_000;
+  const firstTimestamp =
+    endMs - TRACE_COUNT * 60_000 + jitter(ctx.seed, 0, 1000);
   return {
     scenario: "score-distributions",
     target: "clickhouse",
