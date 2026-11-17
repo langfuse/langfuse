@@ -12,7 +12,7 @@ const WIDE_MAX_EXPANSION_RATIO = 0.25;
 export type PendingTrace = {
   member: string;
   due: number;
-  estimates?: { eventUpdateCount?: number; serializedEventBytes: number };
+  estimates?: { serializedEventBytes: number };
   trace: TQueueJobTypes[QueueName.EventsDispatch]["payload"]["traces"][number];
 };
 
@@ -22,31 +22,23 @@ export type PendingTrace = {
  * batch even when it alone exceeds a budget.
  */
 export type TraceBatchWeightLimits = {
-  maxEventUpdates: number;
   maxSerializedEventBytes: number;
 };
 
 const UNBOUNDED_WEIGHT_LIMITS: TraceBatchWeightLimits = {
-  maxEventUpdates: Number.POSITIVE_INFINITY,
   maxSerializedEventBytes: Number.POSITIVE_INFINITY,
 };
 
 export const toLimit = (value: number) =>
   value > 0 ? value : Number.POSITIVE_INFINITY;
 
-const getEventUpdates = ({ estimates }: PendingTrace) =>
-  estimates?.eventUpdateCount ?? 0;
-
 const getSerializedEventBytes = ({ estimates }: PendingTrace) =>
   estimates?.serializedEventBytes ?? 0;
 
 const fitsWeightLimits = (
-  eventUpdates: number,
   serializedEventBytes: number,
   limits: TraceBatchWeightLimits,
-) =>
-  eventUpdates <= limits.maxEventUpdates &&
-  serializedEventBytes <= limits.maxSerializedEventBytes;
+) => serializedEventBytes <= limits.maxSerializedEventBytes;
 
 const isWithinWeightLimits = (
   batch: readonly PendingTrace[],
@@ -54,20 +46,15 @@ const isWithinWeightLimits = (
 ) =>
   batch.length <= 1 ||
   fitsWeightLimits(
-    batch.reduce((total, entry) => total + getEventUpdates(entry), 0),
     batch.reduce((total, entry) => total + getSerializedEventBytes(entry), 0),
     limits,
   );
 
 // A heavy trace uses more than half of a batch budget.
 const isHeavyTrace = (entry: PendingTrace, limits: TraceBatchWeightLimits) =>
-  getEventUpdates(entry) * 2 > limits.maxEventUpdates ||
   getSerializedEventBytes(entry) * 2 > limits.maxSerializedEventBytes;
 
-export type TraceExclusionReason =
-  | "event_updates"
-  | "serialized_bytes"
-  | "start_too_old";
+export type TraceExclusionReason = "serialized_bytes" | "start_too_old";
 
 // Older recorded starts (e.g. SDKs sending 0) widen the trace read to a full-table scan.
 const MAX_TRACE_START_AGE_MS = 365 * 24 * 60 * 60_000;
@@ -79,11 +66,6 @@ export const getTraceExclusionReason = (
   if (trace.minStart < Date.now() - MAX_TRACE_START_AGE_MS)
     return "start_too_old";
   if (!estimates) return undefined;
-  if (
-    estimates.eventUpdateCount !== undefined &&
-    estimates.eventUpdateCount > limits.maxEventUpdates
-  )
-    return "event_updates";
   if (estimates.serializedEventBytes > limits.maxSerializedEventBytes)
     return "serialized_bytes";
   return undefined;
@@ -244,19 +226,14 @@ const selectLocalityBatches = (
     let maxMinute = Number.NEGATIVE_INFINITY;
     let minStart = Number.POSITIVE_INFINITY;
     let maxStart = Number.NEGATIVE_INFINITY;
-    let eventUpdates = 0;
     let serializedEventBytes = 0;
     const seedEnvelopeMs = allowedEnvelopeMs(sorted[start].entry);
     const maxLength = Math.min(maxBatchSize, candidateCount - start);
     for (let length = 1; length <= maxLength; length++) {
       const candidate = sorted[start + length - 1];
-      eventUpdates += getEventUpdates(candidate.entry);
       serializedEventBytes += getSerializedEventBytes(candidate.entry);
       // Weights are nonnegative, so every longer slice is also over budget.
-      if (
-        length > 1 &&
-        !fitsWeightLimits(eventUpdates, serializedEventBytes, weightLimits)
-      )
+      if (length > 1 && !fitsWeightLimits(serializedEventBytes, weightLimits))
         break;
       minMinute = Math.min(minMinute, candidate.minMinute);
       maxMinute = Math.max(maxMinute, candidate.maxMinute);
@@ -363,9 +340,9 @@ const selectLocalityBatches = (
  * that envelope cap forbids a cheaper fill. Among feasible partitions with
  * that minimum job count, dynamic programming first avoids crossing projects,
  * then minimizes minute × trace-hash cells, then splits the largest hash gaps.
- * A multi-trace batch also closes before its estimated event updates or
- * serialized bytes would exceed `weightLimits`; traces above half of either
- * budget are packed in a separate lane.
+ * A multi-trace batch also closes before its estimated serialized bytes would
+ * exceed `weightLimits`; traces above half of the budget are packed in a
+ * separate lane.
  *
  * Selection uses O(n × k × maxBatchSize) time and
  * O(n × min(n, maxBatchSize) + n × k) memory, where k is the fewest feasible
