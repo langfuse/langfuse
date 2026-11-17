@@ -6,6 +6,7 @@ import {
   type BedrockApiKey,
   type BedrockAccessKeys,
   type BedrockConfig,
+  type BedrockIamRole,
   type OpenAIConfig,
   type VertexAIConfig,
   LLMAdapter,
@@ -13,6 +14,8 @@ import {
   TYPESAFE_UPSTREAMS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   resolveTypeSafeUpstream,
+  STORAGE_ROLE_ARN_INVALID_MESSAGE,
+  STORAGE_ROLE_ARN_REGEX,
   type TypeSafeUpstream,
 } from "@langfuse/shared";
 import { ChevronDown, PlusIcon, TrashIcon } from "@langfuse/icons";
@@ -38,6 +41,7 @@ import {
 } from "@/src/components/ui/select";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { TypeSafeUpstreamCards } from "@/src/features/llm-api-key/components/TypeSafeUpstreamCards/TypeSafeUpstreamCards";
+import { BedrockRoleSetupInstructions } from "@/src/features/llm-api-key/components/BedrockRoleSetupInstructions/BedrockRoleSetupInstructions";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   api,
@@ -55,6 +59,9 @@ import {
 } from "@/src/features/llm-api-key/types";
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+
+const IAM_ROLE_UPGRADE_MESSAGE =
+  "IAM role auth is not part of your plan. Upgrade to Enterprise to use it.";
 
 /**
  * UI-only sentinel value for the adapter dropdown. Selecting it does not set a
@@ -88,6 +95,8 @@ const isMatchingBedrockAuthMethod = (
 ): boolean =>
   (newAuthMethod === AuthMethod.ApiKey &&
     existingAuthMethod === AuthMethod.ApiKey) ||
+  (newAuthMethod === AuthMethod.IamRole &&
+    existingAuthMethod === AuthMethod.IamRole) ||
   (newAuthMethod === AuthMethod.AccessKeys &&
     (existingAuthMethod === AuthMethod.AccessKeys ||
       existingAuthMethod === AuthMethod.DefaultCredentials));
@@ -101,8 +110,9 @@ const getInitialBedrockAuthMethod = (params: {
   existingAuthMethod?: BedrockAuthMethod;
 }): BedrockAuthMethod => {
   if (params.mode === "update") {
-    return params.existingAuthMethod === AuthMethod.ApiKey
-      ? AuthMethod.ApiKey
+    return params.existingAuthMethod === AuthMethod.ApiKey ||
+      params.existingAuthMethod === AuthMethod.IamRole
+      ? params.existingAuthMethod
       : AuthMethod.AccessKeys;
   }
 
@@ -135,6 +145,7 @@ const createFormSchema = (params: {
       awsAccessKeyId: z.string().optional(),
       awsSecretAccessKey: z.string().optional(),
       bedrockApiKey: z.string().optional(),
+      bedrockRoleArn: z.string().optional(),
       authMethod: BedrockAuthMethodSchema,
       awsRegion: z.string().optional(),
       vertexAILocation: z.string().optional(),
@@ -192,6 +203,24 @@ const createFormSchema = (params: {
             code: "custom",
             message: "AWS Secret Access Key is required.",
             path: ["awsSecretAccessKey"],
+          });
+        }
+        return;
+      }
+
+      if (authMethod === AuthMethod.IamRole) {
+        const roleArn = data.bedrockRoleArn?.trim() ?? "";
+        if (!roleArn) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Role ARN is required.",
+            path: ["bedrockRoleArn"],
+          });
+        } else if (!STORAGE_ROLE_ARN_REGEX.test(roleArn)) {
+          ctx.addIssue({
+            code: "custom",
+            message: STORAGE_ROLE_ARN_INVALID_MESSAGE,
+            path: ["bedrockRoleArn"],
           });
         }
         return;
@@ -432,6 +461,10 @@ export function CreateLLMApiKeyForm({
             awsAccessKeyId: "",
             awsSecretAccessKey: "",
             bedrockApiKey: "",
+            bedrockRoleArn:
+              existingKey.authMethod === AuthMethod.IamRole
+                ? existingKey.displaySecretKey
+                : "",
             authMethod: getInitialBedrockAuthMethod({
               mode,
               existingAuthMethod: existingKey.authMethod,
@@ -452,6 +485,7 @@ export function CreateLLMApiKeyForm({
             awsAccessKeyId: "",
             awsSecretAccessKey: "",
             bedrockApiKey: "",
+            bedrockRoleArn: "",
             authMethod: getInitialBedrockAuthMethod({
               mode,
             }),
@@ -470,6 +504,23 @@ export function CreateLLMApiKeyForm({
     mode === "update" &&
     currentAdapter === LLMAdapter.Bedrock &&
     isMatchingBedrockAuthMethod(currentAuthMethod, existingKey?.authMethod);
+  const bedrockIamRoleAuth = api.llmApiKey.bedrockIamRoleAuth.useQuery(
+    { projectId: owner.scope === "project" ? owner.projectId : "" },
+    {
+      enabled:
+        owner.scope === "project" && currentAdapter === LLMAdapter.Bedrock,
+    },
+  );
+  const usesIamRole = existingKey?.authMethod === AuthMethod.IamRole;
+  // A connection that already uses a role keeps the option visible so it can be
+  // switched to another method. Organizations without the plan see it disabled.
+  const canChooseIamRole =
+    owner.scope === "project" &&
+    (Boolean(bedrockIamRoleAuth.data?.crossAccountRoleArn) ||
+      Boolean(bedrockIamRoleAuth.data?.requiresUpgrade) ||
+      usesIamRole);
+  const isIamRoleLocked =
+    Boolean(bedrockIamRoleAuth.data?.requiresUpgrade) && !usesIamRole;
   const isUsingDefaultAwsCredentialsForCurrentAuthMethod =
     currentAuthMethod === AuthMethod.AccessKeys &&
     existingKey?.authMethod === AuthMethod.DefaultCredentials;
@@ -659,6 +710,16 @@ export function CreateLLMApiKeyForm({
             } satisfies BedrockAccessKeys);
           }
           break;
+        case AuthMethod.IamRole: {
+          const roleArn = values.bedrockRoleArn!.trim();
+          // Resending an unchanged role would re-check the plan on every edit.
+          secretKey =
+            shouldPreserveExistingBedrockCredentials &&
+            roleArn === existingKey?.displaySecretKey
+              ? undefined
+              : JSON.stringify({ roleArn } satisfies BedrockIamRole);
+          break;
+        }
       }
 
       config = {
@@ -1025,10 +1086,22 @@ export function CreateLLMApiKeyForm({
                                   value={AuthMethod.ApiKey}
                                   label="API key"
                                 />
+                                {canChooseIamRole ? (
+                                  <Tabs.Trigger
+                                    value={AuthMethod.IamRole}
+                                    label="IAM role"
+                                    disabled={isIamRoleLocked}
+                                  />
+                                ) : null}
                               </Tabs.List>
                             </Tabs>
                           </div>
                         </FormControl>
+                        {isIamRoleLocked ? (
+                          <FormDescription>
+                            {IAM_ROLE_UPGRADE_MESSAGE}
+                          </FormDescription>
+                        ) : null}
                         <FormMessage />
                       </FormItem>
                     )}
@@ -1067,6 +1140,41 @@ export function CreateLLMApiKeyForm({
                       </FormItem>
                     )}
                   />
+                  {currentAuthMethod === AuthMethod.IamRole && (
+                    <>
+                      <FormField
+                        control={form.control}
+                        name="bedrockRoleArn"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Role ARN</FormLabel>
+                            <FormDescription>
+                              Langfuse assumes this role in your AWS account
+                              instead of storing credentials.
+                            </FormDescription>
+                            <FormControl>
+                              <Input
+                                {...field}
+                                placeholder="arn:aws:iam::123456789012:role/langfuse-bedrock"
+                                autoComplete="off"
+                                data-1p-ignore
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      {owner.scope === "project" &&
+                      bedrockIamRoleAuth.data?.crossAccountRoleArn ? (
+                        <BedrockRoleSetupInstructions
+                          projectId={owner.projectId}
+                          crossAccountRoleArn={
+                            bedrockIamRoleAuth.data.crossAccountRoleArn
+                          }
+                        />
+                      ) : null}
+                    </>
+                  )}
                   {currentAuthMethod === AuthMethod.ApiKey && (
                     <FormField
                       control={form.control}

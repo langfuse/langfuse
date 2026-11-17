@@ -20,6 +20,7 @@ import {
 } from "@langfuse/shared";
 import { RoleAuthSetupSection } from "@/src/ee/features/storage-role-auth/components/RoleAuthSetupSection";
 import { RoleAuthSetupInstructions } from "@/src/ee/features/storage-role-auth/components/RoleAuthSetupInstructions";
+import { buildStorageRolePermissionPolicyPreview } from "@/src/ee/features/storage-role-auth/fns/buildStorageRolePermissionPolicyPreview";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import {
   type BlobStorageFormControl,
@@ -349,10 +350,12 @@ export const StorageProviderFields = ({
             <RoleAuthSetupInstructions
               crossAccountRoleArn={crossAccountRoleArn}
               externalId={externalId}
-              roleArn={roleArn ?? ""}
-              bucketName={bucketName.trim()}
-              prefix={prefix?.trim()}
-              actions={STORAGE_ROLE_WRITE_ACTIONS}
+              permissionPolicy={buildStorageRolePermissionPolicyPreview({
+                roleArn: roleArn ?? "",
+                bucketName: bucketName.trim(),
+                prefix: prefix?.trim(),
+                actions: STORAGE_ROLE_WRITE_ACTIONS,
+              })}
               description={ROLE_AUTH_SETUP_DESCRIPTION}
             />
           </RoleAuthSetupSection>

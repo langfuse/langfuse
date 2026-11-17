@@ -53,12 +53,14 @@ export const AuthMethod = {
   ApiKey: "api-key",
   AccessKeys: "access-keys",
   DefaultCredentials: "default-credentials",
+  IamRole: "iam-role",
 } as const;
 
 export const BedrockAuthMethodSchema = z.enum([
   AuthMethod.ApiKey,
   AuthMethod.AccessKeys,
   AuthMethod.DefaultCredentials,
+  AuthMethod.IamRole,
 ]);
 
 export type BedrockAuthMethod = z.infer<typeof BedrockAuthMethodSchema>;

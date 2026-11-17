@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  STORAGE_ROLE_ARN_INVALID_MESSAGE,
+  STORAGE_ROLE_ARN_REGEX,
+} from "../domain/storage-role-auth";
 
 // Sentinel value for Bedrock default credential provider chain
 export const BEDROCK_USE_DEFAULT_CREDENTIALS =
@@ -53,6 +57,35 @@ export const BedrockCredentialSchema = z.union([
   BedrockApiKeySchema,
 ]);
 export type BedrockCredential = z.infer<typeof BedrockCredentialSchema>;
+
+// Not part of BedrockCredentialSchema: only project connections created by an
+// entitled organization may store a role, so every other path keeps rejecting it.
+export const BedrockIamRoleSchema = z
+  .object({
+    roleArn: z
+      .string()
+      .regex(STORAGE_ROLE_ARN_REGEX, STORAGE_ROLE_ARN_INVALID_MESSAGE),
+  })
+  .strict();
+export type BedrockIamRole = z.infer<typeof BedrockIamRoleSchema>;
+
+export const BEDROCK_ROLE_ACTIONS = [
+  "bedrock:InvokeModel",
+  "bedrock:InvokeModelWithResponseStream",
+] as const;
+
+// Also the session policy of every assumed-role session, so the role is
+// limited to model invocation even if the customer grants it more.
+export const BEDROCK_ROLE_PERMISSION_POLICY = {
+  Version: "2012-10-17",
+  Statement: [
+    {
+      Effect: "Allow",
+      Action: [...BEDROCK_ROLE_ACTIONS],
+      Resource: "*",
+    },
+  ],
+};
 
 export const VertexAIConfigSchema = z
   .object({

@@ -496,6 +496,7 @@ async function bedrockRequestHeaders(
     allowDefaultCredentials: canUseBedrockDefaultCredentials(
       model.connection.projectId,
     ),
+    projectId: model.connection.projectId,
   });
   if (auth.apiKey)
     return { ...headers, authorization: `Bearer ${auth.apiKey}` };

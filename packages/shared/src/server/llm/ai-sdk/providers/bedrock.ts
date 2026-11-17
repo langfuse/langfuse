@@ -7,8 +7,10 @@ import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   BedrockConfigSchema,
   BedrockCredentialSchema,
+  BedrockIamRoleSchema,
   type LLMConnectionConfig,
 } from "../../../../interfaces/customLLMProviderConfigSchemas";
+import { createBedrockRoleCredentialProvider } from "../../../ee/bedrockRoleAuth/bedrockRoleCredentials";
 import { parseOutboundUrl } from "../../../outbound-url/validation";
 import {
   assertLlmProviderHostAllowed,
@@ -143,10 +145,24 @@ export function canUseBedrockDefaultCredentials(projectId?: string): boolean {
   );
 }
 
-/** Resolves a default-credential sentinel, AWS access key JSON, or Bedrock API key. */
+function parseBedrockIamRole(secretKey: string) {
+  try {
+    const parsed = BedrockIamRoleSchema.safeParse(JSON.parse(secretKey));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolves a default-credential sentinel, an IAM role, AWS access key JSON, or
+ * a Bedrock API key. An IAM role needs the project that owns the connection,
+ * whose external ID the role trusts.
+ */
 export function resolveBedrockProviderAuth(params: {
   secretKey: string;
   allowDefaultCredentials: boolean;
+  projectId?: string | null;
   profile?: string;
 }): Pick<
   Parameters<typeof createAmazonBedrock>[0] & object,
@@ -161,6 +177,22 @@ export function resolveBedrockProviderAuth(params: {
     // Unlike the AI SDK's built-in env-only fallback, the node provider chain
     // includes env, profile, IMDS, IRSA, and the remaining AWS defaults.
     return createDefaultBedrockProviderAuth({ profile: params.profile });
+  }
+
+  const iamRole = parseBedrockIamRole(secretKey);
+  if (iamRole) {
+    if (!params.projectId) {
+      throw new Error(
+        "Bedrock IAM role auth is only available for project LLM connections.",
+      );
+    }
+    return {
+      credentialProvider: createBedrockRoleCredentialProvider({
+        projectId: params.projectId,
+        roleArn: iamRole.roleArn,
+      }),
+      ...SUPPRESS_BEARER_TOKEN_ENV_FALLBACK,
+    };
   }
 
   try {
@@ -255,6 +287,7 @@ function createBedrockProvider(params: {
     allowDefaultCredentials:
       shouldUseLangfuseAPIKey ||
       canUseBedrockDefaultCredentials(params.projectId),
+    projectId: shouldUseLangfuseAPIKey ? undefined : params.projectId,
     profile: shouldUseLangfuseAPIKey ? getLangfuseAIAwsProfile() : undefined,
   });
 

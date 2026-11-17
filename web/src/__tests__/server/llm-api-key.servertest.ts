@@ -9,7 +9,18 @@ vi.mock("@langfuse/shared/src/server", async () => {
   };
 });
 
+vi.mock(
+  "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials",
+  async () => ({
+    ...(await vi.importActual(
+      "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials",
+    )),
+    getCrossAccountRoleArn: vi.fn().mockReturnValue(null),
+  }),
+);
+
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { getCrossAccountRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
 import * as auditLogs from "@/src/features/audit-logs/auditLog";
 import type { Session } from "next-auth";
 import { BEDROCK_USE_DEFAULT_CREDENTIALS, LLMAdapter } from "@langfuse/shared";
@@ -1044,6 +1055,94 @@ describe("llmApiKey.all RPC", () => {
     } finally {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
     }
+  });
+
+  describe("Bedrock IAM role auth", () => {
+    const roleSecret = JSON.stringify({
+      roleArn: "arn:aws:iam::123456789012:role/langfuse-bedrock",
+    });
+    const connectionInput = () => ({
+      projectId,
+      provider: "bedrock-role",
+      adapter: LLMAdapter.Bedrock,
+      secretKey: roleSecret,
+      customModels: ["eu.anthropic.claude-sonnet-4-6"],
+      config: { region: "eu-central-1" },
+    });
+    const callerWithPlan = (plan: "cloud:hobby" | "cloud:enterprise") => {
+      const planSession: Session = {
+        ...session,
+        user: {
+          ...session.user!,
+          organizations: [{ ...session.user!.organizations[0], plan }],
+        },
+      };
+      return appRouter.createCaller({
+        ...createInnerTRPCContext({ session: planSession, headers: {} }),
+        prisma,
+      });
+    };
+
+    beforeEach(() => {
+      vi.mocked(getCrossAccountRoleArn).mockReturnValue(
+        "arn:aws:iam::210987654321:role/langfuse-cross-account",
+      );
+    });
+    afterEach(() => {
+      vi.mocked(getCrossAccountRoleArn).mockReturnValue(null);
+    });
+
+    it("is offered to Enterprise plans only, with a stable per-project external ID", async () => {
+      const hobby = callerWithPlan("cloud:hobby");
+      await expect(
+        hobby.llmApiKey.bedrockIamRoleAuth({ projectId }),
+      ).resolves.toEqual({ crossAccountRoleArn: null, requiresUpgrade: true });
+      await expect(
+        hobby.llmApiKey.bedrockExternalId({ projectId }),
+      ).rejects.toThrow("not available");
+      await expect(hobby.llmApiKey.create(connectionInput())).rejects.toThrow(
+        "Enterprise plan",
+      );
+
+      const enterprise = callerWithPlan("cloud:enterprise");
+      const { externalId } = await enterprise.llmApiKey.bedrockExternalId({
+        projectId,
+      });
+      expect(externalId).toMatch(/^lf-[0-9a-f]{32}$/);
+      await expect(
+        enterprise.llmApiKey.bedrockExternalId({ projectId }),
+      ).resolves.toEqual({ externalId });
+
+      await expect(
+        enterprise.llmApiKey.test(connectionInput()),
+      ).resolves.toEqual({ success: true });
+      // The runtime assumes the role with the external ID of this project.
+      expect(mockGenerateLLMText).toHaveBeenCalledWith(
+        expect.objectContaining({
+          connection: expect.objectContaining({ projectId }),
+        }),
+      );
+
+      await enterprise.llmApiKey.create(connectionInput());
+      const { data } = await enterprise.llmApiKey.all({ projectId });
+      expect(data).toEqual([
+        expect.objectContaining({
+          provider: "bedrock-role",
+          authMethod: AuthMethod.IamRole,
+          displaySecretKey: "arn:aws:iam::123456789012:role/langfuse-bedrock",
+        }),
+      ]);
+    });
+
+    it("is rejected for organization connections", async () => {
+      const { projectId: _projectId, ...input } = connectionInput();
+      await expect(
+        callerWithPlan("cloud:enterprise").organizationLlmApiKey.create({
+          ...input,
+          orgId,
+        }),
+      ).rejects.toThrow("only available for project LLM connections");
+    });
   });
 
   it("should fill masked header values from the stored headers in testUpdate", async () => {
