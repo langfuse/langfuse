@@ -5,9 +5,9 @@ import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import ContainerPage from "@/src/components/layouts/ContainerPage";
-import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 
@@ -47,7 +47,11 @@ function CouponRedemptionContent() {
 
   // The organization id comes from the query, which is empty until hydration.
   if (session.status === "loading" || !router.isReady) {
-    return <NoDataOrLoading isLoading />;
+    return (
+      <div className="flex justify-center py-12">
+        <Spinner variant="muted" size="lg" />
+      </div>
+    );
   }
 
   if (!organization) {
