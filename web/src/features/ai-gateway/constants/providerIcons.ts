@@ -1,7 +1,8 @@
-import { OpenRouterMark, XaiMark } from "@langfuse/icons/brand";
+import { AzureMark, OpenRouterMark, XaiMark } from "@langfuse/icons/brand";
 import {
   SiAmazonwebservices,
   SiAnthropic,
+  SiGooglecloud,
   SiGooglegemini,
   SiOpenai,
   SiVercel,
@@ -16,5 +17,7 @@ export const providerIcons = {
   OPENROUTER: OpenRouterMark,
   XAI: XaiMark,
   VERCEL: SiVercel,
+  AZURE: AzureMark,
   GOOGLE_AI_STUDIO: SiGooglegemini,
+  VERTEX: SiGooglecloud,
 } satisfies Record<GatewayProvider, typeof SiOpenai>;

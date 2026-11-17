@@ -11,10 +11,8 @@ import {
   writeTopicDefinitions,
   writeTopicSummaries,
   writeTopicAssignments,
-  listTopicSummaries,
   getLatestFacetSummaries,
   getTopicClusteringSummaries,
-  getTopicClusteringSummaryStats,
   getTopicSummaryCounts,
   getTopicExecutionCosts,
   getTopicTraceUnitTimeRange,
@@ -34,6 +32,8 @@ import {
   getPublishedTopicRun,
   getTopicRun,
   saveTopicRun,
+  readCurrentTraceTopics,
+  currentTopicTraceIdsCondition,
 } from "@langfuse/shared/topics/server";
 import { clickhouseClient } from "@langfuse/shared/src/server/clickhouse";
 import { prisma } from "@langfuse/shared/src/db";
@@ -577,24 +577,32 @@ describe("Topics definition persistence", () => {
         coordinates: [1, 2],
       },
     ]);
-    const filter = {
-      facetId: summary.facetId,
-      facetVersion: 1,
-      traceIds: [summary.traceId!],
-    };
+    const traceIds = [summary.traceId!];
     expect(
       (
-        await listTopicSummaries(projectId, filter, {
-          from: new Date(summary.unitStartTime),
-          to: new Date(Date.parse(summary.unitStartTime) + 1),
-        })
+        await getLatestFacetSummaries(
+          projectId,
+          summary.facetId,
+          1,
+          {
+            from: new Date(summary.unitStartTime),
+            to: new Date(Date.parse(summary.unitStartTime) + 1),
+          },
+          traceIds,
+        )
       ).map(({ summary }) => summary),
     ).toEqual(["latest"]);
     expect(
-      await listTopicSummaries(projectId, filter, {
-        from: new Date("2026-08-01T00:00:00.000Z"),
-        to: new Date(summary.unitStartTime),
-      }),
+      await getLatestFacetSummaries(
+        projectId,
+        summary.facetId,
+        1,
+        {
+          from: new Date("2026-08-01T00:00:00.000Z"),
+          to: new Date(summary.unitStartTime),
+        },
+        traceIds,
+      ),
     ).toEqual([]);
 
     const oldRange = {
@@ -652,7 +660,6 @@ describe("Topics definition persistence", () => {
     const limits = { maxRows: 2, maxBytes: 1024 * 1024 };
     expect(
       await Promise.all([
-        listTopicSummaries(projectId, filter, oldRange),
         getLatestFacetSummaries(projectId, "facet", undefined, oldRange),
         getTopicClusteringSummaries(
           projectId,
@@ -669,17 +676,7 @@ describe("Topics definition persistence", () => {
           oldRange,
         ),
       ]),
-    ).toEqual([[], [], [], [{ facetId: "facet", facetVersion: 1, count: 0 }]]);
-    expect(
-      await getTopicClusteringSummaryStats(
-        projectId,
-        "facet",
-        1,
-        embedding,
-        oldRange,
-        limits,
-      ),
-    ).toEqual({ count: 0, bytes: 0 });
+    ).toEqual([[], [], [{ facetId: "facet", facetVersion: 1, count: 0 }]]);
 
     const newerVersion = {
       ...summary,
@@ -772,57 +769,24 @@ describe("Topics definition persistence", () => {
         metadata: { large: "x".repeat(10_000) },
       })),
     ]);
-    const [eligible, counts, listed, latestDisplayed, stats] =
-      await Promise.all([
-        getTopicClusteringSummaries(
-          projectId,
-          internalFacet,
-          1,
-          embedding,
-          oldRange,
-          limits,
-        ),
-        getTopicSummaryCounts(
-          projectId,
-          [{ facetId: internalFacet, version: 1 }],
-          embedding,
-          oldRange,
-        ),
-        listTopicSummaries(
-          projectId,
-          {
-            facetId: internalFacet,
-            facetVersion: 1,
-            traceIds: allowedTraceIds.concat(
-              internalTraces.map(({ traceId }) => traceId),
-            ),
-          },
-          oldRange,
-        ),
-        getLatestFacetSummaries(projectId, internalFacet, undefined, oldRange),
-        getTopicClusteringSummaryStats(
-          projectId,
-          internalFacet,
-          1,
-          embedding,
-          oldRange,
-          limits,
-        ),
-      ]);
-    expect(eligible.map(({ traceId }) => traceId)).toEqual(allowedTraceIds);
-    expect(stats.count).toBe(eligible.length);
-    expect(stats.bytes).toBeGreaterThanOrEqual(
-      eligible.reduce(
-        (bytes, row) =>
-          bytes +
-          row.embedding.length * 8 +
-          2 * JSON.stringify(row.metadata).length,
-        0,
+    const [eligible, counts, latestDisplayed] = await Promise.all([
+      getTopicClusteringSummaries(
+        projectId,
+        internalFacet,
+        1,
+        embedding,
+        oldRange,
+        limits,
       ),
-    );
-    expect(listed.map(({ traceId }) => traceId).sort()).toEqual(
-      allowedTraceIds,
-    );
+      getTopicSummaryCounts(
+        projectId,
+        [{ facetId: internalFacet, version: 1 }],
+        embedding,
+        oldRange,
+      ),
+      getLatestFacetSummaries(projectId, internalFacet, undefined, oldRange),
+    ]);
+    expect(eligible.map(({ traceId }) => traceId)).toEqual(allowedTraceIds);
     expect(latestDisplayed.map(({ traceId }) => traceId).sort()).toEqual(
       allowedTraceIds,
     );
@@ -949,5 +913,101 @@ describe("Topics definition persistence", () => {
         to: new Date("2026-10-01T00:00:00.000Z"),
       }),
     ).toEqual([]);
+  });
+
+  it("resolves current topics for the column and the tracing filter from each rule's published map", async () => {
+    const [current, reassigned, retired] = [
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+    ];
+    await writeTopicSummaries(
+      [current, reassigned, retired].map((traceId) => ({
+        ...summary,
+        projectId: otherProjectId,
+        traceId,
+      })),
+    );
+    const assign = (
+      traceId: string,
+      topicId: string,
+      overrides: Partial<TopicAssignment> = {},
+    ): TopicAssignment => ({
+      projectId: otherProjectId,
+      facetId: summary.facetId,
+      facetVersion: 1,
+      traceId,
+      sessionId: null,
+      environment: "default",
+      traceName: "trace",
+      unitStartTime: summary.unitStartTime,
+      summaryProcessedAt: summary.processedAt,
+      runId: "serving",
+      topicId,
+      topicVersionId: `${topicId}-v1`,
+      distance: null,
+      runnerUpDistance: null,
+      origin: "online",
+      coordinates: null,
+      assignedAt: "2026-09-01T00:00:00.000Z",
+      ...overrides,
+    });
+    await writeTopicAssignments([
+      assign(current, "match"),
+      assign(reassigned, "match"),
+      assign(reassigned, "other", { assignedAt: "2026-09-03T00:00:00.000Z" }),
+      // An older map's or an analysis's assignment never serves.
+      assign(retired, "match", { runId: "retired" }),
+      // Another rule's map keeps its own current topic for the same trace.
+      assign(reassigned, "match", { runId: "other-rule" }),
+    ]);
+    const timeRange = {
+      from: new Date("2026-08-31T00:00:00.000Z"),
+      to: new Date("2026-09-01T00:00:00.000Z"),
+    };
+    // Rows can start well after the trace's first observation (here 30 hours).
+    const rowStart = new Date(
+      Date.parse(summary.unitStartTime) + 30 * 3_600_000,
+    );
+
+    // Column: one read across facets for a page of traces.
+    const topics = await readCurrentTraceTopics(otherProjectId, {
+      traces: [current, reassigned, retired].map((traceId) => ({
+        traceId,
+        timestamp: rowStart,
+      })),
+      facetIds: [summary.facetId],
+      publishedRunIds: ["serving", "other-rule"],
+    });
+    expect(
+      topics.map(({ traceId, topicId }) => [traceId, topicId]).sort(),
+    ).toEqual(
+      [
+        [current, "match"],
+        [reassigned, "other"],
+        [reassigned, "match"],
+      ].sort(),
+    );
+
+    // Filter: the same membership as a prefixed subquery inside another query.
+    const condition = currentTopicTraceIdsCondition("topicFilter0", {
+      projectId: otherProjectId,
+      facetId: summary.facetId,
+      topicIds: ["match"],
+      publishedRunIds: ["serving", "other-rule"],
+      timeRange,
+      negated: false,
+    });
+    const matched = await clickhouseClient().query({
+      query: `SELECT DISTINCT e.trace_id AS traceId FROM topic_facet_summaries AS e
+        WHERE e.project_id = {projectId:String} AND ${condition.query}`,
+      query_params: { projectId: otherProjectId, ...condition.params },
+      format: "JSONEachRow",
+    });
+    expect(
+      ((await matched.json()) as { traceId: string }[])
+        .map(({ traceId }) => traceId)
+        .sort(),
+    ).toEqual([current, reassigned].sort());
   });
 });

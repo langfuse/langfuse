@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { encrypt } from "@langfuse/shared/encryption";
+import type * as SharedServer from "@langfuse/shared/src/server";
+import { VertexTokenExchangeError } from "@langfuse/shared/src/server";
 import type { Redis } from "ioredis";
 
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
@@ -16,11 +18,23 @@ import { openAiModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/pr
 import { openRouterModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/openRouter";
 import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
 import { vercelModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/vercel";
+import { vertexModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/vertex";
 import { xaiModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/xai";
 import type { GatewayModelCatalogEntry } from "@/src/features/ai-gateway/server/provider/models/types";
 
 vi.mock("@/src/features/ai-gateway/server/provider/getGatewayFetch", () => ({
   getGatewayFetch: vi.fn(),
+}));
+const getVertexAccessToken = vi.hoisted(() =>
+  vi.fn(async () => "vertex-access-token"),
+);
+const testModelCall = vi.hoisted(() =>
+  vi.fn<typeof SharedServer.testModelCall>(),
+);
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof SharedServer>()),
+  generateVertexAccessTokenForServiceAccount: getVertexAccessToken,
+  testModelCall,
 }));
 
 const openAiModels = [
@@ -31,6 +45,20 @@ const openAiModels = [
   { id: "unparsable-shutdown", created: 1, shutdown_date: "soon" },
   { id: "non-string-shutdown", created: 1, shutdown_date: 20260101 },
 ];
+
+const vertexServiceAccountKey = {
+  type: "service_account",
+  project_id: "my-project",
+  private_key_id: "key-1",
+  private_key: "unused",
+  client_email: "gateway@my-project.iam.gserviceaccount.com",
+  client_id: "1",
+  auth_uri: "https://accounts.google.com/o/oauth2/auth",
+  token_uri: "https://oauth2.googleapis.com/token",
+  auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
+  client_x509_cert_url:
+    "https://www.googleapis.com/robot/v1/metadata/x509/gateway",
+};
 
 const respondWith = (body: unknown) => async () => Response.json(body);
 
@@ -69,6 +97,34 @@ describe("AI Gateway model discovery", () => {
     vi.setSystemTime(new Date("2027-01-06T00:00:00.000Z"));
 
     expect(await fetchOpenAiModelIds()).not.toContain("tts-1-hd");
+  });
+
+  it("reads an OpenAI-compatible model's creation time from `created` or Azure's `created_at`, else leaves it unknown", async () => {
+    const result = await openAiModelDiscoveryAdapter.fetchCatalog({
+      credential: "sk-test",
+      config: null,
+      baseURL: "https://my-resource.openai.azure.com/openai/v1",
+      extraHeaders: {},
+      fetcher: respondWith({
+        data: [
+          { id: "openai", created: 1_700_000_000 },
+          { id: "azure", created_at: 1_700_000_000 },
+          { id: "missing" },
+          { id: "malformed", created: "yesterday", created_at: -1 },
+        ],
+      }),
+    });
+
+    expect(
+      result.success
+        ? result.models.map(({ id, createdAt }) => [id, createdAt])
+        : result.error,
+    ).toEqual([
+      ["openai", "2023-11-14T22:13:20.000Z"],
+      ["azure", "2023-11-14T22:13:20.000Z"],
+      ["missing", "1970-01-01T00:00:00.000Z"],
+      ["malformed", "1970-01-01T00:00:00.000Z"],
+    ]);
   });
 
   it("caches an OpenAI catalog no longer than until its next shutdown", async () => {
@@ -257,6 +313,38 @@ describe("AI Gateway model discovery", () => {
     ).resolves.toEqual({ success: false, error: "unauthorized" });
   });
 
+  it("treats a Vertex AI key Google rejects as unauthorized and an unreachable Google as retryable", async () => {
+    const tokenError = (status: number | null) =>
+      new VertexTokenExchangeError("token exchange failed", status);
+    const fetchCatalogError = async (error: Error) => {
+      getVertexAccessToken.mockRejectedValueOnce(error);
+      const result = await vertexModelDiscoveryAdapter.fetchCatalog({
+        credential: JSON.stringify(vertexServiceAccountKey),
+        config: { location: "global" },
+        baseURL: null,
+        extraHeaders: {},
+        fetcher: respondWith({}),
+      });
+      return result.success ? null : result.error;
+    };
+
+    expect(await fetchCatalogError(tokenError(400))).toBe("unauthorized");
+    expect(await fetchCatalogError(tokenError(null))).toBe("timeout");
+
+    const listingError = async (status: number) => {
+      const result = await vertexModelDiscoveryAdapter.fetchCatalog({
+        credential: JSON.stringify(vertexServiceAccountKey),
+        config: { location: "global" },
+        baseURL: null,
+        extraHeaders: {},
+        fetcher: async () => Response.json({}, { status }),
+      });
+      return result.success ? null : result.error;
+    };
+    expect(await listingError(403)).toBe("unauthorized");
+    expect(await listingError(404)).toBe("provider_error");
+  });
+
   it("lists Bedrock models under every OpenAI route they serve and Claude only under Messages", () => {
     const listedIds = (apiFormat: "openai.responses" | "anthropic.messages") =>
       [
@@ -389,6 +477,22 @@ describe("AI Gateway model discovery", () => {
     ]);
   });
 
+  it("lists OpenRouter models from a connection's custom base URL", async () => {
+    const fetcher = vi.fn<typeof fetch>(respondWith({ data: [] }));
+    await openRouterModelDiscoveryAdapter.fetchCatalog({
+      credential: "sk-or-test",
+      config: null,
+      baseURL: "https://eu.openrouter.ai/api/v1",
+      extraHeaders: {},
+      fetcher,
+    });
+
+    expect(fetcher.mock.calls.map(([url]) => String(url))).toEqual([
+      "https://eu.openrouter.ai/api/v1/models/user",
+      "https://eu.openrouter.ai/api/v1/embeddings/models",
+    ]);
+  });
+
   it("lists embeddings-only models under OpenAI routes, never under Messages", () => {
     const embeddingModel: GatewayModelCatalogEntry = {
       id: "openai/text-embedding-3-small",
@@ -494,6 +598,51 @@ describe("AI Gateway model discovery", () => {
     });
   });
 
+  it("lists the Gemini chat models across pages from the connection's Vertex AI location", async () => {
+    const requests: { url: string; authorization: string | null }[] = [];
+    const pages: Record<string, unknown> = {
+      "": {
+        publisherModels: [
+          { name: "publishers/google/models/gemini-2.5-pro" },
+          { name: "publishers/google/models/gemini-embedding-001" },
+          { name: "publishers/google/models/imagen-4.0-generate-001" },
+        ],
+        nextPageToken: "page-2",
+      },
+      "page-2": {
+        publisherModels: [
+          { name: "publishers/google/models/gemini-2.5-flash" },
+          { name: "publishers/google/models/gemini-2.5-flash-preview-tts" },
+        ],
+      },
+    };
+    const result = await vertexModelDiscoveryAdapter.fetchCatalog({
+      credential: JSON.stringify(vertexServiceAccountKey),
+      config: { location: "europe-west4" },
+      baseURL: null,
+      extraHeaders: {},
+      fetcher: async (input, init) => {
+        const url = new URL(String(input));
+        requests.push({
+          url: url.origin + url.pathname,
+          authorization: new Headers(init?.headers).get("authorization"),
+        });
+        return Response.json(pages[url.searchParams.get("pageToken") ?? ""]);
+      },
+    });
+
+    expect(result.success && result.models.map(({ id }) => id)).toEqual([
+      "google/gemini-2.5-pro",
+      "google/gemini-2.5-flash",
+    ]);
+    expect(requests).toEqual(
+      Array(2).fill({
+        url: "https://europe-west4-aiplatform.googleapis.com/v1beta1/publishers/google/models",
+        authorization: "Bearer vertex-access-token",
+      }),
+    );
+  });
+
   it("lists Google AI Studio's Gemini chat and embedding models under the ids requests use", async () => {
     const fetcher = vi.fn<typeof fetch>(
       respondWith({
@@ -579,6 +728,8 @@ describe("AI Gateway model discovery", () => {
     expect(await listedProviders("anthropic.messages")).not.toContain(
       "GOOGLE_AI_STUDIO",
     );
+    expect(await listedProviders("openai.responses")).toContain("VERTEX");
+    expect(await listedProviders("anthropic.messages")).not.toContain("VERTEX");
   });
 
   it("lists the Vercel language, embedding and decision models that are not deprecated or ineligible for the team", async () => {
@@ -685,6 +836,19 @@ describe("AI Gateway path credential check", () => {
     ).rejects.toMatchObject({ httpCode });
   });
 
+  it("keeps the provider's answer to a rejected key", async () => {
+    const body = { error: { code: "401", message: "Access denied" } };
+    await expect(
+      testKey(async () => Response.json(body, { status: 401 })),
+    ).rejects.toMatchObject({
+      providerResponse: {
+        status: 401,
+        statusText: "Unauthorized",
+        body: JSON.stringify(body),
+      },
+    });
+  });
+
   it("treats an unreachable provider as retryable", async () => {
     await expect(
       testKey(async () => {
@@ -697,5 +861,139 @@ describe("AI Gateway path credential check", () => {
     await expect(testKey(async () => Response.json({}))).resolves.toEqual({
       modelListingDenied: false,
     });
+  });
+
+  it("checks the key against a custom OpenRouter base URL", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => Response.json({}));
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+
+    await new GatewayProviderService({} as PrismaClient).testCredential({
+      organizationId: "org",
+      provider: "OPENROUTER",
+      credential: "sk-or-test",
+      baseURL: "https://93.184.215.14/api/v1/",
+    });
+
+    expect(String(fetcher.mock.calls[0]?.[0])).toBe(
+      "https://93.184.215.14/api/v1/key",
+    );
+    expect(getGatewayFetch).toHaveBeenCalledWith(
+      expect.objectContaining({ baseURL: "https://93.184.215.14/api/v1" }),
+    );
+  });
+});
+
+describe("AI Gateway model credential check", () => {
+  const modelNotServed = Object.assign(new Error("Not Found"), {
+    statusCode: 404,
+    responseBody: JSON.stringify({
+      error: { message: "The model `gpt-4o-mini` does not exist." },
+    }),
+  });
+
+  const testKey = (params: {
+    provider: "OPENAI" | "ANTHROPIC";
+    baseURL: string | null;
+    fetcher: typeof fetch;
+  }) => {
+    vi.mocked(getGatewayFetch).mockReturnValue(params.fetcher);
+    return new GatewayProviderService({} as PrismaClient).testCredential({
+      organizationId: "org",
+      provider: params.provider,
+      credential: "sk-test",
+      baseURL: params.baseURL,
+    });
+  };
+
+  beforeEach(() => {
+    testModelCall.mockReset();
+  });
+
+  it("accepts a key an OpenAI-compatible base URL lists its models for when it does not serve the test model", async () => {
+    testModelCall.mockRejectedValue(modelNotServed);
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      Response.json({
+        object: "list",
+        data: [
+          {
+            id: "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+            object: "model",
+            created: 1763251200,
+            owned_by: "vllm",
+          },
+        ],
+      }),
+    );
+
+    await expect(
+      testKey({
+        provider: "OPENAI",
+        baseURL: "https://93.184.215.14/v1",
+        fetcher,
+      }),
+    ).resolves.toEqual({ modelListingDenied: false });
+    expect(String(fetcher.mock.calls[0]?.[0])).toBe(
+      "https://93.184.215.14/v1/models",
+    );
+    expect(
+      new Headers(fetcher.mock.calls[0]?.[1]?.headers).get("authorization"),
+    ).toBe("Bearer sk-test");
+  });
+
+  it("accepts a key an Anthropic-compatible base URL lists its models for when it does not serve the test model", async () => {
+    testModelCall.mockRejectedValue(modelNotServed);
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      Response.json({
+        data: [
+          {
+            id: "claude-sonnet-4-5",
+            display_name: "Claude Sonnet 4.5",
+            created_at: "2026-09-29T00:00:00Z",
+          },
+        ],
+        has_more: false,
+      }),
+    );
+
+    await expect(
+      testKey({
+        provider: "ANTHROPIC",
+        baseURL: "https://93.184.215.14/v1",
+        fetcher,
+      }),
+    ).resolves.toEqual({ modelListingDenied: false });
+    expect(String(fetcher.mock.calls[0]?.[0])).toBe(
+      "https://93.184.215.14/v1/models?limit=1000",
+    );
+    expect(
+      new Headers(fetcher.mock.calls[0]?.[1]?.headers).get("x-api-key"),
+    ).toBe("sk-test");
+  });
+
+  it("keeps the test model's answer when a custom base URL also refuses to list models", async () => {
+    testModelCall.mockRejectedValue(modelNotServed);
+
+    await expect(
+      testKey({
+        provider: "OPENAI",
+        baseURL: "https://93.184.215.14/v1",
+        fetcher: async () => new Response(null, { status: 401 }),
+      }),
+    ).rejects.toMatchObject({
+      httpCode: 400,
+      providerResponse: { status: 404, body: modelNotServed.responseBody },
+    });
+  });
+
+  it("does not list models when the official OpenAI endpoint rejects the test model call", async () => {
+    testModelCall.mockRejectedValue(modelNotServed);
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      Response.json({ data: [] }),
+    );
+
+    await expect(
+      testKey({ provider: "OPENAI", baseURL: null, fetcher }),
+    ).rejects.toMatchObject({ providerResponse: { status: 404 } });
+    expect(fetcher).not.toHaveBeenCalled();
   });
 });

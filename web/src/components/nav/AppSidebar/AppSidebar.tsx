@@ -61,6 +61,7 @@ import {
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
 import { assertUnreachable } from "@/src/utils/types";
+import { nextCompactPlanBadge } from "./compactPlanBadge";
 import { SIDEBAR_NOTIFICATIONS, type SidebarNotification } from "./utils";
 import { useOrgProjectSwitchPaths } from "@/src/features/projects/hooks";
 import {
@@ -313,33 +314,49 @@ function useCompactPlanBadge(hasShortLabel: boolean, name: string) {
   const badgeRef = React.useRef<HTMLSpanElement>(null);
   const chevronRef = React.useRef<HTMLSpanElement>(null);
   const fullBadgeWidth = React.useRef(0);
+  const compactRef = React.useRef(false);
   const [compact, setCompact] = React.useState(false);
 
   React.useLayoutEffect(() => {
     const nameEl = nameRef.current;
     const badgeEl = badgeRef.current;
     const chevronEl = chevronRef.current;
-    if (!hasShortLabel || !nameEl || !badgeEl || !chevronEl) return;
-    const update = () => {
-      if (!compact) {
-        if (nameEl.scrollWidth > nameEl.clientWidth) {
-          fullBadgeWidth.current = badgeEl.offsetWidth;
-          setCompact(true);
-        }
-        return;
+    if (!hasShortLabel || !nameEl || !badgeEl || !chevronEl) {
+      if (compactRef.current) {
+        compactRef.current = false;
+        setCompact(false);
       }
+      return;
+    }
+    const update = () => {
+      const parent = nameEl.parentElement;
+      const gapPx = parent
+        ? Number.parseFloat(getComputedStyle(parent).columnGap) || 0
+        : 0;
       const freeSpace =
         chevronEl.getBoundingClientRect().left -
         badgeEl.getBoundingClientRect().right;
-      const extraForFull = fullBadgeWidth.current - badgeEl.offsetWidth;
-      const nameFits = nameEl.scrollWidth <= nameEl.clientWidth;
-      if (nameFits && freeSpace >= extraForFull) setCompact(false);
+      const next = nextCompactPlanBadge({
+        compact: compactRef.current,
+        nameScrollWidth: nameEl.scrollWidth,
+        nameClientWidth: nameEl.clientWidth,
+        freeSpace,
+        fullBadgeWidth: fullBadgeWidth.current,
+        currentBadgeWidth: badgeEl.offsetWidth,
+        gapPx,
+      });
+      if (next === compactRef.current) return;
+      // Record the full badge before the short label replaces it.
+      if (!compactRef.current) fullBadgeWidth.current = badgeEl.offsetWidth;
+      compactRef.current = next;
+      setCompact(next);
     };
     update();
     const observer = new ResizeObserver(update);
+    observer.observe(nameEl);
     if (nameEl.parentElement) observer.observe(nameEl.parentElement);
     return () => observer.disconnect();
-  }, [compact, hasShortLabel, name]);
+  }, [hasShortLabel, name]);
 
   return { nameRef, badgeRef, chevronRef, compact };
 }

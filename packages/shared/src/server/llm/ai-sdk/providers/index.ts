@@ -9,6 +9,7 @@ import { buildBedrockEmbeddingModel, buildBedrockModel } from "./bedrock";
 import {
   buildGoogleAIStudioEmbeddingModel,
   buildGoogleAIStudioModel,
+  GOOGLE_API_KEY_HEADER,
 } from "./google";
 import { buildOpenAIEmbeddingModel, buildOpenAIModel } from "./openai";
 import type { LLMCredentialSource } from "./types";
@@ -20,7 +21,6 @@ import {
 
 const AZURE_OPENAI_API_KEY_HEADER = "api-key";
 const ANTHROPIC_API_KEY_HEADER = "x-api-key";
-const GOOGLE_API_KEY_HEADER = "X-Goog-Api-Key";
 const VERTEX_AI_AUTH_HEADER = "authorization";
 
 /**

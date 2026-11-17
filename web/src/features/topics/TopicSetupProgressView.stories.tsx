@@ -22,13 +22,6 @@ const meta = preview.meta({
 
 export const Summarizing = meta.story({});
 
-export const Naming = meta.story({
-  args: {
-    stage: "naming" as const,
-    facets: facets.map((facet) => ({ ...facet, complete: 500 })),
-  },
-});
-
 export const ClusteringTopics = meta.story({
   name: "(Test) Building topics counts finished fits, not summaries",
   args: {
@@ -49,4 +42,27 @@ export const Failed = meta.story({ args: { stage: "failed" as const } });
 
 export const WaitingForTraces = meta.story({
   args: { waiting: true, facets: [], canRetry: false },
+});
+
+export const SnapshotSummarizing = meta.story({
+  name: "Snapshot summarizing",
+  args: {
+    variant: "snapshot" as const,
+    facets: facets.map((facet) => ({
+      ...facet,
+      complete: 140,
+      requested: 300,
+    })),
+    canRetry: false,
+  },
+});
+
+export const SnapshotFailed = meta.story({
+  name: "Snapshot failed",
+  args: {
+    variant: "snapshot" as const,
+    stage: "failed" as const,
+    canRetry: false,
+    onViewDetails: fn(),
+  },
 });

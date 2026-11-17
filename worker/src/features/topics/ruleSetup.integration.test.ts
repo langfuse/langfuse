@@ -35,9 +35,6 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
 vi.mock("../traceBatching/traceRuleRecording", () => ({
   seedTraceDispatch: vi.fn(),
 }));
-vi.mock("../traceBatching/traceBatchSampling", () => ({
-  isTraceDispatchEnabled: () => true,
-}));
 
 const DIMENSIONS = 64;
 
@@ -147,6 +144,7 @@ describe("Topics rule setup", () => {
         traceIds.map((traceId) => expect.objectContaining({ traceId })),
       ),
       [rule.id],
+      expect.any(Number),
       expect.any(Number),
     );
     expect(await readTopicRuleSetup(projectId, rule.id)).toMatchObject({

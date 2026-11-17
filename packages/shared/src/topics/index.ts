@@ -6,15 +6,26 @@ import { DEFAULT_TOPIC_FACETS } from "./default-facets";
 
 export { DEFAULT_TOPIC_FACETS };
 
-export const TOPICS_BEDROCK_ACCESS_ERROR =
-  "Unable to invoke LLM model (HTTP 403), please contact Langfuse Support";
+/** Tracing filter column: key is the facet name, values are topic names. */
+const TOPIC_FILTER_COLUMN = "topics";
+
+export function isTopicFilter<T extends { type: string; column: string }>(
+  filter: T,
+): filter is Extract<T, { type: "categoryOptions" }> {
+  return (
+    filter.type === "categoryOptions" && filter.column === TOPIC_FILTER_COLUMN
+  );
+}
+
+/** Batch jobs read without topic membership, so they must not drop a topic filter silently. */
+export const TOPIC_FILTERS_IN_BATCH_JOBS_MESSAGE =
+  "Topic filters can't be used for batch exports or actions yet. Remove the topic filter and try again.";
 
 export const topicIdSchema = z
   .string()
   .min(1)
   .max(128)
   .regex(/^[a-zA-Z0-9_-]+$/);
-export const topicTraceIdSchema = z.string().min(1).max(1000);
 /** The longest time range any Topics read or update accepts. */
 export const TOPICS_MAX_TIME_RANGE_MS = 93 * 86_400_000;
 /** One-off runs select traces from at most 30 days; larger windows get slow on high-volume projects. */
@@ -77,7 +88,6 @@ export const topicsModelSettingsSchema = z.object({
 });
 export type TopicsModelSettings = z.infer<typeof topicsModelSettingsSchema>;
 export const topicProcessingConfigSchema = z.object({
-  summaryModel: z.string().trim().min(1).optional(),
   maxInputTokens: z.number().int().min(256).max(120_000).default(120_000),
   maxOutputTokens: z.number().int().min(64).max(512).default(512),
 });
@@ -112,20 +122,18 @@ export const topicTraceSelectionCriteriaSchema = topicRuleConfigSchema
       path: ["from"],
     },
   );
-export const topicTraceSelectionSnapshotSchema =
-  topicTraceSelectionCriteriaSchema.safeExtend({
-    excludedTraceIds: z.array(topicTraceIdSchema).default([]),
-  });
 export const topicRuleSettingsSchema = topicRuleConfigSchema.extend({
   sampling: z.number().min(0).max(1).default(1),
 });
 
 /** A project runs at most this many continuous Topics rules. */
 export const TOPICS_MAX_RULES = 5;
-/** Largest random cohort a one-off analysis or past-trace processing run selects. */
+/** Largest random cohort a one-off analysis selects. */
 export const TOPICS_SLICE_MAX_TRACES = 20_000;
 /** An analysis needs this many summarized traces before it can cluster. */
 export const TOPICS_ANALYSIS_MIN_TRACES = 100;
+/** Fewer than TOPICS_ANALYSIS_MIN_TRACES, down to this, cluster in small-sample mode. */
+export const TOPICS_ANALYSIS_SMALL_SAMPLE_MIN_TRACES = 10;
 /** Seeds an analysis's sample, so its preview counts the traces its run clusters. */
 export const TOPICS_ANALYSIS_SAMPLING_SEED = "topics-analysis";
 
@@ -143,10 +151,21 @@ export function topicRuleFilterError(
 }
 
 /** Saved with a one-off clustering run; the cohort resolves from it at fit time. */
+/** Most traces a snapshot summarizes before it groups. */
+export const TOPICS_SNAPSHOT_SUMMARIZE_MAX_TRACES = 1_000;
+export const topicSnapshotSummarizeSchema = z.object({
+  limit: z.number().int().min(1).max(TOPICS_SNAPSHOT_SUMMARIZE_MAX_TRACES),
+  selection: z.enum(["random", "latest"]),
+});
+export type TopicSnapshotSummarize = z.infer<
+  typeof topicSnapshotSummarizeSchema
+>;
 export const topicAnalysisConfigSchema = z.object({
   label: z.string().trim().min(1).max(100),
   filter: topicRuleConfigSchema.shape.filter,
   seed: z.string().min(1).max(128),
+  // Traces without summaries to summarize through events-dispatch before grouping.
+  summarize: topicSnapshotSummarizeSchema.optional(),
 });
 export type TopicAnalysisConfig = z.infer<typeof topicAnalysisConfigSchema>;
 
@@ -211,9 +230,6 @@ export const topicsAutomaticProcessingSchema = z.object({
   ruleId: topicIdSchema.optional(),
   sampling: z.number().min(0).max(1).optional(),
 });
-export type TopicsAutomaticProcessing = z.infer<
-  typeof topicsAutomaticProcessingSchema
->;
 
 export type TopicRule = z.infer<typeof topicRuleSettingsSchema> & {
   id: string;
@@ -239,42 +255,28 @@ const executionBase = {
     topicEmbeddingConfigSchema.parse({}),
   ),
 };
-export const topicExecutionInputSchema = z.discriminatedUnion("operation", [
-  z
-    .object({
-      ...executionBase,
-      operation: z.literal("process"),
-      traceIds: z.array(topicTraceIdSchema).min(1),
-      reuseExistingSummaries: z.boolean().default(false),
-      ruleId: topicIdSchema.optional(),
-      processingConfig: topicProcessingConfigSchema.default(() =>
-        topicProcessingConfigSchema.parse({}),
-      ),
-      // Generate topics over this range once every batch has finished.
-      thenUpdate: z
-        .object({
-          timeRange: topicTimeRangeSchema.refine(
-            ({ from, to }) => to.getTime() - from.getTime() <= 93 * 86_400_000,
-            "Select a time range of at most 93 days.",
-          ),
-        })
-        .optional(),
-    })
-    .strict(),
-  z
-    .object({
-      ...executionBase,
-      operation: z.literal("update"),
-      timeRange: topicTimeRangeSchema,
-      exploratory: z.boolean().default(false),
-      minimumTraceCount: topicMinimumTraceCountSchema.optional(),
-      // One-off clustering of a filtered slice; never serves online assignment.
-      analysis: topicAnalysisConfigSchema.optional(),
-    })
-    .strict(),
-]);
+export const topicExecutionInputSchema = z
+  .object({
+    ...executionBase,
+    operation: z.literal("update"),
+    timeRange: topicTimeRangeSchema,
+    exploratory: z.boolean().default(false),
+    minimumTraceCount: topicMinimumTraceCountSchema.optional(),
+    // One-off clustering of a filtered slice; never serves online assignment.
+    analysis: topicAnalysisConfigSchema.optional(),
+  })
+  .strict();
 export type TopicExecutionInput = z.infer<typeof topicExecutionInputSchema>;
-export type TopicOperation = TopicExecutionInput["operation"];
+/** Settings of a stored manual run, read for History only. */
+export type TopicManualRunInput = {
+  operation: "process";
+  projectId: string;
+  requestId: string;
+  facets: TopicFacetRef[];
+  embeddingConfig: TopicEmbeddingConfig;
+  thenUpdate?: { timeRange: { from: string; to: string } };
+};
+export type TopicOperation = TopicExecutionSummary["input"]["operation"];
 export type TopicExecutionStatus =
   | "queued"
   | "running"
@@ -291,7 +293,6 @@ export type TopicFacetOutcome =
   | "no_topics"
   | "failed";
 export type TopicSummaryState =
-  | "summarized"
   | "complete"
   | "not_applicable"
   | "insufficient_input";
@@ -343,21 +344,6 @@ export type TopicSummary = z.infer<typeof topicSourceSchema> & {
   metadata: Record<string, unknown>;
 };
 
-/** Local references use source identity; a trace's parent session is metadata. */
-export function topicSourceKey(
-  source: Pick<
-    TopicSummary,
-    "projectId" | "facetId" | "facetVersion" | "traceId" | "sessionId"
-  >,
-): string {
-  return JSON.stringify([
-    source.projectId,
-    source.facetId,
-    source.facetVersion,
-    source.traceId !== null ? "trace" : "session",
-    source.traceId ?? source.sessionId,
-  ]);
-}
 export type TopicAssignment = z.infer<typeof topicSourceSchema> & {
   coordinates: [number, number] | null;
   projectId: string;
@@ -457,33 +443,9 @@ export interface TopicExecution {
   createdAt: string;
   updatedAt: string;
   facets: TopicFacetProgress[];
-  traceErrors: { traceId: string; error: string }[];
   error: string | null;
 }
 
-/** Retry state for one bounded trace batch, retained with its BullMQ job. */
-export interface TopicProcessBatchState {
-  execution: TopicExecution;
-  summaries: {
-    facetId: string;
-    facetVersion: number;
-    traceId: string;
-  }[];
-  failedTraceIds: {
-    facetId: string;
-    facetVersion: number;
-    traceIds: string[];
-  }[];
-  summarized: boolean;
-  assignedAt?: string;
-}
-
-/** Progress and history omit per-trace inputs, summary references and errors. */
-export type TopicExecutionSummary = Omit<
-  TopicExecution,
-  "input" | "traceErrors"
-> & {
-  input:
-    | Omit<Extract<TopicExecutionInput, { operation: "process" }>, "traceIds">
-    | Extract<TopicExecutionInput, { operation: "update" }>;
+export type TopicExecutionSummary = Omit<TopicExecution, "input"> & {
+  input: TopicManualRunInput | TopicExecutionInput;
 };

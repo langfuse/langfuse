@@ -1,10 +1,26 @@
 /* eslint-disable @repo/no-style-props, @repo/component-file-structure */
-import { useState } from "react";
-import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
+import { useState, type ComponentProps } from "react";
 import { ControlledHoverCard } from "@/src/components/design-system/ControlledHoverCard/ControlledHoverCard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 import { ExternalLink, Info } from "@langfuse/icons";
+
+export function DocPopupTrigger({
+  triggerProps,
+}: {
+  triggerProps: ComponentProps<"button">;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label="More information"
+      className="text-muted-foreground inline-flex cursor-help items-center px-1 whitespace-nowrap"
+      {...triggerProps}
+    >
+      <Info size="sm" />
+    </button>
+  );
+}
 
 export type DocPopupProps = {
   description: React.ReactNode;
@@ -16,7 +32,9 @@ export default function DocPopup({
   description,
   href,
   className,
-}: DocPopupProps) {
+  children,
+}: DocPopupProps &
+  Pick<ComponentProps<typeof ControlledHoverCard>, "children">) {
   const capture = usePostHogClientCapture();
   // Controlled so a CLICK/TAP on the icon also opens the card: HoverCard
   // never opens on touch by itself, and the old click-to-navigate behavior
@@ -71,52 +89,22 @@ export default function DocPopup({
         </div>
       }
     >
-      {({ getTriggerProps }) => (
-        <button
-          type="button"
-          aria-label="More information"
-          className="text-muted-foreground mx-1 inline-block cursor-help whitespace-nowrap sm:pl-0"
-          {...getTriggerProps({
-            onClick: (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleOpenChange(!open);
-            },
-          })}
-        >
-          <Info size="sm" />
-        </button>
-      )}
-    </ControlledHoverCard>
-  );
-}
-
-export type PopupProps = {
-  triggerContent: React.ReactNode;
-  description: React.ReactNode;
-};
-
-export function Popup({ triggerContent, description }: PopupProps) {
-  return (
-    <HoverCard
-      openDelay={200}
-      content={
-        <div className="w-64 p-3">
-          <div className="text-primary text-xs font-normal whitespace-break-spaces sm:pl-0">
-            {description}
-          </div>
-        </div>
+      {({ getTriggerProps, ...triggerContext }) =>
+        children({
+          ...triggerContext,
+          getTriggerProps: (props) =>
+            getTriggerProps({
+              ...props,
+              onClick: (e) => {
+                props?.onClick?.(e);
+                if (e.defaultPrevented) return;
+                e.preventDefault();
+                e.stopPropagation();
+                handleOpenChange(!open);
+              },
+            }),
+        })
       }
-    >
-      {({ getTriggerProps }) => (
-        <div
-          className="mx-1 cursor-pointer"
-          tabIndex={0}
-          {...getTriggerProps()}
-        >
-          {triggerContent}
-        </div>
-      )}
-    </HoverCard>
+    </ControlledHoverCard>
   );
 }

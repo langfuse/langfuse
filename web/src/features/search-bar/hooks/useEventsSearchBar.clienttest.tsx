@@ -250,6 +250,42 @@ describe("useEventsSearchBar.commit", () => {
     ]);
   });
 
+  it("keeps a hidden numeric metadata equality when its key's visible comparison is unchanged", () => {
+    const equality: FilterState[number] = {
+      column: "metadata",
+      type: "numberObject",
+      key: "attempt",
+      operator: "=",
+      value: 3,
+    };
+    const { result, setFilterState } = setup({
+      filterState: [
+        equality,
+        {
+          column: "metadata",
+          type: "numberObject",
+          key: "attempt",
+          operator: ">",
+          value: 2,
+        },
+      ],
+      searchQuery: null,
+    });
+
+    act(() =>
+      result.current.store
+        .getState()
+        .actions.setDraft("metadata.attempt:>2 level:ERROR"),
+    );
+    act(() => {
+      result.current.commit("enter");
+    });
+
+    expect(setFilterState).toHaveBeenCalledWith(
+      expect.arrayContaining([equality]),
+    );
+  });
+
   it("fully replaces hidden filters when a query preset is picked", () => {
     const hiddenFilter: FilterState = [
       {
@@ -287,6 +323,22 @@ describe("useEventsSearchBar.applyFilters", () => {
     act(() => result.current.applyFilters(NEW_FILTERS));
     expect(setFilterState).toHaveBeenCalledWith(NEW_FILTERS);
     expect(setSearchQuery).toHaveBeenCalledWith(null);
+  });
+
+  it("keeps a numeric metadata comparison the AI result cannot carry", () => {
+    const comparison: FilterState[number] = {
+      column: "metadata",
+      type: "numberObject",
+      key: "latency_ms",
+      operator: ">",
+      value: 200,
+    };
+    const { result, setFilterState } = setup({
+      filterState: [comparison],
+      searchQuery: null,
+    });
+    act(() => result.current.applyFilters(NEW_FILTERS));
+    expect(setFilterState).toHaveBeenCalledWith([...NEW_FILTERS, comparison]);
   });
 
   it("resets a non-default searchType to the default on apply", () => {

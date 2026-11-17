@@ -160,6 +160,8 @@ export const eventsPredicateSource: PredicateSource = {
     field("commentContent", "Comment Content", "string", {
       multiValued: true,
     }),
+    // No events lowering: topic filters become trace id subqueries in the host query.
+    field("topics", "Topics", "categoryOptions"),
     field("hasParentObservation", "Has Parent Observation", "boolean"),
     field("isRootObservation", "Is Root Observation", "boolean"),
     field("hasInput", "Has Input", "boolean"),

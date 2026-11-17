@@ -247,7 +247,7 @@ describe("DataTableToolbar presentation controls", () => {
   });
 
   it("opens display settings independently of the column picker", () => {
-    const onIoRenderModeChange = vi.fn();
+    const onDiffModeChange = vi.fn();
     render(
       <DataTableToolbar
         {...settingsProps}
@@ -256,24 +256,26 @@ describe("DataTableToolbar presentation controls", () => {
             layout="grid"
             onLayoutChange={vi.fn()}
             diffMode="comparison"
-            onDiffModeChange={vi.fn()}
+            onDiffModeChange={onDiffModeChange}
             itemVisibility="all"
             onItemVisibilityChange={vi.fn()}
             hasComparisons
             hasBaseline
-            ioRenderMode="json"
-            onIoRenderModeChange={onIoRenderModeChange}
           />
         }
       />,
     );
 
-    expect(screen.queryByRole("menuitem", { name: "Formatted" })).toBeNull();
+    expect(
+      screen.queryByRole("menuitem", { name: "Off — values only" }),
+    ).toBeNull();
     fireEvent.keyDown(screen.getByRole("button", { name: "Display" }), {
       key: "Enter",
     });
-    fireEvent.click(screen.getByRole("menuitem", { name: "Formatted" }));
-    expect(onIoRenderModeChange).toHaveBeenCalledExactlyOnceWith("text");
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Off — values only" }),
+    );
+    expect(onDiffModeChange).toHaveBeenCalledExactlyOnceWith("off");
     fireEvent.click(screen.getByRole("button", { name: /^Columns/ }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Row height" })).toBeVisible();

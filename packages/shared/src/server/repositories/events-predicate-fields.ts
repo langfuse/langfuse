@@ -84,7 +84,9 @@ export type ScalarFieldLowering =
 /** Value type of each kind without index facts. */
 type ValueOfKind = {
   nullableString: string | null;
-  array: string[];
+  // Elements may be NULL: tuple fields of `Array(Tuple(…))` columns can be
+  // `Nullable(String)`.
+  array: Array<string | null>;
   scalar: unknown;
 };
 

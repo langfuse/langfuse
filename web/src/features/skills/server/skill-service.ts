@@ -5,7 +5,6 @@ import {
   InvalidRequestError,
   LangfuseNotFoundError,
   ListSkillsResponseSchema,
-  MAX_SKILL_BYTES,
   SKILL_LATEST_LABEL,
   SKILL_PRODUCTION_LABEL,
   SkillDescriptionSchema,
@@ -35,6 +34,7 @@ import {
   escapeSqlLikePattern,
   redis,
 } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
 import type { ProjectAuthedContext } from "@/src/server/api/trpc";
 import type { AuthorizationContext } from "@/src/features/auth/policy/types";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -335,21 +335,6 @@ export class SkillService {
       sha256Hash: { in: hashes },
       files: { some: { projectId: params.projectId } },
     } satisfies Prisma.SkillBlobWhereInput;
-    const blobs = await this.prisma.skillBlob.findMany({
-      where,
-      select: { contentLength: true },
-    });
-    if (blobs.length !== hashes.length) {
-      throw new LangfuseNotFoundError("One or more skill files not found");
-    }
-    // Check metadata before loading text so oversized batches stay bounded.
-    if (
-      blobs.reduce((total, blob) => total + blob.contentLength, 0) > 10_000_000
-    ) {
-      throw new InvalidRequestError(
-        "Skill file contents must not exceed 10000000 UTF-8 bytes per batch. Request fewer hashes.",
-      );
-    }
     const data = await this.prisma.skillBlob.findMany({
       where,
       select: { sha256Hash: true, content: true },
@@ -860,6 +845,11 @@ export class SkillService {
     files: HashedSkillFile[];
     referencedBlobs: Map<string, ReferencedSkillBlob>;
   }> {
+    if (params.files.length > env.LANGFUSE_SKILL_MAX_FILES) {
+      throw new InvalidRequestError(
+        `A skill must not contain more than ${env.LANGFUSE_SKILL_MAX_FILES} files`,
+      );
+    }
     const files = params.files.map((file) => ({
       ...file,
       sha256Hash:
@@ -899,9 +889,9 @@ export class SkillService {
           : referencedBlobByHash.get(file.sha256Hash)!.contentLength),
       0,
     );
-    if (totalBytes > MAX_SKILL_BYTES) {
+    if (totalBytes > env.LANGFUSE_SKILL_MAX_BYTES) {
       throw new InvalidRequestError(
-        `A skill must not exceed ${MAX_SKILL_BYTES} bytes in total`,
+        `A skill must not exceed ${env.LANGFUSE_SKILL_MAX_BYTES} UTF-8 bytes in total`,
       );
     }
     return { files, referencedBlobs: referencedBlobByHash };

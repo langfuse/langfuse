@@ -74,6 +74,47 @@ describe("usePaginationWindowPin", () => {
     expect(result.current.range?.to).toEqual(newerTop);
   });
 
+  it("keeps both bounds from the page-1 snapshot when later pages re-pin", () => {
+    const { result, rerender } = renderHook(
+      ({ pageIndex, range, resetKey }) =>
+        usePaginationWindowPin(range, pageIndex, { resetKey }),
+      { initialProps: { pageIndex: 0, range: LIVE, resetKey: "page-50" } },
+    );
+
+    act(() => result.current.pinOnLeavingFirstPage(1, NEWEST_ON_PAGE_1));
+    rerender({ pageIndex: 1, range: LIVE, resetKey: "page-50" });
+
+    // Page 2's newest row is older. Re-pinning to it would retreat the window
+    // and shrink the count on a timestamp-DESC sort.
+    const olderTop = new Date("2026-08-12T11:00:00.000Z");
+    act(() => result.current.pinOnLeavingFirstPage(2, olderTop));
+    rerender({ pageIndex: 2, range: LIVE, resetKey: "page-50" });
+    expect(result.current.range).toEqual({
+      from: LIVE.from,
+      to: NEWEST_ON_PAGE_1,
+    });
+
+    // A relative lower bound that slides forward must not shrink the snapshot.
+    const slid = {
+      from: new Date("2026-08-11T18:00:00.000Z"),
+      to: undefined,
+    };
+    rerender({ pageIndex: 3, range: slid, resetKey: "page-50" });
+    act(() => result.current.pinOnLeavingFirstPage(3, olderTop));
+    expect(result.current.range).toEqual({
+      from: LIVE.from,
+      to: NEWEST_ON_PAGE_1,
+    });
+
+    // Sort, page size, and the selected time range replace the snapshot.
+    // Leaving it open while the reader is still past page 1 would let the
+    // next click follow the live tail and move the total again.
+    rerender({ pageIndex: 3, range: slid, resetKey: "page-100" });
+    expect(result.current.range).toEqual({ from: slid.from, to: START });
+    act(() => result.current.pinOnLeavingFirstPage(4, olderTop));
+    expect(result.current.range).toEqual({ from: slid.from, to: START });
+  });
+
   it("pins to now when a later page is opened directly, and leaves closed ranges alone", () => {
     const { result } = renderHook(() => usePaginationWindowPin(LIVE, 2));
     expect(result.current.range?.to).toEqual(START);
@@ -86,15 +127,23 @@ describe("usePaginationWindowPin", () => {
     expect(closed.result.current.range).toBe(absolute);
   });
 
-  it("releases the previous view's pin before the page reset reaches the URL", () => {
+  it("replaces the previous view's pin before the page reset reaches the URL", () => {
     const { result, rerender } = renderHook(
       ({ pageIndex }) => usePaginationWindowPin(LIVE, pageIndex),
       { initialProps: { pageIndex: 2 } },
     );
     expect(result.current.range?.to).toEqual(START);
+
+    // The URL page index lands a render later. Until then the reader is still
+    // past page 1, so the old window is replaced by a fresh one rather than
+    // left open.
+    const later = new Date(START.getTime() + 5_000);
+    vi.setSystemTime(later);
     act(() => result.current.resetPin());
-    expect(result.current.range?.to).toBeUndefined();
+    expect(result.current.range).toEqual({ from: LIVE.from, to: later });
+
     rerender({ pageIndex: 0 });
+    expect(result.current.range?.to).toBeUndefined();
     act(() => result.current.pinOnLeavingFirstPage(1, NEWEST_ON_PAGE_1));
     rerender({ pageIndex: 1 });
     expect(result.current.range?.to).toEqual(NEWEST_ON_PAGE_1);
@@ -151,8 +200,10 @@ describe("usePaginationWindowPin", () => {
       { initialProps: { enabled: true } },
     );
 
+    // Opening page 2 directly already pinned to now. A later pagination
+    // callback must not replace that with the page's own newest row.
     act(() => result.current.pinOnLeavingFirstPage(1, NEWEST_ON_PAGE_1));
-    expect(result.current.range?.to).toEqual(NEWEST_ON_PAGE_1);
+    expect(result.current.range?.to).toEqual(START);
 
     rerender({ enabled: false });
     expect(result.current.range?.to).toBeUndefined();
