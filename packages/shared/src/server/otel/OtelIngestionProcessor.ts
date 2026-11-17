@@ -3268,6 +3268,11 @@ export class OtelIngestionProcessor {
           }
         }
 
+        // ai@5 reports input without cache tokens; ai@6+ includes cache writes
+        // and also emits inputTokenDetails.cacheWriteTokens.
+        const inputIncludesCacheWrite =
+          "ai.usage.inputTokenDetails.cacheWriteTokens" in attributes;
+
         // Subtract cached token count from total input and output
         usageDetails["input"] = Math.max(
           (usageDetails["input"] ?? 0) -
@@ -3275,7 +3280,10 @@ export class OtelIngestionProcessor {
             (usageDetails["input_cache_creation"] ?? 0) -
             (usageDetails["input_cache_creation_5m"] ?? 0) -
             (usageDetails["input_cache_creation_1h"] ?? 0) -
-            (usageDetails["input_cache_read"] ?? 0),
+            (usageDetails["input_cache_read"] ?? 0) -
+            (inputIncludesCacheWrite
+              ? (usageDetails["input_cache_write"] ?? 0)
+              : 0),
           0,
         );
 
