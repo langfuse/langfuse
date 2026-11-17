@@ -1,4 +1,4 @@
-import { type ComponentProps } from "react";
+import { type ComponentProps, type ReactNode } from "react";
 import {
   GripVerticalIcon,
   MoreVerticalIcon,
@@ -33,6 +33,7 @@ export type DataCardActions = {
 export function DataCard({
   title,
   description,
+  descriptor,
   badge,
   controls = [],
   tabs,
@@ -42,6 +43,7 @@ export function DataCard({
 }: {
   title: string;
   description?: string | null;
+  descriptor?: ReactNode;
   badge?: { text: string; description: string };
   controls?: ({
     id: string;
@@ -60,7 +62,7 @@ export function DataCard({
       >)
     | ({ type: "select" } & Pick<
         ComponentProps<typeof SelectInput<string>>,
-        "value" | "options" | "onValueChange" | "disabled"
+        "value" | "options" | "onValueChange" | "disabled" | "noCapture"
       >)
   ))[];
   tabs?: {
@@ -165,6 +167,7 @@ export function DataCard({
                   />
                 ) : (
                   <SelectInput
+                    noCapture={control.noCapture}
                     aria-label={control.label}
                     placeholder={control.label}
                     value={control.value}
@@ -223,6 +226,11 @@ export function DataCard({
           >
             {description}
           </p>
+        )}
+        {descriptor && (
+          <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+            {descriptor}
+          </div>
         )}
       </div>
       {tabs ? (

@@ -18,6 +18,7 @@ type WidgetChartCardProps = Pick<
     | "legendPosition"
     | "legendSummary"
     | "legendInteraction"
+    | "onLegendInteraction"
     | "maxVisibleSeries"
     | "syncId"
     | "sync"

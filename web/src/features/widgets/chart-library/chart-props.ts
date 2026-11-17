@@ -132,6 +132,10 @@ export interface ChartProps {
   legendSummary?: LegendSummaryMode;
   /** How a legend click behaves (focus-vs-toggle). Defaults to `"highlight"`. */
   legendInteraction?: LegendInteraction;
+  onLegendInteraction?: (event: {
+    action: "show" | "hide" | "isolate" | "reset";
+    selectedCount: number;
+  }) => void;
   /**
    * Cap the number of series drawn by default (top-N by magnitude); the rest
    * start hidden but remain toggleable from the legend. Only meaningful with

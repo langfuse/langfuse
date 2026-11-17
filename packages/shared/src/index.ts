@@ -67,6 +67,7 @@ export * from "./domain/dataset-run-items";
 export * from "./domain/dataset-items";
 export * from "./domain/score-configs";
 export * from "./domain/home-dashboard";
+export * from "./domain/dashboard-studio-presets";
 
 // llm api
 export * from "./server/llm/types";
@@ -439,6 +440,9 @@ export {
   ChartConfigSchema,
   DimensionSchema,
   MetricSchema,
+  type DashboardDefinition,
+  DashboardDefinitionSchema,
+  type DashboardDomain,
 } from "./server/services/DashboardService/types";
 
 // query (dashboard / monitor data model)
@@ -461,3 +465,4 @@ export { PagerDutyActionCreateSchema } from "./domain/automations";
 export type { PagerDutyActionConfigWithSecrets } from "./domain/automations";
 export type { SafePagerDutyActionConfig } from "./domain/automations";
 export { isPagerDutyActionConfig } from "./domain/automations";
+export * from "./domain/dashboard-studio";

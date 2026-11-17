@@ -10,7 +10,17 @@
  */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { type QueryType } from "@langfuse/shared/query";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import {
+  createOrgProjectAndApiKey,
+  createEvent,
+  createEventsCh,
+  createTraceScore,
+  createSessionScore,
+  createDatasetRunScore,
+  createScoresCh,
+} from "@langfuse/shared/src/server";
+import { StudioWidgetConfigSchema } from "@langfuse/shared";
+import { randomUUID } from "node:crypto";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -99,5 +109,283 @@ describe("dashboard.executeQuery version contract", () => {
     await expect(
       caller.dashboard.executeQuery({ projectId, query, version: "v2" }),
     ).resolves.toBeDefined();
+  });
+
+  it("keeps same-name score attachments separate without joining trace or observation data", async () => {
+    const caller = makeCaller({ v4BetaEnabled: true });
+    const timestamp = new Date();
+    const name = `attachment-${randomUUID()}`;
+    const traceId = randomUUID();
+    await createScoresCh([
+      createTraceScore({
+        project_id: projectId,
+        name,
+        timestamp,
+        trace_id: traceId,
+      }),
+      createTraceScore({
+        project_id: projectId,
+        name,
+        timestamp,
+        trace_id: traceId,
+        observation_id: randomUUID(),
+      }),
+      createSessionScore({ project_id: projectId, name, timestamp }),
+      createDatasetRunScore({ project_id: projectId, name, timestamp }),
+      createTraceScore({
+        project_id: projectId,
+        name,
+        timestamp,
+        trace_id: null,
+      }),
+    ]);
+    const config = StudioWidgetConfigSchema.parse({
+      version: 1,
+      title: "Score targets",
+      description: "",
+      expressions: [],
+      queries: ["all", "trace", "observation", "session", "experiment"].map(
+        (scoreTarget) => ({
+          id: scoreTarget,
+          label: scoreTarget,
+          view: "scores-numeric",
+          scoreTarget,
+          metrics: [{ id: "count", measure: "count", aggregation: "count" }],
+          dimensions: [],
+          filters: [
+            { column: "name", type: "string", operator: "=", value: name },
+          ],
+        }),
+      ),
+      display: { chartType: "VERTICAL_BAR" },
+    });
+    for (const version of ["v1", "v2"] as const) {
+      const result = await caller.dashboardStudio.execute({
+        projectId,
+        config,
+        version,
+        fromTimestamp: new Date(timestamp.getTime() - 60000).toISOString(),
+        toTimestamp: new Date(timestamp.getTime() + 60000).toISOString(),
+      });
+      expect(result.status, JSON.stringify(result.diagnostics)).toBe(
+        "complete",
+      );
+      expect(
+        Object.fromEntries(result.rows.map((row) => [row.queryId, row.value])),
+      ).toEqual({
+        all: 5,
+        trace: 2,
+        observation: 1,
+        session: 1,
+        experiment: 1,
+      });
+      expect(
+        result.diagnostics.every(
+          (diagnostic) => !/\bjoin\b/i.test(diagnostic.compiledSql ?? ""),
+        ),
+      ).toBe(true);
+    }
+    expect(
+      StudioWidgetConfigSchema.safeParse({
+        ...config,
+        queries: [
+          { ...config.queries[0], view: "observations", scoreTarget: "trace" },
+        ],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("executes independently filtered series and a null-safe formula without crossing project authorization", async () => {
+    const caller = makeCaller({ v4BetaEnabled: true });
+    const timestamp = new Date();
+    await createEventsCh(
+      [["abc"], ["bbc"], ["abc", "bbc"], []].map((keys, index) =>
+        createEvent({
+          project_id: projectId,
+          metadata_names: keys,
+          metadata_values: keys.map(() => ""),
+          start_time: timestamp,
+          end_time: new Date(timestamp.getTime() + [50, 100, 999, 1000][index]),
+        }),
+      ),
+    );
+    const config = StudioWidgetConfigSchema.parse({
+      version: 1,
+      title: "Presence",
+      description: "",
+      expressions: [
+        { id: "ratio", label: "Ratio", formula: "a.count / b.count" },
+      ],
+      queries: ["abc", "bbc"].map((key, index) => ({
+        id: index === 0 ? "a" : "b",
+        label: key,
+        view: "observations",
+        metrics: [{ id: "count", measure: "count", aggregation: "count" }],
+        dimensions: [],
+        filters: [
+          {
+            column: "metadata",
+            type: "stringObject",
+            key,
+            operator: "is set",
+            value: "",
+          },
+        ],
+      })),
+      display: { chartType: "VERTICAL_BAR", showHeadline: true },
+    });
+    const input = {
+      projectId,
+      config,
+      version: "v2" as const,
+      fromTimestamp: new Date(timestamp.getTime() - 60000).toISOString(),
+      toTimestamp: new Date(timestamp.getTime() + 60000).toISOString(),
+    };
+    const result = await caller.dashboardStudio.execute(input);
+    expect(result.status, JSON.stringify(result.diagnostics)).toBe("complete");
+    expect(
+      Object.fromEntries(result.rows.map((row) => [row.seriesId, row.value])),
+    ).toEqual({ "a.count": 2, "b.count": 2, ratio: 1 });
+    expect(
+      result.summaries.find((row) => row.seriesId === "a.count")?.value,
+    ).toBe(2);
+    expect(result.diagnostics.every((entry) => entry.queryCount === 1)).toBe(
+      true,
+    );
+    const percentile = await caller.dashboardStudio.execute({
+      ...input,
+      config: {
+        ...config,
+        queries: [
+          {
+            id: "latency",
+            label: "Custom p10",
+            view: "observations",
+            metrics: [
+              {
+                id: "p10",
+                measure: "latency",
+                aggregation: "p50",
+                percentile: 10,
+              },
+            ],
+            dimensions: [],
+            filters: [],
+          },
+        ],
+        expressions: [],
+        display: { chartType: "NUMBER" },
+      },
+    });
+    expect(percentile.status, JSON.stringify(percentile.diagnostics)).toBe(
+      "complete",
+    );
+    expect(percentile.rows[0].value).toBeLessThan(100);
+    const histogram = await caller.dashboardStudio.execute({
+      ...input,
+      config: {
+        ...config,
+        queries: [
+          {
+            id: "latency",
+            label: "Fixed latency bands",
+            view: "observations",
+            metrics: [
+              { id: "bands", measure: "latency", aggregation: "histogram" },
+            ],
+            dimensions: [],
+            filters: [],
+          },
+        ],
+        expressions: [],
+        display: { chartType: "HISTOGRAM", histogramEdges: [0, 100, 1000] },
+      },
+    });
+    expect(histogram.status, JSON.stringify(histogram.diagnostics)).toBe(
+      "complete",
+    );
+    expect(
+      Object.fromEntries(
+        histogram.rows.map((row) => [row.dimension, row.value]),
+      ),
+    ).toEqual({
+      "< 0": 0,
+      "[0, 100)": 1,
+      "[100, 1000)": 2,
+      "≥ 1000": 1,
+      "No value": 0,
+    });
+    const invalidPredicate = await caller.dashboardStudio.execute({
+      ...input,
+      config: {
+        ...config,
+        queries: [
+          {
+            id: "invalid",
+            label: "Invalid local predicate",
+            view: "scores-boolean",
+            metrics: [{ id: "count", measure: "count", aggregation: "count" }],
+            dimensions: [],
+            filters: [
+              { column: "value", type: "number", operator: "=", value: 1 },
+            ],
+          },
+        ],
+        expressions: [],
+      },
+    });
+    expect(invalidPredicate.status).toBe("error");
+    expect(invalidPredicate.diagnostics[0].error).toContain("value");
+    const costByType = await caller.dashboardStudio.execute({
+      ...input,
+      config: {
+        ...config,
+        queries: [
+          {
+            id: "cost",
+            label: "Cost by type",
+            view: "observations",
+            metrics: [
+              {
+                id: "cost",
+                measure: "costByType",
+                aggregation: "sum",
+                summary: { measure: "totalCost", aggregation: "sum" },
+              },
+            ],
+            dimensions: [{ field: "costType" }],
+            filters: [],
+          },
+        ],
+        expressions: [],
+        display: { chartType: "HORIZONTAL_BAR", showHeadline: true },
+      },
+    });
+    expect(costByType.status, JSON.stringify(costByType.diagnostics)).toBe(
+      "complete",
+    );
+    expect(
+      costByType.rows.reduce((sum, row) => sum + (row.value ?? 0), 0),
+    ).toBe(2400);
+    expect(costByType.summaries.map((row) => row.value)).toEqual([1200]);
+    const limitedFormula = await caller.dashboardStudio.execute({
+      ...input,
+      config: {
+        ...config,
+        queries: config.queries.map((source) => ({
+          ...source,
+          dimensions: [{ field: "name" }],
+        })),
+      },
+    });
+    expect(limitedFormula.warnings.join(" ")).toContain(
+      "shared breakdown domain",
+    );
+    expect(limitedFormula.rows.some((row) => row.queryId === "ratio")).toBe(
+      false,
+    );
+    await expect(
+      caller.dashboardStudio.execute({ ...input, projectId: randomUUID() }),
+    ).rejects.toThrow("not a member");
   });
 });

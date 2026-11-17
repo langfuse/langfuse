@@ -35,6 +35,7 @@ export function useAreaChartTimeSeries({
   legendPosition = "auto",
   legendSummary = "none",
   legendInteraction = "highlight",
+  onLegendInteraction,
   maxVisibleSeries,
   sync,
   missingValue = "gap",
@@ -106,6 +107,7 @@ export function useAreaChartTimeSeries({
         visibility: legendPosition === "auto" ? "auto" : "visible",
         interaction: "toggle",
         summary: legendSummary,
+        onInteraction: onLegendInteraction,
         maxVisibleSeries,
       };
     }
@@ -113,8 +115,15 @@ export function useAreaChartTimeSeries({
       visibility: legendPosition === "auto" ? "auto" : "visible",
       interaction: "highlight",
       summary: legendSummary,
+      onInteraction: onLegendInteraction,
     };
-  }, [legendPosition, legendInteraction, legendSummary, maxVisibleSeries]);
+  }, [
+    legendPosition,
+    legendInteraction,
+    legendSummary,
+    maxVisibleSeries,
+    onLegendInteraction,
+  ]);
   const axisProps: ComponentProps<typeof DesignSystemAreaChart> =
     timeAxis.mode === "category" || hasNonTimestampBucket
       ? {

@@ -31,6 +31,7 @@ import { ParametricAggregateNode, walkNodes } from "./nodes";
 const ALLOWED_FUNCTIONS: ReadonlySet<string> = new Set([
   // Scalar functions.
   "CAST",
+  "array",
   "arrayConcat",
   "arrayDistinct",
   "arrayExists",

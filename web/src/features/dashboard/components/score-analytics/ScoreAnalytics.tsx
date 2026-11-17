@@ -1,3 +1,4 @@
+import { useDashboardStudioCapture } from "@/src/features/dashboard-studio/analytics";
 /* eslint-disable @repo/no-style-props */
 import { api } from "@/src/utils/api";
 import { MultiSelectTagInput } from "@/src/components/design-system/MultiSelectTagInput/MultiSelectTagInput";
@@ -42,6 +43,7 @@ export function ScoreAnalytics(props: {
     onActiveKeyChange: (key: string | undefined) => void;
   };
 }) {
+  const track = useDashboardStudioCapture(props.metricsVersion === "v2");
   // Stale score selections in localStorage are ignored as we only show scores that exist in scoreAnalyticsOptions
   const [selectedDashboardScoreKeys, setSelectedDashboardScoreKeys] =
     useLocalStorage<string[]>(
@@ -157,7 +159,24 @@ export function ScoreAnalytics(props: {
                 aria-label="Scores"
                 value={scoreAnalyticsValues.map(({ key }) => key)}
                 options={scoreSelectorOptions}
-                onValueChange={setSelectedDashboardScoreKeys}
+                onValueChange={(values) => {
+                  if (
+                    values.length === selectedDashboardScoreKeys.length &&
+                    values.every(
+                      (value, index) =>
+                        value === selectedDashboardScoreKeys[index],
+                    )
+                  )
+                    return;
+                  setSelectedDashboardScoreKeys(values);
+                  track("filter_applied", {
+                    widgetKind: "preset",
+                    presetId: "home-score-analytics",
+                    controlId: "scores",
+                    selectedCount: values.length,
+                    scope: "widget",
+                  });
+                }}
                 placeholder="Select scores"
                 searchPlaceholder="Search scores..."
                 emptyMessage="No scores found."

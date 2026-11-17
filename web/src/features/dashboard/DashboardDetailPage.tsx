@@ -19,8 +19,10 @@ import {
   type FilterState,
   LANGFUSE_HOME_DASHBOARD_ID,
   type HomeDashboardPresetId,
+  DashboardDefinitionSchema,
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
+import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
 import {
   PlusIcon,
   Copy,
@@ -67,6 +69,7 @@ import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
   toAbsoluteTimeRange,
+  rangeToString,
 } from "@/src/utils/date-range-utils";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
@@ -155,10 +158,15 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   const isV4 = readPath === "v4";
 
   // Fetch dashboard data
-  const dashboard = api.dashboard.getDashboard.useQuery({
-    projectId,
-    dashboardId,
-  });
+  const dashboard = api.dashboard.getDashboard.useQuery(
+    { projectId, dashboardId },
+    {
+      select: (data) => ({
+        ...data,
+        definition: DashboardDefinitionSchema.parse(data.definition),
+      }),
+    },
+  );
 
   const hasRbacCUDAccess = useHasProjectAccess({
     projectId,
@@ -303,6 +311,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
     (definition: { widgets: DashboardPlacement[] }) => {
       if (!hasCUDAccess) return;
       updateDashboardDefinition.mutate({
+        supportedPlacementTypes: ["widget", "preset", "query", "text"],
         projectId,
         dashboardId,
         definition,
@@ -1324,6 +1333,11 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                     ),
                     actionButtonsRight: (
                       <>
+                        <DesignSystemButton
+                          text="Open in studio"
+                          variant="outline"
+                          href={`/project/${projectId}/dashboards/${dashboardId}/studio?dateRange=${rangeToString(timeRange)}`}
+                        />
                         {(updateDashboardDefinition.isPending ||
                           updateDashboardMetadata.isPending ||
                           updateDashboardFilters.isPending ||

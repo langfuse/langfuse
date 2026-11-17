@@ -1031,6 +1031,57 @@ export function histogram(
   return parametricAggregate("histogram", [bins], value);
 }
 
+/** Exact [lower, upper) counts, plus underflow, overflow and null buckets. */
+export function fixedHistogram(
+  edges: readonly number[],
+  value: Expression<unknown>,
+): ChExpression<Array<[number | null, number | null, number]>> {
+  if (
+    edges.length < 2 ||
+    edges.length > 51 ||
+    edges.some(
+      (edge, index) =>
+        !Number.isFinite(edge) || (index > 0 && edge <= edges[index - 1]),
+    )
+  )
+    throw new QueryCompileError(
+      "Histogram edges must be finite, strictly increasing and contain 2–51 values",
+    );
+  const eb = expressionBuilder();
+  const bins = [
+    tuple(
+      literal(null),
+      literal(edges[0]),
+      countIf(eb(value, "<", literal(edges[0]))),
+    ),
+    ...edges
+      .slice(0, -1)
+      .map((edge, index) =>
+        tuple(
+          literal(edge),
+          literal(edges[index + 1]),
+          countIf(
+            eb.and([
+              eb(value, ">=", literal(edge)),
+              eb(value, "<", literal(edges[index + 1])),
+            ]),
+          ),
+        ),
+      ),
+    tuple(
+      literal(edges.at(-1)!),
+      literal(null),
+      countIf(eb(value, ">=", literal(edges.at(-1)!))),
+    ),
+    tuple(
+      literal(null),
+      literal(null),
+      countIf(eb.fn<boolean>("isNull", [value])),
+    ),
+  ];
+  return functionCall("array", bins);
+}
+
 /** ClickHouse `tuple(a, b, …)`. */
 export function tuple<T extends unknown[]>(
   ...values: { [K in keyof T]: Expression<T[K]> }

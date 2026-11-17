@@ -18,6 +18,48 @@ summary as the last stdout line. This file is the design explainer; the command
 reference for agents lives in [AGENTS.md](./AGENTS.md) and the
 `seed-test-data` skill.
 
+## Dashboard studio story
+
+Run `NEXTAUTH_URL=http://localhost:3030 pnpm run seed -- dashboard-story` for
+the dashboard migration demonstration. It creates a dedicated synthetic project
+in the default seed project's organisation, preserves its existing membership
+access, and sets the saved story dashboard as that synthetic project's Home.
+It never replaces another project's dashboard. With an explicit `--project`,
+the target must already be marked as owned by this scenario.
+
+The default fixture contains 3,000 native v4 observations over 90 complete UTC
+days: 1,200 have only `abc`, 900 only `bbc`, 600 both, and 300 neither. Exact
+readback verifies 1,800 `abc` observations, 1,500 `bbc`, 600 overlap, and 2,700
+distinct union. Present-empty, JSON null, zero and false values remain distinct
+from absent keys. A literal dotted key and a nested JSON value are also present.
+Forty users, 32 models, skewed latency/cost/tokens, root spans with external
+parents, incomplete roots, and numeric/boolean/categorical scores at trace,
+root, child and session scope make semantic differences visible. Some scores
+arrive outside the observation window.
+Finite root spans enclose both children; intentionally incomplete roots retain
+a missing end time. Readback asserts zero parent/child timing violations.
+
+The saved dashboard pairs all twelve existing Home cards with editable query
+recipes, adds text, independent metadata bars, two percentile series and an
+error-rate formula. Score analytics expands into ordinary numeric, boolean and
+categorical distribution/trend charts with editable score-definition filters.
+
+Use fresh prefixes for independent scale tiers:
+
+```bash
+NEXTAUTH_URL=http://localhost:3030 pnpm run seed -- dashboard-story --observations 30000 --id-prefix dashboard-story-30k
+NEXTAUTH_URL=http://localhost:3030 pnpm run seed -- dashboard-story --observations 300000 --id-prefix dashboard-story-300k
+```
+
+Counts may be any multiple of 3,000 up to 999,000. The CLI prints project and
+dashboard deep links with the full range; changing the range changes the
+visible counts. Matching same-day reruns reuse event versions and refresh the
+dashboard definition. Existing event rows are never rewritten: scenario-version
+mismatches and partially populated fixtures require a fresh `--id-prefix`.
+Use a fresh prefix when changing size, day window or
+when retaining an older day's fixture. The scenario's `verified` JSON fields
+come from ClickHouse, rather than from the expected-answer generator.
+
 ## Why this exists
 
 Two consumers need local seed data and both were underserved:

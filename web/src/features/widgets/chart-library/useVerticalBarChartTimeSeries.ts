@@ -24,6 +24,7 @@ export function useVerticalBarChartTimeSeries({
   legendPosition = "auto",
   legendSummary = "none",
   legendInteraction = "highlight",
+  onLegendInteraction,
   maxVisibleSeries,
   sync,
   hideXAxisLabels = false,
@@ -81,6 +82,7 @@ export function useVerticalBarChartTimeSeries({
         visibility: legendPosition === "auto" ? "auto" : "visible",
         interaction: "toggle",
         summary: legendSummary,
+        onInteraction: onLegendInteraction,
         maxVisibleSeries,
       };
     }
@@ -88,8 +90,15 @@ export function useVerticalBarChartTimeSeries({
       visibility: legendPosition === "auto" ? "auto" : "visible",
       interaction: "highlight",
       summary: legendSummary,
+      onInteraction: onLegendInteraction,
     };
-  }, [legendPosition, legendInteraction, legendSummary, maxVisibleSeries]);
+  }, [
+    legendPosition,
+    legendInteraction,
+    legendSummary,
+    maxVisibleSeries,
+    onLegendInteraction,
+  ]);
 
   const chartProps = {
     data: chartData,

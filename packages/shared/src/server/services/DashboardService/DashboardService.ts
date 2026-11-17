@@ -214,14 +214,35 @@ export class DashboardService {
     projectId: string,
     definition: z.infer<typeof DashboardDefinitionSchema>,
     userId?: string,
+    supportedPlacementTypes: readonly string[] = ["widget", "preset"],
   ): Promise<DashboardDomain> {
-    return this.updateDashboardRecord(dashboardId, projectId, {
-      updatedBy: userId,
-      definition: {
-        // Already sanitized: the input is parsed against
-        // DashboardDefinitionSchema, which strips unknown keys.
-        widgets: definition.widgets,
-      },
+    return prisma.$transaction(async (tx) => {
+      // Serialize content replacements so a reader with fewer placement capabilities
+      // cannot erase content written concurrently by a newer editor.
+      await tx.$queryRaw`SELECT id FROM dashboards WHERE id = ${dashboardId} AND project_id = ${projectId} FOR UPDATE`;
+      const current = await tx.dashboard.findFirst({
+        where: { id: dashboardId, projectId },
+      });
+      if (!current)
+        throw new LangfuseNotFoundError(
+          `Dashboard ${dashboardId} not found in project ${projectId}`,
+        );
+      const stored = DashboardDefinitionSchema.parse(current.definition);
+      const retained = stored.widgets.filter(
+        (placement) => !supportedPlacementTypes.includes(placement.type),
+      );
+      const retainedIds = new Set(retained.map((placement) => placement.id));
+      const incoming = definition.widgets.filter(
+        (placement) => !retainedIds.has(placement.id),
+      );
+      const updated = await tx.dashboard.update({
+        where: { id: dashboardId, projectId },
+        data: {
+          updatedBy: userId,
+          definition: { widgets: [...incoming, ...retained] },
+        },
+      });
+      return DashboardDomainSchema.parse({ ...updated, owner: "PROJECT" });
     });
   }
 

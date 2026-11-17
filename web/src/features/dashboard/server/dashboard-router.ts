@@ -67,6 +67,9 @@ const UpdateDashboardDefinitionInput = z.object({
   projectId: z.string(),
   dashboardId: z.string(),
   definition: DashboardDefinitionSchema,
+  supportedPlacementTypes: z
+    .array(z.enum(["widget", "preset", "query", "text"]))
+    .optional(),
 });
 
 // Update dashboard input schema
@@ -579,6 +582,7 @@ export const dashboardRouter = createTRPCRouter({
         input.projectId,
         input.definition,
         ctx.session.user.id,
+        input.supportedPlacementTypes,
       );
 
       return dashboard;

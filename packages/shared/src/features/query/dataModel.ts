@@ -545,6 +545,16 @@ export const observationsView: ViewDeclarationType = {
       description: "Total number of observations.",
       unit: "observations",
     },
+    activeDays: {
+      sql: "@@AGG@@(formatDateTime(observations.start_time, '%Y-%m-%d', 'UTC'))",
+      aggs: { agg: "any" },
+      alias: "activeDays",
+      type: "string",
+      description:
+        "UTC calendar date of an observation; use uniq to count active UTC days.",
+      unit: "days",
+      defaultAggregation: "uniq",
+    },
     latency: {
       sql: "date_diff('millisecond', @@AGG1@@(observations.start_time), @@AGG1@@(observations.end_time))",
       aggs: { agg1: "any" },
@@ -985,6 +995,13 @@ const createScoreSpecificDimensions = (
     type: "string",
     description: "Identifier of the observation associated with the score.",
     ...(isV2 && { highCardinality: true }),
+  },
+  scoreTarget: {
+    sql: `multiIf(isNotNull(${tableAlias}.observation_id), 'observation', isNotNull(${tableAlias}.trace_id), 'trace', isNotNull(${tableAlias}.session_id), 'session', isNotNull(${tableAlias}.dataset_run_id), 'experiment', 'trace')`,
+    alias: "scoreTarget",
+    type: "string",
+    description:
+      "Score attachment context. The narrowest set context wins: observation, trace, session, then experiment; an implicit context defaults to trace.",
   },
 });
 
@@ -1533,6 +1550,16 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "string",
       description:
         "Trace identifier; apply uniq aggregation to count distinct traces.",
+    },
+    activeDays: {
+      sql: "@@AGG@@(formatDateTime(events_observations.start_time, '%Y-%m-%d', 'UTC'))",
+      aggs: { agg: "any" },
+      alias: "activeDays",
+      type: "string",
+      description:
+        "UTC calendar date of an observation; use uniq to count active UTC days.",
+      unit: "days",
+      defaultAggregation: "uniq",
     },
     uniqueUserIds: {
       sql: "@@AGG@@(nullIf(events_observations.user_id, ''))",

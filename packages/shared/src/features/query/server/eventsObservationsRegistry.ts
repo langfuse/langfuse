@@ -536,6 +536,18 @@ export const EVENTS_OBSERVATIONS_MEASURES = {
     aggs: { agg: "any" },
     expression: (eb, agg) => agg("agg", eb.ref("e.trace_id")),
   }),
+  activeDays: templateMeasure({
+    aggs: { agg: "any" },
+    expression: (eb, agg) =>
+      agg(
+        "agg",
+        eb.fn<string>("formatDateTime", [
+          eb.ref("e.start_time"),
+          literal("%Y-%m-%d"),
+          literal("UTC"),
+        ]),
+      ),
+  }),
   uniqueUserIds: templateMeasure({
     aggs: { agg: "any" },
     expression: (eb, agg) => agg("agg", nullIfEmpty(eb.ref("e.user_id"))),
