@@ -3,11 +3,12 @@ import { findModel } from "@langfuse/shared/src/server";
 import type { GatewayResolveResponse } from "@/src/features/ai-gateway/server/provider/registry";
 
 /**
- * Prices the gateway charges the request's spend at. Matched on the model sent
- * upstream; Langfuse ingestion later matches on the model the provider
- * reports, which can pick a different model for the same request.
+ * The Langfuse pricing of the model a request is sent upstream with, in the
+ * shape /resolve returns. The gateway charges spend limits at these prices.
+ * Langfuse ingestion later matches on the model the provider reports, which
+ * can pick a different model for the same request.
  */
-export async function findResolvePricing(params: {
+export async function findGatewayModelPricing(params: {
   projectId: string;
   providerModel: string;
 }): Promise<GatewayResolveResponse["pricing"]> {

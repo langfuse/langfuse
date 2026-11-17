@@ -24,7 +24,7 @@ import {
   getGatewayUpstream,
   getGatewayUpstreamSecret,
 } from "@/src/features/ai-gateway/server/provider/registry";
-import { findResolvePricing } from "@/src/features/ai-gateway/server/spendLimits/gatewaySpendLimitResolve";
+import { findGatewayModelPricing } from "@/src/features/ai-gateway/server/resolve/gatewayModelPricing";
 
 export { GatewayControlPlaneError as GatewayResolveError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 
@@ -114,7 +114,7 @@ export class GatewayResolveService {
       const spendLimits = deliversToLangfuse ? context.spendLimits : [];
       const pricing =
         spendLimits.length > 0 && ingestionProjectId
-          ? await findResolvePricing({
+          ? await findGatewayModelPricing({
               projectId: ingestionProjectId,
               providerModel: context.providerModel,
             })
