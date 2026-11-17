@@ -374,7 +374,7 @@ export function TopicMapExplorer({
   return (
     <section
       ref={sectionRef}
-      aria-label="Embedding map"
+      aria-label="Scatter"
       className={cn(
         "ph-no-capture bg-background flex min-w-0 flex-col overflow-hidden rounded-lg border",
         fillContainer && "h-full min-h-0",
@@ -391,9 +391,9 @@ export function TopicMapExplorer({
         ref={stageRef}
         tabIndex={0}
         role="group"
-        aria-label="Interactive topic map. Drag or scroll to pan, pinch or control scroll to zoom. Arrow keys pan, plus and minus zoom, zero fits the map."
+        aria-label="Interactive scatter. Drag or scroll to pan, pinch or control scroll to zoom. Arrow keys pan, plus and minus zoom, zero fits the scatter."
         className={cn(
-          "bg-muted/10 focus-visible:ring-ring relative w-full overflow-hidden overscroll-contain outline-none focus-visible:ring-2 focus-visible:ring-inset",
+          "bg-muted/10 focus-visible:ring-ring relative w-full overflow-hidden overscroll-contain outline-none select-none focus-visible:ring-2 focus-visible:ring-inset",
           fullscreen || fillContainer
             ? "min-h-0 flex-1"
             : "h-[clamp(380px,64vh,820px)] min-h-[340px]",
@@ -409,7 +409,7 @@ export function TopicMapExplorer({
       >
         <div
           role="toolbar"
-          aria-label="Map controls"
+          aria-label="Scatter controls"
           className="bg-background/85 absolute top-2 right-2 z-20 flex items-center gap-0.5 rounded-md border p-0.5 shadow-sm backdrop-blur-sm"
           onPointerDown={stopPointerPropagation}
           onPointerMove={stopPointerPropagation}
@@ -417,7 +417,7 @@ export function TopicMapExplorer({
         >
           <IconButton
             icon={LocateFixed}
-            label="Fit map (0)"
+            label="Fit scatter (0)"
             onClick={handleFitMap}
           />
           <IconButton

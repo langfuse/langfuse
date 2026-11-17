@@ -1,9 +1,12 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { createHash, getFips } from "crypto";
+import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { createServer } from "http";
+import { tmpdir } from "os";
+import { join } from "path";
 import { PassThrough, Readable } from "stream";
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 
 import type { S3Client } from "@aws-sdk/client-s3";
 import type { NodeHttpHandler } from "@smithy/node-http-handler";
@@ -12,7 +15,7 @@ import { BLOB_STORAGE_REGION_INVALID_MESSAGE } from "../../utils/stringChecks";
 import { env } from "../../env";
 import { logger } from "../logger";
 import { resolveMediaStorageEndpoints } from "../s3";
-import { StorageServiceFactory } from "./StorageService";
+import { StorageServiceFactory, storageKeys } from "./StorageService";
 
 // Capture the options handed to lib-storage's Upload so the non-buffered
 // fallback's part size can be asserted without real network I/O.
@@ -44,8 +47,7 @@ describe("S3StorageService region normalization", () => {
 
     try {
       const service = StorageServiceFactory.getInstance({
-        accessKeyId: "test-access-key",
-        secretAccessKey: "test-secret-key",
+        credentials: storageKeys("test-access-key", "test-secret-key"),
         bucketName: "test-bucket",
         endpoint: undefined,
         region: "us-west-2",
@@ -81,8 +83,7 @@ describe("S3StorageService region normalization", () => {
 
   it("trims a persisted region before configuring the AWS client", async () => {
     const service = StorageServiceFactory.getInstance({
-      accessKeyId: "test-access-key",
-      secretAccessKey: "test-secret-key",
+      credentials: storageKeys("test-access-key", "test-secret-key"),
       bucketName: "test-bucket",
       endpoint: undefined,
       region: " us-west-2",
@@ -101,8 +102,7 @@ describe("S3StorageService region normalization", () => {
   it("rejects malformed persisted regions before creating an AWS client", () => {
     expect(() =>
       StorageServiceFactory.getInstance({
-        accessKeyId: "test-access-key",
-        secretAccessKey: "test-secret-key",
+        credentials: storageKeys("test-access-key", "test-secret-key"),
         bucketName: "test-bucket",
         endpoint: undefined,
         region: "us west-2",
@@ -120,8 +120,7 @@ describe("S3StorageService region normalization", () => {
     "configures an S3-compatible client with region %s",
     async (region) => {
       const service = StorageServiceFactory.getInstance({
-        accessKeyId: "test-access-key",
-        secretAccessKey: "test-secret-key",
+        credentials: storageKeys("test-access-key", "test-secret-key"),
         bucketName: "test-bucket",
         endpoint: "https://storage.googleapis.com",
         region,
@@ -140,8 +139,7 @@ describe("S3StorageService region normalization", () => {
 
   it("follows S3's region redirect when region is auto on AWS", async () => {
     const service = StorageServiceFactory.getInstance({
-      accessKeyId: "test-access-key",
-      secretAccessKey: "test-secret-key",
+      credentials: storageKeys("test-access-key", "test-secret-key"),
       bucketName: "test-bucket",
       endpoint: undefined,
       region: "auto",
@@ -233,8 +231,10 @@ describe("AzureBlobStorageService.streamToString", () => {
   // constructor does not perform any network calls).
   const getStreamToString = () => {
     const service = StorageServiceFactory.getInstance({
-      accessKeyId: "test-account",
-      secretAccessKey: Buffer.from("test-secret-key").toString("base64"),
+      credentials: storageKeys(
+        "test-account",
+        Buffer.from("test-secret-key").toString("base64"),
+      ),
       bucketName: "test-container",
       endpoint: "https://test.blob.core.windows.net",
       region: undefined,
@@ -343,8 +343,7 @@ describe("GoogleCloudStorageService signed-URL retry", () => {
   // live GCS backend.
   const makeService = (getSignedUrl: ReturnType<typeof vi.fn>) => {
     const service = StorageServiceFactory.getInstance({
-      accessKeyId: undefined,
-      secretAccessKey: undefined,
+      credentials: storageKeys(undefined, undefined),
       bucketName: "test-bucket",
       endpoint: undefined,
       region: undefined,
@@ -447,19 +446,47 @@ describe("GoogleCloudStorageService signed-URL retry", () => {
 
 describe("StorageServiceFactory GCS credentials", () => {
   const original = env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS;
+  const serviceAccountEmail = "gcs-test@example.iam.gserviceaccount.com";
+  const tempDir = mkdtempSync(join(tmpdir(), "langfuse-gcs-creds-"));
+  const deploymentKeyPath = join(tempDir, "deployment-key.json");
+
+  writeFileSync(
+    deploymentKeyPath,
+    JSON.stringify({
+      type: "service_account",
+      project_id: "test-project",
+      private_key_id: "test-key-id",
+      private_key:
+        "-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----\n",
+      client_email: serviceAccountEmail,
+      client_id: "1234567890",
+      auth_uri: "https://accounts.google.com/o/oauth2/auth",
+      token_uri: "https://oauth2.googleapis.com/token",
+      auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
+      client_x509_cert_url:
+        "https://www.googleapis.com/robot/v1/metadata/x509/test",
+    }),
+  );
+
   afterEach(() => {
     env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS = original;
   });
 
-  const keyFilenameOf = (service: unknown) =>
-    (service as { storage: { authClient: { keyFilename?: string } } }).storage
-      .authClient.keyFilename;
+  afterAll(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  const credentialEmailOf = (service: unknown) =>
+    (
+      service as {
+        storage: { authClient: { cachedCredential?: { email?: string } } };
+      }
+    ).storage.authClient.cachedCredential?.email;
 
   it("uses ADC, not the deployment storage key, when GCS is selected explicitly without credentials", () => {
-    env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS = "/etc/deployment-key.json";
+    env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS = deploymentKeyPath;
     const service = StorageServiceFactory.getInstance({
-      accessKeyId: undefined,
-      secretAccessKey: undefined,
+      credentials: storageKeys(undefined, undefined),
       bucketName: "test-bucket",
       endpoint: undefined,
       region: undefined,
@@ -469,17 +496,38 @@ describe("StorageServiceFactory GCS credentials", () => {
       awsSseKmsKeyId: undefined,
     });
 
-    expect(keyFilenameOf(service)).toBeUndefined();
+    expect(credentialEmailOf(service)).toBeUndefined();
+  });
+
+  it("rejects a customer key whose type is not service_account", () => {
+    expect(() =>
+      StorageServiceFactory.getInstance({
+        credentials: storageKeys(undefined, undefined),
+        bucketName: "test-bucket",
+        endpoint: undefined,
+        region: undefined,
+        forcePathStyle: false,
+        useGoogleCloudStorage: true,
+        googleCloudCredentials: JSON.stringify({
+          type: "external_account",
+          audience: "//iam.googleapis.com/projects/1/locations/global",
+          subject_token_type: "urn:ietf:params:oauth:token-type:jwt",
+          credential_source: { file: "/proc/self/environ" },
+          token_url: "https://attacker.example/",
+        }),
+        awsSse: undefined,
+        awsSseKmsKeyId: undefined,
+      }),
+    ).toThrow("Failed to initialize Google Cloud Storage");
   });
 
   it("uses the deployment storage key when GCS is selected by env", () => {
-    env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS = "/etc/deployment-key.json";
+    env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS = deploymentKeyPath;
     const originalUseGcs = env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE;
     env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE = "true";
     try {
       const service = StorageServiceFactory.getInstance({
-        accessKeyId: undefined,
-        secretAccessKey: undefined,
+        credentials: storageKeys(undefined, undefined),
         bucketName: "test-bucket",
         endpoint: undefined,
         region: undefined,
@@ -488,7 +536,7 @@ describe("StorageServiceFactory GCS credentials", () => {
         awsSseKmsKeyId: undefined,
       });
 
-      expect(keyFilenameOf(service)).toBe("/etc/deployment-key.json");
+      expect(credentialEmailOf(service)).toBe(serviceAccountEmail);
     } finally {
       env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE = originalUseGcs;
     }
@@ -503,8 +551,7 @@ describe("StorageServiceFactory GCS credentials", () => {
 describe("GoogleCloudStorageService.uploadFile source stream errors", () => {
   it("rejects when the source stream fails without leaking process events", async () => {
     const service = StorageServiceFactory.getInstance({
-      accessKeyId: undefined,
-      secretAccessKey: undefined,
+      credentials: storageKeys(undefined, undefined),
       bucketName: "test-bucket",
       endpoint: undefined,
       region: undefined,
@@ -583,7 +630,7 @@ describe("GoogleCloudStorageService.uploadFile source stream errors", () => {
  * algorithm the store accepts ("MD5" maps to the Content-MD5 header); it is
  * unset by default because MD5 is unavailable on FIPS runtimes.
  */
-describe("S3StorageService DeleteObjects checksum", () => {
+describe("S3StorageService request checksums", () => {
   const EMPTY_DELETE_RESULT_XML = `<?xml version="1.0" encoding="UTF-8"?><DeleteResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"></DeleteResult>`;
 
   const setChecksumAlgorithm = (value: string | undefined) => {
@@ -598,6 +645,7 @@ describe("S3StorageService DeleteObjects checksum", () => {
 
   type CapturedRequest = {
     method: string;
+    query?: Record<string, string>;
     headers: Record<string, string>;
     body?: unknown;
   };
@@ -606,10 +654,15 @@ describe("S3StorageService DeleteObjects checksum", () => {
   // (serialization, flexible checksums, signing) but short-circuits right
   // before the HTTP handler, capturing the final outgoing request and
   // returning a canned success response. No network I/O happens.
-  const makeServiceWithCapture = (responseXml: string) => {
+  type CannedResponse = { headers?: Record<string, string>; xml?: string };
+
+  const makeServiceWithCapture = (
+    respond: string | ((request: CapturedRequest) => CannedResponse),
+    options: { sendContentMd5?: boolean } = {},
+  ) => {
     const service = StorageServiceFactory.getInstance({
-      accessKeyId: "test-access-key",
-      secretAccessKey: "test-secret-key",
+      ...options,
+      credentials: storageKeys("test-access-key", "test-secret-key"),
       bucketName: "test-bucket",
       endpoint: "http://127.0.0.1:9000",
       region: "us-east-1",
@@ -625,13 +678,16 @@ describe("S3StorageService DeleteObjects checksum", () => {
     const captured: CapturedRequest[] = [];
 
     const captureMiddleware = () => async (args: { request: unknown }) => {
-      captured.push(args.request as CapturedRequest);
+      const request = args.request as CapturedRequest;
+      captured.push(request);
+      const canned =
+        typeof respond === "string" ? { xml: respond } : respond(request);
       return {
         response: {
           statusCode: 200,
           reason: "OK",
-          headers: { "content-type": "application/xml" },
-          body: Readable.from([Buffer.from(responseXml)]),
+          headers: { "content-type": "application/xml", ...canned.headers },
+          body: Readable.from([Buffer.from(canned.xml ?? "")]),
         },
       };
     };
@@ -702,6 +758,94 @@ describe("S3StorageService DeleteObjects checksum", () => {
       expect(findHeader(request, "x-amz-checksum-crc32")).toBeUndefined();
     },
   );
+
+  // Object Lock buckets reject parts without Content-MD5 or x-amz-checksum-*;
+  // GCS rejects a composite checksum on CompleteMultipartUpload (412).
+  it.skipIf(getFips() === 1)(
+    "sends Content-MD5 on every streamed part and no checksum on create/complete",
+    async () => {
+      const bufferedKey = "LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED" as const;
+      const originalBuffered = env[bufferedKey];
+      (env as Record<string, unknown>)[bufferedKey] = "true";
+
+      try {
+        const { service, captured } = makeServiceWithCapture(
+          (request) => {
+            if (request.query && "uploads" in request.query) {
+              return {
+                xml: `<InitiateMultipartUploadResult><Bucket>test-bucket</Bucket><Key>k</Key><UploadId>upload-1</UploadId></InitiateMultipartUploadResult>`,
+              };
+            }
+            if (request.query?.partNumber) {
+              return {
+                headers: { etag: `"etag-${request.query.partNumber}"` },
+              };
+            }
+            return {
+              xml: `<CompleteMultipartUploadResult><Bucket>test-bucket</Bucket><Key>k</Key><ETag>"final"</ETag></CompleteMultipartUploadResult>`,
+            };
+          },
+          { sendContentMd5: true },
+        );
+
+        // Stream chunks straddle part boundaries, so parts are sliced views;
+        // parts also exceed the middleware's internal hash slice size.
+        const MiB = 1024 * 1024;
+        const chunks = Array.from({ length: 4 }, (_, i) =>
+          Buffer.alloc(3 * MiB, i + 1),
+        );
+        await service.uploadFileBuffered({
+          fileName: "exports/observations.parquet",
+          fileType: "application/vnd.apache.parquet",
+          data: Readable.from(chunks),
+          partSizeBytes: 5 * MiB,
+          maxConcurrentParts: 1,
+        });
+
+        const parts = captured.filter((r) => r.query?.partNumber);
+        const others = captured.filter((r) => !r.query?.partNumber);
+        expect(parts).toHaveLength(3);
+        expect(others).toHaveLength(2);
+
+        const streamed = Buffer.concat(chunks);
+        let offset = 0;
+        for (const part of parts) {
+          const body = part.body as Uint8Array;
+          expect(
+            Buffer.from(body).equals(
+              streamed.subarray(offset, offset + body.byteLength),
+            ),
+          ).toBe(true);
+          offset += body.byteLength;
+          expect(findHeader(part, "content-md5")).toBe(
+            createHash("md5").update(body).digest("base64"),
+          );
+        }
+        expect(offset).toBe(streamed.byteLength);
+
+        for (const request of others) {
+          expect(
+            Object.keys(request.headers).filter((h) =>
+              h.toLowerCase().startsWith("x-amz-checksum"),
+            ),
+          ).toEqual([]);
+          expect(findHeader(request, "content-md5")).toBeUndefined();
+        }
+      } finally {
+        (env as Record<string, unknown>)[bufferedKey] = originalBuffered;
+      }
+    },
+  );
+
+  // Ingestion writes go through default clients; they must not pay for MD5.
+  it("does not send Content-MD5 unless the client opts in", async () => {
+    const { service, captured } = makeServiceWithCapture("");
+
+    await service.uploadJson("events/project-1/event.json", [{ id: "e1" }]);
+
+    expect(captured).toHaveLength(1);
+    expect(findHeader(captured[0], "content-md5")).toBeUndefined();
+  });
 });
 
 describe("S3StorageService non-buffered upload part size", () => {
@@ -715,8 +859,7 @@ describe("S3StorageService non-buffered upload part size", () => {
 
   const makeService = () =>
     StorageServiceFactory.getInstance({
-      accessKeyId: "test-access-key",
-      secretAccessKey: "test-secret-key",
+      credentials: storageKeys("test-access-key", "test-secret-key"),
       bucketName: "test-bucket",
       endpoint: "http://127.0.0.1:9000",
       region: "us-east-1",
@@ -771,8 +914,7 @@ describe("S3StorageService SlowDown logging", () => {
 
   function makeService(logSlowDownAsWarning = false) {
     return StorageServiceFactory.getInstance({
-      accessKeyId: "test-access-key",
-      secretAccessKey: "test-secret-key",
+      credentials: storageKeys("test-access-key", "test-secret-key"),
       bucketName: "test-bucket",
       endpoint: "http://127.0.0.1:9000",
       region: "us-east-1",
@@ -858,8 +1000,7 @@ describe("S3StorageService request handler socket limit", () => {
 
   const resolveHandlerConfig = (endpoint: string) => {
     const service = StorageServiceFactory.getInstance({
-      accessKeyId: "test-access-key",
-      secretAccessKey: "test-secret-key",
+      credentials: storageKeys("test-access-key", "test-secret-key"),
       bucketName: "test-bucket",
       endpoint,
       region: "us-east-1",

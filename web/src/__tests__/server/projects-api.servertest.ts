@@ -124,8 +124,9 @@ describe("REST API key creation schemas", () => {
       scope: "project",
       schema: projectApiKeyCreationSchema,
       legacyRole: "LEGACY_PROJECT_API_KEY",
-      roles: ["ADMIN", "VIEWER", "INGEST", "SCORES_INGEST"],
+      roles: ["ADMIN", "MEMBER", "VIEWER", "SCORES_INGEST", "APPLICATION"],
       invalidRoles: [
+        "INGEST",
         "LEGACY_PROJECT_API_KEY",
         "LEGACY_ORGANIZATION_API_KEY",
         "AI_GATEWAY",
@@ -139,8 +140,16 @@ describe("REST API key creation schemas", () => {
       scope: "organization",
       schema: organizationApiKeyCreationSchema,
       legacyRole: "LEGACY_ORGANIZATION_API_KEY",
-      roles: ["ADMIN", "VIEWER", "INGEST", "SCORES_INGEST", "AI_GATEWAY"],
+      roles: [
+        "ADMIN",
+        "MEMBER",
+        "VIEWER",
+        "SCORES_INGEST",
+        "AI_GATEWAY",
+        "APPLICATION",
+      ],
       invalidRoles: [
+        "INGEST",
         "LEGACY_PROJECT_API_KEY",
         "LEGACY_ORGANIZATION_API_KEY",
         "OWNER",
@@ -198,6 +207,24 @@ describe("REST API key creation schemas", () => {
         );
       },
     );
+
+    it.each(["legacy name", ""])(
+      "accepts the deprecated note alias %j as the name",
+      (note) => {
+        const parsed = schema.parse({ note });
+        expect(parsed.name).toBe(note);
+        expect(parsed).not.toHaveProperty("note");
+      },
+    );
+
+    it.each([
+      { name: "same", note: "same" },
+      { name: "", note: "" },
+      { name: "", note: "alias" },
+      { name: "name", note: "" },
+    ])("rejects conflicting name and note inputs %j", (input) => {
+      expect(schema.safeParse(input).success).toBe(false);
+    });
   });
 });
 
@@ -922,12 +949,14 @@ describe("Projects API", () => {
       };
 
       it("rejects a key with project:delete but without gateway:manage", async () => {
-        const policies = context.policies.map((policy) => ({
-          ...policy,
-          actions: policy.actions.filter(
-            (action) => action !== "gateway:manage",
-          ),
-        }));
+        const policies = context.policies.map((set) =>
+          set.map((policy) => ({
+            ...policy,
+            actions: policy.actions.filter(
+              (action) => action !== "gateway:manage",
+            ),
+          })),
+        );
 
         const res = await deleteIngestionProject({ ...context, policies });
 
@@ -1199,18 +1228,20 @@ describe("Projects API", () => {
       >(
         "POST",
         `/api/public/projects/${projectId}/apiKeys`,
-        { role: "INGEST" },
+        { role: "APPLICATION" },
         createBasicAuthHeader(orgApiKey, orgSecretKey),
       );
       createdApiKeyId = response.body.id;
       expect(response.status).toBe(201);
-      expect(response.body.role).toBe("INGEST");
+      expect(response.body.role).toBe("APPLICATION");
 
       const stored = await prisma.apiKey.findUniqueOrThrow({
         where: { id: response.body.id },
         include: { roleAssignments: true },
       });
-      expect(stored.roleAssignments).toMatchObject([{ systemRole: "INGEST" }]);
+      expect(stored.roleAssignments).toMatchObject([
+        { systemRole: "APPLICATION" },
+      ]);
     });
 
     it("should create a new API key with valid organization API key", async () => {

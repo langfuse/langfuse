@@ -744,13 +744,11 @@ export function buildAgentsActivityDemoPlan(
         transcript.push(...response);
         if (modelIndex === 0)
           transcript.push(
-            ...returned.map(
-              (item): ActivityDemoMessage => ({
-                role: "tool",
-                tool_call_id: item.call.id,
-                content: item.output,
-              }),
-            ),
+            ...returned.map((item): ActivityDemoMessage => ({
+              role: "tool",
+              tool_call_id: item.call.id,
+              content: item.output,
+            })),
           );
         if (modelIndex === 1 && retryCall)
           transcript.push({

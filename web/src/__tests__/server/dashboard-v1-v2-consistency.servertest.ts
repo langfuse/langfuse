@@ -512,7 +512,6 @@ describe("dashboard v1 vs v2 consistency", () => {
           },
         ],
         featureFlags: testFeatureFlags(),
-        admin: true,
       },
       environment: {} as any,
     };

@@ -61,6 +61,53 @@ const redactInlineMedia = (text: string): string =>
   text.replace(/data:[^:;,\s]+;base64,[A-Za-z0-9+/=_-]+/g, "[media omitted]");
 
 /**
+ * Scrubs a JSON payload for model input: media data, nested reasoning and opaque
+ * provider blobs are replaced or dropped (the Topics JSON projection's rules).
+ */
+export function redactModelPayload(value: unknown, field?: string): unknown {
+  if (typeof value === "string") return redactInlineMedia(value);
+  if (Array.isArray(value))
+    return value.map((item) => redactModelPayload(item, field));
+  if (value === null || typeof value !== "object") return value;
+  const record = value as Record<string, unknown>;
+  if (
+    ["reasoning", "thinking", "redacted_thinking"].includes(
+      String(record.type),
+    ) ||
+    record.thought === true
+  )
+    return "[reasoning omitted]";
+  const isMedia =
+    record.type === "base64" ||
+    typeof record.mimeType === "string" ||
+    typeof record.mime_type === "string" ||
+    field === "audio" ||
+    field === "input_audio";
+  return Object.fromEntries(
+    Object.entries(record)
+      .filter(([key]) => !OPAQUE_PAYLOAD_KEYS.has(key))
+      .map(([key, nested]) => [
+        key,
+        key === "data" && isMedia
+          ? "[media omitted]"
+          : redactModelPayload(nested, key),
+      ]),
+  );
+}
+
+const OPAQUE_PAYLOAD_KEYS = new Set([
+  "reasoning",
+  "reasoning_content",
+  "thinking",
+  "signature",
+  "thoughtSignature",
+  "encrypted_content",
+  "providerMetadata",
+  "toolDefinitions",
+  "tool_definitions",
+]);
+
+/**
  * Render an assembled trace for Topics without assembling it a second time.
  * Observations provide root I/O and operation context omitted by assembly.
  */
@@ -102,7 +149,9 @@ export function renderTranscript(
     return text;
   };
   const json = (value: unknown) =>
-    typeof value === "string" ? value : (JSON.stringify(value) ?? "");
+    typeof value === "string"
+      ? value
+      : (JSON.stringify(redactModelPayload(value)) ?? "");
   const labeled = (
     label: string,
     content: string,
@@ -112,6 +161,13 @@ export function renderTranscript(
     maxChars === 0
       ? `[${label}]`
       : `[${label}] ${clip(content, maxChars, block)}`.trimEnd();
+  // Audio replies keep their spoken words in the provider transcript.
+  const fileContent = (
+    part: Extract<NormalizedMessagePart, { type: "file" }>,
+  ) => {
+    const spoken = part.providerMetadata?.transcript;
+    return `[${part.mediaType ?? "file"} omitted]${typeof spoken === "string" ? ` transcript: ${spoken}` : ""}`;
+  };
   const partContent = (part: NormalizedMessagePart): string => {
     switch (part.type) {
       case "text":
@@ -125,7 +181,7 @@ export function renderTranscript(
           ? toolResultContent(part.output.value)
           : json(part.output.value);
       case "file":
-        return `[${part.mediaType ?? "file"} omitted]`;
+        return fileContent(part);
       case "data":
         return json(part.value);
       case "custom":
@@ -399,7 +455,7 @@ export function renderTranscript(
           : null;
       case "file":
         return role.include && !part.reasoning
-          ? `[${userLabel}] [${part.mediaType ?? "file"} omitted]`
+          ? `[${userLabel}] ${fileContent(part)}`
           : null;
       case "data":
       case "custom":

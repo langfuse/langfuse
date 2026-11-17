@@ -7,6 +7,7 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import { scoreV3Refs } from "@/src/features/audit-logs/server/auditedQuery";
 const GetScoresV3Query = GetScoresQueryV3.extend({
   cursor: EncodedScoresCursorV3.optional(),
 }).superRefine((data, ctx) => {
@@ -105,6 +106,13 @@ export default withMiddlewares({
     action: "scores:read",
     querySchema: GetScoresV3Query,
     responseSchema: GetScoresResponseV3,
+    audit: {
+      route: "GET /api/public/v3/scores",
+      resourceType: "score",
+      action: "list",
+      refs: (response) => scoreV3Refs(response.data),
+      resultCount: (response) => response.data.length,
+    },
     fn: async ({ query, auth }) => {
       const dataAccessWindow = clampToDataAccessDays({
         plan: auth.scope.plan,

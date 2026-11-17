@@ -981,26 +981,32 @@ const NoDataField = ({
             <code className="bg-secondary rounded border px-0.5">0</code>
           </span>
         </SelectItem>
-        <SelectItem value={MonitorNoDataModeSchema.enum.LAST_SEVERITY}>
+        <SelectItem value={MonitorNoDataModeSchema.enum.SUBSTITUTE_OK}>
           <span className="inline-flex items-center gap-1.5">
-            Keep the previous
-            <Badge color="inverted" text="SEVERITY" />
-          </span>
-        </SelectItem>
-        <SelectItem value={MonitorNoDataModeSchema.enum.SHOW_NO_DATA}>
-          <span className="inline-flex items-center gap-1.5">
-            Show severity
-            <MonitorSeverityBadge
-              severity={MonitorSeveritySchema.enum.NO_DATA}
-            />
+            Treat missing data as
+            <MonitorSeverityBadge severity={MonitorSeveritySchema.enum.OK} />
           </span>
         </SelectItem>
         <SelectItem value={MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA}>
           <span className="inline-flex items-center gap-1.5">
-            Notify after sustained
+            Notify
             <MonitorSeverityBadge
               severity={MonitorSeveritySchema.enum.NO_DATA}
             />
+          </span>
+        </SelectItem>
+        <SelectItem value={MonitorNoDataModeSchema.enum.SHOW_NO_DATA}>
+          <span className="inline-flex items-center gap-1.5">
+            Silence
+            <MonitorSeverityBadge
+              severity={MonitorSeveritySchema.enum.NO_DATA}
+            />
+          </span>
+        </SelectItem>
+        <SelectItem value={MonitorNoDataModeSchema.enum.LAST_SEVERITY}>
+          <span className="inline-flex items-center gap-1.5">
+            Keep the previous
+            <Badge color="inverted" text="SEVERITY" />
           </span>
         </SelectItem>
       </SelectContent>

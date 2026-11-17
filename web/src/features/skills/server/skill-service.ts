@@ -5,7 +5,6 @@ import {
   InvalidRequestError,
   LangfuseNotFoundError,
   ListSkillsResponseSchema,
-  MAX_SKILL_BYTES,
   SKILL_LATEST_LABEL,
   SKILL_PRODUCTION_LABEL,
   SkillDescriptionSchema,
@@ -16,11 +15,16 @@ import {
   type CreateSkillVersionBody,
   type ListSkillsQuery,
   type FilterState,
+  type FilterCondition,
   type SkillSelector,
   type SkillVersionResponse,
   type TriggerEventAction,
 } from "@langfuse/shared";
-import type { Prisma, PrismaClient, SkillBlob } from "@langfuse/shared/src/db";
+import {
+  Prisma,
+  type PrismaClient,
+  type SkillBlob,
+} from "@langfuse/shared/src/db";
 import {
   EntityChangeQueue,
   QueueJobs,
@@ -30,6 +34,7 @@ import {
   escapeSqlLikePattern,
   redis,
 } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
 import type { ProjectAuthedContext } from "@/src/server/api/trpc";
 import type { AuthorizationContext } from "@/src/features/auth/policy/types";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -40,6 +45,11 @@ import {
   type ApiKeyProjectContext,
 } from "@/src/features/prompts/server/utils/authorizeProtectedLabelMutation";
 import { type SkillListOrderBy } from "../constants/skillsSorting";
+import {
+  FRONTMATTER_FILTER_COLUMN,
+  frontmatterKeyPath,
+  listFrontmatterValues,
+} from "../utils/frontmatterFilterValues";
 
 type SkillChange = { skill: SkillVersionResponse; action: TriggerEventAction };
 
@@ -325,21 +335,6 @@ export class SkillService {
       sha256Hash: { in: hashes },
       files: { some: { projectId: params.projectId } },
     } satisfies Prisma.SkillBlobWhereInput;
-    const blobs = await this.prisma.skillBlob.findMany({
-      where,
-      select: { contentLength: true },
-    });
-    if (blobs.length !== hashes.length) {
-      throw new LangfuseNotFoundError("One or more skill files not found");
-    }
-    // Check metadata before loading text so oversized batches stay bounded.
-    if (
-      blobs.reduce((total, blob) => total + blob.contentLength, 0) > 10_000_000
-    ) {
-      throw new InvalidRequestError(
-        "Skill file contents must not exceed 10000000 UTF-8 bytes per batch. Request fewer hashes.",
-      );
-    }
     const data = await this.prisma.skillBlob.findMany({
       where,
       select: { sha256Hash: true, content: true },
@@ -468,6 +463,7 @@ export class SkillService {
 
   private listFilterConditions(filters: FilterState): Prisma.SkillWhereInput[] {
     return filters.map((filter) => {
+      if (isFrontmatterFilter(filter)) return frontmatterCondition(filter);
       if (filter.type !== "arrayOptions" || filter.column !== "tags") {
         throw new InvalidRequestError(
           `Unsupported skill filter: ${filter.column} (${filter.type})`,
@@ -492,7 +488,7 @@ export class SkillService {
           projectId: params.projectId,
           labels: { has: SKILL_LATEST_LABEL },
         },
-        select: { name: true, tags: true },
+        select: { name: true, tags: true, frontmatter: true },
       }),
       this.prisma.skill.findMany({
         where: { projectId: params.projectId, labels: { isEmpty: false } },
@@ -515,6 +511,9 @@ export class SkillService {
       tags: [...counts]
         .map(([value, count]) => ({ value, count }))
         .sort((a, b) => a.value.localeCompare(b.value)),
+      [FRONTMATTER_FILTER_COLUMN]: listFrontmatterValues(
+        skills.map(({ frontmatter }) => frontmatter),
+      ),
     };
   }
 
@@ -846,6 +845,11 @@ export class SkillService {
     files: HashedSkillFile[];
     referencedBlobs: Map<string, ReferencedSkillBlob>;
   }> {
+    if (params.files.length > env.LANGFUSE_SKILL_MAX_FILES) {
+      throw new InvalidRequestError(
+        `A skill must not contain more than ${env.LANGFUSE_SKILL_MAX_FILES} files`,
+      );
+    }
     const files = params.files.map((file) => ({
       ...file,
       sha256Hash:
@@ -885,9 +889,9 @@ export class SkillService {
           : referencedBlobByHash.get(file.sha256Hash)!.contentLength),
       0,
     );
-    if (totalBytes > MAX_SKILL_BYTES) {
+    if (totalBytes > env.LANGFUSE_SKILL_MAX_BYTES) {
       throw new InvalidRequestError(
-        `A skill must not exceed ${MAX_SKILL_BYTES} bytes in total`,
+        `A skill must not exceed ${env.LANGFUSE_SKILL_MAX_BYTES} UTF-8 bytes in total`,
       );
     }
     return { files, referencedBlobs: referencedBlobByHash };
@@ -1086,4 +1090,65 @@ export class SkillService {
     if (!skill) throw new LangfuseNotFoundError("Skill version not found");
     return skill;
   }
+}
+
+type FrontmatterFilter = Extract<FilterCondition, { type: "stringObject" }>;
+
+function isFrontmatterFilter(
+  filter: FilterCondition,
+): filter is FrontmatterFilter {
+  return (
+    filter.type === "stringObject" &&
+    filter.column === FRONTMATTER_FILTER_COLUMN
+  );
+}
+
+/**
+ * Text operators other than `=` match strings case-insensitively. `=` matches
+ * strings case-sensitively and also matches the number or boolean the value
+ * spells, since YAML parses `version: 2` as a number. A missing key or a null
+ * value counts as not set.
+ */
+function frontmatterCondition(
+  filter: FrontmatterFilter,
+): Prisma.SkillWhereInput {
+  const path = frontmatterKeyPath(filter.key);
+  const pattern = escapeSqlLikePattern(filter.value);
+  const notSet = { frontmatter: { path, equals: Prisma.AnyNull } };
+  const contains = {
+    frontmatter: { path, string_contains: pattern, mode: "insensitive" },
+  } satisfies Prisma.SkillWhereInput;
+  switch (filter.operator) {
+    case "=":
+      return {
+        OR: scalarCandidates(filter.value).map((equals) => ({
+          frontmatter: { path, equals },
+        })),
+      };
+    case "contains":
+      return contains;
+    case "does not contain":
+      return { OR: [notSet, { NOT: contains }] };
+    case "starts with":
+      return {
+        frontmatter: { path, string_starts_with: pattern, mode: "insensitive" },
+      };
+    case "ends with":
+      return {
+        frontmatter: { path, string_ends_with: pattern, mode: "insensitive" },
+      };
+    case "is set":
+      return { NOT: notSet };
+    case "is not set":
+      return notSet;
+  }
+}
+
+function scalarCandidates(value: string): (string | number | boolean)[] {
+  const candidates: (string | number | boolean)[] = [value];
+  if (value.trim() !== "" && Number.isFinite(Number(value))) {
+    candidates.push(Number(value));
+  }
+  if (value === "true" || value === "false") candidates.push(value === "true");
+  return candidates;
 }

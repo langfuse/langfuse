@@ -4,6 +4,10 @@ import z from "zod";
 import { BatchExport } from "@prisma/client";
 
 import { singleFilterList } from "../../interfaces/filters";
+import {
+  isTopicFilter,
+  TOPIC_FILTERS_IN_BATCH_JOBS_MESSAGE,
+} from "../../topics";
 import { orderBy } from "../../interfaces/orderBy";
 import { BatchTableNames } from "../../interfaces/tableNames";
 import {
@@ -107,6 +111,14 @@ export const BatchExportQuerySchema = z
         code: "custom",
         path: ["agentScope", "mode"],
         message: "Session exports require trace membership.",
+      });
+    }
+
+    if ((query.filter ?? []).some(isTopicFilter)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["filter"],
+        message: TOPIC_FILTERS_IN_BATCH_JOBS_MESSAGE,
       });
     }
 

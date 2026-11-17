@@ -1,6 +1,6 @@
 import type { GatewayIngestionMode, Role } from "@langfuse/shared";
 
-import type { ApiKeyExpirationPreset } from "@/src/features/apiKey/constants/apiKeyExpirationOptions";
+import type { GatewayApiKeyExpirationPreset } from "@/src/features/ai-gateway/constants/gatewayApiKeyExpirationOptions";
 import type { GatewayIngestionSettings } from "@/src/features/ai-gateway/components/GatewaySetupPage/types/gatewaySetup";
 import type { AgentSetupInstructions } from "@/src/features/ai-gateway/types/agentSetupInstructions";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
@@ -61,13 +61,18 @@ export type AiGatewayEventMap = {
     isNotifyMembersEnabled: boolean;
   };
   "ai_gateway:api_key_created": OrganizationContext & {
-    /** Organization role of the creator; null when they are not a member (instance admins). */
+    /** Organization role of the creator; null when they are not a member. */
     creatorRole: Role | null;
     isServiceAccount: boolean;
     hasMetadata: boolean;
     metadataCount: number;
     hasDescription: boolean;
-    expiryPreset: ApiKeyExpirationPreset;
+    expiryPreset: GatewayApiKeyExpirationPreset;
+  };
+  "ai_gateway:api_key_updated": OrganizationContext & {
+    metadataCount: number;
+    /** 0 when the key may call every enabled model. */
+    modelPatternCount: number;
   };
   "ai_gateway:api_key_revoked": OrganizationContext;
   /** The one-time secret was copied; the key itself is never sent. */
@@ -76,8 +81,8 @@ export type AiGatewayEventMap = {
   "ai_gateway:model_access_changed": OrganizationContext & {
     provider: GatewayProvider;
     action: "enable" | "disable";
-    /** Row switch, bulk selection, or the "Enable all" / "Disable all" buttons. */
-    scope: "single" | "selection" | "all";
+    /** Row switch or bulk selection. */
+    scope: "single" | "selection";
     /** Models the action targeted. */
     modelCount: number;
     /** Targeted models whose state actually flipped. */

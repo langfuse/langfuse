@@ -16,6 +16,7 @@ import {
   UnauthorizedError,
   type RateLimitResource,
   type ApiDeprecationInfo,
+  type AuditLogResourceRef,
 } from "@langfuse/shared";
 import { verifyGatewayIngestionAuthorization } from "@/src/features/ai-gateway/server/auth/ingestionTokenVerifier";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
@@ -40,6 +41,7 @@ import {
   sendAuthErrorJson,
 } from "@/src/features/public-api/server/deprecations";
 import { applyLegacyApiOrganizationCutoff } from "@/src/features/public-api/server/legacyApiOrganizationCutoff";
+import { applyV4RouteCutoff } from "@/src/features/public-api/server/v4Cutoff";
 import {
   isLegacyIngestionScoreOnlyOrg,
   recordLegacyIngestionScoreOnlyRejection,
@@ -48,6 +50,21 @@ import { type RouteAccessLevel } from "@/src/features/public-api/server/verifyPr
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 import { type ProjectAction } from "@langfuse/shared/rbac";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+import {
+  namesPossibleId,
+  type AccessAuditMeta,
+} from "@/src/features/audit-logs/server/auditedQuery";
+import { recordPublicApiAccess } from "@/src/features/audit-logs/server/recordAccessEvent";
+
+/** The read a route performs, recorded as an audit access event. */
+type PublicApiAccessAudit<TResponse> = Omit<AccessAuditMeta, "idKey"> & {
+  /** The REST route pattern, e.g. `GET /api/public/v2/observations`. */
+  route: string;
+  /** Typed refs to every resource the response returns. */
+  refs: (response: TResponse) => AuditLogResourceRef[];
+  /** The number of rows a `list` returned. */
+  resultCount?: (response: TResponse) => number;
+};
 
 const EVENTS_ONLY_UNAVAILABLE_BODY = {
   message: EVENTS_ONLY_UNAVAILABLE_MESSAGE,
@@ -149,6 +166,12 @@ export type AuthedProjectAPIRouteConfig<
   isLegacyTraceWrite?: boolean;
   /** Marks the route as deprecated; withMiddlewares stamps it onto every JSON response and sets deprecation headers. */
   deprecation?: ApiDeprecationInfo;
+  /**
+   * Records a successful call as an audit access event, for organizations that
+   * record them. The event is written after the handler returns and before the
+   * response is sent, so a failed write fails the read.
+   */
+  audit?: PublicApiAccessAudit<z.infer<TResponse>>;
   fn: (params: {
     query: z.infer<TQuery>;
     body: z.infer<TBody>;
@@ -268,6 +291,20 @@ export const createAuthedProjectAPIRoute = <
       authzCtx = result.ctx;
     }
 
+    // Before rate limiting, so callers over the legacy limits still get the 410.
+    const v4CutoffRejection = applyV4RouteCutoff({
+      req,
+      routeName: routeConfig.name,
+      isLegacyTraceWrite: routeConfig.isLegacyTraceWrite === true,
+      deprecation: routeConfig.deprecation,
+      orgId: auth.scope.orgId,
+      projectId: auth.scope.projectId,
+    });
+    if (v4CutoffRejection) {
+      res.status(410).json(v4CutoffRejection.body);
+      return;
+    }
+
     const rateLimitResponse =
       await RateLimitService.getInstance().rateLimitRequest(
         auth.scope,
@@ -363,17 +400,19 @@ export const createAuthedProjectAPIRoute = <
         route: clickHouseRouteForRequest(req),
       },
     });
+    // A gateway-token scope carries no apiKeyId; route handlers that need
+    // one gate on the api-key path, so narrow to the required shape here.
+    const routeAuth = auth as AuthHeaderValidVerificationResult & {
+      scope: { projectId: string; accessLevel: RouteAccessLevel };
+    };
+
     return opentelemetry.context.with(otelCtx, async () => {
       const response = await routeConfig.fn({
         query,
         body,
         req,
         res,
-        // A gateway-token scope carries no apiKeyId; route handlers that need
-        // one gate on the api-key path, so narrow to the required shape here.
-        auth: auth as AuthHeaderValidVerificationResult & {
-          scope: { projectId: string; accessLevel: RouteAccessLevel };
-        },
+        auth: routeAuth,
         ctx: authzCtx,
       });
 
@@ -390,6 +429,18 @@ export const createAuthedProjectAPIRoute = <
         res.statusCode !== 200
           ? res.statusCode
           : routeConfig.successStatusCode || 200;
+
+      if (routeConfig.audit && statusCode < 300) {
+        const { audit } = routeConfig;
+        await recordPublicApiAccess({ scope: routeAuth.scope, req }, () => ({
+          route: audit.route,
+          resourceType: audit.resourceType,
+          action: audit.action,
+          resourceRefs: audit.refs(response).filter(namesPossibleId),
+          params: query,
+          resultCount: audit.resultCount?.(response),
+        }));
+      }
 
       if (statusCode === 204) {
         res.status(204).end();

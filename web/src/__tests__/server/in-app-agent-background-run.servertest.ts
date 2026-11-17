@@ -201,7 +201,6 @@ describe("in-app agent background runs", () => {
           },
         ],
         featureFlags: testFeatureFlags({ templateFlag: false, ...flags }),
-        admin: false,
       },
       environment: {} as any,
     };
@@ -1566,7 +1565,6 @@ describe("in-app agent background runs", () => {
           },
         ],
         featureFlags: testFeatureFlags({ templateFlag: false }),
-        admin: false,
       },
       environment: {} as any,
     };

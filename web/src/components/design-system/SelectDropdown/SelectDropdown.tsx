@@ -141,9 +141,14 @@ export function SelectDropdown<V extends string>({
             checked={value === node.value}
             label={
               <SelectPrimitive.ItemText>
-                <span className="flex items-center gap-2">
+                <span className="flex min-w-0 items-center gap-2">
                   {node.icon && <node.icon size="base" />}
-                  {node.label}
+                  <span
+                    className="truncate"
+                    title={node.disabled ? node.disabledReason : node.label}
+                  >
+                    {node.label}
+                  </span>
                 </span>
               </SelectPrimitive.ItemText>
             }
@@ -218,9 +223,9 @@ export function SelectDropdown<V extends string>({
       <SelectPrimitive.Portal container={container}>
         <InputDropdown.Content width="select-trigger">
           <SelectPrimitive.Content
-            className={noCapture ? "ph-no-capture" : undefined}
             position="popper"
             sideOffset={4}
+            className={noCapture ? "ph-no-capture" : undefined}
           >
             <SelectPrimitive.ScrollUpButton
               aria-label="Scroll up"

@@ -315,21 +315,19 @@ export async function getAgentRelationships(
   const spans = rows
     .slice(0, MAX_RELATIONSHIP_SPANS)
     .filter((row) => row.trace_id !== incompleteTrace)
-    .map(
-      (row): RelationshipSpan => ({
-        traceId: String(row.trace_id),
-        spanId: String(row.span_id),
-        parentSpanId: String(row.parent_span_id ?? ""),
-        runId: String(row.agent_run_id ?? ""),
-        type: String(row.type),
-        startTime: parseClickhouseUTCDateTimeFormat(String(row.start_time)),
-        node: relationshipNode(row),
-        cost:
-          row.model_cost == null || !Number.isFinite(Number(row.model_cost))
-            ? null
-            : Number(row.model_cost),
-      }),
-    );
+    .map((row): RelationshipSpan => ({
+      traceId: String(row.trace_id),
+      spanId: String(row.span_id),
+      parentSpanId: String(row.parent_span_id ?? ""),
+      runId: String(row.agent_run_id ?? ""),
+      type: String(row.type),
+      startTime: parseClickhouseUTCDateTimeFormat(String(row.start_time)),
+      node: relationshipNode(row),
+      cost:
+        row.model_cost == null || !Number.isFinite(Number(row.model_cost))
+          ? null
+          : Number(row.model_cost),
+    }));
   coverage.traces = new Set(spans.map((span) => span.traceId)).size;
   const bySpan = new Map(
     spans.map((span) => [spanKey(span.traceId, span.spanId), span]),

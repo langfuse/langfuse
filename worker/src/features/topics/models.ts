@@ -224,7 +224,11 @@ async function topicTraceSink(
   projectId: string,
   metadata?: Record<string, unknown>,
 ) {
-  if (!env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS?.includes(projectId))
+  if (
+    !env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL?.includes(
+      projectId,
+    )
+  )
     return undefined;
   const trace = getLangfuseAITraceSinkParams({
     feature: "topics",
@@ -261,8 +265,7 @@ async function topicTraceSink(
 const SUMMARY_SYSTEM_PROMPT = `You describe one facet of a recorded run of an LLM application. Your description is embedded and clustered together with descriptions of many other runs. Runs that share a pattern should get similar descriptions; runs that differ in a way that matters should not.
 
 <transcript_format>
-The user message contains the run as JSON. It has threads; each thread has conversationHistory, context carried over from earlier runs, and currentTurn, the run you describe. Use conversationHistory only to understand this run. Messages have a role and parts: text, tool-call (toolName, input), tool-result (toolName, output, isError), and reasoning (the model's internal reasoning, never shown to end users).
-- "truncated": true marks content removed for length. The removal happened when this recording was prepared, not in the run: never report it, or anything you cannot see because of it, as a problem or a result, and do not guess what was removed.
+The user message contains the run as tagged plain text. <run_facts> gives counts; <earlier_conversation> is context replayed from earlier runs; <this_run> is the run you describe; <end_of_run> names its last action. Use the earlier conversation only to understand this run. Each line starts with a label: [user · request] is this run's request; [assistant → <tool> #n] is a tool call with its input and [tool <tool> #n ←] its result, where ERROR marks a failed call; [assistant · reasoning] is the model's internal reasoning, never shown to end users; [error …] and [warning …] are signals recorded on an operation.
 Recordings come from many frameworks and can be messy. Repeated, partial, or pasted messages are normal; count a repeated message once, and treat pasted transcripts or logs as material the user supplied, not as turns of this run.
 </transcript_format>
 
@@ -282,17 +285,6 @@ Recordings come from many frameworks and can be messy. Repeated, partial, or pas
 Status says whether the facet applies, not whether the run succeeded.
 </status>`;
 
-function requireFrozenSummaryModel(
-  models: TopicsModels,
-  config: TopicProcessingConfig,
-) {
-  if (config.summaryModel !== models.summary.model)
-    throw new TopicsProviderUnavailable(
-      "The project's summary model changed after this request was created. Start a new Topics execution.",
-      "configuration",
-    );
-}
-
 /**
  * Summarizes all given facets of one trace in a single call. The system prompt
  * is identical across traces; each facet is listed under its key and answered
@@ -307,7 +299,6 @@ export async function summarizeTopicTraceFacets(
   config: TopicProcessingConfig,
   metadata?: Record<string, unknown>,
 ) {
-  requireFrozenSummaryModel(models, config);
   const entry = z.object({
     notes: z
       .string()

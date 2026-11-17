@@ -68,17 +68,43 @@ function testContext({
   experimental?: boolean;
   v4BetaEnabled?: boolean;
 } = {}) {
-  const session = {
+  const session: Session = {
     expires: "1",
     user: {
       id: "user",
-      admin: false,
+      canCreateOrganizations: false,
       v4BetaEnabled,
       featureFlags: testFeatureFlags({ agentsView: enabled }),
-      organizations: [{ id: "org", role, projects: [{ id: projectId, role }] }],
+      organizations: [
+        {
+          id: "org",
+          name: "Organization",
+          role,
+          plan: "oss",
+          cloudConfig: undefined,
+          metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: false,
+          projects: [
+            {
+              id: projectId,
+              name: "Project",
+              role,
+              retentionDays: null,
+              deletedAt: null,
+              hasTraces: true,
+              metadata: {},
+              createdAt: "2026-11-01T00:00:00Z",
+            },
+          ],
+        },
+      ],
     },
-    environment: { enableExperimentalFeatures: experimental },
-  } as Session;
+    environment: {
+      enableExperimentalFeatures: experimental,
+      selfHostedInstancePlan: "oss",
+    },
+  };
   return createInnerTRPCContext({ session, headers: {} });
 }
 

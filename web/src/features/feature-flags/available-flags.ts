@@ -93,7 +93,6 @@ export const availableFlags = [
   ...internalFeaturePreviewFlags,
   ...restrictedFlags,
   INTERNAL_FEATURE_FLAG,
-  "searchBar",
   "templateFlag",
   "excludeClickhouseRead",
   "v4BetaToggleVisible",

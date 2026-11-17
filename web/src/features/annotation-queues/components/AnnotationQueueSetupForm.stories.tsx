@@ -82,7 +82,7 @@ export const TestLegacyMetadata = meta.story({
       canvas.getByRole("tab", { name: "Annotation panel" }),
     );
     await userEvent.click(canvas.getByRole("button", { name: "Add score" }));
-    await userEvent.click(body.getByRole("menuitem", { name: /^Feedback \(/ }));
+    await userEvent.click(body.getByRole("menuitem", { name: "Feedback" }));
     const save = canvas.getByRole("button", { name: "Save changes" });
     await waitFor(() => expect(save).toBeEnabled());
     await userEvent.click(save);
@@ -193,7 +193,7 @@ export const TestTabsKeepDraft = meta.story({
       canvas.getByRole("tab", { name: "Annotation panel" }),
     );
     await userEvent.click(canvas.getByRole("button", { name: "Add score" }));
-    await userEvent.click(body.getByRole("menuitem", { name: /^Feedback \(/ }));
+    await userEvent.click(body.getByRole("menuitem", { name: "Feedback" }));
     await userEvent.click(canvas.getByRole("tab", { name: "Settings" }));
     await expect(canvas.getByRole("textbox", { name: "Name" })).toHaveValue(
       "Draft across tabs",

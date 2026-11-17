@@ -38,7 +38,6 @@ vi.mock("next-auth/react", () => ({
     status: "authenticated",
     data: {
       user: {
-        admin: false,
         organizations: [
           {
             id: "org-1",
@@ -76,7 +75,7 @@ vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
 }));
 
 vi.mock("@/src/features/v4-migration/V4MigrationContent", () => ({
-  V4_MIGRATION_DEADLINE: "November 16, 2026",
+  V4_MIGRATION_DEADLINE: "November 19, 2026",
   useCopyMigrationPrompt: () => vi.fn(),
   useHasV4MigrationDeadline: () => mocks.hasDeadline,
   // Stand-ins for the shared sidebar copy: the real components are covered in
@@ -86,13 +85,13 @@ vi.mock("@/src/features/v4-migration/V4MigrationContent", () => ({
   ),
   V4MigrationDeadlineNote: () => (
     <p>
-      After November 16, 2026 some features may stop working if you don&apos;t
+      After November 19, 2026 some features may stop working if you don&apos;t
       update integrations.
     </p>
   ),
   useV4MigrationTitle: () =>
     mocks.hasDeadline
-      ? "Ensure compatibility after November 16"
+      ? "Ensure compatibility after November 19"
       : "Ensure compatibility",
 }));
 
@@ -238,7 +237,7 @@ describe("V4MigrationStatusPage", () => {
     render(<V4MigrationStatusPage />);
 
     expect(
-      screen.getByText("Ensure compatibility after November 16"),
+      screen.getByText("Ensure compatibility after November 19"),
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "See docs." })).toHaveAttribute(
       "href",
@@ -284,7 +283,7 @@ describe("V4MigrationStatusPage", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        /The features powering the legacy v3 UI will be sunset on November 16, 2026\./,
+        /The features powering the legacy v3 UI will be sunset on November 19, 2026\./,
       ),
     ).toBeInTheDocument();
     expect(screen.getByTestId("v4-preview-toggle-row")).toBeInTheDocument();
@@ -303,11 +302,11 @@ describe("V4MigrationStatusPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("uses the November 16, 2026 deadline throughout the FAQ", () => {
+  it("uses the November 19, 2026 deadline throughout the FAQ", () => {
     render(<V4MigrationStatusPage />);
 
-    expect(screen.getByText("on November 16, 2026")).toBeInTheDocument();
-    expect(screen.getByText("On November 16, 2026")).toBeInTheDocument();
+    expect(screen.getByText("on November 19, 2026")).toBeInTheDocument();
+    expect(screen.getByText("On November 19, 2026")).toBeInTheDocument();
     expect(screen.queryByText(/Oct 9/)).not.toBeInTheDocument();
   });
 
@@ -324,8 +323,8 @@ describe("V4MigrationStatusPage", () => {
     expect(
       screen.getByText("Once your administrator disables the legacy mode"),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/on November 16, 2026/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/On November 16, 2026/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/on November 19, 2026/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/On November 19, 2026/)).not.toBeInTheDocument();
   });
 
   it("drops the dated sunset from the switch-back warning when self-hosted", () => {

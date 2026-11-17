@@ -1,7 +1,9 @@
 import type { FilterCondition } from "../../../types";
 import type { OrderByState } from "../../../interfaces/orderBy";
 import { InvalidRequestError } from "../../../errors/InvalidRequestError";
-import { describe, expect, it } from "vitest";
+import { QueryCompileError } from "../../query-ast/errors";
+import { describe, expect, it, vi } from "vitest";
+import { fromFilterState } from "../../../query-ast/filterStateCodec";
 import { convertDateToClickhouseDateTime } from "../../clickhouse/client";
 import {
   buildEventsObservationRowSelection,
@@ -11,6 +13,16 @@ import {
   buildEventsBlobExportStreamQuery,
   buildEventsStreamQuery,
 } from "./events-stream-query";
+
+// Pass-through, so a test can hand the planner a predicate shape the codec
+// does not build yet.
+vi.mock("../../../query-ast/filterStateCodec", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("../../../query-ast/filterStateCodec")
+    >();
+  return { ...actual, fromFilterState: vi.fn(actual.fromFilterState) };
+});
 
 const projectId = "project-characterization";
 const cutoffCreatedAt = new Date("2025-01-02T03:04:05.678Z");
@@ -77,11 +89,8 @@ describe("buildEventsStreamQuery", () => {
     expect(orderIndex).toBeLessThan(deduplicationIndex);
     expect(deduplicationIndex).toBeLessThan(rowLimitIndex);
 
-    expect(params).toMatchObject({
-      projectId,
-      searchString: "%needle%",
-      limit: 17,
-    });
+    expect(params).toMatchObject({ projectId, limit: 17 });
+    expect(Object.values(params)).toContain("%needle%");
     expect(Object.values(params)).toContainEqual(["GENERATION"]);
     expect(Object.values(params)).toContain(
       convertDateToClickhouseDateTime(cutoffCreatedAt),
@@ -130,6 +139,35 @@ describe("buildEventsStreamQuery", () => {
     const { query } = queryBuilder.selectFieldSet("eval").buildWithParams();
 
     expect(normalizeSql(query)).toContain("FROM events_core e");
+  });
+
+  it("ignores a positionInTrace filter, which only the observations list applies", () => {
+    // Placeholder prefixes are random per compile, so compare without them.
+    const build = (filter: FilterCondition[]) => {
+      const { query, params } = buildEventsBlobExportStreamQuery({
+        projectId,
+        filter,
+        rowLimit: 7,
+      })
+        .queryBuilder.selectFieldSet("eval")
+        .buildWithParams();
+      return {
+        query: query.replace(/\bpred\w+?_(\d+)/g, "pred_$1"),
+        params: Object.values(params),
+      };
+    };
+
+    expect(
+      build([
+        nativeFilter,
+        {
+          column: "positionInTrace",
+          type: "positionInTrace",
+          operator: "=",
+          key: "first",
+        },
+      ]),
+    ).toEqual(build([nativeFilter]));
   });
 
   it("shares one bounded score dependency between filtering and projection", () => {
@@ -207,53 +245,56 @@ describe("buildEventsStreamQuery", () => {
 });
 
 describe("buildEventsObservationRowSelection", () => {
-  it("routes score filters and bounds both score scans from Events time", () => {
-    const startTime = new Date("2025-01-02T03:04:05.678Z");
-    const { query, params, filterGroups } = buildSelection({
-      filter: [
-        {
-          type: "datetime",
-          column: "startTime",
-          operator: ">=",
-          value: startTime,
-        },
-        {
-          type: "numberObject",
-          column: "scores_avg",
-          operator: ">",
-          key: "observation-quality",
-          value: 0.5,
-        },
-        {
-          type: "numberObject",
-          column: "trace_scores_avg",
-          operator: ">",
-          key: "trace-quality",
-          value: 0.5,
-        },
-      ],
-    });
+  it.each([">=", ">"] as const)(
+    "routes score filters and bounds both score scans from Events time %s",
+    (operator) => {
+      const startTime = new Date("2025-01-02T03:04:05.678Z");
+      const { query, params, filterGroups } = buildSelection({
+        filter: [
+          {
+            type: "datetime",
+            column: "startTime",
+            operator,
+            value: startTime,
+          },
+          {
+            type: "numberObject",
+            column: "scores_avg",
+            operator: ">",
+            key: "observation-quality",
+            value: 0.5,
+          },
+          {
+            type: "numberObject",
+            column: "trace_scores_avg",
+            operator: ">",
+            key: "trace-quality",
+            value: 0.5,
+          },
+        ],
+      });
 
-    expect(filterGroups.events).toHaveLength(1);
-    expect(filterGroups.observationScores).toHaveLength(1);
-    expect(filterGroups.traceScores).toHaveLength(1);
-    expect(Object.values(params)).toContain("observation-quality");
-    expect(Object.values(params)).toContain("trace-quality");
-    expect(Object.values(params)).toContainEqual([
-      "observation-quality",
-      "trace-quality",
-    ]);
-    expect(query.match(/\bname IN \(\{/g)).toHaveLength(2);
-    expect(query).toContain(
-      "AND timestamp >= {startTimeFrom: DateTime64(3)} - INTERVAL 1 HOUR",
-    );
-    expect(query).toContain(
-      "AND timestamp >= {startTimeFrom: DateTime64(3)} - INTERVAL 2 DAY - INTERVAL 1 HOUR",
-    );
-  });
+      expect(filterGroups.events).toHaveLength(1);
+      expect(filterGroups.observationScores).toHaveLength(1);
+      expect(filterGroups.traceScores).toHaveLength(1);
+      expect(Object.values(params)).toContain("observation-quality");
+      expect(Object.values(params)).toContain("trace-quality");
+      expect(Object.values(params)).toContainEqual([
+        "observation-quality",
+        "trace-quality",
+      ]);
+      expect(query.match(/\bname IN \(\{/g)).toHaveLength(2);
+      expect(query).toContain(
+        "AND timestamp >= {startTimeFrom: DateTime64(3)} - INTERVAL 1 HOUR",
+      );
+      expect(query).toContain(
+        "AND timestamp >= {startTimeFrom: DateTime64(3)} - INTERVAL 2 DAY - INTERVAL 1 HOUR",
+      );
+    },
+  );
 
   it("does not invent score time bounds without an Events lower bound", () => {
-    const { query, startTimeFrom } = buildSelection({
+    const { query, rowConditions } = buildSelection({
       filter: [
         {
           type: "numberObject",
@@ -272,7 +313,7 @@ describe("buildEventsObservationRowSelection", () => {
       ],
     });
 
-    expect(startTimeFrom).toBeNull();
+    expect(rowConditions.startTimeFrom).toBeNull();
     expect(query).not.toContain("AND timestamp >=");
   });
 
@@ -331,5 +372,56 @@ describe("buildEventsObservationRowSelection", () => {
         ],
       }),
     ).toThrow(InvalidRequestError);
+  });
+
+  it("rejects a positionInTrace filter the caller did not strip", () => {
+    expect(() =>
+      buildSelection({
+        filter: [
+          {
+            column: "positionInTrace",
+            type: "positionInTrace",
+            operator: "=",
+            key: "first",
+          },
+        ],
+      }),
+    ).toThrow(QueryCompileError);
+  });
+
+  it("rejects a search with an empty search type as an invalid request", () => {
+    expect(() =>
+      buildEventsObservationRowSelection({
+        projectId,
+        filter: [],
+        searchQuery: "needle",
+        searchType: [],
+      }),
+    ).toThrow(InvalidRequestError);
+  });
+
+  it("compiles a predicate whose only conjunct is not a plain condition", () => {
+    vi.mocked(fromFilterState).mockReturnValueOnce({
+      predicate: {
+        kind: "and",
+        children: [
+          {
+            kind: "not",
+            child: {
+              kind: "condition",
+              type: "stringOptions",
+              field: { id: "type" },
+              op: "any of",
+              value: ["GENERATION"],
+            },
+          },
+        ],
+      },
+    });
+
+    const { query, params } = buildSelection({ filter: [nativeFilter] });
+
+    expect(query).toMatch(/\bnot\b/i);
+    expect(Object.values(params)).toContainEqual(["GENERATION"]);
   });
 });

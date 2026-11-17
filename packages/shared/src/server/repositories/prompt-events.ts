@@ -1,11 +1,7 @@
 import type { SelectExpression } from "kysely";
 
 import { getClickhouseKysely } from "../query-ast/dialect";
-import {
-  limitBy,
-  literal,
-  softDeleteAfterLimit,
-} from "../query-ast/extensions";
+import { limitBy, literal } from "../query-ast/extensions";
 import type { ClickHouseDatabase } from "../query-ast/schema";
 
 type EventsAsE = ClickHouseDatabase & { e: ClickHouseDatabase["events"] };
@@ -13,7 +9,6 @@ type EventsAsE = ClickHouseDatabase & { e: ClickHouseDatabase["events"] };
 /**
  * Latest version of each generation linked to one of `promptIds`, optionally
  * within a start-time window. Callers pick the columns and use it as a CTE.
- * A generation whose latest version is soft-deleted is left out.
  */
 export const promptGenerationEvents = <
   S extends SelectExpression<EventsAsE, "e">,
@@ -24,7 +19,6 @@ export const promptGenerationEvents = <
 ) =>
   getClickhouseKysely()
     .selectFrom("events as e")
-    .$call(softDeleteAfterLimit())
     .select(columns)
     .where("e.type", "=", literal("GENERATION"))
     .where("e.prompt_id", "in", promptIds)

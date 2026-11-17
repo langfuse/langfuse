@@ -88,6 +88,7 @@ const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   queryMetrics: "Checking metrics",
   read: "Reading file",
   runBatchEvaluation: "Running batch evaluation",
+  setDefaultEvaluationModel: "Setting default evaluation model",
   submitFeedback: "Submitting user feedback",
   testEvaluator: "Testing evaluator",
   testExternalMediaStorage: "Testing external media storage",

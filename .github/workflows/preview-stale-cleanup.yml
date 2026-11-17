@@ -37,7 +37,7 @@ concurrency:
 jobs:
   sweep:
     name: Remove preview label from stale PRs
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     # AWS_PREVIEW_ECR_PUSH_ROLE_ARN is the preview-system feature flag (same gate
     # as preview-build / preview-autolabel): unset => system off, nothing to reap.
     if: vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != ''

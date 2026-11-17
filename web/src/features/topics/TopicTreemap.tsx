@@ -1,5 +1,10 @@
-import { useState, type MouseEvent } from "react";
+import { useRef, useState, type MouseEvent } from "react";
+import { flushSync } from "react-dom";
+import { ZoomOut } from "@langfuse/icons";
 import { useElementSize } from "@/src/hooks/useElementSize";
+import { usePanZoomGestures } from "@/src/hooks/usePanZoomGestures";
+import { type PanZoomAnchor } from "@/src/utils/panZoomGestures";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { cn } from "@/src/utils/tailwind";
 import { compactNumberFormatter } from "@/src/utils/numbers";
@@ -41,6 +46,10 @@ type TopicTileButtonProps = TopicTileProps & {
 const TILE_GAP = 8;
 /** Tiles above this area (px²) get the stronger resting tint. */
 const BIG_TILE_AREA = 30_000;
+/** Zoom multiplies the layout height at a fixed width, so every tile stays reachable by scrolling down. */
+const MAX_ZOOM = 8;
+/** The panel width less 1rem a side, whether or not the gutter holds a scrollbar. */
+const TILES_WIDTH = "w-[min(100%,100cqw_-_2rem)]";
 
 const TILE_PADDING: Record<TileTier, string> = {
   large: "p-3",
@@ -245,6 +254,16 @@ function TopicTile(props: TopicTileProps) {
   );
 }
 
+function layoutTiles(topics: TopicDisplay[], width: number, height: number) {
+  return layoutTreemap(layoutWeights(topics), width, height, TILE_GAP).map(
+    (tile) => ({
+      ...tile,
+      item: tile.item.topic,
+      capped: tile.item.count < tile.item.topic.count,
+    }),
+  );
+}
+
 export function TopicTreemap({
   total,
   topics,
@@ -252,71 +271,175 @@ export function TopicTreemap({
   onSelectTopic,
   previewOnSelect = false,
 }: TopicTreemapProps) {
-  const [previewedId, setPreviewedId] = useState<string | null>(null);
-  const [ref, size] = useElementSize<HTMLDivElement>();
-  const tiles = size
-    ? layoutTreemap(
-        layoutWeights(topics),
-        size.width,
-        size.height,
-        TILE_GAP,
-      ).map((tile) => ({
-        ...tile,
-        item: tile.item.topic,
-        capped: tile.item.count < tile.item.topic.count,
-      }))
+  /** The visible span of the tiles when the tile was tapped, in px from the top of the tiles. */
+  const [preview, setPreview] = useState<{
+    id: string;
+    visibleTop: number;
+    visibleBottom: number;
+  } | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [viewportRef, viewport] = useElementSize<HTMLDivElement>();
+  const contentRef = useRef<HTMLElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const layoutHeight = viewport ? viewport.height * zoom : 0;
+  const tiles = viewport
+    ? layoutTiles(topics, viewport.width, layoutHeight)
     : [];
-  const previewedTopic = topics.find((topic) => topic.id === previewedId);
-  const previewedTile = tiles.find((tile) => tile.item.id === previewedId);
-  const previewAnchor = previewedTile
-    ? previewedTile.y + previewedTile.height / 2
-    : 0;
+  /** Where the card sits, derived from the current tile so it follows a re-layout. */
+  function previewPlacement() {
+    const tile = tiles.find((candidate) => candidate.item.id === preview?.id);
+    if (!preview || !tile) return null;
+    const visibleTop = Math.max(0, preview.visibleTop);
+    const visibleBottom = Math.min(layoutHeight, preview.visibleBottom);
+    const top = Math.max(tile.y, visibleTop);
+    const bottom = Math.min(tile.y + tile.height, visibleBottom);
+    const anchor = top < bottom ? (top + bottom) / 2 : tile.y + tile.height / 2;
+    return {
+      topic: tile.item,
+      anchor,
+      above: anchor > (visibleTop + visibleBottom) / 2,
+    };
+  }
+  const placement = previewPlacement();
   function selectTopic(topicId: string) {
-    if (previewOnSelect && previewedId !== topicId) {
-      setPreviewedId(topicId);
+    const scroller = scrollRef.current;
+    const section = contentRef.current;
+    if (previewOnSelect && preview?.id !== topicId && scroller && section) {
+      const visibleTop =
+        scroller.getBoundingClientRect().top -
+        section.getBoundingClientRect().top;
+      setPreview({
+        id: topicId,
+        visibleTop,
+        visibleBottom: visibleTop + scroller.clientHeight,
+      });
       return;
     }
-    setPreviewedId(null);
+    setPreview(null);
     onSelectTopic(topicId);
   }
   function dismissPreview(event: MouseEvent<HTMLElement>) {
-    if (event.target === event.currentTarget) setPreviewedId(null);
+    if (event.target === event.currentTarget) setPreview(null);
   }
+  function zoomAt(levels: number, anchor: PanZoomAnchor) {
+    const scroller = scrollRef.current;
+    const next = Math.min(MAX_ZOOM, Math.max(1, zoom * 2 ** levels));
+    const section = contentRef.current;
+    if (!scroller || !section || !viewport || next === zoom) return;
+    const bounds = scroller.getBoundingClientRect();
+    const origin = section.getBoundingClientRect();
+    const x = bounds.left + anchor.x * bounds.width - origin.left;
+    const y = bounds.top + anchor.y * bounds.height - origin.top;
+    const nextHeight = viewport.height * next;
+    // The layout reflows at the new height, so follow the tile under the point, not its height fraction.
+    const aimed = tiles.find(
+      (tile) =>
+        x >= tile.x &&
+        x <= tile.x + tile.width &&
+        y >= tile.y &&
+        y <= tile.y + tile.height,
+    );
+    const moved =
+      aimed &&
+      layoutTiles(topics, viewport.width, nextHeight).find(
+        (tile) => tile.item.id === aimed.item.id,
+      );
+    const nextY =
+      aimed && moved
+        ? moved.y + ((y - aimed.y) / aimed.height) * moved.height
+        : (y / layoutHeight) * nextHeight;
+    flushSync(() => {
+      setZoom(next);
+      setPreview(null);
+    });
+    scroller.scrollTop += nextY - y;
+  }
+  function resetZoom() {
+    setZoom(1);
+    setPreview(null);
+  }
+  usePanZoomGestures({
+    target: scrollRef,
+    pointerPan: false,
+    touchPinch: true,
+    canPan: () => false,
+    onZoom: zoomAt,
+  });
   return (
-    <section
-      aria-label="Topics"
-      ref={ref}
-      className="relative h-full min-h-0 min-w-0 flex-1"
-      onClick={dismissPreview}
-    >
-      {tiles.map(({ item, capped, x, y, width, height }) => (
-        <TopicTile
-          key={item.id}
-          topic={item}
-          share={total > 0 ? item.count / total : 0}
-          colors={
-            width * height > BIG_TILE_AREA ? item.tiles.big : item.tiles.small
-          }
-          isSelected={item.id === (previewedId ?? selectedTopicId)}
-          onSelect={selectTopic}
-          rect={{ left: x, top: y, width, height }}
-          tier={tileTier(width, height)}
-          previewOnSelect={previewOnSelect}
-          capped={capped}
-        />
-      ))}
-      {previewedTopic && (
+    // The container's width includes the scrollbar gutter, so the tiles can end 1rem from its edge.
+    <div className="@container flex min-h-0 min-w-0 flex-1 flex-col">
+      <div
+        ref={scrollRef}
+        className={cn(
+          // A stable gutter keeps the tile width the same when zoom adds a scrollbar.
+          // It sits in the right padding, so the tiles line up with the controls above.
+          "relative min-h-0 min-w-0 flex-1 touch-pan-y overflow-x-hidden py-4 pl-4 [scrollbar-gutter:stable]",
+          zoom > 1 ? "overflow-y-auto" : "overflow-y-hidden",
+        )}
+      >
+        {/* Inset by the padding, so it measures the visible tile area. */}
         <div
-          className="pointer-events-none absolute right-2 left-2"
-          style={
-            size && previewAnchor > size.height / 2
-              ? { bottom: size.height - previewAnchor }
-              : { top: previewAnchor }
-          }
+          ref={viewportRef}
+          aria-hidden
+          className="pointer-events-none invisible absolute top-4 bottom-4 left-4 w-[min(100%_-_1rem,100cqw_-_2rem)]"
+        />
+        {zoom > 1 && (
+          <div
+            className={cn(
+              "sticky top-4 z-1 flex h-0 items-start justify-end",
+              TILES_WIDTH,
+            )}
+          >
+            <div className="p-2">
+              <Button
+                text="Reset zoom"
+                icon={ZoomOut}
+                variant="outline"
+                size="sm"
+                onClick={resetZoom}
+              />
+            </div>
+          </div>
+        )}
+        <section
+          aria-label="Topics"
+          ref={contentRef}
+          className={cn("relative", TILES_WIDTH)}
+          style={{ height: layoutHeight }}
+          onClick={dismissPreview}
         >
-          <TopicPreviewCard topic={previewedTopic} total={total} />
-        </div>
-      )}
-    </section>
+          {tiles.map(({ item, capped, x, y, width, height }) => (
+            <TopicTile
+              key={item.id}
+              topic={item}
+              share={total > 0 ? item.count / total : 0}
+              colors={
+                width * height > BIG_TILE_AREA
+                  ? item.tiles.big
+                  : item.tiles.small
+              }
+              isSelected={item.id === (preview?.id ?? selectedTopicId)}
+              onSelect={selectTopic}
+              rect={{ left: x, top: y, width, height }}
+              tier={tileTier(width, height)}
+              previewOnSelect={previewOnSelect}
+              capped={capped}
+            />
+          ))}
+          {placement && (
+            <div
+              className="pointer-events-none absolute right-2 left-2"
+              style={
+                placement.above
+                  ? { bottom: layoutHeight - placement.anchor }
+                  : { top: placement.anchor }
+              }
+            >
+              <TopicPreviewCard topic={placement.topic} total={total} />
+            </div>
+          )}
+        </section>
+      </div>
+    </div>
   );
 }

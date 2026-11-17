@@ -20,7 +20,6 @@ import {
   resolveQueueInstance,
 } from "../../queues/shardedQueueRegistry";
 import { emitV4LegacyApiUsageFreshnessMetrics } from "../v4/v4LegacyApiUsageMetrics";
-import { emitTopicStagingMetrics } from "@langfuse/shared/topics/server";
 
 type DepthType = "waiting" | "failed" | "active" | "delayed";
 const INTERVAL_CLAIM_KEY_PREFIX = "langfuse:queue-metrics-runner:claim";
@@ -28,12 +27,7 @@ const INTERVAL_CLAIM_KEY_PREFIX = "langfuse:queue-metrics-runner:claim";
 const CLAIM_TTL_INTERVAL_FRACTION = 0.9;
 /** Minimum gap between this runner's CloudWatch flushes, so a short interval does not send one PutMetricData request per tick */
 const CLOUDWATCH_FLUSH_FLOOR_MS = 10_000;
-const TOPICS_QUEUES = new Set([
-  QueueName.Topics,
-  QueueName.TopicsUpdate,
-  QueueName.TopicsEmbedding,
-  QueueName.TopicsAutomation,
-]);
+const TOPICS_QUEUES = new Set([QueueName.TopicsUpdate, QueueName.TopicsSetup]);
 
 async function emitPendingHeadAge(
   queue: Queue,
@@ -42,7 +36,7 @@ async function emitPendingHeadAge(
   // Read at most one ID per state and only its timestamp, never the job payload.
   // Retries can re-enter behind newer jobs; this is head age, not a global minimum timestamp.
   const ids = await queue.getRanges(
-    ["wait", "paused", "delayed", "active"],
+    ["wait", "prioritized", "paused", "delayed", "active"],
     0,
     0,
     true,
@@ -65,16 +59,19 @@ async function emitPendingHeadAge(
 async function collectDepth(
   queue: Queue,
 ): Promise<Record<DepthType, number> | null> {
-  // Include "paused" to match getWaitingCount() semantics (which sums waiting + paused)
+  // Include "paused" to match getWaitingCount() semantics (which sums waiting + paused);
+  // jobs added with a priority wait in "prioritized" instead.
   const counts = await queue.getJobCounts(
     "waiting",
+    "prioritized",
     "paused",
     "failed",
     "active",
     "delayed",
   );
   return {
-    waiting: (counts.waiting ?? 0) + (counts.paused ?? 0),
+    waiting:
+      (counts.waiting ?? 0) + (counts.prioritized ?? 0) + (counts.paused ?? 0),
     failed: counts.failed ?? 0,
     active: counts.active ?? 0,
     delayed: counts.delayed ?? 0,
@@ -123,18 +120,6 @@ export class QueueMetricsRunner extends PeriodicRunner {
     }
 
     const promises: Promise<void>[] = [];
-
-    if (registeredNames.has(QueueName.Topics)) {
-      promises.push(
-        emitTopicStagingMetrics().catch((err) => {
-          this.markRunFailed(err);
-          logger.error(
-            "Queue metrics: failed to collect Topics staging expiry",
-            err,
-          );
-        }),
-      );
-    }
 
     promises.push(
       updateActiveIngestFailureProjectsMetric()

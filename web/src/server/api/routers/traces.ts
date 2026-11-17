@@ -10,7 +10,6 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
   applyCommentFilters,
-  traceException,
   getTracesTable,
   getTracesTableCount,
   getScoresForTraces,
@@ -61,6 +60,7 @@ import {
   ScoreDataTypeArray,
   ScoreDataTypeEnum,
   LISTABLE_SCORE_TYPES,
+  AUDIT_LOG_RESOURCE_REFS_MAX,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
@@ -77,6 +77,7 @@ import {
 } from "@/src/utils/clientSideDomainTypes";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import partition from "lodash/partition";
+import chunk from "lodash/chunk";
 
 const TraceCountOptions = z
   .object({
@@ -279,7 +280,8 @@ export const traceRouter = createTRPCRouter({
         scores: traceScores,
         dataTypes: LISTABLE_SCORE_TYPES,
         includeHasMetadata: true,
-        onParseError: traceException,
+        onParseError: (error) =>
+          logger.warn("Invalid score omitted from response", { error }),
       });
 
       return res.map((row) => ({
@@ -426,7 +428,8 @@ export const traceRouter = createTRPCRouter({
       const validatedScores = filterAndValidateDbScoreList({
         scores: traceScores,
         dataTypes: [...ScoreDataTypeArray],
-        onParseError: traceException,
+        onParseError: (error) =>
+          logger.warn("Invalid score omitted from response", { error }),
       });
 
       const [corrections, scores] = partition(
@@ -566,16 +569,18 @@ export const traceRouter = createTRPCRouter({
           useEventsTableOverride: declaresEventsTable ? true : undefined,
         });
       } else {
-        await Promise.all(
-          input.traceIds.map((traceId) =>
-            auditLog({
-              resourceType: "trace",
-              resourceId: traceId,
-              action: "delete",
-              session: ctx.session,
-            }),
-          ),
-        );
+        for (const traceIds of chunk(
+          input.traceIds,
+          AUDIT_LOG_RESOURCE_REFS_MAX,
+        )) {
+          await auditLog({
+            resourceType: "project",
+            resourceId: input.projectId,
+            action: "deleteTraces",
+            before: { traceIds },
+            session: ctx.session,
+          });
+        }
 
         await traceDeletionProcessor(input.projectId, input.traceIds, {
           actor: { type: "USER", userId: ctx.session.user.id },

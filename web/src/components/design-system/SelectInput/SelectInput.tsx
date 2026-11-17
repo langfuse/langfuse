@@ -36,10 +36,10 @@ function SelectInputInner<V extends string>(
     onValueChange,
     placeholder,
     emptyMessage,
+    noCapture,
     search,
     error,
     muted,
-    noCapture,
     ...triggerProps
   }: SelectInputProps<V>,
   ref: React.ForwardedRef<HTMLButtonElement>,
@@ -99,6 +99,10 @@ function SelectInputInner<V extends string>(
     );
   }
 
+  const SelectedIcon = options
+    .flatMap((node) => (node.type === "group" ? node.options : [node]))
+    .find((option) => option.value === value)?.icon;
+
   return (
     <SelectDropdown
       value={value}
@@ -112,6 +116,12 @@ function SelectInputInner<V extends string>(
       {({ getTriggerProps, selectedLabel }) => (
         <InputControl contentLayout="spread" error={error}>
           <button {...getTriggerProps()}>
+            {SelectedIcon ? (
+              // Box-centered, the icon sits above the middle of lowercase text.
+              <span className="flex shrink-0 translate-y-px" aria-hidden>
+                <SelectedIcon size="base" />
+              </span>
+            ) : null}
             <span
               className={cn(
                 "min-w-0 flex-1 truncate text-left",

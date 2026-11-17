@@ -24,7 +24,6 @@ import {
   getScoresForObservations,
   getScoresForTraces,
   logger,
-  traceException,
   EVENTS_APPROX_TOTAL_COUNT_MARKER,
   type EventBatchIOResult,
   type EventFilterOptionColumn,
@@ -381,13 +380,15 @@ async function getEventListPage(
     scores,
     dataTypes: LISTABLE_SCORE_TYPES,
     includeHasMetadata: true,
-    onParseError: traceException,
+    onParseError: (error) =>
+      logger.warn("Invalid score omitted from response", { error }),
   });
   const validatedTraceScores = filterAndValidateDbScoreList({
     scores: traceScores,
     dataTypes: LISTABLE_SCORE_TYPES,
     includeHasMetadata: true,
-    onParseError: traceException,
+    onParseError: (error) =>
+      logger.warn("Invalid score omitted from response", { error }),
   });
 
   const scoresByObservationId = new Map<
@@ -493,6 +494,7 @@ const EVENT_FILTER_OPTIONS_NON_PARTICIPATING_COLUMNS = new Set([
   "output",
   "commentCount",
   "commentContent",
+  "topics",
 ]);
 
 export const partitionEventFilterOptionsFilter = (

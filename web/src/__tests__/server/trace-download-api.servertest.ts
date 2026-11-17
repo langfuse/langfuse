@@ -35,7 +35,6 @@ describe("GET /api/traces/[traceId]/download", () => {
     mockGetServerAuthSession.mockResolvedValue({
       user: {
         email: "test@example.com",
-        admin: false,
         organizations: [{ projects: [{ id: projectId }] }],
       },
     });

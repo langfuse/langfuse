@@ -734,19 +734,41 @@ export const env = createEnv({
     LANGFUSE_V4_BANNER_SEVERITY: z
       .enum(["off", "warning", "critical"])
       .default("off"),
-    // Comma-separated organization ids that never see the banner.
-    LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS: z
+    // Comma-separated project ids whose deadline is December 31, 2026.
+    // The December sentence shows only when every actionable project is on
+    // this list. These projects also belong on the cutoff-exempt list so the
+    // v3 cutoff stays off until then.
+    LANGFUSE_V4_BANNER_DECEMBER_PROJECT_IDS: z
       .string()
       .optional()
       .transform((value) =>
         value
           ? value
               .split(",")
-              .map((organizationId) => organizationId.trim())
+              .map((projectId) => projectId.trim())
               .filter(Boolean)
           : [],
       ),
-
+    // Langfuse Cloud only, temporary. v3 cutoff switches, flipped by hand.
+    // Ignored on self-hosted deployments.
+    // INGESTION: legacy batch events except score-create, and legacy trace writes.
+    LANGFUSE_V4_CUTOFF_INGESTION: z.enum(["true", "false"]).default("false"),
+    // PUBLIC_API: public API handlers that carry a v3 deprecation.
+    LANGFUSE_V4_CUTOFF_PUBLIC_API: z.enum(["true", "false"]).default("false"),
+    // Comma-separated project ids that skip every cutoff. The same list is the
+    // one-week banner extension: November 23 shows only when every actionable
+    // project is on it. Keep in sync with worker/src/env.ts.
+    LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS: z
+      .string()
+      .optional()
+      .transform((value) =>
+        value
+          ? value
+              .split(",")
+              .map((projectId) => projectId.trim())
+              .filter(Boolean)
+          : [],
+      ),
     // Character count above which trace/observation I/O is rendered as plain
     // text instead of markdown. Served to the browser via the public tRPC
     // router, so it works as a runtime env var on prebuilt Docker images.
@@ -755,6 +777,15 @@ export const env = createEnv({
       .int()
       .positive()
       .default(150_000),
+    // Skill Management limits per skill version, enforced by the server only.
+    // Skill versions are sent as JSON through 4.5 MB request bodies on the
+    // tRPC, public API, and MCP routes, which bounds the usable byte limit.
+    LANGFUSE_SKILL_MAX_BYTES: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(1_000_000),
+    LANGFUSE_SKILL_MAX_FILES: z.coerce.number().int().positive().default(200),
 
     // Reverse proxies in front of the web container that append the client
     // address to X-Forwarded-For. Audit events take the client IP from the
@@ -767,7 +798,9 @@ export const env = createEnv({
       .default(0),
 
     // Kill switch for staging audit events for the ClickHouse audit_logs table
-    // on Langfuse Cloud. The Postgres audit_logs row is written either way.
+    // (EE). The Postgres audit_logs row is written either way, but the
+    // audit-log viewer and export read ClickHouse only, so change events
+    // written while it is off do not show there.
     // Read-access events have no Postgres row, so turning it off stops
     // recording them; reads still succeed.
     LANGFUSE_AUDIT_LOG_STAGING_ENABLED: z
@@ -1379,10 +1412,16 @@ export const env = createEnv({
     LANGFUSE_MIGRATION_V4_WRITE_MODE:
       process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
     LANGFUSE_V4_BANNER_SEVERITY: process.env.LANGFUSE_V4_BANNER_SEVERITY,
-    LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS:
-      process.env.LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS,
+    LANGFUSE_V4_BANNER_DECEMBER_PROJECT_IDS:
+      process.env.LANGFUSE_V4_BANNER_DECEMBER_PROJECT_IDS,
+    LANGFUSE_V4_CUTOFF_INGESTION: process.env.LANGFUSE_V4_CUTOFF_INGESTION,
+    LANGFUSE_V4_CUTOFF_PUBLIC_API: process.env.LANGFUSE_V4_CUTOFF_PUBLIC_API,
+    LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS:
+      process.env.LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS,
     LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
       process.env.LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
+    LANGFUSE_SKILL_MAX_BYTES: process.env.LANGFUSE_SKILL_MAX_BYTES,
+    LANGFUSE_SKILL_MAX_FILES: process.env.LANGFUSE_SKILL_MAX_FILES,
     LANGFUSE_TRUSTED_PROXY_COUNT: process.env.LANGFUSE_TRUSTED_PROXY_COUNT,
     LANGFUSE_AUDIT_LOG_STAGING_ENABLED:
       process.env.LANGFUSE_AUDIT_LOG_STAGING_ENABLED,

@@ -93,7 +93,6 @@ describe("project API keys trpc", () => {
           },
         ],
         featureFlags: testFeatureFlags(),
-        admin: false,
       },
       environment: {} as any,
     };
@@ -216,7 +215,7 @@ describe("project API keys trpc", () => {
       ).resolves.toBe(0);
     });
 
-    it.each(["ADMIN", "VIEWER", "INGEST", "SCORES_INGEST"] as const)(
+    it.each(["ADMIN", "VIEWER", "APPLICATION", "SCORES_INGEST"] as const)(
       "creates a project key with %s when role selection is enabled",
       async (role) => {
         Object.assign(env, { API_KEY_PROJECT_ROLES_ENABLE: "true" });
@@ -271,6 +270,7 @@ describe("project API keys trpc", () => {
           const { caller, projectId } = await createProjectCaller();
           const before = await prisma.apiKey.count({ where: { projectId } });
           const rejectedRoles = [
+            "INGEST",
             "LEGACY_PROJECT_API_KEY",
             "LEGACY_ORGANIZATION_API_KEY",
             "",
@@ -279,7 +279,12 @@ describe("project API keys trpc", () => {
             "invalid",
           ];
           if (migration !== "enforce" || enabled === "false")
-            rejectedRoles.push("ADMIN", "VIEWER", "INGEST", "SCORES_INGEST");
+            rejectedRoles.push(
+              "ADMIN",
+              "VIEWER",
+              "APPLICATION",
+              "SCORES_INGEST",
+            );
           for (const role of rejectedRoles) {
             await expect(
               caller.projectApiKeys.create({ projectId, role: role as never }),

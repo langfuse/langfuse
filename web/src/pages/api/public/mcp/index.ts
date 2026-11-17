@@ -30,6 +30,7 @@ import { handleMcpRequest } from "@/src/features/mcp/server/transport";
 import { validateMcpRequestSecurity } from "@/src/features/mcp/server/security";
 import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
 import { type ServerContext } from "@/src/features/mcp/types";
+import { getAuditRequestContext } from "@/src/features/audit-logs/server/getAuditRequestContext";
 import { addUserToSpan, logger } from "@langfuse/shared/src/server";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { BaseError, ForbiddenError, safeJsonParse } from "@langfuse/shared";
@@ -135,6 +136,10 @@ export default async function handler(
       rateLimitOverrides: scope.rateLimitOverrides,
       accessAuditLogEnabled: scope.accessAuditLogEnabled,
       userAgent: req.headers["user-agent"],
+      auditRequest: getAuditRequestContext(
+        req.headers,
+        req.socket.remoteAddress,
+      ),
       inAppAgent: getInAppAgentContext(req, scope.isInAppAgentKey),
       auth: ctx,
     };
