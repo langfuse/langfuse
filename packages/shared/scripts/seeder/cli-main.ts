@@ -11,9 +11,11 @@
  */
 import { parseArgs } from "node:util";
 import { prisma } from "../../src/db";
+import { env } from "../../src/env";
 import { logger, redis } from "../../src/server";
 import { preflight, runDoctor } from "./doctor";
 import { scenarios } from "./scenarios";
+import { gatewayDemoScenario } from "./scenarios/gateway-demo";
 import { ScenarioContext, ScenarioFlag, SeedError } from "./scenarios/types";
 
 const DEFAULT_PROJECT_ID = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -314,6 +316,31 @@ const main = async (): Promise<number> => {
     for (const link of summary.links) {
       console.error(`[seed:${scenario.name}] open: ${link}`);
     }
+  }
+
+  // PR previews scope their event-upload prefix to `pr-<n>/`; nothing else
+  // does, so this adds the gateway demo to the preview seed job only.
+  if (
+    !ctx.dryRun &&
+    scenario.name !== gatewayDemoScenario.name &&
+    /^pr-\d+\//.test(env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX)
+  ) {
+    const demoParams = coerceValues(
+      [...gatewayDemoScenario.flags, ...COMMON_FLAGS],
+      { seed: String(seed) },
+    );
+    const demoSummary = await gatewayDemoScenario.run(
+      {
+        ...ctx,
+        idPrefix: `${gatewayDemoScenario.name}-s${seed}`,
+        log: (message) => {
+          if (!jsonOnly)
+            console.error(`[seed:${gatewayDemoScenario.name}] ${message}`);
+        },
+      },
+      demoParams,
+    );
+    if (!jsonOnly) console.error(JSON.stringify(demoSummary));
   }
   return 0;
 };
