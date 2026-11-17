@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { RefreshCw, ChevronDown } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -24,8 +23,9 @@ interface DataTableRefreshButtonProps {
   /**
    * Space-tight variant: the split control drops the "Off" label when
    * auto-refresh is disabled and gains an accent border (plus the interval
-   * label, e.g. "30s") once an interval is set. Below `md` the interval side
-   * is hidden either way. Default (non-compact) is unchanged at `md` and up.
+   * label, e.g. "30s") once an interval is set. On a narrow viewport the
+   * interval side is omitted either way. Default (non-compact) is unchanged
+   * when the interval selector is shown.
    */
   compact?: boolean;
 }
@@ -44,11 +44,9 @@ export function DataTableRefreshButton({
   // while it spins either: the flash of the disabled state read as a glitch, and
   // refreshing again mid-flight is harmless.
   const { active: isSpinning } = useAnimatedBusy(isRefreshing);
-  const isMobile = useIsMobile();
-  const [menuOpen, setMenuOpen] = useState(false);
-  // The menu is portaled, so hiding the trigger does not close it. Drop an
-  // open menu when the viewport crosses below `md`.
-  if (isMobile && menuOpen) setMenuOpen(false);
+  // Same predicate as the auto-refresh timer. Tailwind `md` is 48rem and
+  // follows the user's font size, so a CSS hide would not match the timer.
+  const showInterval = !useIsMobile();
 
   return (
     <div className="flex items-center">
@@ -58,9 +56,9 @@ export function DataTableRefreshButton({
         onClick={onRefresh}
         aria-busy={isSpinning}
         className={cn(
-          // Split button only while the interval selector is visible (`md`+).
-          "md:rounded-r-none md:border-r-0",
-          compact && isActive && "md:border-primary",
+          // Split button only while the interval selector is mounted.
+          showInterval && "rounded-r-none border-r-0",
+          compact && isActive && showInterval && "border-primary",
         )}
         title="Refresh"
       >
@@ -70,14 +68,8 @@ export function DataTableRefreshButton({
           __rawClassName={cn(isSpinning && "animate-spin")}
         />
       </Button>
-      {/* Below `md` the interval selector is hidden; manual refresh stays. */}
-      <div className="hidden md:contents">
-        <DropdownMenu
-          open={!isMobile && menuOpen}
-          onOpenChange={(next) => {
-            if (!isMobile) setMenuOpen(next);
-          }}
-        >
+      {showInterval && (
+        <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               variant="outline"
@@ -122,7 +114,7 @@ export function DataTableRefreshButton({
             </DropdownMenuRadioGroup>
           </DropdownMenuContent>
         </DropdownMenu>
-      </div>
+      )}
     </div>
   );
 }
