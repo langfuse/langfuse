@@ -89,7 +89,7 @@ export function CouponRedemptionForm({
       <Alert variant="info">
         <Alert.Title>Coupon submitted</Alert.Title>
         <Alert.Description>
-          {`We received your ${COUPON_PROGRAM_LABELS[deliver.variables.program]} coupon. Once ClickHouse has verified the code, the credits are applied to this organization.`}
+          {`We received your ${COUPON_PROGRAM_LABELS[deliver.variables.program]} coupon. ClickHouse reviews it and emails you at ${submitterEmail} whether it was approved. Approved credits are applied to this organization.`}
         </Alert.Description>
       </Alert>
     );
@@ -98,7 +98,7 @@ export function CouponRedemptionForm({
   return (
     <div className="flex max-w-xl flex-col gap-6">
       <p className="text-muted-foreground text-sm">
-        {`The coupon is sent to ClickHouse's credit-request form together with your name, your email address (${submitterEmail}) and your ClickHouse organization ID (${clickhouseOrganizationId}), so the credits land on this organization.`}
+        {`The coupon is sent to ClickHouse's credit-request form together with your name, your email address (${submitterEmail}) and your ClickHouse organization ID (${clickhouseOrganizationId}), so the credits land on this organization. ClickHouse reviews the request and emails you whether it was approved.`}
       </p>
       <Form
         onSubmit={form.handleSubmit(({ firstName, lastName, ...coupon }) =>
