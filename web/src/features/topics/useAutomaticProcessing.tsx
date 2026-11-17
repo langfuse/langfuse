@@ -50,7 +50,8 @@ function useSetAutomaticProcessing(projectId: string) {
     onSuccess: () =>
       Promise.all([
         utils.topics.modelSettings.invalidate({ projectId }),
-        utils.topics.rules.invalidate({ projectId }),
+        // Sampling is saved on the map's rule.
+        utils.topics.maps.invalidate({ projectId }),
       ]),
   });
 }

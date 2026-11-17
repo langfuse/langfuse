@@ -41,6 +41,7 @@ import {
   sendAuthErrorJson,
 } from "@/src/features/public-api/server/deprecations";
 import { applyLegacyApiOrganizationCutoff } from "@/src/features/public-api/server/legacyApiOrganizationCutoff";
+import { applyV4RouteCutoff } from "@/src/features/public-api/server/v4Cutoff";
 import {
   isLegacyIngestionScoreOnlyOrg,
   recordLegacyIngestionScoreOnlyRejection,
@@ -288,6 +289,20 @@ export const createAuthedProjectAPIRoute = <
         },
       };
       authzCtx = result.ctx;
+    }
+
+    // Before rate limiting, so callers over the legacy limits still get the 410.
+    const v4CutoffRejection = applyV4RouteCutoff({
+      req,
+      routeName: routeConfig.name,
+      isLegacyTraceWrite: routeConfig.isLegacyTraceWrite === true,
+      deprecation: routeConfig.deprecation,
+      orgId: auth.scope.orgId,
+      projectId: auth.scope.projectId,
+    });
+    if (v4CutoffRejection) {
+      res.status(410).json(v4CutoffRejection.body);
+      return;
     }
 
     const rateLimitResponse =

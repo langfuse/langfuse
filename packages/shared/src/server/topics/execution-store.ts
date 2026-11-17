@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import { prisma, type Prisma } from "../../db";
-import { getTopicProcessingMapIds } from "./postgres";
 import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { BatchActionStatus } from "../../features/batchAction/types";
 import {
@@ -11,21 +10,20 @@ import {
   type TopicExecutionInput,
   type TopicExecutionSummary,
   type TopicFacetProgress,
+  type TopicManualRunInput,
 } from "../../topics";
 
 export const TOPICS_ACTION = "topics";
 type BatchMetadata = {
   inputSettings:
-    | Extract<TopicExecutionSummary["input"], { operation: "process" }>
-    | (Omit<
-        Extract<TopicExecutionSummary["input"], { operation: "update" }>,
-        "timeRange"
-      > & { timeRange: { from: string; to: string } });
+    | TopicManualRunInput
+    | (Omit<TopicExecutionInput, "timeRange"> & {
+        timeRange: { from: string; to: string };
+      });
   facets: TopicFacetProgress[];
   phase: string;
   inputHash: string;
   requestHash: string;
-  progressVersion?: number;
   /** A snapshot's seeding state; its trace IDs are dropped once the fit is enqueued. */
   summarizing?: TopicSnapshotSummarizing;
 };
@@ -99,17 +97,10 @@ function checkRequest(
 function storedInput(
   settings: BatchMetadata["inputSettings"],
 ): TopicExecutionSummary["input"] {
-  if (settings.operation === "update")
-    return {
-      ...settings,
-      timeRange: topicTimeRangeSchema.parse(settings.timeRange),
-    };
-  if (!settings.thenUpdate) return settings;
+  if (settings.operation === "process") return settings;
   return {
     ...settings,
-    thenUpdate: {
-      timeRange: topicTimeRangeSchema.parse(settings.thenUpdate.timeRange),
-    },
+    timeRange: topicTimeRangeSchema.parse(settings.timeRange),
   };
 }
 
@@ -140,15 +131,6 @@ function summaryResult(row: BatchRow): TopicExecutionSummary {
   };
 }
 
-/** The user who started an execution, so follow-up runs stay in their History. */
-export async function readTopicExecutionUserId(
-  projectId: string,
-  executionId: string,
-): Promise<string | null> {
-  const row = await storedExecution(projectId, executionId);
-  return row?.userId ?? null;
-}
-
 /** Postgres owns compact execution settings and progress, never per-trace payloads. */
 export async function createTopicExecution(
   rawInput: TopicExecutionInput,
@@ -157,7 +139,7 @@ export async function createTopicExecution(
 ): Promise<TopicExecution> {
   const input = topicExecutionInputSchema.parse(rawInput);
   if (!userId)
-    throw new InvalidRequestError("A user is required to run Topics manually.");
+    throw new InvalidRequestError("A user is required to start a Topics run.");
   input.facets = [
     ...new Map(
       input.facets.map((facet) => [
@@ -166,31 +148,14 @@ export async function createTopicExecution(
       ]),
     ).values(),
   ];
-  if (input.operation === "process")
-    input.traceIds = [...new Set(input.traceIds)];
   const id = executionIdForRequest(input.projectId, input.requestId);
   const requestHash = originalRequestHash ?? hash(input);
   const existing = await storedExecution(input.projectId, id);
   if (existing) {
     checkRequest(batchMetadata(existing), input, requestHash);
-    return { ...summaryResult(existing), input, traceErrors: [] };
+    return { ...summaryResult(existing), input };
   }
   const { projectId } = input;
-  const { ids, inputSettings } =
-    input.operation === "process"
-      ? (() => {
-          const { traceIds, ...compact } = input;
-          return { ids: traceIds, inputSettings: compact };
-        })()
-      : { ids: [], inputSettings: input };
-  const mapIds =
-    input.operation === "process"
-      ? await getTopicProcessingMapIds(
-          projectId,
-          input.facets,
-          input.embeddingConfig,
-        )
-      : [];
   const row = await prisma.$transaction(async (tx) => {
     await lockExecution(tx, projectId, id);
     const current = await storedExecution(projectId, id, tx);
@@ -214,16 +179,10 @@ export async function createTopicExecution(
         facetId,
         facetVersion: version,
         outcome: "pending",
-        runId:
-          input.operation === "update"
-            ? hash([id, facetId, version, "run"]).slice(0, 48)
-            : (mapIds.find(
-                (map) =>
-                  map.facetId === facetId && map.facetVersion === version,
-              )?.runId ?? null),
+        runId: hash([id, facetId, version, "run"]).slice(0, 48),
         error: null,
         counts: {
-          requested: ids.length,
+          requested: 0,
           complete: 0,
           nonApplicable: 0,
           insufficientInput: 0,
@@ -233,27 +192,25 @@ export async function createTopicExecution(
         },
       }),
     );
-    if (input.operation === "update") {
-      await tx.topicClusteringRun.createMany({
-        data: facets.map((facet) => ({
-          id: facet.runId!,
-          projectId,
-          facetId: facet.facetId,
-          facetVersion: facet.facetVersion,
-          status: "pending",
-          // A manual update is a one-off snapshot of its execution.
-          batchActionId: id,
-          config: {
-            timeRange: {
-              from: input.timeRange.from.toISOString(),
-              to: input.timeRange.to.toISOString(),
-            },
-            // Analyses never serve, not even before a rule's first refit.
-            ...(input.analysis ? { analysis: true } : {}),
+    await tx.topicClusteringRun.createMany({
+      data: facets.map((facet) => ({
+        id: facet.runId!,
+        projectId,
+        facetId: facet.facetId,
+        facetVersion: facet.facetVersion,
+        status: "pending",
+        // A snapshot's run belongs to its execution.
+        batchActionId: id,
+        config: {
+          timeRange: {
+            from: input.timeRange.from.toISOString(),
+            to: input.timeRange.to.toISOString(),
           },
-        })),
-      });
-    }
+          // Analyses never serve, not even before a rule's first refit.
+          ...(input.analysis ? { analysis: true } : {}),
+        },
+      })),
+    });
     return tx.batchAction.create({
       data: {
         id,
@@ -264,48 +221,26 @@ export async function createTopicExecution(
         status: BatchActionStatus.Queued,
         query: {},
         config: json({
-          inputSettings:
-            inputSettings.operation === "update"
-              ? {
-                  ...inputSettings,
-                  timeRange: {
-                    from: inputSettings.timeRange.from.toISOString(),
-                    to: inputSettings.timeRange.to.toISOString(),
-                  },
-                }
-              : inputSettings,
+          inputSettings: {
+            ...input,
+            timeRange: {
+              from: input.timeRange.from.toISOString(),
+              to: input.timeRange.to.toISOString(),
+            },
+          },
           facets,
           // A snapshot that summarizes first waits for its controller, not the update queue.
-          phase:
-            input.operation === "update" && input.analysis?.summarize
-              ? "summarizing"
-              : "queued",
+          phase: input.analysis?.summarize ? "summarizing" : "queued",
           inputHash: hash(input),
           requestHash,
         } satisfies BatchMetadata),
-        totalCount: input.operation === "process" ? ids.length : facets.length,
+        totalCount: facets.length,
         processedCount: 0,
         failedCount: 0,
       },
     });
   });
-  return { ...summaryResult(row), input, traceErrors: [] };
-}
-
-export async function readTopicExecutionForRequest(
-  projectId: string,
-  requestId: string,
-  requestHash: string,
-): Promise<TopicExecutionSummary | null> {
-  topicIdSchema.parse(requestId);
-  const id = executionIdForRequest(projectId, requestId);
-  const stored = await storedExecution(projectId, id);
-  if (!stored) return null;
-  if (batchMetadata(stored).requestHash !== requestHash)
-    throw new InvalidRequestError(
-      "This request ID already belongs to a different Topics request.",
-    );
-  return summaryResult(stored);
+  return { ...summaryResult(row), input };
 }
 
 export async function readTopicExecutionSummary(
@@ -353,7 +288,6 @@ export async function writeTopicExecution(
     TopicExecutionSummary,
     "id" | "projectId" | "status" | "phase" | "facets" | "error"
   >,
-  progressVersion?: number,
 ): Promise<void> {
   const { projectId, id } = execution;
   await prisma.$transaction(async (tx) => {
@@ -361,11 +295,6 @@ export async function writeTopicExecution(
     const current = await storedExecution(projectId, id, tx);
     if (!current) throw new Error("Topics execution does not exist.");
     const state = batchMetadata(current);
-    if (
-      progressVersion !== undefined &&
-      progressVersion <= (state.progressVersion ?? 0)
-    )
-      return;
     const facetKeys = new Set(execution.facets.map(facetKey));
     if (
       state.facets.length !== execution.facets.length ||
@@ -376,27 +305,18 @@ export async function writeTopicExecution(
     const terminal =
       execution.status !== "queued" && execution.status !== "running";
     const { facets } = execution;
-    let processedCount =
-      execution.status === "completed" ||
-      execution.status === "completed_with_errors"
-        ? current.totalCount
-        : null;
-    let failedCount = facets.every((facet) => facet.counts.failed === 0)
-      ? 0
-      : null;
-    if (state.inputSettings.operation === "update") {
-      processedCount = facets.filter(
-        (facet) => facet.outcome !== "pending",
-      ).length;
-      failedCount = facets.filter((facet) => facet.outcome === "failed").length;
-    }
+    const processedCount = facets.filter(
+      (facet) => facet.outcome !== "pending",
+    ).length;
+    const failedCount = facets.filter(
+      (facet) => facet.outcome === "failed",
+    ).length;
     await tx.batchAction.update({
       where: { projectId, id },
       data: {
         config: json({
           ...state,
           phase: execution.phase,
-          ...(progressVersion === undefined ? {} : { progressVersion }),
           facets,
         } satisfies BatchMetadata),
         status: statuses[execution.status],

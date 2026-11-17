@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import React, {
   useCallback,
   useMemo,
@@ -14,7 +13,7 @@ import {
 import { ChevronDown, ChevronRight, Menu } from "@langfuse/icons";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import DocPopup from "@/src/components/layouts/doc-popup";
+import DocPopup, { DocPopupTrigger } from "@/src/components/layouts/doc-popup";
 import {
   closestCenter,
   DndContext,
@@ -152,6 +151,12 @@ function ColumnVisibilityListItem<TData, TValue>({
   const isChecked = columnVisibility[column.accessorKey] && column.enableHiding;
   const isLocked = !column.enableHiding || isFixedPosition;
   const checkboxId = `col-${column.accessorKey}`;
+  const lockReason = (() => {
+    if (!column.enableHiding) return "This column may not be hidden";
+    if (isFixedPosition)
+      return "This column is fixed in position and cannot be hidden";
+    return undefined;
+  })();
 
   return (
     <div
@@ -184,13 +189,7 @@ function ColumnVisibilityListItem<TData, TValue>({
             "min-w-0 text-sm break-words capitalize",
             isLocked ? "opacity-50" : "cursor-pointer",
           )}
-          title={
-            !column.enableHiding
-              ? "This column may not be hidden"
-              : isFixedPosition
-                ? "This column is fixed in position and cannot be hidden"
-                : undefined
-          }
+          title={lockReason}
         >
           {getColumnLabel(column)}
         </label>
@@ -198,7 +197,11 @@ function ColumnVisibilityListItem<TData, TValue>({
           <DocPopup
             description={column.headerTooltip.description}
             href={column.headerTooltip.href}
-          />
+          >
+            {({ getTriggerProps }) => (
+              <DocPopupTrigger triggerProps={getTriggerProps()} />
+            )}
+          </DocPopup>
         )}
       </div>
 
