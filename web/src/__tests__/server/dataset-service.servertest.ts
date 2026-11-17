@@ -7,6 +7,7 @@ import {
   getDatasetRunsTableMetricsCh,
   getScoresForExperiments,
   getTraceScoresForDatasetRuns,
+  getAggregatedTraceScoresForDatasetRuns,
   getDatasetRunItemsWithoutIOByItemIds,
   createDatasetRunItem,
   getDatasetItemIdsWithRunData,
@@ -240,10 +241,10 @@ describe("Fetch datasets for UI presentation", () => {
 
     // Only fetch scores for runs that have metrics (runs without dataset_run_items_rmt won't have trace scores)
     const runsWithMetricsIds = runsWithMetrics.map((run) => run.id);
-    const [traceScores, runScores] = await Promise.all([
+    const [aggregatedTraceScores, runScores] = await Promise.all([
       runsWithMetricsIds.length > 0
-        ? getTraceScoresForDatasetRuns(projectId, runsWithMetricsIds)
-        : [],
+        ? getAggregatedTraceScoresForDatasetRuns(projectId, runsWithMetricsIds)
+        : new Map(),
       getScoresForExperiments({
         projectId: projectId,
         runIds: runsWithMetrics.map((run) => run.id),
@@ -262,11 +263,11 @@ describe("Fetch datasets for UI presentation", () => {
         avgTotalCost: run.avgTotalCost ?? null,
         totalCost: run.totalCost ?? null,
         avgLatency: run.avgLatency ?? null,
-        scores: aggregateScores(
-          traceScores.filter((s) => s.datasetRunId === run.id),
-        ),
+        scores: aggregatedTraceScores.get(run.id) ?? {},
         runScores: aggregateScores(
-          runScores.filter((s) => s.datasetRunId === run.id),
+          runScores.filter(
+            (s: { datasetRunId?: string | null }) => s.datasetRunId === run.id,
+          ),
         ),
       };
     });
@@ -420,10 +421,10 @@ describe("Fetch datasets for UI presentation", () => {
 
     // Only fetch scores for runs that have metrics (runs without dataset_run_items_rmt won't have trace scores)
     const runsWithMetricsIds = runsWithMetrics.map((run) => run.id);
-    const [traceScores, runScores] = await Promise.all([
+    const [aggregatedTraceScores, runScores] = await Promise.all([
       runsWithMetricsIds.length > 0
-        ? getTraceScoresForDatasetRuns(projectId, runsWithMetricsIds)
-        : [],
+        ? getAggregatedTraceScoresForDatasetRuns(projectId, runsWithMetricsIds)
+        : new Map(),
       getScoresForExperiments({
         projectId: projectId,
         runIds: runsWithMetrics.map((run) => run.id),
@@ -442,11 +443,11 @@ describe("Fetch datasets for UI presentation", () => {
         avgTotalCost: run.avgTotalCost ?? null,
         totalCost: run.totalCost ?? null,
         avgLatency: run.avgLatency ?? null,
-        scores: aggregateScores(
-          traceScores.filter((s) => s.datasetRunId === run.id),
-        ),
+        scores: aggregatedTraceScores.get(run.id) ?? {},
         runScores: aggregateScores(
-          runScores.filter((s) => s.datasetRunId === run.id),
+          runScores.filter(
+            (s: { datasetRunId?: string | null }) => s.datasetRunId === run.id,
+          ),
         ),
       };
     });

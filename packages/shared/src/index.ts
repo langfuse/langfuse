@@ -149,13 +149,17 @@ export { filterAndValidateDbLegacyTraceScoreList } from "./features/scores/inter
 export { filterAndValidateDbTraceScoreList } from "./features/scores/interfaces/application/validation";
 export { ScoreBodyWithoutConfig } from "./features/scores/interfaces/ingestion/validation";
 export { ScorePropsAgainstConfig } from "./features/scores/interfaces/ingestion/validation";
-export { type BaseAggregate } from "./features/scores/interfaces/ui/types";
-export { type CategoricalAggregate } from "./features/scores/interfaces/ui/types";
-export { type NumericAggregate } from "./features/scores/interfaces/ui/types";
-export { type AggregatedScoreData } from "./features/scores/interfaces/ui/types";
-export { type ScoreAggregate } from "./features/scores/interfaces/ui/types";
-export { type ScoreSimplified } from "./features/scores/interfaces/ui/types";
-export { type LastUserScore } from "./features/scores/interfaces/ui/types";
+export {
+  type BaseAggregate,
+  type CategoricalAggregate,
+  type NumericAggregate,
+  type AggregatedScoreData,
+  type ScoreAggregate,
+  type ScoreSimplified,
+  type LastUserScore,
+  normalizeScoreName,
+  composeAggregateScoreKey,
+} from "./features/scores/interfaces/ui/types";
 
 // score configs
 export { filterAndValidateDbScoreConfigList } from "./features/scoreConfigs/validation";
