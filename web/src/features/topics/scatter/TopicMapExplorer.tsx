@@ -476,7 +476,7 @@ export function TopicMapExplorer({
         )}
         <div
           className={cn(
-            "text-muted-foreground pointer-events-none absolute right-4 bottom-3 left-4 flex flex-wrap items-center justify-between gap-2 text-[11px]",
+            "text-muted-foreground pointer-events-none absolute right-4 bottom-3 left-5 flex flex-wrap items-center justify-between gap-2 text-[11px]",
             styles.lookChrome,
           )}
         >
