@@ -33,7 +33,6 @@ export function AsyncSelectInput<V extends string>({
   loading,
   callToActionOption,
   virtualized = false,
-  indicator = "radio",
   emptyMessage = "No options available.",
   error,
   muted,
@@ -65,8 +64,6 @@ export function AsyncSelectInput<V extends string>({
     onSelect: () => void;
   };
   virtualized?: boolean;
-  /** `checkmark` marks the selected option with a trailing check instead of a leading radio. */
-  indicator?: "radio" | "checkmark";
   error?: boolean;
   muted?: boolean;
   ref?: React.Ref<HTMLButtonElement>;
@@ -141,7 +138,7 @@ export function AsyncSelectInput<V extends string>({
         >
           {OptionIcon && <OptionIcon size="base" aria-hidden />}
           <InputDropdown.OptionContent
-            type={indicator}
+            type="radio"
             checked={value?.value === option.value}
             label={option.label}
             title={option.disabled ? option.disabledReason : option.label}

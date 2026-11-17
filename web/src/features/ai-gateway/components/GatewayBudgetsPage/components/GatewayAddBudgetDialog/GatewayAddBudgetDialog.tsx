@@ -133,7 +133,6 @@ export function GatewayAddBudgetDialog({
           >
             {(field) => (
               <AsyncSelectInput
-                indicator="checkmark"
                 id={field.id}
                 value={field.value}
                 onValueChange={(option) =>
