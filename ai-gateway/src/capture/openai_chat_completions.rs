@@ -47,7 +47,7 @@ const IDENTITY_FIELDS: [&str; 3] = ["role", "id", "type"];
 pub(super) struct OpenAiChatCompletionsCapture {
     pub(super) facts: ProviderFacts,
     mode: IngestionMode,
-    body: ResponseBody,
+    pub(super) body: ResponseBody,
     /// Present only in full mode; usage mode never records output.
     output: Option<Choices>,
     terminal: bool,

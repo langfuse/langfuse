@@ -70,9 +70,9 @@ pub(crate) fn provider_origin(error: ProviderError) -> (ErrorOrigin, &'static st
 }
 
 /// Bytes one in-flight request holds from the shared memory budget: a fixed overhead
-/// for response capture and connection buffers, plus its body as it arrives, plus the
-/// larger response parse of a request charged to spend limits. It is held
-/// with the execution and released once the response ends.
+/// for response capture and connection buffers, plus its body as it arrives. It is
+/// held with the execution and released once the response ends. A request charged to
+/// spend limits reserves its larger response parse separately, only when needed.
 pub(crate) struct MemoryReservation {
     bytes: OwnedSemaphorePermit,
     overhead: usize,
@@ -101,17 +101,21 @@ impl MemoryReservation {
         self.try_acquire(missing, phase)
     }
 
-    /// Grow the reservation by `bytes` on top of what it holds, without waiting.
-    ///
-    /// # Errors
-    /// Returns [`ResolutionError::Busy`] when the shared budget cannot cover `bytes`,
-    /// recording the rejection under `phase`.
-    pub(crate) fn try_reserve_more(
-        &mut self,
-        bytes: usize,
-        phase: &'static str,
-    ) -> Result<(), ResolutionError> {
-        self.try_acquire(bytes, phase)
+    /// A later, separate reservation of `bytes` from the same budget, taken without
+    /// waiting. It is `None` when the budget cannot cover it then.
+    pub(crate) fn deferred(&self, bytes: usize) -> crate::capture::ResponseParseGrowth {
+        let budget = Arc::clone(&self.budget);
+        Box::new(move || {
+            let permit = Arc::clone(&budget)
+                .try_acquire_many_owned(u32::try_from(bytes).ok()?)
+                .ok()?;
+            crate::observability::memory_reserved(bytes);
+            Some(Box::new(Self {
+                bytes: permit,
+                overhead: 0,
+                budget,
+            }))
+        })
     }
 
     fn try_acquire(&mut self, bytes: usize, phase: &'static str) -> Result<(), ResolutionError> {

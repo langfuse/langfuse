@@ -10,7 +10,7 @@ use serde_json::{Map, Value};
 pub(super) struct OpenAiDecisionsCapture {
     pub(super) facts: ProviderFacts,
     mode: IngestionMode,
-    body: ResponseBody,
+    pub(super) body: ResponseBody,
     request_complete: bool,
 }
 

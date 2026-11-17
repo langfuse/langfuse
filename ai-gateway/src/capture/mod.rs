@@ -37,8 +37,14 @@ pub(crate) const MAX_OUTPUT_CAPTURE_BYTES: usize = 1024 * 1024;
 /// spend limits. Usage can sit next to a large output, such as a base64 image in a
 /// completed Responses event, so this is larger than the output kept for telemetry.
 /// Other requests read up to `MAX_OUTPUT_CAPTURE_BYTES`, which the fixed request
-/// overhead reservation covers.
+/// overhead reservation covers; a charged one reserves the rest only once a body
+/// or event outgrows it.
 pub(crate) const MAX_RESPONSE_PARSE_BYTES: usize = 8 * 1024 * 1024;
+
+/// Reserves the memory for a response parse past `MAX_OUTPUT_CAPTURE_BYTES`, held
+/// until the execution ends; `None` when the shared budget cannot cover it.
+pub(crate) type ResponseParseGrowth =
+    Box<dyn FnOnce() -> Option<Box<dyn Send + Sync>> + Send + Sync>;
 const MAX_ITEMS: usize = 256;
 const MAX_FACT_STRING: usize = 512;
 const MAX_PROJECTED_BYTES: usize = 64 * 1024;
@@ -115,6 +121,17 @@ impl ProtocolCapture {
         }
     }
 
+    /// Bytes of the JSON body or the SSE event being read.
+    fn buffered_len(&self) -> usize {
+        match self {
+            Self::OpenAiResponses(capture) => capture.body.buffered_len(),
+            Self::OpenAiChatCompletions(capture) => capture.body.buffered_len(),
+            Self::OpenAiDecisions(capture) => capture.body.buffered_len(),
+            Self::OpenAiEmbeddings(_) => 0,
+            Self::AnthropicMessages(capture) => capture.body.buffered_len(),
+        }
+    }
+
     fn end_body(&mut self) {
         match self {
             Self::OpenAiResponses(capture) => capture.end_body(),
@@ -167,6 +184,8 @@ pub(crate) struct ExecutionCapture {
     spend_limits: Option<crate::spend::SpendRecording>,
     /// Largest JSON body or single SSE event read from the response.
     response_parse_limit: usize,
+    parse_growth: Option<ResponseParseGrowth>,
+    parse_reservation: Option<Box<dyn Send + Sync>>,
 }
 
 impl ExecutionCapture {
@@ -190,6 +209,8 @@ impl ExecutionCapture {
             delivery: None,
             spend_limits: None,
             response_parse_limit: MAX_OUTPUT_CAPTURE_BYTES,
+            parse_growth: None,
+            parse_reservation: None,
         }
     }
 
@@ -255,6 +276,8 @@ impl ExecutionCapture {
             delivery: None,
             spend_limits: None,
             response_parse_limit: MAX_OUTPUT_CAPTURE_BYTES,
+            parse_growth: None,
+            parse_reservation: None,
         }
     }
 
@@ -283,10 +306,14 @@ impl ExecutionCapture {
     }
 
     /// A charged request parses responses up to `MAX_RESPONSE_PARSE_BYTES` to find
-    /// their usage; its admission reserved the memory for that.
-    pub(crate) fn charge_on_finish(&mut self, spend_limits: Option<crate::spend::SpendRecording>) {
+    /// their usage, growing its memory reservation once a body or event needs it.
+    pub(crate) fn charge_on_finish(
+        &mut self,
+        spend_limits: Option<crate::spend::SpendRecording>,
+        parse_growth: Option<ResponseParseGrowth>,
+    ) {
         if spend_limits.is_some() {
-            self.response_parse_limit = MAX_RESPONSE_PARSE_BYTES;
+            self.parse_growth = parse_growth;
         }
         self.spend_limits = spend_limits;
     }
@@ -311,6 +338,15 @@ impl ExecutionCapture {
             if !bytes.is_empty() {
                 self.first_byte_ms
                     .get_or_insert_with(|| self.started.elapsed().as_millis());
+            }
+            let limit = self.response_parse_limit;
+            if let Some(grow) = self
+                .parse_growth
+                .take_if(|_| protocol.buffered_len().saturating_add(bytes.len()) > limit)
+                && let Some(reservation) = grow()
+            {
+                self.parse_reservation = Some(reservation);
+                self.response_parse_limit = MAX_RESPONSE_PARSE_BYTES;
             }
             if protocol.push_bytes(bytes, self.response_parse_limit) {
                 self.completion_start_ms

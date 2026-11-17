@@ -18,7 +18,10 @@ use serde_json::json;
 use std::{
     convert::Infallible,
     future::pending,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::Duration,
 };
 use tokio::sync::Notify;
@@ -441,12 +444,24 @@ async fn reads_usage_next_to_a_generated_image_only_for_charged_requests() {
         "response.completed",
         json!({"response":{"id":"resp-1","status":"completed","usage":{"input_tokens":10,"output_tokens":4160,"total_tokens":4170},"output":[{"type":"image_generation_call","result":image}]}}),
     );
-    for charged in [false, true] {
+    // (charged, memory available for the larger parse, usage read)
+    for (charged, available, expected) in [
+        (false, true, None),
+        (true, true, Some(json!(4170))),
+        (true, false, None),
+    ] {
         let mut observer = observer("usage").await;
+        let grown = Arc::new(AtomicUsize::new(0));
         if charged {
-            observer.response_parse_limit = MAX_RESPONSE_PARSE_BYTES;
+            observer.parse_growth = Some(growth(&grown, available));
         }
         record_response(&mut observer, "text/event-stream");
+        observer.push_bytes(event("response.output_text.delta", json!({"delta":"hi"})).as_bytes());
+        assert_eq!(
+            grown.load(Ordering::Relaxed),
+            0,
+            "a small event needs no growth"
+        );
         observer.push_bytes(completed.as_bytes());
         observer.end_body();
         assert_eq!(
@@ -455,9 +470,18 @@ async fn reads_usage_next_to_a_generated_image_only_for_charged_requests() {
                 .usage_details
                 .as_ref()
                 .map(|usage| usage["total_tokens"].clone()),
-            charged.then(|| json!(4170)),
+            expected,
         );
+        assert_eq!(grown.load(Ordering::Relaxed), usize::from(charged));
     }
+}
+
+fn growth(grown: &Arc<AtomicUsize>, available: bool) -> crate::capture::ResponseParseGrowth {
+    let grown = Arc::clone(grown);
+    Box::new(move || {
+        grown.fetch_add(1, Ordering::Relaxed);
+        available.then(|| -> Box<dyn Send + Sync> { Box::new(()) })
+    })
 }
 
 #[tokio::test]

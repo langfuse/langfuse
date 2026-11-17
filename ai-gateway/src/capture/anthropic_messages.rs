@@ -28,7 +28,7 @@ const STRUCTURED_PARAMETERS: [&str; 5] = [
 pub(super) struct AnthropicMessagesCapture {
     pub(super) facts: ProviderFacts,
     mode: IngestionMode,
-    body: ResponseBody,
+    pub(super) body: ResponseBody,
     usage: Option<Map<String, Value>>,
     /// Present only in full mode; usage mode never records output.
     output: Option<AssistantMessage>,

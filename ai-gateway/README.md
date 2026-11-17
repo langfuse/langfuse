@@ -413,7 +413,10 @@ buffers and validates the request and resolves the credential and model-aware ro
 through Web. A declared `Content-Length` is checked against the request limit before
 reading. The reservation grows with the body buffer's allocation as bytes arrive, so a
 client that declares a large body and stalls holds only the overhead and what it sent.
-The whole reservation stays held until the response ends. Model catalog requests
+The whole reservation stays held until the response ends. A request charged to spend
+limits reserves up to 7 MiB more only when a response body or event outgrows 1 MiB, so it
+can still read the usage; without that memory, the usage is not read and the response
+counts as uncharged. Model catalog requests
 reserve the overhead, grow it with Web's catalog buffer as it arrives, then to three
 times the catalog for parsing and the provider-shaped response, and hold it until the
 client has read that response; the response is relayed under the same stall timeout and

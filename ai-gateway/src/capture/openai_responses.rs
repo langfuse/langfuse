@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 pub(super) struct OpenAiResponsesCapture {
     pub(super) facts: ProviderFacts,
     mode: IngestionMode,
-    body: ResponseBody,
+    pub(super) body: ResponseBody,
     items: BTreeMap<u64, Value>,
     output_bytes: usize,
     terminal: bool,

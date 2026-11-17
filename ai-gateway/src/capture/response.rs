@@ -29,6 +29,14 @@ impl ResponseBody {
         }
     }
 
+    pub(super) fn buffered_len(&self) -> usize {
+        match self {
+            Self::Json(buffer) => buffer.len(),
+            Self::Sse(sse) => sse.buffered_len(),
+            Self::Unknown | Self::Unavailable => 0,
+        }
+    }
+
     /// `limit` bounds the buffered JSON body and each buffered SSE event.
     pub(super) fn push(&mut self, bytes: &[u8], limit: usize, on_event: impl FnMut(&[u8])) -> bool {
         match self {
