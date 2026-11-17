@@ -160,12 +160,36 @@ fn user_id_source<'a>(
 }
 
 pub(super) fn omit_input(span: &mut Value, reason: InputOmissionReason) -> bool {
+    omit_content(
+        span,
+        "langfuse.observation.input",
+        "langfuse.gateway.request.input_omitted",
+        reason,
+    )
+}
+
+/// Leaves a generation that carries only usage, cost and metadata.
+pub(super) fn omit_output(span: &mut Value, reason: InputOmissionReason) -> bool {
+    omit_content(
+        span,
+        "langfuse.observation.output",
+        "langfuse.gateway.response.output_omitted",
+        reason,
+    )
+}
+
+fn omit_content(
+    span: &mut Value,
+    attribute_key: &str,
+    metadata_key: &str,
+    reason: InputOmissionReason,
+) -> bool {
     let Some(attributes) = span["attributes"].as_array_mut() else {
         return false;
     };
     let Some(index) = attributes
         .iter()
-        .position(|attribute| attribute["key"] == "langfuse.observation.input")
+        .position(|attribute| attribute["key"] == attribute_key)
     else {
         return false;
     };
@@ -178,10 +202,7 @@ pub(super) fn omit_input(span: &mut Value, reason: InputOmissionReason) -> bool 
             .as_str()
             .and_then(|value| serde_json::from_str(value).ok())
     {
-        metadata.insert(
-            "langfuse.gateway.request.input_omitted".into(),
-            json!(reason),
-        );
+        metadata.insert(metadata_key.into(), json!(reason));
         *value = Value::String(Value::Object(metadata).to_string());
     }
     true

@@ -519,6 +519,8 @@ are dropped without re-resolving the execution. Requests explicitly select v4 in
 Each execution becomes one generation with a new observation ID and either the
 caller's trace/parent IDs or a generated root trace ID, the model, model parameters,
 native usage, and trusted key/connection attribution. Full mode includes the captured input/output; usage mode omits content.
+A full-mode record that is too large for one record or for the telemetry buffer drops its input,
+then its output, so its usage and cost are still delivered.
 Completion-start time is emitted only for upstream `text/event-stream` responses,
 on the first nonempty text, reasoning, refusal, tool-input, audio, or partial-image content. JSON responses
 and streams without a captured content delta have no completion-start time or TTFT.
@@ -568,6 +570,7 @@ Every gateway fact is a metadata key under `langfuse.gateway.`, grouped by the r
 | `request.body_bytes`               | integer                                                                                                                                | Gateway: the caller's uncompressed request body                      | Always                                                                                  |
 | `request.input_omitted`            | string: `size_limit`, `content_encoding`, `invalid_json`, `record_limit` or `telemetry_buffer`                                         | Gateway                                                              | Full mode, when the input is not recorded                                               |
 | `request.input_limit_bytes`        | integer                                                                                                                                | Gateway                                                              | With `input_omitted` `size_limit`                                                       |
+| `response.output_omitted`          | string: `record_limit` or `telemetry_buffer`                                                                                           | Gateway                                                              | Full mode, when the record does not fit even without its input                          |
 | `client.request.id`                | string                                                                                                                                 | Caller: `x-request-id` header                                        | When valid                                                                              |
 | `client.user_agent`                | string, at most 256 bytes                                                                                                              | Caller: `User-Agent` header, trimmed                                 | When present, single and free of control characters                                     |
 | `client.request.metadata`          | JSON value as sent                                                                                                                     | Caller: request body `metadata`                                      | Full mode, when sent                                                                    |
