@@ -7,22 +7,22 @@ import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { AsyncSelectInput } from "@/src/components/design-system/AsyncSelectInput/AsyncSelectInput";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Form } from "@/src/components/design-system/Form/Form";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { GatewaySpendBudgetField } from "@/src/features/ai-gateway/components/GatewaySpendBudgetField/GatewaySpendBudgetField";
-import {
-  GATEWAY_SPEND_TABS,
-  type GatewaySpendTab,
-} from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
+import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
 import type { GatewaySpendBudgetInterval } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
 import { getGatewaySpendBudgetLimitError } from "@/src/features/ai-gateway/fns/getGatewaySpendBudgetLimitError";
 
 const targetLabels = {
   apiKeys: {
-    tab: "API key",
+    title: "Add key budget",
     field: "Gateway key",
     placeholder: "Select a key",
   },
-  users: { tab: "User", field: "User", placeholder: "Select a user" },
+  users: {
+    title: "Add user budget",
+    field: "User",
+    placeholder: "Select a user",
+  },
 } as const satisfies Record<GatewaySpendTab, Record<string, string>>;
 
 const gatewayAddBudgetFormSchema = z.object({
@@ -57,7 +57,6 @@ type TargetPicker = {
 
 type GatewayAddBudgetDialogProps = {
   targetType: GatewaySpendTab;
-  onTargetTypeChange: (targetType: GatewaySpendTab) => void;
   targetPicker: TargetPicker;
   /** Why a budget cannot be added; undefined when it can. */
   unavailableReason?: string;
@@ -72,7 +71,6 @@ type GatewayAddBudgetDialogProps = {
 /** Adds a budget to a gateway key or to a user, which caps all of their keys. */
 export function GatewayAddBudgetDialog({
   targetType,
-  onTargetTypeChange,
   targetPicker,
   unavailableReason,
   errorMessage,
@@ -90,12 +88,6 @@ export function GatewayAddBudgetDialog({
   });
   const labels = targetLabels[targetType];
 
-  const handleTargetTypeChange = (value: string) => {
-    if (value !== "apiKeys" && value !== "users") return;
-    form.resetField("target");
-    onTargetTypeChange(value);
-  };
-
   const handleValidSubmit = (values: GatewayAddBudgetFormValues) => {
     if (!values.target) return;
     onSubmit({
@@ -109,7 +101,7 @@ export function GatewayAddBudgetDialog({
 
   return (
     <Dialog
-      title="Add budget"
+      title={labels.title}
       size="md"
       noCapture
       actions={[
@@ -129,19 +121,6 @@ export function GatewayAddBudgetDialog({
           actions={[]}
           onSubmit={form.handleSubmit(handleValidSubmit)}
         >
-          <Tabs value={targetType} onValueChange={handleTargetTypeChange}>
-            <Tabs.List variant="inset" size="md" aria-label="Budget for">
-              {(Object.keys(GATEWAY_SPEND_TABS) as GatewaySpendTab[]).map(
-                (value) => (
-                  <Tabs.Trigger
-                    key={value}
-                    value={value}
-                    label={targetLabels[value].tab}
-                  />
-                ),
-              )}
-            </Tabs.List>
-          </Tabs>
           <Form.Field
             control={form.control}
             name="target"
@@ -154,7 +133,7 @@ export function GatewayAddBudgetDialog({
           >
             {(field) => (
               <AsyncSelectInput
-                key={targetType}
+                indicator="checkmark"
                 id={field.id}
                 value={field.value}
                 onValueChange={(option) =>

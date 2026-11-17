@@ -42,7 +42,7 @@ export function GatewayAddBudgetDialogController({
       renderDialog={({ state, closeDialog }) => (
         <ConnectedGatewayAddBudgetDialog
           organizationId={organizationId}
-          initialTargetType={state}
+          targetType={state}
           onPendingChange={setIsPending}
           onAdded={closeDialog}
         />
@@ -55,19 +55,17 @@ export function GatewayAddBudgetDialogController({
 
 function ConnectedGatewayAddBudgetDialog({
   organizationId,
-  initialTargetType,
+  targetType,
   onPendingChange,
   onAdded,
 }: {
   organizationId: string;
-  initialTargetType: GatewaySpendTab;
+  targetType: GatewaySpendTab;
   onPendingChange: (isPending: boolean) => void;
   onAdded: () => void;
 }) {
   const { isRecording } = useGatewaySettingsAccess(organizationId);
   const utils = api.useUtils();
-  const [targetType, setTargetType] =
-    useState<GatewaySpendTab>(initialTargetType);
   const [search, setSearch] = useState("");
 
   const apiKeysQuery = api.aiGateway.listApiKeys.useQuery(
@@ -125,13 +123,6 @@ function ConnectedGatewayAddBudgetDialog({
   });
   const mutation = targetType === "apiKeys" ? createForKey : createForUser;
 
-  const handleTargetTypeChange = (value: GatewaySpendTab) => {
-    setTargetType(value);
-    setSearch("");
-    createForKey.reset();
-    createForUser.reset();
-  };
-
   const handleSubmit: ComponentProps<
     typeof GatewayAddBudgetDialog
   >["onSubmit"] = async ({ targetId, spendLimit }) => {
@@ -167,7 +158,6 @@ function ConnectedGatewayAddBudgetDialog({
   return (
     <GatewayAddBudgetDialog
       targetType={targetType}
-      onTargetTypeChange={handleTargetTypeChange}
       targetPicker={{
         options,
         search,
