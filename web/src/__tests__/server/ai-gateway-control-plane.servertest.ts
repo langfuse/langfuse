@@ -81,6 +81,7 @@ import { GatewayModelsService } from "@/src/features/ai-gateway/server/provider/
 import { GatewayModelsResponseSchema } from "@/src/features/ai-gateway/server/provider/registry";
 import { GatewayApiKeyService } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyService";
 import { GatewaySpendLimitAlertService } from "@/src/features/ai-gateway/server/spendLimits/gatewaySpendLimitAlertService";
+import { GatewaySpendLimitRepository } from "@/src/features/ai-gateway/server/spendLimits/gatewaySpendLimitRepository";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 import { getGatewaySetupRedirect } from "@/src/features/ai-gateway/server/gatewaySetupRedirect";
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
@@ -2186,7 +2187,7 @@ describe("AI gateway control plane", () => {
     });
   });
 
-  it("lets members limit their own keys and change only the limits they created", async () => {
+  it("lets members budget their own keys and change only the budgets they set", async () => {
     const owner = await prepare();
     await owner.caller.aiGateway.updateConfig({
       orgId: owner.org.id,
@@ -2204,66 +2205,40 @@ describe("AI gateway control plane", () => {
       name: "Member key",
       metadata: {},
     });
-    const create = (
+    const setBudget = (
       caller: typeof member,
       apiKeyId: string,
-      interval: "DAILY" | "MONTHLY",
+      limitUsd: number | null,
     ) =>
-      caller.aiGateway.spendLimits.create({
+      caller.aiGateway.updateApiKey({
         orgId: owner.org.id,
-        scope: { type: "API_KEY", apiKeyId },
-        interval,
-        limitUsd: 10,
+        id: apiKeyId,
+        name: "Key",
+        metadata: {},
+        allowedModels: null,
+        previousAllowedModels: null,
+        spendLimit: limitUsd === null ? null : { interval: "DAILY", limitUsd },
       });
+    const memberKeyBudget = async () =>
+      (await member.aiGateway.listApiKeys({ orgId: owner.org.id })).data.find(
+        (key) => key.apiKey.id === memberKey.id,
+      )?.spendLimit;
 
-    await expect(create(member, ownerKey.id, "DAILY")).rejects.toThrow(
+    await expect(setBudget(member, ownerKey.id, 10)).rejects.toThrow(
       "Gateway key not found",
     );
-    const memberLimit = await create(member, memberKey.id, "DAILY");
-    const ownerLimit = await create(owner.caller, memberKey.id, "MONTHLY");
+    await setBudget(member, memberKey.id, 10);
+    await setBudget(member, memberKey.id, 20);
+    await setBudget(owner.caller, memberKey.id, 5);
+    for (const limitUsd of [1000, null]) {
+      await expect(setBudget(member, memberKey.id, limitUsd)).rejects.toThrow(
+        "only an admin can change it",
+      );
+    }
+    expect(await memberKeyBudget()).toEqual({ interval: "DAILY", limitUsd: 5 });
 
-    await expect(
-      member.aiGateway.spendLimits.update({
-        orgId: owner.org.id,
-        id: ownerLimit.id,
-        limitUsd: 1000,
-      }),
-    ).rejects.toThrow("Spend limit not found");
-    await expect(
-      member.aiGateway.spendLimits.delete({
-        orgId: owner.org.id,
-        id: ownerLimit.id,
-      }),
-    ).rejects.toThrow("Spend limit not found");
-    await member.aiGateway.spendLimits.update({
-      orgId: owner.org.id,
-      id: memberLimit.id,
-      limitUsd: 20,
-    });
-    await owner.caller.aiGateway.spendLimits.update({
-      orgId: owner.org.id,
-      id: memberLimit.id,
-      limitUsd: 5,
-    });
-    await expect(
-      member.aiGateway.spendLimits.update({
-        orgId: owner.org.id,
-        id: memberLimit.id,
-        limitUsd: 1000,
-      }),
-    ).rejects.toThrow("Spend limit not found");
-    await owner.caller.aiGateway.spendLimits.delete({
-      orgId: owner.org.id,
-      id: memberLimit.id,
-    });
-
-    const listed = await member.aiGateway.spendLimits.list({
-      orgId: owner.org.id,
-      scope: { type: "API_KEY", apiKeyId: memberKey.id },
-    });
-    expect(listed.limits).toMatchObject([
-      { id: ownerLimit.id, ownerUserId: owner.user.id },
-    ]);
+    await setBudget(owner.caller, memberKey.id, null);
+    expect(await memberKeyBudget()).toBeNull();
   });
 
   it("sets a key's spend budget together with the key", async () => {
@@ -2292,11 +2267,10 @@ describe("AI gateway control plane", () => {
     const listKeys = () => caller.aiGateway.listApiKeys({ orgId: org.id });
     const listLimits = async () =>
       (
-        await caller.aiGateway.spendLimits.list({
-          orgId: org.id,
-          scope: { type: "API_KEY", apiKeyId: key.id },
+        await prisma.gatewaySpendLimit.findMany({
+          where: { apiKeyId: key.id },
         })
-      ).limits;
+      ).map((limit) => ({ ...limit, limitUsd: limit.limitUsd.toNumber() }));
     const update = (
       budget:
         | typeof spendLimit
@@ -2750,7 +2724,7 @@ describe("AI gateway control plane", () => {
     expect(result.ingestion?.expires_at).toBe(ingestionClaims.exp);
   });
 
-  it("resolves a key's spend limits with prices and starts fresh counters on reset", async () => {
+  it("resolves a key's spend limits with prices", async () => {
     configureGatewayJwtSigning();
     const { caller, org, project } = await prepare();
     await caller.aiGateway.updateConfig({
@@ -2768,6 +2742,7 @@ describe("AI gateway control plane", () => {
       orgId: org.id,
       name: "Limited key",
       metadata: {},
+      spendLimit: { interval: "DAILY", limitUsd: 10 },
     });
     await prisma.model.create({
       data: {
@@ -2798,11 +2773,8 @@ describe("AI gateway control plane", () => {
         price: 0.000005,
       },
     });
-    const limit = await caller.aiGateway.spendLimits.create({
-      orgId: org.id,
-      scope: { type: "API_KEY", apiKeyId: gatewayKey.id },
-      interval: "DAILY",
-      limitUsd: 10,
+    const limit = await prisma.gatewaySpendLimit.findFirstOrThrow({
+      where: { apiKeyId: gatewayKey.id },
     });
     const resolve = () =>
       authenticateRequest({
@@ -2834,21 +2806,6 @@ describe("AI gateway control plane", () => {
         },
       ],
     });
-
-    await caller.aiGateway.spendLimits.reset({ orgId: org.id, id: limit.id });
-    const afterReset = await resolve();
-    expect(afterReset.spend_limits[0].counting_started_at).toBeGreaterThan(
-      limit.countingStartedAt.getTime(),
-    );
-
-    await expect(
-      caller.aiGateway.spendLimits.create({
-        orgId: org.id,
-        scope: { type: "API_KEY", apiKeyId: gatewayKey.id },
-        interval: "DAILY",
-        limitUsd: 20,
-      }),
-    ).rejects.toMatchObject({ code: "CONFLICT" });
 
     const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     try {
@@ -2884,16 +2841,21 @@ describe("AI gateway control plane", () => {
       orgId: owner.org.id,
       name: "Member key",
       metadata: {},
+      spendLimit: { interval: "DAILY", limitUsd: 10 },
     });
-    const createLimit = (interval: "DAILY" | "MONTHLY", limitUsd: number) =>
-      member.aiGateway.spendLimits.create({
-        orgId: owner.org.id,
-        scope: { type: "API_KEY", apiKeyId: memberKey.id },
-        interval,
-        limitUsd,
-      });
-    const daily = await createLimit("DAILY", 10);
-    const monthly = await createLimit("MONTHLY", 100);
+    const daily = await prisma.gatewaySpendLimit.findFirstOrThrow({
+      where: { apiKeyId: memberKey.id },
+    });
+    // A key carries one budget; a second limit stands in for limits of several scopes reached together.
+    const monthly = await new GatewaySpendLimitRepository(prisma).create({
+      organizationId: owner.org.id,
+      scope: { type: "API_KEY", apiKeyId: memberKey.id },
+      interval: "MONTHLY",
+      limitUsd: 100,
+      countingStartedAt: new Date(),
+      baselineSpendUsd: 0,
+      ownerUserId: daily.ownerUserId!,
+    });
     const memberEmail = (
       await prisma.apiKey.findUniqueOrThrow({
         where: { id: memberKey.id },
@@ -2962,10 +2924,14 @@ describe("AI gateway control plane", () => {
       }),
     ]);
 
-    await member.aiGateway.spendLimits.update({
+    await member.aiGateway.updateApiKey({
       orgId: owner.org.id,
-      id: daily.id,
-      limitUsd: 20,
+      id: memberKey.id,
+      name: "Member key",
+      metadata: {},
+      allowedModels: null,
+      previousAllowedModels: null,
+      spendLimit: { interval: "DAILY", limitUsd: 20 },
     });
     await report([dailyReached, monthlyReached]);
     expect(addNotificationJobs).toHaveBeenCalledTimes(2);

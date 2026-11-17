@@ -92,7 +92,7 @@ export const GatewaySpendLimitEmailTemplate = ({
                 Gateway. {subject.requests} are rejected{" "}
                 {onlyLimit.resetsAt
                   ? `until the limit resets on ${onlyLimit.resetsAt}`
-                  : "until an admin resets or raises the limit"}
+                  : "until an admin raises or removes the limit"}
                 .
               </Text>
             ) : (

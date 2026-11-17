@@ -274,7 +274,7 @@ impl<'a> LimitUsage<'a> {
                 u64::try_from((end - now).num_seconds().max(1)).ok(),
             ),
             None => SpendLimitExceeded::new(
-                format!("{spent} An admin can reset or raise the limit."),
+                format!("{spent} An admin can raise or remove the limit."),
                 None,
             ),
         }

@@ -70,20 +70,6 @@ export class GatewaySpendLimitRepository {
     });
   }
 
-  /** The limit, if it is in the organization and, with ownerUserId, owned by that user. */
-  get(params: { organizationId: string; id: string; ownerUserId?: string }) {
-    return this.prisma.gatewaySpendLimit.findFirst({
-      where: {
-        id: params.id,
-        organizationId: params.organizationId,
-        ...(params.ownerUserId !== undefined && {
-          ownerUserId: params.ownerUserId,
-        }),
-      },
-      select: GATEWAY_SPEND_LIMIT_SELECT,
-    });
-  }
-
   create({
     scope,
     ...params
@@ -113,19 +99,6 @@ export class GatewaySpendLimitRepository {
     return this.prisma.gatewaySpendLimit.update({
       where: { id: params.id },
       data: { limitUsd: params.limitUsd, ownerUserId: params.userId },
-      select: GATEWAY_SPEND_LIMIT_SELECT,
-    });
-  }
-
-  /** A new counting start puts the gateway on fresh usage counters, so the baseline is dropped too. */
-  reset(params: { id: string; countingStartedAt: Date; userId: string }) {
-    return this.prisma.gatewaySpendLimit.update({
-      where: { id: params.id },
-      data: {
-        countingStartedAt: params.countingStartedAt,
-        baselineSpendUsd: 0,
-        ownerUserId: params.userId,
-      },
       select: GATEWAY_SPEND_LIMIT_SELECT,
     });
   }

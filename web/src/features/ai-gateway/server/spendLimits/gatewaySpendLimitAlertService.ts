@@ -54,7 +54,7 @@ export class GatewaySpendLimitAlertService {
     fastHashedSecretKey: string;
     limits: { limitId: string; countingStartedAt: Date; windowStart: Date }[];
   }): Promise<void> {
-    // A reset or deleted limit was reported late; its counters no longer apply.
+    // A deleted limit, or a report from an earlier counting start, no longer applies.
     const reported = await findReportedLimits(this.prisma, params);
     if (reported.length === 0) return;
     for (const { limit, windowStart } of reported) {

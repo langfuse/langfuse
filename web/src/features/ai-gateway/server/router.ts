@@ -19,6 +19,7 @@ import {
   GatewayConnectionStatus,
   GatewayIngestionMode,
   GatewayProvider,
+  GatewaySpendLimitInterval,
 } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
 import { orderBy } from "@langfuse/shared";
@@ -43,10 +44,7 @@ import {
   requireGatewayAdmin,
   requireGatewayInvoke,
 } from "./gatewayAccess";
-import {
-  gatewayApiKeySpendLimitInput,
-  gatewaySpendLimitRouter,
-} from "./spendLimits/gatewaySpendLimitRouter";
+import { GATEWAY_SPEND_BUDGET_MAX_USD } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
 import { GatewaySpendLimitService } from "./spendLimits/gatewaySpendLimitService";
 import { GatewaySpendLimitRepository } from "./spendLimits/gatewaySpendLimitRepository";
 import { GatewayTeamService } from "./team/gatewayTeamService";
@@ -82,6 +80,12 @@ const allowedModelsSchema = z
   .max(10_000)
   .nullable();
 const customModelSchema = z.string().trim().min(1).max(500);
+
+/** A key's single spend limit, as set together with the key. */
+const gatewayApiKeySpendLimitInput = z.object({
+  interval: z.enum(GatewaySpendLimitInterval),
+  limitUsd: z.number().positive().max(GATEWAY_SPEND_BUDGET_MAX_USD),
+});
 /** A key without patterns, or with an empty list, may call every enabled model. */
 const gatewayKeyAllowedModelsSchema = z
   .array(z.string().trim().min(1).max(500))
@@ -751,6 +755,4 @@ export const aiGatewayRouter = createTRPCRouter({
       });
       return { success: true };
     }),
-
-  spendLimits: gatewaySpendLimitRouter,
 });

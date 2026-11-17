@@ -78,7 +78,7 @@ impl Window {
         let end = limit.interval.window_end(start);
         let holds_baseline = DateTime::from_timestamp_millis(limit.counting_started_at)
             .is_some_and(|counting| limit.interval.window_start(counting) == start);
-        // A reset sets a new counting start, so counting starts over in a new key.
+        // A new counting start begins a new key.
         // All limits of a request belong to one organization, so tagging the
         // organization keeps them on one cluster slot for a single MGET. Only the
         // gateway reads or writes keys under this prefix.
