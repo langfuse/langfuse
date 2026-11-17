@@ -19,6 +19,7 @@ const colorFamily = {
   outline: "Neutral",
   filled: "Neutral",
   inverted: "Neutral",
+  ghost: "Neutral",
   error: "Status",
   warning: "Status",
   success: "Status",

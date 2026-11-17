@@ -50,7 +50,7 @@ export function GatewaySpendBudgetBadge({
 
   const color =
     spentUsd === undefined
-      ? "filled"
+      ? "ghost"
       : budgetColor(spentUsd, spendLimit.limitUsd);
   const text =
     spentUsd === undefined ? limit : `${formatUsd(spentUsd)} / ${limit}`;
@@ -66,11 +66,12 @@ export function GatewaySpendBudgetBadge({
     >
       {({ getTriggerProps }) => (
         <span {...getTriggerProps()} tabIndex={0} className="inline-flex">
-          {color === "filled" ? (
-            <span className="font-mono text-xs whitespace-nowrap">{text}</span>
-          ) : (
-            <Badge color={color} size="md" interactive text={text} />
-          )}
+          <Badge
+            color={color}
+            size="md"
+            interactive={color !== "ghost"}
+            text={text}
+          />
         </span>
       )}
     </CustomTooltip>
@@ -120,7 +121,7 @@ function formatResetsAt(interval: GatewaySpendBudgetInterval) {
 function budgetColor(spentUsd: number, limitUsd: number) {
   if (spentUsd >= limitUsd) return "error";
   if (spentUsd >= limitUsd * NEAR_LIMIT_SHARE) return "warning";
-  return "filled";
+  return "ghost";
 }
 
 function formatUsd(value: number) {
