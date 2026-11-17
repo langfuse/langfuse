@@ -9,6 +9,7 @@ import {
   type RouteGroup,
 } from "@/src/components/layouts/routes";
 import { type NavigationItem } from "@/src/components/layouts/utilities/routes";
+import { useAppShellSidebarActions } from "@/src/features/app-shell/contexts/AppShellSidebarProvider";
 
 type GroupedNavigationItems = {
   ungrouped: NavigationItem[];
@@ -32,6 +33,7 @@ function NavigationEntry({
   item: NavigationItem;
   isCollapsed: boolean;
 }) {
+  const { close } = useAppShellSidebarActions();
   if (item.menuNode) return item.menuNode({ isCollapsed });
   if (item.disabledReason) {
     return (
@@ -64,6 +66,7 @@ function NavigationEntry({
     <SidebarNavItem
       isCollapsed={isCollapsed}
       href={item.url}
+      onNavigate={close}
       isActive={item.isActive}
       opensInNewTab={item.newTab === true}
       leading={item.icon ? <item.icon size="base" /> : null}

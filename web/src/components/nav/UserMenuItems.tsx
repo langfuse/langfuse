@@ -53,7 +53,12 @@ function UserMenuItem({ item }: { item: UserNavigationItem }) {
   if (item.type === "link") {
     return (
       <DropdownMenuItem asChild>
-        <Link href={item.href}>{item.content ?? item.name}</Link>
+        <Link
+          href={item.href}
+          onNavigate={() => navigation?.closeTransientNavigation()}
+        >
+          {item.content ?? item.name}
+        </Link>
       </DropdownMenuItem>
     );
   }

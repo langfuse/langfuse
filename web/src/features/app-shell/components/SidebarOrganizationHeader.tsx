@@ -34,7 +34,7 @@ export function SidebarOrganizationHeader() {
 
   return (
     <SidebarPanel.Header>
-      <span className={styles.mobileClose}>
+      <span className={styles.mobileClose} data-surface={surface}>
         <IconButton
           icon={X}
           label="Close menu"
@@ -68,6 +68,7 @@ export function SidebarOrganizationHeader() {
       </Link>
       <div
         className={cn(styles.selector, motion.label)}
+        data-surface={surface}
         data-sidebar-expanded-only=""
         inert={isCollapsed}
       >
@@ -78,7 +79,8 @@ export function SidebarOrganizationHeader() {
             canCreateOrganizations={
               session.data?.user?.canCreateOrganizations === true
             }
-            menuControl={{ open, onOpenChange }}
+            open={open}
+            onOpenChange={onOpenChange}
           />
         )}
       </div>

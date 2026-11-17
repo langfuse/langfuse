@@ -7,7 +7,7 @@ import { cn } from "@/src/utils/tailwind";
 import styles from "./SidebarNavItem.module.css";
 
 const rowVariants = cva(
-  "text-sidebar-foreground flex h-11 w-full min-w-0 items-center rounded-md text-left text-sm whitespace-nowrap transition-colors md:h-9",
+  "text-sidebar-foreground flex w-full min-w-0 items-center rounded-md text-left text-sm whitespace-nowrap transition-colors",
   {
     variants: {
       interaction: {
@@ -58,20 +58,22 @@ function RowContent({
   );
 }
 
-/** Collapsed navigation uses the standard label tooltip. */
-function RailEntry({
+/** Navigation labels can include explanatory help without changing the trigger. */
+function NavigationTooltip({
   label,
+  description,
   isCollapsed,
   children,
 }: {
   label: string;
+  description?: string;
   isCollapsed: boolean;
   children: ComponentProps<typeof FloatingController>["children"];
 }) {
   const [open, setOpen] = useState(false);
   return (
     <FloatingController
-      enabled={isCollapsed}
+      enabled={isCollapsed || description !== undefined}
       open={open}
       onOpenChange={setOpen}
       role="tooltip"
@@ -82,9 +84,15 @@ function RailEntry({
       renderContent={(props) => (
         <div
           {...props}
-          className="bg-popover text-popover-foreground pointer-events-none overflow-hidden rounded-md border px-3 py-1.5 text-sm font-bold shadow-md"
+          className={cn(
+            "bg-popover text-popover-foreground pointer-events-none overflow-hidden rounded-md border px-3 py-1.5 text-sm font-bold shadow-md",
+            description && "max-w-xs whitespace-normal",
+          )}
         >
           {label}
+          {description ? (
+            <p className="mt-1 text-xs font-normal">{description}</p>
+          ) : null}
         </div>
       )}
     >
@@ -98,6 +106,7 @@ function SidebarNavLink({
   isActive,
   opensInNewTab,
   onClick,
+  onNavigate,
   ref,
   isCollapsed = false,
   ...content
@@ -106,6 +115,7 @@ function SidebarNavLink({
   isActive: boolean;
   opensInNewTab: boolean;
   onClick?: () => void;
+  onNavigate?: ComponentProps<typeof Link>["onNavigate"];
   ref?: Ref<HTMLAnchorElement>;
   isCollapsed?: boolean;
 }) {
@@ -116,10 +126,11 @@ function SidebarNavLink({
     "aria-current": isActive ? ("page" as const) : undefined,
   };
   return (
-    <RailEntry isCollapsed={isCollapsed} label={content.label}>
+    <NavigationTooltip isCollapsed={isCollapsed} label={content.label}>
       {({ getTriggerProps }) => (
         <Link
           {...linkProps}
+          onNavigate={onNavigate}
           {...getTriggerProps({ ref, onClick })}
           aria-label={isCollapsed ? content.label : undefined}
           data-collapsed={isCollapsed}
@@ -131,7 +142,7 @@ function SidebarNavLink({
           <RowContent {...content} isCollapsed={isCollapsed} />
         </Link>
       )}
-    </RailEntry>
+    </NavigationTooltip>
   );
 }
 
@@ -142,17 +153,19 @@ function SidebarNavButton({
   external,
   isLabelBold,
   trailing,
+  description,
   isCollapsed = false,
   ...buttonProps
 }: RowContentProps &
   Omit<
     ComponentProps<"button">,
     "children" | "className" | "style" | "type"
-  > & { isCollapsed?: boolean }) {
+  > & { isCollapsed?: boolean; description?: string }) {
   return (
-    <RailEntry
+    <NavigationTooltip
       isCollapsed={isCollapsed}
       label={buttonProps["aria-label"] ?? label}
+      description={description}
     >
       {({ getTriggerProps }) => (
         <button
@@ -175,13 +188,19 @@ function SidebarNavButton({
           />
         </button>
       )}
-    </RailEntry>
+    </NavigationTooltip>
   );
 }
 
 function SidebarNavRow({ children }: { children: ReactNode }) {
   return (
-    <div className={cn(rowVariants({ interaction: "static" }), "gap-2 px-2")}>
+    <div
+      className={cn(
+        rowVariants({ interaction: "static" }),
+        styles.row,
+        "gap-2 px-2",
+      )}
+    >
       {children}
     </div>
   );

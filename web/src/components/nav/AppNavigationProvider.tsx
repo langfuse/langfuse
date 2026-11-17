@@ -20,6 +20,8 @@ import {
  */
 export type AppNavigation = {
   shell: "classic" | "next";
+  /** Desktop expansion determines whether page chrome repeats the organization selector. */
+  readonly isSidebarExpanded: boolean;
   /** Optional desktop page-header control; shells with their own expansion control omit it. */
   SidebarControl: ComponentType | null;
   openMobileNavigation: () => void;

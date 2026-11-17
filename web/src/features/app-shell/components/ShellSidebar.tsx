@@ -65,7 +65,11 @@ export function ShellSidebar({
       }
     };
     panel.addEventListener("keydown", handleKeyDown);
-    return () => panel.removeEventListener("keydown", handleKeyDown);
+    modalContainer?.addEventListener("keydown", handleKeyDown);
+    return () => {
+      panel.removeEventListener("keydown", handleKeyDown);
+      modalContainer?.removeEventListener("keydown", handleKeyDown);
+    };
   }, [elements.floating, isModal, modalContainer, popoverContainer]);
 
   return (
@@ -85,6 +89,7 @@ export function ShellSidebar({
           outsideElementsInert
           returnFocus={mobileNavigationTriggerRef}
           initialFocus={0}
+          getInsideElements={() => (modalContainer ? [modalContainer] : [])}
         >
           <aside
             ref={refs.setFloating}
@@ -109,16 +114,18 @@ export function ShellSidebar({
             </LayerContainerProvider>
             <div
               className="absolute isolate"
-              data-layer="modal"
-              ref={setModalContainer}
-            />
-            <div
-              className="absolute isolate"
               data-layer="popover"
               ref={setPopoverContainer}
             />
           </aside>
         </FloatingFocusManager>
+      </Layer>
+      <Layer name="modal">
+        <div
+          className="absolute isolate"
+          data-layer="modal"
+          ref={setModalContainer}
+        />
       </Layer>
     </SidebarSurfaceProvider>
   );

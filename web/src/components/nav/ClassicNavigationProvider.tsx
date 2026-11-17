@@ -8,17 +8,18 @@ export function ClassicNavigationProvider({
 }: {
   children: ReactNode;
 }) {
-  const { isMobile, setOpenMobile } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   const value = useMemo(
     () => ({
       shell: "classic" as const,
+      isSidebarExpanded: state === "expanded",
       SidebarControl: SidebarTrigger,
       openMobileNavigation: () => setOpenMobile(true),
       closeTransientNavigation: () => {
         if (isMobile) setOpenMobile(false);
       },
     }),
-    [isMobile, setOpenMobile],
+    [state, isMobile, setOpenMobile],
   );
 
   return (

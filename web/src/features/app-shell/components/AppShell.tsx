@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useMemo, useRef, type ReactNode } from "react";
 import {
   AppNavigationProvider,
   type AppNavigation,
@@ -20,15 +20,20 @@ function AppShellFrame({
   children: ReactNode;
 }) {
   const isMobile = useAppShellSidebar((state) => state.isMobile);
+  const isExpanded = useAppShellSidebar((state) => state.isExpanded);
   const { setMobileOpen, close } = useAppShellSidebarActions();
   const mobileNavigationTriggerRef = useRef<HTMLButtonElement>(null);
-  const [navigation] = useState<AppNavigation>(() => ({
-    shell: "next",
-    SidebarControl: SidebarExpansionToggle,
-    openMobileNavigation: () => setMobileOpen(true),
-    mobileNavigationTriggerRef,
-    closeTransientNavigation: close,
-  }));
+  const navigation = useMemo<AppNavigation>(
+    () => ({
+      shell: "next",
+      isSidebarExpanded: isExpanded,
+      SidebarControl: SidebarExpansionToggle,
+      openMobileNavigation: () => setMobileOpen(true),
+      mobileNavigationTriggerRef,
+      closeTransientNavigation: close,
+    }),
+    [isExpanded, setMobileOpen, close],
+  );
 
   useSidebarShortcuts(isMobile ? "mobile" : "desktop");
 

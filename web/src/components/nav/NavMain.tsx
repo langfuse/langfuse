@@ -50,7 +50,7 @@ export function NavMain({
   const { state, isMobile } = useSidebar();
   const isCollapsed = state === "collapsed" && !isMobile;
   return (
-    <>
+    <div className="contents [--sidebar-nav-leading-width:32px] [--sidebar-nav-row-height:32px]">
       <SidebarGroup>
         <SidebarGroupContent>
           <SidebarMenu>
@@ -80,7 +80,7 @@ export function NavMain({
             </SidebarGroupContent>
           </SidebarGroup>
         ))}
-    </>
+    </div>
   );
 }
 
