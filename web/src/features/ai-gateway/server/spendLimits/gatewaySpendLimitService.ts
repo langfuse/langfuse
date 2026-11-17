@@ -11,7 +11,7 @@ import {
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
-import { getGatewaySpendLimitWindowStart } from "./getGatewaySpendLimitWindowStart";
+import { getGatewaySpendLimitWindowStart } from "./gatewaySpendLimitWindow";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import {

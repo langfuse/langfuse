@@ -13,7 +13,7 @@ const WINDOW_EXPIRY_GRACE_SECONDS: i64 = 24 * 60 * 60;
 const TOTAL_COUNTER_EXPIRY: StdDuration = StdDuration::from_hours(400 * 24);
 
 /// How often a spend limit starts over, in UTC calendar windows. Web computes
-/// the same windows in `web/src/features/ai-gateway/server/spendLimits/getGatewaySpendLimitWindowStart.ts`.
+/// the same windows in `web/src/features/ai-gateway/server/spendLimits/gatewaySpendLimitWindow.ts`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum SpendLimitInterval {

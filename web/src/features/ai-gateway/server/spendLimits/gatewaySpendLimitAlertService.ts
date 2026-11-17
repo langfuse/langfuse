@@ -3,7 +3,6 @@ import { createHash, randomUUID } from "crypto";
 import { Role } from "@langfuse/shared";
 import {
   GatewaySpendLimitAlertType,
-  type GatewaySpendLimitInterval,
   type PrismaClient,
 } from "@langfuse/shared/src/db";
 import {
@@ -14,7 +13,10 @@ import {
 
 import { env } from "@/src/env.mjs";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
-import { getGatewaySpendLimitWindowStart } from "@/src/features/ai-gateway/server/spendLimits/getGatewaySpendLimitWindowStart";
+import {
+  getGatewaySpendLimitWindowEnd,
+  getGatewaySpendLimitWindowStart,
+} from "@/src/features/ai-gateway/server/spendLimits/gatewaySpendLimitWindow";
 
 type GatewaySpendLimitEmail = Extract<
   NotificationEventType,
@@ -158,7 +160,7 @@ function toNotificationJob(
     keyName: limit.apiKey.note ?? "Unnamed key",
     interval: limit.interval,
     limitUsd: limit.limitUsd.toNumber(),
-    resetsAt: getNextWindowStart(
+    resetsAt: getGatewaySpendLimitWindowEnd(
       limit.interval,
       alert.windowStart,
     )?.toISOString(),
@@ -176,23 +178,4 @@ function toNotificationJob(
       jobId: `ai-gateway-spend-limit-${alert.spendLimitId}-${alert.type}-${alert.generation}-${alert.windowStart.getTime()}-${recipientHash}`,
     },
   };
-}
-
-function getNextWindowStart(
-  interval: GatewaySpendLimitInterval,
-  windowStart: Date,
-): Date | null {
-  const day = 24 * 60 * 60 * 1000;
-  switch (interval) {
-    case "DAILY":
-      return new Date(windowStart.getTime() + day);
-    case "WEEKLY":
-      return new Date(windowStart.getTime() + 7 * day);
-    case "MONTHLY":
-      return new Date(
-        Date.UTC(windowStart.getUTCFullYear(), windowStart.getUTCMonth() + 1),
-      );
-    case "TOTAL":
-      return null;
-  }
 }

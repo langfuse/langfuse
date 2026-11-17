@@ -31,3 +31,22 @@ export function getGatewaySpendLimitWindowStart(
       return new Date(0);
   }
 }
+
+/** Start of the window after `windowStart`, or null for a total limit, which never resets. */
+export function getGatewaySpendLimitWindowEnd(
+  interval: GatewaySpendLimitInterval,
+  windowStart: Date,
+): Date | null {
+  switch (interval) {
+    case "DAILY":
+      return new Date(windowStart.getTime() + DAY_MS);
+    case "WEEKLY":
+      return new Date(windowStart.getTime() + 7 * DAY_MS);
+    case "MONTHLY":
+      return new Date(
+        Date.UTC(windowStart.getUTCFullYear(), windowStart.getUTCMonth() + 1),
+      );
+    case "TOTAL":
+      return null;
+  }
+}
