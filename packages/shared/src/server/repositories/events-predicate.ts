@@ -3,8 +3,8 @@
  * expressions over a query that reads events as `e`, and its free-text
  * `search` to a separate expression. `compileEventsPredicate` /
  * `compileEventsSearch` render either as `{ sql, params, requiresEventsFull }`
- * for the raw-SQL builders: after the project and soft-delete conditions,
- * the SQL `FilterList` and `eventSearchCondition` emit for the same filter
+ * for the raw-SQL builders: after the project condition, the SQL
+ * `FilterList` and `eventSearchCondition` emit for the same filter
  * (`events-predicate.golden.test.ts`).
  *
  * Out of scope: score and comment fields (they need a join or aggregation
@@ -120,11 +120,15 @@ export type CompiledEventsCondition = {
   requiresEventsFull: boolean;
 };
 
+/** The events select a bridge condition is compiled from. */
+const eventsConditionQuery = () =>
+  getClickhouseKysely().selectFrom("events as e");
+
 /**
  * `predicate` as SQL over events read as `e` in `projectId`, for the raw-SQL
- * builders: the project and soft-delete conditions the compiler passes
- * inject, then the `FilterList` text for a conjunction of conditions, or
- * `true` for an empty one. Never empty, so callers splice `AND ${sql}`.
+ * builders: the project condition the tenancy pass injects, then the
+ * `FilterList` text for a conjunction of conditions, or `true` for an empty
+ * one. Never empty, so callers splice `AND ${sql}`.
  * `requiresEventsFull` is the routing pass's verdict.
  * Placeholder names are unique per call.
  */
@@ -136,7 +140,7 @@ export function compileEventsPredicate(
   // One `where` per conjunct chains them with AND and no enclosing
   // parentheses, like `FilterList`. An empty conjunction still needs a WHERE
   // for `compileClickhouseCondition` to add the project scoping to.
-  let query = getClickhouseKysely().selectFrom("events as e");
+  let query = eventsConditionQuery();
   for (const part of parts.length === 0 ? [literal(true)] : parts) {
     query = query.where(part);
   }
@@ -145,18 +149,18 @@ export function compileEventsPredicate(
 
 /**
  * `search` as SQL over events read as `e` in `projectId`, for the raw-SQL
- * builders: the project and soft-delete conditions the compiler passes
- * inject, then the parenthesized disjunction `eventSearchCondition` emits
- * after its `AND`. `requiresEventsFull` is the routing pass's verdict.
+ * builders: the project condition the tenancy pass injects, then the
+ * parenthesized disjunction `eventSearchCondition` emits after its `AND`.
+ * `requiresEventsFull` is the routing pass's verdict.
  * Placeholder names are unique per call.
  */
 export function compileEventsSearch(
   search: PredicateSearch,
   projectId: string,
 ): CompiledEventsCondition {
-  const query = getClickhouseKysely()
-    .selectFrom("events as e")
-    .where((eb) => lowerEventsSearch(eb, search));
+  const query = eventsConditionQuery().where((eb) =>
+    lowerEventsSearch(eb, search),
+  );
   return compileClickhouseCondition(query, projectId, paramPrefix());
 }
 
@@ -202,6 +206,11 @@ function single(eb: EventsExpressionBuilder, parts: Condition[]): Condition {
 function resolveCondition(condition: PredicateCondition): {
   lowering: EventsFieldLowering;
 } {
+  if (condition.type === "positionInTrace") {
+    throw new QueryCompileError(
+      "positionInTrace conditions select events by their place in the trace; compile them outside the row predicate.",
+    );
+  }
   const field = resolvePredicateSourceField(
     eventsPredicateSource,
     condition.field.id,
@@ -209,11 +218,6 @@ function resolveCondition(condition: PredicateCondition): {
   if (!field) {
     throw new InvalidRequestError(
       `Column ${condition.field.id} does not match a UI / CH table mapping.`,
-    );
-  }
-  if (condition.type === "positionInTrace") {
-    throw new QueryCompileError(
-      "positionInTrace conditions select events by their place in the trace; compile them outside the row predicate.",
     );
   }
   if (
@@ -242,7 +246,39 @@ function lowerCondition(
   eb: EventsExpressionBuilder,
   condition: PredicateCondition,
 ): Condition[] {
-  const { lowering } = resolveCondition(condition);
+  return lowerFieldCondition(
+    eb,
+    resolveCondition(condition).lowering,
+    condition,
+  );
+}
+
+/**
+ * `condition` as conjuncts over `e`, comparing the value `lowering` gives;
+ * `condition.field.id` is not looked up. For a host whose fields have their
+ * own lowerings (the dashboard observations view), which checks that a
+ * field takes the condition's type and operator. A type the lowering's value
+ * kind does not take throws `QueryCompileError`, as do the condition types no
+ * lowering takes (`categoryOptions`, `booleanObject`, `positionInTrace`, …).
+ */
+export const lowerEventsFieldCondition = scopedToEvents(
+  (
+    eb,
+    lowering: EventsFieldLowering,
+    condition: PredicateCondition,
+  ): Condition[] => lowerFieldCondition(eb, lowering, condition),
+);
+
+/**
+ * The conjuncts of {@link lowerEventsFieldCondition}: a metadata lowering
+ * takes the metadata conditions, any other lowering dispatches on
+ * `condition.type`.
+ */
+function lowerFieldCondition(
+  eb: EventsExpressionBuilder,
+  lowering: EventsFieldLowering,
+  condition: PredicateCondition,
+): Condition[] {
   if (lowering.kind === "metadata") {
     return lowerMetadataCondition(eb, condition);
   }
@@ -355,6 +391,12 @@ function textLowering(
   throw loweringKindError(condition);
 }
 
+/**
+ * `condition` on a string field. An empty value under `=`, `contains`,
+ * `starts with` or `ends with` matches empty-or-NULL on an
+ * `emptyEqualsNull` field. Indexed columns add an ngram or text-token
+ * prefilter. `matches` throws unless the field is text-indexed.
+ */
 function lowerString(
   eb: EventsExpressionBuilder,
   lowering: TextLowering,
@@ -472,7 +514,7 @@ function lowerStringOptions(
 
 function lowerArrayOptions(
   eb: EventsExpressionBuilder,
-  array: Expression<string[]>,
+  array: Expression<Array<string | null>>,
   { op, value: values }: ConditionOf<"arrayOptions">,
 ): Condition {
   const list = typedValue<string[]>(values, STRING_ARRAY);

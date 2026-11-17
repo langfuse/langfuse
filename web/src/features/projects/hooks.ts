@@ -2,6 +2,7 @@
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
+import { env } from "@/src/env.mjs";
 
 export const useQueryProject = () => {
   const router = useRouter();
@@ -51,6 +52,7 @@ export const useQueryProjectOrOrganization = () => {
  */
 export const useOrgProjectSwitchPaths = () => {
   const router = useRouter();
+  const session = useSession();
 
   /**
    * Truncate the path before the first dynamic segment that is not allowlisted.
@@ -77,13 +79,27 @@ export const useOrgProjectSwitchPaths = () => {
         )
       : `/project/${projectId}`;
 
-  const getOrgPath = (orgId: string) =>
-    router.query.organizationId
+  const getOrgPath = (orgId: string) => {
+    // The demo org has a single project, so skip its org overview.
+    if (
+      orgId === env.NEXT_PUBLIC_DEMO_ORG_ID &&
+      env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
+      session.data?.user?.organizations
+        .find((organization) => organization.id === orgId)
+        ?.projects.some(
+          (project) => project.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID,
+        )
+    ) {
+      return `/project/${env.NEXT_PUBLIC_DEMO_PROJECT_ID}/traces`;
+    }
+
+    return router.query.organizationId
       ? truncatePathBeforeDynamicSegments(router.asPath).replace(
           router.query.organizationId as string,
           orgId,
         )
       : `/organization/${orgId}`;
+  };
 
   return { getProjectPath, getOrgPath };
 };

@@ -53,8 +53,7 @@ const getResolutionSteps = (blockReason: EvaluatorBlockReason) => {
         <>
           • Check the LLM connection credentials in Project Settings → LLM
           Connections
-          <br />
-          • Save the corrected connection
+          <br />• Save the corrected connection
           <br />• Reactivate the paused evaluator
         </>
       );
@@ -62,8 +61,7 @@ const getResolutionSteps = (blockReason: EvaluatorBlockReason) => {
       return (
         <>
           • Add credits or raise the spend limit in your LLM provider account
-          <br />
-          • Check which connection is affected in Project Settings → LLM
+          <br />• Check which connection is affected in Project Settings → LLM
           Connections
           <br />• Reactivate the paused evaluator
         </>
@@ -72,8 +70,7 @@ const getResolutionSteps = (blockReason: EvaluatorBlockReason) => {
       return (
         <>
           • The endpoint hostname of the LLM connection could not be resolved
-          <br />
-          • Fix the connection&apos;s base URL in Project Settings → LLM
+          <br />• Fix the connection&apos;s base URL in Project Settings → LLM
           Connections
           <br />• Reactivate the paused evaluator
         </>
@@ -83,8 +80,7 @@ const getResolutionSteps = (blockReason: EvaluatorBlockReason) => {
         <>
           • Add or restore the missing LLM connection in Project Settings → LLM
           Connections
-          <br />
-          • Confirm the evaluator still points to the expected provider
+          <br />• Confirm the evaluator still points to the expected provider
           <br />• Reactivate the paused evaluator
         </>
       );
@@ -92,8 +88,8 @@ const getResolutionSteps = (blockReason: EvaluatorBlockReason) => {
       return (
         <>
           • Configure a default evaluation model in Project Settings
-          <br />
-          • Or edit the evaluator template to use an explicit provider/model
+          <br />• Or edit the evaluator template to use an explicit
+          provider/model
           <br />• Reactivate the paused evaluator
         </>
       );
@@ -101,8 +97,7 @@ const getResolutionSteps = (blockReason: EvaluatorBlockReason) => {
       return (
         <>
           • The configured model may have been deleted or renamed
-          <br />
-          • Update the evaluator template or default evaluation model
+          <br />• Update the evaluator template or default evaluation model
           <br />• Reactivate the paused evaluator
         </>
       );
@@ -110,8 +105,7 @@ const getResolutionSteps = (blockReason: EvaluatorBlockReason) => {
       return (
         <>
           • Complete the provider account setup required to use this model
-          <br />
-          • Retry the evaluator configuration once the provider is ready
+          <br />• Retry the evaluator configuration once the provider is ready
           <br />• Reactivate the paused evaluator
         </>
       );
@@ -120,8 +114,7 @@ const getResolutionSteps = (blockReason: EvaluatorBlockReason) => {
       return (
         <>
           • Review the evaluator configuration and error details
-          <br />
-          • Update the evaluator template or default evaluation model
+          <br />• Update the evaluator template or default evaluation model
           <br />• Reactivate the paused evaluator
         </>
       );

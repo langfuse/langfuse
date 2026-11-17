@@ -3,15 +3,20 @@
  * `src/query-ast/sources.ts` is the semantic half): for each field id, the
  * typed expression a condition compares, the facts its conditions compile
  * from. Which events table a condition reads is the routing pass's verdict
- * on the compiled query, not a fact here. Expressions match the SQL of
- * `eventsTableUiColumnDefinitions`, except that every column is qualified
- * `e.`, so a same-named SELECT alias cannot capture it;
- * `events-predicate.golden.test.ts` holds the two to the same SQL per field,
- * condition type and operator.
+ * on the compiled query, not a fact here. Every column is qualified `e.`, so
+ * a same-named SELECT alias cannot capture it. `eventsTableUiColumnDefinitions`
+ * renders its column SQL from these expressions; the row-selection goldens
+ * (`events.golden.test.ts`) pin that SQL with a filter per column kind, and
+ * `events-predicate.golden.test.ts` checks the condition wiring against
+ * `FilterList` per field, condition type and operator.
  */
-import type { Expression, SqlBool } from "kysely";
+import { expressionBuilder, type Expression, type SqlBool } from "kysely";
 
+import { renderClickhouseExpression } from "../query-ast/compile";
+import { QueryCompileError } from "../query-ast/errors";
+import type { ClickHouseDatabase } from "../query-ast/schema";
 import {
+  arrayConcat,
   arrayLength,
   arrayMap,
   arraySum,
@@ -60,6 +65,8 @@ type StringIndexFacts = {
 
 type Lowered<T> = (eb: EventsExpressionBuilder) => Expression<T>;
 
+type EventsDb = { e: ClickHouseDatabase["events"] };
+
 /**
  * A field compared through one expression, kinded by its value so each
  * condition type reads the value type it needs: `string` and
@@ -77,7 +84,9 @@ export type ScalarFieldLowering =
 /** Value type of each kind without index facts. */
 type ValueOfKind = {
   nullableString: string | null;
-  array: string[];
+  // Elements may be NULL: tuple fields of `Array(Tuple(…))` columns can be
+  // `Nullable(String)`.
+  array: Array<string | null>;
   scalar: unknown;
 };
 
@@ -172,6 +181,12 @@ const skillVersions = (skills: Expression<unknown[]>) =>
     skills,
     "skill",
   );
+
+/** `e.<skills>.skillName` */
+const skillNames = (
+  eb: EventsExpressionBuilder,
+  skills: "e.skills_resource_loaded" | "e.skills_available",
+) => tupleElement<string[]>(eb.ref(skills), "skillName");
 
 /**
  * Lowering per field id of `eventsPredicateSource`. Score and comment fields
@@ -271,18 +286,43 @@ export const EVENTS_FIELD_LOWERINGS: Readonly<
     emptyEqualsNull: true,
   }),
   experimentName: text((eb) => eb.ref("e.experiment_name")),
-  skillsNamesLoaded: array((eb) =>
-    tupleElement<string[]>(eb.ref("e.skills_resource_loaded"), "skillName"),
-  ),
+  skillsNamesLoaded: array((eb) => skillNames(eb, "e.skills_resource_loaded")),
   skillsVersionsLoaded: array((eb) =>
     skillVersions(eb.ref("e.skills_resource_loaded")),
   ),
-  skillNamesAvailable: array((eb) =>
-    tupleElement<string[]>(eb.ref("e.skills_available"), "skillName"),
-  ),
+  skillNamesAvailable: array((eb) => skillNames(eb, "e.skills_available")),
   skillVersionsAvailable: array((eb) =>
     skillVersions(eb.ref("e.skills_available")),
   ),
+  skillNames: array((eb) =>
+    arrayConcat(
+      skillNames(eb, "e.skills_resource_loaded"),
+      skillNames(eb, "e.skills_available"),
+    ),
+  ),
+  skillVersions: array((eb) =>
+    arrayConcat(
+      skillVersions(eb.ref("e.skills_resource_loaded")),
+      skillVersions(eb.ref("e.skills_available")),
+    ),
+  ),
+  // Paired with the skill version id, so a match stays within one loaded
+  // resource.
+  skillFilesLoaded: array((eb) =>
+    arrayMap(
+      (skill) =>
+        concat(
+          tupleElement(skill, "langfuseSkillId"),
+          literal("/"),
+          tupleElement(skill, "filePath"),
+        ),
+      eb.ref("e.skills_resource_loaded"),
+      "skill",
+    ),
+  ),
+  parentObservationId: text((eb) => eb.ref("e.parent_span_id"), {
+    emptyEqualsNull: true,
+  }),
   toolNames: array((eb) => mapKeys(eb.ref("e.tool_definitions"))),
   calledToolNames: array((eb) => eb.ref("e.tool_call_names")),
   toolDefinitions: scalar((eb) =>
@@ -293,3 +333,20 @@ export const EVENTS_FIELD_LOWERINGS: Readonly<
     eb("e.experiment_item_root_span_id", "=", eb.ref("e.span_id")),
   ),
 };
+
+/**
+ * SQL text of field `id`'s expression, for the raw-SQL column mappings:
+ * `e.span_id` for `id`. Throws `QueryCompileError` for a field without one
+ * (metadata, scores, comments).
+ */
+export function eventsFieldSql(id: string): string {
+  const lowering = EVENTS_FIELD_LOWERINGS[id];
+  if (!lowering || lowering.kind === "metadata") {
+    throw new QueryCompileError(
+      `'${id}' has no single-expression lowering in EVENTS_FIELD_LOWERINGS.`,
+    );
+  }
+  return renderClickhouseExpression(
+    lowering.value(expressionBuilder<EventsDb, "e">()),
+  );
+}

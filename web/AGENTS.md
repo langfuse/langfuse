@@ -98,11 +98,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
   component that satisfies the use case. Prefer the design-system component
   and extend it when appropriate; use another component only when the design
   system has no suitable option.
-- **Before adding or modifying a chart, dashboard, or chart formatter, read
-  `src/features/widgets/chart-library/ARCHITECTURE.md` first** — the charts
-  manifesto. It owns the data → preparer → visualiser contract: presentation
-  decisions (formatting, colors, axis scale, overload) live in the preparer,
-  not the chart components.
+- **Before adding or modifying a chart, dashboard, or chart formatter, read `src/features/widgets/components/usePreparedWidgetChart.ts` and `src/components/design-system/charts/internal/VisualizationFrame/VisualizationFrame.tsx` first.** They define the data → preparer → visualiser contract: presentation decisions (formatting, colors, axis scale, overload) live in the preparer, not the chart components.
 - **When working on the search bar or any filtering UI/grammar, read
   `src/features/search-bar/README.md` first.** It owns the grammar ↔
   `FilterState` contract, the validate/lower parity invariants, and the
@@ -255,7 +251,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
 - In-source tests: `pnpm --filter web run test:in-source <args>`
 - Client tests: `pnpm --filter web run test-client <args>`
 - E2E tests: `pnpm --filter web run test:e2e`
-- AI Gateway E2E tests against the local configured stack (also run in CI for AI Gateway changes): `pnpm --filter web run test:e2e:ai-gateway`. Vitest starts the built `ai-gateway` binary (`pnpm --filter ai-gateway build`, or `LANGFUSE_AI_GATEWAY_BIN`) and sends the client traffic through it.
+- AI Gateway E2E tests against the local configured stack (also run in CI for AI Gateway changes): `pnpm --filter web run test:e2e:ai-gateway`. Vitest starts the built `ai-gateway` binary (`pnpm --filter ai-gateway build`, or `LANGFUSE_AI_GATEWAY_BIN`) and sends the client traffic through it. Each provider suite in `src/__e2e__/ai-gateway/` is skipped locally without its credentials; run one with `pnpm --filter web run test:e2e:ai-gateway src/__e2e__/ai-gateway/<provider>.gatewaye2e.ts`.
 - Agent browser install to the default user-level Playwright cache: `pnpm run playwright:install`
 - Build: `pnpm --filter web run build`
 - Structure-RFC violation counts: `pnpm --filter web run structure:stats`
@@ -338,8 +334,8 @@ Sentry instrumentation skill first and decide whether it should capture at all
 - Confirm the target `*.clienttest.*` or `*.servertest.*` file exists before passing a pattern to `vitest run`; source files do not always have a matching colocated test file.
 - When passing a Vitest file or pattern through `pnpm --filter web ...`, make it
   relative to `web/` because the script runs with `web` as the working
-  directory. Example: use `src/features/widgets/chart-library/BigNumber.tsx`,
-  not `web/src/features/widgets/chart-library/BigNumber.tsx`.
+  directory. Example: use `src/features/widgets/chart-library/utils.clienttest.ts`,
+  not `web/src/features/widgets/chart-library/utils.clienttest.ts`.
 - Prefer separate test files for components, integration coverage, and broader
   behaviors; use Vitest in-source tests mainly for small-scoped utilities.
 - Run Vitest in-source utility coverage with `pnpm --filter web run test:in-source`;

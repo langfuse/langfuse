@@ -131,8 +131,8 @@ export function AddCustomModelDialog({
               }
             >
               {testResult
-                ? "Test this model with your current credential"
-                : "This model hasn't been tested with your credential yet."}
+                ? "Test this model with this connection"
+                : "This model hasn't been tested with this connection yet."}
             </p>
             <Button
               variant="outline"

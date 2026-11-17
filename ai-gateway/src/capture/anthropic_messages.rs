@@ -1,5 +1,5 @@
 use super::{
-    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, RawRequest, bounded_string,
+    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, RawRequest, bounded_string, error_detail,
     facts::ProviderFacts, parse_request, response::ResponseBody,
 };
 use crate::resolution::IngestionMode;
@@ -26,7 +26,7 @@ const STRUCTURED_PARAMETERS: [&str; 5] = [
 ];
 
 pub(super) struct AnthropicMessagesCapture {
-    facts: ProviderFacts,
+    pub(super) facts: ProviderFacts,
     mode: IngestionMode,
     body: ResponseBody,
     usage: Option<Map<String, Value>>,
@@ -230,10 +230,6 @@ impl AnthropicMessagesCapture {
     }
 
     pub(super) fn record_response(&mut self, headers: &HeaderMap) {
-        self.facts.provider_request_id = headers
-            .get("request-id")
-            .and_then(|v| v.to_str().ok())
-            .and_then(bounded_string);
         self.body = ResponseBody::from_headers(headers);
         if matches!(self.body, ResponseBody::Unavailable) {
             self.response_valid = false;
@@ -458,16 +454,8 @@ impl AnthropicMessagesCapture {
         let Some(error) = envelope.get("error").and_then(Value::as_object) else {
             return;
         };
-        let detail = ["type", "message"]
-            .into_iter()
-            .filter_map(|key| error.get(key).and_then(Value::as_str))
-            .filter(|value| !value.is_empty())
-            .map(|value| &value[..value.floor_char_boundary(MAX_FACT_STRING)])
-            .collect::<Vec<_>>()
-            .join(": ");
-        if !detail.is_empty() {
-            self.facts.error_message =
-                Some(detail[..detail.floor_char_boundary(MAX_FACT_STRING)].to_owned());
+        if let Some(detail) = error_detail(error, ["type", "message"]) {
+            self.facts.error_message = Some(detail);
         }
     }
 }

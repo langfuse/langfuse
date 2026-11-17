@@ -878,60 +878,68 @@ export async function getAuthOptions(
       },
       async session({ session, token }): Promise<Session> {
         return instrumentAsync({ name: "next-auth-session" }, async (span) => {
-          const dbUser = await prisma.user.findUnique({
-            where: {
-              email: token.email!.toLowerCase(),
-              OR: [
-                { sessionsExpiredAt: null },
-                {
-                  // Strict: a token issued in the same millisecond as revocation
-                  // is treated as revoked.
-                  sessionsExpiredAt: {
-                    lt: new Date(token.loginAt ?? 0),
-                  },
+          // `sub` is the id of the user the token was issued for. Requiring it
+          // to match keeps a token from resolving to a later account that
+          // reuses the email, e.g. after the original account was deleted.
+          // A token without `sub` resolves to no user: Prisma would drop
+          // `id: undefined` from the filter and match on email alone.
+          const dbUser = !token.sub
+            ? null
+            : await prisma.user.findUnique({
+                where: {
+                  id: token.sub,
+                  email: token.email!.toLowerCase(),
+                  OR: [
+                    { sessionsExpiredAt: null },
+                    {
+                      // Strict: a token issued in the same millisecond as revocation
+                      // is treated as revoked.
+                      sessionsExpiredAt: {
+                        lt: new Date(token.loginAt ?? 0),
+                      },
+                    },
+                  ],
                 },
-              ],
-            },
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              image: true,
-              emailVerified: true,
-              password: true,
-              createdAt: true,
-              featureFlags: true,
-              v4BetaEnabled: true,
-              supportAccess: true,
-              organizationMemberships: {
-                // Newest first so demo project is last for the `project/~/` sentinel
-                orderBy: {
-                  createdAt: "desc",
-                },
-                include: {
-                  organization: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  image: true,
+                  emailVerified: true,
+                  password: true,
+                  createdAt: true,
+                  featureFlags: true,
+                  v4BetaEnabled: true,
+                  supportAccess: true,
+                  organizationMemberships: {
+                    // Newest first so demo project is last for the `project/~/` sentinel
+                    orderBy: {
+                      createdAt: "desc",
+                    },
                     include: {
-                      projects: {
-                        where: {
-                          deletedAt: {
-                            equals: null,
+                      organization: {
+                        include: {
+                          projects: {
+                            where: {
+                              deletedAt: {
+                                equals: null,
+                              },
+                            },
+                            orderBy: {
+                              createdAt: "desc",
+                            },
                           },
                         },
-                        orderBy: {
-                          createdAt: "desc",
+                      },
+                      ProjectMemberships: {
+                        include: {
+                          project: true,
                         },
                       },
                     },
                   },
-                  ProjectMemberships: {
-                    include: {
-                      project: true,
-                    },
-                  },
                 },
-              },
-            },
-          });
+              });
 
           span.setAttribute("langfuse.user.id", dbUser?.id ?? "");
           // Support engineers with an unexpired ConductorOne grant see the

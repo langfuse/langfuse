@@ -4,6 +4,16 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createPlan, parseOptions, runPlan } from "./check.mjs";
 
+test("formatter config changes check the whole repository without source changes", () => {
+  const plan = createPlan([".oxfmtrc.json"], [], { only: ["format"] }, "HEAD", {
+    tasks: new Map(),
+    affected: new Set(),
+    inputs: new Set(),
+  });
+  assert.equal(plan.length, 1);
+  assert.deepEqual(plan[0].args, ["run", "format:check"]);
+});
+
 test("check no longer accepts a CPU budget argument", () => {
   assert.equal(Object.hasOwn(parseOptions([]), "cpus"), false);
   assert.throws(

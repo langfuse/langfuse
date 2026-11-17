@@ -29,30 +29,24 @@ export function useSaveGatewayModelAccess({
   return useMutation({
     meta: { toastOperation: "gateway_model_access.save" },
     scope: getGatewayConnectionWriteScope(connectionId),
-    mutationFn: async ({
-      models,
-      enabled,
-      scope,
-    }: GatewayModelAccessChange) => {
+    mutationFn: async ({ models, enabled }: GatewayModelAccessChange) => {
       const [connection, modelsResult] = await Promise.all([
         utils.aiGateway.getConnection.ensureData(input),
         utils.aiGateway.getConnectionModels.ensureData(input),
       ]);
       // Without the model list, a partial change could not keep the other
       // models' access, so it must not be saved.
-      if (!modelsResult.success && scope !== "all") {
+      if (!modelsResult.success) {
         throw new Error("Models could not be loaded. Refresh the provider.");
       }
-      const availableModels = modelsResult.success ? modelsResult.models : [];
-      let allowedModels: string[] | null = enabled ? null : [];
-      if (scope !== "all") {
-        allowedModels = updateGatewayAllowedModels({
-          allowedModels: connection.allowedModels,
-          availableModels,
-          targetModels: models,
-          enabled,
-        });
-      }
+      const availableModels = modelsResult.models;
+      const allowedModels = updateGatewayAllowedModels({
+        allowedModels: connection.allowedModels,
+        availableModels,
+        catalogComplete: !modelsResult.modelListingDenied,
+        targetModels: models,
+        enabled,
+      });
       const updatedConnection =
         await utils.client.aiGateway.updateConnectionModels.mutate({
           ...input,

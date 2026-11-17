@@ -14,7 +14,7 @@ export function buildGatewayModelsTabs(
   return {
     activeTab,
     tabs: [
-      { value: GATEWAY_MODELS_TABS.providers, label: "Providers", href },
+      { value: GATEWAY_MODELS_TABS.providers, label: "Connections", href },
       {
         value: GATEWAY_MODELS_TABS.models,
         label: "Models",

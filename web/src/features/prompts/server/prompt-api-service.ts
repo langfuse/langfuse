@@ -100,12 +100,14 @@ export const updatePromptLabelsForApi = async ({
   promptName,
   promptVersion,
   newLabels,
+  removeLabels = [],
   ctx,
 }: {
   context: ApiKeyProjectContext;
   promptName: string;
   promptVersion: number;
   newLabels: string[];
+  removeLabels?: string[];
   ctx?: AuthorizationContext;
 }) => {
   const existingPrompt = await prisma.prompt.findUnique({
@@ -124,7 +126,7 @@ export const updatePromptLabelsForApi = async ({
     );
   }
 
-  // updatePrompt is additive; labels already on this version are not a
+  // newLabels are additive; labels already on this version are not a
   // mutation. Moving a protected label onto this version still counts as add.
   const addedLabels = newLabels.filter(
     (label) => !existingPrompt.labels.includes(label),
@@ -134,9 +136,11 @@ export const updatePromptLabelsForApi = async ({
     prisma,
     context,
     ctx,
-    labelsToCheck: addedLabels,
+    // Check every requested removal, not only labels present in the read
+    // above: the label set can change before updatePrompt locks the row.
+    labelsToCheck: [...addedLabels, ...removeLabels],
     forbiddenErrorMessage:
-      "You don't have permission to add a protected label to a prompt. Please contact your project admin for assistance.",
+      "You don't have permission to add/remove a protected label to/from a prompt. Please contact your project admin for assistance.",
   });
 
   const updatedPrompt = await updatePrompt({
@@ -144,6 +148,7 @@ export const updatePromptLabelsForApi = async ({
     projectId: context.projectId,
     promptVersion,
     newLabels,
+    removeLabels,
   });
 
   await auditLog({

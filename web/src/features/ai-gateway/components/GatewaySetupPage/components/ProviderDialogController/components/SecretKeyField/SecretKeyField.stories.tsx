@@ -50,6 +50,24 @@ export const Vercel = meta.story({
   },
 });
 
+export const GoogleAiStudio = meta.story({
+  args: {
+    provider: "GOOGLE_AI_STUDIO",
+    credential: "",
+    hasSavedKey: false,
+    onCredentialChange: fn(),
+  },
+});
+
+export const Vertex = meta.story({
+  args: {
+    provider: "VERTEX",
+    credential: "",
+    hasSavedKey: false,
+    onCredentialChange: fn(),
+  },
+});
+
 export const KeepSavedKey = meta.story({
   args: {
     provider: "ANTHROPIC",

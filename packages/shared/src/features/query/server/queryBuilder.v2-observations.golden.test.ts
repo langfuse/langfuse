@@ -1,7 +1,7 @@
 // Golden SQL for the v2 observations dashboard view (`eventsObservationsView`,
-// `events_core events_observations`), driven through `executeQuery(..., "v2",
-// singleLevel)` so the chartConfig/config threading into QueryBuilder is pinned
-// as prod sees it.
+// built on the query AST over the logical `events` as `e`), driven through
+// `executeQuery(..., "v2", singleLevel)` so the chartConfig/config threading
+// into QueryBuilder is pinned as prod sees it.
 //
 // Cases cover query shapes, not query inputs: one case per distinct SQL
 // structure (clauses, subquery nesting, JOIN and ARRAY JOIN, WITH FILL,
@@ -10,23 +10,17 @@
 // placeholder inside a lambda). Inputs that only change a column name, a
 // function name or a literal inside an otherwise identical query are not new
 // shapes and get no case: other dimensions and measures of the same kind,
-// other aggregation functions and granularities of the same template, `auto`
-// granularity (resolved to a fixed one before SQL is built), filter columns
-// sharing an operator template. Cases that throw before SQL is built assert
-// the error instead.
+// `auto` granularity (resolved to a fixed one before SQL is built), filter
+// columns sharing an operator template. Every granularity and every
+// aggregation has a case: each maps to its own bucket, step or aggregate
+// expression. Cases that throw before SQL is built assert the error instead.
 //
 // Not reachable on this view, so no case: the `rootEventCondition` subquery
 // (only `events_traces`), `filterSql` raw WHERE parts, `aggregationFunction`
-// dimensions, the observations FINAL skip, and the `events-observations` view
-// name branch (this view is named `events_observations`).
+// dimensions and the observations FINAL skip.
 //
-// Legacy oddities, pinned as today's behaviour (each also noted at its case):
-// - WHERE, GROUP BY, the time bucket and the two-level inner SELECT qualify
-//   columns with the table name (`events_core.` / `events_full.`) while FROM
-//   aliases the table `events_observations`. Every SQL case pins it.
-// - Token and cost measures read bare `usage_details` / `total_cost` while
-//   other columns are qualified. `inputCost` / `outputCost` (bare
-//   `cost_details`) share the `inputTokens` template and have no case.
+// `inputCost` / `outputCost` share the `inputTokens` template and have no
+// case.
 import {
   afterAll,
   beforeAll,
@@ -38,7 +32,7 @@ import {
 } from "vitest";
 
 import { env } from "../../../env";
-import type { QueryType } from "../types";
+import { granularities, metricAggregations, type QueryType } from "../types";
 import {
   capturedQueries,
   clickhouseFormatAvailable,
@@ -108,13 +102,11 @@ const MEASURES: ReadonlyArray<
   ["count", "count"],
   // the same placeholder twice inside a scalar function
   ["latency", "avg"],
-  // placeholder inside a `mapFilter` lambda; reads bare `usage_details`
-  // (legacy, pinned)
+  // placeholder inside a `mapFilter` lambda
   ["inputTokens", "sum"],
-  // `sumMap` placeholder followed by a map subscript; bare `usage_details`
-  // (legacy, pinned)
+  // `sumMap` placeholder followed by a map subscript
   ["totalTokens", "sum"],
-  // two different placeholders; bare `usage_details` (legacy, pinned)
+  // two different placeholders
   ["tokensPerSecond", "avg"],
   // relation measure without aggs: joins scores, forces two-level
   ["countScores", "sum"],
@@ -274,6 +266,13 @@ const FILTERS: ReadonlyArray<[string, Filter]> = [
       value: "",
     },
   ],
+  // The only empty array the schema admits (`all of` / `none of`, a pending
+  // selection); it still binds `[]` and matches every row. Empty
+  // stringOptions and empty `any of` are rejected before SQL.
+  [
+    "arrayOptions tags all-of empty-array",
+    { column: "tags", type: "arrayOptions", operator: "all of", value: [] },
+  ],
   // stays on events_core
   [
     "metadata core-safe =",
@@ -285,8 +284,7 @@ const FILTERS: ReadonlyArray<[string, Filter]> = [
       value: "eu",
     },
   ],
-  // rewrites the base table to events_full; WHERE then reads `events_full.`
-  // under the `events_observations` alias (legacy, pinned)
+  // routes to events_full
   [
     "metadata full contains",
     {
@@ -295,6 +293,64 @@ const FILTERS: ReadonlyArray<[string, Filter]> = [
       key: "region",
       operator: "contains",
       value: "eu",
+    },
+  ],
+  // gateway key owner (a metadata key) on every owner-scoped gateway
+  // analytics query; stays on events_core
+  [
+    "stringOptions aiGatewayKeyOwnerUserId any-of",
+    {
+      column: "aiGatewayKeyOwnerUserId",
+      type: "stringOptions",
+      operator: "any of",
+      value: ["owner-1"],
+    },
+  ],
+  [
+    "string aiGatewayKeyOwnerUserId=",
+    {
+      column: "aiGatewayKeyOwnerUserId",
+      type: "string",
+      operator: "=",
+      value: "owner-1",
+    },
+  ],
+  [
+    "string aiGatewayKeyOwnerUserId starts-with",
+    {
+      column: "aiGatewayKeyOwnerUserId",
+      type: "string",
+      operator: "starts with",
+      value: "owner",
+    },
+  ],
+  // matches every non-empty owner
+  [
+    "string aiGatewayKeyOwnerUserId starts-with empty",
+    {
+      column: "aiGatewayKeyOwnerUserId",
+      type: "string",
+      operator: "starts with",
+      value: "",
+    },
+  ],
+  // '' never matches the dimension (it reads NULL there)
+  [
+    "string aiGatewayKeyOwnerUserId= empty",
+    {
+      column: "aiGatewayKeyOwnerUserId",
+      type: "string",
+      operator: "=",
+      value: "",
+    },
+  ],
+  [
+    "stringOptions aiGatewayKeyOwnerUserId any-of with empty",
+    {
+      column: "aiGatewayKeyOwnerUserId",
+      type: "stringOptions",
+      operator: "any of",
+      value: ["", "owner-1"],
     },
   ],
 ];
@@ -313,14 +369,12 @@ describeWithClickhouse("golden: executeQuery v2 observations", () => {
   beforeEach(resetCaptures);
 
   describe("bucketing", () => {
-    // WHERE reads `events_core.` though FROM aliases `events_observations`
-    // (legacy, pinned).
     it("build bucket=none", async () => {
       expect(await golden({})).toMatchSnapshot();
     });
 
-    // `toDate(...)` and `toStartOfInterval(..., INTERVAL n ...)` templates.
-    it.each(["day", "5m"] as const)(
+    // Bucket expression and WITH FILL step of each granularity.
+    it.each(granularities.options.filter((g) => g !== "auto"))(
       "build bucket=time granularity=%s",
       async (granularity) => {
         expect(
@@ -339,6 +393,17 @@ describeWithClickhouse("golden: executeQuery v2 observations", () => {
             { field: "time_dimension", direction: "desc" },
             { field: "count_count", direction: "desc" },
           ],
+        }),
+      ).toMatchSnapshot();
+    });
+
+    // A fill bound before 1970 overflows the 32-bit DateTime bucket, so
+    // WITH FILL is dropped.
+    it("build bucket=time fill=skipped-overflow", async () => {
+      expect(
+        await golden({
+          timeDimension: { granularity: "day" },
+          fromTimestamp: "1969-12-31T00:00:00.000Z",
         }),
       ).toMatchSnapshot();
     });
@@ -490,8 +555,7 @@ describeWithClickhouse("golden: executeQuery v2 observations", () => {
       expect(await golden({ metrics: [] })).toMatchSnapshot();
     });
 
-    // Includes the `quantile(q)(...)` template; totalCost reads bare
-    // `total_cost` (legacy, pinned).
+    // Includes the `quantile(q)(...)` template.
     it("build metrics=count,totalCost,latency", async () => {
       expect(
         await golden({
@@ -506,6 +570,31 @@ describeWithClickhouse("golden: executeQuery v2 observations", () => {
   });
 
   describe("aggregations", () => {
+    it.each(metricAggregations.options)(
+      "build level=single agg=%s",
+      async (aggregation) => {
+        expect(
+          await golden({ metrics: [{ measure: "latency", aggregation }] }),
+        ).toMatchSnapshot();
+      },
+    );
+
+    // Parametric aggregates over the inner alias.
+    it.each(["p95", "histogram"] as const)(
+      "build level=two agg=%s",
+      async (aggregation) => {
+        expect(
+          await golden(
+            {
+              metrics: [{ measure: "latency", aggregation }],
+              chartConfig: { type: "HISTOGRAM", bins: 25 },
+            },
+            false,
+          ),
+        ).toMatchSnapshot();
+      },
+    );
+
     it("build agg=histogram chartConfig.bins=25", async () => {
       expect(
         await golden({
@@ -556,6 +645,22 @@ describeWithClickhouse("golden: executeQuery v2 observations", () => {
         }),
       ).rejects.toThrowErrorMatchingSnapshot();
     });
+
+    it("build filter=metadata contains empty-value throws", async () => {
+      await expect(
+        golden({
+          filters: [
+            {
+              column: "metadata",
+              type: "stringObject",
+              key: "region",
+              operator: "contains",
+              value: "",
+            },
+          ],
+        }),
+      ).rejects.toThrowErrorMatchingSnapshot();
+    });
   });
 
   describe("other clauses", () => {
@@ -574,7 +679,8 @@ describeWithClickhouse("golden: executeQuery v2 observations", () => {
       expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
     });
 
-    // The field matches the dimension's SQL, not its alias.
+    // The field matches the view's `sql` string of the dimension, not its
+    // alias.
     it("build orderBy=dimension via dim.sql", async () => {
       expect(
         await golden({
@@ -601,8 +707,7 @@ describeWithClickhouse("golden: executeQuery v2 observations", () => {
       ).toMatchSnapshot();
     });
 
-    // The time bucket reads the rewritten table name `events_full.` under the
-    // `events_observations` alias (legacy, pinned).
+    // The time bucket over events_full.
     it("build bucket=time filter=metadata-full", async () => {
       expect(
         await golden({
@@ -620,9 +725,7 @@ describeWithClickhouse("golden: executeQuery v2 observations", () => {
       ).toMatchSnapshot();
     });
 
-    // The inner subquery selects and groups by the table name
-    // `events_full.project_id` under the `events_observations` alias
-    // (legacy, pinned).
+    // The inner subquery over events_full.
     it("build level=two bucket=time filter=metadata-full", async () => {
       expect(
         await golden(
@@ -640,6 +743,41 @@ describeWithClickhouse("golden: executeQuery v2 observations", () => {
           },
           false,
         ),
+      ).toMatchSnapshot();
+    });
+
+    // A metadata dimension over events_full.
+    it("build dim=aiGatewayKeyOwnerUserId filter=metadata-full", async () => {
+      expect(
+        await golden({
+          dimensions: [{ field: "aiGatewayKeyOwnerUserId" }],
+          filters: [
+            {
+              column: "metadata",
+              type: "stringObject",
+              key: "region",
+              operator: "contains",
+              value: "eu",
+            },
+          ],
+        }),
+      ).toMatchSnapshot();
+    });
+
+    // The gateway per-user widgets: service keys have no owner.
+    it("build dim=aiGatewayKeyOwnerUserId filter=aiGatewayKeyOwnerUserId is not null", async () => {
+      expect(
+        await golden({
+          dimensions: [{ field: "aiGatewayKeyOwnerUserId" }],
+          filters: [
+            {
+              column: "aiGatewayKeyOwnerUserId",
+              type: "null",
+              operator: "is not null",
+              value: "",
+            },
+          ],
+        }),
       ).toMatchSnapshot();
     });
 

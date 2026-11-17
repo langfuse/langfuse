@@ -13,10 +13,13 @@ import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayPro
 const CREDENTIAL_SOURCES = {
   ANTHROPIC: "API key from console.anthropic.com",
   OPENAI: "API key from platform.openai.com",
-  BEDROCK: "AWS credentials and region",
+  BEDROCK: "Bedrock API key and region",
   OPENROUTER: "API key from openrouter.ai",
   XAI: "API key from console.x.ai",
   VERCEL: "API key from vercel.com",
+  AZURE: "Resource name and API key",
+  GOOGLE_AI_STUDIO: "API key from aistudio.google.com",
+  VERTEX: "Service account key and location",
 } satisfies Record<GatewayProvider, string>;
 
 export type GatewayNoProvidersEmptyStateProps = {
@@ -32,11 +35,11 @@ export function GatewayNoProvidersEmptyState({
   const providerNames = formatAvailableGatewayProviderNames();
   return (
     <GatewayPlaceholder.Frame
-      title="No providers yet"
-      description={`Add an ${providerNames} credential so the gateway can route requests and discover models.`}
+      title="No connections yet"
+      description={`Add an ${providerNames} connection so the gateway can route requests and discover models.`}
     >
       <GatewayPlaceholder.Actions>
-        <Button text="Add provider" icon={Plus} onClick={onAddProvider} />
+        <Button text="Add connection" icon={Plus} onClick={onAddProvider} />
         <Button
           variant="outline"
           text="How to set up the gateway"
@@ -44,7 +47,7 @@ export function GatewayNoProvidersEmptyState({
           href={GATEWAY_SETUP_DOCS_URL}
         />
       </GatewayPlaceholder.Actions>
-      <NoProvidersDiagram addLabel="+ Add" />
+      <NoProvidersDiagram unconnectedVariant="placeholder" />
       <ul className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
         {getGatewaySetupHeroProviders(new Set()).map(({ provider }) => (
           <li key={provider}>

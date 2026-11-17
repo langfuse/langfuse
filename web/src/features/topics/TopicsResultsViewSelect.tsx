@@ -1,13 +1,11 @@
-import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
-import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
-export const TOPICS_RESULTS_VIEWS = [
+const TOPICS_RESULTS_VIEWS = [
   { value: "treemap", label: "Treemap" },
-  { value: "treemap-side", label: "Treemap, side by side" },
-  { value: "grid", label: "Grid" },
-  { value: "map", label: "Map" },
+  { value: "list", label: "List" },
+  { value: "map", label: "Scatter" },
 ] as const;
 
 export type TopicsResultsView = (typeof TOPICS_RESULTS_VIEWS)[number]["value"];
@@ -16,54 +14,67 @@ export function TopicsResultsViewSelect({
   value,
   onValueChange,
 }: TopicsResultsViewSelectProps) {
-  const selected = TOPICS_RESULTS_VIEWS.find(
-    (option) => option.value === value,
-  );
   return (
-    <DropdownMenu
-      ariaLabel="Topics view"
-      items={TOPICS_RESULTS_VIEWS.map((option) => ({
-        type: "item" as const,
-        id: option.value,
-        title: option.label,
-        onClick: () => onValueChange(option.value),
-      }))}
+    <Tabs
+      value={value}
+      onValueChange={(next) => onValueChange(next as TopicsResultsView)}
     >
-      {({ getTriggerProps }) => (
-        <button
-          {...getTriggerProps()}
-          type="button"
-          aria-label={`Topics view: ${selected?.label ?? ""}`}
-          className="text-foreground hover:bg-accent focus-visible:ring-ring inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-bold focus-visible:ring-2 focus-visible:outline-hidden"
-        >
-          {selected?.label}
-          <DropdownIndicator />
-        </button>
-      )}
-    </DropdownMenu>
+      <Tabs.List variant="inset" size="sm" aria-label="Topics view">
+        {TOPICS_RESULTS_VIEWS.map((option) => (
+          <Tabs.Trigger
+            key={option.value}
+            value={option.value}
+            label={option.label}
+          />
+        ))}
+      </Tabs.List>
+    </Tabs>
   );
 }
 
 export function useTopicsResultsView() {
-  const capture = usePostHogClientCapture();
-  const [view, setView] = useLocalStorage<TopicsResultsView>(
+  const { view, selectView } = usePersistedResultsView(
     "topicsResultsView",
-    "treemap",
+    TOPICS_RESULTS_VIEWS.map((option) => option.value),
   );
-  const effectiveView = TOPICS_RESULTS_VIEWS.some(
-    (option) => option.value === view,
-  )
-    ? view
-    : "treemap";
-  function selectView(nextView: TopicsResultsView) {
-    if (nextView === effectiveView) return;
+  return [view, selectView] as const;
+}
+
+export type MobileTopicsVisualization = Extract<
+  TopicsResultsView,
+  "treemap" | "map"
+>;
+
+/** The handheld Visualize tab. */
+export function useMobileTopicsVisualization() {
+  const { view, selectView } =
+    usePersistedResultsView<MobileTopicsVisualization>(
+      "topicsMobileVisualization",
+      ["treemap", "map"],
+      "mobile",
+    );
+  return { view, onViewChange: selectView };
+}
+
+/** Falls back to the treemap when the stored view is no longer available. */
+function usePersistedResultsView<T extends TopicsResultsView>(
+  storageKey: string,
+  views: readonly T[],
+  surface?: "mobile",
+) {
+  const capture = usePostHogClientCapture();
+  const [stored, setStored] = useLocalStorage<T>(storageKey, "treemap" as T);
+  const view = views.includes(stored) ? stored : ("treemap" as T);
+  function selectView(nextView: T) {
+    if (nextView === view) return;
     capture("topics:results_view_select", {
       view: nextView,
-      previousView: effectiveView,
+      previousView: view,
+      ...(surface && { surface }),
     });
-    setView(nextView);
+    setStored(nextView);
   }
-  return [effectiveView, selectView] as const;
+  return { view, selectView };
 }
 
 type TopicsResultsViewSelectProps = {

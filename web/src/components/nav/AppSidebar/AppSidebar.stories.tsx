@@ -2,7 +2,6 @@
 import type { ComponentProps } from "react";
 import {
   Activity,
-  ArrowUpRight,
   BookOpen,
   ListTree,
   Grid2X2,
@@ -132,6 +131,17 @@ export const CurrentOpenSource = meta.story({
     versionState: {
       deployment: "self-hosted",
       plan: "oss",
+      release: { status: "current" },
+      migration: { status: "idle" },
+    },
+  },
+});
+
+export const CurrentGov = meta.story({
+  args: {
+    versionState: {
+      deployment: "self-hosted",
+      plan: "self-hosted:gov",
       release: { status: "current" },
       migration: { status: "idle" },
     },
@@ -283,6 +293,81 @@ export const MobileNavigation = meta.story({
   },
 });
 
+// Enterprise co-branding: a configured logo replaces the Langfuse mark.
+const sampleLogo = (fill: string) =>
+  `data:image/svg+xml,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48"><rect width="48" height="48" rx="10" fill="${fill}"/><text x="24" y="32" text-anchor="middle" font-family="Arial" font-weight="700" font-size="24" fill="white">A</text></svg>`,
+  )}`;
+
+export const CustomLogo = meta.story({
+  args: {
+    logo: {
+      lightModeHref: sampleLogo("#1d4ed8"),
+      darkModeHref: sampleLogo("#93c5fd"),
+    },
+    versionState: {
+      deployment: "self-hosted",
+      plan: "self-hosted:enterprise",
+      release: { status: "current" },
+      migration: { status: "idle" },
+    },
+    organization: { id: "org-acme", name: "Acme Inc." },
+    organizations: [
+      {
+        id: "org-acme",
+        name: "Acme Inc.",
+        role: "OWNER",
+        cloudConfig: undefined,
+        plan: "self-hosted:enterprise",
+        metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: false,
+        projects: [],
+      },
+    ],
+    canCreateOrganizations: true,
+  },
+});
+
+export const CustomLogoCollapsed = meta.story({
+  args: CustomLogo.input.args,
+  render: (args) => <SidebarStory open={false} args={args} />,
+});
+
+const cloudEnterpriseOrg = (name: string): Partial<AppSidebarProps> => ({
+  organization: { id: "org-enterprise", name },
+  organizations: [
+    {
+      id: "org-enterprise",
+      name,
+      role: "OWNER",
+      cloudConfig: undefined,
+      plan: "cloud:enterprise",
+      metadata: {},
+      aiFeaturesEnabled: false,
+      aiTelemetryEnabled: false,
+      projects: [],
+    },
+  ],
+});
+
+export const EnterprisePlanBadge = meta.story({
+  name: "(Test) Enterprise badge shows in full when the name fits",
+  args: cloudEnterpriseOrg("Acme"),
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText("ENTERPRISE")).toBeVisible();
+  },
+});
+
+export const EnterprisePlanBadgeLongName = meta.story({
+  name: "(Test) Enterprise badge shortens to ENT for a long name",
+  args: cloudEnterpriseOrg("Acme Research Labs"),
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText("ENT")).toBeVisible();
+    await expect(canvas.queryByText("ENTERPRISE")).toBeNull();
+  },
+});
+
 export const Collapsed = meta.story({
   render: (args) => <SidebarStory open={false} args={args} />,
 });
@@ -337,7 +422,7 @@ const aiGatewayNavigationArgs = {
           isActive: true,
         },
         {
-          title: "Providers & Models",
+          title: "Connections & Models",
           url: "/organization/org-acme/ai-gateway/models",
           icon: Box,
           disabledReason: SETUP_REQUIRED_REASON,
@@ -363,7 +448,7 @@ export const AiGatewayNavigationDisabledReason = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
-    const models = canvas.getByRole("link", { name: "Providers & Models" });
+    const models = canvas.getByRole("link", { name: "Connections & Models" });
     await expect(models).toHaveAttribute("aria-disabled", "true");
 
     models.focus();
@@ -389,7 +474,7 @@ export const AiGatewayNavigationSetUp = meta.story({
             isActive: true,
           },
           {
-            title: "Providers & Models",
+            title: "Connections & Models",
             url: "/organization/org-acme/ai-gateway/models",
             icon: Box,
           },
@@ -402,7 +487,7 @@ export const AiGatewayNavigationSetUp = meta.story({
             title: "Tracing",
             url: "/project/project-gateway/traces",
             icon: ListTree,
-            label: <ArrowUpRight size="base" color="tertiary" aria-hidden />,
+            external: true,
           },
         ],
       },

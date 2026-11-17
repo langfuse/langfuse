@@ -1,7 +1,4 @@
-import {
-  TOPICS_TRANSCRIPT_VERSION,
-  type TopicsModels,
-} from "@langfuse/shared/topics/server";
+import type { TopicsModels } from "@langfuse/shared/topics/server";
 import {
   DEFAULT_TOPIC_FACETS,
   topicProcessingConfigSchema,
@@ -15,10 +12,13 @@ import {
   getCurrentSpan,
   instrumentAsync,
   isInternalEvalEnvironment,
+  prepareAssembledTopicTranscript,
+  renderStoredTopicText,
+  TOPICS_TEXT_VERSION,
+  type ExecutionIssue,
   type Transcript,
 } from "@langfuse/shared/src/server";
 import { context as otelContext } from "@opentelemetry/api";
-import { prepareAssembledTopicTranscript } from "./assembledTranscript";
 import { TopicMetrics, type TopicResult } from "./metrics";
 import {
   embedTopicSummaries,
@@ -48,10 +48,10 @@ const BUILT_IN_FACETS = new Set(
   DEFAULT_TOPIC_FACETS.map((facet) => facet.name),
 );
 
-// Rows from this transcript producer are interchangeable between trace-batch and manual processing.
+// Stored as `transcript_id` on every summary.
 export const ASSEMBLED_TRANSCRIPT_ID = "trace-batch";
 
-export type TraceFacet = {
+type TraceFacet = {
   name: string;
   version: TopicFacetVersion;
   builtIn: boolean;
@@ -69,10 +69,13 @@ type AssembledTraceInput = {
   environment: string;
   traceName: string;
   transcript: Transcript | null;
+  executionIssues: ExecutionIssue[];
   models: TopicsModels;
   facets: TopicFacet[];
   // Tags the attempt's metrics so retries are separable from first attempts.
   attempt?: "first" | "retry";
+  /** The snapshot that seeded the trace; stored on its summaries. */
+  executionId?: string;
 };
 
 export type TopicsFailedStage = "summary" | "embedding";
@@ -138,9 +141,7 @@ async function summarizeEnabledTrace(
 ): Promise<AssembledTraceResult> {
   const { models, facets } = input;
   const embeddingModel = models.embedding.model;
-  const config = topicProcessingConfigSchema.parse({
-    summaryModel: models.summary.model,
-  });
+  const config = topicProcessingConfigSchema.parse({});
   const pending: TraceFacet[] = [];
   // Built-in facets first, each group in listing order, so the cached prompt prefix stays stable.
   const ordered = [
@@ -163,16 +164,19 @@ async function summarizeEnabledTrace(
       environment: input.environment,
       traceName: input.traceName,
       facet: version,
-      summaryModel: config.summaryModel!,
+      summaryModel: models.summary.model,
       embeddingModel,
-      triggerType: "automatic",
-      metadata: { input: "assembled-transcript" },
+      // A snapshot's summaries carry its ID, for its progress and cost.
+      metadata: input.executionId
+        ? { input: "topics-text", executionId: input.executionId }
+        : { input: "topics-text" },
     }),
   );
   const summarized = await summarizeTraceFacets({
     models,
     facets: pending,
     transcript: input.transcript,
+    executionIssues: input.executionIssues,
     config,
     metadata: {
       source_trace_id: input.traceId,
@@ -244,14 +248,15 @@ async function summarizeEnabledTrace(
 
 /**
  * Summarizes the given facets of one trace in a single model call on the
- * projected transcript. Trace-batch and manual processing share this request.
+ * projected transcript.
  * Returns undefined without a call when the transcript has no content; results
  * follow the order of `facets`, with an error for each invalid facet output.
  */
-export async function summarizeTraceFacets(params: {
+async function summarizeTraceFacets(params: {
   models: TopicsModels;
   facets: TraceFacet[];
   transcript: Transcript | null;
+  executionIssues: ExecutionIssue[];
   config: TopicProcessingConfig;
   metadata: Record<string, unknown>;
   metrics: TopicMetrics;
@@ -264,17 +269,17 @@ export async function summarizeTraceFacets(params: {
     result: TopicResult,
     source: "model" | "rule",
   ) => metrics.result("summary", result, 1, { source, facet: facetTag(facet) });
-  const prepared = prepareAssembledTopicTranscript(params.transcript);
-  if (!prepared.hasContent) {
+  // The projection's content check gates the text, whose run-facts header is never empty.
+  const projection = prepareAssembledTopicTranscript(params.transcript);
+  if (!projection.hasContent || !params.transcript) {
     for (const facet of facets) outcome(facet, "insufficient_input", "rule");
     return undefined;
   }
-  // Built-in facets first, each group in listing order, so the cached prompt prefix stays stable.
-  const ordered = [
-    ...facets.filter((facet) => facet.builtIn),
-    ...facets.filter((facet) => !facet.builtIn),
-  ];
-  const keyed = ordered.map(({ name, version, builtIn }, index) => ({
+  const text = renderStoredTopicText(params.transcript, params.executionIssues);
+  metrics.summaryInputCharacters("text", text.length);
+  metrics.summaryInputCharacters("json", projection.text.length);
+  // The caller lists built-in facets first, so the cached prompt prefix stays stable.
+  const keyed = facets.map(({ name, version, builtIn }, index) => ({
     key: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "_")}_${index + 1}`,
     facet: version,
     builtIn,
@@ -288,7 +293,7 @@ export async function summarizeTraceFacets(params: {
       generated = await summarizeTopicTraceFacets(
         models,
         keyed,
-        prepared.text,
+        text,
         config,
         params.metadata,
       );
@@ -322,8 +327,8 @@ export async function summarizeTraceFacets(params: {
     });
   const result = generated!;
   const outputs = result.output as Record<string, FacetOutput>;
-  const results = facets.map((facet): TraceFacetResult => {
-    const { key } = keyed[ordered.indexOf(facet)];
+  const results = facets.map((facet, index): TraceFacetResult => {
+    const { key } = keyed[index];
     const error = errors.get(key);
     if (error) outcome(facet, "invalid_output", "rule");
     else outcome(facet, outputs[key].status, "model");
@@ -353,8 +358,8 @@ function facetTag(facet: TraceFacet): string {
     : "custom";
 }
 
-/** The summary row both processing paths start from, before any model call. */
-export function baseTopicSummary(params: {
+/** The summary row processing starts from, before any model call. */
+function baseTopicSummary(params: {
   projectId: string;
   traceId: string;
   sessionId: string | null;
@@ -364,7 +369,6 @@ export function baseTopicSummary(params: {
   facet: TopicFacetVersion;
   summaryModel: string;
   embeddingModel: string;
-  triggerType: "automatic" | "manual";
   metadata: Record<string, unknown>;
 }): TopicSummary {
   return {
@@ -373,7 +377,7 @@ export function baseTopicSummary(params: {
     facetVersion: params.facet.version,
     traceId: params.traceId,
     sessionId: params.sessionId,
-    triggerType: params.triggerType,
+    triggerType: "automatic",
     unitStartTime: params.unitStartTime,
     environment: params.environment,
     traceName: params.traceName,
@@ -381,7 +385,7 @@ export function baseTopicSummary(params: {
     summary: "",
     embedding: [],
     transcriptId: ASSEMBLED_TRANSCRIPT_ID,
-    transcriptVersion: TOPICS_TRANSCRIPT_VERSION,
+    transcriptVersion: TOPICS_TEXT_VERSION,
     summaryModel: params.summaryModel,
     embeddingModel: params.embeddingModel,
     ...NO_USAGE,

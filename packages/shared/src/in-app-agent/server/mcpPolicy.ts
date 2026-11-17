@@ -196,6 +196,18 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "approval",
     availability: { scope: "evaluationRule:CUD" },
   },
+  getDefaultEvaluationModel: {
+    approval: "auto",
+    availability: { scope: "evalDefaultModel:read" },
+  },
+  setDefaultEvaluationModel: {
+    approval: "approval",
+    availability: { scope: "evalDefaultModel:CUD" },
+  },
+  deleteDefaultEvaluationModel: {
+    approval: "approval",
+    availability: { scope: "evalDefaultModel:CUD" },
+  },
   listExperiments: {
     approval: "auto",
     availability: { scope: "promptExperiments:read" },

@@ -162,10 +162,17 @@ export { toEvalRecord } from "./normalized-io/projections/eval-record";
 export { toToolColumns } from "./normalized-io/projections/tool-call-columns";
 export { orderObservations } from "./transcript/ordering";
 export { assembleTranscript } from "./transcript/transcript";
-export { renderTranscript } from "./transcript/topics-renderer";
+export {
+  redactModelPayload,
+  renderTranscript,
+} from "./transcript/topics-renderer";
 export { renderTranscriptFromObservations } from "./transcript/topics-renderer";
+export {
+  prepareAssembledTopicTranscript,
+  renderStoredTopicText,
+  TOPICS_TEXT_VERSION,
+} from "./transcript/topics-model-input";
 export { transcriptBlockTypes } from "./transcript/topics-renderer";
-export { renderGenericTranscript } from "./transcript/generic-renderer";
 export { topicsTranscriptConfig } from "./transcript/topics-renderer-config";
 export { transcriptRenderConfigSchema } from "./transcript/topics-renderer-config";
 export { type TranscriptRenderConfig } from "./transcript/topics-renderer-config";
@@ -200,7 +207,6 @@ export * from "./redis/webhookQueue";
 export * from "./redis/monitorQueue";
 export * from "./redis/inAppAgentRunQueue";
 export * from "./redis/traceDelete";
-export * from "./redis/traceBatch";
 export * from "./redis/sharding";
 export * from "./redis/projectDelete";
 export * from "./redis/scoreDelete";
@@ -727,10 +733,18 @@ export { type AuditLogEntry } from "./repositories/auditLogs";
 export { getAuditLogs } from "./repositories/auditLogs";
 export { getAuditLogsCount } from "./repositories/auditLogs";
 export { getAuditLogsForExport } from "./repositories/auditLogs";
+export { convertPostgresAuditLogToClickhouse } from "./repositories/auditLogs";
+export { getAuditLogResourceRefs } from "./repositories/auditLogs";
+export { getSystemAuditLogActorForUserId } from "./repositories/auditLogs";
+export { getSystemAuditLogActorForApiKeyId } from "./repositories/auditLogs";
 export { type BillableEventType } from "./repositories/billable-events";
 export { getBillableUnitCountsByProjectInWindow } from "./repositories/billable-events";
-export { getTopicSetupTraceCounts } from "./repositories/topic-setup-events";
-export { getTopicSetupTraceIds } from "./repositories/topic-setup-events";
+export { getTopicSetupTraceCount } from "./repositories/topic-setup-events";
+export {
+  getTopicSetupTraceBounds,
+  getTopicSetupTraceIds,
+  TOPIC_SETUP_WINDOW_DAYS,
+} from "./repositories/topic-setup-events";
 export { getTopicSetupTraceNames } from "./repositories/topic-setup-events";
 export {
   getTopicResultCounts,

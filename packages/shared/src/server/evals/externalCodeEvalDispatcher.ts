@@ -6,6 +6,7 @@ import { addSecureOutboundConnectionValidation } from "../outbound-url/connectio
 import { urlForLog } from "../outbound-url/fetch";
 import {
   OutboundUrlValidationError,
+  parseOutboundUrl,
   type OutboundUrlValidationWhitelist,
 } from "../outbound-url/validation";
 import {
@@ -62,7 +63,8 @@ export class ExternalCodeEvalDispatcher implements CodeEvalDispatcher {
     maxAttempts: number;
     languages: SourceCodeLanguage[];
   }) {
-    this.endpoint = params.endpoint;
+    const endpointUrl = parseOutboundUrl(params.endpoint);
+    this.endpoint = endpointUrl.href;
     this.signingSecret = params.signingSecret;
     this.timeoutMs = params.timeoutMs;
     this.connectTimeoutMs = params.connectTimeoutMs;
@@ -80,7 +82,7 @@ export class ExternalCodeEvalDispatcher implements CodeEvalDispatcher {
       hosts: [],
       ips: [],
       ip_ranges: [],
-      allowedHosts: [new URL(params.endpoint).hostname],
+      allowedHosts: [endpointUrl.hostname],
     };
   }
 
