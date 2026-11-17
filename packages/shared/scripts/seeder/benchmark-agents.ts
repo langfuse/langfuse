@@ -15,7 +15,20 @@ import {
   getAgentSkills,
   getAgentInfo,
   getAgentEnvironments,
+  getAgentOverview,
+  getAgentActivity,
+  getAgentListActivity,
 } from "../../src/server/repositories/agents";
+
+import {
+  getAgentQualityOptions,
+  getAgentQuality,
+  getAgentRelationships,
+} from "../../src/server/repositories/agent-insights";
+import type {
+  AgentIdentity,
+  AgentQualityScore,
+} from "../../src/features/agents/api";
 
 async function main() {
   const { values } = parseArgs({
@@ -54,6 +67,19 @@ async function main() {
   const startedAt = new Date();
   const measurements: { name: string; durationMs: number }[] = [];
   let agentCount = 0;
+  const workloadCoverage: {
+    identity: AgentIdentity;
+    currentRuns: number;
+    previousRuns: number;
+    knownCacheModelCalls: number;
+    scoreOptions: number;
+    selectedScore: AgentQualityScore | null;
+    scoredRuns: number;
+    relationshipEdges: number;
+    relationshipCoverage: Awaited<
+      ReturnType<typeof getAgentRelationships>
+    >["coverage"];
+  }[] = [];
   await context.with(
     contextWithLangfuseProps({
       projectId: scope.projectId,
@@ -95,6 +121,48 @@ async function main() {
         );
         await timed("info", () => getAgentInfo(detail));
         await timed("environments", () => getAgentEnvironments(scope));
+        await timed("galleryActivity", () =>
+          getAgentActivity({
+            ...scope,
+            identities: gallery.items.map((agent) => agent.identity),
+          }),
+        );
+        await timed("listActivity", () => getAgentListActivity(scope));
+        const overview = await timed("overview", () =>
+          getAgentOverview(detail),
+        );
+        const qualityOptions = await timed("qualityOptions", () =>
+          getAgentQualityOptions(detail),
+        );
+        const selectedScore = qualityOptions.items[0] ?? null;
+        // An empty selector still exercises the quality cohort scan, without claiming scored data.
+        const quality = await timed(
+          selectedScore ? "quality" : "qualityEmptyCohort",
+          () =>
+            getAgentQuality({
+              ...detail,
+              score: selectedScore ?? {
+                name: "benchmark:unscored",
+                dataType: "NUMERIC",
+                source: "API",
+                configId: null,
+              },
+            }),
+        );
+        const relationships = await timed("relationships", () =>
+          getAgentRelationships(detail),
+        );
+        workloadCoverage.push({
+          identity: detail.identity,
+          currentRuns: overview.current.stats.runs,
+          previousRuns: overview.previous.stats.runs,
+          knownCacheModelCalls: overview.current.stats.knownCacheModelCalls,
+          scoreOptions: qualityOptions.items.length,
+          selectedScore,
+          scoredRuns: quality.current.scoredRuns,
+          relationshipEdges: relationships.items.length,
+          relationshipCoverage: relationships.coverage,
+        });
       }
     },
   );
@@ -165,6 +233,19 @@ async function main() {
     },
     iterations,
     agentCount,
+    workloadCoverage,
+    sourceSha256: Object.fromEntries(
+      [
+        "../../src/server/repositories/agents.ts",
+        "../../src/server/repositories/agent-insights.ts",
+        "../../src/server/repositories/agent-cache-usage.ts",
+      ].map((path) => [
+        path,
+        createHash("sha256")
+          .update(readFileSync(resolve(__dirname, path)))
+          .digest("hex"),
+      ]),
+    ),
     measurements,
     queryLog: queryLog.map(({ query: _query, ...row }) => row),
     indexEvidence,
@@ -174,7 +255,7 @@ async function main() {
       maxReadBytes: 536870912,
     },
     caveat:
-      "Local synthetic data; not a production latency guarantee. Timings include client overhead. Every result covers the full selected cohort without sampling.",
+      "Local synthetic data; not a production latency guarantee. Timings include client overhead. Agent relationships use their bounded trace/span sample, reported in workloadCoverage. Empty scored/cache cohorts measure scan baseline only. Native Events/Sessions table queries and HTTP/auth overhead are excluded.",
   };
   if (values.output)
     writeFileSync(values.output, JSON.stringify(report, null, 2) + "\n");
