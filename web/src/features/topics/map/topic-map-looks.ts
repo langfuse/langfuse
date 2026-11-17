@@ -55,7 +55,7 @@ export const TOPIC_MAP_LOOKS: Record<TopicMapLookName, TopicMapLook> = {
       lineHeight: 14,
       tracking: "0.01em",
       color: "#27272a",
-      shadow: "0 0 3px #fcfcfa, 0 0 6px #fcfcfa",
+      shadow: "0 0 8px rgb(252 252 250 / 0.7)",
     },
   },
   scatter2: {
@@ -82,7 +82,7 @@ export const TOPIC_MAP_LOOKS: Record<TopicMapLookName, TopicMapLook> = {
       lineHeight: 16,
       tracking: "0",
       color: "#3f3f46",
-      shadow: "0 0 3px #fcfcfa, 0 0 6px #fcfcfa",
+      shadow: "0 0 8px rgb(252 252 250 / 0.7)",
     },
   },
 };
