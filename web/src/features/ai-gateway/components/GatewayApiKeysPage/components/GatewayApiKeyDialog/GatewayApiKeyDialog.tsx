@@ -174,6 +174,7 @@ export function GatewayApiKeyDialog({
       <Dialog.Body>
         <Form
           id={formId}
+          density="compact"
           actions={[]}
           onSubmit={form.handleSubmit(handleValidSubmit)}
         >
