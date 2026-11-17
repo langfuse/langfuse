@@ -25,6 +25,26 @@ import type { ServerContext } from "../types";
 import { createMcpServer } from "./mcpServer";
 import { getCurrentSpan, logger } from "@langfuse/shared/src/server";
 
+/**
+ * Returns whether the request is 2025-era (no 2026-07-28 `_meta` envelope
+ * claim) and records the era and the `MCP-Protocol-Version` header, when
+ * present, on the current span.
+ */
+async function classifyAndTagProtocolEra(
+  req: NextApiRequest,
+): Promise<boolean> {
+  const webRequest = await toWebRequest(req, req.body);
+  const isLegacy = await isLegacyRequest(webRequest, req.body);
+  const protocolVersion = req.headers["mcp-protocol-version"];
+  getCurrentSpan()?.setAttributes({
+    "mcp.protocol.era": isLegacy ? "legacy" : "modern",
+    ...(protocolVersion !== undefined && {
+      "mcp.protocol.version": protocolVersion,
+    }),
+  });
+  return isLegacy;
+}
+
 async function handleRequest(
   context: ServerContext,
   req: NextApiRequest,
@@ -114,17 +134,7 @@ export async function handleMcpRequest(
       }
     }
 
-    // A request without a 2026-07-28 `_meta` envelope claim is 2025-era.
-    const webRequest = await toWebRequest(req, req.body);
-    const isLegacy = await isLegacyRequest(webRequest, req.body);
-    const protocolVersion = req.headers["mcp-protocol-version"];
-    getCurrentSpan()?.setAttributes({
-      "mcp.protocol.era": isLegacy ? "legacy" : "modern",
-      ...(protocolVersion !== undefined && {
-        "mcp.protocol.version": protocolVersion,
-      }),
-    });
-
+    const isLegacy = await classifyAndTagProtocolEra(req);
     if (isLegacy) {
       // dedicated path to keep json response for legacy requests
       await handleLegacyRequest(context, req, res);
