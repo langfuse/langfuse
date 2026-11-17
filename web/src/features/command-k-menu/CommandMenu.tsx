@@ -8,8 +8,8 @@ import {
   CommandList,
   CommandSeparator,
   CommandShortcut,
+  useCommandState,
 } from "@/src/components/ui/command";
-import { useCommandState } from "cmdk";
 import { useRouter } from "next/router";
 import {
   BotMessageSquare,
@@ -337,7 +337,7 @@ function CreateActionItem({
   );
 }
 
-function useAssistantQueryOffer() {
+function useAssistantQueryOffer(resultsSettled: boolean) {
   const isLauncherVisible = useIsInAppAgentLauncherVisible();
   const search = useCommandState((state) => state.search);
   const filteredCount = useCommandState((state) => state.filtered.count);
@@ -345,32 +345,121 @@ function useAssistantQueryOffer() {
 
   return {
     query,
-    offer: isLauncherVisible && query.length > 0 && filteredCount === 0,
+    offer:
+      resultsSettled &&
+      isLauncherVisible &&
+      query.length > 0 &&
+      filteredCount === 0,
   };
 }
 
-function CommandMenuEmpty() {
-  const { offer } = useAssistantQueryOffer();
+function CommandMenuEmpty({ resultsSettled }: { resultsSettled: boolean }) {
+  const { offer } = useAssistantQueryOffer(resultsSettled);
 
   if (offer) return null;
 
   return <CommandEmpty>No results found.</CommandEmpty>;
 }
 
-function AssistantQueryFallback({
-  onAsk,
-  offeredQueryRef,
-}: {
-  onAsk: (query: string) => void;
-  offeredQueryRef: { current: string | null };
+function useAskHalo(
+  lockRef: { current: string | null },
+  onAccepted: () => void,
+) {
+  const { openAssistant, submit } = useInAppAiAgent();
+
+  return (query: string) => {
+    // Enter on the input and a click can both reach here in one tick.
+    if (lockRef.current !== null) return;
+    lockRef.current = query;
+
+    if (!openAssistant("command_menu")) {
+      lockRef.current = null;
+      return;
+    }
+
+    // Close only after Halo accepts the question. A refusal leaves the query in the menu.
+    submit(query, {
+      newConversation: true,
+      entryPoint: "command_menu",
+    })
+      .then((accepted) => {
+        if (lockRef.current !== query) return;
+        if (!accepted) {
+          lockRef.current = null;
+          return;
+        }
+        onAccepted();
+      })
+      .catch(() => {
+        if (lockRef.current === query) lockRef.current = null;
+      });
+  };
+}
+
+function commitsImeComposition(event: {
+  isComposing: boolean;
+  keyCode?: number;
 }) {
-  const { offer, query } = useAssistantQueryOffer();
-  const label = `Ask Halo "${query}"`;
-  // The fallback item is force-mounted, so cmdk never selects it. Enter on
-  // the input reads the query offered for this render from the ref.
-  offeredQueryRef.current = offer ? query : null;
+  // Safari reports the Enter that commits an IME composition as keyCode 229,
+  // with isComposing already false.
+  return event.isComposing || event.keyCode === 229;
+}
+
+function CommandMenuInput({
+  search,
+  onSearchChange,
+  resultsSettled,
+  lockRef,
+  onAccepted,
+}: {
+  search: string;
+  onSearchChange: (value: string) => void;
+  resultsSettled: boolean;
+  lockRef: { current: string | null };
+  onAccepted: () => void;
+}) {
+  const { offer, query } = useAssistantQueryOffer(resultsSettled);
+  const ask = useAskHalo(lockRef, onAccepted);
+
+  return (
+    <CommandInput
+      placeholder="Search pages, projects, dashboards…"
+      className="border-none text-lg focus:border-none focus:ring-0 focus:ring-transparent focus:outline-hidden"
+      value={search}
+      onValueChange={onSearchChange}
+      onKeyDown={(event) => {
+        if (
+          event.key !== "Enter" ||
+          commitsImeComposition(event.nativeEvent) ||
+          !offer ||
+          query !== search.trim()
+        ) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        ask(query);
+      }}
+    />
+  );
+}
+
+function AssistantQueryFallback({
+  resultsSettled,
+  lockRef,
+  onAccepted,
+}: {
+  resultsSettled: boolean;
+  lockRef: { current: string | null };
+  onAccepted: () => void;
+}) {
+  const { offer, query } = useAssistantQueryOffer(resultsSettled);
+  const ask = useAskHalo(lockRef, onAccepted);
 
   if (!offer) return null;
+
+  const label = `Ask Halo "${query}"`;
 
   return (
     <CommandGroup forceMount heading="Halo">
@@ -378,7 +467,7 @@ function AssistantQueryFallback({
         forceMount
         className="bg-accent text-primary"
         value={`ask-halo:${query}`}
-        onSelect={() => onAsk(query)}
+        onSelect={() => ask(query)}
       >
         <BotMessageSquare size="base" />
         <span className="min-w-0 flex-1 truncate" title={label}>
@@ -953,9 +1042,8 @@ function CommandMenuComponent({
   mainNavigation: NavigationItem[];
 }) {
   const { open, setOpen } = useCommandMenu();
-  const { openAssistant, submit } = useInAppAiAgent();
   const capture = usePostHogClientCapture();
-  const offeredQueryRef = useRef<string | null>(null);
+  const askLockRef = useRef<string | null>(null);
   const { project } = useQueryProjectOrOrganization();
   const { isV4 } = useReadPath();
   const [search, setSearch] = useState("");
@@ -964,11 +1052,14 @@ function CommandMenuComponent({
   const flatNavigation = flattenNavigation(mainNavigation);
   const createActions = useCreateActions(mainNavigation);
   const pageShortcuts = usePageShortcuts(mainNavigation);
-  const { entityGroups, entityBaseUrls } = useEntityGroups(
+  const { entityGroups, entityBaseUrls, entitiesFetching } = useEntityGroups(
     mainNavigation,
     search,
     debouncedSearch,
   );
+  // Server-searched entities stay empty until the debounce and the fetch settle.
+  const resultsSettled =
+    search.trim() === debouncedSearch.trim() && !entitiesFetching;
   const isSearching = search !== "";
   const idNavigationItem = getIdNavigationItem(search, project?.id, isV4);
 
@@ -983,7 +1074,7 @@ function CommandMenuComponent({
 
   // Closing drops the pending query so the next open does not search the previous text.
   const clearSearch = useCallback(() => {
-    offeredQueryRef.current = null;
+    askLockRef.current = null;
     debouncedSearchChange.cancel();
     setSearch("");
     setDebouncedSearch("");
@@ -1055,33 +1146,6 @@ function CommandMenuComponent({
     setOpen(false);
   };
 
-  const askAssistant = (query: string) => {
-    // Enter on the input and a click can both reach here in one tick.
-    if (offeredQueryRef.current === null) return;
-    offeredQueryRef.current = null;
-
-    if (!openAssistant("command_menu")) {
-      offeredQueryRef.current = query;
-      return;
-    }
-
-    // Close only after Halo accepts the question. A refusal leaves the query in the menu.
-    submit(query, {
-      newConversation: true,
-      entryPoint: "command_menu",
-    })
-      .then((accepted) => {
-        if (!accepted) {
-          offeredQueryRef.current = query;
-          return;
-        }
-        handleNavigate();
-      })
-      .catch(() => {
-        offeredQueryRef.current = query;
-      });
-  };
-
   return (
     <CommandDialog
       open={open}
@@ -1093,35 +1157,22 @@ function CommandMenuComponent({
         matchesSearch(`${value} ${keywords?.join(" ")}`, search) ? 1 : 0
       }
     >
-      <CommandInput
-        placeholder="Search pages, projects, dashboards…"
-        className="border-none text-lg focus:border-none focus:ring-0 focus:ring-transparent focus:outline-hidden"
-        value={search}
-        onValueChange={(value) => {
+      <CommandMenuInput
+        search={search}
+        onSearchChange={(value) => {
           setSearch(value);
           debouncedSearchChange(value);
         }}
-        onKeyDown={(event) => {
-          const query = offeredQueryRef.current;
-          if (
-            event.key !== "Enter" ||
-            event.nativeEvent.isComposing ||
-            query === null ||
-            query !== search.trim()
-          ) {
-            return;
-          }
-
-          event.preventDefault();
-          event.stopPropagation();
-          askAssistant(query);
-        }}
+        resultsSettled={resultsSettled}
+        lockRef={askLockRef}
+        onAccepted={handleNavigate}
       />
       <CommandList>
-        <CommandMenuEmpty />
+        <CommandMenuEmpty resultsSettled={resultsSettled} />
         <AssistantQueryFallback
-          onAsk={askAssistant}
-          offeredQueryRef={offeredQueryRef}
+          resultsSettled={resultsSettled}
+          lockRef={askLockRef}
+          onAccepted={handleNavigate}
         />
         {idNavigationItem && (
           <IdNavigationGroup
@@ -1325,6 +1376,7 @@ function useEntityGroups(
 ): {
   entityGroups: EntityGroupData[];
   entityBaseUrls: string[];
+  entitiesFetching: boolean;
 } {
   const session = useSession();
   const { project } = useQueryProjectOrOrganization();
@@ -1379,6 +1431,11 @@ function useEntityGroups(
     entityBaseUrls: [promptsUrl, datasetsUrl, queuesUrl, evaluatorsUrl].filter(
       (url): url is string => url !== null,
     ),
+    entitiesFetching:
+      prompts.isFetching ||
+      datasets.isFetching ||
+      queues.isFetching ||
+      evaluators.isFetching,
   };
 }
 
