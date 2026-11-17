@@ -160,6 +160,7 @@ import {
   REFRESH_INTERVALS,
   type RefreshInterval,
 } from "@/src/components/table/utils/refresh-intervals";
+import { useEffectiveRefreshInterval } from "@/src/components/table/hooks/useEffectiveRefreshInterval";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
@@ -471,6 +472,7 @@ export default function ObservationsEventsTable({
     },
     [allowedValues, setRawRefreshInterval],
   );
+  const effectiveRefreshInterval = useEffectiveRefreshInterval(refreshInterval);
 
   // When the chart/outlier-strip window (below) last advanced. Truncated to the
   // minute: a to-the-millisecond bound re-keyed the chart query on every tick,
@@ -495,10 +497,10 @@ export default function ObservationsEventsTable({
   }, [utils]);
 
   useEffect(() => {
-    if (!refreshInterval) return;
-    const id = setInterval(handleRefresh, refreshInterval);
+    if (!effectiveRefreshInterval) return;
+    const id = setInterval(handleRefresh, effectiveRefreshInterval);
     return () => clearInterval(id);
-  }, [refreshInterval, handleRefresh]);
+  }, [effectiveRefreshInterval, handleRefresh]);
 
   const { range: tableDateRange, anchoredTo } =
     useLiveTableDateRange(timeRange);
