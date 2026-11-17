@@ -1,6 +1,5 @@
 import { useMemo, type ComponentProps, type ReactNode } from "react";
 import { useRouter } from "next/router";
-import { type FilterState } from "@langfuse/shared";
 import { useMediaQuery } from "react-responsive";
 import {
   ResizableHandle,
@@ -11,12 +10,7 @@ import {
 import { cn } from "@/src/utils/tailwind";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { TopicsEmptyState } from "../TopicsEmptyState";
-import {
-  type Facet,
-  orderedFacetTopics,
-  type TopicTraceQuery,
-  type UseTopicTraces,
-} from "../facet-topics";
+import { type Facet, type UseTopicTraces } from "../facet-topics";
 import {
   prepareTopicDisplay,
   type TopicDisplay,
@@ -28,9 +22,10 @@ import {
   scatterSwatchColor,
   UNASSIGNED_SWATCH_COLOR,
 } from "../topic-map-colors";
-import { filterTopicTraces, topicTraceQuery } from "../topic-trace-filters";
+import { filterTopicTraces } from "../topic-trace-filters";
 import { type useTopicTraceFilters } from "../useTopicTraceFilters";
 import { ScatterMap } from "./ScatterMap";
+import { useTopicSearchSelection } from "../topic-selection";
 
 /** The scatter above one-line topic rows, with the selected topic's traces beside them. */
 export function ScatterTopicsView({
@@ -52,52 +47,23 @@ export function ScatterTopicsView({
   const topics = withScatterColors(
     prepareTopicDisplay(facet, "treemap").topics,
   );
-  // A stable list keeps the highlight set, and so a pinned card, across selection re-renders.
-  const searchTopics = useMemo(() => orderedFacetTopics(facet), [facet]);
-  // The search bar holds the selection: picking a topic writes its filter there.
-  const selectedTopicId = pickedTopicId(
-    traceFilters.filters,
-    traceFilters.searchQuery,
-  );
-  const selected = topics.find((topic) => topic.id === selectedTopicId);
-  const isSearching =
-    !selected &&
-    (traceFilters.filters.length > 0 ||
-      Boolean(traceFilters.searchQuery?.trim()));
-  const traces = useTraces(listQuery());
-  function listQuery(): TopicTraceQuery | null {
-    if (isSearching)
-      return topicTraceQuery(
-        traceFilters.filters,
-        traceFilters.searchQuery,
-        searchTopics,
-        { assignedOnly: !showUnassigned },
-      );
-    if (selected) return topicQuery(selected.id);
-    return showUnassigned ? {} : { assigned: true };
-  }
-  // Picking a topic replaces the search with its filter; picking it again, or null, clears it.
-  function selectTopic(topicId: string | null) {
-    traceFilters.setSearchQuery(null);
-    traceFilters.setFilters(
-      topicId === null || topicId === selectedTopicId
-        ? []
-        : topicFilters(topicId),
-    );
-  }
-  // Map resets (Fit, Escape, an empty click) drop a picked topic but keep a typed search.
-  function clearPickedTopic() {
-    if (selected) selectTopic(null);
-  }
-  function listTitle() {
-    if (isSearching) return "Matching traces";
-    return selected ? selected.name : "All traces";
-  }
-  function listCount() {
-    // A search's total is unknown; the list only holds the loaded pages.
-    if (isSearching) return null;
-    return selected ? selected.count : facet.counts.total;
-  }
+  const {
+    searchTopics,
+    selectedTopicId,
+    selected,
+    isSearching,
+    query,
+    selectTopic,
+    clearPickedTopic,
+    listProps,
+  } = useTopicSearchSelection({
+    projectId,
+    facet,
+    topics,
+    traceFilters,
+    showUnassigned,
+  });
+  const traces = useTraces(query);
   // Bars scale to the biggest real topic; Unassigned would flatten the rest.
   const maxCount = Math.max(
     1,
@@ -210,33 +176,11 @@ export function ScatterTopicsView({
         <TopicTraceList
           key={isSearching ? "search" : (selected?.id ?? "all")}
           projectId={projectId}
-          title={listTitle()}
-          description={
-            isSearching || !selected || selected.id === UNASSIGNED_TOPIC_ID
-              ? undefined
-              : selected.description
-          }
-          swatchColor={isSearching ? undefined : selected?.color}
+          {...listProps}
           traces={traces}
-          totalCount={listCount()}
-          tracingTopic={
-            isSearching || !selected || selected.id === UNASSIGNED_TOPIC_ID
-              ? undefined
-              : { facet, name: selected.name }
-          }
           peekView={peekView}
           tracePanelRef={tracePanelRef}
           divider="none"
-          emptyMessage={isSearching ? "No matches." : undefined}
-          topicColors={new Map(topics.map((topic) => [topic.id, topic.color]))}
-          search={{
-            projectId,
-            topics: searchTopics,
-            filters: traceFilters.filters,
-            onFiltersChange: traceFilters.setFilters,
-            searchQuery: traceFilters.searchQuery,
-            onSearchQueryChange: traceFilters.setSearchQuery,
-          }}
         />
       }
     />
@@ -370,47 +314,4 @@ function useScatterMapTopics(facet: Facet) {
       };
     });
   }, [mapTopics, rankKey]);
-}
-
-/** One topic picked in the list or on the map, as a search-bar filter. */
-function topicFilters(topicId: string): FilterState {
-  return topicId === UNASSIGNED_TOPIC_ID
-    ? [
-        {
-          column: "assignment",
-          type: "stringOptions",
-          operator: "none of",
-          value: ["assigned"],
-        },
-      ]
-    : [
-        {
-          column: "topicId",
-          type: "stringOptions",
-          operator: "any of",
-          value: [topicId],
-        },
-      ];
-}
-
-/** The topic the search bar holds when it is exactly one picked topic. */
-function pickedTopicId(filters: FilterState, searchQuery: string | null) {
-  if (searchQuery?.trim() || filters.length !== 1) return null;
-  const [filter] = filters;
-  if (filter?.type !== "stringOptions" || filter.value.length !== 1)
-    return null;
-  if (filter.column === "topicId" && filter.operator === "any of")
-    return filter.value[0] ?? null;
-  if (
-    filter.column === "assignment" &&
-    filter.operator === "none of" &&
-    filter.value[0] === "assigned"
-  )
-    return UNASSIGNED_TOPIC_ID;
-  return null;
-}
-
-function topicQuery(topicId: string): TopicTraceQuery {
-  if (topicId === UNASSIGNED_TOPIC_ID) return { assigned: false };
-  return { topicIds: { operator: "any of", values: [topicId] } };
 }

@@ -32,7 +32,7 @@ type PreviewRow = {
 // A summary dates from its trace's first event, and the matching observation
 // can follow later in the trace. A trace that matches more than an hour after
 // it starts is missed when it starts within that hour before the window's end.
-const TRACE_SPAN_MARGIN_MS = 60 * 60_000;
+export const TRACE_SPAN_MARGIN_MS = 60 * 60_000;
 const NO_COHORT_TRACES = { query: "SELECT '' AS id LIMIT 0", params: {} };
 
 /**
@@ -157,10 +157,21 @@ export async function summarizedTopicMatchesQuery(
  * a subquery; null when nothing can match.
  */
 export async function topicMatchingTraceIdsQuery(
-  input: Parameters<typeof matchingObservationsQuery>[0],
+  input: Parameters<typeof matchingObservationsQuery>[0] & {
+    /** Limits the read to these traces; the trace ID bloom index skips the rest. */
+    traceIds?: string[];
+  },
   prisma: PrismaClient,
 ): Promise<{ query: string; params: Record<string, unknown> } | null> {
-  const matching = await matchingObservationsQuery(input, prisma, false);
+  const matching = await matchingObservationsQuery(
+    input,
+    prisma,
+    false,
+    input.traceIds && {
+      condition: "e.trace_id IN {matchTraceIds: Array(String)}",
+      params: { matchTraceIds: input.traceIds },
+    },
+  );
   return matching
     ? {
         query: `SELECT DISTINCT id FROM (${matching.query})`,

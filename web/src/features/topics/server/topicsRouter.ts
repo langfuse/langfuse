@@ -115,6 +115,11 @@ const tracesInput = projectInput.extend({
     .optional(),
   assigned: z.boolean().optional(),
   traceId: z.string().min(1).optional(),
+  filter: topicRuleConfigSchema.shape.filter
+    .refine((filter) => !topicRuleFilterError(filter), {
+      message: "These filters can't be used on Topics traces.",
+    })
+    .optional(),
   cursor: z
     .object({ timestamp: z.date(), traceId: z.string(), facetId: z.string() })
     .optional(),

@@ -92,6 +92,49 @@ export type TopicTracePreview =
   | { status: "error"; message: string }
   | { status: "ready"; traces: TopicTracePreviewRow[]; count: number };
 
+/** Value suggestions for the trace fields a rule filters on. */
+export function useTopicTraceSuggestions({
+  projectId,
+  startTimeFilter,
+  enabled,
+  allColumns = false,
+}: {
+  projectId: string;
+  startTimeFilter: TimeFilter[];
+  enabled: boolean;
+  /** Lists every option column up front (builder mode); otherwise they load per field. */
+  allColumns?: boolean;
+}) {
+  const options = useEventsFilterOptions({
+    projectId,
+    startTimeFilter,
+    lazy: !allColumns,
+    columns: allColumns ? OPTION_COLUMNS : undefined,
+    enabled,
+  });
+  const { filterOptions, isFilterOptionsPending, requestColumns } = options;
+  const traceNames = api.topics.setupTraceNames.useQuery(
+    { projectId },
+    { enabled, retry: false },
+  );
+  const observed = useMemo(() => {
+    const values = removeInternalEvaluationEnvironmentOptions(
+      toObservedOptions(filterOptions, isFilterOptionsPending),
+    );
+    if (!values) return values;
+    return {
+      ...values,
+      tags: values.traceTags ?? [],
+      traceName: traceNames.data ?? [],
+    };
+  }, [filterOptions, isFilterOptionsPending, traceNames.data]);
+  const requestFieldColumns = useCallback(
+    (fields: readonly string[]) => requestColumns(fields.map(optionColumn)),
+    [requestColumns],
+  );
+  return { options, traceNames, observed, requestFieldColumns };
+}
+
 /** Mode, search bar and validity of the setup trace filter; no data fetching. */
 export function useTopicTraceFilterState({
   projectId,
@@ -181,30 +224,14 @@ export function useTopicTraceFilter({
     [range],
   );
   const [mode, setMode] = useState<EvaluatorFilterExperience>("query");
-  // Builder mode lists every option column up front; query mode loads per field.
-  const options = useEventsFilterOptions({
-    projectId,
-    startTimeFilter,
-    lazy: mode === "query",
-    columns: mode === "builder" ? OPTION_COLUMNS : undefined,
-    enabled: active,
-  });
-  const { filterOptions, isFilterOptionsPending, requestColumns } = options;
-  const traceNames = api.topics.setupTraceNames.useQuery(
-    { projectId },
-    { enabled: active, retry: false },
-  );
-  const observed = useMemo(() => {
-    const values = removeInternalEvaluationEnvironmentOptions(
-      toObservedOptions(filterOptions, isFilterOptionsPending),
-    );
-    if (!values) return values;
-    return {
-      ...values,
-      tags: values.traceTags ?? [],
-      traceName: traceNames.data ?? [],
-    };
-  }, [filterOptions, isFilterOptionsPending, traceNames.data]);
+  const { options, traceNames, observed, requestFieldColumns } =
+    useTopicTraceSuggestions({
+      projectId,
+      startTimeFilter,
+      enabled: active,
+      allColumns: mode === "builder",
+    });
+  const { filterOptions } = options;
   const state = useTopicTraceFilterState({
     projectId,
     filters,
@@ -228,10 +255,6 @@ export function useTopicTraceFilter({
         }),
       ),
     [filterOptions, traceNames.data],
-  );
-  const requestFieldColumns = useCallback(
-    (fields: readonly string[]) => requestColumns(fields.map(optionColumn)),
-    [requestColumns],
   );
   const preview = api.topics.previewTraces.useQuery(
     {

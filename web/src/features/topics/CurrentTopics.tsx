@@ -1,4 +1,7 @@
-import { type ComponentProps, useMemo, useRef } from "react";
+import { type ComponentProps, useMemo, useRef, useState } from "react";
+import { type TimeFilter } from "@langfuse/shared";
+import { TopicTraceSuggestions } from "./TopicsTraceToolbar";
+import { useTopicTraceSuggestions } from "./useTopicTraceFilter";
 import { CircleAlert } from "@langfuse/icons";
 import { TopicsCenteredState } from "./TopicsCenteredState";
 import { Spinner } from "@/src/components/layouts/Spinner";
@@ -124,9 +127,12 @@ function CurrentFacet({
     queryParams: ["observation", "display", "timestamp", "traceId"],
   });
   const peekView = { itemType: "TRACE" as const, ...peekNavigation };
+  const suggestions = useTraceFieldSuggestions(projectId);
   return (
     <FacetTraceSource.Provider value={traceSource}>
-      {renderView()}
+      <TopicTraceSuggestions.Provider value={suggestions}>
+        {renderView()}
+      </TopicTraceSuggestions.Provider>
     </FacetTraceSource.Provider>
   );
   function renderView() {
@@ -167,6 +173,7 @@ function CurrentFacet({
         peekView={peekView}
         useTraces={useFacetTopicTraces}
         showUnassigned={showUnassigned}
+        traceFilters={traceFilters}
       />
     );
   }
@@ -312,6 +319,33 @@ function useMobileTraceSelection(projectId: string, facetId: string) {
     (nextTraceId: string | null) =>
       setSelection({ facetId, traceId: nextTraceId }),
   ] as const;
+}
+
+// Value suggestions come from the last week, like the rule setup's preview.
+const SUGGESTION_WINDOW_MS = 7 * 86_400_000;
+
+function useTraceFieldSuggestions(projectId: string) {
+  const [startTimeFilter] = useState<TimeFilter[]>(() => [
+    {
+      column: "startTime",
+      type: "datetime",
+      operator: ">=",
+      value: new Date(Date.now() - SUGGESTION_WINDOW_MS),
+    },
+  ]);
+  const { observed, requestFieldColumns, options } = useTopicTraceSuggestions({
+    projectId,
+    startTimeFilter,
+    enabled: true,
+  });
+  return useMemo(
+    () => ({
+      observed,
+      onRequestColumns: requestFieldColumns,
+      erroredColumns: options.erroredColumns,
+    }),
+    [observed, requestFieldColumns, options.erroredColumns],
+  );
 }
 
 function useCurrentTopicMap(projectId: string, runId: string | undefined) {

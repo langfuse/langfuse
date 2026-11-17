@@ -284,6 +284,15 @@ type ListInput = {
   scan?: { batchSize: number; maxBatches: number };
   /** Runs whose assignments count; defaults to each facet's published run. */
   publishedRunIds?: string[];
+  /**
+   * Trace IDs a batch may keep, as a subquery over the batch's traces and source times;
+   * null keeps none. Applied after candidates, so selective filters can return short pages.
+   */
+  traceFilter?: (batch: {
+    from: Date;
+    to: Date;
+    traceIds: string[];
+  }) => Promise<{ query: string; params: Record<string, unknown> } | null>;
 };
 
 const MAX_CANDIDATE_BATCHES = 10;
@@ -475,6 +484,11 @@ async function listCurrentRows<T extends CandidateRow>(
     const summaryConditions = input.conditions.flatMap(
       (condition) => summaryConditionSql(condition, params) ?? [],
     );
+    const traceFilter = await input.traceFilter?.({
+      from: new Date(Math.min(...times)),
+      to: new Date(Math.max(...times) + 1),
+      traceIds: [...new Set(found.map((row) => row.trace_id))],
+    });
     const traceIds = params.add("Array(String)", [
       ...new Set(found.map((row) => row.trace_id)),
     ]);
@@ -490,6 +504,10 @@ async function listCurrentRows<T extends CandidateRow>(
       !input.includeAssignment
         ? "summaries"
         : "current";
+    // On the resolved rows, so the summary reads keep their trace ID projection.
+    if (traceFilter === null) assignmentConditions.push("0 = 1");
+    else if (traceFilter)
+      assignmentConditions.push(`trace_id IN (${traceFilter.query})`);
     const candidateTuples = `arrayZip(${params.add(
       "Array(String)",
       found.map((row) => row.facet_id),
@@ -515,6 +533,7 @@ async function listCurrentRows<T extends CandidateRow>(
         ${resolveRowsSql({ input, params, source, perRun, inCandidates, assignmentConditions })}
         ${orderSql}`,
       params: {
+        ...traceFilter?.params,
         ...baseParams,
         ...params.values,
         ...input.extraParams,
