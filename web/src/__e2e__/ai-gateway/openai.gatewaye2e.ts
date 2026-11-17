@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
+import waitForExpect from "wait-for-expect";
 
 import { GatewayResolveResponseSchema } from "@/src/features/ai-gateway/server/provider/registry";
-import { GatewayProvider } from "@langfuse/shared/src/db";
+import {
+  GatewayProvider,
+  GatewaySpendLimitInterval,
+  prisma,
+} from "@langfuse/shared/src/db";
 import {
   COMPLETION_TIMEOUT_MS,
   completeAndExpectIngested,
@@ -73,6 +78,8 @@ const COMPLETIONS = [
   },
 ] as const;
 
+const SPEND_LIMITED_COMPLETION = COMPLETIONS[1];
+
 const UNAUTHENTICATED_REQUESTS = [
   {
     path: "/openai/v1/responses",
@@ -137,6 +144,59 @@ describe.skipIf(skip)("AI gateway OpenAI end-to-end", () => {
           providerModel: model,
         });
       });
+    },
+    COMPLETION_TIMEOUT_MS,
+  );
+
+  // One provider is enough: the gateway counts spend the same way for every provider.
+  it(
+    "admits a request within the key's spend limit and rejects the next once it is spent",
+    async () => {
+      const { apiFormat, model, path, body } = SPEND_LIMITED_COMPLETION;
+      await withGatewayApiKey(
+        apiFormat,
+        async ({ secretKey, id: apiKeyId }) => {
+          // Waits until the first request is ingested, by when its cost was counted.
+          await completeAndExpectIngested({
+            secretKey,
+            apiFormat,
+            path,
+            body,
+            providerModel: model,
+          });
+
+          const response = await fetch(`${suite.gatewayBaseUrl}${path}`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${secretKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(body),
+          });
+          expect(response.headers.get("retry-after")).toBeNull();
+          await expectGatewayError(response, 429, {
+            error: {
+              message: expect.stringContaining("total spend limit"),
+              type: "insufficient_quota",
+              param: null,
+              code: "spend_limit_exceeded",
+            },
+          });
+
+          await waitForExpect(async () => {
+            const alerts = await prisma.gatewaySpendLimitAlert.findMany({
+              where: { spendLimit: { apiKeyId } },
+            });
+            expect(alerts).toHaveLength(1);
+          });
+        },
+        {
+          spendLimit: {
+            interval: GatewaySpendLimitInterval.TOTAL,
+            limitUsd: 0.000001,
+          },
+        },
+      );
     },
     COMPLETION_TIMEOUT_MS,
   );

@@ -94,6 +94,9 @@ type Admin = Awaited<ReturnType<typeof createGatewayAdmin>>;
 type CreateConnectionInput = Parameters<
   Admin["caller"]["aiGateway"]["createConnection"]
 >[0];
+type GatewayKeySpendLimit = Parameters<
+  Admin["caller"]["aiGateway"]["createApiKey"]
+>[0]["spendLimit"];
 
 type ConnectionSpec = Omit<CreateConnectionInput, "orgId" | "name"> & {
   /** Provider model ids the suite calls. Connections whose key may not list models get them as custom models. */
@@ -274,6 +277,7 @@ export function requiredEnv(name: string) {
 export async function withGatewayApiKey(
   apiFormat: GatewayApiFormat,
   run: (key: { secretKey: string; id: string }) => Promise<void>,
+  options: { spendLimit?: GatewayKeySpendLimit } = {},
 ) {
   const { provider } = suite.connection;
   const gatewayKey = await suite.admin.caller.aiGateway.createApiKey({
@@ -284,6 +288,7 @@ export async function withGatewayApiKey(
       provider,
       apiFormat,
     },
+    spendLimit: options.spendLimit,
   });
   apiKeyIds.add(gatewayKey.id);
 
@@ -922,6 +927,18 @@ function resolveGatewayBinary() {
   );
 }
 
+/** The gateway keeps spend counters in the stack's Redis unless told otherwise. */
+function gatewayRedisUrl() {
+  const configured =
+    process.env.LANGFUSE_AI_GATEWAY_REDIS_URL ??
+    process.env.REDIS_CONNECTION_STRING;
+  if (configured) return configured;
+  const auth = process.env.REDIS_AUTH
+    ? `:${encodeURIComponent(process.env.REDIS_AUTH)}@`
+    : "";
+  return `redis://${auth}${process.env.REDIS_HOST ?? "127.0.0.1"}:${process.env.REDIS_PORT ?? "6379"}`;
+}
+
 function reserveLoopbackPort() {
   return new Promise<number>((resolve, reject) => {
     const server = createServer();
@@ -966,6 +983,7 @@ async function startGatewayProcess() {
       LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS: `127.0.0.1:${port}`,
       LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT: "false",
       LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS: "5",
+      LANGFUSE_AI_GATEWAY_REDIS_URL: gatewayRedisUrl(),
       LANGFUSE_LOG_FORMAT: "json",
       LANGFUSE_LOG_LEVEL: "info",
     },
