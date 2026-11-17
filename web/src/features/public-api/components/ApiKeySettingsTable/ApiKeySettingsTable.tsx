@@ -170,18 +170,22 @@ function PermissionsCell({
       type="button"
       onClick={() => permissionsAction.onClick(role)}
       aria-label={`View ${permissionSet?.name ?? countLabel}`}
-      className="group/permissions flex min-w-0 flex-col items-start text-left focus-visible:outline-none"
+      className="group/permissions flex min-w-0 items-center gap-2 text-left focus-visible:outline-none"
     >
-      {permissionSet && <PermissionSetLabel permissionSet={permissionSet} />}
-      <span className="text-muted-foreground flex max-w-full min-w-0 items-center gap-2">
-        <span className="truncate" title={countLabel}>
+      <span className="flex min-w-0 flex-col items-start">
+        {permissionSet && <PermissionSetLabel permissionSet={permissionSet} />}
+        <span
+          className="text-muted-foreground max-w-full truncate"
+          title={countLabel}
+        >
           {countLabel}
         </span>
-        <SquareArrowOutUpRight
-          size="sm"
-          __rawClassName="shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100 group-focus-visible/permissions:opacity-100"
-        />
       </span>
+      <SquareArrowOutUpRight
+        size="sm"
+        color="muted"
+        __rawClassName="shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100 group-focus-visible/permissions:opacity-100"
+      />
     </button>
   );
 }
