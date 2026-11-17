@@ -349,7 +349,10 @@ export const ValueCell = memo(
         )}
       >
         <span
-          className={cn("cursor-text", singleLine && "block truncate")}
+          className={cn(
+            "cursor-text group-data-[expandable]/json-row:cursor-pointer",
+            singleLine && "block truncate",
+          )}
           title={previewTitle}
         >
           {content}

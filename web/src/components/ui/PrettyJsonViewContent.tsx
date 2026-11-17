@@ -57,6 +57,7 @@ function getEmptyValueDisplay(value: unknown): string | null {
   if (value === null) return "null";
   if (value === undefined) return "undefined";
   if (value === "") return "empty string";
+  if (Array.isArray(value) && value.length === 0) return "empty array";
   if (
     typeof value === "object" &&
     !Array.isArray(value) &&
@@ -176,9 +177,10 @@ const JsonTableRowComponent = memo(
             : undefined
         }
         data-observation-id={row.id}
+        data-expandable={isExpandable ? "" : undefined}
         {...rowClickProps}
         className={cn(
-          "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
+          "group/json-row hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
           isExpandable ? "cursor-pointer" : "",
           row.original.level === 0 && stickyTopLevelKey
             ? "bg-background sticky top-0 z-10 shadow-xs"
@@ -311,7 +313,12 @@ function JsonPrettyTable({
             </Button>
           ) : null}
         </div>
-        <span className={cn("min-w-0 cursor-text", KEY_CLASSES)}>
+        <span
+          className={cn(
+            "min-w-0 cursor-text group-data-[expandable]/json-row:cursor-pointer",
+            KEY_CLASSES,
+          )}
+        >
           {itemBadgeType && (
             <span className="mr-1 inline-block align-middle">
               <ItemBadge type={itemBadgeType} isSmall={true} />

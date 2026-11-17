@@ -233,6 +233,17 @@ const PLAN: DemoObs[] = [
     metadata: { provider: "salesforce" },
   },
   {
+    key: "crm-cases",
+    parentKey: "load-context",
+    type: "TOOL",
+    name: "crm.list-open-cases",
+    start: 1584,
+    end: 1702,
+    input: { customer_id: "cus_LqT4v8", status: "open" },
+    output: [],
+    metadata: { provider: "salesforce" },
+  },
+  {
     key: "billing",
     parentKey: "load-context",
     type: "TOOL",
