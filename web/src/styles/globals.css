@@ -1058,6 +1058,41 @@
   }
 }
 
+/* scroll-fade-b plus a top fade that appears once the content is scrolled. */
+@property --scroll-fade-t {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@keyframes scroll-fade-t {
+  from {
+    --scroll-fade-t: 0px;
+  }
+  to {
+    --scroll-fade-t: calc(var(--spacing) * 8);
+  }
+}
+
+@utility scroll-fade-y {
+  @supports (animation-timeline: scroll()) {
+    mask-image: linear-gradient(
+      to bottom,
+      transparent,
+      black var(--scroll-fade-t),
+      black calc(100% - var(--scroll-fade-b)),
+      transparent
+    );
+    animation:
+      scroll-fade-t linear both,
+      scroll-fade-b linear both;
+    animation-timeline: scroll(self), scroll(self);
+    animation-range:
+      0 calc(var(--spacing) * 8),
+      calc(100% - var(--spacing) * 8) 100%;
+  }
+}
+
 @utility scrollbar-visible {
   &::-webkit-scrollbar {
     width: 8px;

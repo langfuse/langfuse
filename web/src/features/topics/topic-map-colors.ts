@@ -49,6 +49,12 @@ export const treemapTileClasses = (rank: number, big: boolean) => {
 export const treemapSwatchColor = (rank: number) =>
   `var(--category-${["violet", "blue", "amber"][Math.max(0, rank) % 3]}-highlight)`;
 
+/** The scatter extends the treemap's three hues to all six category hues. */
+const SCATTER_HUES = ["violet", "blue", "amber", "pink", "green", "teal"];
+
+export const scatterSwatchColor = (rank: number) =>
+  `var(--category-${SCATTER_HUES[Math.max(0, rank) % SCATTER_HUES.length]}-highlight)`;
+
 /** Topic chip color for a treemap rank; grey when the topic is not in the current results. */
 export const treemapBadgeColor = (rank: number) =>
   rank < 0

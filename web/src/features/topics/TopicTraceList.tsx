@@ -1,6 +1,7 @@
 /* eslint-disable react/no-unstable-nested-components */
 import {
   type PointerEvent,
+  type ReactNode,
   useContext,
   type RefObject,
   type UIEvent,
@@ -67,6 +68,8 @@ export function TopicTraceList({
   tracePanelRef,
   headerRef,
   divider,
+  toolbar,
+  topicColors,
 }: TopicTraceListProps) {
   const { rows } = traces;
   const onScrollCapture = (event: UIEvent<HTMLElement>) => {
@@ -106,6 +109,37 @@ export function TopicTraceList({
         </span>
       ),
     },
+    ...(topicColors
+      ? [
+          {
+            accessorKey: "topicName",
+            header: () => <span className={CELL}>Topic</span>,
+            size: 200,
+            minSize: 120,
+            cell: ({ row }) => {
+              const name =
+                row.original.topicName ??
+                row.original.outcome.replaceAll("_", " ");
+              return (
+                <span className={cn("flex min-w-0 items-center gap-2", CELL)}>
+                  <span
+                    aria-hidden
+                    className="size-2.5 shrink-0 rounded-xs"
+                    style={{
+                      backgroundColor: topicColors.get(
+                        row.original.topicId ?? "",
+                      ),
+                    }}
+                  />
+                  <span className="min-w-0 truncate text-sm" title={name}>
+                    {name}
+                  </span>
+                </span>
+              );
+            },
+          } satisfies LangfuseColumnDef<FacetRow>,
+        ]
+      : []),
     {
       accessorKey: "summary",
       header: () => <span className={CELL}>Summary</span>,
@@ -177,6 +211,7 @@ export function TopicTraceList({
           </p>
         )}
       </div>
+      {toolbar}
       <DataTable
         tableName="topics-topic-traces"
         columns={columns}
@@ -212,6 +247,10 @@ type TopicTraceListProps = {
   headerRef?: RefObject<HTMLDivElement | null>;
   /** `none` when the parent draws the divider, e.g. a resize handle. */
   divider?: "side" | "none";
+  /** Search and filters between the header and the table. */
+  toolbar?: ReactNode;
+  /** Adds a Topic column, colored per topic ID. */
+  topicColors?: ReadonlyMap<string, string>;
 };
 
 const APPROXIMATE_COUNT_FROM = 1_000;
