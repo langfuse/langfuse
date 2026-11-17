@@ -94,6 +94,7 @@ export type Route = {
       | undefined;
     projectId: string | undefined;
     canViewTopics: boolean;
+    canViewAgents: boolean;
     visibleGatewayPages: Record<GatewayPageSlug, boolean>;
     isLangfuseCloud: boolean;
     hasActiveCloudIncident: boolean;
@@ -222,7 +223,8 @@ export const ROUTES: Route[] = [
     productModule: "tracing",
     group: RouteGroup.Observability,
     section: RouteSection.Main,
-    show: ({ v4WriteMode }) => Boolean(v4WriteMode) && v4WriteMode !== "legacy",
+    show: ({ canViewAgents, v4WriteMode }) =>
+      canViewAgents && Boolean(v4WriteMode) && v4WriteMode !== "legacy",
   },
   {
     title: "Topics",

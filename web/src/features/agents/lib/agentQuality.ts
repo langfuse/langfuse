@@ -25,6 +25,13 @@ function formatAgentQuality(
   return value.toLocaleString(undefined, { maximumFractionDigits: 3 });
 }
 
+function scoreQualifier(score: AgentQualityScore, duplicate: boolean) {
+  if (!duplicate) return "";
+  const type = ` · ${score.dataType.toLowerCase()}`;
+  if (!score.configId) return type;
+  return `${type} · ${score.configId.slice(-6)}`;
+}
+
 export function agentQualityOptions(scores: AgentQualityScore[]) {
   const sources = { API: "API", EVAL: "Evaluation", ANNOTATION: "Annotation" };
   return scores.map((score) => {
@@ -34,9 +41,7 @@ export function agentQualityOptions(scores: AgentQualityScore[]) {
         other.name === score.name &&
         other.source === score.source,
     );
-    const qualifier = duplicate
-      ? ` · ${score.dataType.toLowerCase()}${score.configId ? ` · ${score.configId.slice(-6)}` : ""}`
-      : "";
+    const qualifier = scoreQualifier(score, duplicate);
     return {
       value: agentQualityKey(score),
       label: `${score.name} · ${sources[score.source]}${qualifier}`,

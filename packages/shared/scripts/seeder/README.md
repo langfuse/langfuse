@@ -39,37 +39,11 @@ programmatic calls from the dx seed chain.
 
 ### Agents activity demo
 
-`agents-activity-demo` is curated synthetic telemetry for three familiar flows:
-an Agentique-style research assistant, a Halo/Ask AI-style product assistant,
-and a coding assistant. These are authored examples, not recordings or claims
-about those products' architecture. `--stories agentique,halo,coding` selects
-the ordinary conversation cohorts; the fixed Agentique hero is always included.
-Each story has distinct logical agent IDs, tools, models and managed skills.
-Six tasks per story cover research, product questions and proposed code changes.
-Each conversation carries its earlier messages into later requests, delegates
-specific work to each agent and ends with a complete answer in the native
-Sessions view. Tool observations and model tool-result messages share the same
-authored payload. Coding examples contain source excerpts, patch proposals and
-test plans; they do not claim that code or tests actually ran.
+`agents-activity-demo` is curated synthetic telemetry for three familiar flows: an Agentique-style research assistant, a Halo/Ask AI-style product assistant, and a coding assistant. These are authored examples, not recordings or claims about those products' architecture. `--stories agentique,halo,coding` selects the ordinary conversation cohorts; the fixed Agentique hero is always included. Each story has distinct logical agent IDs, tools, models and managed skills. Six tasks per story cover research, product questions and proposed code changes. Each conversation carries its earlier messages into later requests, delegates specific work to each agent and ends with a complete answer in the native Sessions view. Tool observations and model tool-result messages share the same authored payload. Coding examples contain source excerpts, patch proposals and test plans; they do not claim that code or tests actually ran.
 
-An **agent run** is one AGENT span, a **trace** is one request, and a **session**
-groups several requests in a conversation. Related observations record their
-session and nearest owning agent run. The fixed hero is **one session, three
-traces and six Researcher agent runs** (two, three and one per trace). Its other
-agents contribute three Orchestrator, two Reviewer and three Writer runs:
-**14 agent runs overall**. Summary counts, model calls, tokens, cost and exact
-hero links come from the generated plan. Scheduled background jobs have
-separate traces and no session; they are excluded from the hero totals.
+An **agent run** is one AGENT span, a **trace** is one request, and a **session** groups several requests in a conversation. Related observations record their session and nearest owning agent run. The fixed hero is **one session, three traces and six Researcher agent runs** (two, three and one per trace). Its other agents contribute three Orchestrator, two Reviewer and three Writer runs: **14 agent runs overall**. Summary counts, model calls, tokens, cost and exact hero links come from the generated plan. Scheduled background jobs have separate traces and no session; they are excluded from the hero totals.
 
-Defaults are 120 conversations, 12 background jobs and 14 completed UTC days,
-with irregular daily/hourly traffic and unequal costs, usage, durations and
-agent participation. `--date` is the final completed UTC day (yesterday by
-default); `--days` is bounded to 1–30. `historyWindow` prints the full inclusive
-start and exclusive end. The default links select the final half of that
-history: seven days, with the preceding seven available as baseline.
-`displayWindow` and `comparisonWindow` make those boundaries explicit, and a
-separate link opens the full history. With `--days 1`, a preceding comparison
-period is intentionally unseeded.
+Defaults are 120 conversations, 12 background jobs and 14 completed UTC days, with irregular daily/hourly traffic and unequal costs, usage, durations and agent participation. `--date` is the final completed UTC day (yesterday by default); `--days` is bounded to 1–30. `historyWindow` prints the full inclusive start and exclusive end. The default links select the final half of that history: seven days, with the preceding seven available as baseline. `displayWindow` and `comparisonWindow` make those boundaries explicit, and a separate link opens the full history. With `--days 1`, a preceding comparison period is intentionally unseeded.
 
 ```bash
 # Inspect all stories without API calls or datastore writes.
@@ -96,101 +70,25 @@ The behavior cohorts separate several questions:
   model configuration. These are correlations in an authored fixture, not a
   causal claim, automatic diagnosis or optimization result.
 
-Ordinary cohort AGENT spans own a numeric `answer_quality` score. Researcher runs also
-own `citation_coverage`, and requests and sessions have boolean `task_success`.
-A partially evaluated subset of agent runs has boolean `review_passed`, so the
-quality selector can demonstrate both a numeric average and a boolean true rate
-with honest coverage. Story, task, channel, tier and region metadata make the
-native search and filter controls useful.
-All scores are labeled synthetic and have explicit trace/run/session ownership;
-no evaluator or model provider was called. Inspect them through native score
-columns and trace details. Costs are provided fixture values, not current
-provider-price claims, and AGENT parents contain no duplicated model totals.
+Ordinary cohort AGENT spans own a numeric `answer_quality` score. Researcher runs also own `citation_coverage`, and requests and sessions have boolean `task_success`. A partially evaluated subset of agent runs has boolean `review_passed`, so the quality selector can demonstrate both a numeric average and a boolean true rate with honest coverage. Story, task, channel, tier and region metadata make the native search and filter controls useful. All scores are labeled synthetic and have explicit trace/run/session ownership; no evaluator or model provider was called. Inspect them through native score columns and trace details. Costs are provided fixture values, not current provider-price claims, and AGENT parents contain no duplicated model totals.
 
-A separate sessionless Product search trace ends with an AGENT error and a
-failed document-search tool call before any model request. It adds an explicit
-terminal failure without changing the hero or the existing cohorts. The run
-is intentionally unscored and has no invented model usage or cache report;
-its trace has `task_success=0`. Operational errors and low quality remain
-separate signals. The summary prints failure counts and its trace link.
+A separate sessionless Product search trace ends with an AGENT error and a failed document-search tool call before any model request. It adds an explicit terminal failure without changing the hero or the existing cohorts. The run is intentionally unscored and has no invented model usage or cache report; its trace has `task_success=0`. Operational errors and low quality remain separate signals. The summary prints failure counts and its trace link.
 
-Model usage also varies cache reuse: research/product/coding baselines reuse
-different prompt proportions, candidate-model regressions have lower reuse,
-and recovery warms the cache again. A reported cold miss is explicit zero;
-some calls omit cache reporting and remain unknown. `input` is the uncached
-remainder and `input_cached_tokens` is the cache-read partition. Their sum
-preserves each call's original inclusive input, while `total` tokens, provided
-cost and the hero's 38,032 tokens / $0.103532 authored cost remain unchanged.
+Model usage also varies cache reuse: research/product/coding baselines reuse different prompt proportions, candidate-model regressions have lower reuse, and recovery warms the cache again. A reported cold miss is explicit zero; some calls omit cache reporting and remain unknown. `input` is the uncached remainder and `input_cached_tokens` is the cache-read partition. Their sum preserves each call's original inclusive input, while `total` tokens, provided cost and the hero's 38,032 tokens / $0.103532 authored cost remain unchanged.
 
-`--candidate-environment staging` creates a distinct comparison cohort in a
-second environment. It must differ from `--environment`; links for both are
-printed. All logical agent IDs include `--id-prefix`. Use a dedicated existing
-demo project for a clean gallery; an environment is a filter boundary, not a
-separate project or cleanup mechanism. Nothing is deleted. Use a fresh prefix
-when changing the date, seed, stories or volume because timestamps are part of
-ClickHouse storage keys.
+`--candidate-environment staging` creates a distinct comparison cohort in a second environment. It must differ from `--environment`; links for both are printed. All logical agent IDs include `--id-prefix`. Use a dedicated existing demo project for a clean gallery; an environment is a filter boundary, not a separate project or cleanup mechanism. Nothing is deleted. Use a fresh prefix when changing the date, seed, stories or volume because timestamps are part of ClickHouse storage keys.
 
-Start the matching local app or disposable PR preview and set `NEXTAUTH_URL`.
-For the default seeded project, omit `--credentials-file` to use its synthetic
-key. For a dedicated existing project, pass `--project <project-id>
---credentials-file /private/path/demo-credentials.json`; the private file must
-contain exactly `publicKey` and `secretKey` string fields. The CLI provisions
-neither projects nor keys. It verifies key ownership before fixture writes,
-refuses production targets and redirects, and keeps credentials and server
-authentication payloads out of errors. Keep this file outside the checkout.
+Start the matching local app or disposable PR preview and set `NEXTAUTH_URL`. For the default seeded project, omit `--credentials-file` to use its synthetic key. For a dedicated existing project, pass `--project <project-id> --credentials-file /private/path/demo-credentials.json`; the private file must contain exactly `publicKey` and `secretKey` string fields. The CLI provisions neither projects nor keys. It verifies key ownership before fixture writes, refuses production targets and redirects, and keeps credentials and server authentication payloads out of errors. Keep this file outside the checkout.
 
-The public Skills API creates or reuses two exact versions per selected story
-(six versions by default), checks file hashes and rejects conflicting content.
-Reruns preserve a production label already assigned to a later version.
-References bind to actual catalog IDs and versions, including `SKILL.md` and
-observed `references/checklist.md` loads. Each agent also links to a real managed
-chat prompt containing the exact system message recorded on its model calls.
-Info shows a description, agent version, service and instrumentation scope.
-Native session records, events and scores use the official seeder infrastructure.
-Write copies receive fresh revision timestamps while IDs and start/timestamp
-storage keys remain deterministic. Same-prefix updates supersede older fixture
-content **eventually**, when ClickHouse merges the physical revisions; they do
-not mutate the plan or guarantee immediate replacement in native views.
-Bounded project-scoped `verified` readbacks check logical IDs, agent runs,
-scores, exact managed loads, hero totals and the absence of the retired router
-in the display window. These checks prove that IDs landed, rather than that
-native Sessions are ready to record.
+The public Skills API creates or reuses two exact versions per selected story (six versions by default), checks file hashes and rejects conflicting content. Reruns preserve a production label already assigned to a later version. References bind to actual catalog IDs and versions, including `SKILL.md` and observed `references/checklist.md` loads. Each agent also links to a real managed chat prompt containing the exact system message recorded on its model calls. Info shows a description, agent version, service and instrumentation scope. Native session records, events and scores use the official seeder infrastructure. Write copies receive fresh revision timestamps while IDs and start/timestamp storage keys remain deterministic. Same-prefix updates supersede older fixture content **eventually**, when ClickHouse merges the physical revisions; they do not mutate the plan or guarantee immediate replacement in native views. Bounded project-scoped `verified` readbacks check logical IDs, agent runs, scores, exact managed loads, hero totals and the absence of the retired router in the display window. These checks prove that IDs landed, rather than that native Sessions are ready to record.
 
-The separate `nativeSessionReadiness` summary reports physical row counts for
-`events_core` and `events_full` within the same project, history window and ID
-prefix. If either exceeds `counts.events`, `hasPendingRevisions` is true and
-the CLI emits a warning. Native Sessions can show an older answer or inflated
-usage and cost until those versions merge. Open the printed hero session and
-verify its current replies and totals before recording; the CLI does not run
-table maintenance. Dry runs leave these readiness fields null. This readback
-covers static history, separately from live replay.
+The separate `nativeSessionReadiness` summary reports physical row counts for `events_core` and `events_full` within the same project, history window and ID prefix. If either exceeds `counts.events`, `hasPendingRevisions` is true and the CLI emits a warning. Native Sessions can show an older answer or inflated usage and cost until those versions merge. Open the printed hero session and verify its current replies and totals before recording; the CLI does not run table maintenance. Dry runs leave these readiness fields null. This readback covers static history, separately from live replay.
 
 Bootstrap tables before seeding; bootstrap removes v4-only fixture data.
 
-Live replay is **off by default**. Opt in with `--replay`; defaults are six
-batches separated by five seconds. `--replay-count` accepts 1–20 and
-`--replay-interval-ms` accepts 1000–15000, with at most four minutes of scheduled
-delays and a five-minute replay deadline. There is no daemon or provider call.
-Each batch emits newly identified, completed synthetic spans through
-`/api/public/otel/v1/traces`, explicitly selecting v4 ingestion. Run-owned
-scores use `/api/public/scores`. Live trace/span IDs and live session IDs are
-separate from deterministic history; the logical agents remain the same.
-Sessions span successive batches, and every third batch includes a sessionless
-background job. Timestamped work, skill manifests and tool results are real
-ingestion payloads, not a UI heartbeat. Queued rows, managed loads and scores
-are verified before success. `replay.result` reports separate live counts and
-links; its Agents link ends at replay completion and retains a selected window
-of the same length as the static display period.
-Replay requires history ending yesterday, so omit `--date` or choose the last
-completed UTC day; an older explicit date is rejected before fixture writes.
-Replay preserves the authored messages, tags, prompt references, model parameters
-and instrumentation metadata from the historical examples.
+Live replay is **off by default**. Opt in with `--replay`; defaults are six batches separated by five seconds. `--replay-count` accepts 1–20 and `--replay-interval-ms` accepts 1000–15000, with at most four minutes of scheduled delays and a five-minute replay deadline. There is no daemon or provider call. Each batch emits newly identified, completed synthetic spans through `/api/public/otel/v1/traces`, explicitly selecting v4 ingestion. Run-owned scores use `/api/public/scores`. Live trace/span IDs and live session IDs are separate from deterministic history; the logical agents remain the same. Sessions span successive batches, and every third batch includes a sessionless background job. Timestamped work, skill manifests and tool results are real ingestion payloads, not a UI heartbeat. Queued rows, managed loads and scores are verified before success. `replay.result` reports separate live counts and links; its Agents link ends at replay completion and retains a selected window of the same length as the static display period. Replay requires history ending yesterday, so omit `--date` or choose the last completed UTC day; an older explicit date is rejected before fixture writes. Replay preserves the authored messages, tags, prompt references, model parameters and instrumentation metadata from the historical examples.
 
-Real application recordings can use the same project alongside this history.
-Use a distinct application identity and record provenance in metadata; for local
-applications, a `demo-live` environment makes them easy to select. Keep their
-actual outputs, usage and failures. Do not apply authored synthetic scores to
-real runs or describe this provider-free replay as an executed application.
+Real application recordings can use the same project alongside this history. Use a distinct application identity and record provenance in metadata; for local applications, a `demo-live` environment makes them easy to select. Keep their actual outputs, usage and failures. Do not apply authored synthetic scores to real runs or describe this provider-free replay as an executed application.
 
 ```bash
 # A real, finite ingestion run; private project credentials are optional only
@@ -200,94 +98,27 @@ NEXTAUTH_URL=http://localhost:3017 pnpm run seed -- agents-activity-demo --proje
 
 ### Agents activity demo through the public API
 
-Use `agents-activity-demo-api` for a disposable preview when you have the
-project's API key but no database tunnel. It sends the same authored history,
-managed prompts and skills through the supported public APIs. It makes no
-provider calls and writes no local database rows.
+Use `agents-activity-demo-api` for a disposable preview when you have the project's API key but no database tunnel. It sends the same authored history, managed prompts and skills through the supported public APIs. It makes no provider calls and writes no local database rows.
 
 ```bash
 NEXTAUTH_URL=https://pr-<N>.preview.langfuse.com pnpm run seed -- agents-activity-demo-api --project <project-id> --credentials-file /private/path/preview-key.json --environment production --id-prefix agents-preview-YYYYMMDD --days 14 --conversations 120
 ```
 
-For the default synthetic seed project, omit `--project` and
-`--credentials-file`. The target must be localhost or a disposable PR preview;
-the key's project is checked before writes. Use a fresh prefix for a fresh
-recording. The usual local checkout environment is still needed to load the CLI,
-but this scenario skips datastore preflight and requires no database access.
+For the default synthetic seed project, omit `--project` and `--credentials-file`. The target must be localhost or a disposable PR preview; the key's project is checked before writes. Use a fresh prefix for a fresh recording. The usual local checkout environment is still needed to load the CLI, but this scenario skips datastore preflight and requires no database access.
 
-Historical timestamps and session ids are preserved. Trace ids become stable
-32-character hex ids, span ids become stable 16-character hex ids, and parent,
-run-owner and score references follow the same mapping. Scores include both
-per-run evaluations and session outcomes. Readback uses the public observations
-and Scores v3 APIs: every expected observation and score must appear, hierarchy
-and times must match, and the hero conversation's model cost and token totals
-must agree. Managed prompt/skill versions are separately read back when created.
-Canonical run ownership and managed-load resolution should also be inspected in
-the Agents UI; those fields are not exposed by the observations readback.
+Historical timestamps and session ids are preserved. Trace ids become stable 32-character hex ids, span ids become stable 16-character hex ids, and parent, run-owner and score references follow the same mapping. Scores include both per-run evaluations and session outcomes. Readback uses the public observations and Scores v3 APIs: every expected observation and score must appear, hierarchy and times must match, and the hero conversation's model cost and token totals must agree. Managed prompt/skill versions are separately read back when created. Canonical run ownership and managed-load resolution should also be inspected in the Agents UI; those fields are not exposed by the observations readback.
 
-`--dry-run` computes the shape without API calls. The API scenario shares the
-history flags of `agents-activity-demo`, but does not support `--replay`.
-Requests have individual timeouts, idempotent ingestion batches retry at most
-twice, readback waits at most five minutes, and the whole run has a twenty-minute
-deadline. Real application recordings can then target the same preview project
-in a separate `demo-live` environment, using public or invented questions only.
+`--dry-run` computes the shape without API calls. The API scenario shares the history flags of `agents-activity-demo`, but does not support `--replay`. Requests have individual timeouts, idempotent ingestion batches retry at most twice, readback waits at most five minutes, and the whole run has a twenty-minute deadline. Real application recordings can then target the same preview project in a separate `demo-live` environment, using public or invented questions only.
 
 ### Agents regression fixture
 
-`agents-mvp` creates eight observed agent identities with AGENT observations,
-model requests, native skill versions/resource paths, unknown telemetry,
-rewrites and tombstones. It selects 11:00–15:00 UTC on `--date` (today by
-default) and also writes older rows for index-pruning checks. Use a fresh
-`--id-prefix` when changing the date or `--runs` (80 ordinary agent runs by
-default, up to 100000, plus one agent run crossing the selected period).
-The parent aggregate deliberately repeats the three model leaves' 17,107 input
-and 491 output tokens; Agents must count the leaves once. Start with
-`pnpm run seed -- agents-mvp --environment production`; add `--runs 10000`
-for a larger local cohort. Start the seeded web app first and set
-`NEXTAUTH_URL` to its local or disposable PR preview URL (for example,
-`NEXTAUTH_URL=http://localhost:3017`). The scenario uses only the synthetic
-seed API key and verifies its project before creating two managed skill
-versions in a prefix-scoped namespace through the public Skills API. Repeating
-the same prefix reuses matching versions; conflicting content fails without
-overwriting it. Native references contain exact catalog IDs and versions, and
-one unregistered resource remains as an unresolved example. Add `--legacy-api`
-to exercise queued public JSON ingestion in a separate trace namespace.
-Add `--sessions` to group the agents into conversations across traces, with
-synthetic messages, tool activity, and matching Postgres session records. The
-same conversation includes several agents; standalone boundary-case traces
-remain sessionless. The command prints session links. For the conversational
-timeline, enable the Session View and Session Timeline previews for the local
-demo account. This option preserves the fixture's stable storage keys and
-accounting cases; use a fresh prefix for a dedicated conversation demo.
-The main fixture writes v4 events only. Run table
-bootstrap before seeding: `ch:dev-tables` rebuilds event tables and removes
-v4-only fixture data.
+`agents-mvp` creates eight observed agent identities with AGENT observations, model requests, native skill versions/resource paths, unknown telemetry, rewrites and tombstones. It selects 11:00–15:00 UTC on `--date` (today by default) and also writes older rows for index-pruning checks. Use a fresh `--id-prefix` when changing the date or `--runs` (80 ordinary agent runs by default, up to 100000, plus one agent run crossing the selected period). The parent aggregate deliberately repeats the three model leaves' 17,107 input and 491 output tokens; Agents must count the leaves once. Start with `pnpm run seed -- agents-mvp --environment production`; add `--runs 10000` for a larger local cohort. Start the seeded web app first and set `NEXTAUTH_URL` to its local or disposable PR preview URL (for example, `NEXTAUTH_URL=http://localhost:3017`). The scenario uses only the synthetic seed API key and verifies its project before creating two managed skill versions in a prefix-scoped namespace through the public Skills API. Repeating the same prefix reuses matching versions; conflicting content fails without overwriting it. Native references contain exact catalog IDs and versions, and one unregistered resource remains as an unresolved example. Add `--legacy-api` to exercise queued public JSON ingestion in a separate trace namespace. Add `--sessions` to group the agents into conversations across traces, with synthetic messages, tool activity, and matching Postgres session records. The same conversation includes several agents; standalone boundary-case traces remain sessionless. The command prints session links. For the conversational timeline, enable the Session View and Session Timeline previews for the local demo account. This option preserves the fixture's stable storage keys and accounting cases; use a fresh prefix for a dedicated conversation demo. The main fixture writes v4 events only. Run table bootstrap before seeding: `ch:dev-tables` rebuilds event tables and removes v4-only fixture data.
 
-Run `pnpm --filter @langfuse/shared run agents:verify --date 2026-11-05
---prefix agents-mvp-proof-20261105` after seeding that fixture with 80 agent runs.
-This read-only verifier checks accounting, updates, tombstones, environment
-changes, exact managed-skill catalog references for all eight agents, the
-unresolved resource, source evidence and activity crossing the selected period.
-Use `pnpm --filter @langfuse/shared run agents:benchmark --from
-2026-11-04T11:00:00Z --to 2026-11-04T15:00:00Z --environment production
---output scripts/seeder/agents-mvp-performance.json` for the larger fixture.
-The benchmark records client timings, query-log reads/memory and index pruning;
-it only accepts local ClickHouse. These synthetic measurements are not a
-production latency guarantee.
+Run `pnpm --filter @langfuse/shared run agents:verify --date 2026-11-05 --prefix agents-mvp-proof-20261105` after seeding that fixture with 80 agent runs. This read-only verifier checks accounting, updates, tombstones, environment changes, exact managed-skill catalog references for all eight agents, the unresolved resource, source evidence and activity crossing the selected period. Use `pnpm --filter @langfuse/shared run agents:benchmark --from 2026-11-04T11:00:00Z --to 2026-11-04T15:00:00Z --environment production --output scripts/seeder/agents-mvp-performance.json` for the larger fixture. The benchmark records client timings, query-log reads/memory and index pruning; it only accepts local ClickHouse. These synthetic measurements are not a production latency guarantee.
 
-For mixed-project measurements, use a fresh prefix and date with
-`--runs 80 --background-events 1000000 --unassigned-model-calls 2`.
-Background generations have no agent identity and live on unrelated traces;
-the two additional generations share the first agent's trace but have no
-attribution. They produce a trace-level completeness warning without adding
-their tokens or cost to any agent. Pass `--unassigned-model-calls 2` to
-`agents:verify` for this fixture. Background writes are streamed in 10000-row
-batches; the default fixture remains unchanged.
+For mixed-project measurements, use a fresh prefix and date with `--runs 80 --background-events 1000000 --unassigned-model-calls 2`. Background generations have no agent identity and live on unrelated traces; the two additional generations share the first agent's trace but have no attribution. They produce a trace-level completeness warning without adding their tokens or cost to any agent. Pass `--unassigned-model-calls 2` to `agents:verify` for this fixture. Background writes are streamed in 10000-row batches; the default fixture remains unchanged.
 
-The checked-in mixed-project comparison uses newly inserted physical identity
-columns. It does not measure cold reads of historical parts whose new column
-defaults may still extract identity from metadata. No backfill, materialization,
-table reset or resource-limit increase is needed for the fixture.
+The checked-in mixed-project comparison uses newly inserted physical identity columns. It does not measure cold reads of historical parts whose new column defaults may still extract identity from metadata. No backfill, materialization, table reset or resource-limit increase is needed for the fixture.
 
 | Scenario               | Covers                                                                                                                                                                                                                                                                                                                                                                   | Key flags                                                                                                                                                                                         |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

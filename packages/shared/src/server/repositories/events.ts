@@ -231,6 +231,11 @@ import type {
   SkillsResourceLoaded,
 } from "../../features/skills/trace";
 
+// Native table pages include full tool definitions; the aggregate result budget
+// does not bound their payload. Keep the agent scan, memory and execution limits.
+const { max_result_bytes: _aggregateResultBytes, ...AGENT_ROW_QUERY_SETTINGS } =
+  AGENT_QUERY_SETTINGS;
+
 /** Trace aggregates a session's trace identifiers read: no input/output, so `events` routes to `events_core`. */
 const SESSION_TRACE_FIELDS = [
   "id",
@@ -1196,6 +1201,9 @@ async function getObservationsFromEventsTableInternal<T>(
     };
   }
 
+  const agentQuerySettings =
+    opts.select === "rows" ? AGENT_ROW_QUERY_SETTINGS : AGENT_QUERY_SETTINGS;
+
   return queryClickhouse<T>({
     query,
     params,
@@ -1204,7 +1212,7 @@ async function getObservationsFromEventsTableInternal<T>(
     preferredClickhouseService: preferredClickhouseService ?? "EventsReadOnly",
     // Buffering reads ahead on every stream; wasted once LIMIT is filled.
     clickhouseSettings: {
-      ...(opts.agentScope ? AGENT_QUERY_SETTINGS : {}),
+      ...(opts.agentScope ? agentQuerySettings : {}),
       read_in_order_use_buffering: 0,
     },
   });

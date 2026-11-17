@@ -1,9 +1,15 @@
 import { buildTracePath } from "@langfuse/shared";
-import { type AgentDetailInput } from "@langfuse/shared/agents";
+import { type AgentDetailInput, type AgentInfo } from "@langfuse/shared/agents";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useAgentInfo } from "../hooks/useAgentQueries";
 import { AgentQueryError } from "./AgentQueryError";
+
+function promptLabel(prompt: NonNullable<AgentInfo["model"]>["prompt"]) {
+  if (!prompt) return "Not recorded";
+  if (prompt.version === null) return `${prompt.name} · version not recorded`;
+  return `${prompt.name} · v${prompt.version}`;
+}
 
 export function AgentInfoPanel({ input }: { input: AgentDetailInput }) {
   const query = useAgentInfo(input);
@@ -105,9 +111,7 @@ export function AgentInfoPanel({ input }: { input: AgentDetailInput }) {
                     Observed prompt
                   </dt>
                   <dd className="mt-1 text-sm break-words">
-                    {info.model.prompt
-                      ? `${info.model.prompt.name}${info.model.prompt.version === null ? " · version not recorded" : ` · v${info.model.prompt.version}`}`
-                      : "Not recorded"}
+                    {promptLabel(info.model.prompt)}
                   </dd>
                 </div>
               </dl>

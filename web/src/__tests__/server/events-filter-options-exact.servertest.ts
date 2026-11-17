@@ -60,6 +60,47 @@ describe("events exact filter options liveness", () => {
 });
 
 maybe("getEventsExactFilterOptionsForColumns (execution)", () => {
+  it("returns an agent-scoped native page with tool definitions larger than the aggregate result budget", async () => {
+    const projectId = randomUUID();
+    const from = new Date("2026-11-06T12:00:00Z");
+    const to = new Date("2026-11-06T13:00:00Z");
+    const definition = JSON.stringify({ description: "x".repeat(48 * 1024) });
+    const events = Array.from({ length: 101 }, (_, index) =>
+      createEvent({
+        project_id: projectId,
+        trace_id: "large-tools",
+        span_id: `run-${index}`,
+        agent_run_id: `run-${index}`,
+        agent_id: "researcher",
+        agent_name: "Researcher",
+        type: "AGENT",
+        start_time: from.getTime() + index,
+        end_time: from.getTime() + index + 1000,
+        tool_definitions: { search: definition },
+      }),
+    );
+    await createEventsCh(events);
+    const query = { projectId, filter: [], limit: 101 };
+    const native = await getObservationsWithModelDataFromEventsTable(query);
+    const scoped = await getObservationsWithModelDataFromEventsTable({
+      ...query,
+      agentScope: {
+        identity: { kind: "id", value: "researcher" },
+        environment: null,
+        from,
+        to,
+        mode: "runs",
+      },
+    });
+    expect(native).toHaveLength(events.length);
+    expect(scoped.map((row) => row.id).sort()).toEqual(
+      native.map((row) => row.id).sort(),
+    );
+    expect(
+      scoped.every((row) => row.toolDefinitions?.search === definition),
+    ).toBe(true);
+  });
+
   it("validates cache token partitions without alias double counting or guessing ambiguous input totals", async () => {
     const cases: {
       name: string;
