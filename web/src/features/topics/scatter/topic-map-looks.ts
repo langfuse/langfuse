@@ -44,8 +44,8 @@ type TopicMapLook = {
 
 export const TOPIC_MAP_LOOKS: Record<TopicMapLookName, TopicMapLook> = {
   scatter1: {
-    // The nav bar's background, so the map reads as part of the frame.
-    background: "hsl(var(--sidebar-background))",
+    // White under the grain, so the grained map averages out to the nav's sunken background.
+    background: "hsl(var(--background))",
     field: {
       kind: "ring",
       everyNth: 3,
@@ -55,7 +55,7 @@ export const TOPIC_MAP_LOOKS: Record<TopicMapLookName, TopicMapLook> = {
       opacity: 0.55,
       tone: { lightness: 0.82, chroma: 0.08 },
     },
-    grain: 0.28,
+    grain: 0.6,
     dot: {
       size: 6,
       ring: 1,
@@ -280,5 +280,6 @@ export function drawLookDot(
 
 /** The stage background resolved for canvas, for dot rings. */
 export function lookBackground(theme: CSSStyleDeclaration) {
-  return `hsl(${theme.getPropertyValue("--sidebar-background").trim()})`;
+  const token = isDark() ? "--sidebar-background" : "--background";
+  return `hsl(${theme.getPropertyValue(token).trim()})`;
 }

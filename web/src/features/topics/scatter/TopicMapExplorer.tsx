@@ -736,7 +736,7 @@ function MapGrain({ opacity }: { opacity: number }) {
   return (
     <svg
       aria-hidden
-      className="pointer-events-none absolute inset-0 h-full w-full mix-blend-overlay"
+      className="pointer-events-none absolute inset-0 h-full w-full mix-blend-multiply"
       style={{ opacity }}
     >
       <filter id={id}>
@@ -747,6 +747,12 @@ function MapGrain({ opacity }: { opacity: number }) {
           stitchTiles="stitch"
         />
         <feColorMatrix type="saturate" values="0" />
+        {/* Lifted toward white, so multiplying adds specks without greying the map. */}
+        <feComponentTransfer>
+          <feFuncR type="linear" slope="0.6" intercept="0.62" />
+          <feFuncG type="linear" slope="0.6" intercept="0.62" />
+          <feFuncB type="linear" slope="0.6" intercept="0.62" />
+        </feComponentTransfer>
       </filter>
       <rect width="100%" height="100%" filter={`url(#${id})`} />
     </svg>

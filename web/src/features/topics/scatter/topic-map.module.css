@@ -51,6 +51,10 @@
   background-color: var(--look-bg);
 }
 
+:global(.dark) .look {
+  background-color: hsl(var(--sidebar-background));
+}
+
 .lookChrome,
 .lookChrome button {
   color: #6b6b6b;
