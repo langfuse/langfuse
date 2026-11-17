@@ -1,7 +1,7 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { prisma, type Role } from "@langfuse/shared/src/db";
+import { prisma, type Prisma, type Role } from "@langfuse/shared/src/db";
 import {
   BatchExportQueue,
   createOrgProjectAndApiKey,
@@ -268,6 +268,7 @@ const seedCompletedExport = (opts: {
   projectId: string;
   name: string;
   tableName: BatchTableNames;
+  query?: Prisma.InputJsonValue;
 }) =>
   prisma.batchExport.create({
     data: {
@@ -281,7 +282,7 @@ const seedCompletedExport = (opts: {
       url: "not-a-valid-url",
       finishedAt: new Date(),
       expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-      query: {
+      query: opts.query ?? {
         tableName: opts.tableName,
         filter: null,
         orderBy: null,
@@ -426,6 +427,50 @@ describe("batchExport tRPC – audit_logs download and list authorization", () =
       name: "traces export visible",
       tableName: BatchTableNames.Traces,
     });
+    const wrappedAuditJobs = [];
+    for (const kind of ["agent-scoped-export-v1", "agent-scoped-export-v2"]) {
+      const query = {
+        tableName: BatchTableNames.Events,
+        filter: [],
+        orderBy: null,
+        agentScope: {
+          identity: { kind: "id", value: "researcher" },
+          from: "2026-11-10T00:00:00.000Z",
+          to: "2026-11-17T00:00:00.000Z",
+          environment: "production",
+          mode: "runs",
+        },
+      };
+      await seedCompletedExport({
+        projectId: project.id,
+        name: `${kind} visible`,
+        tableName: BatchTableNames.Events,
+        query: { kind, query },
+      });
+      wrappedAuditJobs.push(
+        await seedCompletedExport({
+          projectId: project.id,
+          name: `${kind} audit hidden`,
+          tableName: BatchTableNames.AuditLogs,
+          query: {
+            kind,
+            query: { ...query, tableName: BatchTableNames.AuditLogs },
+          },
+        }),
+      );
+      wrappedAuditJobs.push(
+        await seedCompletedExport({
+          projectId: project.id,
+          name: `${kind} mixed audit hidden`,
+          tableName: BatchTableNames.Events,
+          query: {
+            tableName: BatchTableNames.Events,
+            kind,
+            query: { ...query, tableName: BatchTableNames.AuditLogs },
+          },
+        }),
+      );
+    }
 
     const memberCaller = appRouter.createCaller({
       ...createInnerTRPCContext({
@@ -444,10 +489,20 @@ describe("batchExport tRPC – audit_logs download and list authorization", () =
       limit: 50,
     });
 
-    expect(result.exports.map((e) => e.name)).toEqual([
+    expect(result.exports.map((e) => e.name).sort()).toEqual([
+      "agent-scoped-export-v1 visible",
+      "agent-scoped-export-v2 visible",
       "traces export visible",
     ]);
-    expect(result.totalCount).toBe(1);
+    expect(result.totalCount).toBe(3);
+    for (const job of wrappedAuditJobs) {
+      await expect(
+        memberCaller.batchExport.downloadUrl({
+          projectId: project.id,
+          batchExportId: job.id,
+        }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    }
   });
 
   it("includes audit_logs exports in all for an OWNER with entitlement", async () => {

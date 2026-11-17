@@ -28,7 +28,7 @@ import {
   paginationZod,
   persistBatchExportQuery,
 } from "@langfuse/shared";
-import { type Prisma, type PrismaClient } from "@langfuse/shared/src/db";
+import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import {
   BatchExportQueue,
   logger,
@@ -46,14 +46,28 @@ const LEGACY_DOWNLOAD_WINDOW_MS = 24 * 60 * 60 * 1000;
 // signature expiry when the request starts, not while the download streams.
 const FRESH_DOWNLOAD_URL_TTL_SECONDS = 10 * 60;
 
+const AGENT_EXPORT_ENVELOPE_KINDS = [
+  "agent-scoped-export-v1",
+  "agent-scoped-export-v2",
+] as const;
+
 // A persisted export's query is a Json column, so its table name is only
 // known at runtime. On create the query is still the validated input, where
 // `tableName` is typed and compared directly.
-const isAuditLogExport = (query: Prisma.JsonValue): boolean =>
-  typeof query === "object" &&
-  query !== null &&
-  !Array.isArray(query) &&
-  query.tableName === BatchExportTableName.AuditLogs;
+const isAuditLogExport = (query: Prisma.JsonValue): boolean => {
+  if (typeof query !== "object" || query === null || Array.isArray(query))
+    return false;
+  if (query.tableName === BatchExportTableName.AuditLogs) return true;
+  if (!AGENT_EXPORT_ENVELOPE_KINDS.some((kind) => query.kind === kind))
+    return false;
+  const scopedQuery = query.query;
+  return (
+    typeof scopedQuery === "object" &&
+    scopedQuery !== null &&
+    !Array.isArray(scopedQuery) &&
+    scopedQuery.tableName === BatchExportTableName.AuditLogs
+  );
+};
 
 const canReadAuditLogs = (session: AuthedSession, projectId: string) =>
   hasEntitlement({
@@ -306,12 +320,40 @@ export const batchExportRouter = createTRPCRouter({
         ...(canReadAuditLogs(ctx.session, input.projectId)
           ? {}
           : {
-              NOT: {
-                query: {
-                  path: ["tableName"],
-                  equals: BatchExportTableName.AuditLogs,
+              OR: [
+                {
+                  AND: [
+                    { query: { path: ["kind"], equals: Prisma.AnyNull } },
+                    {
+                      NOT: {
+                        query: {
+                          path: ["tableName"],
+                          equals: BatchExportTableName.AuditLogs,
+                        },
+                      },
+                    },
+                  ],
                 },
-              },
+                ...AGENT_EXPORT_ENVELOPE_KINDS.map((kind) => ({
+                  AND: [
+                    { query: { path: ["kind"], equals: kind } },
+                    {
+                      query: { path: ["tableName"], equals: Prisma.AnyNull },
+                    },
+                    {
+                      OR: [
+                        BatchExportTableName.Events,
+                        BatchExportTableName.Sessions,
+                      ].map((tableName) => ({
+                        query: {
+                          path: ["query", "tableName"],
+                          equals: tableName,
+                        },
+                      })),
+                    },
+                  ],
+                })),
+              ],
             }),
       };
 
