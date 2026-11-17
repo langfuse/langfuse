@@ -1,5 +1,10 @@
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import type { GatewaySpendBudgetInterval } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
+import {
+  getGatewaySpendLimitWindowEnd,
+  getGatewaySpendLimitWindowStart,
+} from "@/src/features/ai-gateway/fns/gatewaySpendLimitWindow";
 import { usdFormatter } from "@/src/utils/numbers";
 
 /** Share of the limit from which a budget shows as nearly used up. */
@@ -27,13 +32,48 @@ export function GatewayApiKeyBudgetCell({
     return <Badge color="filled" size="md" text={limit} />;
   }
 
-  return (
+  const badge = (
     <Badge
       color={budgetColor(spentUsd, spendLimit.limitUsd)}
       size="md"
       text={`${formatUsd(spentUsd)} / ${limit}`}
     />
   );
+  if (spentUsd < spendLimit.limitUsd) return badge;
+
+  return (
+    <CustomTooltip
+      content={
+        <span className="flex flex-col gap-0.5">
+          <span className="font-medium">Budget reached</span>
+          <span className="text-muted-foreground text-xs">
+            {reachedDescription(spendLimit.interval)}
+          </span>
+        </span>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <span {...getTriggerProps()} tabIndex={0} className="inline-flex">
+          {badge}
+        </span>
+      )}
+    </CustomTooltip>
+  );
+}
+
+function reachedDescription(interval: GatewaySpendBudgetInterval) {
+  const resetsAt = getGatewaySpendLimitWindowEnd(
+    interval,
+    getGatewaySpendLimitWindowStart(interval),
+  );
+  if (!resetsAt) {
+    return "Requests with this key are rejected until an admin raises or removes the budget.";
+  }
+  const date = resetsAt.toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+  return `Requests with this key are rejected until the budget resets on ${date}.`;
 }
 
 function budgetColor(spentUsd: number, limitUsd: number) {

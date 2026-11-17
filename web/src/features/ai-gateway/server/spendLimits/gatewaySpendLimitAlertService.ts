@@ -16,7 +16,7 @@ import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatew
 import {
   getGatewaySpendLimitWindowEnd,
   getGatewaySpendLimitWindowStart,
-} from "@/src/features/ai-gateway/server/spendLimits/gatewaySpendLimitWindow";
+} from "@/src/features/ai-gateway/fns/gatewaySpendLimitWindow";
 
 type GatewaySpendLimitEmail = Extract<
   NotificationEventType,

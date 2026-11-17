@@ -124,6 +124,22 @@ export const Budgets = meta.story({
   },
 });
 
+export const BudgetReached = meta.story({
+  name: "(Test) Budget explains a reached limit and when it resets",
+  args: {
+    data: { status: "success", data: budgetApiKeys },
+    ...actions,
+  },
+  play: async ({ canvas }) => {
+    const cells = budgetCells(canvas);
+    await expect(cells[1]!.querySelector("[tabindex='0']")).toBeNull();
+    await userEvent.hover(cells[3]!.querySelector("[tabindex='0']")!);
+    const tooltip = await screen.findByRole("tooltip");
+    await expect(tooltip).toHaveTextContent("Budget reached");
+    await expect(tooltip).toHaveTextContent(/until the budget resets on .*\d/);
+  },
+});
+
 export const BudgetsLoading = meta.story({
   name: "(Test) Budget shows a skeleton only for keys with a limit",
   args: {
