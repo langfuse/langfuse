@@ -1177,10 +1177,20 @@ jobs:
           pnpm --filter @langfuse/native run test
           pnpm --filter worker run test:native-codec
       - name: run tests
+        id: worker-suite
         run: pnpm --filter=worker run test:exclude-llm-connections
         env:
+          VITEST_CI_TIMINGS_PATH: ${{ runner.temp }}/vitest-worker.json
           LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: ${{ matrix.deploy-mode == '' && 'http://localhost:4566' || '' }}
           LANGFUSE_TEST_FLOCI_ENDPOINT: ${{ matrix.deploy-mode == '' && 'http://localhost:4566' || '' }}
+      - name: Upload worker file timings
+        if: ${{ always() && steps.worker-suite.outcome != '' && steps.worker-suite.outcome != 'skipped' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: vitest-worker-node${{ matrix.node-version }}-pg${{ matrix.postgres-version }}-mode${{ matrix.deploy-mode || '-default' }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/vitest-worker.json
+          if-no-files-found: error
+          retention-days: 7
 
   tests-fips:
     # Runs the web and worker suites the way a FIPS host would: on the UBI
