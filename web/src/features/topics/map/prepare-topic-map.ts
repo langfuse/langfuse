@@ -18,6 +18,8 @@ export type Camera = { x: number; y: number; zoom: number };
 /** Zoom limits, as multiples of the whole-map fit. */
 const MIN_ZOOM = 0.8;
 const MAX_ZOOM = 3;
+/** Pointer parallax for the deepest points, in pixels. */
+const PARALLAX_PX = 2.5;
 export type Size = { width: number; height: number };
 export type MapPoint = MapData["points"][number] & {
   groupId: string;
@@ -287,7 +289,11 @@ export function prepareMapNodes(
     const worldPosition = { x: point.x, y: point.y };
     const projected = screenPoint(worldPosition, camera, model.bounds, size);
     const depth = point.depth * (1 - blend);
-    const center = projected;
+    // A light parallax keeps the map alive without points wandering.
+    const center = {
+      x: projected.x + pointer.x * depth * PARALLAX_PX,
+      y: projected.y + pointer.y * depth * PARALLAX_PX,
+    };
     const diameter = (5 + depth) * Math.sqrt(Math.min(zoom, 4));
     const matchesFilters =
       (!readingTopic || point.groupId === readingTopic) &&
