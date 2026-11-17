@@ -57,7 +57,9 @@ progress output. Full usage and the need→command table live in the
   `event-mirror.ts` (v3 observation → v4 `events_full` row), `verify.ts`
 - `seed-postgres.ts`, `seed-clickhouse.ts`, `utils/` — the pre-existing
   `pnpm run dx` seed path; `seed-clickhouse.ts` also runs the
-  `gateway-budgets` scenario, so local dx and PR previews get AI Gateway spend
+  `gateway-budgets` scenario, so local dx gets AI Gateway spend (PR previews
+  seed only `many-traces`; run `gateway-budgets` there via the
+  `langfuse-previews` skill)
 - `README.md` — design rationale, contract, and roadmap
 
 ## Rules for changes
