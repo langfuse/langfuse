@@ -75,3 +75,73 @@ After regenerating, check against the files you replaced: codepoint coverage
 must be a superset, and `unitsPerEm`, ascender, descender, cap height, x-height
 and the advance widths must be unchanged — otherwise every monospace surface in
 the app shifts.
+
+# Self-hosted UI font candidates
+
+`fonts.ts` loads three variable sans faces for the font preview switcher
+(`src/features/font-preview`). The switcher sets `data-font-preview` on
+`<html>`, and `globals.css` swaps `--font-sans` and the weight roles per
+candidate. Without a selection the app keeps the system sans stack.
+
+## Provenance
+
+Each face is the variable TTF from a pinned `google/fonts` commit, converted to
+woff2 by the command below. Each `*-OFL.txt` is the SIL Open Font License 1.1
+copy from the same commit, line endings normalised to LF; keep it with its
+font.
+
+| File                                      | Family, version                  | Source                                                                                                                                                            | Weight axis |
+| ----------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `PublicSans-Variable.woff2`               | Public Sans 2.001                | [`google/fonts@8b0a1d0:ofl/publicsans`](https://github.com/google/fonts/tree/8b0a1d0f5983c89bc2b93f1b5fb55f9e252744b5/ofl/publicsans)                             | 100 to 900  |
+| `IBMPlexSans-Variable.woff2`              | IBM Plex Sans 3.201              | [`google/fonts@0b58fb3:ofl/ibmplexsans`](https://github.com/google/fonts/tree/0b58fb370093f9a9f4ff785d94405710b79de67c/ofl/ibmplexsans)                           | 100 to 700  |
+| `AtkinsonHyperlegibleNext-Variable.woff2` | Atkinson Hyperlegible Next 2.001 | [`google/fonts@95f4904:ofl/atkinsonhyperlegiblenext`](https://github.com/google/fonts/tree/95f4904fc8bcf26d3420fe315560c96417c6dec7/ofl/atkinsonhyperlegiblenext) | 200 to 800  |
+
+## Matched to the system font
+
+So the candidates can be compared on letter shapes alone, each is matched to
+the system font (SF Pro, measured at 13px):
+
+| Family                     | `size-adjust` in `fonts.ts` | Weight roles in `globals.css` |
+| -------------------------- | --------------------------- | ----------------------------- |
+| Public Sans                | 101.8%                      | 350 / 480 / 610               |
+| IBM Plex Sans              | 102%                        | 410 / 480 / 560               |
+| Atkinson Hyperlegible Next | 106.1%                      | 380 / 460 / 560               |
+
+`size-adjust` equalises x-height. The weight roles are the weights whose
+stroke matches the system font at 400 / 500 / 600; they need the variable
+axis, so do not swap a face for static weights without retuning them.
+
+## Coverage contract
+
+Same rule as above: ship every glyph upstream has and do not subset by script.
+`fonts.clienttest.ts` asserts it per family.
+
+| Family                     | Codepoints | Missing scripts                  |
+| -------------------------- | ---------- | -------------------------------- |
+| Public Sans                | 565        | Cyrillic, Greek                  |
+| IBM Plex Sans              | 891        | none of the ones the app samples |
+| Atkinson Hyperlegible Next | 362        | Vietnamese, Cyrillic, Greek      |
+
+Text in a missing script falls back to the system font.
+
+## Regenerating
+
+```sh
+convert() { # <google/fonts commit> <family dir> <upstream ttf> <output>
+  curl -sSL -o "$3" \
+    "https://raw.githubusercontent.com/google/fonts/$1/ofl/$2/$(printf %s "$3" | sed 's/\[/%5B/; s/\]/%5D/; s/,/%2C/')"
+  pyftsubset "$3" --unicodes='*' --layout-features='*' --flavor=woff2 \
+    --output-file="$4"
+}
+convert 8b0a1d0f5983c89bc2b93f1b5fb55f9e252744b5 publicsans \
+  'PublicSans[wght].ttf' PublicSans-Variable.woff2
+convert 0b58fb370093f9a9f4ff785d94405710b79de67c ibmplexsans \
+  'IBMPlexSans[wdth,wght].ttf' IBMPlexSans-Variable.woff2
+convert 95f4904fc8bcf26d3420fe315560c96417c6dec7 atkinsonhyperlegiblenext \
+  'AtkinsonHyperlegibleNext[wght].ttf' AtkinsonHyperlegibleNext-Variable.woff2
+```
+
+To take a newer upstream release, move the commit and update the family's
+entry in `FAMILIES` in `fonts.clienttest.ts` and the tables above in the same
+commit. Check the same things as for IBM Plex Mono, plus that the weight axis
+still spans the roles.

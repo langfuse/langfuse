@@ -5,6 +5,7 @@
 import "@/src/polyfills/crypto-random-uuid";
 
 import { type AppType } from "next/app";
+import dynamic from "next/dynamic";
 import Head from "next/head";
 import { type Session } from "next-auth";
 import { SessionProvider, useSession } from "next-auth/react";
@@ -22,7 +23,7 @@ import { NextAdapterPagesWithReadyGuard } from "@/src/utils/NextAdapterPagesWith
 import { QueryParamProvider } from "use-query-params";
 
 import "@/src/styles/globals.css";
-import { plexMono } from "@/src/styles/fonts";
+import { fontVariables } from "@/src/styles/fonts";
 import { AppLayout } from "@/src/components/layouts/app-layout/AppLayout";
 import { DefaultHead } from "@/src/components/layouts/default-head/DefaultHead";
 import { useEffect, useRef } from "react";
@@ -145,6 +146,15 @@ if (typeof window !== "undefined" && postHogClientConfig) {
   });
 }
 
+// Client-only: it portals into a layer and reads localStorage.
+const FontPreviewSwitcher = dynamic(
+  () =>
+    import("@/src/features/font-preview/FontPreviewSwitcher").then((mod) => ({
+      default: mod.FontPreviewSwitcher,
+    })),
+  { ssr: false },
+);
+
 const MyApp: AppType<{ session: Session | null }> = ({
   Component,
   pageProps: { session, ...pageProps },
@@ -177,7 +187,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
   );
 
   return (
-    <div className={`${plexMono.variable} contents`}>
+    <div className={`${fontVariables} contents`}>
       {/* Replaces Next's default `width=device-width` (next/head dedupes by
           name). `maximum-scale=1` stops iOS Safari auto-zooming a focused
           sub-16px field; iOS ignores `user-scalable=no` for user gestures, so
@@ -193,6 +203,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
       </Head>
       <DefaultHead />
       <LayerProvider>
+        <FontPreviewSwitcher />
         <QueryParamProvider
           adapter={NextAdapterPagesWithReadyGuard}
           options={{ enableBatching: true }}
