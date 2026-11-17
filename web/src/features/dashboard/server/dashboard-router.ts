@@ -62,14 +62,16 @@ const GetDashboardInput = z.object({
   dashboardId: z.string(),
 });
 
+const supportedPlacementTypes = z.array(
+  z.enum(["widget", "preset", "query", "text"]),
+);
+
 // Update dashboard definition input schema
 const UpdateDashboardDefinitionInput = z.object({
   projectId: z.string(),
   dashboardId: z.string(),
   definition: DashboardDefinitionSchema,
-  supportedPlacementTypes: z
-    .array(z.enum(["widget", "preset", "query", "text"]))
-    .optional(),
+  supportedPlacementTypes: supportedPlacementTypes.optional(),
 });
 
 // Update dashboard input schema
@@ -94,6 +96,7 @@ const CloneDashboardInput = z.object({
   // Optional definition override so an edit attempted on a read-only
   // dashboard (e.g. a tile moved on the curated Home) carries into the clone.
   definition: DashboardDefinitionSchema.optional(),
+  supportedPlacementTypes: supportedPlacementTypes.optional(),
   // Set the clone as the project's home dashboard in the same gesture.
   setAsHome: z.boolean().optional(),
 });
@@ -630,6 +633,36 @@ export const dashboardRouter = createTRPCRouter({
         });
       }
 
+      let definition = sourceDashboard.definition;
+      if (input.definition) {
+        const supported = (
+          input.supportedPlacementTypes ?? ["widget", "preset"]
+        ).filter(
+          (type) =>
+            env.LANGFUSE_EXPERIMENTAL_DASHBOARD_STUDIO_ENABLED === "true" ||
+            type === "widget" ||
+            type === "preset",
+        );
+        if (
+          input.definition.widgets.some(({ type }) => !supported.includes(type))
+        )
+          throw new InvalidRequestError(
+            "The dashboard contains placements outside the writer's supported placement types",
+          );
+        const retained = sourceDashboard.definition.widgets.filter(
+          ({ type }) => !supported.includes(type),
+        );
+        const retainedIds = new Set(retained.map(({ id }) => id));
+        definition = {
+          widgets: [
+            ...input.definition.widgets.filter(
+              ({ id }) => !retainedIds.has(id),
+            ),
+            ...retained,
+          ],
+        };
+      }
+
       // Create a new dashboard with the same data but a numbered clone name
       const existingClones = await ctx.prisma.dashboard.findMany({
         where: {
@@ -649,7 +682,7 @@ export const dashboardRouter = createTRPCRouter({
         ),
         sourceDashboard.description,
         ctx.session.user.id,
-        input.definition ?? sourceDashboard.definition,
+        definition,
       );
 
       if (input.setAsHome) {

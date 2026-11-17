@@ -3,10 +3,22 @@ import {
   createOrgProjectAndApiKey,
   DashboardService,
 } from "@langfuse/shared/src/server";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  getStudioPresetReplacement,
+  LangfuseNotFoundError,
+} from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
+import { env } from "@langfuse/shared/src/env";
 
 describe("DashboardService update methods", () => {
-  it("preserves placements an older editor cannot write and permits an informed editor to delete them", async () => {
+  const originalStudioEnabled =
+    env.LANGFUSE_EXPERIMENTAL_DASHBOARD_STUDIO_ENABLED;
+
+  afterEach(() => {
+    env.LANGFUSE_EXPERIMENTAL_DASHBOARD_STUDIO_ENABLED = originalStudioEnabled;
+  });
+
+  it("gates prototype writes and preserves placements outside the writer's capabilities", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
     const text = {
       type: "text" as const,
@@ -18,19 +30,69 @@ describe("DashboardService update methods", () => {
       x_size: 6,
       y_size: 2,
     };
+    const query = {
+      type: "query" as const,
+      id: uuidv4(),
+      config: getStudioPresetReplacement("home-traces")[0],
+      x: 0,
+      y: 2,
+      x_size: 6,
+      y_size: 6,
+    };
+    const widgets = [text, query];
+    env.LANGFUSE_EXPERIMENTAL_DASHBOARD_STUDIO_ENABLED = "false";
+    for (const placement of widgets)
+      await expect(
+        DashboardService.createDashboard(
+          projectId,
+          "Disabled prototype",
+          "",
+          undefined,
+          { widgets: [placement] },
+        ),
+      ).rejects.toThrow("Dashboard studio is not enabled");
+    expect(await prisma.dashboard.count({ where: { projectId } })).toBe(0);
+
+    env.LANGFUSE_EXPERIMENTAL_DASHBOARD_STUDIO_ENABLED = "true";
     const dashboard = await DashboardService.createDashboard(
       projectId,
       "Compatibility",
       "",
       undefined,
-      { widgets: [text] },
+      { widgets },
     );
+    await expect(
+      DashboardService.updateDashboardDefinition(dashboard.id, projectId, {
+        widgets,
+      }),
+    ).rejects.toThrow("supported placement types");
+
+    env.LANGFUSE_EXPERIMENTAL_DASHBOARD_STUDIO_ENABLED = "false";
+    await expect(
+      DashboardService.updateDashboardDefinition(
+        dashboard.id,
+        projectId,
+        { widgets },
+        undefined,
+        ["widget", "preset", "query", "text"],
+      ),
+    ).rejects.toThrow("Dashboard studio is not enabled");
     const oldSave = await DashboardService.updateDashboardDefinition(
       dashboard.id,
       projectId,
       { widgets: [] },
     );
-    expect(oldSave.definition.widgets).toEqual([text]);
+    expect(oldSave.definition.widgets).toEqual(widgets);
+    const disabledSave = await DashboardService.updateDashboardDefinition(
+      dashboard.id,
+      projectId,
+      { widgets: [] },
+      undefined,
+      ["widget", "preset", "query", "text"],
+    );
+    expect(disabledSave.definition.widgets).toEqual(widgets);
+
+    env.LANGFUSE_EXPERIMENTAL_DASHBOARD_STUDIO_ENABLED = "true";
     const informedSave = await DashboardService.updateDashboardDefinition(
       dashboard.id,
       projectId,
@@ -39,6 +101,14 @@ describe("DashboardService update methods", () => {
       ["widget", "preset", "query", "text"],
     );
     expect(informedSave.definition.widgets).toEqual([]);
+
+    env.LANGFUSE_EXPERIMENTAL_DASHBOARD_STUDIO_ENABLED = "false";
+    const legacy = await DashboardService.createDashboard(
+      projectId,
+      "Legacy dashboard",
+      "",
+    );
+    expect(legacy.definition.widgets).toEqual([]);
   });
 
   it("throw LangfuseNotFoundError instead of P2025 for a missing dashboard", async () => {

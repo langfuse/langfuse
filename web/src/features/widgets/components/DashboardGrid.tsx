@@ -18,6 +18,7 @@ import Router from "next/router";
 import { v4 as uuidv4 } from "uuid";
 import { StudioPlacementCard } from "@/src/features/dashboard-studio/StudioPlacementCard";
 import { useDashboardStudioCapture } from "@/src/features/dashboard-studio/analytics";
+import { useDashboardStudioEnabled } from "@/src/features/dashboard-studio/useDashboardStudioEnabled";
 
 export type DashboardPlacement = DashboardDefinition["widgets"][number];
 export type StudioPlacement = Extract<
@@ -80,7 +81,7 @@ function useMediaQuery(query: string) {
 export function DashboardGrid({
   widgets,
   onChange,
-  canEdit,
+  canEdit: requestedCanEdit,
   dashboardId,
   projectId,
   readPath,
@@ -127,6 +128,13 @@ export function DashboardGrid({
   onEditStudioPlacement?: (placement: StudioPlacement) => void;
   onDuplicateStudioPlacement?: (placement: StudioPlacement) => void;
 }) {
+  const studioCapability = useDashboardStudioEnabled(projectId);
+  const canEdit =
+    requestedCanEdit &&
+    (studioCapability.data === true ||
+      widgets.every(
+        (widget) => widget.type !== "query" && widget.type !== "text",
+      ));
   const track = useDashboardStudioCapture(readPath === "v4");
   const [activeChartKey, setActiveChartKey] = useState<string>();
   const chartSync: ChartProps["sync"] = {

@@ -10,9 +10,20 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { env } from "@/src/env.mjs";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { executeStudioWidget } from "./dashboard-studio-service";
 
 export const dashboardStudioRouter = createTRPCRouter({
+  isEnabled: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:read",
+      });
+      return env.LANGFUSE_EXPERIMENTAL_DASHBOARD_STUDIO_ENABLED === "true";
+    }),
   execute: protectedProjectProcedure
     .input(
       z

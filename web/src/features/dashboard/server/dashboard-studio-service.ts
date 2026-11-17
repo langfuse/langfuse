@@ -1,4 +1,5 @@
 import {
+  InvalidRequestError,
   type FilterState,
   type StudioDiagnostic,
   type StudioResult,
@@ -22,6 +23,7 @@ import {
   isRow,
   isProgressRow,
   isException,
+  logger,
 } from "@langfuse/shared/src/server";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import {
@@ -114,6 +116,18 @@ export async function executeStudioWidget(
     { rows: StudioRow[]; summaries: StudioRow[]; diagnostics: StudioDiagnostic }
   >();
 
+  const preparedSources = new Map<
+    string,
+    {
+      query: QueryType;
+      summaryQuery: QueryType | undefined;
+      requiresExplicitSummary: boolean;
+    }
+  >();
+  const compiledQueries = new Map<
+    QueryType,
+    Awaited<ReturnType<typeof prepareExecuteQuery>>
+  >();
   for (const source of input.config.queries) {
     for (const metric of source.metrics) {
       const ref = `${source.id}.${metric.id}`;
@@ -130,6 +144,122 @@ export async function executeStudioWidget(
         ),
       );
     }
+    const declaration = getViewDeclaration(source.view, input.version);
+    const queryDimensions = sourceDimensions(source, input.version);
+    for (const metric of source.metrics) {
+      if (!metric.summary) continue;
+      if (declaration.measures[metric.summary.measure]?.requiresDimension)
+        throw new InvalidRequestError(
+          "A summary metric must reduce to a scalar without expanded dimensions",
+        );
+      if (
+        rawMetricUnit(source.view, metric.summary, input.version) !==
+        units.get(`${source.id}.${metric.id}`)
+      )
+        throw new InvalidRequestError(
+          "Summary metrics must have compatible raw units",
+        );
+    }
+    const mappedGlobal = mapLegacyUiTableFilterToView(
+      source.view,
+      input.filters,
+    );
+    if (mappedGlobal.length !== input.filters.length)
+      result.warnings.push(
+        `${source.id}: some dashboard filters are not applicable to this source`,
+      );
+    // Studio query filters are already canonical, unlike the dashboard's
+    // legacy UI filter names. Never discard a local predicate during mapping.
+    const hasLocalEnvironment = source.filters.some(
+      (filter) => filter.column === "environment",
+    );
+    const targetFilters: FilterState =
+      source.scoreTarget && source.scoreTarget !== "all"
+        ? [
+            {
+              column: "scoreTarget",
+              type: "string",
+              operator: "=",
+              value: source.scoreTarget,
+            },
+          ]
+        : [];
+    const filters = [
+      ...source.filters,
+      ...targetFilters,
+      ...mappedGlobal.filter(
+        (filter) => !hasLocalEnvironment || filter.column !== "environment",
+      ),
+    ];
+    const metrics = source.metrics.map((metric) => ({
+      measure: metric.measure,
+      aggregation: metric.aggregation,
+      ...(metric.percentile !== undefined
+        ? { percentile: metric.percentile }
+        : {}),
+    }));
+    const query: QueryType = {
+      view: source.view,
+      dimensions: queryDimensions,
+      metrics,
+      filters,
+      timeDimension: timeSeries ? { granularity: input.granularity } : null,
+      fromTimestamp: input.fromTimestamp,
+      toTimestamp: input.toTimestamp,
+      orderBy:
+        source.orderBy ??
+        (timeSeries ||
+        metrics.some((metric) => metric.aggregation === "histogram")
+          ? null
+          : [
+              {
+                field: `${metrics[0].aggregation}_${metrics[0].measure}`,
+                direction: "desc",
+              },
+            ]),
+      chartConfig: {
+        type: input.config.display.chartType,
+        bins: input.config.display.bins ?? 10,
+        histogramEdges: input.config.display.histogramEdges,
+        ...(!timeSeries
+          ? { row_limit: input.config.display.rowLimit ?? 20 }
+          : {}),
+      },
+    };
+    const validation = validateQuery(query, input.version);
+    if (!validation.valid) throw new InvalidRequestError(validation.reason);
+    const requiresExplicitSummary = source.metrics.some(
+      (metric) =>
+        declaration.measures[metric.measure]?.requiresDimension &&
+        !metric.summary,
+    );
+    let summaryQuery: QueryType | undefined;
+    if (
+      input.config.display.showHeadline &&
+      !requiresExplicitSummary &&
+      !source.metrics.some((metric) => metric.aggregation === "histogram") &&
+      (queryDimensions.length > 0 ||
+        timeSeries ||
+        source.metrics.some((metric) => metric.summary))
+    ) {
+      summaryQuery = {
+        ...query,
+        metrics: source.metrics.map(
+          (metric, index) => metric.summary ?? metrics[index],
+        ),
+        dimensions: [],
+        timeDimension: null,
+        orderBy: null,
+        chartConfig: { type: "NUMBER" },
+      };
+      const validation = validateQuery(summaryQuery, input.version);
+      if (!validation.valid) throw new InvalidRequestError(validation.reason);
+    }
+    preparedSources.set(source.id, {
+      query,
+      summaryQuery,
+      requiresExplicitSummary,
+    });
   }
 
   const runSource = async (source: StudioWidgetConfig["queries"][number]) => {
@@ -143,12 +273,7 @@ export async function executeStudioWidget(
     };
     const run = async (query: QueryType) => {
       executionSignal.throwIfAborted();
-      const prepared = await prepareExecuteQuery({
-        projectId: input.projectId,
-        query,
-        version: input.version,
-        enableSingleLevelOptimization: input.version === "v2",
-      });
+      const prepared = compiledQueries.get(query)!;
       if (!diagnostic.compiledSql)
         diagnostic.compiledSql = prepared.compiledQuery;
       diagnostic.queryCount++;
@@ -182,88 +307,10 @@ export async function executeStudioWidget(
       return rows;
     };
     try {
-      const declaration = getViewDeclaration(source.view, input.version);
-      const queryDimensions = sourceDimensions(source, input.version);
-      for (const metric of source.metrics) {
-        if (!metric.summary) continue;
-        if (declaration.measures[metric.summary.measure]?.requiresDimension)
-          throw new Error(
-            "A summary metric must reduce to a scalar without expanded dimensions",
-          );
-        if (
-          rawMetricUnit(source.view, metric.summary, input.version) !==
-          units.get(`${source.id}.${metric.id}`)
-        )
-          throw new Error("Summary metrics must have compatible raw units");
-      }
-      const mappedGlobal = mapLegacyUiTableFilterToView(
-        source.view,
-        input.filters,
-      );
-      if (mappedGlobal.length !== input.filters.length)
-        result.warnings.push(
-          `${source.id}: some dashboard filters are not applicable to this source`,
-        );
-      // Studio query filters are already canonical, unlike the dashboard's
-      // legacy UI filter names. Never discard a local predicate during mapping.
-      const hasLocalEnvironment = source.filters.some(
-        (filter) => filter.column === "environment",
-      );
-      const targetFilters: FilterState =
-        source.scoreTarget && source.scoreTarget !== "all"
-          ? [
-              {
-                column: "scoreTarget",
-                type: "string",
-                operator: "=",
-                value: source.scoreTarget,
-              },
-            ]
-          : [];
-      const filters = [
-        ...source.filters,
-        ...targetFilters,
-        ...mappedGlobal.filter(
-          (filter) => !hasLocalEnvironment || filter.column !== "environment",
-        ),
-      ];
-      const metrics = source.metrics.map((metric) => ({
-        measure: metric.measure,
-        aggregation: metric.aggregation,
-        ...(metric.percentile !== undefined
-          ? { percentile: metric.percentile }
-          : {}),
-      }));
-      const query: QueryType = {
-        view: source.view,
-        dimensions: queryDimensions,
-        metrics,
-        filters,
-        timeDimension: timeSeries ? { granularity: input.granularity } : null,
-        fromTimestamp: input.fromTimestamp,
-        toTimestamp: input.toTimestamp,
-        orderBy:
-          source.orderBy ??
-          (timeSeries ||
-          metrics.some((metric) => metric.aggregation === "histogram")
-            ? null
-            : [
-                {
-                  field: `${metrics[0].aggregation}_${metrics[0].measure}`,
-                  direction: "desc",
-                },
-              ]),
-        chartConfig: {
-          type: input.config.display.chartType,
-          bins: input.config.display.bins ?? 10,
-          histogramEdges: input.config.display.histogramEdges,
-          ...(!timeSeries
-            ? { row_limit: input.config.display.rowLimit ?? 20 }
-            : {}),
-        },
-      };
-      const validation = validateQuery(query, input.version);
-      if (!validation.valid) throw new Error(validation.reason);
+      const { query, summaryQuery, requiresExplicitSummary } =
+        preparedSources.get(source.id)!;
+      const queryDimensions = query.dimensions;
+      const metrics = query.metrics;
       const raw = await run(query);
       const convert = (
         rows: Record<string, unknown>[],
@@ -355,7 +402,7 @@ export async function executeStudioWidget(
         );
       const rows = convert(raw);
       if (rows.length + resultCellCount > 100_000)
-        throw new Error(
+        throw new InvalidRequestError(
           "This widget exceeds the 100,000 result-cell limit. Narrow its time range or breakdown.",
         );
       resultCellCount += rows.length;
@@ -366,11 +413,6 @@ export async function executeStudioWidget(
         diagnostics: diagnostic,
       });
       let summaries: StudioRow[] = [];
-      const requiresExplicitSummary = source.metrics.some(
-        (metric) =>
-          declaration.measures[metric.measure]?.requiresDimension &&
-          !metric.summary,
-      );
       if (input.config.display.showHeadline && requiresExplicitSummary)
         result.warnings.push(
           `${source.id}: expanded measures need an explicit scalar summary binding; no headline was inferred from map entries`,
@@ -380,36 +422,23 @@ export async function executeStudioWidget(
         !requiresExplicitSummary &&
         !source.metrics.some((metric) => metric.aggregation === "histogram")
       ) {
-        if (
-          queryDimensions.length === 0 &&
-          !timeSeries &&
-          source.metrics.every((metric) => !metric.summary)
-        )
-          summaries = convert(raw, true);
-        else {
-          const summaryMetrics = source.metrics.map(
-            (metric, index) => metric.summary ?? metrics[index],
-          );
-          const summaryQuery: QueryType = {
-            ...query,
-            metrics: summaryMetrics,
-            dimensions: [],
-            timeDimension: null,
-            orderBy: null,
-            chartConfig: { type: "NUMBER" },
-          };
-          const summaryValidation = validateQuery(summaryQuery, input.version);
-          if (!summaryValidation.valid)
-            throw new Error(summaryValidation.reason);
-          summaries = convert(await run(summaryQuery), true, summaryMetrics);
-        }
+        summaries = summaryQuery
+          ? convert(await run(summaryQuery), true, summaryQuery.metrics)
+          : convert(raw, true);
       }
       diagnostic.resultRows = raw.length;
       queryResults.set(source.id, { rows, summaries, diagnostics: diagnostic });
     } catch (error) {
       diagnostic.status = "error";
       diagnostic.error =
-        error instanceof Error ? error.message : "Query failed";
+        error instanceof InvalidRequestError
+          ? error.message
+          : "Query failed. Please try again.";
+      if (!(error instanceof InvalidRequestError))
+        logger.error("Dashboard studio query execution failed", error, {
+          projectId: input.projectId,
+          queryId: source.id,
+        });
       queryErrors.set(source.id, diagnostic.error);
       const previous = queryResults.get(source.id);
       queryResults.set(source.id, {
@@ -432,8 +461,6 @@ export async function executeStudioWidget(
   const pending = input.config.queries.filter(
     (source) => !neededIds || neededIds.has(source.id),
   );
-  for (const source of pending) await runSource(source);
-
   const expressionRows = (summary: boolean) => {
     const rows = [...queryResults.values()].flatMap((value) =>
       summary ? value.summaries : value.rows,
@@ -449,30 +476,32 @@ export async function executeStudioWidget(
     for (const expression of input.config.expressions) {
       const refs = studioFormulaReferences(expression.formula);
       if (refs.length === 0)
-        throw new Error(
+        throw new InvalidRequestError(
           "Expressions must reference a query measure or an earlier expression",
         );
       const shapeSet = new Set(refs.map((ref) => shapes.get(ref)));
       if (refs.some((ref) => !units.has(ref)))
-        throw new Error(`Unknown reference in expression ${expression.id}`);
+        throw new InvalidRequestError(
+          `Unknown reference in expression ${expression.id}`,
+        );
       if (shapeSet.size > 1)
-        throw new Error(
+        throw new InvalidRequestError(
           `Expression ${expression.id} requires matching breakdown dimensions`,
         );
       if (refs.some((ref) => aggregations.get(ref) === "histogram"))
-        throw new Error(
+        throw new InvalidRequestError(
           `Expression ${expression.id} cannot use histogram bins as scalar inputs`,
         );
       const hasBreakdown = [...shapeSet].some((shape) => shape !== "[]");
       if (hasBreakdown && !timeSeries)
-        throw new Error(
+        throw new InvalidRequestError(
           `Expression ${expression.id} needs a shared breakdown domain before top-N truncation. Use a time series or ungrouped inputs.`,
         );
       const sourceViews = new Set(
         refs.flatMap((ref) => [...(sourceViewsByRef.get(ref) ?? [])]),
       );
       if (hasBreakdown && sourceViews.size > 1)
-        throw new Error(
+        throw new InvalidRequestError(
           `Expression ${expression.id} cannot align breakdowns across different entity sources`,
         );
       const validationCells = new Map(
@@ -536,7 +565,7 @@ export async function executeStudioWidget(
             aggregation: "expression",
           });
         if (!expression.hidden && computed.length + resultCellCount >= 100_000)
-          throw new Error(
+          throw new InvalidRequestError(
             "This widget exceeds the 100,000 result-cell limit. Narrow its time range or breakdown.",
           );
         const output = {
@@ -554,12 +583,36 @@ export async function executeStudioWidget(
     }
     return computed;
   };
+  // Validate formulas and compile every configured query before issuing any scans.
+  expressionRows(false);
+  for (const { query, summaryQuery } of preparedSources.values()) {
+    for (const candidate of [query, summaryQuery]) {
+      if (!candidate) continue;
+      compiledQueries.set(
+        candidate,
+        await prepareExecuteQuery({
+          projectId: input.projectId,
+          query: candidate,
+          version: input.version,
+          enableSingleLevelOptimization: input.version === "v2",
+        }),
+      );
+    }
+  }
+  for (const source of pending) await runSource(source);
+
   try {
     result.rows = result.rows.concat(expressionRows(false));
     result.summaries = result.summaries.concat(expressionRows(true));
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Expression failed";
+      error instanceof InvalidRequestError
+        ? error.message
+        : "Expression evaluation failed. Please try again.";
+    if (!(error instanceof InvalidRequestError))
+      logger.error("Dashboard studio expression evaluation failed", error, {
+        projectId: input.projectId,
+      });
     result.warnings.push(message);
     result.diagnostics.push({
       queryId: "expressions",

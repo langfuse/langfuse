@@ -46,6 +46,9 @@ export const env = createEnv({
     DATABASE_URL: z.url(),
     NODE_ENV: z.enum(["development", "test", "production"]),
     BUILD_ID: z.string().optional(),
+    LANGFUSE_EXPERIMENTAL_DASHBOARD_STUDIO_ENABLED: z
+      .enum(["true", "false"])
+      .default("false"),
     NEXTAUTH_SECRET:
       process.env.NODE_ENV === "production"
         ? z.string().min(1)
@@ -937,6 +940,8 @@ export const env = createEnv({
    * middlewares) or client-side so we need to destruct manually.
    */
   runtimeEnv: {
+    LANGFUSE_EXPERIMENTAL_DASHBOARD_STUDIO_ENABLED:
+      process.env.LANGFUSE_EXPERIMENTAL_DASHBOARD_STUDIO_ENABLED,
     SEED_SECRET_KEY: process.env.SEED_SECRET_KEY,
     NEXT_PUBLIC_DEMO_PROJECT_ID: process.env.NEXT_PUBLIC_DEMO_PROJECT_ID,
     NEXT_PUBLIC_DEMO_ORG_ID: process.env.NEXT_PUBLIC_DEMO_ORG_ID,

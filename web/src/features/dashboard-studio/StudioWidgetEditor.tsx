@@ -15,6 +15,7 @@ import { StudioQueryWidget } from "./StudioQueryWidget";
 import { StudioSeriesEditor } from "./StudioSeriesEditor";
 import { createStudioQuery, studioChartOptions } from "./catalog";
 import { useDashboardStudioCapture } from "./analytics";
+import { resolveStudioQueryVersion, withStudioQueries } from "./studioConfig";
 
 export function StudioWidgetEditor({
   initialValue,
@@ -36,7 +37,12 @@ export function StudioWidgetEditor({
   const [config, setConfig] = useState(initialValue);
   const [preview, setPreview] = useState(initialValue);
   const [error, setError] = useState<string | null>(null);
-  const track = useDashboardStudioCapture(readPath === "v4");
+  const queryVersion = resolveStudioQueryVersion(
+    config,
+    readPath === "v4" ? "v2" : "v1",
+    filterState,
+  );
+  const track = useDashboardStudioCapture(queryVersion === "v2");
   const metadata = {
     widgetKind: "query" as const,
     chartType: config.display.chartType,
@@ -130,7 +136,7 @@ export function StudioWidgetEditor({
             <StudioSeriesEditor
               key={query.id}
               query={query}
-              isV4={readPath === "v4"}
+              isV4={queryVersion === "v2"}
               timeSeries={
                 config.display.timeSeries ??
                 config.display.chartType.endsWith("TIME_SERIES")
@@ -138,12 +144,14 @@ export function StudioWidgetEditor({
               projectId={projectId}
               dateRange={dateRange}
               onChange={(next) => {
-                setConfig({
-                  ...config,
-                  queries: config.queries.map((item) =>
-                    item.id === query.id ? next : item,
+                setConfig(
+                  withStudioQueries(
+                    config,
+                    config.queries.map((item) =>
+                      item.id === query.id ? next : item,
+                    ),
                   ),
-                });
+                );
                 if (next.scoreTarget !== query.scoreTarget)
                   track("configuration_changed", {
                     ...metadata,
@@ -162,12 +170,12 @@ export function StudioWidgetEditor({
               onRemove={
                 config.queries.length > 1
                   ? () => {
-                      setConfig({
-                        ...config,
-                        queries: config.queries.filter(
-                          (item) => item.id !== query.id,
+                      setConfig(
+                        withStudioQueries(
+                          config,
+                          config.queries.filter((item) => item.id !== query.id),
                         ),
-                      });
+                      );
                       track("series_removed", metadata);
                     }
                   : undefined

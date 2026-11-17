@@ -1,5 +1,6 @@
 import { prisma } from "../../../src/db";
 import { rangeToString } from "../../../src/utils/dateRanges";
+import { env } from "../../../src/env";
 import { EventsAggQueryBuilder } from "../../../src/server/queries/clickhouse-sql/event-query-builder";
 import {
   clickhouseClient,
@@ -112,7 +113,7 @@ const readSeedTruth = async (projectId: string, from: number, end: number) => {
 export const dashboardStoryScenario: ScenarioDefinition = {
   name: "dashboard-story",
   description:
-    "A v4 dashboard story: independent metadata cohorts, rich scores, 12 current/preset comparison pairs and editable multi-query charts. Creates a dedicated synthetic project by default.",
+    "A v4 dashboard story: independent metadata cohorts, rich scores, 12 current/preset comparison pairs and editable multi-query charts. Requires LANGFUSE_EXPERIMENTAL_DASHBOARD_STUDIO_ENABLED=true. Creates a dedicated synthetic project by default.",
   supportsV4: true,
   flags: [
     {
@@ -137,6 +138,14 @@ export const dashboardStoryScenario: ScenarioDefinition = {
     },
   ],
   run: async (ctx, params) => {
+    if (
+      !ctx.dryRun &&
+      env.LANGFUSE_EXPERIMENTAL_DASHBOARD_STUDIO_ENABLED !== "true"
+    )
+      throw new SeedError(
+        "Dashboard studio is not enabled",
+        "set LANGFUSE_EXPERIMENTAL_DASHBOARD_STUDIO_ENABLED=true only after all running servers can read and preserve query/text placements",
+      );
     const startedAt = Date.now();
     const observationCount = Number(params.observations);
     const days = Number(params.days);

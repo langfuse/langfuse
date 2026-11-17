@@ -53,6 +53,8 @@ import { StudioPresetGallery } from "./StudioPresetGallery";
 import { StudioMigrationPanel } from "./StudioMigrationPanel";
 import { StudioDashboardFilters } from "./StudioDashboardFilters";
 import { saveStudioDashboard } from "./saveStudioDashboard";
+import { StudioMetadataComparisonController } from "./StudioMetadataComparisonController";
+import { useDashboardStudioEnabled } from "./useDashboardStudioEnabled";
 
 export default function DashboardStudioPage() {
   const route = useReadyRouteParams(["projectId", "dashboardId"]);
@@ -81,14 +83,31 @@ function DashboardStudioLoader({
   dashboardId: string;
   readPath: ResolvedReadPath;
 }) {
-  const dashboard = api.dashboard.getDashboard.useQuery({
-    projectId,
-    dashboardId,
-  });
-  if (dashboard.isPending)
+  const enabled = useDashboardStudioEnabled(projectId);
+  const dashboard = api.dashboard.getDashboard.useQuery(
+    {
+      projectId,
+      dashboardId,
+    },
+    { enabled: enabled.data === true },
+  );
+  if (enabled.isPending || (enabled.data && dashboard.isPending))
     return (
       <div className="flex h-64 items-center justify-center">
         <Spinner size="sm" />
+      </div>
+    );
+  if (!enabled.data)
+    return (
+      <div className="flex flex-col items-start gap-3 p-6 text-sm">
+        <p role="status">
+          Dashboard studio is not enabled for this deployment.
+        </p>
+        <Button
+          text="View dashboard"
+          variant="outline"
+          href={`/project/${projectId}/dashboards/${dashboardId}`}
+        />
       </div>
     );
   if (!dashboard.data)
@@ -356,22 +375,28 @@ function StudioWorkspace({
                   track("text_added", { widgetKind: "text" });
                 }}
               />
-              <Button
-                text="Compare metadata"
-                icon={BarChart3Icon}
-                variant="ghost"
-                onClick={() => {
+              <StudioMetadataComparisonController
+                onCreate={(keys) => {
                   openEditor({
                     ...geometry(),
                     type: "query",
-                    config: createMetadataComparison(),
+                    config: createMetadataComparison(keys),
                   });
                   track("template_selected", {
                     widgetKind: "query",
                     queryCount: 2,
                   });
                 }}
-              />
+              >
+                {({ openDialog }) => (
+                  <Button
+                    text="Compare metadata"
+                    icon={BarChart3Icon}
+                    variant="ghost"
+                    onClick={() => openDialog()}
+                  />
+                )}
+              </StudioMetadataComparisonController>
               <Button
                 text="Paste"
                 icon={ClipboardPasteIcon}
@@ -566,7 +591,7 @@ function StudioWorkspace({
                     openEditor({
                       ...geometry(),
                       type: "query",
-                      config: createMetadataComparison(),
+                      config: createStudioWidget(),
                     })
                   }
                 />

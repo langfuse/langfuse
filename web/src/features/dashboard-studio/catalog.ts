@@ -58,7 +58,9 @@ export function createStudioWidget(): StudioWidgetConfig {
   };
 }
 
-export function createMetadataComparison(): StudioWidgetConfig {
+export function createMetadataComparison(
+  keys: [string, string],
+): StudioWidgetConfig {
   const query = (id: string, key: string): StudioQuery => ({
     ...createStudioQuery(id),
     label: `Has ${key}`,
@@ -77,7 +79,7 @@ export function createMetadataComparison(): StudioWidgetConfig {
     title: "Which metadata is present?",
     description:
       "Each bar counts its own population. An observation with both keys is counted in both bars.",
-    queries: [query("a", "abc"), query("b", "bbc")],
+    queries: [query("a", keys[0]), query("b", keys[1])],
     display: {
       chartType: "VERTICAL_BAR",
       timeSeries: false,

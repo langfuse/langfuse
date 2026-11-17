@@ -98,6 +98,7 @@ import { useDashboardDefinitionDraft } from "@/src/features/dashboard/hooks/useD
 import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingFallback/RouteParamsPendingFallback";
 import { useReadyRouteParams } from "@/src/hooks/useReadyRouteParams";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
+import { useDashboardStudioEnabled } from "@/src/features/dashboard-studio/useDashboardStudioEnabled";
 
 // Position for a tile inserted "next to" an anchor tile: same size,
 // immediately to the right when that fits the 12-column grid, otherwise
@@ -167,17 +168,26 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
       }),
     },
   );
+  const studioCapability = useDashboardStudioEnabled(projectId);
+  const hasStudioPlacements =
+    dashboard.data?.definition.widgets.some(
+      (placement) => placement.type === "query" || placement.type === "text",
+    ) ?? false;
+  const isStudioReadOnly =
+    hasStudioPlacements && studioCapability.data !== true;
 
   const hasRbacCUDAccess = useHasProjectAccess({
     projectId,
     scope: "dashboards:CUD",
   });
   const isLockedDashboard = dashboard.data?.owner === "LANGFUSE";
-  const hasCUDAccess = hasRbacCUDAccess && !isLockedDashboard;
+  const hasCUDAccess =
+    hasRbacCUDAccess && !isLockedDashboard && !isStudioReadOnly;
 
   // Langfuse-managed dashboards keep full edit affordances; edit attempts
   // route through the clone-first flow instead of mutating.
-  const isLockedEditable = hasRbacCUDAccess && isLockedDashboard;
+  const isLockedEditable =
+    hasRbacCUDAccess && isLockedDashboard && !isStudioReadOnly;
 
   // PostHog is the external system: report one view per dashboard once the
   // owner is known ("do the Langfuse-maintained templates get used?"). The
@@ -193,7 +203,8 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   }, [capture, dashboardId, dashboardOwner]);
 
   // Access for cloning (independent of dashboard owner)
-  const hasCloneAccess = hasRbacCUDAccess && isLockedDashboard;
+  const hasCloneAccess =
+    hasRbacCUDAccess && isLockedDashboard && !isStudioReadOnly;
 
   // gridResetKey remounts the grid to revert an attempted drag/resize when the
   // user cancels the clone-first flow.
@@ -311,7 +322,10 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
     (definition: { widgets: DashboardPlacement[] }) => {
       if (!hasCUDAccess) return;
       updateDashboardDefinition.mutate({
-        supportedPlacementTypes: ["widget", "preset", "query", "text"],
+        supportedPlacementTypes:
+          studioCapability.data === true
+            ? ["widget", "preset", "query", "text"]
+            : ["widget", "preset"],
         projectId,
         dashboardId,
         definition,
@@ -1333,11 +1347,13 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                     ),
                     actionButtonsRight: (
                       <>
-                        <DesignSystemButton
-                          text="Open in studio"
-                          variant="outline"
-                          href={`/project/${projectId}/dashboards/${dashboardId}/studio?dateRange=${rangeToString(timeRange)}`}
-                        />
+                        {studioCapability.data === true && (
+                          <DesignSystemButton
+                            text="Open in studio"
+                            variant="outline"
+                            href={`/project/${projectId}/dashboards/${dashboardId}/studio?dateRange=${rangeToString(timeRange)}`}
+                          />
+                        )}
                         {(updateDashboardDefinition.isPending ||
                           updateDashboardMetadata.isPending ||
                           updateDashboardFilters.isPending ||

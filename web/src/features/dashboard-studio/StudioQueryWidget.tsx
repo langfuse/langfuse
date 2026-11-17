@@ -17,6 +17,7 @@ import {
 import { useDashboardQuerySlot } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 import { useDashboardStudioCapture } from "./analytics";
 import { ScoreTag } from "@/src/components/ScoreTag";
+import { resolveStudioQueryVersion } from "./studioConfig";
 
 export type StudioQueryWidgetProps = {
   projectId: string;
@@ -38,7 +39,12 @@ export function StudioQueryWidget({
   const [view, setView] = useState("chart");
   const [selectedQuery, setSelectedQuery] = useState("configured");
   const queryId = useId();
-  const track = useDashboardStudioCapture(readPath === "v4");
+  const queryVersion = resolveStudioQueryVersion(
+    config,
+    readPath === "v4" ? "v2" : "v1",
+    filterState,
+  );
+  const track = useDashboardStudioCapture(queryVersion === "v2");
   const [fallbackRange] = useState(() => ({
     from: new Date(Date.now() - 7 * 86400000),
     to: new Date(),
@@ -64,7 +70,7 @@ export function StudioQueryWidget({
             display: { ...effectiveConfig.display, showHeadline: true },
           }
         : effectiveConfig,
-    version: readPath === "v4" ? ("v2" as const) : ("v1" as const),
+    version: queryVersion,
     fromTimestamp: range.from.toISOString(),
     toTimestamp: range.to.toISOString(),
     granularity: "auto" as const,

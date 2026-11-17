@@ -15,6 +15,17 @@ describe("dashboard studio expressions", () => {
       unit: "ratio",
     });
     expect(
+      evaluateStudioFormula("1 - errors.count / all.count", cells),
+    ).toEqual({ value: 0.7, unit: "ratio" });
+    expect(evaluateStudioFormula("all.count + 1", cells)).toEqual({
+      value: 41,
+      unit: "observations",
+    });
+    expect(evaluateStudioFormula("1 + all.count", cells)).toEqual({
+      value: 41,
+      unit: "observations",
+    });
+    expect(
       evaluateStudioFormula("(all.count - errors.count) * 2", cells),
     ).toEqual({ value: 56, unit: "observations" });
     expect(

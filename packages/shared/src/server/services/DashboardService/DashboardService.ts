@@ -7,6 +7,7 @@ import {
   singleFilter,
 } from "../../../";
 import { InvalidRequestError } from "../../../errors/InvalidRequestError";
+import { ForbiddenError } from "../../../errors/ForbiddenError";
 import { env } from "../../../env";
 import {
   CreateWidgetInput,
@@ -88,6 +89,19 @@ const validateDashboardWidgetQuery = (
   }
 };
 
+const isStudioPlacementType = (type: string) =>
+  type === "query" || type === "text";
+
+const assertStudioPlacementsEnabled = (
+  definition: z.infer<typeof DashboardDefinitionSchema>,
+) => {
+  if (
+    env.LANGFUSE_EXPERIMENTAL_DASHBOARD_STUDIO_ENABLED !== "true" &&
+    definition.widgets.some(({ type }) => isStudioPlacementType(type))
+  )
+    throw new ForbiddenError("Dashboard studio is not enabled");
+};
+
 export class DashboardService {
   /**
    * Retrieves a list of dashboards for a given project.
@@ -155,6 +169,7 @@ export class DashboardService {
     },
     filters?: z.infer<typeof singleFilter>[],
   ): Promise<DashboardDomain> {
+    assertStudioPlacementsEnabled(initialDefinition);
     const newDashboard = await prisma.dashboard.create({
       data: {
         name,
@@ -216,6 +231,20 @@ export class DashboardService {
     userId?: string,
     supportedPlacementTypes: readonly string[] = ["widget", "preset"],
   ): Promise<DashboardDomain> {
+    assertStudioPlacementsEnabled(definition);
+    if (
+      definition.widgets.some(
+        ({ type }) => !supportedPlacementTypes.includes(type),
+      )
+    )
+      throw new InvalidRequestError(
+        "The dashboard contains placements outside the writer's supported placement types",
+      );
+    const writablePlacementTypes = supportedPlacementTypes.filter(
+      (type) =>
+        env.LANGFUSE_EXPERIMENTAL_DASHBOARD_STUDIO_ENABLED === "true" ||
+        !isStudioPlacementType(type),
+    );
     return prisma.$transaction(async (tx) => {
       // Serialize content replacements so a reader with fewer placement capabilities
       // cannot erase content written concurrently by a newer editor.
@@ -229,7 +258,7 @@ export class DashboardService {
         );
       const stored = DashboardDefinitionSchema.parse(current.definition);
       const retained = stored.widgets.filter(
-        (placement) => !supportedPlacementTypes.includes(placement.type),
+        (placement) => !writablePlacementTypes.includes(placement.type),
       );
       const retainedIds = new Set(retained.map((placement) => placement.id));
       const incoming = definition.widgets.filter(
@@ -600,6 +629,7 @@ export class DashboardService {
       const definition = (dashboard.definition ?? {
         widgets: [],
       }) as z.infer<typeof DashboardDefinitionSchema>;
+      assertStudioPlacementsEnabled(definition);
       const updatedWidgets = (definition.widgets || []).map((w: any) =>
         w.id === placementId ? { ...w, widgetId: newWidget.id } : w,
       );

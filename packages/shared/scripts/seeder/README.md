@@ -20,7 +20,7 @@ reference for agents lives in [AGENTS.md](./AGENTS.md) and the
 
 ## Dashboard studio story
 
-Run `NEXTAUTH_URL=http://localhost:3030 pnpm run seed -- dashboard-story` for
+Run `LANGFUSE_EXPERIMENTAL_DASHBOARD_STUDIO_ENABLED=true NEXTAUTH_URL=http://localhost:3030 pnpm run seed -- dashboard-story` for
 the dashboard migration demonstration. It creates a dedicated synthetic project
 in the default seed project's organisation, preserves its existing membership
 access, and sets the saved story dashboard as that synthetic project's Home.
@@ -47,8 +47,8 @@ categorical distribution/trend charts with editable score-definition filters.
 Use fresh prefixes for independent scale tiers:
 
 ```bash
-NEXTAUTH_URL=http://localhost:3030 pnpm run seed -- dashboard-story --observations 30000 --id-prefix dashboard-story-30k
-NEXTAUTH_URL=http://localhost:3030 pnpm run seed -- dashboard-story --observations 300000 --id-prefix dashboard-story-300k
+LANGFUSE_EXPERIMENTAL_DASHBOARD_STUDIO_ENABLED=true NEXTAUTH_URL=http://localhost:3030 pnpm run seed -- dashboard-story --observations 30000 --id-prefix dashboard-story-30k
+LANGFUSE_EXPERIMENTAL_DASHBOARD_STUDIO_ENABLED=true NEXTAUTH_URL=http://localhost:3030 pnpm run seed -- dashboard-story --observations 300000 --id-prefix dashboard-story-300k
 ```
 
 Counts may be any multiple of 3,000 up to 999,000. The CLI prints project and

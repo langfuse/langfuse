@@ -191,7 +191,7 @@ describe("dashboard.executeQuery version contract", () => {
         .filter((row) => row.queryId === "fourTimes")
         .map((row) => row.value),
     ).toEqual([8]);
-    const constant = await caller.dashboardStudio.execute({
+    const constant = caller.dashboardStudio.execute({
       projectId: fixtureProjectId,
       config: {
         ...config,
@@ -201,9 +201,11 @@ describe("dashboard.executeQuery version contract", () => {
       fromTimestamp: new Date(timestamp.getTime() - 60000).toISOString(),
       toTimestamp: new Date(timestamp.getTime() + 60000).toISOString(),
     });
-    expect(constant.warnings).toContain(
-      "Expressions must reference a query measure or an earlier expression",
-    );
+    await expect(constant).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message:
+        "Expressions must reference a query measure or an earlier expression",
+    });
   });
 
   it("keeps same-name score attachments separate without joining trace or observation data", async () => {
@@ -410,7 +412,7 @@ describe("dashboard.executeQuery version contract", () => {
       "≥ 1000": 1,
       "No value": 0,
     });
-    const invalidPredicate = await caller.dashboardStudio.execute({
+    const invalidPredicate = caller.dashboardStudio.execute({
       ...input,
       config: {
         ...config,
@@ -429,8 +431,10 @@ describe("dashboard.executeQuery version contract", () => {
         expressions: [],
       },
     });
-    expect(invalidPredicate.status).toBe("error");
-    expect(invalidPredicate.diagnostics[0].error).toContain("value");
+    await expect(invalidPredicate).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining("value"),
+    });
     const costByType = await caller.dashboardStudio.execute({
       ...input,
       config: {
@@ -463,7 +467,7 @@ describe("dashboard.executeQuery version contract", () => {
       costByType.rows.reduce((sum, row) => sum + (row.value ?? 0), 0),
     ).toBe(2400);
     expect(costByType.summaries.map((row) => row.value)).toEqual([1200]);
-    const limitedFormula = await caller.dashboardStudio.execute({
+    const limitedFormula = caller.dashboardStudio.execute({
       ...input,
       config: {
         ...config,
@@ -473,12 +477,10 @@ describe("dashboard.executeQuery version contract", () => {
         })),
       },
     });
-    expect(limitedFormula.warnings.join(" ")).toContain(
-      "shared breakdown domain",
-    );
-    expect(limitedFormula.rows.some((row) => row.queryId === "ratio")).toBe(
-      false,
-    );
+    await expect(limitedFormula).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining("shared breakdown domain"),
+    });
     await expect(
       caller.dashboardStudio.execute({ ...input, projectId: randomUUID() }),
     ).rejects.toThrow("not a member");

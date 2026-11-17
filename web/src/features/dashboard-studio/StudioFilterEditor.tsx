@@ -1,6 +1,4 @@
 import { type FilterState, type StudioQuery } from "@langfuse/shared";
-import { PlusIcon } from "@langfuse/icons";
-import { Button } from "@/src/components/design-system/Button/Button";
 import { ConnectedMetricsFilterBuilder } from "@/src/features/metrics/components/ConnectedMetricsFilterBuilder";
 
 export function StudioFilterEditor({
@@ -33,24 +31,6 @@ export function StudioFilterEditor({
         dateRange={dateRange}
         filters={filters}
         onChange={onChange}
-      />
-      <Button
-        text="Metadata key exists"
-        icon={PlusIcon}
-        variant="ghost"
-        size="sm"
-        onClick={() =>
-          onChange([
-            ...filters,
-            {
-              type: "stringObject",
-              column: "metadata",
-              key: "abc",
-              operator: "is set",
-              value: "",
-            },
-          ])
-        }
       />
     </div>
   );
