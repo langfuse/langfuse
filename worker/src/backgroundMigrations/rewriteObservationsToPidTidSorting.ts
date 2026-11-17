@@ -1,7 +1,6 @@
 import { commandClickhouse, logger } from "@langfuse/shared/src/server";
 import { env } from "../env";
 import {
-  BaseChunkTodo,
   ChunkedBackfillState,
   ChunkedClickhouseBackfillMigration,
   ResolvedChunkedBackfillConfig,
@@ -19,6 +18,12 @@ import {
   onClusterClause,
   pidTidSortingTable,
 } from "./utils/v4BackfillDdl";
+import {
+  LiveWriteChunkTodo,
+  buildLiveWriteFilter,
+  liveWriteWindowParams,
+  resolveLiveWriteWindow,
+} from "./utils/liveWriteWindow";
 
 // Hard-coded UUID identifying the row in background_migrations.
 // Must match the Prisma migration that registers this row.
@@ -46,11 +51,13 @@ function replacingMergeTreeEngine(): string {
  * V4 chain step 2: copies `observations` into the
  * `observations_pid_tid_sorting` scratch table whose sort key is reordered to
  * `(project_id, trace_id, id)`, chunked by yyyymm observations partition.
+ * Observations written while dual write was active are left out (see
+ * liveWriteWindow), so M3 and M4 never copy them again.
  */
-export default class RewriteObservationsToPidTidSorting extends ChunkedClickhouseBackfillMigration {
+export default class RewriteObservationsToPidTidSorting extends ChunkedClickhouseBackfillMigration<LiveWriteChunkTodo> {
   protected readonly migrationId = backgroundMigrationId;
   protected readonly logPrefix = LOG_PREFIX;
-  protected readonly requiredTables = ["observations"];
+  protected readonly requiredTables = ["observations", "events_core"];
 
   // ==========================================================================
   // Lazy DDL: scratch table
@@ -221,12 +228,14 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
 
   protected async enumerateChunks(
     config: ResolvedChunkedBackfillConfig,
-  ): Promise<BaseChunkTodo[]> {
-    return loadPartitionsFromClickhouse(
+  ): Promise<LiveWriteChunkTodo[]> {
+    const liveWriteWindow = await resolveLiveWriteWindow(this.logPrefix);
+    const todos = await loadPartitionsFromClickhouse(
       "observations",
       config.partitions,
       this.logPrefix,
     );
+    return todos.map((todo) => ({ ...todo, liveWriteWindow }));
   }
 
   /**
@@ -234,11 +243,23 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
    * `observations_pid_tid_sorting`. Columns are enumerated explicitly in the
    * same order on both sides to avoid surprises when CH adds new columns.
    */
-  protected buildChunkQuery(todo: BaseChunkTodo): {
+  protected buildChunkQuery(todo: LiveWriteChunkTodo): {
     query: string;
     params: Record<string, unknown>;
   } {
     assertSafePartition(todo.partition);
+
+    // Live rows share the observation's start_time, so the events partition
+    // with the same yyyymm id holds every possible live twin.
+    const window = todo.liveWriteWindow;
+    const liveWriteFilter = window
+      ? `AND ${buildLiveWriteFilter({
+          eventTsColumn: "event_ts",
+          rowKey: "(project_id, trace_id, id)",
+          liveKeyColumns: "project_id, trace_id, span_id",
+          liveRowsWhere: "_partition_id = {partition: String}",
+        })}`
+      : "";
 
     const query = `
       INSERT INTO ${pidTidSortingTable()} (
@@ -266,13 +287,17 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
         created_at, updated_at, event_ts, is_deleted
       FROM observations
       WHERE _partition_id = {partition: String}
+        ${liveWriteFilter}
       SETTINGS
         type_json_skip_duplicated_paths = 1
     `;
 
     return {
       query,
-      params: { partition: todo.partition },
+      params: {
+        partition: todo.partition,
+        ...(window ? liveWriteWindowParams(window) : {}),
+      },
     };
   }
 
@@ -289,7 +314,7 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
    * cluster converges, rather than advancing on a half-synced cluster.
    */
   protected async onBackfillSucceeded(
-    _state: ChunkedBackfillState<BaseChunkTodo>,
+    _state: ChunkedBackfillState<LiveWriteChunkTodo>,
   ): Promise<void> {
     await this.stopMergesOnScratchTable();
     await this.syncReplicasOnScratchTable();
@@ -305,7 +330,7 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
    * parts (part explosion) until M5 drops it.
    */
   protected async onBackfillFailed(
-    state: ChunkedBackfillState<BaseChunkTodo>,
+    state: ChunkedBackfillState<LiveWriteChunkTodo>,
   ): Promise<void> {
     const failed = state.todos.filter((t) => t.status === "failed").length;
     logger.error(
