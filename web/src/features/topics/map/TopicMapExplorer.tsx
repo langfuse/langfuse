@@ -311,7 +311,9 @@ export function TopicMapExplorer({
             y: event.clientY - rect.top,
           })
         : null;
-    selectTrace(point?.traceId ?? null);
+    // A click while a trace's hover card shows opens that trace, not only a direct hit.
+    const hovered = getTopicMapHover(store.getState(), frame).hoveredId;
+    selectTrace(point?.traceId ?? hovered ?? null);
   };
   const handleStageDoubleClick = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (previewOnSelect || event.target !== event.currentTarget) return;
