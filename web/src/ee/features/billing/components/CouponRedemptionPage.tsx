@@ -10,6 +10,7 @@ import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { api } from "@/src/utils/api";
 
 import { useIsCloudBillingAvailable } from "../utils/isCloudBilling";
 import { CouponProgramSchema } from "../utils/coupons";
@@ -44,14 +45,15 @@ function CouponRedemptionContent() {
     organizationId: organization?.id,
     scope: "langfuseCloudBilling:CRUD",
   });
+  // Checkout routes by the server-resolved provider, so this page does too.
+  const billingProvider = api.cloudBilling.getBillingProvider.useQuery(
+    { orgId: organization?.id ?? "" },
+    { enabled: Boolean(organization) && isCloudBillingAvailable && hasAccess },
+  );
 
   // The organization id comes from the query, which is empty until hydration.
   if (session.status === "loading" || !router.isReady) {
-    return (
-      <div className="flex justify-center py-12">
-        <Spinner variant="muted" size="lg" />
-      </div>
-    );
+    return <PageSpinner />;
   }
 
   if (!organization) {
@@ -81,33 +83,48 @@ function CouponRedemptionContent() {
       <Alert>
         <Alert.Title>Access denied</Alert.Title>
         <Alert.Description>
-          Only organization owners and admins can redeem coupons. Ask one of
-          them to open this page.
+          Only organization owners can redeem coupons. Ask an owner of this
+          organization to open this page.
         </Alert.Description>
       </Alert>
     );
   }
 
+  if (billingProvider.isPending) {
+    return <PageSpinner />;
+  }
+
   const billingPath = `/organization/${organization.id}/settings/billing`;
   const clickhouse = organization.cloudConfig?.clickhouse;
   const submitterEmail = session.data?.user?.email;
+  const isStripeBilled =
+    (billingProvider.data ??
+      (clickhouse?.organizationId ? "clickhouse" : "stripe")) === "stripe";
 
-  if (!clickhouse?.organizationId || !clickhouse.attachedPlanId) {
-    const isStripeBilled = Boolean(
-      organization.cloudConfig?.stripe?.activeSubscriptionId,
-    );
+  if (isStripeBilled) {
     return (
       <Alert variant="info">
-        <Alert.Title>
-          {isStripeBilled
-            ? "Add your code as a promotion code"
-            : "Upgrade to a paid plan first"}
-        </Alert.Title>
+        <Alert.Title>Apply your coupon at checkout</Alert.Title>
         <Alert.Description>
           <span className="flex flex-col items-start gap-2">
-            {isStripeBilled
-              ? "This organization is billed through Stripe. Add the code as a promotion code in the billing settings instead."
-              : "Credits are applied to a paid subscription. Choose a plan in the billing settings, then come back to this page to redeem your coupon."}
+            This organization is billed through Stripe. Enter the code when you
+            check out, or add it in the billing portal if you already have a
+            subscription. Both are in the billing settings.
+            <TextLink path={billingPath} value="Open billing settings" />
+          </span>
+        </Alert.Description>
+      </Alert>
+    );
+  }
+
+  if (!clickhouse?.organizationId || !clickhouse.attachedPlanId) {
+    return (
+      <Alert variant="info">
+        <Alert.Title>Upgrade to a paid plan first</Alert.Title>
+        <Alert.Description>
+          <span className="flex flex-col items-start gap-2">
+            Credits are applied to a paid subscription. Choose a plan in the
+            billing settings, then come back to this page to redeem your coupon.
             <TextLink path={billingPath} value="Open billing settings" />
           </span>
         </Alert.Description>
@@ -126,8 +143,9 @@ function CouponRedemptionContent() {
     );
   }
 
+  // Only the program comes from the link. Codes are shared per program, so
+  // they stay out of URLs, where analytics, logs, and history would keep them.
   const program = CouponProgramSchema.safeParse(router.query.program);
-  const couponCode = router.query.code;
   // The credit-request form needs both name parts; the account has one name.
   const [firstName = "", ...lastNameParts] = (session.data?.user?.name ?? "")
     .trim()
@@ -135,15 +153,24 @@ function CouponRedemptionContent() {
 
   return (
     <CouponRedemptionForm
+      key={organization.id}
       orgId={organization.id}
       submitterEmail={submitterEmail}
       clickhouseOrganizationId={clickhouse.organizationId}
       initialValues={{
         program: program.success ? program.data : "",
-        couponCode: typeof couponCode === "string" ? couponCode : "",
+        couponCode: "",
         firstName,
         lastName: lastNameParts.join(" "),
       }}
     />
+  );
+}
+
+function PageSpinner() {
+  return (
+    <div className="flex justify-center py-12">
+      <Spinner variant="muted" size="lg" />
+    </div>
   );
 }

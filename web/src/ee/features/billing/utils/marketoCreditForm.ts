@@ -45,7 +45,8 @@ type MarketoForm = {
   getValues(): Record<string, string>;
   validate(): boolean;
   submit(): void;
-  onSuccess(callback: () => boolean): void;
+  /** Called with the values Marketo submitted. */
+  onSuccess(callback: (submitted: Record<string, string>) => boolean): void;
 };
 
 type MarketoGlobal = {
@@ -59,8 +60,13 @@ type MarketoGlobal = {
   };
 };
 
+type PendingSubmission = {
+  values: Record<string, string>;
+  resolve: () => void;
+};
+
 let formPromise: Promise<MarketoForm> | null = null;
-let settleSubmission: (() => void) | null = null;
+let pendingSubmission: PendingSubmission | null = null;
 
 const withTimeout = <T>(promise: Promise<T>, message: string) =>
   new Promise<T>((resolve, reject) => {
@@ -112,9 +118,18 @@ const loadFormOnce = (): Promise<MarketoForm> => {
         MARKETO_MUNCHKIN_ID,
         MARKETO_FORM_ID,
         (form) => {
-          form.onSuccess(() => {
-            settleSubmission?.();
-            settleSubmission = null;
+          form.onSuccess((submitted) => {
+            // A late confirmation of a timed-out submission must not settle
+            // a retry that sent different values.
+            const pending = pendingSubmission;
+            if (
+              pending &&
+              Object.entries(pending.values).every(
+                ([name, value]) => submitted[name] === value,
+              )
+            ) {
+              pending.resolve();
+            }
             // Stay on the page instead of following the form's redirect.
             return false;
           });
@@ -178,11 +193,17 @@ export async function submitMarketoCreditRequest(
     );
   }
 
-  await withTimeout(
-    new Promise<void>((resolve) => {
-      settleSubmission = resolve;
-      form.submit();
-    }),
-    "ClickHouse did not confirm the credit request. Try again, or contact support if this keeps happening.",
-  );
+  let submission: PendingSubmission | null = null;
+  try {
+    await withTimeout(
+      new Promise<void>((resolve) => {
+        submission = { values, resolve };
+        pendingSubmission = submission;
+        form.submit();
+      }),
+      "ClickHouse did not confirm the credit request. Try again, or contact support if this keeps happening.",
+    );
+  } finally {
+    if (pendingSubmission === submission) pendingSubmission = null;
+  }
 }

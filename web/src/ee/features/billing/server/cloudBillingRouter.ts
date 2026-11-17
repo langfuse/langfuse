@@ -15,7 +15,10 @@ import {
   LangfuseNotFoundError,
   parseDbOrg,
 } from "@langfuse/shared";
-import { resolveBillingService } from "./resolveBillingService";
+import {
+  resolveBillingProvider,
+  resolveBillingService,
+} from "./resolveBillingService";
 import { isCloudBillingEnabled } from "../utils/isCloudBillingEnabled";
 import { CouponCodeSchema, CouponProgramSchema } from "../utils/coupons";
 import { buildCouponRedemptionPayload } from "./coupons/couponRedemption";
@@ -440,6 +443,30 @@ export const cloudBillingRouter = createTRPCRouter({
    * come from the client; the submitter email and ClickHouse organization id
    * are inferred server-side.
    */
+  /** The provider checkout uses, without calling either billing API. */
+  getBillingProvider: protectedOrganizationProcedure
+    .input(z.object({ orgId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoEntitlement({
+        entitlement: "cloud-billing",
+        sessionUser: ctx.session.user,
+        orgId: input.orgId,
+      });
+      throwIfNoOrganizationAccess({
+        organizationId: input.orgId,
+        scope: "langfuseCloudBilling:CRUD",
+        session: ctx.session,
+      });
+
+      if (!isCloudBillingEnabled()) return "stripe" as const;
+
+      const org = await ctx.prisma.organization.findUnique({
+        where: { id: input.orgId },
+      });
+      if (!org) throw new LangfuseNotFoundError("Organization not found");
+
+      return resolveBillingProvider(parseDbOrg(org));
+    }),
   prepareCouponRedemption: protectedOrganizationProcedure
     .input(
       z.object({

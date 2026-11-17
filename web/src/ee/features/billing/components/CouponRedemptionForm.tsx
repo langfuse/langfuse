@@ -40,7 +40,7 @@ export type CouponRedemptionFormProps = {
   orgId: string;
   submitterEmail: string;
   clickhouseOrganizationId: string;
-  /** Prefilled from the redemption link and the account name. */
+  /** The program from the redemption link and the name from the account. */
   initialValues: CouponFormInput;
 };
 
@@ -63,7 +63,7 @@ export function CouponRedemptionForm({
     onSuccess: (_, request) =>
       capture("billing_coupon:submitted", {
         program: request.program,
-        isPrefilled: Boolean(initialValues.couponCode),
+        isPrefilled: Boolean(initialValues.program),
       }),
     onError: (error) => {
       // Marketo outages and blocked scripts are third-party transport
