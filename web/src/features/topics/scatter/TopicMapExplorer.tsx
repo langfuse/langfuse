@@ -736,7 +736,7 @@ function MapGrain({ opacity }: { opacity: number }) {
   return (
     <svg
       aria-hidden
-      className="pointer-events-none absolute inset-0 h-full w-full mix-blend-soft-light"
+      className="pointer-events-none absolute inset-0 h-full w-full mix-blend-overlay"
       style={{ opacity }}
     >
       <filter id={id}>
@@ -756,6 +756,7 @@ function MapGrain({ opacity }: { opacity: number }) {
 /** Topic names above their clusters, at a fixed size. */
 function MapBackgroundLabels({ store }: { store: TopicMapStore }) {
   const frame = useStore(store, (state) => state.frame);
+  const fullscreen = useStore(store, (state) => state.isFullscreen);
   const { size, lineHeight } = TOPIC_MAP_LOOKS[LOOK].label;
   return (
     <div
@@ -763,30 +764,32 @@ function MapBackgroundLabels({ store }: { store: TopicMapStore }) {
       aria-hidden
     >
       {frame &&
-        prepareMapTextLabels(frame, { fontSize: size, lineHeight }).map(
-          (label) => (
-            <div
-              key={label.id}
-              data-topic-background-label={label.id}
-              title={label.title}
-              className={cn(
-                "absolute line-clamp-2 text-center",
-                styles.lookLabel,
-                styles.backgroundLabel,
-              )}
-              style={{
-                left: label.rect.x,
-                top: label.rect.y,
-                width: label.rect.width,
-                opacity: label.opacity,
-                fontSize: label.fontSize,
-                lineHeight: `${label.lineHeight}px`,
-              }}
-            >
-              {label.title}
-            </div>
-          ),
-        )}
+        prepareMapTextLabels(frame, {
+          fontSize: size,
+          lineHeight,
+          atFit: fullscreen,
+        }).map((label) => (
+          <div
+            key={label.id}
+            data-topic-background-label={label.id}
+            title={label.title}
+            className={cn(
+              "absolute line-clamp-2 text-center",
+              styles.lookLabel,
+              styles.backgroundLabel,
+            )}
+            style={{
+              left: label.rect.x,
+              top: label.rect.y,
+              width: label.rect.width,
+              opacity: label.opacity,
+              fontSize: label.fontSize,
+              lineHeight: `${label.lineHeight}px`,
+            }}
+          >
+            {label.title}
+          </div>
+        ))}
     </div>
   );
 }

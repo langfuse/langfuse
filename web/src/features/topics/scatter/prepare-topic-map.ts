@@ -415,7 +415,23 @@ type MapTextLabel = {
 };
 
 /** Up to two fixed-size lines above each cluster. */
-type LabelAbove = { fontSize: number; lineHeight: number };
+type LabelAbove = {
+  fontSize: number;
+  lineHeight: number;
+  /** Fullscreen has room for names at the whole-map fit. */
+  atFit?: boolean;
+};
+
+/** Topic names appear after the first zoom step, or at once in fullscreen. */
+function labelVisibility(
+  above: LabelAbove | undefined,
+  cameraZoom: number,
+  detail: number,
+) {
+  if (!above) return smoothStep(1.5, 3, detail);
+  if (above.atFit) return 1;
+  return smoothStep(1.05, 1.3, cameraZoom);
+}
 
 export function prepareMapTextLabels(
   frame: TopicMapNodeFrame,
@@ -423,10 +439,7 @@ export function prepareMapTextLabels(
 ): MapTextLabel[] {
   const { camera, model, size, readingTopic, matchingTraceIds } = frame;
   const zoom = detailZoom(camera.zoom, size);
-  // Topic names appear after the first zoom step.
-  const visibility = above
-    ? smoothStep(1.05, 1.3, camera.zoom)
-    : smoothStep(1.5, 3, zoom);
+  const visibility = labelVisibility(above, camera.zoom, zoom);
   if (!visibility) return [];
   const labels: MapTextLabel[] = [];
   const fontSize = 15 + smoothStep(3, 8, zoom) * 3;
@@ -505,7 +518,7 @@ export function prepareMapTextLabels(
         opacity:
           visibility *
           (readingTopic && readingTopic !== zone.id ? 0.4 : 1) *
-          (matchesFilters ? 1 : 0.15),
+          (matchesFilters ? 1 : 0.4),
       });
       continue;
     }
@@ -542,7 +555,7 @@ export function prepareMapTextLabels(
       opacity:
         visibility *
         (readingTopic && readingTopic !== zone.id ? 0.4 : 0.6) *
-        (matchesFilters ? 1 : 0.15),
+        (matchesFilters ? 1 : 0.4),
     });
   }
 

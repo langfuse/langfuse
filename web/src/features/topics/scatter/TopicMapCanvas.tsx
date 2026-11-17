@@ -192,6 +192,9 @@ export function TopicMapCanvas({
   );
 }
 
+/** Dots outside the highlight stay visible as context. */
+const DIMMED = 0.25;
+
 function drawMap(
   canvas: HTMLCanvasElement,
   frame: TopicMapNodeFrame,
@@ -224,7 +227,7 @@ function drawMap(
       node.center,
       rgbOf(lookDotColor(LOOK, node.point.color)),
       ring,
-      node.matchesFilters ? 1 : 0.08 + active * 0.92,
+      node.matchesFilters ? 1 : DIMMED + active * (1 - DIMMED),
       camera.zoom,
       stage,
     );

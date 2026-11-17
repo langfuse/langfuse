@@ -1,4 +1,5 @@
-import { useMemo, useState, type ComponentProps, type ReactNode } from "react";
+import { useMemo, type ComponentProps, type ReactNode } from "react";
+import { type FilterState } from "@langfuse/shared";
 import { useMediaQuery } from "react-responsive";
 import {
   ResizableHandle,
@@ -27,7 +28,7 @@ import {
   UNASSIGNED_SWATCH_COLOR,
 } from "../topic-map-colors";
 import { TopicsTraceToolbar } from "../TopicsTraceToolbar";
-import { topicTraceQuery } from "../topic-trace-filters";
+import { filterTopicTraces, topicTraceQuery } from "../topic-trace-filters";
 import { type useTopicTraceFilters } from "../useTopicTraceFilters";
 import { ScatterMap } from "./ScatterMap";
 
@@ -42,17 +43,21 @@ export function ScatterTopicsView({
   tracePanelRef,
   useTraces,
 }: ScatterTopicsViewProps) {
-  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   // The rows are the map's legend, so they take the scatter's colors.
   const topics = withScatterColors(
     prepareTopicDisplay(facet, "treemap").topics,
   );
-  // Nothing is picked at first, so the list starts with every trace.
-  const selected = topics.find((topic) => topic.id === selectedTopicId);
   const searchTopics = orderedFacetTopics(facet);
+  // The search bar holds the selection: picking a topic writes its filter there.
+  const selectedTopicId = pickedTopicId(
+    traceFilters.filters,
+    traceFilters.searchQuery,
+  );
+  const selected = topics.find((topic) => topic.id === selectedTopicId);
   const isSearching =
-    traceFilters.filters.length > 0 ||
-    Boolean(traceFilters.searchQuery?.trim());
+    !selected &&
+    (traceFilters.filters.length > 0 ||
+      Boolean(traceFilters.searchQuery?.trim()));
   const traces = useTraces(listQuery());
   function listQuery(): TopicTraceQuery | null {
     if (isSearching)
@@ -63,13 +68,14 @@ export function ScatterTopicsView({
       );
     return selected ? topicQuery(selected.id) : {};
   }
-  // Picking a topic replaces an active search; picking the highlighted one again clears it.
+  // Picking a topic replaces the search with its filter; picking it again, or null, clears it.
   function selectTopic(topicId: string | null) {
-    if (isSearching) {
-      traceFilters.setFilters([]);
-      traceFilters.setSearchQuery(null);
-    }
-    setSelectedTopicId(topicId);
+    traceFilters.setSearchQuery(null);
+    traceFilters.setFilters(
+      topicId === null || topicId === selectedTopicId
+        ? []
+        : topicFilters(topicId),
+    );
   }
   function listTitle() {
     if (isSearching) return "Matching traces";
@@ -83,9 +89,35 @@ export function ScatterTopicsView({
   const isWide = useMediaQuery({ query: "(min-width: 1024px)" });
   const mapTopics = useScatterMapTopics(facet);
   const mapData = mapResult.data;
+  const searchKey = JSON.stringify([
+    traceFilters.filters,
+    traceFilters.searchQuery,
+  ]);
   const highlightedTraceIds = useMemo(() => {
-    if (selectedTopicId === null || mapData?.status !== "ready")
-      return undefined;
+    if (mapData?.status !== "ready") return undefined;
+    // A search highlights its matches on the map; otherwise the picked topic does.
+    if (isSearching) {
+      const names = new Map(
+        searchTopics.map((topic) => [topic.id, topic.name]),
+      );
+      const [filters, searchQuery] = JSON.parse(searchKey) as [
+        typeof traceFilters.filters,
+        string | null,
+      ];
+      return new Set(
+        filterTopicTraces(
+          mapData.points.map((point) => ({
+            ...point,
+            topicName: point.topicId
+              ? (names.get(point.topicId) ?? null)
+              : null,
+          })),
+          filters,
+          searchQuery,
+        ).map((point) => point.traceId),
+      );
+    }
+    if (selectedTopicId === null) return undefined;
     const topicId =
       selectedTopicId === UNASSIGNED_TOPIC_ID ? null : selectedTopicId;
     return new Set(
@@ -93,14 +125,14 @@ export function ScatterTopicsView({
         .filter((point) => (point.topicId ?? null) === topicId)
         .map((point) => point.traceId),
     );
-  }, [mapData, selectedTopicId]);
+  }, [mapData, selectedTopicId, isSearching, searchKey, searchTopics]);
   if (facet.topics.length === 0) {
     return <TopicsEmptyState />;
   }
   const rows = (
     <ul
       aria-label="Topics"
-      className="scroll-fade-y flex min-h-0 flex-1 flex-col gap-px overflow-y-auto p-4"
+      className="scroll-fade-y flex min-h-0 flex-1 flex-col gap-px overflow-y-auto p-2"
     >
       {topics.map((topic, rank) => (
         <li key={topic.id}>
@@ -109,11 +141,7 @@ export function ScatterTopicsView({
             maxCount={maxCount}
             faded={rank >= 6}
             selected={topic.id === selected?.id}
-            onSelect={() =>
-              selectTopic(
-                topic.id === selectedTopicId && !isSearching ? null : topic.id,
-              )
-            }
+            onSelect={() => selectTopic(topic.id)}
           />
         </li>
       ))}
@@ -316,6 +344,44 @@ function useScatterMapTopics(facet: Facet) {
       };
     });
   }, [mapTopics, rankKey]);
+}
+
+/** One topic picked in the list or on the map, as a search-bar filter. */
+function topicFilters(topicId: string): FilterState {
+  return topicId === UNASSIGNED_TOPIC_ID
+    ? [
+        {
+          column: "assignment",
+          type: "stringOptions",
+          operator: "none of",
+          value: ["assigned"],
+        },
+      ]
+    : [
+        {
+          column: "topicId",
+          type: "stringOptions",
+          operator: "any of",
+          value: [topicId],
+        },
+      ];
+}
+
+/** The topic the search bar holds when it is exactly one picked topic. */
+function pickedTopicId(filters: FilterState, searchQuery: string | null) {
+  if (searchQuery?.trim() || filters.length !== 1) return null;
+  const [filter] = filters;
+  if (filter?.type !== "stringOptions" || filter.value.length !== 1)
+    return null;
+  if (filter.column === "topicId" && filter.operator === "any of")
+    return filter.value[0] ?? null;
+  if (
+    filter.column === "assignment" &&
+    filter.operator === "none of" &&
+    filter.value[0] === "assigned"
+  )
+    return UNASSIGNED_TOPIC_ID;
+  return null;
 }
 
 function topicQuery(topicId: string): TopicTraceQuery {

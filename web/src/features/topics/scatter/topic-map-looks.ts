@@ -74,7 +74,11 @@ export const TOPIC_MAP_LOOKS: Record<TopicMapLookName, TopicMapLook> = {
 };
 
 /** Dark mode is a first pass: theme background, screen-blended fields, quieter grain. */
-const DARK = { fieldOpacity: 0.7, grain: 0.5 };
+const DARK = {
+  fieldOpacity: 0.7,
+  grain: 0.5,
+  fieldTone: { lightness: 0.5, chroma: 0.13 },
+};
 
 const isDark = () => document.documentElement.classList.contains("dark");
 
@@ -121,7 +125,9 @@ function lookFieldColor(name: TopicMapLookName, color: string) {
   const { tone } = TOPIC_MAP_LOOKS[name].field;
   const hue = /--category-(\w+)-highlight/.exec(color)?.[1];
   if (!tone || !hue || CATEGORY_HUES[hue] === undefined) return color;
-  return `oklch(${tone.lightness} ${tone.chroma} ${CATEGORY_HUES[hue]})`;
+  // On dark, a deeper and more saturated tone glows instead of greying out.
+  const { lightness, chroma } = isDark() ? DARK.fieldTone : tone;
+  return `oklch(${lightness} ${chroma} ${CATEGORY_HUES[hue]})`;
 }
 
 /** The last composited fields per map canvas. */
@@ -219,7 +225,7 @@ export function drawLookFields(
     target.filter = `blur(${field.blur * scale * ratio}px)`;
     target.globalCompositeOperation = dark ? "screen" : "multiply";
     target.globalAlpha =
-      field.opacity * (dark ? DARK.fieldOpacity : 1) * (matches ? 1 : 0.15);
+      field.opacity * (dark ? DARK.fieldOpacity : 1) * (matches ? 1 : 0.4);
     target.drawImage(layer, 0, 0);
   }
   fieldCache.set(context.canvas, { key, model, matchingTraceIds, image });
