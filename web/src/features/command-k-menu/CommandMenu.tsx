@@ -365,7 +365,7 @@ function AssistantQueryFallback({
   offeredQueryRef: { current: string | null };
 }) {
   const { offer, query } = useAssistantQueryOffer();
-  const label = `Ask Assistant "${query}"`;
+  const label = `Ask Halo "${query}"`;
   // The fallback item is force-mounted, so cmdk never selects it. Enter on
   // the input reads the query offered for this render from the ref.
   offeredQueryRef.current = offer ? query : null;
@@ -373,11 +373,11 @@ function AssistantQueryFallback({
   if (!offer) return null;
 
   return (
-    <CommandGroup forceMount heading="Assistant">
+    <CommandGroup forceMount heading="Halo">
       <CommandItem
         forceMount
         className="bg-accent text-primary"
-        value={`ask-assistant:${query}`}
+        value={`ask-halo:${query}`}
         onSelect={() => onAsk(query)}
       >
         <BotMessageSquare size="base" />
