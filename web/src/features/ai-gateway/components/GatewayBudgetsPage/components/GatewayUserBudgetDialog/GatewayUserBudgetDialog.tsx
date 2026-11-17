@@ -74,6 +74,7 @@ export function GatewayUserBudgetDialog({
     <Dialog
       title={spendLimit ? "Edit user budget" : "Set user budget"}
       size="md"
+      noCapture
       actions={[
         ...(spendLimit
           ? [

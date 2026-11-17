@@ -48,6 +48,7 @@ export function GatewayUserBudgetDialogController({
     try {
       await write();
       closeDialog();
+      mutations.forEach((mutation) => mutation.reset());
     } catch (error) {
       reportNonTrpcError(error, "ai-gateway-budgets");
     } finally {

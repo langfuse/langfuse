@@ -111,6 +111,7 @@ export function GatewayAddBudgetDialog({
     <Dialog
       title="Add budget"
       size="md"
+      noCapture
       actions={[
         {
           label: "Add budget",
