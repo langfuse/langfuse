@@ -143,8 +143,7 @@ const VISIBLE_SECTIONS: SectionDef[] = [
   {
     id: "category",
     title: "Category fills",
-    blurb:
-      "Tint, highlight and foreground sets for categorical tiles (treemap, scatter).",
+    blurb: "Tint, highlight and foreground sets for categorical colors.",
   },
 ];
 
