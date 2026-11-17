@@ -22,6 +22,7 @@
 - Public eval APIs: `src/pages/api/public/v2/{evaluators,evaluation-rules}/*`
 - Feature modules: `src/features/*`
 - Topics: read [`src/features/topics/README.md`](src/features/topics/README.md) before changing access, result queries, run controls, or map interactions.
+- App shell (one persistent surface with animated collapsed/expanded/mobile modes, standard navigation tooltips, full-width mobile navigation and per-browser classic/new switch): `src/features/app-shell`, owner map and motion/state contracts in its `README.md`. It retains the existing organization/project selectors and landing behavior.
 - Reusable UI components: `src/components/*`
 - Tests:
   - Server integration tests: `src/__tests__/server/*.servertest.ts`

@@ -62,7 +62,10 @@ import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownM
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
 import { assertUnreachable } from "@/src/utils/types";
 import { nextCompactPlanBadge } from "./compactPlanBadge";
-import { SIDEBAR_NOTIFICATIONS, type SidebarNotification } from "./utils";
+import {
+  SIDEBAR_NOTIFICATIONS,
+  type SidebarNotification,
+} from "@/src/components/nav/sidebarNotificationDefinitions";
 import { useOrgProjectSwitchPaths } from "@/src/features/projects/hooks";
 import {
   APP_SHELL_CHROME_ROW_CLASS,
@@ -182,7 +185,7 @@ type AppSidebarProps = {
   canCreateProjects: boolean;
 };
 
-export function AppSidebar({
+function AppSidebarRoot({
   navItems,
   secondaryNavItems,
   user,
@@ -300,6 +303,10 @@ export function AppSidebar({
   );
 }
 
+export const AppSidebar = Object.assign(AppSidebarRoot, {
+  OrganizationSwitcher: SidebarOrganizationSwitcher,
+});
+
 /** Plans whose badge has a shorter form for when the full one would truncate the org name. */
 const SHORT_PLAN_LABELS: Partial<Record<Plan, string>> = {
   "cloud:enterprise": "ENT",
@@ -365,10 +372,14 @@ function SidebarOrganizationSwitcher({
   organization,
   organizations,
   canCreateOrganizations,
+  menuControl,
 }: {
   organization: { id: string; name: string };
   organizations: OrganizationOption[] | null;
   canCreateOrganizations: boolean;
+  menuControl?: React.ComponentProps<
+    typeof OrganizationDropdownMenu
+  >["menuControl"];
 }) {
   const { getOrgPath } = useOrgProjectSwitchPaths();
   const plan = organizations?.find((org) => org.id === organization.id)?.plan;
@@ -391,6 +402,7 @@ function SidebarOrganizationSwitcher({
         canCreateOrganizations={canCreateOrganizations}
         getOrgPath={getOrgPath}
         currentOrganizationId={organization.id}
+        menuControl={menuControl}
       >
         {({ getTriggerProps }) => (
           <button
