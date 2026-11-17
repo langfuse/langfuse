@@ -198,6 +198,7 @@ it("shows the AI Gateway pages among the organization routes", () => {
     "Projects",
     "Overview",
     "Connections & Models",
+    "Budgets",
     "Gateway keys",
     "Tracing",
     "Settings",
