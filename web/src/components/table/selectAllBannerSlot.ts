@@ -1,6 +1,5 @@
-const SLOT_SELECTOR = "[data-select-all-banner-slot]";
-
 const listeners = new Set<() => void>();
+const slots = new Set<HTMLElement>();
 
 function notify() {
   listeners.forEach((listener) => listener());
@@ -9,8 +8,13 @@ function notify() {
 /** DataTable calls this once its header slot is mounted. */
 export function registerSelectAllBannerSlot(slot: HTMLElement) {
   if (!slot.isConnected) return () => undefined;
+  slots.add(slot);
   notify();
   return () => {
+    // Drop the slot before notifying. React runs this cleanup while the
+    // node is still connected, and a query of the document would hand the
+    // banner back to a slot that is about to disappear.
+    slots.delete(slot);
     notify();
   };
 }
@@ -56,9 +60,10 @@ function commonAncestorDepth(host: HTMLElement, slot: HTMLElement) {
  * slots and must not steal the banner.
  */
 export function findSelectAllBannerSlot(host: HTMLElement): HTMLElement | null {
-  const candidates = [
-    ...document.querySelectorAll<HTMLElement>(SLOT_SELECTOR),
-  ].filter(
+  for (const slot of slots) {
+    if (!slot.isConnected) slots.delete(slot);
+  }
+  const candidates = [...slots].filter(
     (slot) =>
       slot.isConnected && !host.contains(slot) && followsHost(host, slot),
   );
