@@ -21,6 +21,7 @@ import { EventsSearchBarRow } from "./EventsSearchBarRow";
 const projects = ["project-a", "project-b"];
 const session: Session = {
   expires: "2999-01-01T00:00:00.000Z",
+  policies: [],
   environment: {
     enableExperimentalFeatures: false,
     selfHostedInstancePlan: null,
@@ -40,7 +41,6 @@ const session: Session = {
       {
         id: "storybook-organization",
         name: "Example organization",
-        role: "OWNER",
         cloudConfig: undefined,
         plan: "cloud:hobby",
         metadata: {},
@@ -49,7 +49,6 @@ const session: Session = {
         projects: projects.map((id) => ({
           id,
           name: id,
-          role: "ADMIN" as const,
           deletedAt: null,
           retentionDays: null,
           hasTraces: true,
