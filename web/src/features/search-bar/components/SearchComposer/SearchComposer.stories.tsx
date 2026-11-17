@@ -361,9 +361,11 @@ export const TestInlineKeyEditing = meta.story({
       `name:${values} level:ERROR `,
     );
     await userEvent.click(group);
-    await expect(
-      await body.findByRole("dialog", { name: "Edit filter values" }),
-    ).toBeVisible();
+    await waitFor(() =>
+      expect(
+        body.getByRole("dialog", { name: "Edit filter values" }),
+      ).toBeVisible(),
+    );
   },
 });
 
