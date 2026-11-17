@@ -11,6 +11,9 @@ export type Camera = { x: number; y: number; zoom: number };
 
 /** Deepest zoom, as a multiple of the whole-map fit. */
 const MAX_ZOOM = 10;
+/** A trace is a small rounded square at the whole-map fit. */
+const POINT_SIZE = 6;
+const POINT_RADIUS = 2;
 export type Size = { width: number; height: number };
 export type MapPoint = MapData["points"][number] & {
   groupId: string;
@@ -266,7 +269,7 @@ export function prepareMapNodes(
       x: projected.x + pointer.x * depth * 6,
       y: projected.y + pointer.y * depth * 6,
     };
-    const diameter = (5 + depth) * Math.sqrt(Math.min(camera.zoom, 16));
+    const diameter = POINT_SIZE * Math.sqrt(Math.min(camera.zoom, 16));
     const matchesFilters =
       (!readingTopic || point.groupId === readingTopic) &&
       (!matchingTraceIds || matchingTraceIds.has(point.traceId));
@@ -348,7 +351,7 @@ export function prepareMapNodes(
         height,
       },
       cornerRadius:
-        smaller / 2 + (Math.min(8, smaller / 2) - smaller / 2) * textOpacity,
+        POINT_RADIUS + (Math.min(8, smaller / 2) - POINT_RADIUS) * textOpacity,
       expansion,
       backgroundOpacity: textOpacity,
       strokeOpacity: textOpacity,

@@ -529,7 +529,7 @@ function LayoutReadout({
           {...getTriggerProps()}
           type="button"
           aria-label={`Map coverage: ${population}`}
-          className="focus-visible:outline-ring pointer-events-auto cursor-help text-left focus-visible:outline-2"
+          className="focus-visible:outline-ring pointer-events-auto cursor-help text-left font-mono text-xs focus-visible:outline-2"
           onPointerDown={stopPointerPropagation}
           onPointerMove={stopPointerPropagation}
           onPointerEnter={handlePointerEnter}

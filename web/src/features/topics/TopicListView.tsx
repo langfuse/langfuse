@@ -27,7 +27,7 @@ type TopicListViewProps = {
   peekView: DataTablePeekViewProps;
   tracePanelRef?: (element: HTMLElement | null) => void;
   useTraces: UseTopicTraces;
-  /** Draws the scatter above the topic rows, in the map's colors. */
+  /** Draws the scatter above the topic rows, in the map's colors. Picking the highlighted topic again clears the highlight. */
   scatter?: {
     query: ComponentProps<typeof TopicEmbeddingMap>["query"];
     onOpenTrace: (traceId: string) => void;
@@ -74,7 +74,7 @@ export function TopicListView({
   const rows = (
     <ul
       aria-label="Topics"
-      className="flex min-h-0 flex-1 flex-col gap-px overflow-y-auto p-4"
+      className="scroll-fade-y flex min-h-0 flex-1 flex-col gap-px overflow-y-auto p-4"
     >
       {topics.map((topic) => (
         <li key={topic.id}>
@@ -82,7 +82,11 @@ export function TopicListView({
             topic={topic}
             maxCount={maxCount}
             selected={topic.id === selected.id}
-            onSelect={() => setSelectedTopicId(topic.id)}
+            onSelect={() =>
+              setSelectedTopicId(
+                scatter && topic.id === selectedTopicId ? null : topic.id,
+              )
+            }
           />
         </li>
       ))}
@@ -103,11 +107,10 @@ export function TopicListView({
                 topics={facet.map.topics}
                 selectedTopic={null}
                 matchingTraceIds={highlightedTraceIds}
-                onSelectTopic={(id) => {
-                  if (id) setSelectedTopicId(id);
-                }}
+                onSelectTopic={setSelectedTopicId}
                 onSelectTrace={(traceId) => {
                   if (traceId) scatter.onOpenTrace(traceId);
+                  else setSelectedTopicId(null);
                 }}
                 selectedTraceId={null}
                 fillContainer
