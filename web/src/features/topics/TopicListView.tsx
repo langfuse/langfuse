@@ -175,6 +175,11 @@ export function TopicListView({
           peekView={peekView}
           tracePanelRef={tracePanelRef}
           divider="none"
+          topicColors={
+            scatter
+              ? new Map(topics.map((topic) => [topic.id, topic.color]))
+              : undefined
+          }
           toolbar={
             search && (
               <TopicsTraceToolbar
