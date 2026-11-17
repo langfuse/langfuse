@@ -1,6 +1,7 @@
 /** Rendering values for the new scatter: blurred topic fields, ringed dots, grain and labels. */
 import { type CSSProperties } from "react";
 import {
+  mapCrowding,
   screenPoint,
   stageScale,
   type TopicMapNodeFrame,
@@ -196,6 +197,8 @@ export function drawLookFields(
   if (!draw || !target) return;
   draw.setTransform(ratio, 0, 0, ratio, 0, 0);
   const scale = camera.zoom * stageScale(size);
+  // Crowded maps fade the fields to a trace: thousands of overlapping topics only blur into one wash.
+  const presence = 1 - mapCrowding(model.points.length) * 0.9;
   for (const zone of frame.zones) {
     if (zone.id === "outliers" || zone.id === "awaiting_map") continue;
     const [r, g, b] = rgbOf(lookFieldColor(name, zone.color));
@@ -228,9 +231,13 @@ export function drawLookFields(
       !matchingTraceIds ||
       zone.points.some((point) => matchingTraceIds.has(point.traceId));
     target.filter = `blur(${field.blur * scale * ratio}px)`;
-    target.globalCompositeOperation = dark ? "screen" : "multiply";
+    // Each pixel keeps its strongest single tint, so stacked fields never turn muddy.
+    target.globalCompositeOperation = dark ? "lighten" : "darken";
     target.globalAlpha =
-      field.opacity * (dark ? DARK.fieldOpacity : 1) * (matches ? 1 : 0.4);
+      field.opacity *
+      presence *
+      (dark ? DARK.fieldOpacity : 1) *
+      (matches ? 1 : 0.4);
     target.drawImage(layer, 0, 0);
   }
   fieldCache.set(context.canvas, { key, model, matchingTraceIds, image });
