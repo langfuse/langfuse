@@ -85,6 +85,10 @@ const reportToHeader = {
 
 /** @type {import("next").NextConfig} */
 const nextConfig = {
+  // Every platform build of one image must share the same build ID. Otherwise
+  // replicas on different CPU architectures 404 on each other's /_next/static
+  // assets. Falls back to Next.js's random ID when no build ID is provided.
+  generateBuildId: async () => process.env.NEXT_PUBLIC_BUILD_ID || null,
   // Emit and serve browser source maps in production. Langfuse is open source,
   // so there is nothing to hide by shipping maps, and browser devtools then
   // de-minify client stacks automatically. NOTE: this alone does NOT make Sentry

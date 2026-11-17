@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-margin-on-root-elements */
 "use client";
-import { type IconComponent } from "@langfuse/icons";
+import { ArrowUpRight, type IconComponent } from "@langfuse/icons";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -24,6 +24,8 @@ export type NavMainItem = {
   icon?: IconComponent;
   isActive?: boolean;
   label?: string | ReactNode;
+  /** Leaves the current app area; the title shows a trailing ↗. */
+  external?: boolean;
   newTab?: boolean;
   /** Renders the entry disabled, e.g. until a prerequisite is set up. */
   disabledReason?: string;
@@ -118,7 +120,16 @@ function NavItemContent({ item }: { item: NavMainItem }) {
   return (
     <>
       {item.icon && <item.icon size="base" />}
-      <span>{item.title}</span>
+      {item.external ? (
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="truncate" title={item.title}>
+            {item.title}
+          </span>
+          <ArrowUpRight size="sm" color="tertiary" aria-hidden />
+        </span>
+      ) : (
+        <span>{item.title}</span>
+      )}
       {item.label &&
         (typeof item.label === "string" ? (
           <span className="-my-0.5 self-center rounded-sm border px-1 py-0.5 text-xs leading-none break-keep whitespace-nowrap">

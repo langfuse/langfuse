@@ -57,7 +57,7 @@ function TopicRuleStrip({
   );
 }
 
-/** A live map's status line, e.g. "Updated 2 h ago"; empty when there is nothing to say. */
+/** A live map's status line, e.g. "Updated 2h ago"; empty when there is nothing to say. */
 export function topicRuleStatus(
   rule: TopicRuleMap,
   now: number,

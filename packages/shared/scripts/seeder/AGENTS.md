@@ -28,6 +28,7 @@ pnpm run seed -- session-variety --sessions 120 --days 14  # many sessions for t
 pnpm run seed -- many-traces --count 100000 --days 14
 pnpm run seed -- outlier-traffic --days 90   # diurnal v4 traffic w/ cost/latency/token outliers (outlier chart strip)
 pnpm run seed -- scored-traces --traces 24 --v4   # scores w/ spaces in the name
+pnpm run seed -- score-distributions  # numeric distribution shapes: 0–1, 0.91–0.94, negative, near zero, span across zero
 pnpm run seed -- topics --batch all  # 12 discovery + 3 assignment traces for Topics; v4 on, no model calls
 pnpm run seed -- topics --batch evaluation --id-prefix topics-eval-s42  # 100 diverse requests, tool failures and successful outcomes
 pnpm run seed -- topics-map  # 116 traces with PUBLISHED Intent/Issues maps on two rules (long names, tiny tiles, outliers); no model calls, for Topics results UI checks

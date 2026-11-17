@@ -30,6 +30,35 @@ const meta = preview.meta({
 
 export default meta;
 
+export const TestPresetReplacesGroupedType = meta.story({
+  name: "(Test) Preset replaces grouped type",
+  args: {
+    initialFilters: [
+      {
+        column: "type",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["AGENT", "TOOL"],
+      },
+      { column: "level", type: "string", operator: "=", value: "ERROR" },
+    ],
+  },
+  play: async ({ args }) => {
+    const body = within(document.body);
+    await userEvent.click(body.getByRole("button", { name: "Generations" }));
+    await userEvent.click(body.getByRole("button", { name: "Apply changes" }));
+    await expect(args.onApply).toHaveBeenCalledWith({
+      name: "",
+      filters: [
+        { column: "level", type: "string", operator: "=", value: "ERROR" },
+        { column: "type", type: "string", operator: "=", value: "GENERATION" },
+      ],
+      unmatchedTraces: "show",
+      viewMode: "conversational",
+    });
+  },
+});
+
 export const TestObservationFilters = meta.story({
   name: "(Test) Observation filters",
   play: async ({ args }) => {
@@ -58,7 +87,7 @@ export const TestObservationFilters = meta.story({
     const completion = await body.findByRole("group", {
       name: "Observation completion",
     });
-    const input = body.getByRole("combobox", { name: "Search" });
+    const input = body.getByRole("combobox", { name: "Observation filters" });
     await userEvent.click(input);
     await userEvent.paste("traceName:=other name:=completion");
     await expect(
@@ -215,7 +244,7 @@ export const TestSessionNavigation = TestObservationFilters.extend({
     await expect(
       body.getByRole("button", { name: "Previous session" }),
     ).toBeDisabled();
-    const input = body.getByRole("combobox", { name: "Search" });
+    const input = body.getByRole("combobox", { name: "Observation filters" });
     await userEvent.click(input);
     await userEvent.paste("name:=completion");
     await userEvent.click(body.getByRole("button", { name: "Next session" }));
@@ -248,7 +277,7 @@ export const TestSessionNavigation = TestObservationFilters.extend({
 export const TestInvalidDraftKeepsPreview = TestObservationFilters.extend({
   play: async ({ args }) => {
     const body = within(document.body);
-    const input = body.getByRole("combobox", { name: "Search" });
+    const input = body.getByRole("combobox", { name: "Observation filters" });
     await userEvent.click(input);
     await userEvent.paste("name:=completion");
     const completion = body.getByRole("group", {

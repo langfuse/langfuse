@@ -85,6 +85,8 @@ export const sessionTraceFilterSchema = singleFilterList
           return;
       } else if (["type", "level", "environment"].includes(filter.column)) {
         if (filter.type === "string" && filter.operator === "=") return;
+        if (filter.type === "stringOptions" && filter.operator === "any of")
+          return;
       }
       ctx.addIssue({
         code: "custom",
