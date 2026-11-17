@@ -57,9 +57,9 @@ export const TOPIC_MAP_LOOKS: Record<TopicMapLookName, TopicMapLook> = {
       vivid: { lightness: 0.7, chroma: 0.14 },
     },
     label: {
-      size: 11,
-      lineHeight: 14,
-      tracking: "0.01em",
+      size: 12,
+      lineHeight: 16,
+      tracking: "0",
       color: "#27272a",
       shadow: "0 0 8px rgb(252 252 250 / 0.7)",
     },
