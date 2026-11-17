@@ -67,6 +67,7 @@ import { useStore } from "zustand";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { useRouter } from "next/router";
 import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
+import { registerSelectAllBannerSlot } from "@/src/components/table/selectAllBannerSlot";
 
 import { useAnimatedBusy } from "@/src/hooks/useAnimatedBusy";
 import {
@@ -504,6 +505,32 @@ export function DataTable<TData extends object, TValue>({
   // otherwise flash a single frame.
   // Cycle length matches the sweep, so a held refresh ends on a whole sweep.
   const refetchBar = useAnimatedBusy(isFetching, REFETCH_SWEEP_MS);
+  const selectAllBannerSlotRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const slot = selectAllBannerSlotRef.current;
+    if (!slot) return;
+    return registerSelectAllBannerSlot(slot);
+  }, []);
+
+  // Width of the visible table, so a banner portaled into the header stays
+  // centered in the viewport when the columns scroll horizontally.
+  useLayoutEffect(() => {
+    const el = rowHeightScrollRef.current;
+    if (!el) return;
+    const apply = () => {
+      const style = getComputedStyle(el);
+      const paddingLeft = Number.parseFloat(style.paddingLeft) || 0;
+      const paddingRight = Number.parseFloat(style.paddingRight) || 0;
+      const width = Math.max(el.clientWidth - paddingLeft - paddingRight, 0);
+      el.style.setProperty("--select-all-banner-viewport", `${width}px`);
+    };
+    apply();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(apply);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const tableHeaders = shouldRenderGroupHeaders
     ? table.getHeaderGroups()
@@ -545,6 +572,27 @@ export function DataTable<TData extends object, TValue>({
           </div>
           <Table>
             <TableHeader className="sticky top-0 z-20">
+              {/* The select-all banner portals into this row so it sticks with
+                  the header, under any metric strip rendered above the table.
+                  An empty slot collapses the row. */}
+              <tr className="[&:has([data-select-all-banner-slot]:empty)]:hidden">
+                <td
+                  colSpan={Math.max(table.getVisibleLeafColumns().length, 1)}
+                  className="bg-surface p-0"
+                >
+                  <div
+                    className="sticky left-0 max-w-full px-2"
+                    style={{
+                      width: "var(--select-all-banner-viewport, 100%)",
+                    }}
+                  >
+                    <div
+                      ref={selectAllBannerSlotRef}
+                      data-select-all-banner-slot=""
+                    />
+                  </div>
+                </td>
+              </tr>
               {tableHeaders.map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => {

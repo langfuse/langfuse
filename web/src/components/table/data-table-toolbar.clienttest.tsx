@@ -223,6 +223,28 @@ describe("DataTableToolbar select-all banner gate", () => {
       ).not.toBeInTheDocument();
     });
   });
+
+  it("renders the banner in a following table slot above the header", () => {
+    render(
+      <div>
+        <DataTableToolbar
+          columns={[]}
+          tableName="test-table"
+          multiSelect={baseMultiSelect({
+            totalCount: 500,
+            selectedRowIds: selectedIds(50),
+          })}
+        />
+        <div data-select-all-banner-slot />
+      </div>,
+    );
+
+    const banner = screen.getByRole("button", {
+      name: "Select all 500 items across 10 pages",
+    });
+    const slot = document.querySelector("[data-select-all-banner-slot]");
+    expect(slot).toContainElement(banner);
+  });
 });
 
 describe("DataTableToolbar presentation controls", () => {
