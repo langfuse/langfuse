@@ -1,5 +1,5 @@
-// Langfuse Cloud only. Reached via the link sent with an approved program
-// application; intentionally not linked from the navigation.
+// Langfuse Cloud only. Reached via the link sent with a coupon code;
+// intentionally not linked from the navigation.
 
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
@@ -10,11 +10,10 @@ import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { api } from "@/src/utils/api";
 
 import { useIsCloudBillingAvailable } from "../utils/isCloudBilling";
-import { CouponProgramSchema } from "../utils/coupons";
 import { CouponRedemptionForm } from "./CouponRedemptionForm";
+import { useBillingProvider } from "./useBillingProvider";
 
 export function CouponRedemptionPage() {
   const organization = useQueryOrganization();
@@ -46,10 +45,10 @@ function CouponRedemptionContent() {
     scope: "langfuseCloudBilling:CRUD",
   });
   // Checkout routes by the server-resolved provider, so this page does too.
-  const billingProvider = api.cloudBilling.getBillingProvider.useQuery(
-    { orgId: organization?.id ?? "" },
-    { enabled: Boolean(organization) && isCloudBillingAvailable && hasAccess },
-  );
+  const billingProvider = useBillingProvider({
+    orgId: organization?.id,
+    enabled: isCloudBillingAvailable && hasAccess,
+  });
 
   // The organization id comes from the query, which is empty until hydration.
   if (session.status === "loading" || !router.isReady) {
@@ -143,9 +142,6 @@ function CouponRedemptionContent() {
     );
   }
 
-  // Only the program comes from the link. Codes are shared per program, so
-  // they stay out of URLs, where analytics, logs, and history would keep them.
-  const program = CouponProgramSchema.safeParse(router.query.program);
   // The credit-request form needs both name parts; the account has one name.
   const [firstName = "", ...lastNameParts] = (session.data?.user?.name ?? "")
     .trim()
@@ -155,14 +151,9 @@ function CouponRedemptionContent() {
     <CouponRedemptionForm
       key={organization.id}
       orgId={organization.id}
+      orgName={organization.name}
       submitterEmail={submitterEmail}
-      clickhouseOrganizationId={clickhouse.organizationId}
-      initialValues={{
-        program: program.success ? program.data : "",
-        couponCode: "",
-        firstName,
-        lastName: lastNameParts.join(" "),
-      }}
+      initialName={{ firstName, lastName: lastNameParts.join(" ") }}
     />
   );
 }

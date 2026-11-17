@@ -1,28 +1,14 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Form } from "@/src/components/design-system/Form/Form";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { api } from "@/src/utils/api";
-import { captureUnknownError } from "@/src/utils/captureUnknownError";
 
-import {
-  COUPON_PROGRAM_LABELS,
-  COUPON_PROGRAMS,
-  CouponCodeSchema,
-  CouponProgramSchema,
-} from "../utils/coupons";
-import {
-  MarketoCreditFormError,
-  submitMarketoCreditRequest,
-} from "../utils/marketoCreditForm";
+import { CouponCodeSchema } from "../utils/coupons";
+import { useCouponRedemption } from "./useCouponRedemption";
 
 const couponFormSchema = z.object({
-  program: z.string().min(1, "Select a program").pipe(CouponProgramSchema),
   couponCode: CouponCodeSchema,
   firstName: z.string().trim().min(1, "Enter your first name").max(100),
   lastName: z.string().trim().min(1, "Enter your last name").max(100),
@@ -31,65 +17,40 @@ const couponFormSchema = z.object({
 type CouponFormInput = z.input<typeof couponFormSchema>;
 type CouponFormOutput = z.output<typeof couponFormSchema>;
 
-const programOptions = COUPON_PROGRAMS.map((program) => ({
-  value: program,
-  label: COUPON_PROGRAM_LABELS[program],
-}));
-
 export type CouponRedemptionFormProps = {
   orgId: string;
+  orgName: string;
   submitterEmail: string;
-  clickhouseOrganizationId: string;
-  /** The program from the redemption link and the name from the account. */
-  initialValues: CouponFormInput;
+  /** Prefilled from the account name. */
+  initialName: { firstName: string; lastName: string };
 };
 
 export function CouponRedemptionForm({
   orgId,
+  orgName,
   submitterEmail,
-  clickhouseOrganizationId,
-  initialValues,
+  initialName,
 }: CouponRedemptionFormProps) {
-  const capture = usePostHogClientCapture();
   const form = useForm<CouponFormInput, undefined, CouponFormOutput>({
     resolver: zodResolver(couponFormSchema),
-    defaultValues: initialValues,
+    defaultValues: { couponCode: "", ...initialName },
   });
-  // Ineligible orgs surface through the default tRPC error toast.
-  const prepare = api.cloudBilling.prepareCouponRedemption.useMutation();
-  const deliver = useMutation({
-    mutationFn: submitMarketoCreditRequest,
-    meta: { toastOperation: "billing_coupon.submit" },
-    onSuccess: (_, request) =>
-      capture("billing_coupon:submitted", {
-        program: request.program,
-        isPrefilled: Boolean(initialValues.program),
-      }),
-    onError: (error) => {
-      // Marketo outages and blocked scripts are third-party transport
-      // failures: the toast is the whole response. Anything else is ours.
-      const isMarketoFailure = error instanceof MarketoCreditFormError;
-      if (!isMarketoFailure) captureUnknownError("billing", error);
-      showErrorToast(
-        "Coupon could not be sent",
-        isMarketoFailure
-          ? error.message
-          : "Something went wrong. Please try again.",
-        {
-          operation: "billing_coupon.submit",
-          errorOrigin: isMarketoFailure ? "network" : "frontend",
-          errorCategory: isMarketoFailure ? "transient" : "internal",
-        },
-      );
-    },
+  const redemption = useCouponRedemption({
+    orgId,
+    onInvalidCode: () =>
+      form.setError(
+        "couponCode",
+        { message: "This coupon code is not valid." },
+        { shouldFocus: true },
+      ),
   });
 
-  if (deliver.isSuccess) {
+  if (redemption.isSubmitted) {
     return (
       <Alert variant="info">
         <Alert.Title>Coupon submitted</Alert.Title>
         <Alert.Description>
-          {`We received your ${COUPON_PROGRAM_LABELS[deliver.variables.program]} coupon. ClickHouse reviews it and emails you at ${submitterEmail} whether it was approved. Approved credits are applied to this organization.`}
+          {`We received your coupon for ${orgName}. We'll email you at ${submitterEmail} once it has been reviewed.`}
         </Alert.Description>
       </Alert>
     );
@@ -97,41 +58,32 @@ export function CouponRedemptionForm({
 
   return (
     <div className="flex max-w-xl flex-col gap-6">
-      <p className="text-muted-foreground text-sm">
-        {`The coupon is sent to ClickHouse's credit-request form together with your name, your email address (${submitterEmail}) and your ClickHouse organization ID (${clickhouseOrganizationId}), so the credits land on this organization. ClickHouse reviews the request and emails you whether it was approved.`}
-      </p>
+      <div className="flex flex-col gap-3 text-sm">
+        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+          <dt className="text-muted-foreground">Organization</dt>
+          <dd className="font-medium">{orgName}</dd>
+          <dt className="text-muted-foreground">Organization ID</dt>
+          <dd>{orgId}</dd>
+        </dl>
+        <p className="text-muted-foreground">
+          {`Credits are applied to this organization. To redeem the coupon for a different one, switch organizations in the top left corner. We'll email you at ${submitterEmail} once your coupon has been reviewed.`}
+        </p>
+      </div>
       <Form
-        onSubmit={form.handleSubmit(({ firstName, lastName, ...coupon }) =>
-          prepare.mutate(
-            { orgId, ...coupon },
-            {
-              onSuccess: (payload) =>
-                deliver.mutate({ ...payload, firstName, lastName }),
-            },
-          ),
-        )}
+        onSubmit={form.handleSubmit(redemption.redeem)}
         actions={[
           {
             id: "redeem",
             type: "submit",
             text: "Redeem coupon",
-            loading: prepare.isPending || deliver.isPending,
+            loading: redemption.isPending,
           },
         ]}
       >
-        <Form.SelectInputField
-          control={form.control}
-          name="program"
-          label="Program"
-          required
-          placeholder="Select a program"
-          options={programOptions}
-        />
         <Form.InputField
           control={form.control}
           name="couponCode"
           label="Coupon code"
-          description="The code you received after your program application was approved."
           required
           maxLength={100}
           autoComplete="off"

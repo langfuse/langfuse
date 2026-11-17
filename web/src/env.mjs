@@ -537,6 +537,26 @@ export const env = createEnv({
           .map((id) => id.trim())
           .filter(Boolean),
       ),
+    // Coupon codes for the self-serve credit programs (Langfuse Cloud only), as
+    // a JSON object from code to the program name ClickHouse's credit-request
+    // form expects, e.g. {"CODE-1":"Startup"}. Codes are shared per program, so
+    // they live only here, never in the repo.
+    LANGFUSE_CLOUD_COUPON_CODES: z
+      .string()
+      .optional()
+      .transform((value, ctx) => {
+        if (value == null || value.trim() === "") return {};
+        try {
+          return z.record(z.string(), z.string()).parse(JSON.parse(value));
+        } catch {
+          ctx.addIssue({
+            code: "custom",
+            message:
+              "LANGFUSE_CLOUD_COUPON_CODES must be a JSON object mapping coupon codes to program names",
+          });
+          return z.NEVER;
+        }
+      }),
     // Bearer secret CHB's metering pipeline presents to GET /api/billing/metrics.
     // Unset disables the endpoint (it 500s) rather than leaving it open.
     CLICKHOUSE_BILLING_METRICS_API_KEY: z.string().optional(),
@@ -1316,6 +1336,7 @@ export const env = createEnv({
       process.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE,
     LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS:
       process.env.LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS,
+    LANGFUSE_CLOUD_COUPON_CODES: process.env.LANGFUSE_CLOUD_COUPON_CODES,
     CLICKHOUSE_BILLING_METRICS_API_KEY:
       process.env.CLICKHOUSE_BILLING_METRICS_API_KEY,
     LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED:

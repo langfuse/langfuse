@@ -1,5 +1,3 @@
-import { type CouponProgram } from "./coupons";
-
 /**
  * Browser-side delivery of a coupon redemption through ClickHouse's Marketo
  * credit-request form. The form never renders: it lives in a hidden element
@@ -15,19 +13,13 @@ const MARKETO_MUNCHKIN_ID = "238-FPC-317";
 const MARKETO_FORM_ID = 1839;
 const MARKETO_TIMEOUT_MS = 20_000;
 
-/** The form stores the program as free text; GTM matches these exact names. */
-const MARKETO_PROGRAM_VALUES: Record<CouponProgram, string> = {
-  yc: "YC",
-  startup: "Startup",
-  research: "Research",
-};
-
 export type MarketoCreditRequest = {
   firstName: string;
   lastName: string;
   submitterEmail: string;
   clickhouseOrganizationId: string;
-  program: CouponProgram;
+  /** The program name GTM matches on, resolved from the code on the server. */
+  program: string;
   couponCode: string;
 };
 
@@ -100,16 +92,14 @@ const loadFormOnce = (): Promise<MarketoForm> => {
     script.onerror = () =>
       reject(
         new MarketoCreditFormError(
-          "ClickHouse's credit-request form could not be loaded. Allow discover.clickhouse.com in your ad or tracker blocker, then try again.",
+          "The coupon form could not be loaded. Allow discover.clickhouse.com in your ad or tracker blocker, then try again.",
         ),
       );
     script.onload = () => {
       const marketo = (window as MarketoGlobal).MktoForms2;
       if (!marketo) {
         reject(
-          new MarketoCreditFormError(
-            "ClickHouse's credit-request form could not be loaded.",
-          ),
+          new MarketoCreditFormError("The coupon form could not be loaded."),
         );
         return;
       }
@@ -143,7 +133,7 @@ const loadFormOnce = (): Promise<MarketoForm> => {
   document.head.appendChild(script);
   return withTimeout(
     loading,
-    "ClickHouse's credit-request form did not load. Check your connection and try again.",
+    "The coupon form did not load. Check your connection and try again.",
   ).catch((error: unknown) => {
     // A retry starts from a clean document, without a second form element.
     element.remove();
@@ -175,7 +165,7 @@ export async function submitMarketoCreditRequest(
     LastName: request.lastName,
     Email: request.submitterEmail,
     emailMerge1: request.clickhouseOrganizationId,
-    emailMerge3: MARKETO_PROGRAM_VALUES[request.program],
+    emailMerge3: request.program,
     yCombinatorSecretCode: request.couponCode,
   };
   form.setValues(values);
@@ -184,12 +174,12 @@ export async function submitMarketoCreditRequest(
   const stored = form.getValues();
   if (Object.entries(values).some(([name, value]) => stored[name] !== value)) {
     throw new MarketoCreditFormError(
-      "ClickHouse's credit-request form did not accept the coupon details. Please contact support.",
+      "The coupon could not be submitted. Please contact support.",
     );
   }
   if (!form.validate()) {
     throw new MarketoCreditFormError(
-      "ClickHouse's credit-request form rejected the coupon details. Check them and try again.",
+      "The coupon details were rejected. Check them and try again.",
     );
   }
 
@@ -201,7 +191,7 @@ export async function submitMarketoCreditRequest(
         pendingSubmission = submission;
         form.submit();
       }),
-      "ClickHouse did not confirm the credit request. Try again, or contact support if this keeps happening.",
+      "The coupon was not confirmed in time. Try again, or contact support if this keeps happening.",
     );
   } finally {
     if (pendingSubmission === submission) pendingSubmission = null;

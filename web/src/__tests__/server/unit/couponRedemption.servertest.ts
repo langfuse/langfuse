@@ -5,27 +5,30 @@ import { type CloudConfigSchema, InvalidRequestError } from "@langfuse/shared";
 import { buildCouponRedemptionPayload } from "@/src/ee/features/billing/server/coupons/couponRedemption";
 
 const CH_ORG_ID = "6f1c1c7e-2d1a-4a53-9a43-6b1b7f0d2c11";
+const PAID: CloudConfigSchema = {
+  clickhouse: { organizationId: CH_ORG_ID, attachedPlanId: "ap_1" },
+};
 
-const build = (cloudConfig: CloudConfigSchema | null) =>
+const build = (cloudConfig: CloudConfigSchema | null, couponCode: string) =>
   buildCouponRedemptionPayload({
     org: { id: "org-1", cloudConfig },
     submitterEmail: "founder@example.com",
-    program: "yc",
-    couponCode: "YC-W27",
+    couponCode,
+    couponCodes: { "TEST-CODE-1": "Startup" },
   });
 
 describe("buildCouponRedemptionPayload", () => {
-  it("addresses the org's ClickHouse organization as the session user", () => {
-    expect(
-      build({
-        clickhouse: { organizationId: CH_ORG_ID, attachedPlanId: "ap_1" },
-      }),
-    ).toEqual({
-      program: "yc",
-      couponCode: "YC-W27",
+  it("resolves the program from the code and submits the configured spelling", () => {
+    expect(build(PAID, " test-code-1 ")).toEqual({
+      program: "Startup",
+      couponCode: "TEST-CODE-1",
       submitterEmail: "founder@example.com",
       clickhouseOrganizationId: CH_ORG_ID,
     });
+  });
+
+  it("returns null for a code that is not configured", () => {
+    expect(build(PAID, "UNKNOWN")).toBeNull();
   });
 
   it.each([
@@ -34,7 +37,7 @@ describe("buildCouponRedemptionPayload", () => {
       "started checkout without a payment method",
       { clickhouse: { organizationId: CH_ORG_ID, attachedPlanId: null } },
     ],
-  ])("rejects an org that %s", (_, cloudConfig) => {
-    expect(() => build(cloudConfig)).toThrow(InvalidRequestError);
+  ])("rejects an org that %s before looking at the code", (_, cloudConfig) => {
+    expect(() => build(cloudConfig, "UNKNOWN")).toThrow(InvalidRequestError);
   });
 });

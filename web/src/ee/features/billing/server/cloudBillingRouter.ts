@@ -20,7 +20,8 @@ import {
   resolveBillingService,
 } from "./resolveBillingService";
 import { isCloudBillingEnabled } from "../utils/isCloudBillingEnabled";
-import { CouponCodeSchema, CouponProgramSchema } from "../utils/coupons";
+import { env } from "@/src/env.mjs";
+import { CouponCodeSchema } from "../utils/coupons";
 import { buildCouponRedemptionPayload } from "./coupons/couponRedemption";
 
 const PROVIDER_LABEL: Record<BillingProvider, string> = {
@@ -467,11 +468,14 @@ export const cloudBillingRouter = createTRPCRouter({
 
       return resolveBillingProvider(parseDbOrg(org));
     }),
+  /**
+   * Checks the org and the code, and returns what the browser submits to the
+   * credit-request form. Returns null for a code that is not configured.
+   */
   prepareCouponRedemption: protectedOrganizationProcedure
     .input(
       z.object({
         orgId: z.string(),
-        program: CouponProgramSchema,
         couponCode: CouponCodeSchema,
       }),
     )
@@ -503,17 +507,26 @@ export const cloudBillingRouter = createTRPCRouter({
       const payload = buildCouponRedemptionPayload({
         org: parseDbOrg(org),
         submitterEmail: ctx.session.user.email,
-        program: input.program,
         couponCode: input.couponCode,
+        couponCodes: env.LANGFUSE_CLOUD_COUPON_CODES,
       });
+      if (!payload) {
+        logger.info(
+          "cloudBilling.prepareCouponRedemption: unknown coupon code",
+          { orgId: input.orgId },
+        );
+        return null;
+      }
 
-      auditLog({
+      // Awaited, so every code that reaches the credit-request form has an
+      // audit record, and a failed write fails this request only.
+      await auditLog({
         session: ctx.session,
         orgId: input.orgId,
         resourceType: "organization",
         resourceId: input.orgId,
         action: "BillingService.prepareCouponRedemption",
-        after: { program: input.program },
+        after: { program: payload.program },
       });
 
       return payload;
