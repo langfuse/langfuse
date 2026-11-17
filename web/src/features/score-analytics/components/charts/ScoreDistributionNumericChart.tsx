@@ -54,7 +54,7 @@ export function ScoreDistributionNumericChart({
     <GroupedBarChart
       data={data}
       series={series}
-      valueFormatter={compactNumberFormatter}
+      valueFormatter={(value) => compactNumberFormatter(value, 1)}
       legend={{
         visibility: "visible",
         interaction: comparison ? "toggle" : "highlight",
