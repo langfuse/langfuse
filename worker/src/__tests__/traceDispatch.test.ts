@@ -467,30 +467,27 @@ describe("trace batch selection", () => {
   describe("weight limits", () => {
     const weighted = (
       traceId: string,
-      eventUpdateCount: number,
-      serializedEventBytes = eventUpdateCount * 1_000,
+      serializedEventBytes: number,
     ): PendingTrace => ({
       ...pendingTrace("project", traceId, 1, 0, minute),
-      estimates: { eventUpdateCount, serializedEventBytes },
+      estimates: { serializedEventBytes },
     });
-    const limits = { maxEventUpdates: 10, maxSerializedEventBytes: 50_000 };
-    const weightOf = (batch: PendingTrace[]) =>
+    const limits = { maxSerializedEventBytes: 10_000 };
+    const bytesOf = (batch: PendingTrace[]) =>
       batch.reduce(
-        (total, { estimates }) => ({
-          events: total.events + (estimates?.eventUpdateCount ?? 0),
-          bytes: total.bytes + (estimates?.serializedEventBytes ?? 0),
-        }),
-        { events: 0, bytes: 0 },
+        (total, { estimates }) =>
+          total + (estimates?.serializedEventBytes ?? 0),
+        0,
       );
 
-    it("closes batches before the event or byte budget and isolates overweight traces", () => {
+    it("closes batches before the byte budget and isolates overweight traces", () => {
       const candidates = [
-        weighted("a", 4),
-        weighted("b", 4),
-        weighted("c", 4),
-        weighted("heavy", 25),
-        weighted("bytes-1", 1, 30_000),
-        weighted("bytes-2", 1, 30_000),
+        weighted("a", 4_000),
+        weighted("b", 4_000),
+        weighted("c", 4_000),
+        weighted("heavy", 25_000),
+        weighted("bytes-1", 30_000),
+        weighted("bytes-2", 30_000),
         { ...pendingTrace("project", "unknown", 1, 0, minute) },
       ];
 
@@ -499,9 +496,9 @@ describe("trace batch selection", () => {
       expect(batches.flat()).toHaveLength(candidates.length);
       for (const batch of batches) {
         if (batch.length === 1) continue;
-        const { events, bytes } = weightOf(batch);
-        expect(events).toBeLessThanOrEqual(limits.maxEventUpdates);
-        expect(bytes).toBeLessThanOrEqual(limits.maxSerializedEventBytes);
+        expect(bytesOf(batch)).toBeLessThanOrEqual(
+          limits.maxSerializedEventBytes,
+        );
       }
       expect(
         batches.find((batch) =>
@@ -523,21 +520,18 @@ describe("trace batch selection", () => {
       const at = (
         traceId: string,
         start: number,
-        eventUpdateCount: number,
+        serializedEventBytes: number,
       ): PendingTrace => ({
         ...pendingTrace("project", traceId, 1, start, start),
-        estimates: {
-          eventUpdateCount,
-          serializedEventBytes: eventUpdateCount * 1_000,
-        },
+        estimates: { serializedEventBytes },
       });
       // Locality order: two light traces, the heavy trace, six light traces.
       const candidates = [
-        at("light-0", 0, 1),
-        at("light-1", 0, 1),
-        at("heavy", minute, 9),
+        at("light-0", 0, 1_000),
+        at("light-1", 0, 1_000),
+        at("heavy", minute, 9_000),
         ...Array.from({ length: 6 }, (_, index) =>
-          at(`light-${index + 2}`, 2 * minute, 1),
+          at(`light-${index + 2}`, 2 * minute, 1_000),
         ),
       ];
 
@@ -554,14 +548,18 @@ describe("trace batch selection", () => {
 
     it("does not coalesce locality partials past the weight budget", () => {
       const result = prepareLocalityPartials(
-        [[weighted("a", 6)], [weighted("b", 6)], [weighted("c", 4)]],
+        [
+          [weighted("a", 6_000)],
+          [weighted("b", 6_000)],
+          [weighted("c", 4_000)],
+        ],
         60,
         limits,
       );
       const all = [...result.dispatch, ...result.carry];
 
       expect(all.flat()).toHaveLength(3);
-      expect(all.every((batch) => weightOf(batch).events <= 10)).toBe(true);
+      expect(all.every((batch) => bytesOf(batch) <= 10_000)).toBe(true);
       expect(all).toHaveLength(2);
     });
   });
@@ -762,7 +760,12 @@ describe("trace micro-batch scheduling with Redis", () => {
         failed_cnt: 2,
       }),
     );
-    const before = Date.now();
+    // PX is set from the Redis clock, which can differ from Date.now().
+    const redisNow = async () => {
+      const [seconds, microseconds] = await client().time();
+      return Number(seconds) * 1_000 + Math.floor(Number(microseconds) / 1_000);
+    };
+    const before = await redisNow();
     await recordActivity("project", [
       { ...spanActivity("recorded", start + 1_000_000, 25), ruleIds: [] },
     ]);
@@ -779,12 +782,8 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(expiry).toBeGreaterThanOrEqual(
       before + traceDispatchConfig.boundsTtlMs,
     );
-    // PX is set from the Redis clock, which can run ahead of Date.now().
-    const [seconds, microseconds] = await client().time();
     expect(expiry).toBeLessThanOrEqual(
-      Number(seconds) * 1_000 +
-        Math.floor(Number(microseconds) / 1_000) +
-        traceDispatchConfig.boundsTtlMs,
+      (await redisNow()) + traceDispatchConfig.boundsTtlMs,
     );
     expect(await client().pexpiretime(idleKey)).toBe(idleExpiry);
     const record = JSON.parse(

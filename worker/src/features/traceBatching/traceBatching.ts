@@ -221,15 +221,9 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         compareStrings(a.member, b.member),
     );
     const batchWeightLimits: TraceBatchWeightLimits = {
-      maxEventUpdates: toLimit(
-        env.LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES,
-      ),
       maxSerializedEventBytes: toLimit(eventsDispatchConfig.maxBatchBytes),
     };
     const traceWeightLimits: TraceBatchWeightLimits = {
-      maxEventUpdates: toLimit(
-        env.LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES,
-      ),
       maxSerializedEventBytes: toLimit(eventsDispatchConfig.maxTraceBytes),
     };
 
@@ -304,7 +298,6 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
           projectId: entry.trace.projectId,
           traceId: entry.trace.traceId,
           reason,
-          estimatedEventUpdateCount: entry.estimates?.eventUpdateCount,
           estimatedSerializedEventBytes: entry.estimates?.serializedEventBytes,
           eventTimeEnvelopeMs: entry.trace.maxStart - entry.trace.minStart,
         });
@@ -355,21 +348,11 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
           Math.min(...traces.map(({ minStart }) => minStart)) +
           2 * QUERY_BUFFER_MS,
       );
-      let estimatedEventUpdateCount = 0;
       let estimatedSerializedEventBytes = 0;
       let unavailableEstimates = 0;
-      let unavailableEventCounts = 0;
       for (const entry of batch) {
         if (entry.estimates) {
           estimatedSerializedEventBytes += entry.estimates.serializedEventBytes;
-          if (entry.estimates.eventUpdateCount !== undefined) {
-            estimatedEventUpdateCount += entry.estimates.eventUpdateCount;
-            recordDistribution(
-              "langfuse.trace_batch.estimated_event_update_count",
-              entry.estimates.eventUpdateCount,
-              { scope: "trace" },
-            );
-          } else unavailableEventCounts++;
           recordDistribution(
             "langfuse.trace_batch.estimated_serialized_event_bytes",
             entry.estimates.serializedEventBytes,
@@ -380,12 +363,6 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         }
       }
       if (unavailableEstimates === 0) {
-        if (unavailableEventCounts === 0)
-          recordDistribution(
-            "langfuse.trace_batch.estimated_event_update_count",
-            estimatedEventUpdateCount,
-            { scope: "batch" },
-          );
         recordDistribution(
           "langfuse.trace_batch.estimated_serialized_event_bytes",
           estimatedSerializedEventBytes,
@@ -467,14 +444,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
           estimates:
             Number.isSafeInteger(state.serializedEventBytes) &&
             state.serializedEventBytes >= 0
-              ? {
-                  eventUpdateCount:
-                    Number.isSafeInteger(state.eventUpdateCount) &&
-                    state.eventUpdateCount >= 0
-                      ? state.eventUpdateCount
-                      : undefined,
-                  serializedEventBytes: state.serializedEventBytes,
-                }
+              ? { serializedEventBytes: state.serializedEventBytes }
               : undefined,
           trace: TraceBatchTraceSchema.parse({
             ...state,

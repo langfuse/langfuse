@@ -194,17 +194,6 @@ const EnvSchema = z.object({
     .min(0)
     .max(23)
     .default(4),
-  // Event-count budgets use ingestion-time estimates; 0 disables a budget.
-  LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES: z.coerce
-    .number()
-    .int()
-    .nonnegative()
-    .default(1_500),
-  LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES: z.coerce
-    .number()
-    .int()
-    .nonnegative()
-    .default(5_000),
   LANGFUSE_SECONDARY_OTEL_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z
     .string()
     .optional(),
