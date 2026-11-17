@@ -212,6 +212,8 @@ Sentry instrumentation skill first and decide whether it should capture at all
   `@langfuse/shared/src/server/clickhouse`, not the full server barrel or relative
   shared source paths. Suites own their private Redis clients; shared-context
   workers skip per-file teardown.
+- Shared-context files must restore their state in `afterAll`: real timers, environment/global stubs, spies, listeners, pending work, and module caches they mutate. Delete only the file's own database rows and Redis keys; keep shared clients open. Module mocks or singletons without a reset contract need file isolation; a source-text classification alone is not leak proof.
+- Before widening shared-context membership, run the affected files together with one worker and at least two recorded shuffle seeds (`--sequence.shuffle.files --sequence.seed=<seed>`). Fix order-dependent failures; preserve the first failure without retries or wider timeouts.
 - Put pure server unit tests that do not need Postgres bootstrap under
   `src/__tests__/server/unit/**` so they skip the shared DB setup hook.
 - Server tests that drive the public REST API over HTTP need a web server on
