@@ -55,7 +55,7 @@ export function ProjectOverviewCard({
       <Link
         href={`/project/${project.id}`}
         aria-label={`Open project ${project.name}`}
-        className="focus-visible:ring-ring absolute inset-0 rounded-lg outline-hidden focus-visible:ring-2"
+        className="focus-visible:ring-ring absolute inset-0 z-1 rounded-lg outline-hidden focus-visible:ring-2"
       />
       <div className="flex min-w-0 items-start gap-2.5">
         <WorkspaceGlyph id={project.id} name={project.name} size="md" />
