@@ -1505,7 +1505,7 @@ describe("trace micro-batch scheduling with Redis", () => {
 
     for (const key of ["due", "pending"]) {
       expect(recordGauge).toHaveBeenCalledWith(
-        "langfuse.trace_batch.redis_key_entries",
+        "langfuse.trace_dispatch.redis_key_entries",
         1,
         { key, shard: "total", unit: "records" },
       );
@@ -1513,28 +1513,28 @@ describe("trace micro-batch scheduling with Redis", () => {
         .mocked(recordGauge)
         .mock.calls.find(
           ([name, , tags]) =>
-            name === "langfuse.trace_batch.redis_key_bytes" &&
+            name === "langfuse.trace_dispatch.redis_key_bytes" &&
             tags?.key === key,
         );
       expect(Number(sample?.[1])).toBeGreaterThan(0);
     }
     expect(recordGauge).toHaveBeenCalledWith(
-      "langfuse.trace_batch.redis_key_bytes",
+      "langfuse.trace_dispatch.redis_key_bytes",
       expect.any(Number),
       { key: "bounds", shard: "sampled_mean", unit: "bytes" },
     );
     expect(recordGauge).toHaveBeenCalledWith(
-      "langfuse.trace_batch.queue_depth",
+      "langfuse.events_dispatch.queue_depth",
       1,
       { type: "delayed", unit: "records" },
     );
     expect(recordGauge).not.toHaveBeenCalledWith(
-      "langfuse.trace_batch.queue_depth",
+      "langfuse.events_dispatch.queue_depth",
       expect.anything(),
       expect.objectContaining({ type: "waiting" }),
     );
     expect(recordGauge).toHaveBeenCalledWith(
-      "langfuse.trace_batch.queue_waiting_head_age_ms",
+      "langfuse.events_dispatch.queue_waiting_head_age_ms",
       5_000,
       { unit: "milliseconds" },
     );
@@ -1570,7 +1570,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     });
     await vi.waitFor(() =>
       expect(recordGauge).toHaveBeenCalledWith(
-        "langfuse.trace_batch.queue_waiting_head_age_ms",
+        "langfuse.events_dispatch.queue_waiting_head_age_ms",
         0,
         { unit: "milliseconds" },
       ),
@@ -1619,15 +1619,15 @@ describe("trace micro-batch scheduling with Redis", () => {
         .sort(),
     ).toEqual(["short-1,short-2,wide"]);
     expect(recordDistribution).toHaveBeenCalledWith(
-      "langfuse.trace_batch.candidate_buffer_size",
+      "langfuse.trace_dispatch.candidate_buffer_size",
       3,
     );
     expect(recordDistribution).toHaveBeenCalledWith(
-      "langfuse.trace_batch.event_time_envelope_ms",
+      "langfuse.events_dispatch.event_time_envelope_ms",
       29_040_000,
     );
     expect(recordIncrement).toHaveBeenCalledWith(
-      "langfuse.trace_batch.dispatched_batches",
+      "langfuse.events_dispatch.dispatched_batches",
       1,
       { fill: "partial" },
     );
@@ -1636,7 +1636,7 @@ describe("trace micro-batch scheduling with Redis", () => {
         .mocked(recordDistribution)
         .mock.calls.some(
           ([name, value, tags]) =>
-            name === "langfuse.trace_batch.selector_duration_ms" &&
+            name === "langfuse.trace_dispatch.selector_duration_ms" &&
             Number(value) >= 0 &&
             tags === undefined,
         ),
@@ -1668,7 +1668,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       ["epoch", "start_too_old"],
     ] as const) {
       expect(recordIncrement).toHaveBeenCalledWith(
-        "langfuse.trace_batch.excluded_traces",
+        "langfuse.trace_dispatch.excluded_traces",
         1,
         { reason },
       );
@@ -1726,7 +1726,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       ),
     ).toBe(1);
     expect(recordIncrement).not.toHaveBeenCalledWith(
-      "langfuse.trace_batch.excluded_traces",
+      "langfuse.trace_dispatch.excluded_traces",
       expect.anything(),
       expect.anything(),
     );
@@ -1735,7 +1735,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       expect.anything(),
     );
     expect(recordIncrement).not.toHaveBeenCalledWith(
-      "langfuse.trace_batch.reactivated_traces",
+      "langfuse.trace_dispatch.reactivated_traces",
       1,
     );
   });
@@ -1871,7 +1871,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     await recordActivity(projectId, [matched("failed")]);
 
     expect(recordIncrement).toHaveBeenCalledWith(
-      "langfuse.trace_batch.idle_time_read_failures",
+      "langfuse.trace_dispatch.idle_time_read_failures",
       1,
     );
     const offset =
@@ -1935,7 +1935,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     );
     expect(await resolveTraceBatchSamplingRate("project")).toBe(1);
     expect(recordIncrement).toHaveBeenCalledWith(
-      "langfuse.trace_batch.topics_gate_failures",
+      "langfuse.trace_dispatch.topics_gate_failures",
       1,
     );
     // Nothing is admitted without events dispatch.
@@ -2003,7 +2003,9 @@ describe("trace micro-batch scheduling with Redis", () => {
       expect(
         vi
           .mocked(recordDistribution)
-          .mock.calls.filter(([name]) => name === "langfuse.trace_batch.size")
+          .mock.calls.filter(
+            ([name]) => name === "langfuse.events_dispatch.batch_size",
+          )
           .map(([, value]) => value)
           .sort((a, b) => Number(a) - Number(b)),
       ).toEqual(sizes);
@@ -2011,7 +2013,7 @@ describe("trace micro-batch scheduling with Redis", () => {
         vi
           .mocked(recordDistribution)
           .mock.calls.filter(
-            ([name]) => name === "langfuse.trace_batch.project_count",
+            ([name]) => name === "langfuse.events_dispatch.batch_project_count",
           )
           .map(([, value]) => value)
           .sort((a, b) => Number(a) - Number(b)),
@@ -2029,7 +2031,7 @@ describe("trace micro-batch scheduling with Redis", () => {
           .mock.calls.filter(
             ([name, , tags]) =>
               name ===
-                "langfuse.trace_batch.estimated_serialized_event_bytes" &&
+                "langfuse.events_dispatch.estimated_serialized_event_bytes" &&
               tags?.scope === "batch",
           )
           .map(([, value, tags]) => ({ value, tags })),
@@ -2095,7 +2097,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     const candidateSizes = vi
       .mocked(recordDistribution)
       .mock.calls.filter(
-        ([name]) => name === "langfuse.trace_batch.candidate_buffer_size",
+        ([name]) => name === "langfuse.trace_dispatch.candidate_buffer_size",
       )
       .map(([, value]) => Number(value));
     expect(Math.max(...candidateSizes)).toBeLessThanOrEqual(1059);
@@ -2158,7 +2160,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       vi
         .mocked(recordIncrement)
         .mock.calls.filter(
-          ([name]) => name === "langfuse.trace_batch.skipped_traces",
+          ([name]) => name === "langfuse.trace_dispatch.skipped_traces",
         )
         .map(([, value]) => value),
     ).toEqual([0, 0, 0]);
@@ -2243,7 +2245,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     const candidateBufferSizes = vi
       .mocked(recordDistribution)
       .mock.calls.filter(
-        ([name]) => name === "langfuse.trace_batch.candidate_buffer_size",
+        ([name]) => name === "langfuse.trace_dispatch.candidate_buffer_size",
       )
       .map(([, value]) => Number(value));
     expect(candidateBufferSizes).toContain(42);
@@ -2289,7 +2291,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       .mocked(recordIncrement)
       .mock.calls.filter(
         ([name, , tags]) =>
-          name === "langfuse.trace_batch.expired_traces" &&
+          name === "langfuse.trace_dispatch.expired_traces" &&
           tags?.source === "dispatcher",
       )
       .map(([, count]) => count);

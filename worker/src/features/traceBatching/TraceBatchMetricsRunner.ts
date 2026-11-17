@@ -12,7 +12,9 @@ import {
   traceDispatchConfig,
 } from "../eventsDispatch/config";
 
-const METRIC_PREFIX = "langfuse.trace_batch";
+// Queue metrics describe events-dispatch jobs; map metrics describe the trace-dispatch Redis maps.
+const QUEUE_METRIC_PREFIX = "langfuse.events_dispatch";
+const MAP_METRIC_PREFIX = "langfuse.trace_dispatch";
 const MEMORY_INTERVAL_MS = 60_000;
 const BOUNDS_SAMPLE_SIZE = 20;
 const BOUNDS_MEMORY_SCRIPT = `
@@ -72,7 +74,7 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
     const queue = EventsDispatchQueue.getInstance();
     if (!queue) throw new Error("Events dispatch queue is unavailable");
     const counts = await queue.getJobCounts("delayed");
-    recordGauge(`${METRIC_PREFIX}.queue_depth`, counts.delayed ?? 0, {
+    recordGauge(`${QUEUE_METRIC_PREFIX}.queue_depth`, counts.delayed ?? 0, {
       type: "delayed",
       unit: "records",
     });
@@ -96,7 +98,7 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
         : [],
     );
     recordGauge(
-      `${METRIC_PREFIX}.queue_waiting_head_age_ms`,
+      `${QUEUE_METRIC_PREFIX}.queue_waiting_head_age_ms`,
       Math.max(0, ...ages),
       { unit: "milliseconds" },
     );
@@ -139,7 +141,7 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
     this.recordMapMemory(totals, ["due", "pending"]);
     if (sampledBoundsKeys === 0) return;
     recordGauge(
-      `${METRIC_PREFIX}.redis_key_bytes`,
+      `${MAP_METRIC_PREFIX}.redis_key_bytes`,
       Math.round(sampledBoundsBytes / sampledBoundsKeys),
       { key: "bounds", shard: "sampled_mean", unit: "bytes" },
     );
@@ -149,16 +151,20 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
     // These are global snapshots emitted by each eligible worker. Aggregate
     // duplicate reporters with max/latest, never sum their identical gauges.
     keys.forEach((key, index) => {
-      recordGauge(`${METRIC_PREFIX}.redis_key_bytes`, values[index * 2], {
+      recordGauge(`${MAP_METRIC_PREFIX}.redis_key_bytes`, values[index * 2], {
         key,
         shard: "total",
         unit: "bytes",
       });
-      recordGauge(`${METRIC_PREFIX}.redis_key_entries`, values[index * 2 + 1], {
-        key,
-        shard: "total",
-        unit: "records",
-      });
+      recordGauge(
+        `${MAP_METRIC_PREFIX}.redis_key_entries`,
+        values[index * 2 + 1],
+        {
+          key,
+          shard: "total",
+          unit: "records",
+        },
+      );
     });
   }
 }
