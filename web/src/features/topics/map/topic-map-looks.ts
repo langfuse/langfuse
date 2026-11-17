@@ -82,7 +82,7 @@ export const TOPIC_MAP_LOOKS: Record<TopicMapLookName, TopicMapLook> = {
       lineHeight: 16,
       tracking: "0",
       color: "#3f3f46",
-      shadow: "none",
+      shadow: "0 0 3px #fcfcfa, 0 0 6px #fcfcfa",
     },
   },
 };
