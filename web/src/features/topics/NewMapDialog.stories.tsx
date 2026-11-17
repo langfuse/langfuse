@@ -131,7 +131,7 @@ const meta = preview.meta({
   ],
 });
 
-export const Default = meta.story({ name: "New map" });
+export const Default = meta.story({ name: "New live map" });
 
 export const LimitReached = meta.story({
   name: "Map limit reached",
@@ -152,7 +152,7 @@ export const NothingToLookFor = meta.story({
   play: async () => {
     const body = within(document.body);
     const start = await body.findByRole("button", {
-      name: "Create map",
+      name: "Create live map",
     });
     await userEvent.type(
       body.getByRole("textbox", { name: "Map name" }),

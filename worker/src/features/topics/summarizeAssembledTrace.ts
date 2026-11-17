@@ -48,10 +48,10 @@ const BUILT_IN_FACETS = new Set(
   DEFAULT_TOPIC_FACETS.map((facet) => facet.name),
 );
 
-// Rows from this transcript producer are interchangeable between trace-batch and manual processing.
+// Stored as `transcript_id` on every summary.
 export const ASSEMBLED_TRANSCRIPT_ID = "trace-batch";
 
-export type TraceFacet = {
+type TraceFacet = {
   name: string;
   version: TopicFacetVersion;
   builtIn: boolean;
@@ -141,9 +141,7 @@ async function summarizeEnabledTrace(
 ): Promise<AssembledTraceResult> {
   const { models, facets } = input;
   const embeddingModel = models.embedding.model;
-  const config = topicProcessingConfigSchema.parse({
-    summaryModel: models.summary.model,
-  });
+  const config = topicProcessingConfigSchema.parse({});
   const pending: TraceFacet[] = [];
   // Built-in facets first, each group in listing order, so the cached prompt prefix stays stable.
   const ordered = [
@@ -166,9 +164,8 @@ async function summarizeEnabledTrace(
       environment: input.environment,
       traceName: input.traceName,
       facet: version,
-      summaryModel: config.summaryModel!,
+      summaryModel: models.summary.model,
       embeddingModel,
-      triggerType: "automatic",
       // A snapshot's summaries carry its ID, for its progress and cost.
       metadata: input.executionId
         ? { input: "topics-text", executionId: input.executionId }
@@ -251,11 +248,11 @@ async function summarizeEnabledTrace(
 
 /**
  * Summarizes the given facets of one trace in a single model call on the
- * projected transcript. Trace-batch and manual processing share this request.
+ * projected transcript.
  * Returns undefined without a call when the transcript has no content; results
  * follow the order of `facets`, with an error for each invalid facet output.
  */
-export async function summarizeTraceFacets(params: {
+async function summarizeTraceFacets(params: {
   models: TopicsModels;
   facets: TraceFacet[];
   transcript: Transcript | null;
@@ -281,12 +278,8 @@ export async function summarizeTraceFacets(params: {
   const text = renderStoredTopicText(params.transcript, params.executionIssues);
   metrics.summaryInputCharacters("text", text.length);
   metrics.summaryInputCharacters("json", projection.text.length);
-  // Built-in facets first, each group in listing order, so the cached prompt prefix stays stable.
-  const ordered = [
-    ...facets.filter((facet) => facet.builtIn),
-    ...facets.filter((facet) => !facet.builtIn),
-  ];
-  const keyed = ordered.map(({ name, version, builtIn }, index) => ({
+  // The caller lists built-in facets first, so the cached prompt prefix stays stable.
+  const keyed = facets.map(({ name, version, builtIn }, index) => ({
     key: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "_")}_${index + 1}`,
     facet: version,
     builtIn,
@@ -334,8 +327,8 @@ export async function summarizeTraceFacets(params: {
     });
   const result = generated!;
   const outputs = result.output as Record<string, FacetOutput>;
-  const results = facets.map((facet): TraceFacetResult => {
-    const { key } = keyed[ordered.indexOf(facet)];
+  const results = facets.map((facet, index): TraceFacetResult => {
+    const { key } = keyed[index];
     const error = errors.get(key);
     if (error) outcome(facet, "invalid_output", "rule");
     else outcome(facet, outputs[key].status, "model");
@@ -365,8 +358,8 @@ function facetTag(facet: TraceFacet): string {
     : "custom";
 }
 
-/** The summary row both processing paths start from, before any model call. */
-export function baseTopicSummary(params: {
+/** The summary row processing starts from, before any model call. */
+function baseTopicSummary(params: {
   projectId: string;
   traceId: string;
   sessionId: string | null;
@@ -376,7 +369,6 @@ export function baseTopicSummary(params: {
   facet: TopicFacetVersion;
   summaryModel: string;
   embeddingModel: string;
-  triggerType: "automatic" | "manual";
   metadata: Record<string, unknown>;
 }): TopicSummary {
   return {
@@ -385,7 +377,7 @@ export function baseTopicSummary(params: {
     facetVersion: params.facet.version,
     traceId: params.traceId,
     sessionId: params.sessionId,
-    triggerType: params.triggerType,
+    triggerType: "automatic",
     unitStartTime: params.unitStartTime,
     environment: params.environment,
     traceName: params.traceName,

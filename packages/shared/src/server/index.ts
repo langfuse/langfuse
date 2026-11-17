@@ -173,7 +173,6 @@ export {
   TOPICS_TEXT_VERSION,
 } from "./transcript/topics-model-input";
 export { transcriptBlockTypes } from "./transcript/topics-renderer";
-export { renderGenericTranscript } from "./transcript/generic-renderer";
 export { topicsTranscriptConfig } from "./transcript/topics-renderer-config";
 export { transcriptRenderConfigSchema } from "./transcript/topics-renderer-config";
 export { type TranscriptRenderConfig } from "./transcript/topics-renderer-config";
@@ -208,7 +207,6 @@ export * from "./redis/webhookQueue";
 export * from "./redis/monitorQueue";
 export * from "./redis/inAppAgentRunQueue";
 export * from "./redis/traceDelete";
-export * from "./redis/traceBatch";
 export * from "./redis/sharding";
 export * from "./redis/projectDelete";
 export * from "./redis/scoreDelete";
@@ -731,6 +729,10 @@ export { type StageAuditLogEventInput } from "./repositories/auditLogs";
 export { stageAuditLogEvents } from "./repositories/auditLogs";
 export { deriveAuditLogEventId } from "./repositories/auditLogs";
 export { convertAuditLogStagingRowToClickhouse } from "./repositories/auditLogs";
+export { convertPostgresAuditLogToClickhouse } from "./repositories/auditLogs";
+export { getAuditLogResourceRefs } from "./repositories/auditLogs";
+export { getSystemAuditLogActorForUserId } from "./repositories/auditLogs";
+export { getSystemAuditLogActorForApiKeyId } from "./repositories/auditLogs";
 export { type BillableEventType } from "./repositories/billable-events";
 export { getBillableUnitCountsByProjectInWindow } from "./repositories/billable-events";
 export { getTopicSetupTraceCount } from "./repositories/topic-setup-events";

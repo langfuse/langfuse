@@ -6,10 +6,7 @@ import {
   getTopicSetupTraceNames,
 } from "@langfuse/shared/src/server";
 import { describe, expect, it } from "vitest";
-import {
-  countTopicSetupTraces,
-  selectTopicSetupTraces,
-} from "@/src/features/topics/server/traceSelection";
+import { countTopicSetupTraces } from "@/src/features/topics/server/traceSelection";
 
 const HOUR_US = 3_600_000_000;
 
@@ -37,9 +34,9 @@ async function seedFinishedTrace(projectId: string, traceName: string) {
 }
 
 describe("Topics setup trace selection", () => {
-  it("counts and backfills only the traces the rule filter matches", async () => {
+  it("counts only the traces the rule filter matches", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
-    const matching = await Promise.all([
+    await Promise.all([
       seedFinishedTrace(projectId, "rag.answer"),
       seedFinishedTrace(projectId, "rag.answer"),
     ]);
@@ -60,14 +57,6 @@ describe("Topics setup trace selection", () => {
     await expect(
       countTopicSetupTraces({ projectId, filter, now }),
     ).resolves.toEqual({ finished7d: 2, finished30d: 2 });
-    const { traceIds } = await selectTopicSetupTraces({
-      projectId,
-      filter,
-      sampling: 1,
-      limit: 500,
-      now,
-    });
-    expect(traceIds.toSorted()).toEqual(matching.toSorted());
   });
 
   it("suggests only stored trace names, never a root observation name", async () => {

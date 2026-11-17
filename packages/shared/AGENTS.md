@@ -35,6 +35,7 @@
   generation in the full thread.
 - Domain model types: `src/domain/*`
 - Repository layer: `src/server/repositories/*`
+- Audit snapshots and replay: `src/server/repositories/auditLogs.ts`; `getAuditLogResourceRefs` derives bulk trace refs from the persisted snapshot for live staging and backfill.
 - Billing ledger: the append-only `billable_events` table (created by
   `clickhouse/scripts/dev-tables.sh`, applied by hand on Cloud, not
   migration-managed) read via `src/server/repositories/billable-events.ts`.
@@ -49,14 +50,7 @@
 - Queue helpers: `src/server/redis/*`
   `getShardIndex` from `src/server/redis/sharding.ts` is exported by the server
   barrel; hash the unit identity when a project can dominate traffic.
-- Internal trace-batch queue: `src/server/redis/traceBatch.ts` (cloud-gated);
-  payloads in `src/server/queues.ts` accept persisted single-project jobs.
-  Full-event streaming reads live in `src/server/repositories/trace-batch.ts`;
-  the worker owns experiment enablement and lifecycle. Reader options control
-  per-query threads/block size and experiment attribution; retain exact tenant
-  pairs and per-trace time windows when changing parameter chunking.
-  Rows must stay contiguous by project and trace ID so consumers can finish a
-  trace at the next pair or successful EOF; time buckets must not precede trace ID.
+- Full-event streaming reads for events dispatch live in `src/server/repositories/trace-batch.ts`; the worker owns enablement and lifecycle. Reader options control per-query threads/block size; retain exact tenant pairs and per-trace time windows when changing parameter chunking. Rows must stay contiguous by project and trace ID so consumers can finish a trace at the next pair or successful EOF; time buckets must not precede trace ID.
 - Code evaluator dispatcher/error contract: `src/server/evals/codeEvalDispatcherTypes.ts`. Keep provider mappings, user-visible messages, and worker terminal-outcome classification aligned when adding an error code.
 - Dashboard/monitor query feature (data model + server-only builder/executor): `src/features/query/*`
 - Query-builder AST (server half, WIP): `src/server/query-ast/*` — the Kysely ClickHouse dialect (ARRAY JOIN / LIMIT BY / FINAL / metadata subscript nodes, single-project tenancy injection, per-table dedup lowering, virtual views, catalog parity). Compile only through `compileClickhouseQuery` in `src/server/query-ast/compile.ts`. SQL correctness is proven by a golden-SQL harness (`src/server/repositories/goldenHarness.ts`, capturing at the `src/server/repositories/clickhouse.ts` exec seam and normalizing via `clickhouse format`); each migrated call site keeps its `*.golden.test.ts` baseline next to the call site (e.g. `src/server/repositories/environments.golden.test.ts`, `src/server/repositories/events.golden.test.ts`, `src/server/repositories/scores.golden.test.ts`, `src/server/queries/clickhouse-sql/event-filter-options.golden.test.ts`).

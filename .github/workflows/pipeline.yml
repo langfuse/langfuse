@@ -131,7 +131,8 @@ jobs:
   llm-connections-filter:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
-      changed: ${{ steps.filter.outputs.llm_connections }}
+      llm_connections: ${{ steps.range.outputs.run_all == 'true' || steps.filter.outputs.llm_connections }}
+      ai_gateway: ${{ steps.range.outputs.run_all == 'true' || steps.filter.outputs.ai_gateway }}
     timeout-minutes: 15
     permissions:
       contents: read
@@ -139,49 +140,26 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Recommended for paths-filter action
-          # may save additional git fetch roundtrip if
-          # merge-base is found within latest N commits
+          # Recent history can avoid a fetch while finding the diff base.
           fetch-depth: 20
           persist-credentials: false
+      - name: Check changed-file range
+        id: range
+        # The PR files API caps at 3,000 files; unknown ranges need both suites.
+        env:
+          RUN_ALL: >-
+            ${{ (github.event_name == 'pull_request' &&
+                (!github.event.pull_request.changed_files || github.event.pull_request.changed_files >= 3000)) ||
+                (github.event_name == 'push' &&
+                (!github.event.before || github.event.before == '0000000000000000000000000000000000000000')) }}
+        run: echo "run_all=$RUN_ALL" >> "$GITHUB_OUTPUT"
       - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
         id: filter
+        if: ${{ steps.range.outputs.run_all == 'false' }}
         with:
-          filters: |
-            llm_connections:
-              - 'packages/shared/package.json'
-              - 'packages/shared/src/server/llm/**'
-              - 'worker/src/__tests__/llmConnections.test.ts'
-
-  ai-gateway-filter:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    outputs:
-      changed: ${{ steps.filter.outputs.ai_gateway }}
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      pull-requests: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 20
-          persist-credentials: false
-      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
-        id: filter
-        with:
-          filters: |
-            ai_gateway:
-              - 'ai-gateway/**'
-              - 'packages/shared/prisma/migrations/**/*gateway*/**'
-              - 'web/src/__e2e__/ai-gateway/**'
-              - 'web/src/features/ai-gateway/**'
-              - 'web/src/features/public-api/server/createAuthedProjectAPIRoute.ts'
-              - 'web/src/pages/api/internal/ai-gateway/**'
-              - 'web/src/pages/api/public/ingestion.ts'
-              - 'web/src/pages/api/public/media/**'
-              - 'web/src/pages/api/public/otel/v1/traces/**'
-              - 'web/src/server/utils/hmac.ts'
-              - 'web/src/server/utils/jwt.ts'
+          base: ${{ github.event_name == 'push' && github.event.before || '' }}
+          ref: ${{ github.event_name == 'push' && github.sha || '' }}
+          filters: .github/ci-paths.yml
 
   tests-ai-gateway:
     timeout-minutes: 20
@@ -291,6 +269,8 @@ jobs:
         run: node --test scripts/github/label-cursor-prs.test.mjs
       - name: vitest CI reporter tests
         run: node --test scripts/vitest/ci-reporter.test.mjs
+      - name: merge gate tests
+        run: node --test scripts/ci/merge-gate.test.mjs
       - name: Load default env
         run: |
           cp .env.dev.example .env
@@ -386,11 +366,11 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          if [ "$EVENT_NAME" = "pull_request" ]; then
-            BASE_SHA="$PR_BASE_SHA"
-          else
-            BASE_SHA=$(git merge-base origin/main HEAD)
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            pnpm run format:check
+            exit 0
           fi
+          BASE_SHA="$PR_BASE_SHA"
 
           echo "Checking files changed from $BASE_SHA to HEAD"
 
@@ -1163,7 +1143,7 @@ jobs:
     # ERR_OSSL_EVP_UNSUPPORTED. Databases and migrations run on the runner as
     # in tests-web/tests-worker; install, build, the web and worker processes
     # and the tests run in the container (scripts/ci/fips-tests.sh).
-    # Not part of all-ci-passed yet.
+    # Compatibility signal; not part of the required merge gate.
     timeout-minutes: 45
     runs-on: ${{ matrix.runner }}
     needs:
@@ -1290,7 +1270,7 @@ jobs:
     needs:
       - pre-job
       - llm-connections-filter
-    if: ${{ !cancelled() && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.llm-connections-filter.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'))) }}
+    if: ${{ !cancelled() && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.llm-connections-filter.outputs.llm_connections == 'true' || github.event_name == 'workflow_dispatch'))) }}
     name: test-worker-llm-connections (node24, pg15)
     env:
       NODE_ENV: test
@@ -1635,8 +1615,8 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-      - ai-gateway-filter
-    if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.ai-gateway-filter.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'))) }}
+      - llm-connections-filter
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.llm-connections-filter.outputs.ai_gateway == 'true' || github.event_name == 'workflow_dispatch'))) }}
     name: test-ai-gateway-e2e
     env:
       NODE_ENV: test
@@ -1744,6 +1724,8 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       [
+        pre-job,
+        llm-connections-filter,
         lint,
         knip,
         format-check,
@@ -1769,27 +1751,15 @@ jobs:
     outputs:
       success: ${{ steps.set-success-output.outputs.success }}
     steps:
-      - name: Set check result as an output
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Require every planned CI job to pass
         id: set-success-output
-        run: |
-          if [[ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
-            echo "success=false" >> $GITHUB_OUTPUT
-          else
-            echo "success=true" >> $GITHUB_OUTPUT
-          fi
-      - name: Successful deploy
-        if: ${{ !(contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
-        run: exit 0
-        working-directory: .
-      - name: Failing deploy
-        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
-        run: exit 1
-        working-directory: .
-      - name: Output job results
-        run: |
-          echo "Job results: ${STEPS_SET_SUCCESS_OUTPUT_OUTPUTS_SUCCESS}"
         env:
-          STEPS_SET_SUCCESS_OUTPUT_OUTPUTS_SUCCESS: ${{ steps.set-success-output.outputs.success }}
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          IS_FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+        run: node scripts/ci/merge-gate.mjs
 
   # The alert lives in its own job because only a job-level `cancelled()` tells
   # whether the run was cancelled. Inside a step of the always() gate it reads

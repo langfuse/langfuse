@@ -90,7 +90,6 @@ describe("trace batch query controls", () => {
           {
             maxThreads: 1,
             maxBlockSize,
-            experimentId: "arm-b",
             queryId: "read-attempt",
             requestTimeoutMs: 40_000,
           },
@@ -105,7 +104,6 @@ describe("trace batch query controls", () => {
             ...baseline.clickhouseConfigs,
             request_timeout: 40_000,
           },
-          tags: { ...baseline.tags, experimentId: "arm-b" },
           clickhouseSettings: {
             ...baseline.clickhouseSettings,
             max_threads: 1,

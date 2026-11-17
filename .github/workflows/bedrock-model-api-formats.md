@@ -18,6 +18,9 @@ engine:
   id: claude
   version: "2.1.280"
   max-turns: 60
+  # WebFetch's domain preflight calls api.anthropic.com, which the firewall
+  # blocks (inference uses the API proxy); skip it so allowlisted fetches work.
+  args: ["--settings", '{"skipWebFetchPreflight":true}']
   env:
     ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
 

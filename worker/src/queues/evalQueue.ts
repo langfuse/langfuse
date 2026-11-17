@@ -21,6 +21,7 @@ import { retryLLMRateLimitError } from "../features/utils/retry-handler";
 import { isUnrecoverableError } from "../errors/UnrecoverableError";
 import { retryObservationNotFound } from "../features/evaluation/retryObservationNotFound";
 import { isObservationNotFoundError } from "../errors/ObservationNotFoundError";
+import { getLLMRetryDelayMs } from "../features/evaluation/llmConnectionCooldown";
 import { env } from "../env";
 import {
   getLlmEvalTerminalErrorAttribution,
@@ -219,13 +220,17 @@ export const evalJobExecutorQueueProcessorBuilder = (
           ? SecondaryEvalExecutionQueue.getInstance({ shardName: queueName })
           : EvalExecutionQueue.getInstance({ shardName: queueName });
 
-        const retryResult = await retryLLMRateLimitError(job, {
-          table: "job_executions",
-          idField: "jobExecutionId",
-          queue,
-          queueName,
-          jobName: QueueJobs.EvaluationExecution,
-        });
+        const retryResult = await retryLLMRateLimitError(
+          job,
+          {
+            table: "job_executions",
+            idField: "jobExecutionId",
+            queue,
+            queueName,
+            jobName: QueueJobs.EvaluationExecution,
+          },
+          { providerDelayMs: getLLMRetryDelayMs(e) },
+        );
 
         if (retryResult.outcome === "scheduled") {
           // Use the deterministic execution trace ID to update the job execution
@@ -344,13 +349,17 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
         const queue = LLMAsJudgeExecutionQueue.getInstance({
           shardName: queueName,
         });
-        const retryResult = await retryLLMRateLimitError(job, {
-          table: "job_executions",
-          idField: "jobExecutionId",
-          queue,
-          queueName,
-          jobName: QueueJobs.LLMAsJudgeExecution,
-        });
+        const retryResult = await retryLLMRateLimitError(
+          job,
+          {
+            table: "job_executions",
+            idField: "jobExecutionId",
+            queue,
+            queueName,
+            jobName: QueueJobs.LLMAsJudgeExecution,
+          },
+          { providerDelayMs: getLLMRetryDelayMs(e) },
+        );
 
         if (retryResult.outcome === "scheduled") {
           await prisma.jobExecution.update({

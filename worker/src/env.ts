@@ -149,76 +149,35 @@ const EnvSchema = z.object({
       message:
         'Use "*" alone to select all projects, or a comma-separated list of project IDs',
     }),
-  LANGFUSE_TRACE_DISPATCH_ENABLED: z.enum(["true", "false"]).default("false"),
-  LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE: z.coerce
-    .number()
-    .min(0)
-    .max(1)
-    .default(0),
+  // Cloud only: records trace activity at ingestion; the events-dispatch consumer host also runs the dispatcher.
+  LANGFUSE_EVENTS_DISPATCH_ENABLED: z.enum(["true", "false"]).default("false"),
+  QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  // How long a trace's Redis bounds survive its latest activity; late spans merge within it.
   LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS: z.coerce
     .number()
     .int()
     .positive()
     .max(2 * 24 * 60 * 60 * 1_000)
-    .default(24 * 60 * 60 * 1_000),
-  // Requires trace dispatch; the dispatcher then enqueues events-dispatch jobs instead of trace-batch jobs.
-  LANGFUSE_EVENTS_DISPATCH_ENABLED: z.enum(["true", "false"]).default("false"),
-  QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_EVENTS_DISPATCH_CONCURRENCY: z.coerce
+    .default(12 * 60 * 60 * 1_000),
+  // Traces per events-dispatch job; the locality selector's tables grow with its square.
+  LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE: z.coerce
     .number()
     .int()
     .positive()
-    .default(2),
-  // Experiment: read and store every dispatched trace, enqueueing consumers only where rules apply.
-  LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_TRACE_BATCH_INGESTION_ENABLED: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_TRACE_BATCH_SAMPLING_RATE: z.coerce
+    .max(1_000)
+    .default(120),
+  // Experiment: also records traces without a matching rule, by deterministic trace-ID sample.
+  LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL: z.coerce
     .number()
     .min(0)
     .max(1)
     .default(0),
-  LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED: z
+  // Experiment: read and store every dispatched trace, enqueueing consumers only where rules apply.
+  LANGFUSE_EVENTS_DISPATCH_STORE_ALL_EXPERIMENTAL: z
     .enum(["true", "false"])
     .default("false"),
-  QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_TRACE_BATCH_READ_ENABLED: z.enum(["true", "false"]).default("false"),
-  LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_TRACE_BATCH_CONCURRENCY: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(2),
-  LANGFUSE_TRACE_BATCH_MAX_THREADS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(2),
-  LANGFUSE_TRACE_BATCH_REQUEST_TIMEOUT_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(40_000),
-  LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(100 * 1024 * 1024),
-  // Traces summarized and embedded at once per Topics job, in both trace-batch and manual processing.
-  LANGFUSE_TOPICS_TRACE_CONCURRENCY: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(20),
   QUEUE_CONSUMER_TOPICS_TRACE_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
@@ -228,17 +187,6 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(20),
-  // Admission policy for full-cohort fitting; excludes child-process and runtime overhead.
-  LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(20_000),
-  LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(256 * 1024 * 1024),
   // 04:00 UTC is early morning in Europe and late evening in the Americas.
   LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC: z.coerce
     .number()
@@ -246,66 +194,6 @@ const EnvSchema = z.object({
     .min(0)
     .max(23)
     .default(4),
-  LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE: z.coerce
-    .number()
-    .int()
-    .positive()
-    .optional(),
-  LANGFUSE_TRACE_BATCH_EXPERIMENT_ID: z
-    .string()
-    .min(1)
-    .max(64)
-    .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/)
-    .optional(),
-  LANGFUSE_TRACE_BATCH_MAX_SIZE: z.coerce
-    .number()
-    .int()
-    .positive()
-    .max(10_000)
-    .default(60),
-  // Weight budgets use ingestion-time estimates; 0 disables a budget.
-  LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES: z.coerce
-    .number()
-    .int()
-    .nonnegative()
-    .default(1_500),
-  LANGFUSE_TRACE_BATCH_MAX_BATCH_SERIALIZED_BYTES: z.coerce
-    .number()
-    .int()
-    .nonnegative()
-    .default(64 * 1024 * 1024),
-  LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES: z.coerce
-    .number()
-    .int()
-    .nonnegative()
-    .default(5_000),
-  LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES: z.coerce
-    .number()
-    .int()
-    .nonnegative()
-    .default(50 * 1024 * 1024),
-  LANGFUSE_TRACE_BATCH_STRATEGY: z
-    .enum(["project", "locality"])
-    .default("project"),
-  LANGFUSE_TRACE_BATCH_IDLE_MS: z.coerce.number().int().positive(),
-  LANGFUSE_TRACE_BATCH_SHARD_COUNT: z.coerce.number().int().min(1).max(256),
-  LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .max(2 * 24 * 60 * 60 * 1_000)
-    .default(24 * 60 * 60 * 1_000),
-  // Recovery grace after readiness; whole-key expiry includes the idle interval.
-  LANGFUSE_TRACE_BATCH_PENDING_TTL_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(7_200_000),
-  LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(60_000),
   LANGFUSE_SECONDARY_OTEL_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z
     .string()
     .optional(),
@@ -491,16 +379,7 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_BATCH_ACTION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
-  QUEUE_CONSUMER_TOPICS_QUEUE_IS_ENABLED: z
-    .enum(["true", "false"])
-    .default("true"),
   QUEUE_CONSUMER_TOPICS_UPDATE_QUEUE_IS_ENABLED: z
-    .enum(["true", "false"])
-    .default("true"),
-  QUEUE_CONSUMER_TOPICS_EMBEDDING_QUEUE_IS_ENABLED: z
-    .enum(["true", "false"])
-    .default("true"),
-  QUEUE_CONSUMER_TOPICS_AUTOMATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_EVAL_EXECUTION_QUEUE_IS_ENABLED: z
@@ -823,6 +702,23 @@ const EnvSchema = z.object({
   LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR: z
     .enum(["dual_write", "direct"])
     .default("direct"),
+  // Langfuse Cloud only, temporary. v3 cutoff switches, flipped by hand.
+  // Ignored on self-hosted deployments.
+  // EVALS: trace and dataset LLM-as-a-Judge evaluators. New jobs are not created.
+  LANGFUSE_V4_CUTOFF_EVALS: z.enum(["true", "false"]).default("false"),
+  // Comma-separated project ids that skip every cutoff.
+  // Keep in sync with web/src/env.mjs.
+  LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS: z
+    .string()
+    .optional()
+    .transform((value) =>
+      value
+        ? value
+            .split(",")
+            .map((projectId) => projectId.trim())
+            .filter(Boolean)
+        : [],
+    ),
   // Cloud-only rollout boundary for automatic direct OTel event writes.
   // Organizations created on or after this date are past the point where the v4
   // preview is force-enabled and cannot be switched off, so the events table is
@@ -1004,14 +900,6 @@ const validateInAppAgentSandboxConfig = (parsed: ParsedEnv): void => {
 
 const parseEnv = (): ParsedEnv => {
   const source = { ...removeEmptyEnvVariables(process.env) };
-  if (source.LANGFUSE_TRACE_BATCH_IDLE_MS === undefined) {
-    source.LANGFUSE_TRACE_BATCH_IDLE_MS =
-      source.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ? "120000" : "600000";
-  }
-  if (source.LANGFUSE_TRACE_BATCH_SHARD_COUNT === undefined) {
-    source.LANGFUSE_TRACE_BATCH_SHARD_COUNT =
-      source.REDIS_CLUSTER_ENABLED === "true" ? "16" : "1";
-  }
   const parsed = EnvSchema.parse(source);
   validateV4Flags(parsed);
   validateInAppAgentSandboxConfig(parsed);
