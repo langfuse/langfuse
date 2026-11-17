@@ -17,6 +17,8 @@ type TopicMapLook = {
     border: number;
     blur: number;
     opacity: number;
+    /** A softer tone of each hue for the fields, so they read as a wash under the dots. */
+    tone?: { lightness: number; chroma: number };
   };
   grain: number;
   dot: {
@@ -47,6 +49,7 @@ export const TOPIC_MAP_LOOKS: Record<TopicMapLookName, TopicMapLook> = {
       border: 14,
       blur: 16,
       opacity: 0.55,
+      tone: { lightness: 0.82, chroma: 0.08 },
     },
     grain: 0.28,
     dot: {
@@ -73,6 +76,7 @@ export const TOPIC_MAP_LOOKS: Record<TopicMapLookName, TopicMapLook> = {
       border: 0,
       blur: 22,
       opacity: 0.35,
+      tone: { lightness: 0.82, chroma: 0.08 },
     },
     grain: 0.28,
     // Scatter 1's thin ring, in saturated tones so nearby hues stay apart.
@@ -124,7 +128,25 @@ function traceHash(traceId: string) {
   return (hash % 1000) / 1000;
 }
 
+/** The category hues behind the `--category-*-highlight` tokens. */
+const CATEGORY_HUES: Record<string, number> = {
+  violet: 293,
+  blue: 252,
+  teal: 190,
+  green: 135,
+  amber: 70,
+  pink: 350,
+};
+
 type Rgb = [number, number, number];
+
+/** The color a look paints a topic's field in. */
+function lookFieldColor(name: TopicMapLookName, color: string) {
+  const { tone } = TOPIC_MAP_LOOKS[name].field;
+  const hue = /--category-(\w+)-highlight/.exec(color)?.[1];
+  if (!tone || !hue || CATEGORY_HUES[hue] === undefined) return color;
+  return `oklch(${tone.lightness} ${tone.chroma} ${CATEGORY_HUES[hue]})`;
+}
 
 /** The last composited fields per map canvas. */
 const fieldCache = new WeakMap<
@@ -189,7 +211,7 @@ export function drawLookFields(
   const scale = camera.zoom;
   for (const zone of frame.zones) {
     if (zone.id === "outliers" || zone.id === "awaiting_map") continue;
-    const [r, g, b] = rgbOf(zone.color);
+    const [r, g, b] = rgbOf(lookFieldColor(name, zone.color));
     draw.clearRect(0, 0, size.width, size.height);
     zone.points.forEach((point, index) => {
       if (index % field.everyNth) return;
@@ -230,16 +252,6 @@ export function drawLookFields(
   context.drawImage(image, 0, 0);
   context.restore();
 }
-
-/** The category hues behind the `--category-*-highlight` tokens. */
-const CATEGORY_HUES: Record<string, number> = {
-  violet: 293,
-  blue: 252,
-  teal: 190,
-  green: 135,
-  amber: 70,
-  pink: 350,
-};
 
 /** The color a look paints a topic's dots in, before shading. */
 export function lookDotColor(name: TopicMapLookName, color: string) {
