@@ -19,7 +19,15 @@ type TopicMapLook = {
     opacity: number;
   };
   grain: number;
-  dot: { size: number; ring: number; ringAlpha: number; shade: number };
+  dot: {
+    size: number;
+    ring: number;
+    ringAlpha: number;
+    /** Darkens the topic's highlight color. */
+    shade: number;
+    /** Replaces the highlight color with a more saturated tone of the same hue. */
+    vivid?: { lightness: number; chroma: number };
+  };
   label: {
     size: number;
     lineHeight: number;
@@ -61,8 +69,14 @@ export const TOPIC_MAP_LOOKS: Record<TopicMapLookName, TopicMapLook> = {
       opacity: 0.5,
     },
     grain: 0.24,
-    // Scatter 1's dot, lighter so topics stay apart on the denser fields.
-    dot: { size: 4.5, ring: 1, ringAlpha: 0.9, shade: 0.85 },
+    // Scatter 1's thin ring, in saturated tones so nearby hues stay apart.
+    dot: {
+      size: 5.5,
+      ring: 1,
+      ringAlpha: 0.9,
+      shade: 1,
+      vivid: { lightness: 0.7, chroma: 0.14 },
+    },
     label: {
       size: 12,
       lineHeight: 16,
@@ -167,6 +181,24 @@ export function drawLookFields(
     context.drawImage(layer, 0, 0);
     context.restore();
   }
+}
+
+/** The category hues behind the `--category-*-highlight` tokens. */
+const CATEGORY_HUES: Record<string, number> = {
+  violet: 293,
+  blue: 252,
+  teal: 190,
+  green: 135,
+  amber: 70,
+  pink: 350,
+};
+
+/** The color a look paints a topic's dots in, before shading. */
+export function lookDotColor(name: TopicMapLookName, color: string) {
+  const { vivid } = TOPIC_MAP_LOOKS[name].dot;
+  const hue = /--category-(\w+)-highlight/.exec(color)?.[1];
+  if (!vivid || !hue || CATEGORY_HUES[hue] === undefined) return color;
+  return `oklch(${vivid.lightness} ${vivid.chroma} ${CATEGORY_HUES[hue]})`;
 }
 
 /** A dot in its topic color, darkened by the look's shade and ringed in the stage background. */

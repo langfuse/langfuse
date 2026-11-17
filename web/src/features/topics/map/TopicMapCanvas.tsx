@@ -19,6 +19,7 @@ import {
   drawLookDot,
   drawLookFields,
   lookBackground,
+  lookDotColor,
   type TopicMapLookName,
 } from "./topic-map-looks";
 
@@ -227,7 +228,7 @@ function drawMap(
         context,
         look,
         node.center,
-        rgbOf(node.point.color),
+        rgbOf(lookDotColor(look, node.point.color)),
         ring,
         node.matchesFilters ? 1 : 0.08 + active * 0.92,
       );
