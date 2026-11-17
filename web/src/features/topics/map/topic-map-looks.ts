@@ -19,7 +19,7 @@ type TopicMapLook = {
     opacity: number;
   };
   grain: number;
-  dot: { size: number; ring: number; ringAlpha: number };
+  dot: { size: number; ring: number; ringAlpha: number; shade: number };
   label: {
     size: number;
     lineHeight: number;
@@ -41,7 +41,7 @@ export const TOPIC_MAP_LOOKS: Record<TopicMapLookName, TopicMapLook> = {
       opacity: 0.55,
     },
     grain: 0.4,
-    dot: { size: 4.5, ring: 1, ringAlpha: 0.9 },
+    dot: { size: 4.5, ring: 1, ringAlpha: 0.9, shade: 0.72 },
     label: {
       size: 11,
       lineHeight: 14,
@@ -61,7 +61,8 @@ export const TOPIC_MAP_LOOKS: Record<TopicMapLookName, TopicMapLook> = {
       opacity: 0.5,
     },
     grain: 0.24,
-    dot: { size: 5.5, ring: 1.25, ringAlpha: 0.9 },
+    // Scatter 1's dot, lighter so topics stay apart on the denser fields.
+    dot: { size: 4.5, ring: 1, ringAlpha: 0.9, shade: 0.85 },
     label: {
       size: 11.5,
       lineHeight: 15,
@@ -168,7 +169,7 @@ export function drawLookFields(
   }
 }
 
-/** A dot in its topic color darkened by 0.72, ringed in the stage background. */
+/** A dot in its topic color, darkened by the look's shade and ringed in the stage background. */
 export function drawLookDot(
   context: CanvasRenderingContext2D,
   name: TopicMapLookName,
@@ -178,7 +179,7 @@ export function drawLookDot(
   opacity: number,
 ) {
   const { dot } = TOPIC_MAP_LOOKS[name];
-  const [r, g, b] = rgb.map((value) => Math.round(value * 0.72));
+  const [r, g, b] = rgb.map((value) => Math.round(value * dot.shade));
   context.globalAlpha = opacity * dot.ringAlpha;
   context.beginPath();
   context.arc(center.x, center.y, dot.size / 2 + dot.ring, 0, 2 * Math.PI);
