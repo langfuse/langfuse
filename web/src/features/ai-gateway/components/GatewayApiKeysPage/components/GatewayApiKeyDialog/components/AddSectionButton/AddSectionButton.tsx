@@ -1,5 +1,8 @@
 import { Plus } from "@langfuse/icons";
 
+import { Button } from "@/src/components/design-system/Button/Button";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+
 type AddSectionButtonProps = {
   label: string;
   /** Disables the button and explains why on hover. */
@@ -7,23 +10,28 @@ type AddSectionButtonProps = {
   onAdd: () => void;
 };
 
-/** A dashed ghost button that adds an optional section to the key form. */
+/** Adds an optional section to the key form. */
 export function AddSectionButton({
   label,
   disabledReason,
   onAdd,
 }: AddSectionButtonProps) {
+  if (disabledReason === undefined) {
+    return (
+      <Button text={label} icon={Plus} variant="outline" onClick={onAdd} />
+    );
+  }
   return (
-    <span title={disabledReason}>
-      <button
-        type="button"
-        onClick={onAdd}
-        disabled={disabledReason !== undefined}
-        className="border-border-contrast text-muted-foreground ring-offset-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex h-8 items-center gap-1.5 rounded-md border border-dashed px-3 text-sm whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50"
-      >
-        <Plus size="base" aria-hidden />
-        {label}
-      </button>
-    </span>
+    // Disabled buttons fire no pointer events, so the tooltip listens on a wrapper.
+    <Tooltip label={disabledReason}>
+      {({ getTriggerProps }) => (
+        <span
+          {...getTriggerProps()}
+          className="inline-flex cursor-not-allowed [&>button]:pointer-events-none"
+        >
+          <Button text={label} icon={Plus} variant="outline" disabled />
+        </span>
+      )}
+    </Tooltip>
   );
 }

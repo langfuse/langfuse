@@ -95,10 +95,24 @@ export const WithAllSections = meta.story({
   },
 });
 
+const spendBudgetUnavailableReason =
+  "Spend budgets need recorded gateway requests. Switch the gateway ingestion to usage to set one.";
+
 export const SpendBudgetUnavailable = meta.story({
-  args: {
-    spendBudgetUnavailableReason:
-      "Spend budgets need recorded gateway requests. Switch the gateway ingestion to usage to set one.",
+  args: { spendBudgetUnavailableReason },
+});
+
+export const SpendBudgetUnavailableExplainsWhy = meta.story({
+  name: "(Test) Unavailable spend budget explains why on hover",
+  args: { spendBudgetUnavailableReason },
+  play: async () => {
+    const button = await screen.findByRole("button", { name: "Spend budget" });
+    await expect(button).toBeDisabled();
+    // Disabled buttons fire no pointer events; the tooltip listens on the wrapper.
+    await userEvent.hover(button.parentElement as HTMLElement);
+    // The open dialog marks the shared tooltip layer aria-hidden.
+    const tooltip = await screen.findByRole("tooltip", { hidden: true });
+    await expect(tooltip).toHaveTextContent(spendBudgetUnavailableReason);
   },
 });
 
