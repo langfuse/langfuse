@@ -498,7 +498,6 @@ impl InferenceHttpError {
                     R::SpendLimitExceeded(_) => "spend_limit_exceeded",
                     R::SpendLimitUnavailable => "spend_limit_unavailable",
                     R::SpendLimitUnpricedModel => "spend_limit_unpriced_model",
-                    R::SpendLimitUnmeteredConnection => "spend_limit_unmetered_connection",
                     R::Busy => "capacity",
                     R::Timeout => "timeout",
                     R::Unavailable => "unavailable",
@@ -579,7 +578,6 @@ impl InferenceHttpError {
                 "unsupported_content_encoding",
             ),
             Self::Resolution(R::SpendLimitUnpricedModel) => SPEND_LIMIT_UNPRICED_MODEL,
-            Self::Resolution(R::SpendLimitUnmeteredConnection) => SPEND_LIMIT_UNMETERED_CONNECTION,
             Self::InvalidBody => (
                 StatusCode::BAD_REQUEST,
                 "Invalid request body",
@@ -768,12 +766,6 @@ const SPEND_LIMIT_UNPRICED_MODEL: Classification = (
     "This API key has a spend limit, and Langfuse has no price for this model. Add a model price in Langfuse to use the model with this key.",
     "invalid_request_error",
     "spend_limit_unpriced_model",
-);
-const SPEND_LIMIT_UNMETERED_CONNECTION: Classification = (
-    StatusCode::BAD_REQUEST,
-    "This API key has a spend limit, and this provider connection uses a custom base URL that may not report token usage. Use a connection to the provider's own API with this key.",
-    "invalid_request_error",
-    "spend_limit_unmetered_connection",
 );
 
 fn anthropic_error_type(status: StatusCode) -> &'static str {

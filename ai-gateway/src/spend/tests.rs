@@ -114,3 +114,18 @@ fn matches_metadata_tiers_against_the_ingested_generation_metadata() {
         .unwrap();
     assert!((cost - 1.0).abs() < 1e-12, "{cost}");
 }
+
+#[test]
+fn prices_anthropic_token_names_with_the_generic_prices_of_older_claude_models() {
+    let mut facts = xai_chat_completion(json!({ "input_tokens": 100, "output_tokens": 20 }));
+    facts.api_format = ApiFormat::AnthropicMessages;
+    facts.metadata = json!({ "provider": "anthropic" });
+    facts.inference.model_parameters.clear();
+    let tiers: Vec<PricingTierWithPrices> = serde_json::from_value(json!([
+        { "id": "standard", "name": "Standard", "is_default": true, "priority": 0, "conditions": [], "prices": { "input": 0.001, "output": 0.002 } },
+    ]))
+    .unwrap();
+    let cost = generation_cost(&facts, &Map::new(), &model(tiers)).unwrap();
+    let total = cost.total.unwrap();
+    assert!((total - 0.14).abs() < 1e-12, "{total}");
+}

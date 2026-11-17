@@ -39,9 +39,8 @@ export class GatewayResolveRepository {
             scope: true,
             interval: true,
             limitUsd: true,
-            generation: true,
+            countingStartedAt: true,
             baselineSpendUsd: true,
-            baselineWindowStart: true,
           },
         },
         organization: {

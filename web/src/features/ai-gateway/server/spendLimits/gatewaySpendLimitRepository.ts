@@ -16,11 +16,9 @@ const GATEWAY_SPEND_LIMIT_SELECT = {
   apiKeyId: true,
   interval: true,
   limitUsd: true,
-  generation: true,
-  resetAt: true,
+  countingStartedAt: true,
   baselineSpendUsd: true,
-  baselineWindowStart: true,
-  createdByUserId: true,
+  ownerUserId: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -54,6 +52,14 @@ export class GatewaySpendLimitRepository {
     });
   }
 
+  async hasAny(organizationId: string) {
+    const limit = await this.prisma.gatewaySpendLimit.findFirst({
+      where: { organizationId },
+      select: { id: true },
+    });
+    return limit !== null;
+  }
+
   list(params: { organizationId: string; scope: GatewaySpendLimitScope }) {
     return this.prisma.gatewaySpendLimit.findMany({
       where: {
@@ -65,18 +71,14 @@ export class GatewaySpendLimitRepository {
     });
   }
 
-  /** The limit, if it is in the organization and, with createdByUserId, created by that user. */
-  get(params: {
-    organizationId: string;
-    id: string;
-    createdByUserId?: string;
-  }) {
+  /** The limit, if it is in the organization and, with ownerUserId, owned by that user. */
+  get(params: { organizationId: string; id: string; ownerUserId?: string }) {
     return this.prisma.gatewaySpendLimit.findFirst({
       where: {
         id: params.id,
         organizationId: params.organizationId,
-        ...(params.createdByUserId !== undefined && {
-          createdByUserId: params.createdByUserId,
+        ...(params.ownerUserId !== undefined && {
+          ownerUserId: params.ownerUserId,
         }),
       },
       select: GATEWAY_SPEND_LIMIT_SELECT,
@@ -91,9 +93,9 @@ export class GatewaySpendLimitRepository {
     scope: GatewaySpendLimitScope;
     interval: GatewaySpendLimitInterval;
     limitUsd: number;
+    countingStartedAt: Date;
     baselineSpendUsd: number;
-    baselineWindowStart: Date;
-    createdByUserId: string;
+    ownerUserId: string;
   }) {
     return this.prisma.gatewaySpendLimit.create({
       data: { ...params, ...toScopeColumns(scope) },
@@ -104,26 +106,19 @@ export class GatewaySpendLimitRepository {
   updateLimit(params: { id: string; limitUsd: number; userId: string }) {
     return this.prisma.gatewaySpendLimit.update({
       where: { id: params.id },
-      data: { limitUsd: params.limitUsd, createdByUserId: params.userId },
+      data: { limitUsd: params.limitUsd, ownerUserId: params.userId },
       select: GATEWAY_SPEND_LIMIT_SELECT,
     });
   }
 
-  /** A new generation starts the gateway on fresh usage counters, so the baseline is dropped too. */
-  reset(params: {
-    id: string;
-    windowStart: Date;
-    resetAt: Date;
-    userId: string;
-  }) {
+  /** A new counting start puts the gateway on fresh usage counters, so the baseline is dropped too. */
+  reset(params: { id: string; countingStartedAt: Date; userId: string }) {
     return this.prisma.gatewaySpendLimit.update({
       where: { id: params.id },
       data: {
-        generation: { increment: 1 },
-        resetAt: params.resetAt,
+        countingStartedAt: params.countingStartedAt,
         baselineSpendUsd: 0,
-        baselineWindowStart: params.windowStart,
-        createdByUserId: params.userId,
+        ownerUserId: params.userId,
       },
       select: GATEWAY_SPEND_LIMIT_SELECT,
     });

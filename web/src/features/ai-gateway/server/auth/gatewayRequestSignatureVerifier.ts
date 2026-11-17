@@ -35,7 +35,9 @@ const resolveBodySchema = z
 const spendLimitAlertBodySchema = z
   .object({
     limitId: z.string().min(1),
-    generation: z.number().int().nonnegative(),
+    // Unix milliseconds, as resolve returned them.
+    countingStartedAt: z.number().int().nonnegative(),
+    windowStart: z.number().int().nonnegative(),
   })
   .strict();
 const modelsQuerySchema = z

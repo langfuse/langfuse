@@ -27,13 +27,15 @@ type GatewaySpendLimitEmail = Extract<
  * Emails the key's owner and the organization's owners when the gateway
  * reports that a key reached a spend limit. The gateway may report a limit
  * any number of times; the stored alert lets only the first report of a
- * limit's generation and window send emails.
+ * limit's counting start and window send emails. The gateway names the
+ * window, so a report that arrives after the window closed still counts
+ * toward the window it was reached in.
  */
 type ReportedLimit = NonNullable<Awaited<ReturnType<typeof findReportedLimit>>>;
 type AlertKey = {
   spendLimitId: string;
   type: GatewaySpendLimitAlertType;
-  generation: number;
+  countingStartedAt: Date;
   windowStart: Date;
 };
 type Recipient = {
@@ -48,12 +50,23 @@ export class GatewaySpendLimitAlertService {
   async reportReached(params: {
     fastHashedSecretKey: string;
     limitId: string;
-    generation: number;
-    now?: Date;
+    countingStartedAt: Date;
+    windowStart: Date;
   }): Promise<void> {
     const limit = await findReportedLimit(this.prisma, params);
     // A reset or deleted limit was reported late; its counters no longer apply.
     if (!limit) return;
+    if (
+      getGatewaySpendLimitWindowStart(
+        limit.interval,
+        params.windowStart,
+      ).getTime() !== params.windowStart.getTime()
+    ) {
+      throw new GatewayControlPlaneError(
+        "windowStart is not the start of a window",
+        400,
+      );
+    }
     if (!env.SMTP_CONNECTION_URL || !env.EMAIL_FROM_ADDRESS) return;
 
     const queue = NotificationQueue.getInstance();
@@ -67,8 +80,8 @@ export class GatewaySpendLimitAlertService {
     const alert: AlertKey = {
       spendLimitId: limit.id,
       type: GatewaySpendLimitAlertType.EXCEEDED,
-      generation: limit.generation,
-      windowStart: getGatewaySpendLimitWindowStart(limit.interval, params.now),
+      countingStartedAt: limit.countingStartedAt,
+      windowStart: params.windowStart,
     };
     if (!(await this.claimAlert(alert))) return;
 
@@ -121,20 +134,20 @@ async function findReportedLimit(
   params: {
     fastHashedSecretKey: string;
     limitId: string;
-    generation: number;
+    countingStartedAt: Date;
   },
 ) {
   const limit = await prisma.gatewaySpendLimit.findFirst({
     where: {
       id: params.limitId,
-      generation: params.generation,
+      countingStartedAt: params.countingStartedAt,
       apiKey: { fastHashedSecretKey: params.fastHashedSecretKey },
     },
     select: {
       id: true,
       interval: true,
       limitUsd: true,
-      generation: true,
+      countingStartedAt: true,
       organization: { select: { id: true, name: true } },
       apiKey: {
         select: {
@@ -185,7 +198,7 @@ function toNotificationJob(
       name: QueueJobs.NotificationJob as const,
     },
     opts: {
-      jobId: `ai-gateway-spend-limit-${alert.spendLimitId}-${alert.type}-${alert.generation}-${alert.windowStart.getTime()}-${recipientHash}`,
+      jobId: `ai-gateway-spend-limit-${alert.spendLimitId}-${alert.type}-${alert.countingStartedAt.getTime()}-${alert.windowStart.getTime()}-${recipientHash}`,
     },
   };
 }

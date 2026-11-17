@@ -236,8 +236,8 @@ impl ControlPlaneClient {
     }
 
     /// Tell Web the gateway key reached a spend limit, so it emails the key's owner and
-    /// the organization's owners. Web sends one email per limit generation and window,
-    /// however often a limit is reported.
+    /// the organization's owners. Web sends one email per limit counting start and
+    /// window, however often a limit is reported. Both are Unix milliseconds.
     ///
     /// # Errors
     /// Returns the same sanitized errors as [`Self::resolve`].
@@ -245,7 +245,8 @@ impl ControlPlaneClient {
         &self,
         gateway_key: &str,
         limit_id: &str,
-        generation: u32,
+        counting_started_at: i64,
+        window_start: i64,
         request_id: &str,
     ) -> Result<(), ResolutionError> {
         let timestamp = SystemTime::now()
@@ -253,7 +254,8 @@ impl ControlPlaneClient {
             .map_err(|_| ResolutionError::Unavailable)?;
         let body = serde_json::to_vec(&serde_json::json!({
             "limitId": limit_id,
-            "generation": generation,
+            "countingStartedAt": counting_started_at,
+            "windowStart": window_start,
         }))
         .map_err(|_| ResolutionError::Configuration)?;
         let request = self
@@ -636,9 +638,6 @@ pub enum ResolutionError {
     /// The key has spend limits, but Langfuse has no price for the model.
     #[error("spend limit cannot price the model")]
     SpendLimitUnpricedModel,
-    /// The key has spend limits, but the connection may not report usage.
-    #[error("spend limit cannot meter the connection")]
-    SpendLimitUnmeteredConnection,
     /// The gateway's memory budget cannot cover another request.
     #[error("gateway at capacity")]
     Busy,

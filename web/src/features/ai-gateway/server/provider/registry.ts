@@ -71,12 +71,12 @@ export const GatewayResolveSpendLimitsSchema = z.array(
       scope: z.enum(["api_key"]),
       interval: z.enum(["daily", "weekly", "monthly", "total"]),
       limit_usd: z.number(),
-      // Part of the gateway's usage counter key; bumped when an admin resets the limit.
-      generation: z.number().int().nonnegative(),
-      // Spend recorded before the limit existed. Counts only while the
-      // current window still starts at baseline_window_start (Unix seconds).
+      // Unix milliseconds; part of the gateway's usage counter key, set
+      // again when an admin resets the limit.
+      counting_started_at: z.number().int().nonnegative(),
+      // Spend recorded before counting started, within the window containing
+      // counting_started_at. Counts only while that window is current.
       baseline_usd: z.number(),
-      baseline_window_start: z.number().int(),
     })
     .strict(),
 );

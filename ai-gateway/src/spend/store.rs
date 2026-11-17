@@ -52,19 +52,20 @@ async fn run_pipeline<T: redis::FromRedisValue>(
     pipeline.query_async(connection).await
 }
 
-/// When a counter expires, set again on every increment.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Expiry {
-    /// Unix seconds.
-    At(i64),
-    After(Duration),
-}
-
 /// One Redis key holding the USD a scope spent in one window.
 #[derive(Clone, Debug)]
 pub(crate) struct Counter {
     pub key: String,
-    pub expiry: Expiry,
+    /// Unix seconds, set again on every increment; never for a total counter.
+    pub expires_at: Option<i64>,
+}
+
+impl Counter {
+    /// Set once the counter's limit was reported reached in its window. Shares the
+    /// counter's hash tag, so it is read in the same `MGET`.
+    pub(crate) fn alerted_flag(&self) -> String {
+        format!("{}:alerted", self.key)
+    }
 }
 
 pub(crate) struct RedisCounters {
@@ -114,15 +115,15 @@ impl RedisCounters {
         Ok(Connection::Single(connection))
     }
 
-    /// Each counter's USD, or `None` while it has none.
-    pub(crate) async fn read<'a>(
+    /// Each key's number, or `None` while it is unset.
+    pub(crate) async fn read<K: redis::ToRedisArgs>(
         &self,
-        counters: impl IntoIterator<Item = &'a Counter>,
+        keys: impl IntoIterator<Item = K>,
     ) -> Result<Vec<Option<f64>>, Unavailable> {
         let mut connection = self.connection().await?;
         let mut command = redis::cmd("MGET");
-        for counter in counters {
-            command.arg(&counter.key);
+        for key in keys {
+            command.arg(key);
         }
         tokio::time::timeout(OPERATION_TIMEOUT, connection.query(&command))
             .await
@@ -139,13 +140,15 @@ impl RedisCounters {
     ) -> Result<Vec<f64>, Unavailable> {
         let mut connection = self.connection().await?;
         let mut pipeline = redis::pipe();
-        for Counter { key, expiry } in counters {
+        for Counter { key, expires_at } in counters {
             pipeline.cmd("INCRBYFLOAT").arg(key).arg(usd);
-            match expiry {
-                Expiry::At(unix_seconds) => pipeline.cmd("EXPIREAT").arg(key).arg(*unix_seconds),
-                Expiry::After(duration) => pipeline.cmd("EXPIRE").arg(key).arg(duration.as_secs()),
+            if let Some(unix_seconds) = expires_at {
+                pipeline
+                    .cmd("EXPIREAT")
+                    .arg(key)
+                    .arg(*unix_seconds)
+                    .ignore();
             }
-            .ignore();
         }
         tokio::time::timeout(OPERATION_TIMEOUT, connection.query_pipeline(&pipeline))
             .await
@@ -155,14 +158,17 @@ impl RedisCounters {
     }
 
     /// Sets `key` unless it is set, expiring like a counter. Returns whether it was set.
-    pub(crate) async fn claim(&self, key: &str, expiry: Expiry) -> Result<bool, Unavailable> {
+    pub(crate) async fn claim(
+        &self,
+        key: &str,
+        expires_at: Option<i64>,
+    ) -> Result<bool, Unavailable> {
         let mut connection = self.connection().await?;
         let mut command = redis::cmd("SET");
         command.arg(key).arg(1).arg("NX");
-        match expiry {
-            Expiry::At(unix_seconds) => command.arg("EXAT").arg(unix_seconds),
-            Expiry::After(duration) => command.arg("EX").arg(duration.as_secs()),
-        };
+        if let Some(unix_seconds) = expires_at {
+            command.arg("EXAT").arg(unix_seconds);
+        }
         tokio::time::timeout(
             OPERATION_TIMEOUT,
             connection.query::<Option<String>>(&command),

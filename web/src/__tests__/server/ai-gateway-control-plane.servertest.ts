@@ -2262,7 +2262,7 @@ describe("AI gateway control plane", () => {
       scope: { type: "API_KEY", apiKeyId: memberKey.id },
     });
     expect(listed.limits).toMatchObject([
-      { id: ownerLimit.id, createdByUserId: owner.user.id },
+      { id: ownerLimit.id, ownerUserId: owner.user.id },
     ]);
   });
 
@@ -2743,9 +2743,6 @@ describe("AI gateway control plane", () => {
         apiFormat: "openai.chat-completions",
         model: "OpenAI:gpt-spend-limit",
       });
-    const todayStart = new Date();
-    todayStart.setUTCHours(0, 0, 0, 0);
-
     const first = await resolve();
     expect(first.spend_limits).toEqual([
       {
@@ -2753,9 +2750,8 @@ describe("AI gateway control plane", () => {
         scope: "api_key",
         interval: "daily",
         limit_usd: 10,
-        generation: 0,
+        counting_started_at: limit.countingStartedAt.getTime(),
         baseline_usd: 0,
-        baseline_window_start: todayStart.getTime() / 1000,
       },
     ]);
     expect(first.pricing).toEqual({
@@ -2774,7 +2770,9 @@ describe("AI gateway control plane", () => {
 
     await caller.aiGateway.spendLimits.reset({ orgId: org.id, id: limit.id });
     const afterReset = await resolve();
-    expect(afterReset.spend_limits).toMatchObject([{ generation: 1 }]);
+    expect(afterReset.spend_limits[0].counting_started_at).toBeGreaterThan(
+      limit.countingStartedAt.getTime(),
+    );
 
     await expect(
       caller.aiGateway.spendLimits.create({
@@ -2833,17 +2831,20 @@ describe("AI gateway control plane", () => {
       })
     ).user!.email!;
     const alerts = new GatewaySpendLimitAlertService(prisma);
-    const report = (generation: number) =>
+    const report = (countingStartedAt: Date, windowStart: string) =>
       alerts.reportReached({
         fastHashedSecretKey: createShaHash(memberKey.secretKey, env.SALT),
         limitId: limit.id,
-        generation,
-        now: new Date("2026-11-16T15:00:00Z"),
+        countingStartedAt,
+        windowStart: new Date(windowStart),
       });
 
-    await report(0);
-    await report(0);
-    await report(1);
+    await report(limit.countingStartedAt, "2026-11-16T00:00:00Z");
+    await report(limit.countingStartedAt, "2026-11-16T00:00:00Z");
+    await report(new Date(0), "2026-11-16T00:00:00Z");
+    await expect(
+      report(limit.countingStartedAt, "2026-11-16T15:00:00Z"),
+    ).rejects.toMatchObject({ status: 400 });
 
     expect(addNotificationJobs).toHaveBeenCalledOnce();
     expect(queuedNotifications()).toEqual([

@@ -466,12 +466,12 @@ pub(crate) struct SpendLimit {
     #[serde(deserialize_with = "string_enum")]
     pub interval: crate::spend::SpendLimitInterval,
     pub limit_usd: f64,
-    /// Bumped when an admin resets the limit, so counting starts over.
-    pub generation: u32,
-    /// Spend recorded before the gateway started counting, in the window
-    /// starting at `baseline_window_start` (Unix seconds).
+    /// When the gateway started counting, in Unix milliseconds. Set again when an
+    /// admin resets the limit, so counting starts over in a new counter.
+    pub counting_started_at: i64,
+    /// Spend recorded before counting started, within the window containing
+    /// `counting_started_at`. Counts only while that window is current.
     pub baseline_usd: f64,
-    pub baseline_window_start: i64,
 }
 
 #[derive(Clone, Debug, Deserialize)]

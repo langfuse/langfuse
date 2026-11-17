@@ -8,7 +8,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * window starts at the Unix epoch.
  *
  * The gateway computes the same windows in `ai-gateway/src/spend/window.rs`
- * and only applies a stored baseline while its window start matches.
+ * and only applies a stored baseline while the window containing the limit's
+ * counting start is current.
  */
 export function getGatewaySpendLimitWindowStart(
   interval: GatewaySpendLimitInterval,

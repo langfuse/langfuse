@@ -1,16 +1,13 @@
-use std::time::Duration as StdDuration;
-
 use chrono::{DateTime, Datelike, Duration, NaiveDate, TimeZone, Utc};
 use serde::Deserialize;
 
-use super::store::{Counter, Expiry};
+use super::store::Counter;
 use crate::resolution::SpendLimit;
 
-/// Windowed counters outlive their window by a day, so a request that started
-/// just before the window ended still finds its counter.
-const WINDOW_EXPIRY_GRACE_SECONDS: i64 = 24 * 60 * 60;
-/// A total counter idle for longer than this starts over.
-const TOTAL_COUNTER_EXPIRY: StdDuration = StdDuration::from_hours(400 * 24);
+/// Windowed counters outlive their window by this much, so a pod whose clock runs
+/// behind still reads the counter the others write. A cost added after the counter
+/// expired is dropped with it, which is harmless: the next window uses a new key.
+const WINDOW_EXPIRY_GRACE_SECONDS: i64 = 10 * 60;
 
 /// How often a spend limit starts over, in UTC calendar windows. Web computes
 /// the same windows in `web/src/features/ai-gateway/server/spendLimits/gatewaySpendLimitWindow.ts`.
@@ -71,28 +68,33 @@ pub(super) struct Window {
     pub counter: Counter,
     pub start: DateTime<Utc>,
     pub end: Option<DateTime<Utc>>,
+    /// The limit's baseline counts: counting started in this window.
+    pub holds_baseline: bool,
 }
 
 impl Window {
     pub(super) fn current(organization_id: &str, limit: &SpendLimit, now: DateTime<Utc>) -> Self {
         let start = limit.interval.window_start(now);
         let end = limit.interval.window_end(start);
-        // A reset bumps the generation, so counting starts over in a new key. All
-        // limits of a request belong to one organization, so tagging the
-        // organization keeps them on one cluster slot for a single MGET.
+        let holds_baseline = DateTime::from_timestamp_millis(limit.counting_started_at)
+            .is_some_and(|counting| limit.interval.window_start(counting) == start);
+        // A reset sets a new counting start, so counting starts over in a new key.
+        // All limits of a request belong to one organization, so tagging the
+        // organization keeps them on one cluster slot for a single MGET. Only the
+        // gateway reads or writes keys under this prefix.
         let key = format!(
-            "ai-gateway:spend:{{{organization_id}}}:{}:{}:{}",
+            "gateway-spend:{{{organization_id}}}:{}:{}:{}",
             limit.id,
-            limit.generation,
+            limit.counting_started_at,
             start.timestamp()
         );
-        let expiry = end.map_or(Expiry::After(TOTAL_COUNTER_EXPIRY), |end| {
-            Expiry::At(end.timestamp() + WINDOW_EXPIRY_GRACE_SECONDS)
-        });
+        // A total counter never expires, so it must live in a Redis that does not evict.
+        let expires_at = end.map(|end| end.timestamp() + WINDOW_EXPIRY_GRACE_SECONDS);
         Self {
-            counter: Counter { key, expiry },
+            counter: Counter { key, expires_at },
             start,
             end,
+            holds_baseline,
         }
     }
 }
@@ -145,5 +147,22 @@ mod tests {
             SpendLimitInterval::Weekly.window_start(at("2026-12-28T00:00:00Z")),
             at("2026-12-28T00:00:00Z")
         );
+    }
+
+    #[test]
+    fn the_baseline_counts_only_in_the_window_counting_started_in() {
+        let limit = |interval: &str| -> SpendLimit {
+            serde_json::from_value(serde_json::json!({
+                "id": "limit-1", "scope": "api_key", "interval": interval, "limit_usd": 10,
+                "counting_started_at": at("2026-12-27T08:00:00Z").timestamp_millis(),
+                "baseline_usd": 3,
+            }))
+            .unwrap()
+        };
+        let same_day = at("2026-12-27T23:00:00Z");
+        let next_day = at("2026-12-28T00:00:00Z");
+        assert!(Window::current("org", &limit("daily"), same_day).holds_baseline);
+        assert!(!Window::current("org", &limit("daily"), next_day).holds_baseline);
+        assert!(Window::current("org", &limit("total"), at("2030-01-01T00:00:00Z")).holds_baseline);
     }
 }

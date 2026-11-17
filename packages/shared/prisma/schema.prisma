@@ -97,7 +97,7 @@ model User {
   evaluatorsCreated         Evaluator[]                 @relation("EvaluatorCreatedByUser")
   evaluatorVersionsCreated  EvaluatorVersion[]          @relation("EvaluatorVersionCreatedByUser")
   evaluationRulesCreated    EvaluationRule[]            @relation("EvaluationRuleCreatedByUser")
-  gatewaySpendLimitsCreated GatewaySpendLimit[]         @relation("GatewaySpendLimitCreatedByUser")
+  gatewaySpendLimitsOwned   GatewaySpendLimit[]         @relation("GatewaySpendLimitOwner")
 
   deprecatedRoleAssignments RoleAssignment[] @relation("DeprecatedRoleAssignmentUser") @ignore
 
@@ -422,27 +422,25 @@ enum GatewaySpendLimitInterval {
 // USD spend cap the AI gateway checks before each request. Windows are UTC
 // calendar windows (weeks start Monday); TOTAL never refreshes.
 model GatewaySpendLimit {
-  id                  String                    @id @default(cuid())
-  organizationId      String                    @map("organization_id")
-  organization        Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id                String                    @id @default(cuid())
+  organizationId    String                    @map("organization_id")
+  organization      Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   // Each scope has its own subject column, set exactly for that scope (checked in the database).
-  scope               GatewaySpendLimitScope
-  apiKeyId            String?                   @map("api_key_id")
-  apiKey              ApiKey?                   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
-  interval            GatewaySpendLimitInterval
-  limitUsd            Decimal                   @map("limit_usd")
-  // Bumped on reset; the gateway's usage counters are keyed by it, so a reset starts fresh counters.
-  generation          Int                       @default(0)
-  resetAt             DateTime?                 @map("reset_at")
-  // Spend recorded in ClickHouse before the gateway counted it, valid only for the window starting at baselineWindowStart.
-  baselineSpendUsd    Decimal                   @default(0) @map("baseline_spend_usd")
-  baselineWindowStart DateTime                  @map("baseline_window_start")
+  scope             GatewaySpendLimitScope
+  apiKeyId          String?                   @map("api_key_id")
+  apiKey            ApiKey?                   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  interval          GatewaySpendLimitInterval
+  limitUsd          Decimal                   @map("limit_usd")
+  // Set on create and on reset. The gateway's usage counters are keyed by it, so a reset starts fresh counters.
+  countingStartedAt DateTime                  @map("counting_started_at")
+  // Spend recorded in ClickHouse before countingStartedAt, within the window containing it. Applies while that window is current, so always for total limits.
+  baselineSpendUsd  Decimal                   @default(0) @map("baseline_spend_usd")
   // Whoever last created, updated or reset the limit. Gateway members may change only their own limits; admins may change all.
-  createdByUserId     String?                   @map("created_by_user_id")
-  createdByUser       User?                     @relation("GatewaySpendLimitCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  createdAt           DateTime                  @default(now()) @map("created_at")
-  updatedAt           DateTime                  @default(now()) @updatedAt @map("updated_at")
-  alerts              GatewaySpendLimitAlert[]
+  ownerUserId       String?                   @map("owner_user_id")
+  ownerUser         User?                     @relation("GatewaySpendLimitOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  createdAt         DateTime                  @default(now()) @map("created_at")
+  updatedAt         DateTime                  @default(now()) @updatedAt @map("updated_at")
+  alerts            GatewaySpendLimitAlert[]
 
   @@unique([apiKeyId, interval])
   @@index([organizationId])
@@ -453,17 +451,17 @@ enum GatewaySpendLimitAlertType {
   EXCEEDED
 }
 
-/// One notification per limit, alert type, generation and window, so the gateway may report a limit any number of times.
+/// One notification per limit, alert type, counting start and window, so the gateway may report a limit any number of times.
 model GatewaySpendLimitAlert {
-  id           String                     @id @default(cuid())
-  spendLimitId String                     @map("spend_limit_id")
-  spendLimit   GatewaySpendLimit          @relation(fields: [spendLimitId], references: [id], onDelete: Cascade)
-  type         GatewaySpendLimitAlertType
-  generation   Int
-  windowStart  DateTime                   @map("window_start")
-  createdAt    DateTime                   @default(now()) @map("created_at")
+  id                String                     @id @default(cuid())
+  spendLimitId      String                     @map("spend_limit_id")
+  spendLimit        GatewaySpendLimit          @relation(fields: [spendLimitId], references: [id], onDelete: Cascade)
+  type              GatewaySpendLimitAlertType
+  countingStartedAt DateTime                   @map("counting_started_at")
+  windowStart       DateTime                   @map("window_start")
+  createdAt         DateTime                   @default(now()) @map("created_at")
 
-  @@unique([spendLimitId, type, generation, windowStart], map: "gateway_spend_limit_alerts_limit_type_generation_window_key")
+  @@unique([spendLimitId, type, countingStartedAt, windowStart], map: "gateway_spend_limit_alerts_limit_type_counting_window_key")
   @@map("gateway_spend_limit_alerts")
 }
 

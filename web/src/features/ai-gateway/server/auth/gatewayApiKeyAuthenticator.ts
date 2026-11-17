@@ -182,11 +182,8 @@ export class GatewayApiKeyAuthenticator {
           typeof limit.interval
         >,
         limit_usd: limit.limitUsd.toNumber(),
-        generation: limit.generation,
+        counting_started_at: limit.countingStartedAt.getTime(),
         baseline_usd: limit.baselineSpendUsd.toNumber(),
-        baseline_window_start: Math.floor(
-          limit.baselineWindowStart.getTime() / 1000,
-        ),
       })),
       ingestionProjectId: projectIsUsable
         ? (gatewayConfig?.defaultIngestionProjectId ?? null)

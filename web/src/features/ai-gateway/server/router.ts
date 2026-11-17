@@ -44,6 +44,7 @@ import {
   requireGatewayInvoke,
 } from "./gatewayAccess";
 import { gatewaySpendLimitRouter } from "./spendLimits/gatewaySpendLimitRouter";
+import { GatewaySpendLimitRepository } from "./spendLimits/gatewaySpendLimitRepository";
 import { GatewayTeamService } from "./team/gatewayTeamService";
 import {
   GatewayMetadataSchema,
@@ -124,11 +125,11 @@ export const aiGatewayRouter = createTRPCRouter({
     .input(organizationInput)
     .query(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      return {
-        config: await new GatewayConfigService(ctx.prisma).getConfig(
-          input.orgId,
-        ),
-      };
+      const [config, hasSpendLimits] = await Promise.all([
+        new GatewayConfigService(ctx.prisma).getConfig(input.orgId),
+        new GatewaySpendLimitRepository(ctx.prisma).hasAny(input.orgId),
+      ]);
+      return { config, hasSpendLimits };
     }),
 
   /** Readable by every gateway reader and key owner; exposes only whether setup is done, not the config itself. */

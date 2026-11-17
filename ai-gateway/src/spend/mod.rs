@@ -1,13 +1,14 @@
 //! Per-key spend limits. Before forwarding, a key's counters for the current
 //! windows are checked against its limits; after the response, the request's
 //! cost is added to them. Requests are not reserved, so concurrent requests
-//! can overshoot a limit by what they cost. A request the gateway could not
-//! price afterwards, because Langfuse has no price for the model or the
-//! connection may not report usage, is rejected before it is forwarded. Web is
-//! told when a key reaches a limit, so it can email the key's owners.
+//! can overshoot a limit by what they cost. A request for a model Langfuse has
+//! no price for is rejected before it is forwarded; a response that still adds
+//! nothing is counted in `gateway.spend.uncharged`. Web is told when a key
+//! reaches a limit, so it can email the key's owners.
 mod alert;
 mod cost;
 mod store;
+mod tasks;
 mod window;
 
 use std::{sync::Arc, time::Duration, time::SystemTime};
@@ -25,8 +26,7 @@ use crate::{
     config::SpendCountersConfig,
     providers::usage::{UsageDetails, provider_usage, reports_billed_cost},
     resolution::{
-        ControlPlaneClient, Provider, ProviderConnection, ResolutionError, ResolvedRequestContext,
-        SpendLimit, SpendLimitExceeded,
+        ControlPlaneClient, ResolutionError, ResolvedRequestContext, SpendLimit, SpendLimitExceeded,
     },
 };
 use alert::{CountedLimit, SpendAlerts};
@@ -36,6 +36,7 @@ use cost::{
     calculate_model_usage_costs,
 };
 use store::RedisCounters;
+use tasks::TaskTracker;
 
 /// Backoff between attempts to add a finished request's cost while Redis is unavailable.
 const COUNTER_WRITE_RETRY_DELAYS: [Duration; 3] = [
@@ -64,6 +65,17 @@ impl SpendLimitScope {
 pub(crate) struct SpendLimits {
     counters: Option<Arc<RedisCounters>>,
     control_plane: Option<Arc<ControlPlaneClient>>,
+    tasks: Arc<TaskTracker>,
+}
+
+/// Counter writes and limit reports still running in the background.
+pub struct SpendTasks(Arc<TaskTracker>);
+
+impl SpendTasks {
+    /// Waits for them until `deadline`; any still running then are abandoned.
+    pub async fn shutdown(&self, deadline: tokio::time::Instant) {
+        self.0.shutdown(deadline).await;
+    }
 }
 
 impl SpendLimits {
@@ -74,7 +86,12 @@ impl SpendLimits {
         Self {
             counters: config.map(|config| Arc::new(RedisCounters::new(config))),
             control_plane: Some(control_plane),
+            tasks: Arc::default(),
         }
+    }
+
+    pub(crate) fn tasks(&self) -> SpendTasks {
+        SpendTasks(Arc::clone(&self.tasks))
     }
 
     /// Reject a key that has spent a limit for the current window. Fails closed:
@@ -97,9 +114,6 @@ impl SpendLimits {
             },
             None => return Err(ResolutionError::SpendLimitUnpricedModel),
         };
-        if !reports_usage(context.connection()) {
-            return Err(ResolutionError::SpendLimitUnmeteredConnection);
-        }
         let Some(store) = &self.counters else {
             tracing::warn!("key has spend limits but LANGFUSE_AI_GATEWAY_REDIS_URL is not set");
             return Err(ResolutionError::SpendLimitUnavailable);
@@ -118,12 +132,14 @@ impl SpendLimits {
                 request_id: request_id.to_owned(),
             });
         if let Some(exceeded) = usage.iter().find(|usage| usage.is_exceeded()) {
-            if let Some(alerts) = alerts {
-                let exceeded = usage.iter().filter(|usage| usage.is_exceeded());
-                alerts.report_in_background(
-                    Arc::clone(store),
-                    exceeded.map(LimitUsage::counted).collect(),
-                );
+            let unreported: Vec<CountedLimit> = usage
+                .iter()
+                .filter(|usage| usage.is_exceeded() && !usage.alerted)
+                .map(LimitUsage::counted)
+                .collect();
+            if let (Some(alerts), false) = (alerts, unreported.is_empty()) {
+                self.tasks
+                    .spawn(alerts.report(Arc::clone(store), unreported));
             }
             return Err(ResolutionError::SpendLimitExceeded(Box::new(
                 exceeded.rejection(now),
@@ -131,6 +147,8 @@ impl SpendLimits {
         }
         Ok(Some(SpendRecording {
             store: Arc::clone(store),
+            tasks: Arc::clone(&self.tasks),
+            provider: context.connection().provider().as_str(),
             limits: usage.iter().map(LimitUsage::counted).collect(),
             model,
             alerts,
@@ -138,7 +156,8 @@ impl SpendLimits {
     }
 }
 
-/// What each limit's scope has spent in its current window, read in one round trip.
+/// What each limit's scope has spent in its current window, and whether the limit
+/// was already reported reached, read in one round trip.
 async fn current_usage<'a>(
     store: &RedisCounters,
     limits: &'a [SpendLimit],
@@ -149,14 +168,20 @@ async fn current_usage<'a>(
         .iter()
         .map(|limit| Window::current(organization_id, limit, now))
         .collect();
-    let counted = store
-        .read(windows.iter().map(|window| &window.counter))
-        .await?;
+    let keys: Vec<String> = windows
+        .iter()
+        .map(|window| window.counter.key.clone())
+        .chain(windows.iter().map(|window| window.counter.alerted_flag()))
+        .collect();
+    let mut values = store.read(keys).await?;
+    let flags = values.split_off(windows.len());
     Ok(limits
         .iter()
         .zip(windows)
-        .zip(counted)
-        .map(|((limit, window), counted)| LimitUsage::new(limit, window, counted))
+        .zip(values.into_iter().zip(flags))
+        .map(|((limit, window), (counted, flag))| {
+            LimitUsage::new(limit, window, counted, flag.is_some())
+        })
         .collect())
 }
 
@@ -175,27 +200,20 @@ fn priced_model(context: &ResolvedRequestContext) -> Option<ModelWithPrices> {
         })
 }
 
-/// Whether a response through the connection reports the usage a request is priced by.
-/// Every provider API the gateway speaks reports usage, but a user-entered base URL can
-/// front any compatible server, so only the provider's own API is trusted. An Azure
-/// connection always carries its resource's base URL and reports usage as `OpenAI` does.
-fn reports_usage(connection: &ProviderConnection) -> bool {
-    connection.provider() == Provider::Azure || !connection.has_custom_base_url()
-}
-
 /// What a limit's scope has spent in the limit's current window.
 struct LimitUsage<'a> {
     limit: &'a SpendLimit,
     window: Window,
     baseline: f64,
     spent: f64,
+    alerted: bool,
 }
 
 impl<'a> LimitUsage<'a> {
     /// `counted` is what the gateway counted in the window; spend recorded before it
-    /// started counting is added while the window is the baseline's.
-    fn new(limit: &'a SpendLimit, window: Window, counted: Option<f64>) -> Self {
-        let baseline = if limit.baseline_window_start == window.start.timestamp() {
+    /// started counting is added while the window is the one counting started in.
+    fn new(limit: &'a SpendLimit, window: Window, counted: Option<f64>, alerted: bool) -> Self {
+        let baseline = if window.holds_baseline {
             limit.baseline_usd
         } else {
             0.0
@@ -205,6 +223,7 @@ impl<'a> LimitUsage<'a> {
             window,
             baseline,
             spent: counted.unwrap_or(0.0) + baseline,
+            alerted,
         }
     }
 
@@ -215,9 +234,11 @@ impl<'a> LimitUsage<'a> {
     fn counted(&self) -> CountedLimit {
         CountedLimit {
             id: self.limit.id.clone(),
-            generation: self.limit.generation,
+            counting_started_at: self.limit.counting_started_at,
+            window_start: self.window.start.timestamp_millis(),
             counter: self.window.counter.clone(),
             reached_at_usd: self.limit.limit_usd - self.baseline,
+            alerted: self.alerted,
         }
     }
 
@@ -248,6 +269,8 @@ impl<'a> LimitUsage<'a> {
 /// Adds an admitted request's cost to the counters it was checked against.
 pub(crate) struct SpendRecording {
     store: Arc<RedisCounters>,
+    tasks: Arc<TaskTracker>,
+    provider: &'static str,
     limits: Vec<CountedLimit>,
     model: ModelWithPrices,
     alerts: Option<SpendAlerts>,
@@ -264,16 +287,46 @@ impl SpendRecording {
         facts: &InferenceFacts,
         metadata: &Map<String, Value>,
     ) -> Option<UsageCostType> {
-        let cost = generation_cost(facts, metadata, &self.model)?;
-        let total = cost.total.filter(|total| *total > 0.0);
-        if let (Some(total), Ok(runtime)) = (total, tokio::runtime::Handle::try_current()) {
-            self.add_in_background(&runtime, total);
+        let cost = generation_cost(facts, metadata, &self.model);
+        match cost
+            .as_ref()
+            .and_then(|cost| cost.total)
+            .filter(|total| *total > 0.0)
+        {
+            Some(total) => self.add_in_background(total),
+            None => self.report_uncharged(facts, cost.as_ref()),
         }
-        (!cost.provided && !cost.details.is_empty()).then_some(cost.details)
+        cost.filter(|cost| !cost.provided && !cost.details.is_empty())
+            .map(|cost| cost.details)
     }
 
-    fn add_in_background(self, runtime: &tokio::runtime::Handle, cost: f64) {
-        runtime.spawn(async move {
+    /// A successful response that adds nothing usually means its usage is missing or
+    /// named differently from the model's prices; a provider-reported zero is real.
+    fn report_uncharged(&self, facts: &InferenceFacts, cost: Option<&GenerationCost>) {
+        if !facts
+            .http_status
+            .is_some_and(|status| (200..300).contains(&status))
+        {
+            return;
+        }
+        let reason = match cost {
+            Some(cost) if cost.provided => return,
+            Some(cost) if cost.has_usage => "zero_cost",
+            _ => "no_usage",
+        };
+        crate::observability::spend_uncharged(reason, self.provider);
+        tracing::warn!(
+            reason,
+            provider = self.provider,
+            model_id = self.model.model.as_ref().map(|model| model.id.as_str()),
+            "spend-limited request added no cost"
+        );
+    }
+
+    fn add_in_background(self, cost: f64) {
+        let tasks = Arc::clone(&self.tasks);
+        let provider = self.provider;
+        let spawned = tasks.spawn(async move {
             // A retry after a timeout may count the cost twice; overcounting keeps the key
             // within its limit. A cost still unwritten after the last retry is lost.
             let counters = || self.limits.iter().map(|limit| &limit.counter);
@@ -294,9 +347,13 @@ impl SpendRecording {
                 .zip(totals)
                 .filter(|(limit, total)| *total >= limit.reached_at_usd)
                 .map(|(limit, _)| limit)
-                .collect();
+                .collect::<Vec<_>>();
             alerts.report(self.store, reached).await;
         });
+        if !spawned {
+            crate::observability::spend_uncharged("backlog", provider);
+            tracing::warn!(provider, "spend counter write dropped: too many pending");
+        }
     }
 }
 
@@ -305,6 +362,8 @@ struct GenerationCost {
     total: Option<f64>,
     /// The provider reported the cost, so the generation already carries it.
     provided: bool,
+    /// The usage counted some units, so a zero total means they had no price.
+    has_usage: bool,
 }
 
 /// What Langfuse will charge for the generation: the provider's own cost when it
@@ -323,11 +382,14 @@ fn generation_cost(
         usage,
         inference.provider_metadata.as_ref(),
     );
-    let usage_units = usage
-        .usage_details
-        .as_ref()
-        .map(UsageDetails::usage_units)
-        .unwrap_or_default();
+    let usage_units = with_generic_names(
+        usage
+            .usage_details
+            .as_ref()
+            .map(UsageDetails::usage_units)
+            .unwrap_or_default(),
+        model,
+    );
     let provided_cost_details = usage.provided_cost_details;
     let model_parameters = Value::Object(inference.model_parameters.clone());
     let metadata = Value::Object(metadata.clone());
@@ -349,7 +411,36 @@ fn generation_cost(
             .filter(|(_, usd)| finite(usd))
             .collect(),
         provided: provided_cost_details.is_some(),
+        has_usage: usage_units.values().any(|units| *units > 0.0),
     })
+}
+
+/// Anthropic reports `input_tokens` and `output_tokens`, but older and custom models
+/// are often priced only as `input` and `output`. A name no tier prices takes its
+/// generic name, so such a model is charged instead of costing nothing. Ingestion
+/// prices these at zero; the generation carries the charged cost instead.
+fn with_generic_names(usage: UsageCostType, model: &ModelWithPrices) -> UsageCostType {
+    let priced = |usage_type: &str| {
+        model
+            .pricing_tiers
+            .iter()
+            .any(|tier| tier.prices.contains_key(usage_type))
+    };
+    usage
+        .into_iter()
+        .map(|(usage_type, units)| {
+            let generic = match usage_type.as_str() {
+                "input_tokens" => "input",
+                "output_tokens" => "output",
+                _ => return (usage_type, units),
+            };
+            if priced(&usage_type) || !priced(generic) {
+                (usage_type, units)
+            } else {
+                (generic.to_owned(), units)
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]

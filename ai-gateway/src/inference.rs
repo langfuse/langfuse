@@ -44,9 +44,6 @@ pub(crate) fn resolution_origin(error: &ResolutionError) -> (ErrorOrigin, &'stat
         R::SpendLimitExceeded(_) => (ErrorOrigin::Client, "spend_limit_exceeded"),
         R::SpendLimitUnavailable => (ErrorOrigin::Gateway, "spend_limit_unavailable"),
         R::SpendLimitUnpricedModel => (ErrorOrigin::Client, "spend_limit_unpriced_model"),
-        R::SpendLimitUnmeteredConnection => {
-            (ErrorOrigin::Client, "spend_limit_unmetered_connection")
-        }
         R::Unavailable => (ErrorOrigin::ControlPlane, "unavailable"),
         R::Timeout => (ErrorOrigin::ControlPlane, "timeout"),
         R::Transport => (ErrorOrigin::ControlPlane, "transport"),
@@ -188,6 +185,11 @@ impl InferenceService {
 
     pub fn telemetry(&self) -> Option<crate::telemetry::Telemetry> {
         self.telemetry.clone()
+    }
+
+    /// Pending spend counter writes and limit reports, to drain on shutdown.
+    pub fn spend_tasks(&self) -> crate::spend::SpendTasks {
+        self.spend_limits.tasks()
     }
 
     /// Reserve the fixed per-request overhead without waiting. `phase` labels a rejection.

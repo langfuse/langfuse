@@ -59,7 +59,7 @@ export class GatewaySpendLimitService {
     usageScope: GatewayUsageScope;
     scope: GatewaySpendLimitScope;
   }) {
-    const subject = await this.requireSubject(params);
+    await this.requireSubject(params);
     const recordingProjectId = await this.getRecordingProjectId(
       params.organizationId,
     );
@@ -73,12 +73,14 @@ export class GatewaySpendLimitService {
       spend = await getGatewaySpendSince({
         projectId: recordingProjectId,
         scope: params.scope,
-        since: limits.map((limit, index) =>
-          spendSince({
-            windowStart: readSpendFrom(limit, windowStarts[index]!),
-            subjectCreatedAt: subject.createdAt,
-            resetAt: limit.resetAt,
-          }),
+        since: limits.map(
+          (limit, index) =>
+            new Date(
+              Math.max(
+                windowStarts[index]!.getTime(),
+                limit.countingStartedAt.getTime(),
+              ),
+            ),
         ),
       });
     }
@@ -92,7 +94,7 @@ export class GatewaySpendLimitService {
         ...toGatewaySpendLimit(limit),
         windowStart: windowStarts[index]!,
         recordedSpendUsd:
-          spend === null ? null : spend[index]! + totalBaselineUsd(limit),
+          spend === null ? null : spend[index]! + baselineUsd(limit, now),
       })),
     };
   }
@@ -109,11 +111,18 @@ export class GatewaySpendLimitService {
     const recordingProjectId = await this.requireRecordingProjectId(
       params.organizationId,
     );
-    const windowStart = getGatewaySpendLimitWindowStart(params.interval);
+    const countingStartedAt = new Date();
+    const windowStart = getGatewaySpendLimitWindowStart(
+      params.interval,
+      countingStartedAt,
+    );
+    // A total limit's window starts at the epoch, so the subject's creation bounds the scan.
     const [baselineSpendUsd] = await getGatewaySpendSince({
       projectId: recordingProjectId,
       scope: params.scope,
-      since: [spendSince({ windowStart, subjectCreatedAt: subject.createdAt })],
+      since: [
+        new Date(Math.max(windowStart.getTime(), subject.createdAt.getTime())),
+      ],
     });
     let limit: GatewaySpendLimitRecord;
     try {
@@ -122,9 +131,9 @@ export class GatewaySpendLimitService {
         scope: params.scope,
         interval: params.interval,
         limitUsd: params.limitUsd,
+        countingStartedAt,
         baselineSpendUsd: baselineSpendUsd ?? 0,
-        baselineWindowStart: windowStart,
-        createdByUserId: params.session.user.id,
+        ownerUserId: params.session.user.id,
       });
     } catch (error) {
       if (
@@ -181,8 +190,7 @@ export class GatewaySpendLimitService {
     await this.requireRecordingProjectId(params.organizationId);
     const after = await this.repository.reset({
       id: before.id,
-      windowStart: getGatewaySpendLimitWindowStart(before.interval),
-      resetAt: new Date(),
+      countingStartedAt: new Date(),
       userId: params.session.user.id,
     });
     await subject.invalidateResolveCache();
@@ -245,7 +253,7 @@ export class GatewaySpendLimitService {
     const before = await this.repository.get({
       organizationId: params.organizationId,
       id: params.id,
-      createdByUserId: getKeyOwnerFilter(params.usageScope),
+      ownerUserId: getKeyOwnerFilter(params.usageScope),
     });
     if (!before) throw new LangfuseNotFoundError("Spend limit not found");
     const subject = await this.requireSubject({
@@ -291,28 +299,16 @@ export class GatewaySpendLimitService {
   }
 }
 
-/** Spend counts from the window start, but never from before the subject existed or the limit was last reset. */
-function spendSince(params: {
-  windowStart: Date;
-  subjectCreatedAt: Date;
-  resetAt?: Date | null;
-}) {
-  return new Date(
-    Math.max(
-      params.windowStart.getTime(),
-      params.subjectCreatedAt.getTime(),
-      params.resetAt?.getTime() ?? 0,
-    ),
+/** The baseline counts while the window containing the counting start is current, as in the gateway. */
+function baselineUsd(limit: GatewaySpendLimitRecord, now: Date) {
+  const current = getGatewaySpendLimitWindowStart(limit.interval, now);
+  const counting = getGatewaySpendLimitWindowStart(
+    limit.interval,
+    limit.countingStartedAt,
   );
-}
-
-/** A total limit's baseline holds the spend before the limit existed, so only spend since then is read. */
-function readSpendFrom(limit: GatewaySpendLimitRecord, windowStart: Date) {
-  return limit.interval === "TOTAL" ? limit.createdAt : windowStart;
-}
-
-function totalBaselineUsd(limit: GatewaySpendLimitRecord) {
-  return limit.interval === "TOTAL" ? limit.baselineSpendUsd.toNumber() : 0;
+  return current.getTime() === counting.getTime()
+    ? limit.baselineSpendUsd.toNumber()
+    : 0;
 }
 
 function toGatewaySpendLimit(limit: GatewaySpendLimitRecord) {
@@ -321,9 +317,8 @@ function toGatewaySpendLimit(limit: GatewaySpendLimitRecord) {
     scope: toGatewaySpendLimitScope(limit),
     interval: limit.interval,
     limitUsd: limit.limitUsd.toNumber(),
-    generation: limit.generation,
-    resetAt: limit.resetAt,
-    createdByUserId: limit.createdByUserId,
+    countingStartedAt: limit.countingStartedAt,
+    ownerUserId: limit.ownerUserId,
     createdAt: limit.createdAt,
     updatedAt: limit.updatedAt,
   };

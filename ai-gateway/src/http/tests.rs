@@ -1543,8 +1543,8 @@ async fn spend_limited_resolution(edit: fn(&mut serde_json::Value)) -> Response<
         .unwrap();
     let mut body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     body["spend_limits"] = serde_json::json!([{
-        "id": "limit-1", "scope": "api_key", "interval": "daily", "limit_usd": 10, "generation": 0,
-        "baseline_usd": 0, "baseline_window_start": 0,
+        "id": "limit-1", "scope": "api_key", "interval": "daily", "limit_usd": 10,
+        "counting_started_at": 0, "baseline_usd": 0,
     }]);
     body["pricing"] = serde_json::json!({
         "model_id": "model-1",
@@ -1588,7 +1588,7 @@ async fn keys_with_spend_limits_fail_closed_without_spend_counters() {
 #[tokio::test]
 async fn keys_with_spend_limits_reject_requests_they_cannot_price() {
     type Edit = fn(&mut serde_json::Value);
-    let cases: [(Edit, &str); 3] = [
+    let cases: [(Edit, &str); 2] = [
         (
             |body| body["pricing"] = serde_json::Value::Null,
             "spend_limit_unpriced_model",
@@ -1596,10 +1596,6 @@ async fn keys_with_spend_limits_reject_requests_they_cannot_price() {
         (
             |body| body["pricing"]["tiers"][0]["prices"] = serde_json::json!({}),
             "spend_limit_unpriced_model",
-        ),
-        (
-            |body| body["connection"]["base_url"] = "https://llm.internal.example/v1".into(),
-            "spend_limit_unmetered_connection",
         ),
     ];
     for (edit, expected) in cases {
@@ -1615,7 +1611,6 @@ async fn keys_with_spend_limits_charge_the_billed_cost_of_unpriced_models() {
     let (status, code, provider_calls) = spend_limited_request(|body| {
         body["pricing"] = serde_json::Value::Null;
         body["connection"]["provider"] = "openrouter".into();
-        body["connection"]["base_url"] = "https://openrouter.ai/api/v1".into();
     })
     .await;
     // Past the pricing check, the key fails closed on the missing spend counters.
@@ -1636,7 +1631,7 @@ async fn keys_with_spend_limits_still_count_tokens() {
         let mut body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         body["spend_limits"] = serde_json::json!([{
             "id": "limit-1", "scope": "api_key", "interval": "daily", "limit_usd": 10,
-            "generation": 0, "baseline_usd": 0, "baseline_window_start": 0,
+            "counting_started_at": 0, "baseline_usd": 0,
         }]);
         Response::new(Body::from(body.to_string()))
     })
