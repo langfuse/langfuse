@@ -1,7 +1,6 @@
 import type { Span } from "@opentelemetry/api";
 import { FTS_MATCH_OPERATOR, InvalidRequestError } from "@langfuse/shared";
 import { ClickHouseResourceError } from "@langfuse/shared/src/server";
-import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
 import { z } from "zod";
 import type { ServerContext } from "@/src/features/mcp/types";
@@ -41,6 +40,7 @@ vi.mock("@/src/env.mjs", () => ({
 }));
 
 import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
+import { ProtocolErrorCode } from "@modelcontextprotocol/server";
 
 const context: ServerContext = {
   projectId: "project-id",
@@ -81,7 +81,7 @@ describe("runMcpTool outcome telemetry", () => {
         "request_error",
       );
       const response = formatErrorForUser(error);
-      expect(response.code).toBe(ErrorCode.InvalidRequest);
+      expect(response.code).toBe(ProtocolErrorCode.InvalidRequest);
       expect(response.message).toMatch(/date range/);
       expect(response.message).not.toContain("sensitive ClickHouse details");
     },
