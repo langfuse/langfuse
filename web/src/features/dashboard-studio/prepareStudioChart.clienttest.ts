@@ -1,9 +1,166 @@
 import { describe, expect, it } from "vitest";
 import { type StudioResult } from "@langfuse/shared";
 import { createStudioWidget } from "./catalog";
-import { prepareStudioChart, prepareStudioData } from "./prepareStudioChart";
+import {
+  prepareStudioChart,
+  prepareStudioData,
+  applyStudioSeriesPresentation,
+} from "./prepareStudioChart";
+import { seriesColor } from "@/src/features/widgets/chart-library/seriesColors";
+import { renderHook } from "@testing-library/react";
+import { usePreparedWidgetChart } from "@/src/features/widgets/components/usePreparedWidgetChart";
 
 describe("studio chart preparation", () => {
+  it("distinguishes all-null bucket markers from measured zeros without changing raw Data", () => {
+    const config = createStudioWidget();
+    config.display = { chartType: "LINE_TIME_SERIES", timeSeries: true };
+    config.queries[0]!.dimensions = [{ field: "providedModelName" }];
+    config.queries[0]!.metrics = ["p50", "p90"].map((aggregation) => ({
+      id: aggregation,
+      measure: "latency",
+      aggregation: aggregation as "p50" | "p90",
+    }));
+    const result: StudioResult = {
+      status: "complete",
+      series: config.queries[0]!.metrics.map((metric) => ({
+        id: `a.${metric.id}:null`,
+        queryId: "a",
+        metricId: metric.id,
+        label: "Unknown",
+        dimensions: { providedModelName: null },
+        unit: "milliseconds",
+        aggregation: metric.aggregation,
+      })),
+      rows: config.queries[0]!.metrics.map((metric) => ({
+        seriesId: `a.${metric.id}:null`,
+        queryId: "a",
+        metricId: metric.id,
+        label: "Unknown",
+        dimensions: { providedModelName: null },
+        dimension: null,
+        time: "2026-11-18T00:00:00Z",
+        value: null,
+      })),
+      summaries: [],
+      diagnostics: [],
+      warnings: [],
+    };
+    const missing = prepareStudioChart(result, config);
+    expect(missing.hasMeasuredValues).toBe(false);
+    expect(missing.data.map((point) => point.metric)).toEqual([null, null]);
+    const audit = prepareStudioData(result, config, {
+      scope: "rows",
+      reference: "all",
+      pageIndex: 0,
+      pageSize: 100,
+    });
+    expect(
+      audit.table.rows.map(
+        (row) => row.cells.find((cell) => cell.columnId === "value")?.value,
+      ),
+    ).toEqual(["null", "null"]);
+    const zero = {
+      ...result,
+      rows: result.rows.map((row, index) => ({
+        ...row,
+        value: index === 0 ? 0 : null,
+      })),
+    };
+    expect(prepareStudioChart(zero, config).hasMeasuredValues).toBe(true);
+    config.display.hiddenSeriesIds = [zero.rows[0]!.seriesId];
+    expect(prepareStudioChart(zero, config).hasMeasuredValues).toBe(false);
+  });
+
+  it("keeps series order and colors stable across shuffled results and visibility changes", () => {
+    const config = createStudioWidget();
+    config.display = { chartType: "LINE_TIME_SERIES", timeSeries: true };
+    config.queries = ["z", "a"].map((id) => ({
+      ...config.queries[0]!,
+      id,
+      metrics: ["p90", "p50"].map((metricId) => ({
+        id: metricId,
+        measure: "latency",
+        aggregation: metricId as "p90" | "p50",
+      })),
+    }));
+    const ids = ["z.p90:one", "z.p90:two", "z.p50:one", "a.p90:one"];
+    const rows = ids.map((seriesId, index) => {
+      const [reference, model] = seriesId.split(":");
+      const [queryId, metricId] = reference!.split(".");
+      return {
+        seriesId,
+        queryId: queryId!,
+        metricId: metricId!,
+        label: seriesId,
+        dimensions: { model: model! },
+        dimension: model!,
+        time: "2026-11-17T00:00:00Z",
+        value: index + 1,
+      };
+    });
+    const response = (order: number[]): StudioResult => ({
+      status: "complete",
+      rows: order.map((index) => rows[index]!),
+      series: order.map((index) => ({
+        ...rows[index]!,
+        id: rows[index]!.seriesId,
+        unit: "milliseconds",
+        aggregation: rows[index]!.metricId,
+      })),
+      summaries: [],
+      diagnostics: [],
+      warnings: [],
+    });
+    const first = prepareStudioChart(response([3, 1, 2, 0]), config);
+    const reloaded = prepareStudioChart(response([2, 0, 3, 1]), config);
+    expect(first.availableSeries.map((series) => series.id)).toEqual(ids);
+    expect(reloaded.colors).toEqual(first.colors);
+    expect(ids.map((id) => first.colors[id]?.color)).toEqual(
+      ids.map((_, index) => seriesColor(index)),
+    );
+    config.display.hiddenSeriesIds = [ids[0]!];
+    const hidden = prepareStudioChart(response([1, 3, 0, 2]), config);
+    expect(hidden.visibleSeries.map((series) => series.id)).toEqual(
+      ids.slice(1),
+    );
+    for (const id of ids.slice(1))
+      expect(hidden.colors[id]).toEqual(first.colors[id]);
+    for (const chartType of [
+      "LINE_TIME_SERIES",
+      "AREA_TIME_SERIES",
+      "BAR_TIME_SERIES",
+    ] as const) {
+      const { result: chart, rerender } = renderHook(
+        ({ prepared }) => {
+          const chart = usePreparedWidgetChart({
+            chartType,
+            data: prepared.data,
+            config: prepared.colors,
+            active: true,
+          });
+          return applyStudioSeriesPresentation(chart.visualization, prepared);
+        },
+        { initialProps: { prepared: first } },
+      );
+      const seriesOf = () => {
+        const visualization = chart.current;
+        if (
+          visualization.type !== "line" &&
+          visualization.type !== "area" &&
+          visualization.type !== "stacked-bar"
+        )
+          throw new Error("Expected a time-series visualization");
+        return visualization.series;
+      };
+      const original = seriesOf();
+      expect(original.map((series) => series.id)).toEqual(ids);
+      rerender({ prepared: reloaded });
+      expect(seriesOf()).toEqual(original);
+      rerender({ prepared: hidden });
+      expect(seriesOf()).toEqual(original.slice(1));
+    }
+  });
+
   it("keeps histogram populations and breakdowns identifiable in equal bins", () => {
     const config = createStudioWidget();
     config.display.chartType = "HISTOGRAM";

@@ -33,6 +33,7 @@ export function useAreaChartTimeSeries({
   },
   metricFormatter = (value, options) => formatMetric(value, options),
   legendPosition = "auto",
+  legendLayout,
   legendSummary = "none",
   legendInteraction = "highlight",
   onLegendInteraction,
@@ -106,6 +107,7 @@ export function useAreaChartTimeSeries({
       return {
         visibility: legendPosition === "auto" ? "auto" : "visible",
         interaction: "toggle",
+        layout: legendLayout,
         summary: legendSummary,
         onInteraction: onLegendInteraction,
         maxVisibleSeries,
@@ -114,11 +116,13 @@ export function useAreaChartTimeSeries({
     return {
       visibility: legendPosition === "auto" ? "auto" : "visible",
       interaction: "highlight",
+      layout: legendLayout,
       summary: legendSummary,
       onInteraction: onLegendInteraction,
     };
   }, [
     legendPosition,
+    legendLayout,
     legendInteraction,
     legendSummary,
     maxVisibleSeries,

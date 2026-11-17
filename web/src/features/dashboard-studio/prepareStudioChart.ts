@@ -14,7 +14,10 @@ import {
   toFullMetricString,
   parseMetricUnit,
 } from "@/src/features/widgets/chart-library/utils";
-import { seriesColor } from "@/src/features/widgets/chart-library/seriesColors";
+import {
+  seriesColor,
+  seriesFillColor,
+} from "@/src/features/widgets/chart-library/seriesColors";
 import { readableField } from "./catalog";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 
@@ -124,22 +127,45 @@ export function prepareStudioChart(
   config: StudioWidgetConfig,
 ) {
   const presentation = studioSeriesPresentation(config);
-  const availableSeries = (result?.series ?? [])
+  const metricOrder = new Map(
+    [
+      ...config.queries.flatMap((query) =>
+        query.metrics.map((metric) => `${query.id}.${metric.id}`),
+      ),
+      ...config.expressions.map((expression) => expression.id),
+    ].map((reference, index) => [reference, index]),
+  );
+  const orderOf = (series: StudioSeries) =>
+    metricOrder.get(`${series.queryId}.${series.metricId}`) ??
+    metricOrder.get(series.queryId) ??
+    metricOrder.size;
+  const allSeries = (result?.series ?? [])
     .map(presentation.presentSeries)
-    .filter((series) => {
-      const query = config.queries.find((query) => query.id === series.queryId);
-      const expression = config.expressions.find(
-        (expression) =>
-          expression.id === series.id || expression.id === series.queryId,
-      );
-      return (
-        !query?.hidden &&
-        !expression?.hidden &&
-        (Boolean(expression) ||
-          !config.display.activeQueryIds?.length ||
-          config.display.activeQueryIds.includes(series.queryId))
-      );
+    .sort((a, b) => {
+      const byMetric = orderOf(a) - orderOf(b);
+      if (byMetric) return byMetric;
+      return a.id < b.id ? -1 : Number(a.id > b.id);
     });
+  const palette = new Map(
+    allSeries.map((series, index) => [
+      series.id,
+      { color: seriesColor(index), fillColor: seriesFillColor(index) },
+    ]),
+  );
+  const availableSeries = allSeries.filter((series) => {
+    const query = config.queries.find((query) => query.id === series.queryId);
+    const expression = config.expressions.find(
+      (expression) =>
+        expression.id === series.id || expression.id === series.queryId,
+    );
+    return (
+      !query?.hidden &&
+      !expression?.hidden &&
+      (Boolean(expression) ||
+        !config.display.activeQueryIds?.length ||
+        config.display.activeQueryIds.includes(series.queryId))
+    );
+  });
   const hiddenIds = new Set(config.display.hiddenSeriesIds ?? []);
   const visibleSeries = availableSeries.filter(
     (series) => !hiddenIds.has(series.id),
@@ -186,9 +212,9 @@ export function prepareStudioChart(
     metric: row.value,
   }));
   const colors = Object.fromEntries(
-    visibleSeries.map((series, index) => [
+    visibleSeries.map((series) => [
       series.id,
-      { label: series.label, color: seriesColor(index) },
+      { label: series.label, ...palette.get(series.id)! },
     ]),
   );
   const units = new Set(visibleSeries.map((series) => series.unit));
@@ -224,6 +250,9 @@ export function prepareStudioChart(
   );
   const tableRows =
     config.display.chartType === "NUMBER" ? summaries : selectedRows;
+  const hasMeasuredValues = tableRows.some(
+    (row) => typeof row.value === "number" && Number.isFinite(row.value),
+  );
   const table: Visualization = {
     type: "table",
     columns: [
@@ -376,6 +405,50 @@ export function prepareStudioChart(
     headline,
     headlineSuppressed,
     hasIncompatibleUnits,
+    hasMeasuredValues,
+  };
+}
+
+/** Keep result identity and palette slots when chart adapters compact visible series. */
+export function applyStudioSeriesPresentation(
+  visualization: Visualization,
+  prepared: Pick<
+    ReturnType<typeof prepareStudioChart>,
+    "colors" | "visibleSeries"
+  >,
+): Visualization {
+  if (
+    visualization.type !== "line" &&
+    visualization.type !== "area" &&
+    visualization.type !== "stacked-bar" &&
+    visualization.type !== "grouped-bar"
+  )
+    return visualization;
+  const order = new Map(
+    prepared.visibleSeries.map((series, index) => [series.id, index]),
+  );
+  return {
+    ...visualization,
+    series: [...visualization.series]
+      .sort(
+        (a, b) =>
+          (order.get(a.id) ?? order.size) - (order.get(b.id) ?? order.size),
+      )
+      .map((series) => {
+        const palette = prepared.colors[series.id];
+        if (!palette) return series;
+        if (visualization.type === "area")
+          return {
+            ...series,
+            color: palette.color,
+            fillColor: palette.fillColor,
+          };
+        return {
+          ...series,
+          color:
+            visualization.type === "line" ? palette.color : palette.fillColor,
+        };
+      }),
   };
 }
 

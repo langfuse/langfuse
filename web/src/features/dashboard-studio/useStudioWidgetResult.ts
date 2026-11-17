@@ -53,6 +53,7 @@ export function useStudioWidgetResult(
     enabled: slot.canFetch,
     refetchOnWindowFocus: false,
     retry: false,
+    meta: { silentHttpCodes: [400, 412, 422] },
     trpc: { abortOnUnmount: true },
   });
   // A completed network request releases its external scheduler slot.

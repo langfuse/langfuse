@@ -66,6 +66,7 @@ import {
 import { EditDialogDashboardContent } from "@/src/features/dashboard/components/EditDialogDashboardContent";
 import { DialogController } from "@/src/components/ui/dialog";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
+import { buildDashboardEditorHref } from "@/src/features/dashboard/lib/dashboardEditorHref";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
   toAbsoluteTimeRange,
@@ -216,6 +217,12 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
 
   // Date range state - use the hook for all date range logic
   const { timeRange, setTimeRange } = useDashboardDateRange();
+  const dashboardEditorHref = buildDashboardEditorHref({
+    projectId,
+    dashboardId,
+    query: router.query,
+    fallbackDateRange: rangeToString(timeRange),
+  });
   const absoluteTimeRange = useMemo(
     () => toAbsoluteTimeRange(timeRange) ?? undefined,
     [timeRange],
@@ -1351,7 +1358,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                           <DesignSystemButton
                             text="Edit dashboard"
                             variant="outline"
-                            href={`/project/${projectId}/dashboards/${dashboardId}/studio?dateRange=${rangeToString(timeRange)}`}
+                            href={dashboardEditorHref}
                           />
                         )}
                         {(updateDashboardDefinition.isPending ||
@@ -1537,44 +1544,66 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                     dashboardDefinition &&
                     !dashboard.isError && (
                       <div>
-                        <DashboardGrid
-                          key={gridResetKey}
-                          readPath={readPath}
-                          widgets={dashboardDefinition.widgets}
-                          onChange={(updatedWidgets) => {
-                            if (isLockedEditable) {
-                              // Carry the attempted layout change into the clone.
-                              openCloneFirst("layout_change", {
+                        {studioCapability.data === true &&
+                        hasCUDAccess &&
+                        !dashboardDefinition.widgets.length ? (
+                          <section
+                            aria-label="Empty dashboard"
+                            className="flex min-h-80 flex-col items-center justify-center gap-4 rounded-lg border border-dashed p-8 text-center"
+                          >
+                            <div className="flex flex-col gap-2">
+                              <h2 className="text-lg font-bold">
+                                This dashboard is empty
+                              </h2>
+                              <p className="text-muted-foreground text-sm">
+                                Add charts and text to your dashboard.
+                              </p>
+                            </div>
+                            <DesignSystemButton
+                              text="Edit dashboard"
+                              href={dashboardEditorHref}
+                            />
+                          </section>
+                        ) : (
+                          <DashboardGrid
+                            key={gridResetKey}
+                            readPath={readPath}
+                            widgets={dashboardDefinition.widgets}
+                            onChange={(updatedWidgets) => {
+                              if (isLockedEditable) {
+                                // Carry the attempted layout change into the clone.
+                                openCloneFirst("layout_change", {
+                                  ...dashboardDefinition,
+                                  widgets: updatedWidgets,
+                                });
+                                return;
+                              }
+                              applyDashboardDefinition({
                                 ...dashboardDefinition,
                                 widgets: updatedWidgets,
                               });
-                              return;
+                            }}
+                            canEdit={hasRbacCUDAccess}
+                            dashboardId={dashboardId}
+                            projectId={projectId}
+                            dateRange={absoluteTimeRange}
+                            filterState={gridFilterState}
+                            onDeleteWidget={handleDeleteWidget}
+                            dashboardOwner={dashboard.data?.owner}
+                            getWidgetSchedulerId={getWidgetSchedulerId}
+                            onLockedEditAttempt={
+                              isLockedEditable
+                                ? () => openCloneFirst("widget_pencil")
+                                : undefined
                             }
-                            applyDashboardDefinition({
-                              ...dashboardDefinition,
-                              widgets: updatedWidgets,
-                            });
-                          }}
-                          canEdit={hasRbacCUDAccess}
-                          dashboardId={dashboardId}
-                          projectId={projectId}
-                          dateRange={absoluteTimeRange}
-                          filterState={gridFilterState}
-                          onDeleteWidget={handleDeleteWidget}
-                          dashboardOwner={dashboard.data?.owner}
-                          getWidgetSchedulerId={getWidgetSchedulerId}
-                          onLockedEditAttempt={
-                            isLockedEditable
-                              ? () => openCloneFirst("widget_pencil")
-                              : undefined
-                          }
-                          onDuplicateWidget={
-                            hasCUDAccess ? handleDuplicateWidget : undefined
-                          }
-                          onDuplicatePreset={
-                            hasCUDAccess ? handleDuplicatePreset : undefined
-                          }
-                        />
+                            onDuplicateWidget={
+                              hasCUDAccess ? handleDuplicateWidget : undefined
+                            }
+                            onDuplicatePreset={
+                              hasCUDAccess ? handleDuplicatePreset : undefined
+                            }
+                          />
+                        )}
                       </div>
                     )}
                 </Page>

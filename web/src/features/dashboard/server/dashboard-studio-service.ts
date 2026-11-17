@@ -30,7 +30,7 @@ import {
   evaluateStudioFormula,
   studioFormulaReferences,
   type StudioExpressionValue,
-} from "./studio-expressions";
+} from "../lib/studioExpressions";
 
 type StudioExecuteInput = {
   projectId: string;

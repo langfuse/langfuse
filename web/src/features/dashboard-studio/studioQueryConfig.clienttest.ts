@@ -6,6 +6,7 @@ import {
 import { createStudioWidget } from "./catalog";
 import {
   getStudioRenderConfig,
+  getStudioApplyBlockReason,
   hasStudioQueryChanges,
   toStudioQueryConfig,
 } from "./studioQueryConfig";
@@ -24,6 +25,55 @@ function initial() {
 }
 
 describe("widget execution and live presentation", () => {
+  it("applies only a current complete preview, including empty data and cached presentation edits", () => {
+    const lastRun = initial();
+    const complete = {
+      fetchStatus: "idle" as const,
+      isPending: false,
+      isError: false,
+      data: { status: "complete" as const, rows: [] },
+    };
+    const draft = structuredClone(lastRun);
+    draft.expressions[0]!.formula = "a.count / (";
+    expect(getStudioApplyBlockReason(draft, lastRun, complete)).not.toBeNull();
+    expect(
+      getStudioApplyBlockReason(draft, draft, {
+        ...complete,
+        isError: true,
+        data: undefined,
+      }),
+    ).not.toBeNull();
+    expect(
+      getStudioApplyBlockReason(draft, draft, {
+        ...complete,
+        data: { status: "error" },
+      }),
+    ).not.toBeNull();
+    expect(
+      getStudioApplyBlockReason(lastRun, lastRun, {
+        ...complete,
+        data: { status: "partial" },
+      }),
+    ).not.toBeNull();
+    expect(
+      getStudioApplyBlockReason(lastRun, lastRun, {
+        ...complete,
+        fetchStatus: "fetching",
+      }),
+    ).not.toBeNull();
+    expect(
+      getStudioApplyBlockReason(lastRun, lastRun, {
+        ...complete,
+        isPending: true,
+        data: undefined,
+      }),
+    ).not.toBeNull();
+    expect(getStudioApplyBlockReason(lastRun, lastRun, complete)).toBeNull();
+    const presentation = { ...lastRun, title: "A clearer title" };
+    expect(
+      getStudioApplyBlockReason(presentation, lastRun, complete),
+    ).toBeNull();
+  });
   it("hides an existing headline immediately while retaining the last executed summary request", () => {
     const lastRun = initial();
     lastRun.display.showHeadline = true;

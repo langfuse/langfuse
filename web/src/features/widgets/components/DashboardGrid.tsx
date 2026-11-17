@@ -20,6 +20,7 @@ import { StudioPlacementCard } from "@/src/features/dashboard-studio/StudioPlace
 import { useDashboardStudioCapture } from "@/src/features/dashboard-studio/analytics";
 import { useDashboardStudioEnabled } from "@/src/features/dashboard-studio/useDashboardStudioEnabled";
 import { findFreeGridPosition } from "../utils/grid-placement";
+import { buildDashboardEditorHref } from "@/src/features/dashboard/lib/dashboardEditorHref";
 
 export type DashboardPlacement = DashboardDefinition["widgets"][number];
 export type StudioPlacement = Extract<
@@ -251,11 +252,17 @@ export function DashboardGrid({
               ? () => {
                   if (onEditStudioPlacement) onEditStudioPlacement(widget);
                   else
-                    Router.push({
-                      pathname:
-                        "/project/[projectId]/dashboards/[dashboardId]/studio",
-                      query: { projectId, dashboardId, edit: widget.id },
-                    });
+                    Router.push(
+                      buildDashboardEditorHref({
+                        projectId,
+                        dashboardId,
+                        query: Router.query,
+                        fallbackDateRange: dateRange
+                          ? `${dateRange.from.getTime()}-${dateRange.to.getTime()}`
+                          : undefined,
+                        editId: widget.id,
+                      }),
+                    );
                 }
               : undefined
           }

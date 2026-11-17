@@ -392,7 +392,7 @@ function StudioWorkspace({
                 >
                   {({ openDialog }) => (
                     <Button
-                      text="Cancel"
+                      text={isDirty ? "Cancel" : "Done"}
                       variant="ghost"
                       onClick={async () => {
                         if (isDirty) {

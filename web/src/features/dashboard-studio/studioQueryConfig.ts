@@ -1,5 +1,28 @@
 import { hashKey } from "@tanstack/react-query";
-import { type StudioWidgetConfig } from "@langfuse/shared";
+import { type StudioResult, type StudioWidgetConfig } from "@langfuse/shared";
+
+export function getStudioApplyBlockReason(
+  draft: StudioWidgetConfig,
+  lastRun: StudioWidgetConfig,
+  result: {
+    fetchStatus: "idle" | "fetching" | "paused";
+    isPending: boolean;
+    isError: boolean;
+    data?: Pick<StudioResult, "status">;
+  },
+): string | null {
+  if (hasStudioQueryChanges(draft, lastRun))
+    return "Run preview before applying your query changes.";
+  if (result.isPending || result.fetchStatus !== "idle")
+    return "Wait for the preview to finish before applying.";
+  if (result.isError || result.data?.status === "error")
+    return "Fix the query error and run preview before applying.";
+  if (result.data?.status === "partial")
+    return "Fix the failed queries and run preview before applying.";
+  if (result.data?.status !== "complete")
+    return "Run a successful preview before applying.";
+  return null;
+}
 
 type ChartType = StudioWidgetConfig["display"]["chartType"];
 

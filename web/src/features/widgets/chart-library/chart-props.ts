@@ -129,6 +129,8 @@ export interface ChartProps {
   accessibilityLayer?: boolean;
   metricFormatter?: MetricFormatterFunction;
   legendPosition?: LegendPosition;
+  /** Opt in to wrapping short legends; single-row overflow remains the default. */
+  legendLayout?: "overflow" | "wrap";
   legendSummary?: LegendSummaryMode;
   /** How a legend click behaves (focus-vs-toggle). Defaults to `"highlight"`. */
   legendInteraction?: LegendInteraction;

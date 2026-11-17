@@ -39,17 +39,30 @@ export function StudioWidgetAppearance({
   onHiddenSeriesChange,
 }: StudioWidgetAppearanceProps) {
   const headlineMetrics = config.queries
-    .filter((query) => !query.hidden)
+    .filter(
+      (query) =>
+        !query.hidden &&
+        (!config.display.activeQueryIds?.length ||
+          config.display.activeQueryIds.includes(query.id)),
+    )
     .flatMap((query) =>
       query.metrics.map((metric) => ({
         value: `${query.id}.${metric.id}`,
         label: `${query.label} · ${metric.label || `${metric.aggregation} ${metric.measure}`}`,
       })),
     );
-  const selectedHeadline = config.display.showHeadline
-    ? (config.display.headlineMetricRef ??
-      (headlineMetrics.length === 1 ? headlineMetrics[0]!.value : "none"))
-    : "none";
+  const selectedHeadline = (() => {
+    if (!config.display.showHeadline) return "none";
+    if (config.display.headlineMetricRef) {
+      if (
+        headlineMetrics.some(
+          (metric) => metric.value === config.display.headlineMetricRef,
+        )
+      )
+        return config.display.headlineMetricRef;
+    } else if (headlineMetrics.length === 1) return headlineMetrics[0]!.value;
+    return "none";
+  })();
   return (
     <aside
       aria-label="Widget appearance"
@@ -130,45 +143,49 @@ export function StudioWidgetAppearance({
               }
             />
           </label>
-          <label className="flex items-center justify-between gap-2 text-xs">
-            Show legend
-            <Checkbox
-              aria-label="Show legend"
-              checked={config.display.legend ?? true}
-              onCheckedChange={(checked) =>
-                onChange({
-                  ...config,
-                  display: { ...config.display, legend: checked === true },
-                })
-              }
-            />
-          </label>
-          <label className="flex flex-col gap-1.5 text-xs">
-            Headline
-            <SelectInput
-              noCapture
-              aria-label="Headline"
-              placeholder="None"
-              value={selectedHeadline}
-              options={[{ value: "none", label: "None" }, ...headlineMetrics]}
-              onValueChange={(headlineMetricRef) =>
-                onChange({
-                  ...config,
-                  display: {
-                    ...config.display,
-                    showHeadline: headlineMetricRef !== "none",
-                    headlineMetricRef:
-                      headlineMetricRef === "none"
-                        ? undefined
-                        : headlineMetricRef,
-                  },
-                })
-              }
-            />
-            <span className="text-muted-foreground">
-              Summary across the full time range.
-            </span>
-          </label>
+          {!["NUMBER", "PIVOT_TABLE"].includes(config.display.chartType) ? (
+            <label className="flex items-center justify-between gap-2 text-xs">
+              Show legend
+              <Checkbox
+                aria-label="Show legend"
+                checked={config.display.legend ?? true}
+                onCheckedChange={(checked) =>
+                  onChange({
+                    ...config,
+                    display: { ...config.display, legend: checked === true },
+                  })
+                }
+              />
+            </label>
+          ) : null}
+          {config.display.chartType !== "NUMBER" ? (
+            <label className="flex flex-col gap-1.5 text-xs">
+              Headline
+              <SelectInput
+                noCapture
+                aria-label="Headline"
+                placeholder="None"
+                value={selectedHeadline}
+                options={[{ value: "none", label: "None" }, ...headlineMetrics]}
+                onValueChange={(headlineMetricRef) =>
+                  onChange({
+                    ...config,
+                    display: {
+                      ...config.display,
+                      showHeadline: headlineMetricRef !== "none",
+                      headlineMetricRef:
+                        headlineMetricRef === "none"
+                          ? undefined
+                          : headlineMetricRef,
+                    },
+                  })
+                }
+              />
+              <span className="text-muted-foreground">
+                Summary across the full time range.
+              </span>
+            </label>
+          ) : null}
         </div>
         {series.length ? (
           <details className="border-t pt-3">

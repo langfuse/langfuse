@@ -8,6 +8,7 @@ import { type Visualization } from "@/src/components/design-system/charts/intern
 import { usePreparedWidgetChart } from "@/src/features/widgets/components/usePreparedWidgetChart";
 import {
   type prepareStudioChart,
+  applyStudioSeriesPresentation,
   prepareStudioData,
   studioMetricFormatter,
   formatStudioValue,
@@ -16,6 +17,7 @@ import { useDashboardStudioCapture } from "./analytics";
 import { ScoreTag } from "@/src/components/ScoreTag";
 import { PaginationBar } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { type useStudioWidgetResult } from "./useStudioWidgetResult";
+import { useIsMobile } from "@/src/hooks/use-mobile";
 
 export type StudioWidgetResultProps = {
   config: StudioWidgetConfig;
@@ -55,6 +57,7 @@ export function StudioWidgetResultPresentation({
     pageSize: number;
   }>({ scope: "rows", reference: "all", pageIndex: 0, pageSize: 50 });
   const [selectionError, setSelectionError] = useState<string>();
+  const isMobile = useIsMobile();
   const result = runtime.result;
   const track = useDashboardStudioCapture(runtime.version === "v2");
   const selectedQuery = queryView?.value ?? "configured";
@@ -78,6 +81,12 @@ export function StudioWidgetResultPresentation({
     rowLimit: config.display.rowLimit ?? 100,
     metricFormatter: studioMetricFormatter(prepared.unit),
     legendPosition: config.display.legend === false ? "none" : "below",
+    legendLayout:
+      !isMobile &&
+      config.display.chartType.endsWith("TIME_SERIES") &&
+      prepared.visibleSeries.length <= 4
+        ? "wrap"
+        : undefined,
     legendInteraction: "toggle",
     zeroBaseline: true,
     colorBarsByCategory: true,
@@ -155,6 +164,12 @@ export function StudioWidgetResultPresentation({
         description,
       };
     }
+    if (!prepared.hasMeasuredValues)
+      return {
+        type: "empty",
+        message: "No measured value",
+        description: "Try a wider time range or different filters.",
+      };
     if (view === "chart" && prepared.hasIncompatibleUnits) {
       if (config.display.chartType === "NUMBER") return prepared.table;
       return prepared.pivotTable;
@@ -176,7 +191,10 @@ export function StudioWidgetResultPresentation({
             valueFormatter: studioMetricFormatter(prepared.unit),
           };
     }
-    return chart.confirmation ?? chart.visualization;
+    return (
+      chart.confirmation ??
+      applyStudioSeriesPresentation(chart.visualization, prepared)
+    );
   })();
   const headline = config.display.showHeadline ? prepared.headline : undefined;
   const headlineUnit = headline

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluateStudioFormula } from "@/src/features/dashboard/server/studio-expressions";
+import { evaluateStudioFormula } from "@/src/features/dashboard/lib/studioExpressions";
 
 describe("dashboard studio expressions", () => {
   it("evaluates bounded arithmetic by stable references and preserves missing/zero-divisor semantics", () => {

@@ -29,6 +29,7 @@ import {
 import { resolveStudioQueryVersion, withStudioQueries } from "./studioConfig";
 import {
   getStudioRenderConfig,
+  getStudioApplyBlockReason,
   hasStudioQueryChanges,
 } from "./studioQueryConfig";
 import { prepareStudioChart } from "./prepareStudioChart";
@@ -108,6 +109,11 @@ export function StudioWidgetEditor({
     dateRange,
     filterState,
   });
+  const applyBlockReason = getStudioApplyBlockReason(
+    config,
+    preview,
+    runtime.result,
+  );
   const prepared = prepareStudioChart(runtime.result.data, renderConfig);
   const environmentOverrides = filterState.some(
     (filter) => filter.column === "environment",
@@ -212,6 +218,19 @@ export function StudioWidgetEditor({
           return current.includes(id) ? current : [...current, id];
         })
       }
+      onDefaultQueryIdsChange={(activeQueryIds) => {
+        setConfig((current) => ({
+          ...current,
+          display: { ...current.display, activeQueryIds },
+        }));
+        track("configuration_changed", {
+          ...metadata,
+          controlId: "series",
+          target: "configuration_data",
+          scope: "widget",
+          selectedCount: activeQueryIds?.length ?? config.queries.length,
+        });
+      }}
       onQueryChange={(id, next) => {
         const previous = config.queries.find((query) => query.id === id)!;
         if (previous.view !== next.view)
@@ -364,10 +383,10 @@ export function StudioWidgetEditor({
           </span>
           <ChevronRightIcon color="tertiary" aria-hidden />
           <h1
-            title={isNew ? "New chart" : config.title || "Edit widget"}
+            title={config.title || (isNew ? "New chart" : "Edit widget")}
             className="min-w-0 truncate text-sm font-bold"
           >
-            {isNew ? "New chart" : config.title || "Edit widget"}
+            {config.title || (isNew ? "New chart" : "Edit widget")}
           </h1>
           {previewPending ? (
             <Badge text="Preview out of date" color="warning" />
@@ -396,8 +415,9 @@ export function StudioWidgetEditor({
           />
           <Button
             text={isNew ? "Add to dashboard" : "Apply changes"}
-            disabled={Boolean(filterError)}
+            disabled={Boolean(filterError || applyBlockReason)}
             onClick={() => {
+              if (applyBlockReason) return;
               const next = validate();
               if (next) {
                 onApply(next);
@@ -406,9 +426,12 @@ export function StudioWidgetEditor({
             }}
           />
         </div>
-        <p className="text-muted-foreground w-full text-[11px]">
-          Changes apply to the dashboard draft. Save the dashboard to publish
-          them.
+        <p
+          role={applyBlockReason ? "status" : undefined}
+          className="text-muted-foreground w-full text-[11px]"
+        >
+          {applyBlockReason ??
+            "Changes apply to the dashboard draft. Save the dashboard to publish them."}
         </p>
       </div>
       {filterError ? (
