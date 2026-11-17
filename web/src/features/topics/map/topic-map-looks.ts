@@ -64,8 +64,8 @@ export const TOPIC_MAP_LOOKS: Record<TopicMapLookName, TopicMapLook> = {
     // Scatter 1's dot, lighter so topics stay apart on the denser fields.
     dot: { size: 4.5, ring: 1, ringAlpha: 0.9, shade: 0.85 },
     label: {
-      size: 11.5,
-      lineHeight: 15,
+      size: 12,
+      lineHeight: 16,
       tracking: "0.04em",
       color: "#3f3f46",
       shadow: "none",
