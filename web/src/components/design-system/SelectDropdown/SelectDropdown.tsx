@@ -137,7 +137,7 @@ export function SelectDropdown<V extends string>({
       <InputDropdown.Option highlight="focus">
         <SelectPrimitive.Item value={node.value} disabled={node.disabled}>
           <InputDropdown.OptionContent
-            type="radio"
+            type="checkmark"
             checked={value === node.value}
             label={
               <SelectPrimitive.ItemText>
