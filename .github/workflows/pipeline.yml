@@ -564,9 +564,7 @@ jobs:
         # modules that read Prisma enums at import time.
         run: pnpm --filter=shared run db:generate
       - name: build Storybook
-        # `--test` skips react-docgen, which this check does not need; see the
-        # `build.test` overrides in web/.storybook/main.ts for what stays on.
-        run: pnpm --filter web run build-storybook --test
+        run: pnpm --filter web run build-storybook
 
   tests-shared:
     timeout-minutes: 15
