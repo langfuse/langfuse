@@ -33,6 +33,10 @@ use openai_responses::OpenAiResponsesCapture;
 
 pub(crate) const MAX_INPUT_CAPTURE_BYTES: usize = 5 * 1024 * 1024;
 pub(crate) const MAX_OUTPUT_CAPTURE_BYTES: usize = 1024 * 1024;
+/// Largest JSON body or single SSE event read for usage. Usage can sit next to
+/// a large output, such as a base64 image in a completed Responses event, so this
+/// is larger than the output kept for telemetry.
+pub(crate) const MAX_RESPONSE_PARSE_BYTES: usize = 8 * 1024 * 1024;
 const MAX_ITEMS: usize = 256;
 const MAX_FACT_STRING: usize = 512;
 const MAX_PROJECTED_BYTES: usize = 64 * 1024;

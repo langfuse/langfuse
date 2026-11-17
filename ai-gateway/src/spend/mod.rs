@@ -62,7 +62,7 @@ impl SpendLimitScope {
 
 #[derive(Clone, Default)]
 pub(crate) struct SpendLimits {
-    spend_storage: Option<Arc<RedisCounters>>,
+    counters: Option<Arc<RedisCounters>>,
     control_plane: Option<Arc<ControlPlaneClient>>,
 }
 
@@ -72,7 +72,7 @@ impl SpendLimits {
         control_plane: Arc<ControlPlaneClient>,
     ) -> Self {
         Self {
-            spend_storage: config.map(|config| Arc::new(RedisCounters::new(config))),
+            counters: config.map(|config| Arc::new(RedisCounters::new(config))),
             control_plane: Some(control_plane),
         }
     }
@@ -100,7 +100,7 @@ impl SpendLimits {
         if !reports_usage(context.connection()) {
             return Err(ResolutionError::SpendLimitUnmeteredConnection);
         }
-        let Some(store) = &self.spend_storage else {
+        let Some(store) = &self.counters else {
             tracing::warn!("key has spend limits but LANGFUSE_AI_GATEWAY_REDIS_URL is not set");
             return Err(ResolutionError::SpendLimitUnavailable);
         };

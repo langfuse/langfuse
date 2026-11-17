@@ -1,7 +1,7 @@
 use super::*;
 use crate::capture::{
-    ExecutionCapture, InputOmission, InputOmissionReason, MAX_INPUT_CAPTURE_BYTES, ProtocolCapture,
-    RelayOutcome, sse::SseDecoder,
+    ExecutionCapture, InputOmission, InputOmissionReason, MAX_INPUT_CAPTURE_BYTES,
+    MAX_RESPONSE_PARSE_BYTES, ProtocolCapture, RelayOutcome, sse::SseDecoder,
 };
 use crate::config::ExecutionLimits;
 use crate::resolution::ApiFormat;
@@ -421,7 +421,7 @@ async fn oversized_and_malformed_events_do_not_prevent_later_facts() {
     record_response(&mut observer, "text/event-stream");
     observer.push_bytes(b"data: malformed\n\n");
     observer
-        .push_bytes(format!("data: {}\n\n", "x".repeat(MAX_OUTPUT_CAPTURE_BYTES + 1)).as_bytes());
+        .push_bytes(format!("data: {}\n\n", "x".repeat(MAX_RESPONSE_PARSE_BYTES + 1)).as_bytes());
     observer.push_bytes(terminal("completed", 0).as_bytes());
     observer.end_body();
     let capture = captured(&observer);
@@ -431,6 +431,25 @@ async fn oversized_and_malformed_events_do_not_prevent_later_facts() {
     assert_eq!(
         capture.facts.usage_details.as_ref().unwrap()["total_tokens"],
         130
+    );
+}
+
+#[tokio::test]
+async fn reads_usage_from_a_completed_event_carrying_a_generated_image() {
+    let mut observer = observer("usage").await;
+    record_response(&mut observer, "text/event-stream");
+    let image = "A".repeat(3 * MAX_OUTPUT_CAPTURE_BYTES);
+    observer.push_bytes(
+        event(
+            "response.completed",
+            json!({"response":{"id":"resp-1","status":"completed","usage":{"input_tokens":10,"output_tokens":4160,"total_tokens":4170},"output":[{"type":"image_generation_call","result":image}]}}),
+        )
+        .as_bytes(),
+    );
+    observer.end_body();
+    assert_eq!(
+        captured(&observer).facts.usage_details.as_ref().unwrap()["total_tokens"],
+        4170
     );
 }
 
