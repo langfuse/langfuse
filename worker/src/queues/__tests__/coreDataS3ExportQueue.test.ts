@@ -13,7 +13,7 @@ import {
 } from "@langfuse/shared";
 import {
   coreDataTableExports,
-  fetchMediaUsageDailyPage,
+  createMediaUsageDailyFetchPage,
   mapDashboardToCoreDataRow,
   mapDashboardWidgetToCoreDataRow,
   mapDatasetToCoreDataRow,
@@ -679,14 +679,22 @@ describe("mediaUsageDaily export", () => {
         jsonl = await readStream(data);
       });
 
-      await uploadTableCoreDataJsonl({
-        s3Client: { uploadFileBuffered } as unknown as StorageService,
-        uploadPrefix: "core/",
-        tableName: "mediaUsageDaily",
-        pageSize: 1,
-        fetchPage: fetchMediaUsageDailyPage,
-        mapRow: (row) => mapMediaUsageDailyToCoreDataRow(row, snapshotAt),
-      });
+      const queryRaw = vi.spyOn(prisma, "$queryRaw");
+      try {
+        await uploadTableCoreDataJsonl({
+          s3Client: { uploadFileBuffered } as unknown as StorageService,
+          uploadPrefix: "core/",
+          tableName: "mediaUsageDaily",
+          pageSize: 1,
+          fetchPage: createMediaUsageDailyFetchPage(),
+          mapRow: (row) => mapMediaUsageDailyToCoreDataRow(row, snapshotAt),
+        });
+        // Paging over one aggregate keeps an upload that finishes mid-export
+        // from landing in two groups.
+        expect(queryRaw).toHaveBeenCalledTimes(1);
+      } finally {
+        queryRaw.mockRestore();
+      }
 
       const rows = jsonl
         .split("\n")

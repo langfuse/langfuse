@@ -22,7 +22,7 @@ import {
   type StorageService,
 } from "@langfuse/shared/src/server";
 import { metricAggregations, viewDeclarations } from "@langfuse/shared/query";
-import { prisma, Prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
 
 const CORE_DATA_EXPORT_PAGE_SIZE = 1_000;
@@ -658,77 +658,54 @@ export const mapMediaUsageDailyToCoreDataRow = (
   snapshotAt,
 });
 
-// Null statuses sort last. The IS NULL flag makes every keyset column
-// non-null so a row comparison can resume without skipping or repeating a group.
-const mediaUsageDailyKeysetFilter = (
-  lastRow: MediaUsageDailyQueryRow | null,
-) => {
-  if (!lastRow) return Prisma.empty;
-
-  return Prisma.sql`
-    WHERE (
-      "projectId",
-      "createdDate",
-      "contentType",
-      "isUploaded",
-      ("uploadHttpStatus" IS NULL),
-      COALESCE("uploadHttpStatus", 0)
-    ) > (
-      ${lastRow.projectId}::text,
-      ${lastRow.createdDate}::text,
-      ${lastRow.contentType}::text,
-      ${lastRow.isUploaded}::boolean,
-      ${lastRow.uploadHttpStatus === null}::boolean,
-      ${lastRow.uploadHttpStatus ?? 0}::int
-    )
-  `;
-};
-
-// One GROUP BY over media per page. `created_at` is timestamp without time
-// zone stored as UTC, so to_char's calendar date is the UTC day and does not
-// follow the session TimeZone. The (project_id, created_at) index is not used.
-export const fetchMediaUsageDailyPage = ({
-  lastRow,
-  take,
-}: TablePageArgs<MediaUsageDailyQueryRow>): Promise<
-  MediaUsageDailyQueryRow[]
-> =>
+// `created_at` is timestamp without time zone stored as UTC, so to_char's
+// calendar date is the UTC day and does not follow the session TimeZone. The
+// (project_id, created_at) index is not used: this is one full scan of media.
+const queryMediaUsageDaily = () =>
   prisma.$queryRaw<MediaUsageDailyQueryRow[]>`
     SELECT
-      "projectId",
-      "contentType",
-      "createdDate",
-      "isUploaded",
-      "uploadHttpStatus",
-      "mediaCount",
-      "totalContentLength"
-    FROM (
-      SELECT
-        project_id AS "projectId",
-        content_type AS "contentType",
-        to_char(created_at, 'YYYY-MM-DD') AS "createdDate",
-        (uploaded_at IS NOT NULL) AS "isUploaded",
-        upload_http_status AS "uploadHttpStatus",
-        COUNT(*)::bigint AS "mediaCount",
-        SUM(content_length)::bigint AS "totalContentLength"
-      FROM media
-      GROUP BY
-        project_id,
-        content_type,
-        to_char(created_at, 'YYYY-MM-DD'),
-        (uploaded_at IS NOT NULL),
-        upload_http_status
-    ) AS media_usage
-    ${mediaUsageDailyKeysetFilter(lastRow)}
+      project_id AS "projectId",
+      content_type AS "contentType",
+      to_char(created_at, 'YYYY-MM-DD') AS "createdDate",
+      (uploaded_at IS NOT NULL) AS "isUploaded",
+      upload_http_status AS "uploadHttpStatus",
+      COUNT(*)::bigint AS "mediaCount",
+      SUM(content_length)::bigint AS "totalContentLength"
+    FROM media
+    GROUP BY
+      project_id,
+      content_type,
+      to_char(created_at, 'YYYY-MM-DD'),
+      (uploaded_at IS NOT NULL),
+      upload_http_status
     ORDER BY
-      "projectId" ASC,
-      "createdDate" ASC,
-      "contentType" ASC,
-      "isUploaded" ASC,
-      ("uploadHttpStatus" IS NULL) ASC,
-      COALESCE("uploadHttpStatus", 0) ASC
-    LIMIT ${take}
+      project_id ASC,
+      to_char(created_at, 'YYYY-MM-DD') ASC,
+      content_type ASC,
+      (uploaded_at IS NOT NULL) ASC,
+      upload_http_status ASC NULLS LAST
   `;
+
+// Runs the aggregate once per export and pages over that result, so a media
+// row whose upload finishes mid-export cannot appear in two groups. The result
+// is one row per project, day, content type and upload state, which is small.
+export const createMediaUsageDailyFetchPage = () => {
+  let rows: Promise<MediaUsageDailyQueryRow[]> | undefined;
+
+  return async ({
+    lastRow,
+    take,
+  }: TablePageArgs<MediaUsageDailyQueryRow>): Promise<
+    MediaUsageDailyQueryRow[]
+  > => {
+    if (!rows) {
+      rows = queryMediaUsageDaily();
+    }
+    const allRows = await rows;
+    const start = lastRow ? allRows.indexOf(lastRow) + 1 : 0;
+    return allRows.slice(start, start + take);
+  };
+};
 
 // One entry per exported table. The tableName doubles as the S3 object base
 // name — keep names stable, downstream DWH consumers depend on them.
@@ -1959,7 +1936,7 @@ export const coreDataTableExports: Array<
       ...args,
       tableName: "mediaUsageDaily",
       /** Counts and bytes only. Omits ids, hashes, bucket locations, errors, and media association tables. */
-      fetchPage: fetchMediaUsageDailyPage,
+      fetchPage: createMediaUsageDailyFetchPage(),
       mapRow: (row) => mapMediaUsageDailyToCoreDataRow(row, snapshotAt),
     });
   },
