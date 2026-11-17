@@ -1,9 +1,9 @@
 /** Rendering values for the new scatter: blurred topic fields, ringed dots, grain and labels. */
 import { type CSSProperties } from "react";
 import {
-  mapCrowding,
   screenPoint,
   stageScale,
+  type TopicMapModel,
   type TopicMapNodeFrame,
 } from "./prepare-topic-map";
 
@@ -136,6 +136,50 @@ function lookFieldColor(name: TopicMapLookName, color: string) {
   return `oklch(${lightness} ${chroma} ${CATEGORY_HUES[hue]})`;
 }
 
+const presenceCache = new WeakMap<TopicMapModel, Map<string, number>>();
+
+/**
+ * Field strength per topic. A field stacked under many others only adds to one
+ * wash, so it fades from full (one other topic covers its center) to 10%
+ * (three or more).
+ */
+function fieldPresence(model: TopicMapModel) {
+  const cached = presenceCache.get(model);
+  if (cached) return cached;
+  const topics = model.zones.filter(
+    (zone) => zone.id !== "outliers" && zone.id !== "awaiting_map",
+  );
+  const extent = Math.max(
+    model.bounds.maxX - model.bounds.minX,
+    model.bounds.maxY - model.bounds.minY,
+  );
+  const reach = new Map(
+    topics.map((zone) => {
+      const spread = Math.sqrt(
+        zone.points.reduce(
+          (sum, point) =>
+            sum + (point.x - zone.x) ** 2 + (point.y - zone.y) ** 2,
+          0,
+        ) / zone.points.length,
+      );
+      return [zone.id, Math.max(spread * 1.5, extent * 0.08)];
+    }),
+  );
+  const presence = new Map(
+    topics.map((zone) => {
+      const covering = topics.filter(
+        (other) =>
+          other !== zone &&
+          Math.hypot(other.x - zone.x, other.y - zone.y) <
+            (reach.get(other.id) ?? 0),
+      ).length;
+      return [zone.id, 1 - 0.9 * Math.min(1, Math.max(0, covering - 1) / 2)];
+    }),
+  );
+  presenceCache.set(model, presence);
+  return presence;
+}
+
 /** The last composited fields per map canvas. */
 const fieldCache = new WeakMap<
   HTMLCanvasElement,
@@ -197,8 +241,7 @@ export function drawLookFields(
   if (!draw || !target) return;
   draw.setTransform(ratio, 0, 0, ratio, 0, 0);
   const scale = camera.zoom * stageScale(size);
-  // Crowded maps fade the fields to a trace: thousands of overlapping topics only blur into one wash.
-  const presence = 1 - mapCrowding(model.points.length) * 0.9;
+  const presence = fieldPresence(model);
   for (const zone of frame.zones) {
     if (zone.id === "outliers" || zone.id === "awaiting_map") continue;
     const [r, g, b] = rgbOf(lookFieldColor(name, zone.color));
@@ -235,7 +278,7 @@ export function drawLookFields(
     target.globalCompositeOperation = dark ? "lighten" : "darken";
     target.globalAlpha =
       field.opacity *
-      presence *
+      (presence.get(zone.id) ?? 1) *
       (dark ? DARK.fieldOpacity : 1) *
       (matches ? 1 : 0.4);
     target.drawImage(layer, 0, 0);

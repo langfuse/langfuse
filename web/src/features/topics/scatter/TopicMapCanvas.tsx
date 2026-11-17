@@ -1,7 +1,6 @@
 import { useEffect, useEffectEvent, useRef } from "react";
 import {
   prepareMapNodes,
-  mapCrowding,
   stageScale,
   type Camera,
   type MapPosition,
@@ -199,11 +198,6 @@ const DIMMED = 0.25;
 const isUnassigned = (node: TopicMapNodeFrame["nodes"][number]) =>
   node.point.groupId === "outliers" || node.point.groupId === "awaiting_map";
 
-/** Dots shrink from full size at 500 traces to two thirds at 2,000; zooming in restores them. */
-function densityScale(pointCount: number, zoom: number) {
-  return Math.min(1, (1 - mapCrowding(pointCount) / 3) * Math.max(1, zoom));
-}
-
 function drawMap(
   canvas: HTMLCanvasElement,
   frame: TopicMapNodeFrame,
@@ -227,8 +221,7 @@ function drawMap(
   // Blurred topic fields under ringed dots; an active dot gets an outline.
   drawLookFields(context, frame, LOOK, rgbOf, ratio);
   const ring = rgbOf(lookBackground(theme));
-  const stage =
-    stageScale(size) * densityScale(frame.model.points.length, camera.zoom);
+  const stage = stageScale(size);
   // Unassigned dots go down first so topic colors sit on top.
   const unassigned = frame.nodes.filter((node) => isUnassigned(node));
   const assigned = frame.nodes.filter((node) => !isUnassigned(node));

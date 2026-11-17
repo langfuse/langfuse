@@ -96,11 +96,6 @@ export function stageScale(size: { width: number; height: number }) {
   return Math.min(1.4, Math.max(1, 1 + (space - 1) * 0.25));
 }
 
-/** How crowded a map is: 0 up to 500 traces, 1 from 2,000. */
-export function mapCrowding(pointCount: number) {
-  return Math.min(1, Math.max(0, (pointCount - 500) / 1500));
-}
-
 function baseScale(bounds: Bounds, size: Size) {
   return Math.min(
     Math.max(size.width - 100, 1) / Math.max(bounds.maxX - bounds.minX, 0.1),
