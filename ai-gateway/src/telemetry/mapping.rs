@@ -1008,6 +1008,17 @@ mod tests {
         assert!(metadata(&attrs).get("native_usage").is_none());
     }
 
+    #[test]
+    fn usage_without_a_total_counts_input_and_output() {
+        assert_eq!(
+            uploaded_usage(
+                ApiFormat::OpenAiChatCompletions,
+                json!({"prompt_tokens": 9, "completion_tokens": 3}),
+            ),
+            Some(json!({"prompt_tokens": 9, "completion_tokens": 3, "total_tokens": 12}))
+        );
+    }
+
     fn uploaded_usage(api_format: ApiFormat, usage: Value) -> Option<Value> {
         let mut facts = facts();
         facts.api_format = api_format;

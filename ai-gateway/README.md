@@ -526,7 +526,8 @@ on the first nonempty text, reasoning, refusal, tool-input, audio, or partial-im
 and streams without a captured content delta have no completion-start time or TTFT.
 OpenAI Responses and Chat Completions usage are reduced to the receiver's strict
 native schemas (`input_tokens`/`output_tokens` or `prompt_tokens`/`completion_tokens`,
-plus `total_tokens`), keeping their nested detail counters. Anthropic usage is uploaded exactly as the provider reported
+plus `total_tokens`), keeping their nested detail counters. A Chat Completions response without
+`total_tokens` gets prompt plus completion as its total. Anthropic usage is uploaded exactly as the provider reported
 it; ingestion decides what to price. Usage is not duplicated in metadata. Missing usage
 is not reported as zero.
 

@@ -1,5 +1,7 @@
 //! The usage each API format reports, kept to the fields Langfuse ingests.
-use serde_json::{Map, Value};
+use std::borrow::Cow;
+
+use serde_json::{Map, Value, json};
 
 use super::UsageDetails;
 use crate::resolution::ApiFormat;
@@ -8,7 +10,7 @@ use crate::resolution::ApiFormat;
 pub(super) fn standard_usage(api_format: ApiFormat, usage: &Value) -> Option<UsageDetails> {
     match api_format {
         ApiFormat::OpenAiChatCompletions => openai_usage(
-            usage,
+            &with_chat_total(usage),
             ["prompt_tokens", "completion_tokens", "total_tokens"],
             ["prompt_tokens_details", "completion_tokens_details"],
         )
@@ -23,6 +25,27 @@ pub(super) fn standard_usage(api_format: ApiFormat, usage: &Value) -> Option<Usa
         // Langfuse ingests native Messages usage as is.
         ApiFormat::AnthropicMessages => usage.as_object().cloned().map(UsageDetails::Raw),
         ApiFormat::OpenAiEmbeddings => embeddings_usage(usage).map(UsageDetails::Raw),
+    }
+}
+
+/// Some OpenAI-compatible servers leave out `total_tokens`, which `OpenAI`
+/// defines as prompt plus completion. Only Chat Completions names are distinct
+/// enough to fill it: Anthropic usage arriving on Responses shares
+/// `input_tokens` but leaves cache reads out of it, so it must stay unread.
+fn with_chat_total(usage: &Value) -> Cow<'_, Value> {
+    let count = |key: &str| usage.get(key).and_then(Value::as_u64);
+    let total_missing = usage.get("total_tokens").is_none_or(Value::is_null);
+    match (count("prompt_tokens"), count("completion_tokens")) {
+        (Some(prompt), Some(completion)) if total_missing => {
+            let mut filled = usage.clone();
+            if let (Some(total), Some(fields)) =
+                (prompt.checked_add(completion), filled.as_object_mut())
+            {
+                fields.insert("total_tokens".into(), json!(total));
+            }
+            Cow::Owned(filled)
+        }
+        _ => Cow::Borrowed(usage),
     }
 }
 
