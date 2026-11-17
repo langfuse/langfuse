@@ -1,4 +1,5 @@
 import { type ComponentProps, useMemo, useState } from "react";
+import { Plus } from "@langfuse/icons";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -10,6 +11,7 @@ import { useGatewayAnalyticsLabels } from "@/src/features/ai-gateway/components/
 import { ConnectedGatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/ConnectedGatewayNotSetUpNotice";
 import { ConnectedGatewayApiKeysTable } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/ConnectedGatewayApiKeysTable";
 import { GatewaySpendChart } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewaySpendChart/GatewaySpendChart";
+import { GatewayAddBudgetDialogController } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayAddBudgetDialogController/GatewayAddBudgetDialogController";
 import { ConnectedGatewayUserSpendTable } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayUserSpendTable/ConnectedGatewayUserSpendTable";
 import type { GatewaySpendInterval } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendIntervals";
 import {
@@ -146,24 +148,45 @@ export function GatewayBudgetsPage({
             onClearSelection={handleClearSelection}
           />
         )}
-        {tab === "apiKeys" && (
-          <ConnectedGatewayApiKeysTable
-            organizationId={organizationId}
-            description={null}
-            emptyState={noKeysMessage}
-            onRowClick={handleApiKeyRowClick}
-            selectedRowId={selectedId}
-          />
-        )}
-        {tab === "users" && canQueryAnalytics && (
-          <ConnectedGatewayUserSpendTable
-            organizationId={organizationId}
-            fetchQuery={fetchQuery}
-            timeRange={absoluteTimeRange}
-            onRowClick={handleUserRowClick}
-            selectedRowId={selectedId}
-          />
-        )}
+        <GatewayAddBudgetDialogController organizationId={organizationId}>
+          {({ openDialog }) => {
+            const toolbarActions = canManageGateway
+              ? [
+                  {
+                    id: "add-budget",
+                    label: "Add budget",
+                    variant: "secondary" as const,
+                    icon: <Plus size="base" aria-hidden="true" />,
+                    onClick: () => openDialog(tab),
+                  },
+                ]
+              : undefined;
+            return (
+              <>
+                {tab === "apiKeys" && (
+                  <ConnectedGatewayApiKeysTable
+                    organizationId={organizationId}
+                    description={null}
+                    emptyState={noKeysMessage}
+                    onRowClick={handleApiKeyRowClick}
+                    selectedRowId={selectedId}
+                    toolbarActions={toolbarActions}
+                  />
+                )}
+                {tab === "users" && canQueryAnalytics && (
+                  <ConnectedGatewayUserSpendTable
+                    organizationId={organizationId}
+                    fetchQuery={fetchQuery}
+                    timeRange={absoluteTimeRange}
+                    onRowClick={handleUserRowClick}
+                    selectedRowId={selectedId}
+                    toolbarActions={toolbarActions}
+                  />
+                )}
+              </>
+            );
+          }}
+        </GatewayAddBudgetDialogController>
       </div>
     </>
   );

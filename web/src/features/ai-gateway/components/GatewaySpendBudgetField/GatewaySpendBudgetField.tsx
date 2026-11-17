@@ -1,5 +1,6 @@
 import { useId } from "react";
 import { useWatch, type Control } from "react-hook-form";
+import { Gauge } from "@langfuse/icons";
 
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { Form } from "@/src/components/design-system/Form/Form";
@@ -70,16 +71,16 @@ export function GatewaySpendBudgetField<
               aria-label="Spend budget"
               className="flex flex-wrap items-start gap-4 pt-1"
             >
-              <div className="w-32">
+              <div className="w-36">
                 <Form.Field
                   control={control}
                   name="spendBudget.limitUsd"
-                  label="Amount"
+                  label="Amount (USD)"
                 >
                   {(field) => (
                     <Input
                       id={field.id}
-                      valuePrefix="$"
+                      prefix={{ icon: Gauge }}
                       inputMode="decimal"
                       placeholder="100"
                       name={field.name}

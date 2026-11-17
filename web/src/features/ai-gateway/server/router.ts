@@ -281,6 +281,20 @@ export const aiGatewayRouter = createTRPCRouter({
       });
     }),
 
+  getBudgetUserOptions: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        search: z.string().max(MAX_MEMBER_SEARCH_LENGTH),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewayTeamService(ctx.prisma).getBudgetUserOptions({
+        organizationId: input.orgId,
+        search: input.search,
+      });
+    }),
+
   getInviteeMembers: protectedOrganizationProcedure
     .input(
       organizationInput.extend({
@@ -641,6 +655,23 @@ export const aiGatewayRouter = createTRPCRouter({
           orgId: input.orgId,
         }),
         userIds: input.userIds,
+      });
+    }),
+
+  createApiKeySpendLimit: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        apiKeyId: z.string(),
+        spendLimit: gatewaySpendLimitInput,
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      await new GatewaySpendLimitService(ctx.prisma).createForApiKey({
+        organizationId: input.orgId,
+        apiKeyId: input.apiKeyId,
+        limit: input.spendLimit,
+        session: ctx.session,
       });
     }),
 

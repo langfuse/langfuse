@@ -1,6 +1,9 @@
 import { Pencil } from "@langfuse/icons";
 
-import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
+import {
+  SettingsTable,
+  type SettingsTableProps,
+} from "@/src/components/SettingsTable/SettingsTable";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
@@ -26,12 +29,13 @@ type GatewayUserBudgetRow = GatewayUserSpendRow & {
 type GatewayUserSpendTableProps = Pick<
   TableProps<GatewayUserBudgetRow>,
   "data" | "onRowClick" | "selectedRowId"
-> & {
-  pagination: PaginationBarProps;
-  search: { value: string; onChange: (value: string) => void };
-  /** Only gateway managers may set budgets; absent for everyone else. */
-  onEditBudget?: (row: GatewayUserBudgetRow) => void;
-};
+> &
+  Pick<SettingsTableProps<GatewayUserBudgetRow>, "toolbarActions"> & {
+    pagination: PaginationBarProps;
+    search: { value: string; onChange: (value: string) => void };
+    /** Only gateway managers may set budgets; absent for everyone else. */
+    onEditBudget?: (row: GatewayUserBudgetRow) => void;
+  };
 
 const budgetSkeleton = <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />;
 
@@ -90,6 +94,7 @@ export function GatewayUserSpendTable({
   pagination,
   search,
   onEditBudget,
+  toolbarActions,
 }: GatewayUserSpendTableProps) {
   const hasSearch = search.value.trim().length > 0;
 
@@ -118,6 +123,7 @@ export function GatewayUserSpendTable({
           : undefined
       }
       pagination={pagination}
+      toolbarActions={toolbarActions}
       search={{ ...search, placeholder: "Search by name or email" }}
       noResultsMessage={
         hasSearch ? "No users match the current search." : "No users found."

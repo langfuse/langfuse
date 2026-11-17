@@ -58,7 +58,7 @@ type UserSpendLimitParams = {
 
 /**
  * Gateway spend limits, each capping one scope: an API key, set together with
- * the key, or a user, capping all of the user's keys in the organization and
+ * the key or later by a gateway manager, or a user, capping all of the user's keys in the organization and
  * set only by gateway managers. Spend is read from the gateway ingestion project, so
  * limits can only be set while gateway requests are recorded. Every write
  * drops the cached /resolve context of the keys the scope covers, so the
@@ -196,6 +196,31 @@ export class GatewaySpendLimitService {
         ? (spend.get(userId) ?? 0) + baselineUsd(limit, now)
         : undefined,
     }));
+  }
+
+  /** Gives a key without one a spend limit; callers must be gateway managers. */
+  async createForApiKey(params: {
+    organizationId: string;
+    apiKeyId: string;
+    limit: SpendLimitInput;
+    session: OrgAuthedContext["session"];
+  }) {
+    const scope = { type: "API_KEY", apiKeyId: params.apiKeyId } as const;
+    const existing = await this.repository.list({
+      organizationId: params.organizationId,
+      scope,
+    });
+    if (existing.length > 0) {
+      throw new LangfuseConflictError("This key already has a spend budget");
+    }
+    const apply = await this.prepareSet({
+      organizationId: params.organizationId,
+      usageScope: { scope: "organization" },
+      scope,
+      limit: params.limit,
+      session: params.session,
+    });
+    await apply();
   }
 
   /** Gives a user without one a spend limit. */
