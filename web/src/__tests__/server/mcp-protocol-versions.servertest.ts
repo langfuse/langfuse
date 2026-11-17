@@ -24,12 +24,9 @@ describe("MCP protocol versions", () => {
     httpServer = createServer(async (req, res) => {
       let raw = "";
       for await (const chunk of req) raw += chunk;
-      Object.assign(req, { body: raw ? JSON.parse(raw) : undefined });
-      await handleMcpRequest(
-        context,
-        req as NextApiRequest,
-        res as NextApiResponse,
-      );
+      const nextReq = req as NextApiRequest;
+      nextReq.body = raw ? JSON.parse(raw) : undefined;
+      await handleMcpRequest(context, nextReq, res as NextApiResponse);
     });
     await new Promise<void>((resolve) => httpServer.listen(0, resolve));
     const { port } = httpServer.address() as AddressInfo;
