@@ -376,10 +376,10 @@ jobs:
 
           if ! git diff --quiet "$BASE_SHA" HEAD -- '.oxfmtrc.*' '**/.oxfmtrc.*' 'oxfmt.config.*' '**/oxfmt.config.*' '.editorconfig' '**/.editorconfig'; then
             pnpm run format:check
-          elif git diff --quiet --exit-code --diff-filter=d "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css'; then
+          elif git diff --quiet --exit-code --diff-filter=d "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.mjs' '*.cjs' '*.ts' '*.tsx' '*.mts' '*.cts' '*.css'; then
             echo "No JS/TS/CSS files changed - skipping formatting check"
           else
-            git diff --name-only -z --diff-filter=d "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css' \
+            git diff --name-only -z --diff-filter=d "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.mjs' '*.cjs' '*.ts' '*.tsx' '*.mts' '*.cts' '*.css' \
               | xargs -0 --no-run-if-empty pnpm exec oxfmt --check --
           fi
 

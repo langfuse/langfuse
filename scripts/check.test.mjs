@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createPlan, parseOptions, runPlan } from "./check.mjs";
 
@@ -55,14 +55,43 @@ test("the check CLI executes when reached through a filesystem alias", () => {
   }
 });
 
-test("formatter config changes check the whole repository without source changes", () => {
-  const plan = createPlan([".oxfmtrc.json"], [], { only: ["format"] }, "HEAD", {
+test("format planning checks module extensions and widens for config changes", () => {
+  const taskGraph = {
     tasks: new Map(),
     affected: new Set(),
     inputs: new Set(),
-  });
+  };
+  const plan = createPlan(
+    [".oxfmtrc.json"],
+    [],
+    { only: ["format"] },
+    "HEAD",
+    taskGraph,
+  );
   assert.equal(plan.length, 1);
   assert.deepEqual(plan[0].args, ["run", "format:check"]);
+  const directory = mkdtempSync(resolve(".check-test-"));
+  try {
+    const files = ["mjs", "cjs", "mts", "cts"].map((extension) => {
+      const file = resolve(directory, `example.${extension}`);
+      writeFileSync(file, "const value={a:1,b:2};\n");
+      return relative(process.cwd(), file);
+    });
+    const changed = createPlan(
+      files,
+      [],
+      { only: ["format"] },
+      "HEAD",
+      taskGraph,
+    );
+    assert.equal(changed.length, 1);
+    const result = spawnSync("pnpm", changed[0].args, { encoding: "utf8" });
+    assert.equal(result.status, 1, result.stderr);
+    for (const file of files)
+      assert.ok(result.stdout.includes(file), result.stdout);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test("check no longer accepts a CPU budget argument", () => {
