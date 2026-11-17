@@ -40,7 +40,7 @@ export function OrgAuditLogsSettingsPage(props: { orgId: string }) {
     <div className="flex flex-col gap-6">
       {showAccessLogging && (
         <div>
-          <Header title="Access Logging" internal />
+          <Header title="Access Logging" />
           <AccessLoggingSwitch orgId={props.orgId} />
         </div>
       )}
