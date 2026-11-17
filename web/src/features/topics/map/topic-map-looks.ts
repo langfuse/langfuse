@@ -126,6 +126,17 @@ function traceHash(traceId: string) {
 
 type Rgb = [number, number, number];
 
+/** The last composited fields per map canvas. */
+const fieldCache = new WeakMap<
+  HTMLCanvasElement,
+  {
+    key: string;
+    model: TopicMapNodeFrame["model"];
+    matchingTraceIds: TopicMapNodeFrame["matchingTraceIds"];
+    image: HTMLCanvasElement;
+  }
+>();
+
 /**
  * One blurred layer per topic. Shapes live in map space, so their size and
  * blur scale with zoom.
@@ -140,11 +151,40 @@ export function drawLookFields(
   const { field } = TOPIC_MAP_LOOKS[name];
   const { model, camera, size, matchingTraceIds } = frame;
   const dark = isDark();
+  // Hover and pointer moves repaint the dots only; the blurred fields are reused.
+  const key = [
+    name,
+    model.points.length,
+    camera.x,
+    camera.y,
+    camera.zoom,
+    size.width,
+    size.height,
+    ratio,
+    dark,
+  ].join(",");
+  const cached = fieldCache.get(context.canvas);
+  if (
+    cached &&
+    cached.key === key &&
+    cached.model === model &&
+    cached.matchingTraceIds === matchingTraceIds
+  ) {
+    context.save();
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.drawImage(cached.image, 0, 0);
+    context.restore();
+    return;
+  }
+  const image = document.createElement("canvas");
+  image.width = context.canvas.width;
+  image.height = context.canvas.height;
+  const target = image.getContext("2d");
   const layer = document.createElement("canvas");
   layer.width = context.canvas.width;
   layer.height = context.canvas.height;
   const draw = layer.getContext("2d");
-  if (!draw) return;
+  if (!draw || !target) return;
   draw.setTransform(ratio, 0, 0, ratio, 0, 0);
   const scale = camera.zoom;
   for (const zone of frame.zones) {
@@ -178,15 +218,17 @@ export function drawLookFields(
     const matches =
       !matchingTraceIds ||
       zone.points.some((point) => matchingTraceIds.has(point.traceId));
-    context.save();
-    context.setTransform(1, 0, 0, 1, 0, 0);
-    context.filter = `blur(${field.blur * scale * ratio}px)`;
-    context.globalCompositeOperation = dark ? "screen" : "multiply";
-    context.globalAlpha =
+    target.filter = `blur(${field.blur * scale * ratio}px)`;
+    target.globalCompositeOperation = dark ? "screen" : "multiply";
+    target.globalAlpha =
       field.opacity * (dark ? DARK.fieldOpacity : 1) * (matches ? 1 : 0.15);
-    context.drawImage(layer, 0, 0);
-    context.restore();
+    target.drawImage(layer, 0, 0);
   }
+  fieldCache.set(context.canvas, { key, model, matchingTraceIds, image });
+  context.save();
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.drawImage(image, 0, 0);
+  context.restore();
 }
 
 /** The category hues behind the `--category-*-highlight` tokens. */
