@@ -235,7 +235,6 @@ async function dispatch(
   const batches = selectTraceBatches(
     candidates,
     env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE,
-    "locality",
     {
       maxEventUpdates: toLimit(
         env.LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES,
