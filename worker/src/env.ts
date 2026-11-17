@@ -161,12 +161,12 @@ const EnvSchema = z.object({
     .positive()
     .max(2 * 24 * 60 * 60 * 1_000)
     .default(12 * 60 * 60 * 1_000),
-  // Traces per events-dispatch job.
+  // Traces per events-dispatch job; the locality selector's tables grow with its square.
   LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE: z.coerce
     .number()
     .int()
     .positive()
-    .max(10_000)
+    .max(1_000)
     .default(120),
   // Experiment: also records traces without a matching rule, by deterministic trace-ID sample.
   LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL: z.coerce
