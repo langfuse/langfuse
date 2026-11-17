@@ -12,7 +12,6 @@ const build = (cloudConfig: CloudConfigSchema | null) =>
     submitterEmail: "founder@example.com",
     program: "yc",
     couponCode: "YC-W27",
-    cloudRegion: "EU",
   });
 
 describe("buildCouponRedemptionPayload", () => {
@@ -26,8 +25,6 @@ describe("buildCouponRedemptionPayload", () => {
       couponCode: "YC-W27",
       submitterEmail: "founder@example.com",
       clickhouseOrganizationId: CH_ORG_ID,
-      langfuseOrganizationId: "org-1",
-      langfuseCloudRegion: "EU",
     });
   });
 

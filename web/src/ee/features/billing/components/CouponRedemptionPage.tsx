@@ -124,6 +124,10 @@ function CouponRedemptionContent() {
 
   const program = CouponProgramSchema.safeParse(router.query.program);
   const couponCode = router.query.code;
+  // The credit-request form needs both name parts; the account has one name.
+  const [firstName = "", ...lastNameParts] = (session.data?.user?.name ?? "")
+    .trim()
+    .split(/\s+/);
 
   return (
     <CouponRedemptionForm
@@ -133,6 +137,8 @@ function CouponRedemptionContent() {
       initialValues={{
         program: program.success ? program.data : "",
         couponCode: typeof couponCode === "string" ? couponCode : "",
+        firstName,
+        lastName: lastNameParts.join(" "),
       }}
     />
   );

@@ -3,20 +3,19 @@ import { type CloudConfigSchema, InvalidRequestError } from "@langfuse/shared";
 import { type CouponProgram } from "../../utils/coupons";
 
 /**
- * What the GTM coupon endpoint receives for one redemption. GTM resolves the
- * ClickHouse organization in Salesforce and grants the program's credits to it.
+ * The redemption values handed to ClickHouse's credit-request form. GTM
+ * systems resolve the ClickHouse organization in Salesforce and grant the
+ * program's credits to it.
  *
  * Everything except `program` and `couponCode` is inferred server-side from
- * the session and the organization, so a user cannot redeem a coupon for an
- * organization or identity other than their own.
+ * the session and the organization, so the page only ever offers the user's
+ * own identity and organization to the form.
  */
 export type CouponRedemptionPayload = {
   program: CouponProgram;
   couponCode: string;
   submitterEmail: string;
   clickhouseOrganizationId: string;
-  langfuseOrganizationId: string;
-  langfuseCloudRegion: string | null;
 };
 
 /**
@@ -32,13 +31,11 @@ export function buildCouponRedemptionPayload({
   submitterEmail,
   program,
   couponCode,
-  cloudRegion,
 }: {
   org: { id: string; cloudConfig: CloudConfigSchema | null };
   submitterEmail: string | null | undefined;
   program: CouponProgram;
   couponCode: string;
-  cloudRegion: string | null | undefined;
 }): CouponRedemptionPayload {
   const clickhouse = org.cloudConfig?.clickhouse;
   if (!clickhouse?.organizationId || !clickhouse.attachedPlanId) {
@@ -57,7 +54,5 @@ export function buildCouponRedemptionPayload({
     couponCode,
     submitterEmail,
     clickhouseOrganizationId: clickhouse.organizationId,
-    langfuseOrganizationId: org.id,
-    langfuseCloudRegion: cloudRegion ?? null,
   };
 }
