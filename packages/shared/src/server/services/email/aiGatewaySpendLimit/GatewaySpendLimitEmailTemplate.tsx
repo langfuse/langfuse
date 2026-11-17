@@ -14,11 +14,18 @@ import {
   Text,
 } from "@react-email/components";
 
+/** What the limit applies to; one variant per spend limit scope. */
+export type GatewaySpendLimitEmailScope = {
+  type: "API_KEY";
+  name: string;
+  displaySecretKey: string;
+};
+
 type GatewaySpendLimitEmailTemplateProps = {
-  /** The key's owner reads "your key"; an organization owner reads the key's name. */
+  /** The key's owner reads "your key"; an organization owner reads "the key". */
   audience: "keyOwner" | "orgOwner";
   orgName: string;
-  keyName: string;
+  scope: GatewaySpendLimitEmailScope;
   /** Lowercase interval, e.g. "daily"; "total" for a limit that never resets. */
   interval: string;
   limitUsd: number;
@@ -34,7 +41,7 @@ type GatewaySpendLimitEmailTemplateProps = {
 export const GatewaySpendLimitEmailTemplate = ({
   audience,
   orgName,
-  keyName,
+  scope,
   interval,
   limitUsd,
   resetsAt,
@@ -44,8 +51,7 @@ export const GatewaySpendLimitEmailTemplate = ({
   emailFromAddress,
 }: GatewaySpendLimitEmailTemplateProps) => {
   const limit = `$${limitUsd.toFixed(2)} ${interval}`;
-  const keyLabel =
-    audience === "keyOwner" ? "Your gateway key" : "The gateway key";
+  const subject = describeScope(scope, audience);
   const until = resetsAt
     ? `until the limit resets on ${resetsAt}`
     : "until an admin resets or raises the limit";
@@ -53,7 +59,7 @@ export const GatewaySpendLimitEmailTemplate = ({
   return (
     <Html>
       <Head />
-      <Preview>{`${keyName} reached its ${limit} spend limit`}</Preview>
+      <Preview>{`${subject.name} reached its ${limit} spend limit`}</Preview>
       <Tailwind>
         <Body className="mx-auto my-auto bg-background font-sans">
           <Container className="mx-auto my-10 w-[465px] max-w-[465px] table-fixed rounded border border-solid border-[#eaeaea] p-5 [overflow-wrap:anywhere]">
@@ -67,16 +73,16 @@ export const GatewaySpendLimitEmailTemplate = ({
               />
             </Section>
             <Heading className="mx-0 my-[30px] p-0 text-center text-2xl font-normal text-black">
-              <strong>{keyName}</strong> reached its spend limit
+              <strong>{subject.name}</strong> reached its spend limit
             </Heading>
             <Text className="text-sm leading-6 text-black">
               {receiverName ? `Hello ${receiverName},` : "Hello,"}
             </Text>
             <Text className="text-sm leading-6 text-black">
-              {keyLabel} <strong>{keyName}</strong> in the{" "}
-              <strong>{orgName}</strong> organization has spent its{" "}
-              <strong>{limit}</strong> limit on the AI Gateway. Requests with
-              this key are rejected {until}.
+              {subject.label} <strong>{subject.name}</strong> (
+              {subject.identifier}) in the <strong>{orgName}</strong>{" "}
+              organization has spent its <strong>{limit}</strong> limit on the
+              AI Gateway. {subject.requests} are rejected {until}.
             </Text>
             <Section className="mb-4 mt-8 text-center">
               {/* Note: link always refers to a root langfuse url and is not vulnerable to hyperlink injection attacks */}
@@ -99,7 +105,7 @@ export const GatewaySpendLimitEmailTemplate = ({
               <span className="text-black">{receiverEmail}</span>. It was sent
               from <span className="text-black">{emailFromAddress}</span>
               {audience === "keyOwner"
-                ? " because you own this gateway key."
+                ? ` because you own this ${subject.noun}.`
                 : " because you are an owner of this organization."}
             </Text>
           </Container>
@@ -108,3 +114,27 @@ export const GatewaySpendLimitEmailTemplate = ({
     </Html>
   );
 };
+
+export function getGatewaySpendLimitEmailSubject(
+  scope: GatewaySpendLimitEmailScope,
+  orgName: string,
+): string {
+  const { noun, name } = describeScope(scope, "orgOwner");
+  return `${noun[0]!.toUpperCase()}${noun.slice(1)} "${name}" reached its spend limit in "${orgName}"`;
+}
+
+function describeScope(
+  scope: GatewaySpendLimitEmailScope,
+  audience: GatewaySpendLimitEmailTemplateProps["audience"],
+) {
+  switch (scope.type) {
+    case "API_KEY":
+      return {
+        noun: "gateway key",
+        label: audience === "keyOwner" ? "Your gateway key" : "The gateway key",
+        name: scope.name,
+        identifier: scope.displaySecretKey,
+        requests: "Requests with this key",
+      };
+  }
+}

@@ -4,7 +4,10 @@ import {
   getEmailAppBaseUrl,
   type NotificationEventType,
 } from "@langfuse/shared/src/server";
-import { GatewaySpendLimitEmailTemplate } from "@langfuse/shared/src/server/services/email/aiGatewaySpendLimit/GatewaySpendLimitEmailTemplate";
+import {
+  GatewaySpendLimitEmailTemplate,
+  getGatewaySpendLimitEmailSubject,
+} from "@langfuse/shared/src/server/services/email/aiGatewaySpendLimit/GatewaySpendLimitEmailTemplate";
 
 import { env } from "../../env";
 
@@ -24,7 +27,7 @@ export async function handleGatewaySpendLimitNotification({
   to,
   receiverName,
   audience,
-  keyName,
+  scope,
   interval,
   limitUsd,
   resetsAt,
@@ -46,7 +49,7 @@ export async function handleGatewaySpendLimitNotification({
     GatewaySpendLimitEmailTemplate({
       audience,
       orgName,
-      keyName,
+      scope,
       interval: interval.toLowerCase(),
       limitUsd,
       resetsAt: resetsAt
@@ -66,7 +69,7 @@ export async function handleGatewaySpendLimitNotification({
   await createMailTransport(env.SMTP_CONNECTION_URL).sendMail({
     to,
     from: `Langfuse <${env.EMAIL_FROM_ADDRESS}>`,
-    subject: `Gateway key "${keyName}" reached its spend limit in "${orgName}"`,
+    subject: getGatewaySpendLimitEmailSubject(scope, orgName),
     html,
   });
 }

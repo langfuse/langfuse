@@ -137,7 +137,12 @@ async function findReportedLimit(
       generation: true,
       organization: { select: { id: true, name: true } },
       apiKey: {
-        select: { note: true, user: { select: { email: true, name: true } } },
+        select: {
+          id: true,
+          note: true,
+          displaySecretKey: true,
+          user: { select: { email: true, name: true } },
+        },
       },
     },
   });
@@ -157,7 +162,12 @@ function toNotificationJob(
     to: recipient.to,
     receiverName: recipient.name ?? undefined,
     audience: recipient.audience,
-    keyName: limit.apiKey.note ?? "Unnamed key",
+    scope: {
+      type: "API_KEY",
+      apiKeyId: limit.apiKey.id,
+      name: limit.apiKey.note ?? "Unnamed key",
+      displaySecretKey: limit.apiKey.displaySecretKey,
+    },
     interval: limit.interval,
     limitUsd: limit.limitUsd.toNumber(),
     resetsAt: getGatewaySpendLimitWindowEnd(

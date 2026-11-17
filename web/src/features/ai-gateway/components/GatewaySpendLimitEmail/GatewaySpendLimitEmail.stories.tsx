@@ -7,7 +7,11 @@ const meta = preview.meta({
   component: GatewaySpendLimitEmailTemplate,
   args: {
     orgName: "Acme",
-    keyName: "Support bot",
+    scope: {
+      type: "API_KEY" as const,
+      name: "Support bot",
+      displaySecretKey: "sk-lf-gw-...91bc",
+    },
     interval: "daily",
     limitUsd: 25,
     resetsAt: "Nov 17, 2026, 12:00 AM UTC",

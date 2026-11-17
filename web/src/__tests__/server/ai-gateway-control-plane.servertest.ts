@@ -2850,7 +2850,10 @@ describe("AI gateway control plane", () => {
       expect.objectContaining({
         to: memberEmail,
         audience: "keyOwner",
-        keyName: "Member key",
+        scope: expect.objectContaining({
+          type: "API_KEY",
+          name: "Member key",
+        }),
         limitUsd: 10,
         resetsAt: "2026-11-17T00:00:00.000Z",
       }),

@@ -330,7 +330,16 @@ export const NotificationEventSchema = z.discriminatedUnion("type", [
     to: z.string(),
     receiverName: z.string().optional(),
     audience: z.enum(["keyOwner", "orgOwner"]),
-    keyName: z.string(),
+    /** What the limit applies to, mirroring the limit's scope. */
+    scope: z.discriminatedUnion("type", [
+      z.object({
+        type: z.literal("API_KEY"),
+        apiKeyId: z.string(),
+        name: z.string(),
+        /** Masked secret key, as the gateway keys table shows it. */
+        displaySecretKey: z.string(),
+      }),
+    ]),
     interval: z.enum(["DAILY", "WEEKLY", "MONTHLY", "TOTAL"]),
     limitUsd: z.number(),
     /** ISO timestamp of the next window; absent for total limits. */
