@@ -1,6 +1,7 @@
 import type { FilterState } from "@langfuse/shared";
 import type { TopicFacet, TopicFacetRef } from "@langfuse/shared/topics";
 import type { RouterOutputs } from "@/src/utils/api";
+import { formatCompactRelativeTime } from "@/src/utils/dates";
 
 export type TopicMapsOverview = RouterOutputs["topics"]["maps"];
 export type TopicRuleMap = TopicMapsOverview["rules"][number];
@@ -58,20 +59,14 @@ export function filterCountLabel(filter: FilterState) {
   return `${filter.length} ${filter.length === 1 ? "filter" : "filters"}`;
 }
 
-function hoursLabel(ms: number) {
-  const hours = Math.round(ms / 3_600_000);
-  if (hours < 1) return `${Math.max(1, Math.round(ms / 60_000))} min`;
-  return `${hours} h`;
-}
-
-/** "Updated 2 h ago" for a rule map. */
+/** "Updated 2h ago" or "Updated 27d ago" for a rule map. */
 export function topicRuleFreshness(
   rule: Pick<TopicRuleMap, "enabled" | "lastRefitAt">,
   now: number,
 ) {
   if (rule.enabled === false) return "Paused · map frozen";
   if (!rule.lastRefitAt) return "First clustering pending";
-  return `Updated ${hoursLabel(now - Date.parse(rule.lastRefitAt))} ago`;
+  return `Updated ${formatCompactRelativeTime(new Date(rule.lastRefitAt), now)}`;
 }
 
 /** The selected facets at their current prompt versions. */
