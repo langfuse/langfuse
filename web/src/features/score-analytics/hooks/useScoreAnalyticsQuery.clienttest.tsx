@@ -2,6 +2,11 @@ import type { Mock } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { api } from "../../../utils/api";
 import { useScoreAnalyticsQuery } from "./useScoreAnalyticsQuery";
+import {
+  buildNumericDistributionChartData,
+  formatDistributionDecimal,
+  generateBinLabels,
+} from "../lib/score-analytics-transformers";
 
 vi.mock("../../../utils/api", () => ({
   api: {
@@ -44,6 +49,107 @@ function ScoreAnalyticsProbe({
 }
 
 describe("useScoreAnalyticsQuery", () => {
+  it("formats numeric distribution bins with at most one decimal and no trailing zeros", () => {
+    expect(generateBinLabels({ min: 0, max: 1, nBins: 10 })).toEqual([
+      "0 - 0.1",
+      "0.1 - 0.2",
+      "0.2 - 0.3",
+      "0.3 - 0.4",
+      "0.4 - 0.5",
+      "0.5 - 0.6",
+      "0.6 - 0.7",
+      "0.7 - 0.8",
+      "0.8 - 0.9",
+      "0.9 - 1",
+    ]);
+  });
+
+  it("renders a rounded signed zero as 0", () => {
+    expect(formatDistributionDecimal(-0.04)).toBe("0");
+    expect(formatDistributionDecimal(-0)).toBe("0");
+    expect(formatDistributionDecimal(0.04)).toBe("0");
+    expect(formatDistributionDecimal(0.917)).toBe("0.9");
+    expect(formatDistributionDecimal(-0.05)).toBe("-0.1");
+    expect(generateBinLabels({ min: -0.2, max: 0.2, nBins: 10 })).toEqual([
+      "-0.2 - -0.2",
+      "-0.2 - -0.1",
+      "-0.1 - -0.1",
+      "-0.1 - 0",
+      "0 - 0",
+      "0 - 0",
+      "0 - 0.1",
+      "0.1 - 0.1",
+      "0.1 - 0.2",
+      "0.2 - 0.2",
+    ]);
+    expect(generateBinLabels({ min: -1, max: 0, nBins: 10 })).toEqual([
+      "-1 - -0.9",
+      "-0.9 - -0.8",
+      "-0.8 - -0.7",
+      "-0.7 - -0.6",
+      "-0.6 - -0.5",
+      "-0.5 - -0.4",
+      "-0.4 - -0.3",
+      "-0.3 - -0.2",
+      "-0.2 - -0.1",
+      "-0.1 - 0",
+    ]);
+  });
+
+  it("keeps distribution bins distinct when one-decimal labels repeat", () => {
+    const binLabels = generateBinLabels({ min: 0.8, max: 1, nBins: 10 });
+    const distribution1 = binLabels.map((_, binIndex) => ({
+      binIndex,
+      count: binIndex + 1,
+    }));
+    const distribution2 = binLabels.map((_, binIndex) => ({
+      binIndex,
+      count: 20 - binIndex,
+    }));
+    const chart = buildNumericDistributionChartData({
+      distribution1,
+      distribution2,
+      binLabels,
+    });
+    const keys = chart.data.map((row) => row.key);
+
+    expect(new Set(keys).size).toBe(chart.data.length);
+
+    const labels = chart.data.map((row) => chart.labelForKey(row.key));
+    expect(
+      labels.filter((label) => label === "0.8 - 0.8").length,
+    ).toBeGreaterThan(1);
+    const repeated = chart.data
+      .map((row, index) => ({ row, index }))
+      .filter(({ row }) => chart.labelForKey(row.key) === "0.9 - 0.9");
+    expect(repeated.length).toBeGreaterThan(1);
+    expect(repeated[0]?.row.key).not.toBe(repeated[1]?.row.key);
+    expect(repeated[0]?.row.values).toEqual({
+      score1: (repeated[0]?.index ?? 0) + 1,
+      score2: 20 - (repeated[0]?.index ?? 0),
+    });
+    expect(chart.labelForKey(chart.data[3]?.key ?? "")).toBe(binLabels[3]);
+
+    const single = buildNumericDistributionChartData({
+      distribution1,
+      binLabels,
+    });
+    expect(single.data[0]?.values).toEqual({ score1: 1 });
+    expect(single.data[0]?.values).not.toHaveProperty("score2");
+
+    const flatLabels = generateBinLabels({ min: 0, max: 0, nBins: 10 });
+    const flat = buildNumericDistributionChartData({
+      distribution1: flatLabels.map((_, binIndex) => ({ binIndex, count: 1 })),
+      binLabels: flatLabels,
+    });
+    expect(new Set(flat.data.map((row) => row.key)).size).toBe(
+      flat.data.length,
+    );
+    expect(flat.data.map((row) => flat.labelForKey(row.key))).toEqual(
+      flatLabels,
+    );
+  });
+
   afterEach(() => {
     mockedUseQuery.mockReset();
   });

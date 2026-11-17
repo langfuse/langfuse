@@ -51,6 +51,8 @@
     },
     "web": {
       "oxlint": { "config": ["oxlint.config.mts"] },
+      // Knip's default patterns miss shared and per-project configs, causing false unused dependencies.
+      "vitest": { "config": ["vitest*.mts"] },
       "entry": [
         // Components imported by MDX documentation, which Knip does not trace.
         ".storybook/docs/**/*.tsx",
