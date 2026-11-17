@@ -78,7 +78,8 @@ const DARK = {
   fieldOpacity: 0.7,
   grain: 0.5,
   fieldTone: { lightness: 0.5, chroma: 0.13 },
-  ringAlpha: 0.18,
+  ringAlpha: 0.9,
+  ring: "oklch(0.3 0 0)",
   neutralDot: "oklch(0.62 0 0)",
 };
 
@@ -263,14 +264,12 @@ export function drawLookDot(
   // Dots grow gently as you zoom in (6px at the fit, about 10px at 300%) and on a larger stage.
   const radius = (dot.size * stage * Math.sqrt(Math.max(1, zoom))) / 2;
   const [r, g, b] = rgb.map((value) => Math.round(value * dot.shade));
-  // On dark, a faint light ring separates dots without outlining them in black.
+  // On dark, a mid-dark ring separates crowded dots without a hard black outline.
   const dark = isDark();
   context.globalAlpha = opacity * (dark ? DARK.ringAlpha : dot.ringAlpha);
   context.beginPath();
   context.arc(center.x, center.y, radius + dot.ring * stage, 0, 2 * Math.PI);
-  context.fillStyle = dark
-    ? "rgb(255, 255, 255)"
-    : `rgb(${background.join(", ")})`;
+  context.fillStyle = dark ? DARK.ring : `rgb(${background.join(", ")})`;
   context.fill();
   context.globalAlpha = opacity;
   context.beginPath();
