@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createAnthropic } from "@ai-sdk/anthropic";
 import type { LanguageModel } from "ai";
 

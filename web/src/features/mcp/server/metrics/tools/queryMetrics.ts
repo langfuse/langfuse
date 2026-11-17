@@ -10,12 +10,12 @@ import {
 import {
   MetricsQueryObjectV2,
   publicGranularities,
-} from "@/src/features/public-api/server";
+} from "@/src/features/public-api/types/metrics";
 import { defineTool } from "../../../core/define-tool";
 import { McpAdvancedFilterBaseSchema } from "../../../core/filter-schema";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 import { z } from "zod";
 
 const DEFAULT_ROW_LIMIT = 100;

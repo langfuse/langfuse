@@ -1,35 +1,34 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-import { Button } from "@/src/components/ui/button";
 import { useState } from "react";
-import {
-  DialogBody,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/src/components/ui/dialog";
-import { Input } from "@/src/components/ui/input";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { Input } from "@/src/components/design-system/Input/Input";
 
 type ModernSessionSaveViewDialogContentProps = {
   isSaving: boolean;
-  onCancel: () => void;
   onSave: (viewName: string) => void;
+  error?: string;
 };
 
 export function ModernSessionSaveViewDialogContent({
   isSaving,
-  onCancel,
   onSave,
+  error,
 }: ModernSessionSaveViewDialogContentProps) {
   const [viewName, setViewName] = useState("");
   const saveView = () => onSave(viewName.trim());
 
   return (
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle>Save as new view</DialogTitle>
-      </DialogHeader>
-      <DialogBody>
+    <Dialog
+      title="Save as new view"
+      actions={[
+        {
+          label: "Save view",
+          loading: isSaving,
+          disabled: !viewName.trim() || isSaving,
+          onClick: saveView,
+        },
+      ]}
+    >
+      <Dialog.Body>
         <div>
           <label
             htmlFor="modern-session-view-name"
@@ -50,19 +49,12 @@ export function ModernSessionSaveViewDialogContent({
             }}
           />
         </div>
-      </DialogBody>
-      <DialogFooter>
-        <Button variant="outline" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button
-          loading={isSaving}
-          disabled={!viewName.trim()}
-          onClick={saveView}
-        >
-          Save view
-        </Button>
-      </DialogFooter>
-    </DialogContent>
+        {error ? (
+          <p role="alert" className="text-destructive">
+            {error}
+          </p>
+        ) : null}
+      </Dialog.Body>
+    </Dialog>
   );
 }

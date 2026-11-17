@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { __test } from "./EmbeddingMapView";
+import { __test } from "@/src/features/topics/map/TopicMapExplorer";
 import {
   baseScale,
   fitCamera,
@@ -24,6 +24,7 @@ import {
   publishTopicMapFrame,
   setTopicMapHover,
 } from "./map/topic-map-store";
+import { mapWithoutUnassigned } from "./prepare-topic-display";
 
 const size = { width: 1000, height: 600 };
 const bounds = { minX: -100, maxX: 100, minY: -50, maxY: 50 };
@@ -55,6 +56,7 @@ function point(
     topicId: "billing",
     outcome: "assigned",
     summary: `Stored summary for ${traceId}`,
+    unitStartTime: "2026-10-01T00:00:00.000Z",
     ...overrides,
   };
 }
@@ -130,6 +132,7 @@ it("fits a tall cohort across the landscape plot while preserving pairwise dista
   ].map(([x, y], index) => ({
     traceId: `trace-${index}`,
     summary: `Summary ${index}`,
+    unitStartTime: "2026-10-01T00:00:00.000Z",
     topicId: null,
     outcome: "outlier" as const,
     x,
@@ -345,6 +348,28 @@ describe("topic map preparation", () => {
       expect(zone.y).toBeGreaterThanOrEqual(zone.bounds.minY);
       expect(zone.y).toBeLessThanOrEqual(zone.bounds.maxY);
     }
+  });
+
+  it("hides outlier and unavailable zones when unassigned traces are hidden", () => {
+    const model = prepareTopicMap(
+      mapWithoutUnassigned(
+        data([
+          point("invoice", -5, -1),
+          point("resummarized", -4, 2),
+          point("new-request", 0, 8, { topicId: null, outcome: "outlier" }),
+          point("stale-assignment", 0, -8, {
+            topicId: null,
+            outcome: "unassigned",
+          }),
+        ]),
+      ),
+      topics,
+    );
+    expect(model.zones.map((zone) => zone.id)).toEqual(["billing"]);
+    expect(model.points.map((p) => p.traceId)).toEqual([
+      "invoice",
+      "resummarized",
+    ]);
   });
 
   it("keeps depth attached to trace identity across data and topic ordering", () => {

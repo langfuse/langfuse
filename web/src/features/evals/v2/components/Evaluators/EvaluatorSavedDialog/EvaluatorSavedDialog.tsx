@@ -91,7 +91,7 @@ export function EvaluatorSavedDialog({
         </DialogHeader>
         <DialogBody className="gap-0 p-0">
           <div className="grid h-[30rem] grid-cols-[minmax(0,1fr)_15rem] overflow-hidden">
-            <div className="min-w-0 overflow-y-auto px-6 py-5 [scrollbar-gutter:stable]">
+            <div className="min-w-0 overflow-y-auto px-6 py-5">
               <h3 className="mb-2 text-sm font-bold">
                 Set up rule to run on incoming observations
               </h3>
@@ -166,7 +166,7 @@ export function EvaluatorSavedDialog({
             </div>
             <aside
               className={cn(
-                "overflow-y-auto px-5 py-5 [scrollbar-gutter:stable]",
+                "overflow-y-auto px-5 py-5",
                 costSummary && "border-l",
               )}
             >

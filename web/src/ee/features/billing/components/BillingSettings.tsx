@@ -1,9 +1,9 @@
 /* eslint-disable no-nested-ternary */
 // Langfuse Cloud only
 
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import Header from "@/src/components/layouts/header";
-import { useHasEntitlement } from "@/src/features/entitlements";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useRouter } from "next/router";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 
@@ -17,7 +17,7 @@ import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCl
 import { SpendAlertsSection } from "./SpendAlerts/SpendAlertsSection";
 import { useBillingInformation } from "./useBillingInformation";
 import { api } from "@/src/utils/api";
-import { OrganizationUsageBreakdown } from "@/src/features/organization-usage";
+import { OrganizationUsageBreakdown } from "@/src/features/organization-usage/components/OrganizationUsageBreakdown";
 import { MAX_EVENTS_FREE_PLAN } from "@/src/ee/features/billing/constants";
 
 export const BillingSettings = () => {

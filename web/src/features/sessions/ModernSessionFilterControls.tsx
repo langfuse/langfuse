@@ -27,8 +27,8 @@ import type { useTableViewManager } from "@/src/components/table/table-view-pres
 import { useViewData } from "@/src/components/table/table-view-presets/hooks/useViewData";
 import { useViewMutations } from "@/src/components/table/table-view-presets/hooks/useViewMutations";
 import { Dialog } from "@/src/components/ui/dialog";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 type ViewControllers = Pick<
   ReturnType<typeof useTableViewManager>,
@@ -176,7 +176,6 @@ export function ModernSessionFilterControls({
     capture("saved_views:update_config", {
       tableName: TableViewPresetTableName.SessionDetail,
       viewId: updateView.id,
-      name: updateView.name,
     });
 
     const viewWasApplied =
@@ -308,14 +307,16 @@ export function ModernSessionFilterControls({
         ) : null}
       </Dialog>
 
-      <Dialog open={saveViewDialogOpen} onOpenChange={setSaveViewDialogOpen}>
+      <Dialog
+        open={saveViewDialogOpen}
+        onOpenChange={(open) => {
+          setSaveViewDialogOpen(open);
+          if (!open) setFilterDialogOpen(true);
+        }}
+      >
         {saveViewDialogOpen ? (
           <ModernSessionSaveViewDialogContent
             isSaving={createMutation.isPending}
-            onCancel={() => {
-              setSaveViewDialogOpen(false);
-              setFilterDialogOpen(true);
-            }}
             onSave={saveView}
           />
         ) : null}

@@ -15,11 +15,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { DiffLabel } from "@/src/features/datasets";
+import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import {
   getScoreDataTypeExplanation,
   splitScoreDataTypeIcon,
-} from "@/src/features/scores";
+} from "@/src/features/scores/lib/scoreColumns";
 import {
   formatScoreColumnAggregate,
   formatScoreValue,
@@ -80,7 +80,7 @@ const MatrixCell = ({
       <span className="font-bold">{formatScoreColumnAggregate(baseline)}</span>
       {hasBaselineColumn && delta !== null && delta !== 0 && (
         <DiffLabel
-          variant="ghost"
+          plain
           diff={{
             type: "NUMERIC",
             absoluteDifference: Math.abs(delta),

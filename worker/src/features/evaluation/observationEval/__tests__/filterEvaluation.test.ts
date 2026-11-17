@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { type Prisma } from "@langfuse/shared/src/db";
+import { Prisma } from "@langfuse/shared/src/db";
 import { scheduleObservationEvals } from "../scheduleObservationEvals";
 import {
   createTestObservation,
@@ -12,7 +12,13 @@ import {
   EvalTargetObject,
   normalizeEvaluationRuleTarget,
   observationForEvalSchema,
+  TopicsTargetObject,
 } from "@langfuse/shared";
+
+import {
+  prepareTraceBatchRules,
+  getMatchingTraceBatchRuleIds,
+} from "../../../traceBatching/traceBatchRules";
 
 // Mock logger to avoid noise in tests
 vi.mock("@langfuse/shared/src/server", async () => {
@@ -1245,5 +1251,89 @@ describe("tool_calls computation", () => {
     });
 
     expect(obs.tool_call_count).toBe(3);
+  });
+});
+
+describe("trace transcript rule matching", () => {
+  const projectId = "test-project-123";
+  const makeRules = (sampling: number) =>
+    ["first", "second"].map((id) => ({
+      id,
+      ruleId: id,
+      projectId,
+      targetObject: TopicsTargetObject,
+      status: "ACTIVE" as const,
+      sampling: new Prisma.Decimal(sampling),
+      filter: [
+        {
+          column: "Tags",
+          type: "stringOptions" as const,
+          operator: "any of" as const,
+          value: ["selected"],
+        },
+        {
+          column: "Status Message",
+          type: "string" as const,
+          operator: "contains" as const,
+          value: "retry",
+        },
+      ],
+      assignments: [
+        {
+          id: `${id}-assignment`,
+          evaluatorId: id,
+          variableMapping: null,
+          evaluator: { id, projectId, type: "LLM_AS_JUDGE" as const },
+        },
+      ],
+    }));
+
+  it("normalizes persisted columns and requires every predicate on one observation", async () => {
+    const rules = await prepareTraceBatchRules(projectId, makeRules(1));
+    const observation = createTestObservation({
+      tags: ["selected"],
+      status_message: "please retry",
+    });
+    expect(getMatchingTraceBatchRuleIds(observation, rules)).toEqual([
+      "first",
+      "second",
+    ]);
+    expect(
+      getMatchingTraceBatchRuleIds({ ...observation, tags: [] }, rules),
+    ).toEqual([]);
+    expect(
+      getMatchingTraceBatchRuleIds(
+        { ...observation, status_message: "ok" },
+        rules,
+      ),
+    ).toEqual([]);
+    expect(
+      getMatchingTraceBatchRuleIds(
+        { ...observation, project_id: "other" },
+        rules,
+      ),
+    ).toEqual([]);
+  });
+
+  it("shares the sampled trace cohort across spans and rules", async () => {
+    const rules = await prepareTraceBatchRules(projectId, makeRules(0.1));
+    const selected = Array.from({ length: 100 }, (_, index) => {
+      const observation = createTestObservation({
+        trace_id: `trace-${index}`,
+        tags: ["selected"],
+        status_message: "retry",
+      });
+      const result = getMatchingTraceBatchRuleIds(observation, rules);
+      expect(result).toEqual(result.length ? ["first", "second"] : []);
+      expect(
+        getMatchingTraceBatchRuleIds(
+          { ...observation, span_id: "another-span" },
+          rules,
+        ),
+      ).toEqual(result);
+      return result.length > 0;
+    });
+    expect(selected).toContain(true);
+    expect(selected).toContain(false);
   });
 });

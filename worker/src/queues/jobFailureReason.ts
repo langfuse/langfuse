@@ -1,5 +1,8 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { isS3SlowDownError } from "@langfuse/shared/src/server";
+import {
+  StaleAlertError,
+  type StaleAlertReason,
+} from "@langfuse/shared/monitors/server";
 
 const MAX_CAUSE_DEPTH = 8;
 
@@ -9,6 +12,7 @@ export type JobFailureReason =
   | "invalid_data"
   | "network"
   | "stalled"
+  | StaleAlertReason
   | "other";
 
 /**
@@ -17,6 +21,7 @@ export type JobFailureReason =
  */
 export function classifyJobFailure(err: unknown): JobFailureReason {
   if (isS3SlowDownError(err)) return "s3_slowdown";
+  if (err instanceof StaleAlertError) return err.reason;
 
   const chain = causeChain(err);
   if (chain.some(isPayloadTooLarge)) return "payload_too_large";

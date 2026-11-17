@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createHash } from "node:crypto";
 
 import { context, propagation, trace, type Context } from "@opentelemetry/api";
@@ -9,7 +8,11 @@ import { env } from "@/src/env.mjs";
 import { verifyHmacSha256 } from "@/src/server/utils/hmac";
 import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
 
-import { GatewayApiFormatSchema, type GatewayApiFormat } from "../provider";
+import {
+  GatewayApiFormatSchema,
+  type GatewayApiFormat,
+} from "@/src/features/ai-gateway/server/provider/registry";
+
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import { GatewayModelRoutingService } from "@/src/features/ai-gateway/server/routing/gatewayModelRoutingService";
 
@@ -21,11 +24,14 @@ const modelRoutingService = new GatewayModelRoutingService();
 const resolveBodySchema = z
   .object({
     apiFormat: GatewayApiFormatSchema,
-    model: z
-      .string()
-      .refine((model) => modelRoutingService.resolve(model, []) !== null),
+    model: z.string(),
+    requestBytes: z.number().int().nonnegative(),
   })
-  .strict();
+  .strict()
+  .refine(
+    ({ apiFormat, model }) =>
+      modelRoutingService.resolve(model, [], apiFormat) !== null,
+  );
 const modelsQuerySchema = z
   .object({ api_format: GatewayApiFormatSchema })
   .strict();
@@ -44,6 +50,7 @@ type GatewayResolveHandler = (
   params: GatewayControlPlaneHandlerParams & {
     apiFormat: GatewayApiFormat;
     model: string;
+    requestBytes: number;
   },
 ) => Promise<unknown>;
 
@@ -120,6 +127,7 @@ export function withGatewayResolveSignatureVerification(
         ...params,
         apiFormat: body.apiFormat,
         model: body.model,
+        requestBytes: body.requestBytes,
       }),
     resolveBodySchema,
   );

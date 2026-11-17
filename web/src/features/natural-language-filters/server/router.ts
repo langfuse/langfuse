@@ -19,7 +19,7 @@ import {
 import { env } from "@/src/env.mjs";
 import { CreateNaturalLanguageFilterCompletion } from "./validation";
 import { parseFiltersFromCompletion, getLangfuseClient } from "./utils";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export const naturalLanguageFilterRouter = createTRPCRouter({
   createCompletion: protectedProjectProcedure
@@ -98,12 +98,10 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           env.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
           env.LANGFUSE_AI_FEATURES_SECRET_KEY,
           env.LANGFUSE_AI_FEATURES_HOST,
-          false,
         );
 
-        const promptResponse = await client.getPrompt(
+        const promptResponse = await client.prompt.get(
           "get-filter-conditions-from-query",
-          undefined,
           { type: "chat" },
         );
 

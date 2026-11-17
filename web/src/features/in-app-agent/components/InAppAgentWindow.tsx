@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 "use client";
 
 import {
@@ -89,7 +89,7 @@ import {
   type InAppAgentQuickActionContext,
   type InAppAgentSubmitOptions,
 } from "@/src/features/in-app-agent/quickActions";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { HaloIcon } from "@/src/features/in-app-agent/components/HaloIcon";
 

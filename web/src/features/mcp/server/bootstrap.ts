@@ -27,8 +27,9 @@ import { batchEvaluationsFeature, evalsFeature } from "./evals";
 import { dashboardWidgetsFeature } from "./dashboardWidgets";
 import { feedbackFeature } from "./feedback";
 import { experimentsFeature } from "./experiments";
-import { externalMediaStorageFeature } from "./externalMediaStorage";
+import { externalMediaStorageFeature } from "@/src/ee/features/external-media-storage/server/mcp";
 import { monitorsFeature } from "./monitors";
+import { topicsFeature } from "./topics";
 import { v4MigrationFeature } from "./v4Migration";
 
 const MCP_FEATURES = [
@@ -51,6 +52,7 @@ const MCP_FEATURES = [
   experimentsFeature,
   externalMediaStorageFeature,
   monitorsFeature,
+  topicsFeature,
   v4MigrationFeature,
 ] as const satisfies readonly McpFeatureModule[];
 

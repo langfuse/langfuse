@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { PassThrough } from "node:stream";
 
 import type Docker from "dockerode";

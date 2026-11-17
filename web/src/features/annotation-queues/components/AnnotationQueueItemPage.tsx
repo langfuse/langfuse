@@ -1,7 +1,7 @@
-/* eslint-disable @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { Card } from "@/src/components/ui/card";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import {
   AnnotationQueueStatus,
@@ -13,6 +13,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "zustand";
 import {
+  AnnotationScoreSaveError,
   createAnnotationQueueRun,
   type AnnotationQueueRun,
   type QueueRunDependencies,
@@ -34,7 +35,8 @@ import {
   isInteractiveTarget,
   isOpenDialogPresent,
   isTypingTarget,
-} from "@/src/features/scores";
+} from "@/src/features/scores/lib/keyboardShortcuts";
+import type { AnnotationCommentFlush } from "@/src/features/scores/types";
 import { useAnnotationQueueData } from "./shared/hooks/useAnnotationQueueData";
 import { useAnnotationObjectData } from "./shared/hooks/useAnnotationObjectData";
 import { TraceAnnotationProcessor } from "./processors/TraceAnnotationProcessor";
@@ -228,10 +230,18 @@ function AnnotationQueueRunContent({
     () => run.actions.next(dependencies),
     [run, dependencies],
   );
-  const handleComplete = useCallback(
-    () => run.actions.complete(dependencies),
-    [run, dependencies],
-  );
+  const commentFlushRef = useRef<AnnotationCommentFlush>(null);
+  const handleComplete = useCallback(() => {
+    // Numeric and text scores save on blur, which Mark Completed and
+    // Cmd/Ctrl+Enter already trigger. A comment draft stays on this item's
+    // annotation form until Save Changes, so write it and wait for that
+    // score's saves before completion unmounts the row.
+    return run.actions.complete(dependencies, async () => {
+      const failed =
+        (await commentFlushRef.current?.flushPendingComments()) ?? [];
+      if (failed.length > 0) throw new AnnotationScoreSaveError(failed);
+    });
+  }, [run, dependencies]);
 
   // Brief highlight on the button when its shortcut fires.
   const [shortcutPulse, setShortcutPulse] = useState<
@@ -422,6 +432,7 @@ function AnnotationQueueRunContent({
             data={objectData.data}
             configs={configs}
             projectId={projectId}
+            commentFlushRef={commentFlushRef}
           />
         );
       case AnnotationQueueObjectType.SESSION:
@@ -431,6 +442,7 @@ function AnnotationQueueRunContent({
             data={objectData.data}
             configs={configs}
             projectId={projectId}
+            commentFlushRef={commentFlushRef}
           />
         );
       default:

@@ -13,7 +13,7 @@ import {
 } from "@/src/components/ui/select";
 import { Slider } from "@/src/components/ui/Slider";
 import { CreateLLMApiKeyDialog } from "@/src/features/public-api/components/CreateLLMApiKeyDialog";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -35,7 +35,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { FormDescription } from "@/src/components/ui/form";
-import { CodeMirrorEditor } from "../editor";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { LLMApiKeyComponent } from "./LLMApiKeyComponent";
 

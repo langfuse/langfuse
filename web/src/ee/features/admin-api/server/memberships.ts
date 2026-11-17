@@ -1,14 +1,19 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 
-import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import {
   deleteUserBoundApiKeys,
-  deleteUserBoundApiKeysForRole,
   evictRevokedApiKeys,
+  evictUserGatewayResolveCache,
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { deleteSessionViewsWithoutProjectAccess } from "@/src/features/sessions/server/fns/deleteSessionViewsWithoutProjectAccess";
+import {
+  deleteOrgMembership,
+  saveOrgMembership,
+} from "@langfuse/shared/memberships";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { authorize } from "@/src/features/rbac/authorize";
 import { ForbiddenError, Role } from "@langfuse/shared";
@@ -86,7 +91,7 @@ export async function handleUpdateMembership(
     });
   }
 
-  const { membership, revokedKeys } = await prisma.$transaction(async (tx) => {
+  const membership = await prisma.$transaction(async (tx) => {
     const before = await tx.organizationMembership.findUnique({
       where: { orgId_userId: { orgId, userId: validatedBody.data.userId } },
     });
@@ -98,14 +103,13 @@ export async function handleUpdateMembership(
       from: before?.role,
       to: validatedBody.data.role,
     });
-    const after = await tx.organizationMembership.upsert({
-      where: { orgId_userId: { orgId, userId: validatedBody.data.userId } },
-      update: { role: validatedBody.data.role },
-      create: {
-        orgId,
-        userId: validatedBody.data.userId,
-        role: validatedBody.data.role,
-      },
+    if (before?.role !== validatedBody.data.role) {
+      requireGatewayEnabledForRole(orgId, validatedBody.data.role);
+    }
+    const after = await saveOrgMembership(tx, {
+      orgId,
+      userId: validatedBody.data.userId,
+      role: validatedBody.data.role,
     });
     await auditLog(
       {
@@ -119,14 +123,16 @@ export async function handleUpdateMembership(
       },
       tx,
     );
-    const revokedKeys = await deleteUserBoundApiKeysForRole(tx, {
+    await deleteSessionViewsWithoutProjectAccess(tx, {
       userId: validatedBody.data.userId,
       orgId,
-      role: validatedBody.data.role,
     });
-    return { membership: after, revokedKeys };
+    return after;
   });
-  await evictRevokedApiKeys(revokedKeys, { apiKeyId });
+  await evictUserGatewayResolveCache(prisma, {
+    orgId,
+    userId: membership.userId,
+  });
 
   await getSfdcService()?.setUserRole({
     orgId,
@@ -171,9 +177,7 @@ export async function handleDeleteMembership(
       orgId,
       from: before.role,
     });
-    await tx.organizationMembership.delete({
-      where: { id: before.id, orgId },
-    });
+    await deleteOrgMembership(tx, { orgId, userId: before.userId });
     await auditLog(
       {
         orgId,
@@ -186,6 +190,10 @@ export async function handleDeleteMembership(
       tx,
     );
     const revokedKeys = await deleteUserBoundApiKeys(tx, {
+      userId: validatedBody.data.userId,
+      orgId,
+    });
+    await deleteSessionViewsWithoutProjectAccess(tx, {
       userId: validatedBody.data.userId,
       orgId,
     });

@@ -2,7 +2,7 @@ import { useState, type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { EmbeddingMapView } from "./EmbeddingMapView";
+import { TopicMapExplorer as EmbeddingMapView } from "@/src/features/topics/map/TopicMapExplorer";
 import {
   fitCamera,
   prepareTopicMap,
@@ -17,6 +17,7 @@ const data = {
     {
       traceId: "trace-billing",
       summary: "Customer asks for a copy of an invoice.",
+      unitStartTime: "2026-10-01T00:00:00.000Z",
       topicId: "billing",
       outcome: "assigned",
       x: 0,
@@ -25,6 +26,7 @@ const data = {
     {
       traceId: "trace-outlier",
       summary: "Customer asks about a new integration.",
+      unitStartTime: "2026-10-01T00:00:00.000Z",
       topicId: null,
       outcome: "outlier",
       x: 3,
@@ -130,6 +132,7 @@ const denseData = {
         return {
           traceId: `demo-${cluster.id}-${index + 1}`,
           summary: `${cluster.summaries[index % cluster.summaries.length]} Request ${index + 1}.`,
+          unitStartTime: "2026-10-01T00:00:00.000Z",
           topicId: cluster.id,
           outcome: "assigned" as const,
           x: cluster.center[0] + Math.cos(angle) * radius,
@@ -141,6 +144,7 @@ const denseData = {
       traceId: `demo-outlier-${index + 1}`,
       summary:
         "A gift-wrapping request does not match the recurring operational issues.",
+      unitStartTime: "2026-10-01T00:00:00.000Z",
       topicId: null,
       outcome: "outlier" as const,
       x: -30 + index * 8,
@@ -150,6 +154,7 @@ const denseData = {
       traceId: `demo-unassigned-${index + 1}`,
       summary:
         "An exchange-policy summary has saved coordinates but its topic assignment is unavailable.",
+      unitStartTime: "2026-10-01T00:00:00.000Z",
       topicId: null,
       outcome: "unassigned" as const,
       x: 73 + index * 2,
@@ -242,7 +247,7 @@ async function zoomToInlineNodes(canvasElement: HTMLElement) {
 
 async function hoverInlineNode(canvasElement: HTMLElement) {
   const canvas = within(canvasElement);
-  const stage = canvas.getByRole("group", { name: /^Interactive topic map/ });
+  const stage = canvas.getByRole("group", { name: /^Interactive scatter/ });
   const result: {
     hovered?: { node: HTMLElement; clientX: number; clientY: number };
   } = {};
@@ -364,7 +369,7 @@ export const MissingSummaries = meta.story({
   args: { data: { ...data, missingSummaryCount: 2, unpositionedCount: 3 } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const stage = canvas.getByRole("group", { name: /^Interactive topic map/ });
+    const stage = canvas.getByRole("group", { name: /^Interactive scatter/ });
     const baseline = stage.getBoundingClientRect();
     const trigger = canvas.getByRole("button", { name: /^Map coverage/ });
     expect(getComputedStyle(trigger).pointerEvents).toBe("auto");
@@ -427,7 +432,7 @@ export const ExploreZoneAndTrace = meta.story({
     await userEvent.click(summaryButton);
     await expect(args.onSelectTrace).toHaveBeenCalledWith(trace.traceId);
     const stage = canvas.getByRole("group", {
-      name: /^Interactive topic map/,
+      name: /^Interactive scatter/,
     });
     await expect(summaryButton).toHaveAttribute("aria-pressed", "true");
     stage.focus();
@@ -435,7 +440,9 @@ export const ExploreZoneAndTrace = meta.story({
     await expect(args.onSelectTopic).toHaveBeenLastCalledWith(null);
     await userEvent.keyboard("{Home}");
     await expect(args.onSelectTopic).toHaveBeenLastCalledWith(null);
-    await userEvent.click(canvas.getByRole("button", { name: "Fit map (0)" }));
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Fit scatter (0)" }),
+    );
     await expect(args.onSelectTopic).toHaveBeenLastCalledWith(null);
   },
 });
@@ -452,7 +459,7 @@ export const NavigationClearsHover = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const stage = canvas.getByRole("group", {
-      name: /^Interactive topic map/,
+      name: /^Interactive scatter/,
     });
     await zoomToInlineNodes(canvasElement);
     const { node, ...at } = await hoverInlineNode(canvasElement);
@@ -510,7 +517,7 @@ export const NavigationClearsHover = meta.story({
       await expect(activeHover()).toBeNull();
 
       await hoverInlineNode(canvasElement);
-      const section = canvas.getByRole("region", { name: "Embedding map" });
+      const section = canvas.getByRole("region", { name: "Scatter" });
       const originalStyleWidth = section.style.width;
       const originalStageWidth = stage.getBoundingClientRect().width;
       try {
@@ -565,7 +572,7 @@ export const ReadingKeepsZoomedCloud = meta.story({
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     const stage = canvas.getByRole("group", {
-      name: /^Interactive topic map/,
+      name: /^Interactive scatter/,
     });
     await new Promise<void>((resolve) =>
       requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
@@ -695,7 +702,7 @@ export const HoverPreservesMapGeometry = meta.story({
   ),
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    const stage = canvas.getByRole("group", { name: /^Interactive topic map/ });
+    const stage = canvas.getByRole("group", { name: /^Interactive scatter/ });
     await waitFor(() =>
       expect(stage.getBoundingClientRect().height).toBeGreaterThan(0),
     );
@@ -792,6 +799,7 @@ export const InterruptingTopicFlightKeepsPaintedZoom = meta.story({
         {
           traceId: "flight-marker-left",
           summary: "An inventory lookup times out before returning stock.",
+          unitStartTime: "2026-10-01T00:00:00.000Z",
           topicId: "inventory-timeouts",
           outcome: "assigned",
           x: -5,
@@ -800,6 +808,7 @@ export const InterruptingTopicFlightKeepsPaintedZoom = meta.story({
         {
           traceId: "flight-marker-right",
           summary: "A repeated inventory lookup returns the same timeout.",
+          unitStartTime: "2026-10-01T00:00:00.000Z",
           topicId: "inventory-timeouts",
           outcome: "assigned",
           x: -4.75,
@@ -826,26 +835,25 @@ export const InterruptingTopicFlightKeepsPaintedZoom = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const stage = canvas.getByRole("group", { name: /^Interactive topic map/ });
+    const stage = canvas.getByRole("group", { name: /^Interactive scatter/ });
     await new Promise<void>((resolve) =>
       requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
     );
     const drawing = stage.querySelector("canvas");
     const context = drawing?.getContext("2d");
-    if (!context) throw new Error("The map canvas context is unavailable.");
+    if (!drawing || !context)
+      throw new Error("The map canvas context is unavailable.");
     const clearRect = context.clearRect;
     const scale = context.scale;
     const roundRect = context.roundRect;
     const painted = {
       scale: null as number | null,
-      distance: null as number | null,
-      centers: [] as { x: number; y: number }[],
+      offset: null as number | null,
       at: 0,
     };
     context.clearRect = (x, y, width, height) => {
       painted.scale = null;
-      painted.distance = null;
-      painted.centers = [];
+      painted.offset = null;
       painted.at = performance.now();
       clearRect.call(context, x, y, width, height);
     };
@@ -853,15 +861,13 @@ export const InterruptingTopicFlightKeepsPaintedZoom = meta.story({
       if (painted.scale === null) painted.scale = x;
       scale.call(context, x, y);
     };
+    // Culling changes which nodes paint; the node nearest the wheel anchor scales with zoom.
     context.roundRect = (x, y, width, height, radii) => {
-      if (painted.centers.length < 2) {
-        painted.centers.push({ x: x + width / 2, y: y + height / 2 });
-        if (painted.centers.length === 2)
-          painted.distance = Math.hypot(
-            painted.centers[0].x - painted.centers[1].x,
-            painted.centers[0].y - painted.centers[1].y,
-          );
-      }
+      const offset = Math.hypot(
+        x + width / 2 - drawing.clientWidth / 2,
+        y + height / 2 - drawing.clientHeight / 2,
+      );
+      painted.offset = Math.min(painted.offset ?? offset, offset);
       roundRect.call(context, x, y, width, height, radii);
     };
     try {
@@ -906,12 +912,12 @@ export const InterruptingTopicFlightKeepsPaintedZoom = meta.story({
       );
       await waitForMapSettled(canvasElement);
       await userEvent.click(
-        canvas.getByRole("button", { name: "Fit map (0)" }),
+        canvas.getByRole("button", { name: "Fit scatter (0)" }),
       );
       await new Promise<void>((resolve) => setTimeout(resolve, 420));
-      const beforeFitInterrupt = painted.distance;
+      const beforeFitInterrupt = painted.offset;
       if (beforeFitInterrupt === null || beforeFitInterrupt <= 0)
-        throw new Error("The fit flight has not painted both trace markers.");
+        throw new Error("The fit flight has not painted a trace.");
       const fitInterruptedAt = performance.now();
       stage.dispatchEvent(
         new WheelEvent("wheel", {
@@ -926,8 +932,8 @@ export const InterruptingTopicFlightKeepsPaintedZoom = meta.story({
       await new Promise<void>((resolve) => setTimeout(resolve, 240));
       await waitFor(() => {
         expect(painted.at).toBeGreaterThan(fitInterruptedAt);
-        expect(painted.distance).not.toBeNull();
-        const ratio = painted.distance! / beforeFitInterrupt;
+        expect(painted.offset).not.toBeNull();
+        const ratio = painted.offset! / beforeFitInterrupt;
         expect(ratio).toBeGreaterThan(0.97);
         expect(ratio).toBeLessThan(1.06);
       });
@@ -968,7 +974,7 @@ export const FilteringPreservesCamera = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const stage = canvas.getByRole("group", { name: /^Interactive topic map/ });
+    const stage = canvas.getByRole("group", { name: /^Interactive scatter/ });
     await userEvent.click(canvas.getByRole("button", { name: "Zoom in (+)" }));
     await userEvent.click(canvas.getByRole("button", { name: "Zoom in (+)" }));
     await userEvent.click(canvas.getByRole("button", { name: "Zoom in (+)" }));

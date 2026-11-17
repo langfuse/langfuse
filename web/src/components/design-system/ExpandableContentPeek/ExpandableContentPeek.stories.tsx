@@ -23,3 +23,10 @@ export const FitsWithoutPeek = meta.story({
     children: <p className="max-w-md text-sm">Short content renders as is.</p>,
   },
 });
+
+export const DefaultExpanded = meta.story({
+  args: {
+    ...Overflowing.input.args,
+    defaultExpanded: true,
+  },
+});

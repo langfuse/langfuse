@@ -14,12 +14,23 @@
  * like stringOptions none-of filters always have.
  */
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+} from "@testing-library/react";
 import {
   useSidebarFilterState,
   type CategoricalUIFilter,
 } from "./hooks/useSidebarFilterState";
 import type { FilterConfig } from "./lib/filter-config";
+import {
+  encodeFiltersGeneric,
+  decodeFiltersGeneric,
+  singleFilter,
+} from "@langfuse/shared";
 
 // The hook calls useQueryParam unconditionally even for the "memory" state
 // location used here; stub it out so no QueryParamProvider is needed.
@@ -158,6 +169,80 @@ const NAME_FILTER_CONFIG: FilterConfig = {
 const NAME_OPTIONS = {
   name: ["checkout", "search", "chat"],
 };
+
+describe("deselecting the last checkbox", () => {
+  it.each([
+    [TAGS_FILTER_CONFIG, TAG_OPTIONS, "tags", "tag-1"],
+    [NAME_FILTER_CONFIG, NAME_OPTIONS, "name", "checkout"],
+  ] as const)(
+    "keeps an empty categorical selection active (%s)",
+    (config, options, column, value) => {
+      const { result } = renderHook(() =>
+        useSidebarFilterState(config, options, { stateLocation: "memory" }),
+      );
+      const facet = () =>
+        result.current.filters.find(
+          (filter): filter is CategoricalUIFilter => filter.column === column,
+        )!;
+      act(() => facet().onOnlyChange?.(value));
+      act(() => facet().onChange([]));
+      expect(facet().value).toEqual([]);
+      expect(facet().isActive).toBe(true);
+      const emptySelection = result.current.filterState;
+      expect(
+        emptySelection.every(
+          (filter) => singleFilter.safeParse(filter).success,
+        ),
+      ).toBe(true);
+      act(() =>
+        result.current.setFilterState(
+          decodeFiltersGeneric(encodeFiltersGeneric(emptySelection)),
+        ),
+      );
+      expect(result.current.filterState).toEqual(emptySelection);
+      expect(facet().value).toEqual([]);
+      expect(facet().isActive).toBe(true);
+      act(() => facet().onChange([value]));
+      expect(facet().value).toEqual([value]);
+      act(() => facet().onReset?.());
+      expect(facet().isActive).toBe(false);
+      expect(result.current.filterState).toEqual([]);
+    },
+  );
+
+  it.each([false, true])(
+    "returns to both boolean labels checked after unchecking the last (inverted: %s)",
+    (invertValue) => {
+      const config: FilterConfig = {
+        tableName: "traces",
+        columnDefinitions: [],
+        facets: [
+          {
+            type: "boolean",
+            column: "isRootObservation",
+            label: "Root",
+            invertValue,
+          },
+        ],
+      };
+      const { result } = renderHook(() =>
+        useSidebarFilterState(config, {}, { stateLocation: "memory" }),
+      );
+      const facet = () => result.current.filters[0] as CategoricalUIFilter;
+      act(() => facet().onChange(["True"]));
+      act(() => facet().onChange([]));
+      expect(facet().value).toEqual(["True", "False"]);
+      expect(facet().isActive).toBe(false);
+      expect(result.current.filterState).toEqual([]);
+      act(() => facet().onChange(["False"]));
+      expect(facet().value).toEqual(["False"]);
+      act(() => facet().onReset?.());
+      expect(facet().value).toEqual(["True", "False"]);
+      expect(facet().isActive).toBe(false);
+      expect(result.current.filterState).toEqual([]);
+    },
+  );
+});
 
 // stringOptions facets share the display pipeline: the operator must be
 // exposed there too so the none-of pinning in data-table-controls can surface

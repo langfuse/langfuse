@@ -6,7 +6,11 @@ import { GatewayApiKeyAuthenticator } from "@/src/features/ai-gateway/server/aut
 import {
   type GatewayApiFormat,
   GatewayResolveResponseSchema,
-} from "@/src/features/ai-gateway/server/provider";
+} from "@/src/features/ai-gateway/server/provider/registry";
+import {
+  enforceGatewayRateLimits,
+  GatewayRateLimitError,
+} from "./gatewayRateLimit";
 import { GatewayResolveError, GatewayResolveService } from "./resolveService";
 
 export async function gatewayResolveApiHandler({
@@ -14,23 +18,35 @@ export async function gatewayResolveApiHandler({
   fastHashedSecretKey,
   apiFormat,
   model,
+  requestBytes,
 }: {
   req: NextApiRequest;
   res: NextApiResponse;
   fastHashedSecretKey: string;
   apiFormat: GatewayApiFormat;
   model: string;
+  requestBytes: number;
 }) {
   try {
     const context = await new GatewayApiKeyAuthenticator(
       prisma,
     ).authenticateRequest({ fastHashedSecretKey, apiFormat, model });
+    await enforceGatewayRateLimits({ context, requestBytes });
     const result = await new GatewayResolveService().resolve({
       context,
       apiFormat,
     });
     return res.status(200).json(GatewayResolveResponseSchema.parse(result));
   } catch (error) {
+    if (error instanceof GatewayRateLimitError) {
+      res.setHeader("Retry-After", String(error.retryAfterSeconds));
+      res.setHeader("langfuse-gateway-error-code", "rate_limit_exceeded");
+      return res.status(error.status).json({
+        error: error.message,
+        limit: error.limit,
+        organizationId: error.organizationId,
+      });
+    }
     if (error instanceof GatewayResolveError) {
       // The data plane retries a 503, so tell it when to come back rather than
       // letting it hammer a database that is already struggling.

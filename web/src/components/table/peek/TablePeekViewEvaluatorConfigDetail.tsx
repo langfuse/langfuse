@@ -18,10 +18,10 @@ import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
 import { DeactivateEvalConfig } from "@/src/features/evals/components/DeactivateEvalConfig";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useState } from "react";
 import { cn } from "@/src/utils/tailwind";
-import { showSuccessToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
 import { EvaluatorPausedCallout } from "@/src/features/evals/components/EvaluatorPausedCallout";
 import {

@@ -13,7 +13,12 @@ import {
   TriggerEventSourceSchema,
   ProjectNotificationEventTypeSchema,
 } from "@langfuse/shared";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import {
+  PagerDutyRegionSchema,
+  PagerDutyRoutingKeySchema,
+  PagerDutyTestEventStepSchema,
+} from "@langfuse/shared/pagerduty";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 } from "uuid";
 import {
   convertActionToDomain,
@@ -27,10 +32,14 @@ import {
 import { generateWebhookSecret, encrypt } from "@langfuse/shared/encryption";
 import { processWebhookActionConfig } from "./webhookHelpers";
 import { processGitHubDispatchActionConfig } from "./githubDispatchHelpers";
+import {
+  processPagerDutyActionConfig,
+  sendPagerDutyTestEvent,
+} from "@/src/features/pagerduty/server/pagerdutyHelpers";
 import { maskActionForViewer, processSlackActionConfig } from "./slackHelpers";
 import { updateTriggerEventActions } from "./automationService";
 import { TRPCError } from "@trpc/server";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 const CreateAutomationInputSchema = z.object({
   projectId: z.string(),
@@ -329,6 +338,11 @@ export const automationsRouter = createTRPCRouter({
         });
         finalActionConfig = githubResult.finalActionConfig;
         newUnencryptedWebhookSecret = githubResult.githubToken;
+      } else if (input.actionType === "PAGERDUTY") {
+        finalActionConfig = await processPagerDutyActionConfig({
+          actionConfig: input.actionConfig,
+          projectId: input.projectId,
+        });
       }
 
       const [trigger, action, automation] = await ctx.prisma.$transaction(
@@ -440,6 +454,12 @@ export const automationsRouter = createTRPCRouter({
           projectId: input.projectId,
         });
         finalActionConfig = githubResult.finalActionConfig;
+      } else if (input.actionType === "PAGERDUTY") {
+        finalActionConfig = await processPagerDutyActionConfig({
+          actionConfig: input.actionConfig,
+          actionId: existingAutomation.action.id,
+          projectId: input.projectId,
+        });
       }
 
       const [action, trigger, automation] = await ctx.prisma.$transaction(
@@ -649,5 +669,36 @@ export const automationsRouter = createTRPCRouter({
       });
 
       return count;
+    }),
+
+  sendPagerDutyTestEvent: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        region: PagerDutyRegionSchema,
+        routingKey: PagerDutyRoutingKeySchema.optional(),
+        actionId: z.string().optional(),
+        step: PagerDutyTestEventStepSchema,
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:CUD",
+      });
+
+      await sendPagerDutyTestEvent(input);
+
+      if (input.actionId) {
+        await auditLog({
+          session: ctx.session,
+          resourceType: "action",
+          resourceId: input.actionId,
+          action: "create",
+          after: { action: "test_event_sent", region: input.region },
+        });
+      }
+      return { success: true };
     }),
 });

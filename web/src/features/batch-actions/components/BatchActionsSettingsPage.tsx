@@ -1,6 +1,6 @@
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { ConnectedBatchActionsTable } from "./BatchActionsTable/ConnectedBatchActionsTable";
 
 export function BatchActionsSettingsPage(props: { projectId: string }) {

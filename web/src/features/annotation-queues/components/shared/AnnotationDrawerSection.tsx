@@ -1,5 +1,9 @@
 import { Card } from "@/src/components/ui/card";
-import { AnnotationForm, type ScoreTarget } from "@/src/features/scores";
+import { AnnotationForm } from "@/src/features/scores/components/AnnotationForm";
+import type {
+  AnnotationCommentFlush,
+  ScoreTarget,
+} from "@/src/features/scores/types";
 import {
   type AnnotationQueueItem,
   type ScoreDomain,
@@ -20,11 +24,20 @@ interface AnnotationDrawerSectionProps {
   configs: ScoreConfigDomain[];
   environment?: string;
   isV4: boolean;
+  commentFlushRef?: React.Ref<AnnotationCommentFlush>;
 }
 
 export const AnnotationDrawerSection: React.FC<
   AnnotationDrawerSectionProps
-> = ({ item, scoreTarget, scores, configs, environment, isV4 }) => {
+> = ({
+  item,
+  scoreTarget,
+  scores,
+  configs,
+  environment,
+  isV4,
+  commentFlushRef,
+}) => {
   const session = useSession();
 
   const isLockedByOtherUser = item.lockedByUserId !== session.data?.user?.id;
@@ -50,6 +63,7 @@ export const AnnotationDrawerSection: React.FC<
           source: "AnnotationQueue",
           isV4,
         }}
+        commentFlushRef={commentFlushRef}
         actionButtons={
           isLockedByOtherUser && isPresent(item.lockedByUser?.name) ? (
             <div className="border-dark-red bg-light-red flex items-center justify-center rounded-sm border p-1">

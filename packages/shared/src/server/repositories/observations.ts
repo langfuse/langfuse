@@ -11,11 +11,9 @@ import {
 } from "./clickhouse";
 import { logger } from "../logger";
 import { scoreBooleansAggregation } from "../queries/clickhouse-sql/query-fragments";
-import {
-  InternalServerError,
-  LangfuseNotFoundError,
-  PayloadTooLargeError,
-} from "../../errors";
+import { InternalServerError } from "../../errors/InternalServerError";
+import { LangfuseNotFoundError } from "../../errors/NotFoundError";
+import { PayloadTooLargeError } from "../../errors/PayloadTooLargeError";
 import { prisma } from "../../db";
 import { ObservationRecordReadType } from "./definitions";
 import { FilterState } from "../../types";
@@ -23,16 +21,16 @@ import {
   DateTimeFilter,
   FilterList,
   StringFilter,
-  FullObservations,
-  orderByToClickhouseSql,
-} from "../queries";
+} from "../queries/clickhouse-sql/clickhouse-filter";
+import { FullObservations } from "../queries/createGenerationsQuery";
+import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factory";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
   observationsTableTraceUiColumnDefinitions,
   observationsTableUiColumnDefinitions,
-} from "../tableMappings";
+} from "../tableMappings/mapObservationsTable";
 import { OrderByState } from "../../interfaces/orderBy";
-import { matchesUiColumnMapping } from "../../tableDefinitions";
+import { matchesUiColumnMapping } from "../../tableDefinitions/types";
 import { getTracesByIds } from "./traces";
 import {
   convertDateToClickhouseDateTime,
@@ -52,7 +50,7 @@ import { TracingSearchType } from "../../interfaces/search";
 import { observationsTableCols } from "../../observationsTable";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import type { AnalyticsGenerationEvent } from "../analytics-integrations/types";
-import { ObservationType } from "../../domain";
+import { ObservationType } from "../../domain/observations";
 import {
   LEGACY_OBSERVATION_EXPORT_FIELDS,
   OBSERVATION_FIELD_GROUPS_FULL,

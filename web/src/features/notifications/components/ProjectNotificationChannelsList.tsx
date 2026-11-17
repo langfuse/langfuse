@@ -1,5 +1,4 @@
-/* eslint-disable no-nested-ternary */
-import { SiSlack } from "@langfuse/icons/si";
+import { SiPagerduty, SiSlack } from "@langfuse/icons/si";
 import { Webhook, Plus, Pencil, Trash2 } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
@@ -17,8 +16,16 @@ const destinationLabel = (automation: AutomationDomain): string => {
     const config = automation.action.config;
     return config.type === "WEBHOOK" ? `Webhook ${config.url}` : "Webhook";
   }
+  if (automation.action.type === "PAGERDUTY") return "PagerDuty";
   return automation.action.type;
 };
+
+/** ChannelIcon renders the icon of a channel's action type. */
+function ChannelIcon({ type }: { type: AutomationDomain["action"]["type"] }) {
+  if (type === "SLACK") return <SiSlack size="base" />;
+  if (type === "PAGERDUTY") return <SiPagerduty size="base" />;
+  return <Webhook size="base" />;
+}
 
 export type ProjectNotificationChannelsListProps = {
   channels: AutomationDomain[] | undefined;
@@ -44,9 +51,10 @@ export function ProjectNotificationChannelsList({
 }: ProjectNotificationChannelsListProps) {
   return (
     <div className="flex flex-col gap-4">
-      {isLoading ? (
+      {isLoading && (
         <p className="text-muted-foreground text-sm">Loading channels...</p>
-      ) : !channels || channels.length === 0 ? null : (
+      )}
+      {!isLoading && channels && channels.length > 0 && (
         <div className="flex flex-col gap-3">
           {channels.map((channel) => (
             <div
@@ -54,11 +62,7 @@ export function ProjectNotificationChannelsList({
               className="flex items-center justify-between gap-4 rounded-lg border p-4"
             >
               <div className="flex min-w-0 items-center gap-2">
-                {channel.action.type === "SLACK" ? (
-                  <SiSlack size="base" />
-                ) : (
-                  <Webhook size="base" />
-                )}
+                <ChannelIcon type={channel.action.type} />
                 <span
                   className="truncate text-sm font-bold"
                   title={destinationLabel(channel)}

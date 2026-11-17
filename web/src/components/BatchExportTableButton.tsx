@@ -20,7 +20,7 @@ import {
 } from "@langfuse/shared";
 import React from "react";
 import { api } from "@/src/utils/api";
-import { showSuccessToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 export type BatchExportTableButtonProps = {
   projectId: string;
@@ -29,6 +29,7 @@ export type BatchExportTableButtonProps = {
   filterState: any;
   searchQuery?: any;
   searchType?: any;
+  disabledReason?: string;
 };
 
 export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
@@ -116,15 +117,21 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
             </div>
           )}
           <DropdownMenuSeparator />
-          {Object.entries(exportOptions).map(([key, options]) => (
-            <DropdownMenuItem
-              key={key}
-              className="capitalize"
-              onClick={() => handleExport(key as BatchExportFileFormat)}
-            >
-              as {options.label}
-            </DropdownMenuItem>
-          ))}
+          {props.disabledReason ? (
+            <div className="text-muted-foreground px-2 py-1.5 text-sm">
+              {props.disabledReason}
+            </div>
+          ) : (
+            Object.entries(exportOptions).map(([key, options]) => (
+              <DropdownMenuItem
+                key={key}
+                className="capitalize"
+                onClick={() => handleExport(key as BatchExportFileFormat)}
+              >
+                as {options.label}
+              </DropdownMenuItem>
+            ))
+          )}
         </DropdownMenuContent>
       </DropdownMenuPortal>
     </DropdownMenu>

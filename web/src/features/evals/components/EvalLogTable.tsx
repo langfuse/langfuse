@@ -18,15 +18,14 @@ import { createDateTableColumn } from "@/src/components/design-system/table/colu
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
-import {
-  useColumnOrder,
-  useColumnVisibility,
-} from "@/src/features/column-visibility";
-import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 
 import { EVAL_LOGS_FIELD_REGISTRY } from "@/src/features/evals/constants/tableSearchRegistry";
 import { evalLogFilterConfig } from "@/src/features/filters/config/eval-logs-config";
-import { useSidebarFilterState } from "@/src/features/filters";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { JobExecutionStatus, type Prisma } from "@langfuse/shared";

@@ -1,11 +1,25 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   type DataPoint,
   type FormatMetricOptions,
   type FormattedMetric,
+  type MetricUnit,
 } from "./chart-props";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { compactNumberFormatter, numberFormatter } from "@/src/utils/numbers";
+
+export function parseMetricUnit(
+  unit: string | undefined,
+): MetricUnit | undefined {
+  switch (unit) {
+    case "USD":
+    case "milliseconds":
+    case "tokens":
+    case "traces":
+      return unit;
+    default:
+      return undefined;
+  }
+}
 
 export const toFullMetricString = (metric: FormattedMetric): string =>
   `${metric.negative ? "-" : ""}${metric.prefix ?? ""}${metric.main}${metric.suffix ?? ""}`;
@@ -128,10 +142,7 @@ export const isTimeSeriesChart = (
  * collision dropping skips ticks unevenly (e.g. 6/9, 6/11, 6/13 vanish while
  * 6/1–6/8 stay), making tick density vary by chart width. (LFE-10549)
  */
-export const getEvenTickInterval = (
-  pointCount: number,
-  maxTicks = 8,
-): number =>
+export const getEvenTickInterval = (pointCount: number, maxTicks = 8): number =>
   pointCount <= maxTicks ? 0 : Math.ceil(pointCount / maxTicks) - 1;
 
 /**
@@ -166,7 +177,7 @@ export function getChartTypeDisplayName(
 
 export function valueFormatter(
   value: number | string,
-  unit?: string,
+  unit?: FormatMetricOptions["unit"],
   compact?: boolean,
 ): string {
   if (typeof value === "string") {
@@ -280,6 +291,8 @@ const formatCompactMetric = (
   return formatExponentialMetric(value, maxCharacters);
 };
 
+const MIN_DISPLAYED_USD = 0.01;
+
 const durationDivisors = [1, 1_000, 60_000, 3_600_000, 86_400_000] as const;
 const durationUnits = [
   "millisecond",
@@ -348,10 +361,11 @@ const formatWithConstrainedDecimals = ({
 /**
  * Formats a metric into structured parts for chart labels, axes, and tooltips.
  *
- * - `unit === "millisecond"` auto-scales across ms/s/min/h/d and can reduce
+ * - `unit === "milliseconds"` auto-scales across ms/s/min/h/d and can reduce
  *   fractional precision to satisfy `maxCharacters`.
  * - `unit === "USD"` formats with a currency prefix and can reduce fractional
- *   precision to satisfy `maxCharacters`.
+ *   precision to satisfy `maxCharacters`. With `usdPrecision: "cents"` it keeps
+ *   at most two decimals and renders non-zero values below one cent as `<$0.01`.
  * - `style === "compact"` uses compact suffixes for large values (`K`, `M`,
  *   `B`, `T`), decimal formatting for `1e-3 <= |value| < 1`, and exponential
  *   notation below `1e-3`.
@@ -366,7 +380,7 @@ export function formatMetric(
   value: number,
   options: FormatMetricOptions,
 ): FormattedMetric {
-  const { unit, style, maxCharacters } = options;
+  const { unit, style, maxCharacters, usdPrecision } = options;
 
   const negative = value < 0;
   const absValue = Math.abs(value);
@@ -377,7 +391,7 @@ export function formatMetric(
   const applyNegative = (formatted: FormattedMetric): FormattedMetric =>
     negative ? { negative: true, ...formatted } : formatted;
 
-  if (unit === "millisecond") {
+  if (unit === "milliseconds") {
     const tier = durationDivisors.reduce(
       (acc, divisor, i) => (absValue >= divisor ? i : acc),
       0,
@@ -408,7 +422,12 @@ export function formatMetric(
   }
 
   if (unit === "USD") {
-    const maxFractionDigits = value && absValue < 5 ? 6 : 2;
+    const roundsToCents = usdPrecision === "cents";
+    if (roundsToCents && absValue > 0 && absValue < MIN_DISPLAYED_USD) {
+      return applyNegative({ prefix: "<$", main: "0.01" });
+    }
+    const keepsSubCentDigits = !roundsToCents && absValue > 0 && absValue < 5;
+    const maxFractionDigits = keepsSubCentDigits ? 6 : 2;
 
     return applyNegative(
       formatWithConstrainedDecimals({

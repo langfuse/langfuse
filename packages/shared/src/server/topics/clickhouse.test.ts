@@ -5,9 +5,7 @@ import type {
   TopicDefinition,
   TopicSummary,
 } from "../../topics";
-import { topicSourceKey } from "../../topics";
 import {
-  listTopicSummaries,
   readTopicAssignments,
   readTopicMapAssignments,
   readTopicRunTraceIds,
@@ -17,7 +15,6 @@ import {
   getTopicSummaryCounts,
   getTopicExecutionCosts,
   getTopicClusteringSummaries,
-  getTopicClusteringSummaryStats,
   writeTopicSummaries,
   getTopicDefinitions,
   writeTopicDefinitions,
@@ -29,14 +26,8 @@ const mocks = vi.hoisted(() => ({
   exec: vi.fn(),
   query: vi.fn(),
   queryStream: vi.fn(),
-  publishedRuns: vi.fn(),
   cacheGet: vi.fn(),
   cacheSet: vi.fn(),
-}));
-vi.mock("../../db", () => ({
-  prisma: {
-    topicClusteringRun: { findMany: mocks.publishedRuns },
-  },
 }));
 vi.mock("../redis/redis", () => ({
   redis: { get: mocks.cacheGet, set: mocks.cacheSet },
@@ -60,7 +51,6 @@ beforeEach(() => {
   mocks.query.mockResolvedValue([]);
   mocks.queryStream.mockImplementation(async function* () {});
   mocks.exec.mockImplementation(async () => ({ stream: Readable.from([]) }));
-  mocks.publishedRuns.mockResolvedValue([{ id: "published-run" }]);
   mocks.cacheGet.mockResolvedValue(null);
 });
 
@@ -214,19 +204,51 @@ describe("Topics clustering capacity", () => {
     "rejects excessive $reason before inspecting payloads",
     async (capacity) => {
       await expect(
-        getTopicClusteringSummaryStats(...args, capacity),
-      ).resolves.toEqual({
-        count: 2,
-        bytes: 2 * embedding.embeddingDimensions * 8,
-      });
-      expect(mocks.query).toHaveBeenCalledOnce();
-      await expect(
         getTopicClusteringSummaries(...args, capacity),
       ).rejects.toThrow("smaller time window");
-      expect(mocks.query).toHaveBeenCalledTimes(2);
+      expect(mocks.query).toHaveBeenCalledOnce();
       expect(mocks.queryStream).not.toHaveBeenCalled();
     },
   );
+
+  it("selects a cohort inside ClickHouse and samples its summarized traces with the cohort seed", async () => {
+    const traces = {
+      query: "SELECT id FROM matching WHERE env = {envFilter:String}",
+      params: { envFilter: "production" },
+    };
+    const sample = { seed: "analysis-seed", limit: 20_000 };
+    await getTopicSummaryCounts(
+      "project-a",
+      [{ facetId: "facet-a", version: 1 }],
+      embedding,
+      timeRange,
+      { traces, sample },
+    );
+    const counts = mocks.query.mock.calls[0][0];
+    expect(counts.query).toContain(`AND trace_id IN (${traces.query})`);
+    expect(counts.query).toMatch(
+      /ORDER BY cityHash64\(trace_id, \{cohortSeed:String\}\), trace_id\s+LIMIT \{cohortLimit:UInt64\} BY facet_id, facet_version/,
+    );
+    expect(counts.query).not.toContain("Array(String)} AND trace_id");
+    expect(counts.params).toMatchObject({
+      envFilter: "production",
+      cohortSeed: "analysis-seed",
+      cohortLimit: 20_000,
+    });
+
+    mocks.queryStream.mockImplementation(async function* () {
+      yield row;
+    });
+    await getTopicClusteringSummaries(...args, limits, { traces, sample });
+    const [{ query, params }] = mocks.queryStream.mock.calls[0];
+    expect(query).toContain(`AND trace_id IN (${traces.query})`);
+    expect(query).toContain("LIMIT {cohortLimit:UInt64}");
+    expect(params).toMatchObject({
+      envFilter: "production",
+      cohortSeed: "analysis-seed",
+    });
+    expect(params).not.toHaveProperty("cohortTraceIds");
+  });
 
   it("returns the complete at-limit cohort and bounds the query result", async () => {
     mocks.queryStream.mockImplementation(async function* () {
@@ -318,12 +340,6 @@ it("bounds Topics payload reads by their storage timestamp", async () => {
   };
   const reads = [
     () => getTopicDefinitions("project-a", ["topic-a"], timeRange),
-    () =>
-      listTopicSummaries(
-        "project-a",
-        { facetId: "facet-a", facetVersion: 1, sources: [summaryFixture] },
-        timeRange,
-      ),
     () => getLatestFacetSummaries("project-a", "facet-a", undefined, timeRange),
     () =>
       getTopicClusteringSummaries(
@@ -345,7 +361,13 @@ it("bounds Topics payload reads by their storage timestamp", async () => {
         "run-a",
         timeRange,
       ),
-    () => readLatestTopicAssignments("project-a", "facet-a", timeRange),
+    () =>
+      readLatestTopicAssignments(
+        "project-a",
+        "facet-a",
+        ["published-run"],
+        timeRange,
+      ),
   ];
   for (const [index, read] of reads.entries()) {
     mocks.query.mockClear();
@@ -459,17 +481,15 @@ describe("Topics definition storage", () => {
 
 describe("Topics summary storage", () => {
   it("keeps trace and session lookups distinct and ignores a trace's parent session", async () => {
-    await listTopicSummaries(
+    await readTopicAssignments(
       "project-a",
-      {
-        facetId: "facet-a",
-        facetVersion: 2,
-        sources: [
-          { traceId: "source-a", sessionId: "parent-a" },
-          { traceId: "source-a", sessionId: "parent-b" },
-          { traceId: null, sessionId: "source-a" },
-        ],
-      },
+      { facetId: "facet-a", version: 2 },
+      [
+        { traceId: "source-a", sessionId: "parent-a" },
+        { traceId: "source-a", sessionId: "parent-b" },
+        { traceId: null, sessionId: "source-a" },
+      ],
+      "run-a",
       timeRange,
     );
     expect(mocks.query).toHaveBeenCalledOnce();
@@ -482,6 +502,7 @@ describe("Topics summary storage", () => {
       facetVersion: 2,
       traceIds: ["source-a", ""],
       sessionIds: ["", "source-a"],
+      runId: "run-a",
     });
     expect(query).toContain("project_id = {projectId:String}");
     expect(query).toContain("facet_id = {facetId:String}");
@@ -509,13 +530,13 @@ describe("Topics summary storage", () => {
     expect(mocks.insert).not.toHaveBeenCalled();
   });
 
-  it("rejects an unfinished summary before sending any rows to ClickHouse", async () => {
+  it("rejects a complete summary without an embedding before sending any rows to ClickHouse", async () => {
     await expect(
       writeTopicSummaries([
         summaryFixture,
         {
           ...summaryFixture,
-          state: "summarized",
+          state: "complete",
           embedding: [],
         },
       ]),
@@ -596,27 +617,14 @@ describe("Topics summary storage", () => {
     );
     const sources = traceIds.map((traceId) => ({ traceId, sessionId: null }));
     const facet = { facetId: "facet-a", version: 2 };
-    for (const read of [
-      () =>
-        listTopicSummaries(
-          "project-a",
-          {
-            facetId: facet.facetId,
-            facetVersion: facet.version,
-            traceIds: [...traceIds, traceIds[0]],
-          },
-          timeRange,
-        ),
-      () =>
-        readTopicAssignments(
-          "project-a",
-          facet,
-          [...sources, sources[0]],
-          "run-a",
-          timeRange,
-        ),
-    ]) {
-      await read();
+    {
+      await readTopicAssignments(
+        "project-a",
+        facet,
+        [...sources, sources[0]],
+        "run-a",
+        timeRange,
+      );
       expect(
         mocks.query.mock.calls.flatMap(([request]) => request.params.traceIds),
       ).toEqual(traceIds);
@@ -671,54 +679,42 @@ describe("Topics summary storage", () => {
       });
       mocks.query.mockResolvedValue([
         {
-          ...summary,
-          traceId: identity.traceId ?? "",
-          sessionId: identity.sessionId ?? "",
-          traceName: inserted.trace_name,
-          unitStartTimeMs: Date.parse(summary.unitStartTime).toString(),
-          processedAtMs: Date.parse(summary.processedAt).toString(),
-          providedUsageDetails: clickhouseNumberMap(
-            summary.providedUsageDetails,
-          ),
-          usageDetails: clickhouseNumberMap(summary.usageDetails),
-          providedCostDetails: clickhouseNumberMap(summary.providedCostDetails),
-          costDetails: clickhouseNumberMap(summary.costDetails),
-          metadataJson: "{}",
+          facetId: summary.facetId,
+          facetVersion: summary.facetVersion,
+          count: "1",
         },
       ]);
+      const row = {
+        ...summary,
+        traceId: identity.traceId ?? "",
+        sessionId: identity.sessionId ?? "",
+        traceName: inserted.trace_name,
+        unitStartTimeMs: Date.parse(summary.unitStartTime).toString(),
+        processedAtMs: Date.parse(summary.processedAt).toString(),
+        providedUsageDetails: clickhouseNumberMap(summary.providedUsageDetails),
+        usageDetails: clickhouseNumberMap(summary.usageDetails),
+        providedCostDetails: clickhouseNumberMap(summary.providedCostDetails),
+        costDetails: clickhouseNumberMap(summary.costDetails),
+        metadataJson: "{}",
+      };
+      mocks.queryStream.mockImplementation(async function* () {
+        yield row;
+      });
       expect(
-        await listTopicSummaries(
+        await getTopicClusteringSummaries(
           "project-a",
+          summary.facetId,
+          summary.facetVersion,
           {
-            facetId: summary.facetId,
-            facetVersion: summary.facetVersion,
-            sources: [summary],
+            embeddingModel: summary.embeddingModel,
+            embeddingDimensions: summary.embedding.length,
           },
           timeRange,
+          { maxRows: 2, maxBytes: 100_000 },
         ),
       ).toEqual([{ ...summary, traceName: inserted.trace_name }]);
     },
   );
-
-  it("scopes source references by project and facet version while ignoring trace parent sessions", () => {
-    expect(
-      topicSourceKey({ ...summaryFixture, sessionId: "parent-session" }),
-    ).toBe(topicSourceKey(summaryFixture));
-    expect(topicSourceKey({ ...summaryFixture, facetVersion: 2 })).not.toBe(
-      topicSourceKey(summaryFixture),
-    );
-    expect(
-      topicSourceKey({ ...summaryFixture, facetId: "another-facet" }),
-    ).not.toBe(topicSourceKey(summaryFixture));
-    expect(
-      topicSourceKey({ ...summaryFixture, projectId: "another-project" }),
-    ).not.toBe(topicSourceKey(summaryFixture));
-    const session = { ...summaryFixture, traceId: null, sessionId: "trace-a" };
-    expect(topicSourceKey(session)).not.toBe(topicSourceKey(summaryFixture));
-    expect(
-      topicSourceKey({ ...session, sessionId: "another-session" }),
-    ).not.toBe(topicSourceKey(session));
-  });
 });
 
 describe("Topics classifications", () => {
@@ -820,16 +816,13 @@ describe("Topics classifications", () => {
         },
       ]);
       expect(
-        await readLatestTopicAssignments("project-a", "facet-a", timeRange),
+        await readLatestTopicAssignments(
+          "project-a",
+          "facet-a",
+          ["published-run"],
+          timeRange,
+        ),
       ).toEqual([{ ...row, traceName: inserted.trace_name }]);
-      expect(mocks.publishedRuns).toHaveBeenCalledWith({
-        where: {
-          projectId: "project-a",
-          facetId: "facet-a",
-          status: "completed",
-        },
-        select: { id: true },
-      });
       const { query, params } = mocks.query.mock.calls[0][0];
       expect(params).toEqual({
         from: timeRange.from.toISOString(),
@@ -840,13 +833,13 @@ describe("Topics classifications", () => {
       });
       expect(query).toContain("facet_id = {facetId:String}");
       expect(query).toContain(
-        "AND (clustering_run_id = '' OR clustering_run_id IN ({publishedRunIds:Array(String)}))",
+        "AND clustering_run_id IN {publishedRunIds:Array(String)}",
       );
       expect(query).toContain(
-        "ORDER BY facet_version DESC, assigned_at DESC, clustering_run_id DESC, origin DESC",
+        "ORDER BY facet_version DESC, assigned_at DESC, origin DESC",
       );
       expect(query).toContain(
-        "LIMIT 1 BY project_id, facet_id, trace_id, if(trace_id = '', session_id, '')",
+        "LIMIT 1 BY project_id, facet_id, clustering_run_id, trace_id, if(trace_id = '', session_id, '')",
       );
     },
   );

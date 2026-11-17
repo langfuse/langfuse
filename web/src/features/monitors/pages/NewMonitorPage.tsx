@@ -44,6 +44,7 @@ export default function NewMonitorPage() {
         withPadding
         headerProps={{
           title: "New Alert",
+          hideTitleRow: true,
           breadcrumb: [
             { name: "Alerts", href: `/project/${projectId}/alerts` },
           ],

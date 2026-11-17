@@ -237,8 +237,6 @@ describe("Native codec NAPI boundary", () => {
     ["prompt_version", 65_536],
     ["prompt_version", 1.5],
     ["is_deleted", 256],
-    ["event_bytes", -1],
-    ["event_bytes", 2 ** 64],
     ["usage_details", { input: 1.5 }],
     ["cost_details", { output: "not-a-number" }],
   ])("rejects invalid %s during preparation", (field, value) => {

@@ -1,11 +1,14 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
-import { auditLog, type AuditLogActor } from "@/src/features/audit-logs/server";
+import {
+  auditLog,
+  type AuditLogActor,
+} from "@/src/features/audit-logs/auditLog";
 import { env } from "@/src/env.mjs";
 import {
   AuthMethod,
   type BedrockAuthMethod,
 } from "@/src/features/llm-api-key/types";
 import { getConnectionAvailableModels } from "@/src/features/llm-api-key/availableModels";
+import { decisionModelsByProvider } from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
 import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   BedrockConfigSchema,
@@ -33,7 +36,6 @@ import {
   blockEvaluatorsUsingProvider,
   ChatMessageType,
   createTypeSafeDecisionModelClient,
-  decryptAndParseExtraHeaders,
   DefaultEvalModelService,
   EMPTY_EVALUATOR_BLOCK,
   EvaluatorBlockSource,
@@ -43,6 +45,7 @@ import {
   isPrismaRecordNotFoundError,
   logger,
   mapLegacyLLMCompletionParams,
+  resolveUpdatedExtraHeaders,
   validateLlmConnectionBaseURL,
 } from "@langfuse/shared/src/server";
 import { prisma, Prisma, type LlmApiKeys } from "@langfuse/shared/src/db";
@@ -98,6 +101,7 @@ export type SafeLlmConnection = {
 
 type LlmConnectionWithAvailableModels = SafeLlmConnection & {
   availableModels: string[];
+  decisionModels?: string[];
 };
 
 type TestLlmConnectionParams = Omit<
@@ -298,35 +302,6 @@ function validateSecret(params: {
   }
 }
 
-function resolveUpdatedExtraHeaders(params: {
-  inputHeaders: Record<string, string | null | undefined> | undefined;
-  storedHeaders: string | null;
-  isBaseURLChanged: boolean;
-}): Record<string, string> | undefined {
-  const existingHeaders: Record<string, string> = params.isBaseURLChanged
-    ? {}
-    : (decryptAndParseExtraHeaders(params.storedHeaders) ?? {});
-
-  if (params.inputHeaders === undefined) {
-    return Object.keys(existingHeaders).length > 0
-      ? existingHeaders
-      : undefined;
-  }
-
-  const extraHeaders: Record<string, string> = {};
-  for (const [key, value] of Object.entries(params.inputHeaders)) {
-    if (value === null || value === undefined || value === "") {
-      if (existingHeaders[key] !== undefined) {
-        extraHeaders[key] = existingHeaders[key];
-      }
-    } else {
-      extraHeaders[key] = value;
-    }
-  }
-
-  return Object.keys(extraHeaders).length > 0 ? extraHeaders : undefined;
-}
-
 async function testLlmConnection(
   params: TestLlmConnectionParams,
 ): Promise<{ success: boolean; error?: string }> {
@@ -505,11 +480,17 @@ export class LlmConnectionService {
     includeDecisionModels?: boolean;
   }): Promise<{ data: LlmConnectionWithAvailableModels[] }> {
     const { data } = await this.listEffective(params);
+    const decisionModels = params.includeDecisionModels
+      ? decisionModelsByProvider(data)
+      : null;
 
     return {
       data: data.map((connection) => ({
         ...connection,
         availableModels: getConnectionAvailableModels(connection),
+        ...(decisionModels && {
+          decisionModels: decisionModels.get(connection.provider) ?? [],
+        }),
       })),
     };
   }

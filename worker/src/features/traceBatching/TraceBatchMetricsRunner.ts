@@ -1,20 +1,27 @@
 import {
+  EventsDispatchQueue,
   logger,
   recordGauge,
   redis,
-  TraceBatchQueue,
 } from "@langfuse/shared/src/server";
-import { env } from "../../env";
-import { recordTraceBatchActiveReads } from "../../queues/traceBatchQueue";
 import { PeriodicRunner } from "../../utils/PeriodicRunner";
+import { MEMORY_SCRIPT } from "./traceBatchReadiness";
+import { getRecordingBoundsKey, getRecordingKeys } from "./traceRuleRecording";
 import {
-  getTraceBatchFirstKeys,
-  getTraceBatchReadinessKeys,
-  MEMORY_SCRIPT,
-} from "./traceBatchReadiness";
+  isEventsDispatchEnabled,
+  traceDispatchConfig,
+} from "../eventsDispatch/config";
 
 const METRIC_PREFIX = "langfuse.trace_batch";
 const MEMORY_INTERVAL_MS = 60_000;
+const BOUNDS_SAMPLE_SIZE = 20;
+const BOUNDS_MEMORY_SCRIPT = `
+local result = {}
+for i = 1, #KEYS do
+  table.insert(result, redis.call('MEMORY', 'USAGE', KEYS[i]) or 0)
+end
+return result
+`;
 
 export class TraceBatchMetricsRunner extends PeriodicRunner {
   private lastMemorySampleAt: number | null = null;
@@ -32,15 +39,8 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
   }
 
   protected async execute(): Promise<void> {
-    if (
-      !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ||
-      (env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED !== "true" &&
-        env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED !== "true")
-    ) {
-      return;
-    }
+    if (!isEventsDispatchEnabled()) return;
 
-    recordTraceBatchActiveReads();
     const collections = [
       this.collectQueueDepth(),
       this.collectWaitingHeadAge(),
@@ -51,7 +51,7 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
       now - this.lastMemorySampleAt >= MEMORY_INTERVAL_MS
     ) {
       this.lastMemorySampleAt = now;
-      collections.push(this.collectMemory());
+      collections.push(this.collectRecordingMemory());
     }
 
     // Each collection remains useful if another fails. Never replace a failed
@@ -67,10 +67,10 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
     }
   }
 
+  /** Delayed jobs of the dispatcher's target queue; waiting, active, and failed depth are on the generic queue gauge. */
   private async collectQueueDepth(): Promise<void> {
-    const queue = TraceBatchQueue.getInstance();
-    if (!queue) throw new Error("Trace batch queue is unavailable");
-    // Waiting, active, and failed depth are already on the generic queue gauge.
+    const queue = EventsDispatchQueue.getInstance();
+    if (!queue) throw new Error("Events dispatch queue is unavailable");
     const counts = await queue.getJobCounts("delayed");
     recordGauge(`${METRIC_PREFIX}.queue_depth`, counts.delayed ?? 0, {
       type: "delayed",
@@ -79,8 +79,8 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
   }
 
   private async collectWaitingHeadAge(): Promise<void> {
-    const queue = TraceBatchQueue.getInstance();
-    if (!queue) throw new Error("Trace batch queue is unavailable");
+    const queue = EventsDispatchQueue.getInstance();
+    if (!queue) throw new Error("Events dispatch queue is unavailable");
     // BullMQ returns the next FIFO entry in each of waiting and paused. A retry
     // can re-enter behind newer jobs, so this is not the oldest creation time
     // anywhere in the queue. Jobs can disappear between ID and hash reads.
@@ -102,54 +102,63 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
     );
   }
 
-  private async collectMemory(): Promise<void> {
+  /** Bounds are one key per trace without an index; sample the bounds of a few pending traces per shard instead of scanning. */
+  private async collectRecordingMemory(): Promise<void> {
     if (!redis) throw new Error("Trace batch metrics require Redis");
-    const clock = await redis.time();
-    const now = Number(clock[0]) * 1_000 + Math.floor(Number(clock[1]) / 1_000);
-    const totals = [0, 0, 0, 0, 0, 0];
-    for (let shard = 0; shard < env.LANGFUSE_TRACE_BATCH_SHARD_COUNT; shard++) {
-      const { due, state } = getTraceBatchReadinessKeys(shard);
-      const first = getTraceBatchFirstKeys(shard, now);
+    const totals = [0, 0, 0, 0];
+    let sampledBoundsBytes = 0;
+    let sampledBoundsKeys = 0;
+    for (let shard = 0; shard < traceDispatchConfig.shardCount; shard++) {
+      const { due, pending } = getRecordingKeys(shard);
       const values = (await redis.eval(
         MEMORY_SCRIPT,
-        2 + first.keys.length,
+        2,
         due,
-        state,
-        ...first.keys,
+        pending,
       )) as number[];
       values.forEach((value, index) => (totals[index] += Number(value)));
+      const members = (await redis.hrandfield(pending, BOUNDS_SAMPLE_SIZE)) as
+        | string[]
+        | null;
+      if (!members || members.length === 0) continue;
+      const keys = members.map((member) =>
+        getRecordingBoundsKey(shard, member),
+      );
+      const sizes = (await redis.eval(
+        BOUNDS_MEMORY_SCRIPT,
+        keys.length,
+        ...keys,
+      )) as number[];
+      for (const size of sizes) {
+        if (Number(size) > 0) {
+          sampledBoundsBytes += Number(size);
+          sampledBoundsKeys++;
+        }
+      }
     }
-    // Per-shard series would multiply custom metrics by the shard count on
-    // every reporting worker; only the summed totals are emitted.
-    this.recordMapMemory(totals);
+    this.recordMapMemory(totals, ["due", "pending"]);
+    if (sampledBoundsKeys === 0) return;
+    recordGauge(
+      `${METRIC_PREFIX}.redis_key_bytes`,
+      Math.round(sampledBoundsBytes / sampledBoundsKeys),
+      { key: "bounds", shard: "sampled_mean", unit: "bytes" },
+    );
   }
 
-  private recordMapMemory(values: number[]): void {
-    const [
-      dueBytes,
-      dueEntries,
-      stateBytes,
-      stateEntries,
-      firstBytes,
-      firstEntries,
-    ] = values;
+  private recordMapMemory(values: number[], keys: string[]): void {
     // These are global snapshots emitted by each eligible worker. Aggregate
     // duplicate reporters with max/latest, never sum their identical gauges.
-    for (const { key, bytes, entries } of [
-      { key: "due", bytes: dueBytes, entries: dueEntries },
-      { key: "state", bytes: stateBytes, entries: stateEntries },
-      { key: "first", bytes: firstBytes, entries: firstEntries },
-    ]) {
-      recordGauge(`${METRIC_PREFIX}.redis_key_bytes`, bytes, {
+    keys.forEach((key, index) => {
+      recordGauge(`${METRIC_PREFIX}.redis_key_bytes`, values[index * 2], {
         key,
         shard: "total",
         unit: "bytes",
       });
-      recordGauge(`${METRIC_PREFIX}.redis_key_entries`, entries, {
+      recordGauge(`${METRIC_PREFIX}.redis_key_entries`, values[index * 2 + 1], {
         key,
         shard: "total",
         unit: "records",
       });
-    }
+    });
   }
 }

@@ -7,7 +7,7 @@ const otelReplayMocks = vi.hoisted(() => ({
   linkMediaToTraceOrObservation: vi.fn(),
   uploadMediaForTrace: vi.fn(),
   getPrompt: vi.fn(),
-  fetchObservationEvalRules: vi.fn(),
+  fetchEvalRules: vi.fn(),
   hasNoEvalConfigsCache: vi.fn(),
   createObservationEvalSchedulerDeps: vi.fn(),
   scheduleObservationEvals: vi.fn(),
@@ -22,7 +22,6 @@ vi.mock("../../env", async (importOriginal) => {
     env: {
       ...actual.env,
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
-      LANGFUSE_TRACE_BATCH_INGESTION_ENABLED: "false",
       LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: "false",
       LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED: "false",
       LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS: [],
@@ -48,15 +47,24 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   uploadMediaForTrace: otelReplayMocks.uploadMediaForTrace,
 }));
 
+vi.mock("../../features/evaluation/fetchEvalRules", () => ({
+  fetchEvalRules: otelReplayMocks.fetchEvalRules,
+}));
+
 vi.mock(
-  "../../features/evaluation/observationEval",
-  async (importOriginal) => ({
-    ...(await importOriginal<
-      typeof import("../../features/evaluation/observationEval")
-    >()),
-    fetchObservationEvalRules: otelReplayMocks.fetchObservationEvalRules,
+  "../../features/evaluation/observationEval/createSchedulerDeps",
+  () => ({
     createObservationEvalSchedulerDeps:
       otelReplayMocks.createObservationEvalSchedulerDeps,
+  }),
+);
+
+vi.mock(
+  "../../features/evaluation/observationEval/scheduleObservationEvals",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("../../features/evaluation/observationEval/scheduleObservationEvals")
+    >()),
     scheduleObservationEvals: otelReplayMocks.scheduleObservationEvals,
   }),
 );
@@ -76,7 +84,10 @@ export function configureDefaultOtelReplayMocks(): void {
     outcome: "uploaded",
   });
   otelReplayMocks.getPrompt.mockResolvedValue(null);
-  otelReplayMocks.fetchObservationEvalRules.mockResolvedValue([]);
+  otelReplayMocks.fetchEvalRules.mockResolvedValue({
+    observationRules: [],
+    traceTranscriptRules: [],
+  });
   otelReplayMocks.hasNoEvalConfigsCache.mockResolvedValue(true);
   otelReplayMocks.createObservationEvalSchedulerDeps.mockReturnValue({});
   otelReplayMocks.scheduleObservationEvals.mockResolvedValue(undefined);
@@ -99,8 +110,6 @@ export function configureOtelReplayEnvironment(
 ): () => void {
   const original = {
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-    LANGFUSE_TRACE_BATCH_INGESTION_ENABLED:
-      env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED,
     LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS:
       env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS,
     LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED,
@@ -123,7 +132,6 @@ export function configureOtelReplayEnvironment(
 
   Object.assign(env, {
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
-    LANGFUSE_TRACE_BATCH_INGESTION_ENABLED: "false",
     LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS: 3,
     LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: options.mediaUploadEnabled
       ? "true"

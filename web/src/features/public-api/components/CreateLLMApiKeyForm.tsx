@@ -44,15 +44,16 @@ import {
   reportTrpcErrorWithoutToast,
   type RouterOutputs,
 } from "@/src/utils/api";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { type useUiCustomization } from "@/src/ee/features/ui-customization";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import type { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { DialogFooter, DialogBody } from "@/src/components/ui/dialog";
 import { env } from "@/src/env.mjs";
 import {
   AuthMethod,
   BedrockAuthMethodSchema,
   type BedrockAuthMethod,
-} from "@/src/features/llm-api-key";
+} from "@/src/features/llm-api-key/types";
+
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
 /**
@@ -627,21 +628,6 @@ export function CreateLLMApiKeyForm({
         });
         return;
       }
-      if (owner.scope === "project") {
-        capture("project_settings:llm_api_key_create", {
-          provider: values.provider,
-        });
-      } else {
-        capture("organization_settings:llm_api_key_create");
-      }
-    } else {
-      if (owner.scope === "project") {
-        capture("project_settings:llm_api_key_update", {
-          provider: values.provider,
-        });
-      } else {
-        capture("organization_settings:llm_api_key_update");
-      }
     }
 
     let secretKey = values.secretKey;
@@ -786,6 +772,22 @@ export function CreateLLMApiKeyForm({
 
     return mutation
       .then(() => {
+        const eventProps = { adapter: values.adapter };
+        if (owner.scope === "project") {
+          capture(
+            mode === "create"
+              ? "project_settings:llm_api_key_create"
+              : "project_settings:llm_api_key_update",
+            eventProps,
+          );
+        } else {
+          capture(
+            mode === "create"
+              ? "organization_settings:llm_api_key_create"
+              : "organization_settings:llm_api_key_update",
+            eventProps,
+          );
+        }
         form.reset();
         onSuccess();
       })

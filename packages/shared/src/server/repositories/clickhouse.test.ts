@@ -17,6 +17,7 @@ vi.mock("../clickhouse/queryOutcome", async (importOriginal) => ({
   recordClickHouseQueryElapsed: mocks.recordElapsed,
 }));
 
+import { clickHouseQueryErrorCode } from "../clickhouse/queryOutcome";
 import {
   ClickHouseQueryAbortedError,
   isProgressRow,
@@ -130,9 +131,9 @@ describe("queryClickhouseWithProgress", () => {
   );
 
   it.each([
-    [{ row: { id: "row-1" } }, "client_closed"],
+    [{ row: { id: "row-1" } }, "error"],
     [{ exception: "Code: 159. DB::Exception: Timeout exceeded" }, "timeout"],
-  ])("counts early consumer closure once: %j", async (event, outcome) => {
+  ])("counts closure without an abort once: %j", async (event, outcome) => {
     mocks.query.mockResolvedValueOnce(response([event]));
     const stream = queryClickhouseWithProgress({ query: "SELECT 1" });
     await stream.next();
@@ -140,6 +141,66 @@ describe("queryClickhouseWithProgress", () => {
     expect(mocks.recordOutcome).toHaveBeenCalledOnce();
     expect(mocks.recordOutcome.mock.calls[0][0]).toBe(outcome);
     expect(mocks.recordElapsed).not.toHaveBeenCalled();
+  });
+
+  it("counts an abort followed by an early return as client_closed", async () => {
+    const controller = new AbortController();
+    mocks.query.mockResolvedValueOnce(
+      response([{ row: { id: 0 } }, { row: { id: 1 } }]),
+    );
+    const stream = queryClickhouseWithProgress({
+      query: "SELECT 1",
+      abortSignal: controller.signal,
+    });
+    await stream.next();
+    controller.abort();
+    await stream.return(undefined);
+    expect(mocks.recordOutcome).toHaveBeenCalledOnce();
+    expect(mocks.recordOutcome.mock.calls[0][0]).toBe("client_closed");
+  });
+
+  it("counts an abort with a timeout reason as a client timeout", async () => {
+    const controller = new AbortController();
+    mocks.query.mockResolvedValueOnce(
+      response([{ row: { id: 0 } }, { row: { id: 1 } }]),
+    );
+    const stream = queryClickhouseWithProgress({
+      query: "SELECT 1",
+      abortSignal: controller.signal,
+    });
+    await stream.next();
+    controller.abort(
+      new DOMException(
+        "The operation was aborted due to timeout",
+        "TimeoutError",
+      ),
+    );
+    await expect(stream.next()).rejects.toBeInstanceOf(
+      ClickHouseQueryAbortedError,
+    );
+    const [outcome, , , , , error] = mocks.recordOutcome.mock.calls[0];
+    expect(outcome).toBe("error");
+    expect(clickHouseQueryErrorCode(error)).toBe("client_timeout");
+  });
+
+  it("keeps a resource error that arrives together with an abort", async () => {
+    const controller = new AbortController();
+    mocks.query.mockResolvedValueOnce(
+      response([{ row: { id: 0 } }], () => {
+        controller.abort();
+        throw new Error("Code: 159. DB::Exception: Timeout exceeded");
+      }),
+    );
+    const stream = queryClickhouseWithProgress({
+      query: "SELECT 1",
+      abortSignal: controller.signal,
+    });
+    await stream.next();
+    await expect(stream.next()).rejects.toBeInstanceOf(
+      ClickHouseQueryAbortedError,
+    );
+    expect(mocks.recordOutcome).toHaveBeenCalledOnce();
+    expect(mocks.recordOutcome.mock.calls[0][0]).toBe("timeout");
   });
 
   it("does not retry after the first data row has been emitted", async () => {

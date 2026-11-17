@@ -103,6 +103,16 @@ async fn close_log_counts_socket_bytes_and_joins_request_logs() {
 }
 
 #[tokio::test]
+async fn accepted_sockets_disable_nagle() {
+    let mut listener = ObservedListener(TcpListener::bind("127.0.0.1:0").await.unwrap());
+    let _client = TcpStream::connect(listener.local_addr().unwrap())
+        .await
+        .unwrap();
+    let (stream, _) = Listener::accept(&mut listener).await;
+    assert!(stream.io.nodelay().unwrap());
+}
+
+#[tokio::test]
 async fn write_blocked_by_a_peer_that_stops_reading_is_logged_at_close() {
     let (_guard, output) = record_logs();
     let mut listener = ObservedListener(TcpListener::bind("127.0.0.1:0").await.unwrap());

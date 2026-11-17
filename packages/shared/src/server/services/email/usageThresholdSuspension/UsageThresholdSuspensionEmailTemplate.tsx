@@ -101,10 +101,8 @@ export const UsageThresholdSuspensionEmailTemplate = ({
                 <strong>
                   New traces, observations, and scores cannot be ingested
                 </strong>
-                <br />
-                • Existing data remains accessible
-                <br />
-                • Dashboard and analytics continue to work
+                <br />• Existing data remains accessible
+                <br />• Dashboard and analytics continue to work
                 <br />• API calls to ingestion endpoints return 403 errors
               </Text>
             </Section>
@@ -127,12 +125,9 @@ export const UsageThresholdSuspensionEmailTemplate = ({
               </Heading>
               <Text className="text-gray-700 text-sm leading-6">
                 When you upgrade, you can:
-                <br />
-                • Add unlimited number of users
-                <br />
-                • Retain data for 90 days
-                <br />
-                • Access unlimited evaluators
+                <br />• Add unlimited number of users
+                <br />• Retain data for 90 days
+                <br />• Access unlimited evaluators
                 <br />• Get support via Email/Chat
               </Text>
               <Text className="text-gray-700 text-sm leading-6 mt-4">

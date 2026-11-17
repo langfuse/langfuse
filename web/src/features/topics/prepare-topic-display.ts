@@ -10,7 +10,6 @@ import {
   UNASSIGNED_SWATCH_COLOR,
   unassignedTileClasses,
 } from "./topic-map-colors";
-import { type TopicsResultsView } from "./TopicsResultsViewSelect";
 
 export const UNASSIGNED_TOPIC_ID = "__unassigned";
 
@@ -28,7 +27,10 @@ export type TopicDisplay = Pick<
 };
 
 /** Topic identity, counts, and colors shared by the list and treemap renderers. */
-export function prepareTopicDisplay(facet: Facet, view: TopicsResultsView) {
+export function prepareTopicDisplay(
+  facet: Facet,
+  view: "treemap" | "list" | "map" | "grid",
+) {
   const mapIndices = new Map(
     orderedFacetTopics(facet).map((topic, index) => [topic.id, index]),
   );
@@ -39,7 +41,7 @@ export function prepareTopicDisplay(facet: Facet, view: TopicsResultsView) {
       description,
       count,
       color:
-        view === "treemap"
+        view === "treemap" || view === "list"
           ? treemapSwatchColor(index)
           : topicColor(mapIndices.get(id) ?? -1),
       tiles: {
@@ -48,7 +50,10 @@ export function prepareTopicDisplay(facet: Facet, view: TopicsResultsView) {
       },
     }),
   );
-  const unassignedCount = facet.rows.filter((row) => !row.topicId).length;
+  const unassignedCount = Math.max(
+    0,
+    facet.counts.total - facet.counts.assigned,
+  );
   if (unassignedCount > 0) {
     topics.push({
       id: UNASSIGNED_TOPIC_ID,
@@ -60,5 +65,20 @@ export function prepareTopicDisplay(facet: Facet, view: TopicsResultsView) {
       tiles: { small: unassignedTileClasses, big: unassignedTileClasses },
     });
   }
-  return { topics, total: facet.rows.length };
+  return { topics, total: facet.counts.total };
+}
+
+/** Counts only traces in a topic, which removes the Unassigned tile and list entry. */
+export function facetWithoutUnassigned(facet: Facet): Facet {
+  return {
+    ...facet,
+    counts: { ...facet.counts, total: facet.counts.assigned },
+  };
+}
+
+/** Keeps points with a map topic, removing the map's Outliers and awaiting zones. */
+export function mapWithoutUnassigned<
+  T extends { points: { topicId: string | null }[] },
+>(map: T): T {
+  return { ...map, points: map.points.filter((point) => point.topicId) };
 }

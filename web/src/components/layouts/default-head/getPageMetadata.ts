@@ -1,7 +1,7 @@
 import {
   type CloudRegionName,
   isRegionProduction,
-} from "@/src/features/organizations";
+} from "@/src/features/organizations/cloudRegions";
 
 /**
  * Every region serves the same sign-in page, and the sign-in page is reached

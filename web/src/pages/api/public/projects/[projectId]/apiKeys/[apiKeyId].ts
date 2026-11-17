@@ -7,11 +7,9 @@ import {
   validateQueryParams,
   handleDeleteApiKey,
 } from "@/src/ee/features/admin-api/server/projects/projectById/apiKeys/apiKeyById";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
-import {
-  shadowAuth,
-  writeProjectError,
-} from "@/src/features/public-api/server";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
+import { writeProjectError } from "@/src/features/public-api/server/writeError";
 
 /** handler deletes project keys for authorized organization credentials. */
 export default async function handler(

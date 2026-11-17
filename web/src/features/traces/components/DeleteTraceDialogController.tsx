@@ -2,10 +2,10 @@ import { useRouter } from "next/router";
 import { type ReactNode, useMemo, useState } from "react";
 
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
-import { useHasEntitlement } from "@/src/features/entitlements";
-import { showSuccessToast } from "@/src/features/notifications";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 
 export function DeleteTraceDialogController({
@@ -45,16 +45,25 @@ export function DeleteTraceDialogController({
   }, [hasAccess, hasEntitlement]);
 
   return (
-    <ConfirmationDialogController
-      title="Delete trace?"
+    <ConfirmationDialogController<{
+      projectId: string;
+      traceId: string;
+      traceName?: string | null;
+      redirectUrl?: string;
+      onAfterDelete?: (deletedTraceId: string) => void;
+    }>
+      title={(target) => `Delete trace ${target.traceName || target.traceId}?`}
       text="This action cannot be undone. It removes all the data associated with this trace. If this is the project default, it will be deleted for all users."
-      confirmationText={traceName || undefined}
+      confirmationText={(target) => target.traceName || ""}
       confirmLabel="Delete trace"
       variant="destructive"
       loading={deleteMutation.isPending || isDeleted}
       error={deleteMutation.error?.message}
-      onConfirm={async () => {
-        await deleteMutation.mutateAsync({ traceIds: [traceId], projectId });
+      onConfirm={async (target) => {
+        await deleteMutation.mutateAsync({
+          traceIds: [target.traceId],
+          projectId: target.projectId,
+        });
         setIsDeleted(true);
         showSuccessToast({
           operation: "trace.delete",
@@ -63,12 +72,12 @@ export function DeleteTraceDialogController({
             "Selected trace will be deleted. Traces are removed asynchronously and may continue to be visible for up to 24 hours.",
         });
         capture("trace:delete", { source: "trace" });
-        if (redirectUrl) {
-          router.push(redirectUrl).catch(() => undefined);
+        if (target.redirectUrl) {
+          router.push(target.redirectUrl).catch(() => undefined);
           return;
         }
         utils.invalidate();
-        onAfterDelete?.(traceId);
+        target.onAfterDelete?.(target.traceId);
       }}
     >
       {({ openDialog }) =>
@@ -76,7 +85,15 @@ export function DeleteTraceDialogController({
           disabled,
           openDialog: () => {
             capture("trace:delete_form_open", { source: "trace detail" });
-            openDialog();
+            setIsDeleted(false);
+            deleteMutation.reset();
+            openDialog({
+              projectId,
+              traceId,
+              traceName,
+              redirectUrl,
+              onAfterDelete,
+            });
           },
         })
       }

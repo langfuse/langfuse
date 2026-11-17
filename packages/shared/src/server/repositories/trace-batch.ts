@@ -4,11 +4,12 @@ import {
 } from "../queries/clickhouse-sql/event-query-builder";
 import { queryClickhouseStream, TupleParam } from "./clickhouse";
 
-type TraceBatchEventRow = {
+export type TraceBatchEventRow = {
   project_id: string;
   trace_id: string;
   session_id: string;
   environment: string;
+  trace_name: string;
   span_id: string;
   parent_span_id: string | null;
   start_time: string;
@@ -142,6 +143,7 @@ const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
       "e.trace_id",
       "e.session_id",
       "e.environment",
+      "e.trace_name",
       "e.span_id",
       "e.parent_span_id",
       "e.start_time",
@@ -205,7 +207,7 @@ const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
  * Rows are contiguous per (project_id, trace_id); a pair change or successful EOF
  * completes that trace's query window, not its lifetime of possible late arrivals.
  * Rows reflect the events table's current merge state, as in other event reads;
- * this read-only experiment does not deduplicate versions or enrich model data.
+ * this read does not deduplicate versions or enrich model data.
  */
 export async function* getTraceBatchEventStream(
   props: TraceBatchEventStreamProps,
@@ -213,7 +215,8 @@ export async function* getTraceBatchEventStream(
     maxThreads?: number;
     maxBlockSize?: number;
     requestTimeoutMs?: number;
-    experimentId?: string;
+    /** Server-side query limit; the client timeout should exceed it. */
+    maxExecutionTimeS?: number;
     queryId?: string;
   } = {},
 ): AsyncGenerator<TraceBatchEventRow> {
@@ -227,7 +230,6 @@ export async function* getTraceBatchEventStream(
     useMultipartParamsAuto: true,
     tags: {
       projectId: projectIds.length === 1 ? projectIds[0] : "MULTI_PROJECT",
-      ...(options.experimentId ? { experimentId: options.experimentId } : {}),
     },
     preferredClickhouseService: "EventsReadOnly",
     clickhouseConfigs: {
@@ -242,7 +244,7 @@ export async function* getTraceBatchEventStream(
       ...(options.maxBlockSize === undefined
         ? {}
         : { max_block_size: String(options.maxBlockSize) }),
-      max_execution_time: 30,
+      max_execution_time: options.maxExecutionTimeS ?? 30,
       timeout_overflow_mode: "throw",
     },
   });

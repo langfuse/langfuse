@@ -18,14 +18,12 @@ function createCaller({
   orgId,
   projectName = "Test project",
   orgName = "Test organization",
-  admin = true,
   projectRole = "ADMIN",
 }: {
   projectId: string;
   orgId: string;
   projectName?: string;
   orgName?: string;
-  admin?: boolean;
   projectRole?: "ADMIN" | "MEMBER";
 }) {
   const session: Session = {
@@ -59,7 +57,6 @@ function createCaller({
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin,
     },
     environment: {
       enableExperimentalFeatures: false,
@@ -148,7 +145,6 @@ describe("prompts trpc", () => {
         const { caller } = createCaller({
           projectId,
           orgId: v4(),
-          admin: false,
         });
 
         await expect(
@@ -214,7 +210,6 @@ describe("prompts trpc", () => {
         orgId: org.id,
         projectName: project.name,
         orgName: org.name,
-        admin: false,
       });
       const previousLimit =
         entitlementAccess["cloud:hobby"].entitlementLimits[
@@ -263,7 +258,6 @@ describe("prompts trpc", () => {
         orgId: org.id,
         projectName: project.name,
         orgName: org.name,
-        admin: false,
         projectRole: "MEMBER",
       });
 

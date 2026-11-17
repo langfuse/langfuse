@@ -161,13 +161,13 @@ export const SearchAndClear = meta.story({
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     const search = canvas.getByRole("combobox", { name: "Search" });
-    await replaceQuery(search, "invoice");
+    await replaceQuery(search, "billing");
     await waitFor(() =>
       expect(canvas.getByRole("status")).toHaveTextContent("1 of 4 traces"),
     );
     await replaceQuery(
       search,
-      'topic:("Billing questions" OR "Project setup") assignment:Outlier invoice',
+      'topic:("Billing questions" OR "Project setup") assignment:Outlier billing',
     );
     await waitFor(() =>
       expect(canvas.getByRole("status")).toHaveTextContent("0 of 4 traces"),
@@ -175,7 +175,7 @@ export const SearchAndClear = meta.story({
     await expect(
       canvas.getByText("No matches. Adjust or clear your filters."),
     ).toBeVisible();
-    await expect(search).toHaveTextContent("invoice");
+    await expect(search).toHaveTextContent("billing");
     await expect(search).not.toHaveTextContent("in:");
     await expect(args.onFiltersChange).toHaveBeenLastCalledWith([
       {
@@ -191,7 +191,7 @@ export const SearchAndClear = meta.story({
         value: ["outlier"],
       },
     ]);
-    await expect(args.onSearchQueryChange).toHaveBeenLastCalledWith("invoice");
+    await expect(args.onSearchQueryChange).toHaveBeenLastCalledWith("billing");
     await replaceQuery(search, "");
     await waitFor(() =>
       expect(canvas.getByRole("status")).toHaveTextContent("4 of 4 traces"),

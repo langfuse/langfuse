@@ -13,7 +13,7 @@ import {
   type ExtractedVariable,
 } from "@langfuse/shared/src/server";
 import { UnrecoverableError } from "../../../errors/UnrecoverableError";
-import { createW3CTraceId } from "../../utils";
+import { createW3CTraceId } from "../../utils/utilities";
 import { type EvalExecutionResult } from "../evalCompletion";
 import { type EvalExecutionDeps } from "../evalExecutionDeps";
 

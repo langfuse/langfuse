@@ -1,11 +1,11 @@
 import { env } from "../../env";
 import {
   OutboundUrlValidationError,
-  type OutboundUrlValidationWhitelist,
   parseOutboundUrl,
   resolveHost,
   validateOutboundUrlHost,
-} from "../outbound-url";
+  type OutboundUrlValidationWhitelist,
+} from "../outbound-url/validation";
 
 export type WebhookValidationWhitelist = OutboundUrlValidationWhitelist;
 export { resolveHost };

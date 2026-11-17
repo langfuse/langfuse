@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 // Container hook: wires the draft-only search-bar store to the table's filter
 // state with a single, one-way data direction.
 //
@@ -44,7 +43,7 @@ import {
   createSearchBarStore,
   type SearchBarStore,
 } from "@/src/features/search-bar/store/searchBarStore";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 /** How a search-bar commit was triggered — the `trigger` analytics dimension. */
 type SearchCommitTrigger = "enter" | "blur" | "pick";
@@ -281,10 +280,17 @@ export function useEventsSearchBar({
   const searchTypeRef = useRef(searchType);
   searchTypeRef.current = searchType;
 
-  /** Preserve hidden filters unless the same target, column, and key is edited. */
+  /**
+   * Preserve hidden filters, plus any `extraHidden`, unless the same target,
+   * column, and key is edited.
+   */
   const mergeWithSkipped = useCallback(
-    (filters: FilterState): FilterState =>
-      mergeSkippedFilters(filters, skippedFiltersRef.current),
+    (filters: FilterState, extraHidden: FilterState = []): FilterState =>
+      mergeSkippedFilters(
+        filters,
+        [...new Set([...skippedFiltersRef.current, ...extraHidden])],
+        appliedStateRef.current.filters,
+      ),
     [],
   );
 
@@ -336,7 +342,12 @@ export function useEventsSearchBar({
     (filters: FilterState) => {
       const { setFilterState, setSearchQuery, setSearchType } =
         applyRef.current;
-      const committedFilters = mergeWithSkipped(filters);
+      // The AI filter contract has no numeric metadata comparison, so the
+      // result never carries one: keep them like hidden filters.
+      const committedFilters = mergeWithSkipped(
+        filters,
+        numericMetadataFilters(appliedStateRef.current.filters, registry),
+      );
       beginCommit({
         filters: committedFilters,
         query: null,
@@ -404,9 +415,18 @@ export function useEventsSearchBar({
       // Ordinary grammar edits preserve filters the grammar cannot represent.
       // Complete-query replacements can explicitly clear those hidden filters
       // instead of silently carrying old scope.
-      const committedFilters = options.replaceHidden
-        ? result.filters
-        : mergeWithSkipped(result.filters);
+      const committedFilters = (() => {
+        if (options.replaceHidden) return result.filters;
+        // Unchanged text must not rewrite legacy filters into a different shape
+        // and make a saved view look edited.
+        if (draftText.trim() === committedTextRef.current.trim()) {
+          return (
+            pendingCommitRef.current?.next.filters ??
+            appliedStateRef.current.filters
+          );
+        }
+        return mergeWithSkipped(result.filters);
+      })();
       // Register the full write before the optimistic filter setter can render
       // ahead of the URL-backed search query or scope setters.
       const committed = beginCommit({
@@ -469,15 +489,46 @@ export function useEventsSearchBar({
   return { store, commit, applyFilters, resetDraft };
 }
 
+/** The numeric metadata comparisons in `filters`; none when the registry has no numeric metadata. */
+function numericMetadataFilters(
+  filters: FilterState,
+  registry: FieldRegistry,
+): FilterState {
+  if (!registry.numericMetadata) return [];
+  return filters.filter(
+    (f) =>
+      f.type === "numberObject" && registry.columnIdOf(f.column) === "metadata",
+  );
+}
+
+/**
+ * `filters` plus the hidden filters in `skippedFilters`. A hidden filter is
+ * dropped only when the commit edits its target, column, and key: `filters`
+ * holds a different set on that identity than the bar showed in `previous`.
+ */
 function mergeSkippedFilters(
   filters: FilterState,
   skippedFilters: FilterState,
+  previous: FilterState,
 ): FilterState {
-  const producedKeys = new Set(filters.map((f) => filterIdentity(f)));
-  const preserved = skippedFilters.filter(
-    (f) => !producedKeys.has(filterIdentity(f)),
-  );
+  const hidden = new Set(skippedFilters);
+  const shown = groupByIdentity(previous.filter((f) => !hidden.has(f)));
+  const produced = groupByIdentity(filters);
+  const preserved = skippedFilters.filter((f) => {
+    const identity = filterIdentity(f);
+    const next = produced.get(identity);
+    return next === undefined || isEqual(next, shown.get(identity) ?? []);
+  });
   return preserved.length > 0 ? [...filters, ...preserved] : filters;
+}
+
+function groupByIdentity(filters: FilterState): Map<string, FilterState> {
+  const groups = new Map<string, FilterState>();
+  for (const filter of filters) {
+    const identity = filterIdentity(filter);
+    groups.set(identity, [...(groups.get(identity) ?? []), filter]);
+  }
+  return groups;
 }
 
 function filterIdentity(filter: FilterState[number]): string {

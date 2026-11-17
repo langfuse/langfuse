@@ -1,4 +1,4 @@
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
@@ -12,9 +12,9 @@ import {
   FormItem,
   FormMessage,
 } from "@/src/components/ui/form";
-import { projectNameSchema } from "@/src/features/auth";
+import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import Header from "@/src/components/layouts/header";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { Card } from "@/src/components/ui/card";
 import { LockIcon } from "@langfuse/icons";
@@ -22,7 +22,6 @@ import { useSession } from "next-auth/react";
 
 export default function RenameOrganization() {
   const { update: updateSession } = useSession();
-  const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const organization = useQueryOrganization();
   const hasAccess = useHasOrganizationAccess({
@@ -42,9 +41,6 @@ export default function RenameOrganization() {
   const renameOrganization = api.organizations.update.useMutation({
     onSuccess: () => {
       updateSession();
-      // Admins resolve org/project context from these queries, not the session
-      utils.organizations.byId.invalidate();
-      utils.projects.byId.invalidate();
     },
     onError: (error) => form.setError("name", { message: error.message }),
   });

@@ -50,7 +50,7 @@ import {
 } from "../TraceSettingsDropdown";
 import { TracePanelNavigationButton } from "./components/TracePanelNavigationButton";
 import { useDesktopLayoutContextOptional } from "../TraceLayoutDesktop";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useElementSize } from "@/src/hooks/useElementSize";
 

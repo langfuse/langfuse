@@ -1,4 +1,4 @@
-import { LangfuseNotFoundError } from "../../errors";
+import { LangfuseNotFoundError } from "../../errors/NotFoundError";
 import { eventTypes } from "../ingestion/types";
 import { ClickhouseTableName, ClickhouseTableNames } from "./schema";
 

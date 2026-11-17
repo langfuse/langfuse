@@ -19,7 +19,7 @@ import {
   DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
 import { toChartFilters } from "@/src/features/chart-view/lib/chartFilterCompatibility";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   estimateYLabelWidthPx,
   OutlierBarStrip,

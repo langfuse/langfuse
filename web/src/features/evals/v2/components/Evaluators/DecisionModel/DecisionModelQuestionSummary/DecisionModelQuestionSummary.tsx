@@ -82,7 +82,7 @@ export function DecisionModelQuestionSummary({
           {index + 1}
         </span>
         <copy.icon size="base" aria-label={copy.label} />
-        <Badge color="filled" font="mono" text={question.scoreName} />
+        <Badge color="filled" text={question.scoreName} />
         <span className="truncate" title={entryText(question.instructions)}>
           {entryText(question.instructions)}
         </span>

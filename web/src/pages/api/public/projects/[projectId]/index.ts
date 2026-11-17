@@ -5,12 +5,10 @@ import {
   handleUpdateProject,
   handleDeleteProject,
 } from "@/src/ee/features/admin-api/server/projects/projectById";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import {
-  shadowAuth,
-  writeProjectError,
-} from "@/src/features/public-api/server";
+import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
+import { writeProjectError } from "@/src/features/public-api/server/writeError";
 
 export default async function handler(
   req: NextApiRequest,
@@ -74,6 +72,12 @@ export default async function handler(
   }
 
   if (req.method === "DELETE") {
-    return handleDeleteProject(req, res, projectId, authCheck.scope);
+    return handleDeleteProject(
+      req,
+      res,
+      projectId,
+      authCheck.scope,
+      authCheck.ctx,
+    );
   }
 }

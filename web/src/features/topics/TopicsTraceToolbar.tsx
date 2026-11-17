@@ -1,5 +1,5 @@
 import type { FilterState } from "@langfuse/shared";
-import { TableSearchBar } from "@/src/features/search-bar";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
 import {
   createTopicTraceRegistry,
   TOPIC_ASSIGNMENT_OPTIONS,

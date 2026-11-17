@@ -1,5 +1,5 @@
-import { updateAnnotationQueueItemForApi } from "@/src/features/annotation-queues/server";
-import { UpdateAnnotationQueueItemResponse } from "@/src/features/public-api/server";
+import { updateAnnotationQueueItemForApi } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
+import { UpdateAnnotationQueueItemResponse } from "@/src/features/public-api/types/annotation-queues";
 import { defineTool } from "../../../core/define-tool";
 import { buildAnnotationQueueItemUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";

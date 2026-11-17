@@ -1,6 +1,6 @@
 import { CheckCircle2, Circle, TrashIcon } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
-import { CodeMirrorEditor } from "@/src/components/editor";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { useState, useCallback } from "react";
 import { type ChatMessage } from "@langfuse/shared";
 

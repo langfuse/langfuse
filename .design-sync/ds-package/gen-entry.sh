@@ -76,7 +76,6 @@ JS
   S=../../web/src/components
   while read -r mod names; do echo "export { $names } from \"$S/$mod\";"; done <<'EOF'
 CrashModal/CrashModal CrashModal
-EnvLabelBadge EnvLabelBadge
 GroupedScoreBadges GroupedScoreBadges
 ItemBadge ItemBadge, ItemTypeIcon
 MediaFileCard/MediaFileCard MediaFileCard
@@ -95,7 +94,7 @@ table/FacetHeader FacetHeader
 table/KeyValueFilterBuilder KeyValueFilterBuilder
 table/OverviewSelectionBar/OverviewSelectionBar OverviewSelectionBar
 table/table-view-presets/components/TableViewPresetsButton TableViewPresetsButton
-ui/MarkdownViewer MarkdownView
+ui/MarkdownView MarkdownView
 ui/StatusBadge/StatusBadge StatusBadge
 ui/AIAssistedInput AIAssistedInput
 ui/drawer Drawer, DrawerController, DrawerTrigger, DrawerClose, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription

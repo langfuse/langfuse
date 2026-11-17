@@ -45,23 +45,39 @@ export const handlePostHogIntegrationSchedule = async () => {
   );
 
   await postHogIntegrationProcessingQueue.addBulk(
-    postHogIntegrationProjects.map((integration) => ({
-      name: QueueJobs.PostHogIntegrationProcessingJob,
-      data: {
-        id: randomUUID(),
-        name: QueueJobs.PostHogIntegrationProcessingJob,
-        timestamp: new Date(),
-        payload: {
-          projectId: integration.projectId,
-        },
-      },
-      opts: {
-        // Deduplicate by projectId + lastSyncAt so the same project isn't queued
-        // twice for the same sync window. removeOnFail ensures failed jobs are
-        // immediately cleaned up so they don't block re-queuing on the next cycle.
-        jobId: `${integration.projectId}-${integration.lastSyncAt?.toISOString() ?? ""}`,
-        removeOnFail: true,
-      },
-    })),
+    postHogIntegrationProjects.map((integration) =>
+      buildPostHogIntegrationProcessingJob(
+        integration.projectId,
+        integration.lastSyncAt,
+      ),
+    ),
   );
 };
+
+/**
+ * Builds the processing job for one project's next sync window. The scheduler
+ * and the day-cap follow-up share it so both derive the same jobId.
+ */
+export function buildPostHogIntegrationProcessingJob(
+  projectId: string,
+  lastSyncAt: Date | null,
+) {
+  return {
+    name: QueueJobs.PostHogIntegrationProcessingJob,
+    data: {
+      id: randomUUID(),
+      name: QueueJobs.PostHogIntegrationProcessingJob,
+      timestamp: new Date(),
+      payload: {
+        projectId,
+      },
+    },
+    opts: {
+      // Deduplicate by projectId + lastSyncAt so the same project isn't queued
+      // twice for the same sync window. removeOnFail ensures failed jobs are
+      // immediately cleaned up so they don't block re-queuing on the next cycle.
+      jobId: `${projectId}-${lastSyncAt?.toISOString() ?? ""}`,
+      removeOnFail: true,
+    },
+  };
+}

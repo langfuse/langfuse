@@ -1,7 +1,7 @@
 import { type ComponentProps } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { useDataTableControls } from "@/src/components/table/data-table-controls";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { ExperimentFilterSidebarView } from "./ExperimentFilterSidebarView";
 import { editExperimentFilter } from "./experimentFilterEditing";
 

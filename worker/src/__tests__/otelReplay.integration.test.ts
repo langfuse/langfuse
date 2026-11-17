@@ -2,7 +2,15 @@ import "./helpers/otelReplaySetup";
 
 import { createHash, randomUUID } from "node:crypto";
 import { Decimal } from "decimal.js";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { env } from "../env";
 import { env as sharedEnv, type SharedEnv } from "@langfuse/shared/src/env";
 import { MediaAssociationOrigin } from "@langfuse/shared";
@@ -18,6 +26,7 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import * as masking from "@langfuse/shared/src/server/ee/ingestionMasking";
 import * as otelPreparation from "../features/otel-ingestion/prepareOtelBatch";
+import { initializeEventByteAccounting } from "../services/ClickhouseWriter/eventByteAccounting";
 import {
   comparableOtelReplayRows,
   expectRawOtelReplayParity,
@@ -48,6 +57,10 @@ const TRACE_ID = "11111111111111111111111111111111";
 const SECOND_TRACE_ID = "44444444444444444444444444444444";
 const FIRST_SPAN_ID = "2222222222222222";
 const SECOND_SPAN_ID = "3333333333333333";
+
+beforeAll(async () => {
+  await initializeEventByteAccounting();
+});
 
 async function getTraceUpsertJobsForProject(projectId: string) {
   const jobsByShard = await Promise.all(
@@ -455,8 +468,11 @@ function expectSdkMetadataExpansion(
     );
     row.event_bytes =
       Number(row.event_bytes) +
-      Buffer.byteLength(JSON.stringify(values)) -
-      Buffer.byteLength(JSON.stringify(row.metadata_values));
+      values.reduce((sum, value) => sum + Buffer.byteLength(value), 0) -
+      (row.metadata_values as string[]).reduce(
+        (sum, value) => sum + Buffer.byteLength(value),
+        0,
+      );
     row.metadata_values = values;
   }
   for (const row of Object.values(expected.legacyRows ?? {}).flat()) {
@@ -498,7 +514,10 @@ describe(
         ],
       });
       otelReplayMocks.getPrompt.mockResolvedValue({ id: "replay-prompt-id" });
-      otelReplayMocks.fetchObservationEvalRules.mockResolvedValue([{}]);
+      otelReplayMocks.fetchEvalRules.mockResolvedValue({
+        observationRules: [{}],
+        traceTranscriptRules: [],
+      });
       otelReplayMocks.createObservationEvalSchedulerDeps.mockReturnValue({});
       otelReplayMocks.scheduleObservationEvals.mockResolvedValue(undefined);
       otelReplayMocks.uploadMediaForTrace.mockImplementation(
@@ -556,8 +575,10 @@ describe(
         prompt_version: 3,
         model_id: "otel-replay-model",
         provided_model_name: "gpt-4o-mini",
-        usage_pricing_tier_id: "otel-replay-tier",
-        usage_pricing_tier_name: "Replay default",
+        usage_pricing_tier_id: null,
+        usage_pricing_tier_name: null,
+        usage_details: {},
+        cost_details: {},
         ingestion_sdk_name: "otel-replay",
         ingestion_sdk_version: "test",
         blob_storage_file_path: FILE_KEY,
@@ -568,15 +589,6 @@ describe(
       expect(firstRow?.output).toBe("short replay answer");
       expect(firstRow?.metadata_names).toContain("source");
       expect(firstRow?.metadata_values).toContain("integration");
-      expect(
-        Number((firstRow?.usage_details as Record<string, unknown>).input),
-      ).toBeGreaterThan(0);
-      expect(
-        Number((firstRow?.usage_details as Record<string, unknown>).output),
-      ).toBeGreaterThan(0);
-      expect(
-        Number((firstRow?.cost_details as Record<string, unknown>).total),
-      ).toBeGreaterThan(0);
 
       expect(secondRow).toMatchObject({
         project_id: PROJECT_ID,

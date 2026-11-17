@@ -2,7 +2,7 @@ import type { FilterState, TracingSearchType } from "@langfuse/shared";
 import { EventsSearchBarRow } from "./EventsSearchBarRow";
 import { useEventsSearchBar } from "../hooks/useEventsSearchBar";
 import { DEFAULT_SEARCH_TYPE } from "../lib/commit";
-import type { ComposerSize } from "./ComposerSurface";
+import type { ComponentProps } from "react";
 import type { FieldRegistry } from "../lib/fields";
 import type { ObservedOptions } from "../lib/observed-options";
 
@@ -39,7 +39,7 @@ export function TableSearchBar({
   erroredColumns?: ReadonlySet<string>;
   inset?: boolean;
   /** `large` on full-page lists; embedded toolbars keep the default. */
-  size?: ComposerSize;
+  size?: ComponentProps<typeof EventsSearchBarRow>["size"];
 }) {
   // The host owns the applied query and scope; the bar edits both together.
   const { store, commit, applyFilters } = useEventsSearchBar({

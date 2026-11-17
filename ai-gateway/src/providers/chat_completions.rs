@@ -7,7 +7,7 @@ use serde::{
     Deserialize, Deserializer,
     de::{MapAccess, Visitor},
 };
-use serde_json::{Value, value::RawValue};
+use serde_json::value::RawValue;
 
 /// The rewritten body for a streamed request that did not ask for usage, or
 /// `None` when the original bytes must be forwarded unchanged. Every other
@@ -24,38 +24,43 @@ pub(super) fn request_stream_usage(body: &[u8], provider_model: &str) -> Option<
     if member(&members, "stream")? != "true" {
         return None;
     }
-    let options = match member(&members, "stream_options") {
-        None => serde_json::Map::new(),
-        Some(raw) => match serde_json::from_str::<Value>(raw).ok()? {
-            Value::Object(options) => options,
-            Value::Null => serde_json::Map::new(),
-            _ => return None,
-        },
+    // Parsed as raw members too: a full `Value` tree can take ~100x the bytes.
+    let mut options = match member(&members, "stream_options") {
+        None | Some("null") => Vec::new(),
+        Some(raw) => serde_json::from_str::<Members>(raw).ok()?.0,
     };
-    if options.get("include_usage") == Some(&Value::Bool(true)) {
+    if count(&options, "include_usage") > 1 || member(&options, "include_usage") == Some("true") {
         return None;
     }
-    let mut options = options;
-    options.insert("include_usage".to_owned(), Value::Bool(true));
-    let options = RawValue::from_string(Value::Object(options).to_string()).ok()?;
+    let include_usage = RawValue::from_string("true".to_owned()).ok()?;
+    match options.iter_mut().find(|(key, _)| key == "include_usage") {
+        Some((_, raw)) => *raw = include_usage,
+        None => options.push(("include_usage".to_owned(), include_usage)),
+    }
+    let options =
+        RawValue::from_string(String::from_utf8(object_bytes(&options, 32)?).ok()?).ok()?;
     let model = RawValue::from_string(serde_json::to_string(provider_model).ok()?).ok()?;
     members.iter_mut().find(|(key, _)| key == "model")?.1 = model;
     match members.iter_mut().find(|(key, _)| key == "stream_options") {
         Some((_, raw)) => *raw = options,
         None => members.push(("stream_options".to_owned(), options)),
     }
-    let mut rewritten = Vec::with_capacity(body.len() + 32);
-    rewritten.push(b'{');
+    object_bytes(&members, body.len() + 32).map(Bytes::from)
+}
+
+fn object_bytes(members: &[(String, Box<RawValue>)], capacity: usize) -> Option<Vec<u8>> {
+    let mut bytes = Vec::with_capacity(capacity);
+    bytes.push(b'{');
     for (index, (key, raw)) in members.iter().enumerate() {
         if index > 0 {
-            rewritten.push(b',');
+            bytes.push(b',');
         }
-        serde_json::to_writer(&mut rewritten, key).ok()?;
-        rewritten.push(b':');
-        rewritten.extend_from_slice(raw.get().as_bytes());
+        serde_json::to_writer(&mut bytes, key).ok()?;
+        bytes.push(b':');
+        bytes.extend_from_slice(raw.get().as_bytes());
     }
-    rewritten.push(b'}');
-    Some(Bytes::from(rewritten))
+    bytes.push(b'}');
+    Some(bytes)
 }
 
 fn count(members: &[(String, Box<RawValue>)], name: &str) -> usize {

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   clickhouseClient,
   ClickhouseClientType,
@@ -28,7 +27,7 @@ export { TableName } from "./types";
 
 const MULTI_PROJECT_LOG_COMMENT_PROJECT_ID = "MULTI_PROJECT";
 
-export function isRetryableClickhouseInsertError(error: unknown): boolean {
+function isRetryableClickhouseInsertError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
 
   const errorMessage = (error as Error).message?.toLowerCase() || "";
@@ -89,6 +88,8 @@ export class ClickhouseWriter<
       [TableName.BlobStorageFileLog]: [],
       [TableName.DatasetRunItems]: [],
       [TableName.EventsFull]: [],
+      [TableName.TopicFacetSummaries]: [],
+      [TableName.TopicAssignments]: [],
     };
 
     this.start();
@@ -175,16 +176,7 @@ export class ClickhouseWriter<
   public async flushAll(fullQueue = false) {
     const tables = this.allowedTable
       ? [this.allowedTable]
-      : [
-          TableName.Traces,
-          TableName.TracesNull,
-          TableName.Scores,
-          TableName.Observations,
-          TableName.ObservationsBatchStaging,
-          TableName.BlobStorageFileLog,
-          TableName.DatasetRunItems,
-          TableName.EventsFull,
-        ];
+      : Object.values(TableName);
     return this.trackActiveFlush(
       instrumentAsync(
         {

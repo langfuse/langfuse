@@ -40,7 +40,6 @@ vi.mock("next-auth/react", () => ({
         enableExperimentalFeatures: mocks.experimentalFeaturesEnabled,
       },
       user: {
-        admin: false,
         featureFlags: mocks.userFeatureFlags,
         v4BetaEnabled: false,
       },
@@ -228,11 +227,6 @@ describe("OrganizationFeaturePreviewsSettings", () => {
         name: "Toggle Redesigned Session View organization default",
       }),
     ).toBeDisabled();
-    expect(
-      screen.getByRole("checkbox", {
-        name: "Toggle External Media Storage organization default",
-      }),
-    ).toBeEnabled();
   });
 
   it("confirms an organization default change and captures metadata once", async () => {

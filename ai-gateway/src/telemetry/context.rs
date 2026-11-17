@@ -9,7 +9,7 @@ use opentelemetry_sdk::{
     trace::{IdGenerator, RandomIdGenerator},
 };
 use serde::Serialize;
-use serde_json::{Map, Value};
+use serde_json::{Map, Value, value::RawValue};
 use sha2::{Digest, Sha256};
 
 const MAX_HEADER_BYTES: usize = 8 * 1024;
@@ -127,7 +127,7 @@ impl GenerationContext {
     }
 
     /// `client_metadata` is the request body's agent metadata object, already
-    /// removed from the captured input by [`take_agent_client_metadata`].
+    /// removed from the captured input by [`agent_client_metadata`].
     pub(super) fn from_request(
         headers: &HeaderMap,
         client_metadata: Option<&Map<String, Value>>,
@@ -429,27 +429,16 @@ impl AgentContext {
     }
 }
 
-/// Remove a coding agent's `client_metadata` object from a captured request so its
-/// identifiers are recorded as `agent.*` metadata rather than as prompt input.
-/// Unrecognized or oversized objects stay in the request untouched.
-pub(crate) fn take_agent_client_metadata(
-    request: &mut Map<String, Value>,
-) -> Option<Map<String, Value>> {
-    let recognized = request
-        .get("client_metadata")
-        .and_then(Value::as_object)
-        .is_some_and(|metadata| {
-            is_codex_client_metadata(metadata)
-                && serde_json::to_vec(metadata)
-                    .is_ok_and(|bytes| bytes.len() <= MAX_CLIENT_METADATA_BYTES)
-        });
-    if !recognized {
+/// A coding agent's `client_metadata` object, parsed so its identifiers are recorded
+/// as `agent.*` metadata rather than as prompt input. Unrecognized or oversized
+/// objects yield `None` and stay in the captured request untouched.
+pub(crate) fn agent_client_metadata(raw: &RawValue) -> Option<Map<String, Value>> {
+    if raw.get().len() > MAX_CLIENT_METADATA_BYTES {
         return None;
     }
-    match request.remove("client_metadata") {
-        Some(Value::Object(metadata)) => Some(metadata),
-        _ => None,
-    }
+    serde_json::from_str(raw.get())
+        .ok()
+        .filter(is_codex_client_metadata)
 }
 
 fn is_codex_client_metadata(metadata: &Map<String, Value>) -> bool {

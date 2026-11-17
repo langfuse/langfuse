@@ -9,7 +9,7 @@ import {
   extractToolsFromObservation,
   ObservationRecordInsertType,
 } from "../../../src/server";
-import { ObservationType } from "../../../src/domain";
+import { ObservationType } from "../../../src/domain/observations";
 import { observationToEvent, traceToEvent } from "./event-mirror";
 import { utcDayStartMs } from "./rng";
 import {

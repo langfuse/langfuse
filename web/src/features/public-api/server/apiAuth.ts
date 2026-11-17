@@ -25,7 +25,7 @@ import {
 } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { type Redis, type Cluster } from "ioredis";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { type z } from "zod";
 import { CloudConfigSchema, isPlan, UnauthorizedError } from "@langfuse/shared";
 import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
@@ -185,9 +185,9 @@ export class ApiAuthService {
             );
 
             const accessLevel =
-              finalApiKey.scope === "ORGANIZATION"
-                ? ("organization" as const)
-                : ("project" as const);
+              finalApiKey.scope === "PROJECT"
+                ? ("project" as const)
+                : ("organization" as const);
 
             // The API key is resolved via the hash of the secret key, so the
             // submitted public key may not belong to it, e.g. after a partial
@@ -212,6 +212,8 @@ export class ApiAuthService {
                 publicKey: finalApiKey.publicKey,
                 isIngestionSuspended: finalApiKey.isIngestionSuspended,
                 isInAppAgentKey: finalApiKey.isInAppAgentKey,
+                accessAuditLogEnabled:
+                  finalApiKey.accessAuditLogEnabled ?? false,
               },
             };
 
@@ -223,7 +225,7 @@ export class ApiAuthService {
 
             const dbKey = await this.findDbKeyOrThrow(publicKey);
 
-            if (dbKey.scope === "ORGANIZATION") {
+            if (dbKey.scope !== "PROJECT") {
               throw new Error(
                 "Unauthorized: Cannot use organization key with bearer auth",
               );
@@ -234,6 +236,7 @@ export class ApiAuthService {
               organizationCreatedAt,
               cloudConfig,
               cloudFreeTierUsageThresholdState,
+              accessAuditLogEnabled,
             } = this.extractOrgIdAndCloudConfig(dbKey);
             const plan = getOrganizationPlanServerSide(cloudConfig);
 
@@ -263,6 +266,7 @@ export class ApiAuthService {
                 isInAppAgentKey: dbKey.isInAppAgentKey,
                 isIngestionSuspended:
                   cloudFreeTierUsageThresholdState === "BLOCKED",
+                accessAuditLogEnabled,
               },
             };
 
@@ -447,6 +451,7 @@ export class ApiAuthService {
           updatedAt: Date;
           cloudConfig: Prisma.JsonValue;
           cloudFreeTierUsageThresholdState: string | null;
+          accessAuditLogEnabled: boolean;
         };
       } | null;
     } & {
@@ -457,6 +462,7 @@ export class ApiAuthService {
         updatedAt: Date;
         cloudConfig: Prisma.JsonValue;
         cloudFreeTierUsageThresholdState: string | null;
+        accessAuditLogEnabled: boolean;
       } | null;
     },
   ) {
@@ -473,6 +479,10 @@ export class ApiAuthService {
       apiKeyAndOrganisation.project?.organization
         .cloudFreeTierUsageThresholdState ??
       apiKeyAndOrganisation.organization?.cloudFreeTierUsageThresholdState;
+    const accessAuditLogEnabled =
+      apiKeyAndOrganisation.project?.organization.accessAuditLogEnabled ??
+      apiKeyAndOrganisation.organization?.accessAuditLogEnabled ??
+      false;
 
     if (!orgId || !organizationCreatedAt) {
       logger.error(
@@ -490,6 +500,7 @@ export class ApiAuthService {
       organizationCreatedAt,
       cloudConfig,
       cloudFreeTierUsageThresholdState,
+      accessAuditLogEnabled,
     };
   }
 
@@ -510,6 +521,7 @@ export class ApiAuthService {
           updatedAt: Date;
           cloudConfig: Prisma.JsonValue;
           cloudFreeTierUsageThresholdState: string | null;
+          accessAuditLogEnabled: boolean;
         };
       } | null;
     } & {
@@ -520,6 +532,7 @@ export class ApiAuthService {
         updatedAt: Date;
         cloudConfig: Prisma.JsonValue;
         cloudFreeTierUsageThresholdState: string | null;
+        accessAuditLogEnabled: boolean;
       } | null;
     },
   ) {
@@ -528,6 +541,7 @@ export class ApiAuthService {
       organizationCreatedAt,
       cloudConfig,
       cloudFreeTierUsageThresholdState,
+      accessAuditLogEnabled,
     } = this.extractOrgIdAndCloudConfig(apiKeyAndOrganisation);
 
     const newApiKey = OrgEnrichedApiKey.parse({
@@ -539,6 +553,7 @@ export class ApiAuthService {
       plan: getOrganizationPlanServerSide(cloudConfig),
       rateLimitOverrides: cloudConfig?.rateLimitOverrides,
       isIngestionSuspended: cloudFreeTierUsageThresholdState === "BLOCKED",
+      accessAuditLogEnabled,
     });
 
     if (!orgId) {

@@ -59,7 +59,6 @@ describe("dashboard.executeQuery version contract", () => {
           },
         ],
         featureFlags: testFeatureFlags(),
-        admin: false,
       },
       environment: {} as any,
     };

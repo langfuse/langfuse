@@ -1,14 +1,15 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { FTS_MATCH_OPERATOR } from "../../../interfaces/filters";
 import { type EventsTableFilterState } from "../../../types";
-import { InvalidRequestError } from "../../../errors";
+import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import { isValidTableName } from "../../clickhouse/schemaUtils";
 import { logger } from "../../logger";
 import {
   findUiColumnMapping,
   type ColumnDefinition,
   type UiColumnMappings,
-} from "../../../tableDefinitions";
+} from "../../../tableDefinitions/types";
+
 import { COMPATIBLE_FILTER_TYPES } from "./filterTypeCompatibility";
 import {
   StringFilter,

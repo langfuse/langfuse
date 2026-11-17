@@ -36,17 +36,17 @@ import {
 } from "@langfuse/shared";
 import router from "next/router";
 import { ModelParameters } from "@/src/components/ModelParameters";
-import { PromptVariableListPreview } from "@/src/features/prompts";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
-import { useModelParams } from "@/src/features/playground";
-import { showSuccessToast } from "@/src/features/notifications";
+import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import {
   getDefaultOutputDefinitionFormValues,
   shouldReplaceDefaultOutputDefinitionField,
 } from "@/src/features/evals/utils/template-form-defaults";
 import { templateFormSchema } from "@/src/features/evals/utils/template-form-schema";
-import { CodeMirrorEditor } from "@/src/components/editor";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { type RouterInput } from "@/src/utils/types";
 import { useEvaluationModel } from "@/src/features/evals/hooks/useEvaluationModel";

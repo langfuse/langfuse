@@ -1,7 +1,5 @@
 # Transcript
 
-PLEASE DO NOT USE IN PRODUCTION YET. This is a v1 implementation of the transcript builder and remains work in progress.
-
 Builds a conversation transcript from the observations of one trace.
 
 Status: generation-led builder with tool responses matched by ID or name and order.
@@ -57,30 +55,9 @@ without I/O, once for the `GENERATION` and `TOOL` observations with I/O, then
 merge the two by id so the walk order comes from the structure and the
 messages from the content.
 
-### Why a trace renderer also needs observations
+### Topics rendering
 
-`assembleTranscript` returns normalized conversation threads, not a complete
-trace. It retains the messages and minimal observation references needed to
-connect them, but does not retain the fields a trace-level view needs:
-
-- A root `SPAN` or `AGENT` can carry the trace input and final application
-  output, including output produced after the last model or tool call. Those
-  fields are absent from the assembled conversation.
-- Non-generation operations, unmatched tool observations, and observation
-  type/name/level/status are not represented as conversation messages. A
-  renderer needs them to show the operation sequence and inline failures.
-- Available tool definitions can occur in generation input or metadata. They
-  are not part of the normalized messages returned by the assembler.
-
-The Topics renderer therefore accepts both the assembled transcript and the
-already loaded, ordered observations. It uses the transcript for roles, threads,
-replayed history, and matched tool results; it uses observations for trace-level
-context and for locating messages among operations. This adds no repository
-read. If other consumers need the same trace context, an explicit optional
-context field or richer observation references on the assembled result could
-remove that second input. Such an extension should keep conversation assembly
-and trace-level facts distinct, so root I/O and operation metadata do not become
-duplicate conversation messages.
+[`topics-renderer.ts`](topics-renderer.ts) takes the transcript plus the loaded, ordered observations. The latter supply root I/O, operation context, errors and tool definitions that conversation assembly omits. Rendering caps and inclusions live in [`topics-renderer-config.ts`](topics-renderer-config.ts); they are separate from the assembler's optional character limit and Topics model-input limits.
 
 ## Execution issues
 
@@ -274,48 +251,6 @@ Prepared messages reuse `identityKey` and `enrichmentKey` during selection and r
   are not read by the transcript builder; they require support in normalized IO.
 - **Performance:** replayed history is normalized and serialized for each
   generation.
-
-## Preliminary decisions
-
-- Tool observations contribute to thread messages rather than just enriching generation messages with tool responses. In some cases, the generations messages do not contain any reference of the tool call or the tool result, but tool-observations can provide this information. Recommendation: let tool observations only enrich generation messages with tool responses. Sampled production data does not show strong enough evidence to support this change. Should we find more evidence in production data, this decision should be revisited.
-- Root span I/O does not contribute to the transcript, unless it is of type `GENERATION`.
-- Do not include status messages and errors in the transcript for v1. Only revisit should we find strong evidence in production data that this is a valuable feature, or if consumers (e.g. Topics, Session UI) require this information.
-- Expose a helper method to get the first user message and final assistant message from a given thread. This is useful for consumers (e.g. Topics, Session UI) to display the user question and final assistant answer. Consumers must assess for which thread they want to display this information, and how to handle multiple threads.
-
-## Open questions
-
-- How should compacted histories and branches reconnect to existing threads? Will venture to find solid examples in production data to guide this decision.
-
-## Layout
-
-```
-transcript/
-├── README.md
-├── index.ts               public surface: assembly, renderers, types
-├── topics-renderer.ts     Topics trace-level layout
-├── topics-renderer-config.ts  Topics block caps and inclusions
-├── topics-renderer.test.ts    Topics layout behavior
-├── generic-renderer.ts    preserved plain-text comparison layout
-├── ordering.ts            orderObservations, the trace tree walk
-├── ordering.test.ts       ordering rules
-├── transcript.ts          assembleTranscript
-├── context.ts             assembleTranscriptContext and execution issues
-├── limit.ts               optional hard limit on serialized JSON
-├── comparison.ts          messageKey
-├── comparison.test.ts     focused equality regressions
-├── messages.ts            message preparation and part classification
-├── continuity.ts          contributesToContinuity
-├── replay.ts              createMessageDeduplicator
-├── threads.ts             thread selection and message appending
-├── tool-calls.ts          tool matching and response association
-├── schema.ts              current transcript shape, composing normalized message schemas
-├── types.ts               inferred output types, assembly inputs and options
-└── fixtures/
-    ├── fixture-types.ts   TranscriptFixture
-    ├── index.ts           registry of fixtures
-    ├── fixtures.test.ts   exact fixture expectations and assembly/cap regressions
-    └── trace/             one file per fixture
-```
 
 ## Fixtures and verification
 

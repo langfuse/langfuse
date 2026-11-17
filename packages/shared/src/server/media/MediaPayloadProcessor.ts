@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { isMediaContentType, type MediaContentType } from "../../domain/media";
 import { defineOwnValue } from "../../utils/objects";
 

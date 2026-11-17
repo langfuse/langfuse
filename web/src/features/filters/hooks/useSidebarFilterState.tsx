@@ -49,8 +49,11 @@ import {
   clearCategoricalColumn,
   deriveOperatorChange,
   hasMultipleFilterTargets,
+  hasEmptyCheckboxSelection,
+  isStringKeyValueTextEntry,
   removeColumnFiltersOfType,
   removeTextFilterEntry,
+  stringFacetRowsOf,
   type BooleanKeyValueFilterEntry,
   type KeyValueFilterEntry,
   type KeyedFilterKind,
@@ -62,7 +65,7 @@ import {
 // Re-exported so existing consumers (tests, session view) keep their path.
 export { resolveCheckboxOperator } from "../lib/sidebar-filter-actions";
 import type { PeekTableStateContextValue } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 /**
  * Decodes filters from URL query string and normalizes display names to column IDs.
@@ -291,6 +294,8 @@ export interface StringKeyValueUIFilter extends BaseUIFilter {
   keyDetails?: Record<string, string>;
   /** Offered key → its observed values, for the value input's suggestions. */
   valueOptions?: Record<string, string[]>;
+  /** The facet's `numericValues`: rows may also compare numbers. */
+  numericValues?: boolean;
   onChange: (filters: StringKeyValueFilterEntry[]) => void;
 }
 
@@ -1337,7 +1342,7 @@ export function useSidebarFilterPresentation(
   );
 
   const resetKeyedFilter = useCallback(
-    (column: string, kind: KeyedFilterKind) => {
+    (column: string, kind: KeyedFilterKind | readonly KeyedFilterKind[]) => {
       const next = removeColumnFiltersOfType(filterState, column, kind);
       setFilterState(next);
       if (next.length < filterState.length) {
@@ -1688,31 +1693,11 @@ export function useSidebarFilterPresentation(
 
         // Handle stringKeyValue filters
         if (facet.type === "stringKeyValue") {
-          // Extract all stringObject filters for this column from filterState
-          const stringFilters = filterState.filter(
-            (f) => f.column === facet.column && f.type === "stringObject",
-          ) as Array<{
-            target?: string;
-            column: string;
-            type: "stringObject";
-            operator:
-              | "="
-              | "contains"
-              | "does not contain"
-              | "is set"
-              | "is not set";
-            key: string;
-            value: string;
-          }>;
-
-          // Convert to StringKeyValueFilterEntry array
-          const activeFilters: StringKeyValueFilterEntry[] = stringFilters.map(
-            (f) => ({
-              key: f.key,
-              ...(f.target ? { target: f.target } : {}),
-              operator: f.operator,
-              value: f.value,
-            }),
+          const numericValues = facet.numericValues ?? false;
+          const activeFilters = stringFacetRowsOf(
+            filterState,
+            facet.column,
+            numericValues,
           );
 
           const isActive = activeFilters.length > 0;
@@ -1746,12 +1731,26 @@ export function useSidebarFilterPresentation(
             isActive,
             isDisabled: disableState.isDisabled,
             disabledReason: disableState.reason,
+            numericValues,
             onChange: (filters: StringKeyValueFilterEntry[]) =>
-              updateKeyedFilter(facet.column, {
-                kind: "stringObject",
-                entries: filters,
-              }),
-            onReset: () => resetKeyedFilter(facet.column, "stringObject"),
+              updateKeyedFilter(
+                facet.column,
+                numericValues
+                  ? { kind: "stringObject", numericValues, entries: filters }
+                  : {
+                      kind: "stringObject",
+                      // The builder offers numeric operators only with
+                      // `numericValues`, so this keeps every row.
+                      entries: filters.filter(isStringKeyValueTextEntry),
+                    },
+              ),
+            onReset: () =>
+              resetKeyedFilter(
+                facet.column,
+                numericValues
+                  ? ["stringObject", "numberObject"]
+                  : "stringObject",
+              ),
           };
         }
 
@@ -1761,19 +1760,19 @@ export function useSidebarFilterPresentation(
           const falseLabel = facet.falseLabel ?? "False";
           const invert = facet.invertValue ?? false;
           const availableOptions = [trueLabel, falseLabel];
-          const filterEntry = filterByColumn.get(facet.column);
-
-          let selectedOptions = availableOptions;
-          if (filterEntry) {
-            const boolValue = filterEntry.value as boolean;
-            if (invert) {
-              // Inverted: filter value=true means falseLabel selected, value=false means trueLabel selected
-              selectedOptions = boolValue === true ? [falseLabel] : [trueLabel];
-            } else {
-              selectedOptions = boolValue === true ? [trueLabel] : [falseLabel];
-            }
-          }
-          const isActive = selectedOptions.length === 1;
+          const booleanFilters = filterState.filter(
+            (filter) =>
+              filter.column === facet.column && filter.type === "boolean",
+          );
+          const selectedOptions = availableOptions.filter((label) => {
+            const value = label === trueLabel ? !invert : invert;
+            return booleanFilters.every((filter) =>
+              filter.operator === "="
+                ? filter.value === value
+                : filter.value !== value,
+            );
+          });
+          const isActive = booleanFilters.length > 0;
           const disableState = getFacetDisabledState(facet);
 
           // Build counts from options
@@ -1813,31 +1812,29 @@ export function useSidebarFilterPresentation(
             isActive,
             isDisabled: disableState.isDisabled,
             disabledReason: disableState.reason,
-            onChange: (values: string[]) => {
-              if (values.length === 0 || values.length === 2) {
-                updateFilter(facet.column, []);
-                return;
-              }
-              if (values.includes(trueLabel) && !values.includes(falseLabel)) {
-                updateFilter(facet.column, [trueLabel]);
-              } else if (
-                values.includes(falseLabel) &&
-                !values.includes(trueLabel)
-              ) {
-                updateFilter(facet.column, [falseLabel]);
-              }
-            },
+            onChange: (values: string[]) => updateFilter(facet.column, values),
             onOnlyChange: (value: string) => {
               if (
                 selectedOptions.length === 1 &&
                 selectedOptions.includes(value)
               ) {
-                updateFilter(facet.column, []);
+                updateFilter(facet.column, availableOptions);
               } else {
                 updateFilter(facet.column, [value]);
               }
             },
-            onReset: () => updateFilter(facet.column, []),
+            onReset: () => {
+              const next = filterState.filter(
+                (filter) => filter.column !== facet.column,
+              );
+              setFilterState(next);
+              if (next.length < filterState.length) {
+                emitFacetCleared(
+                  facet.column,
+                  filterState.length - next.length,
+                );
+              }
+            },
           };
         }
 
@@ -1875,10 +1872,13 @@ export function useSidebarFilterPresentation(
             (f.type === "stringOptions" || f.type === "arrayOptions"),
         );
 
-        const selectedValues = computeSelectedValues(
-          availableValues,
-          checkboxFilter,
+        const hasEmptyPositiveSelection = hasEmptyCheckboxSelection(
+          filterState,
+          facet.column,
         );
+        const selectedValues = hasEmptyPositiveSelection
+          ? []
+          : computeSelectedValues(availableValues, checkboxFilter);
 
         // Determine current operator for ANY/ALL toggle
         // When a user selects items in an arrayOptions filter, we expose a toggle
@@ -1959,6 +1959,7 @@ export function useSidebarFilterPresentation(
         //   its "Clear" affordance.
         const isActive =
           hasTextFilters ||
+          hasEmptyPositiveSelection ||
           (isManagedEnvironmentFacet
             ? hasExplicitManagedEnvironmentFilter
             : (currentOperator === "all of" &&

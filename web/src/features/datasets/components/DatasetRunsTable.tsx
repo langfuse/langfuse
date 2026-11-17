@@ -1,9 +1,9 @@
-/* eslint-disable no-nested-ternary, react/no-unstable-nested-components */
+/* eslint-disable react/no-unstable-nested-components */
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
@@ -11,16 +11,14 @@ import { type RouterOutput } from "@/src/utils/types";
 import { useEffect, useMemo, useState } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import {
-  useColumnOrder,
-  useColumnVisibility,
-} from "@/src/features/column-visibility";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import {
   type Prisma,
   datasetRunsTableColsWithOptions,
   type ScoreAggregate,
 } from "@langfuse/shared";
-import { useQueryFilterState } from "@/src/features/filters";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import {
   customRowHeightMenu,
@@ -46,19 +44,21 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   RESOURCE_METRICS,
   transformAggregatedRunMetricsToChartData,
+} from "@/src/features/dashboard/lib/score-analytics-utils";
+import {
   compareViewChartDataToDataPoints,
   getCompareViewChartUnit,
-} from "@/src/features/dashboard";
-import { Chart } from "@/src/features/widgets";
+} from "@/src/features/dashboard/lib/chart-data-adapters";
+import { DatasetCompareChart } from "./DatasetCompareChart/DatasetCompareChart";
 import {
   addPrefixToScoreKeys,
-  CompareViewAdapter,
   convertScoreColumnsToAnalyticsData,
-  getScoreLabelFromKey,
   scoreFilters,
-  useScoreColumns,
-} from "@/src/features/scores";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+} from "@/src/features/scores/lib/scoreColumns";
+import { CompareViewAdapter } from "@/src/features/scores/adapters/index";
+import { getScoreLabelFromKey } from "@/src/features/scores/lib/aggregateScores";
+import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
@@ -68,8 +68,8 @@ import {
   ResizableHandle,
 } from "@/src/components/ui/resizable";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { VisualizationFrame } from "@/src/components/design-system/charts/internal/VisualizationFrame/VisualizationFrame";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
 type DatasetRunRowData = {
@@ -343,16 +343,16 @@ function DatasetRunsTableInternal(
       isFixedPosition: true,
       isPinnedLeft: true,
       header: ({ table }) => {
+        const checked = (() => {
+          if (table.getIsAllPageRowsSelected()) return true;
+          if (table.getIsSomePageRowsSelected())
+            return "indeterminate" as const;
+          return false;
+        })();
         return (
           <div className="flex h-full items-center">
             <Checkbox
-              checked={
-                table.getIsAllPageRowsSelected()
-                  ? true
-                  : table.getIsSomePageRowsSelected()
-                    ? "indeterminate"
-                    : false
-              }
+              checked={checked}
               onCheckedChange={(value) => {
                 table.toggleAllPageRowsSelected(!!value);
                 if (!value) {
@@ -582,10 +582,15 @@ function DatasetRunsTableInternal(
                     className="flex h-full max-w-full min-w-80 flex-col gap-2"
                   >
                     <span className="shrink-0 text-sm font-bold">{title}</span>
-                    <NoDataOrLoading
-                      isLoading={runsMetrics.isPending}
-                      className="min-h-[200px]"
-                    />
+                    <div className="min-h-[200px] flex-1">
+                      <VisualizationFrame
+                        content={
+                          runsMetrics.isPending
+                            ? { type: "loading", progress: { type: "spinner" } }
+                            : { type: "empty" }
+                        }
+                      />
+                    </div>
                   </div>
                 );
               }
@@ -611,11 +616,19 @@ function DatasetRunsTableInternal(
                     className="flex h-full max-w-full min-w-80 flex-col gap-2"
                   >
                     <span className="shrink-0 text-sm font-bold">{title}</span>
-                    <NoDataOrLoading
-                      isLoading={runsMetrics.isPending}
-                      description="No chart data available for the selected runs."
-                      className="min-h-[200px]"
-                    />
+                    <div className="min-h-[200px] flex-1">
+                      <VisualizationFrame
+                        content={
+                          runsMetrics.isPending
+                            ? { type: "loading", progress: { type: "spinner" } }
+                            : {
+                                type: "empty",
+                                description:
+                                  "No chart data available for the selected runs.",
+                              }
+                        }
+                      />
+                    </div>
                   </div>
                 );
               }
@@ -627,14 +640,10 @@ function DatasetRunsTableInternal(
                 >
                   <span className="shrink-0 text-sm font-bold">{title}</span>
                   <div className="min-h-[200px] min-w-0 flex-1">
-                    <Chart
+                    <DatasetCompareChart
                       chartType={chartType}
                       data={dataPoints}
-                      rowLimit={Math.max(dataPoints.length, 1)}
-                      chartConfig={{
-                        type: chartType,
-                        unit: getCompareViewChartUnit(key),
-                      }}
+                      unit={getCompareViewChartUnit(key)}
                     />
                   </div>
                 </div>
@@ -681,23 +690,22 @@ function DatasetRunsTableInternal(
         <DataTable
           tableName="datasetRuns"
           columns={columns}
-          data={
-            runs.isPending
-              ? { isLoading: true, isError: false }
-              : runs.isError
-                ? {
-                    isLoading: false,
-                    isError: true,
-                    error: runs.error.message,
-                  }
-                : {
-                    isLoading: false,
-                    isError: false,
-                    data: (runsWithMetrics.rows ?? []).map((t) =>
-                      convertToTableRow(t),
-                    ),
-                  }
-          }
+          data={(() => {
+            if (runs.isPending) return { isLoading: true, isError: false };
+            if (runs.isError)
+              return {
+                isLoading: false,
+                isError: true,
+                error: runs.error.message,
+              };
+            return {
+              isLoading: false,
+              isError: false,
+              data: (runsWithMetrics.rows ?? []).map((t) =>
+                convertToTableRow(t),
+              ),
+            };
+          })()}
           pagination={{
             totalCount: runs.data?.totalRuns ?? null,
             onChange: setPaginationState,
@@ -735,6 +743,7 @@ function DatasetRunsTableInternal(
           Object.keys(selectedRows).filter((runId) =>
             runs.data?.runs.map((run) => run.id).includes(runId),
           ).length > 0 ? (
+            // eslint-disable-next-line react/jsx-key
             <DatasetRunTableMultiSelectAction
               // Exclude items that are not in the current page
               selectedRunIds={Object.keys(selectedRows).filter((runId) =>
@@ -750,23 +759,20 @@ function DatasetRunsTableInternal(
       <DataTable
         tableName="datasetRuns"
         columns={columns}
-        data={
-          runs.isPending
-            ? { isLoading: true, isError: false }
-            : runs.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: runs.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: (runsWithMetrics.rows ?? []).map((t) =>
-                    convertToTableRow(t),
-                  ),
-                }
-        }
+        data={(() => {
+          if (runs.isPending) return { isLoading: true, isError: false };
+          if (runs.isError)
+            return {
+              isLoading: false,
+              isError: true,
+              error: runs.error.message,
+            };
+          return {
+            isLoading: false,
+            isError: false,
+            data: (runsWithMetrics.rows ?? []).map((t) => convertToTableRow(t)),
+          };
+        })()}
         pagination={{
           totalCount: runs.data?.totalRuns ?? null,
           onChange: setPaginationState,

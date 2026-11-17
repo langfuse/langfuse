@@ -6,64 +6,48 @@ import type {
   TopicFacetVersion,
   TopicFacetRef,
   TopicRun,
-  TopicProcessBatchState,
   TopicSummary,
   TopicTimeRange,
 } from "@langfuse/shared/topics";
-import {
-  TOPICS_TRANSCRIPT_VERSION,
-  getTopicClusteringSummaries,
-  type TopicEmbeddingBatch,
-  type TopicEmbeddingRef,
-} from "@langfuse/shared/topics/server";
-import { assembleTranscript } from "@langfuse/shared/src/server";
-import {
-  topicExecutionInputSchema,
-  topicSourceKey,
-} from "@langfuse/shared/topics";
-import {
-  TopicsProviderUnavailable,
-  topicProviderError,
-} from "./provider-error";
+import { getTopicClusteringSummaries } from "@langfuse/shared/topics/server";
+import { TOPICS_TEXT_VERSION } from "@langfuse/shared/src/server";
+import { topicExecutionInputSchema } from "@langfuse/shared/topics";
+import { TopicsProviderUnavailable } from "./provider-error";
+import { ASSEMBLED_TRANSCRIPT_ID } from "./summarizeAssembledTrace";
 
+const { topicSourceKey } = vi.hoisted(() => ({
+  topicSourceKey: (
+    row: Pick<
+      TopicSummary,
+      "projectId" | "facetId" | "facetVersion" | "traceId" | "sessionId"
+    >,
+  ) =>
+    JSON.stringify([
+      row.projectId,
+      row.facetId,
+      row.facetVersion,
+      row.traceId ?? row.sessionId,
+    ]),
+}));
 const state = vi.hoisted(() => ({
-  batches: new Map<string, TopicProcessBatchState>(),
   executions: new Map<string, TopicExecution>(),
   summaries: new Map<string, TopicSummary>(),
-  staged: new Map<
-    string,
-    { summary: TopicSummary; embeddingConfig: TopicEmbeddingConfig }
-  >(),
-  embeddingBatches: new Map<string, TopicEmbeddingBatch>(),
-  completedBatches: new Set<string>(),
-  deferEmbeddings: false,
   runs: new Map<string, TopicRun>(),
   assignments: new Map<string, TopicAssignment>(),
   facets: new Map<string, TopicFacetVersion>(),
   visible: true,
   resultReads: vi.fn(),
   assignmentWrites: vi.fn(),
-  saveBatch: vi.fn(),
   saveExecution: vi.fn(),
-  loadTranscript: vi.fn(),
-  summarize: vi.fn(),
-  summaryRequests: vi.fn(),
-  embed: vi.fn(),
   name: vi.fn(),
   sampleNaming: false,
   numeric: vi.fn(),
 }));
-vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
-  const { assembleTranscript, isInternalEvalEnvironment } =
-    await importOriginal<typeof import("@langfuse/shared/src/server")>();
-  return {
-    ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
-    assembleTranscript,
-    isInternalEvalEnvironment,
-    recordIncrement: vi.fn(),
-    recordDistribution: vi.fn(),
-  };
-});
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
+  recordIncrement: vi.fn(),
+  recordDistribution: vi.fn(),
+}));
 const facet: TopicFacetVersion = {
   projectId: "project",
   facetId: "facet",
@@ -72,12 +56,16 @@ const facet: TopicFacetVersion = {
   createdAt: "2026-01-01T00:00:00.000Z",
 };
 
-vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
-  const { TOPICS_TRANSCRIPT_VERSION, TOPIC_EMBEDDING_EXPIRED_ERROR } =
-    await importOriginal<typeof import("@langfuse/shared/topics/server")>();
+vi.mock("@langfuse/shared/topics/server", () => {
   return {
+    topicAnalysisCohort: async () => ({
+      traces: { query: "SELECT '' AS id LIMIT 0", params: {} },
+      sample: { seed: "seed", limit: 20_000 },
+    }),
     getTopicTextResponseMetadata: () => undefined,
     isTopicsEnabled: () => true,
+    // A refit's rule selects every trace.
+    getTopicRule: async () => ({ filter: [] }),
     getTopicsModels: async () => {
       const slot = (name: string, model: string) => ({
         slot: name,
@@ -97,85 +85,9 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
         clustering: slot("clustering", "gpt-5.6-terra"),
       };
     },
-    TOPICS_TRANSCRIPT_VERSION,
-    TOPIC_EMBEDDING_EXPIRED_ERROR,
-    stageTopicSummary: async (
-      scope: { projectId: string; executionId: string },
-      summary: TopicSummary,
-      embeddingConfig: TopicEmbeddingConfig,
-    ) => {
-      const key = `${scope.executionId}/${topicSourceKey(summary)}`;
-      const accepted = state.staged.get(key);
-      if (accepted) return accepted.summary;
-      state.staged.set(key, structuredClone({ summary, embeddingConfig }));
-      return summary;
-    },
-    readStagedTopicSummaries: async (
-      projectId: string,
-      executionId: string,
-      facetId: string,
-      facetVersion: number,
-      traceIds: string[],
-    ) =>
-      [...state.staged.entries()]
-        .filter(([key]) => key.startsWith(`${executionId}/`))
-        .map(([, row]) => row.summary)
-        .filter(
-          (row) =>
-            row.projectId === projectId &&
-            row.facetId === facetId &&
-            row.facetVersion === facetVersion &&
-            row.traceId !== null &&
-            traceIds.includes(row.traceId),
-        ),
-    readStagedTopicSummary: async (
-      scope: { projectId: string; executionId: string },
-      ref: TopicEmbeddingRef,
-    ) =>
-      state.staged.get(
-        `${scope.executionId}/${topicSourceKey({ ...scope, ...ref, sessionId: null })}`,
-      ) ?? null,
-    updateStagedTopicSummary: async (
-      scope: { projectId: string; executionId: string },
-      ref: TopicEmbeddingRef,
-      summary: TopicSummary,
-    ) => {
-      const key = `${scope.executionId}/${topicSourceKey({ ...scope, ...ref, sessionId: null })}`;
-      const row = state.staged.get(key);
-      if (!row) return null;
-      if (row.summary.state !== "summarized") return row.summary;
-      state.staged.set(key, { ...row, summary });
-      return summary;
-    },
-    deleteStagedTopicSummary: async (
-      scope: { projectId: string; executionId: string },
-      ref: TopicEmbeddingRef,
-    ) => {
-      state.staged.delete(
-        `${scope.executionId}/${topicSourceKey({ ...scope, ...ref, sessionId: null })}`,
-      );
-    },
-    enqueueTopicEmbeddingBatch: async (batch: TopicEmbeddingBatch) => {
-      const key = `${batch.projectId}/${batch.executionId}/${batch.batchId}`;
-      if (state.completedBatches.has(key)) return "complete";
-      state.embeddingBatches.set(key, batch);
-      if (state.deferEmbeddings) return "pending";
-      await processTopicEmbeddingBatch(batch);
-      state.completedBatches.add(key);
-      return "complete";
-    },
-    loadTopicTranscript: state.loadTranscript,
     readTopicExecutionSummary: async (_project: string, id: string) => {
       const execution = state.executions.get(id);
-      if (!execution) return null;
-      const { traceErrors: _errors, ...result } = execution;
-      const input = { ...result.input };
-      if (input.operation === "process")
-        Reflect.deleteProperty(input, "traceIds");
-      return structuredClone({
-        ...result,
-        input,
-      });
+      return execution ? structuredClone(execution) : null;
     },
     writeTopicExecution: async (execution: TopicExecution) => {
       await state.saveExecution(execution);
@@ -195,32 +107,6 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
         isBuiltIn: false,
         versions: [version],
       })),
-    listTopicSummaries: async (
-      projectId: string,
-      filter: {
-        traceIds: string[];
-        facetId: string;
-        facetVersion: number;
-      },
-      timeRange: TopicTimeRange,
-    ) => {
-      state.resultReads("historical");
-      return [...state.summaries.values()].filter(
-        (row) =>
-          row.projectId === projectId &&
-          row.facetId === filter.facetId &&
-          row.facetVersion === filter.facetVersion &&
-          row.traceId !== null &&
-          filter.traceIds.includes(row.traceId) &&
-          inTimeRange(row, timeRange),
-      );
-    },
-    writeTopicSummaries: async (rows: TopicSummary[]) =>
-      rows.forEach((row) => {
-        const key = topicSourceKey(row);
-        if ((state.summaries.get(key)?.processedAt ?? "") <= row.processedAt)
-          state.summaries.set(key, row);
-      }),
     createTopicRun: async (
       input: Pick<
         TopicRun,
@@ -235,6 +121,22 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
             a.facetVersion - b.facetVersion ||
             a.createdAt.localeCompare(b.createdAt),
         )
+        .at(-1) ?? null,
+    // Maps written before rules belong to the rule.
+    getTopicRuleMap: async (
+      _project: string,
+      ruleId: string,
+      facetId: string,
+    ) =>
+      [...state.runs.values()]
+        .filter(
+          (run) =>
+            run.status === "completed" &&
+            run.facetId === facetId &&
+            !run.batchActionId &&
+            (run.ruleId ?? ruleId) === ruleId,
+        )
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
         .at(-1) ?? null,
     getTopicClusteringSummaries: vi.fn(
       async (
@@ -260,6 +162,25 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
             a.traceId < b.traceId ? -1 : a.traceId > b.traceId ? 1 : 0,
           ),
     ),
+    getNewestTopicClusteringSummaries: async (
+      projectId: string,
+      facet: TopicFacetRef,
+      embeddingConfig: TopicEmbeddingConfig,
+      timeRange: TopicTimeRange,
+    ) =>
+      [...state.summaries.values()]
+        .filter(
+          (row) =>
+            row.projectId === projectId &&
+            row.facetId === facet.facetId &&
+            row.facetVersion === facet.version &&
+            row.traceId !== null &&
+            row.state === "complete" &&
+            row.embeddingModel === embeddingConfig.embeddingModel &&
+            row.embedding.length === embeddingConfig.embeddingDimensions &&
+            inTimeRange(row, timeRange),
+        )
+        .sort((a, b) => b.unitStartTime.localeCompare(a.unitStartTime)),
     getTopicRun: async (_project: string, id: string) =>
       state.runs.get(id) ?? null,
     readTopicRunTraceIds: async (
@@ -330,34 +251,6 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
   };
 });
 vi.mock("./models", () => ({
-  TopicInputTooLarge: class extends Error {},
-  // One request per trace; `state.summarize` answers each facet, and one failure fails the request.
-  summarizeTopicTraceFacets: async (
-    _models: unknown,
-    facets: { key: string; facet: TopicFacetVersion }[],
-    text: string,
-  ) => {
-    state.summaryRequests(facets.length);
-    const output: Record<string, unknown> = {};
-    let usage = {};
-    for (const { key, facet } of facets) {
-      const result = await state.summarize(facet, text);
-      output[key] = { notes: "", ...result.output };
-      usage = { ...result, ...usage };
-    }
-    return { ...usage, output };
-  },
-  // `state.embed` sees each summary; one failure fails the whole batched call.
-  embedTopicSummaries: async (
-    _model: unknown,
-    summaries: string[],
-    dimensions: number,
-  ) => {
-    const results = [];
-    for (const summary of summaries)
-      results.push(await state.embed(summary, dimensions));
-    return { ...results[0], embeddings: results.map((r) => r.embedding) };
-  },
   prepareTopicNamingGroup: async (group: {
     members: { summary: string }[];
     contrasts: { id: string; summary: string }[];
@@ -385,8 +278,10 @@ vi.mock("./numeric", async (importOriginal) => ({
   runTopicClustering: (...args: unknown[]) => state.numeric(...args),
 }));
 
-import { processTopicsExecution as processTopicsExecutionAttempt } from "./processTopicsExecution";
-import { processTopicEmbeddingBatch } from "./processTopicEmbeddingBatch";
+import {
+  processTopicRuleRefit,
+  processTopicUpdateExecution,
+} from "./processTopicsExecution";
 
 function inTimeRange(
   row: Pick<TopicSummary, "unitStartTime">,
@@ -396,49 +291,47 @@ function inTimeRange(
   return timestamp >= timeRange.from && timestamp < timeRange.to;
 }
 
-function traceInput(traceId: string, input: string | null = traceId) {
-  return {
-    unitStartTime: "2026-01-01T00:00:00.000Z",
-    environment: "production",
-    traceName: "Customer support",
-    sessionId: "session",
-    transcript: assembleTranscript([
-      {
-        id: `${traceId}-generation`,
-        traceId,
-        parentObservationId: null,
-        type: "GENERATION",
-        name: "chat",
-        startTime: new Date("2026-01-01T00:00:00.000Z"),
-        endTime: new Date("2026-01-01T00:00:01.000Z"),
-        nestingLevel: 0,
-        input,
-        output: null,
-        metadata: {},
-      },
-    ]),
-  };
-}
-
-async function processTopicsExecution(
-  scope: Parameters<typeof processTopicsExecutionAttempt>[0],
+/** Stores complete summaries; trace `i` embeds into group 0 below 50 (and at 100), else group 1. */
+function seedSummaries(
+  count: number,
+  traceIds = Array.from({ length: count }, (_, i) => `trace${i}`),
+  facets = [facet],
 ) {
-  const selected = state.executions.get(scope.executionId)!;
-  const traceIds =
-    selected.input.operation === "process"
-      ? selected.input.traceIds
-      : undefined;
-  return processTopicsExecutionAttempt({
-    ...scope,
-    traceIds,
-    batchId: "batch-0",
-    batchState: state.batches.get(scope.executionId),
-    saveBatchState: async (value) => {
-      await state.saveBatch(value);
-      state.batches.set(scope.executionId, structuredClone(value));
-      state.executions.set(scope.executionId, structuredClone(value.execution));
-    },
-  });
+  for (const selected of facets)
+    for (const traceId of traceIds) {
+      const i = Number(traceId.replace("trace", ""));
+      const embedding = Array.from({ length: 256 }, () => 0);
+      if (i === 101) embedding[2] = 1;
+      else {
+        embedding[i < 50 || i === 100 ? 0 : 1] = 1;
+        embedding[3] = Math.sin(i) * 0.03;
+      }
+      const summary: TopicSummary = {
+        projectId: "project",
+        facetId: selected.facetId,
+        facetVersion: selected.version,
+        traceId,
+        sessionId: "session",
+        triggerType: "manual",
+        unitStartTime: "2026-01-01T00:00:00.000Z",
+        environment: "production",
+        traceName: "Customer support",
+        state: "complete",
+        summary: traceId,
+        embedding,
+        transcriptId: ASSEMBLED_TRANSCRIPT_ID,
+        transcriptVersion: TOPICS_TEXT_VERSION,
+        summaryModel: "gpt-4.1-nano",
+        embeddingModel: "eu.cohere.embed-v4:0",
+        providedUsageDetails: {},
+        usageDetails: {},
+        providedCostDetails: {},
+        costDetails: {},
+        processedAt: new Date().toISOString(),
+        metadata: {},
+      };
+      state.summaries.set(topicSourceKey(summary), summary);
+    }
 }
 
 function pendingRun(
@@ -460,14 +353,12 @@ function pendingRun(
   return run;
 }
 
-function execution<T extends "process" | "update" = "process">(
+function execution(
   id: string,
   count: number,
-  operation: T = "process" as T,
   facets = [facet],
-  embeddingDimensions = 256,
 ): TopicExecution & {
-  input: Extract<TopicExecution["input"], { operation: T }>;
+  input: Extract<TopicExecution["input"], { operation: "update" }>;
 } {
   facets.forEach((selected) =>
     state.facets.set(`${selected.facetId}/${selected.version}`, selected),
@@ -475,24 +366,18 @@ function execution<T extends "process" | "update" = "process">(
   const input = topicExecutionInputSchema.parse({
     projectId: "project",
     requestId: id,
-    operation,
+    operation: "update",
     facets: facets.map(({ facetId, version }) => ({ facetId, version })),
     embeddingConfig: {
       embeddingModel: "eu.cohere.embed-v4:0",
-      embeddingDimensions,
+      embeddingDimensions: 256,
     },
-    ...(operation === "process"
-      ? {
-          traceIds: Array.from({ length: count }, (_, i) => `trace${i}`),
-          processingConfig: { summaryModel: "gpt-4.1-nano" },
-        }
-      : {
-          timeRange: {
-            from: new Date("2026-01-01T00:00:00.000Z"),
-            to: new Date("2026-01-08T00:00:00.000Z"),
-          },
-        }),
+    timeRange: {
+      from: new Date("2026-01-01T00:00:00.000Z"),
+      to: new Date("2026-01-08T00:00:00.000Z"),
+    },
   });
+  if (input.operation !== "update") throw new Error("Expected an update.");
   return {
     id,
     projectId: "project",
@@ -505,24 +390,13 @@ function execution<T extends "process" | "update" = "process">(
       facetId: selected.facetId,
       facetVersion: selected.version,
       outcome: "pending",
-      runId:
-        operation === "process"
-          ? ([...state.runs.values()]
-              .filter(
-                (run) =>
-                  run.status === "completed" &&
-                  run.facetId === selected.facetId &&
-                  run.facetVersion === selected.version &&
-                  run.config.dimensions === embeddingDimensions,
-              )
-              .at(-1)?.id ?? null)
-          : pendingRun({
-              id: `run-${id}-${selected.facetId}-${selected.version}`,
-              projectId: "project",
-              facetId: selected.facetId,
-              facetVersion: selected.version,
-              config: {},
-            }).id,
+      runId: pendingRun({
+        id: `run-${id}-${selected.facetId}-${selected.version}`,
+        projectId: "project",
+        facetId: selected.facetId,
+        facetVersion: selected.version,
+        config: {},
+      }).id,
       error: null,
       counts: {
         requested: count,
@@ -534,83 +408,24 @@ function execution<T extends "process" | "update" = "process">(
         outlier: 0,
       },
     })),
-    traceErrors: [],
     error: null,
-  } as TopicExecution & {
-    input: Extract<TopicExecution["input"], { operation: T }>;
   };
 }
 
-async function processSelection(
-  id: string,
-  count: number,
-  traceIds?: string[],
-  reuseExistingSummaries = false,
-) {
-  const pending = execution(id, count);
-  pending.input.reuseExistingSummaries = reuseExistingSummaries;
-  if (traceIds) pending.input.traceIds = traceIds;
-  state.executions.set(id, pending);
-  return processTopicsExecution({ projectId: "project", executionId: id });
-}
-
 async function updateSelection(id: string) {
-  state.executions.set(id, execution(id, 0, "update"));
-  await processTopicsExecution({ projectId: "project", executionId: id });
+  state.executions.set(id, execution(id, 0));
+  await processTopicUpdateExecution({ projectId: "project", executionId: id });
 }
 
 beforeEach(() => {
   vi.resetAllMocks();
-  state.batches.clear();
   state.executions.clear();
   state.summaries.clear();
-  state.staged.clear();
-  state.embeddingBatches.clear();
-  state.completedBatches.clear();
-  state.deferEmbeddings = false;
   state.runs.clear();
   state.assignments.clear();
   state.facets.clear();
   state.visible = true;
   state.sampleNaming = false;
-  state.loadTranscript.mockImplementation(async ({ traceId }) =>
-    traceInput(traceId),
-  );
-  state.summarize.mockImplementation(async (_facet, text: string) => {
-    // The projected transcript the trace-batch path sends.
-    const transcript = JSON.parse(text);
-    const input = transcript.threads[0].currentTurn[0].parts.find(
-      (part: { type: string }) => part.type === "text",
-    );
-    return {
-      output: {
-        status: "applicable",
-        summary: input!.text,
-      },
-      providedUsageDetails: { summary_input: 1 },
-      usageDetails: { summary_input: 1 },
-      providedCostDetails: {},
-      costDetails: {},
-    };
-  });
-  state.embed.mockImplementation(
-    async (summary: string, dimensions: number) => {
-      const i = Number(summary.replace("trace", ""));
-      const embedding = Array.from({ length: dimensions }, () => 0);
-      if (i === 101) embedding[2] = 1;
-      else {
-        embedding[i < 50 || i === 100 ? 0 : 1] = 1;
-        embedding[3] = Math.sin(i) * 0.03;
-      }
-      return {
-        embedding,
-        providedUsageDetails: { embedding_input: 1 },
-        usageDetails: { embedding_input: 1 },
-        providedCostDetails: {},
-        costDetails: {},
-      };
-    },
-  );
   state.numeric.mockImplementation(async (vectors: number[][]) => ({
     status: "complete",
     labels: vectors.map((vector) =>
@@ -630,457 +445,8 @@ beforeEach(() => {
 });
 
 describe("Topics execution", () => {
-  it.each([false, true])(
-    "rejects internal traces supplied by ID (cached: %s)",
-    async (cached) => {
-      const blocked = execution("blocked", 1);
-      if (cached) {
-        await processSelection("source", 1);
-        const summary = [...state.summaries.values()][0];
-        state.staged.set(`blocked/${topicSourceKey(summary)}`, {
-          summary: { ...summary, environment: "langfuse-topics" },
-          embeddingConfig: blocked.input.embeddingConfig,
-        });
-        state.summaries.clear();
-        state.summarize.mockClear();
-        state.embed.mockClear();
-      } else {
-        state.loadTranscript.mockResolvedValue({
-          ...traceInput("trace0"),
-          environment: "langfuse-topics",
-        });
-      }
-      state.executions.set("blocked", blocked);
-      await processTopicsExecution({
-        projectId: "project",
-        executionId: "blocked",
-      });
-      expect(state.summarize).not.toHaveBeenCalled();
-      expect(state.embed).not.toHaveBeenCalled();
-      expect(state.summaries.size).toBe(0);
-      expect(state.executions.get("blocked")?.facets[0].counts.failed).toBe(1);
-    },
-  );
-
-  it.each([false, true])(
-    "resumes mixed internal staged summaries without repeating paid work (embedded: %s)",
-    async (embedded) => {
-      state.deferEmbeddings = true;
-      await processSelection("resumed", 2);
-      const saved = state.batches.get("resumed")!;
-      expect(saved.summarized).toBe(true);
-      const staged = [...state.staged.values()];
-      staged[0].summary.environment = "langfuse-topics";
-      if (embedded) {
-        for (const row of staged) {
-          row.summary.state = "complete";
-          row.summary.embedding = Array(256).fill(0.25);
-        }
-        saved.assignedAt = "2026-01-01T00:01:00.000Z";
-      }
-      state.deferEmbeddings = false;
-      state.summarize.mockClear();
-      state.embed.mockClear();
-
-      for (let attempt = 0; attempt < 2; attempt++) {
-        await processTopicsExecution({
-          projectId: "project",
-          executionId: "resumed",
-        });
-        expect(state.executions.get("resumed")).toMatchObject({
-          status: "completed_with_errors",
-          error: null,
-          facets: [{ counts: { complete: 1, failed: 1 } }],
-          traceErrors: [
-            {
-              traceId: staged[0].summary.traceId,
-              error: "Topics does not process internal Langfuse traces.",
-            },
-          ],
-        });
-        expect(state.batches.get("resumed")?.summaries).toEqual([
-          expect.objectContaining({ traceId: staged[1].summary.traceId }),
-        ]);
-        expect(state.staged.size).toBe(0);
-      }
-      expect(state.summarize).not.toHaveBeenCalled();
-      expect(state.embed).toHaveBeenCalledTimes(embedded ? 0 : 1);
-      if (!embedded)
-        expect([...state.summaries.values()]).toMatchObject([
-          { traceId: staged[1].summary.traceId, state: "complete" },
-        ]);
-    },
-  );
-
-  it("records null transcripts as insufficient input without inference", async () => {
-    state.loadTranscript.mockResolvedValueOnce(traceInput("trace0", null));
-    await processSelection("empty-transcript", 1);
-    expect(state.executions.get("empty-transcript")).toMatchObject({
-      status: "completed",
-      facets: [{ counts: { insufficientInput: 1, failed: 0 } }],
-    });
-    expect([...state.summaries.values()]).toMatchObject([
-      { state: "insufficient_input", summary: "", embedding: [] },
-    ]);
-    expect(state.summarize).not.toHaveBeenCalled();
-    expect(state.embed).not.toHaveBeenCalled();
-  });
-
-  it("processes fresh summaries without a topic map or implicit historical reuse", async () => {
-    await processSelection("first", 10);
-    expect(state.executions.get("first")?.status).toBe("completed");
-    expect(state.executions.get("first")?.facets[0].outcome).toBe(
-      "awaiting_topics",
-    );
-    expect(state.summaries.size).toBe(10);
-    expect(state.assignments.size).toBe(0);
-    expect([...state.summaries.values()][0]).toMatchObject({
-      traceId: "trace0",
-      sessionId: "session",
-      environment: "production",
-      traceName: "Customer support",
-      unitStartTime: "2026-01-01T00:00:00.000Z",
-      triggerType: "manual",
-    });
-    expect(state.numeric).not.toHaveBeenCalled();
-    expect(state.saveExecution).not.toHaveBeenCalled();
-    await processSelection("second", 10);
-    expect(state.executions.get("second")?.status).toBe("completed");
-    expect(state.summaries.size).toBe(10);
-    await processTopicsExecution({
-      projectId: "project",
-      executionId: "first",
-    });
-    expect(state.summarize).toHaveBeenCalledTimes(20);
-    expect(state.resultReads).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    { facetId: "issues", version: 1 },
-    { facetId: "facet", version: 2 },
-  ])(
-    "resumes only unfinished facet $facetId version $version after completed payloads expire",
-    async (reference) => {
-      const issues = { ...facet, ...reference };
-      state.executions.set(
-        "source",
-        execution("source", 100, "process", [facet, issues]),
-      );
-      await processTopicsExecution({
-        projectId: "project",
-        executionId: "source",
-      });
-      expect(state.loadTranscript).toHaveBeenCalledTimes(100);
-      expect(state.summarize).toHaveBeenCalledTimes(200);
-      // Like trace-batch, both facets of a trace share one summary request.
-      expect(state.summaryRequests).toHaveBeenCalledTimes(100);
-      expect(state.summaries.size).toBe(200);
-      state.executions.set(
-        "maps",
-        execution("maps", 0, "update", [facet, issues]),
-      );
-      await processTopicsExecution({
-        projectId: "project",
-        executionId: "maps",
-      });
-      state.summarize.mockClear();
-      state.embed.mockClear();
-      state.resultReads.mockReset().mockImplementation(() => {
-        throw new Error("Unexpected ClickHouse result read");
-      });
-      state.assignments.clear();
-      state.executions.set(
-        "partial-assignment",
-        execution("partial-assignment", 1, "process", [facet, issues]),
-      );
-      state.assignmentWrites
-        .mockReset()
-        .mockResolvedValueOnce(undefined)
-        .mockRejectedValueOnce(new Error("Insert failed"));
-      await processTopicsExecution({
-        projectId: "project",
-        executionId: "partial-assignment",
-      });
-      expect(
-        state.executions
-          .get("partial-assignment")
-          ?.facets.map((f) => f.outcome),
-      ).toEqual(["assigned", "failed"]);
-      expect(state.executions.get("partial-assignment")?.status).toBe(
-        "completed_with_errors",
-      );
-      expect(state.staged.size).toBe(2);
-      const failedWrite = structuredClone(
-        state.assignmentWrites.mock.calls[1][0],
-      );
-      for (const [id, row] of state.staged) {
-        if (
-          row.summary.facetId === facet.facetId &&
-          row.summary.facetVersion === facet.version
-        )
-          state.staged.delete(id);
-      }
-      state.embeddingBatches.clear();
-      state.completedBatches.clear();
-      await processTopicsExecution({
-        projectId: "project",
-        executionId: "partial-assignment",
-      });
-      expect(state.executions.get("partial-assignment")?.status).toBe(
-        "completed",
-      );
-      expect(state.assignments.size).toBe(2);
-      expect(state.assignmentWrites.mock.calls[2][0]).toEqual(failedWrite);
-      expect(state.staged.size).toBe(0);
-      expect(state.summarize).toHaveBeenCalledTimes(2);
-      expect(state.embed).toHaveBeenCalledTimes(2);
-      expect(state.resultReads).not.toHaveBeenCalled();
-    },
-  );
-
-  it("retains Redis payloads until the terminal batch receipt is saved", async () => {
-    state.saveBatch
-      .mockImplementationOnce(async () => {})
-      .mockImplementation(async (batch: TopicProcessBatchState) => {
-        if (batch.execution.status === "completed")
-          throw new Error("Redis receipt unavailable");
-      });
-    await processSelection("receipt", 1);
-    expect(state.executions.get("receipt")?.status).toBe("failed");
-    expect(state.staged.size).toBe(1);
-    state.staged.clear();
-    state.embeddingBatches.clear();
-    state.completedBatches.clear();
-    state.saveBatch.mockReset();
-    await processTopicsExecution({
-      projectId: "project",
-      executionId: "receipt",
-    });
-    expect(state.executions.get("receipt")?.status).toBe("completed");
-    expect(state.staged.size).toBe(0);
-    expect(state.summarize).toHaveBeenCalledOnce();
-    expect(state.embed).toHaveBeenCalledOnce();
-  });
-
-  it.each([false, true])(
-    "does not regenerate expired payloads (embedding persisted: %s)",
-    async (persisted) => {
-      state.deferEmbeddings = true;
-      await processSelection("expired", 1);
-      if (persisted) {
-        for (const [key, batch] of state.embeddingBatches) {
-          await processTopicEmbeddingBatch(batch);
-          state.completedBatches.add(key);
-        }
-      }
-      expect(state.summaries.size).toBe(persisted ? 1 : 0);
-      state.staged.clear();
-      state.deferEmbeddings = false;
-      await processTopicsExecution({
-        projectId: "project",
-        executionId: "expired",
-      });
-      expect(state.executions.get("expired")).toMatchObject({
-        status: "failed",
-        error: expect.stringContaining("expired"),
-      });
-      expect(state.resultReads).not.toHaveBeenCalled();
-      expect(state.summarize).toHaveBeenCalledOnce();
-    },
-  );
-
-  it.each([
-    { version: TOPICS_TRANSCRIPT_VERSION, calls: 1, usageDetails: {} },
-    {
-      version: "older-transcript",
-      calls: 2,
-      usageDetails: { summary_input: 1, embedding_input: 1, total: 2 },
-    },
-  ])(
-    "reuses only compatible historical summaries ($version)",
-    async ({ version, calls, usageDetails }) => {
-      await processSelection("first", 1);
-      expect([...state.summaries.values()]).toMatchObject([
-        { metadata: { executionId: "first" } },
-      ]);
-      for (const summary of state.summaries.values())
-        summary.transcriptVersion = version;
-      state.loadTranscript.mockImplementation(async ({ traceId }) => ({
-        ...traceInput(traceId),
-        environment: "staging",
-        traceName: "Updated support",
-      }));
-      await processSelection("second", 1, undefined, true);
-      expect(state.summarize).toHaveBeenCalledTimes(calls);
-      expect(state.embed).toHaveBeenCalledTimes(calls);
-      expect([...state.summaries.values()]).toMatchObject([
-        {
-          environment: "staging",
-          traceName: "Updated support",
-          transcriptVersion: TOPICS_TRANSCRIPT_VERSION,
-          metadata: { executionId: "second" },
-        },
-      ]);
-      expect([...state.summaries.values()][0].usageDetails).toEqual(
-        usageDetails,
-      );
-    },
-  );
-
-  it("rejects frozen legacy summary models before reusing or relabeling results", async () => {
-    await processSelection("source", 1);
-    const summary = [...state.summaries.values()][0];
-    summary.summaryModel = "legacy-summary-model";
-    const original = structuredClone(summary);
-    const legacy = execution("legacy", 1);
-    legacy.input.reuseExistingSummaries = true;
-    Object.assign(legacy.input.processingConfig, {
-      summaryModel: "legacy-summary-model",
-    });
-    state.executions.set(legacy.id, legacy);
-    vi.clearAllMocks();
-
-    await processTopicsExecution({
-      projectId: "project",
-      executionId: legacy.id,
-    });
-
-    expect(state.executions.get(legacy.id)).toMatchObject({
-      status: "failed",
-      error: expect.stringContaining("start a new Topics execution"),
-    });
-    expect([...state.summaries.values()]).toEqual([original]);
-    expect(state.resultReads).not.toHaveBeenCalled();
-    expect(state.loadTranscript).not.toHaveBeenCalled();
-    expect(state.summarize).not.toHaveBeenCalled();
-    expect(state.embed).not.toHaveBeenCalled();
-    expect(state.name).not.toHaveBeenCalled();
-  });
-
-  it("resumes accepted summaries after a provider interruption without regenerating paid work", async () => {
-    const original = state.summarize.getMockImplementation()!;
-    state.summarize
-      .mockImplementationOnce(original)
-      .mockRejectedValueOnce(
-        topicProviderError(
-          { statusCode: 503 },
-          { slot: "summary", provider: "openai", model: "gpt-4.1-nano" },
-        ),
-      );
-    await processSelection("partial", 3);
-    // Traces run concurrently, so the third finishes while the second fails.
-    expect(state.batches.get("partial")?.summaries).toHaveLength(2);
-    expect(state.executions.get("partial")?.status).toBe("failed");
-    const accepted = [...state.staged.values()][0].summary;
-    accepted.transcriptVersion = "older-transcript";
-    state.loadTranscript.mockClear();
-    await processTopicsExecution({
-      projectId: "project",
-      executionId: "partial",
-    });
-    expect(state.executions.get("partial")?.status).toBe("completed");
-    expect(state.summarize).toHaveBeenCalledTimes(4);
-    expect(state.summaries.size).toBe(3);
-    expect(state.loadTranscript).not.toHaveBeenCalledWith({
-      projectId: "project",
-      traceId: accepted.traceId,
-    });
-    expect(
-      state.summaries.get(topicSourceKey(accepted))?.transcriptVersion,
-    ).toBe("older-transcript");
-  });
-
-  it("resumes pending embeddings with the pinned map and no source or result reads", async () => {
-    await processSelection("source", 100);
-    await updateSelection("first-map");
-    const first = [...state.runs.values()].at(-1)!;
-    state.deferEmbeddings = true;
-    await processSelection("incoming", 1, ["trace100"]);
-    expect(state.batches.get("incoming")?.summarized).toBe(true);
-    expect(state.executions.get("incoming")?.phase).toBe("embedding");
-    await updateSelection("second-map");
-    for (const [key, batch] of state.embeddingBatches) {
-      if (!state.completedBatches.has(key))
-        await processTopicEmbeddingBatch(batch);
-      state.completedBatches.add(key);
-    }
-    state.loadTranscript.mockRejectedValue(
-      new Error("Source trace unavailable"),
-    );
-    state.resultReads.mockClear();
-    state.deferEmbeddings = false;
-    await processTopicsExecution({
-      projectId: "project",
-      executionId: "incoming",
-    });
-    expect(state.executions.get("incoming")?.status).toBe("completed");
-    expect(state.summarize).toHaveBeenCalledTimes(101);
-    expect(state.resultReads).not.toHaveBeenCalled();
-    expect(
-      [...state.assignments.values()].find(
-        (row) => row.traceId === "trace100" && row.origin === "online",
-      )?.runId,
-    ).toBe(first.id);
-  });
-
-  it("reuses summary inference when embedding dimensions change", async () => {
-    await processSelection("source", 4);
-    const reprocess = execution("dimensions", 4, "process", [facet], 512);
-    reprocess.input.reuseExistingSummaries = true;
-    state.executions.set("dimensions", reprocess);
-    await processTopicsExecution({
-      projectId: "project",
-      executionId: "dimensions",
-    });
-    expect(state.summarize).toHaveBeenCalledTimes(4);
-    expect(state.embed).toHaveBeenCalledTimes(8);
-    expect(
-      [...state.summaries.values()].filter(
-        (row) => row.embedding.length === 512,
-      ),
-    ).toHaveLength(4);
-  });
-
-  it("does not reuse summaries of the capped legacy transcript", async () => {
-    await processSelection("legacy", 1);
-    for (const [key, row] of state.summaries)
-      state.summaries.set(key, { ...row, transcriptId: "poc" });
-    state.summarize.mockClear();
-    await processSelection("current", 1, undefined, true);
-    expect(state.summarize).toHaveBeenCalledOnce();
-  });
-
-  it("regenerates a stored summary when late observations move the source start", async () => {
-    await processSelection("source", 1);
-    state.loadTranscript.mockResolvedValue({
-      ...traceInput("trace0"),
-      unitStartTime: "2025-12-31T23:59:00.000Z",
-    });
-
-    await processSelection("earlier-start", 1, undefined, true);
-
-    expect(state.summarize).toHaveBeenCalledTimes(2);
-    expect([...state.summaries.values()]).toMatchObject([
-      { unitStartTime: "2025-12-31T23:59:00.000Z" },
-    ]);
-  });
-
-  it("records source failures while processing the remaining traces", async () => {
-    state.loadTranscript.mockRejectedValueOnce(
-      new Error("Source trace unavailable"),
-    );
-    await processSelection("source-failure", 3);
-    expect(state.executions.get("source-failure")?.status).toBe(
-      "completed_with_errors",
-    );
-    expect(
-      state.executions.get("source-failure")?.facets[0].counts,
-    ).toMatchObject({ complete: 2, failed: 1 });
-    expect(state.summarize).toHaveBeenCalledTimes(2);
-  });
-
   it("fails the pending discovery run when loading its cohort fails, preserving the published map", async () => {
-    await processSelection("source", 100);
+    seedSummaries(100);
     await updateSelection("published");
     const published = [...state.runs.values()].at(-1)!;
     state.numeric.mockClear();
@@ -1104,41 +470,18 @@ describe("Topics execution", () => {
     expect(state.name).not.toHaveBeenCalled();
   });
 
-  it.each(["invalid_output", "content_filter"] as const)(
-    "fails only the trace whose model output is %s",
-    async (reason) => {
-      state.summarize.mockRejectedValueOnce(
-        new TopicsProviderUnavailable("No object generated.", reason),
-      );
-      await processSelection("invalid-output", 3);
-      expect(state.executions.get("invalid-output")?.status).toBe(
-        "completed_with_errors",
-      );
-      expect(
-        state.executions.get("invalid-output")?.facets[0].counts,
-      ).toMatchObject({ complete: 2, failed: 1 });
-    },
-  );
-
   it("publishes filtered naming groups and later retries their labels without changing membership", async () => {
     const facets = [facet, { ...facet, facetId: "sibling" }];
-    state.executions.set("source", execution("source", 100, "process", facets));
-    await processTopicsExecution({
-      projectId: "project",
-      executionId: "source",
-    });
+    seedSummaries(100, undefined, facets);
     state.name.mockRejectedValueOnce(
       new TopicsProviderUnavailable(
         "The model filtered this response.",
         "content_filter",
       ),
     );
-    state.executions.set(
-      "filtered",
-      execution("filtered", 0, "update", facets),
-    );
+    state.executions.set("filtered", execution("filtered", 0, facets));
 
-    await processTopicsExecution({
+    await processTopicUpdateExecution({
       projectId: "project",
       executionId: "filtered",
     });
@@ -1204,39 +547,8 @@ describe("Topics execution", () => {
     expect(membership(retried.id)).toEqual(membership(published.id));
   });
 
-  it.each(["summary call", "reuse lookup"])(
-    "keeps a reused facet when its sibling's %s fails",
-    async (failing) => {
-      await processSelection("source", 1);
-      const sibling = { ...facet, facetId: "sibling" };
-      const reprocess = execution("siblings", 1, "process", [facet, sibling]);
-      reprocess.input.reuseExistingSummaries = true;
-      state.executions.set("siblings", reprocess);
-      if (failing === "summary call")
-        state.summarize.mockRejectedValueOnce(
-          new Error("The transcript is above this run's input limit."),
-        );
-      else {
-        let lookups = 0;
-        // The first lookup reuses `facet`; the sibling's lookup fails.
-        state.resultReads.mockImplementation((kind: string) => {
-          if (kind === "historical" && ++lookups === 2)
-            throw new Error("ClickHouse is unavailable.");
-        });
-      }
-      await processTopicsExecution({
-        projectId: "project",
-        executionId: "siblings",
-      });
-      expect(state.executions.get("siblings")?.facets).toMatchObject([
-        { facetId: "facet", counts: { complete: 1, failed: 0 } },
-        { facetId: "sibling", counts: { failed: 1 } },
-      ]);
-    },
-  );
-
   it("restarts a failed update with fresh membership and naming while preserving the published map", async () => {
-    await processSelection("source", 100);
+    seedSummaries(100);
     await updateSelection("published");
     const published = [...state.runs.values()].at(-1)!;
     for (const summary of state.summaries.values())
@@ -1251,8 +563,8 @@ describe("Topics execution", () => {
     const failed = [...state.runs.values()].at(-1)!;
     expect(failed.status).toBe("failed");
     expect(state.runs.get(published.id)?.status).toBe("completed");
-    await processSelection("additional", 1, ["trace100"]);
-    await processTopicsExecution({
+    seedSummaries(1, ["trace100"]);
+    await processTopicUpdateExecution({
       projectId: "project",
       executionId: "retry",
     });
@@ -1269,21 +581,21 @@ describe("Topics execution", () => {
   });
 
   it("keeps discovery and retry membership inside the frozen source-time window", async () => {
-    await processSelection("source", 100);
+    seedSummaries(100);
     const summaries = [...state.summaries.values()];
     summaries[0].unitStartTime = "2025-12-31T23:59:59.999Z";
     summaries[1].unitStartTime = "2026-01-08T00:00:00.000Z";
-    const pending = execution("bounded", 0, "update");
+    const pending = execution("bounded", 0);
     pending.input.minimumTraceCount = 3;
     state.executions.set(pending.id, pending);
     state.assignmentWrites.mockRejectedValueOnce(new Error("Insert failed"));
 
-    await processTopicsExecution({
+    await processTopicUpdateExecution({
       projectId: "project",
       executionId: pending.id,
     });
     expect(state.runs.get(pending.facets[0].runId!)?.status).toBe("failed");
-    await processTopicsExecution({
+    await processTopicUpdateExecution({
       projectId: "project",
       executionId: pending.id,
     });
@@ -1313,10 +625,7 @@ describe("Topics execution", () => {
   it.each([false, true])(
     "recovers completed maps after a lost acknowledgement (all outliers: %s)",
     async (outliers) => {
-      await processSelection("source", 100);
-      state.loadTranscript.mockRejectedValue(
-        new Error("Source trace unavailable"),
-      );
+      seedSummaries(100);
       if (outliers)
         state.numeric.mockImplementation(async (vectors: number[][]) => ({
           status: "no_topics",
@@ -1335,29 +644,10 @@ describe("Topics execution", () => {
       const interrupted = state.executions.get("published")!.facets[0];
       expect(interrupted.outcome).toBe("pending");
       expect(state.runs.get(interrupted.runId!)?.status).toBe("completed");
-      expect(state.summarize).toHaveBeenCalledTimes(100);
-      expect(state.embed).toHaveBeenCalledTimes(100);
       expect(state.assignments.size).toBe(100);
       expect([...state.assignments.values()][0].coordinates).toHaveLength(2);
       state.saveExecution.mockReset();
-      state.loadTranscript.mockImplementation(async ({ traceId }) => ({
-        ...traceInput(traceId),
-        environment: "staging",
-        traceName: "New support requests",
-      }));
-      await processSelection("online", 2, ["trace100", "trace101"]);
-      expect(state.executions.get("online")?.facets[0]).toMatchObject({
-        outcome: "assigned",
-        counts: { assigned: outliers ? 0 : 1, outlier: outliers ? 2 : 1 },
-      });
-      for (const assignment of state.assignments.values()) {
-        const summary = state.summaries.get(topicSourceKey(assignment))!;
-        expect(assignment).toMatchObject({
-          environment: summary.environment,
-          traceName: summary.traceName,
-        });
-      }
-      await processTopicsExecution({
+      await processTopicUpdateExecution({
         projectId: "project",
         executionId: "published",
       });
@@ -1377,7 +667,7 @@ describe("Topics execution", () => {
   );
 
   it("does not fit or name when persisting the attempt fails", async () => {
-    await processSelection("source", 100);
+    seedSummaries(100);
     state.saveExecution.mockImplementation(
       async (execution: TopicExecution) => {
         if (execution.phase === "clustering")
@@ -1396,7 +686,7 @@ describe("Topics execution", () => {
 
   it("maps sampled naming citations back to their scoped source references", async () => {
     state.sampleNaming = true;
-    await processSelection("source", 100);
+    seedSummaries(100);
     await updateSelection("named");
     const topics = [...state.runs.values()].at(-1)!.topics;
     expect(topics).toHaveLength(2);
@@ -1420,10 +710,28 @@ describe("Topics execution", () => {
     }
   });
 
+  it("fits a snapshot below the standard minimum as a small sample", async () => {
+    seedSummaries(40);
+    const snapshot = execution("snapshot", 0);
+    snapshot.input.analysis = { label: "Snapshot", filter: [], seed: "seed" };
+    state.executions.set("snapshot", snapshot);
+
+    await processTopicUpdateExecution({
+      projectId: "project",
+      executionId: "snapshot",
+    });
+
+    expect(state.numeric).toHaveBeenCalled();
+    expect([...state.runs.values()].at(-1)).toMatchObject({
+      status: "completed",
+      config: { exploratory: true, minimumCount: 10, analysis: true },
+    });
+  });
+
   it.each([0, 3])(
     "recovers a skipped cohort of %s after a lost progress acknowledgement",
     async (count) => {
-      if (count) await processSelection("source", count);
+      seedSummaries(count);
       state.saveExecution.mockImplementation(
         async (execution: TopicExecution) => {
           if (execution.facets[0].outcome !== "pending")
@@ -1439,7 +747,7 @@ describe("Topics execution", () => {
         "skipped",
       );
       state.saveExecution.mockReset();
-      await processTopicsExecution({
+      await processTopicUpdateExecution({
         projectId: "project",
         executionId: "skipped",
       });
@@ -1453,7 +761,7 @@ describe("Topics execution", () => {
   );
 
   it("reuses stored definitions despite roundoff as membership grows and updates retry", async () => {
-    await processSelection("source", 100);
+    seedSummaries(100);
     for (const summary of state.summaries.values()) summary.embedding[3] = 0;
     await updateSelection("first");
     for (const topic of [...state.runs.values()].at(-1)!.topics) {
@@ -1461,14 +769,14 @@ describe("Topics execution", () => {
       topic.radius += Number.EPSILON;
     }
     const first = structuredClone([...state.runs.values()].at(-1)!);
-    await processSelection("additional", 1, ["trace100"]);
+    seedSummaries(1, ["trace100"]);
     for (const summary of state.summaries.values()) summary.embedding[3] = 0;
     state.assignmentWrites.mockRejectedValueOnce(
       new Error("Temporary failure"),
     );
     await updateSelection("second");
     expect([...state.runs.values()].at(-1)?.status).toBe("failed");
-    await processTopicsExecution({
+    await processTopicUpdateExecution({
       projectId: "project",
       executionId: "second",
     });
@@ -1490,7 +798,7 @@ describe("Topics execution", () => {
   });
 
   it("retains only populations served by stored geometry when near-tied definitions are reused", async () => {
-    await processSelection("source", 100);
+    seedSummaries(100);
     for (const summary of state.summaries.values()) {
       const second = summary.embedding[1] > 0.5;
       summary.embedding.fill(0);
@@ -1526,7 +834,7 @@ describe("Topics execution", () => {
   it.each(["centroid", "radius"] as const)(
     "creates a new version with the same stable identity when its %s changes",
     async (changed) => {
-      await processSelection("source", 100);
+      seedSummaries(100);
       const members = [...state.summaries.values()].filter(
         (summary) => Number(summary.traceId?.replace("trace", "")) < 50,
       );
@@ -1562,7 +870,7 @@ describe("Topics execution", () => {
     "publishes a changed definition whose name repeats a reused topic (retry %s)",
     async (retry) => {
       const persists = retry !== "renamed";
-      await processSelection("source", 100);
+      seedSummaries(100);
       await updateSelection("first");
       const first = [...state.runs.values()].at(-1)!;
       const unchanged = first.topics.find((topic) => topic.centroid[1] > 0.5)!;
@@ -1595,8 +903,58 @@ describe("Topics execution", () => {
     },
   );
 
+  it.each([
+    { owner: "the setup snapshot", ruleId: null, continued: true },
+    { owner: "another rule's map", ruleId: "other-rule", continued: false },
+  ])(
+    "fits a rule's first map from its scheduled run, continuing $owner only if no rule owns it",
+    async ({ ruleId, continued }) => {
+      seedSummaries(100);
+      await updateSelection("published");
+      const published = {
+        ...[...state.runs.values()].at(-1)!,
+        batchActionId: ruleId ? null : "setup",
+        ruleId,
+      };
+      state.runs.set(published.id, published);
+      state.runs.set("refit", {
+        ...pendingRun({
+          id: "refit",
+          projectId: "project",
+          facetId: facet.facetId,
+          facetVersion: facet.version,
+          config: {
+            embeddingModel: "eu.cohere.embed-v4:0",
+            dimensions: 256,
+            timeRange: {
+              from: "2026-01-01T00:00:00.000Z",
+              to: "2026-01-08T00:00:00.000Z",
+            },
+          },
+        }),
+        ruleId: "rule",
+      });
+      state.name.mockClear();
+
+      await processTopicRuleRefit({ projectId: "project", runId: "refit" });
+
+      const refit = state.runs.get("refit")!;
+      expect(refit).toMatchObject({ status: "completed", ruleId: "rule" });
+      const sameTopics = refit.topics.some((topic) =>
+        published.topics.some((other) => other.topicId === topic.topicId),
+      );
+      expect(sameTopics).toBe(continued);
+      if (continued) expect(state.name).not.toHaveBeenCalled();
+      expect(
+        [...state.assignments.values()].filter(
+          (row) => row.runId === "refit" && row.origin === "initial",
+        ),
+      ).toHaveLength(100);
+    },
+  );
+
   it("bounds assignment writes and retries publication when a batch is not visible", async () => {
-    await processSelection("source", 1);
+    seedSummaries(1);
     const template = [...state.summaries.values()][0];
     for (let index = 1; index < 2001; index++) {
       const summary = { ...template, traceId: `trace${index}` };
@@ -1620,7 +978,7 @@ describe("Topics execution", () => {
       "not fully visible",
     );
     state.visible = true;
-    await processTopicsExecution({
+    await processTopicUpdateExecution({
       projectId: "project",
       executionId: "batched",
     });

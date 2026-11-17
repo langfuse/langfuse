@@ -1,13 +1,16 @@
 /* eslint-disable no-nested-ternary */
 import { useRouter } from "next/router";
-import { ObservationsTable } from "@/src/features/tracing-tables";
+import { default as ObservationsTable } from "@/src/features/tracing-tables/observations/ObservationsTable";
 import Page from "@/src/components/layouts/Page";
 import { api } from "@/src/utils/api";
 import { TracesOnboarding } from "@/src/components/onboarding/TracesOnboarding";
-import { getTracingTabs, TRACING_TABS } from "@/src/features/navigation";
-import { useReadPath } from "@/src/features/events";
+import {
+  getTracingTabs,
+  TRACING_TABS,
+} from "@/src/features/navigation/utils/tracing-tabs";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
-import { useQueryProject } from "@/src/features/projects";
+import { useQueryProject } from "@/src/features/projects/hooks";
 import { V4MigrationDelayBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 
 export default function ObservationsPage() {
@@ -73,6 +76,7 @@ export default function ObservationsPage() {
           projectId={projectId}
           showControlsInPageHeader
           enableAppRootDefault
+          showAllEnvironments={router.query.showAllEnvironments === "true"}
         />
       ) : (
         <ObservationsTable projectId={projectId} showControlsInPageHeader />

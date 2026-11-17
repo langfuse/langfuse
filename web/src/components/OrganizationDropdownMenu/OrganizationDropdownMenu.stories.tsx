@@ -1,4 +1,5 @@
 import type { ComponentProps } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { OrganizationDropdownMenu } from "./OrganizationDropdownMenu";
 
@@ -74,5 +75,32 @@ export const WithoutCreation = meta.story({
 export const Loading = meta.story({
   args: {
     state: "loading",
+  },
+});
+
+export const TestSearch = meta.story({
+  name: "(Test) Search organizations",
+  args: {
+    state: "loaded",
+    organizations,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(canvas.getByRole("button", { name: "Trigger" }));
+
+    const menu = within(body.getByRole("menu", { name: "Organizations" }));
+    const search = await menu.findByRole("searchbox", {
+      name: "Search organizations...",
+    });
+    await userEvent.type(search, "globex");
+    await waitFor(() =>
+      expect(
+        menu.getByRole("link", { name: /Globex Corporation/ }),
+      ).toBeVisible(),
+    );
+    await expect(
+      menu.getByRole("menuitem", { name: "New organization" }),
+    ).toBeVisible();
   },
 });

@@ -1,6 +1,6 @@
 import { expect, fn, waitFor, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
-import { EmbeddingMapView } from "./EmbeddingMapView";
+import { TopicMapExplorer as EmbeddingMapView } from "@/src/features/topics/map/TopicMapExplorer";
 import { TopicMapLoading } from "./TopicMapLoading";
 
 const meta = preview.meta({
@@ -26,7 +26,7 @@ const meta = preview.meta({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const loading = canvas.getByRole("status");
-    const loaded = canvas.getByRole("region", { name: "Embedding map" });
+    const loaded = canvas.getByRole("region", { name: "Scatter" });
     await waitFor(() => {
       const loadingBounds = loading.getBoundingClientRect();
       const loadedBounds = loaded.getBoundingClientRect();

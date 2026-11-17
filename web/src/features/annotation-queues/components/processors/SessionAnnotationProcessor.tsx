@@ -2,27 +2,26 @@ import {
   type AnnotationQueueItem,
   type ScoreConfigDomain,
 } from "@langfuse/shared";
+import type { AnnotationCommentFlush } from "@/src/features/scores/types";
 import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";
-import {
-  SessionIO,
-  LazyTraceEventsRow,
-  asCommentCounts,
-} from "@/src/features/sessions";
+import { SessionIO } from "@/src/features/sessions/SessionPages";
+import { LazyTraceEventsRow } from "@/src/features/sessions/TraceEventsRow";
+import { asCommentCounts } from "@/src/features/sessions/sessionDetailPageTypes";
 import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Button as DsButton } from "@/src/components/design-system/Button/Button";
 import { ActionButtonCountBadge } from "@/src/components/ui/ActionButtonCountBadge";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { CopyIdsPopover } from "@/src/features/traces";
+import { CopyIdsPopover } from "@/src/features/traces/components/CopyIdsPopover";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Separator } from "@/src/components/ui/separator";
 import Link from "next/link";
 import { Card } from "@/src/components/ui/card";
-import { useReadPath } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { api, shouldRetryResourceQuery } from "@/src/utils/api";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
-import { CommentDrawerController } from "@/src/features/comments";
+import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { getNumberFromMap } from "@/src/utils/map-utils";
 import { MessageSquare, MessageSquareOff } from "@langfuse/icons";
 
@@ -36,6 +35,7 @@ interface SessionAnnotationProcessorProps {
   data: any; // // Session data with scores
   configs: ScoreConfigDomain[];
   projectId: string;
+  commentFlushRef?: React.Ref<AnnotationCommentFlush>;
 }
 
 // some projects have thousands of traces in a session, paginate to avoid rendering all at once
@@ -46,7 +46,7 @@ const EMPTY_FILTER_STATE: [] = [];
 
 export const SessionAnnotationProcessor: React.FC<
   SessionAnnotationProcessorProps
-> = ({ item, data, configs, projectId }) => {
+> = ({ item, data, configs, projectId, commentFlushRef }) => {
   const [visibleTraces, setVisibleTraces] = useState(PAGE_SIZE);
   const handleLoadMoreTraces = () => {
     setVisibleTraces((prev) => prev + PAGE_SIZE);
@@ -183,7 +183,7 @@ export const SessionAnnotationProcessor: React.FC<
                 <Badge color="filled" text={`Env: ${data.environment}`} />
               )}
               <Badge
-                color="primary"
+                color="outline"
                 text={`Total traces: ${totalTracesForBadge}`}
               />
             </div>
@@ -291,6 +291,7 @@ export const SessionAnnotationProcessor: React.FC<
       scores={data?.scores ?? []}
       configs={configs}
       environment={data?.environment}
+      commentFlushRef={commentFlushRef}
     />
   );
 

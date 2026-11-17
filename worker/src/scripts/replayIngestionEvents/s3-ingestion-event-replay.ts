@@ -1,5 +1,4 @@
 #!/usr/bin/env tsx
-/* eslint-disable @typescript-eslint/no-use-before-define */
 
 /**
  * This script is used to filter a CSV file of events and convert it to a JSON file.

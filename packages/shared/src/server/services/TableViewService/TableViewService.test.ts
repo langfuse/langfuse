@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TableViewPresetTableName } from "../../../domain/table-view-presets";
-import { InvalidRequestError } from "../../../errors";
+import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import { TableViewService } from "./TableViewService";
 
 describe("TableViewService.generatePermalink", () => {

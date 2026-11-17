@@ -20,7 +20,7 @@ import {
   formatDistanceToNow,
 } from "date-fns";
 import { cn } from "@/src/utils/tailwind";
-import { showSuccessToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 type DatasetVersionHistoryPanelProps = {
   projectId: string;

@@ -12,12 +12,10 @@ import {
   type ObservationVariableMapping,
 } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
-import {
-  EvaluatorDefinitionInputSchema,
-  isLegacyEvalTarget,
-  type EvaluatorService,
-  type RuleService,
-} from "@/src/features/evals/server";
+import { EvaluatorDefinitionInputSchema } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
+import type { EvaluatorService } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
+import type { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
 import {
   EvaluationRule,
   type CreateEvaluationRuleBodyType,

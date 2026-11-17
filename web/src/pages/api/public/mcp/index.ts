@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * MCP (Model Context Protocol) Server API Endpoint
  *
@@ -31,15 +30,14 @@ import { handleMcpRequest } from "@/src/features/mcp/server/transport";
 import { validateMcpRequestSecurity } from "@/src/features/mcp/server/security";
 import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
 import { type ServerContext } from "@/src/features/mcp/types";
+import { getAuditRequestContext } from "@/src/features/audit-logs/server/getAuditRequestContext";
 import { addUserToSpan, logger } from "@langfuse/shared/src/server";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { BaseError, ForbiddenError, safeJsonParse } from "@langfuse/shared";
 import { ZodError } from "zod";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
-import {
-  shadowAuth,
-  __dangerouslySkipAuthz,
-} from "@/src/features/public-api/server";
+import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
+import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
 import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@langfuse/shared/in-app-agent";
 import { InAppAgentMcpRunOverrideSchema } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 
@@ -136,7 +134,12 @@ export default async function handler(
       publicKey: scope.publicKey,
       plan: scope.plan,
       rateLimitOverrides: scope.rateLimitOverrides,
+      accessAuditLogEnabled: scope.accessAuditLogEnabled,
       userAgent: req.headers["user-agent"],
+      auditRequest: getAuditRequestContext(
+        req.headers,
+        req.socket.remoteAddress,
+      ),
       inAppAgent: getInAppAgentContext(req, scope.isInAppAgentKey),
       auth: ctx,
     };

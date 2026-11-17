@@ -7,6 +7,7 @@ import { deepChainScenario } from "./deep-chain";
 import { evaluatorGalleryScenario } from "./evaluator-gallery";
 import { experimentFiltersScenario } from "./experiment-filters";
 import { experimentIoScenario } from "./experiment-io";
+import { gatewayTrafficScenario } from "./gateway-traffic";
 import { incidentSessionScenario } from "./incident-session";
 import { longSessionScenario } from "./long-session";
 import { manyTracesScenario } from "./many-traces";
@@ -19,6 +20,7 @@ import { supportAgentScenario } from "./support-agent";
 import { timelineAnnotatedScenario } from "./timeline-annotated";
 import { timelineShapesScenario } from "./timeline-shapes";
 import { topicsScenario } from "./topics";
+import { topicsMapScenario } from "./topics-map";
 import { traceTreeScenario } from "./trace-tree";
 import { ScenarioDefinition } from "./types";
 
@@ -34,6 +36,7 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "evaluator-gallery": evaluatorGalleryScenario,
   "experiment-io": experimentIoScenario,
   "experiment-filters": experimentFiltersScenario,
+  "gateway-traffic": gatewayTrafficScenario,
   "long-session": longSessionScenario,
   "many-traces": manyTracesScenario,
   "outlier-traffic": outlierTrafficScenario,
@@ -48,6 +51,7 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "timeline-annotated": timelineAnnotatedScenario,
   "timeline-shapes": timelineShapesScenario,
   topics: topicsScenario,
+  "topics-map": topicsMapScenario,
 };
 
 export * from "./types";

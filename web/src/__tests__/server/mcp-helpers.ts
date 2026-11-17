@@ -16,7 +16,7 @@ import {
   UserId,
 } from "@langfuse/shared/rbac";
 import type { ServerContext } from "@/src/features/mcp/types";
-import { authenticator } from "@/src/features/apiKey/server";
+import { authenticator } from "@/src/features/apiKey/authenticator";
 
 /**
  * Creates a complete MCP test setup including:
@@ -58,6 +58,7 @@ export async function createMcpTestSetup(): Promise<{
     publicKey: result.publicKey,
     plan: "oss",
     rateLimitOverrides: [],
+    accessAuditLogEnabled: false,
     auth: authenticated.context,
   };
 
@@ -138,6 +139,7 @@ export async function createInAppAgentMcpContext(params: {
       publicKey: apiKey.publicKey,
       plan: "oss",
       rateLimitOverrides: [],
+      accessAuditLogEnabled: false,
       auth: authenticated.context,
     },
   };
@@ -170,6 +172,7 @@ export function mockServerContext(
     publicKey: overrides?.publicKey ?? "pk-lf-test",
     plan: overrides?.plan ?? "oss",
     rateLimitOverrides: overrides?.rateLimitOverrides ?? [],
+    accessAuditLogEnabled: overrides?.accessAuditLogEnabled ?? false,
     ...overrides,
   };
 }

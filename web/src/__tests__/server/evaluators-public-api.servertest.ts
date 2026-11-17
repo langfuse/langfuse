@@ -11,15 +11,16 @@ import {
   createCodeEvaluator,
   createEvaluationRule,
 } from "@/src/__tests__/server/stable-evaluation-public-api-test-utils";
-import { EvaluatorService, RuleService } from "@/src/features/evals/server";
+import { EvaluatorService } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
+import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
 import {
   DeleteEvaluatorResponse,
   Evaluator,
   ListEvaluatorsResponse,
   LlmAsJudgeEvaluator,
-  PublicApiError,
-} from "@/src/features/public-api";
-import { toApiReadMappings } from "@/src/features/public-api/server";
+} from "@/src/features/public-api/types/evaluation/evaluators";
+import { PublicApiError } from "@/src/features/public-api/types/public-api-errors";
+import { toApiReadMappings } from "@/src/features/public-api/server/evaluation/evaluationAdapters";
 
 describe("stable evaluators public API", () => {
   it("creates evaluators", async () => {

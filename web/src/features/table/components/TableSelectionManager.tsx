@@ -209,6 +209,7 @@ export function TableSelectionManager<TData>({
       isFixedPosition: true,
       isPinnedLeft: true,
       loadingCell: <Skeleton className="h-4 w-4 shrink-0 rounded-sm" />,
+      // eslint-disable-next-line react/no-unstable-nested-components
       header: ({ table }: { table: Table<TData> }) => (
         <SelectionHeaderCheckbox
           table={table}
@@ -218,6 +219,7 @@ export function TableSelectionManager<TData>({
           setSelectAll={setSelectAll}
         />
       ),
+      // eslint-disable-next-line react/no-unstable-nested-components
       cell: ({ row, table }: { row: Row<TData>; table: Table<TData> }) => (
         <SelectionRowCheckbox
           row={row}

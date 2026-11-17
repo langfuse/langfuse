@@ -1,7 +1,7 @@
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { ConnectedBatchExportsTable } from "@/src/features/batch-exports/components/BatchExportsTable/ConnectedBatchExportsTable";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export function BatchExportsSettingsPage(props: { projectId: string }) {
   const hasAccess = useHasProjectAccess({

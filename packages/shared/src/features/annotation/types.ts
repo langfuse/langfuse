@@ -1,6 +1,6 @@
 import z from "zod";
 import { StringNoHTML, StringNoHTMLNonEmpty } from "../../utils/zod";
-import { CategoricalData, TextData, NumericData } from "../../domain";
+import { CategoricalData, TextData, NumericData } from "../../domain/scores";
 
 const ScoreTargetTrace = z.object({
   type: z.literal("trace"),

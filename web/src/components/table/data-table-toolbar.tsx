@@ -34,7 +34,7 @@ import {
   type CustomRowHeightControl,
   type RowHeight,
 } from "@/src/components/table/data-table-row-height-switch";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import {
   type TimeRange,
@@ -42,7 +42,7 @@ import {
 } from "@/src/utils/date-range-utils";
 import { DataTableSelectAllBanner } from "@/src/components/table/data-table-multi-select-actions/DataTableSelectAllBanner";
 import { cn } from "@/src/utils/tailwind";
-import DocPopup from "@/src/components/layouts/doc-popup";
+import DocPopup, { DocPopupTrigger } from "@/src/components/layouts/doc-popup";
 import {
   TableViewPresetsDrawer,
   type SystemFilterPreset,
@@ -512,7 +512,11 @@ export function DataTableToolbar<TData, TValue>({
                             searchConfig.hidePerformanceWarning,
                             searchConfig.tableAllowsFullTextSearch,
                           )}
-                        />
+                        >
+                          {({ getTriggerProps }) => (
+                            <DocPopupTrigger triggerProps={getTriggerProps()} />
+                          )}
+                        </DocPopup>
                       ),
                       content: (
                         <DropdownMenuRadioGroup

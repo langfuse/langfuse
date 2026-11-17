@@ -23,13 +23,14 @@ const roleValues = {
   ADMIN: "ADMIN",
   MEMBER: "MEMBER",
   VIEWER: "VIEWER",
+  AI_GATEWAY: "AI_GATEWAY",
   NONE: "NONE",
 } as const satisfies Record<Role, Role>;
 
 const formSchema = z.object({
   email: z.string().trim().pipe(z.email()),
   orgRole: z.enum(roleValues),
-  projectRole: z.enum(roleValues),
+  projectRole: z.enum(roleValues).exclude([roleValues.AI_GATEWAY]),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -40,6 +41,7 @@ type CreateProjectMemberDialogProps = {
   hasProjectRoleEntitlement: boolean;
   canManageOrgOwnership: boolean;
   canManageProjectOwnership: boolean;
+  isAiGatewayEnabled: boolean;
   isPending: boolean;
   createProjectMember: (values: FormValues) => Promise<void>;
   onSuccess: () => void;
@@ -51,6 +53,7 @@ export function CreateProjectMemberDialog({
   hasProjectRoleEntitlement,
   canManageOrgOwnership,
   canManageProjectOwnership,
+  isAiGatewayEnabled,
   isPending,
   createProjectMember,
   onSuccess,
@@ -124,7 +127,10 @@ export function CreateProjectMemberDialog({
                   <FormItem>
                     <FormLabel>Organization Role</FormLabel>
                     <RoleSelect
-                      roles={Object.values(roleValues)}
+                      roles={Object.values(roleValues).filter(
+                        (role) =>
+                          isAiGatewayEnabled || role !== roleValues.AI_GATEWAY,
+                      )}
                       canManageOwnership={canManageOrgOwnership}
                       value={field.value}
                       onValueChange={field.onChange}
@@ -146,8 +152,9 @@ export function CreateProjectMemberDialog({
                       canManageOwnership={canManageProjectOwnership}
                       roles={Object.values(roleValues).filter(
                         (role) =>
-                          !hasOnlySingleProjectAccess ||
-                          role !== roleValues.NONE,
+                          role !== roleValues.AI_GATEWAY &&
+                          (!hasOnlySingleProjectAccess ||
+                            role !== roleValues.NONE),
                       )}
                       value={field.value}
                       onValueChange={field.onChange}

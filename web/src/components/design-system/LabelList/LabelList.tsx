@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { cva } from "class-variance-authority";
@@ -78,7 +77,7 @@ export function LabelList(props: LabelListProps) {
         className="pointer-events-none invisible absolute flex w-max gap-1"
       >
         {labels.map(renderChip)}
-        <BadgeShell color="filled" font="mono" size="md">
+        <BadgeShell color="filled" size="md">
           +{labels.length}
         </BadgeShell>
       </div>
@@ -191,7 +190,7 @@ function LabelOverflow({
       }
     >
       {({ getTriggerProps }) => (
-        <BadgeShell asChild color="filled" font="mono" size="md">
+        <BadgeShell asChild color="filled" size="md">
           <button
             type="button"
             className="text-muted-foreground cursor-pointer self-center"
@@ -214,7 +213,7 @@ function LabelChip({
   isProduction: boolean;
 }) {
   return (
-    <BadgeShell color="filled" font="mono" size="md">
+    <BadgeShell color="filled" size="md">
       {isProduction && (
         <span className="bg-dark-green size-1.5 shrink-0 rounded-full" />
       )}

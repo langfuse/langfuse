@@ -13,18 +13,17 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import Header from "@/src/components/layouts/header";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { LockIcon } from "@langfuse/icons";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useSession } from "next-auth/react";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { projectRetentionSchema } from "@/src/features/auth";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { projectRetentionSchema } from "@/src/features/auth/lib/projectRetentionSchema";
 import { ActionButton } from "@/src/components/ActionButton";
-import { useHasEntitlement } from "@/src/features/entitlements";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 
 export default function ConfigureRetention() {
   const { update: updateSession } = useSession();
-  const utils = api.useUtils();
   const { project } = useQueryProject();
   const capture = usePostHogClientCapture();
   const hasAccess = useHasProjectAccess({
@@ -42,9 +41,6 @@ export default function ConfigureRetention() {
   const setRetention = api.projects.setRetention.useMutation({
     onSuccess: (_) => {
       updateSession();
-      // Admins resolve org/project context from these queries, not the session
-      utils.organizations.byId.invalidate();
-      utils.projects.byId.invalidate();
     },
     onError: (error) => form.setError("retention", { message: error.message }),
   });

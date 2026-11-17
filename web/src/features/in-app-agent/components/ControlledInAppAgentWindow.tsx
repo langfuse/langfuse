@@ -9,7 +9,7 @@ import {
 } from "./InAppAgentWindow";
 import { useInAppAiAgent } from "./InAppAiAgentProvider";
 import { InAppAgentInternalSessionMenu } from "./InAppAgentInternalSessionMenu";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 import { useSmoothStreamingMessages } from "./useSmoothStreamingMessages";
 import { getDrawerMessages } from "./utils/utils";
 import { getInAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";

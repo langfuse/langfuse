@@ -4,7 +4,7 @@ import { api } from "@/src/utils/api";
 import { Combobox } from "@/src/components/ui/Combobox";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { Button } from "@/src/components/ui/button";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 /**
  * Home's dashboard picker: selecting immediately shows ("peeks") the chosen

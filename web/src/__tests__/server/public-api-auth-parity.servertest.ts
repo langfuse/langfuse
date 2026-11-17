@@ -143,6 +143,10 @@ const projectRoutes: Route[] = [
   { route: "unstable/topics/[topicId]", methods: ["GET"] },
   { route: "unstable/topic-facets/index", methods: ["GET"] },
   { route: "unstable/topic-facets/[facetId]", methods: ["GET"] },
+  { route: "unstable/topic-summaries/index", methods: ["GET"] },
+  { route: "unstable/topic-assignments/index", methods: ["GET"] },
+  { route: "unstable/topic-rules/index", methods: ["GET"] },
+  { route: "unstable/topic-rules/[ruleId]", methods: ["GET"] },
 ];
 
 // Org and misc routes call shadowAuth directly from the handler body.

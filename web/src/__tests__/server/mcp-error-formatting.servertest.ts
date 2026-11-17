@@ -13,12 +13,9 @@ vi.mock("@langfuse/shared/src/server", async () => {
   };
 });
 
-import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
+import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { ZodError, z } from "zod";
-import {
-  formatErrorForUser,
-  wrapErrorHandling,
-} from "@/src/features/mcp/core/error-formatting";
+import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
 import { UserInputError, ApiServerError } from "@/src/features/mcp/core/errors";
 import {
   UnauthorizedError,
@@ -37,7 +34,6 @@ describe("MCP Error Formatting", () => {
         const error = new UserInputError("Prompt 'foo' not found");
         const mcpError = formatErrorForUser(error);
 
-        expect(mcpError).toBeInstanceOf(McpError);
         expect(mcpError.code).toBe(ErrorCode.InvalidRequest);
         expect(mcpError.message).toContain("Prompt 'foo' not found");
       });
@@ -66,7 +62,6 @@ describe("MCP Error Formatting", () => {
         const error = new ApiServerError("Database connection failed");
         const mcpError = formatErrorForUser(error);
 
-        expect(mcpError).toBeInstanceOf(McpError);
         expect(mcpError.code).toBe(ErrorCode.InternalError);
         // Should NOT expose internal error message
         expect(mcpError.message).toContain(
@@ -219,10 +214,10 @@ describe("MCP Error Formatting", () => {
       });
 
       it.each([
-        ["Access denied", "MCP error -32600: Access denied"],
+        ["Access denied", "Access denied"],
         [
           undefined,
-          "MCP error -32600: Access denied. You do not have permission to access this resource.",
+          "Access denied. You do not have permission to access this resource.",
         ],
       ])(
         "preserves the ForbiddenError message: %s",
@@ -355,118 +350,6 @@ describe("MCP Error Formatting", () => {
 
         expect(mcpError.code).toBe(ErrorCode.InternalError);
       });
-    });
-  });
-
-  describe("wrapErrorHandling", () => {
-    it("should pass through successful function result", async () => {
-      const fn = async () => ({ result: "success" });
-      const wrapped = wrapErrorHandling(fn);
-
-      const result = await wrapped();
-      expect(result).toEqual({ result: "success" });
-    });
-
-    it("should pass through function arguments", async () => {
-      const fn = async (a: number, b: string) => `${a}-${b}`;
-      const wrapped = wrapErrorHandling(fn);
-
-      const result = await wrapped(42, "test");
-      expect(result).toBe("42-test");
-    });
-
-    it("should wrap UserInputError in McpError", async () => {
-      const fn = async () => {
-        throw new UserInputError("Invalid input");
-      };
-      const wrapped = wrapErrorHandling(fn);
-
-      await expect(wrapped()).rejects.toThrow(McpError);
-      try {
-        await wrapped();
-      } catch (e) {
-        const mcpError = e as McpError;
-        expect(mcpError.code).toBe(ErrorCode.InvalidRequest);
-        expect(mcpError.message).toContain("Invalid input");
-      }
-    });
-
-    it("should wrap ApiServerError in McpError with generic message", async () => {
-      const fn = async () => {
-        throw new ApiServerError("Database crashed");
-      };
-      const wrapped = wrapErrorHandling(fn);
-
-      await expect(wrapped()).rejects.toThrow(McpError);
-      await expect(wrapped()).rejects.toMatchObject({
-        code: ErrorCode.InternalError,
-      });
-    });
-
-    it("should wrap ZodError in McpError", async () => {
-      const schema = z.object({ name: z.string() });
-      const fn = async () => {
-        schema.parse({ name: 123 });
-      };
-      const wrapped = wrapErrorHandling(fn);
-
-      await expect(wrapped()).rejects.toThrow(McpError);
-      await expect(wrapped()).rejects.toMatchObject({
-        code: ErrorCode.InvalidParams,
-      });
-    });
-
-    it("should wrap generic Error in McpError", async () => {
-      const fn = async () => {
-        throw new Error("Unexpected error");
-      };
-      const wrapped = wrapErrorHandling(fn);
-
-      await expect(wrapped()).rejects.toThrow(McpError);
-      await expect(wrapped()).rejects.toMatchObject({
-        code: ErrorCode.InternalError,
-      });
-    });
-
-    it("should handle async function that returns promise", async () => {
-      const fn = () => Promise.resolve({ data: "async result" });
-      const wrapped = wrapErrorHandling(fn);
-
-      const result = await wrapped();
-      expect(result).toEqual({ data: "async result" });
-    });
-
-    it("should handle rejected promise", async () => {
-      const fn = () => Promise.reject(new UserInputError("Async rejection"));
-      const wrapped = wrapErrorHandling(fn);
-
-      try {
-        await wrapped();
-      } catch (e) {
-        const mcpError = e as McpError;
-        expect(mcpError.code).toBe(ErrorCode.InvalidRequest);
-        expect(mcpError.message).toContain("Async rejection");
-      }
-    });
-
-    it("should preserve function return type", async () => {
-      interface PromptResult {
-        id: string;
-        name: string;
-        version: number;
-      }
-
-      const fn = async (): Promise<PromptResult> => ({
-        id: "123",
-        name: "test",
-        version: 1,
-      });
-      const wrapped = wrapErrorHandling(fn);
-
-      const result = await wrapped();
-      expect(result.id).toBe("123");
-      expect(result.name).toBe("test");
-      expect(result.version).toBe(1);
     });
   });
 

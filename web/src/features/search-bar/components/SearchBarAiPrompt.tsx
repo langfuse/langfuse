@@ -16,18 +16,18 @@
 
 import * as React from "react";
 import { ArrowLeft, ArrowRight, Loader2 } from "@langfuse/icons";
-import { type ComposerSize } from "@/src/features/search-bar/components/ComposerSurface";
+import { type QueryInput } from "@/src/components/design-system/QueryInput/QueryInput";
 import { useStore } from "zustand";
 
 import { type FilterState } from "@langfuse/shared";
 import type { FieldRegistry } from "@/src/features/search-bar/lib/fields";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
-import { showErrorToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import type { ObservedScoreNames } from "@/src/features/search-bar/lib/observed-options";
 import type { SearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 // "No such score X" note for score filters the server dropped because their
 // name matches no observed score (exactly or normalized).
@@ -52,7 +52,7 @@ export function SearchBarAiPrompt({
 }: {
   projectId: string;
   /** Matches the composer's size so switching modes keeps the bar height. */
-  size?: ComposerSize;
+  size?: React.ComponentProps<typeof QueryInput>["size"];
   /** Table this bar filters — the `tableName` analytics dimension. */
   tableName: string;
   isV4?: boolean;

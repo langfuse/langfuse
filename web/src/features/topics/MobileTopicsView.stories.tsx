@@ -2,9 +2,13 @@ import { useState, type ComponentProps } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { Button } from "@/src/components/design-system/Button/Button";
+import { PINCH_ZOOM_RATE } from "@/src/utils/panZoomGestures";
 import preview from "../../../.storybook/preview";
 import { MobileTopicsView } from "./MobileTopicsView";
+import { PAGE_SIZE } from "./TopicMobileTraceList";
 import { TopicsMobileControls } from "./TopicsMobileControls";
+import { prepareTopicsActions } from "./prepare-topics-actions";
+import { staticTopicTraces, storyFacet } from "./topic-story-traces";
 
 const topics = [
   {
@@ -49,16 +53,16 @@ const rows = [
     unitStartTime: "2026-10-20T12:00:00.000Z",
   },
 ];
-const facet: ComponentProps<typeof MobileTopicsView>["facet"] = {
-  facetId: "intent",
-  name: "Intent",
-  facetVersion: 1,
-  topics,
+const facet = storyFacet(
+  {
+    facetId: "intent",
+    name: "Intent",
+    facetVersion: 1,
+    topics,
+    map: { runId: "run", topics },
+  },
   rows,
-  map: { runId: "run", topics },
-  awaitingCount: 1,
-  usableCount: rows.length,
-};
+);
 const mapResult = {
   error: null,
   data: {
@@ -76,7 +80,7 @@ const mapResult = {
 };
 
 function MobileExample(args: ComponentProps<typeof MobileTopicsView>) {
-  const [view, setView] = useState(args.view);
+  const view = args.view;
   const [facetId, setFacetId] = useState(args.facet.facetId);
   const facets = [
     args.facet,
@@ -100,8 +104,6 @@ function MobileExample(args: ComponentProps<typeof MobileTopicsView>) {
           facets={facets}
           selectedFacet={facetId}
           onSelectFacet={setFacetId}
-          view={view}
-          onSelectView={setView}
         />
       </div>
       <MobileTopicsView
@@ -122,6 +124,22 @@ function MobileExample(args: ComponentProps<typeof MobileTopicsView>) {
   );
 }
 
+const mapActionHandlers = {
+  onEditRun: fn(),
+  onNewMap: fn(),
+  onNewSnapshot: fn(),
+};
+const mapActions = prepareTopicsActions({
+  automaticProcessing: { state: { status: "on" }, saving: false },
+  canWrite: true,
+  configureAvailable: true,
+  onConfigure: fn(),
+  onHistory: fn(),
+  ...mapActionHandlers,
+  showUnassigned: true,
+  onShowUnassignedChange: fn(),
+});
+
 const defaultArgs: ComponentProps<typeof MobileTopicsView> = {
   projectId: "storybook-topics",
   facet,
@@ -135,8 +153,9 @@ const defaultArgs: ComponentProps<typeof MobileTopicsView> = {
   onSearchQueryChange: fn(),
   onSelectTrace: fn(),
   onOpenTrace: fn(),
-  onGenerateTopics: fn(),
-  canGenerateTopics: true,
+  useTraces: staticTopicTraces(rows),
+  showUnassigned: true,
+  mapActions,
 };
 
 const meta = preview.meta({
@@ -149,12 +168,32 @@ const meta = preview.meta({
 export const Default = meta.story({});
 export const AwaitingTopics = meta.story({
   args: {
-    facet: {
-      ...facet,
-      topics: [],
-      rows: rows.filter((row) => row.topicId === null),
-      map: null,
-    },
+    facet: storyFacet(
+      { ...facet, topics: [], map: null },
+      rows.filter((row) => row.topicId === null),
+    ),
+    useTraces: staticTopicTraces(rows.filter((row) => row.topicId === null)),
+  },
+});
+export const MapEntryPointsWithoutTopics = meta.story({
+  name: "(Test) Offer the map entry points under an empty topic list",
+  args: {
+    facet: storyFacet(
+      { ...facet, topics: [], map: null },
+      rows.filter((row) => row.topicId === null),
+    ),
+    useTraces: staticTopicTraces(rows.filter((row) => row.topicId === null)),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    for (const [label, handler] of [
+      ["Edit map", mapActionHandlers.onEditRun],
+      ["New map", mapActionHandlers.onNewMap],
+      ["New snapshot", mapActionHandlers.onNewSnapshot],
+    ] as const) {
+      await userEvent.click(await canvas.findByRole("button", { name: label }));
+      await expect(handler).toHaveBeenCalledOnce();
+    }
   },
 });
 export const BrowseAndOpenTrace = meta.story({
@@ -208,6 +247,21 @@ export const BrowseAndOpenTrace = meta.story({
     await userEvent.click(
       canvas.getByRole("button", { name: "Show all traces" }),
     );
+    await expect(
+      canvas.getByRole("button", { name: "Open trace access-0" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Open trace billing-20" }),
+    ).toBeVisible();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Go to previous page" }),
+    );
+    await expect(
+      canvas.getByRole("button", { name: "Open trace billing-0" }),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: "Open trace access-0" }),
+    ).not.toBeInTheDocument();
     await userEvent.click(
       canvas.getByRole("button", { name: "Go to next page" }),
     );
@@ -244,10 +298,7 @@ export const FitFilteredMap = meta.story({
     const [facet, setFacet] = useState(args.facet);
     return (
       <>
-        <Button
-          text="Refresh results"
-          onClick={() => setFacet({ ...facet, rows: [...facet.rows] })}
-        />
+        <Button text="Refresh results" onClick={() => setFacet({ ...facet })} />
         <MobileExample {...args} facet={facet} />
       </>
     );
@@ -277,7 +328,9 @@ export const FitFilteredMap = meta.story({
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("tab", { name: "Visualize" }));
-    await userEvent.click(canvas.getByRole("button", { name: "Fit map (0)" }));
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Fit scatter (0)" }),
+    );
     await expect(
       canvas.getByRole("tab", { name: "Visualize" }),
     ).toHaveAttribute("data-state", "active");
@@ -352,9 +405,46 @@ export const PreviewTreemap = meta.story({
   },
 });
 
+export const PreviewZoomedTreemap = meta.story({
+  name: "(Test) A zoomed treemap previews inside the visible area",
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("tab", { name: "Visualize" }));
+    const billing = canvas.getByRole("button", {
+      name: `${topics[0].name}, 21 traces`,
+    });
+    const scroller = canvas.getByRole("region", { name: "Topics" })
+      .parentElement as HTMLElement;
+    const before = billing.getBoundingClientRect().height;
+    billing.dispatchEvent(
+      new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        ctrlKey: true,
+        // Two zoom levels: four times the treemap height.
+        deltaY: -2 / PINCH_ZOOM_RATE,
+      }),
+    );
+    await waitFor(() =>
+      expect(billing.getBoundingClientRect().height).toBeGreaterThan(
+        before * 3,
+      ),
+    );
+    scroller.scrollTop = 0;
+    await userEvent.click(billing);
+    const visible = scroller.getBoundingClientRect();
+    const preview = (
+      await canvas.findByRole("tooltip")
+    ).getBoundingClientRect();
+    await expect(preview.top).toBeGreaterThanOrEqual(visible.top);
+    await expect(preview.top).toBeLessThan(visible.bottom);
+  },
+});
+
 export const PreviewGrid = meta.story({
   name: "(Test) Preview grid items, select traces, and clear topics",
   args: {
+    view: "grid",
     filters: [
       {
         column: "topicId",
@@ -366,14 +456,7 @@ export const PreviewGrid = meta.story({
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(
-      canvas.getByRole("combobox", { name: "Topics view" }),
-    );
-    await userEvent.click(
-      within(canvasElement.ownerDocument.body).getByRole("option", {
-        name: "Grid",
-      }),
-    );
+    await userEvent.click(canvas.getByRole("tab", { name: "Visualize" }));
     const grid = await canvas.findByRole("img", { name: /^Topic grid/ });
     const dot = grid.querySelector('[data-trace-id="access-0"]')!;
     await userEvent.click(dot);
@@ -410,6 +493,38 @@ export const PreviewGrid = meta.story({
   },
 });
 
+export const PickFilteredPointBeyondPage = meta.story({
+  name: "(Test) Picking a filtered point beyond the loaded page keeps the filter",
+  args: {
+    view: "grid",
+    filters: [
+      {
+        column: "topicId",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["billing"],
+      },
+    ],
+    useTraces: staticTopicTraces(rows, 1),
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("tab", { name: "Visualize" }));
+    const grid = await canvas.findByRole("img", { name: /^Topic grid/ });
+    const dot = grid.querySelector('[data-trace-id="billing-5"]')!;
+    await userEvent.click(dot);
+    await userEvent.click(dot);
+    const trace = await canvas.findByRole("button", {
+      name: "Open trace billing-5",
+    });
+    await expect(trace).toHaveAttribute("aria-current", "true");
+    await expect(
+      canvas.getByRole("heading", { name: topics[0].name }),
+    ).toBeVisible();
+    await expect(args.onOpenTrace).not.toHaveBeenCalled();
+  },
+});
+
 export const SwitchPublishedMap = meta.story({
   name: "(Test) Switching facet maps resets the camera and keeps Visualize open",
   args: { view: "map" },
@@ -430,5 +545,56 @@ export const SwitchPublishedMap = meta.story({
     await expect(
       canvas.getByRole("tab", { name: "Visualize" }),
     ).toHaveAttribute("data-state", "active");
+  },
+});
+
+export const KeepPageAfterRefresh = meta.story({
+  name: "(Test) Keep the page when a refresh moves the selected trace",
+  render: function KeepPageAfterRefresh(args) {
+    const [shifted, setShifted] = useState(false);
+    const source = shifted
+      ? [
+          {
+            traceId: "newer-0",
+            topicId: "billing",
+            topicName: topics[0].name,
+            summary: "A newer invoice question sorted ahead of the selection.",
+            outcome: "assigned" as const,
+            facetVersion: 1,
+            unitStartTime: "2026-10-21T12:00:00.000Z",
+          },
+          ...rows,
+        ]
+      : rows;
+    return (
+      <>
+        <Button text="Refresh traces" onClick={() => setShifted(true)} />
+        <MobileExample
+          {...args}
+          selectedTraceId={rows[PAGE_SIZE - 1]!.traceId}
+          useTraces={staticTopicTraces(source)}
+        />
+      </>
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const selectedName = `Open trace ${rows[PAGE_SIZE - 1]!.traceId}`;
+    await userEvent.click(canvas.getByRole("tab", { name: "Traces" }));
+    await expect(
+      canvas.getByRole("button", { name: `Open trace ${rows[0].traceId}` }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: selectedName }),
+    ).toBeVisible();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Refresh traces" }),
+    );
+    await expect(
+      canvas.getByRole("button", { name: `Open trace ${rows[0].traceId}` }),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: selectedName }),
+    ).not.toBeInTheDocument();
   },
 });

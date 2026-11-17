@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState } from "react";
 import { ExternalLink } from "@langfuse/icons";
 
@@ -8,7 +7,7 @@ import {
   COMPACT_IMAGE_MAX_HEIGHT_REM,
   ResizableImage,
 } from "@/src/components/ui/ResizableImage";
-import { type MediaContentType } from "@/src/features/media";
+import type { MediaContentType } from "@/src/features/media/validation";
 import { cn } from "@/src/utils/tailwind";
 
 export type MediaFileViewProps = {

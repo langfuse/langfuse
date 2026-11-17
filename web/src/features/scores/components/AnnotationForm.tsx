@@ -1,7 +1,6 @@
 /* eslint-disable @repo/component-file-structure */
 import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
 import { ExternalLink, Plus } from "@langfuse/icons";
-import { ScoreDataTypeEnum, type ScoreConfigDataType } from "@langfuse/shared";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/src/components/ui/button";
@@ -9,7 +8,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import Header from "@/src/components/layouts/header";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   formatAnnotateDescription,
   isTextDataType,
@@ -31,6 +30,7 @@ import { useAnnotationScoreConfigs } from "@/src/features/scores/hooks/useScoreC
 import { useAnnotationKeyboard } from "@/src/features/scores/hooks/useAnnotationKeyboard";
 import { createAnnotationFormActions } from "@/src/features/scores/actions/annotationFormActions";
 import { AnnotationScoreRow } from "@/src/features/scores/components/AnnotationScoreRow";
+import { ScoreConfigRowTooltip } from "@/src/features/scores/components/ScoreConfigRowTooltip";
 import { AnnotationSaveStatus } from "@/src/features/scores/components/AnnotationSaveStatus";
 import { CreateScoreConfigDialogController } from "@/src/features/score-configs/components/UpsertScoreConfigDialogController";
 import type {
@@ -38,16 +38,10 @@ import type {
   AnnotationScoreSchemaType,
   PreparedAnnotationTarget,
   ScoreTarget,
+  AnnotationCommentFlush,
   AnnotationForm as AnnotationFormType,
   AnnotationRefreshHandle,
 } from "@/src/features/scores/types";
-
-const scoreDataTypeLabels = {
-  [ScoreDataTypeEnum.NUMERIC]: "Numeric",
-  [ScoreDataTypeEnum.CATEGORICAL]: "Categorical",
-  [ScoreDataTypeEnum.BOOLEAN]: "Boolean",
-  [ScoreDataTypeEnum.TEXT]: "Text",
-} satisfies Record<ScoreConfigDataType, string>;
 
 function AnnotateHeader({
   saveStatus,
@@ -101,11 +95,13 @@ export function AnnotationFormContent({
   actionButtons,
   isActive = true,
   refreshRef,
+  commentFlushRef,
 }: {
   targets: PreparedAnnotationTarget[];
   actionButtons?: React.ReactNode;
   isActive?: boolean;
   refreshRef?: React.Ref<AnnotationRefreshHandle>;
+  commentFlushRef?: React.Ref<AnnotationCommentFlush>;
 }) {
   const capture = usePostHogClientCapture();
   const [initialTargets] = useState(() => suppliedTargets);
@@ -180,6 +176,9 @@ export function AnnotationFormContent({
     targets,
     isActive,
   });
+  useImperativeHandle(commentFlushRef, () => ({
+    flushPendingComments: actions.flushPendingComments,
+  }));
   useImperativeHandle(refreshRef, () => ({
     focus,
     refresh(data) {
@@ -306,7 +305,10 @@ export function AnnotationFormContent({
                         ...addableOptions.map((option) => ({
                           type: "item" as const,
                           id: option.value,
-                          title: `${option.config.name} (${scoreDataTypeLabels[option.config.dataType]})`,
+                          title: option.config.name,
+                          badge: (
+                            <ScoreConfigRowTooltip config={option.config} />
+                          ),
                           onClick: () => {
                             const controlledFields =
                               form.getValues("scoreData");
@@ -552,6 +554,7 @@ export function AnnotationForm<Target extends ScoreTarget>(
       actionButtons={props.actionButtons}
       isActive={props.isActive}
       refreshRef={props.refreshRef}
+      commentFlushRef={props.commentFlushRef}
     />
   );
 }

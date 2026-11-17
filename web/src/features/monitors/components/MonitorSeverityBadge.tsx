@@ -3,11 +3,11 @@ import { cn } from "@/src/utils/tailwind";
 import { type MonitorSeverity } from "@langfuse/shared/monitors";
 
 const badgeBaseClassName =
-  "inline-flex h-5.5 items-center gap-1.5 rounded-sm border pr-1.5 pl-2 text-xs leading-none font-normal transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2";
+  "inline-flex h-5.25 items-center gap-1.5 rounded-sm border pr-1.5 pl-2 text-xs leading-none font-normal transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2";
 
 /** severityVariantClassName maps each MonitorSeverity to its base badge chrome. */
 const severityVariantClassName: Record<MonitorSeverity, string> = {
-  UNKNOWN: "border-border text-foreground-secondary",
+  UNKNOWN: "border-transparent text-foreground-secondary",
   NO_DATA:
     "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
   PAUSED:

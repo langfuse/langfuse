@@ -20,14 +20,18 @@ vi.mock("@/src/components/ui/InfoTooltip/InfoTooltip", () => ({
     <span aria-label={label}>{children}</span>
   ),
 }));
-vi.mock("@/src/features/rbac", () => ({
+vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
   useHasProjectAccess: () => true,
   useHasOrganizationAccess: () => true,
 }));
-vi.mock("@/src/features/posthog-analytics", () => ({
+vi.mock("@/src/features/rbac/utils/checkOrganizationAccess", () => ({
+  useHasProjectAccess: () => true,
+  useHasOrganizationAccess: () => true,
+}));
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
-vi.mock("@/src/ee/features/ui-customization", () => ({
+vi.mock("@/src/ee/features/ui-customization/useUiCustomization", () => ({
   useUiCustomization: () => undefined,
 }));
 vi.mock("./CreateLLMApiKeyDialog", () => ({

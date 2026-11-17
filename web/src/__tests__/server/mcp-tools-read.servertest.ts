@@ -36,7 +36,6 @@ vi.mock(
 
 import { nanoid } from "nanoid";
 import { createHash, randomUUID } from "crypto";
-import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -206,7 +205,7 @@ import {
   handleListLlmConnections,
   listLlmConnectionsTool,
 } from "@/src/features/mcp/server/llmConnections/tools/listLlmConnections";
-import { SkillService } from "@/src/features/skills/server";
+import { SkillService } from "@/src/features/skills/server/skill-service";
 import { handleListSkills } from "@/src/features/mcp/server/skills/tools/listSkills";
 import { handleGetSkill } from "@/src/features/mcp/server/skills/tools/getSkill";
 import { handleLoadSkill } from "@/src/features/mcp/server/skills/tools/loadSkill";
@@ -757,6 +756,7 @@ describe("MCP Read Tools", () => {
       const sharedProvider = `shared-${nanoid()}`;
       const orgOnlyProvider = `org-only-${nanoid()}`;
       const otherOrgProvider = `other-org-${nanoid()}`;
+      const googleProvider = `google-${nanoid()}`;
       const connection = (
         owner: { projectId: string } | { organizationId: string },
         data: {
@@ -802,13 +802,21 @@ describe("MCP Read Tools", () => {
         { organizationId: otherSetup.orgId },
         { provider: otherOrgProvider, adapter: LLMAdapter.OpenAI },
       );
+      await connection(
+        { organizationId: setup.orgId },
+        {
+          provider: googleProvider,
+          adapter: LLMAdapter.GoogleAIStudio,
+          withDefaultModels: true,
+        },
+      );
 
       const result = (await handleListLlmConnections({}, setup.context)) as {
         data: Array<Record<string, unknown>>;
       };
 
       expect(result.data.map((c) => c.provider).sort()).toEqual(
-        [orgOnlyProvider, sharedProvider].sort(),
+        [googleProvider, orgOnlyProvider, sharedProvider].sort(),
       );
       expect(result.data).toEqual(
         expect.arrayContaining([
@@ -830,6 +838,12 @@ describe("MCP Read Tools", () => {
             adapter: LLMAdapter.Anthropic,
             scope: "organization",
             availableModels: ["claude-custom"],
+            decisionModels: [],
+          }),
+          expect.objectContaining({
+            provider: googleProvider,
+            availableModels: supportedModels[LLMAdapter.GoogleAIStudio],
+            decisionModels: ["gemini-decision-1"],
           }),
         ]),
       );
@@ -1430,7 +1444,16 @@ describe("MCP Read Tools", () => {
             } as unknown as Parameters<typeof handleListObservations>[0],
             mockServerContext(),
           ),
-        ).rejects.toThrow('Invalid observation filter column "startTime"');
+        ).rejects.toMatchObject({
+          issues: expect.arrayContaining([
+            expect.objectContaining({
+              path: ["filter", 0, "column"],
+              message: expect.stringContaining(
+                'Invalid observation filter column "startTime"',
+              ),
+            }),
+          ]),
+        });
       },
     );
 
@@ -1969,7 +1992,12 @@ describe("MCP Read Tools", () => {
           >[0],
           context,
         ),
-      ).rejects.toThrow(/fromStartTime.*toStartTime/i);
+      ).rejects.toMatchObject({
+        issues: expect.arrayContaining([
+          expect.objectContaining({ path: ["fromStartTime"] }),
+          expect.objectContaining({ path: ["toStartTime"] }),
+        ]),
+      });
 
       await expect(
         handleListObservations(
@@ -1987,7 +2015,12 @@ describe("MCP Read Tools", () => {
           } as unknown as Parameters<typeof handleListObservations>[0],
           context,
         ),
-      ).rejects.toThrow(/fromStartTime.*toStartTime/i);
+      ).rejects.toMatchObject({
+        issues: expect.arrayContaining([
+          expect.objectContaining({ path: ["fromStartTime"] }),
+          expect.objectContaining({ path: ["toStartTime"] }),
+        ]),
+      });
 
       await expect(
         handleListObservations(
@@ -2005,7 +2038,12 @@ describe("MCP Read Tools", () => {
           } as unknown as Parameters<typeof handleListObservations>[0],
           context,
         ),
-      ).rejects.toThrow(/fromStartTime.*toStartTime/i);
+      ).rejects.toMatchObject({
+        issues: expect.arrayContaining([
+          expect.objectContaining({ path: ["fromStartTime"] }),
+          expect.objectContaining({ path: ["toStartTime"] }),
+        ]),
+      });
 
       await expect(
         handleListObservations(
@@ -2016,7 +2054,12 @@ describe("MCP Read Tools", () => {
           } as unknown as Parameters<typeof handleListObservations>[0],
           context,
         ),
-      ).rejects.toThrow(/fromStartTime.*toStartTime/i);
+      ).rejects.toMatchObject({
+        issues: expect.arrayContaining([
+          expect.objectContaining({ path: ["fromStartTime"] }),
+          expect.objectContaining({ path: ["toStartTime"] }),
+        ]),
+      });
 
       await expect(
         handleListObservations(
@@ -2113,7 +2156,7 @@ describe("MCP Read Tools", () => {
           >[0],
           context,
         ),
-      ).rejects.toThrow(/fromStartTime.*toStartTime/i);
+      ).rejects.toThrow(/fromStartTime.*toStartTime/is);
 
       await expect(
         handleListObservations(
@@ -2236,7 +2279,14 @@ describe("MCP Read Tools", () => {
           },
           context,
         ),
-      ).rejects.toThrow(/Validation failed: .*filter\.0\.type: .*number/i);
+      ).rejects.toMatchObject({
+        issues: expect.arrayContaining([
+          expect.objectContaining({
+            path: ["filter", 0, "type"],
+            message: expect.stringMatching(/number/i),
+          }),
+        ]),
+      });
     });
 
     it("should reject hidden/internal advanced filter columns", async () => {
@@ -2744,7 +2794,6 @@ describe("MCP Read Tools", () => {
           context,
         ),
       ).rejects.toMatchObject({
-        code: ErrorCode.InvalidRequest,
         message: expect.stringContaining(
           "Field 'usageType' cannot be used as a filter.",
         ),
@@ -3405,7 +3454,11 @@ describe("MCP Read Tools", () => {
           { column: "input", limit: 100 } as any,
           context,
         ),
-      ).rejects.toThrow(/validation failed/i);
+      ).rejects.toMatchObject({
+        issues: expect.arrayContaining([
+          expect.objectContaining({ path: ["column"], code: "invalid_value" }),
+        ]),
+      });
     });
   });
 
@@ -3622,13 +3675,34 @@ describe("MCP Read Tools", () => {
       // by the strict schema instead of being silently ignored.
       await expect(
         handleListScores({ limit: 10, userId: "user-1" } as any, context),
-      ).rejects.toThrow(/validation failed/i);
+      ).rejects.toMatchObject({
+        issues: expect.arrayContaining([
+          expect.objectContaining({
+            code: "unrecognized_keys",
+            keys: ["userId"],
+          }),
+        ]),
+      });
       await expect(
         handleListScores({ limit: 10, traceTags: ["tag"] } as any, context),
-      ).rejects.toThrow(/validation failed/i);
+      ).rejects.toMatchObject({
+        issues: expect.arrayContaining([
+          expect.objectContaining({
+            code: "unrecognized_keys",
+            keys: ["traceTags"],
+          }),
+        ]),
+      });
       await expect(
         handleListScores({ limit: 10, page: 1 } as any, context),
-      ).rejects.toThrow(/validation failed/i);
+      ).rejects.toMatchObject({
+        issues: expect.arrayContaining([
+          expect.objectContaining({
+            code: "unrecognized_keys",
+            keys: ["page"],
+          }),
+        ]),
+      });
     });
   });
 

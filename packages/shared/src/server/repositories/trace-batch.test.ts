@@ -7,8 +7,8 @@ import { queryClickhouseStream } from "./clickhouse";
 vi.mock("./clickhouse", async () => ({
   TupleParam: (await import("@clickhouse/client")).TupleParam,
   queryClickhouseStream: vi.fn(),
+  clickhouseCompliantRandomCharacters: vi.fn(),
 }));
-vi.mock("./index", () => ({ clickhouseCompliantRandomCharacters: vi.fn() }));
 vi.mock("../clickhouse/client", () => ({
   convertDateToClickhouseDateTime: vi.fn(),
 }));
@@ -90,7 +90,6 @@ describe("trace batch query controls", () => {
           {
             maxThreads: 1,
             maxBlockSize,
-            experimentId: "arm-b",
             queryId: "read-attempt",
             requestTimeoutMs: 40_000,
           },
@@ -105,7 +104,6 @@ describe("trace batch query controls", () => {
             ...baseline.clickhouseConfigs,
             request_timeout: 40_000,
           },
-          tags: { ...baseline.tags, experimentId: "arm-b" },
           clickhouseSettings: {
             ...baseline.clickhouseSettings,
             max_threads: 1,

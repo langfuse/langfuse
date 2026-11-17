@@ -7,10 +7,10 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { CreateExperimentsForm } from "@/src/features/experiments/components/CreateExperimentsForm";
-import { ExperimentsTable } from "@/src/features/experiments/components/table";
+import { default as ExperimentsTable } from "@/src/features/experiments/components/table/ExperimentsTable";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { V4MigrationDelayBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 import { api } from "@/src/utils/api";
 import { FlaskConical } from "@langfuse/icons";

@@ -51,7 +51,6 @@ describe("Observations Comment Filtering", () => {
           },
         ],
         featureFlags: testFeatureFlags(),
-        admin: true,
       },
       environment: {} as any,
     };

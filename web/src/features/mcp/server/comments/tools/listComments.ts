@@ -1,10 +1,10 @@
 import { CommentObjectType, publicApiPaginationZod } from "@langfuse/shared";
 import { z } from "zod";
-import { listCommentsForApi } from "@/src/features/comments/server";
+import { listCommentsForApi } from "@/src/features/comments/server/publicCommentService";
 import {
   GetCommentsV1Query,
   GetCommentsV1Response,
-} from "@/src/features/public-api/server";
+} from "@/src/features/public-api/types/comments";
 import { defineTool } from "../../../core/define-tool";
 import { buildCommentObjectUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";

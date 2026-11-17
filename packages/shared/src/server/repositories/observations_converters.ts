@@ -13,7 +13,7 @@ import {
   PartialEventsObservation,
   PartialObservation,
   ObservationCoreFields,
-} from "../../domain";
+} from "../../domain/observations";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 import {
   RenderingProps,

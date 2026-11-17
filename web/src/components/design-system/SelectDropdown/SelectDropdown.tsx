@@ -9,6 +9,7 @@ import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/Cust
 import { InputDropdown } from "@/src/components/design-system/internal/InputDropdown/InputDropdown";
 
 type SelectOption<V> = {
+  type?: "option";
   value: V;
   label: string;
   icon?: IconComponent;
@@ -37,7 +38,7 @@ type SelectNode<V> =
 function isSelectGroup<V>(
   node: SelectNode<V>,
 ): node is Extract<SelectNode<V>, { type: "group" }> {
-  return "type" in node && node.type === "group";
+  return node.type === "group";
 }
 
 type TriggerControls = {
@@ -81,6 +82,7 @@ export function SelectDropdown<V extends string>({
   options,
   onValueChange,
   emptyMessage = "No options available.",
+  noCapture,
   children,
   ref,
   ...triggerProps
@@ -89,13 +91,20 @@ export function SelectDropdown<V extends string>({
   options: readonly SelectNode<V>[];
   onValueChange: (value: V) => void;
   emptyMessage?: string;
+  /** Keeps the portaled option list out of session replay. */
+  noCapture?: boolean;
   children: (
     controls: TriggerControls & { selectedLabel: string | undefined },
   ) => React.ReactNode;
   ref?: React.Ref<HTMLButtonElement>;
 } & Pick<
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>,
-  "id" | "aria-describedby" | "aria-invalid" | "aria-label" | "disabled"
+  | "id"
+  | "aria-describedby"
+  | "aria-invalid"
+  | "aria-label"
+  | "disabled"
+  | "onBlur"
 >) {
   const container = useLayerContainer("popover");
   const selectedOption = options
@@ -132,9 +141,14 @@ export function SelectDropdown<V extends string>({
             checked={value === node.value}
             label={
               <SelectPrimitive.ItemText>
-                <span className="flex items-center gap-2">
+                <span className="flex min-w-0 items-center gap-2">
                   {node.icon && <node.icon size="base" />}
-                  {node.label}
+                  <span
+                    className="truncate"
+                    title={node.disabled ? node.disabledReason : node.label}
+                  >
+                    {node.label}
+                  </span>
                 </span>
               </SelectPrimitive.ItemText>
             }
@@ -207,7 +221,11 @@ export function SelectDropdown<V extends string>({
       </SelectPrimitive.Trigger>
       <SelectPrimitive.Portal container={container}>
         <InputDropdown.Content width="select-trigger">
-          <SelectPrimitive.Content position="popper" sideOffset={4}>
+          <SelectPrimitive.Content
+            position="popper"
+            sideOffset={4}
+            className={noCapture ? "ph-no-capture" : undefined}
+          >
             <SelectPrimitive.ScrollUpButton
               aria-label="Scroll up"
               className="animate-in fade-in-0 fill-mode-both absolute inset-x-0 top-0 z-3 flex h-6 cursor-pointer items-center justify-center duration-300 [animation-delay:.5s]"

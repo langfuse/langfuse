@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type Readable } from "stream";
 import { env } from "../../env";
 import {
@@ -28,7 +27,10 @@ import {
   isProgressRow,
   isRow,
 } from "@clickhouse/client";
-import { RESOURCE_LIMIT_ERROR_MESSAGE } from "../../errors/errorMessages";
+import {
+  RESOURCE_LIMIT_ERROR_MESSAGE,
+  RESULT_SIZE_LIMIT_ERROR_MESSAGE,
+} from "../../errors/errorMessages";
 import {
   buildClickHouseLogComment,
   normalizeClickHouseQueryTags,
@@ -57,11 +59,14 @@ export { TupleParam } from "@clickhouse/client";
  */
 // Error type configuration map
 const ERROR_TYPE_CONFIG: Record<
-  "MEMORY_LIMIT" | "OVERCOMMIT" | "TIMEOUT",
+  "MEMORY_LIMIT" | "OVERCOMMIT" | "TIMEOUT" | "RESULT_SIZE",
   {
     discriminators: string[];
   }
 > = {
+  RESULT_SIZE: {
+    discriminators: ["too_many_rows_or_bytes", "limit for result exceeded"],
+  },
   // Order matters: matched top-to-bottom, first hit wins. OvercommitTracker
   // kills also carry a "Memory limit … exceeded" phrase, so OVERCOMMIT must
   // precede MEMORY_LIMIT to keep the more specific cause in the outcome metric.
@@ -89,6 +94,12 @@ export class ClickHouseResourceError extends Error {
 
   public readonly errorType: ErrorType;
   public readonly tags?: NormalizedClickHouseQueryTags;
+
+  get adviceMessage(): string {
+    return this.errorType === "RESULT_SIZE"
+      ? RESULT_SIZE_LIMIT_ERROR_MESSAGE
+      : ClickHouseResourceError.ERROR_ADVICE_MESSAGE;
+  }
 
   constructor(
     errType: ErrorType,
@@ -701,11 +712,26 @@ function isRetryableError(error: unknown): boolean {
   );
 }
 
+/** `cause` is the abort signal's reason. */
 export class ClickHouseQueryAbortedError extends Error {
   constructor(cause?: unknown) {
     super("ClickHouse query aborted", { cause });
     this.name = "ClickHouseQueryAbortedError";
   }
+
+  /** Aborted by a deadline such as `AbortSignal.timeout()`, not by a client leaving. */
+  get isClientTimeout(): boolean {
+    return this.cause instanceof Error && this.cause.name === "TimeoutError";
+  }
+}
+
+function isResourceError(error: unknown): boolean {
+  return (
+    error instanceof ClickHouseResourceError ||
+    (error instanceof Error &&
+      ClickHouseResourceError.wrapIfResourceError(error) instanceof
+        ClickHouseResourceError)
+  );
 }
 
 export async function queryClickhouse<T>(
@@ -884,8 +910,14 @@ async function* runClickHouseProgressAttempts<T>(
         return;
       } catch (error) {
         if (opts.abortSignal?.aborted) {
-          const aborted = new ClickHouseQueryAbortedError(error);
-          if (!outcomeRecorded) recordError(aborted, queryId);
+          const aborted = new ClickHouseQueryAbortedError(
+            opts.abortSignal.reason,
+          );
+          // A deadline reason reads like a CH timeout, so only a different error is checked.
+          const resourceError =
+            error !== opts.abortSignal.reason && isResourceError(error);
+          if (!outcomeRecorded)
+            recordError(resourceError ? error : aborted, queryId);
           throw aborted;
         }
         if (outcomeRecorded) throw error;
@@ -911,8 +943,19 @@ async function* runClickHouseProgressAttempts<T>(
       }
     }
   } finally {
-    /** Consumer return()/break closes the stream without reaching EOF or catch. */
-    if (!outcomeRecorded) recordError(new ClickHouseQueryAbortedError());
+    /**
+     * Consumer return()/break, or a throw in its loop body, closes the stream
+     * without reaching EOF or catch. A consumer that stops on purpose aborts
+     * its signal first; without an abort this path counts as an error.
+     */
+    if (!outcomeRecorded)
+      recordError(
+        opts.abortSignal?.aborted
+          ? new ClickHouseQueryAbortedError(opts.abortSignal.reason)
+          : new Error(
+              "ClickHouse stream closed by its consumer without an abort",
+            ),
+      );
   }
 }
 
@@ -1069,7 +1112,9 @@ function recordClickHouseProgressError(
           context.normalizedTags,
         );
   const fallbackOutcome =
-    error instanceof ClickHouseQueryAbortedError ? "client_closed" : "error";
+    error instanceof ClickHouseQueryAbortedError && !error.isClientTimeout
+      ? "client_closed"
+      : "error";
   recordClickHouseQueryOutcome(
     wrapped instanceof ClickHouseResourceError
       ? CLICKHOUSE_RESOURCE_ERROR_OUTCOMES[wrapped.errorType]
