@@ -749,10 +749,9 @@ function MapGrain({ opacity }: { opacity: number }) {
         <feColorMatrix type="saturate" values="0" />
         {/* Lifted toward white, so multiplying adds specks without greying the map. */}
         <feComponentTransfer>
-          <feFuncR type="linear" slope="0.6" intercept="0.61" />
-          <feFuncG type="linear" slope="0.6" intercept="0.61" />
-          {/* A touch more blue, so the specks read as the app's zinc grey. */}
-          <feFuncB type="linear" slope="0.55" intercept="0.68" />
+          <feFuncR type="linear" slope="0.6" intercept="0.62" />
+          <feFuncG type="linear" slope="0.6" intercept="0.62" />
+          <feFuncB type="linear" slope="0.6" intercept="0.62" />
         </feComponentTransfer>
       </filter>
       <rect width="100%" height="100%" filter={`url(#${id})`} />
