@@ -6,7 +6,7 @@ import {
   createTopicRun,
   enqueueTopicRuleRefit,
   getEnabledTopicsModels,
-  getTopicClusteringSummaryStats,
+  getTopicSummaryCounts,
   getTopicRuleMap,
   isTopicRuleSetupActive,
   listTopicFacets,
@@ -279,16 +279,11 @@ async function hasNewSummaries(
     now.getTime() - TOPICS_MAX_TIME_RANGE_MS,
   );
   if (from >= now.getTime()) return false;
-  const { count } = await getTopicClusteringSummaryStats(
+  const [{ count }] = await getTopicSummaryCounts(
     projectId,
-    facet.facetId,
-    facet.version,
+    [facet],
     embeddingConfig,
     { from: new Date(from), to: now },
-    {
-      maxRows: env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS,
-      maxBytes: env.LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES,
-    },
   );
   return count > 0;
 }

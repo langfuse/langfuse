@@ -1,6 +1,6 @@
 # Topics UI
 
-Web owns configuration, manual run controls, and result exploration. Processing and storage contracts live in the [worker README](../../../../worker/src/features/topics/README.md).
+Web owns configuration, map and snapshot controls, and result exploration. Processing and storage contracts live in the [worker README](../../../../worker/src/features/topics/README.md).
 
 ## Access
 
@@ -23,7 +23,7 @@ The [public API adapter](server/publicApi.ts) uses the project gate without a pe
 
 - [TopicsPage.tsx](TopicsPage.tsx) owns dialogs and history; [CurrentTopics.tsx](CurrentTopics.tsx) selects desktop/mobile renderers and owns result queries. Opening history keeps the results workspace mounted.
 - On completion, `useCurrentTopics` must issue a fresh counts request and reset trace pagination; an older in-flight poll cannot satisfy that refresh. Polling a busy run preserves already-loaded trace pages.
-- [useTopicTraceFilters.ts](useTopicTraceFilters.ts) owns URL-backed facet selection and filters stored per project/facet in localStorage. Map/mobile trace selection uses project-scoped session storage. Preserve selection across facet changes even when the destination cannot show it. Mobile charts preview on first tap and select on the second; the trace list opens peek.
+- [useTopicTraceFilters.ts](useTopicTraceFilters.ts) owns URL-backed facet selection and filters stored per project/facet in localStorage. Desktop map selection uses its own project-scoped session entry and stays across facet changes even when the destination cannot show it. Mobile trace selection uses a separate project-scoped entry: the same facet keeps it across reloads, and a facet change clears it. `TopicMobileTraceList` opens the page that contains a newly selected trace, including after that row finishes loading, and leaves a manually chosen page in place. Mobile charts preview on first tap and select on the second; the trace list opens peek.
 - [server/traceSelection.ts](server/traceSelection.ts) uses the shared bounded selector for preview and submission. Preview calls no models and is not a snapshot: the server resolves trace IDs again at submission, and source content can change before the worker reads it. Preserve the reviewed time bounds and exclusions; selection predicates match one observation, while processing loads the containing trace.
 
 For setup changes, start with [TopicSetupFlowController.tsx](TopicSetupFlowController.tsx) and [useTopicSettings.ts](useTopicSettings.ts).

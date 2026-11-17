@@ -4,31 +4,28 @@ Topics turns v4 traces into facet summaries, embeddings and topic assignments. T
 
 ## Entry points
 
-- [processTopicsExecution.ts](processTopicsExecution.ts): manual processing and topic updates.
+- [processTopicsExecution.ts](processTopicsExecution.ts): snapshot fits (`update` executions) and rule refits, both on the `topics-update` queue.
 - [summarizeAssembledTrace.ts](summarizeAssembledTrace.ts): shared facet extraction and automatic processing of an already assembled transcript.
-- [topicsAutomation.ts](topicsAutomation.ts): online assignment to a facet's serving map.
 - [nightlyRefit.ts](nightlyRefit.ts): daily scheduling of each rule's continuous map.
 - [models.ts](models.ts): model requests, token budgets, naming and cost estimates.
 - [numeric.ts](numeric.ts), [classifier.ts](classifier.ts), [continuity.ts](continuity.ts): fitting, membership and topic identity.
-- [shared Topics](../../../../packages/shared/src/server/topics/): configuration, persistence, queue contracts and paid-result staging.
+- [shared Topics](../../../../packages/shared/src/server/topics/): configuration, persistence, and queue contracts.
 
 ## Enablement and models
 
 Topics requires `LANGFUSE_TOPICS_ENABLED=true` and a cloud region (`NEXT_PUBLIC_LANGFUSE_CLOUD_REGION`; `DEV` locally). Read access, configuration and processing also require the project in `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`. Keep web and worker configuration aligned. An empty allowlist disables Topics access for all projects. Trace and project deletion clean Topics data independently of these gates.
 
-Use the normal migrated Postgres, ClickHouse and Redis stack and build shared and `@langfuse/native` before starting the worker. Automatic intake additionally needs the [trace-batch dispatcher and consumer](../traceBatching/README.md). These are internal controls, not a supported self-hosting configuration surface.
+Use the normal migrated Postgres, ClickHouse and Redis stack and build shared and `@langfuse/native` before starting the worker. Automatic intake additionally needs the [trace dispatcher and the events-dispatch consumer](../traceBatching/README.md). These are internal controls, not a supported self-hosting configuration surface.
 
 Project settings resolve three LLM connections: summary, embedding and clustering (naming). Pass the resolved `TopicsModels` explicitly; credentials must not enter persisted execution or batch state. Model validation and connection lifecycle belong to [model-config.ts](../../../../packages/shared/src/server/topics/model-config.ts). The embedding model and dimensions are locked once embedded summaries exist. Discovery and later assignment must use the same embedding purpose and normalization; equal dimensions alone do not make vector spaces compatible. An execution whose frozen summary or embedding model differs from current settings must be restarted. Changing the naming model affects subsequent naming; it does not rename unchanged definitions.
 
-Text-call tracing is separate from processing. It requires the source project in `LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS` and the organization's AI-feature and AI-analytics settings. Embeddings are untraced. Preserve internal-environment exclusion to prevent recursive processing. OpenRouter Broadcast can create new public traces without the reserved internal environment; exclude the Topics key from a Broadcast destination that itself runs Topics.
+Text-call tracing is separate from processing. It requires the source project in `LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL` and the organization's AI-feature and AI-analytics settings. Embeddings are untraced. Preserve internal-environment exclusion to prevent recursive processing. OpenRouter Broadcast can create new public traces without the reserved internal environment; exclude the Topics key from a Broadcast destination that itself runs Topics.
 
 ## Processing and updates
 
-**Process traces** freezes trace selection, facet versions, model settings and compatible published map references, including the absence of a map. Retries use that selection. It summarizes and embeds traces, then classifies against those maps; it never fits or renames topics. Complete summaries without a compatible map are awaiting topics, not outliers.
-
 **Update topics** fits stored summaries in a frozen source-time window. It does not load source traces, summarize or embed. Select the latest summary per source before checking completion, facet version and embedding compatibility: a newer ineligible result must not revive an older eligible one. This check must see replacements outside the selected window, including sources moved to another minute or month. Retrying an unpublished update starts a fresh fit from current compatible summaries in that same window. Completed or skipped attempts replay their saved outcome without refitting or naming again. The previous published map remains available until publication succeeds.
 
-Automatic trace batches use the same extraction and project models without reloading observations. A facet completed since the job's enqueue time is skipped on retry; a later redispatch can produce an updated summary. A failed trace is counted without failing or rereading the whole batch. Rejected credentials or billing pause the project's automatic processing. Successful rows queue `topics-automation` for online assignment to compatible serving maps.
+Per-trace jobs from events dispatch use the same extraction and project models without reloading observations. A facet completed since the job's enqueue time is skipped on retry; a later redispatch can produce an updated summary. A failed trace is counted without failing or rereading the whole batch. Rejected credentials or billing pause the project's automatic processing.
 
 ## Continuous maps and nightly refits
 
@@ -68,24 +65,11 @@ The seeded trace IDs and the settle clock live in the BatchAction's `summarizing
 
 ## Transcript and summary contract
 
-Manual processing and trace batches share the transcript producer and [topics-model-input.ts](../../../../packages/shared/src/server/transcript/topics-model-input.ts) projection. The model receives conversation history and current-turn messages without observation provenance, reasoning content, tool definitions or inline media payloads. Empty projected content produces `insufficient_input` without inference. The [shared transcript README](../../../../packages/shared/src/server/transcript/README.md) owns observation eligibility and assembly semantics; diagnostic text renderers are not the Topics model input.
+Topics summaries use the shared transcript producer and [topics-model-input.ts](../../../../packages/shared/src/server/transcript/topics-model-input.ts) projection. The model receives conversation history and current-turn messages without observation provenance, reasoning content, tool definitions or inline media payloads. Empty projected content produces `insufficient_input` without inference. The [shared transcript README](../../../../packages/shared/src/server/transcript/README.md) owns observation eligibility and assembly semantics; diagnostic text renderers are not the Topics model input.
 
-[trace-input.ts](../../../../packages/shared/src/server/topics/trace-input.ts) bounds manual source loading separately from the summary request's token budget. The request budget includes transcript, instructions and schema; oversized input fails before inference, without shortening evidence per facet. Keep tokenizer code and its WASM dependency in worker `models.ts`.
-
-Stored-summary reuse is opt-in and requires the same facet version, summary model, source start and transcript producer/version (`TOPICS_TRANSCRIPT_VERSION`). It does not establish content freshness. Compatible embeddings can be reused; otherwise the reused text needs embeddings. Reuse records only new usage and gets the new execution's staging ownership. Accepted staged results retain their recorded producer version across retries; original source snapshots are not kept.
+[trace-input.ts](../../../../packages/shared/src/server/topics/trace-input.ts) bounds loading a single trace's transcript separately from the summary request's token budget. The request budget includes transcript, instructions and schema; oversized input fails before inference, without shortening evidence per facet. Keep tokenizer code and its WASM dependency in worker `models.ts`.
 
 Facet prompts define extraction semantics in the shared Topics contracts. One request handles the missing facets of a trace. Applicability is distinct from success: non-applicable and insufficient-input results have empty summaries and are not embedded. A model call can serve multiple facets; account for its usage once across those result rows.
-
-## Manual queue recovery
-
-BatchAction stores the immutable request and compact progress. Keep per-trace payloads and paid outputs outside the execution store, in staging and result storage.
-
-1. Stage accepted summaries in Redis before handing them to `topics-embedding`. Staging has a fixed TTL; retrying does not renew it.
-2. Save accepted vectors with the staged summaries before inserting completed rows into ClickHouse. Persistence retries reuse paid outputs.
-3. While waiting for embeddings, release the coordinator slot and inspect only Redis queue state. Accepted references resume without reloading source data.
-4. After assignment persistence, save terminal queue state before deleting staging payloads. Cleanup failure can leave them to expire.
-
-Missing or expired staged payloads fail explicitly. A new execution with stored summary reuse can recover durable results. Redis loss, or a crash between a model response and staging, can repeat inference. Automatic trace batches do not use this staging protocol; their recovery is described above.
 
 ## Fitting and publication
 
@@ -107,9 +91,9 @@ Processing estimates sum retained summaries' `cost_details['total']` by project 
 
 [metrics.ts](metrics.ts) owns bounded Topics metric tags; tenant identifiers and request detail belong on spans/logs. Attempt counters can repeat on retry and are not a billing ledger. Model-call diagnostics must not include provider bodies or raw errors that can echo trace content. `langfuse.export.serialized_bytes` with `integration:topics` measures successful serialized request payloads, excluding responses and failed/retried traffic.
 
-Queue/staging metrics expose backlog and remaining payload TTL. Global snapshots can be emitted by several workers: use max for counts/age and min for remaining TTL, not sums across reporters. Staging telemetry is best effort and must not block the paid-result handoff.
+Queue metrics expose backlog. Global snapshots can be emitted by several workers: use max for counts and age, not sums across reporters.
 
-Trace deletion removes summaries and assignments, including map coordinates; project deletion also removes topic definitions. Deletion does not cancel in-flight jobs, which can write afterward. Optional trace-batch input capture has its own bucket-expiry contract; see the trace-batch README.
+Trace deletion removes summaries and assignments, including map coordinates; project deletion also removes topic definitions. Deletion does not cancel in-flight jobs, which can write afterward. Stored transcripts have their own bucket-expiry contract; see the trace dispatch README.
 
 ## Verification
 

@@ -25,7 +25,6 @@ const TICK_MS = 260;
 const STAGE_LABEL: Partial<Record<TopicSetupStage, string>> = {
   summarizing: "Summarizing traces",
   grouping: "Clustering and identifying topics",
-  naming: "Naming topics",
 };
 
 /** First analysis in progress: one illustration, one line of copy and one progress bar. */

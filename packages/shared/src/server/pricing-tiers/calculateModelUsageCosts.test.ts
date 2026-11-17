@@ -195,78 +195,73 @@ describe("calculateModelUsageCosts", () => {
     });
   });
 
-  it("logs non-BMP usage keys once per call without changing pricing", () => {
-    const warn = vi.spyOn(logger, "warn").mockImplementation(() => logger);
-    try {
-      const model = modelWithPrices({ input: 0.01 });
-      const usageDetailPattern = "^(input|😀)$";
-      const tier: PricingTierWithPrices = {
-        ...model.pricingTiers[0],
-        id: "unicode",
-        name: "Unicode",
-        isDefault: false,
-        priority: 2,
+  it("excludes non-BMP keys from tier conditions while preserving their costs", () => {
+    const model = modelWithPrices({ input: 0.01, "😀": 0.01 });
+    const tier: PricingTierWithPrices = {
+      ...model.pricingTiers[0],
+      id: "bmp",
+      name: "BMP usage",
+      isDefault: false,
+      priority: 2,
+      conditions: [
+        {
+          usageDetailPattern: "^😀$",
+          operator: "eq",
+          value: 0,
+          caseSensitive: true,
+        },
+        {
+          usageDetailPattern: ".*",
+          operator: "eq",
+          value: 104,
+          caseSensitive: false,
+        },
+      ],
+      prices: [
+        { usageType: "input", price: new Decimal(0.04) },
+        { usageType: "😀", price: new Decimal(0.02) },
+      ],
+    };
+    model.pricingTiers.push(
+      {
+        ...tier,
+        id: "non-bmp",
+        name: "Non-BMP usage",
+        priority: 1,
         conditions: [
           {
-            usageDetailPattern,
+            usageDetailPattern: "^😀$",
             operator: "eq",
-            value: 150,
-            caseSensitive: false,
-          },
-          {
-            usageDetailPattern: "^input$",
-            operator: "eq",
-            value: 100,
+            value: 50,
             caseSensitive: true,
           },
         ],
-        prices: [
-          { usageType: "input", price: new Decimal(0.04) },
-          { usageType: "😀", price: new Decimal(0.02) },
-        ],
-      };
-      model.pricingTiers.push(
-        {
-          ...tier,
-          id: "skipped",
-          priority: 1,
-          conditions: [
-            ...tier.conditions,
-            {
-              usageDetailPattern,
-              operator: "eq",
-              value: 151,
-              caseSensitive: false,
-            },
-          ],
-        },
-        tier,
-      );
-      const usageDetails = Object.freeze({
-        input: 100,
-        "😀": 50,
-        "\u{10000}": 1,
-        "\u{10ffff}": 1,
-        entrée: 1,
-        "\uffff": 1,
-        "\ud800": 1,
-        "\udfff": 1,
-      });
+      },
+      tier,
+    );
+    const usageDetails = Object.freeze({
+      input: 100,
+      "😀": 50,
+      "\u{10000}": 1,
+      "\u{10ffff}": 1,
+      entrée: 1,
+      "\uffff": 1,
+      "\ud800": 1,
+      "\udfff": 1,
+    });
 
-      for (let attempt = 0; attempt < 2; attempt++) {
-        expect(calculateModelUsageCosts({ model, usageDetails })).toMatchObject(
-          {
-            cost_details: { input: 4, "😀": 1, total: 5 },
-            total_cost: 5,
-            usage_pricing_tier_id: "unicode",
-          },
-        );
-        expect(warn).toHaveBeenCalledTimes(attempt + 1);
-        expect(warn).toHaveBeenLastCalledWith(
-          "Pricing tier usage keys contain non-BMP characters",
-          { usageDetailKeys: ["😀", "\u{10000}", "\u{10ffff}"] },
-        );
-      }
+    const warn = vi.spyOn(logger, "warn").mockImplementation(() => logger);
+    try {
+      expect(calculateModelUsageCosts({ model, usageDetails })).toMatchObject({
+        cost_details: { input: 4, "😀": 1, total: 5 },
+        total_cost: 5,
+        usage_pricing_tier_id: "bmp",
+      });
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledWith(
+        "Pricing tier usage keys contain non-BMP characters",
+        { usageDetailKeys: ["😀", "\u{10000}", "\u{10ffff}"] },
+      );
     } finally {
       warn.mockRestore();
     }

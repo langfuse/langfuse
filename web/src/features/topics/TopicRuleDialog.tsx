@@ -56,7 +56,6 @@ export function TopicRuleDialog({
     onSuccess: () =>
       Promise.all([
         utils.topics.maps.invalidate({ projectId }),
-        utils.topics.rules.invalidate({ projectId }),
         utils.topics.currentResults.invalidate({ projectId }),
         utils.topics.traces.invalidate({ projectId }),
       ]),

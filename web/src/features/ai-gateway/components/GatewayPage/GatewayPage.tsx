@@ -2,7 +2,7 @@ import { useRouter } from "next/router";
 import { useEffect } from "react";
 
 import Page from "@/src/components/layouts/Page";
-import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   GATEWAY_PAGE_SLUGS,
   type GatewayPageSlug,
@@ -40,7 +40,9 @@ export function GatewayPage() {
   if (!organization || !page || redirectPath) {
     return (
       <Page withPadding headerProps={{ title: GATEWAY_TITLE }}>
-        <NoDataOrLoading isLoading />
+        <div className="flex h-3/4 min-h-36 w-full items-center justify-center rounded-md">
+          <Skeleton className="h-full w-full" />
+        </div>
       </Page>
     );
   }

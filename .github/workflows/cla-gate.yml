@@ -6,6 +6,11 @@ on: # zizmor: ignore[dangerous-triggers] Metadata-only API calls; never checks o
   merge_group:
   status:
 permissions: {}
+# Cancel superseded PR runs; keep other events independent with a unique group per run.
+concurrency:
+  group: ${{ github.workflow }}-${{ (github.event_name == 'pull_request' || github.event_name == 'pull_request_target') && format('pr-{0}', github.event.pull_request.number) || format('run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'pull_request_target' }}
+
 jobs:
   evaluate:
     if: github.event_name != 'status' || github.event.context == 'license/cla'
