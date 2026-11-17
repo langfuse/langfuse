@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { flushSync } from "react-dom";
+import { useAppNavigation } from "@/src/components/nav/AppNavigationProvider";
 import {
   DropdownMenuItem,
   DropdownMenuSub,
@@ -16,6 +18,8 @@ type UserNavigationLeafItem =
   | (UserNavigationItemBase & {
       type: "action";
       onClick: () => void;
+      /** Root dialogs open after transient navigation releases its focus and inert state. */
+      handoff?: "dialog";
     })
   | (UserNavigationItemBase & {
       type: "link";
@@ -30,6 +34,7 @@ export type UserNavigationItem =
     });
 
 function UserMenuItem({ item }: { item: UserNavigationItem }) {
+  const navigation = useAppNavigation();
   if (item.type === "submenu") {
     return (
       <DropdownMenuSub>
@@ -55,7 +60,14 @@ function UserMenuItem({ item }: { item: UserNavigationItem }) {
 
   if (item.type === "action") {
     return (
-      <DropdownMenuItem onClick={item.onClick}>
+      <DropdownMenuItem
+        onClick={() => {
+          if (item.handoff === "dialog" && navigation) {
+            flushSync(() => navigation.closeTransientNavigation());
+          }
+          item.onClick();
+        }}
+      >
         {item.content ?? item.name}
       </DropdownMenuItem>
     );

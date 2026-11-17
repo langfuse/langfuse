@@ -198,6 +198,7 @@ export function AuthenticatedLayout({
           {
             type: "action" as const,
             name: "View mode",
+            handoff: "dialog" as const,
             onClick: () => setInternalViewModeOpen(true),
           },
         ]
@@ -238,6 +239,7 @@ export function AuthenticatedLayout({
           {
             type: "action" as const,
             name: "Feature preview",
+            handoff: "dialog" as const,
             onClick: () => setFeaturePreviewOpen(true),
           },
         ]

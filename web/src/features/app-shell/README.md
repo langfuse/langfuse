@@ -28,8 +28,10 @@ The shell is selected per browser through the user menu or `?shell=next` / `?she
 - Tooltips contain only the navigation label. The original link or button owns focus and actions.
 - The organization selector retains its classic placement and actions at the top of the sidebar. Page chrome owns the single desktop expansion control and the mobile hamburger; the mobile panel owns its close control.
 - All three modes retain the same panel and control DOM nodes. Mode changes alter layout and modality rather than mounting separate render trees.
+- The passive gutter owns the shared `data-sidebar="sidebar"` measurement marker: desktop peeks reserve its animated width, while mobile measures zero.
 - The store owns viewport transitions and the single active child menu. A breakpoint change, parent close, or route transition closes transient UI and keeps the desktop expansion preference.
 - Collapsing desktop navigation closes the organization menu before its trigger becomes inert. Mobile focus returns to the actual hamburger ref supplied by page chrome.
 - Workspace picker content unmounts when closed so a rapid reopen creates a fresh focus scope. Deferred menu exits yield to the current menu owner.
 - Child overlays portal into containers inside the persistent surface so the mobile focus scope includes them. Escape closes the innermost surface first.
+- Account actions that open root-layer dialogs release transient navigation and its modality before handing focus to the dialog.
 - Account and workspace identity boundaries remain blocked from replay, including portaled workspace and account content.

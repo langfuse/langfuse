@@ -72,6 +72,7 @@ export function ShellSidebar({
     <SidebarSurfaceProvider surface={mode}>
       <div
         aria-hidden="true"
+        data-sidebar="sidebar"
         data-sidebar-mode={mode}
         className={motion.gutter}
       />
