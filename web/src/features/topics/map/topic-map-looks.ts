@@ -49,7 +49,13 @@ export const TOPIC_MAP_LOOKS: Record<TopicMapLookName, TopicMapLook> = {
       opacity: 0.55,
     },
     grain: 0.4,
-    dot: { size: 4.5, ring: 1, ringAlpha: 0.9, shade: 0.72 },
+    dot: {
+      size: 5.5,
+      ring: 1,
+      ringAlpha: 0.9,
+      shade: 1,
+      vivid: { lightness: 0.7, chroma: 0.14 },
+    },
     label: {
       size: 11,
       lineHeight: 14,
