@@ -322,7 +322,7 @@ export const NotificationEventSchema = z.discriminatedUnion("type", [
     inviterName: z.string(),
     inviterEmail: z.string(),
   }),
-  /** One "spend limit reached" email to a gateway key's owner or an organization owner. */
+  /** One "spend limit reached" email to a gateway key's owner or an organization owner, listing the limits one request reached. */
   z.object({
     type: z.literal("AI_GATEWAY_SPEND_LIMIT_REACHED"),
     orgId: z.string(),
@@ -340,10 +340,16 @@ export const NotificationEventSchema = z.discriminatedUnion("type", [
         displaySecretKey: z.string(),
       }),
     ]),
-    interval: z.enum(["DAILY", "WEEKLY", "MONTHLY", "TOTAL"]),
-    limitUsd: z.number(),
-    /** ISO timestamp of the next window; absent for total limits. */
-    resetsAt: z.string().optional(),
+    limits: z
+      .array(
+        z.object({
+          interval: z.enum(["DAILY", "WEEKLY", "MONTHLY", "TOTAL"]),
+          limitUsd: z.number(),
+          /** ISO timestamp of the next window; absent for total limits. */
+          resetsAt: z.string().optional(),
+        }),
+      )
+      .min(1),
   }),
   // Future notification types can be added here
 ]);

@@ -2868,7 +2868,7 @@ describe("AI gateway control plane", () => {
     }
   });
 
-  it("emails the key owner and organization owners once per limit window", async () => {
+  it("emails the key owner and organization owners once per limit window, listing limits reached together", async () => {
     Object.assign(env, {
       SMTP_CONNECTION_URL: "smtp://localhost:1025",
       EMAIL_FROM_ADDRESS: "gateway@example.test",
@@ -2885,12 +2885,15 @@ describe("AI gateway control plane", () => {
       name: "Member key",
       metadata: {},
     });
-    const limit = await member.aiGateway.spendLimits.create({
-      orgId: owner.org.id,
-      scope: { type: "API_KEY", apiKeyId: memberKey.id },
-      interval: "DAILY",
-      limitUsd: 10,
-    });
+    const createLimit = (interval: "DAILY" | "MONTHLY", limitUsd: number) =>
+      member.aiGateway.spendLimits.create({
+        orgId: owner.org.id,
+        scope: { type: "API_KEY", apiKeyId: memberKey.id },
+        interval,
+        limitUsd,
+      });
+    const daily = await createLimit("DAILY", 10);
+    const monthly = await createLimit("MONTHLY", 100);
     const memberEmail = (
       await prisma.apiKey.findUniqueOrThrow({
         where: { id: memberKey.id },
@@ -2898,19 +2901,37 @@ describe("AI gateway control plane", () => {
       })
     ).user!.email!;
     const alerts = new GatewaySpendLimitAlertService(prisma);
-    const report = (countingStartedAt: Date, windowStart: string) =>
+    const report = (
+      limits: {
+        limit: { id: string };
+        countingStartedAt: Date;
+        windowStart: string;
+      }[],
+    ) =>
       alerts.reportReached({
         fastHashedSecretKey: createShaHash(memberKey.secretKey, env.SALT),
-        limitId: limit.id,
-        countingStartedAt,
-        windowStart: new Date(windowStart),
+        limits: limits.map(({ limit, countingStartedAt, windowStart }) => ({
+          limitId: limit.id,
+          countingStartedAt,
+          windowStart: new Date(windowStart),
+        })),
       });
+    const dailyReached = {
+      limit: daily,
+      countingStartedAt: daily.countingStartedAt,
+      windowStart: "2026-11-16T00:00:00Z",
+    };
+    const monthlyReached = {
+      limit: monthly,
+      countingStartedAt: monthly.countingStartedAt,
+      windowStart: "2026-11-01T00:00:00Z",
+    };
 
-    await report(limit.countingStartedAt, "2026-11-16T00:00:00Z");
-    await report(limit.countingStartedAt, "2026-11-16T00:00:00Z");
-    await report(new Date(0), "2026-11-16T00:00:00Z");
+    await report([dailyReached, monthlyReached]);
+    await report([dailyReached, monthlyReached]);
+    await report([{ ...dailyReached, countingStartedAt: new Date(0) }]);
     await expect(
-      report(limit.countingStartedAt, "2026-11-16T15:00:00Z"),
+      report([{ ...dailyReached, windowStart: "2026-11-16T15:00:00Z" }]),
     ).rejects.toMatchObject({ status: 400 });
 
     expect(addNotificationJobs).toHaveBeenCalledOnce();
@@ -2922,8 +2943,18 @@ describe("AI gateway control plane", () => {
           type: "API_KEY",
           name: "Member key",
         }),
-        limitUsd: 10,
-        resetsAt: "2026-11-17T00:00:00.000Z",
+        limits: [
+          {
+            interval: "DAILY",
+            limitUsd: 10,
+            resetsAt: "2026-11-17T00:00:00.000Z",
+          },
+          {
+            interval: "MONTHLY",
+            limitUsd: 100,
+            resetsAt: "2026-12-01T00:00:00.000Z",
+          },
+        ],
       }),
       expect.objectContaining({
         to: owner.user.email,
@@ -2933,11 +2964,14 @@ describe("AI gateway control plane", () => {
 
     await member.aiGateway.spendLimits.update({
       orgId: owner.org.id,
-      id: limit.id,
+      id: daily.id,
       limitUsd: 20,
     });
-    await report(limit.countingStartedAt, "2026-11-16T00:00:00Z");
+    await report([dailyReached, monthlyReached]);
     expect(addNotificationJobs).toHaveBeenCalledTimes(2);
+    expect(queuedNotifications().at(-1)).toMatchObject({
+      limits: [{ interval: "DAILY", limitUsd: 20 }],
+    });
   });
 
   it("routes unprefixed models by provider and rejects unknown models", async () => {

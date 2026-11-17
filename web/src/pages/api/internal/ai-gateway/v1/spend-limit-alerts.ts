@@ -6,18 +6,14 @@ import { GatewaySpendLimitAlertService } from "@/src/features/ai-gateway/server/
 const alerts = new GatewaySpendLimitAlertService(prisma);
 
 export default withGatewaySpendLimitAlertSignatureVerification(
-  async ({
-    res,
-    fastHashedSecretKey,
-    limitId,
-    countingStartedAt,
-    windowStart,
-  }) => {
+  async ({ res, fastHashedSecretKey, limits }) => {
     await alerts.reportReached({
       fastHashedSecretKey,
-      limitId,
-      countingStartedAt: new Date(countingStartedAt),
-      windowStart: new Date(windowStart),
+      limits: limits.map(({ limitId, countingStartedAt, windowStart }) => ({
+        limitId,
+        countingStartedAt: new Date(countingStartedAt),
+        windowStart: new Date(windowStart),
+      })),
     });
     return res.status(200).json({});
   },

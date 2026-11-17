@@ -244,18 +244,30 @@ async fn reports_reached_spend_limits_to_the_control_plane() {
         assert_eq!(request.headers()["langfuse-gateway-request-id"], REQUEST_ID);
         assert_eq!(
             to_bytes(request.into_body(), 1024).await.unwrap(),
-            r#"{"countingStartedAt":1700000000123,"limitId":"limit-1","windowStart":1767225600000}"#
+            concat!(
+                r#"{"limits":[{"countingStartedAt":1700000000123,"limitId":"limit-1","windowStart":1767225600000},"#,
+                r#"{"countingStartedAt":1700000000456,"limitId":"limit-2","windowStart":1767225600000}]}"#
+            )
         );
         response(json!({}))
     })
     .await;
 
     web.control_plane()
-        .report_spend_limit_reached(
+        .report_spend_limits_reached(
             GATEWAY_KEY,
-            "limit-1",
-            1_700_000_000_123,
-            1_767_225_600_000,
+            &[
+                ReachedSpendLimit {
+                    limit_id: "limit-1",
+                    counting_started_at: 1_700_000_000_123,
+                    window_start: 1_767_225_600_000,
+                },
+                ReachedSpendLimit {
+                    limit_id: "limit-2",
+                    counting_started_at: 1_700_000_000_456,
+                    window_start: 1_767_225_600_000,
+                },
+            ],
             REQUEST_ID,
         )
         .await

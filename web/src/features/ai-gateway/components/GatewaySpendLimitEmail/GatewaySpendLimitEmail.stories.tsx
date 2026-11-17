@@ -12,9 +12,13 @@ const meta = preview.meta({
       name: "Support bot",
       displaySecretKey: "sk-lf-gw-...91bc",
     },
-    interval: "daily",
-    limitUsd: 25,
-    resetsAt: "Nov 17, 2026, 12:00 AM UTC",
+    limits: [
+      {
+        interval: "daily",
+        limitUsd: 25,
+        resetsAt: "Nov 17, 2026, 12:00 AM UTC",
+      },
+    ],
     receiverEmail: "grace@company.com",
     receiverName: "Grace Hopper",
     link: "https://cloud.langfuse.com/organization/org-1/ai-gateway/api-keys",
@@ -43,8 +47,25 @@ export const OrganizationOwner = meta.story({
 export const TotalLimit = meta.story({
   args: {
     audience: "keyOwner",
-    interval: "total",
-    limitUsd: 500,
-    resetsAt: undefined,
+    limits: [{ interval: "total", limitUsd: 500 }],
+  },
+});
+
+export const SeveralLimits = meta.story({
+  args: {
+    audience: "orgOwner",
+    limits: [
+      {
+        interval: "daily",
+        limitUsd: 25,
+        resetsAt: "Nov 17, 2026, 12:00 AM UTC",
+      },
+      {
+        interval: "monthly",
+        limitUsd: 400,
+        resetsAt: "Dec 1, 2026, 12:00 AM UTC",
+      },
+      { interval: "total", limitUsd: 1000 },
+    ],
   },
 });

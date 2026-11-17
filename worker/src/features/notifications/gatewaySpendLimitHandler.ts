@@ -17,8 +17,8 @@ type GatewaySpendLimitPayload = Omit<
 >;
 
 /**
- * Tells a gateway key's owner or an organization owner that the key reached a
- * spend limit. Missing email configuration and delivery errors are thrown, so
+ * Tells a gateway key's owner or an organization owner which spend limits the
+ * key reached. Missing email configuration and delivery errors are thrown, so
  * the job fails and is kept instead of completing unsent.
  */
 export async function handleGatewaySpendLimitNotification({
@@ -28,9 +28,7 @@ export async function handleGatewaySpendLimitNotification({
   receiverName,
   audience,
   scope,
-  interval,
-  limitUsd,
-  resetsAt,
+  limits,
 }: GatewaySpendLimitPayload) {
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
     throw new Error(
@@ -50,15 +48,17 @@ export async function handleGatewaySpendLimitNotification({
       audience,
       orgName,
       scope,
-      interval: interval.toLowerCase(),
-      limitUsd,
-      resetsAt: resetsAt
-        ? `${new Date(resetsAt).toLocaleString("en-US", {
-            dateStyle: "medium",
-            timeStyle: "short",
-            timeZone: "UTC",
-          })} UTC`
-        : undefined,
+      limits: limits.map(({ interval, limitUsd, resetsAt }) => ({
+        interval: interval.toLowerCase(),
+        limitUsd,
+        resetsAt: resetsAt
+          ? `${new Date(resetsAt).toLocaleString("en-US", {
+              dateStyle: "medium",
+              timeStyle: "short",
+              timeZone: "UTC",
+            })} UTC`
+          : undefined,
+      })),
       receiverEmail: to,
       receiverName,
       link: `${baseUrl}/organization/${orgId}/ai-gateway/api-keys`,
@@ -69,7 +69,7 @@ export async function handleGatewaySpendLimitNotification({
   await createMailTransport(env.SMTP_CONNECTION_URL).sendMail({
     to,
     from: `Langfuse <${env.EMAIL_FROM_ADDRESS}>`,
-    subject: getGatewaySpendLimitEmailSubject(scope, orgName),
+    subject: getGatewaySpendLimitEmailSubject(scope, orgName, limits.length),
     html,
   });
 }

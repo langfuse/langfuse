@@ -25,19 +25,22 @@ type GatewaySpendLimitEmail = Extract<
 
 /**
  * Emails the key's owner and the organization's owners when the gateway
- * reports that a key reached a spend limit. The gateway may report a limit
- * any number of times; the stored alert lets only the first report of a
- * limit's counting start and window send emails. The gateway names the
- * window, so a report that arrives after the window closed still counts
- * toward the window it was reached in.
+ * reports that a key reached spend limits. The gateway may report a limit any
+ * number of times; the stored alert lets only the first report of a limit's
+ * counting start and window send emails. Limits one report claims share one
+ * email per recipient. The gateway names each window, so a report that arrives
+ * after the window closed still counts toward the window it was reached in.
  */
-type ReportedLimit = NonNullable<Awaited<ReturnType<typeof findReportedLimit>>>;
+type ReportedLimit = Awaited<
+  ReturnType<typeof findReportedLimits>
+>[number]["limit"];
 type AlertKey = {
   spendLimitId: string;
   type: GatewaySpendLimitAlertType;
   countingStartedAt: Date;
   windowStart: Date;
 };
+type ClaimedAlert = { limit: ReportedLimit; alert: AlertKey };
 type Recipient = {
   to: string;
   name: string | null;
@@ -49,23 +52,23 @@ export class GatewaySpendLimitAlertService {
 
   async reportReached(params: {
     fastHashedSecretKey: string;
-    limitId: string;
-    countingStartedAt: Date;
-    windowStart: Date;
+    limits: { limitId: string; countingStartedAt: Date; windowStart: Date }[];
   }): Promise<void> {
-    const limit = await findReportedLimit(this.prisma, params);
     // A reset or deleted limit was reported late; its counters no longer apply.
-    if (!limit) return;
-    if (
-      getGatewaySpendLimitWindowStart(
-        limit.interval,
-        params.windowStart,
-      ).getTime() !== params.windowStart.getTime()
-    ) {
-      throw new GatewayControlPlaneError(
-        "windowStart is not the start of a window",
-        400,
-      );
+    const reported = await findReportedLimits(this.prisma, params);
+    if (reported.length === 0) return;
+    for (const { limit, windowStart } of reported) {
+      if (
+        getGatewaySpendLimitWindowStart(
+          limit.interval,
+          windowStart,
+        ).getTime() !== windowStart.getTime()
+      ) {
+        throw new GatewayControlPlaneError(
+          "windowStart is not the start of a window",
+          400,
+        );
+      }
     }
     if (!env.SMTP_CONNECTION_URL || !env.EMAIL_FROM_ADDRESS) return;
 
@@ -77,24 +80,27 @@ export class GatewaySpendLimitAlertService {
       );
     }
 
-    const alert: AlertKey = {
-      spendLimitId: limit.id,
-      type: GatewaySpendLimitAlertType.EXCEEDED,
-      countingStartedAt: limit.countingStartedAt,
-      windowStart: params.windowStart,
-    };
-    if (!(await this.claimAlert(alert))) return;
-
+    const claimed: ClaimedAlert[] = [];
     try {
-      const recipients = await this.getRecipients(limit);
+      for (const { limit, windowStart } of reported) {
+        const alert: AlertKey = {
+          spendLimitId: limit.id,
+          type: GatewaySpendLimitAlertType.EXCEEDED,
+          countingStartedAt: limit.countingStartedAt,
+          windowStart,
+        };
+        if (await this.claimAlert(alert)) claimed.push({ limit, alert });
+      }
+      if (claimed.length === 0) return;
+      const recipients = await this.getRecipients(claimed[0]!.limit);
       await queue.addBulk(
-        recipients.map((recipient) =>
-          toNotificationJob(limit, alert, recipient),
-        ),
+        recipients.map((recipient) => toNotificationJob(claimed, recipient)),
       );
     } catch (error) {
-      // Without the alert, the gateway's next report sends the emails again.
-      await this.prisma.gatewaySpendLimitAlert.deleteMany({ where: alert });
+      // Without the alerts, the gateway's next report sends the emails again.
+      await this.prisma.gatewaySpendLimitAlert.deleteMany({
+        where: { OR: claimed.map(({ alert }) => alert) },
+      });
       throw error;
     }
   }
@@ -130,18 +136,17 @@ export class GatewaySpendLimitAlertService {
   }
 }
 
-async function findReportedLimit(
+/** The reported limits that still belong to the calling key at the reported counting start. */
+async function findReportedLimits(
   prisma: PrismaClient,
   params: {
     fastHashedSecretKey: string;
-    limitId: string;
-    countingStartedAt: Date;
+    limits: { limitId: string; countingStartedAt: Date; windowStart: Date }[];
   },
 ) {
-  const limit = await prisma.gatewaySpendLimit.findFirst({
+  const limits = await prisma.gatewaySpendLimit.findMany({
     where: {
-      id: params.limitId,
-      countingStartedAt: params.countingStartedAt,
+      id: { in: params.limits.map(({ limitId }) => limitId) },
       apiKey: { fastHashedSecretKey: params.fastHashedSecretKey },
     },
     select: {
@@ -160,15 +165,21 @@ async function findReportedLimit(
       },
     },
   });
-  if (!limit?.apiKey) return null;
-  return { ...limit, apiKey: limit.apiKey };
+  return params.limits.flatMap(
+    ({ limitId, countingStartedAt, windowStart }) => {
+      const limit = limits.find(
+        ({ id, countingStartedAt: started }) =>
+          id === limitId && started.getTime() === countingStartedAt.getTime(),
+      );
+      return limit?.apiKey
+        ? [{ limit: { ...limit, apiKey: limit.apiKey }, windowStart }]
+        : [];
+    },
+  );
 }
 
-function toNotificationJob(
-  limit: ReportedLimit,
-  alert: AlertKey,
-  recipient: Recipient,
-) {
+function toNotificationJob(claimed: ClaimedAlert[], recipient: Recipient) {
+  const { limit } = claimed[0]!;
   const payload: GatewaySpendLimitEmail = {
     type: "AI_GATEWAY_SPEND_LIMIT_REACHED",
     orgId: limit.organization.id,
@@ -182,13 +193,26 @@ function toNotificationJob(
       name: limit.apiKey.note ?? "Unnamed key",
       displaySecretKey: limit.apiKey.displaySecretKey,
     },
-    interval: limit.interval,
-    limitUsd: limit.limitUsd.toNumber(),
-    resetsAt: getGatewaySpendLimitWindowEnd(
-      limit.interval,
-      alert.windowStart,
-    )?.toISOString(),
+    limits: claimed.map(({ limit, alert }) => ({
+      interval: limit.interval,
+      limitUsd: limit.limitUsd.toNumber(),
+      resetsAt: getGatewaySpendLimitWindowEnd(
+        limit.interval,
+        alert.windowStart,
+      )?.toISOString(),
+    })),
   };
+  const alertsHash = createHash("sha256")
+    .update(
+      claimed
+        .map(
+          ({ alert }) =>
+            `${alert.spendLimitId}-${alert.type}-${alert.countingStartedAt.getTime()}-${alert.windowStart.getTime()}`,
+        )
+        .toSorted()
+        .join(","),
+    )
+    .digest("hex");
   const recipientHash = createHash("sha256").update(recipient.to).digest("hex");
   return {
     name: QueueJobs.NotificationJob,
@@ -199,7 +223,7 @@ function toNotificationJob(
       name: QueueJobs.NotificationJob as const,
     },
     opts: {
-      jobId: `ai-gateway-spend-limit-${alert.spendLimitId}-${alert.type}-${alert.countingStartedAt.getTime()}-${alert.windowStart.getTime()}-${recipientHash}`,
+      jobId: `ai-gateway-spend-limit-${alertsHash}-${recipientHash}`,
     },
   };
 }

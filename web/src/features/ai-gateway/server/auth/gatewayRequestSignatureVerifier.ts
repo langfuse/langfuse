@@ -32,12 +32,28 @@ const resolveBodySchema = z
     ({ apiFormat, model }) =>
       modelRoutingService.resolve(model, [], apiFormat) !== null,
   );
+/** Bounds a report; a key has at most one limit per interval today. */
+const MAX_REPORTED_SPEND_LIMITS = 20;
 const spendLimitAlertBodySchema = z
   .object({
-    limitId: z.string().min(1),
-    // Unix milliseconds, as resolve returned them.
-    countingStartedAt: z.number().int().nonnegative(),
-    windowStart: z.number().int().nonnegative(),
+    limits: z
+      .array(
+        z
+          .object({
+            limitId: z.string().min(1),
+            // Unix milliseconds, as resolve returned them.
+            countingStartedAt: z.number().int().nonnegative(),
+            windowStart: z.number().int().nonnegative(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(MAX_REPORTED_SPEND_LIMITS)
+      .refine(
+        (limits) =>
+          new Set(limits.map(({ limitId }) => limitId)).size === limits.length,
+        "Each limit may be reported once",
+      ),
   })
   .strict();
 const modelsQuerySchema = z

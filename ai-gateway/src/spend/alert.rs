@@ -1,11 +1,12 @@
 //! Reports reached spend limits to Web, which emails the key's owner and the
 //! organization's owners once per limit counting start and window. A flag next to
-//! the limit's counter lets one request per window report it, so a key over its
-//! limit does not call Web on every request.
+//! each limit's counter lets one request per window report it, so a key over its
+//! limit does not call Web on every request. Limits one request reaches together
+//! are reported, and emailed, together.
 use std::sync::Arc;
 
 use super::store::{Counter, RedisCounters};
-use crate::resolution::ControlPlaneClient;
+use crate::resolution::{ControlPlaneClient, ReachedSpendLimit};
 
 /// Where one request reports reached limits.
 pub(super) struct SpendAlerts {
@@ -30,31 +31,45 @@ pub(super) struct CountedLimit {
 }
 
 impl SpendAlerts {
-    /// A limit whose report fails is reported again by the next request that reaches it.
+    /// Reports every limit this request is first to claim in one call. Limits whose
+    /// report fails are reported again by the next request that reaches them.
     pub(super) async fn report(
         self,
         store: Arc<RedisCounters>,
         limits: impl IntoIterator<Item = CountedLimit>,
     ) {
+        let mut claimed = Vec::new();
         for limit in limits.into_iter().filter(|limit| !limit.alerted) {
-            let flag = &limit.alerted_flag;
             // When Redis is unavailable, Web's own record still sends one email per window.
-            if matches!(store.claim(flag, limit.counter.expires_at).await, Ok(false)) {
-                continue;
+            if !matches!(
+                store
+                    .claim(&limit.alerted_flag, limit.counter.expires_at)
+                    .await,
+                Ok(false)
+            ) {
+                claimed.push(limit);
             }
-            let reported = self
-                .control_plane
-                .report_spend_limit_reached(
-                    &self.gateway_key,
-                    &limit.id,
-                    limit.counting_started_at,
-                    limit.window_start,
-                    &self.request_id,
-                )
-                .await;
-            if let Err(error) = reported {
-                tracing::warn!(%error, limit_id = %limit.id, "spend limit alert failed");
-                let _ = store.release(flag).await;
+        }
+        if claimed.is_empty() {
+            return;
+        }
+        let reached: Vec<ReachedSpendLimit<'_>> = claimed
+            .iter()
+            .map(|limit| ReachedSpendLimit {
+                limit_id: &limit.id,
+                counting_started_at: limit.counting_started_at,
+                window_start: limit.window_start,
+            })
+            .collect();
+        let reported = self
+            .control_plane
+            .report_spend_limits_reached(&self.gateway_key, &reached, &self.request_id)
+            .await;
+        if let Err(error) = reported {
+            let limit_ids: Vec<&str> = claimed.iter().map(|limit| limit.id.as_str()).collect();
+            tracing::warn!(%error, ?limit_ids, "spend limit alert failed");
+            for limit in &claimed {
+                let _ = store.release(&limit.alerted_flag).await;
             }
         }
     }

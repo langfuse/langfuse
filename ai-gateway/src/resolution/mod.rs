@@ -23,6 +23,17 @@ use std::{
 const RESOLVE_PATH: &str = "/api/internal/ai-gateway/v1/resolve";
 const MODELS_PATH: &str = "/api/internal/ai-gateway/v1/models";
 const SPEND_LIMIT_ALERTS_PATH: &str = "/api/internal/ai-gateway/v1/spend-limit-alerts";
+
+/// A limit a request reached, identified as resolve returned it.
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ReachedSpendLimit<'a> {
+    pub limit_id: &'a str,
+    /// Unix milliseconds, as resolve returned them.
+    pub counting_started_at: i64,
+    /// Unix milliseconds.
+    pub window_start: i64,
+}
 /// Unauthenticated, and without query params it skips the database checks.
 pub(crate) const HEALTH_PATH: &str = "/api/public/health";
 const REQUEST_ID_HEADER: &str = "langfuse-gateway-request-id";
@@ -235,29 +246,23 @@ impl ControlPlaneClient {
             .await
     }
 
-    /// Tell Web the gateway key reached a spend limit, so it emails the key's owner and
-    /// the organization's owners. Web sends one email per limit counting start and
-    /// window, however often a limit is reported. Both are Unix milliseconds.
+    /// Tell Web the gateway key reached spend limits, so it emails the key's owner and
+    /// the organization's owners once, listing them. Web sends one email per limit
+    /// counting start and window, however often a limit is reported.
     ///
     /// # Errors
     /// Returns the same sanitized errors as [`Self::resolve`].
-    pub(crate) async fn report_spend_limit_reached(
+    pub(crate) async fn report_spend_limits_reached(
         &self,
         gateway_key: &str,
-        limit_id: &str,
-        counting_started_at: i64,
-        window_start: i64,
+        limits: &[ReachedSpendLimit<'_>],
         request_id: &str,
     ) -> Result<(), ResolutionError> {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| ResolutionError::Unavailable)?;
-        let body = serde_json::to_vec(&serde_json::json!({
-            "limitId": limit_id,
-            "countingStartedAt": counting_started_at,
-            "windowStart": window_start,
-        }))
-        .map_err(|_| ResolutionError::Configuration)?;
+        let body = serde_json::to_vec(&serde_json::json!({ "limits": limits }))
+            .map_err(|_| ResolutionError::Configuration)?;
         let request = self
             .authenticated_request(
                 Method::POST,

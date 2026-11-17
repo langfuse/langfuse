@@ -21,16 +21,21 @@ export type GatewaySpendLimitEmailScope = {
   displaySecretKey: string;
 };
 
-type GatewaySpendLimitEmailTemplateProps = {
-  /** The key's owner reads "your key"; an organization owner reads "the key". */
-  audience: "keyOwner" | "orgOwner";
-  orgName: string;
-  scope: GatewaySpendLimitEmailScope;
+type GatewaySpendLimitEmailLimit = {
   /** Lowercase interval, e.g. "daily"; "total" for a limit that never resets. */
   interval: string;
   limitUsd: number;
   /** When the limit resets, formatted for display; absent for total limits. */
   resetsAt?: string;
+};
+
+type GatewaySpendLimitEmailTemplateProps = {
+  /** The key's owner reads "your key"; an organization owner reads "the key". */
+  audience: "keyOwner" | "orgOwner";
+  orgName: string;
+  scope: GatewaySpendLimitEmailScope;
+  /** The limits one request reached, at least one. */
+  limits: GatewaySpendLimitEmailLimit[];
   receiverEmail: string;
   /** Greets the receiver by name when known. */
   receiverName?: string;
@@ -42,24 +47,23 @@ export const GatewaySpendLimitEmailTemplate = ({
   audience,
   orgName,
   scope,
-  interval,
-  limitUsd,
-  resetsAt,
+  limits,
   receiverEmail,
   receiverName,
   link,
   emailFromAddress,
 }: GatewaySpendLimitEmailTemplateProps) => {
-  const limit = `$${limitUsd.toFixed(2)} ${interval}`;
   const subject = describeScope(scope, audience);
-  const until = resetsAt
-    ? `until the limit resets on ${resetsAt}`
-    : "until an admin resets or raises the limit";
+  const [onlyLimit] = limits.length === 1 ? limits : [];
 
   return (
     <Html>
       <Head />
-      <Preview>{`${subject.name} reached its ${limit} spend limit`}</Preview>
+      <Preview>
+        {onlyLimit
+          ? `${subject.name} reached its ${formatLimit(onlyLimit)} spend limit`
+          : `${subject.name} reached ${limits.length} spend limits`}
+      </Preview>
       <Tailwind>
         <Body className="mx-auto my-auto bg-background font-sans">
           <Container className="mx-auto my-10 w-[465px] max-w-[465px] table-fixed rounded border border-solid border-[#eaeaea] p-5 [overflow-wrap:anywhere]">
@@ -73,17 +77,47 @@ export const GatewaySpendLimitEmailTemplate = ({
               />
             </Section>
             <Heading className="mx-0 my-[30px] p-0 text-center text-2xl font-normal text-black">
-              <strong>{subject.name}</strong> reached its spend limit
+              <strong>{subject.name}</strong> reached its spend{" "}
+              {onlyLimit ? "limit" : "limits"}
             </Heading>
             <Text className="text-sm leading-6 text-black">
               {receiverName ? `Hello ${receiverName},` : "Hello,"}
             </Text>
-            <Text className="text-sm leading-6 text-black">
-              {subject.label} <strong>{subject.name}</strong> (
-              {subject.identifier}) in the <strong>{orgName}</strong>{" "}
-              organization has spent its <strong>{limit}</strong> limit on the
-              AI Gateway. {subject.requests} are rejected {until}.
-            </Text>
+            {onlyLimit ? (
+              <Text className="text-sm leading-6 text-black">
+                {subject.label} <strong>{subject.name}</strong> (
+                {subject.identifier}) in the <strong>{orgName}</strong>{" "}
+                organization has spent its{" "}
+                <strong>{formatLimit(onlyLimit)}</strong> limit on the AI
+                Gateway. {subject.requests} are rejected{" "}
+                {onlyLimit.resetsAt
+                  ? `until the limit resets on ${onlyLimit.resetsAt}`
+                  : "until an admin resets or raises the limit"}
+                .
+              </Text>
+            ) : (
+              <>
+                <Text className="text-sm leading-6 text-black">
+                  {subject.label} <strong>{subject.name}</strong> (
+                  {subject.identifier}) in the <strong>{orgName}</strong>{" "}
+                  organization has spent these limits on the AI Gateway:
+                </Text>
+                <ul className="my-0 pl-5 text-sm leading-6 text-black">
+                  {limits.map((limit) => (
+                    <li key={limit.interval}>
+                      <strong>{formatLimit(limit)}</strong>,{" "}
+                      {limit.resetsAt
+                        ? `resets on ${limit.resetsAt}`
+                        : "does not reset on its own"}
+                    </li>
+                  ))}
+                </ul>
+                <Text className="text-sm leading-6 text-black">
+                  {subject.requests} are rejected until each of these limits
+                  resets or is raised.
+                </Text>
+              </>
+            )}
             <Section className="mb-4 mt-8 text-center">
               {/* Note: link always refers to a root langfuse url and is not vulnerable to hyperlink injection attacks */}
               <Button
@@ -118,9 +152,16 @@ export const GatewaySpendLimitEmailTemplate = ({
 export function getGatewaySpendLimitEmailSubject(
   scope: GatewaySpendLimitEmailScope,
   orgName: string,
+  limitCount: number,
 ): string {
   const { noun, name } = describeScope(scope, "orgOwner");
-  return `${noun[0]!.toUpperCase()}${noun.slice(1)} "${name}" reached its spend limit in "${orgName}"`;
+  const reached =
+    limitCount === 1 ? "its spend limit" : `${limitCount} spend limits`;
+  return `${noun[0]!.toUpperCase()}${noun.slice(1)} "${name}" reached ${reached} in "${orgName}"`;
+}
+
+function formatLimit({ interval, limitUsd }: GatewaySpendLimitEmailLimit) {
+  return `$${limitUsd.toFixed(2)} ${interval}`;
 }
 
 function describeScope(
