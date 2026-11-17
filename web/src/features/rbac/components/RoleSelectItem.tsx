@@ -3,6 +3,7 @@ import { type SystemRole } from "@langfuse/shared/src/db";
 
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { SelectItem } from "@/src/components/ui/select";
+import { RolePermissionCountBadge } from "@/src/features/rbac/components/RolePermissionCountBadge";
 import {
   roleDisplay,
   type RoleDisplay,
@@ -14,6 +15,7 @@ export const RoleSelectItem = ({
   display = roleDisplay,
   isProjectRole,
   disabledReason,
+  showPermissionCount,
   onViewPermissions,
 }: {
   role: SystemRole;
@@ -22,6 +24,8 @@ export const RoleSelectItem = ({
   isProjectRole?: boolean;
   /** disabledReason makes the option unselectable and explains why. */
   disabledReason?: string;
+  /** showPermissionCount adds a permission count badge beside the label. */
+  showPermissionCount?: boolean;
   onViewPermissions: (role: SystemRole) => void;
 }) => {
   const { name: label, description, Icon } = display(role);
@@ -36,9 +40,16 @@ export const RoleSelectItem = ({
       <div className="flex w-full items-start gap-2 text-left">
         <Icon size="base" __rawClassName="mt-1" />
         <div className="flex flex-col">
-          <span className="font-bold">
-            {label}
-            {keepDefaultNote ? " (keep default role)" : ""}
+          <span className="flex items-center gap-2">
+            <span className="font-bold">
+              {label}
+              {keepDefaultNote ? " (keep default role)" : ""}
+            </span>
+            {showPermissionCount && (
+              <span className="shrink-0 tabular-nums">
+                <RolePermissionCountBadge role={role} />
+              </span>
+            )}
           </span>
           <span className="text-muted-foreground text-xs">{description}</span>
           {disabledReason !== undefined && (

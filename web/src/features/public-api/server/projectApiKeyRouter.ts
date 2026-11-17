@@ -10,6 +10,7 @@ import { redis } from "@langfuse/shared/src/server";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { LangfuseNotFoundError, StringNoHTML } from "@langfuse/shared";
 import {
+  legacyApiKeyRoleForScope,
   OrganizationId,
   ProjectId,
   SystemRoleId,
@@ -31,7 +32,7 @@ export const projectApiKeysRouter = createTRPCRouter({
         scope: "apiKeys:read",
       });
 
-      return ctx.prisma.apiKey.findMany({
+      const apiKeys = await ctx.prisma.apiKey.findMany({
         where: {
           projectId: input.projectId,
           scope: "PROJECT",
@@ -59,11 +60,22 @@ export const projectApiKeysRouter = createTRPCRouter({
               publicKey: true,
             },
           },
+          roleAssignments: {
+            select: { systemRole: true },
+            orderBy: { createdAt: "asc" },
+            take: 1,
+          },
         },
         orderBy: {
           createdAt: "asc",
         },
       });
+
+      return apiKeys.map(({ roleAssignments, ...apiKey }) => ({
+        ...apiKey,
+        role:
+          roleAssignments[0]?.systemRole ?? legacyApiKeyRoleForScope("project"),
+      }));
     }),
   create: protectedProjectProcedure
     .input(

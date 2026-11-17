@@ -1,6 +1,8 @@
 import { useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
 
+import { type SystemRole } from "@langfuse/shared/src/db";
+
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
@@ -10,6 +12,8 @@ import { type AsyncTableData } from "@/src/components/design-system/table/Table"
 import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { filterApiKeysByName } from "@/src/features/public-api/components/ApiKeySettingsTable/fns/filterApiKeysByName";
+import { apiKeyPermissionSetDisplay } from "@/src/features/public-api/fns/apiKeyRoleDisplay";
+import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import {
   ApiKeySettingsTable,
@@ -58,61 +62,72 @@ export function ConnectedApiKeySettingsTable({
   const deleteApiKey =
     scope === "project" ? deleteProjectApiKey : deleteOrganizationApiKey;
 
+  const permissionsPopup = usePermissionsPopup(scope);
+
   return (
-    <ConnectedApiKeyNameDialogController entityId={entityId} scope={scope}>
-      {({ openDialog: openEditNameDialog }) => (
-        <ConfirmationDialogController<{ id: string }>
-          title="Delete API key"
-          text="Are you sure you want to delete this API key? This action cannot be undone."
-          confirmLabel="Permanently delete"
-          variant="destructive"
-          loading={deleteApiKey.isPending}
-          error={deleteApiKey.error?.message}
-          onAfterDismiss={deleteApiKey.reset}
-          onConfirm={async (apiKey) => {
-            try {
-              if (scope === "project") {
-                await deleteProjectApiKey.mutateAsync({
-                  projectId: entityId,
-                  id: apiKey.id,
-                });
-              } else {
-                await deleteOrganizationApiKey.mutateAsync({
-                  orgId: entityId,
-                  id: apiKey.id,
-                });
+    <>
+      <ConnectedApiKeyNameDialogController entityId={entityId} scope={scope}>
+        {({ openDialog: openEditNameDialog }) => (
+          <ConfirmationDialogController<{ id: string }>
+            title="Delete API key"
+            text="Are you sure you want to delete this API key? This action cannot be undone."
+            confirmLabel="Permanently delete"
+            variant="destructive"
+            loading={deleteApiKey.isPending}
+            error={deleteApiKey.error?.message}
+            onAfterDismiss={deleteApiKey.reset}
+            onConfirm={async (apiKey) => {
+              try {
+                if (scope === "project") {
+                  await deleteProjectApiKey.mutateAsync({
+                    projectId: entityId,
+                    id: apiKey.id,
+                  });
+                } else {
+                  await deleteOrganizationApiKey.mutateAsync({
+                    orgId: entityId,
+                    id: apiKey.id,
+                  });
+                }
+                capture(`${scope}_settings:api_key_delete`);
+              } catch (error) {
+                reportNonTrpcError(error, "api-keys");
+                throw error;
               }
-              capture(`${scope}_settings:api_key_delete`);
-            } catch (error) {
-              reportNonTrpcError(error, "api-keys");
-              throw error;
-            }
-          }}
-        >
-          {({ openDialog: openDeleteDialog }) => (
-            <ApiKeySettingsTable
-              search={{ value: searchQuery, onChange: setSearchQuery }}
-              gatewayKeyFilter={
-                showGatewayKeyFilter
-                  ? {
-                      includeGatewayKeys,
-                      onIncludeGatewayKeysChange: setIncludeGatewayKeys,
-                    }
-                  : undefined
-              }
-              data={tableData}
-              editNameAction={{
-                hasAccess: hasWriteAccess,
-                onClick: openEditNameDialog,
-              }}
-              hasWriteAccess={hasWriteAccess}
-              onDelete={openDeleteDialog}
-              noResultsMessage={noResultsMessage}
-            />
-          )}
-        </ConfirmationDialogController>
-      )}
-    </ConnectedApiKeyNameDialogController>
+            }}
+          >
+            {({ openDialog: openDeleteDialog }) => (
+              <ApiKeySettingsTable
+                search={{ value: searchQuery, onChange: setSearchQuery }}
+                gatewayKeyFilter={
+                  showGatewayKeyFilter
+                    ? {
+                        includeGatewayKeys,
+                        onIncludeGatewayKeysChange: setIncludeGatewayKeys,
+                      }
+                    : undefined
+                }
+                data={tableData}
+                editNameAction={{
+                  hasAccess: hasWriteAccess,
+                  onClick: openEditNameDialog,
+                }}
+                permissionsAction={permissionsPopup.action}
+                hasWriteAccess={hasWriteAccess}
+                onDelete={openDeleteDialog}
+                noResultsMessage={noResultsMessage}
+              />
+            )}
+          </ConfirmationDialogController>
+        )}
+      </ConnectedApiKeyNameDialogController>
+      <RolePermissionPopup
+        open={permissionsPopup.open}
+        onOpenChange={permissionsPopup.setOpen}
+        role={permissionsPopup.role}
+        display={(role) => apiKeyPermissionPopupDisplay(role, scope)}
+      />
+    </>
   );
 }
 
@@ -228,6 +243,24 @@ function ApiKeyNameDialog({
   );
 }
 
+/** usePermissionsPopup holds the permissions popup state; only project keys carry a role. */
+function usePermissionsPopup(scope: ApiKeyScope) {
+  const [open, setOpen] = useState(false);
+  const [role, setRole] = useState<SystemRole | null>(null);
+  const action = useMemo(() => {
+    if (scope !== "project") return undefined;
+    return {
+      scope,
+      onClick: (target: SystemRole) => {
+        setRole(target);
+        setOpen(true);
+      },
+    };
+  }, [scope]);
+
+  return { open, setOpen, role, action };
+}
+
 function useApiKeySettingsTableData({
   entityId,
   scope,
@@ -260,4 +293,9 @@ function useApiKeySettingsTableData({
       data: filterApiKeysByName(apiKeys.data ?? [], searchQuery),
     };
   }, [apiKeys.data, apiKeys.isError, apiKeys.isLoading, searchQuery]);
+}
+
+/** apiKeyPermissionPopupDisplay titles a legacy permission set as plain "Permissions". */
+function apiKeyPermissionPopupDisplay(role: SystemRole, scope: ApiKeyScope) {
+  return apiKeyPermissionSetDisplay(role, scope) ?? { name: "Permissions" };
 }

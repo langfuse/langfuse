@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { type IconComponent } from "@langfuse/icons";
+
 import { type SystemRole } from "@langfuse/shared/src/db";
 
-import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import {
   Dialog,
   DialogBody,
@@ -9,10 +10,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
+import { RolePermissionCountBadge } from "@/src/features/rbac/components/RolePermissionCountBadge";
 import {
   RolePermissionList,
   rolePermissionCount,
-  rolePermissionNoun,
 } from "@/src/features/rbac/components/RolePermissionList";
 import {
   roleDisplay,
@@ -31,7 +32,7 @@ export function RolePermissionPopup({
   onOpenChange: (open: boolean) => void;
   role: SystemRole | null;
   /** display overrides how the role is presented. */
-  display?: (role: SystemRole) => RoleDisplay;
+  display?: (role: SystemRole) => RolePermissionPopupDisplay;
   emptyStateComment?: string;
 }) {
   const shown = role ? display(role) : undefined;
@@ -47,19 +48,14 @@ export function RolePermissionPopup({
         closeOnInteractionOutside
         className="min-h-[25.5rem] sm:min-w-[32rem]"
       >
-        {role && shown && Icon && (
+        {role && shown && (
           <>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Icon size="base" />
+                {Icon && <Icon size="base" />}
                 <span>{shown?.name}</span>
                 <span className="ml-1 shrink-0 tabular-nums">
-                  <BadgeShell color="filled" size="sm">
-                    <span className="font-bold">
-                      {rolePermissionCount(role)}
-                    </span>{" "}
-                    {rolePermissionNoun(role)}
-                  </BadgeShell>
+                  <RolePermissionCountBadge role={role} />
                 </span>
               </DialogTitle>
             </DialogHeader>
@@ -78,3 +74,8 @@ export function RolePermissionPopup({
     </Dialog>
   );
 }
+
+/** RolePermissionPopupDisplay is a role's popup title, with an optional icon. */
+type RolePermissionPopupDisplay = Pick<RoleDisplay, "name"> & {
+  Icon?: IconComponent;
+};
