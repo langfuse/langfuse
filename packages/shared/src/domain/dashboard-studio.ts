@@ -82,6 +82,7 @@ export const StudioWidgetConfigSchema = z
       bins: z.number().int().min(1).max(100).optional(),
       histogramEdges: z.array(z.number()).min(2).max(51).optional(),
       activeQueryIds: z.array(identifier).max(8).optional(),
+      hiddenSeriesIds: z.array(z.string().max(4096)).max(1000).optional(),
       legend: z.boolean().optional(),
     }),
   })
@@ -179,6 +180,7 @@ export type StudioSeries = {
   id: string;
   label: string;
   unit?: string;
+  rawUnit?: string;
   bucketUnit?: string;
   queryId: string;
   metricId: string;

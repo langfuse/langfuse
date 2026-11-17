@@ -22,6 +22,7 @@ export const studioSourceOptions = [
 ] as const;
 
 export function readableField(value: string) {
+  if (value === "providedModelName") return "Model";
   const spaced = value.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }

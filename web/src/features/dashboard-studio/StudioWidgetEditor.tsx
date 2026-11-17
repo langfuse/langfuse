@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { hashKey } from "@tanstack/react-query";
 import {
   StudioWidgetConfigSchema,
   type StudioWidgetConfig,
@@ -11,10 +12,16 @@ import { Input } from "@/src/components/design-system/Input/Input";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { formatFilterPreview } from "@/src/components/table/table-view-presets/lib/viewPreview";
 import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { StudioQueryWidget } from "./StudioQueryWidget";
 import { StudioSeriesEditor } from "./StudioSeriesEditor";
-import { createStudioQuery, studioChartOptions } from "./catalog";
+import {
+  createStudioQuery,
+  readableField,
+  studioChartOptions,
+} from "./catalog";
 import { useDashboardStudioCapture } from "./analytics";
 import { resolveStudioQueryVersion, withStudioQueries } from "./studioConfig";
 
@@ -56,6 +63,14 @@ export function StudioWidgetEditor({
   const [config, setConfig] = useState(initialValue);
   const [preview, setPreview] = useState(initialValue);
   const [error, setError] = useState<string | null>(null);
+  const previewPending = hashKey([config]) !== hashKey([preview]);
+  const environmentOverrides = filterState.some(
+    (filter) => filter.column === "environment",
+  )
+    ? preview.queries.filter((query) =>
+        query.filters.some((filter) => filter.column === "environment"),
+      )
+    : [];
   const queryVersion = resolveStudioQueryVersion(
     config,
     readPath === "v4" ? "v2" : "v1",
@@ -87,9 +102,9 @@ export function StudioWidgetEditor({
       className="ph-no-capture bg-background flex h-full min-h-0 min-w-0 flex-col"
     >
       <div className="bg-background flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-4 py-3 lg:px-6">
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
           <Button
-            text="Back"
+            text="Cancel"
             icon={ArrowLeftIcon}
             variant="ghost"
             onClick={onCancel}
@@ -97,6 +112,9 @@ export function StudioWidgetEditor({
           <h1 className="text-base font-bold">
             {isNew ? "New chart" : "Edit widget"}
           </h1>
+          {previewPending ? (
+            <Badge text="Preview out of date" color="warning" />
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -141,18 +159,68 @@ export function StudioWidgetEditor({
             <span>
               {dateRange.from.toLocaleDateString()} –{" "}
               {dateRange.to.toLocaleDateString()}
-              {filterState.length
-                ? ` · ${filterState.length} dashboard filters`
-                : ""}
+              {!filterState.length ? " · No dashboard filters" : ""}
             </span>
           </div>
-          <div className="h-64 min-w-0 md:h-80">
+          {filterState.length ? (
+            <div
+              aria-label="Dashboard filters"
+              className="ph-no-capture flex flex-wrap items-start gap-2 text-xs"
+            >
+              <span className="text-muted-foreground py-1">
+                Dashboard filters:
+              </span>
+              {filterState.map((filter, index) => (
+                <span
+                  key={index}
+                  className="bg-background text-foreground-secondary max-w-full rounded border px-2 py-1 break-words whitespace-pre-wrap"
+                >
+                  {formatFilterPreview({
+                    ...filter,
+                    column: readableField(filter.column),
+                  })}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {environmentOverrides.length ? (
+            <p className="ph-no-capture text-muted-foreground text-xs">
+              Query environment filters override the dashboard environment for{" "}
+              {environmentOverrides
+                .map((query) => query.label || query.id)
+                .join(", ")}
+              .
+            </p>
+          ) : null}
+          {previewPending ? (
+            <p
+              role="status"
+              className="dark:text-dark-yellow text-xs text-yellow-800"
+            >
+              Preview shows the last run. Run preview to include your changes.
+            </p>
+          ) : null}
+          <div className="h-80 min-w-0 md:h-96">
             <StudioQueryWidget
               projectId={projectId}
               config={preview}
               readPath={readPath}
               dateRange={dateRange}
               filterState={filterState}
+              onHiddenSeriesChange={(hiddenSeriesIds) => {
+                setConfig((current) => ({
+                  ...current,
+                  display: { ...current.display, hiddenSeriesIds },
+                }));
+                setPreview((current) => ({
+                  ...current,
+                  display: { ...current.display, hiddenSeriesIds },
+                }));
+                track("configuration_changed", {
+                  ...metadata,
+                  scope: "display",
+                });
+              }}
             />
           </div>
         </div>

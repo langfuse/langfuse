@@ -15,6 +15,7 @@ import {
 } from "@/src/features/widgets/chart-library/utils";
 import { seriesColor } from "@/src/features/widgets/chart-library/seriesColors";
 import { readableField } from "./catalog";
+import { formatIntervalSeconds } from "@/src/utils/dates";
 
 function chartDimension(
   row: StudioRow,
@@ -38,15 +39,20 @@ function chartDimension(
 export function studioMetricFormatter(
   unit: string | undefined,
 ): MetricFormatterFunction {
-  return (value, options) =>
-    unit === "percent" || unit === "%"
-      ? {
-          main: new Intl.NumberFormat("en", {
-            maximumFractionDigits: 2,
-          }).format(value * 100),
-          suffix: "%",
-        }
-      : formatMetric(value, { ...options, unit: parseMetricUnit(unit) });
+  return (value, options) => {
+    if (unit === "milliseconds" && Math.abs(value) >= 1000)
+      return {
+        main: `${value < 0 ? "-" : ""}${formatIntervalSeconds(Math.abs(value) / 1000)}`,
+      };
+    if (unit === "percent" || unit === "%")
+      return {
+        main: new Intl.NumberFormat("en", { maximumFractionDigits: 2 }).format(
+          value * 100,
+        ),
+        suffix: "%",
+      };
+    return formatMetric(value, { ...options, unit: parseMetricUnit(unit) });
+  };
 }
 
 export function formatStudioValue(
@@ -64,7 +70,7 @@ export function prepareStudioChart(
   result: StudioResult | undefined,
   config: StudioWidgetConfig,
 ) {
-  const visibleSeries = (result?.series ?? []).filter((series) => {
+  const availableSeries = (result?.series ?? []).filter((series) => {
     const query = config.queries.find((query) => query.id === series.queryId);
     const expression = config.expressions.find(
       (expression) =>
@@ -78,6 +84,10 @@ export function prepareStudioChart(
         config.display.activeQueryIds.includes(series.queryId))
     );
   });
+  const hiddenIds = new Set(config.display.hiddenSeriesIds ?? []);
+  const visibleSeries = availableSeries.filter(
+    (series) => !hiddenIds.has(series.id),
+  );
   const visibleIds = new Set(visibleSeries.map((series) => series.id));
   const seriesById = new Map(
     visibleSeries.map((series) => [series.id, series]),
@@ -91,11 +101,23 @@ export function prepareStudioChart(
   const selectedRows = (result?.rows ?? []).filter((row) =>
     visibleIds.has(row.seriesId),
   );
-  const summaries = (result?.summaries ?? []).filter((row) =>
-    visibleSeries.some(
-      (series) =>
-        series.queryId === row.queryId && series.metricId === row.metricId,
-    ),
+  const visibleMetricRefs = new Set(
+    visibleSeries.map((series) => `${series.queryId}.${series.metricId}`),
+  );
+  const partiallyHiddenMetricRefs = new Set(
+    availableSeries
+      .filter(
+        (series) =>
+          hiddenIds.has(series.id) &&
+          visibleMetricRefs.has(`${series.queryId}.${series.metricId}`),
+      )
+      .map((series) => `${series.queryId}.${series.metricId}`),
+  );
+  const visibilitySummaries = (result?.summaries ?? []).filter((row) =>
+    visibleMetricRefs.has(`${row.queryId}.${row.metricId}`),
+  );
+  const summaries = visibilitySummaries.filter(
+    (row) => !partiallyHiddenMetricRefs.has(`${row.queryId}.${row.metricId}`),
   );
   const data: ChartProps["data"] = selectedRows.map((row) => ({
     dimension: chartDimension(
@@ -117,6 +139,32 @@ export function prepareStudioChart(
   const unit = hasIncompatibleUnits
     ? undefined
     : (config.display.unit ?? visibleSeries[0]?.unit);
+  let headlineCandidate: StudioRow | undefined;
+  if (config.display.headlineMetricRef)
+    headlineCandidate = visibilitySummaries.find(
+      (row) =>
+        `${row.queryId}.${row.metricId}` === config.display.headlineMetricRef,
+    );
+  else if (
+    visibleMetricRefs.size === 1 &&
+    visibilitySummaries.length === 1 &&
+    !hasIncompatibleUnits
+  )
+    headlineCandidate = visibilitySummaries[0];
+  const headline =
+    headlineCandidate &&
+    !partiallyHiddenMetricRefs.has(
+      `${headlineCandidate.queryId}.${headlineCandidate.metricId}`,
+    )
+      ? headlineCandidate
+      : undefined;
+  const headlineSuppressed = Boolean(
+    (config.display.showHeadline || config.display.chartType === "NUMBER") &&
+    headlineCandidate &&
+    partiallyHiddenMetricRefs.has(
+      `${headlineCandidate.queryId}.${headlineCandidate.metricId}`,
+    ),
+  );
   const tableRows =
     config.display.chartType === "NUMBER" ? summaries : selectedRows;
   const table: Visualization = {
@@ -263,6 +311,121 @@ export function prepareStudioChart(
     pivotTable,
     summaries,
     visibleSeries,
+    availableSeries,
+    headline,
+    headlineSuppressed,
     hasIncompatibleUnits,
+  };
+}
+
+/** Pages exact executed aggregates without changing query selection or chart formatting. */
+export function prepareStudioData(
+  result: StudioResult | undefined,
+  config: StudioWidgetConfig,
+  page: {
+    scope: "rows" | "summaries";
+    reference: string;
+    pageIndex: number;
+    pageSize: number;
+  },
+) {
+  const expressions = new Set(
+    config.expressions.map((expression) => expression.id),
+  );
+  const referenceOf = (row: Pick<StudioRow, "queryId" | "metricId">) =>
+    expressions.has(row.queryId)
+      ? row.queryId
+      : `${row.queryId}.${row.metricId}`;
+  const seriesByReference = new Map(
+    (result?.series ?? []).map((series) => [referenceOf(series), series]),
+  );
+  const rows = result?.[page.scope] ?? [];
+  const labels = new Map([
+    ...config.queries.flatMap((query) =>
+      query.metrics.map(
+        (metric) =>
+          [
+            `${query.id}.${metric.id}`,
+            `${query.label} · ${metric.label ?? `${metric.aggregation} ${readableField(metric.measure)}`}`,
+          ] as const,
+      ),
+    ),
+    ...config.expressions.map(
+      (expression) => [expression.id, expression.label] as const,
+    ),
+  ]);
+  const present = new Map<string, number>();
+  for (const row of rows) {
+    const ref = referenceOf(row);
+    present.set(ref, (present.get(ref) ?? 0) + 1);
+  }
+  const referenceOptions = [
+    { value: "all", label: "All executed values" },
+    ...[...labels.keys()]
+      .filter((value) => present.has(value))
+      .map((value) => ({
+        value,
+        label: `${value} · ${labels.get(value) ?? value}`,
+      })),
+  ];
+  const reference = present.has(page.reference) ? page.reference : "all";
+  const rowCount =
+    reference === "all" ? rows.length : (present.get(reference) ?? 0);
+  const pageIndex = Math.min(
+    Math.max(0, page.pageIndex),
+    Math.max(0, Math.ceil(rowCount / page.pageSize) - 1),
+  );
+  const pageRows: StudioRow[] = [];
+  let matchingIndex = 0;
+  for (const row of rows) {
+    if (reference !== "all" && referenceOf(row) !== reference) continue;
+    if (matchingIndex++ < pageIndex * page.pageSize) continue;
+    pageRows.push(row);
+    if (pageRows.length === page.pageSize) break;
+  }
+  const table: Extract<Visualization, { type: "table" }> = {
+    type: "table",
+    columns: [
+      { id: "reference", label: "Reference" },
+      { id: "series", label: "Series" },
+      { id: "time", label: page.scope === "summaries" ? "Period" : "Time" },
+      { id: "dimension", label: "Breakdown" },
+      { id: "value", label: "Raw value", align: "right" },
+      { id: "unit", label: "Unit" },
+    ],
+    rows: pageRows.map((row, index) => {
+      const reference = referenceOf(row);
+      const descriptor = seriesByReference.get(reference);
+      return {
+        id: `${row.seriesId}_${index}`,
+        cells: [
+          { columnId: "reference", value: reference },
+          { columnId: "series", value: row.label },
+          { columnId: "time", value: row.time ?? "Full time range" },
+          {
+            columnId: "dimension",
+            value: Object.keys(row.dimensions).length
+              ? JSON.stringify(row.dimensions)
+              : "—",
+            detail: descriptor?.bucketUnit
+              ? `Bin boundaries use ${descriptor.bucketUnit}`
+              : undefined,
+          },
+          { columnId: "value", value: row.value ?? "null" },
+          {
+            columnId: "unit",
+            value: descriptor?.rawUnit ?? descriptor?.unit ?? "—",
+          },
+        ],
+      };
+    }),
+  };
+  return {
+    table,
+    referenceOptions,
+    reference,
+    rowCount,
+    pageIndex,
+    pageSize: page.pageSize,
   };
 }

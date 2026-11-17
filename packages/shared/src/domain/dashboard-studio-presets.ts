@@ -257,7 +257,7 @@ const recipes: Record<HomeDashboardPresetId, StudioWidgetConfig> = {
   ),
   "home-latency-table-traces": config(
     "Root observation latency",
-    "Root observation duration, including application roots with an external parent. This deliberately avoids expensive reconstructed full-trace duration.",
+    "Measures each recorded root observation's own duration. A root lasting 2 seconds contributes 2 seconds even if its external parent takes 5 seconds. Child observations are not counted separately. Instrument a root around the full request to measure end-to-end request latency.",
     [
       {
         ...query("roots", "Root latency", latencyMetrics, ["traceName"], roots),

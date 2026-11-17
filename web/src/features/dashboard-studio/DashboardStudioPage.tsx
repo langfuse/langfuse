@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { useStore } from "zustand";
+import { hashKey } from "@tanstack/react-query";
 import {
   DashboardDefinitionSchema,
   type DashboardDefinition,
@@ -29,6 +30,7 @@ import {
 } from "@/src/features/events/hooks/useReadPath";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
+import { findFreeGridPosition } from "@/src/features/widgets/utils/grid-placement";
 import {
   DashboardQuerySchedulerProvider,
   useDashboardQueryScheduler,
@@ -175,7 +177,18 @@ function StudioWorkspace({
       ? initial
       : null;
   });
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<
+    | { kind: "saved"; snapshot: string }
+    | { kind: "notice"; text: string }
+    | null
+  >(null);
+  const visibleMessage = (() => {
+    if (!message) return null;
+    if (message.kind === "notice") return message.text;
+    if (isDirty || message.snapshot !== hashKey([definition, filters]))
+      return null;
+    return "Dashboard saved. Your widgets and shared filters are ready on the regular dashboard, too.";
+  })();
   const [migration, setMigration] = useState<Extract<
     DashboardDefinition["widgets"][number],
     { type: "preset" }
@@ -206,13 +219,10 @@ function StudioWorkspace({
   const canEdit = hasWriteAccess && initialDashboard.owner === "PROJECT";
   const geometry = () => ({
     id: crypto.randomUUID(),
-    x: 0,
-    y: Math.max(
-      0,
-      ...store
-        .getState()
-        .definition.widgets.map((item) => item.y + item.y_size),
-    ),
+    ...findFreeGridPosition(store.getState().definition.widgets, {
+      x_size: 6,
+      y_size: 5,
+    }),
     x_size: 6,
     y_size: 5,
   });
@@ -245,9 +255,10 @@ function StudioWorkspace({
     }).then(
       ({ definition: savedDefinition, filters: nextFilters }) => {
         setSavedFilters(nextFilters);
-        setMessage(
-          "Dashboard saved. Your widgets and shared filters are ready on the regular dashboard, too.",
-        );
+        setMessage({
+          kind: "saved",
+          snapshot: hashKey([savedDefinition, nextFilters]),
+        });
         utils.dashboard.getDashboard.invalidate({
           projectId,
           dashboardId: initialDashboard.id,
@@ -258,11 +269,13 @@ function StudioWorkspace({
         });
       },
       (error: unknown) => {
-        setMessage(
-          error instanceof Error
-            ? `The dashboard could not finish saving: ${error.message}. Retry to save all changes.`
-            : "The dashboard could not finish saving. Retry to save all changes.",
-        );
+        setMessage({
+          kind: "notice",
+          text:
+            error instanceof Error
+              ? `The dashboard could not finish saving: ${error.message}. Retry to save all changes.`
+              : "The dashboard could not finish saving. Retry to save all changes.",
+        });
         track("save_failed", { reason: "network", scope: "dashboard" });
       },
     );
@@ -272,25 +285,25 @@ function StudioWorkspace({
     anchor: typeof migration,
   ) => {
     const current = store.getState().definition;
-    const bottom = Math.max(
-      0,
-      ...current.widgets.map((item) => item.y + item.y_size),
-    );
-    const additions = configs.map((config, index) => ({
-      type: "query" as const,
-      id: index === 0 && anchor ? anchor.id : crypto.randomUUID(),
-      x: index === 0 && anchor ? anchor.x : 0,
-      y: index === 0 && anchor ? anchor.y : bottom + index * 5,
-      x_size: anchor?.x_size ?? 6,
-      y_size: anchor?.y_size ?? 5,
-      config,
-    }));
+    const existing = current.widgets.filter((item) => item.id !== anchor?.id);
+    const additions: Extract<StudioPlacement, { type: "query" }>[] = [];
+    const size = { x_size: anchor?.x_size ?? 6, y_size: anchor?.y_size ?? 5 };
+    for (const [index, config] of configs.entries()) {
+      const position =
+        index === 0 && anchor
+          ? { x: anchor.x, y: anchor.y }
+          : findFreeGridPosition([...existing, ...additions], size);
+      additions.push({
+        type: "query",
+        id: index === 0 && anchor ? anchor.id : crypto.randomUUID(),
+        ...position,
+        ...size,
+        config,
+      });
+    }
     store.getState().actions.replace({
       ...current,
-      widgets: [
-        ...current.widgets.filter((item) => item.id !== anchor?.id),
-        ...additions,
-      ],
+      widgets: [...existing, ...additions],
     });
     setMigration(null);
   };
@@ -442,9 +455,10 @@ function StudioWorkspace({
                           ? parseStudioPlacement(text)
                           : null;
                         if (!placement) {
-                          setMessage(
-                            "Copy a studio widget first, then paste it here.",
-                          );
+                          setMessage({
+                            kind: "notice",
+                            text: "Copy a studio widget first, then paste it here.",
+                          });
                           return;
                         }
                         store
@@ -517,12 +531,12 @@ function StudioWorkspace({
               }}
             />
           </div>
-          {message ? (
+          {visibleMessage ? (
             <div
               role="status"
               className="ph-no-capture bg-muted px-5 py-3 text-sm"
             >
-              {message}
+              {visibleMessage}
             </div>
           ) : null}
           <div className="min-h-0 flex-1">

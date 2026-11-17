@@ -24,7 +24,7 @@ export function StudioTextEditor({
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-4 py-3 lg:px-6">
         <div className="flex items-center gap-3">
           <Button
-            text="Back"
+            text="Cancel"
             icon={ArrowLeftIcon}
             variant="ghost"
             onClick={onCancel}

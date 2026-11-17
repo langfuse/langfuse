@@ -148,6 +148,7 @@ describe("dashboard.executeQuery version contract", () => {
         {
           id: "a",
           label: "All records",
+          hidden: true,
           view: "observations",
           metrics: [{ id: "count", measure: "count", aggregation: "count" }],
           dimensions: [],
@@ -163,10 +164,25 @@ describe("dashboard.executeQuery version contract", () => {
         },
       ],
       expressions: [
-        { id: "twice", label: "Twice", formula: "a.count * 2" },
+        { id: "twice", label: "Twice", formula: "a.count * 2", hidden: true },
         { id: "fourTimes", label: "Four times", formula: "twice * 2" },
+        {
+          id: "share",
+          label: "Share",
+          formula: "a.count / a.count",
+          unit: "percent",
+        },
       ],
-      display: { chartType: "VERTICAL_BAR", showHeadline: true },
+      display: {
+        chartType: "VERTICAL_BAR",
+        showHeadline: true,
+        activeQueryIds: ["models"],
+      },
+    });
+    config.queries.push({
+      ...config.queries[0],
+      id: "notRun",
+      label: "Not executed",
     });
     const result = await caller.dashboardStudio.execute({
       projectId: fixtureProjectId,
@@ -176,6 +192,22 @@ describe("dashboard.executeQuery version contract", () => {
       toTimestamp: new Date(timestamp.getTime() + 60000).toISOString(),
     });
     expect(result.status, JSON.stringify(result.diagnostics)).toBe("complete");
+    expect(result.rows.find((row) => row.queryId === "a")?.value).toBe(2);
+    expect(result.summaries.find((row) => row.queryId === "a")?.value).toBe(2);
+    expect(result.series.find((series) => series.queryId === "a")?.unit).toBe(
+      "observations",
+    );
+    expect(result.diagnostics.map((diagnostic) => diagnostic.queryId)).toEqual([
+      "a",
+      "models",
+    ]);
+    expect(
+      result.diagnostics.every(
+        (diagnostic) =>
+          diagnostic.queryCount === 1 || diagnostic.queryId === "models",
+      ),
+    ).toBe(true);
+    expect(result.rows.some((row) => row.queryId === "notRun")).toBe(false);
     expect(
       result.rows
         .filter((row) => row.queryId === "twice")
@@ -191,6 +223,9 @@ describe("dashboard.executeQuery version contract", () => {
         .filter((row) => row.queryId === "fourTimes")
         .map((row) => row.value),
     ).toEqual([8]);
+    expect(
+      result.series.find((series) => series.queryId === "share"),
+    ).toMatchObject({ unit: "percent", rawUnit: "ratio" });
     const constant = caller.dashboardStudio.execute({
       projectId: fixtureProjectId,
       config: {

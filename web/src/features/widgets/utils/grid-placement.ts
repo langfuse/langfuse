@@ -14,6 +14,24 @@ function collides(a: GridRect, b: GridRect): boolean {
   );
 }
 
+/** Finds the first free slot in reading order without moving existing tiles. */
+export function findFreeGridPosition(
+  existing: readonly GridRect[],
+  size: Pick<GridRect, "x_size" | "y_size">,
+  columns = 12,
+): Pick<GridRect, "x" | "y"> {
+  const rows = [
+    ...new Set([0, ...existing.map((tile) => tile.y + tile.y_size)]),
+  ].sort((a, b) => a - b);
+  for (const y of rows) {
+    for (let x = 0; x + size.x_size <= columns; x++) {
+      const candidate = { x, y, x_size: size.x_size, y_size: size.y_size };
+      if (existing.every((tile) => !collides(tile, candidate))) return { x, y };
+    }
+  }
+  return { x: 0, y: rows[rows.length - 1] ?? 0 };
+}
+
 /**
  * Makes room for a tile inserted at a specific grid position ("paste to the
  * right", duplicate-next-to): every existing tile that overlaps the inserted

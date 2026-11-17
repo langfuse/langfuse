@@ -1,5 +1,5 @@
 import { type DashboardDefinition, type FilterState } from "@langfuse/shared";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   CopyIcon,
   CopyPlusIcon,
@@ -31,6 +31,7 @@ export function StudioPlacementCard({
   onDelete,
   onDuplicate,
   onCopy,
+  onContentHeightChange,
 }: {
   projectId: string;
   placement: StudioPlacement;
@@ -41,8 +42,28 @@ export function StudioPlacementCard({
   onDelete?: () => void;
   onDuplicate?: () => void;
   onCopy?: () => void;
+  onContentHeightChange?: (placementId: string, height: number) => void;
 }) {
   const [copyStatus, setCopyStatus] = useState("Copy widget");
+  const textContentRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = textContentRef.current;
+    if (placement.type !== "text" || !element || !onContentHeightChange) return;
+    const reportHeight = () =>
+      onContentHeightChange(
+        placement.id,
+        Math.ceil(
+          Math.max(
+            element.getBoundingClientRect().height,
+            element.scrollHeight,
+          ),
+        ) + 2,
+      );
+    const observer = new ResizeObserver(reportHeight);
+    observer.observe(element);
+    reportHeight();
+    return () => observer.disconnect();
+  }, [placement.id, placement.type, onContentHeightChange]);
   const track = useDashboardStudioCapture(readPath === "v4");
   const copy = () => {
     if (onCopy) {
@@ -122,7 +143,9 @@ export function StudioPlacementCard({
           ))}
         </div>
       ) : null}
-      <StudioTextWidget title={placement.title} content={placement.content} />
+      <div ref={textContentRef} className="min-w-0 shrink-0">
+        <StudioTextWidget title={placement.title} content={placement.content} />
+      </div>
     </section>
   );
 }

@@ -173,6 +173,13 @@ export async function executeStudioWidget(
     const hasLocalEnvironment = source.filters.some(
       (filter) => filter.column === "environment",
     );
+    if (
+      hasLocalEnvironment &&
+      mappedGlobal.some((filter) => filter.column === "environment")
+    )
+      result.warnings.push(
+        `${source.id}: the widget environment filter overrides the dashboard environment filter for this query`,
+      );
     const targetFilters: FilterState =
       source.scoreTarget && source.scoreTarget !== "all"
         ? [
@@ -338,7 +345,26 @@ export async function executeStudioWidget(
               source.metrics.length > 1
                 ? `${source.label} · ${metric.label ?? `${metric.aggregation} ${metric.measure}`}`
                 : source.label;
-            const label = dimension ? `${baseLabel} · ${dimension}` : baseLabel;
+            let label = baseLabel;
+            if (dimension) {
+              label = `${baseLabel} · ${dimension}`;
+              if (source.metrics.length > 1) {
+                let metricLabel = metric.label;
+                if (!metricLabel) {
+                  if (
+                    source.metrics.every(
+                      (item) => item.measure === metric.measure,
+                    )
+                  )
+                    metricLabel =
+                      metric.percentile === undefined
+                        ? metric.aggregation
+                        : `p${metric.percentile}`;
+                  else metricLabel = `${metric.aggregation} ${metric.measure}`;
+                }
+                label = `${dimension} · ${metricLabel}${input.config.queries.length > 1 ? ` · ${source.label}` : ""}`;
+              }
+            }
             if (!summary)
               allSeries.set(id, {
                 id,
@@ -426,6 +452,11 @@ export async function executeStudioWidget(
           ? convert(await run(summaryQuery), true, summaryQuery.metrics)
           : convert(raw, true);
       }
+      if (summaries.length + resultCellCount > 100_000)
+        throw new InvalidRequestError(
+          "This widget exceeds the 100,000 result-cell limit. Narrow its time range or breakdown.",
+        );
+      resultCellCount += summaries.length;
       diagnostic.resultRows = raw.length;
       queryResults.set(source.id, { rows, summaries, diagnostics: diagnostic });
     } catch (error) {
@@ -559,12 +590,13 @@ export async function executeStudioWidget(
             id,
             label,
             unit: expression.unit ?? value.unit,
+            rawUnit: value.unit,
             queryId: expression.id,
             metricId: expression.id,
             dimensions,
             aggregation: "expression",
           });
-        if (!expression.hidden && computed.length + resultCellCount >= 100_000)
+        if (computed.length + resultCellCount >= 100_000)
           throw new InvalidRequestError(
             "This widget exceeds the 100,000 result-cell limit. Narrow its time range or breakdown.",
           );
@@ -577,7 +609,7 @@ export async function executeStudioWidget(
           value: value.value,
         };
         expressionOutput.push(output);
-        if (!expression.hidden) computed.push(output);
+        computed.push(output);
       }
       rowsByRef.set(expression.id, expressionOutput);
     }
@@ -602,8 +634,12 @@ export async function executeStudioWidget(
   for (const source of pending) await runSource(source);
 
   try {
-    result.rows = result.rows.concat(expressionRows(false));
-    result.summaries = result.summaries.concat(expressionRows(true));
+    const computedRows = expressionRows(false);
+    result.rows = result.rows.concat(computedRows);
+    resultCellCount += computedRows.length;
+    const computedSummaries = expressionRows(true);
+    result.summaries = result.summaries.concat(computedSummaries);
+    resultCellCount += computedSummaries.length;
   } catch (error) {
     const message =
       error instanceof InvalidRequestError
@@ -628,14 +664,9 @@ export async function executeStudioWidget(
     const data = queryResults.get(source.id);
     if (!data) continue;
     result.diagnostics.push(data.diagnostics);
-    if (
-      !source.hidden &&
-      (!input.config.display.activeQueryIds ||
-        input.config.display.activeQueryIds.includes(source.id))
-    ) {
-      result.rows = result.rows.concat(data.rows);
-      result.summaries = result.summaries.concat(data.summaries);
-    }
+    // Hidden series remain available for auditing; visibility is a client presentation choice.
+    result.rows = result.rows.concat(data.rows);
+    result.summaries = result.summaries.concat(data.summaries);
   }
   const visible = new Set(result.rows.map((row) => row.seriesId));
   result.series = [...allSeries.values()].filter((series) =>

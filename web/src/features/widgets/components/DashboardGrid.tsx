@@ -19,6 +19,7 @@ import { v4 as uuidv4 } from "uuid";
 import { StudioPlacementCard } from "@/src/features/dashboard-studio/StudioPlacementCard";
 import { useDashboardStudioCapture } from "@/src/features/dashboard-studio/analytics";
 import { useDashboardStudioEnabled } from "@/src/features/dashboard-studio/useDashboardStudioEnabled";
+import { findFreeGridPosition } from "../utils/grid-placement";
 
 export type DashboardPlacement = DashboardDefinition["widgets"][number];
 export type StudioPlacement = Extract<
@@ -183,7 +184,8 @@ export function DashboardGrid({
       y: w.y,
       w: w.x_size,
       h:
-        w.type === "preset" && w.presetId === "home-score-analytics"
+        w.type === "text" ||
+        (w.type === "preset" && w.presetId === "home-score-analytics")
           ? Math.max(w.y_size, contentRows)
           : w.y_size,
       isDraggable: canEdit && !isSmallScreen, // Disable dragging on small screens
@@ -241,6 +243,9 @@ export function DashboardGrid({
           readPath={readPath}
           dateRange={dateRange}
           filterState={filterState}
+          onContentHeightChange={
+            widget.type === "text" ? handleContentHeightChange : undefined
+          }
           onEdit={
             canChange
               ? () => {
@@ -265,7 +270,7 @@ export function DashboardGrid({
                   const copy = {
                     ...structuredClone(widget),
                     id: uuidv4(),
-                    y: Math.max(0, ...widgets.map((w) => w.y + w.y_size)),
+                    ...findFreeGridPosition(widgets, widget),
                   };
                   track("widget_duplicated", { widgetKind: widget.type });
                   onChange([...widgets, copy]);

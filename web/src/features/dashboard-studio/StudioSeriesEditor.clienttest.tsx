@@ -22,11 +22,11 @@ const query: StudioQuery = {
   ],
 };
 
-function renderEditor() {
+function renderEditor(initialQuery = query) {
   const onChange = vi.fn();
   render(
     <StudioSeriesEditor
-      query={query}
+      query={initialQuery}
       isV4
       timeSeries
       projectId="project"
@@ -65,9 +65,21 @@ afterAll(() => {
 });
 
 describe("studio series sort scope", () => {
+  it("chooses a breakdown before changing the query", async () => {
+    const onChange = renderEditor({ ...query, dimensions: [] });
+    fireEvent.keyDown(screen.getByRole("combobox", { name: "Add breakdown" }), {
+      key: "ArrowDown",
+    });
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.click(await screen.findByRole("option", { name: /^Name$/ }));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ dimensions: [{ field: "name" }] }),
+    );
+  });
+
   it("clears explicit sorting when changing the source", async () => {
     const onChange = renderEditor();
-    await select("Series a source", "Numeric scores");
+    await select("Query a source", "Numeric scores");
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ view: "scores-numeric", orderBy: undefined }),
     );

@@ -11,6 +11,7 @@ import { type Visualization } from "@/src/components/design-system/charts/intern
 import { usePreparedWidgetChart } from "@/src/features/widgets/components/usePreparedWidgetChart";
 import {
   prepareStudioChart,
+  prepareStudioData,
   studioMetricFormatter,
   formatStudioValue,
 } from "./prepareStudioChart";
@@ -18,6 +19,7 @@ import { useDashboardQuerySlot } from "@/src/features/dashboard/hooks/DashboardQ
 import { useDashboardStudioCapture } from "./analytics";
 import { ScoreTag } from "@/src/components/ScoreTag";
 import { resolveStudioQueryVersion } from "./studioConfig";
+import { PaginationBar } from "@/src/components/design-system/PaginationBar/PaginationBar";
 
 export type StudioQueryWidgetProps = {
   projectId: string;
@@ -26,6 +28,7 @@ export type StudioQueryWidgetProps = {
   dateRange: { from: Date; to: Date } | undefined;
   filterState: FilterState;
   actions?: DataCardActions;
+  onHiddenSeriesChange?: (ids: string[]) => void;
 };
 
 export function StudioQueryWidget({
@@ -35,9 +38,17 @@ export function StudioQueryWidget({
   dateRange,
   filterState,
   actions,
+  onHiddenSeriesChange,
 }: StudioQueryWidgetProps) {
   const [view, setView] = useState("chart");
   const [selectedQuery, setSelectedQuery] = useState("configured");
+  const [dataView, setDataView] = useState<{
+    scope: "rows" | "summaries";
+    reference: string;
+    pageIndex: number;
+    pageSize: number;
+  }>({ scope: "rows", reference: "all", pageIndex: 0, pageSize: 50 });
+  const [selectionError, setSelectionError] = useState<string>();
   const queryId = useId();
   const queryVersion = resolveStudioQueryVersion(
     config,
@@ -61,15 +72,21 @@ export function StudioQueryWidget({
               selectedQuery === "all" ? undefined : [selectedQuery],
           },
         };
+  const executionConfig = {
+    ...effectiveConfig,
+    display: { ...effectiveConfig.display },
+  };
+  // Persisted visibility changes only presentation, so it cannot invalidate the query cache.
+  delete executionConfig.display.hiddenSeriesIds;
   const input = {
     projectId,
     config:
-      effectiveConfig.display.chartType === "NUMBER"
+      executionConfig.display.chartType === "NUMBER"
         ? {
-            ...effectiveConfig,
-            display: { ...effectiveConfig.display, showHeadline: true },
+            ...executionConfig,
+            display: { ...executionConfig.display, showHeadline: true },
           }
-        : effectiveConfig,
+        : executionConfig,
     version: queryVersion,
     fromTimestamp: range.from.toISOString(),
     toTimestamp: range.to.toISOString(),
@@ -93,6 +110,17 @@ export function StudioQueryWidget({
       slot.markDone();
   }, [result.fetchStatus, result.isPending, slot]);
   const prepared = prepareStudioChart(result.data, effectiveConfig);
+  const dataScope =
+    dataView.scope === "summaries" && result.data?.summaries.length
+      ? "summaries"
+      : "rows";
+  const audit =
+    view === "table"
+      ? prepareStudioData(result.data, effectiveConfig, {
+          ...dataView,
+          scope: dataScope,
+        })
+      : undefined;
   const chart = usePreparedWidgetChart({
     chartType: config.display.chartType,
     active: true,
@@ -162,11 +190,22 @@ export function StudioQueryWidget({
           result.data.diagnostics.find((item) => item.error)?.error ??
           "This query could not be run.",
       };
-    if (!prepared.data.length)
+    if (audit) return audit.table;
+    if (!prepared.data.length) {
+      let description = "Try a wider time range or different filters.";
+      if (prepared.availableSeries.length)
+        description = onHiddenSeriesChange
+          ? "Choose Displayed series to restore a result."
+          : "Edit this widget to change its saved series selection.";
+      else if (result.data?.rows.length)
+        description =
+          "Show a query or formula in the widget editor. The executed values remain available in Data.";
       return {
         type: "empty",
-        description: "Try a wider time range or different filters.",
+        message: result.data?.rows.length ? "No series displayed" : undefined,
+        description,
       };
+    }
     if (view === "chart" && prepared.hasIncompatibleUnits) {
       if (config.display.chartType === "NUMBER") return prepared.table;
       return prepared.pivotTable;
@@ -174,7 +213,6 @@ export function StudioQueryWidget({
     if (config.display.chartType === "PIVOT_TABLE" && view === "chart")
       return prepared.pivotTable;
     if (
-      view === "table" ||
       config.display.chartType === "PIVOT_TABLE" ||
       (config.display.chartType === "NUMBER" && prepared.summaries.length !== 1)
     )
@@ -191,17 +229,7 @@ export function StudioQueryWidget({
     }
     return chart.confirmation ?? chart.visualization;
   })();
-  const headline = (() => {
-    if (!config.display.showHeadline) return undefined;
-    if (config.display.headlineMetricRef)
-      return prepared.summaries.find(
-        (row) =>
-          `${row.queryId}.${row.metricId}` === config.display.headlineMetricRef,
-      );
-    if (prepared.summaries.length === 1 && !prepared.hasIncompatibleUnits)
-      return prepared.summaries[0];
-    return undefined;
-  })();
+  const headline = config.display.showHeadline ? prepared.headline : undefined;
   const headlineUnit = headline
     ? prepared.visibleSeries.find(
         (series) =>
@@ -249,7 +277,8 @@ export function StudioQueryWidget({
     <div className="ph-no-capture flex h-full min-h-0 flex-col">
       <DataCard
         title={config.title}
-        description={config.description}
+        description={view === "chart" ? config.description : undefined}
+        descriptionBehavior="expandable"
         descriptor={
           scoreTargets.length ? (
             <>
@@ -269,14 +298,14 @@ export function StudioQueryWidget({
           ) : undefined
         }
         actions={actions}
-        controls={
-          config.display.activeQueryIds &&
+        controls={[
+          ...(config.display.activeQueryIds &&
           config.queries.filter((query) => !query.hidden).length > 1
             ? [
                 {
                   id: "series-view",
                   label: "View",
-                  type: "select",
+                  type: "select" as const,
                   noCapture: true,
                   value: selectedQuery,
                   options: [
@@ -298,7 +327,7 @@ export function StudioQueryWidget({
                       })),
                     { value: "all", label: "All series" },
                   ],
-                  onValueChange: (value) => {
+                  onValueChange: (value: string) => {
                     setSelectedQuery(value);
                     track("view_changed", {
                       target: "chart",
@@ -310,8 +339,109 @@ export function StudioQueryWidget({
                   },
                 },
               ]
-            : []
-        }
+            : []),
+          ...(onHiddenSeriesChange
+            ? [
+                {
+                  id: "displayed-series",
+                  label: "Displayed series",
+                  type: "multiselect" as const,
+                  noCapture: true,
+                  value: prepared.visibleSeries.map((series) => series.id),
+                  options: prepared.availableSeries.map((series) => ({
+                    value: series.id,
+                    label: series.label,
+                  })),
+                  placeholder: "No series displayed",
+                  searchPlaceholder: "Find a series",
+                  emptyMessage: "No executed series",
+                  selectAllLabel: "All series",
+                  onValueChange: (ids: string[]) => {
+                    const selected = new Set(ids);
+                    const available = new Set(
+                      prepared.availableSeries.map((series) => series.id),
+                    );
+                    const hidden = [
+                      ...new Set([
+                        ...(config.display.hiddenSeriesIds ?? []).filter(
+                          (id) => !available.has(id),
+                        ),
+                        ...prepared.availableSeries
+                          .filter((series) => !selected.has(series.id))
+                          .map((series) => series.id),
+                      ]),
+                    ];
+                    if (hidden.length > 1000) {
+                      setSelectionError(
+                        "A saved selection can hide up to 1,000 series. Narrow the breakdown first.",
+                      );
+                      return;
+                    }
+                    setSelectionError(undefined);
+                    onHiddenSeriesChange(hidden);
+                  },
+                },
+              ]
+            : []),
+          ...(audit
+            ? [
+                ...(result.data?.summaries.length
+                  ? [
+                      {
+                        id: "data-scope",
+                        label: "Data scope",
+                        type: "select" as const,
+                        noCapture: true,
+                        value: dataScope,
+                        options: [
+                          { value: "rows", label: "Query results" },
+                          {
+                            value: "summaries",
+                            label: "Full-period summaries",
+                          },
+                        ],
+                        onValueChange: (value: string) => {
+                          setDataView((current) => ({
+                            ...current,
+                            scope: value === "summaries" ? "summaries" : "rows",
+                            pageIndex: 0,
+                          }));
+                          track("view_changed", {
+                            target: "table",
+                            scope: "display",
+                            widgetKind: "query",
+                          });
+                        },
+                      },
+                    ]
+                  : []),
+                {
+                  id: "data-reference",
+                  label: "Reference",
+                  type: "select" as const,
+                  noCapture: true,
+                  value: audit.reference,
+                  options: audit.referenceOptions,
+                  onValueChange: (reference: string) => {
+                    setDataView((current) => ({
+                      ...current,
+                      reference,
+                      pageIndex: 0,
+                    }));
+                    track("view_changed", {
+                      target: "table",
+                      scope: "display",
+                      widgetKind: "query",
+                      selectedCount:
+                        reference === "all"
+                          ? audit.referenceOptions.length - 1
+                          : 1,
+                    });
+                  },
+                },
+              ]
+            : []),
+        ]}
         badge={badge}
         tabs={{
           value: view,
@@ -340,17 +470,99 @@ export function StudioQueryWidget({
         }}
         content={content}
         metric={
-          headline && config.display.chartType !== "NUMBER"
+          view === "chart" && headline && config.display.chartType !== "NUMBER"
             ? {
                 value: formatStudioValue(
                   headline.value,
                   prepared.hasIncompatibleUnits ? headlineUnit : prepared.unit,
                 ),
-                description: "Across the full time range",
+                description: config.display.headlineMetricRef
+                  ? `${headline.label} · Across the full time range`
+                  : "Across the full time range",
               }
             : undefined
         }
       />
+      {audit && audit.rowCount > 0 ? (
+        <PaginationBar
+          mode="offset"
+          totalCount={audit.rowCount}
+          state={{ pageIndex: audit.pageIndex, pageSize: audit.pageSize }}
+          pageSizeOptions={[25, 50, 100]}
+          onChange={(page) => {
+            setDataView((current) => ({ ...current, ...page }));
+            track("view_changed", {
+              target: "table",
+              scope: "display",
+              widgetKind: "query",
+              selectedCount: page.pageSize,
+            });
+          }}
+        />
+      ) : null}
+      {prepared.headlineSuppressed && view === "chart" ? (
+        <p
+          role="status"
+          className="text-muted-foreground shrink-0 border-x border-b px-3 py-2 text-xs"
+        >
+          The full-period headline is hidden because only part of its result is
+          displayed. Data still shows the full query summary.
+        </p>
+      ) : null}
+      {audit ? (
+        <details
+          className="ph-no-capture bg-muted text-muted-foreground relative shrink-0 border-x border-b text-xs"
+          onToggle={(event) => {
+            if (event.currentTarget.open)
+              track("query_inspected", {
+                target: "table",
+                widgetKind: "query",
+                scope: "display",
+              });
+          }}
+        >
+          <summary className="flex cursor-pointer items-center gap-3 px-3 py-1.5">
+            <span className="shrink-0">Data details</span>
+            {config.expressions.length === 1 ? (
+              <code
+                className="min-w-0 truncate"
+                title={`${config.expressions[0]!.id} = ${config.expressions[0]!.formula}`}
+              >
+                {config.expressions[0]!.id} = {config.expressions[0]!.formula}
+              </code>
+            ) : null}
+          </summary>
+          <div className="bg-background absolute right-0 bottom-full left-0 z-20 flex max-h-40 flex-col gap-2 overflow-auto rounded-t border p-3 shadow-lg">
+            {config.expressions.length ? (
+              <div aria-label="Formula definitions">
+                {config.expressions.map((expression) => (
+                  <p key={expression.id} className="font-mono break-all">
+                    {expression.id} = {expression.formula}
+                  </p>
+                ))}
+              </div>
+            ) : null}
+            <p>
+              {dataScope === "summaries"
+                ? "Full-period summaries cover all query results, including series hidden from the chart. "
+                : "Exact executed aggregates, including hidden inputs and any query top-N limit. "}
+              Missing count buckets use 0 in formulas; other missing inputs and
+              division by zero produce null.
+            </p>
+          </div>
+        </details>
+      ) : null}
+      {onHiddenSeriesChange && view === "chart" ? (
+        <p className="text-muted-foreground shrink-0 px-3 py-1 text-xs">
+          Displayed series is saved with this widget. Legend clicks are
+          temporary.
+        </p>
+      ) : null}
+      {selectionError ? (
+        <p role="alert" className="text-destructive shrink-0 px-3 py-1 text-xs">
+          {selectionError}
+        </p>
+      ) : null}
       {view === "chart" &&
       prepared.hasIncompatibleUnits &&
       config.display.chartType !== "PIVOT_TABLE" ? (

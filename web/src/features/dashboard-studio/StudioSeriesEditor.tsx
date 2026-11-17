@@ -13,11 +13,13 @@ import { getStudioSource, readableField, studioSourceOptions } from "./catalog";
 import { StudioFilterEditor } from "./StudioFilterEditor";
 
 function MetricEditor({
+  queryId,
   metric,
   source,
   onChange,
   onRemove,
 }: {
+  queryId: string;
   metric: StudioMetric;
   source: ReturnType<typeof getStudioSource>;
   onChange: (metric: StudioMetric) => void;
@@ -90,9 +92,15 @@ function MetricEditor({
       </div>
       <details className="text-xs">
         <summary className="text-muted-foreground cursor-pointer">
-          <span className="font-mono">{metric.id}</span> · options
+          Metric options
         </summary>
-        <div className="pt-2">
+        <div className="flex flex-col gap-2 pt-2">
+          <p className="text-muted-foreground text-xs">
+            Formula reference:{" "}
+            <code>
+              {queryId}.{metric.id}
+            </code>
+          </p>
           <Input
             aria-label="Metric label"
             placeholder="Optional metric label"
@@ -229,17 +237,17 @@ export function StudioSeriesEditor({
         </span>
         <div className="min-w-0 flex-1">
           <Input
-            aria-label={`Series ${query.id} name`}
+            aria-label={`Query ${query.id} name`}
             value={query.label}
             onChange={(event) =>
               onChange({ ...query, label: event.target.value })
             }
-            placeholder="Series name"
+            placeholder="Query name"
           />
         </div>
         <div className="col-span-full row-start-2 min-w-0 sm:col-span-1 sm:row-start-auto">
           <SelectInput
-            aria-label={`Series ${query.id} source`}
+            aria-label={`Query ${query.id} source`}
             placeholder="Choose data"
             value={query.view}
             options={[...studioSourceOptions]}
@@ -262,7 +270,7 @@ export function StudioSeriesEditor({
         </div>
         {onRemove ? (
           <IconButton
-            label="Remove series"
+            label="Remove query"
             icon={TrashIcon}
             size="sm"
             onClick={onRemove}
@@ -275,7 +283,7 @@ export function StudioSeriesEditor({
             <label className="flex flex-col gap-1.5 text-xs font-bold">
               Score target
               <SelectInput
-                aria-label={`Series ${query.id} score target`}
+                aria-label={`Query ${query.id} score target`}
                 value={query.scoreTarget ?? "all"}
                 placeholder="All score targets"
                 options={[
@@ -296,6 +304,7 @@ export function StudioSeriesEditor({
             {query.metrics.map((metric, index) => (
               <MetricEditor
                 key={metric.id}
+                queryId={query.id}
                 metric={metric}
                 source={source}
                 onChange={(next) =>
@@ -394,27 +403,39 @@ export function StudioSeriesEditor({
             </div>
           ))}
           {query.dimensions.length < 3 ? (
-            <Button
-              text="Add breakdown"
-              icon={PlusIcon}
-              variant="ghost"
-              size="sm"
-              onClick={() =>
+            <SelectInput
+              noCapture
+              aria-label="Add breakdown"
+              placeholder="Add breakdown"
+              value=""
+              options={[
+                ...Object.entries(source.dimensions)
+                  .filter(
+                    ([field, definition]) =>
+                      !definition.uiHidden &&
+                      !query.dimensions.some(
+                        (dimension) => dimension.field === field,
+                      ),
+                  )
+                  .map(([value]) => ({ value, label: readableField(value) })),
+                ...((query.view === "observations" ||
+                  query.view === "traces") &&
+                !source.dimensions.metadata
+                  ? [
+                      {
+                        value: "__metadata",
+                        label: "Metadata key",
+                        disabled: true as const,
+                        disabledReason:
+                          "Grouping by a metadata key is not available yet. Use query filters to compare keys.",
+                      },
+                    ]
+                  : []),
+              ]}
+              onValueChange={(field) =>
                 onChange({
                   ...query,
-                  dimensions: [
-                    ...query.dimensions,
-                    {
-                      field:
-                        Object.keys(source.dimensions).find(
-                          (field) =>
-                            !source.dimensions[field]?.uiHidden &&
-                            !query.dimensions.some(
-                              (item) => item.field === field,
-                            ),
-                        ) ?? "name",
-                    },
-                  ],
+                  dimensions: [...query.dimensions, { field }],
                 })
               }
             />
@@ -501,7 +522,7 @@ export function StudioSeriesEditor({
               onChange({ ...query, hidden: hidden === true })
             }
           />
-          Use only in formulas
+          Hide from chart
         </label>
       </div>
     </section>

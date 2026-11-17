@@ -31,6 +31,7 @@ type MultiSelectTagInputProps<V> = {
   selectAllLabel?: string;
   disabled?: boolean;
   error?: boolean;
+  noCapture?: boolean;
   id?: string;
   "aria-label"?: string;
   "aria-describedby"?: string;
@@ -47,6 +48,7 @@ export function MultiSelectTagInput<V extends string>({
   selectAllLabel,
   disabled,
   error,
+  noCapture,
   id,
   "aria-label": ariaLabel,
   "aria-describedby": ariaDescribedBy,
@@ -173,7 +175,10 @@ export function MultiSelectTagInput<V extends string>({
         <PopoverPrimitive.Trigger asChild>
           <div
             id={id}
-            className="cursor-pointer aria-disabled:cursor-not-allowed"
+            className={cn(
+              "cursor-pointer aria-disabled:cursor-not-allowed",
+              noCapture && "ph-no-capture",
+            )}
             role="combobox"
             aria-label={ariaLabel}
             aria-controls={listId}
@@ -292,6 +297,7 @@ export function MultiSelectTagInput<V extends string>({
       <PopoverPrimitive.Portal container={container}>
         <InputDropdown.Content width="popover-trigger">
           <PopoverPrimitive.Content
+            className={noCapture ? "ph-no-capture" : undefined}
             align="start"
             sideOffset={4}
             onCloseAutoFocus={(event) => {

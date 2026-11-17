@@ -37,6 +37,14 @@ describe("dashboard studio execution errors", () => {
       expressions: [],
       display: { chartType: "NUMBER" },
     });
+    config.queries[0]!.filters = [
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["local-private-environment"],
+      },
+    ];
     const input = {
       projectId: "studio-error-test",
       config,
@@ -44,10 +52,23 @@ describe("dashboard studio execution errors", () => {
       toTimestamp: "2026-10-02T00:00:00Z",
       version: "v2" as const,
       granularity: "auto" as const,
-      filters: [],
+      filters: [
+        {
+          column: "environment",
+          type: "stringOptions" as const,
+          operator: "any of" as const,
+          value: ["global-private-environment"],
+        },
+      ],
     };
     const result = await executeStudioWidget(input);
     expect(result.status).toBe("partial");
+    expect(
+      result.warnings.some((warning) =>
+        warning.includes("environment filter overrides"),
+      ),
+    ).toBe(true);
+    expect(result.warnings.join(" ")).not.toContain("private-environment");
     expect(result.rows.map((row) => row.value)).toEqual([7]);
     expect(result.diagnostics[0].error).toBe("Query failed. Please try again.");
     expect(JSON.stringify(result)).not.toContain(internalMessage);
