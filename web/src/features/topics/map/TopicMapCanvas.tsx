@@ -231,6 +231,7 @@ function drawMap(
         rgbOf(lookDotColor(look, node.point.color)),
         ring,
         node.matchesFilters ? 1 : 0.08 + active * 0.92,
+        camera.zoom,
       );
       if (active > 0.001) {
         context.globalAlpha = active * 0.7;

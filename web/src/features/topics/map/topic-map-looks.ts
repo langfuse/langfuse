@@ -257,17 +257,20 @@ export function drawLookDot(
   rgb: Rgb,
   background: Rgb,
   opacity: number,
+  zoom: number,
 ) {
   const { dot } = TOPIC_MAP_LOOKS[name];
+  // Dots grow gently as you zoom in: 6px at the fit, about 10px at 300%.
+  const radius = (dot.size * Math.sqrt(Math.max(1, zoom))) / 2;
   const [r, g, b] = rgb.map((value) => Math.round(value * dot.shade));
   context.globalAlpha = opacity * dot.ringAlpha;
   context.beginPath();
-  context.arc(center.x, center.y, dot.size / 2 + dot.ring, 0, 2 * Math.PI);
+  context.arc(center.x, center.y, radius + dot.ring, 0, 2 * Math.PI);
   context.fillStyle = `rgb(${background.join(", ")})`;
   context.fill();
   context.globalAlpha = opacity;
   context.beginPath();
-  context.arc(center.x, center.y, dot.size / 2, 0, 2 * Math.PI);
+  context.arc(center.x, center.y, radius, 0, 2 * Math.PI);
   context.fillStyle = `rgb(${r}, ${g}, ${b})`;
   context.fill();
 }
